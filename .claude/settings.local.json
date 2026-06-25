@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:en.wikipedia.org)",
+      "WebFetch(domain:www.summitpost.org)",
+      "WebFetch(domain:www.peakbagger.com)",
+      "WebFetch(domain:en.m.wikipedia.org)",
+      "WebFetch(domain:web.archive.org)",
+      "Bash(docker compose *)"
+    ]
+  }
+}

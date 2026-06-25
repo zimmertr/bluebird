@@ -1,0 +1,8 @@
+services:
+  bluebird:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - LOG_LEVEL=TRACE
+    restart: unless-stopped
