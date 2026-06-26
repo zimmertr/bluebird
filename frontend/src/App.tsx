@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import MapView, { MapViewHandle } from './components/MapView'
 import ControlPanel from './components/ControlPanel'
 import ResultsTable from './components/ResultsTable'
+import WelcomeModal from './components/WelcomeModal'
 import { useAnalyze } from './hooks/useAnalyze'
 import { GeoPolygon, DestinationType, CustomDestination, SortBy } from './types'
 import { METRIC_CONFIG, MARKER_COLORS } from './utils/colors'
@@ -54,6 +55,12 @@ export default function App() {
   const [showResults, setShowResults] = useState(false)
   const [tableHeight, setTableHeight] = useState(280)
   const [isDragging, setIsDragging] = useState(false)
+  const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('bluebird_welcomed'))
+
+  function dismissWelcome() {
+    localStorage.setItem('bluebird_welcomed', '1')
+    setShowWelcome(false)
+  }
   const dragState = useRef<{ startY: number; startH: number } | null>(null)
 
   function handleDragStart(e: React.MouseEvent) {
@@ -145,6 +152,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-900">
+      {showWelcome && <WelcomeModal onDismiss={dismissWelcome} />}
       {isDragging && <div className="fixed inset-0 z-50 cursor-ns-resize" />}
       {/* Sidebar */}
       <aside className="w-80 flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r border-slate-700 z-10">
