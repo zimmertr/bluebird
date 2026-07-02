@@ -8,5 +8,5 @@ docker-compose.yml
 GitVersion.yml
 frontend/node_modules/
 frontend/dist/
-backend/__pycache__/
-backend/*.pyc
+__pycache__/
+*.pyc

@@ -7,6 +7,10 @@ on:
   # Allow manual triggering from the Actions tab for testing without a real merge
   workflow_dispatch:
 
+# Least-privilege default; jobs that write to the repo override this at the job level
+permissions:
+  contents: read
+
 jobs:
   # Calculate the next SemVer using GitVersion (conventional commits drive the increment)
   # and bail out early if the Docker Hub image tag already exists (immutability guard)
