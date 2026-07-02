@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  # Allow manual triggering from the Actions tab for testing without a real merge
+  workflow_dispatch:
+
+# Least-privilege default; jobs that write to the repo override this at the job level
+permissions:
+  contents: read
+
+jobs:
+  # Calculate the next SemVer using GitVersion (conventional commits drive the increment)
+  # and bail out early if the Docker Hub image tag already exists (immutability guard)
+  determine-version:
+    name: Determine Version
+    runs-on: ubuntu-latest
+    outputs:
+      semVer: ${{ steps.gitversion.outputs.semVer }}
+      tagExists: ${{ steps.tag-check.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # GitVersion needs the full history to calculate the version
+      - uses: gittools/actions/gitversion/setup@v3
+        with:
+          versionSpec: '6.x'
+      - id: gitversion
+        uses: gittools/actions/gitversion/execute@v3
+      - name: Check if image tag already exists on Docker Hub
+        id: tag-check
+        run: |
+          if docker manifest inspect zimmertr/bluebird:${{ steps.gitversion.outputs.semVer }} >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Image tag ${{ steps.gitversion.outputs.semVer }} already exists — skipping release"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+  # Build the Docker image and push it to Docker Hub, then tag the commit in git
+  # Skipped if the image tag already exists (prevents overwriting immutable tags)
+  build-and-push:
+    name: Build & Push
+    runs-on: ubuntu-latest
+    needs: determine-version
+    if: needs.determine-version.outputs.tagExists == 'false'
+    permissions:
+      contents: write  # Required to push the git tag
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: zimmertr/bluebird:${{ needs.determine-version.outputs.semVer }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Tag Release Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ needs.determine-version.outputs.semVer }}" -m "Release v${{ needs.determine-version.outputs.semVer }}"
+          git push origin "v${{ needs.determine-version.outputs.semVer }}"
+
+  # Create a GitHub Release with auto-generated release notes from merged PR titles
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [determine-version, build-and-push]
+    if: needs.determine-version.outputs.tagExists == 'false'
+    permissions:
+      contents: write
+    steps:
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.determine-version.outputs.semVer }}
+          name: v${{ needs.determine-version.outputs.semVer }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Update the image tag in Kubernetes-Manifests so Argo CD rolls out the new version
+  # GH_PAT must have contents: write on zimmertr/Kubernetes-Manifests
+  update-manifests:
+    name: Update Kubernetes Manifests
+    runs-on: ubuntu-latest
+    needs: [determine-version, create-release]
+    if: needs.determine-version.outputs.tagExists == 'false'
+    steps:
+      - uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: '5.4.3'
+
+      - name: Update kustomization image tag
+        env:
+          SEMVER: ${{ needs.determine-version.outputs.semVer }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          git clone "https://x-access-token:${GH_PAT}@github.com/zimmertr/Kubernetes-Manifests.git" k8s-manifests
+          cd k8s-manifests/public/bluebird
+          kustomize edit set image zimmertr/bluebird=zimmertr/bluebird:${SEMVER}
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add kustomization.yml
+          git diff --cached --quiet || git commit -m "chore: bump bluebird image to ${SEMVER}"
+          git push
