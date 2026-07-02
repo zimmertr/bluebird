@@ -8,14 +8,17 @@ on:
     branches:
       - main
 
+# Cancel redundant runs when new commits are pushed to the same branch
 concurrency:
   group: pr-${{ github.ref }}
   cancel-in-progress: true
 
+# Least-privilege — none of these jobs write to the repo
 permissions:
   contents: read
 
 jobs:
+  # Catch TypeScript type errors before they reach main
   typecheck:
     name: TypeScript Type Check
     runs-on: ubuntu-latest
@@ -31,6 +34,7 @@ jobs:
       - run: npx tsc --noEmit
         working-directory: frontend
 
+  # Catch Python style and logic issues
   lint:
     name: Python Lint
     runs-on: ubuntu-latest
@@ -42,6 +46,7 @@ jobs:
       - run: pip install ruff
       - run: ruff check backend/
 
+  # Validate the Dockerfile builds end-to-end without pushing the image
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
