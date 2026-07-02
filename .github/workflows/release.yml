@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   determine-version:
@@ -71,16 +72,18 @@ jobs:
     runs-on: ubuntu-latest
     needs: [determine-version, create-release]
     steps:
+      - uses: imranismail/setup-kustomize@v2
+
       - name: Update kustomization image tag
         env:
           SEMVER: ${{ needs.determine-version.outputs.semVer }}
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           git clone "https://x-access-token:${GH_PAT}@github.com/zimmertr/Kubernetes-Manifests.git" k8s-manifests
-          cd k8s-manifests
-          sed -i "s/newTag: .*/newTag: ${SEMVER}/" public/bluebird/kustomization.yml
+          cd k8s-manifests/public/bluebird
+          kustomize edit set image zimmertr/bluebird=zimmertr/bluebird:${SEMVER}
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add public/bluebird/kustomization.yml
+          git add kustomization.yml
           git diff --cached --quiet || git commit -m "chore: bump bluebird image to ${SEMVER}"
           git push
