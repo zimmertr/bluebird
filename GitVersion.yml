@@ -2,5 +2,4 @@ mode: Mainline
 tag-prefix: 'v'
 major-version-bump-message: '^(feat!|BREAKING CHANGE:)'
 minor-version-bump-message: '^feat(\(.+\))?:'
-patch-version-bump-message: '^(fix|perf|refactor)(\(.+\))?:'
-no-bump-message: '^(chore|docs|style|test|ci)(\(.+\))?:'
+patch-version-bump-message: '^(fix|perf|refactor|chore|docs|style|test|ci)(\(.+\))?:'
