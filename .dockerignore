@@ -1,0 +1,12 @@
+.git/
+.github/
+.claude/
+.gitignore
+.dockerignore
+*.md
+docker-compose.yml
+GitVersion.yml
+frontend/node_modules/
+frontend/dist/
+backend/__pycache__/
+backend/*.pyc

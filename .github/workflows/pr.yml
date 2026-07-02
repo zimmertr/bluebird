@@ -8,6 +8,13 @@ on:
     branches:
       - main
 
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   typecheck:
     name: TypeScript Type Check
