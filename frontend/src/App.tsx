@@ -3,7 +3,9 @@ import MapView, { MapViewHandle } from './components/MapView'
 import ControlPanel from './components/ControlPanel'
 import ResultsTable from './components/ResultsTable'
 import WelcomeModal from './components/WelcomeModal'
+import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
+import { usePreview } from './hooks/usePreview'
 import { GeoPolygon, DestinationType, CustomDestination, SortBy } from './types'
 import { METRIC_CONFIG, MARKER_COLORS } from './utils/colors'
 
@@ -87,6 +89,7 @@ export default function App() {
   }
 
   const { analyze, loading, error, response, statusMessage } = useAnalyze()
+  const preview = usePreview()
 
   const handleDrawUpdate = useCallback((count: number, areaKm2: number | null) => {
     setDrawPointCount(count)
@@ -151,7 +154,9 @@ export default function App() {
   const hasResults = showResults && results.length > 0
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-900">
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-900">
+      {preview.enabled && <PreviewBanner pr={preview.pr} commit={preview.commit} />}
+      <div className="flex flex-1 overflow-hidden min-h-0">
       {showWelcome && <WelcomeModal onDismiss={dismissWelcome} />}
       {isDragging && <div className="fixed inset-0 z-50 cursor-ns-resize" />}
       {/* Sidebar */}
@@ -266,6 +271,7 @@ export default function App() {
             No destinations found. Try a larger polygon or different time window.
           </div>
         )}
+      </div>
       </div>
     </div>
   )
