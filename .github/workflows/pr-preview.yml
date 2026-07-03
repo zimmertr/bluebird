@@ -1,0 +1,74 @@
+name: PR Preview Image
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# One build per PR; newer commits supersede in-flight builds.
+concurrency:
+  group: pr-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  preview:
+    name: Build & push preview image
+    runs-on: ubuntu-latest
+    # Same-repo PRs only. Fork PRs run with a read-only token and no secrets, so
+    # they cannot be labeled or built — and the `preview` label (which the Argo CD
+    # pull request generator filters on) requires repo write access to apply.
+    # Together that keeps strangers from spinning up environments in the cluster.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    env:
+      IMAGE: zimmertr/bluebird-pr
+      # Must match the Argo CD generator: pr-{{ .number }}-{{ .head_sha }}
+      TAG: pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+    steps:
+      # Check out the PR head (not the default merge commit) so the image content
+      # matches the SHA embedded in the tag.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Ensure `preview` label (drives the Argo CD pull request generator)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create preview --repo "$GITHUB_REPOSITORY" \
+            --color 1D76DB --description "Deploy a PR preview environment" 2>/dev/null || true
+          gh pr edit "${{ github.event.pull_request.number }}" --repo "$GITHUB_REPOSITORY" --add-label preview
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}:${{ env.TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Comment preview URL (sticky — rewrites on each push)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          BODY=$(printf '%s\n' \
+            "<!-- bluebird-preview -->" \
+            "### 🐦 Bluebird preview environment" \
+            "" \
+            "Once Argo CD syncs, this code will be reachable at" \
+            "**http://pr-${PR}.ganymede.sol.milkyway** via \`${IMAGE}:${TAG}\`." \
+            "" \
+            "_Updated for each push; torn down when the PR closes._")
+          # Sticky: edit this bot's existing comment (bumping to the current commit's
+          # tag) or create it on the first push.
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" \
+            --edit-last --create-if-none --body "$BODY"
