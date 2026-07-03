@@ -58,16 +58,20 @@ jobs:
       - name: Comment preview URL (once)
         env:
           GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
           MARKER="<!-- bluebird-preview -->"
-          if ! gh pr view "${{ github.event.pull_request.number }}" --repo "$GITHUB_REPOSITORY" \
-               --json comments -q '.comments[].body' | grep -q "$MARKER"; then
-            gh pr comment "${{ github.event.pull_request.number }}" --repo "$GITHUB_REPOSITORY" --body "$MARKER
-### 🪟 Bluebird preview environment
-
-Once Argo CD syncs, this PR will be reachable **on the LAN** at:
-
-**http://pr-${{ github.event.pull_request.number }}.ganymede.sol.milkyway**
-
-Image: \`${{ env.IMAGE }}:${{ env.TAG }}\` · updates on each push · torn down when the PR closes."
+          if gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json comments -q '.comments[].body' | grep -q "$MARKER"; then
+            echo "Preview comment already present."
+            exit 0
           fi
+          BODY=$(printf '%s\n' \
+            "$MARKER" \
+            "### 🪟 Bluebird preview environment" \
+            "" \
+            "Once Argo CD syncs, this PR will be reachable **on the LAN** at:" \
+            "" \
+            "**http://pr-${PR}.ganymede.sol.milkyway**" \
+            "" \
+            "Image: \`${IMAGE}:${TAG}\` · updates on each push · torn down when the PR closes.")
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body "$BODY"
