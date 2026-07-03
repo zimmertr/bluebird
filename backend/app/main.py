@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.routes.analyze import router
+from app.routes.config import router as config_router
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
 
@@ -51,6 +52,7 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api")
+app.include_router(config_router, prefix="/api")
 
 static_dir = Path(__file__).parent.parent / "static"
 if static_dir.exists():
