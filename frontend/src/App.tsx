@@ -93,7 +93,7 @@ export default function App() {
     document.addEventListener('mouseup', onUp)
   }
 
-  const { analyze, loading, error, response, statusMessage } = useAnalyze()
+  const { analyze, cancel, retry, loading, error, response, statusMessage, progress } = useAnalyze()
   const preview = usePreview()
 
   const handleDrawUpdate = useCallback((count: number, areaKm2: number | null) => {
@@ -236,6 +236,7 @@ export default function App() {
             setSidebarOpen(false)
             handleAnalyze()
           }}
+          onRetry={retry}
           resultCount={response?.results.length}
           totalQueried={response?.total_queried}
         />
@@ -246,7 +247,7 @@ export default function App() {
         <div className="flex-1 relative">
           {loading && (
             <div className="absolute inset-0 bg-slate-900/60 z-20 flex items-center justify-center">
-              <div className="bg-slate-800 border border-slate-600 rounded-lg px-6 py-5 text-center shadow-xl max-w-[260px]">
+              <div className="bg-slate-800 border border-slate-600 rounded-lg px-6 py-5 text-center shadow-xl w-[280px]">
                 <img
                   src="/icon.png"
                   alt=""
@@ -255,6 +256,26 @@ export default function App() {
                 <p className="text-white font-semibold text-sm leading-snug">
                   {statusMessage ?? 'Starting…'}
                 </p>
+                {progress && (
+                  <div className="mt-3">
+                    <div className="h-2 w-full rounded-full bg-slate-700 overflow-hidden">
+                      <div
+                        className="h-full bg-sky-500 transition-all duration-300 ease-out"
+                        style={{ width: `${progress.percent}%` }}
+                      />
+                    </div>
+                    <p className="mt-1.5 text-xs text-slate-400 font-mono">
+                      {progress.processed} of {progress.total} destinations · {progress.percent}%
+                    </p>
+                  </div>
+                )}
+                <button
+                  onClick={cancel}
+                  className="mt-4 text-xs font-medium text-slate-400 hover:text-white
+                    border border-slate-600 hover:border-slate-400 rounded px-3 py-1.5 transition-colors"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           )}

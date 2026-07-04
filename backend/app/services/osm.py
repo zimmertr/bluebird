@@ -6,8 +6,11 @@ from typing import Any, Dict, List
 import httpx
 
 from app.models import DestinationType, GeoPolygon
+from app.services.errors import UpstreamError, classify_http_error
 
 log = logging.getLogger(__name__)
+
+PROVIDER = "OpenStreetMap (Overpass)"
 
 OVERPASS_ENDPOINTS = [
     "https://overpass-api.de/api/interpreter",
