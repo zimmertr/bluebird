@@ -133,4 +133,5 @@ async def _post_with_fallback(query: str) -> Dict[str, Any]:
             except Exception as exc:
                 log.warning("Overpass endpoint %s failed: %s", url, exc)
                 last_exc = exc
-    raise last_exc
+    # Every mirror failed — surface the last failure as an actionable message.
+    raise UpstreamError(classify_http_error(last_exc, PROVIDER)) from last_exc
