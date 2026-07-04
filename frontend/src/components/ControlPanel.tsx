@@ -13,7 +13,6 @@ const DESTINATION_TYPES: { value: DestinationType; label: string; implemented: b
   { value: 'peak', label: 'Peaks', implemented: true },
   { value: 'trailhead', label: 'Trailheads', implemented: false },
   { value: 'lake', label: 'Lakes', implemented: false },
-  { value: 'campground', label: 'Campgrounds', implemented: false },
   { value: 'custom', label: 'Custom (CSV)', implemented: true },
 ]
 

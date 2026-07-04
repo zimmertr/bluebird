@@ -14,7 +14,6 @@ _NOUNS = {
     DestinationType.peak: "peak",
     DestinationType.trailhead: "trailhead",
     DestinationType.lake: "lake",
-    DestinationType.campground: "campground",
     DestinationType.custom: "destination",
 }
 

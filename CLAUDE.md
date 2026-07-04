@@ -48,7 +48,7 @@ Single container, multi-stage Docker build:
 
 The FastAPI backend handles `POST /api/analyze`, which:
 1. Validates polygon area (bounding-box approximation, max 50,000 km²)
-2. Queries Overpass API for OSM features (peaks only implemented; queries for trailheads/lakes/campgrounds exist in `osm.py` but are gated by `_IMPLEMENTED`)
+2. Queries Overpass API for OSM features (peaks only implemented; queries for trailheads/lakes exist in `osm.py` but are gated by `_IMPLEMENTED`)
 3. Fetches hourly weather from Open-Meteo in batches of 50, run concurrently via `asyncio.gather`
 4. Sorts and returns results
 
@@ -88,5 +88,5 @@ Manifests live in a separate repo (`zimmertr/Kubernetes-Manifests`) under `publi
 ## Adding a new destination type
 
 1. Add the type to `DestinationType` enum in `backend/app/models.py`
-2. The Overpass QL query already exists in `backend/app/services/osm.py` for trailheads, lakes, and campgrounds — add the type to `_IMPLEMENTED`
+2. The Overpass QL query already exists in `backend/app/services/osm.py` for trailheads and lakes — add the type to `_IMPLEMENTED`
 3. Add the corresponding option in the frontend `ControlPanel.tsx`

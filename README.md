@@ -93,7 +93,6 @@ Click **Draw Polygon** in the sidebar. Your cursor becomes a crosshair. Click on
 | Peaks | `natural=peak` (named nodes) | ✅ Implemented |
 | Trailheads | `highway=trailhead` | 🔜 Coming soon |
 | Lakes | `natural=water` + `water=lake` | 🔜 Coming soon |
-| Campgrounds | `tourism=camp_site` | 🔜 Coming soon |
 | Custom (CSV) | User-supplied coordinates | ✅ Implemented |
 
 **Custom CSV format:**
@@ -412,7 +411,7 @@ Open-Meteo forecast data covers up to 16 days ahead. Historical data beyond that
 
 ## Roadmap
 
-- [ ] **Additional destination types** — Trailheads, Lakes, Campgrounds (OSM queries are written; just needs enabling)
+- [ ] **Additional destination types** — Trailheads, Lakes (OSM queries are written; just needs enabling)
 - [ ] **Air quality (PM2.5)** — Open-Meteo Air Quality API, useful during wildfire smoke season
 - [ ] **Historical analysis** — Switch to Open-Meteo archive endpoint for past dates
 - [ ] **Saved searches** — LocalStorage persistence for polygons and settings
