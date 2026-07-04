@@ -233,7 +233,9 @@ export default function App() {
           loading={loading}
           error={error}
           onAnalyze={() => {
-            setSidebarOpen(false)
+            // On mobile the controls are an off-canvas drawer — close it so the
+            // user sees the map/results. On desktop the panel is docked; leave it.
+            if (!isDesktop) setSidebarOpen(false)
             handleAnalyze()
           }}
           onRetry={retry}
