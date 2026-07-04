@@ -19,3 +19,19 @@ body,
 .maplibregl-map {
   font-family: inherit;
 }
+
+/* Indeterminate progress bar — used while a phase has no countable progress
+   (e.g. the single opaque Overpass search request). A segment slides across
+   to signal ongoing activity without implying a known completion percentage. */
+@keyframes indeterminate-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.animate-indeterminate {
+  animation: indeterminate-slide 1.2s ease-in-out infinite;
+}

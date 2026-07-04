@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import MapView, { MapViewHandle } from './components/MapView'
 import ControlPanel from './components/ControlPanel'
 import ResultsTable from './components/ResultsTable'
@@ -95,6 +95,19 @@ export default function App() {
 
   const { analyze, cancel, retry, loading, error, response, statusMessage, progress } = useAnalyze()
   const preview = usePreview()
+
+  // Elapsed-time counter for phases with no countable progress (the OSM search).
+  // Runs while loading but before the weather phase reports batch progress.
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    if (!loading) {
+      setElapsed(0)
+      return
+    }
+    const start = Date.now()
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 250)
+    return () => clearInterval(id)
+  }, [loading])
 
   const handleDrawUpdate = useCallback((count: number, areaKm2: number | null) => {
     setDrawPointCount(count)
@@ -258,7 +271,8 @@ export default function App() {
                 <p className="text-white font-semibold text-sm leading-snug">
                   {statusMessage ?? 'Starting…'}
                 </p>
-                {progress && (
+                {progress ? (
+                  // Weather phase — countable batch progress.
                   <div className="mt-3">
                     <div className="h-2 w-full rounded-full bg-slate-700 overflow-hidden">
                       <div
@@ -268,6 +282,16 @@ export default function App() {
                     </div>
                     <p className="mt-1.5 text-xs text-slate-400 font-mono">
                       {progress.processed} of {progress.total} destinations · {progress.percent}%
+                    </p>
+                  </div>
+                ) : (
+                  // Search phase — no countable progress; show activity + elapsed.
+                  <div className="mt-3">
+                    <div className="h-2 w-full rounded-full bg-slate-700 overflow-hidden">
+                      <div className="h-full w-1/3 rounded-full bg-sky-500 animate-indeterminate" />
+                    </div>
+                    <p className="mt-1.5 text-xs text-slate-400 font-mono">
+                      Elapsed {elapsed}s
                     </p>
                   </div>
                 )}
