@@ -59,8 +59,9 @@ export default function App() {
   const [tableHeight, setTableHeight] = useState(280)
   const [isDragging, setIsDragging] = useState(false)
   const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('bluebird_welcomed'))
-  // On phones the sidebar is an off-canvas drawer; on desktop it's always docked.
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  // The controls panel is docked on desktop and an off-canvas drawer on phones.
+  // It starts open on both; a close button collapses it to widen the map.
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const isDesktop = useIsDesktop()
 
   function dismissWelcome() {
@@ -164,19 +165,21 @@ export default function App() {
       {showWelcome && <WelcomeModal onDismiss={dismissWelcome} />}
       {isDragging && <div className="fixed inset-0 z-50 cursor-ns-resize" />}
 
-      {/* Mobile: floating button to open the controls drawer (hidden on desktop) */}
-      <button
-        onClick={() => setSidebarOpen(true)}
-        aria-label="Open controls"
-        className="lg:hidden absolute top-3 left-3 z-30 flex items-center gap-2 rounded-lg bg-slate-800/95 border border-slate-600 px-3 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-sm active:bg-slate-700"
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <line x1="3" y1="6" x2="21" y2="6" />
-          <line x1="3" y1="12" x2="21" y2="12" />
-          <line x1="3" y1="18" x2="21" y2="18" />
-        </svg>
-        Controls
-      </button>
+      {/* Floating button to reopen the controls panel once it's been closed */}
+      {!sidebarOpen && (
+        <button
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Open controls"
+          className="absolute top-3 left-3 z-30 flex items-center gap-2 rounded-lg bg-slate-800/95 border border-slate-600 px-3 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-sm active:bg-slate-700"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+          Controls
+        </button>
+      )}
 
       {/* Mobile: dim backdrop behind the open drawer */}
       {sidebarOpen && (
@@ -186,17 +189,21 @@ export default function App() {
         />
       )}
 
-      {/* Sidebar — off-canvas drawer on mobile, docked on desktop */}
+      {/* Controls panel — docked on desktop when open, off-canvas otherwise.
+          When closed it stays absolute + translated off-screen so it leaves the
+          layout and the map fills the full width on every breakpoint. */}
       <aside
-        className={`absolute inset-y-0 left-0 z-40 w-[85vw] max-w-xs transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r border-slate-700 lg:static lg:z-10 lg:w-80 lg:max-w-none lg:translate-x-0 lg:transition-none ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`absolute inset-y-0 left-0 z-40 w-[85vw] max-w-xs transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r border-slate-700 ${
+          sidebarOpen
+            ? 'translate-x-0 lg:static lg:z-10 lg:w-80 lg:max-w-none lg:transition-none'
+            : '-translate-x-full'
         }`}
       >
-        {/* Mobile-only close button */}
+        {/* Close button — collapses the panel on both mobile and desktop */}
         <button
           onClick={() => setSidebarOpen(false)}
           aria-label="Close controls"
-          className="lg:hidden absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-slate-700/80 text-slate-200 text-xl leading-none active:bg-slate-600"
+          className="absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-slate-700/80 text-slate-200 text-xl leading-none hover:bg-slate-600 active:bg-slate-600"
         >
           ×
         </button>

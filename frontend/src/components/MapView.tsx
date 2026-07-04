@@ -339,15 +339,27 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
           const canvas = map.getCanvas()
 
-          function onMove(me: MouseEvent) {
+          function moveTo(clientX: number, clientY: number) {
             const i = draggingVertexRef.current
             if (i === null) return
             const rect = canvas.getBoundingClientRect()
-            const lngLat = map.unproject([me.clientX - rect.left, me.clientY - rect.top])
+            const lngLat = map.unproject([clientX - rect.left, clientY - rect.top])
             ptsRef.current = ptsRef.current.map((p, j) =>
               j === i ? ([lngLat.lng, lngLat.lat] as [number, number]) : p,
             )
             setSource(map, 'draw', makeDrawData(ptsRef.current))
+          }
+
+          function onMouseMove(me: MouseEvent) {
+            moveTo(me.clientX, me.clientY)
+          }
+
+          // Touch drag: track the single active finger and preventDefault so the
+          // browser doesn't scroll/zoom the page while dragging the vertex.
+          function onTouchMove(te: TouchEvent) {
+            if (te.touches.length !== 1) return
+            te.preventDefault()
+            moveTo(te.touches[0].clientX, te.touches[0].clientY)
           }
 
           function onUp() {
@@ -355,18 +367,31 @@ const MapView = forwardRef<MapViewHandle, Props>(
             map.dragPan.enable()
             map.getCanvas().style.cursor = drawModeRef.current ? 'crosshair' : ''
             onDrawUpdate(ptsRef.current.length, bboxAreaKm2(ptsRef.current))
-            document.removeEventListener('mousemove', onMove)
+            document.removeEventListener('mousemove', onMouseMove)
             document.removeEventListener('mouseup', onUp)
+            document.removeEventListener('touchmove', onTouchMove)
+            document.removeEventListener('touchend', onUp)
+            document.removeEventListener('touchcancel', onUp)
           }
 
-          document.addEventListener('mousemove', onMove)
+          document.addEventListener('mousemove', onMouseMove)
           document.addEventListener('mouseup', onUp)
+          document.addEventListener('touchmove', onTouchMove, { passive: false })
+          document.addEventListener('touchend', onUp)
+          document.addEventListener('touchcancel', onUp)
         }
 
-        // ── Vertex: mousedown starts drag ──────────────────────────────
+        // ── Vertex: mousedown / touchstart starts drag ─────────────────
+        // MapLibre doesn't synthesize mouse events from touches, so touch needs
+        // its own handler. preventDefault stops the map's pan handler starting.
         map.on('mousedown', 'draw-vertices', (e) => {
           if (!drawModeRef.current) return
           e.preventDefault() // prevents MapLibre's DragPanHandler from starting
+          startVertexDrag(Number(e.features?.[0]?.properties?.index))
+        })
+        map.on('touchstart', 'draw-vertices', (e) => {
+          if (!drawModeRef.current) return
+          e.preventDefault()
           startVertexDrag(Number(e.features?.[0]?.properties?.index))
         })
 
@@ -408,9 +433,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
             map.getCanvas().style.cursor = drawModeRef.current ? 'crosshair' : ''
         })
 
-        // ── Midpoint: mousedown inserts vertex then drags it ───────────
-        map.on('mousedown', 'draw-midpoints', (e) => {
-          if (!drawModeRef.current) return
+        // ── Midpoint: mousedown / touchstart inserts vertex then drags ─
+        function startMidpointDrag(e: maplibregl.MapLayerMouseEvent | maplibregl.MapLayerTouchEvent) {
           e.preventDefault()
           const segIdx = Number(e.features?.[0]?.properties?.segment)
           const newPt: [number, number] = [e.lngLat.lng, e.lngLat.lat]
@@ -422,6 +446,14 @@ const MapView = forwardRef<MapViewHandle, Props>(
           setSource(map, 'draw', makeDrawData(ptsRef.current))
           onDrawUpdate(ptsRef.current.length, bboxAreaKm2(ptsRef.current))
           startVertexDrag(segIdx + 1)
+        }
+        map.on('mousedown', 'draw-midpoints', (e) => {
+          if (!drawModeRef.current) return
+          startMidpointDrag(e)
+        })
+        map.on('touchstart', 'draw-midpoints', (e) => {
+          if (!drawModeRef.current) return
+          startMidpointDrag(e)
         })
 
         map.on('mouseenter', 'draw-midpoints', () => {
