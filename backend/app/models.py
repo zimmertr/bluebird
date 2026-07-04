@@ -14,7 +14,6 @@ class DestinationType(str, Enum):
     peak = "peak"
     trailhead = "trailhead"
     lake = "lake"
-    campground = "campground"
     custom = "custom"
 
 

@@ -1,4 +1,4 @@
-export type DestinationType = 'peak' | 'trailhead' | 'lake' | 'campground' | 'custom'
+export type DestinationType = 'peak' | 'trailhead' | 'lake' | 'custom'
 
 export type SortBy =
   | 'precip_total_in'

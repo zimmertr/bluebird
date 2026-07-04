@@ -42,14 +42,6 @@ out center;
 );
 out center;
 """,
-    DestinationType.campground: """\
-[out:json][timeout:60];
-(
-  node["tourism"="camp_site"]["name"](poly:"{poly}");
-  way["tourism"="camp_site"]["name"](poly:"{poly}");
-);
-out center;
-""",
 }
 
 _IMPLEMENTED = {DestinationType.peak}
