@@ -33,6 +33,20 @@ const base: ShareableState = {
   customCsv: '',
 }
 
+// A truly untouched session: no polygon, no custom CSV, End unset, all controls
+// at their App defaults. Start is pre-filled but must not, on its own, sync.
+const pristine: ShareableState = {
+  polygon: null,
+  destinationType: 'peak',
+  startDatetime: '2026-07-04T06:00',
+  endDatetime: '',
+  sortBy: 'precip_total_in',
+  minElevationFt: null,
+  maxElevationFt: null,
+  limit: 10,
+  customCsv: '',
+}
+
 // Round-trip helper: encode, then decode the resulting query string.
 function roundTrip(state: ShareableState) {
   return decodeState(encodeState(state))
@@ -81,10 +95,34 @@ describe('encodeState / decodeState round-trip', () => {
   })
 })
 
-describe('encodeState', () => {
-  it('returns "" when there is nothing worth sharing', () => {
-    expect(encodeState({ ...base, polygon: null })).toBe('')
+describe('encodeState gate — what triggers a URL update', () => {
+  it('returns "" for a pristine session (nothing the user set)', () => {
+    expect(encodeState(pristine)).toBe('')
   })
+
+  it('does not sync when only the pre-filled Start date is present', () => {
+    expect(encodeState({ ...pristine, startDatetime: '2030-01-01T00:00' })).toBe('')
+  })
+
+  it('syncs when only the End date is set, with no polygon', () => {
+    const qs = encodeState({ ...pristine, endDatetime: '2026-07-07T18:00' })
+    expect(qs).not.toBe('')
+    expect(new URLSearchParams(qs).get('end')).toBe('2026-07-07T18:00')
+  })
+
+  it('syncs when only an elevation constraint is set', () => {
+    expect(encodeState({ ...pristine, minElevationFt: 8000 })).not.toBe('')
+    expect(encodeState({ ...pristine, maxElevationFt: 12000 })).not.toBe('')
+  })
+
+  it('syncs when a non-default sort, limit, or type is chosen', () => {
+    expect(encodeState({ ...pristine, sortBy: 'wind_max_mph' })).not.toBe('')
+    expect(encodeState({ ...pristine, limit: 25 })).not.toBe('')
+    expect(encodeState({ ...pristine, destinationType: 'custom' })).not.toBe('')
+  })
+})
+
+describe('encodeState', () => {
 
   it('omits elevation params when unset', () => {
     const qs = encodeState(base)

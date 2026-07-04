@@ -35,6 +35,12 @@ export const FUTURE_LIMIT_DAYS = 16
 const POLY_PRECISION = 5 // ~1 m; keeps the URL short without visible drift
 const MS_PER_DAY = 86_400_000
 
+// Control defaults — must mirror the initial useState values in App.tsx. Used to
+// decide whether the user has changed anything worth persisting to the URL.
+const DEFAULT_SORT: SortBy = 'precip_total_in'
+const DEFAULT_TYPE: DestinationType = 'peak'
+const DEFAULT_LIMIT = 10
+
 function round(n: number): number {
   const f = 10 ** POLY_PRECISION
   return Math.round(n * f) / f
@@ -82,13 +88,24 @@ function isValidDatetimeLocal(s: string): boolean {
 
 /**
  * Build a query string ("?"-less) capturing the shareable state. Returns "" when
- * there's nothing worth sharing (no polygon and no custom CSV) so the address
- * bar stays clean until the user has done something meaningful.
+ * the user hasn't provided anything worth persisting, so the address bar stays
+ * clean on a pristine load.
+ *
+ * A lone Start date is intentionally excluded from the "worth sharing" test: it's
+ * pre-filled to "now", so treating it as meaningful would write a timestamp into
+ * the URL (and rewrite it on every reload) before the user has done anything.
+ * Once any other signal is present, Start rides along and stays live.
  */
 export function encodeState(state: ShareableState): string {
   const hasPolygon = state.polygon !== null && (state.polygon.coordinates[0]?.length ?? 0) >= 3
   const hasCustom = state.destinationType === 'custom' && state.customCsv.trim() !== ''
-  if (!hasPolygon && !hasCustom) return ''
+  const hasWindow = isValidDatetimeLocal(state.endDatetime)
+  const hasConstraint = state.minElevationFt !== null || state.maxElevationFt !== null
+  const nonDefaultControls =
+    state.sortBy !== DEFAULT_SORT ||
+    state.limit !== DEFAULT_LIMIT ||
+    state.destinationType !== DEFAULT_TYPE
+  if (!hasPolygon && !hasCustom && !hasWindow && !hasConstraint && !nonDefaultControls) return ''
 
   const p = new URLSearchParams()
   p.set('type', state.destinationType)
