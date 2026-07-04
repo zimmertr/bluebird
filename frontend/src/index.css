@@ -1,4 +1,11 @@
 @import "tailwindcss";
+/* Tailwind v4 puts utilities in @layer utilities, and unlayered vendor CSS
+   outranks any layer — maplibre's `.maplibregl-map{position:relative}` would
+   beat `absolute inset-0` on the map container and collapse it to 0 height.
+   Importing it into layer(base) keeps it below utilities, matching the v3
+   source-order behavior. Don't import this CSS from TSX: that copy would be
+   unlayered and reintroduce the bug. */
+@import "maplibre-gl/dist/maplibre-gl.css" layer(base);
 @config "../tailwind.config.js";
 
 html,
