@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 
@@ -6,6 +7,7 @@ from fastapi.responses import StreamingResponse
 
 from app.models import AnalyzeRequest, AnalyzeResponse, DestinationResult, DestinationType
 from app.services import osm, weather
+from app.services.errors import UpstreamError
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -24,6 +26,24 @@ def _noun(dest_type: DestinationType) -> str:
 
 def _sse(event_type: str, **kwargs) -> str:
     return f"data: {json.dumps({'type': event_type, **kwargs})}\n\n"
+
+
+# Sentinel pushed onto a progress queue once the backing task has finished.
+_STREAM_DONE = object()
+
+
+async def _drain(queue: asyncio.Queue):
+    """Yield pre-formatted SSE strings from `queue` until the done sentinel.
+
+    Lets an SSE route interleave progress events with a coroutine it runs on a
+    separate task: the task pushes SSE strings as work happens, then pushes
+    `_STREAM_DONE` in its `finally` to end the drain.
+    """
+    while True:
+        item = await queue.get()
+        if item is _STREAM_DONE:
+            return
+        yield item
 
 
 @router.post("/analyze/stream")
@@ -50,16 +70,43 @@ async def analyze_stream(request: AnalyzeRequest):
                 if not request.polygon:
                     yield _sse("error", message="polygon is required for non-custom destination types")
                     return
-                yield _sse("status", message=f"Searching for {noun}s in your polygon…")
+                yield _sse("status", message=f"Searching OpenStreetMap for {noun}s in your area…")
                 cap = min(request.limit * 5, 200)
+
+                # Overpass is one opaque request per mirror, so the only progress
+                # signal is mirror failover. Run it on a task and surface those
+                # status lines promptly via the queue.
+                osm_queue: asyncio.Queue = asyncio.Queue()
+
+                async def on_status(message):
+                    await osm_queue.put(_sse("status", message=message))
+
+                async def run_osm():
+                    try:
+                        return await osm.query_osm(
+                            request.polygon, request.destination_type, cap, on_status
+                        )
+                    finally:
+                        await osm_queue.put(_STREAM_DONE)
+
+                osm_task = asyncio.create_task(run_osm())
                 try:
-                    destinations = await osm.query_osm(request.polygon, request.destination_type, cap)
+                    async for event in _drain(osm_queue):
+                        yield event
+                    destinations = await osm_task
                 except NotImplementedError as e:
                     yield _sse("error", message=str(e))
                     return
-                except Exception as e:
-                    yield _sse("error", message=f"OSM query failed: {e}")
+                except UpstreamError as e:
+                    yield _sse("error", message=e.message)
                     return
+                except Exception as e:
+                    log.exception("OSM query failed")
+                    yield _sse("error", message=f"Destination search failed unexpectedly: {e}")
+                    return
+                finally:
+                    if not osm_task.done():
+                        osm_task.cancel()
 
                 if not destinations:
                     yield _sse("result", data=AnalyzeResponse(results=[], total_queried=0).model_dump())
@@ -70,13 +117,54 @@ async def analyze_stream(request: AnalyzeRequest):
                 yield _sse("status", message=f"Found {plural} — fetching weather forecasts…")
 
             total_queried = len(destinations)
-            try:
-                wx_list = await weather.fetch_weather_batch(
-                    destinations, request.start_datetime, request.end_datetime
+
+            # Drive the weather fetch on a task and drain per-batch progress from
+            # a queue, so we can interleave `progress` SSE events with the await.
+            progress_queue: asyncio.Queue = asyncio.Queue()
+
+            async def on_progress(processed, total, batches_done, total_batches):
+                percent = round(processed / total * 100) if total else 100
+                await progress_queue.put(
+                    _sse(
+                        "progress",
+                        processed=processed,
+                        total=total,
+                        percent=percent,
+                        batches_done=batches_done,
+                        total_batches=total_batches,
+                        message=f"Retrieving forecasts — {processed} of {total} {noun}s…",
+                    )
                 )
-            except Exception as e:
-                yield _sse("error", message=f"Weather API failed: {e}")
+
+            async def run_fetch():
+                try:
+                    return await weather.fetch_weather_batch(
+                        destinations,
+                        request.start_datetime,
+                        request.end_datetime,
+                        on_progress,
+                    )
+                finally:
+                    await progress_queue.put(_STREAM_DONE)
+
+            fetch_task = asyncio.create_task(run_fetch())
+            try:
+                async for event in _drain(progress_queue):
+                    yield event
+
+                wx_list = await fetch_task
+            except UpstreamError as e:
+                yield _sse("error", message=e.message)
                 return
+            except Exception as e:
+                log.exception("Weather fetch failed")
+                yield _sse("error", message=f"Weather lookup failed unexpectedly: {e}")
+                return
+            finally:
+                # If the client disconnected (generator torn down) before the
+                # fetch finished, don't leave the request running in the background.
+                if not fetch_task.done():
+                    fetch_task.cancel()
 
             results: list[DestinationResult] = []
             for dest, wx in zip(destinations, wx_list):
@@ -151,6 +239,8 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
             )
         except NotImplementedError as e:
             raise HTTPException(status_code=400, detail=str(e))
+        except UpstreamError as e:
+            raise HTTPException(status_code=502, detail=e.message)
         except Exception as e:
             raise HTTPException(
                 status_code=502, detail=f"OSM query failed: {e}"
@@ -167,6 +257,8 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         wx_list = await weather.fetch_weather_batch(
             destinations, request.start_datetime, request.end_datetime
         )
+    except UpstreamError as e:
+        raise HTTPException(status_code=502, detail=e.message)
     except Exception as e:
         raise HTTPException(
             status_code=502, detail=f"Weather API request failed: {e}"

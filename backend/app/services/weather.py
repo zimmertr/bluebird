@@ -3,20 +3,28 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import httpx
+
+from app.services.errors import UpstreamError, classify_http_error
 
 log = logging.getLogger(__name__)
 
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 BATCH_SIZE = 50  # Open-Meteo handles up to ~100; 50 is conservative
+PROVIDER = "Open-Meteo (weather service)"
+
+# Called as each batch completes: (processed_destinations, total_destinations,
+# batches_done, total_batches). Lets the SSE route emit incremental progress.
+ProgressCallback = Callable[[int, int, int, int], Awaitable[None]]
 
 
 async def fetch_weather_batch(
     destinations: List[Dict[str, Any]],
     start_dt: datetime,
     end_dt: datetime,
+    on_progress: Optional[ProgressCallback] = None,
 ) -> List[Optional[Dict[str, Any]]]:
     if not destinations:
         return []
@@ -25,18 +33,50 @@ async def fetch_weather_batch(
         destinations[i : i + BATCH_SIZE]
         for i in range(0, len(destinations), BATCH_SIZE)
     ]
+    total = len(destinations)
+    total_batches = len(chunks)
 
     log.info(
         "Fetching Open-Meteo weather: %d destination(s) across %d batch(es)",
-        len(destinations),
-        len(chunks),
+        total,
+        total_batches,
     )
 
-    chunk_results = await asyncio.gather(
-        *[_fetch_chunk(chunk, start_dt, end_dt) for chunk in chunks]
-    )
+    # Preserve input ordering by placing each batch's results at its own index,
+    # while still reporting progress in completion order via as_completed.
+    results_by_index: List[List[Optional[Dict[str, Any]]]] = [[] for _ in chunks]
+    processed = 0
+    batches_done = 0
 
-    return [item for sublist in chunk_results for item in sublist]
+    tasks = [
+        asyncio.create_task(_fetch_chunk_indexed(i, chunk, start_dt, end_dt))
+        for i, chunk in enumerate(chunks)
+    ]
+
+    try:
+        for future in asyncio.as_completed(tasks):
+            index, chunk_results = await future
+            results_by_index[index] = chunk_results
+            processed += len(chunk_results)
+            batches_done += 1
+            if on_progress is not None:
+                await on_progress(processed, total, batches_done, total_batches)
+    except BaseException:
+        # A batch failed (or the client disconnected) — don't leak the siblings.
+        for task in tasks:
+            task.cancel()
+        raise
+
+    return [item for sublist in results_by_index for item in sublist]
+
+
+async def _fetch_chunk_indexed(
+    index: int,
+    destinations: List[Dict[str, Any]],
+    start_dt: datetime,
+    end_dt: datetime,
+) -> tuple[int, List[Optional[Dict[str, Any]]]]:
+    return index, await _fetch_chunk(destinations, start_dt, end_dt)
 
 
 async def _fetch_chunk(
@@ -66,11 +106,15 @@ async def _fetch_chunk(
         "timezone": "UTC",
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        log.trace("Open-Meteo request params: %s", params)  # type: ignore[attr-defined]
-        resp = await client.get(FORECAST_URL, params=params)
-        resp.raise_for_status()
-        data = resp.json()
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            log.trace("Open-Meteo request params: %s", params)  # type: ignore[attr-defined]
+            resp = await client.get(FORECAST_URL, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+    except httpx.HTTPError as exc:
+        log.warning("Open-Meteo request failed: %s", exc)
+        raise UpstreamError(classify_http_error(exc, PROVIDER)) from exc
 
     # Single location → object; multiple → array
     items = data if isinstance(data, list) else [data]

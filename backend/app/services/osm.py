@@ -1,13 +1,21 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import httpx
 
 from app.models import DestinationType, GeoPolygon
+from app.services.errors import UpstreamError, classify_http_error
 
 log = logging.getLogger(__name__)
+
+PROVIDER = "OpenStreetMap (Overpass)"
+
+# Called with a human-readable status line as the mirror fallback chain
+# progresses. Overpass is a single opaque request per mirror, so this is the
+# only progress signal available for the search phase.
+StatusCallback = Callable[[str], Awaitable[None]]
 
 OVERPASS_ENDPOINTS = [
     "https://overpass-api.de/api/interpreter",
@@ -57,6 +65,7 @@ async def query_osm(
     polygon: GeoPolygon,
     destination_type: DestinationType,
     cap: int,
+    on_status: Optional[StatusCallback] = None,
 ) -> List[Dict[str, Any]]:
     if destination_type not in _IMPLEMENTED:
         raise NotImplementedError(
@@ -68,7 +77,7 @@ async def query_osm(
 
     log.info("Querying OSM Overpass for type=%s", destination_type.value)
     log.trace("Overpass query:\n%s", query)  # type: ignore[attr-defined]
-    data = await _post_with_fallback(query)
+    data = await _post_with_fallback(query, on_status)
 
     results: List[Dict[str, Any]] = []
     seen_names: set[str] = set()
@@ -117,10 +126,14 @@ async def query_osm(
     return results
 
 
-async def _post_with_fallback(query: str) -> Dict[str, Any]:
+async def _post_with_fallback(
+    query: str,
+    on_status: Optional[StatusCallback] = None,
+) -> Dict[str, Any]:
     last_exc: Exception = RuntimeError("No Overpass endpoints configured")
+    total = len(OVERPASS_ENDPOINTS)
     async with httpx.AsyncClient(timeout=45.0, headers=HEADERS) as client:
-        for url in OVERPASS_ENDPOINTS:
+        for i, url in enumerate(OVERPASS_ENDPOINTS, start=1):
             try:
                 log.info("Trying Overpass endpoint: %s", url)
                 resp = await client.post(url, data={"data": query})
@@ -130,4 +143,12 @@ async def _post_with_fallback(query: str) -> Dict[str, Any]:
             except Exception as exc:
                 log.warning("Overpass endpoint %s failed: %s", url, exc)
                 last_exc = exc
-    raise last_exc
+                # Only report on failover — a first-mirror success stays quiet
+                # (the frontend's elapsed timer already covers that wait).
+                if on_status is not None and i < total:
+                    await on_status(
+                        f"OpenStreetMap server {i} was unavailable — "
+                        f"trying another ({i + 1} of {total})…"
+                    )
+    # Every mirror failed — surface the last failure as an actionable message.
+    raise UpstreamError(classify_http_error(last_exc, PROVIDER)) from last_exc

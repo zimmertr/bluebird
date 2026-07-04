@@ -7,6 +7,12 @@ type CacheEntry = {
   totalQueried: number
 }
 
+export type Progress = {
+  processed: number
+  total: number
+  percent: number
+}
+
 function sortAndLimit(
   results: DestinationResult[],
   sortBy: SortBy,
@@ -41,9 +47,24 @@ export function useAnalyze() {
   const [error, setError] = useState<string | null>(null)
   const [response, setResponse] = useState<AnalyzeResponse | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [progress, setProgress] = useState<Progress | null>(null)
   const cacheRef = useRef<CacheEntry | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+  const lastRequestRef = useRef<AnalyzeRequest | null>(null)
+
+  // Abort the in-flight request. The fetch loop swallows AbortError so no error
+  // banner shows — the user chose to stop.
+  function cancel() {
+    abortRef.current?.abort()
+  }
+
+  // Re-run the most recent request (used by the "Try again" button on errors).
+  function retry() {
+    if (lastRequestRef.current) analyze(lastRequestRef.current)
+  }
 
   async function analyze(request: AnalyzeRequest) {
+    lastRequestRef.current = request
     const key = makeCacheKey(request)
     const sortBy: SortBy = request.sort_by ?? 'precip_total_in'
     const limit = request.limit ?? 10
@@ -59,9 +80,12 @@ export function useAnalyze() {
     }
 
     // Cache miss — full SSE request; always fetch 200 to populate the cache
+    const controller = new AbortController()
+    abortRef.current = controller
     setLoading(true)
     setError(null)
     setResponse(null)
+    setProgress(null)
     setStatusMessage('Starting…')
 
     try {
@@ -71,6 +95,7 @@ export function useAnalyze() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...serverRequest, limit: 200, sort_by: 'precip_total_in' }),
+        signal: controller.signal,
       })
 
       if (!res.ok || !res.body) {
@@ -94,7 +119,14 @@ export function useAnalyze() {
         for (const part of parts) {
           const dataLine = part.split('\n').find((l) => l.startsWith('data: '))
           if (!dataLine) continue
-          let event: { type: string; message?: string; data?: AnalyzeResponse }
+          let event: {
+            type: string
+            message?: string
+            data?: AnalyzeResponse
+            processed?: number
+            total?: number
+            percent?: number
+          }
           try {
             event = JSON.parse(dataLine.slice(6))
           } catch {
@@ -103,6 +135,15 @@ export function useAnalyze() {
 
           if (event.type === 'status' && event.message) {
             setStatusMessage(event.message)
+          } else if (event.type === 'progress') {
+            if (event.message) setStatusMessage(event.message)
+            if (event.total != null && event.processed != null) {
+              setProgress({
+                processed: event.processed,
+                total: event.total,
+                percent: event.percent ?? Math.round((event.processed / event.total) * 100),
+              })
+            }
           } else if (event.type === 'error' && event.message) {
             throw new Error(event.message)
           } else if (event.type === 'result' && event.data) {
@@ -115,12 +156,19 @@ export function useAnalyze() {
         }
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unknown error')
+      // User-initiated cancel — not an error worth surfacing.
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        setStatusMessage(null)
+      } else {
+        setError(e instanceof Error ? e.message : 'Unknown error')
+      }
     } finally {
+      abortRef.current = null
       setLoading(false)
       setStatusMessage(null)
+      setProgress(null)
     }
   }
 
-  return { analyze, loading, error, response, statusMessage }
+  return { analyze, cancel, retry, loading, error, response, statusMessage, progress }
 }

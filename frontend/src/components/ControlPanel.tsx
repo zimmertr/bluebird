@@ -42,6 +42,7 @@ interface Props {
   loading: boolean
   error: string | null
   onAnalyze: () => void
+  onRetry: () => void
   resultCount?: number
   totalQueried?: number
 }
@@ -72,6 +73,7 @@ export default function ControlPanel({
   loading,
   error,
   onAnalyze,
+  onRetry,
   resultCount,
   totalQueried,
 }: Props) {
@@ -384,8 +386,17 @@ export default function ControlPanel({
         )}
 
         {error && (
-          <div className="text-xs text-red-400 bg-red-950/50 border border-red-800 rounded p-2">
-            {error}
+          <div className="text-xs text-red-400 bg-red-950/50 border border-red-800 rounded p-2 space-y-2">
+            <p>{error}</p>
+            <button
+              onClick={onRetry}
+              disabled={loading}
+              className="w-full py-1.5 rounded font-medium text-red-200
+                bg-red-900/60 hover:bg-red-800 border border-red-700
+                disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Try again
+            </button>
           </div>
         )}
 
