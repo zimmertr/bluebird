@@ -88,6 +88,90 @@ function setSource(map: maplibregl.Map, id: string, data: object) {
   src?.setData(data as GeoJSON.FeatureCollection)
 }
 
+// The OpenFreeMap "Liberty" style ships the OpenMapTiles vector source but
+// leaves features our hikers care about under-rendered: peaks aren't drawn at
+// all (the `mountain_peak` layer exists in the tiles but no style layer paints
+// it), trails only appear at z14+, and lake labels are faint. Patch the loaded
+// style to surface them. All three read from the existing `openmaptiles` source.
+function enhanceBasemap(map: maplibregl.Map) {
+  // Slot our additions just beneath the style's first text layer so labels
+  // (including the ones we add) stay on top of lines and fills.
+  const firstSymbolId = map.getStyle().layers?.find((l) => l.type === 'symbol')?.id
+
+  // Trails: OSM class=path/track. Liberty only draws these from z14, too late
+  // for orienting while drawing a polygon — show them from z11 in a trail hue.
+  map.addLayer(
+    {
+      id: 'ofm-trails',
+      type: 'line',
+      source: 'openmaptiles',
+      'source-layer': 'transportation',
+      minzoom: 11,
+      filter: ['match', ['get', 'class'], ['path', 'track'], true, false],
+      paint: {
+        'line-color': '#a0522d',
+        'line-dasharray': [2, 1.5],
+        'line-width': ['interpolate', ['exponential', 1.2], ['zoom'], 11, 0.6, 16, 2.5, 20, 6],
+        'line-opacity': 0.85,
+      },
+    },
+    firstSymbolId,
+  )
+
+  // Peaks: icon + name + elevation (feet). Sorted by OSM prominence rank so the
+  // notable summits win label collisions. icon-allow-overlap keeps every marker
+  // visible while text-optional drops just the label when space is tight.
+  map.addLayer(
+    {
+      id: 'ofm-peaks',
+      type: 'symbol',
+      source: 'openmaptiles',
+      'source-layer': 'mountain_peak',
+      minzoom: 9,
+      layout: {
+        'icon-image': 'mountain_11',
+        'icon-allow-overlap': true,
+        'text-optional': true,
+        'text-field': [
+          'case',
+          ['has', 'ele_ft'],
+          ['concat', ['get', 'name'], '\n', ['to-string', ['get', 'ele_ft']], ' ft'],
+          ['get', 'name'],
+        ],
+        'text-font': ['Noto Sans Regular'],
+        'text-size': 11,
+        'text-anchor': 'top',
+        'text-offset': [0, 0.7],
+        'text-max-width': 8,
+        'symbol-sort-key': ['coalesce', ['get', 'rank'], 10],
+      },
+      paint: {
+        'text-color': '#5c4530',
+        'text-halo-color': '#f8f4ef',
+        'text-halo-width': 1.4,
+      },
+    },
+    firstSymbolId,
+  )
+
+  // Lakes: the label layer already exists but is faint, and small alpine lakes
+  // are only sparsely named in the tiles (the app's Overpass query is the
+  // reliable path for those). Enlarge and halo the labels that do resolve.
+  if (map.getLayer('water_name_point_label')) {
+    map.setLayoutProperty('water_name_point_label', 'text-size', [
+      'interpolate',
+      ['linear'],
+      ['zoom'],
+      0,
+      11,
+      10,
+      15,
+    ])
+    map.setPaintProperty('water_name_point_label', 'text-halo-color', '#eaf1ff')
+    map.setPaintProperty('water_name_point_label', 'text-halo-width', 1.2)
+  }
+}
+
 const MapView = forwardRef<MapViewHandle, Props>(
   ({ polygon, drawMode, onPolygonChange, onDrawUpdate, results, sortBy }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null)
@@ -154,6 +238,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
       map.on('load', () => {
         loadedRef.current = true
         if (pendingGeo) map.flyTo({ center: pendingGeo, zoom: 9 })
+
+        enhanceBasemap(map)
 
         // ── Draw source + layers ───────────────────────────────────────
         map.addSource('draw', { type: 'geojson', data: emptyFC as GeoJSON.FeatureCollection })
