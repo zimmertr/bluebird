@@ -20,6 +20,7 @@ Draw a polygon on a map, choose a destination type and forecast window, and rece
 - [Data Sources](#data-sources)
 - [Kubernetes Deployment](#kubernetes-deployment)
 - [Roadmap](#roadmap)
+- [License](#license)
 
 ---
 
@@ -418,3 +419,9 @@ Open-Meteo forecast data covers up to 16 days ahead. Historical data beyond that
 - [ ] **Saved searches** — LocalStorage persistence for polygons and settings
 - [ ] **Export** — Download results as CSV
 - [ ] **Mountain-forecast.com links** — Alternative hotlink for summit-specific forecasts
+
+---
+
+## License
+
+Bluebird is free software licensed under the [GNU General Public License v3.0 or later](LICENSE). You may redistribute and modify it under those terms. It is distributed WITHOUT ANY WARRANTY; see the [LICENSE](LICENSE) file for the full text.
