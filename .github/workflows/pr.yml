@@ -18,9 +18,9 @@ permissions:
   contents: read
 
 jobs:
-  # Catch TypeScript type errors before they reach main
-  typecheck:
-    name: TypeScript Type Check
+  # Catch TypeScript type errors and unit-test failures before they reach main
+  frontend:
+    name: Frontend Typecheck & Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -32,6 +32,8 @@ jobs:
       - run: npm ci
         working-directory: frontend
       - run: npx tsc --noEmit
+        working-directory: frontend
+      - run: npm test
         working-directory: frontend
 
   # Catch Python style and logic issues

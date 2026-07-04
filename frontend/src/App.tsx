@@ -9,6 +9,7 @@ import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { GeoPolygon, DestinationType, CustomDestination, SortBy } from './types'
 import { METRIC_CONFIG, MARKER_COLORS } from './utils/colors'
+import { encodeState, decodeState, classifyWindow } from './utils/urlState'
 
 const SORT_LABELS: Record<SortBy, string> = {
   precip_total_in: 'least total precipitation',
@@ -43,18 +44,32 @@ function parseCustomCsv(csv: string): CustomDestination[] {
 export default function App() {
   const mapRef = useRef<MapViewHandle>(null)
 
-  const [polygon, setPolygon] = useState<GeoPolygon | null>(null)
-  const [drawMode, setDrawMode] = useState(true)
+  // Restore any prior session encoded in the URL once, at mount. Feeding each
+  // useState a lazy initializer avoids a redraw flash — the restored values are
+  // the initial render, not a post-mount setState.
+  const restoredRef = useRef(decodeState(window.location.search))
+  const restored = restoredRef.current
+
+  const [polygon, setPolygon] = useState<GeoPolygon | null>(() => restored?.polygon ?? null)
+  // A restored polygon opens in "ready" (non-draw) mode so it renders as a
+  // static fill and is analyze-ready; otherwise start in draw mode as before.
+  const [drawMode, setDrawMode] = useState(() => !restored?.polygon)
   const [drawPointCount, setDrawPointCount] = useState(0)
   const [polygonAreaKm2, setPolygonAreaKm2] = useState<number | null>(null)
-  const [destinationType, setDestinationType] = useState<DestinationType>('peak')
-  const [startDatetime, setStartDatetime] = useState(nowLocal())
-  const [endDatetime, setEndDatetime] = useState('')
-  const [limit, setLimit] = useState(10)
-  const [customCsv, setCustomCsv] = useState('')
-  const [sortBy, setSortBy] = useState<SortBy>('precip_total_in')
-  const [minElevationFt, setMinElevationFt] = useState<number | null>(null)
-  const [maxElevationFt, setMaxElevationFt] = useState<number | null>(null)
+  const [destinationType, setDestinationType] = useState<DestinationType>(
+    () => restored?.destinationType ?? 'peak',
+  )
+  const [startDatetime, setStartDatetime] = useState(() => restored?.startDatetime ?? nowLocal())
+  const [endDatetime, setEndDatetime] = useState(() => restored?.endDatetime ?? '')
+  const [limit, setLimit] = useState(() => restored?.limit ?? 10)
+  const [customCsv, setCustomCsv] = useState(() => restored?.customCsv ?? '')
+  const [sortBy, setSortBy] = useState<SortBy>(() => restored?.sortBy ?? 'precip_total_in')
+  const [minElevationFt, setMinElevationFt] = useState<number | null>(
+    () => restored?.minElevationFt ?? null,
+  )
+  const [maxElevationFt, setMaxElevationFt] = useState<number | null>(
+    () => restored?.maxElevationFt ?? null,
+  )
   const [showResults, setShowResults] = useState(false)
   const [tableHeight, setTableHeight] = useState(280)
   const [isDragging, setIsDragging] = useState(false)
@@ -108,6 +123,40 @@ export default function App() {
     const id = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 250)
     return () => clearInterval(id)
   }, [loading])
+
+  // Live-sync all analysis inputs into the address bar so the URL is always
+  // copy-pasteable. replaceState (not pushState) keeps the back button clean;
+  // polygon state only changes on finish/cancel, so this doesn't thrash.
+  useEffect(() => {
+    const qs = encodeState({
+      polygon,
+      destinationType,
+      startDatetime,
+      endDatetime,
+      sortBy,
+      minElevationFt,
+      maxElevationFt,
+      limit,
+      customCsv,
+    })
+    const url = qs ? `?${qs}` : window.location.pathname
+    window.history.replaceState(null, '', url)
+  }, [
+    polygon,
+    destinationType,
+    startDatetime,
+    endDatetime,
+    sortBy,
+    minElevationFt,
+    maxElevationFt,
+    limit,
+    customCsv,
+  ])
+
+  // Warn (non-blocking) when a restored/edited window falls outside Open-Meteo's
+  // servable range so the user knows to adjust the dates.
+  const windowStatus = classifyWindow(startDatetime, endDatetime, new Date())
+  const windowWarning = windowStatus === 'ok' ? null : windowStatus
 
   const handleDrawUpdate = useCallback((count: number, areaKm2: number | null) => {
     setDrawPointCount(count)
@@ -243,6 +292,7 @@ export default function App() {
           setMinElevationFt={setMinElevationFt}
           maxElevationFt={maxElevationFt}
           setMaxElevationFt={setMaxElevationFt}
+          windowWarning={windowWarning}
           loading={loading}
           error={error}
           onAnalyze={() => {

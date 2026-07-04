@@ -228,8 +228,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
       const resizeObserver = new ResizeObserver(() => map.resize())
       resizeObserver.observe(containerRef.current)
 
+      // A polygon restored from the URL takes precedence over geolocation —
+      // don't scroll the user away from the area their link points at.
+      const restoredPolygon = polygon
       let pendingGeo: [number, number] | null = null
-      if (navigator.geolocation) {
+      if (navigator.geolocation && !restoredPolygon) {
         navigator.geolocation.getCurrentPosition(
           (pos) => {
             const center: [number, number] = [pos.coords.longitude, pos.coords.latitude]
@@ -243,12 +246,33 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
       map.on('load', () => {
         loadedRef.current = true
-        if (pendingGeo) map.flyTo({ center: pendingGeo, zoom: 9 })
+        if (restoredPolygon) {
+          const ring = restoredPolygon.coordinates[0] ?? []
+          if (ring.length >= 3) {
+            const bounds = ring.reduce(
+              (b, [lng, lat]) => b.extend([lng, lat]),
+              new maplibregl.LngLatBounds(
+                ring[0] as [number, number],
+                ring[0] as [number, number],
+              ),
+            )
+            map.fitBounds(bounds, { padding: 60, duration: 0 })
+          }
+        } else if (pendingGeo) {
+          map.flyTo({ center: pendingGeo, zoom: 9 })
+        }
 
         enhanceBasemap(map)
 
         // ── Draw source + layers ───────────────────────────────────────
-        map.addSource('draw', { type: 'geojson', data: emptyFC as GeoJSON.FeatureCollection })
+        // Seed the source with a restored polygon so it paints immediately —
+        // the [polygon, drawMode] effect below doesn't re-run on map load.
+        map.addSource('draw', {
+          type: 'geojson',
+          data: (restoredPolygon
+            ? makePolygonData(restoredPolygon)
+            : emptyFC) as GeoJSON.FeatureCollection,
+        })
 
         map.addLayer({
           id: 'draw-fill',
