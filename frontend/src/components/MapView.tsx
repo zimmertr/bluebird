@@ -222,6 +222,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
       map.addControl(new maplibregl.NavigationControl(), 'top-right')
       map.addControl(new maplibregl.ScaleControl(), 'bottom-right')
 
+      // Keep the canvas in sync with its container. MapLibre only tracks window
+      // resizes, but our container also changes size when the results panel
+      // opens/closes or the device rotates — observe it directly.
+      const resizeObserver = new ResizeObserver(() => map.resize())
+      resizeObserver.observe(containerRef.current)
+
       let pendingGeo: [number, number] | null = null
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
@@ -472,6 +478,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       return () => {
         loadedRef.current = false
         vertexPopupRef.current = null
+        resizeObserver.disconnect()
         map.remove()
         mapRef.current = null
       }
