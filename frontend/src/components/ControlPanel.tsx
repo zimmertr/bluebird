@@ -39,6 +39,7 @@ interface Props {
   setMinElevationFt: (v: number | null) => void
   maxElevationFt: number | null
   setMaxElevationFt: (v: number | null) => void
+  windowWarning: 'past' | 'future' | null
   loading: boolean
   error: string | null
   onAnalyze: () => void
@@ -70,6 +71,7 @@ export default function ControlPanel({
   setMinElevationFt,
   maxElevationFt,
   setMaxElevationFt,
+  windowWarning,
   loading,
   error,
   onAnalyze,
@@ -270,6 +272,13 @@ export default function ControlPanel({
               </div>
             </div>
           </div>
+          {windowWarning && (
+            <p className="mt-2 text-xs text-amber-400 bg-amber-950/40 border border-amber-800/60 rounded p-2">
+              {windowWarning === 'past'
+                ? 'This forecast window is in the past and no longer has data — adjust the dates to run an analysis.'
+                : 'This forecast window is too far ahead (beyond ~16 days) — adjust the dates to run an analysis.'}
+            </p>
+          )}
         </section>
 
         {/* Step 4: Sort by */}

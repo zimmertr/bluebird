@@ -27,6 +27,12 @@ npm run dev   # starts on :5173, proxies /api → :8000
 cd frontend && npx tsc --noEmit
 ```
 
+**Frontend unit tests (Vitest) — run in Docker, not on the local machine:**
+```bash
+docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine \
+  sh -c "npm ci && npm test"
+```
+
 **Lint backend:**
 ```bash
 pip install ruff && ruff check backend/
@@ -38,7 +44,7 @@ docker compose up --build -d
 docker compose logs -f
 ```
 
-There are no automated tests — CI validates via TypeScript typecheck, Python ruff lint, and a full Docker build.
+Test coverage is limited to the frontend's pure logic: `frontend/src/utils/*.test.ts` run under Vitest (e.g. URL state serialization in `urlState.ts`). CI validates via TypeScript typecheck, these Vitest unit tests, Python ruff lint, and a full Docker build. There are no backend tests.
 
 ## Architecture
 
