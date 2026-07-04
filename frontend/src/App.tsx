@@ -6,6 +6,7 @@ import WelcomeModal from './components/WelcomeModal'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
 import { usePreview } from './hooks/usePreview'
+import { useIsDesktop } from './hooks/useIsDesktop'
 import { GeoPolygon, DestinationType, CustomDestination, SortBy } from './types'
 import { METRIC_CONFIG, MARKER_COLORS } from './utils/colors'
 
@@ -58,6 +59,10 @@ export default function App() {
   const [tableHeight, setTableHeight] = useState(280)
   const [isDragging, setIsDragging] = useState(false)
   const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('bluebird_welcomed'))
+  // The controls panel is docked on desktop and an off-canvas drawer on phones.
+  // It starts open on both; a close button collapses it to widen the map.
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const isDesktop = useIsDesktop()
 
   function dismissWelcome() {
     localStorage.setItem('bluebird_welcomed', '1')
@@ -156,11 +161,52 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-900">
       {preview.enabled && <PreviewBanner pr={preview.pr} commit={preview.commit} />}
-      <div className="flex flex-1 overflow-hidden min-h-0">
+      <div className="flex flex-1 overflow-hidden min-h-0 relative">
       {showWelcome && <WelcomeModal onDismiss={dismissWelcome} />}
       {isDragging && <div className="fixed inset-0 z-50 cursor-ns-resize" />}
-      {/* Sidebar */}
-      <aside className="w-80 flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r border-slate-700 z-10">
+
+      {/* Floating button to reopen the controls panel once it's been closed */}
+      {!sidebarOpen && (
+        <button
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Open controls"
+          className="absolute top-3 left-3 z-30 flex items-center gap-2 rounded-lg bg-slate-800/95 border border-slate-600 px-3 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-sm transition-colors hover:border-sky-400 hover:text-sky-400 active:bg-slate-700"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+          Controls
+        </button>
+      )}
+
+      {/* Mobile: dim backdrop behind the open drawer */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="lg:hidden absolute inset-0 z-30 bg-black/50"
+        />
+      )}
+
+      {/* Controls panel — docked on desktop when open, off-canvas otherwise.
+          When closed it stays absolute + translated off-screen so it leaves the
+          layout and the map fills the full width on every breakpoint. */}
+      <aside
+        className={`absolute inset-y-0 left-0 z-40 w-[85vw] max-w-xs transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r border-slate-700 ${
+          sidebarOpen
+            ? 'translate-x-0 lg:static lg:z-10 lg:w-80 lg:max-w-none lg:transition-none'
+            : '-translate-x-full'
+        }`}
+      >
+        {/* Close button — collapses the panel on both mobile and desktop */}
+        <button
+          onClick={() => setSidebarOpen(false)}
+          aria-label="Close controls"
+          className="absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-slate-700/80 text-slate-200 text-xl leading-none hover:bg-slate-600 active:bg-slate-600"
+        >
+          ×
+        </button>
         <ControlPanel
           polygon={polygon}
           drawMode={drawMode}
@@ -186,14 +232,17 @@ export default function App() {
           setMaxElevationFt={setMaxElevationFt}
           loading={loading}
           error={error}
-          onAnalyze={handleAnalyze}
+          onAnalyze={() => {
+            setSidebarOpen(false)
+            handleAnalyze()
+          }}
           resultCount={response?.results.length}
           totalQueried={response?.total_queried}
         />
       </aside>
 
       {/* Map + results column */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <div className="flex-1 relative">
           {loading && (
             <div className="absolute inset-0 bg-slate-900/60 z-20 flex items-center justify-center">
@@ -237,16 +286,18 @@ export default function App() {
 
         {hasResults && (
           <div
-            className="flex-shrink-0 bg-slate-800 flex flex-col"
-            style={{ height: `${tableHeight}px` }}
+            className="flex-shrink-0 bg-slate-800 flex flex-col h-[55vh] lg:h-auto"
+            style={isDesktop ? { height: `${tableHeight}px` } : undefined}
           >
-            {/* Drag handle */}
-            <div
-              onMouseDown={handleDragStart}
-              className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
-            >
-              <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
-            </div>
+            {/* Drag handle — mouse-only, so desktop only */}
+            {isDesktop && (
+              <div
+                onMouseDown={handleDragStart}
+                className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
+              >
+                <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
+              </div>
+            )}
             {/* Header */}
             <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-slate-700 border-b border-slate-600">
               <span className="text-xs font-semibold text-white">
