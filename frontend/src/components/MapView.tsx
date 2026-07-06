@@ -256,7 +256,15 @@ const MapView = forwardRef<MapViewHandle, Props>(
                 ring[0] as [number, number],
               ),
             )
-            map.fitBounds(bounds, { padding: 60, duration: 0 })
+            // Pull back one zoom level from the tight fit so the whole polygon
+            // clears the viewport with margin — a snug fit can clip vertices
+            // behind the controls drawer or browser chrome on small screens.
+            const camera = map.cameraForBounds(bounds, { padding: 60 })
+            if (camera?.zoom !== undefined) {
+              map.jumpTo({ center: camera.center, zoom: camera.zoom - 1 })
+            } else {
+              map.fitBounds(bounds, { padding: 60, duration: 0 })
+            }
           }
         } else if (pendingGeo) {
           map.flyTo({ center: pendingGeo, zoom: 9 })
