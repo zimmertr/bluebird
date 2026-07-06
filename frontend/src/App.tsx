@@ -221,7 +221,7 @@ export default function App() {
   const hasResults = showResults && results.length > 0
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-900">
+    <div className="flex flex-col h-dvh w-screen overflow-hidden bg-slate-900">
       {preview.enabled && <PreviewBanner pr={preview.pr} commit={preview.commit} />}
       <div className="flex flex-1 overflow-hidden min-h-0 relative">
       {showWelcome && <WelcomeModal onDismiss={dismissWelcome} />}
@@ -383,7 +383,7 @@ export default function App() {
 
         {hasResults && (
           <div
-            className="flex-shrink-0 bg-slate-800 flex flex-col h-[55vh] lg:h-auto"
+            className="flex-shrink-0 bg-slate-800 flex flex-col h-[55dvh] lg:h-auto"
             style={isDesktop ? { height: `${tableHeight}px` } : undefined}
           >
             {/* Drag handle — mouse-only, so desktop only */}
