@@ -24,7 +24,9 @@ const SORT_OPTIONS: SortBy[] = [
   'precip_max_in_hr',
   'wind_avg_mph',
   'wind_max_mph',
+  'temp_min_f',
   'temp_avg_f',
+  'temp_max_f',
   'aqi_avg',
   'aqi_max',
 ]

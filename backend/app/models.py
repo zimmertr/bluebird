@@ -34,7 +34,9 @@ class SortBy(str, Enum):
     precip_max = "precip_max_in_hr"
     wind_avg = "wind_avg_mph"
     wind_max = "wind_max_mph"
+    temp_min = "temp_min_f"
     temp_avg = "temp_avg_f"
+    temp_max = "temp_max_f"
     aqi_avg = "aqi_avg"
     aqi_max = "aqi_max"
 

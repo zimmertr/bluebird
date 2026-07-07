@@ -16,14 +16,48 @@ function pickableDate(offsetDays: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-const SORT_OPTIONS: { value: SortBy; label: string }[] = [
-  { value: 'precip_total_in', label: 'Least total precipitation' },
-  { value: 'precip_max_in_hr', label: 'Least peak precipitation' },
-  { value: 'wind_avg_mph', label: 'Least average wind' },
-  { value: 'wind_max_mph', label: 'Least max wind' },
-  { value: 'temp_avg_f', label: 'Coldest average temperature' },
-  { value: 'aqi_avg', label: 'Least average AQI (PM2.5)' },
-  { value: 'aqi_max', label: 'Least max AQI (PM2.5)' },
+// Ranking = metric × window-aggregation, but each metric only offers the
+// aggregations that discriminate for it: min hourly precip is ~0 everywhere,
+// and precip's natural pair is Total/Peak rather than Avg/Max. Every combo
+// still composes into the flat SortBy key the backend and URL already speak.
+const SORT_METRICS: {
+  label: string
+  defaultSort: SortBy
+  options: { value: SortBy; label: string }[]
+}[] = [
+  {
+    label: 'Precipitation',
+    defaultSort: 'precip_total_in',
+    options: [
+      { value: 'precip_total_in', label: 'Total' },
+      { value: 'precip_max_in_hr', label: 'Peak hour' },
+    ],
+  },
+  {
+    label: 'Wind',
+    defaultSort: 'wind_avg_mph',
+    options: [
+      { value: 'wind_avg_mph', label: 'Avg' },
+      { value: 'wind_max_mph', label: 'Max' },
+    ],
+  },
+  {
+    label: 'Temperature',
+    defaultSort: 'temp_avg_f',
+    options: [
+      { value: 'temp_min_f', label: 'Min' },
+      { value: 'temp_avg_f', label: 'Avg' },
+      { value: 'temp_max_f', label: 'Max' },
+    ],
+  },
+  {
+    label: 'AQI (PM2.5)',
+    defaultSort: 'aqi_avg',
+    options: [
+      { value: 'aqi_avg', label: 'Avg' },
+      { value: 'aqi_max', label: 'Max' },
+    ],
+  },
 ]
 
 const DESTINATION_TYPES: { value: DestinationType; label: string; implemented: boolean }[] = [
@@ -320,26 +354,58 @@ export default function ControlPanel({
           )}
         </section>
 
-        {/* Step 4: Sort by */}
+        {/* Step 4: Rank by — metric radio + aggregation toggle per row. The
+            toggle stays clickable on inactive rows so any combo is one click. */}
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            4. Sort Results By
+            4. Rank Results By
           </h2>
           <div className="space-y-2 lg:space-y-1.5">
-            {SORT_OPTIONS.map(({ value, label }) => (
-              <label key={value} className="flex items-center gap-2.5 py-1 lg:py-0 cursor-pointer">
-                <input
-                  type="radio"
-                  name="sort_by"
-                  value={value}
-                  checked={sortBy === value}
-                  onChange={() => setSortBy(value)}
-                  className="accent-sky-500 h-4 w-4"
-                />
-                <span className="text-sm text-slate-200">{label}</span>
-              </label>
-            ))}
+            {SORT_METRICS.map((metric) => {
+              const isActive = metric.options.some((o) => o.value === sortBy)
+              return (
+                <div
+                  key={metric.label}
+                  className="flex items-center justify-between gap-2 py-1 lg:py-0"
+                >
+                  <label className="flex items-center gap-2.5 cursor-pointer min-w-0">
+                    <input
+                      type="radio"
+                      name="sort_metric"
+                      checked={isActive}
+                      onChange={() => setSortBy(metric.defaultSort)}
+                      className="accent-sky-500 h-4 w-4 flex-shrink-0"
+                    />
+                    <span className="text-sm text-slate-200 truncate">{metric.label}</span>
+                  </label>
+                  <div
+                    className={`flex rounded border border-slate-600 overflow-hidden flex-shrink-0 ${
+                      isActive ? '' : 'opacity-50'
+                    }`}
+                  >
+                    {metric.options.map((opt, i) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setSortBy(opt.value)}
+                        className={`px-2 py-0.5 text-xs transition-colors ${
+                          i > 0 ? 'border-l border-slate-600' : ''
+                        } ${
+                          sortBy === opt.value
+                            ? 'bg-sky-600 text-white'
+                            : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
           </div>
+          <p className="text-xs text-slate-500 mt-2">
+            Lowest values rank first — driest, calmest, coldest, cleanest.
+          </p>
         </section>
 
         {/* Step 5: Constraints */}

@@ -44,10 +44,25 @@ export const METRIC_CONFIG: Record<SortBy, MetricConfig> = {
     legendLabels: ['≤ 10 mph', '10 – 20 mph', '20 – 35 mph', '35 – 50 mph', '> 50 mph'],
     group: ['wind_min_mph', 'wind_avg_mph', 'wind_max_mph'],
   },
+  // Green = coldest for all temp scales, matching the coldest-first ranking.
+  // Min-temp anchors sit ~10°F below the avg scale with the 32°F freeze line
+  // explicit (overnight-freeze checks); max-temp anchors sit ~10°F above.
+  temp_min_f: {
+    thresholds: [25, 32, 45, 55],
+    label: 'Min Temp',
+    legendLabels: ['≤ 25°F', '25 – 32°F', '32 – 45°F', '45 – 55°F', '> 55°F'],
+    group: ['temp_min_f', 'temp_avg_f', 'temp_max_f'],
+  },
   temp_avg_f: {
     thresholds: [30, 45, 55, 65],
     label: 'Avg Temp',
     legendLabels: ['≤ 30°F', '30 – 45°F', '45 – 55°F', '55 – 65°F', '> 65°F'],
+    group: ['temp_min_f', 'temp_avg_f', 'temp_max_f'],
+  },
+  temp_max_f: {
+    thresholds: [40, 55, 65, 75],
+    label: 'Max Temp',
+    legendLabels: ['≤ 40°F', '40 – 55°F', '55 – 65°F', '65 – 75°F', '> 75°F'],
     group: ['temp_min_f', 'temp_avg_f', 'temp_max_f'],
   },
   // Thresholds are the US EPA AQI category boundaries (Good / Moderate /

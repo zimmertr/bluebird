@@ -16,7 +16,9 @@ const SORT_LABELS: Record<SortBy, string> = {
   precip_max_in_hr: 'least peak precipitation',
   wind_avg_mph: 'least average wind',
   wind_max_mph: 'least max wind',
+  temp_min_f: 'coldest low temperature',
   temp_avg_f: 'coldest average temperature',
+  temp_max_f: 'coolest high temperature',
   aqi_avg: 'least average AQI (PM2.5)',
   aqi_max: 'least max AQI (PM2.5)',
 }

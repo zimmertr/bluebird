@@ -88,6 +88,11 @@ describe('encodeState / decodeState round-trip', () => {
     expect(roundTrip({ ...base, sortBy: 'aqi_max' })!.sortBy).toBe('aqi_max')
   })
 
+  it('restores the temperature min/max sort options', () => {
+    expect(roundTrip({ ...base, sortBy: 'temp_min_f' })!.sortBy).toBe('temp_min_f')
+    expect(roundTrip({ ...base, sortBy: 'temp_max_f' })!.sortBy).toBe('temp_max_f')
+  })
+
   it('restores a custom-CSV analysis without a polygon', () => {
     const csv = '46.8529,-121.7604\n46.2024,-121.4909'
     const out = roundTrip({
