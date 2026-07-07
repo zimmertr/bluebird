@@ -187,9 +187,11 @@ export function decodeState(search: string): Partial<ShareableState> | null {
 
 /**
  * Classify a forecast window against Open-Meteo's servable range. `now` is
- * injected for deterministic testing. Returns 'ok' when any part of the window
- * is servable, 'past' when it ends before the history horizon, and 'future'
- * when it starts beyond the forecast horizon.
+ * injected for deterministic testing. The whole window must fit inside the
+ * servable band: Open-Meteo rejects requests whose dates fall outside it, so
+ * even a partial overhang would fail upstream. Returns 'past' when the window
+ * starts before the history horizon and 'future' when it ends beyond the
+ * forecast horizon.
  */
 export function classifyWindow(
   startDatetime: string,
@@ -204,8 +206,8 @@ export function classifyWindow(
   const earliest = now.getTime() - PAST_LIMIT_DAYS * MS_PER_DAY
   const latest = now.getTime() + FUTURE_LIMIT_DAYS * MS_PER_DAY
 
-  if (end < earliest) return 'past'
-  if (start > latest) return 'future'
+  if (start < earliest) return 'past'
+  if (end > latest) return 'future'
   return 'ok'
 }
 

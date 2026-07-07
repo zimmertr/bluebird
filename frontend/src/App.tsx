@@ -155,8 +155,9 @@ export default function App() {
     customCsv,
   ])
 
-  // Warn (non-blocking) when a restored/edited window falls outside Open-Meteo's
-  // servable range so the user knows to adjust the dates.
+  // Warn when a restored/edited window falls outside Open-Meteo's servable
+  // range. Blocks Analyze (in ControlPanel): Open-Meteo rejects out-of-range
+  // dates outright, so submitting would only produce an upstream error.
   const windowStatus = classifyWindow(startDatetime, endDatetime, new Date())
   const windowWarning = windowStatus === 'ok' ? null : windowStatus
 

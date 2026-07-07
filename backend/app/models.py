@@ -1,13 +1,25 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 MAX_POLYGON_AREA_KM2 = 50_000
+
+# Open-Meteo serves roughly the last ~90 days of history through ~16 days
+# ahead; the frontend blocks windows outside that band (urlState.ts). These
+# looser bounds are a backstop for direct API callers — enough slack that a
+# legitimate edge window never gets a false 422, while an egregious one (say,
+# a year ahead) fails fast with a clear message instead of an upstream 400.
+PAST_LIMIT_SLACK_DAYS = 95
+FUTURE_LIMIT_SLACK_DAYS = 17
+
+
+def _as_utc(dt: datetime) -> datetime:
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
 class DestinationType(str, Enum):
@@ -78,6 +90,21 @@ class AnalyzeRequest(BaseModel):
                 "Draw a smaller polygon to stay within API rate limits."
             )
         return v
+
+    @model_validator(mode="after")
+    def window_within_servable_range(self) -> "AnalyzeRequest":
+        now = datetime.now(timezone.utc)
+        if _as_utc(self.start_datetime) < now - timedelta(days=PAST_LIMIT_SLACK_DAYS):
+            raise ValueError(
+                "start_datetime is beyond the ~90-day history limit of the "
+                "weather API — move the window start closer to today."
+            )
+        if _as_utc(self.end_datetime) > now + timedelta(days=FUTURE_LIMIT_SLACK_DAYS):
+            raise ValueError(
+                "end_datetime is beyond the ~16-day forecast horizon of the "
+                "weather API — move the window end closer to today."
+            )
+        return self
 
 
 class DestinationResult(BaseModel):

@@ -1,6 +1,20 @@
 import { GeoPolygon, DestinationType, CustomDestination, SortBy } from '../types'
 import { MAX_AREA_KM2 } from './MapView'
-import { classifyAqiCoverage, AQI_LIMIT_DAYS } from '../utils/urlState'
+import {
+  classifyAqiCoverage,
+  AQI_LIMIT_DAYS,
+  PAST_LIMIT_DAYS,
+  FUTURE_LIMIT_DAYS,
+} from '../utils/urlState'
+
+// Constrain the native date pickers to Open-Meteo's servable range so an
+// unservable window (e.g. a year ahead) can't be picked in the first place.
+// Typed-in dates can still exceed this — classifyWindow blocks those.
+function pickableDate(offsetDays: number): string {
+  const d = new Date(Date.now() + offsetDays * 86_400_000)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
 
 const SORT_OPTIONS: { value: SortBy; label: string }[] = [
   { value: 'precip_total_in', label: 'Least total precipitation' },
@@ -89,10 +103,18 @@ export default function ControlPanel({
   const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > MAX_AREA_KM2
 
   const polygonReady = drawMode ? drawPointCount >= 3 && !areaTooLarge : hasPolygon
-  const canAnalyze = hasDates && !loading && (needsPolygon ? polygonReady : hasCustom) && !areaTooLarge
+  const canAnalyze =
+    hasDates &&
+    !windowWarning &&
+    !loading &&
+    (needsPolygon ? polygonReady : hasCustom) &&
+    !areaTooLarge
 
   // Informational only — never blocks Analyze. AQI simply degrades to "—".
   const aqiCoverage = classifyAqiCoverage(startDatetime, endDatetime, new Date())
+
+  const minPickable = pickableDate(-PAST_LIMIT_DAYS)
+  const maxPickable = pickableDate(FUTURE_LIMIT_DAYS)
 
   const pointsNeeded = Math.max(0, 3 - drawPointCount)
 
@@ -233,6 +255,8 @@ export default function ControlPanel({
                 <input
                   type="date"
                   value={startDatetime.split('T')[0] ?? ''}
+                  min={minPickable}
+                  max={maxPickable}
                   onChange={(e) => {
                     const d = e.target.value
                     const t = startDatetime.split('T')[1] ?? '00:00'
@@ -258,6 +282,8 @@ export default function ControlPanel({
                 <input
                   type="date"
                   value={endDatetime.split('T')[0] ?? ''}
+                  min={minPickable}
+                  max={maxPickable}
                   onChange={(e) => {
                     const d = e.target.value
                     const t = endDatetime.split('T')[1] ?? '00:00'
@@ -281,8 +307,8 @@ export default function ControlPanel({
           {windowWarning && (
             <p className="mt-2 text-xs text-amber-400 bg-amber-950/40 border border-amber-800/60 rounded p-2">
               {windowWarning === 'past'
-                ? 'This forecast window is in the past and no longer has data — adjust the dates to run an analysis.'
-                : 'This forecast window is too far ahead (beyond ~16 days) — adjust the dates to run an analysis.'}
+                ? `This forecast window starts before the ~${PAST_LIMIT_DAYS}-day history limit — adjust the dates to run an analysis.`
+                : `This forecast window extends beyond the ~${FUTURE_LIMIT_DAYS}-day forecast horizon — adjust the dates to run an analysis.`}
             </p>
           )}
           {!windowWarning && aqiCoverage !== 'full' && (
@@ -397,6 +423,8 @@ export default function ControlPanel({
               ? `Area too large — draw a smaller polygon (max ${MAX_AREA_KM2.toLocaleString()} km²).`
               : !hasDates
               ? 'Set a forecast window to continue.'
+              : windowWarning
+              ? 'Adjust the forecast window dates to continue.'
               : needsPolygon && drawMode && drawPointCount < 3
               ? `Add ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon.`
               : needsPolygon && !hasPolygon && !drawMode

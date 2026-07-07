@@ -110,7 +110,7 @@ Elevation is optional. If omitted, that field will be blank in results.
 
 ### Step 3 — Set a Forecast Window
 
-Choose a start and end datetime. Open-Meteo provides hourly weather forecasts up to **16 days** ahead. All times are treated as local browser time and converted to UTC for the API.
+Choose a start and end datetime. Open-Meteo provides hourly weather forecasts up to **16 days** ahead (and ~90 days of history); the date pickers are constrained to that range, and a window that falls outside it disables Analyze with an explanation. All times are treated as local browser time and converted to UTC for the API.
 
 Air quality (PM2.5 AQI) forecasts are shorter — the underlying CAMS model only extends **~5 days** ahead. Windows beyond that still analyze fine; the AQI columns just show `—` for hours past the horizon, and the app notes this next to the date inputs.
 
@@ -316,7 +316,7 @@ For `destination_type: "custom"`, omit `polygon` and include `custom_destination
 | Code | Condition |
 |---|---|
 | 400 | `start_datetime` ≥ `end_datetime`; `destination_type` not yet implemented; `custom_destinations` missing for custom type |
-| 422 | Validation failure (polygon too large; limit out of range) |
+| 422 | Validation failure (polygon too large; limit out of range; window outside the servable ~90-day-past to ~16-day-ahead range) |
 | 502 | Overpass API unreachable across all mirrors; Open-Meteo API failure |
 
 ---

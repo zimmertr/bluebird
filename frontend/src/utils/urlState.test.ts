@@ -223,17 +223,27 @@ describe('classifyWindow', () => {
     )
   })
 
+  it('is past when the window merely starts before the history horizon', () => {
+    // Open-Meteo rejects out-of-range start dates, so a partial overhang fails too.
+    expect(classifyWindow(shift(-(PAST_LIMIT_DAYS + 5)), shift(-10), now)).toBe('past')
+  })
+
   it('is future when the window starts beyond the forecast horizon', () => {
     expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 2), shift(FUTURE_LIMIT_DAYS + 5), now)).toBe(
       'future',
     )
   })
 
-  it('is ok when only part of the window is servable', () => {
-    // Starts within the forecast horizon, ends beyond it → still partly servable.
+  it('is future when the window merely ends beyond the forecast horizon', () => {
+    // Starts within the horizon but ends past it — Open-Meteo would 400 the
+    // request, so this must warn rather than pass as ok.
     expect(classifyWindow(shift(FUTURE_LIMIT_DAYS - 1), shift(FUTURE_LIMIT_DAYS + 5), now)).toBe(
-      'ok',
+      'future',
     )
+  })
+
+  it('is future for an absurdly long window (start now, end next year)', () => {
+    expect(classifyWindow(shift(0), shift(365), now)).toBe('future')
   })
 
   it('is ok when the window is incomplete', () => {
