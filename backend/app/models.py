@@ -23,6 +23,8 @@ class SortBy(str, Enum):
     wind_avg = "wind_avg_mph"
     wind_max = "wind_max_mph"
     temp_avg = "temp_avg_f"
+    aqi_avg = "aqi_avg"
+    aqi_max = "aqi_max"
 
 
 class GeoPolygon(BaseModel):
@@ -94,6 +96,10 @@ class DestinationResult(BaseModel):
     wind_min_mph: float
     wind_max_mph: float
     wind_avg_mph: float
+    # PM2.5 US AQI over the window. Nullable: the air-quality forecast only
+    # extends ~5 days out (vs ~16 for weather) and the fetch is best-effort.
+    aqi_avg: Optional[int] = None
+    aqi_max: Optional[int] = None
 
 
 class AnalyzeResponse(BaseModel):

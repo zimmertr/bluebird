@@ -17,6 +17,8 @@ const SORT_LABELS: Record<SortBy, string> = {
   wind_avg_mph: 'least average wind',
   wind_max_mph: 'least max wind',
   temp_avg_f: 'coldest average temperature',
+  aqi_avg: 'least average AQI (PM2.5)',
+  aqi_max: 'least max AQI (PM2.5)',
 }
 
 function nowLocal(): string {

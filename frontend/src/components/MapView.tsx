@@ -508,6 +508,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
                 ${props.elevation_ft != null ? `<br>Elevation: ${Number(props.elevation_ft).toLocaleString()} ft` : ''}
                 <br>Precip total: <strong>${Number(props.precip).toFixed(3)}"</strong>
                 <br>Wind avg: ${props.wind_avg} mph · Temp avg: ${props.temp_avg}°F
+                ${props.aqi_avg != null ? `<br>PM2.5 AQI avg: <strong>${props.aqi_avg}</strong> · max: ${props.aqi_max}` : ''}
               </div>`,
             )
             .addTo(map)
@@ -587,11 +588,14 @@ function updateResults(map: maplibregl.Map, results: DestinationResult[], sortBy
       properties: {
         name: r.name,
         rank: String(i + 1),
-        color: markerColor(r[sortBy] as number, sortBy),
+        // Sorting by AQI can hit rows with no AQI data (beyond its ~5-day
+        // horizon) — those get a neutral gray instead of a metric color.
+        color: r[sortBy] == null ? '#64748b' : markerColor(r[sortBy] as number, sortBy),
         precip: r.precip_total_in,
         elevation_ft: r.elevation_ft,
         wind_avg: r.wind_avg_mph.toFixed(1),
         temp_avg: r.temp_avg_f.toFixed(1),
+        ...(r.aqi_avg != null ? { aqi_avg: r.aqi_avg, aqi_max: r.aqi_max } : {}),
       },
     })),
   })

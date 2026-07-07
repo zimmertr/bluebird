@@ -1,5 +1,6 @@
 import { GeoPolygon, DestinationType, CustomDestination, SortBy } from '../types'
 import { MAX_AREA_KM2 } from './MapView'
+import { classifyAqiCoverage, AQI_LIMIT_DAYS } from '../utils/urlState'
 
 const SORT_OPTIONS: { value: SortBy; label: string }[] = [
   { value: 'precip_total_in', label: 'Least total precipitation' },
@@ -7,6 +8,8 @@ const SORT_OPTIONS: { value: SortBy; label: string }[] = [
   { value: 'wind_avg_mph', label: 'Least average wind' },
   { value: 'wind_max_mph', label: 'Least max wind' },
   { value: 'temp_avg_f', label: 'Coldest average temperature' },
+  { value: 'aqi_avg', label: 'Least average AQI (PM2.5)' },
+  { value: 'aqi_max', label: 'Least max AQI (PM2.5)' },
 ]
 
 const DESTINATION_TYPES: { value: DestinationType; label: string; implemented: boolean }[] = [
@@ -87,6 +90,9 @@ export default function ControlPanel({
 
   const polygonReady = drawMode ? drawPointCount >= 3 && !areaTooLarge : hasPolygon
   const canAnalyze = hasDates && !loading && (needsPolygon ? polygonReady : hasCustom) && !areaTooLarge
+
+  // Informational only — never blocks Analyze. AQI simply degrades to "—".
+  const aqiCoverage = classifyAqiCoverage(startDatetime, endDatetime, new Date())
 
   const pointsNeeded = Math.max(0, 3 - drawPointCount)
 
@@ -279,6 +285,13 @@ export default function ControlPanel({
                 : 'This forecast window is too far ahead (beyond ~16 days) — adjust the dates to run an analysis.'}
             </p>
           )}
+          {!windowWarning && aqiCoverage !== 'full' && (
+            <p className="mt-2 text-xs text-sky-300 bg-sky-950/40 border border-sky-800/60 rounded p-2">
+              {aqiCoverage === 'partial'
+                ? `Air-quality (PM2.5 AQI) forecasts only extend ~${AQI_LIMIT_DAYS} days out, so AQI may cover just the start of this window. Weather data covers all of it.`
+                : `Air-quality (PM2.5 AQI) forecasts only extend ~${AQI_LIMIT_DAYS} days out — AQI columns will be empty for this window. Weather data is unaffected.`}
+            </p>
+          )}
         </section>
 
         {/* Step 4: Sort by */}
@@ -416,7 +429,7 @@ export default function ControlPanel({
         )}
 
         <p className="text-xs text-slate-600 text-center">
-          Data: OpenStreetMap · Open-Meteo
+          Data: OpenStreetMap · Open-Meteo · CAMS
         </p>
       </div>
     </div>

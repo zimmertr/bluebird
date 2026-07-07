@@ -6,7 +6,7 @@ const STEPS: [string, string][] = [
   ['Draw a search area', 'Click on the map to place polygon vertices. Three or more points form the search boundary.'],
   ['Choose a destination type', 'Peaks are live now. Trailheads and lakes are coming soon.'],
   ['Set a forecast window', 'Pick the start and end date/time for the weather period you care about.'],
-  ['Sort & filter', 'Rank by least rain, least wind, or coldest temperature. Optionally filter by elevation range.'],
+  ['Sort & filter', 'Rank by least rain, least wind, coldest temperature, or cleanest air (PM2.5 AQI). Optionally filter by elevation range.'],
   ['Analyze', 'Results appear on the map as colored markers and in the table below, ranked best to worst.'],
 ]
 
@@ -26,7 +26,7 @@ export default function WelcomeModal({ onDismiss }: Props) {
         <div className="px-6 py-4">
           <p className="text-sm text-slate-300 mb-4">
             Find peaks and destinations inside a drawn area with the best upcoming weather — ranked by
-            precipitation, wind, or temperature.
+            precipitation, wind, temperature, or air quality.
           </p>
 
           {/* Steps */}

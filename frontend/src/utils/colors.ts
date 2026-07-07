@@ -50,6 +50,20 @@ export const METRIC_CONFIG: Record<SortBy, MetricConfig> = {
     legendLabels: ['≤ 30°F', '30 – 45°F', '45 – 55°F', '55 – 65°F', '> 65°F'],
     group: ['temp_min_f', 'temp_avg_f', 'temp_max_f'],
   },
+  // Thresholds are the US EPA AQI category boundaries (Good / Moderate /
+  // Sensitive / Unhealthy / worse) — they map 1:1 onto the green→red anchors.
+  aqi_avg: {
+    thresholds: [50, 100, 150, 200],
+    label: 'Avg AQI (PM2.5)',
+    legendLabels: ['≤ 50', '50 – 100', '100 – 150', '150 – 200', '> 200'],
+    group: ['aqi_avg', 'aqi_max'],
+  },
+  aqi_max: {
+    thresholds: [50, 100, 150, 200],
+    label: 'Max AQI (PM2.5)',
+    legendLabels: ['≤ 50', '50 – 100', '100 – 150', '150 – 200', '> 200'],
+    group: ['aqi_avg', 'aqi_max'],
+  },
 }
 
 function lerp(a: number, b: number, t: number): number {

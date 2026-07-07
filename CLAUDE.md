@@ -55,8 +55,8 @@ Single container, multi-stage Docker build:
 The FastAPI backend handles `POST /api/analyze`, which:
 1. Validates polygon area (bounding-box approximation, max 50,000 km²)
 2. Queries Overpass API for OSM features (peaks only implemented; queries for trailheads/lakes exist in `osm.py` but are gated by `_IMPLEMENTED`)
-3. Fetches hourly weather from Open-Meteo in batches of 50, run concurrently via `asyncio.gather`
-4. Sorts and returns results
+3. Fetches hourly weather from Open-Meteo in batches of 50, run concurrently via `asyncio.gather`; PM2.5 US AQI is fetched the same way from Open-Meteo's air-quality endpoint alongside it (best-effort: failures and the short horizon degrade to `null` AQI, never fail the analysis — weather forecasts reach ~16 days, air quality only ~5)
+4. Sorts and returns results (nullable AQI sort keys push `None` last)
 
 **Key constraint shared between frontend and backend:** `MAX_POLYGON_AREA_KM2 = 50_000` is defined in both `backend/app/models.py` and `frontend/src/components/MapView.tsx` — keep them in sync.
 
@@ -66,6 +66,7 @@ The FastAPI backend handles `POST /api/analyze`, which:
 - `app/routes/analyze.py` — single route handler
 - `app/services/osm.py` — Overpass query with 3-endpoint fallback chain
 - `app/services/weather.py` — Open-Meteo batched parallel fetch
+- `app/services/air_quality.py` — Open-Meteo air-quality (PM2.5 US AQI) batched fetch, best-effort
 
 **Frontend layout:**
 - `src/App.tsx` — root component
@@ -74,7 +75,7 @@ The FastAPI backend handles `POST /api/analyze`, which:
 - `src/components/ResultsTable.tsx` — sortable results table
 - `src/hooks/useAnalyze.ts` — fetch logic for `POST /api/analyze`
 - `src/types.ts` — TypeScript types mirroring backend Pydantic models
-- `src/utils/colors.ts` — marker color thresholds by precipitation
+- `src/utils/colors.ts` — marker/cell color thresholds per sortable metric (precip, wind, temp, AQI)
 
 ## CI/CD pipeline
 

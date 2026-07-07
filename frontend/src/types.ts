@@ -6,6 +6,8 @@ export type SortBy =
   | 'wind_avg_mph'
   | 'wind_max_mph'
   | 'temp_avg_f'
+  | 'aqi_avg'
+  | 'aqi_max'
 
 export interface GeoPolygon {
   type: 'Polygon'
@@ -48,6 +50,10 @@ export interface DestinationResult {
   wind_min_mph: number
   wind_max_mph: number
   wind_avg_mph: number
+  // PM2.5 US AQI — null when the window is beyond the ~5-day air-quality
+  // forecast horizon or the (best-effort) fetch failed
+  aqi_avg: number | null
+  aqi_max: number | null
 }
 
 export interface AnalyzeResponse {

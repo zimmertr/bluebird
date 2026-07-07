@@ -110,7 +110,9 @@ Elevation is optional. If omitted, that field will be blank in results.
 
 ### Step 3 — Set a Forecast Window
 
-Choose a start and end datetime. Open-Meteo provides hourly forecasts up to **16 days** ahead. All times are treated as local browser time and converted to UTC for the API.
+Choose a start and end datetime. Open-Meteo provides hourly weather forecasts up to **16 days** ahead. All times are treated as local browser time and converted to UTC for the API.
+
+Air quality (PM2.5 AQI) forecasts are shorter — the underlying CAMS model only extends **~5 days** ahead. Windows beyond that still analyze fine; the AQI columns just show `—` for hours past the horizon, and the app notes this next to the date inputs.
 
 ### Step 4 — Set Max Results
 
@@ -130,7 +132,7 @@ Click **Analyze**. Results appear in a sortable table below the map and as color
 | Orange | 0.25" – 0.50" |
 | Red | > 0.50" |
 
-Click any marker for a popup with rank, precipitation, wind, and temperature. Click any **destination name** in the results table to open Windy centered on that location with the rain overlay.
+Click any marker for a popup with rank, precipitation, wind, temperature, and PM2.5 AQI. Click any **destination name** in the results table to open Windy centered on that location with the rain overlay. When sorting by AQI, the marker thresholds follow the US EPA category boundaries (50 / 100 / 150 / 200).
 
 ### Results Table
 
@@ -298,12 +300,16 @@ For `destination_type: "custom"`, omit `polygon` and include `custom_destination
       "temp_avg_f": 46.8,
       "wind_min_mph": 3.1,
       "wind_max_mph": 18.4,
-      "wind_avg_mph": 9.2
+      "wind_avg_mph": 9.2,
+      "aqi_avg": 42,
+      "aqi_max": 58
     }
   ],
   "total_queried": 34
 }
 ```
+
+`aqi_avg` / `aqi_max` are PM2.5 **US AQI** values over the window. They are `null` when the window lies beyond the ~5-day air-quality forecast horizon or the (best-effort) air-quality fetch failed — an air-quality outage never fails the analysis.
 
 **Error responses:**
 
@@ -353,7 +359,7 @@ Single Docker container (multi-stage build):
   1. `overpass-api.de`
   2. `overpass.kumi.systems`
   3. `maps.mail.ru`
-- **Open-Meteo** — Free hourly forecast data. Supports batching up to 50 locations per request; all batches run concurrently via `asyncio.gather`.
+- **Open-Meteo** — Free hourly forecast data (weather + air quality endpoints). Supports batching up to 50 locations per request; all batches run concurrently via `asyncio.gather`.
 - **OpenFreeMap** — Free vector map tiles. No account or API key needed.
 
 ---
@@ -404,16 +410,17 @@ containers:
 |---|---|---|---|
 | [OpenStreetMap](https://www.openstreetmap.org) via [Overpass API](https://overpass-api.de) | Destination names, coordinates, elevation | Free | None |
 | [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind | Free (non-commercial) | None |
+| [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly PM2.5 US AQI | Free (non-commercial) | None |
 | [OpenFreeMap](https://openfreemap.org) | Vector map tiles | Free | None |
 
-Open-Meteo forecast data covers up to 16 days ahead. Historical data beyond that would require the [Open-Meteo Historical API](https://open-meteo.com/en/docs/historical-weather-api) (different endpoint, not currently implemented).
+Open-Meteo weather forecasts cover up to 16 days ahead; air-quality forecasts (CAMS) cover ~5 days and are regional (~11–25 km grid) rather than per-peak. Historical data beyond the ~90-day window would require the [Open-Meteo Historical API](https://open-meteo.com/en/docs/historical-weather-api) (different endpoint, not currently implemented).
 
 ---
 
 ## Roadmap
 
 - [ ] **Additional destination types** — Trailheads, Lakes (OSM queries are written; just needs enabling)
-- [ ] **Air quality (PM2.5)** — Open-Meteo Air Quality API, useful during wildfire smoke season
+- [x] **Air quality (PM2.5)** — Open-Meteo Air Quality API, useful during wildfire smoke season
 - [ ] **Historical analysis** — Switch to Open-Meteo archive endpoint for past dates
 - [ ] **Saved searches** — LocalStorage persistence for polygons and settings
 - [ ] **Export** — Download results as CSV
