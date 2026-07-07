@@ -3,9 +3,11 @@ import {
   encodeState,
   decodeState,
   classifyWindow,
+  classifyAqiCoverage,
   ShareableState,
   PAST_LIMIT_DAYS,
   FUTURE_LIMIT_DAYS,
+  AQI_LIMIT_DAYS,
 } from './urlState'
 import { GeoPolygon } from '../types'
 
@@ -79,6 +81,11 @@ describe('encodeState / decodeState round-trip', () => {
     expect(out!.maxElevationFt).toBe(12000)
     expect(out!.sortBy).toBe('wind_max_mph')
     expect(out!.limit).toBe(25)
+  })
+
+  it('restores the AQI sort options', () => {
+    expect(roundTrip({ ...base, sortBy: 'aqi_avg' })!.sortBy).toBe('aqi_avg')
+    expect(roundTrip({ ...base, sortBy: 'aqi_max' })!.sortBy).toBe('aqi_max')
   })
 
   it('restores a custom-CSV analysis without a polygon', () => {
@@ -216,20 +223,61 @@ describe('classifyWindow', () => {
     )
   })
 
+  it('is past when the window merely starts before the history horizon', () => {
+    // Open-Meteo rejects out-of-range start dates, so a partial overhang fails too.
+    expect(classifyWindow(shift(-(PAST_LIMIT_DAYS + 5)), shift(-10), now)).toBe('past')
+  })
+
   it('is future when the window starts beyond the forecast horizon', () => {
     expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 2), shift(FUTURE_LIMIT_DAYS + 5), now)).toBe(
       'future',
     )
   })
 
-  it('is ok when only part of the window is servable', () => {
-    // Starts within the forecast horizon, ends beyond it → still partly servable.
+  it('is future when the window merely ends beyond the forecast horizon', () => {
+    // Starts within the horizon but ends past it — Open-Meteo would 400 the
+    // request, so this must warn rather than pass as ok.
     expect(classifyWindow(shift(FUTURE_LIMIT_DAYS - 1), shift(FUTURE_LIMIT_DAYS + 5), now)).toBe(
-      'ok',
+      'future',
     )
+  })
+
+  it('is future for an absurdly long window (start now, end next year)', () => {
+    expect(classifyWindow(shift(0), shift(365), now)).toBe('future')
   })
 
   it('is ok when the window is incomplete', () => {
     expect(classifyWindow('', '', now)).toBe('ok')
+  })
+})
+
+describe('classifyAqiCoverage', () => {
+  const now = new Date('2026-07-04T12:00')
+  const iso = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+  const shift = (days: number) => iso(new Date(now.getTime() + days * 86_400_000))
+
+  it('is full when the window ends inside the AQI horizon', () => {
+    expect(classifyAqiCoverage(shift(1), shift(AQI_LIMIT_DAYS - 1), now)).toBe('full')
+  })
+
+  it('is partial when only the start of the window is covered', () => {
+    expect(classifyAqiCoverage(shift(2), shift(AQI_LIMIT_DAYS + 3), now)).toBe('partial')
+  })
+
+  it('is none when the window starts beyond the horizon', () => {
+    expect(classifyAqiCoverage(shift(AQI_LIMIT_DAYS + 1), shift(AQI_LIMIT_DAYS + 3), now)).toBe(
+      'none',
+    )
+  })
+
+  it('is full for past windows (the AQI archive covers them)', () => {
+    expect(classifyAqiCoverage(shift(-10), shift(-8), now)).toBe('full')
+  })
+
+  it('is full when the window is incomplete', () => {
+    expect(classifyAqiCoverage('', '', now)).toBe('full')
   })
 })

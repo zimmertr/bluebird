@@ -25,12 +25,18 @@ const SORT_OPTIONS: SortBy[] = [
   'wind_avg_mph',
   'wind_max_mph',
   'temp_avg_f',
+  'aqi_avg',
+  'aqi_max',
 ]
 
 // Open-Meteo's forecast endpoint serves roughly the last ~90 days of history
 // through ~16 days ahead. Outside that band a saved window returns no data.
 export const PAST_LIMIT_DAYS = 90
 export const FUTURE_LIMIT_DAYS = 16
+
+// The air-quality endpoint's CAMS model only publishes ~5 days of forecast —
+// well short of the 16-day weather horizon — so AQI needs its own warning.
+export const AQI_LIMIT_DAYS = 5
 
 const POLY_PRECISION = 5 // ~1 m; keeps the URL short without visible drift
 const MS_PER_DAY = 86_400_000
@@ -181,9 +187,11 @@ export function decodeState(search: string): Partial<ShareableState> | null {
 
 /**
  * Classify a forecast window against Open-Meteo's servable range. `now` is
- * injected for deterministic testing. Returns 'ok' when any part of the window
- * is servable, 'past' when it ends before the history horizon, and 'future'
- * when it starts beyond the forecast horizon.
+ * injected for deterministic testing. The whole window must fit inside the
+ * servable band: Open-Meteo rejects requests whose dates fall outside it, so
+ * even a partial overhang would fail upstream. Returns 'past' when the window
+ * starts before the history horizon and 'future' when it ends beyond the
+ * forecast horizon.
  */
 export function classifyWindow(
   startDatetime: string,
@@ -198,7 +206,30 @@ export function classifyWindow(
   const earliest = now.getTime() - PAST_LIMIT_DAYS * MS_PER_DAY
   const latest = now.getTime() + FUTURE_LIMIT_DAYS * MS_PER_DAY
 
-  if (end < earliest) return 'past'
-  if (start > latest) return 'future'
+  if (start < earliest) return 'past'
+  if (end > latest) return 'future'
   return 'ok'
+}
+
+/**
+ * Classify how much of a forecast window the ~5-day air-quality horizon covers.
+ * 'full' means AQI data should span the whole window, 'partial' means only its
+ * start, 'none' means the window begins beyond the horizon entirely. Purely
+ * informational — analysis still runs, with missing AQI rendered as "—".
+ */
+export function classifyAqiCoverage(
+  startDatetime: string,
+  endDatetime: string,
+  now: Date,
+): 'full' | 'partial' | 'none' {
+  if (!isValidDatetimeLocal(startDatetime) || !isValidDatetimeLocal(endDatetime)) {
+    return 'full' // incomplete window — nothing to warn about yet
+  }
+  const start = new Date(startDatetime).getTime()
+  const end = new Date(endDatetime).getTime()
+  const horizon = now.getTime() + AQI_LIMIT_DAYS * MS_PER_DAY
+
+  if (start > horizon) return 'none'
+  if (end > horizon) return 'partial'
+  return 'full'
 }

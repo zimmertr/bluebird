@@ -32,6 +32,8 @@ const COLUMNS: ColDef[] = [
   { key: 'wind_min_mph', label: 'Wind Min mph', format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
   { key: 'wind_max_mph', label: 'Wind Max mph', format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
   { key: 'wind_avg_mph', label: 'Wind Avg mph', format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
+  { key: 'aqi_avg', label: 'AQI Avg', format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
+  { key: 'aqi_max', label: 'AQI Max', format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
 ]
 
 interface Props {
@@ -54,8 +56,12 @@ export default function ResultsTable({ results, sortBy }: Props) {
   }
 
   const sorted = [...results].sort((a, b) => {
-    const av = a[sortKey] ?? 0
-    const bv = b[sortKey] ?? 0
+    const av = a[sortKey]
+    const bv = b[sortKey]
+    // Missing values (e.g. AQI beyond its forecast horizon) sort last either way
+    if (av == null && bv == null) return 0
+    if (av == null) return 1
+    if (bv == null) return -1
     const cmp = av < bv ? -1 : av > bv ? 1 : 0
     return sortDir === 'asc' ? cmp : -cmp
   })
@@ -90,13 +96,12 @@ export default function ResultsTable({ results, sortBy }: Props) {
               {COLUMNS.map((col) => {
                 const raw = row[col.key]
                 const display = col.format ? col.format(raw) : String(raw ?? '—')
-                const isColored = coloredGroup.has(col.key as string)
+                const sortVal = row[sortBy]
+                const isColored = coloredGroup.has(col.key as string) && sortVal != null
                 const cellClass = `px-2 py-1.5 whitespace-nowrap ${
                   col.key === 'name' ? 'font-sans font-medium' : 'font-mono'
                 } ${!isColored ? 'text-slate-200' : ''}`
-                const colorSty = isColored
-                  ? cellStyle(row[sortBy] as number, sortBy)
-                  : undefined
+                const colorSty = isColored ? cellStyle(sortVal as number, sortBy) : undefined
 
                 if (col.key === 'name') {
                   return (

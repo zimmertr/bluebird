@@ -17,6 +17,8 @@ const SORT_LABELS: Record<SortBy, string> = {
   wind_avg_mph: 'least average wind',
   wind_max_mph: 'least max wind',
   temp_avg_f: 'coldest average temperature',
+  aqi_avg: 'least average AQI (PM2.5)',
+  aqi_max: 'least max AQI (PM2.5)',
 }
 
 function nowLocal(): string {
@@ -153,8 +155,9 @@ export default function App() {
     customCsv,
   ])
 
-  // Warn (non-blocking) when a restored/edited window falls outside Open-Meteo's
-  // servable range so the user knows to adjust the dates.
+  // Warn when a restored/edited window falls outside Open-Meteo's servable
+  // range. Blocks Analyze (in ControlPanel): Open-Meteo rejects out-of-range
+  // dates outright, so submitting would only produce an upstream error.
   const windowStatus = classifyWindow(startDatetime, endDatetime, new Date())
   const windowWarning = windowStatus === 'ok' ? null : windowStatus
 

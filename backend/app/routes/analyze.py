@@ -6,8 +6,18 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.models import AnalyzeRequest, AnalyzeResponse, DestinationResult, DestinationType
-from app.services import osm, weather
+from app.services import air_quality, osm, weather
 from app.services.errors import UpstreamError
+
+
+def _sort_key(sort_field: str):
+    # AQI fields are nullable (short forecast horizon / best-effort fetch);
+    # None sorts after every real value so it never wins a ranking.
+    def key(r: DestinationResult):
+        v = getattr(r, sort_field)
+        return (v is None, 0 if v is None else v)
+
+    return key
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -147,12 +157,20 @@ async def analyze_stream(request: AnalyzeRequest):
                 finally:
                     await progress_queue.put(_STREAM_DONE)
 
+            # Air quality rides alongside the weather fetch; it never raises
+            # (failures degrade to None entries), so awaiting it is safe.
+            aqi_task = asyncio.create_task(
+                air_quality.fetch_aqi_batch(
+                    destinations, request.start_datetime, request.end_datetime
+                )
+            )
             fetch_task = asyncio.create_task(run_fetch())
             try:
                 async for event in _drain(progress_queue):
                     yield event
 
                 wx_list = await fetch_task
+                aqi_list = await aqi_task
             except UpstreamError as e:
                 yield _sse("error", message=e.message)
                 return
@@ -163,22 +181,23 @@ async def analyze_stream(request: AnalyzeRequest):
             finally:
                 # If the client disconnected (generator torn down) before the
                 # fetch finished, don't leave the request running in the background.
-                if not fetch_task.done():
-                    fetch_task.cancel()
+                for task in (fetch_task, aqi_task):
+                    if not task.done():
+                        task.cancel()
 
             results: list[DestinationResult] = []
-            for dest, wx in zip(destinations, wx_list):
+            for dest, wx, aqi in zip(destinations, wx_list, aqi_list):
                 if wx is None:
                     continue
                 results.append(DestinationResult(
                     name=dest["name"], type=request.destination_type.value,
                     latitude=dest["latitude"], longitude=dest["longitude"],
                     elevation_ft=dest.get("elevation_ft"), osm_id=dest.get("osm_id"),
-                    **wx,
+                    **wx, **(aqi or {}),
                 ))
 
             sort_field = request.sort_by.value
-            results.sort(key=lambda r: getattr(r, sort_field))
+            results.sort(key=_sort_key(sort_field))
             results = results[: request.limit]
 
             yield _sse("result", data=AnalyzeResponse(results=results, total_queried=total_queried).model_dump())
@@ -253,19 +272,27 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     total_queried = len(destinations)
     log.info("Fetching weather for %d destination(s)", total_queried)
 
+    aqi_task = asyncio.create_task(
+        air_quality.fetch_aqi_batch(
+            destinations, request.start_datetime, request.end_datetime
+        )
+    )
     try:
         wx_list = await weather.fetch_weather_batch(
             destinations, request.start_datetime, request.end_datetime
         )
     except UpstreamError as e:
+        aqi_task.cancel()
         raise HTTPException(status_code=502, detail=e.message)
     except Exception as e:
+        aqi_task.cancel()
         raise HTTPException(
             status_code=502, detail=f"Weather API request failed: {e}"
         )
+    aqi_list = await aqi_task
 
     results: list[DestinationResult] = []
-    for dest, wx in zip(destinations, wx_list):
+    for dest, wx, aqi in zip(destinations, wx_list, aqi_list):
         if wx is None:
             continue
         results.append(
@@ -277,18 +304,23 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
                 elevation_ft=dest.get("elevation_ft"),
                 osm_id=dest.get("osm_id"),
                 **wx,
+                **(aqi or {}),
             )
         )
 
     sort_field = request.sort_by.value
-    results.sort(key=lambda r: getattr(r, sort_field))
+    results.sort(key=_sort_key(sort_field))
     results = results[: request.limit]
+
+    def _fmt(r: DestinationResult) -> str:
+        v = getattr(r, sort_field)
+        return f"{v:.3f}" if v is not None else "—"
 
     log.info(
         "Returning %d result(s) sorted by %s (best: %s, worst: %s)",
         len(results),
         sort_field,
-        f"{getattr(results[0], sort_field):.3f}" if results else "—",
-        f"{getattr(results[-1], sort_field):.3f}" if results else "—",
+        _fmt(results[0]) if results else "—",
+        _fmt(results[-1]) if results else "—",
     )
     return AnalyzeResponse(results=results, total_queried=total_queried)

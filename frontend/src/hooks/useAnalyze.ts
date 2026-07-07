@@ -28,7 +28,15 @@ function sortAndLimit(
       if (maxElev != null && elev > maxElev) return false
       return true
     })
-    .sort((a, b) => (a[sortBy] as number) - (b[sortBy] as number))
+    .sort((a, b) => {
+      // Nullable metrics (AQI beyond its horizon) rank last, never as 0/best
+      const av = a[sortBy]
+      const bv = b[sortBy]
+      if (av == null && bv == null) return 0
+      if (av == null) return 1
+      if (bv == null) return -1
+      return (av as number) - (bv as number)
+    })
     .slice(0, limit)
 }
 
@@ -100,7 +108,19 @@ export function useAnalyze() {
 
       if (!res.ok || !res.body) {
         const body = await res.json().catch(() => ({}))
-        throw new Error((body as { detail?: string }).detail ?? `HTTP ${res.status}`)
+        // FastAPI validation errors (422) carry detail as an array of
+        // {msg, ...} objects rather than a string — flatten to something readable.
+        const detail = (body as { detail?: unknown }).detail
+        const message =
+          typeof detail === 'string'
+            ? detail
+            : Array.isArray(detail)
+            ? detail
+                .map((d) => (d as { msg?: string }).msg ?? '')
+                .filter(Boolean)
+                .join('; ')
+            : ''
+        throw new Error(message || `HTTP ${res.status}`)
       }
 
       const reader = res.body.getReader()
