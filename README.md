@@ -116,7 +116,7 @@ Air quality (PM2.5 AQI) forecasts are shorter — the underlying CAMS model only
 
 ### Step 4 — Set Max Results
 
-Default: 10. Maximum: 200. The backend queries up to `limit × 5` candidates from OSM (capped at 200), fetches weather for all of them, then returns the top N driest.
+Default: 10. Maximum: 200. The backend queries up to `limit × 5` candidates from OSM (capped at 200), fetches weather for all of them, then returns the top N by the selected ranking (driest first by default).
 
 ### Step 5 — Analyze
 
@@ -136,7 +136,7 @@ Click any marker for a popup with rank, precipitation, wind, temperature, and PM
 
 ### Results Table
 
-Click any column header to sort ascending or descending. Default sort is **Precip Total ascending** (driest first).
+Click any column header to sort ascending or descending. By default the table follows the **Rank Results By** selection (e.g. lowest total precipitation — driest first).
 
 | Column | Description |
 |---|---|

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { cellStyle, METRIC_CONFIG } from '../utils/colors'
 
@@ -39,12 +39,21 @@ const COLUMNS: ColDef[] = [
 interface Props {
   results: DestinationResult[]
   sortBy: SortBy
+  sortDesc: boolean
 }
 
-export default function ResultsTable({ results, sortBy }: Props) {
+export default function ResultsTable({ results, sortBy, sortDesc }: Props) {
   const coloredGroup = new Set(METRIC_CONFIG[sortBy].group)
-  const [sortKey, setSortKey] = useState<SortKey>('precip_total_in')
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [sortKey, setSortKey] = useState<SortKey>(sortBy)
+  const [sortDir, setSortDir] = useState<SortDir>(sortDesc ? 'desc' : 'asc')
+
+  // Follow the panel's ranking whenever it changes so the table order matches
+  // the requested "top N by X" — a manual header click still overrides until
+  // the next panel change.
+  useEffect(() => {
+    setSortKey(sortBy)
+    setSortDir(sortDesc ? 'desc' : 'asc')
+  }, [sortBy, sortDesc])
 
   function handleSort(key: SortKey) {
     if (key === sortKey) {

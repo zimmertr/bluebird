@@ -16,48 +16,15 @@ function pickableDate(offsetDays: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-// Ranking = metric × window-aggregation, but each metric only offers the
-// aggregations that discriminate for it: min hourly precip is ~0 everywhere,
-// and precip's natural pair is Total/Peak rather than Avg/Max. Every combo
-// still composes into the flat SortBy key the backend and URL already speak.
-const SORT_METRICS: {
-  label: string
-  defaultSort: SortBy
-  options: { value: SortBy; label: string }[]
-}[] = [
-  {
-    label: 'Precipitation',
-    defaultSort: 'precip_total_in',
-    options: [
-      { value: 'precip_total_in', label: 'Total' },
-      { value: 'precip_max_in_hr', label: 'Peak hour' },
-    ],
-  },
-  {
-    label: 'Wind',
-    defaultSort: 'wind_avg_mph',
-    options: [
-      { value: 'wind_avg_mph', label: 'Avg' },
-      { value: 'wind_max_mph', label: 'Max' },
-    ],
-  },
-  {
-    label: 'Temperature',
-    defaultSort: 'temp_avg_f',
-    options: [
-      { value: 'temp_min_f', label: 'Min' },
-      { value: 'temp_avg_f', label: 'Avg' },
-      { value: 'temp_max_f', label: 'Max' },
-    ],
-  },
-  {
-    label: 'AQI (PM2.5)',
-    defaultSort: 'aqi_avg',
-    options: [
-      { value: 'aqi_avg', label: 'Avg' },
-      { value: 'aqi_max', label: 'Max' },
-    ],
-  },
+// The app's core question: "top N peaks by <metric>, lowest or highest".
+// Each metric ranks by one representative value — total precipitation,
+// window-average wind/temperature/AQI. The finer min/avg/max detail stays
+// visible (and click-sortable) in the results table.
+const SORT_METRICS: { value: SortBy; label: string }[] = [
+  { value: 'precip_total_in', label: 'Precipitation' },
+  { value: 'wind_avg_mph', label: 'Wind' },
+  { value: 'temp_avg_f', label: 'Temperature' },
+  { value: 'aqi_avg', label: 'AQI (PM2.5)' },
 ]
 
 const DESTINATION_TYPES: { value: DestinationType; label: string; implemented: boolean }[] = [
@@ -86,6 +53,8 @@ interface Props {
   setCustomCsv: (s: string) => void
   sortBy: SortBy
   setSortBy: (s: SortBy) => void
+  sortDesc: boolean
+  setSortDesc: (d: boolean) => void
   minElevationFt: number | null
   setMinElevationFt: (v: number | null) => void
   maxElevationFt: number | null
@@ -118,6 +87,8 @@ export default function ControlPanel({
   setCustomCsv,
   sortBy,
   setSortBy,
+  sortDesc,
+  setSortDesc,
   minElevationFt,
   setMinElevationFt,
   maxElevationFt,
@@ -354,18 +325,19 @@ export default function ControlPanel({
           )}
         </section>
 
-        {/* Step 4: Rank by — metric radio + aggregation toggle per row. The
-            toggle stays clickable on inactive rows so any combo is one click. */}
+        {/* Step 4: Rank by — metric radio + Lowest/Highest toggle per row. The
+            toggle stays clickable on inactive rows so any ranking is one click;
+            selecting a metric via its radio keeps the current direction. */}
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
             4. Rank Results By
           </h2>
           <div className="space-y-2 lg:space-y-1.5">
             {SORT_METRICS.map((metric) => {
-              const isActive = metric.options.some((o) => o.value === sortBy)
+              const isActive = sortBy === metric.value
               return (
                 <div
-                  key={metric.label}
+                  key={metric.value}
                   className="flex items-center justify-between gap-2 py-1 lg:py-0"
                 >
                   <label className="flex items-center gap-2.5 cursor-pointer min-w-0">
@@ -373,7 +345,7 @@ export default function ControlPanel({
                       type="radio"
                       name="sort_metric"
                       checked={isActive}
-                      onChange={() => setSortBy(metric.defaultSort)}
+                      onChange={() => setSortBy(metric.value)}
                       className="accent-sky-500 h-4 w-4 flex-shrink-0"
                     />
                     <span className="text-sm text-slate-200 truncate">{metric.label}</span>
@@ -383,19 +355,25 @@ export default function ControlPanel({
                       isActive ? '' : 'opacity-50'
                     }`}
                   >
-                    {metric.options.map((opt, i) => (
+                    {[
+                      { desc: false, label: 'Lowest' },
+                      { desc: true, label: 'Highest' },
+                    ].map((dir, i) => (
                       <button
-                        key={opt.value}
-                        onClick={() => setSortBy(opt.value)}
+                        key={dir.label}
+                        onClick={() => {
+                          setSortBy(metric.value)
+                          setSortDesc(dir.desc)
+                        }}
                         className={`px-2 py-0.5 text-xs transition-colors ${
                           i > 0 ? 'border-l border-slate-600' : ''
                         } ${
-                          sortBy === opt.value
+                          isActive && sortDesc === dir.desc
                             ? 'bg-sky-600 text-white'
                             : 'bg-slate-900 text-slate-400 hover:text-slate-200'
                         }`}
                       >
-                        {opt.label}
+                        {dir.label}
                       </button>
                     ))}
                   </div>
@@ -404,7 +382,7 @@ export default function ControlPanel({
             })}
           </div>
           <p className="text-xs text-slate-500 mt-2">
-            Lowest values rank first — driest, calmest, coldest, cleanest.
+            Precipitation ranks by window total; wind, temperature, and AQI by window average.
           </p>
         </section>
 

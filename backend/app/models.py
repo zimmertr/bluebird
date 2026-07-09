@@ -70,6 +70,9 @@ class AnalyzeRequest(BaseModel):
     end_datetime: datetime
     limit: int = 10
     sort_by: SortBy = SortBy.precip_total
+    # False ranks lowest values first (driest/calmest/coldest/cleanest);
+    # True flips to highest-first (wettest/windiest/warmest/smokiest).
+    sort_desc: bool = False
     custom_destinations: Optional[List[CustomDestination]] = None
 
     @field_validator("limit")

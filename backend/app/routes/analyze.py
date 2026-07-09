@@ -10,12 +10,15 @@ from app.services import air_quality, osm, weather
 from app.services.errors import UpstreamError
 
 
-def _sort_key(sort_field: str):
+def _sort_key(sort_field: str, descending: bool = False):
     # AQI fields are nullable (short forecast horizon / best-effort fetch);
-    # None sorts after every real value so it never wins a ranking.
+    # None sorts after every real value in either direction so it never wins
+    # a ranking — hence negating values rather than sort(reverse=True).
     def key(r: DestinationResult):
         v = getattr(r, sort_field)
-        return (v is None, 0 if v is None else v)
+        if v is None:
+            return (1, 0.0)
+        return (0, -v if descending else v)
 
     return key
 
@@ -197,7 +200,7 @@ async def analyze_stream(request: AnalyzeRequest):
                 ))
 
             sort_field = request.sort_by.value
-            results.sort(key=_sort_key(sort_field))
+            results.sort(key=_sort_key(sort_field, request.sort_desc))
             results = results[: request.limit]
 
             yield _sse("result", data=AnalyzeResponse(results=results, total_queried=total_queried).model_dump())
@@ -309,7 +312,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         )
 
     sort_field = request.sort_by.value
-    results.sort(key=_sort_key(sort_field))
+    results.sort(key=_sort_key(sort_field, request.sort_desc))
     results = results[: request.limit]
 
     def _fmt(r: DestinationResult) -> str:
@@ -317,9 +320,10 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         return f"{v:.3f}" if v is not None else "—"
 
     log.info(
-        "Returning %d result(s) sorted by %s (best: %s, worst: %s)",
+        "Returning %d result(s) sorted by %s %s (best: %s, worst: %s)",
         len(results),
         sort_field,
+        "desc" if request.sort_desc else "asc",
         _fmt(results[0]) if results else "—",
         _fmt(results[-1]) if results else "—",
     )

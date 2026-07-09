@@ -16,6 +16,7 @@ export type Progress = {
 function sortAndLimit(
   results: DestinationResult[],
   sortBy: SortBy,
+  sortDesc: boolean,
   limit: number,
   minElev: number | null | undefined,
   maxElev: number | null | undefined,
@@ -29,13 +30,15 @@ function sortAndLimit(
       return true
     })
     .sort((a, b) => {
-      // Nullable metrics (AQI beyond its horizon) rank last, never as 0/best
+      // Nullable metrics (AQI beyond its horizon) rank last in either
+      // direction, never as 0/best
       const av = a[sortBy]
       const bv = b[sortBy]
       if (av == null && bv == null) return 0
       if (av == null) return 1
       if (bv == null) return -1
-      return (av as number) - (bv as number)
+      const cmp = (av as number) - (bv as number)
+      return sortDesc ? -cmp : cmp
     })
     .slice(0, limit)
 }
@@ -75,6 +78,7 @@ export function useAnalyze() {
     lastRequestRef.current = request
     const key = makeCacheKey(request)
     const sortBy: SortBy = request.sort_by ?? 'precip_total_in'
+    const sortDesc = request.sort_desc ?? false
     const limit = request.limit ?? 10
 
     const minElev = request.min_elevation_ft
@@ -82,7 +86,7 @@ export function useAnalyze() {
 
     // Cache hit — re-sort/re-filter locally, no API call
     if (cacheRef.current?.key === key) {
-      const displayed = sortAndLimit(cacheRef.current.allResults, sortBy, limit, minElev, maxElev)
+      const displayed = sortAndLimit(cacheRef.current.allResults, sortBy, sortDesc, limit, minElev, maxElev)
       setResponse({ results: displayed, total_queried: cacheRef.current.totalQueried })
       return
     }
@@ -170,7 +174,7 @@ export function useAnalyze() {
             const allResults = event.data.results
             const totalQueried = event.data.total_queried
             cacheRef.current = { key, allResults, totalQueried }
-            const displayed = sortAndLimit(allResults, sortBy, limit, minElev, maxElev)
+            const displayed = sortAndLimit(allResults, sortBy, sortDesc, limit, minElev, maxElev)
             setResponse({ results: displayed, total_queried: totalQueried })
           }
         }

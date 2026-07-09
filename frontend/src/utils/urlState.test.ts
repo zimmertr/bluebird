@@ -29,6 +29,7 @@ const base: ShareableState = {
   startDatetime: '2026-07-04T06:00',
   endDatetime: '2026-07-07T18:00',
   sortBy: 'precip_total_in',
+  sortDesc: false,
   minElevationFt: null,
   maxElevationFt: null,
   limit: 10,
@@ -43,6 +44,7 @@ const pristine: ShareableState = {
   startDatetime: '2026-07-04T06:00',
   endDatetime: '',
   sortBy: 'precip_total_in',
+  sortDesc: false,
   minElevationFt: null,
   maxElevationFt: null,
   limit: 10,
@@ -74,23 +76,28 @@ describe('encodeState / decodeState round-trip', () => {
       ...base,
       minElevationFt: 8000,
       maxElevationFt: 12000,
-      sortBy: 'wind_max_mph',
+      sortBy: 'wind_avg_mph',
       limit: 25,
     })
     expect(out!.minElevationFt).toBe(8000)
     expect(out!.maxElevationFt).toBe(12000)
-    expect(out!.sortBy).toBe('wind_max_mph')
+    expect(out!.sortBy).toBe('wind_avg_mph')
     expect(out!.limit).toBe(25)
   })
 
-  it('restores the AQI sort options', () => {
+  it('restores every sortable metric', () => {
+    expect(roundTrip({ ...base, sortBy: 'wind_avg_mph' })!.sortBy).toBe('wind_avg_mph')
+    expect(roundTrip({ ...base, sortBy: 'temp_avg_f' })!.sortBy).toBe('temp_avg_f')
     expect(roundTrip({ ...base, sortBy: 'aqi_avg' })!.sortBy).toBe('aqi_avg')
-    expect(roundTrip({ ...base, sortBy: 'aqi_max' })!.sortBy).toBe('aqi_max')
   })
 
-  it('restores the temperature min/max sort options', () => {
-    expect(roundTrip({ ...base, sortBy: 'temp_min_f' })!.sortBy).toBe('temp_min_f')
-    expect(roundTrip({ ...base, sortBy: 'temp_max_f' })!.sortBy).toBe('temp_max_f')
+  it('round-trips the sort direction', () => {
+    const out = roundTrip({ ...base, sortBy: 'temp_avg_f', sortDesc: true })
+    expect(out!.sortBy).toBe('temp_avg_f')
+    expect(out!.sortDesc).toBe(true)
+    // Ascending is the default and stays out of the URL entirely.
+    expect(encodeState(base)).not.toContain('desc')
+    expect(roundTrip(base)!.sortDesc).toBeUndefined()
   })
 
   it('restores a custom-CSV analysis without a polygon', () => {
@@ -127,8 +134,9 @@ describe('encodeState gate — what triggers a URL update', () => {
     expect(encodeState({ ...pristine, maxElevationFt: 12000 })).not.toBe('')
   })
 
-  it('syncs when a non-default sort, limit, or type is chosen', () => {
-    expect(encodeState({ ...pristine, sortBy: 'wind_max_mph' })).not.toBe('')
+  it('syncs when a non-default sort, direction, limit, or type is chosen', () => {
+    expect(encodeState({ ...pristine, sortBy: 'wind_avg_mph' })).not.toBe('')
+    expect(encodeState({ ...pristine, sortDesc: true })).not.toBe('')
     expect(encodeState({ ...pristine, limit: 25 })).not.toBe('')
     expect(encodeState({ ...pristine, destinationType: 'custom' })).not.toBe('')
   })
@@ -199,6 +207,21 @@ describe('decodeState tolerance', () => {
     expect(out!.destinationType).toBeUndefined()
     expect(out!.limit).toBeUndefined()
     expect(out!.sortBy).toBe('precip_total_in')
+  })
+
+  it('maps legacy aggregation sort keys to their metric', () => {
+    // Links shared before the metric × direction redesign keep working.
+    expect(decodeState('sort=precip_max_in_hr')!.sortBy).toBe('precip_total_in')
+    expect(decodeState('sort=wind_max_mph')!.sortBy).toBe('wind_avg_mph')
+    expect(decodeState('sort=temp_min_f')!.sortBy).toBe('temp_avg_f')
+    expect(decodeState('sort=temp_max_f')!.sortBy).toBe('temp_avg_f')
+    expect(decodeState('sort=aqi_max')!.sortBy).toBe('aqi_avg')
+    expect(decodeState('sort=not_a_metric')).toBeNull()
+  })
+
+  it('only honors desc=1 for the sort direction', () => {
+    expect(decodeState('sort=temp_avg_f&desc=1')!.sortDesc).toBe(true)
+    expect(decodeState('sort=temp_avg_f&desc=0')!.sortDesc).toBeUndefined()
   })
 
   it('rejects a malformed datetime', () => {

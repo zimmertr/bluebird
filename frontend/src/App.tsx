@@ -11,16 +11,13 @@ import { GeoPolygon, DestinationType, CustomDestination, SortBy } from './types'
 import { METRIC_CONFIG, MARKER_COLORS } from './utils/colors'
 import { encodeState, decodeState, classifyWindow } from './utils/urlState'
 
-const SORT_LABELS: Record<SortBy, string> = {
-  precip_total_in: 'least total precipitation',
-  precip_max_in_hr: 'least peak precipitation',
-  wind_avg_mph: 'least average wind',
-  wind_max_mph: 'least max wind',
-  temp_min_f: 'coldest low temperature',
-  temp_avg_f: 'coldest average temperature',
-  temp_max_f: 'coolest high temperature',
-  aqi_avg: 'least average AQI (PM2.5)',
-  aqi_max: 'least max AQI (PM2.5)',
+// Composed with the direction into e.g. "lowest total precipitation" /
+// "highest average temperature" for the results header.
+const SORT_NOUNS: Record<SortBy, string> = {
+  precip_total_in: 'total precipitation',
+  wind_avg_mph: 'average wind',
+  temp_avg_f: 'average temperature',
+  aqi_avg: 'average AQI (PM2.5)',
 }
 
 function nowLocal(): string {
@@ -68,6 +65,7 @@ export default function App() {
   const [limit, setLimit] = useState(() => restored?.limit ?? 10)
   const [customCsv, setCustomCsv] = useState(() => restored?.customCsv ?? '')
   const [sortBy, setSortBy] = useState<SortBy>(() => restored?.sortBy ?? 'precip_total_in')
+  const [sortDesc, setSortDesc] = useState(() => restored?.sortDesc ?? false)
   const [minElevationFt, setMinElevationFt] = useState<number | null>(
     () => restored?.minElevationFt ?? null,
   )
@@ -138,6 +136,7 @@ export default function App() {
       startDatetime,
       endDatetime,
       sortBy,
+      sortDesc,
       minElevationFt,
       maxElevationFt,
       limit,
@@ -151,6 +150,7 @@ export default function App() {
     startDatetime,
     endDatetime,
     sortBy,
+    sortDesc,
     minElevationFt,
     maxElevationFt,
     limit,
@@ -193,6 +193,7 @@ export default function App() {
         end_datetime: end,
         limit,
         sort_by: sortBy,
+        sort_desc: sortDesc,
         custom_destinations: parseCustomCsv(customCsv),
         ...constraints,
       })
@@ -215,6 +216,7 @@ export default function App() {
         end_datetime: end,
         limit,
         sort_by: sortBy,
+        sort_desc: sortDesc,
         ...constraints,
       })
     }
@@ -293,6 +295,8 @@ export default function App() {
           setCustomCsv={setCustomCsv}
           sortBy={sortBy}
           setSortBy={setSortBy}
+          sortDesc={sortDesc}
+          setSortDesc={setSortDesc}
           minElevationFt={minElevationFt}
           setMinElevationFt={setMinElevationFt}
           maxElevationFt={maxElevationFt}
@@ -403,7 +407,7 @@ export default function App() {
             {/* Header */}
             <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-slate-700 border-b border-slate-600">
               <span className="text-xs font-semibold text-white">
-                Results — sorted by {SORT_LABELS[sortBy]}
+                Results — {sortDesc ? 'highest' : 'lowest'} {SORT_NOUNS[sortBy]} first
               </span>
               <button
                 onClick={() => setShowResults(false)}
@@ -414,7 +418,7 @@ export default function App() {
             </div>
             {/* Scrollable table */}
             <div className="flex-1 overflow-y-auto min-h-0">
-              <ResultsTable results={results} sortBy={sortBy} />
+              <ResultsTable results={results} sortBy={sortBy} sortDesc={sortDesc} />
             </div>
           </div>
         )}
