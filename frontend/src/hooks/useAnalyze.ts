@@ -74,6 +74,34 @@ export function useAnalyze() {
     if (lastRequestRef.current) analyze(lastRequestRef.current)
   }
 
+  // Re-derive the displayed slice from the cached full result set when a view
+  // parameter (sort, direction, limit, elevation) changes — no network. Data
+  // parameters (polygon/type/window) still go through analyze(). No-ops until
+  // an analysis has something on screen, so it can't resurrect results after
+  // a cancel or error.
+  function refine(view: {
+    sort_by?: SortBy
+    sort_desc?: boolean
+    limit?: number
+    min_elevation_ft?: number | null
+    max_elevation_ft?: number | null
+  }) {
+    if (loading || !response || !cacheRef.current) return
+    const displayed = sortAndLimit(
+      cacheRef.current.allResults,
+      view.sort_by ?? 'precip_total_in',
+      view.sort_desc ?? false,
+      view.limit ?? 10,
+      view.min_elevation_ft,
+      view.max_elevation_ft,
+    )
+    setResponse({ results: displayed, total_queried: cacheRef.current.totalQueried })
+    // Keep retry() aligned with what's on screen.
+    if (lastRequestRef.current) {
+      lastRequestRef.current = { ...lastRequestRef.current, ...view }
+    }
+  }
+
   async function analyze(request: AnalyzeRequest) {
     lastRequestRef.current = request
     const key = makeCacheKey(request)
@@ -194,5 +222,5 @@ export function useAnalyze() {
     }
   }
 
-  return { analyze, cancel, retry, loading, error, response, statusMessage, progress }
+  return { analyze, cancel, retry, refine, loading, error, response, statusMessage, progress }
 }

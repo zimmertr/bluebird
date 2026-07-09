@@ -110,7 +110,23 @@ export default function App() {
     document.addEventListener('mouseup', onUp)
   }
 
-  const { analyze, cancel, retry, loading, error, response, statusMessage, progress } = useAnalyze()
+  const { analyze, cancel, retry, refine, loading, error, response, statusMessage, progress } = useAnalyze()
+
+  // Sort, direction, limit, and elevation are view parameters over the last
+  // analysis — apply them to the cached full result set immediately instead of
+  // waiting for another Analyze click. Only polygon/type/window changes need a
+  // real re-analysis. `loading` is a dep so a change made mid-analysis is
+  // applied as soon as the analysis lands (refine no-ops while in flight).
+  useEffect(() => {
+    refine({
+      sort_by: sortBy,
+      sort_desc: sortDesc,
+      limit,
+      min_elevation_ft: minElevationFt,
+      max_elevation_ft: maxElevationFt,
+    })
+    // refine is recreated each render — depending on it would fire every render.
+  }, [sortBy, sortDesc, limit, minElevationFt, maxElevationFt, loading])
   const preview = usePreview()
 
   // Elapsed-time counter for phases with no countable progress (the OSM search).
