@@ -1,7 +1,12 @@
 name: PR Preview Image
 
 on:
-  pull_request:
+  # pull_request_target (not pull_request): dependabot-triggered pull_request
+  # runs get Dependabot's separate (empty) secret store and cannot log in to
+  # Docker Hub. _target runs use the base repo's Actions secrets and always
+  # take the workflow definition from main, so a PR branch cannot alter this
+  # pipeline to leak them.
+  pull_request_target:
     types: [opened, synchronize, reopened]
 
 # One build per PR; newer commits supersede in-flight builds.
@@ -17,10 +22,11 @@ jobs:
   preview:
     name: Build & push preview image
     runs-on: ubuntu-latest
-    # Same-repo PRs only. Fork PRs run with a read-only token and no secrets, so
-    # they cannot be labeled or built — and the `create pr container` label (which
-    # the Argo CD pull request generator filters on) requires repo write access to
-    # apply. Together that keeps strangers from spinning up environments.
+    # HARD GATE — same-repo PRs only. Under pull_request_target this run holds
+    # real secrets even when the PR comes from a fork, so this condition is the
+    # only thing keeping strangers from pushing images or spinning up preview
+    # environments. Never remove it, and never run PR-authored code outside the
+    # Docker build below.
     if: github.event.pull_request.head.repo.full_name == github.repository
     env:
       IMAGE: zimmertr/bluebird-pr
