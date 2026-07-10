@@ -1,13 +1,13 @@
 export type DestinationType = 'peak' | 'trailhead' | 'lake' | 'custom'
 
+// One representative ranking value per metric (the backend enum accepts more
+// aggregation keys for direct API callers, but the UI ranks by these four —
+// direction is the second axis, carried separately as sortDesc/sort_desc).
 export type SortBy =
   | 'precip_total_in'
-  | 'precip_max_in_hr'
   | 'wind_avg_mph'
-  | 'wind_max_mph'
   | 'temp_avg_f'
   | 'aqi_avg'
-  | 'aqi_max'
 
 export interface GeoPolygon {
   type: 'Polygon'
@@ -28,8 +28,9 @@ export interface AnalyzeRequest {
   end_datetime: string
   limit: number
   sort_by?: SortBy
+  sort_desc?: boolean
   custom_destinations?: CustomDestination[]
-  // client-side constraints (not sent to backend)
+  // Elevation band, filtered server-side before the weather fetch
   min_elevation_ft?: number | null
   max_elevation_ft?: number | null
 }

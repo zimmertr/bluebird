@@ -83,7 +83,7 @@ Click **Draw Polygon** in the sidebar. Your cursor becomes a crosshair. Click on
 - At least **3 points** are required before Analyze becomes active.
 - The estimated bounding-box area is shown in km² as you draw.
 - Click **Clear** at any time to discard the polygon and start over.
-- Click **Redraw** after a completed polygon to replace it.
+- The polygon stays editable after Analyze — drag vertices, drag a midpoint handle to add one, or click a vertex to remove it, then Analyze again. Click **Clear** to start over.
 
 > There is no "Finish Polygon" step. Once you have 3+ points, click **Analyze** directly — the polygon closes automatically.
 
@@ -116,7 +116,7 @@ Air quality (PM2.5 AQI) forecasts are shorter — the underlying CAMS model only
 
 ### Step 4 — Set Max Results
 
-Default: 10. Maximum: 200. The backend queries up to `limit × 5` candidates from OSM (capped at 200), fetches weather for all of them, then returns the top N driest.
+Default: 10. Maximum: 200. The backend fetches weather for **every** named peak in the polygon (after the optional elevation filter) and returns the top N by the selected ranking — no sampling, so the winners are the true extremes of the area. Analyses are capped at 1,000 peaks; beyond that the app asks you to draw a smaller polygon or narrow the elevation range.
 
 ### Step 5 — Analyze
 
@@ -136,7 +136,7 @@ Click any marker for a popup with rank, precipitation, wind, temperature, and PM
 
 ### Results Table
 
-Click any column header to sort ascending or descending. Default sort is **Precip Total ascending** (driest first).
+Click any column header to sort ascending or descending. By default the table follows the **Rank Results By** selection (e.g. lowest total precipitation — driest first).
 
 | Column | Description |
 |---|---|

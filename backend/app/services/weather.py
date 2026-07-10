@@ -13,6 +13,9 @@ log = logging.getLogger(__name__)
 
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 BATCH_SIZE = 50  # Open-Meteo handles up to ~100; 50 is conservative
+# Exhaustive analyses can mean dozens of batches — gate how many are in
+# flight at once so a big polygon doesn't burst-hammer the free API.
+MAX_CONCURRENT_BATCHES = 4
 PROVIDER = "Open-Meteo (weather service)"
 
 # Called as each batch completes: (processed_destinations, total_destinations,
@@ -48,8 +51,9 @@ async def fetch_weather_batch(
     processed = 0
     batches_done = 0
 
+    sem = asyncio.Semaphore(MAX_CONCURRENT_BATCHES)
     tasks = [
-        asyncio.create_task(_fetch_chunk_indexed(i, chunk, start_dt, end_dt))
+        asyncio.create_task(_fetch_chunk_indexed(i, chunk, start_dt, end_dt, sem))
         for i, chunk in enumerate(chunks)
     ]
 
@@ -75,8 +79,10 @@ async def _fetch_chunk_indexed(
     destinations: List[Dict[str, Any]],
     start_dt: datetime,
     end_dt: datetime,
+    sem: asyncio.Semaphore,
 ) -> tuple[int, List[Optional[Dict[str, Any]]]]:
-    return index, await _fetch_chunk(destinations, start_dt, end_dt)
+    async with sem:
+        return index, await _fetch_chunk(destinations, start_dt, end_dt)
 
 
 async def _fetch_chunk(

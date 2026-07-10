@@ -12,6 +12,7 @@ export interface ShareableState {
   startDatetime: string // datetime-local, e.g. "2026-07-04T10:30"
   endDatetime: string
   sortBy: SortBy
+  sortDesc: boolean // false = lowest first (the historical behavior)
   minElevationFt: number | null
   maxElevationFt: number | null
   limit: number
@@ -19,15 +20,18 @@ export interface ShareableState {
 }
 
 const DESTINATION_TYPES: DestinationType[] = ['peak', 'trailhead', 'lake', 'custom']
-const SORT_OPTIONS: SortBy[] = [
-  'precip_total_in',
-  'precip_max_in_hr',
-  'wind_avg_mph',
-  'wind_max_mph',
-  'temp_avg_f',
-  'aqi_avg',
-  'aqi_max',
-]
+const SORT_OPTIONS: SortBy[] = ['precip_total_in', 'wind_avg_mph', 'temp_avg_f', 'aqi_avg']
+
+// Sort keys from before the metric × direction redesign, when aggregation
+// variants were individually rankable. Old shared links fall back to their
+// metric's representative key rather than being dropped.
+const LEGACY_SORT_MAP: Record<string, SortBy> = {
+  precip_max_in_hr: 'precip_total_in',
+  wind_max_mph: 'wind_avg_mph',
+  temp_min_f: 'temp_avg_f',
+  temp_max_f: 'temp_avg_f',
+  aqi_max: 'aqi_avg',
+}
 
 // Open-Meteo's forecast endpoint serves roughly the last ~90 days of history
 // through ~16 days ahead. Outside that band a saved window returns no data.
@@ -109,6 +113,7 @@ export function encodeState(state: ShareableState): string {
   const hasConstraint = state.minElevationFt !== null || state.maxElevationFt !== null
   const nonDefaultControls =
     state.sortBy !== DEFAULT_SORT ||
+    state.sortDesc ||
     state.limit !== DEFAULT_LIMIT ||
     state.destinationType !== DEFAULT_TYPE
   if (!hasPolygon && !hasCustom && !hasWindow && !hasConstraint && !nonDefaultControls) return ''
@@ -116,6 +121,7 @@ export function encodeState(state: ShareableState): string {
   const p = new URLSearchParams()
   p.set('type', state.destinationType)
   p.set('sort', state.sortBy)
+  if (state.sortDesc) p.set('desc', '1')
   p.set('limit', String(state.limit))
   if (isValidDatetimeLocal(state.startDatetime)) p.set('start', state.startDatetime)
   if (isValidDatetimeLocal(state.endDatetime)) p.set('end', state.endDatetime)
@@ -150,6 +156,9 @@ export function decodeState(search: string): Partial<ShareableState> | null {
 
   const sort = params.get('sort')
   if (sort && SORT_OPTIONS.includes(sort as SortBy)) out.sortBy = sort as SortBy
+  else if (sort && sort in LEGACY_SORT_MAP) out.sortBy = LEGACY_SORT_MAP[sort]
+
+  if (params.get('desc') === '1') out.sortDesc = true
 
   const limit = params.get('limit')
   if (limit !== null) {

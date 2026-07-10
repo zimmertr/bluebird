@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { cellStyle, METRIC_CONFIG } from '../utils/colors'
 
@@ -39,12 +39,21 @@ const COLUMNS: ColDef[] = [
 interface Props {
   results: DestinationResult[]
   sortBy: SortBy
+  sortDesc: boolean
 }
 
-export default function ResultsTable({ results, sortBy }: Props) {
+export default function ResultsTable({ results, sortBy, sortDesc }: Props) {
   const coloredGroup = new Set(METRIC_CONFIG[sortBy].group)
-  const [sortKey, setSortKey] = useState<SortKey>('precip_total_in')
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [sortKey, setSortKey] = useState<SortKey>(sortBy)
+  const [sortDir, setSortDir] = useState<SortDir>(sortDesc ? 'desc' : 'asc')
+
+  // Each analysis is a fresh report: reset the column sort to the ranking that
+  // produced it (sortBy/sortDesc are the analyzed snapshot, and `results` is a
+  // new array per analysis). Manual header clicks override until then.
+  useEffect(() => {
+    setSortKey(sortBy)
+    setSortDir(sortDesc ? 'desc' : 'asc')
+  }, [sortBy, sortDesc, results])
 
   function handleSort(key: SortKey) {
     if (key === sortKey) {

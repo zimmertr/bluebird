@@ -11,6 +11,7 @@ log = logging.getLogger(__name__)
 
 AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 BATCH_SIZE = 50  # same conservative batching as the weather service
+MAX_CONCURRENT_BATCHES = 4  # same in-flight gate as the weather service
 
 # The underlying CAMS model publishes ~5 days of forecast. The API accepts
 # end_date a day or two past that, but the exact boundary tracks the model-run
@@ -53,9 +54,13 @@ async def fetch_aqi_batch(
         len(chunks),
     )
 
-    chunk_results = await asyncio.gather(
-        *(_fetch_chunk(chunk, req_start, req_end, start_dt, end_dt) for chunk in chunks)
-    )
+    sem = asyncio.Semaphore(MAX_CONCURRENT_BATCHES)
+
+    async def gated(chunk: List[Dict[str, Any]]) -> List[Optional[Dict[str, Any]]]:
+        async with sem:
+            return await _fetch_chunk(chunk, req_start, req_end, start_dt, end_dt)
+
+    chunk_results = await asyncio.gather(*(gated(chunk) for chunk in chunks))
     return [item for sublist in chunk_results for item in sublist]
 
 

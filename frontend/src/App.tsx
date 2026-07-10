@@ -11,14 +11,13 @@ import { GeoPolygon, DestinationType, CustomDestination, SortBy } from './types'
 import { METRIC_CONFIG, MARKER_COLORS } from './utils/colors'
 import { encodeState, decodeState, classifyWindow } from './utils/urlState'
 
-const SORT_LABELS: Record<SortBy, string> = {
-  precip_total_in: 'least total precipitation',
-  precip_max_in_hr: 'least peak precipitation',
-  wind_avg_mph: 'least average wind',
-  wind_max_mph: 'least max wind',
-  temp_avg_f: 'coldest average temperature',
-  aqi_avg: 'least average AQI (PM2.5)',
-  aqi_max: 'least max AQI (PM2.5)',
+// Composed with the direction into e.g. "lowest total precipitation" /
+// "highest average temperature" for the results header.
+const SORT_NOUNS: Record<SortBy, string> = {
+  precip_total_in: 'total precipitation',
+  wind_avg_mph: 'average wind',
+  temp_avg_f: 'average temperature',
+  aqi_avg: 'average AQI (PM2.5)',
 }
 
 function nowLocal(): string {
@@ -53,10 +52,12 @@ export default function App() {
   const restored = restoredRef.current
 
   const [polygon, setPolygon] = useState<GeoPolygon | null>(() => restored?.polygon ?? null)
-  // A restored polygon opens in "ready" (non-draw) mode so it renders as a
-  // static fill and is analyze-ready; otherwise start in draw mode as before.
-  const [drawMode, setDrawMode] = useState(() => !restored?.polygon)
-  const [drawPointCount, setDrawPointCount] = useState(0)
+  // The polygon is always editable on the map — no draw/ready mode split. A
+  // restored polygon seeds the count so Analyze unlocks before the map loads
+  // (MapView re-emits the authoritative count+area once its points hydrate).
+  const [drawPointCount, setDrawPointCount] = useState(
+    () => Math.max(0, (restored?.polygon?.coordinates[0]?.length ?? 1) - 1),
+  )
   const [polygonAreaKm2, setPolygonAreaKm2] = useState<number | null>(null)
   const [destinationType, setDestinationType] = useState<DestinationType>(
     () => restored?.destinationType ?? 'peak',
@@ -66,6 +67,7 @@ export default function App() {
   const [limit, setLimit] = useState(() => restored?.limit ?? 10)
   const [customCsv, setCustomCsv] = useState(() => restored?.customCsv ?? '')
   const [sortBy, setSortBy] = useState<SortBy>(() => restored?.sortBy ?? 'precip_total_in')
+  const [sortDesc, setSortDesc] = useState(() => restored?.sortDesc ?? false)
   const [minElevationFt, setMinElevationFt] = useState<number | null>(
     () => restored?.minElevationFt ?? null,
   )
@@ -110,7 +112,12 @@ export default function App() {
     document.addEventListener('mouseup', onUp)
   }
 
-  const { analyze, cancel, retry, loading, error, response, statusMessage, progress } = useAnalyze()
+  const { analyze, cancel, retry, analyzed, loading, error, response, statusMessage, progress } = useAnalyze()
+
+  // Everything derived from the results renders from the snapshot of the
+  // ranking that produced them — panel knobs only affect the NEXT Analyze.
+  // Falls back to the live knobs before the first analysis (nothing shown yet).
+  const view = analyzed ?? { sortBy, sortDesc }
   const preview = usePreview()
 
   // Elapsed-time counter for phases with no countable progress (the OSM search).
@@ -136,6 +143,7 @@ export default function App() {
       startDatetime,
       endDatetime,
       sortBy,
+      sortDesc,
       minElevationFt,
       maxElevationFt,
       limit,
@@ -149,6 +157,7 @@ export default function App() {
     startDatetime,
     endDatetime,
     sortBy,
+    sortDesc,
     minElevationFt,
     maxElevationFt,
     limit,
@@ -166,16 +175,9 @@ export default function App() {
     setPolygonAreaKm2(areaKm2)
   }, [])
 
-  function handleStartDrawing() {
-    mapRef.current?.cancelDrawing()
-    setDrawMode(true)
-    setDrawPointCount(0)
-    setPolygonAreaKm2(null)
-  }
-
   function handleCancelDrawing() {
     mapRef.current?.cancelDrawing()
-    // Stay in draw mode — cancelDrawing fires onDrawUpdate(0, null) to reset counts
+    // cancelDrawing fires onDrawUpdate(0, null) to reset counts
   }
 
   async function handleAnalyze() {
@@ -191,20 +193,16 @@ export default function App() {
         end_datetime: end,
         limit,
         sort_by: sortBy,
+        sort_desc: sortDesc,
         custom_destinations: parseCustomCsv(customCsv),
         ...constraints,
       })
     } else {
-      // Auto-close the polygon if the user is still in draw mode.
-      // finishDrawing() returns the closed GeoPolygon synchronously so we
-      // don't have to wait for the React state update.
-      let resolvedPolygon: GeoPolygon | null = polygon
-      if (drawMode) {
-        resolvedPolygon = mapRef.current?.finishDrawing() ?? null
-        if (!resolvedPolygon) return
-        setDrawMode(false)
-        setDrawPointCount(0)
-      }
+      // Snapshot the map's current (always-editable) ring. finishDrawing()
+      // returns the closed GeoPolygon synchronously so we don't have to wait
+      // for the React state update; falls back to the restored polygon if the
+      // map hasn't loaded yet.
+      const resolvedPolygon = mapRef.current?.finishDrawing() ?? polygon
       if (!resolvedPolygon) return
       await analyze({
         polygon: resolvedPolygon,
@@ -213,6 +211,7 @@ export default function App() {
         end_datetime: end,
         limit,
         sort_by: sortBy,
+        sort_desc: sortDesc,
         ...constraints,
       })
     }
@@ -273,11 +272,8 @@ export default function App() {
           ×
         </button>
         <ControlPanel
-          polygon={polygon}
-          drawMode={drawMode}
           drawPointCount={drawPointCount}
           polygonAreaKm2={polygonAreaKm2}
-          onStartDrawing={handleStartDrawing}
           onCancelDrawing={handleCancelDrawing}
           destinationType={destinationType}
           setDestinationType={setDestinationType}
@@ -291,6 +287,8 @@ export default function App() {
           setCustomCsv={setCustomCsv}
           sortBy={sortBy}
           setSortBy={setSortBy}
+          sortDesc={sortDesc}
+          setSortDesc={setSortDesc}
           minElevationFt={minElevationFt}
           setMinElevationFt={setMinElevationFt}
           maxElevationFt={maxElevationFt}
@@ -361,22 +359,21 @@ export default function App() {
           <MapView
             ref={mapRef}
             polygon={polygon}
-            drawMode={drawMode}
             onPolygonChange={setPolygon}
             onDrawUpdate={handleDrawUpdate}
             results={results}
-            sortBy={sortBy}
+            sortBy={view.sortBy}
           />
           {hasResults && (
             <div className="absolute bottom-8 left-2 z-10 bg-slate-900/85 border border-slate-700 rounded-lg p-2.5 shadow-lg backdrop-blur-sm">
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                {METRIC_CONFIG[sortBy].label}
+                {METRIC_CONFIG[view.sortBy].label}
               </p>
               {MARKER_COLORS.map((color, i) => (
                 <div key={i} className="flex items-center gap-1.5 py-0.5">
                   <span style={{ color }} className="text-sm leading-none">●</span>
                   <span className="text-[11px] text-slate-300 font-mono">
-                    {METRIC_CONFIG[sortBy].legendLabels[i]}
+                    {METRIC_CONFIG[view.sortBy].legendLabels[i]}
                   </span>
                 </div>
               ))}
@@ -401,7 +398,7 @@ export default function App() {
             {/* Header */}
             <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-slate-700 border-b border-slate-600">
               <span className="text-xs font-semibold text-white">
-                Results — sorted by {SORT_LABELS[sortBy]}
+                Results — {view.sortDesc ? 'highest' : 'lowest'} {SORT_NOUNS[view.sortBy]} first
               </span>
               <button
                 onClick={() => setShowResults(false)}
@@ -412,7 +409,7 @@ export default function App() {
             </div>
             {/* Scrollable table */}
             <div className="flex-1 overflow-y-auto min-h-0">
-              <ResultsTable results={results} sortBy={sortBy} />
+              <ResultsTable results={results} sortBy={view.sortBy} sortDesc={view.sortDesc} />
             </div>
           </div>
         )}

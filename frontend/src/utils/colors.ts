@@ -19,6 +19,9 @@ type MetricConfig = {
   group: string[]
 }
 
+// Scales are anchored to absolute conditions (green = dry/calm/cold/clean),
+// not to the chosen ranking direction — ranking "highest" simply surfaces the
+// red end of the same scale first.
 export const METRIC_CONFIG: Record<SortBy, MetricConfig> = {
   precip_total_in: {
     thresholds: [0.01, 0.10, 0.25, 0.50],
@@ -26,22 +29,10 @@ export const METRIC_CONFIG: Record<SortBy, MetricConfig> = {
     legendLabels: ['≤ 0.01"', '0.01 – 0.10"', '0.10 – 0.25"', '0.25 – 0.50"', '> 0.50"'],
     group: ['precip_total_in', 'precip_avg_in_hr', 'precip_max_in_hr'],
   },
-  precip_max_in_hr: {
-    thresholds: [0.005, 0.05, 0.10, 0.20],
-    label: 'Peak Precip/hr',
-    legendLabels: ['≤ 0.005"/hr', '0.005 – 0.05"/hr', '0.05 – 0.10"/hr', '0.10 – 0.20"/hr', '> 0.20"/hr'],
-    group: ['precip_total_in', 'precip_avg_in_hr', 'precip_max_in_hr'],
-  },
   wind_avg_mph: {
     thresholds: [5, 15, 25, 35],
     label: 'Avg Wind',
     legendLabels: ['≤ 5 mph', '5 – 15 mph', '15 – 25 mph', '25 – 35 mph', '> 35 mph'],
-    group: ['wind_min_mph', 'wind_avg_mph', 'wind_max_mph'],
-  },
-  wind_max_mph: {
-    thresholds: [10, 20, 35, 50],
-    label: 'Max Wind',
-    legendLabels: ['≤ 10 mph', '10 – 20 mph', '20 – 35 mph', '35 – 50 mph', '> 50 mph'],
     group: ['wind_min_mph', 'wind_avg_mph', 'wind_max_mph'],
   },
   temp_avg_f: {
@@ -55,12 +46,6 @@ export const METRIC_CONFIG: Record<SortBy, MetricConfig> = {
   aqi_avg: {
     thresholds: [50, 100, 150, 200],
     label: 'Avg AQI (PM2.5)',
-    legendLabels: ['≤ 50', '50 – 100', '100 – 150', '150 – 200', '> 200'],
-    group: ['aqi_avg', 'aqi_max'],
-  },
-  aqi_max: {
-    thresholds: [50, 100, 150, 200],
-    label: 'Max AQI (PM2.5)',
     legendLabels: ['≤ 50', '50 – 100', '100 – 150', '150 – 200', '> 200'],
     group: ['aqi_avg', 'aqi_max'],
   },

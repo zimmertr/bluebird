@@ -1,4 +1,4 @@
-import { GeoPolygon, DestinationType, CustomDestination, SortBy } from '../types'
+import { DestinationType, CustomDestination, SortBy } from '../types'
 import { MAX_AREA_KM2 } from './MapView'
 import {
   classifyAqiCoverage,
@@ -16,14 +16,15 @@ function pickableDate(offsetDays: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-const SORT_OPTIONS: { value: SortBy; label: string }[] = [
-  { value: 'precip_total_in', label: 'Least total precipitation' },
-  { value: 'precip_max_in_hr', label: 'Least peak precipitation' },
-  { value: 'wind_avg_mph', label: 'Least average wind' },
-  { value: 'wind_max_mph', label: 'Least max wind' },
-  { value: 'temp_avg_f', label: 'Coldest average temperature' },
-  { value: 'aqi_avg', label: 'Least average AQI (PM2.5)' },
-  { value: 'aqi_max', label: 'Least max AQI (PM2.5)' },
+// The app's core question: "top N peaks by <metric>, lowest or highest".
+// Each metric ranks by one representative value — total precipitation,
+// window-average wind/temperature/AQI. The finer min/avg/max detail stays
+// visible (and click-sortable) in the results table.
+const SORT_METRICS: { value: SortBy; label: string }[] = [
+  { value: 'precip_total_in', label: 'Precipitation' },
+  { value: 'wind_avg_mph', label: 'Wind' },
+  { value: 'temp_avg_f', label: 'Temperature' },
+  { value: 'aqi_avg', label: 'AQI (PM2.5)' },
 ]
 
 const DESTINATION_TYPES: { value: DestinationType; label: string; implemented: boolean }[] = [
@@ -34,11 +35,8 @@ const DESTINATION_TYPES: { value: DestinationType; label: string; implemented: b
 ]
 
 interface Props {
-  polygon: GeoPolygon | null
-  drawMode: boolean
   drawPointCount: number
   polygonAreaKm2: number | null
-  onStartDrawing: () => void
   onCancelDrawing: () => void
   destinationType: DestinationType
   setDestinationType: (t: DestinationType) => void
@@ -52,6 +50,8 @@ interface Props {
   setCustomCsv: (s: string) => void
   sortBy: SortBy
   setSortBy: (s: SortBy) => void
+  sortDesc: boolean
+  setSortDesc: (d: boolean) => void
   minElevationFt: number | null
   setMinElevationFt: (v: number | null) => void
   maxElevationFt: number | null
@@ -66,11 +66,8 @@ interface Props {
 }
 
 export default function ControlPanel({
-  polygon,
-  drawMode,
   drawPointCount,
   polygonAreaKm2,
-  onStartDrawing,
   onCancelDrawing,
   destinationType,
   setDestinationType,
@@ -84,6 +81,8 @@ export default function ControlPanel({
   setCustomCsv,
   sortBy,
   setSortBy,
+  sortDesc,
+  setSortDesc,
   minElevationFt,
   setMinElevationFt,
   maxElevationFt,
@@ -97,12 +96,11 @@ export default function ControlPanel({
   totalQueried,
 }: Props) {
   const needsPolygon = destinationType !== 'custom'
-  const hasPolygon = polygon !== null
   const hasCustom = destinationType === 'custom' && parseCustomCsv(customCsv).length > 0
   const hasDates = startDatetime !== '' && endDatetime !== ''
   const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > MAX_AREA_KM2
 
-  const polygonReady = drawMode ? drawPointCount >= 3 && !areaTooLarge : hasPolygon
+  const polygonReady = drawPointCount >= 3 && !areaTooLarge
   const canAnalyze =
     hasDates &&
     !windowWarning &&
@@ -138,19 +136,19 @@ export default function ControlPanel({
 
           {destinationType === 'custom' ? (
             <p className="text-xs text-slate-500 italic">Not needed — using CSV destinations.</p>
-          ) : drawMode ? (
+          ) : drawPointCount === 0 ? (
+            <p className="text-xs text-slate-400 italic">Click anywhere on the map to start drawing.</p>
+          ) : (
             <div className="space-y-2">
               <div className="text-xs text-slate-300 space-y-0.5">
-                {drawPointCount === 0 ? (
-                  <p className="text-slate-400 italic">Click anywhere on the map to start drawing.</p>
-                ) : pointsNeeded > 0 ? (
+                {pointsNeeded > 0 ? (
                   <p className="text-sky-300">
                     {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed —{' '}
                     {pointsNeeded} more needed. Click a point to remove it.
                   </p>
                 ) : (
                   <p className="text-green-400 font-medium">
-                    {drawPointCount} points placed — click Analyze when ready.
+                    {drawPointCount} points placed — drag points to adjust, or click Analyze.
                   </p>
                 )}
                 {polygonAreaKm2 !== null && (
@@ -160,37 +158,13 @@ export default function ControlPanel({
                   </p>
                 )}
               </div>
-              {drawPointCount > 0 && (
-                <button
-                  onClick={onCancelDrawing}
-                  className="px-3 py-1.5 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
-                >
-                  Clear
-                </button>
-              )}
+              <button
+                onClick={onCancelDrawing}
+                className="px-3 py-1.5 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
+              >
+                Clear
+              </button>
             </div>
-          ) : hasPolygon ? (
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-green-400 text-sm">
-                  <span>✓</span>
-                  <span>Polygon ready</span>
-                </div>
-                <button
-                  onClick={onStartDrawing}
-                  className="text-xs text-slate-400 hover:text-slate-200 underline"
-                >
-                  Redraw
-                </button>
-              </div>
-              {polygonAreaKm2 !== null && (
-                <p className="text-xs text-slate-500">
-                  ~{Math.round(polygonAreaKm2).toLocaleString()} km²
-                </p>
-              )}
-            </div>
-          ) : (
-            <p className="text-xs text-slate-400 italic">Click anywhere on the map to start drawing.</p>
           )}
         </section>
 
@@ -320,26 +294,65 @@ export default function ControlPanel({
           )}
         </section>
 
-        {/* Step 4: Sort by */}
+        {/* Step 4: Rank by — metric radio + Lowest/Highest toggle per row. The
+            toggle stays clickable on inactive rows so any ranking is one click;
+            selecting a metric via its radio keeps the current direction. */}
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            4. Sort Results By
+            4. Rank Results By
           </h2>
           <div className="space-y-2 lg:space-y-1.5">
-            {SORT_OPTIONS.map(({ value, label }) => (
-              <label key={value} className="flex items-center gap-2.5 py-1 lg:py-0 cursor-pointer">
-                <input
-                  type="radio"
-                  name="sort_by"
-                  value={value}
-                  checked={sortBy === value}
-                  onChange={() => setSortBy(value)}
-                  className="accent-sky-500 h-4 w-4"
-                />
-                <span className="text-sm text-slate-200">{label}</span>
-              </label>
-            ))}
+            {SORT_METRICS.map((metric) => {
+              const isActive = sortBy === metric.value
+              return (
+                <div
+                  key={metric.value}
+                  className="flex items-center justify-between gap-2 py-1 lg:py-0"
+                >
+                  <label className="flex items-center gap-2.5 cursor-pointer min-w-0">
+                    <input
+                      type="radio"
+                      name="sort_metric"
+                      checked={isActive}
+                      onChange={() => setSortBy(metric.value)}
+                      className="accent-sky-500 h-4 w-4 flex-shrink-0"
+                    />
+                    <span className="text-sm text-slate-200 truncate">{metric.label}</span>
+                  </label>
+                  <div
+                    className={`flex rounded border border-slate-600 overflow-hidden flex-shrink-0 ${
+                      isActive ? '' : 'opacity-50'
+                    }`}
+                  >
+                    {[
+                      { desc: false, label: 'Lowest' },
+                      { desc: true, label: 'Highest' },
+                    ].map((dir, i) => (
+                      <button
+                        key={dir.label}
+                        onClick={() => {
+                          setSortBy(metric.value)
+                          setSortDesc(dir.desc)
+                        }}
+                        className={`px-2 py-0.5 text-xs transition-colors ${
+                          i > 0 ? 'border-l border-slate-600' : ''
+                        } ${
+                          isActive && sortDesc === dir.desc
+                            ? 'bg-sky-600 text-white'
+                            : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {dir.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
           </div>
+          <p className="text-xs text-slate-500 mt-2">
+            Precipitation ranks by window total; wind, temperature, and AQI by window average.
+          </p>
         </section>
 
         {/* Step 5: Constraints */}
@@ -425,10 +438,10 @@ export default function ControlPanel({
               ? 'Set a forecast window to continue.'
               : windowWarning
               ? 'Adjust the forecast window dates to continue.'
-              : needsPolygon && drawMode && drawPointCount < 3
-              ? `Add ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon.`
-              : needsPolygon && !hasPolygon && !drawMode
+              : needsPolygon && drawPointCount === 0
               ? 'Draw a polygon on the map to continue.'
+              : needsPolygon && drawPointCount < 3
+              ? `Add ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon.`
               : !hasCustom
               ? 'Enter at least one valid destination.'
               : ''}

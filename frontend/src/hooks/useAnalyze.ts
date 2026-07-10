@@ -1,11 +1,5 @@
 import { useRef, useState } from 'react'
-import { AnalyzeRequest, AnalyzeResponse, DestinationResult, SortBy } from '../types'
-
-type CacheEntry = {
-  key: string
-  allResults: DestinationResult[]
-  totalQueried: number
-}
+import { AnalyzeRequest, AnalyzeResponse, SortBy } from '../types'
 
 export type Progress = {
   processed: number
@@ -13,50 +7,22 @@ export type Progress = {
   percent: number
 }
 
-function sortAndLimit(
-  results: DestinationResult[],
-  sortBy: SortBy,
-  limit: number,
-  minElev: number | null | undefined,
-  maxElev: number | null | undefined,
-): DestinationResult[] {
-  return [...results]
-    .filter((r) => {
-      const elev = r.elevation_ft
-      if (elev == null) return true // can't filter unknown elevation
-      if (minElev != null && elev < minElev) return false
-      if (maxElev != null && elev > maxElev) return false
-      return true
-    })
-    .sort((a, b) => {
-      // Nullable metrics (AQI beyond its horizon) rank last, never as 0/best
-      const av = a[sortBy]
-      const bv = b[sortBy]
-      if (av == null && bv == null) return 0
-      if (av == null) return 1
-      if (bv == null) return -1
-      return (av as number) - (bv as number)
-    })
-    .slice(0, limit)
-}
-
-function makeCacheKey(req: AnalyzeRequest): string {
-  return JSON.stringify({
-    polygon: req.polygon,
-    destination_type: req.destination_type,
-    start_datetime: req.start_datetime,
-    end_datetime: req.end_datetime,
-    custom_destinations: req.custom_destinations,
-  })
+// The ranking that produced the current response. Everything derived from the
+// results (table order, marker colors, legend, header) renders from this
+// snapshot, not from the live panel knobs — knob changes never touch the
+// displayed analysis until the next explicit Analyze.
+export type AnalyzedView = {
+  sortBy: SortBy
+  sortDesc: boolean
 }
 
 export function useAnalyze() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [response, setResponse] = useState<AnalyzeResponse | null>(null)
+  const [analyzed, setAnalyzed] = useState<AnalyzedView | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
-  const cacheRef = useRef<CacheEntry | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const lastRequestRef = useRef<AnalyzeRequest | null>(null)
 
@@ -71,23 +37,12 @@ export function useAnalyze() {
     if (lastRequestRef.current) analyze(lastRequestRef.current)
   }
 
+  // One explicit fetch per Analyze click: the server analyzes every candidate
+  // in the polygon (refusing loudly above its ceiling) and returns exactly the
+  // table rows. Nothing is cached or refetched behind the user's back.
   async function analyze(request: AnalyzeRequest) {
     lastRequestRef.current = request
-    const key = makeCacheKey(request)
-    const sortBy: SortBy = request.sort_by ?? 'precip_total_in'
-    const limit = request.limit ?? 10
 
-    const minElev = request.min_elevation_ft
-    const maxElev = request.max_elevation_ft
-
-    // Cache hit — re-sort/re-filter locally, no API call
-    if (cacheRef.current?.key === key) {
-      const displayed = sortAndLimit(cacheRef.current.allResults, sortBy, limit, minElev, maxElev)
-      setResponse({ results: displayed, total_queried: cacheRef.current.totalQueried })
-      return
-    }
-
-    // Cache miss — full SSE request; always fetch 200 to populate the cache
     const controller = new AbortController()
     abortRef.current = controller
     setLoading(true)
@@ -97,12 +52,10 @@ export function useAnalyze() {
     setStatusMessage('Starting…')
 
     try {
-      // Strip client-only fields before sending to backend
-      const { min_elevation_ft: _a, max_elevation_ft: _b, ...serverRequest } = request
       const res = await fetch('/api/analyze/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...serverRequest, limit: 200, sort_by: 'precip_total_in' }),
+        body: JSON.stringify(request),
         signal: controller.signal,
       })
 
@@ -167,11 +120,11 @@ export function useAnalyze() {
           } else if (event.type === 'error' && event.message) {
             throw new Error(event.message)
           } else if (event.type === 'result' && event.data) {
-            const allResults = event.data.results
-            const totalQueried = event.data.total_queried
-            cacheRef.current = { key, allResults, totalQueried }
-            const displayed = sortAndLimit(allResults, sortBy, limit, minElev, maxElev)
-            setResponse({ results: displayed, total_queried: totalQueried })
+            setResponse(event.data)
+            setAnalyzed({
+              sortBy: request.sort_by ?? 'precip_total_in',
+              sortDesc: request.sort_desc ?? false,
+            })
           }
         }
       }
@@ -190,5 +143,5 @@ export function useAnalyze() {
     }
   }
 
-  return { analyze, cancel, retry, loading, error, response, statusMessage, progress }
+  return { analyze, cancel, retry, analyzed, loading, error, response, statusMessage, progress }
 }

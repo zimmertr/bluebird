@@ -9,6 +9,12 @@ from pydantic import BaseModel, field_validator, model_validator
 
 MAX_POLYGON_AREA_KM2 = 50_000
 
+# Every candidate inside the polygon gets a forecast (no silent sampling), so
+# this ceiling is what actually bounds upstream cost per analysis: 1,000 peaks
+# = 20 batched Open-Meteo calls. Beyond it the analysis refuses loudly and the
+# user shrinks the polygon or narrows the elevation band.
+MAX_ANALYZE_PEAKS = 1_000
+
 # Open-Meteo serves roughly the last ~90 days of history through ~16 days
 # ahead; the frontend blocks windows outside that band (urlState.ts). These
 # looser bounds are a backstop for direct API callers — enough slack that a
@@ -34,7 +40,9 @@ class SortBy(str, Enum):
     precip_max = "precip_max_in_hr"
     wind_avg = "wind_avg_mph"
     wind_max = "wind_max_mph"
+    temp_min = "temp_min_f"
     temp_avg = "temp_avg_f"
+    temp_max = "temp_max_f"
     aqi_avg = "aqi_avg"
     aqi_max = "aqi_max"
 
@@ -68,6 +76,14 @@ class AnalyzeRequest(BaseModel):
     end_datetime: datetime
     limit: int = 10
     sort_by: SortBy = SortBy.precip_total
+    # False ranks lowest values first (driest/calmest/coldest/cleanest);
+    # True flips to highest-first (wettest/windiest/warmest/smokiest).
+    sort_desc: bool = False
+    # Optional elevation band. Applied to candidates before the weather fetch,
+    # so a constrained analysis costs fewer upstream calls, and the returned
+    # rows always fill `limit` when enough candidates qualify.
+    min_elevation_ft: Optional[float] = None
+    max_elevation_ft: Optional[float] = None
     custom_destinations: Optional[List[CustomDestination]] = None
 
     @field_validator("limit")

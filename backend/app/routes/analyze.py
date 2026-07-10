@@ -5,17 +5,48 @@ import logging
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app.models import AnalyzeRequest, AnalyzeResponse, DestinationResult, DestinationType
+from app.models import (
+    MAX_ANALYZE_PEAKS,
+    AnalyzeRequest,
+    AnalyzeResponse,
+    DestinationResult,
+    DestinationType,
+)
 from app.services import air_quality, osm, weather
 from app.services.errors import UpstreamError
 
 
-def _sort_key(sort_field: str):
+def _filter_elevation(destinations, min_ft, max_ft):
+    """Drop candidates outside the requested elevation band.
+
+    Unknown elevations pass through — many OSM peaks lack the tag and
+    silently excluding them would be surprising.
+    """
+    if min_ft is None and max_ft is None:
+        return destinations
+
+    def keep(dest) -> bool:
+        elev = dest.get("elevation_ft")
+        if elev is None:
+            return True
+        if min_ft is not None and elev < min_ft:
+            return False
+        if max_ft is not None and elev > max_ft:
+            return False
+        return True
+
+    return [d for d in destinations if keep(d)]
+
+
+def _sort_key(sort_field: str, descending: bool = False):
     # AQI fields are nullable (short forecast horizon / best-effort fetch);
-    # None sorts after every real value so it never wins a ranking.
+    # None sorts after every real value in either direction so it never wins
+    # a ranking — hence negating values rather than sort(reverse=True).
     def key(r: DestinationResult):
         v = getattr(r, sort_field)
-        return (v is None, 0 if v is None else v)
+        if v is None:
+            return (1, 0.0)
+        return (0, -v if descending else v)
 
     return key
 
@@ -81,7 +112,6 @@ async def analyze_stream(request: AnalyzeRequest):
                     yield _sse("error", message="polygon is required for non-custom destination types")
                     return
                 yield _sse("status", message=f"Searching OpenStreetMap for {noun}s in your area…")
-                cap = min(request.limit * 5, 200)
 
                 # Overpass is one opaque request per mirror, so the only progress
                 # signal is mirror failover. Run it on a task and surface those
@@ -94,7 +124,7 @@ async def analyze_stream(request: AnalyzeRequest):
                 async def run_osm():
                     try:
                         return await osm.query_osm(
-                            request.polygon, request.destination_type, cap, on_status
+                            request.polygon, request.destination_type, on_status
                         )
                     finally:
                         await osm_queue.put(_STREAM_DONE)
@@ -125,6 +155,23 @@ async def analyze_stream(request: AnalyzeRequest):
                 n = len(destinations)
                 plural = f"{n} {noun}{'s' if n != 1 else ''}"
                 yield _sse("status", message=f"Found {plural} — fetching weather forecasts…")
+
+            destinations = _filter_elevation(
+                destinations, request.min_elevation_ft, request.max_elevation_ft
+            )
+            if not destinations:
+                yield _sse("result", data=AnalyzeResponse(results=[], total_queried=0).model_dump())
+                return
+            if len(destinations) > MAX_ANALYZE_PEAKS:
+                yield _sse(
+                    "error",
+                    message=(
+                        f"This search covers {len(destinations):,} {noun}s — the analysis "
+                        f"limit is {MAX_ANALYZE_PEAKS:,}. Draw a smaller polygon or "
+                        "narrow the elevation range."
+                    ),
+                )
+                return
 
             total_queried = len(destinations)
 
@@ -197,7 +244,7 @@ async def analyze_stream(request: AnalyzeRequest):
                 ))
 
             sort_field = request.sort_by.value
-            results.sort(key=_sort_key(sort_field))
+            results.sort(key=_sort_key(sort_field, request.sort_desc))
             results = results[: request.limit]
 
             yield _sse("result", data=AnalyzeResponse(results=results, total_queried=total_queried).model_dump())
@@ -251,11 +298,8 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
                 status_code=400,
                 detail="polygon is required for non-custom destination types",
             )
-        cap = min(request.limit * 5, 200)
         try:
-            destinations = await osm.query_osm(
-                request.polygon, request.destination_type, cap
-            )
+            destinations = await osm.query_osm(request.polygon, request.destination_type)
         except NotImplementedError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except UpstreamError as e:
@@ -265,9 +309,22 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
                 status_code=502, detail=f"OSM query failed: {e}"
             )
 
+    destinations = _filter_elevation(
+        destinations, request.min_elevation_ft, request.max_elevation_ft
+    )
     if not destinations:
-        log.info("No destinations found for the given polygon/type")
+        log.info("No destinations to analyze (none found, or none within the elevation band)")
         return AnalyzeResponse(results=[], total_queried=0)
+    if len(destinations) > MAX_ANALYZE_PEAKS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"This search covers {len(destinations):,} "
+                f"{_noun(request.destination_type)}s — the analysis limit is "
+                f"{MAX_ANALYZE_PEAKS:,}. Draw a smaller polygon or narrow the "
+                "elevation range."
+            ),
+        )
 
     total_queried = len(destinations)
     log.info("Fetching weather for %d destination(s)", total_queried)
@@ -309,7 +366,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         )
 
     sort_field = request.sort_by.value
-    results.sort(key=_sort_key(sort_field))
+    results.sort(key=_sort_key(sort_field, request.sort_desc))
     results = results[: request.limit]
 
     def _fmt(r: DestinationResult) -> str:
@@ -317,9 +374,10 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         return f"{v:.3f}" if v is not None else "—"
 
     log.info(
-        "Returning %d result(s) sorted by %s (best: %s, worst: %s)",
+        "Returning %d result(s) sorted by %s %s (best: %s, worst: %s)",
         len(results),
         sort_field,
+        "desc" if request.sort_desc else "asc",
         _fmt(results[0]) if results else "—",
         _fmt(results[-1]) if results else "—",
     )
