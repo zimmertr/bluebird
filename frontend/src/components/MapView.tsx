@@ -427,6 +427,19 @@ const MapView = forwardRef<MapViewHandle, Props>(
           },
         })
 
+        // ── Commit the ring to React state ─────────────────────────────
+        // Called at every discrete edit (point add, drag end, midpoint
+        // insert, vertex delete) — never during pointermove — so App can
+        // live-sync the URL without thrashing replaceState mid-drag.
+        // Under 3 points there's no polygon yet, so commit null.
+        function commitRing() {
+          const pts = ptsRef.current
+          onDrawUpdate(pts.length, bboxAreaKm2(pts))
+          onPolygonChange(
+            pts.length >= 3 ? { type: 'Polygon', coordinates: [[...pts, pts[0]]] } : null,
+          )
+        }
+
         // ── Shared vertex drag ─────────────────────────────────────────
         // Called from both the vertex mousedown and midpoint mousedown handlers.
         function startVertexDrag(vertexIdx: number) {
@@ -463,7 +476,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
             draggingVertexRef.current = null
             map.dragPan.enable()
             map.getCanvas().style.cursor = 'crosshair'
-            onDrawUpdate(ptsRef.current.length, bboxAreaKm2(ptsRef.current))
+            commitRing()
             document.removeEventListener('mousemove', onMouseMove)
             document.removeEventListener('mouseup', onUp)
             document.removeEventListener('touchmove', onTouchMove)
@@ -512,7 +525,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
               ?.addEventListener('click', () => {
                 ptsRef.current = ptsRef.current.filter((_, i) => i !== idx)
                 setSource(map, 'draw', makeDrawData(ptsRef.current))
-                onDrawUpdate(ptsRef.current.length, bboxAreaKm2(ptsRef.current))
+                commitRing()
                 popup.remove()
                 vertexPopupRef.current = null
               })
@@ -537,7 +550,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
             ...ptsRef.current.slice(segIdx + 1),
           ]
           setSource(map, 'draw', makeDrawData(ptsRef.current))
-          onDrawUpdate(ptsRef.current.length, bboxAreaKm2(ptsRef.current))
+          commitRing()
           startVertexDrag(segIdx + 1)
         }
         map.on('mousedown', 'draw-midpoints', (e) => {
@@ -588,7 +601,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           const pt: [number, number] = [e.lngLat.lng, e.lngLat.lat]
           ptsRef.current = [...ptsRef.current, pt]
           setSource(map, 'draw', makeDrawData(ptsRef.current))
-          onDrawUpdate(ptsRef.current.length, bboxAreaKm2(ptsRef.current))
+          commitRing()
         })
 
         if (pendingResultsRef.current.length > 0) {
