@@ -4,7 +4,7 @@ interface Props {
 
 const STEPS: [string, string][] = [
   ['Draw a search area', 'Click on the map to place polygon vertices. Three or more points form the search boundary.'],
-  ['Choose a destination type', 'Peaks are live now. Trailheads and lakes are coming soon.'],
+  ['Choose a destination type', 'Analyze peaks, trailheads, or lakes — or paste custom coordinates as CSV.'],
   ['Set a forecast window', 'Pick the start and end date/time for the weather period you care about.'],
   ['Sort & filter', 'Rank by least rain, least wind, coldest temperature, or cleanest air (PM2.5 AQI). Optionally filter by elevation range.'],
   ['Analyze', 'Results appear on the map as colored markers and in the table below, ranked best to worst.'],

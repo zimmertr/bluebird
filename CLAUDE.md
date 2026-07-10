@@ -54,7 +54,7 @@ Single container, multi-stage Docker build:
 
 The FastAPI backend handles `POST /api/analyze`, which:
 1. Validates polygon area (bounding-box approximation, max 50,000 km²)
-2. Queries Overpass API for **every** named OSM feature in the polygon — no sampling (peaks only implemented; queries for trailheads/lakes exist in `osm.py` but are gated by `_IMPLEMENTED`), then drops candidates outside the optional elevation band (unknown elevations pass through). Analyses over `MAX_ANALYZE_PEAKS = 1_000` candidates refuse with a clear error instead of silently truncating
+2. Queries Overpass API for **every** named OSM feature in the polygon — no sampling (peaks, trailheads, and lakes; available types are gated by `_IMPLEMENTED` in `osm.py`), then drops candidates outside the optional elevation band (unknown elevations pass through). Analyses over `MAX_ANALYZE_PEAKS = 1_000` candidates refuse with a clear error instead of silently truncating
 3. Fetches hourly weather from Open-Meteo in batches of 50, at most 4 batches in flight at once; PM2.5 US AQI is fetched the same way from Open-Meteo's air-quality endpoint alongside it (best-effort: failures and the short horizon degrade to `null` AQI, never fail the analysis — weather forecasts reach ~16 days, air quality only ~5)
 4. Ranks by `sort_by` + `sort_desc` and returns the top `limit` rows (nullable AQI sort keys push `None` last in either direction)
 
@@ -99,5 +99,5 @@ Manifests live in a separate repo (`zimmertr/Kubernetes-Manifests`) under `publi
 ## Adding a new destination type
 
 1. Add the type to `DestinationType` enum in `backend/app/models.py`
-2. The Overpass QL query already exists in `backend/app/services/osm.py` for trailheads and lakes — add the type to `_IMPLEMENTED`
+2. Add an Overpass QL query to `_QUERIES` in `backend/app/services/osm.py` and add the type to `_IMPLEMENTED`
 3. Add the corresponding option in the frontend `ControlPanel.tsx`

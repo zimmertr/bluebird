@@ -29,8 +29,8 @@ const SORT_METRICS: { value: SortBy; label: string }[] = [
 
 const DESTINATION_TYPES: { value: DestinationType; label: string; implemented: boolean }[] = [
   { value: 'peak', label: 'Peaks', implemented: true },
-  { value: 'trailhead', label: 'Trailheads', implemented: false },
-  { value: 'lake', label: 'Lakes', implemented: false },
+  { value: 'trailhead', label: 'Trailheads', implemented: true },
+  { value: 'lake', label: 'Lakes', implemented: true },
   { value: 'custom', label: 'Custom (CSV)', implemented: true },
 ]
 
