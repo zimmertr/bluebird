@@ -1,4 +1,4 @@
-import { GeoPolygon, DestinationType, CustomDestination, SortBy } from '../types'
+import { DestinationType, CustomDestination, SortBy } from '../types'
 import { MAX_AREA_KM2 } from './MapView'
 import {
   classifyAqiCoverage,
@@ -35,11 +35,8 @@ const DESTINATION_TYPES: { value: DestinationType; label: string; implemented: b
 ]
 
 interface Props {
-  polygon: GeoPolygon | null
-  drawMode: boolean
   drawPointCount: number
   polygonAreaKm2: number | null
-  onStartDrawing: () => void
   onCancelDrawing: () => void
   destinationType: DestinationType
   setDestinationType: (t: DestinationType) => void
@@ -69,11 +66,8 @@ interface Props {
 }
 
 export default function ControlPanel({
-  polygon,
-  drawMode,
   drawPointCount,
   polygonAreaKm2,
-  onStartDrawing,
   onCancelDrawing,
   destinationType,
   setDestinationType,
@@ -102,12 +96,11 @@ export default function ControlPanel({
   totalQueried,
 }: Props) {
   const needsPolygon = destinationType !== 'custom'
-  const hasPolygon = polygon !== null
   const hasCustom = destinationType === 'custom' && parseCustomCsv(customCsv).length > 0
   const hasDates = startDatetime !== '' && endDatetime !== ''
   const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > MAX_AREA_KM2
 
-  const polygonReady = drawMode ? drawPointCount >= 3 && !areaTooLarge : hasPolygon
+  const polygonReady = drawPointCount >= 3 && !areaTooLarge
   const canAnalyze =
     hasDates &&
     !windowWarning &&
@@ -143,19 +136,19 @@ export default function ControlPanel({
 
           {destinationType === 'custom' ? (
             <p className="text-xs text-slate-500 italic">Not needed — using CSV destinations.</p>
-          ) : drawMode ? (
+          ) : drawPointCount === 0 ? (
+            <p className="text-xs text-slate-400 italic">Click anywhere on the map to start drawing.</p>
+          ) : (
             <div className="space-y-2">
               <div className="text-xs text-slate-300 space-y-0.5">
-                {drawPointCount === 0 ? (
-                  <p className="text-slate-400 italic">Click anywhere on the map to start drawing.</p>
-                ) : pointsNeeded > 0 ? (
+                {pointsNeeded > 0 ? (
                   <p className="text-sky-300">
                     {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed —{' '}
                     {pointsNeeded} more needed. Click a point to remove it.
                   </p>
                 ) : (
                   <p className="text-green-400 font-medium">
-                    {drawPointCount} points placed — click Analyze when ready.
+                    {drawPointCount} points placed — drag points to adjust, or click Analyze.
                   </p>
                 )}
                 {polygonAreaKm2 !== null && (
@@ -165,37 +158,13 @@ export default function ControlPanel({
                   </p>
                 )}
               </div>
-              {drawPointCount > 0 && (
-                <button
-                  onClick={onCancelDrawing}
-                  className="px-3 py-1.5 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
-                >
-                  Clear
-                </button>
-              )}
+              <button
+                onClick={onCancelDrawing}
+                className="px-3 py-1.5 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
+              >
+                Clear
+              </button>
             </div>
-          ) : hasPolygon ? (
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-green-400 text-sm">
-                  <span>✓</span>
-                  <span>Polygon ready</span>
-                </div>
-                <button
-                  onClick={onStartDrawing}
-                  className="text-xs text-slate-400 hover:text-slate-200 underline"
-                >
-                  Redraw
-                </button>
-              </div>
-              {polygonAreaKm2 !== null && (
-                <p className="text-xs text-slate-500">
-                  ~{Math.round(polygonAreaKm2).toLocaleString()} km²
-                </p>
-              )}
-            </div>
-          ) : (
-            <p className="text-xs text-slate-400 italic">Click anywhere on the map to start drawing.</p>
           )}
         </section>
 
@@ -469,10 +438,10 @@ export default function ControlPanel({
               ? 'Set a forecast window to continue.'
               : windowWarning
               ? 'Adjust the forecast window dates to continue.'
-              : needsPolygon && drawMode && drawPointCount < 3
-              ? `Add ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon.`
-              : needsPolygon && !hasPolygon && !drawMode
+              : needsPolygon && drawPointCount === 0
               ? 'Draw a polygon on the map to continue.'
+              : needsPolygon && drawPointCount < 3
+              ? `Add ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon.`
               : !hasCustom
               ? 'Enter at least one valid destination.'
               : ''}

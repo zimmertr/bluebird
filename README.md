@@ -83,7 +83,7 @@ Click **Draw Polygon** in the sidebar. Your cursor becomes a crosshair. Click on
 - At least **3 points** are required before Analyze becomes active.
 - The estimated bounding-box area is shown in km² as you draw.
 - Click **Clear** at any time to discard the polygon and start over.
-- Click **Redraw** after a completed polygon to replace it.
+- The polygon stays editable after Analyze — drag vertices, drag a midpoint handle to add one, or click a vertex to remove it, then Analyze again. Click **Clear** to start over.
 
 > There is no "Finish Polygon" step. Once you have 3+ points, click **Analyze** directly — the polygon closes automatically.
 

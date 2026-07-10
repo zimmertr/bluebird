@@ -52,10 +52,12 @@ export default function App() {
   const restored = restoredRef.current
 
   const [polygon, setPolygon] = useState<GeoPolygon | null>(() => restored?.polygon ?? null)
-  // A restored polygon opens in "ready" (non-draw) mode so it renders as a
-  // static fill and is analyze-ready; otherwise start in draw mode as before.
-  const [drawMode, setDrawMode] = useState(() => !restored?.polygon)
-  const [drawPointCount, setDrawPointCount] = useState(0)
+  // The polygon is always editable on the map — no draw/ready mode split. A
+  // restored polygon seeds the count so Analyze unlocks before the map loads
+  // (MapView re-emits the authoritative count+area once its points hydrate).
+  const [drawPointCount, setDrawPointCount] = useState(
+    () => Math.max(0, (restored?.polygon?.coordinates[0]?.length ?? 1) - 1),
+  )
   const [polygonAreaKm2, setPolygonAreaKm2] = useState<number | null>(null)
   const [destinationType, setDestinationType] = useState<DestinationType>(
     () => restored?.destinationType ?? 'peak',
@@ -173,16 +175,9 @@ export default function App() {
     setPolygonAreaKm2(areaKm2)
   }, [])
 
-  function handleStartDrawing() {
-    mapRef.current?.cancelDrawing()
-    setDrawMode(true)
-    setDrawPointCount(0)
-    setPolygonAreaKm2(null)
-  }
-
   function handleCancelDrawing() {
     mapRef.current?.cancelDrawing()
-    // Stay in draw mode — cancelDrawing fires onDrawUpdate(0, null) to reset counts
+    // cancelDrawing fires onDrawUpdate(0, null) to reset counts
   }
 
   async function handleAnalyze() {
@@ -203,16 +198,11 @@ export default function App() {
         ...constraints,
       })
     } else {
-      // Auto-close the polygon if the user is still in draw mode.
-      // finishDrawing() returns the closed GeoPolygon synchronously so we
-      // don't have to wait for the React state update.
-      let resolvedPolygon: GeoPolygon | null = polygon
-      if (drawMode) {
-        resolvedPolygon = mapRef.current?.finishDrawing() ?? null
-        if (!resolvedPolygon) return
-        setDrawMode(false)
-        setDrawPointCount(0)
-      }
+      // Snapshot the map's current (always-editable) ring. finishDrawing()
+      // returns the closed GeoPolygon synchronously so we don't have to wait
+      // for the React state update; falls back to the restored polygon if the
+      // map hasn't loaded yet.
+      const resolvedPolygon = mapRef.current?.finishDrawing() ?? polygon
       if (!resolvedPolygon) return
       await analyze({
         polygon: resolvedPolygon,
@@ -282,11 +272,8 @@ export default function App() {
           ×
         </button>
         <ControlPanel
-          polygon={polygon}
-          drawMode={drawMode}
           drawPointCount={drawPointCount}
           polygonAreaKm2={polygonAreaKm2}
-          onStartDrawing={handleStartDrawing}
           onCancelDrawing={handleCancelDrawing}
           destinationType={destinationType}
           setDestinationType={setDestinationType}
@@ -372,7 +359,6 @@ export default function App() {
           <MapView
             ref={mapRef}
             polygon={polygon}
-            drawMode={drawMode}
             onPolygonChange={setPolygon}
             onDrawUpdate={handleDrawUpdate}
             results={results}

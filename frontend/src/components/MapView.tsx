@@ -10,8 +10,7 @@ export interface MapViewHandle {
 }
 
 interface Props {
-  polygon: GeoPolygon | null
-  drawMode: boolean
+  polygon: GeoPolygon | null // initial ring (e.g. restored from the URL)
   onPolygonChange: (polygon: GeoPolygon | null) => void
   onDrawUpdate: (count: number, areaKm2: number | null) => void
   results: DestinationResult[]
@@ -74,11 +73,14 @@ function makeDrawData(pts: [number, number][]): object {
   return { type: 'FeatureCollection', features }
 }
 
-function makePolygonData(polygon: GeoPolygon): object {
-  return {
-    type: 'FeatureCollection',
-    features: [{ type: 'Feature', properties: { kind: 'polygon' }, geometry: polygon }],
+// A GeoPolygon's ring (closed: last vertex repeats the first) → editable points
+function ringToPts(polygon: GeoPolygon): [number, number][] {
+  const ring = (polygon.coordinates[0] ?? []).map((c) => [c[0], c[1]] as [number, number])
+  if (ring.length > 1) {
+    const [first, last] = [ring[0], ring[ring.length - 1]]
+    if (first[0] === last[0] && first[1] === last[1]) ring.pop()
   }
+  return ring
 }
 
 const emptyFC = { type: 'FeatureCollection', features: [] }
@@ -173,11 +175,10 @@ function enhanceBasemap(map: maplibregl.Map) {
 }
 
 const MapView = forwardRef<MapViewHandle, Props>(
-  ({ polygon, drawMode, onPolygonChange, onDrawUpdate, results, sortBy }, ref) => {
+  ({ polygon, onPolygonChange, onDrawUpdate, results, sortBy }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null)
     const mapRef = useRef<maplibregl.Map | null>(null)
     const loadedRef = useRef(false)
-    const drawModeRef = useRef(false)
     const ptsRef = useRef<[number, number][]>([])
     const pendingResultsRef = useRef<DestinationResult[]>([])
     const pendingSortByRef = useRef<SortBy>('precip_total_in')
@@ -185,16 +186,13 @@ const MapView = forwardRef<MapViewHandle, Props>(
     const draggingVertexRef = useRef<number | null>(null)
 
     useImperativeHandle(ref, () => ({
+      // Snapshot the current ring as a GeoPolygon. The points stay editable —
+      // the user iterates by dragging vertices and clicking Analyze again.
       finishDrawing() {
         const pts = ptsRef.current
         if (pts.length < 3) return null
         const geo: GeoPolygon = { type: 'Polygon', coordinates: [[...pts, pts[0]]] }
-        ptsRef.current = []
-        onDrawUpdate(0, null)
         onPolygonChange(geo)
-        if (mapRef.current && loadedRef.current) {
-          setSource(mapRef.current, 'draw', makePolygonData(geo))
-        }
         return geo
       },
       cancelDrawing() {
@@ -272,13 +270,20 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
         enhanceBasemap(map)
 
+        // The polygon is always editable — clicks add points, vertices drag,
+        // midpoints insert. A restored polygon hydrates the same points array
+        // so a shared link is immediately adjustable too.
+        if (restoredPolygon) {
+          ptsRef.current = ringToPts(restoredPolygon)
+          onDrawUpdate(ptsRef.current.length, bboxAreaKm2(ptsRef.current))
+        }
+        map.getCanvas().style.cursor = 'crosshair'
+
         // ── Draw source + layers ───────────────────────────────────────
-        // Seed the source with a restored polygon so it paints immediately —
-        // the [polygon, drawMode] effect below doesn't re-run on map load.
         map.addSource('draw', {
           type: 'geojson',
-          data: (restoredPolygon
-            ? makePolygonData(restoredPolygon)
+          data: (ptsRef.current.length > 0
+            ? makeDrawData(ptsRef.current)
             : emptyFC) as GeoJSON.FeatureCollection,
         })
 
@@ -397,7 +402,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           function onUp() {
             draggingVertexRef.current = null
             map.dragPan.enable()
-            map.getCanvas().style.cursor = drawModeRef.current ? 'crosshair' : ''
+            map.getCanvas().style.cursor = 'crosshair'
             onDrawUpdate(ptsRef.current.length, bboxAreaKm2(ptsRef.current))
             document.removeEventListener('mousemove', onMouseMove)
             document.removeEventListener('mouseup', onUp)
@@ -417,19 +422,16 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // MapLibre doesn't synthesize mouse events from touches, so touch needs
         // its own handler. preventDefault stops the map's pan handler starting.
         map.on('mousedown', 'draw-vertices', (e) => {
-          if (!drawModeRef.current) return
           e.preventDefault() // prevents MapLibre's DragPanHandler from starting
           startVertexDrag(Number(e.features?.[0]?.properties?.index))
         })
         map.on('touchstart', 'draw-vertices', (e) => {
-          if (!drawModeRef.current) return
           e.preventDefault()
           startVertexDrag(Number(e.features?.[0]?.properties?.index))
         })
 
         // ── Vertex: click (mouse didn't move) → delete popup ───────────
         map.on('click', 'draw-vertices', (e) => {
-          if (!drawModeRef.current) return
           const props = e.features?.[0]?.properties
           if (props == null) return
           const idx = Number(props.index)
@@ -458,11 +460,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
         })
 
         map.on('mouseenter', 'draw-vertices', () => {
-          if (drawModeRef.current) map.getCanvas().style.cursor = 'grab'
+          map.getCanvas().style.cursor = 'grab'
         })
         map.on('mouseleave', 'draw-vertices', () => {
-          if (draggingVertexRef.current === null)
-            map.getCanvas().style.cursor = drawModeRef.current ? 'crosshair' : ''
+          if (draggingVertexRef.current === null) map.getCanvas().style.cursor = 'crosshair'
         })
 
         // ── Midpoint: mousedown / touchstart inserts vertex then drags ─
@@ -480,20 +481,17 @@ const MapView = forwardRef<MapViewHandle, Props>(
           startVertexDrag(segIdx + 1)
         }
         map.on('mousedown', 'draw-midpoints', (e) => {
-          if (!drawModeRef.current) return
           startMidpointDrag(e)
         })
         map.on('touchstart', 'draw-midpoints', (e) => {
-          if (!drawModeRef.current) return
           startMidpointDrag(e)
         })
 
         map.on('mouseenter', 'draw-midpoints', () => {
-          if (drawModeRef.current) map.getCanvas().style.cursor = 'grab'
+          map.getCanvas().style.cursor = 'grab'
         })
         map.on('mouseleave', 'draw-midpoints', () => {
-          if (draggingVertexRef.current === null)
-            map.getCanvas().style.cursor = drawModeRef.current ? 'crosshair' : ''
+          if (draggingVertexRef.current === null) map.getCanvas().style.cursor = 'crosshair'
         })
 
         // ── Results: popup + cursor ────────────────────────────────────
@@ -517,12 +515,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
           map.getCanvas().style.cursor = 'pointer'
         })
         map.on('mouseleave', 'results-circles', () => {
-          map.getCanvas().style.cursor = drawModeRef.current ? 'crosshair' : ''
+          map.getCanvas().style.cursor = 'crosshair'
         })
 
         // ── General click → add new polygon point ──────────────────────
         map.on('click', (e) => {
-          if (!drawModeRef.current) return
           const blocked = map.queryRenderedFeatures(e.point, {
             layers: ['results-circles', 'draw-vertices', 'draw-midpoints'],
           })
@@ -548,19 +545,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
         mapRef.current = null
       }
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-    useEffect(() => {
-      drawModeRef.current = drawMode
-      if (mapRef.current) {
-        mapRef.current.getCanvas().style.cursor = drawMode ? 'crosshair' : ''
-      }
-    }, [drawMode])
-
-    useEffect(() => {
-      if (!mapRef.current || !loadedRef.current) return
-      if (drawMode) return
-      setSource(mapRef.current, 'draw', polygon ? makePolygonData(polygon) : emptyFC)
-    }, [polygon, drawMode])
 
     useEffect(() => {
       if (!mapRef.current || !loadedRef.current) {
