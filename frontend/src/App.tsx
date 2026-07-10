@@ -136,7 +136,9 @@ export default function App() {
 
   // Live-sync all analysis inputs into the address bar so the URL is always
   // copy-pasteable. replaceState (not pushState) keeps the back button clean;
-  // polygon state only changes on finish/cancel, so this doesn't thrash.
+  // the map commits polygon edits only at discrete events (point add, drag
+  // end, insert, delete — never mid-drag), so this can't thrash replaceState
+  // past Safari's rate limit.
   useEffect(() => {
     const qs = encodeState({
       polygon,
