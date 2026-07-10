@@ -47,13 +47,13 @@ export default function ResultsTable({ results, sortBy, sortDesc }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>(sortBy)
   const [sortDir, setSortDir] = useState<SortDir>(sortDesc ? 'desc' : 'asc')
 
-  // Follow the panel's ranking whenever it changes so the table order matches
-  // the requested "top N by X" — a manual header click still overrides until
-  // the next panel change.
+  // Each analysis is a fresh report: reset the column sort to the ranking that
+  // produced it (sortBy/sortDesc are the analyzed snapshot, and `results` is a
+  // new array per analysis). Manual header clicks override until then.
   useEffect(() => {
     setSortKey(sortBy)
     setSortDir(sortDesc ? 'desc' : 'asc')
-  }, [sortBy, sortDesc])
+  }, [sortBy, sortDesc, results])
 
   function handleSort(key: SortKey) {
     if (key === sortKey) {

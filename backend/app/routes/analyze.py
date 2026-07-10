@@ -10,6 +10,28 @@ from app.services import air_quality, osm, weather
 from app.services.errors import UpstreamError
 
 
+def _filter_elevation(destinations, min_ft, max_ft):
+    """Drop candidates outside the requested elevation band.
+
+    Unknown elevations pass through — many OSM peaks lack the tag and
+    silently excluding them would be surprising.
+    """
+    if min_ft is None and max_ft is None:
+        return destinations
+
+    def keep(dest) -> bool:
+        elev = dest.get("elevation_ft")
+        if elev is None:
+            return True
+        if min_ft is not None and elev < min_ft:
+            return False
+        if max_ft is not None and elev > max_ft:
+            return False
+        return True
+
+    return [d for d in destinations if keep(d)]
+
+
 def _sort_key(sort_field: str, descending: bool = False):
     # AQI fields are nullable (short forecast horizon / best-effort fetch);
     # None sorts after every real value in either direction so it never wins
@@ -128,6 +150,13 @@ async def analyze_stream(request: AnalyzeRequest):
                 n = len(destinations)
                 plural = f"{n} {noun}{'s' if n != 1 else ''}"
                 yield _sse("status", message=f"Found {plural} — fetching weather forecasts…")
+
+            destinations = _filter_elevation(
+                destinations, request.min_elevation_ft, request.max_elevation_ft
+            )
+            if not destinations:
+                yield _sse("result", data=AnalyzeResponse(results=[], total_queried=0).model_dump())
+                return
 
             total_queried = len(destinations)
 
@@ -268,8 +297,11 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
                 status_code=502, detail=f"OSM query failed: {e}"
             )
 
+    destinations = _filter_elevation(
+        destinations, request.min_elevation_ft, request.max_elevation_ft
+    )
     if not destinations:
-        log.info("No destinations found for the given polygon/type")
+        log.info("No destinations to analyze (none found, or none within the elevation band)")
         return AnalyzeResponse(results=[], total_queried=0)
 
     total_queried = len(destinations)

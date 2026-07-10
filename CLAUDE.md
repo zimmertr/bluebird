@@ -54,9 +54,11 @@ Single container, multi-stage Docker build:
 
 The FastAPI backend handles `POST /api/analyze`, which:
 1. Validates polygon area (bounding-box approximation, max 50,000 km²)
-2. Queries Overpass API for OSM features (peaks only implemented; queries for trailheads/lakes exist in `osm.py` but are gated by `_IMPLEMENTED`)
+2. Queries Overpass API for OSM features, pooling `limit × 5` candidates capped at 200 (peaks only implemented; queries for trailheads/lakes exist in `osm.py` but are gated by `_IMPLEMENTED`), then drops candidates outside the optional elevation band (unknown elevations pass through)
 3. Fetches hourly weather from Open-Meteo in batches of 50, run concurrently via `asyncio.gather`; PM2.5 US AQI is fetched the same way from Open-Meteo's air-quality endpoint alongside it (best-effort: failures and the short horizon degrade to `null` AQI, never fail the analysis — weather forecasts reach ~16 days, air quality only ~5)
-4. Sorts and returns results (nullable AQI sort keys push `None` last)
+4. Ranks by `sort_by` + `sort_desc` and returns the top `limit` rows (nullable AQI sort keys push `None` last in either direction)
+
+The SPA fetches only on an explicit Analyze click and renders results from a snapshot of the ranking that produced them (`analyzed` in `useAnalyze.ts`) — panel knob changes never mutate the displayed analysis.
 
 **Key constraint shared between frontend and backend:** `MAX_POLYGON_AREA_KM2 = 50_000` is defined in both `backend/app/models.py` and `frontend/src/components/MapView.tsx` — keep them in sync.
 

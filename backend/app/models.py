@@ -73,6 +73,11 @@ class AnalyzeRequest(BaseModel):
     # False ranks lowest values first (driest/calmest/coldest/cleanest);
     # True flips to highest-first (wettest/windiest/warmest/smokiest).
     sort_desc: bool = False
+    # Optional elevation band. Applied to candidates before the weather fetch,
+    # so a constrained analysis costs fewer upstream calls, and the returned
+    # rows always fill `limit` when enough candidates qualify.
+    min_elevation_ft: Optional[float] = None
+    max_elevation_ft: Optional[float] = None
     custom_destinations: Optional[List[CustomDestination]] = None
 
     @field_validator("limit")

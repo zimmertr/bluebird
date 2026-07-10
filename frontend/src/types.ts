@@ -30,7 +30,7 @@ export interface AnalyzeRequest {
   sort_by?: SortBy
   sort_desc?: boolean
   custom_destinations?: CustomDestination[]
-  // client-side constraints (not sent to backend)
+  // Elevation band, filtered server-side before the weather fetch
   min_elevation_ft?: number | null
   max_elevation_ft?: number | null
 }

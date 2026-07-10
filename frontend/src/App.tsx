@@ -110,23 +110,12 @@ export default function App() {
     document.addEventListener('mouseup', onUp)
   }
 
-  const { analyze, cancel, retry, refine, loading, error, response, statusMessage, progress } = useAnalyze()
+  const { analyze, cancel, retry, analyzed, loading, error, response, statusMessage, progress } = useAnalyze()
 
-  // Sort, direction, limit, and elevation are view parameters over the last
-  // analysis — apply them to the cached full result set immediately instead of
-  // waiting for another Analyze click. Only polygon/type/window changes need a
-  // real re-analysis. `loading` is a dep so a change made mid-analysis is
-  // applied as soon as the analysis lands (refine no-ops while in flight).
-  useEffect(() => {
-    refine({
-      sort_by: sortBy,
-      sort_desc: sortDesc,
-      limit,
-      min_elevation_ft: minElevationFt,
-      max_elevation_ft: maxElevationFt,
-    })
-    // refine is recreated each render — depending on it would fire every render.
-  }, [sortBy, sortDesc, limit, minElevationFt, maxElevationFt, loading])
+  // Everything derived from the results renders from the snapshot of the
+  // ranking that produced them — panel knobs only affect the NEXT Analyze.
+  // Falls back to the live knobs before the first analysis (nothing shown yet).
+  const view = analyzed ?? { sortBy, sortDesc }
   const preview = usePreview()
 
   // Elapsed-time counter for phases with no countable progress (the OSM search).
@@ -387,18 +376,18 @@ export default function App() {
             onPolygonChange={setPolygon}
             onDrawUpdate={handleDrawUpdate}
             results={results}
-            sortBy={sortBy}
+            sortBy={view.sortBy}
           />
           {hasResults && (
             <div className="absolute bottom-8 left-2 z-10 bg-slate-900/85 border border-slate-700 rounded-lg p-2.5 shadow-lg backdrop-blur-sm">
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                {METRIC_CONFIG[sortBy].label}
+                {METRIC_CONFIG[view.sortBy].label}
               </p>
               {MARKER_COLORS.map((color, i) => (
                 <div key={i} className="flex items-center gap-1.5 py-0.5">
                   <span style={{ color }} className="text-sm leading-none">●</span>
                   <span className="text-[11px] text-slate-300 font-mono">
-                    {METRIC_CONFIG[sortBy].legendLabels[i]}
+                    {METRIC_CONFIG[view.sortBy].legendLabels[i]}
                   </span>
                 </div>
               ))}
@@ -423,7 +412,7 @@ export default function App() {
             {/* Header */}
             <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-slate-700 border-b border-slate-600">
               <span className="text-xs font-semibold text-white">
-                Results — {sortDesc ? 'highest' : 'lowest'} {SORT_NOUNS[sortBy]} first
+                Results — {view.sortDesc ? 'highest' : 'lowest'} {SORT_NOUNS[view.sortBy]} first
               </span>
               <button
                 onClick={() => setShowResults(false)}
@@ -434,7 +423,7 @@ export default function App() {
             </div>
             {/* Scrollable table */}
             <div className="flex-1 overflow-y-auto min-h-0">
-              <ResultsTable results={results} sortBy={sortBy} sortDesc={sortDesc} />
+              <ResultsTable results={results} sortBy={view.sortBy} sortDesc={view.sortDesc} />
             </div>
           </div>
         )}
