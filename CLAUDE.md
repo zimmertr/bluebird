@@ -74,10 +74,12 @@ The SPA fetches only on an explicit Analyze click and renders results from a sna
 - `src/App.tsx` — root component
 - `src/components/MapView.tsx` — MapLibre GL map, polygon drawing with native pointer events
 - `src/components/ControlPanel.tsx` — sidebar controls
+- `src/components/SearchBox.tsx` — floating map search (Nominatim place lookup + local coordinate parsing; Enter-to-search only, per Nominatim's no-autocomplete policy)
 - `src/components/ResultsTable.tsx` — sortable results table
 - `src/hooks/useAnalyze.ts` — fetch logic for `POST /api/analyze`
 - `src/types.ts` — TypeScript types mirroring backend Pydantic models
 - `src/utils/colors.ts` — marker/cell color thresholds per sortable metric (precip, wind, temp, AQI)
+- `src/utils/geocode.ts` — coordinate parsing, Nominatim client, and search-view bounds math for the search box
 
 ## CI/CD pipeline
 

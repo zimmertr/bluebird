@@ -3,10 +3,13 @@ import maplibregl from 'maplibre-gl'
 // maplibre-gl.css is imported in index.css under layer(base) — see comment there
 import { GeoPolygon, DestinationResult, SortBy } from '../types'
 import { markerColor } from '../utils/colors'
+import { Place, boundsAround } from '../utils/geocode'
 
 export interface MapViewHandle {
   finishDrawing: () => GeoPolygon | null
   cancelDrawing: () => void
+  showSearchResult: (place: Place) => void
+  clearSearchResult: () => void
 }
 
 interface Props {
@@ -18,6 +21,10 @@ interface Props {
 }
 
 export const MAX_AREA_KM2 = 50_000
+
+// A search result frames at least this much map around the hit; features with
+// a larger extent (cities, parks, rivers) get their whole bounding box instead.
+const SEARCH_VIEW_MILES = 10
 
 function bboxAreaKm2(pts: [number, number][]): number | null {
   if (pts.length < 3) return null
@@ -182,6 +189,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
     const ptsRef = useRef<[number, number][]>([])
     const pendingResultsRef = useRef<DestinationResult[]>([])
     const pendingSortByRef = useRef<SortBy>('precip_total_in')
+    const pendingSearchRef = useRef<Place | null>(null)
     const vertexPopupRef = useRef<maplibregl.Popup | null>(null)
     const draggingVertexRef = useRef<number | null>(null)
 
@@ -203,6 +211,20 @@ const MapView = forwardRef<MapViewHandle, Props>(
         onPolygonChange(null)
         if (mapRef.current && loadedRef.current) {
           setSource(mapRef.current, 'draw', emptyFC)
+        }
+      },
+      showSearchResult(place: Place) {
+        const map = mapRef.current
+        if (!map || !loadedRef.current) {
+          pendingSearchRef.current = place
+          return
+        }
+        applySearchResult(map, place)
+      },
+      clearSearchResult() {
+        pendingSearchRef.current = null
+        if (mapRef.current && loadedRef.current) {
+          setSource(mapRef.current, 'search', emptyFC)
         }
       },
     }))
@@ -362,6 +384,41 @@ const MapView = forwardRef<MapViewHandle, Props>(
           },
           paint: {
             'text-color': '#f8fafc',
+            'text-halo-color': '#0f172a',
+            'text-halo-width': 1.5,
+          },
+        })
+
+        // ── Search pin ─────────────────────────────────────────────────
+        // Deliberately absent from the general click handler's blocked-layer
+        // list: the pin only marks a searched spot and must never swallow a
+        // polygon click placed on top of it.
+        map.addSource('search', { type: 'geojson', data: emptyFC as GeoJSON.FeatureCollection })
+        map.addLayer({
+          id: 'search-pin',
+          type: 'circle',
+          source: 'search',
+          paint: {
+            'circle-radius': 7,
+            'circle-color': '#f59e0b',
+            'circle-stroke-color': '#fff',
+            'circle-stroke-width': 2.5,
+            'circle-opacity': 0.95,
+          },
+        })
+        map.addLayer({
+          id: 'search-pin-label',
+          type: 'symbol',
+          source: 'search',
+          layout: {
+            'text-field': ['get', 'label'],
+            'text-offset': [0, 1.2],
+            'text-size': 12,
+            'text-anchor': 'top',
+            'text-font': ['Noto Sans Bold'],
+          },
+          paint: {
+            'text-color': '#fcd34d',
             'text-halo-color': '#0f172a',
             'text-halo-width': 1.5,
           },
@@ -535,6 +592,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
           updateResults(map, pendingResultsRef.current, pendingSortByRef.current)
           pendingResultsRef.current = []
         }
+        if (pendingSearchRef.current) {
+          applySearchResult(map, pendingSearchRef.current)
+          pendingSearchRef.current = null
+        }
       })
 
       return () => {
@@ -562,6 +623,22 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
 MapView.displayName = 'MapView'
 export default MapView
+
+// Pin a searched place and fly to it, framing at least SEARCH_VIEW_MILES of
+// map (or the feature's full extent when larger — see boundsAround).
+function applySearchResult(map: maplibregl.Map, place: Place) {
+  setSource(map, 'search', {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [place.lon, place.lat] },
+        properties: { label: place.label },
+      },
+    ],
+  })
+  map.fitBounds(boundsAround(place, SEARCH_VIEW_MILES), { padding: 40, duration: 1500 })
+}
 
 function updateResults(map: maplibregl.Map, results: DestinationResult[], sortBy: SortBy) {
   setSource(map, 'results', {

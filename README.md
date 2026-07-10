@@ -76,6 +76,10 @@ The Vite dev server starts on `http://localhost:5173` and proxies `/api` request
 
 ## Using the App
 
+### Find a Place (optional)
+
+The search box at the top-left of the map centers the map on any named place — peak, city, lake, river, trailhead — or an exact coordinate pair. Type a name (`Mt Whitney`, `Mt Whitney, ca`) or coordinates (`36.57862, -118.29107`, parentheses and space-separated forms work too) and press **Enter**. Point features get a ~10-mile view; larger features (cities, parks, rivers) are framed whole. An amber pin marks the result; it never interferes with polygon drawing. Name search is powered by [Nominatim](https://nominatim.org) and works for any place OSM knows, including types Bluebird can't analyze yet.
+
 ### Step 1 — Draw a Search Area
 
 Click **Draw Polygon** in the sidebar. Your cursor becomes a crosshair. Click on the map to place points. A live polygon preview renders as you add points.
@@ -412,6 +416,7 @@ containers:
 | [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind | Free (non-commercial) | None |
 | [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly PM2.5 US AQI | Free (non-commercial) | None |
 | [OpenFreeMap](https://openfreemap.org) | Vector map tiles | Free | None |
+| [Nominatim](https://nominatim.org) | Map search box place lookup | Free (≤1 req/s, no autocomplete) | None |
 
 Open-Meteo weather forecasts cover up to 16 days ahead; air-quality forecasts (CAMS) cover ~5 days and are regional (~11–25 km grid) rather than per-peak. Historical data beyond the ~90-day window would require the [Open-Meteo Historical API](https://open-meteo.com/en/docs/historical-weather-api) (different endpoint, not currently implemented).
 
