@@ -58,8 +58,16 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.IMAGE }}:${{ env.TAG }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Under pull_request_target every preview run's ref is main, so all
+          # PRs share one cache namespace: unscoped writes collide with each
+          # other and with release builds ("failed to reserve cache" after the
+          # image already pushed). Scope writes per PR, keep the default scope
+          # as a read fallback for warm starts, and never fail the job on a
+          # cache-export error — the image push has already succeeded by then.
+          cache-from: |
+            type=gha,scope=pr-${{ github.event.pull_request.number }}
+            type=gha
+          cache-to: type=gha,mode=max,scope=pr-${{ github.event.pull_request.number }},ignore-error=true
 
       - name: Comment preview URL (sticky — rewrites on each push)
         env:
