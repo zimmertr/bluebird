@@ -96,8 +96,8 @@ Click **Draw Polygon** in the sidebar. Your cursor becomes a crosshair. Click on
 | Type | OSM Query | Status |
 |---|---|---|
 | Peaks | `natural=peak` (named nodes) | ✅ Implemented |
-| Trailheads | `highway=trailhead` | 🔜 Coming soon |
-| Lakes | `natural=water` + `water=lake` | 🔜 Coming soon |
+| Trailheads | `highway=trailhead` (named nodes/ways) | ✅ Implemented |
+| Lakes | `natural=water` + `water=lake` (named nodes/ways/relations) | ✅ Implemented |
 | Custom (CSV) | User-supplied coordinates | ✅ Implemented |
 
 **Custom CSV format:**
@@ -424,7 +424,7 @@ Open-Meteo weather forecasts cover up to 16 days ahead; air-quality forecasts (C
 
 ## Roadmap
 
-- [ ] **Additional destination types** — Trailheads, Lakes (OSM queries are written; just needs enabling)
+- [x] **Additional destination types** — Trailheads and Lakes, queried from OSM like peaks
 - [x] **Air quality (PM2.5)** — Open-Meteo Air Quality API, useful during wildfire smoke season
 - [ ] **Historical analysis** — Switch to Open-Meteo archive endpoint for past dates
 - [ ] **Saved searches** — LocalStorage persistence for polygons and settings

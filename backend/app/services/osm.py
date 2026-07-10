@@ -52,7 +52,7 @@ out center;
 """,
 }
 
-_IMPLEMENTED = {DestinationType.peak}
+_IMPLEMENTED = {DestinationType.peak, DestinationType.trailhead, DestinationType.lake}
 
 
 def _polygon_to_overpass(polygon: GeoPolygon) -> str:
