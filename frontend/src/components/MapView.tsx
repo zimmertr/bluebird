@@ -1,5 +1,8 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
+// TS 7 no longer resolves @types/geojson's UMD global namespace from module
+// files, so the types must be imported explicitly.
+import type { FeatureCollection } from 'geojson'
 // maplibre-gl.css is imported in index.css under layer(base) — see comment there
 import { GeoPolygon, DestinationResult, SortBy } from '../types'
 import { markerColor } from '../utils/colors'
@@ -94,7 +97,7 @@ const emptyFC = { type: 'FeatureCollection', features: [] }
 
 function setSource(map: maplibregl.Map, id: string, data: object) {
   const src = map.getSource(id) as maplibregl.GeoJSONSource | undefined
-  src?.setData(data as GeoJSON.FeatureCollection)
+  src?.setData(data as FeatureCollection)
 }
 
 // The OpenFreeMap "Liberty" style ships the OpenMapTiles vector source but
@@ -306,7 +309,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           type: 'geojson',
           data: (ptsRef.current.length > 0
             ? makeDrawData(ptsRef.current)
-            : emptyFC) as GeoJSON.FeatureCollection,
+            : emptyFC) as FeatureCollection,
         })
 
         map.addLayer({
@@ -350,7 +353,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         })
 
         // ── Results source + layers ────────────────────────────────────
-        map.addSource('results', { type: 'geojson', data: emptyFC as GeoJSON.FeatureCollection })
+        map.addSource('results', { type: 'geojson', data: emptyFC as FeatureCollection })
 
         map.addLayer({
           id: 'results-circles',
@@ -393,7 +396,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // Deliberately absent from the general click handler's blocked-layer
         // list: the pin only marks a searched spot and must never swallow a
         // polygon click placed on top of it.
-        map.addSource('search', { type: 'geojson', data: emptyFC as GeoJSON.FeatureCollection })
+        map.addSource('search', { type: 'geojson', data: emptyFC as FeatureCollection })
         map.addLayer({
           id: 'search-pin',
           type: 'circle',
