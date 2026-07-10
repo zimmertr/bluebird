@@ -64,9 +64,14 @@ def _polygon_to_overpass(polygon: GeoPolygon) -> str:
 async def query_osm(
     polygon: GeoPolygon,
     destination_type: DestinationType,
-    cap: int,
     on_status: Optional[StatusCallback] = None,
 ) -> List[Dict[str, Any]]:
+    """Return every named destination of the given type inside the polygon.
+
+    Deliberately uncapped: the ranking is only exact if every candidate gets a
+    forecast, so the analysis-size ceiling lives in the route (loud refusal),
+    not here (silent truncation).
+    """
     if destination_type not in _IMPLEMENTED:
         raise NotImplementedError(
             f"Destination type '{destination_type.value}' is not yet implemented."
@@ -118,9 +123,6 @@ async def query_osm(
             }
         )
         log.trace("  OSM element: %s (%.4f, %.4f) ele=%s", name, lat, lon, elevation_ft)  # type: ignore[attr-defined]
-
-        if len(results) >= cap:
-            break
 
     log.info("OSM returned %d named destination(s)", len(results))
     return results

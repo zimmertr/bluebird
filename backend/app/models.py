@@ -9,6 +9,12 @@ from pydantic import BaseModel, field_validator, model_validator
 
 MAX_POLYGON_AREA_KM2 = 50_000
 
+# Every candidate inside the polygon gets a forecast (no silent sampling), so
+# this ceiling is what actually bounds upstream cost per analysis: 1,000 peaks
+# = 20 batched Open-Meteo calls. Beyond it the analysis refuses loudly and the
+# user shrinks the polygon or narrows the elevation band.
+MAX_ANALYZE_PEAKS = 1_000
+
 # Open-Meteo serves roughly the last ~90 days of history through ~16 days
 # ahead; the frontend blocks windows outside that band (urlState.ts). These
 # looser bounds are a backstop for direct API callers — enough slack that a

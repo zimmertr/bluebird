@@ -37,9 +37,9 @@ export function useAnalyze() {
     if (lastRequestRef.current) analyze(lastRequestRef.current)
   }
 
-  // One explicit fetch per Analyze click: the server ranks its candidate pool
-  // (limit × 5, capped at 200) and returns exactly the table rows. Nothing is
-  // cached or refetched behind the user's back.
+  // One explicit fetch per Analyze click: the server analyzes every candidate
+  // in the polygon (refusing loudly above its ceiling) and returns exactly the
+  // table rows. Nothing is cached or refetched behind the user's back.
   async function analyze(request: AnalyzeRequest) {
     lastRequestRef.current = request
 

@@ -5,7 +5,13 @@ import logging
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app.models import AnalyzeRequest, AnalyzeResponse, DestinationResult, DestinationType
+from app.models import (
+    MAX_ANALYZE_PEAKS,
+    AnalyzeRequest,
+    AnalyzeResponse,
+    DestinationResult,
+    DestinationType,
+)
 from app.services import air_quality, osm, weather
 from app.services.errors import UpstreamError
 
@@ -106,7 +112,6 @@ async def analyze_stream(request: AnalyzeRequest):
                     yield _sse("error", message="polygon is required for non-custom destination types")
                     return
                 yield _sse("status", message=f"Searching OpenStreetMap for {noun}s in your area…")
-                cap = min(request.limit * 5, 200)
 
                 # Overpass is one opaque request per mirror, so the only progress
                 # signal is mirror failover. Run it on a task and surface those
@@ -119,7 +124,7 @@ async def analyze_stream(request: AnalyzeRequest):
                 async def run_osm():
                     try:
                         return await osm.query_osm(
-                            request.polygon, request.destination_type, cap, on_status
+                            request.polygon, request.destination_type, on_status
                         )
                     finally:
                         await osm_queue.put(_STREAM_DONE)
@@ -156,6 +161,16 @@ async def analyze_stream(request: AnalyzeRequest):
             )
             if not destinations:
                 yield _sse("result", data=AnalyzeResponse(results=[], total_queried=0).model_dump())
+                return
+            if len(destinations) > MAX_ANALYZE_PEAKS:
+                yield _sse(
+                    "error",
+                    message=(
+                        f"This search covers {len(destinations):,} {noun}s — the analysis "
+                        f"limit is {MAX_ANALYZE_PEAKS:,}. Draw a smaller polygon or "
+                        "narrow the elevation range."
+                    ),
+                )
                 return
 
             total_queried = len(destinations)
@@ -283,11 +298,8 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
                 status_code=400,
                 detail="polygon is required for non-custom destination types",
             )
-        cap = min(request.limit * 5, 200)
         try:
-            destinations = await osm.query_osm(
-                request.polygon, request.destination_type, cap
-            )
+            destinations = await osm.query_osm(request.polygon, request.destination_type)
         except NotImplementedError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except UpstreamError as e:
@@ -303,6 +315,16 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     if not destinations:
         log.info("No destinations to analyze (none found, or none within the elevation band)")
         return AnalyzeResponse(results=[], total_queried=0)
+    if len(destinations) > MAX_ANALYZE_PEAKS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"This search covers {len(destinations):,} "
+                f"{_noun(request.destination_type)}s — the analysis limit is "
+                f"{MAX_ANALYZE_PEAKS:,}. Draw a smaller polygon or narrow the "
+                "elevation range."
+            ),
+        )
 
     total_queried = len(destinations)
     log.info("Fetching weather for %d destination(s)", total_queried)

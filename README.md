@@ -116,7 +116,7 @@ Air quality (PM2.5 AQI) forecasts are shorter — the underlying CAMS model only
 
 ### Step 4 — Set Max Results
 
-Default: 10. Maximum: 200. The backend queries up to `limit × 5` candidates from OSM (capped at 200), fetches weather for all of them, then returns the top N by the selected ranking (driest first by default).
+Default: 10. Maximum: 200. The backend fetches weather for **every** named peak in the polygon (after the optional elevation filter) and returns the top N by the selected ranking — no sampling, so the winners are the true extremes of the area. Analyses are capped at 1,000 peaks; beyond that the app asks you to draw a smaller polygon or narrow the elevation range.
 
 ### Step 5 — Analyze
 
