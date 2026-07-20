@@ -56,6 +56,8 @@ interface Props {
   setMinElevationFt: (v: number | null) => void
   maxElevationFt: number | null
   setMaxElevationFt: (v: number | null) => void
+  showWildfires: boolean
+  setShowWildfires: (v: boolean) => void
   windowWarning: 'past' | 'future' | null
   loading: boolean
   error: string | null
@@ -87,6 +89,8 @@ export default function ControlPanel({
   setMinElevationFt,
   maxElevationFt,
   setMaxElevationFt,
+  showWildfires,
+  setShowWildfires,
   windowWarning,
   loading,
   error,
@@ -355,12 +359,13 @@ export default function ControlPanel({
           </p>
         </section>
 
-        {/* Step 5: Constraints */}
+        {/* Step 5: Options — result filters, count, and map overlays */}
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            5. Constraints <span className="normal-case font-normal text-slate-500">(optional)</span>
+            5. Options
           </h2>
-          <div className="space-y-2">
+          <div className="space-y-4">
+            {/* Elevation band — filters candidates server-side before the fetch */}
             <div>
               <label className="text-xs text-slate-400 block mb-1">Elevation range (ft)</label>
               <div className="flex items-center gap-2">
@@ -397,24 +402,39 @@ export default function ControlPanel({
                 </button>
               )}
             </div>
-          </div>
-        </section>
 
-        {/* Step 6: Result count */}
-        <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            6. Max Results
-          </h2>
-          <input
-            type="number"
-            min={1}
-            max={200}
-            value={limit}
-            onChange={(e) =>
-              setLimit(Math.max(1, Math.min(200, parseInt(e.target.value) || 10)))
-            }
-            className="w-24 text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500"
-          />
+            {/* Max results */}
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">Max results</label>
+              <input
+                type="number"
+                min={1}
+                max={200}
+                value={limit}
+                onChange={(e) =>
+                  setLimit(Math.max(1, Math.min(200, parseInt(e.target.value) || 10)))
+                }
+                className="w-24 text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500"
+              />
+            </div>
+
+            {/* Show wildfires — live NIFC perimeter overlay, off by default */}
+            <div>
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showWildfires}
+                  onChange={(e) => setShowWildfires(e.target.checked)}
+                  className="accent-sky-500 h-4 w-4"
+                />
+                <span className="text-sm text-slate-200">Show wildfires</span>
+              </label>
+              <p className="text-xs text-slate-500 mt-1">
+                Red shading marks active U.S. wildfire perimeters (NIFC). Hover a fire for its size,
+                containment, and last update.
+              </p>
+            </div>
+          </div>
         </section>
       </div>
 
@@ -470,7 +490,7 @@ export default function ControlPanel({
         )}
 
         <p className="text-xs text-slate-600 text-center">
-          Data: OpenStreetMap · Open-Meteo · CAMS
+          Data: OpenStreetMap · Open-Meteo · CAMS · NIFC
         </p>
       </div>
     </div>

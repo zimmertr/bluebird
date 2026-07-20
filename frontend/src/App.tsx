@@ -75,6 +75,9 @@ export default function App() {
   const [maxElevationFt, setMaxElevationFt] = useState<number | null>(
     () => restored?.maxElevationFt ?? null,
   )
+  // A live map overlay, not part of an analysis — kept out of the URL/analyze
+  // request and defaulted off. Toggling it queries NIFC for the current viewport.
+  const [showWildfires, setShowWildfires] = useState(false)
   const [showResults, setShowResults] = useState(false)
   const [tableHeight, setTableHeight] = useState(280)
   const [isDragging, setIsDragging] = useState(false)
@@ -280,6 +283,8 @@ export default function App() {
           setMinElevationFt={setMinElevationFt}
           maxElevationFt={maxElevationFt}
           setMaxElevationFt={setMaxElevationFt}
+          showWildfires={showWildfires}
+          setShowWildfires={setShowWildfires}
           windowWarning={windowWarning}
           loading={loading}
           error={error}
@@ -350,6 +355,7 @@ export default function App() {
             onDrawUpdate={handleDrawUpdate}
             results={results}
             sortBy={view.sortBy}
+            showWildfires={showWildfires}
           />
           {/* Top-left map cluster — reopen-controls button (only while the
               panel is collapsed) + place search. z-10 keeps it under the

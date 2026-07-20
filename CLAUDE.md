@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project is
 
-Bluebird is a map-based weather window finder for hikers and mountaineers, live at `bluebirdforecast.com`. Users draw a polygon on a map, pick a destination type and forecast window, and get a ranked table of destinations sorted by precipitation. No API keys are required — all external APIs (Overpass/OSM, Open-Meteo, OpenFreeMap) are free and unauthenticated.
+Bluebird is a map-based weather window finder for hikers and mountaineers, live at `bluebirdforecast.com`. Users draw a polygon on a map, pick a destination type and forecast window, and get a ranked table of destinations sorted by precipitation. No API keys are required — all external APIs (Overpass/OSM, Open-Meteo, OpenFreeMap, and NIFC for the optional wildfire overlay) are free and unauthenticated.
 
 ## Development commands
 
@@ -80,6 +80,7 @@ The SPA fetches only on an explicit Analyze click and renders results from a sna
 - `src/types.ts` — TypeScript types mirroring backend Pydantic models
 - `src/utils/colors.ts` — marker/cell color thresholds per sortable metric (precip, wind, temp, AQI)
 - `src/utils/geocode.ts` — coordinate parsing, Nominatim client, and search-view bounds math for the search box
+- `src/utils/wildfires.ts` — NIFC WFIGS query builder + popup formatting for the optional wildfire overlay (fetched client-side by viewport; US-only, keyless, best-effort)
 
 ## CI/CD pipeline
 
