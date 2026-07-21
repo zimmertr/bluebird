@@ -75,9 +75,10 @@ export default function App() {
   const [maxElevationFt, setMaxElevationFt] = useState<number | null>(
     () => restored?.maxElevationFt ?? null,
   )
-  // A live map overlay, not part of an analysis — kept out of the URL/analyze
-  // request and defaulted off. Toggling it queries NIFC for the current viewport.
-  const [showWildfires, setShowWildfires] = useState(false)
+  // A live map overlay, not part of the analyze request, but persisted to the
+  // URL so a shared link reproduces it. Defaults off; toggling queries NIFC for
+  // the current viewport.
+  const [showWildfires, setShowWildfires] = useState(() => restored?.showWildfires ?? false)
   const [showResults, setShowResults] = useState(false)
   const [tableHeight, setTableHeight] = useState(280)
   const [isDragging, setIsDragging] = useState(false)
@@ -154,6 +155,7 @@ export default function App() {
       maxElevationFt,
       limit,
       customCsv,
+      showWildfires,
     })
     const url = qs ? `?${qs}` : window.location.pathname
     window.history.replaceState(null, '', url)
@@ -168,6 +170,7 @@ export default function App() {
     maxElevationFt,
     limit,
     customCsv,
+    showWildfires,
   ])
 
   // Warn when a restored/edited window falls outside Open-Meteo's servable

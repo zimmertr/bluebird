@@ -34,6 +34,7 @@ const base: ShareableState = {
   maxElevationFt: null,
   limit: 10,
   customCsv: '',
+  showWildfires: false,
 }
 
 // A truly untouched session: no polygon, no custom CSV, End unset, all controls
@@ -49,6 +50,7 @@ const pristine: ShareableState = {
   maxElevationFt: null,
   limit: 10,
   customCsv: '',
+  showWildfires: false,
 }
 
 // Round-trip helper: encode, then decode the resulting query string.
@@ -100,6 +102,14 @@ describe('encodeState / decodeState round-trip', () => {
     expect(roundTrip(base)!.sortDesc).toBeUndefined()
   })
 
+  it('round-trips the wildfire overlay toggle', () => {
+    const out = roundTrip({ ...base, showWildfires: true })
+    expect(out!.showWildfires).toBe(true)
+    // Off is the default and stays out of the URL entirely.
+    expect(encodeState(base)).not.toContain('fires')
+    expect(roundTrip(base)!.showWildfires).toBeUndefined()
+  })
+
   it('restores a custom-CSV analysis without a polygon', () => {
     const csv = '46.8529,-121.7604\n46.2024,-121.4909'
     const out = roundTrip({
@@ -139,6 +149,13 @@ describe('encodeState gate — what triggers a URL update', () => {
     expect(encodeState({ ...pristine, sortDesc: true })).not.toBe('')
     expect(encodeState({ ...pristine, limit: 25 })).not.toBe('')
     expect(encodeState({ ...pristine, destinationType: 'custom' })).not.toBe('')
+  })
+
+  it('syncs when the wildfire overlay is enabled', () => {
+    expect(encodeState({ ...pristine, showWildfires: true })).not.toBe('')
+    expect(new URLSearchParams(encodeState({ ...pristine, showWildfires: true })).get('fires')).toBe(
+      '1',
+    )
   })
 })
 

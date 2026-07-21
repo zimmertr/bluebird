@@ -5,6 +5,7 @@ import {
   formatContainment,
   formatUpdated,
   wildfirePopupHtml,
+  NIFC_DATASET_URL,
 } from './wildfires'
 
 describe('wildfireQueryUrl', () => {
@@ -90,5 +91,12 @@ describe('wildfirePopupHtml', () => {
     const html = wildfirePopupHtml({ poly_GISAcres: 5649, attr_PercentContained: 0 })
     expect(html).toContain('5,649 acres')
     expect(html).toContain('0% contained')
+  })
+
+  it('links to the NIFC source dataset', () => {
+    expect(NIFC_DATASET_URL).toContain('data-nifc.opendata.arcgis.com')
+    const html = wildfirePopupHtml({ attr_IncidentName: 'Beehive' })
+    expect(html).toContain(`href="${NIFC_DATASET_URL}"`)
+    expect(html).toContain('target="_blank"')
   })
 })

@@ -27,6 +27,12 @@ const OUT_FIELDS = [
   'attr_FireDiscoveryDateTime',
 ].join(',')
 
+// Public NIFC Open Data page for this dataset — the "datasource webpage" a
+// clicked fire (or the popup link) opens. This layer exposes no field that keys
+// a reliable per-incident public page, so we link the source dataset itself.
+export const NIFC_DATASET_URL =
+  'https://data-nifc.opendata.arcgis.com/datasets/nifc::wfigs-current-interagency-fire-perimeters/about'
+
 // [west, south, east, north] in EPSG:4326 — the map viewport we query within.
 export type BBox = [number, number, number, number]
 
@@ -122,6 +128,7 @@ export function wildfirePopupHtml(props: WildfireProps): string {
       <strong>🔥 ${escapeHtml(name)}</strong>
       <br>${formatAcres(props.poly_GISAcres)} · ${formatContainment(props.attr_PercentContained)}
       ${updated ? `<br><span style="color:#94a3b8">${escapeHtml(updated)}</span>` : ''}
+      <br><a href="${NIFC_DATASET_URL}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">Open on NIFC ↗</a>
     </div>`
 }
 

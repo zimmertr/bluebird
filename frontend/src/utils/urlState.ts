@@ -17,6 +17,7 @@ export interface ShareableState {
   maxElevationFt: number | null
   limit: number
   customCsv: string
+  showWildfires: boolean // live NIFC map overlay; not part of the analysis request
 }
 
 const DESTINATION_TYPES: DestinationType[] = ['peak', 'trailhead', 'lake', 'custom']
@@ -115,7 +116,8 @@ export function encodeState(state: ShareableState): string {
     state.sortBy !== DEFAULT_SORT ||
     state.sortDesc ||
     state.limit !== DEFAULT_LIMIT ||
-    state.destinationType !== DEFAULT_TYPE
+    state.destinationType !== DEFAULT_TYPE ||
+    state.showWildfires
   if (!hasPolygon && !hasCustom && !hasWindow && !hasConstraint && !nonDefaultControls) return ''
 
   const p = new URLSearchParams()
@@ -129,6 +131,7 @@ export function encodeState(state: ShareableState): string {
   if (state.maxElevationFt !== null) p.set('maxel', String(state.maxElevationFt))
   if (hasPolygon && state.polygon) p.set('poly', encodePolygon(state.polygon))
   if (hasCustom) p.set('custom', state.customCsv)
+  if (state.showWildfires) p.set('fires', '1')
 
   return p.toString()
 }
@@ -190,6 +193,8 @@ export function decodeState(search: string): Partial<ShareableState> | null {
 
   const custom = params.get('custom')
   if (custom) out.customCsv = custom
+
+  if (params.get('fires') === '1') out.showWildfires = true
 
   return Object.keys(out).length > 0 ? out : null
 }

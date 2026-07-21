@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.
@@ -7,7 +7,13 @@ import type { FeatureCollection } from 'geojson'
 import { GeoPolygon, DestinationResult, SortBy } from '../types'
 import { markerColor } from '../utils/colors'
 import { Place, boundsAround } from '../utils/geocode'
-import { fetchWildfires, wildfirePopupHtml, type BBox, type WildfireProps } from '../utils/wildfires'
+import {
+  fetchWildfires,
+  wildfirePopupHtml,
+  NIFC_DATASET_URL,
+  type BBox,
+  type WildfireProps,
+} from '../utils/wildfires'
 
 export interface MapViewHandle {
   finishDrawing: () => GeoPolygon | null
@@ -199,6 +205,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
     const draggingVertexRef = useRef<number | null>(null)
     const firePopupRef = useRef<maplibregl.Popup | null>(null)
     const fireAbortRef = useRef<AbortController | null>(null)
+    // Flipped once the load handler has added every source/layer. A ref wouldn't
+    // re-run the wildfire effect, so this is state — it lets a restored `fires=1`
+    // link turn the overlay on as soon as the map is ready.
+    const [mapReady, setMapReady] = useState(false)
 
     useImperativeHandle(ref, () => ({
       // Snapshot the current ring as a GeoPolygon. The points stay editable —
@@ -352,17 +362,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
           firePopupRef.current?.remove()
           firePopupRef.current = null
         })
-        // Touch has no hover: a tap opens the same info in a closeable popup.
-        // 'wildfire-fill' is in the general click handler's blocked list below,
-        // so tapping a fire shows its stats instead of dropping a polygon point.
-        map.on('click', 'wildfire-fill', (e) => {
-          const props = e.features?.[0]?.properties
-          if (!props) return
-          firePopupRef.current?.remove()
-          firePopupRef.current = new maplibregl.Popup({ maxWidth: '260px' })
-            .setLngLat(e.lngLat)
-            .setHTML(wildfirePopupHtml(props as WildfireProps))
-            .addTo(map)
+        // Clicking (or tapping) a fire opens its source dataset on NIFC in a new
+        // tab. 'wildfire-fill' is in the general click handler's blocked list
+        // below, so this fires instead of dropping a polygon point. The hover
+        // popup carries the same link for pointer users.
+        map.on('click', 'wildfire-fill', () => {
+          window.open(NIFC_DATASET_URL, '_blank', 'noopener,noreferrer')
         })
 
         // ── Draw source + layers ───────────────────────────────────────
@@ -673,6 +678,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
           applySearchResult(map, pendingSearchRef.current)
           pendingSearchRef.current = null
         }
+
+        // All sources/layers exist now — let the wildfire effect run (and enable
+        // the overlay if a restored `fires=1` link had it on).
+        setMapReady(true)
       })
 
       return () => {
@@ -697,11 +706,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // Toggle the NIFC wildfire overlay. On: fetch perimeters for the current
     // viewport and re-fetch (debounced) as the user pans/zooms. Off: clear it.
     // Best-effort — a failed fetch just leaves the overlay empty and never
-    // disrupts the map or an analysis. showWildfires only flips post-load (it's
-    // a UI toggle, unset in the URL), so the not-loaded guard is a no-op start.
+    // disrupts the map or an analysis. Depends on mapReady so a restored
+    // `fires=1` link enables it the moment the sources/layers exist.
     useEffect(() => {
       const map = mapRef.current
-      if (!map || !loadedRef.current) return
+      if (!map || !mapReady) return
 
       if (!showWildfires) {
         setSource(map, 'wildfires', emptyFC)
@@ -748,7 +757,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         fireAbortRef.current?.abort()
         map.off('moveend', onMoveEnd)
       }
-    }, [showWildfires])
+    }, [showWildfires, mapReady])
 
     return <div ref={containerRef} className="absolute inset-0" />
   },
