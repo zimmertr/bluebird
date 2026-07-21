@@ -33,7 +33,10 @@ async def geocode(
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(
                 NOMINATIM_URL,
-                params={"format": "jsonv2", "limit": limit, "q": q},
+                # extratags carries the raw OSM tags — notably `ele`, which is
+                # how pinned search rows get the same summit elevation an
+                # Overpass-sourced analysis row would show.
+                params={"format": "jsonv2", "limit": limit, "extratags": 1, "q": q},
                 headers={"User-Agent": USER_AGENT},
             )
             resp.raise_for_status()

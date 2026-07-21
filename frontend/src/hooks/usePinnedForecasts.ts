@@ -45,6 +45,7 @@ export function usePinnedForecasts() {
         name: p.label,
         latitude: p.lat,
         longitude: p.lon,
+        elevation_ft: p.elevationFt,
       })),
       start_datetime: startIso,
       end_datetime: endIso,

@@ -17,6 +17,10 @@ export interface Place {
   lat: number
   lon: number
   bbox?: [number, number, number, number] // feature extent as [W, S, E, N]
+  // From the OSM `ele` tag (via Nominatim extratags) — the same source the
+  // analysis rows use, so a pinned peak shows its true summit elevation.
+  // Absent for features without the tag (cities, coordinates…).
+  elevationFt?: number
 }
 
 // "36.57862, -118.29107" · "(36.57862, -118.29107)" · "36.57862 -118.29107"
@@ -59,6 +63,15 @@ interface NominatimRow {
   lat: string
   lon: string
   boundingbox?: [string, string, string, string] // Nominatim order: [S, N, W, E]
+  extratags?: Record<string, string> | null // raw OSM tags (extratags=1)
+}
+
+// OSM `ele` is meters; mirror osm.py's parsing (plain float × 3.28084,
+// rounded) so a pinned peak and an Overpass row can't disagree.
+function elevationFtFromEle(ele: string | undefined): number | undefined {
+  if (!ele) return undefined
+  const meters = Number(ele)
+  return Number.isFinite(meters) ? Math.round(meters * 3.28084) : undefined
 }
 
 // Exported for tests — the [S,N,W,E]→[W,S,E,N] bbox reorder is easy to get wrong.
@@ -73,6 +86,7 @@ export function placeFromNominatimRow(row: NominatimRow): Place {
     bbox: bb
       ? [parseFloat(bb[2]), parseFloat(bb[0]), parseFloat(bb[3]), parseFloat(bb[1])]
       : undefined,
+    elevationFt: elevationFtFromEle(row.extratags?.ele),
   }
 }
 
