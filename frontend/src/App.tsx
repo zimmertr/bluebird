@@ -7,11 +7,13 @@ import WelcomeModal from './components/WelcomeModal'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
 import { useFireProximity } from './hooks/useFireProximity'
+import { usePointForecast } from './hooks/usePointForecast'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { GeoPolygon, DestinationType, CustomDestination, SortBy } from './types'
 import { METRIC_CONFIG, MARKER_COLORS } from './utils/colors'
-import { encodeState, decodeState, classifyWindow } from './utils/urlState'
+import { Place } from './utils/geocode'
+import { encodeState, decodeState, classifyWindow, resolveSearchWindow } from './utils/urlState'
 
 // Composed with the direction into e.g. "lowest total precipitation" /
 // "highest average temperature" for the results header.
@@ -120,6 +122,31 @@ export default function App() {
 
   const { analyze, cancel, retry, analyzed, loading, error, response, statusMessage, progress } = useAnalyze()
 
+  // The searched map pin and its pinned-row forecast. The place lives here (not
+  // just in MapView's imperative layer) so Analyze can refetch the same point.
+  const [searchedPlace, setSearchedPlace] = useState<Place | null>(null)
+  const pointForecast = usePointForecast()
+  const pinnedRow = pointForecast.row
+
+  // A searched point's forecast opens the results panel so the pinned row is
+  // visible even before any analysis has run (or after the panel was closed).
+  useEffect(() => {
+    if (pinnedRow) setShowResults(true)
+  }, [pinnedRow])
+
+  function handleSearchSelect(place: Place) {
+    setSearchedPlace(place)
+    mapRef.current?.showSearchResult(place)
+    const searchWindow = resolveSearchWindow(startDatetime, endDatetime, new Date())
+    void pointForecast.fetchForPlace(place, searchWindow.start, searchWindow.end)
+  }
+
+  function handleSearchClear() {
+    setSearchedPlace(null)
+    mapRef.current?.clearSearchResult()
+    pointForecast.clear()
+  }
+
   // Everything derived from the results renders from the snapshot of the
   // ranking that produced them — panel knobs only affect the NEXT Analyze.
   // Falls back to the live knobs before the first analysis (nothing shown yet).
@@ -196,7 +223,10 @@ export default function App() {
 
     const constraints = { min_elevation_ft: minElevationFt, max_elevation_ft: maxElevationFt }
 
+    // The pinned search row joins every analysis, refetched with the same
+    // window so it stays comparable with the report it sits above.
     if (destinationType === 'custom') {
+      if (searchedPlace) void pointForecast.fetchForPlace(searchedPlace, start, end)
       await analyze({
         destination_type: 'custom',
         start_datetime: start,
@@ -214,6 +244,7 @@ export default function App() {
       // map hasn't loaded yet.
       const resolvedPolygon = mapRef.current?.finishDrawing() ?? polygon
       if (!resolvedPolygon) return
+      if (searchedPlace) void pointForecast.fetchForPlace(searchedPlace, start, end)
       await analyze({
         polygon: resolvedPolygon,
         destination_type: destinationType,
@@ -233,10 +264,18 @@ export default function App() {
   // effect keys off it and would otherwise re-run (and refetch) every render.
   const results = useMemo(() => response?.results ?? [], [response])
   const hasResults = showResults && results.length > 0
+  // The table panel also opens for a searched point's pinned forecast alone;
+  // the map legend stays tied to actual analysis results (hasResults).
+  const showTable = showResults && (results.length > 0 || pinnedRow != null)
 
   // Flags results within 10 mi of an active US wildfire; independent of the map
   // overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
-  const fireWarnings = useFireProximity(results)
+  // The pinned search row is checked right alongside the ranked rows.
+  const fireCheckRows = useMemo(
+    () => (pinnedRow ? [...results, pinnedRow] : results),
+    [results, pinnedRow],
+  )
+  const fireWarnings = useFireProximity(fireCheckRows)
 
   return (
     <div className="flex flex-col h-dvh w-screen overflow-hidden bg-slate-900">
@@ -385,10 +424,7 @@ export default function App() {
                 Controls
               </button>
             )}
-            <SearchBox
-              onSelect={(place) => mapRef.current?.showSearchResult(place)}
-              onClear={() => mapRef.current?.clearSearchResult()}
-            />
+            <SearchBox onSelect={handleSearchSelect} onClear={handleSearchClear} />
           </div>
           {(hasResults || showWildfires) && (
             <div className="absolute bottom-8 left-2 z-10 flex flex-col gap-2">
@@ -422,7 +458,7 @@ export default function App() {
           )}
         </div>
 
-        {hasResults && (
+        {showTable && (
           <div
             className="flex-shrink-0 bg-slate-800 flex flex-col h-[55dvh] lg:h-auto"
             style={isDesktop ? { height: `${tableHeight}px` } : undefined}
@@ -439,7 +475,9 @@ export default function App() {
             {/* Header */}
             <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-slate-700 border-b border-slate-600">
               <span className="text-xs font-semibold text-white">
-                Results — {view.sortDesc ? 'highest' : 'lowest'} {SORT_NOUNS[view.sortBy]} first
+                {results.length > 0
+                  ? `Results — ${view.sortDesc ? 'highest' : 'lowest'} ${SORT_NOUNS[view.sortBy]} first`
+                  : 'Searched location forecast'}
               </span>
               <button
                 onClick={() => setShowResults(false)}
@@ -455,6 +493,7 @@ export default function App() {
                 sortBy={view.sortBy}
                 sortDesc={view.sortDesc}
                 fireWarnings={fireWarnings}
+                pinned={pinnedRow}
               />
             </div>
           </div>

@@ -42,9 +42,12 @@ interface Props {
   sortBy: SortBy
   sortDesc: boolean
   fireWarnings: Map<string, FireWarning>
+  // Forecast for the searched map pin — rendered above the ranked rows,
+  // outside the sort and the analysis limit.
+  pinned?: DestinationResult | null
 }
 
-export default function ResultsTable({ results, sortBy, sortDesc, fireWarnings }: Props) {
+export default function ResultsTable({ results, sortBy, sortDesc, fireWarnings, pinned }: Props) {
   const coloredGroup = new Set(METRIC_CONFIG[sortBy].group)
   const [sortKey, setSortKey] = useState<SortKey>(sortBy)
   const [sortDir, setSortDir] = useState<SortDir>(sortDesc ? 'desc' : 'asc')
@@ -77,6 +80,67 @@ export default function ResultsTable({ results, sortBy, sortDesc, fireWarnings }
     return sortDir === 'asc' ? cmp : -cmp
   })
 
+  // Everything after the rank cell, shared by ranked rows and the pinned row
+  // so the searched point gets identical formatting, links, and cell colors.
+  function rowCells(row: DestinationResult) {
+    return COLUMNS.map((col) => {
+      const raw = row[col.key]
+      const display = col.format ? col.format(raw) : String(raw ?? '—')
+      const sortVal = row[sortBy]
+      const isColored = coloredGroup.has(col.key as string) && sortVal != null
+      const cellClass = `px-2 py-1.5 whitespace-nowrap ${
+        col.key === 'name' ? 'font-sans font-medium' : 'font-mono'
+      } ${!isColored ? 'text-slate-200' : ''}`
+      const colorSty = isColored ? cellStyle(sortVal as number, sortBy) : undefined
+
+      if (col.key === 'name') {
+        const warning = fireWarnings.get(fireKey(row.latitude, row.longitude))
+        return (
+          <td key={col.key} className={cellClass}>
+            {warning && (
+              <span
+                title={fireWarningText(warning)}
+                aria-label={fireWarningText(warning)}
+                className="mr-1 cursor-help"
+              >
+                ⚠️
+              </span>
+            )}
+            <a
+              href={peakbaggerUrl(display)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sky-400 hover:text-sky-300 hover:underline"
+            >
+              {display}
+            </a>
+          </td>
+        )
+      }
+
+      if (col.windyLayer) {
+        return (
+          <td key={col.key} className={cellClass} style={colorSty}>
+            <a
+              href={windyUrl(row.latitude, row.longitude, col.windyLayer)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline cursor-pointer"
+            >
+              {display}
+            </a>
+          </td>
+        )
+      }
+
+      return (
+        <td key={col.key} className={cellClass} style={colorSty}>
+          {display}
+        </td>
+      )
+    })
+  }
+
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full text-xs">
@@ -98,68 +162,22 @@ export default function ResultsTable({ results, sortBy, sortDesc, fireWarnings }
           </tr>
         </thead>
         <tbody>
+          {pinned && (
+            <tr className="border-t border-slate-700/50 bg-amber-400/10 hover:bg-amber-400/20 transition-colors">
+              {/* Matches the amber search pin on the map */}
+              <td className="px-2 py-1.5" title="Searched location" aria-label="Searched location">
+                📍
+              </td>
+              {rowCells(pinned)}
+            </tr>
+          )}
           {sorted.map((row, i) => (
             <tr
               key={`${row.name}-${i}`}
               className="border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors"
             >
               <td className="px-2 py-1.5 text-slate-500">{i + 1}</td>
-              {COLUMNS.map((col) => {
-                const raw = row[col.key]
-                const display = col.format ? col.format(raw) : String(raw ?? '—')
-                const sortVal = row[sortBy]
-                const isColored = coloredGroup.has(col.key as string) && sortVal != null
-                const cellClass = `px-2 py-1.5 whitespace-nowrap ${
-                  col.key === 'name' ? 'font-sans font-medium' : 'font-mono'
-                } ${!isColored ? 'text-slate-200' : ''}`
-                const colorSty = isColored ? cellStyle(sortVal as number, sortBy) : undefined
-
-                if (col.key === 'name') {
-                  const warning = fireWarnings.get(fireKey(row.latitude, row.longitude))
-                  return (
-                    <td key={col.key} className={cellClass}>
-                      {warning && (
-                        <span
-                          title={fireWarningText(warning)}
-                          aria-label={fireWarningText(warning)}
-                          className="mr-1 cursor-help"
-                        >
-                          ⚠️
-                        </span>
-                      )}
-                      <a
-                        href={peakbaggerUrl(display)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sky-400 hover:text-sky-300 hover:underline"
-                      >
-                        {display}
-                      </a>
-                    </td>
-                  )
-                }
-
-                if (col.windyLayer) {
-                  return (
-                    <td key={col.key} className={cellClass} style={colorSty}>
-                      <a
-                        href={windyUrl(row.latitude, row.longitude, col.windyLayer)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:underline cursor-pointer"
-                      >
-                        {display}
-                      </a>
-                    </td>
-                  )
-                }
-
-                return (
-                  <td key={col.key} className={cellClass} style={colorSty}>
-                    {display}
-                  </td>
-                )
-              })}
+              {rowCells(row)}
             </tr>
           ))}
         </tbody>
