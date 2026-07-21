@@ -6,7 +6,7 @@ const STEPS: [string, string][] = [
   ['Draw a search area', 'Click on the map to place polygon vertices. Three or more points form the search boundary.'],
   ['Choose a destination type', 'Analyze peaks, trailheads, or lakes — or paste custom coordinates as CSV.'],
   ['Set a forecast window', 'Pick the start and end date/time for the weather period you care about.'],
-  ['Sort & filter', 'Rank by least rain, least wind, coldest temperature, or cleanest air (PM2.5 AQI). Optionally filter by elevation range.'],
+  ['Rank & set options', 'Rank by least rain, least wind, coldest temperature, or cleanest air (PM2.5 AQI). Under Options, filter by elevation, cap the result count, or show active US wildfires on the map.'],
   ['Analyze', 'Results appear on the map as colored markers and in the table below, ranked best to worst.'],
 ]
 
@@ -55,6 +55,9 @@ export default function WelcomeModal({ onDismiss }: Props) {
             </p>
             <p className="text-xs text-slate-400">
               <span className="text-slate-300 font-medium">Tip:</span> Click an existing vertex to remove it.
+            </p>
+            <p className="text-xs text-slate-400">
+              <span className="text-slate-300 font-medium">Tip:</span> Turn on <span className="text-slate-300">Show wildfires</span> to shade active US fire perimeters — destinations within 10 miles of one are flagged with ⚠️ in the results.
             </p>
           </div>
 

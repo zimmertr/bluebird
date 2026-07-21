@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import MapView, { MapViewHandle } from './components/MapView'
 import ControlPanel from './components/ControlPanel'
 import SearchBox from './components/SearchBox'
@@ -6,6 +6,7 @@ import ResultsTable from './components/ResultsTable'
 import WelcomeModal from './components/WelcomeModal'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
+import { useFireProximity } from './hooks/useFireProximity'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { GeoPolygon, DestinationType, CustomDestination, SortBy } from './types'
@@ -75,6 +76,10 @@ export default function App() {
   const [maxElevationFt, setMaxElevationFt] = useState<number | null>(
     () => restored?.maxElevationFt ?? null,
   )
+  // A live map overlay, not part of the analyze request, but persisted to the
+  // URL so a shared link reproduces it. Defaults off; toggling queries NIFC for
+  // the current viewport.
+  const [showWildfires, setShowWildfires] = useState(() => restored?.showWildfires ?? false)
   const [showResults, setShowResults] = useState(false)
   const [tableHeight, setTableHeight] = useState(280)
   const [isDragging, setIsDragging] = useState(false)
@@ -151,6 +156,7 @@ export default function App() {
       maxElevationFt,
       limit,
       customCsv,
+      showWildfires,
     })
     const url = qs ? `?${qs}` : window.location.pathname
     window.history.replaceState(null, '', url)
@@ -165,6 +171,7 @@ export default function App() {
     maxElevationFt,
     limit,
     customCsv,
+    showWildfires,
   ])
 
   // Warn when a restored/edited window falls outside Open-Meteo's servable
@@ -222,8 +229,14 @@ export default function App() {
     setShowResults(true)
   }
 
-  const results = response?.results ?? []
+  // Memoized so its reference is stable between renders — the fire-proximity
+  // effect keys off it and would otherwise re-run (and refetch) every render.
+  const results = useMemo(() => response?.results ?? [], [response])
   const hasResults = showResults && results.length > 0
+
+  // Flags results within 10 mi of an active US wildfire; independent of the map
+  // overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
+  const fireWarnings = useFireProximity(results)
 
   return (
     <div className="flex flex-col h-dvh w-screen overflow-hidden bg-slate-900">
@@ -280,6 +293,8 @@ export default function App() {
           setMinElevationFt={setMinElevationFt}
           maxElevationFt={maxElevationFt}
           setMaxElevationFt={setMaxElevationFt}
+          showWildfires={showWildfires}
+          setShowWildfires={setShowWildfires}
           windowWarning={windowWarning}
           loading={loading}
           error={error}
@@ -350,6 +365,7 @@ export default function App() {
             onDrawUpdate={handleDrawUpdate}
             results={results}
             sortBy={view.sortBy}
+            showWildfires={showWildfires}
           />
           {/* Top-left map cluster — reopen-controls button (only while the
               panel is collapsed) + place search. z-10 keeps it under the
@@ -374,19 +390,34 @@ export default function App() {
               onClear={() => mapRef.current?.clearSearchResult()}
             />
           </div>
-          {hasResults && (
-            <div className="absolute bottom-8 left-2 z-10 bg-slate-900/85 border border-slate-700 rounded-lg p-2.5 shadow-lg backdrop-blur-sm">
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                {METRIC_CONFIG[view.sortBy].label}
-              </p>
-              {MARKER_COLORS.map((color, i) => (
-                <div key={i} className="flex items-center gap-1.5 py-0.5">
-                  <span style={{ color }} className="text-sm leading-none">●</span>
-                  <span className="text-[11px] text-slate-300 font-mono">
-                    {METRIC_CONFIG[view.sortBy].legendLabels[i]}
-                  </span>
+          {(hasResults || showWildfires) && (
+            <div className="absolute bottom-8 left-2 z-10 flex flex-col gap-2">
+              {showWildfires && (
+                <div className="bg-slate-900/85 border border-slate-700 rounded-lg px-2.5 py-2 shadow-lg backdrop-blur-sm">
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="inline-block w-3 h-3 rounded-sm border"
+                      style={{ backgroundColor: 'rgba(220,38,38,0.35)', borderColor: '#b91c1c' }}
+                    />
+                    <span className="text-[11px] text-slate-300">Active wildfire (NIFC)</span>
+                  </div>
                 </div>
-              ))}
+              )}
+              {hasResults && (
+                <div className="bg-slate-900/85 border border-slate-700 rounded-lg p-2.5 shadow-lg backdrop-blur-sm">
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    {METRIC_CONFIG[view.sortBy].label}
+                  </p>
+                  {MARKER_COLORS.map((color, i) => (
+                    <div key={i} className="flex items-center gap-1.5 py-0.5">
+                      <span style={{ color }} className="text-sm leading-none">●</span>
+                      <span className="text-[11px] text-slate-300 font-mono">
+                        {METRIC_CONFIG[view.sortBy].legendLabels[i]}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -419,7 +450,12 @@ export default function App() {
             </div>
             {/* Scrollable table */}
             <div className="flex-1 overflow-y-auto min-h-0">
-              <ResultsTable results={results} sortBy={view.sortBy} sortDesc={view.sortDesc} />
+              <ResultsTable
+                results={results}
+                sortBy={view.sortBy}
+                sortDesc={view.sortDesc}
+                fireWarnings={fireWarnings}
+              />
             </div>
           </div>
         )}

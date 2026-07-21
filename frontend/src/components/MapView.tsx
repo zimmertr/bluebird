@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.
@@ -7,6 +7,13 @@ import type { FeatureCollection } from 'geojson'
 import { GeoPolygon, DestinationResult, SortBy } from '../types'
 import { markerColor } from '../utils/colors'
 import { Place, boundsAround } from '../utils/geocode'
+import {
+  fetchWildfires,
+  wildfirePopupHtml,
+  nifcFireUrl,
+  type BBox,
+  type WildfireProps,
+} from '../utils/wildfires'
 
 export interface MapViewHandle {
   finishDrawing: () => GeoPolygon | null
@@ -21,6 +28,7 @@ interface Props {
   onDrawUpdate: (count: number, areaKm2: number | null) => void
   results: DestinationResult[]
   sortBy: SortBy
+  showWildfires: boolean
 }
 
 export const MAX_AREA_KM2 = 50_000
@@ -185,7 +193,7 @@ function enhanceBasemap(map: maplibregl.Map) {
 }
 
 const MapView = forwardRef<MapViewHandle, Props>(
-  ({ polygon, onPolygonChange, onDrawUpdate, results, sortBy }, ref) => {
+  ({ polygon, onPolygonChange, onDrawUpdate, results, sortBy, showWildfires }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null)
     const mapRef = useRef<maplibregl.Map | null>(null)
     const loadedRef = useRef(false)
@@ -195,6 +203,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
     const pendingSearchRef = useRef<Place | null>(null)
     const vertexPopupRef = useRef<maplibregl.Popup | null>(null)
     const draggingVertexRef = useRef<number | null>(null)
+    const firePopupRef = useRef<maplibregl.Popup | null>(null)
+    const fireAbortRef = useRef<AbortController | null>(null)
+    // Flipped once the load handler has added every source/layer. A ref wouldn't
+    // re-run the wildfire effect, so this is state — it lets a restored `fires=1`
+    // link turn the overlay on as soon as the map is ready.
+    const [mapReady, setMapReady] = useState(false)
 
     useImperativeHandle(ref, () => ({
       // Snapshot the current ring as a GeoPolygon. The points stay editable —
@@ -303,6 +317,66 @@ const MapView = forwardRef<MapViewHandle, Props>(
           onDrawUpdate(ptsRef.current.length, bboxAreaKm2(ptsRef.current))
         }
         map.getCanvas().style.cursor = 'crosshair'
+
+        // ── Wildfire overlay (NIFC) ────────────────────────────────────
+        // Added before draw/results so the red perimeters sit beneath the
+        // drawing UI and result markers. Data is populated on demand by the
+        // showWildfires effect; the layers render nothing until then.
+        map.addSource('wildfires', { type: 'geojson', data: emptyFC as FeatureCollection })
+        map.addLayer({
+          id: 'wildfire-fill',
+          type: 'fill',
+          source: 'wildfires',
+          paint: { 'fill-color': '#dc2626', 'fill-opacity': 0.3 },
+        })
+        map.addLayer({
+          id: 'wildfire-outline',
+          type: 'line',
+          source: 'wildfires',
+          paint: { 'line-color': '#b91c1c', 'line-width': 1.5, 'line-opacity': 0.9 },
+        })
+
+        // NIFC map link, centered where the cursor/click sits on the fire (which
+        // is inside its perimeter). Zoom is clamped so a fire clicked from a
+        // zoomed-out view still opens framed rather than tiny, then nudged one
+        // level closer so the fire fills more of the NIFC map.
+        function fireLink(e: maplibregl.MapLayerMouseEvent) {
+          return nifcFireUrl(e.lngLat.lng, e.lngLat.lat, Math.max(map.getZoom(), 10) + 1)
+        }
+
+        // Hover (desktop) surfaces the fire's stats. The popup is updated in
+        // place as the cursor moves so it tracks smoothly across overlapping
+        // perimeters instead of flickering.
+        function showFirePopup(e: maplibregl.MapLayerMouseEvent) {
+          const props = e.features?.[0]?.properties
+          if (!props) return
+          const html = wildfirePopupHtml(props as WildfireProps, fireLink(e))
+          if (firePopupRef.current) {
+            firePopupRef.current.setLngLat(e.lngLat).setHTML(html)
+          } else {
+            firePopupRef.current = new maplibregl.Popup({ closeButton: false, maxWidth: '260px' })
+              .setLngLat(e.lngLat)
+              .setHTML(html)
+              .addTo(map)
+          }
+        }
+        map.on('mouseenter', 'wildfire-fill', (e) => {
+          map.getCanvas().style.cursor = 'pointer'
+          showFirePopup(e)
+        })
+        map.on('mousemove', 'wildfire-fill', showFirePopup)
+        map.on('mouseleave', 'wildfire-fill', () => {
+          map.getCanvas().style.cursor = 'crosshair'
+          firePopupRef.current?.remove()
+          firePopupRef.current = null
+        })
+        // Clicking (or tapping) a fire opens NIFC's live map centered on that
+        // fire in a new tab. 'wildfire-fill' is in the general click handler's
+        // blocked list below, so this fires instead of dropping a polygon point.
+        // The hover popup carries the same link for pointer users.
+        map.on('click', 'wildfire-fill', (e) => {
+          window.open(fireLink(e), '_blank', 'noopener,noreferrer')
+        })
 
         // ── Draw source + layers ───────────────────────────────────────
         map.addSource('draw', {
@@ -594,7 +668,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // ── General click → add new polygon point ──────────────────────
         map.on('click', (e) => {
           const blocked = map.queryRenderedFeatures(e.point, {
-            layers: ['results-circles', 'draw-vertices', 'draw-midpoints'],
+            layers: ['results-circles', 'draw-vertices', 'draw-midpoints', 'wildfire-fill'],
           })
           if (blocked.length > 0) return
 
@@ -612,6 +686,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
           applySearchResult(map, pendingSearchRef.current)
           pendingSearchRef.current = null
         }
+
+        // All sources/layers exist now — let the wildfire effect run (and enable
+        // the overlay if a restored `fires=1` link had it on).
+        setMapReady(true)
       })
 
       return () => {
@@ -632,6 +710,62 @@ const MapView = forwardRef<MapViewHandle, Props>(
       pendingResultsRef.current = []
       updateResults(mapRef.current, results, sortBy)
     }, [results, sortBy])
+
+    // Toggle the NIFC wildfire overlay. On: fetch perimeters for the current
+    // viewport and re-fetch (debounced) as the user pans/zooms. Off: clear it.
+    // Best-effort — a failed fetch just leaves the overlay empty and never
+    // disrupts the map or an analysis. Depends on mapReady so a restored
+    // `fires=1` link enables it the moment the sources/layers exist.
+    useEffect(() => {
+      const map = mapRef.current
+      if (!map || !mapReady) return
+
+      if (!showWildfires) {
+        setSource(map, 'wildfires', emptyFC)
+        firePopupRef.current?.remove()
+        firePopupRef.current = null
+        return
+      }
+
+      let disposed = false
+
+      async function refresh() {
+        if (!map) return
+        fireAbortRef.current?.abort()
+        const ac = new AbortController()
+        fireAbortRef.current = ac
+        const b = map.getBounds()
+        const bbox: BBox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]
+        // Simplify to ~2 screen-pixels of longitude so a country-wide view
+        // doesn't pull full-resolution perimeters for every active fire.
+        const width = map.getCanvas().clientWidth || 1
+        const tol = ((b.getEast() - b.getWest()) / width) * 2
+        try {
+          const fc = await fetchWildfires(bbox, tol, ac.signal)
+          if (!disposed) setSource(map, 'wildfires', fc)
+        } catch (err) {
+          if ((err as Error).name !== 'AbortError') {
+            console.warn('Wildfire overlay fetch failed', err)
+          }
+        }
+      }
+
+      let debounce: ReturnType<typeof setTimeout> | undefined
+      const onMoveEnd = () => {
+        clearTimeout(debounce)
+        debounce = setTimeout(refresh, 400)
+      }
+
+      refresh()
+      map.on('moveend', onMoveEnd)
+
+      return () => {
+        disposed = true
+        clearTimeout(debounce)
+        fireAbortRef.current?.abort()
+        map.off('moveend', onMoveEnd)
+      }
+    }, [showWildfires, mapReady])
 
     return <div ref={containerRef} className="absolute inset-0" />
   },
