@@ -42,12 +42,20 @@ interface Props {
   sortBy: SortBy
   sortDesc: boolean
   fireWarnings: Map<string, FireWarning>
-  // Forecast for the searched map pin — rendered above the ranked rows,
-  // outside the sort and the analysis limit.
-  pinned?: DestinationResult | null
+  // Forecasts for the pinned searched locations — rendered above the ranked
+  // rows, outside the sort and the analysis limit. Clicking a row's 📍 unpins it.
+  pinned?: DestinationResult[]
+  onUnpin?: (row: DestinationResult) => void
 }
 
-export default function ResultsTable({ results, sortBy, sortDesc, fireWarnings, pinned }: Props) {
+export default function ResultsTable({
+  results,
+  sortBy,
+  sortDesc,
+  fireWarnings,
+  pinned,
+  onUnpin,
+}: Props) {
   const coloredGroup = new Set(METRIC_CONFIG[sortBy].group)
   const [sortKey, setSortKey] = useState<SortKey>(sortBy)
   const [sortDir, setSortDir] = useState<SortDir>(sortDesc ? 'desc' : 'asc')
@@ -162,15 +170,25 @@ export default function ResultsTable({ results, sortBy, sortDesc, fireWarnings, 
           </tr>
         </thead>
         <tbody>
-          {pinned && (
-            <tr className="border-t border-slate-700/50 bg-amber-400/10 hover:bg-amber-400/20 transition-colors">
+          {pinned?.map((row) => (
+            <tr
+              key={`pin-${row.latitude},${row.longitude}`}
+              className="border-t border-slate-700/50 bg-amber-400/10 hover:bg-amber-400/20 transition-colors"
+            >
               {/* Matches the amber search pin on the map */}
-              <td className="px-2 py-1.5" title="Searched location" aria-label="Searched location">
-                📍
+              <td className="px-2 py-1.5">
+                <button
+                  onClick={() => onUnpin?.(row)}
+                  title="Pinned from search — click to unpin"
+                  aria-label={`Unpin ${row.name}`}
+                  className="cursor-pointer leading-none hover:scale-125 transition-transform"
+                >
+                  📍
+                </button>
               </td>
-              {rowCells(pinned)}
+              {rowCells(row)}
             </tr>
-          )}
+          ))}
           {sorted.map((row, i) => (
             <tr
               key={`${row.name}-${i}`}

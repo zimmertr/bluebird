@@ -7,7 +7,7 @@ import WelcomeModal from './components/WelcomeModal'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
 import { useFireProximity } from './hooks/useFireProximity'
-import { usePointForecast } from './hooks/usePointForecast'
+import { usePinnedForecasts } from './hooks/usePinnedForecasts'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { GeoPolygon, DestinationType, CustomDestination, SortBy } from './types'
@@ -122,29 +122,21 @@ export default function App() {
 
   const { analyze, cancel, retry, analyzed, loading, error, response, statusMessage, progress } = useAnalyze()
 
-  // The searched map pin and its pinned-row forecast. The place lives here (not
-  // just in MapView's imperative layer) so Analyze can refetch the same point.
-  const [searchedPlace, setSearchedPlace] = useState<Place | null>(null)
-  const pointForecast = usePointForecast()
-  const pinnedRow = pointForecast.row
+  // Searched locations pinned to the map and table. Each search adds (or
+  // refreshes) a pin; pins persist until their 📍 is clicked in the table.
+  const pinnedForecasts = usePinnedForecasts()
+  const pinnedRows = pinnedForecasts.rows
 
-  // A searched point's forecast opens the results panel so the pinned row is
-  // visible even before any analysis has run (or after the panel was closed).
+  // A pinned forecast opens the results panel so the rows are visible even
+  // before any analysis has run (or after the panel was closed).
   useEffect(() => {
-    if (pinnedRow) setShowResults(true)
-  }, [pinnedRow])
+    if (pinnedRows.length > 0) setShowResults(true)
+  }, [pinnedRows])
 
   function handleSearchSelect(place: Place) {
-    setSearchedPlace(place)
-    mapRef.current?.showSearchResult(place)
+    mapRef.current?.flyToPlace(place)
     const searchWindow = resolveSearchWindow(startDatetime, endDatetime, new Date())
-    void pointForecast.fetchForPlace(place, searchWindow.start, searchWindow.end)
-  }
-
-  function handleSearchClear() {
-    setSearchedPlace(null)
-    mapRef.current?.clearSearchResult()
-    pointForecast.clear()
+    pinnedForecasts.addPlace(place, searchWindow.start, searchWindow.end)
   }
 
   // Everything derived from the results renders from the snapshot of the
@@ -223,10 +215,10 @@ export default function App() {
 
     const constraints = { min_elevation_ft: minElevationFt, max_elevation_ft: maxElevationFt }
 
-    // The pinned search row joins every analysis, refetched with the same
-    // window so it stays comparable with the report it sits above.
+    // The pinned rows join every analysis, refetched together with the same
+    // window so they stay comparable with the report they sit above.
     if (destinationType === 'custom') {
-      if (searchedPlace) void pointForecast.fetchForPlace(searchedPlace, start, end)
+      pinnedForecasts.refetchAll(start, end)
       await analyze({
         destination_type: 'custom',
         start_datetime: start,
@@ -244,7 +236,7 @@ export default function App() {
       // map hasn't loaded yet.
       const resolvedPolygon = mapRef.current?.finishDrawing() ?? polygon
       if (!resolvedPolygon) return
-      if (searchedPlace) void pointForecast.fetchForPlace(searchedPlace, start, end)
+      pinnedForecasts.refetchAll(start, end)
       await analyze({
         polygon: resolvedPolygon,
         destination_type: destinationType,
@@ -264,17 +256,14 @@ export default function App() {
   // effect keys off it and would otherwise re-run (and refetch) every render.
   const results = useMemo(() => response?.results ?? [], [response])
   const hasResults = showResults && results.length > 0
-  // The table panel also opens for a searched point's pinned forecast alone;
-  // the map legend stays tied to actual analysis results (hasResults).
-  const showTable = showResults && (results.length > 0 || pinnedRow != null)
+  // The table panel also opens for pinned search forecasts alone; the map
+  // legend stays tied to actual analysis results (hasResults).
+  const showTable = showResults && (results.length > 0 || pinnedRows.length > 0)
 
   // Flags results within 10 mi of an active US wildfire; independent of the map
   // overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
-  // The pinned search row is checked right alongside the ranked rows.
-  const fireCheckRows = useMemo(
-    () => (pinnedRow ? [...results, pinnedRow] : results),
-    [results, pinnedRow],
-  )
+  // Pinned search rows are checked right alongside the ranked rows.
+  const fireCheckRows = useMemo(() => [...results, ...pinnedRows], [results, pinnedRows])
   const fireWarnings = useFireProximity(fireCheckRows)
 
   return (
@@ -405,6 +394,7 @@ export default function App() {
             results={results}
             sortBy={view.sortBy}
             showWildfires={showWildfires}
+            searchPins={pinnedForecasts.places}
           />
           {/* Top-left map cluster — reopen-controls button (only while the
               panel is collapsed) + place search. z-10 keeps it under the
@@ -424,7 +414,7 @@ export default function App() {
                 Controls
               </button>
             )}
-            <SearchBox onSelect={handleSearchSelect} onClear={handleSearchClear} />
+            <SearchBox onSelect={handleSearchSelect} />
           </div>
           {(hasResults || showWildfires) && (
             <div className="absolute bottom-8 left-2 z-10 flex flex-col gap-2">
@@ -477,7 +467,7 @@ export default function App() {
               <span className="text-xs font-semibold text-white">
                 {results.length > 0
                   ? `Results — ${view.sortDesc ? 'highest' : 'lowest'} ${SORT_NOUNS[view.sortBy]} first`
-                  : 'Searched location forecast'}
+                  : 'Pinned location forecasts'}
               </span>
               <button
                 onClick={() => setShowResults(false)}
@@ -493,7 +483,8 @@ export default function App() {
                 sortBy={view.sortBy}
                 sortDesc={view.sortDesc}
                 fireWarnings={fireWarnings}
-                pinned={pinnedRow}
+                pinned={pinnedRows}
+                onUnpin={(row) => pinnedForecasts.removePlace(row.latitude, row.longitude)}
               />
             </div>
           </div>

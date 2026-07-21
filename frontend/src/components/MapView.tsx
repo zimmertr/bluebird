@@ -18,8 +18,7 @@ import {
 export interface MapViewHandle {
   finishDrawing: () => GeoPolygon | null
   cancelDrawing: () => void
-  showSearchResult: (place: Place) => void
-  clearSearchResult: () => void
+  flyToPlace: (place: Place) => void
 }
 
 interface Props {
@@ -29,6 +28,9 @@ interface Props {
   results: DestinationResult[]
   sortBy: SortBy
   showWildfires: boolean
+  // Pinned searched locations — one labeled amber dot each, kept in lockstep
+  // with the pinned rows in the results table (unpinning removes the dot).
+  searchPins: Place[]
 }
 
 export const MAX_AREA_KM2 = 50_000
@@ -193,7 +195,7 @@ function enhanceBasemap(map: maplibregl.Map) {
 }
 
 const MapView = forwardRef<MapViewHandle, Props>(
-  ({ polygon, onPolygonChange, onDrawUpdate, results, sortBy, showWildfires }, ref) => {
+  ({ polygon, onPolygonChange, onDrawUpdate, results, sortBy, showWildfires, searchPins }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null)
     const mapRef = useRef<maplibregl.Map | null>(null)
     const loadedRef = useRef(false)
@@ -230,19 +232,15 @@ const MapView = forwardRef<MapViewHandle, Props>(
           setSource(mapRef.current, 'draw', emptyFC)
         }
       },
-      showSearchResult(place: Place) {
+      // Frame a searched place. Only the camera move — the pin dots render
+      // declaratively from the searchPins prop.
+      flyToPlace(place: Place) {
         const map = mapRef.current
         if (!map || !loadedRef.current) {
           pendingSearchRef.current = place
           return
         }
-        applySearchResult(map, place)
-      },
-      clearSearchResult() {
-        pendingSearchRef.current = null
-        if (mapRef.current && loadedRef.current) {
-          setSource(mapRef.current, 'search', emptyFC)
-        }
+        map.fitBounds(boundsAround(place, SEARCH_VIEW_MILES), { padding: 40, duration: 1500 })
       },
     }))
 
@@ -683,7 +681,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
           pendingResultsRef.current = []
         }
         if (pendingSearchRef.current) {
-          applySearchResult(map, pendingSearchRef.current)
+          map.fitBounds(boundsAround(pendingSearchRef.current, SEARCH_VIEW_MILES), {
+            padding: 40,
+            duration: 1500,
+          })
           pendingSearchRef.current = null
         }
 
@@ -710,6 +711,14 @@ const MapView = forwardRef<MapViewHandle, Props>(
       pendingResultsRef.current = []
       updateResults(mapRef.current, results, sortBy)
     }, [results, sortBy])
+
+    // Amber dot + label per pinned search. Depends on mapReady (not a pending
+    // ref) so pins land as soon as the sources/layers exist.
+    useEffect(() => {
+      const map = mapRef.current
+      if (!map || !mapReady) return
+      setSource(map, 'search', searchPinsFC(searchPins))
+    }, [searchPins, mapReady])
 
     // Toggle the NIFC wildfire overlay. On: fetch perimeters for the current
     // viewport and re-fetch (debounced) as the user pans/zooms. Off: clear it.
@@ -774,20 +783,15 @@ const MapView = forwardRef<MapViewHandle, Props>(
 MapView.displayName = 'MapView'
 export default MapView
 
-// Pin a searched place and fly to it, framing at least SEARCH_VIEW_MILES of
-// map (or the feature's full extent when larger — see boundsAround).
-function applySearchResult(map: maplibregl.Map, place: Place) {
-  setSource(map, 'search', {
+function searchPinsFC(places: Place[]): FeatureCollection {
+  return {
     type: 'FeatureCollection',
-    features: [
-      {
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [place.lon, place.lat] },
-        properties: { label: place.label },
-      },
-    ],
-  })
-  map.fitBounds(boundsAround(place, SEARCH_VIEW_MILES), { padding: 40, duration: 1500 })
+    features: places.map((place) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [place.lon, place.lat] },
+      properties: { label: place.label },
+    })),
+  }
 }
 
 function updateResults(map: maplibregl.Map, results: DestinationResult[], sortBy: SortBy) {
