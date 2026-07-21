@@ -7,6 +7,13 @@ on:
   # Allow manual triggering from the Actions tab for testing without a real merge
   workflow_dispatch:
 
+# Serialize releases so concurrent runs don't race on the manifest update
+# (last-write-wins once pinned the deployed tag to the lower version). Keep
+# cancel-in-progress false so every merge still releases, just one at a time.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 # Least-privilege default; jobs that write to the repo override this at the job level
 permissions:
   contents: read

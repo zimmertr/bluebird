@@ -58,11 +58,12 @@ interface Props {
   setMaxElevationFt: (v: number | null) => void
   showWildfires: boolean
   setShowWildfires: (v: boolean) => void
-  windowWarning: 'past' | 'future' | null
+  windowWarning: 'past' | 'future' | 'order' | null
   loading: boolean
   error: string | null
   onAnalyze: () => void
   onRetry: () => void
+  onShowPrivacy: () => void
   resultCount?: number
   totalQueried?: number
 }
@@ -96,6 +97,7 @@ export default function ControlPanel({
   error,
   onAnalyze,
   onRetry,
+  onShowPrivacy,
   resultCount,
   totalQueried,
 }: Props) {
@@ -260,7 +262,7 @@ export default function ControlPanel({
                 <input
                   type="date"
                   value={endDatetime.split('T')[0] ?? ''}
-                  min={minPickable}
+                  min={startDatetime.split('T')[0] || minPickable}
                   max={maxPickable}
                   onChange={(e) => {
                     const d = e.target.value
@@ -284,7 +286,9 @@ export default function ControlPanel({
           </div>
           {windowWarning && (
             <p className="mt-2 text-xs text-amber-400 bg-amber-950/40 border border-amber-800/60 rounded p-2">
-              {windowWarning === 'past'
+              {windowWarning === 'order'
+                ? `The window's end must be after its start. Adjust the dates to run an analysis.`
+                : windowWarning === 'past'
                 ? `This forecast window starts before the ~${PAST_LIMIT_DAYS}-day history limit — adjust the dates to run an analysis.`
                 : `This forecast window extends beyond the ~${FUTURE_LIMIT_DAYS}-day forecast horizon — adjust the dates to run an analysis.`}
             </p>
@@ -489,8 +493,24 @@ export default function ControlPanel({
           </p>
         )}
 
-        <p className="text-xs text-slate-600 text-center">
-          Data: OpenStreetMap · Open-Meteo · CAMS · NIFC
+        <p className="text-[11px] text-slate-600 text-center leading-relaxed">
+          Data:{' '}
+          <a href="https://www.openstreetmap.org" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-sky-400 underline">OpenStreetMap</a>
+          {' · '}
+          <a href="https://open-meteo.com" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-sky-400 underline">Open-Meteo</a>
+          {' · '}
+          <a href="https://atmosphere.copernicus.eu" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-sky-400 underline">CAMS</a>
+          {' · '}
+          <a href="https://openfreemap.org" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-sky-400 underline">OpenFreeMap</a>
+          {' · '}
+          <a href="https://nominatim.org" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-sky-400 underline">Nominatim</a>
+          {' · '}
+          <a href="https://www.nifc.gov" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-sky-400 underline">NIFC</a>
+        </p>
+        <p className="text-[11px] text-slate-600 text-center">
+          <button onClick={onShowPrivacy} className="text-slate-500 hover:text-slate-300 underline">
+            Privacy
+          </button>
         </p>
       </div>
     </div>

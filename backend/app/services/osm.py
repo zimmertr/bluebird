@@ -136,6 +136,10 @@ async def _post_with_fallback(
     total = len(OVERPASS_ENDPOINTS)
     async with httpx.AsyncClient(timeout=45.0, headers=HEADERS) as client:
         for i, url in enumerate(OVERPASS_ENDPOINTS, start=1):
+            # Announce each attempt as it starts; the mirror fallback is the
+            # only progress signal available for the opaque Overpass request.
+            if on_status is not None:
+                await on_status(f"Attempting OpenStreetMap Lookup {i}/{total}")
             try:
                 log.info("Trying Overpass endpoint: %s", url)
                 resp = await client.post(url, data={"data": query})
@@ -145,12 +149,5 @@ async def _post_with_fallback(
             except Exception as exc:
                 log.warning("Overpass endpoint %s failed: %s", url, exc)
                 last_exc = exc
-                # Only report on failover — a first-mirror success stays quiet
-                # (the frontend's elapsed timer already covers that wait).
-                if on_status is not None and i < total:
-                    await on_status(
-                        f"OpenStreetMap server {i} was unavailable — "
-                        f"trying another ({i + 1} of {total})…"
-                    )
     # Every mirror failed — surface the last failure as an actionable message.
     raise UpstreamError(classify_http_error(last_exc, PROVIDER)) from last_exc
