@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
+import type { FilterSpecification } from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.
 import type { FeatureCollection } from 'geojson'
@@ -29,9 +30,39 @@ interface Props {
   results: DestinationResult[]
   sortBy: SortBy
   showWildfires: boolean
+  minElevationFt: number | null
+  maxElevationFt: number | null
 }
 
 export const MAX_AREA_KM2 = 50_000
+
+// Build a filter for the basemap peak layer from the elevation knobs so the
+// mountains drawn on the map match the band an analysis would actually consider.
+// Peaks whose vector tiles carry no `ele_ft` pass through — the backend's
+// elevation filter keeps unknown-elevation candidates, so the map matches it.
+// Returns null to clear the filter (no band set).
+function peakElevationFilter(
+  minFt: number | null,
+  maxFt: number | null,
+): FilterSpecification | null {
+  // Written as three static cases (min, max, both) so the expressions type-check
+  // against FilterSpecification without a cast. `['!', ['has', 'ele_ft']]` keeps
+  // peaks whose tiles have no elevation.
+  if (minFt != null && maxFt != null) {
+    return [
+      'any',
+      ['!', ['has', 'ele_ft']],
+      ['all', ['>=', ['get', 'ele_ft'], minFt], ['<=', ['get', 'ele_ft'], maxFt]],
+    ]
+  }
+  if (minFt != null) {
+    return ['any', ['!', ['has', 'ele_ft']], ['>=', ['get', 'ele_ft'], minFt]]
+  }
+  if (maxFt != null) {
+    return ['any', ['!', ['has', 'ele_ft']], ['<=', ['get', 'ele_ft'], maxFt]]
+  }
+  return null
+}
 
 // A search result frames at least this much map around the hit; features with
 // a larger extent (cities, parks, rivers) get their whole bounding box instead.
@@ -193,7 +224,10 @@ function enhanceBasemap(map: maplibregl.Map) {
 }
 
 const MapView = forwardRef<MapViewHandle, Props>(
-  ({ polygon, onPolygonChange, onDrawUpdate, results, sortBy, showWildfires }, ref) => {
+  (
+    { polygon, onPolygonChange, onDrawUpdate, results, sortBy, showWildfires, minElevationFt, maxElevationFt },
+    ref,
+  ) => {
     const containerRef = useRef<HTMLDivElement>(null)
     const mapRef = useRef<maplibregl.Map | null>(null)
     const loadedRef = useRef(false)
@@ -710,6 +744,16 @@ const MapView = forwardRef<MapViewHandle, Props>(
       pendingResultsRef.current = []
       updateResults(mapRef.current, results, sortBy)
     }, [results, sortBy])
+
+    // Filter the basemap peak layer by the elevation knobs so the mountains
+    // shown on the map track the band an analysis would consider. Runs on every
+    // knob change and once the layer exists (mapReady) so a restored min/max
+    // link applies on load too.
+    useEffect(() => {
+      const map = mapRef.current
+      if (!map || !mapReady || !map.getLayer('ofm-peaks')) return
+      map.setFilter('ofm-peaks', peakElevationFilter(minElevationFt, maxElevationFt))
+    }, [minElevationFt, maxElevationFt, mapReady])
 
     // Toggle the NIFC wildfire overlay. On: fetch perimeters for the current
     // viewport and re-fetch (debounced) as the user pans/zooms. Off: clear it.
