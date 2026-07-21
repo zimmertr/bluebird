@@ -11,6 +11,7 @@ from app.models import (
     AnalyzeResponse,
     DestinationResult,
     DestinationType,
+    bbox_area_km2,
 )
 from app.services import air_quality, osm, weather
 from app.services.errors import UpstreamError
@@ -65,6 +66,30 @@ def _noun(dest_type: DestinationType) -> str:
     return _NOUNS.get(dest_type, "destination")
 
 
+def _summarize_request(request: AnalyzeRequest) -> str:
+    """One-line summary of an analyze request for the logs: type, window, rank
+    config, elevation band, and polygon size (or custom-destination count)."""
+    parts = [
+        f"type={request.destination_type.value}",
+        f"start={request.start_datetime:%Y-%m-%dT%H:%M}",
+        f"end={request.end_datetime:%Y-%m-%dT%H:%M}",
+        f"sort={request.sort_by.value}",
+        f"dir={'desc' if request.sort_desc else 'asc'}",
+        f"limit={request.limit}",
+    ]
+    if request.min_elevation_ft is not None:
+        parts.append(f"min_elev_ft={request.min_elevation_ft:.0f}")
+    if request.max_elevation_ft is not None:
+        parts.append(f"max_elev_ft={request.max_elevation_ft:.0f}")
+    if request.destination_type == DestinationType.custom:
+        parts.append(f"custom={len(request.custom_destinations or [])}")
+    elif request.polygon is not None:
+        ring = request.polygon.coordinates[0]
+        parts.append(f"polygon={max(0, len(ring) - 1)}pts")
+        parts.append(f"area={bbox_area_km2(ring):,.0f}km2")
+    return " ".join(parts)
+
+
 def _sse(event_type: str, **kwargs) -> str:
     return f"data: {json.dumps({'type': event_type, **kwargs})}\n\n"
 
@@ -90,6 +115,7 @@ async def _drain(queue: asyncio.Queue):
 @router.post("/analyze/stream")
 async def analyze_stream(request: AnalyzeRequest):
     async def generate():
+        log.info("Analyze request (stream): %s", _summarize_request(request))
         try:
             if request.start_datetime >= request.end_datetime:
                 yield _sse("error", message="start_datetime must be before end_datetime")
@@ -262,13 +288,7 @@ async def analyze_stream(request: AnalyzeRequest):
 
 @router.post("/analyze", response_model=AnalyzeResponse)
 async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
-    log.info(
-        "Analyze request: type=%s window=%s→%s limit=%d",
-        request.destination_type.value,
-        request.start_datetime.strftime("%Y-%m-%dT%H:%M"),
-        request.end_datetime.strftime("%Y-%m-%dT%H:%M"),
-        request.limit,
-    )
+    log.info("Analyze request: %s", _summarize_request(request))
 
     if request.start_datetime >= request.end_datetime:
         raise HTTPException(
