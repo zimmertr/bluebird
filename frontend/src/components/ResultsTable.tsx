@@ -150,7 +150,9 @@ export default function ResultsTable({
   }
 
   return (
-    <div className="overflow-x-auto">
+    // No overflow here — the panel's scroll container in App.tsx owns both
+    // axes so the horizontal scrollbar stays pinned to the visible bottom.
+    <div>
       <table className="min-w-full text-xs">
         <thead className="sticky top-0 bg-slate-700 z-10">
           <tr>

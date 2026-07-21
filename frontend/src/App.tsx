@@ -476,8 +476,12 @@ export default function App() {
                 ×
               </button>
             </div>
-            {/* Scrollable table */}
-            <div className="flex-1 overflow-y-auto min-h-0">
+            {/* Scrollable table. One container owns BOTH axes: if a nested
+                element scrolled horizontally instead, its scrollbar would sit
+                below the full table height — off-screen until the user
+                scrolled to the last row. results-scrollbars keeps the bars
+                visible (macOS overlay scrollbars hide the sideways hint). */}
+            <div className="flex-1 overflow-auto min-h-0 results-scrollbars">
               <ResultsTable
                 results={results}
                 sortBy={view.sortBy}
