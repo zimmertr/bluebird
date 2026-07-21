@@ -39,7 +39,13 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
+      # Auto-label only the owner's own PRs, so those get a preview environment.
+      # Dependabot (and any other author) still build an image above but get no
+      # label, so no preview pod spins up and burns cluster resources. Add the
+      # "create pr container" label by hand to opt any PR in after the fact —
+      # the image is already built, so Argo CD picks it up on its next sync.
       - name: Ensure `create pr container` label (drives the Argo CD pull request generator)
+        if: github.event.pull_request.user.login == github.repository_owner
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -69,7 +75,10 @@ jobs:
             type=gha
           cache-to: type=gha,mode=max,scope=pr-${{ github.event.pull_request.number }},ignore-error=true
 
+      # Only the labeled (owner) PRs actually get a preview, so only they get the
+      # "reachable at ..." comment — no misleading promise on Dependabot PRs.
       - name: Comment preview URL (sticky — rewrites on each push)
+        if: github.event.pull_request.user.login == github.repository_owner
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
