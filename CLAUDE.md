@@ -81,6 +81,7 @@ The SPA fetches only on an explicit Analyze click and renders results from a sna
 - `src/utils/colors.ts` — marker/cell color thresholds per sortable metric (precip, wind, temp, AQI)
 - `src/utils/geocode.ts` — coordinate parsing, Nominatim client, and search-view bounds math for the search box
 - `src/utils/wildfires.ts` — NIFC WFIGS query builder + popup formatting for the optional wildfire overlay (fetched client-side by viewport; US-only, keyless, best-effort)
+- `src/utils/fireProximity.ts` — pure point-to-perimeter distance math flagging results within 10 mi of an active fire; driven by `src/hooks/useFireProximity.ts`, which fetches NIFC around the result set after each analysis (independent of the overlay toggle, best-effort)
 
 ## CI/CD pipeline
 

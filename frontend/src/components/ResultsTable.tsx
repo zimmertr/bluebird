@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { cellStyle, METRIC_CONFIG } from '../utils/colors'
+import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 
 function peakbaggerUrl(name: string): string {
   return `https://www.peakbagger.com/search.aspx?tid=1&q=${encodeURIComponent(name)}`
@@ -40,9 +41,10 @@ interface Props {
   results: DestinationResult[]
   sortBy: SortBy
   sortDesc: boolean
+  fireWarnings: Map<string, FireWarning>
 }
 
-export default function ResultsTable({ results, sortBy, sortDesc }: Props) {
+export default function ResultsTable({ results, sortBy, sortDesc, fireWarnings }: Props) {
   const coloredGroup = new Set(METRIC_CONFIG[sortBy].group)
   const [sortKey, setSortKey] = useState<SortKey>(sortBy)
   const [sortDir, setSortDir] = useState<SortDir>(sortDesc ? 'desc' : 'asc')
@@ -113,8 +115,18 @@ export default function ResultsTable({ results, sortBy, sortDesc }: Props) {
                 const colorSty = isColored ? cellStyle(sortVal as number, sortBy) : undefined
 
                 if (col.key === 'name') {
+                  const warning = fireWarnings.get(fireKey(row.latitude, row.longitude))
                   return (
                     <td key={col.key} className={cellClass}>
+                      {warning && (
+                        <span
+                          title={fireWarningText(warning)}
+                          aria-label={fireWarningText(warning)}
+                          className="mr-1 cursor-help"
+                        >
+                          ⚠️
+                        </span>
+                      )}
                       <a
                         href={peakbaggerUrl(display)}
                         target="_blank"
