@@ -495,7 +495,7 @@ export default function ControlPanel({
 
         <p className="text-[11px] text-slate-600 text-center leading-relaxed">
           Data:{' '}
-          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-sky-400 underline">OpenStreetMap</a>
+          <a href="https://www.openstreetmap.org" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-sky-400 underline">OpenStreetMap</a>
           {' · '}
           <a href="https://open-meteo.com" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-sky-400 underline">Open-Meteo</a>
           {' · '}

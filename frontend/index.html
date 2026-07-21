@@ -11,9 +11,9 @@
     <link rel="icon" type="image/png" href="/icon.png" />
     <link rel="apple-touch-icon" href="/icon.png" />
 
-    <!-- Open Graph / Twitter cards: the whole app is built around shareable
-         URLs, so a pasted link should render a real preview instead of bare
-         text. Absolute URLs are required by the scrapers. -->
+    <!-- Open Graph tags so a pasted link unfurls into a preview card. Slack,
+         iMessage, Discord, and X all read these (X falls back to Open Graph, so
+         no separate twitter:* tags are needed). Absolute URLs are required. -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Bluebird Forecast" />
     <meta property="og:title" content="Bluebird Forecast" />
@@ -23,13 +23,8 @@
     />
     <meta property="og:url" content="https://bluebirdforecast.com/" />
     <meta property="og:image" content="https://bluebirdforecast.com/icon.png" />
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="Bluebird Forecast" />
-    <meta
-      name="twitter:description"
-      content="Draw an area, pick a forecast window, and get destinations ranked by precipitation, wind, temperature, or air quality."
-    />
-    <meta name="twitter:image" content="https://bluebirdforecast.com/icon.png" />
+    <meta property="og:image:width" content="1024" />
+    <meta property="og:image:height" content="1024" />
   </head>
   <body>
     <div id="root"></div>
