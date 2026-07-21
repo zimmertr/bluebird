@@ -27,11 +27,20 @@ const OUT_FIELDS = [
   'attr_FireDiscoveryDateTime',
 ].join(',')
 
-// Public NIFC Open Data page for this dataset — the "datasource webpage" a
-// clicked fire (or the popup link) opens. This layer exposes no field that keys
-// a reliable per-incident public page, so we link the source dataset itself.
-export const NIFC_DATASET_URL =
-  'https://data-nifc.opendata.arcgis.com/datasets/nifc::wfigs-current-interagency-fire-perimeters/about'
+// NIFC's public "explore" map for this dataset. There's no per-incident detail
+// page keyed by any field this layer exposes, so a clicked fire instead deep-
+// links the authoritative live map centered on that exact spot — ArcGIS Hub
+// reads `?location=lat,lon,zoom`. That's the closest genuinely fire-scoped
+// destination NIFC offers.
+const NIFC_EXPLORE_URL =
+  'https://data-nifc.opendata.arcgis.com/datasets/nifc::wfigs-current-interagency-fire-perimeters/explore'
+
+// Deep-link the NIFC explore map, centered on a clicked/hovered fire. Coords are
+// rounded to ~1 m and zoom to 2 dp; order is lat,lon,zoom per the Hub param.
+export function nifcFireUrl(lng: number, lat: number, zoom: number): string {
+  const z = Math.round(zoom * 100) / 100
+  return `${NIFC_EXPLORE_URL}?location=${lat.toFixed(5)},${lng.toFixed(5)},${z}`
+}
 
 // [west, south, east, north] in EPSG:4326 — the map viewport we query within.
 export type BBox = [number, number, number, number]
@@ -120,7 +129,7 @@ export function formatUpdated(ms: number | null | undefined): string | null {
  * results-marker popup in MapView so the two read consistently. Takes the raw
  * ArcGIS properties bag and degrades one line at a time as fields go missing.
  */
-export function wildfirePopupHtml(props: WildfireProps): string {
+export function wildfirePopupHtml(props: WildfireProps, nifcUrl: string): string {
   const name =
     (props.attr_IncidentName || props.poly_IncidentName || '').trim() || 'Unnamed fire'
   const updated = formatUpdated(props.attr_ModifiedOnDateTime_dt)
@@ -128,7 +137,7 @@ export function wildfirePopupHtml(props: WildfireProps): string {
       <strong>🔥 ${escapeHtml(name)}</strong>
       <br>${formatAcres(props.poly_GISAcres)} · ${formatContainment(props.attr_PercentContained)}
       ${updated ? `<br><span style="color:#94a3b8">${escapeHtml(updated)}</span>` : ''}
-      <br><a href="${NIFC_DATASET_URL}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">Open on NIFC ↗</a>
+      <br><a href="${nifcUrl}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">View on NIFC map ↗</a>
     </div>`
 }
 

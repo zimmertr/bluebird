@@ -10,7 +10,7 @@ import { Place, boundsAround } from '../utils/geocode'
 import {
   fetchWildfires,
   wildfirePopupHtml,
-  NIFC_DATASET_URL,
+  nifcFireUrl,
   type BBox,
   type WildfireProps,
 } from '../utils/wildfires'
@@ -336,13 +336,20 @@ const MapView = forwardRef<MapViewHandle, Props>(
           paint: { 'line-color': '#b91c1c', 'line-width': 1.5, 'line-opacity': 0.9 },
         })
 
+        // NIFC map link, centered where the cursor/click sits on the fire (which
+        // is inside its perimeter). Zoom is clamped so a fire clicked from a
+        // zoomed-out view still opens framed rather than tiny.
+        function fireLink(e: maplibregl.MapLayerMouseEvent) {
+          return nifcFireUrl(e.lngLat.lng, e.lngLat.lat, Math.max(map.getZoom(), 10))
+        }
+
         // Hover (desktop) surfaces the fire's stats. The popup is updated in
         // place as the cursor moves so it tracks smoothly across overlapping
         // perimeters instead of flickering.
         function showFirePopup(e: maplibregl.MapLayerMouseEvent) {
           const props = e.features?.[0]?.properties
           if (!props) return
-          const html = wildfirePopupHtml(props as WildfireProps)
+          const html = wildfirePopupHtml(props as WildfireProps, fireLink(e))
           if (firePopupRef.current) {
             firePopupRef.current.setLngLat(e.lngLat).setHTML(html)
           } else {
@@ -362,12 +369,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
           firePopupRef.current?.remove()
           firePopupRef.current = null
         })
-        // Clicking (or tapping) a fire opens its source dataset on NIFC in a new
-        // tab. 'wildfire-fill' is in the general click handler's blocked list
-        // below, so this fires instead of dropping a polygon point. The hover
-        // popup carries the same link for pointer users.
-        map.on('click', 'wildfire-fill', () => {
-          window.open(NIFC_DATASET_URL, '_blank', 'noopener,noreferrer')
+        // Clicking (or tapping) a fire opens NIFC's live map centered on that
+        // fire in a new tab. 'wildfire-fill' is in the general click handler's
+        // blocked list below, so this fires instead of dropping a polygon point.
+        // The hover popup carries the same link for pointer users.
+        map.on('click', 'wildfire-fill', (e) => {
+          window.open(fireLink(e), '_blank', 'noopener,noreferrer')
         })
 
         // ── Draw source + layers ───────────────────────────────────────

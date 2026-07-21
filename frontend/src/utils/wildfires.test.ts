@@ -5,8 +5,11 @@ import {
   formatContainment,
   formatUpdated,
   wildfirePopupHtml,
-  NIFC_DATASET_URL,
+  nifcFireUrl,
 } from './wildfires'
+
+// A representative fire-scoped NIFC link, reused by the popup tests.
+const NIFC = nifcFireUrl(-121.5, 39.5, 11)
 
 describe('wildfireQueryUrl', () => {
   it('targets the NIFC WFIGS current-perimeters layer as geojson', () => {
@@ -74,29 +77,37 @@ describe('formatUpdated', () => {
   })
 })
 
+describe('nifcFireUrl', () => {
+  it('deep-links the NIFC explore map to the fire, as lat,lon,zoom', () => {
+    const url = nifcFireUrl(-121.5, 39.5, 11.42)
+    expect(url).toContain('data-nifc.opendata.arcgis.com')
+    expect(url).toContain('/explore?location=')
+    expect(url).toContain('location=39.50000,-121.50000,11.42')
+  })
+})
+
 describe('wildfirePopupHtml', () => {
   it('coalesces the incident name and falls back when absent', () => {
-    expect(wildfirePopupHtml({ attr_IncidentName: 'P-L Gulch' })).toContain('P-L Gulch')
-    expect(wildfirePopupHtml({ poly_IncidentName: 'Beehive' })).toContain('Beehive')
-    expect(wildfirePopupHtml({})).toContain('Unnamed fire')
+    expect(wildfirePopupHtml({ attr_IncidentName: 'P-L Gulch' }, NIFC)).toContain('P-L Gulch')
+    expect(wildfirePopupHtml({ poly_IncidentName: 'Beehive' }, NIFC)).toContain('Beehive')
+    expect(wildfirePopupHtml({}, NIFC)).toContain('Unnamed fire')
   })
 
   it('escapes HTML in third-party incident names', () => {
-    const html = wildfirePopupHtml({ attr_IncidentName: '<img src=x>' })
+    const html = wildfirePopupHtml({ attr_IncidentName: '<img src=x>' }, NIFC)
     expect(html).not.toContain('<img src=x>')
     expect(html).toContain('&lt;img src=x&gt;')
   })
 
   it('renders size and containment together', () => {
-    const html = wildfirePopupHtml({ poly_GISAcres: 5649, attr_PercentContained: 0 })
+    const html = wildfirePopupHtml({ poly_GISAcres: 5649, attr_PercentContained: 0 }, NIFC)
     expect(html).toContain('5,649 acres')
     expect(html).toContain('0% contained')
   })
 
-  it('links to the NIFC source dataset', () => {
-    expect(NIFC_DATASET_URL).toContain('data-nifc.opendata.arcgis.com')
-    const html = wildfirePopupHtml({ attr_IncidentName: 'Beehive' })
-    expect(html).toContain(`href="${NIFC_DATASET_URL}"`)
+  it('links to the fire-scoped NIFC map', () => {
+    const html = wildfirePopupHtml({ attr_IncidentName: 'Beehive' }, NIFC)
+    expect(html).toContain(`href="${NIFC}"`)
     expect(html).toContain('target="_blank"')
   })
 })
