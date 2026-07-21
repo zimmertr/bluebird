@@ -2,10 +2,7 @@ import { useEffect, useState } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { cellStyle, METRIC_CONFIG } from '../utils/colors'
 import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
-
-function peakbaggerUrl(name: string): string {
-  return `https://www.peakbagger.com/search.aspx?tid=1&q=${encodeURIComponent(name)}`
-}
+import { destinationUrl } from '../utils/destinationUrl'
 
 function windyUrl(lat: number, lon: number, layer: string): string {
   return `https://www.windy.com/?${layer},${lat.toFixed(4)},${lon.toFixed(4)},11`
@@ -115,7 +112,7 @@ export default function ResultsTable({
               </span>
             )}
             <a
-              href={peakbaggerUrl(display)}
+              href={destinationUrl(row)}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sky-400 hover:text-sky-300 hover:underline"

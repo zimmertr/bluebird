@@ -21,6 +21,18 @@ export interface Place {
   // analysis rows use, so a pinned peak shows its true summit elevation.
   // Absent for features without the tag (cities, coordinates…).
   elevationFt?: number
+  // OSM object ref in the backend's osm_id format ("node/944865772"), so a
+  // pinned place can link to the same exact object page as an analyzed row.
+  // Absent for locally parsed coordinates.
+  osmId?: string
+}
+
+// Searched features that should link like an analyzed peak row — Peakbagger
+// covers volcanos too. `kind` has already had underscores humanized away.
+const PEAK_KINDS = new Set(['peak', 'volcano'])
+
+export function isPeakKind(kind: string): boolean {
+  return PEAK_KINDS.has(kind)
 }
 
 // "36.57862, -118.29107" · "(36.57862, -118.29107)" · "36.57862 -118.29107"
@@ -60,6 +72,8 @@ interface NominatimRow {
   name?: string
   display_name: string
   type?: string
+  osm_type?: string // "node" | "way" | "relation"
+  osm_id?: number
   lat: string
   lon: string
   boundingbox?: [string, string, string, string] // Nominatim order: [S, N, W, E]
@@ -87,6 +101,8 @@ export function placeFromNominatimRow(row: NominatimRow): Place {
       ? [parseFloat(bb[2]), parseFloat(bb[0]), parseFloat(bb[3]), parseFloat(bb[1])]
       : undefined,
     elevationFt: elevationFtFromEle(row.extratags?.ele),
+    osmId:
+      row.osm_type && row.osm_id != null ? `${row.osm_type}/${row.osm_id}` : undefined,
   }
 }
 
