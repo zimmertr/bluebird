@@ -30,8 +30,8 @@ _LEVELS: dict[str, int] = {
     "CRITICAL": logging.CRITICAL,
 }
 
-_level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
-_level = _LEVELS.get(_level_name, logging.INFO)
+_level_name = os.environ.get("LOG_LEVEL", "WARNING").upper()
+_level = _LEVELS.get(_level_name, logging.WARNING)
 
 logging.basicConfig(
     level=_level,
