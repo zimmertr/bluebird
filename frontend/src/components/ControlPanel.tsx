@@ -216,7 +216,7 @@ export default function ControlPanel({
             <textarea
               value={customCsv}
               onChange={(e) => setCustomCsv(e.target.value)}
-              placeholder={`# One "Lat,Lon" or "Lat,Lon,Name" per line\n46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909\n48.1122,-121.1139,Glacier Peak`}
+              placeholder={`"Lat,Lon" or "Lat,Lon,Name" per line\n46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909\n48.1122,-121.1139,Glacier Peak`}
               rows={7}
               className="w-full text-xs bg-slate-900 border border-slate-600 rounded p-2 text-slate-200 placeholder-slate-600 font-mono resize-y focus:outline-none focus:border-sky-500"
             />
