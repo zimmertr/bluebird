@@ -338,9 +338,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
         // NIFC map link, centered where the cursor/click sits on the fire (which
         // is inside its perimeter). Zoom is clamped so a fire clicked from a
-        // zoomed-out view still opens framed rather than tiny.
+        // zoomed-out view still opens framed rather than tiny, then nudged one
+        // level closer so the fire fills more of the NIFC map.
         function fireLink(e: maplibregl.MapLayerMouseEvent) {
-          return nifcFireUrl(e.lngLat.lng, e.lngLat.lat, Math.max(map.getZoom(), 10))
+          return nifcFireUrl(e.lngLat.lng, e.lngLat.lat, Math.max(map.getZoom(), 10) + 1)
         }
 
         // Hover (desktop) surfaces the fire's stats. The popup is updated in
