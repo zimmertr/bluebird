@@ -1,14 +1,15 @@
-# Bluebird — Weather Window Finder
+# Bluebird
 
-A map-based tool for hikers and mountaineers to find the driest, calmest destinations within a geographic area during a specific forecast window.
+I do a lot of hiking and mountaineering in the Pacific Northwest, where the weather makes or breaks a trip. Deciding *where* to go on a given weekend usually means opening a dozen forecast tabs, cross-referencing them against a map, and squinting at which trailhead or summit is going to dodge the rain. Bluebird does that comparison for me.
 
-Draw a polygon on a map, choose a destination type and forecast window, and receive a ranked table of destinations sorted by precipitation — driest first. Each destination links to Windy for a visual weather overview.
+You draw a polygon on a map, pick a destination type and a forecast window, and get back a ranked table of every named destination inside that polygon, sorted driest first. Each row links out to Windy for a visual overview. No account, no API keys, nothing to sign up for.
 
----
+Bluebird is live at [bluebirdforecast.com](https://bluebirdforecast.com).
+
+It is not a recommendation engine. It does not decide what weather is "good" or "bad." It attaches objective forecast data to geographic features and lets you sort the results however you like. A typical question it answers: it's Thursday, the weekend looks wet across Washington, so which peaks in the North Cascades see the least total precipitation from Saturday morning through Sunday evening?
 
 ## Table of Contents
 
-- [Overview](#overview)
 - [Quick Start](#quick-start)
 - [Local Development](#local-development)
 - [Using the App](#using-the-app)
@@ -22,17 +23,9 @@ Draw a polygon on a map, choose a destination type and forecast window, and rece
 - [Roadmap](#roadmap)
 - [License](#license)
 
----
-
-## Overview
-
-Bluebird is not a recommendation engine. It does not decide what weather is "good" or "bad." It attaches objective forecast data to geographic features and lets you sort the results however you want.
-
-**Example use case:** It's Thursday and the weekend forecast is rainy across Washington state. Which peaks inside the North Cascades receive the least total precipitation Saturday morning through Sunday evening?
-
----
-
 ## Quick Start
+
+The whole app ships as a single Docker container. Clone it and bring it up:
 
 ```bash
 git clone https://github.com/zimmertr/bluebird
@@ -40,21 +33,17 @@ cd bluebird
 docker compose up --build -d
 ```
 
-Open `http://localhost:8000` in your browser.
-
-To follow logs:
+Then open `http://localhost:8000`. To follow the logs:
 
 ```bash
 docker compose logs -f
 ```
 
----
-
 ## Local Development
 
-Run the backend and frontend independently for hot-reload during development.
+Run the backend and frontend separately when you want hot-reload.
 
-**Backend**
+Backend:
 
 ```bash
 cd backend
@@ -62,7 +51,7 @@ pip install -r requirements.txt
 LOG_LEVEL=TRACE uvicorn app.main:app --reload --port 8000
 ```
 
-**Frontend**
+Frontend:
 
 ```bash
 cd frontend
@@ -70,37 +59,35 @@ npm install
 npm run dev
 ```
 
-The Vite dev server starts on `http://localhost:5173` and proxies `/api` requests to the backend at `:8000`.
-
----
+The Vite dev server comes up on `http://localhost:5173` and proxies `/api` requests to the backend on `:8000`.
 
 ## Using the App
 
 ### Find a Place (optional)
 
-The search box at the top-left of the map centers the map on any named place — peak, city, lake, river, trailhead — or an exact coordinate pair. Type a name (`Mt Whitney`, `Mt Whitney, ca`) or coordinates (`36.57862, -118.29107`, parentheses and space-separated forms work too) and press **Enter**. Point features get a ~10-mile view; larger features (cities, parks, rivers) are framed whole. An amber pin marks the result; it never interferes with polygon drawing. Name search is powered by [Nominatim](https://nominatim.org) and works for any place OSM knows, including types Bluebird can't analyze yet.
+The search box at the top-left of the map recenters on any named place (a peak, city, lake, river, or trailhead) or on an exact coordinate pair. Type a name like `Mt Whitney` or `Mt Whitney, ca`, or coordinates like `36.57862, -118.29107` (parentheses and space-separated forms work too), then press Enter. Point features get a roughly 10 mile view; larger features like cities, parks, and rivers are framed whole. An amber pin marks the result and stays out of the way of polygon drawing. Search is powered by [Nominatim](https://nominatim.org), so it works for anything OSM knows about, including places Bluebird can't analyze yet.
 
-### Step 1 — Draw a Search Area
+### Step 1: Draw a Search Area
 
-Click **Draw Polygon** in the sidebar. Your cursor becomes a crosshair. Click on the map to place points. A live polygon preview renders as you add points.
+Click **Draw Polygon** in the sidebar. Your cursor becomes a crosshair, and each click on the map drops a point. The polygon previews live as you add points.
 
-- At least **3 points** are required before Analyze becomes active.
+- You need at least 3 points before Analyze turns on.
 - The estimated bounding-box area is shown in km² as you draw.
-- Click **Clear** at any time to discard the polygon and start over.
-- The polygon stays editable after Analyze — drag vertices, drag a midpoint handle to add one, or click a vertex to remove it, then Analyze again. Click **Clear** to start over.
+- Drawing stays editable after you Analyze. Drag a vertex to move it, drag a midpoint handle to add one, or click a vertex to remove it, then Analyze again.
+- Click **Clear** at any time to throw the polygon away and start over.
 
-> There is no "Finish Polygon" step. Once you have 3+ points, click **Analyze** directly — the polygon closes automatically.
+There is no "Finish Polygon" button. Once you have 3 or more points, click **Analyze** and the polygon closes itself.
 
-### Step 2 — Choose a Destination Type
+### Step 2: Choose a Destination Type
 
 | Type | OSM Query | Status |
 |---|---|---|
-| Peaks | `natural=peak` (named nodes) | ✅ Implemented |
-| Trailheads | `highway=trailhead` (named nodes/ways) | ✅ Implemented |
-| Lakes | `natural=water` + `water=lake` (named nodes/ways/relations) | ✅ Implemented |
-| Custom (CSV) | User-supplied coordinates | ✅ Implemented |
+| Peaks | `natural=peak` (named nodes) | Implemented |
+| Trailheads | `highway=trailhead` (named nodes/ways) | Implemented |
+| Lakes | `natural=water` + `water=lake` (named nodes/ways/relations) | Implemented |
+| Custom (CSV) | User-supplied coordinates | Implemented |
 
-**Custom CSV format:**
+For the Custom type, paste a CSV of your own coordinates:
 
 ```
 # Lines beginning with # are ignored
@@ -110,55 +97,51 @@ Mt Adams,46.2024,-121.4909,12281
 Glacier Peak,48.1122,-121.1139,10541
 ```
 
-Elevation is optional. If omitted, that field will be blank in results.
+Elevation is optional. Leave it out and that field is simply blank in the results.
 
-### Step 3 — Set a Forecast Window
+### Step 3: Set a Forecast Window
 
-Choose a start and end datetime. Open-Meteo provides hourly weather forecasts up to **16 days** ahead (and ~90 days of history); the date pickers are constrained to that range, and a window that falls outside it disables Analyze with an explanation. All times are treated as local browser time and converted to UTC for the API.
+Pick a start and end datetime. Open-Meteo provides hourly forecasts up to 16 days ahead and about 90 days of history, so the date pickers are constrained to that range and a window outside it disables Analyze with an explanation. Everything is entered in your local browser time and converted to UTC for the API.
 
-Air quality (PM2.5 AQI) forecasts are shorter — the underlying CAMS model only extends **~5 days** ahead. Windows beyond that still analyze fine; the AQI columns just show `—` for hours past the horizon, and the app notes this next to the date inputs.
+Air quality (PM2.5 AQI) forecasts run shorter, because the underlying CAMS model only reaches about 5 days out. Windows past that still analyze fine. The AQI columns just show a blank for hours beyond the horizon, and the app notes this next to the date inputs.
 
-### Step 4 — Set Max Results
+### Step 4: Set Max Results
 
-Default: 10. Maximum: 200. The backend fetches weather for **every** named peak in the polygon (after the optional elevation filter) and returns the top N by the selected ranking — no sampling, so the winners are the true extremes of the area. Analyses are capped at 1,000 peaks; beyond that the app asks you to draw a smaller polygon or narrow the elevation range.
+The default is 10 and the maximum is 200. The backend fetches weather for *every* named destination in the polygon (after the optional elevation filter) and returns the top N by the selected ranking. There is no sampling, so the winners really are the extremes of the area. Analyses are capped at 1,000 destinations. Past that, the app asks you to draw a smaller polygon or narrow the elevation range rather than silently truncating.
 
-### Step 5 — Analyze
+### Step 5: Analyze
 
-Click **Analyze**. Results appear in a sortable table below the map and as color-coded markers on the map.
+Click **Analyze**. Results appear in a sortable table below the map and as color-coded markers on the map itself.
 
-**Marker colors:**
+Marker colors follow total precipitation:
 
 | Color | Precip Total |
 |---|---|
-| Green | ≤ 0.01" |
-| Lime | 0.01" – 0.10" |
-| Yellow | 0.10" – 0.25" |
-| Orange | 0.25" – 0.50" |
-| Red | > 0.50" |
+| Green | 0.01" or less |
+| Lime | 0.01" to 0.10" |
+| Yellow | 0.10" to 0.25" |
+| Orange | 0.25" to 0.50" |
+| Red | more than 0.50" |
 
-Click any marker for a popup with rank, precipitation, wind, temperature, and PM2.5 AQI. Click any **destination name** in the results table to open Windy centered on that location with the rain overlay. When sorting by AQI, the marker thresholds follow the US EPA category boundaries (50 / 100 / 150 / 200).
+Click a marker for a popup with rank, precipitation, wind, temperature, and PM2.5 AQI. Click a destination name in the table to open Windy centered on that spot with the rain overlay. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200).
 
 ### Results Table
 
-Click any column header to sort ascending or descending. By default the table follows the **Rank Results By** selection (e.g. lowest total precipitation — driest first).
+Click any column header to sort by it, ascending or descending. By default the table follows the **Rank Results By** selection, for example lowest total precipitation for driest-first.
 
 | Column | Description |
 |---|---|
-| Name | Destination name — links to Windy |
-| Elev (ft) | Elevation in feet (from OSM `ele` tag) |
-| Precip Total" | Sum of hourly precipitation over the window (inches) |
-| Precip Avg"/hr | Average hourly precipitation rate (inches/hr) |
-| Precip Max"/hr | Peak single-hour precipitation rate (inches/hr) |
+| Name | Destination name, links to Windy |
+| Elev (ft) | Elevation in feet, from the OSM `ele` tag |
+| Precip Total" | Sum of hourly precipitation over the window, in inches |
+| Precip Avg"/hr | Average hourly precipitation rate |
+| Precip Max"/hr | Peak single-hour precipitation rate |
 | Temp Min/Max/Avg °F | Temperature range and average over the window |
 | Wind Min/Max/Avg mph | Wind speed range and average over the window |
 
----
-
 ## Configuration
 
-Configuration is done via environment variables passed to the Docker container.
-
-### docker-compose.yml
+Configuration is handled through environment variables passed to the container.
 
 ```yaml
 services:
@@ -167,49 +150,45 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - LOG_LEVEL=WARNING   # change to DEBUG or TRACE during development
+      - LOG_LEVEL=WARNING   # bump to DEBUG or TRACE during development
     restart: unless-stopped
 ```
 
-To override without editing the file:
+To override it without editing the file:
 
 ```bash
 LOG_LEVEL=DEBUG docker compose up -d
 ```
 
-No rebuild is required when changing `LOG_LEVEL` — it is read at container startup.
-
----
+`LOG_LEVEL` is read at container startup, so changing it needs no rebuild.
 
 ## Log Levels
 
-Bluebird uses Python's standard `logging` module with one additional custom level: `TRACE`.
-
-Set the `LOG_LEVEL` environment variable (case-insensitive). Default: `WARNING`.
+Bluebird uses Python's standard `logging` module plus one custom level, `TRACE`. Set `LOG_LEVEL` (case-insensitive) to control verbosity. The default is `WARNING`.
 
 | Level | Value | What is logged |
 |---|---|---|
-| `TRACE` | 5 | Raw Overpass query text, per-element OSM results, Open-Meteo request parameters, batch result counts. Very verbose — use only when debugging data issues. |
+| `TRACE` | 5 | Raw Overpass query text, per-element OSM results, Open-Meteo request parameters, batch result counts. Very verbose, so reach for it only when debugging data issues. |
 | `DEBUG` | 10 | Reserved for future fine-grained instrumentation. |
-| `INFO` | 20 | Request summary (type, window, limit), Overpass endpoint used, OSM result count, Open-Meteo batch sizes, final result range (driest / wettest precip). |
-| `WARNING` | 30 | Overpass endpoint failures and fallbacks to mirror servers. **Default level.** |
-| `ERROR` | 40 | Unhandled exceptions and HTTP errors that cause a request to fail. |
+| `INFO` | 20 | Request summary (type, window, limit), Overpass endpoint used, OSM result count, Open-Meteo batch sizes, final result range. |
+| `WARNING` | 30 | Overpass endpoint failures and fallbacks to mirror servers. This is the default. |
+| `ERROR` | 40 | Unhandled exceptions and HTTP errors that fail a request. |
 | `CRITICAL` | 50 | Fatal startup errors. |
 
-**Recommended settings:**
+Rough guide:
 
 ```bash
 # Production
 LOG_LEVEL=WARNING
 
-# Debugging a specific request
+# Following a specific request
 LOG_LEVEL=INFO
 
-# Diagnosing Overpass / Open-Meteo data issues
+# Diagnosing Overpass or Open-Meteo data issues
 LOG_LEVEL=TRACE
 ```
 
-**Example TRACE output for a peaks query:**
+A `TRACE` run for a peaks query looks like this:
 
 ```
 2026-06-28T08:00:01 [INFO    ] app.routes.analyze: Analyze request: type=peak window=2026-06-28T08:00→2026-06-29T20:00 limit=10
@@ -229,24 +208,16 @@ out;
 2026-06-28T08:00:05 [INFO    ] app.routes.analyze: Returning 10 result(s) (driest: 0.012", wettest: 0.089")
 ```
 
----
-
 ## Polygon Size Limit
 
-To prevent excessive Overpass API load and respect public API rate limits, search polygons are limited to an approximate bounding-box area of **50,000 km²** (roughly half the size of Washington state).
+Search polygons are capped at an approximate bounding-box area of 50,000 km², roughly half of Washington state. The cap keeps Overpass load reasonable and stays inside the public API rate limits.
 
-This limit is enforced in two places:
+The limit is enforced in two places so a bypassed frontend can't get around it:
 
-- **Frontend:** The sidebar shows the live estimated area as you draw. If the area exceeds the limit, it turns red and Analyze is disabled with an explanation.
-- **Backend:** The `POST /analyze` endpoint validates the polygon area and returns HTTP 422 if it exceeds the limit, even if the frontend check is bypassed.
+- On the frontend, the sidebar shows the live estimated area as you draw. If it exceeds the cap, the number turns red and Analyze is disabled with an explanation.
+- On the backend, `POST /analyze` validates the polygon area and returns HTTP 422 if it is too large.
 
-To change the limit, update `MAX_POLYGON_AREA_KM2` in:
-- `backend/app/models.py`
-- `frontend/src/components/MapView.tsx`
-
-The area displayed is a **bounding-box approximation**, not the exact polygon area. Actual queried area may be smaller for irregular polygons.
-
----
+The displayed value is a bounding-box approximation rather than the true polygon area, so an irregular polygon may actually query less than the number shown. To change the cap, update `MAX_POLYGON_AREA_KM2` in both `backend/app/models.py` and `frontend/src/components/MapView.tsx`. The two must stay in sync.
 
 ## API Reference
 
@@ -254,7 +225,7 @@ The area displayed is a **bounding-box approximation**, not the exact polygon ar
 
 Runs a destination query and returns weather-ranked results.
 
-**Request body:**
+Request body:
 
 ```json
 {
@@ -269,7 +240,7 @@ Runs a destination query and returns weather-ranked results.
 }
 ```
 
-For `destination_type: "custom"`, omit `polygon` and include `custom_destinations` instead:
+For `destination_type: "custom"`, drop `polygon` and send `custom_destinations` instead:
 
 ```json
 {
@@ -284,7 +255,7 @@ For `destination_type: "custom"`, omit `polygon` and include `custom_destination
 }
 ```
 
-**Response:**
+Response:
 
 ```json
 {
@@ -313,89 +284,70 @@ For `destination_type: "custom"`, omit `polygon` and include `custom_destination
 }
 ```
 
-`aqi_avg` / `aqi_max` are PM2.5 **US AQI** values over the window. They are `null` when the window lies beyond the ~5-day air-quality forecast horizon or the (best-effort) air-quality fetch failed — an air-quality outage never fails the analysis.
+`aqi_avg` and `aqi_max` are PM2.5 US AQI values over the window. They come back `null` when the window falls past the roughly 5-day air-quality horizon, or when the best-effort air-quality fetch fails. An air-quality outage never fails the analysis.
 
-**Error responses:**
+Error responses:
 
 | Code | Condition |
 |---|---|
-| 400 | `start_datetime` ≥ `end_datetime`; `destination_type` not yet implemented; `custom_destinations` missing for custom type |
-| 422 | Validation failure (polygon too large; limit out of range; window outside the servable ~90-day-past to ~16-day-ahead range) |
-| 502 | Overpass API unreachable across all mirrors; Open-Meteo API failure |
-
----
+| 400 | `start_datetime` is at or after `end_datetime`, the `destination_type` isn't implemented, or `custom_destinations` is missing for a custom request |
+| 422 | Validation failure: polygon too large, limit out of range, or a window outside the servable window (about 90 days past to 16 days ahead) |
+| 502 | Overpass is unreachable across all mirrors, or Open-Meteo fails |
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────┐
-│  Browser                                 │
-│                                          │
-│  React + TypeScript + Vite               │
-│  MapLibre GL (OpenFreeMap tiles)         │
-│  Custom polygon drawing (native events)  │
-│  Sortable results table                  │
-└──────────────┬───────────────────────────┘
-               │ POST /api/analyze
-               ▼
-┌──────────────────────────────────────────┐
-│  FastAPI (Python 3.12)                   │
-│                                          │
-│  POST /api/analyze                       │
-│    ├── Validate polygon area             │
-│    ├── Query Overpass API (OSM)          │
-│    │     └── 3 mirror fallbacks          │
-│    ├── Batch Open-Meteo requests         │
-│    │     └── asyncio.gather (parallel)   │
-│    └── Sort + limit results              │
-│                                          │
-│  Serve built React SPA at /             │
-└──────────────────────────────────────────┘
+Bluebird is one FastAPI service that also serves the built React SPA as static files. A browser talks only to `POST /api/analyze`, and everything else the app needs it fetches from free, keyless public APIs.
 
-Single Docker container (multi-stage build):
-  Stage 1: node:20-alpine  → npm run build
-  Stage 2: python:3.12-slim → uvicorn
-```
+When a request comes in, the backend:
 
-**External APIs (no keys required):**
+1. Validates the polygon area.
+2. Queries the Overpass API for named OSM features, falling back across three mirrors if the first is down.
+3. Batches the matched destinations into Open-Meteo weather and air-quality requests, all fired concurrently with `asyncio.gather`.
+4. Sorts by the requested metric and returns the top N.
 
-- **Overpass API** — OSM feature queries. Three public endpoints tried in order:
-  1. `overpass-api.de`
-  2. `overpass.kumi.systems`
-  3. `maps.mail.ru`
-- **Open-Meteo** — Free hourly forecast data (weather + air quality endpoints). Supports batching up to 50 locations per request; all batches run concurrently via `asyncio.gather`.
-- **OpenFreeMap** — Free vector map tiles. No account or API key needed.
+The whole thing builds as a single multi-stage Docker image:
 
----
+- Stage 1 runs `node:22-alpine` to `npm run build` the SPA.
+- Stage 2 runs `python:3.12-slim` with uvicorn, serving the API and the built SPA together.
+
+None of the external APIs need a key:
+
+- **Overpass** handles the OSM feature queries. Three public endpoints are tried in order: `overpass-api.de`, then `overpass.kumi.systems`, then `maps.mail.ru`.
+- **Open-Meteo** provides the hourly forecast and air-quality data, batched up to 50 locations per request.
+- **OpenFreeMap** serves the vector map tiles.
+
+## Data Sources
+
+| Source | Usage | Cost | Auth |
+|---|---|---|---|
+| [OpenStreetMap](https://www.openstreetmap.org) via [Overpass API](https://overpass-api.de) | Destination names, coordinates, elevation | Free | None |
+| [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind | Free (non-commercial) | None |
+| [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly PM2.5 US AQI | Free (non-commercial) | None |
+| [OpenFreeMap](https://openfreemap.org) | Vector map tiles | Free | None |
+| [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
+
+Open-Meteo weather forecasts reach about 16 days out. Air-quality forecasts from CAMS reach about 5 days and are regional (an 11 to 25 km grid) rather than resolved per-peak. Going further back than the roughly 90-day history window would mean switching to the [Open-Meteo Historical API](https://open-meteo.com/en/docs/historical-weather-api), which is a separate endpoint and isn't wired up yet.
 
 ## Kubernetes Deployment
 
-Manifests live in `../Kubernetes-Manifests/public/bluebird/` and are picked up automatically by the ArgoCD `ApplicationSet` configured for the `public/` directory.
+Manifests live in a separate repo, `zimmertr/Kubernetes-Manifests`, under `public/bluebird/`, and ArgoCD picks them up automatically. The stack runs an Argo Rollout with a canary strategy, an Istio VirtualService and Gateway, and a cert-manager `Certificate` for `bluebirdforecast.com`, all managed with Kustomize.
 
-**Stack:**
-- Argo Rollout with canary strategy (matches `personal-website` pattern)
-- Istio VirtualService + Gateway
-- cert-manager `Certificate` for `bluebirdforecast.com`
-- Kustomize for manifest management
+The release pipeline updates the image tag on merge to `main`, so a normal deploy needs nothing manual. To cut an image by hand:
 
-**To deploy a new image:**
+```bash
+docker build -t zimmertr/bluebird:v1.0.0 .
+docker push zimmertr/bluebird:v1.0.0
+```
 
-1. Build and push:
-   ```bash
-   docker build -t zimmertr/bluebird:v1.0.0 .
-   docker push zimmertr/bluebird:v1.0.0
-   ```
+Then point the tag at it in `kustomization.yml` and commit. ArgoCD syncs within a few minutes.
 
-2. Update the image tag in `kustomization.yml`:
-   ```yaml
-   images:
-     - name: zimmertr/bluebird
-       newTag: v1.0.0
-   ```
+```yaml
+images:
+  - name: zimmertr/bluebird
+    newTag: v1.0.0
+```
 
-3. Commit and push — ArgoCD auto-syncs within ~3 minutes.
-
-**To set log level in K8s**, add an environment variable to the Rollout spec:
+To set the log level in the cluster, add the env var to the Rollout spec:
 
 ```yaml
 containers:
@@ -406,33 +358,15 @@ containers:
         value: "WARNING"
 ```
 
----
-
-## Data Sources
-
-| Source | Usage | Cost | Auth |
-|---|---|---|---|
-| [OpenStreetMap](https://www.openstreetmap.org) via [Overpass API](https://overpass-api.de) | Destination names, coordinates, elevation | Free | None |
-| [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind | Free (non-commercial) | None |
-| [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly PM2.5 US AQI | Free (non-commercial) | None |
-| [OpenFreeMap](https://openfreemap.org) | Vector map tiles | Free | None |
-| [Nominatim](https://nominatim.org) | Map search box place lookup | Free (≤1 req/s, no autocomplete) | None |
-
-Open-Meteo weather forecasts cover up to 16 days ahead; air-quality forecasts (CAMS) cover ~5 days and are regional (~11–25 km grid) rather than per-peak. Historical data beyond the ~90-day window would require the [Open-Meteo Historical API](https://open-meteo.com/en/docs/historical-weather-api) (different endpoint, not currently implemented).
-
----
-
 ## Roadmap
 
-- [x] **Additional destination types** — Trailheads and Lakes, queried from OSM like peaks
-- [x] **Air quality (PM2.5)** — Open-Meteo Air Quality API, useful during wildfire smoke season
-- [ ] **Historical analysis** — Switch to Open-Meteo archive endpoint for past dates
-- [ ] **Saved searches** — LocalStorage persistence for polygons and settings
-- [ ] **Export** — Download results as CSV
-- [ ] **Mountain-forecast.com links** — Alternative hotlink for summit-specific forecasts
-
----
+- [x] Additional destination types (trailheads and lakes, queried from OSM like peaks)
+- [x] Air quality (PM2.5), useful during wildfire smoke season
+- [ ] Historical analysis by switching to the Open-Meteo archive endpoint for past dates
+- [ ] Saved searches in LocalStorage for polygons and settings
+- [ ] CSV export of results
+- [ ] Mountain-forecast.com links as an alternative hotlink for summit-specific forecasts
 
 ## License
 
-Bluebird is free software licensed under the [GNU General Public License v3.0 or later](LICENSE). You may redistribute and modify it under those terms. It is distributed WITHOUT ANY WARRANTY; see the [LICENSE](LICENSE) file for the full text.
+Bluebird is free software licensed under the [GNU General Public License v3.0 or later](LICENSE). You can redistribute and modify it under those terms. It comes with no warranty. See the [LICENSE](LICENSE) file for the full text.
