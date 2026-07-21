@@ -1,5 +1,6 @@
-import { DestinationType, CustomDestination, SortBy } from '../types'
+import { DestinationType, SortBy } from '../types'
 import { MAX_AREA_KM2 } from './MapView'
+import { parseCustomCsv } from '../utils/customDestinations'
 import {
   classifyAqiCoverage,
   AQI_LIMIT_DAYS,
@@ -208,12 +209,14 @@ export default function ControlPanel({
               Custom Destinations
             </h2>
             <p className="text-xs text-slate-500 mb-1.5">
-              Format: <code className="text-slate-300">Lat,Lon</code> — one coordinate pair per line.
+              Format: <code className="text-slate-300">Lat,Lon</code> or{' '}
+              <code className="text-slate-300">Lat,Lon,Name</code> — one per line. The name is
+              optional; without it, the coordinates are used.
             </p>
             <textarea
               value={customCsv}
               onChange={(e) => setCustomCsv(e.target.value)}
-              placeholder={`# One coordinate pair per line\n46.8529,-121.7604\n46.2024,-121.4909\n48.1122,-121.1139`}
+              placeholder={`"Lat,Lon" or "Lat,Lon,Name" per line\n46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909\n48.1122,-121.1139,Glacier Peak`}
               rows={7}
               className="w-full text-xs bg-slate-900 border border-slate-600 rounded p-2 text-slate-200 placeholder-slate-600 font-mono resize-y focus:outline-none focus:border-sky-500"
             />
@@ -515,20 +518,4 @@ export default function ControlPanel({
       </div>
     </div>
   )
-}
-
-function parseCustomCsv(csv: string): CustomDestination[] {
-  const results: CustomDestination[] = []
-  let idx = 1
-  for (const raw of csv.split('\n')) {
-    const l = raw.trim()
-    if (!l || l.startsWith('#')) continue
-    const parts = l.split(',').map((p) => p.trim())
-    if (parts.length < 2) continue
-    const lat = parseFloat(parts[0])
-    const lon = parseFloat(parts[1])
-    if (isNaN(lat) || isNaN(lon)) continue
-    results.push({ name: `Location ${idx++}`, latitude: lat, longitude: lon })
-  }
-  return results
 }
