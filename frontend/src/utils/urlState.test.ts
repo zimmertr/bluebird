@@ -294,6 +294,22 @@ describe('classifyWindow', () => {
   it('is ok when the window is incomplete', () => {
     expect(classifyWindow('', '', now)).toBe('ok')
   })
+
+  it('is order when the end is before the start', () => {
+    expect(classifyWindow(shift(3), shift(1), now)).toBe('order')
+  })
+
+  it('is order when the end equals the start (zero-length window)', () => {
+    expect(classifyWindow(shift(1), shift(1), now)).toBe('order')
+  })
+
+  it('prefers the order warning over a horizon warning when both apply', () => {
+    // End far in the future but before the start — ordering is the actionable
+    // problem, so it wins over the "future" classification.
+    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 10), shift(FUTURE_LIMIT_DAYS + 5), now)).toBe(
+      'order',
+    )
+  })
 })
 
 describe('classifyAqiCoverage', () => {

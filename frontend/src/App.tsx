@@ -4,6 +4,7 @@ import ControlPanel from './components/ControlPanel'
 import SearchBox from './components/SearchBox'
 import ResultsTable from './components/ResultsTable'
 import WelcomeModal from './components/WelcomeModal'
+import PrivacyModal from './components/PrivacyModal'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
 import { useFireProximity } from './hooks/useFireProximity'
@@ -84,6 +85,10 @@ export default function App() {
   const [tableHeight, setTableHeight] = useState(280)
   const [isDragging, setIsDragging] = useState(false)
   const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('bluebird_welcomed'))
+  // Privacy notice, opened from the controls footer. Rendered at the App root
+  // (not inside the panel) because the panel's `transform` would otherwise
+  // become the containing block for the modal's `position: fixed`.
+  const [showPrivacy, setShowPrivacy] = useState(false)
   // The controls panel is docked on desktop and an off-canvas drawer on phones.
   // It starts open on both; a close button collapses it to widen the map.
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -243,6 +248,7 @@ export default function App() {
       {preview.enabled && <PreviewBanner pr={preview.pr} commit={preview.commit} />}
       <div className="flex flex-1 overflow-hidden min-h-0 relative">
       {showWelcome && <WelcomeModal onDismiss={dismissWelcome} />}
+      {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)} />}
       {isDragging && <div className="fixed inset-0 z-50 cursor-ns-resize" />}
 
       {/* Mobile: dim backdrop behind the open drawer */}
@@ -305,6 +311,7 @@ export default function App() {
             handleAnalyze()
           }}
           onRetry={retry}
+          onShowPrivacy={() => setShowPrivacy(true)}
           resultCount={response?.results.length}
           totalQueried={response?.total_queried}
         />
@@ -366,6 +373,8 @@ export default function App() {
             results={results}
             sortBy={view.sortBy}
             showWildfires={showWildfires}
+            minElevationFt={minElevationFt}
+            maxElevationFt={maxElevationFt}
           />
           {/* Top-left map cluster — reopen-controls button (only while the
               panel is collapsed) + place search. z-10 keeps it under the
