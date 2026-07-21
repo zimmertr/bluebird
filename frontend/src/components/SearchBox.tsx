@@ -3,13 +3,13 @@ import { Place, parseCoordinates, searchPlaces } from '../utils/geocode'
 
 interface Props {
   onSelect: (place: Place) => void
-  onClear: () => void
 }
 
 // Floating place search for the map. Fires on Enter rather than as-you-type —
 // Nominatim's usage policy forbids autocomplete — and coordinate pairs are
-// handled locally without ever reaching the geocoder.
-export default function SearchBox({ onSelect, onClear }: Props) {
+// handled locally without ever reaching the geocoder. The × only clears the
+// text: searched places persist as pins, removed via their 📍 in the table.
+export default function SearchBox({ onSelect }: Props) {
   const [query, setQuery] = useState('')
   const [places, setPlaces] = useState<Place[] | null>(null)
   const [highlight, setHighlight] = useState(0)
@@ -82,7 +82,6 @@ export default function SearchBox({ onSelect, onClear }: Props) {
     setQuery('')
     setPlaces(null)
     setError(null)
-    onClear()
     inputRef.current?.focus()
   }
 

@@ -8,11 +8,13 @@ import PrivacyModal from './components/PrivacyModal'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
 import { useFireProximity } from './hooks/useFireProximity'
+import { usePinnedForecasts } from './hooks/usePinnedForecasts'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { GeoPolygon, DestinationType, CustomDestination, SortBy } from './types'
 import { METRIC_CONFIG, MARKER_COLORS } from './utils/colors'
-import { encodeState, decodeState, classifyWindow } from './utils/urlState'
+import { Place } from './utils/geocode'
+import { encodeState, decodeState, classifyWindow, resolveSearchWindow } from './utils/urlState'
 
 // Composed with the direction into e.g. "lowest total precipitation" /
 // "highest average temperature" for the results header.
@@ -125,6 +127,23 @@ export default function App() {
 
   const { analyze, cancel, retry, analyzed, loading, error, response, statusMessage, progress } = useAnalyze()
 
+  // Searched locations pinned to the map and table. Each search adds (or
+  // refreshes) a pin; pins persist until their 📍 is clicked in the table.
+  const pinnedForecasts = usePinnedForecasts()
+  const pinnedRows = pinnedForecasts.rows
+
+  // A pinned forecast opens the results panel so the rows are visible even
+  // before any analysis has run (or after the panel was closed).
+  useEffect(() => {
+    if (pinnedRows.length > 0) setShowResults(true)
+  }, [pinnedRows])
+
+  function handleSearchSelect(place: Place) {
+    mapRef.current?.flyToPlace(place)
+    const searchWindow = resolveSearchWindow(startDatetime, endDatetime, new Date())
+    pinnedForecasts.addPlace(place, searchWindow.start, searchWindow.end)
+  }
+
   // Everything derived from the results renders from the snapshot of the
   // ranking that produced them — panel knobs only affect the NEXT Analyze.
   // Falls back to the live knobs before the first analysis (nothing shown yet).
@@ -201,7 +220,10 @@ export default function App() {
 
     const constraints = { min_elevation_ft: minElevationFt, max_elevation_ft: maxElevationFt }
 
+    // The pinned rows join every analysis, refetched together with the same
+    // window so they stay comparable with the report they sit above.
     if (destinationType === 'custom') {
+      pinnedForecasts.refetchAll(start, end)
       await analyze({
         destination_type: 'custom',
         start_datetime: start,
@@ -219,6 +241,7 @@ export default function App() {
       // map hasn't loaded yet.
       const resolvedPolygon = mapRef.current?.finishDrawing() ?? polygon
       if (!resolvedPolygon) return
+      pinnedForecasts.refetchAll(start, end)
       await analyze({
         polygon: resolvedPolygon,
         destination_type: destinationType,
@@ -238,10 +261,15 @@ export default function App() {
   // effect keys off it and would otherwise re-run (and refetch) every render.
   const results = useMemo(() => response?.results ?? [], [response])
   const hasResults = showResults && results.length > 0
+  // The table panel also opens for pinned search forecasts alone; the map
+  // legend stays tied to actual analysis results (hasResults).
+  const showTable = showResults && (results.length > 0 || pinnedRows.length > 0)
 
   // Flags results within 10 mi of an active US wildfire; independent of the map
   // overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
-  const fireWarnings = useFireProximity(results)
+  // Pinned search rows are checked right alongside the ranked rows.
+  const fireCheckRows = useMemo(() => [...results, ...pinnedRows], [results, pinnedRows])
+  const fireWarnings = useFireProximity(fireCheckRows)
 
   return (
     <div className="flex flex-col h-dvh w-screen overflow-hidden bg-slate-900">
@@ -373,6 +401,7 @@ export default function App() {
             results={results}
             sortBy={view.sortBy}
             showWildfires={showWildfires}
+            searchPins={pinnedForecasts.places}
             minElevationFt={minElevationFt}
             maxElevationFt={maxElevationFt}
           />
@@ -394,10 +423,7 @@ export default function App() {
                 Controls
               </button>
             )}
-            <SearchBox
-              onSelect={(place) => mapRef.current?.showSearchResult(place)}
-              onClear={() => mapRef.current?.clearSearchResult()}
-            />
+            <SearchBox onSelect={handleSearchSelect} />
           </div>
           {(hasResults || showWildfires) && (
             <div className="absolute bottom-8 left-2 z-10 flex flex-col gap-2">
@@ -431,7 +457,7 @@ export default function App() {
           )}
         </div>
 
-        {hasResults && (
+        {showTable && (
           <div
             className="flex-shrink-0 bg-slate-800 flex flex-col h-[55dvh] lg:h-auto"
             style={isDesktop ? { height: `${tableHeight}px` } : undefined}
@@ -448,7 +474,9 @@ export default function App() {
             {/* Header */}
             <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-slate-700 border-b border-slate-600">
               <span className="text-xs font-semibold text-white">
-                Results — {view.sortDesc ? 'highest' : 'lowest'} {SORT_NOUNS[view.sortBy]} first
+                {results.length > 0
+                  ? `Results — ${view.sortDesc ? 'highest' : 'lowest'} ${SORT_NOUNS[view.sortBy]} first`
+                  : 'Pinned location forecasts'}
               </span>
               <button
                 onClick={() => setShowResults(false)}
@@ -457,13 +485,19 @@ export default function App() {
                 ×
               </button>
             </div>
-            {/* Scrollable table */}
-            <div className="flex-1 overflow-y-auto min-h-0">
+            {/* Scrollable table. One container owns BOTH axes: if a nested
+                element scrolled horizontally instead, its scrollbar would sit
+                below the full table height — off-screen until the user
+                scrolled to the last row. results-scrollbars keeps the bars
+                visible (macOS overlay scrollbars hide the sideways hint). */}
+            <div className="flex-1 overflow-auto min-h-0 results-scrollbars">
               <ResultsTable
                 results={results}
                 sortBy={view.sortBy}
                 sortDesc={view.sortDesc}
                 fireWarnings={fireWarnings}
+                pinned={pinnedRows}
+                onUnpin={(row) => pinnedForecasts.removePlace(row.latitude, row.longitude)}
               />
             </div>
           </div>

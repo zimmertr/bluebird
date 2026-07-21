@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.routes.analyze import router
 from app.routes.config import router as config_router
+from app.routes.geocode import router as geocode_router
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
 
@@ -114,6 +115,16 @@ async def access_log(request: Request, call_next) -> Response:
 
 app.include_router(router, prefix="/api")
 app.include_router(config_router, prefix="/api")
+app.include_router(geocode_router, prefix="/api")
+
+
+# Dedicated probe target: answers without touching the static mount (a probe
+# shouldn't depend on the SPA build being present) and stays out of the access
+# log above, which only records /api/* and errors.
+@app.get("/healthz")
+async def healthz() -> dict[str, str]:
+    return {"status": "ok"}
+
 
 static_dir = Path(__file__).parent.parent / "static"
 if static_dir.exists():

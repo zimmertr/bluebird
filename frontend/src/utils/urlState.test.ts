@@ -4,6 +4,7 @@ import {
   decodeState,
   classifyWindow,
   classifyAqiCoverage,
+  resolveSearchWindow,
   ShareableState,
   PAST_LIMIT_DAYS,
   FUTURE_LIMIT_DAYS,
@@ -340,5 +341,50 @@ describe('classifyAqiCoverage', () => {
 
   it('is full when the window is incomplete', () => {
     expect(classifyAqiCoverage('', '', now)).toBe('full')
+  })
+})
+
+describe('resolveSearchWindow', () => {
+  const now = new Date('2026-07-04T12:00')
+  const iso = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+  const shift = (days: number) => iso(new Date(now.getTime() + days * 86_400_000))
+  const fallback = {
+    start: now.toISOString(),
+    end: new Date(now.getTime() + 3_600_000).toISOString(),
+  }
+
+  it('passes a usable panel window through as ISO instants', () => {
+    const start = shift(1)
+    const end = shift(4)
+    expect(resolveSearchWindow(start, end, now)).toEqual({
+      start: new Date(start).toISOString(),
+      end: new Date(end).toISOString(),
+    })
+  })
+
+  it('falls back to the next hour when End is unset (fresh session)', () => {
+    expect(resolveSearchWindow(shift(1), '', now)).toEqual(fallback)
+  })
+
+  it('falls back when the window is reversed', () => {
+    expect(resolveSearchWindow(shift(4), shift(1), now)).toEqual(fallback)
+  })
+
+  it('falls back when the window is outside the servable range', () => {
+    expect(
+      resolveSearchWindow(shift(FUTURE_LIMIT_DAYS + 2), shift(FUTURE_LIMIT_DAYS + 5), now),
+    ).toEqual(fallback)
+  })
+
+  it('keeps a recent-past window — history is analyzable', () => {
+    const start = shift(-10)
+    const end = shift(-8)
+    expect(resolveSearchWindow(start, end, now)).toEqual({
+      start: new Date(start).toISOString(),
+      end: new Date(end).toISOString(),
+    })
   })
 })

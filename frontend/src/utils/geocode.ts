@@ -2,7 +2,10 @@
 // never touch the network; free-text names resolve through Nominatim, OSM's
 // geocoder — keyless like every other API this app calls, and covering every
 // named OSM feature (peaks, cities, lakes, rivers, trails…), not just the
-// destination types Bluebird can analyze.
+// destination types Bluebird can analyze. Nominatim is reached via the
+// backend's /api/geocode proxy so queries appear in server logs and the
+// request carries the identifying User-Agent Nominatim's policy asks for
+// (browsers can't set one). The row→Place mapping stays here.
 //
 // Nominatim usage policy (operations.osmfoundation.org/policies/nominatim):
 // no autocomplete and ≤1 req/s — both satisfied by searching only on Enter.
@@ -14,6 +17,10 @@ export interface Place {
   lat: number
   lon: number
   bbox?: [number, number, number, number] // feature extent as [W, S, E, N]
+  // From the OSM `ele` tag (via Nominatim extratags) — the same source the
+  // analysis rows use, so a pinned peak shows its true summit elevation.
+  // Absent for features without the tag (cities, coordinates…).
+  elevationFt?: number
 }
 
 // "36.57862, -118.29107" · "(36.57862, -118.29107)" · "36.57862 -118.29107"
@@ -56,6 +63,15 @@ interface NominatimRow {
   lat: string
   lon: string
   boundingbox?: [string, string, string, string] // Nominatim order: [S, N, W, E]
+  extratags?: Record<string, string> | null // raw OSM tags (extratags=1)
+}
+
+// OSM `ele` is meters; mirror osm.py's parsing (plain float × 3.28084,
+// rounded) so a pinned peak and an Overpass row can't disagree.
+function elevationFtFromEle(ele: string | undefined): number | undefined {
+  if (!ele) return undefined
+  const meters = Number(ele)
+  return Number.isFinite(meters) ? Math.round(meters * 3.28084) : undefined
 }
 
 // Exported for tests — the [S,N,W,E]→[W,S,E,N] bbox reorder is easy to get wrong.
@@ -70,13 +86,14 @@ export function placeFromNominatimRow(row: NominatimRow): Place {
     bbox: bb
       ? [parseFloat(bb[2]), parseFloat(bb[0]), parseFloat(bb[3]), parseFloat(bb[1])]
       : undefined,
+    elevationFt: elevationFtFromEle(row.extratags?.ele),
   }
 }
 
 export async function searchPlaces(query: string, limit = 5): Promise<Place[]> {
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=${limit}&q=${encodeURIComponent(query)}`
+  const url = `/api/geocode?limit=${limit}&q=${encodeURIComponent(query)}`
   const res = await fetch(url, { headers: { Accept: 'application/json' } })
-  if (!res.ok) throw new Error(`Nominatim returned ${res.status}`)
+  if (!res.ok) throw new Error(`Geocode returned ${res.status}`)
   const rows: NominatimRow[] = await res.json()
   return rows.map(placeFromNominatimRow)
 }

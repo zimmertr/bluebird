@@ -35,3 +35,29 @@ body,
 .animate-indeterminate {
   animation: indeterminate-slide 1.2s ease-in-out infinite;
 }
+
+/* Results panel scroll container: keep scrollbars rendered whenever content
+   overflows. macOS overlay scrollbars vanish until scrolled, so a too-narrow
+   window gives no hint the table pans sideways. `scrollbar-color` flips
+   Chrome/Firefox to classic always-visible bars; the -webkit-* rules cover
+   Safari, which ignores the standard properties. Colors are slate-500 thumb
+   on slate-800 track to match the panel. */
+.results-scrollbars {
+  scrollbar-width: thin;
+  scrollbar-color: #64748b #1e293b;
+}
+.results-scrollbars::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.results-scrollbars::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+.results-scrollbars::-webkit-scrollbar-thumb {
+  background-color: #64748b;
+  border-radius: 5px;
+  border: 2px solid #1e293b;
+}
+.results-scrollbars::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}

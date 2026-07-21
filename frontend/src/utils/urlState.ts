@@ -230,6 +230,31 @@ export function classifyWindow(
 }
 
 /**
+ * Window for a searched point's pinned forecast, as ISO instants. Uses the
+ * panel's window when it's complete, ordered, and inside the servable range —
+ * keeping the pinned row comparable with an analysis run from the same knobs.
+ * Otherwise (fresh session with End unset, or an unusable window) it falls
+ * back to the next hour from `now`: "conditions right now".
+ */
+export function resolveSearchWindow(
+  startDatetime: string,
+  endDatetime: string,
+  now: Date,
+): { start: string; end: string } {
+  if (isValidDatetimeLocal(startDatetime) && isValidDatetimeLocal(endDatetime)) {
+    const start = new Date(startDatetime)
+    const end = new Date(endDatetime)
+    if (start < end && classifyWindow(startDatetime, endDatetime, now) === 'ok') {
+      return { start: start.toISOString(), end: end.toISOString() }
+    }
+  }
+  return {
+    start: now.toISOString(),
+    end: new Date(now.getTime() + 3_600_000).toISOString(),
+  }
+}
+
+/**
  * Classify how much of a forecast window the ~5-day air-quality horizon covers.
  * 'full' means AQI data should span the whole window, 'partial' means only its
  * start, 'none' means the window begins beyond the horizon entirely. Purely

@@ -116,4 +116,17 @@ describe('placeFromNominatimRow', () => {
   it('humanizes underscored OSM types', () => {
     expect(placeFromNominatimRow({ ...row, type: 'nature_reserve' }).kind).toBe('nature reserve')
   })
+
+  it('converts the extratags ele tag from meters to feet', () => {
+    const place = placeFromNominatimRow({ ...row, extratags: { ele: '4421' } })
+    expect(place.elevationFt).toBe(14505) // matches osm.py: round(m × 3.28084)
+  })
+
+  it('leaves elevation unset without extratags or with a non-numeric ele', () => {
+    expect(placeFromNominatimRow(row).elevationFt).toBeUndefined()
+    expect(placeFromNominatimRow({ ...row, extratags: null }).elevationFt).toBeUndefined()
+    expect(
+      placeFromNominatimRow({ ...row, extratags: { ele: '4421 m' } }).elevationFt,
+    ).toBeUndefined()
+  })
 })
