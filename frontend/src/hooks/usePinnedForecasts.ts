@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { AnalyzeRequest, AnalyzeResponse, DestinationResult } from '../types'
-import { Place } from '../utils/geocode'
+import { Place, isPeakKind } from '../utils/geocode'
 
 // A searched place pinned to the map and table. `row` is null only while its
 // first forecast is in flight — settled pins without data are dropped.
@@ -117,8 +117,23 @@ export function usePinnedForecasts() {
     )
   }
 
+  // The backend echoes custom destinations as type "custom" with no osm_id,
+  // but the search that created the pin knew more. Restore that identity so
+  // the name cell links where the feature belongs — a searched peak to
+  // Peakbagger, a searched lake or town to its exact OSM object page.
   const rows = useMemo(
-    () => pins.flatMap((p) => (p.row !== null ? [p.row] : [])),
+    () =>
+      pins.flatMap((p) =>
+        p.row !== null
+          ? [
+              {
+                ...p.row,
+                type: isPeakKind(p.place.kind) ? 'peak' : p.row.type,
+                osm_id: p.row.osm_id ?? p.place.osmId ?? null,
+              },
+            ]
+          : [],
+      ),
     [pins],
   )
   const places = useMemo(() => pins.map((p) => p.place), [pins])

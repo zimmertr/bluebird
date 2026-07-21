@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseCoordinates, boundsAround, placeFromNominatimRow } from './geocode'
+import { parseCoordinates, boundsAround, placeFromNominatimRow, isPeakKind } from './geocode'
 
 describe('parseCoordinates', () => {
   it('parses "lat, lon"', () => {
@@ -128,5 +128,26 @@ describe('placeFromNominatimRow', () => {
     expect(
       placeFromNominatimRow({ ...row, extratags: { ele: '4421 m' } }).elevationFt,
     ).toBeUndefined()
+  })
+
+  it('builds osmId in the backend osm_id format', () => {
+    const place = placeFromNominatimRow({ ...row, osm_type: 'node', osm_id: 944865772 })
+    expect(place.osmId).toBe('node/944865772')
+  })
+
+  it('leaves osmId unset when the Nominatim row has no OSM ref', () => {
+    expect(placeFromNominatimRow(row).osmId).toBeUndefined()
+    expect(placeFromNominatimRow({ ...row, osm_type: 'node' }).osmId).toBeUndefined()
+  })
+})
+
+describe('isPeakKind', () => {
+  it('treats peaks and volcanos as peaks, everything else not', () => {
+    expect(isPeakKind('peak')).toBe(true)
+    expect(isPeakKind('volcano')).toBe(true)
+    expect(isPeakKind('city')).toBe(false)
+    expect(isPeakKind('lake')).toBe(false)
+    expect(isPeakKind('coordinates')).toBe(false) // SearchBox's local parse
+    expect(isPeakKind('')).toBe(false)
   })
 })
