@@ -11,8 +11,9 @@ import { useFireProximity } from './hooks/useFireProximity'
 import { usePinnedForecasts } from './hooks/usePinnedForecasts'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
-import { GeoPolygon, DestinationType, CustomDestination, SortBy } from './types'
+import { GeoPolygon, DestinationType, SortBy } from './types'
 import { METRIC_CONFIG, MARKER_COLORS } from './utils/colors'
+import { parseCustomCsv } from './utils/customDestinations'
 import { Place } from './utils/geocode'
 import { encodeState, decodeState, classifyWindow, resolveSearchWindow } from './utils/urlState'
 
@@ -29,22 +30,6 @@ function nowLocal(): string {
   const d = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-function parseCustomCsv(csv: string): CustomDestination[] {
-  const results: CustomDestination[] = []
-  let idx = 1
-  for (const raw of csv.split('\n')) {
-    const l = raw.trim()
-    if (!l || l.startsWith('#')) continue
-    const parts = l.split(',').map((p) => p.trim())
-    if (parts.length < 2) continue
-    const lat = parseFloat(parts[0])
-    const lon = parseFloat(parts[1])
-    if (isNaN(lat) || isNaN(lon)) continue
-    results.push({ name: `Location ${idx++}`, latitude: lat, longitude: lon })
-  }
-  return results
 }
 
 export default function App() {
