@@ -435,9 +435,6 @@ export default function ControlPanel({
                   className="accent-sky-500 h-4 w-4"
                 />
                 <span className="text-sm text-slate-200">Show wildfires</span>
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-300 bg-amber-400/15 rounded px-1.5 py-0.5">
-                  US only
-                </span>
               </label>
               <p className="text-xs text-slate-500 mt-1">
                 Red shading marks active U.S. wildfire perimeters (NIFC). Hover a fire for its size,
