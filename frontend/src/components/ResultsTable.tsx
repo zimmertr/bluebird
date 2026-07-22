@@ -43,6 +43,8 @@ interface Props {
   // rows, outside the sort and the analysis limit. Clicking a row's 📍 unpins it.
   pinned?: DestinationResult[]
   onUnpin?: (row: DestinationResult) => void
+  // Clicking a ranked row's number centers the map on that destination.
+  onFocusResult?: (row: DestinationResult) => void
 }
 
 export default function ResultsTable({
@@ -52,6 +54,7 @@ export default function ResultsTable({
   fireWarnings,
   pinned,
   onUnpin,
+  onFocusResult,
 }: Props) {
   const coloredGroup = new Set(METRIC_CONFIG[sortBy].group)
   const [sortKey, setSortKey] = useState<SortKey>(sortBy)
@@ -193,7 +196,16 @@ export default function ResultsTable({
               key={`${row.name}-${i}`}
               className="border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors"
             >
-              <td className="px-2 py-1.5 text-slate-500">{i + 1}</td>
+              <td className="px-2 py-1.5">
+                <button
+                  onClick={() => onFocusResult?.(row)}
+                  title="Center the map on this destination"
+                  aria-label={`Center map on ${row.name}`}
+                  className="text-slate-500 hover:text-sky-400 cursor-pointer tabular-nums"
+                >
+                  {i + 1}
+                </button>
+              </td>
               {rowCells(row)}
             </tr>
           ))}

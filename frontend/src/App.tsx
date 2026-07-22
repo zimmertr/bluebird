@@ -483,6 +483,7 @@ export default function App() {
                 fireWarnings={fireWarnings}
                 pinned={pinnedRows}
                 onUnpin={(row) => pinnedForecasts.removePlace(row.latitude, row.longitude)}
+                onFocusResult={(row) => mapRef.current?.focusResult(row)}
               />
             </div>
           </div>
