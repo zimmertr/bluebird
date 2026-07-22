@@ -52,6 +52,11 @@ docker compose logs -f
 
 Two suites: the frontend's pure logic under Vitest (`frontend/src/utils/*.test.ts`, e.g. URL state serialization in `urlState.ts` and marker colors in `colors.ts`), and the backend under pytest (`backend/tests/`, covering weather/AQI aggregation, request validation, ranking/elevation filtering, upstream-error mapping, and the routes with the external APIs stubbed). CI validates via TypeScript typecheck, the Vitest unit tests, pytest, Python ruff lint, and a full Docker build.
 
+## Rules for every change
+
+- **Ship tests with behavior.** Any change to the frontend, backend, or anything else testable adds or updates coverage in the same PR — Vitest under `frontend/src/utils/*.test.ts` for frontend logic, pytest under `backend/tests/` for the backend (both run in Docker; commands above). A behavior change without a matching test is incomplete.
+- **Keep the CI/CD diagram current.** Any change that alters the deploy flow — a workflow in this repo or `bluebird-helm`, an image/chart/tag convention, or the `Kubernetes-Manifests` wiring — updates [`docs/CICD.md`](docs/CICD.md) in the same PR. That diagram spans two sibling repos (`bluebird-helm` and `Kubernetes-Manifests`), so flow changes made there come back here too; nothing enforces this automatically.
+
 ## Architecture
 
 Single container, multi-stage Docker build:
@@ -90,6 +95,8 @@ The SPA fetches only on an explicit Analyze click and renders results from a sna
 - `src/utils/fireProximity.ts` — pure point-to-perimeter distance math flagging results within 10 mi of an active fire; driven by `src/hooks/useFireProximity.ts`, which fetches NIFC around the result set after each analysis (independent of the overlay toggle, best-effort)
 
 ## CI/CD pipeline
+
+See [`docs/CICD.md`](docs/CICD.md) for the full end-to-end flow with diagrams (bluebird → bluebird-helm → Kubernetes-Manifests → Argo CD / Argo Rollouts, plus Docker Hub, Artifact Hub, and the PR preview environments). The summary below covers this repo's workflows.
 
 **PR checks** (`pr.yml`): runs on all non-main branches and PRs → TypeScript typecheck + Vitest, ruff lint, pytest (backend tests), Docker build (no push).
 

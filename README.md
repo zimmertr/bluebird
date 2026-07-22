@@ -332,6 +332,8 @@ Open-Meteo weather forecasts reach about 16 days out. Air-quality forecasts from
 
 Manifests live in a separate repo, `zimmertr/Kubernetes-Manifests`, under `public/bluebird/`, and ArgoCD picks them up automatically. The stack runs an Argo Rollout with a canary strategy, an Istio VirtualService and Gateway, and a cert-manager `Certificate` for `bluebirdforecast.com`, all managed with Kustomize.
 
+For the complete CI/CD picture — how a merge flows through GitHub Actions, Docker Hub, the `bluebird-helm` chart, Artifact Hub, and on to Argo CD, plus how per-PR preview environments spin up — see [`docs/CICD.md`](docs/CICD.md), which has Mermaid diagrams of each path.
+
 The release pipeline updates the image tag on merge to `main`, so a normal deploy needs nothing manual. To cut an image by hand:
 
 ```bash
