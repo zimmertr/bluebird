@@ -3,7 +3,7 @@ import maplibregl from 'maplibre-gl'
 import type { FilterSpecification } from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.
-import type { FeatureCollection } from 'geojson'
+import type { FeatureCollection, Point } from 'geojson'
 // maplibre-gl.css is imported in index.css under layer(base) — see comment there
 import { GeoPolygon, DestinationResult, SortBy } from '../types'
 import { markerColor } from '../utils/colors'
@@ -20,6 +20,7 @@ export interface MapViewHandle {
   finishDrawing: () => GeoPolygon | null
   cancelDrawing: () => void
   flyToPlace: (place: Place) => void
+  focusResult: (result: DestinationResult) => void
 }
 
 interface Props {
@@ -250,6 +251,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
     const vertexPopupRef = useRef<maplibregl.Popup | null>(null)
     const draggingVertexRef = useRef<number | null>(null)
     const firePopupRef = useRef<maplibregl.Popup | null>(null)
+    // The single popup opened by focusResult (table-rank click), tracked so
+    // repeated clicks replace it instead of stacking popups.
+    const resultPopupRef = useRef<maplibregl.Popup | null>(null)
     const fireAbortRef = useRef<AbortController | null>(null)
     // Flipped once the load handler has added every source/layer. A ref wouldn't
     // re-run the wildfire effect, so this is state — it lets a restored `fires=1`
@@ -285,6 +289,33 @@ const MapView = forwardRef<MapViewHandle, Props>(
           return
         }
         map.fitBounds(boundsAround(place, SEARCH_VIEW_MILES), { padding: 40, duration: 1500 })
+      },
+      // Center on a result (clicked from its rank in the table) and open the
+      // same popup a marker click gives. Rank is the analyzed order the markers
+      // are labeled with, so the popup matches the marker it lands on.
+      focusResult(result: DestinationResult) {
+        const map = mapRef.current
+        if (!map || !loadedRef.current) return
+        const center: [number, number] = [result.longitude, result.latitude]
+        map.flyTo({ center, zoom: Math.max(map.getZoom(), 10), duration: 800 })
+        resultPopupRef.current?.remove()
+        resultPopupRef.current = new maplibregl.Popup({ maxWidth: '240px' })
+          .setLngLat(center)
+          .setHTML(
+            resultPopupHtml({
+              rank: results.indexOf(result) + 1,
+              name: result.name,
+              elevationFt: result.elevation_ft,
+              precipTotalIn: result.precip_total_in,
+              windAvgMph: result.wind_avg_mph,
+              tempAvgF: result.temp_avg_f,
+              aqiAvg: result.aqi_avg,
+              aqiMax: result.aqi_max,
+              longitude: result.longitude,
+              latitude: result.latitude,
+            }),
+          )
+          .addTo(map)
       },
     }))
 
@@ -685,18 +716,25 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
         // ── Results: popup + cursor ────────────────────────────────────
         map.on('click', 'results-circles', (e) => {
-          const props = e.features?.[0]?.properties
-          if (!props) return
+          const f = e.features?.[0]
+          if (!f?.properties) return
+          const p = f.properties
+          const [lng, lat] = (f.geometry as Point).coordinates
           new maplibregl.Popup({ maxWidth: '240px' })
-            .setLngLat(e.lngLat)
+            .setLngLat([lng, lat])
             .setHTML(
-              `<div style="font-family:sans-serif;font-size:13px;line-height:1.5">
-                <strong>#${props.rank} ${props.name}</strong>
-                ${props.elevation_ft != null ? `<br>Elevation: ${Number(props.elevation_ft).toLocaleString()} ft` : ''}
-                <br>Precip total: <strong>${Number(props.precip).toFixed(3)}"</strong>
-                <br>Wind avg: ${props.wind_avg} mph · Temp avg: ${props.temp_avg}°F
-                ${props.aqi_avg != null ? `<br>PM2.5 AQI avg: <strong>${props.aqi_avg}</strong> · max: ${props.aqi_max}` : ''}
-              </div>`,
+              resultPopupHtml({
+                rank: p.rank,
+                name: p.name,
+                elevationFt: p.elevation_ft ?? null,
+                precipTotalIn: p.precip,
+                windAvgMph: p.wind_avg,
+                tempAvgF: p.temp_avg,
+                aqiAvg: p.aqi_avg ?? null,
+                aqiMax: p.aqi_max ?? null,
+                longitude: lng,
+                latitude: lat,
+              }),
             )
             .addTo(map)
         })
@@ -848,6 +886,31 @@ function searchPinsFC(places: Place[]): FeatureCollection {
   }
 }
 
+// Popup body shared by a marker click and a table-rank click (focusResult), so
+// the two never drift. Values arrive raw; all formatting — and the coordinate
+// line — lives here.
+function resultPopupHtml(d: {
+  rank: number | string
+  name: string
+  elevationFt: number | null
+  precipTotalIn: number
+  windAvgMph: number
+  tempAvgF: number
+  aqiAvg: number | null
+  aqiMax: number | null
+  longitude: number
+  latitude: number
+}): string {
+  return `<div style="font-family:sans-serif;font-size:13px;line-height:1.5">
+    <strong>#${d.rank} ${d.name}</strong>
+    ${d.elevationFt != null ? `<br>Elevation: ${Number(d.elevationFt).toLocaleString()} ft` : ''}
+    <br>Precip total: <strong>${Number(d.precipTotalIn).toFixed(3)}"</strong>
+    <br>Wind avg: ${Number(d.windAvgMph).toFixed(1)} mph · Temp avg: ${Number(d.tempAvgF).toFixed(1)}°F
+    ${d.aqiAvg != null ? `<br>PM2.5 AQI avg: <strong>${d.aqiAvg}</strong> · max: ${d.aqiMax}` : ''}
+    <br>Coordinates: ${Number(d.latitude).toFixed(5)}, ${Number(d.longitude).toFixed(5)}
+  </div>`
+}
+
 function updateResults(map: maplibregl.Map, results: DestinationResult[], sortBy: SortBy) {
   setSource(map, 'results', {
     type: 'FeatureCollection',
@@ -862,8 +925,10 @@ function updateResults(map: maplibregl.Map, results: DestinationResult[], sortBy
         color: r[sortBy] == null ? '#64748b' : markerColor(r[sortBy] as number, sortBy),
         precip: r.precip_total_in,
         elevation_ft: r.elevation_ft,
-        wind_avg: r.wind_avg_mph.toFixed(1),
-        temp_avg: r.temp_avg_f.toFixed(1),
+        // Raw numbers; resultPopupHtml formats them (and the click handler reads
+        // them straight back from the feature, so they must stay numeric).
+        wind_avg: r.wind_avg_mph,
+        temp_avg: r.temp_avg_f,
         ...(r.aqi_avg != null ? { aqi_avg: r.aqi_avg, aqi_max: r.aqi_max } : {}),
       },
     })),
