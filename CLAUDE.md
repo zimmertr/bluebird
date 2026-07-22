@@ -33,6 +33,12 @@ docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine \
   sh -c "npm ci && npm test"
 ```
 
+**Backend unit tests (pytest) — run in Docker, not on the local machine:**
+```bash
+docker run --rm -v "$PWD/backend":/app -w /app python:3.12-slim \
+  sh -c "pip install -r requirements-dev.txt && pytest"
+```
+
 **Lint backend:**
 ```bash
 pip install ruff && ruff check backend/
@@ -44,7 +50,7 @@ docker compose up --build -d
 docker compose logs -f
 ```
 
-Test coverage is limited to the frontend's pure logic: `frontend/src/utils/*.test.ts` run under Vitest (e.g. URL state serialization in `urlState.ts`). CI validates via TypeScript typecheck, these Vitest unit tests, Python ruff lint, and a full Docker build. There are no backend tests.
+Two suites: the frontend's pure logic under Vitest (`frontend/src/utils/*.test.ts`, e.g. URL state serialization in `urlState.ts` and marker colors in `colors.ts`), and the backend under pytest (`backend/tests/`, covering weather/AQI aggregation, request validation, ranking/elevation filtering, upstream-error mapping, and the routes with the external APIs stubbed). CI validates via TypeScript typecheck, the Vitest unit tests, pytest, Python ruff lint, and a full Docker build.
 
 ## Architecture
 
@@ -85,7 +91,7 @@ The SPA fetches only on an explicit Analyze click and renders results from a sna
 
 ## CI/CD pipeline
 
-**PR checks** (`pr.yml`): runs on all non-main branches and PRs → TypeScript typecheck, ruff lint, Docker build (no push).
+**PR checks** (`pr.yml`): runs on all non-main branches and PRs → TypeScript typecheck + Vitest, ruff lint, pytest (backend tests), Docker build (no push).
 
 **Release** (`release.yml`): triggers on merge to `main` → GitVersion calculates SemVer from conventional commits → builds and pushes `zimmertr/bluebird:<semver>` to Docker Hub → creates GitHub release → updates `kustomization.yml` in the `zimmertr/Kubernetes-Manifests` repo, which ArgoCD auto-syncs.
 
