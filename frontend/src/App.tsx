@@ -16,6 +16,7 @@ import { useIsDesktop } from './hooks/useIsDesktop'
 import { GeoPolygon, DestinationType, SortBy } from './types'
 import { METRIC_CONFIG, MARKER_COLORS } from './utils/colors'
 import { parseCustomCsv } from './utils/customDestinations'
+import { clampPanelHeight } from './utils/layout'
 import { Place } from './utils/geocode'
 import { encodeState, decodeState, classifyWindow, resolveSearchWindow } from './utils/urlState'
 
@@ -91,15 +92,17 @@ export default function App() {
   // A vertical resize handle: drag up to grow the panel (stealing height from
   // the map above), down to shrink. Shared by the results table and the chart
   // band above it — each handle drags its own panel, the map absorbs the rest.
-  function resizeHandler(current: number, setHeight: (h: number) => void) {
+  // `reserved` is the height the map's other neighbor already claims (the
+  // sibling panel plus any preview banner), so a drag can't shrink the map below
+  // its floor and let the bottom-anchored map legend collide with the search box.
+  function resizeHandler(current: number, setHeight: (h: number) => void, reserved: number) {
     return (e: React.MouseEvent) => {
       e.preventDefault()
       const startY = e.clientY
       setIsDragging(true)
 
       function onMove(ev: MouseEvent) {
-        const next = Math.max(120, Math.min(current + (startY - ev.clientY), window.innerHeight - 150))
-        setHeight(next)
+        setHeight(clampPanelHeight(current, startY - ev.clientY, reserved, window.innerHeight))
       }
 
       function onUp() {
@@ -267,6 +270,11 @@ export default function App() {
   const chartTimes = analysisTimes.length ? analysisTimes : pinnedTimes
   const chartable = chartTimes.length > 0
   const chart = useChartSelection(results, pinnedRows, view.sortBy)
+  const chartShown = chartable && chart.selectedRows.length > 0
+
+  // Space below the map that a resize must leave alone: the preview banner (when
+  // present) plus whichever sibling panel isn't the one being dragged.
+  const bannerPx = preview.enabled ? 32 : 0
 
   return (
     <div className="flex flex-col h-dvh w-screen overflow-hidden bg-slate-900">
@@ -454,7 +462,7 @@ export default function App() {
           )}
         </div>
 
-        {chartable && chart.selectedRows.length > 0 && (
+        {chartShown && (
           <div
             className="flex h-56 flex-shrink-0 flex-col bg-slate-800 lg:h-auto"
             style={isDesktop ? { height: `${chartHeight}px` } : undefined}
@@ -463,7 +471,7 @@ export default function App() {
                 against the map above it, mirroring the results table below. */}
             {isDesktop && (
               <div
-                onMouseDown={resizeHandler(chartHeight, setChartHeight)}
+                onMouseDown={resizeHandler(chartHeight, setChartHeight, (showTable ? tableHeight : 0) + bannerPx)}
                 className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
               >
                 <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
@@ -501,7 +509,7 @@ export default function App() {
             {/* Drag handle — mouse-only, so desktop only */}
             {isDesktop && (
               <div
-                onMouseDown={resizeHandler(tableHeight, setTableHeight)}
+                onMouseDown={resizeHandler(tableHeight, setTableHeight, (chartShown ? chartHeight : 0) + bannerPx)}
                 className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
               >
                 <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
