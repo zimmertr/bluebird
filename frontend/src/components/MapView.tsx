@@ -916,7 +916,7 @@ function resultPopupHtml(d: {
     longitude: d.longitude,
     osm_id: d.osmId,
   })
-  const linkIcon = `<a href="${url}" target="_blank" rel="noopener noreferrer" title="Open in Peakbagger / OpenStreetMap" style="color:#38bdf8;vertical-align:middle;margin-left:5px">
+  const linkIcon = `<a href="${url}" target="_blank" rel="noopener noreferrer" title="Open in Peakbagger / OpenStreetMap" style="color:#38bdf8;flex-shrink:0;display:inline-flex">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" aria-hidden="true">
         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
         <polyline points="15 3 21 3 21 9" />
@@ -924,12 +924,12 @@ function resultPopupHtml(d: {
       </svg>
     </a>`
   return `<div style="font-family:sans-serif;font-size:13px;line-height:1.5">
-    <strong>#${d.rank} ${d.name}</strong>${linkIcon}
-    ${d.elevationFt != null ? `<br>Elevation: ${Number(d.elevationFt).toLocaleString()} ft` : ''}
-    <br>Precip total: <strong>${Number(d.precipTotalIn).toFixed(3)}"</strong>
-    <br>Wind avg: ${Number(d.windAvgMph).toFixed(1)} mph · Temp avg: ${Number(d.tempAvgF).toFixed(1)}°F
-    ${d.aqiAvg != null ? `<br>PM2.5 AQI avg: <strong>${d.aqiAvg}</strong> · max: ${d.aqiMax}` : ''}
-    <br>Coordinates: ${Number(d.latitude).toFixed(5)}, ${Number(d.longitude).toFixed(5)}
+    <div style="display:flex;align-items:center;gap:6px"><strong>#${d.rank} ${d.name}</strong>${linkIcon}</div>
+    ${d.elevationFt != null ? `<div>Elevation: ${Number(d.elevationFt).toLocaleString()} ft</div>` : ''}
+    <div>Precip total: <strong>${Number(d.precipTotalIn).toFixed(3)}"</strong></div>
+    <div>Wind avg: ${Number(d.windAvgMph).toFixed(1)} mph · Temp avg: ${Number(d.tempAvgF).toFixed(1)}°F</div>
+    ${d.aqiAvg != null ? `<div>PM2.5 AQI avg: <strong>${d.aqiAvg}</strong> · max: ${d.aqiMax}</div>` : ''}
+    <div>Coordinates: ${Number(d.latitude).toFixed(5)}, ${Number(d.longitude).toFixed(5)}</div>
   </div>`
 }
 
