@@ -259,10 +259,13 @@ export default function App() {
   const fireWarnings = useFireProximity(fireCheckRows)
 
   // Comparison-chart selection (checkboxes in the table → lines in the chart).
-  // Charting is available only once an analysis returns the shared hourly grid.
-  const chartTimes = response?.times ?? []
+  // The shared hourly grid comes from the analysis, or — when only searched
+  // places are pinned — from the pins themselves, so pins are chartable alone.
+  const analysisTimes = response?.times ?? []
+  const pinnedTimes = pinnedRows.find((r) => r.series_times?.length)?.series_times ?? []
+  const chartTimes = analysisTimes.length ? analysisTimes : pinnedTimes
   const chartable = chartTimes.length > 0
-  const chart = useChartSelection(results, view.sortBy)
+  const chart = useChartSelection(results, pinnedRows, view.sortBy)
 
   return (
     <div className="flex flex-col h-dvh w-screen overflow-hidden bg-slate-900">

@@ -51,6 +51,33 @@ export function rowsBetween(
   return ordered.slice(lo, hi + 1)
 }
 
+// Re-index a row's series onto the target grid by timestamp. Ranked rows share
+// the grid already (no series_times) and return unchanged; a pinned row carries
+// its own series_times and is remapped — grid hours the pin doesn't cover stay
+// null (gaps), so a pin fetched for a different window can't show wrong-time data.
+export function alignRowToGrid(row: DestinationResult, times: number[]): DestinationResult {
+  const st = row.series_times
+  if (!row.series || !st) return row
+  const pos = new Map<number, number>()
+  st.forEach((t, j) => {
+    if (!pos.has(t)) pos.set(t, j)
+  })
+  const remap = (arr: (number | null)[]): (number | null)[] =>
+    times.map((t) => {
+      const j = pos.get(t)
+      return j == null ? null : arr[j] ?? null
+    })
+  return {
+    ...row,
+    series: {
+      precip_in: remap(row.series.precip_in),
+      temp_f: remap(row.series.temp_f),
+      wind_mph: remap(row.series.wind_mph),
+      aqi: remap(row.series.aqi),
+    },
+  }
+}
+
 export function valueAt(row: DestinationResult, metric: ChartMetric, i: number): number | null {
   const arr = row.series ? row.series[SERIES_FIELD[metric]] : undefined
   const v = arr ? arr[i] : null

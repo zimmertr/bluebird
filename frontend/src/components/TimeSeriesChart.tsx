@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   CartesianGrid,
   Line,
@@ -12,6 +12,7 @@ import { DestinationResult } from '../types'
 import {
   CHART_METRICS,
   ChartMetric,
+  alignRowToGrid,
   buildChartData,
   chartKey,
   computeYDomain,
@@ -50,17 +51,20 @@ export default function TimeSeriesChart({
   const [focusedKey, setFocusedKey] = useState<string | null>(null)
   const [cursorValue, setCursorValue] = useState<number | null>(null)
 
-  const data = buildChartData(times, rows, metric)
-  const [yMin, yMax] = computeYDomain(rows, metric)
+  // Align each series onto the active grid by timestamp — a no-op for ranked
+  // rows; a pinned row may have been fetched for a different window.
+  const aligned = useMemo(() => rows.map((r) => alignRowToGrid(r, times)), [rows, times])
+  const data = buildChartData(times, aligned, metric)
+  const [yMin, yMax] = computeYDomain(aligned, metric)
 
   // Render the focused line last (on top) with siblings dimmed. One nearest-line
   // computation feeds both the line emphasis and the tooltip ordering.
   const ordered = focusedKey
     ? [
-        ...rows.filter((r) => chartKey(r) !== focusedKey),
-        ...rows.filter((r) => chartKey(r) === focusedKey),
+        ...aligned.filter((r) => chartKey(r) !== focusedKey),
+        ...aligned.filter((r) => chartKey(r) === focusedKey),
       ]
-    : rows
+    : aligned
 
   function handleMove(state: any) {
     const idx = state?.activeTooltipIndex
@@ -74,7 +78,7 @@ export default function TimeSeriesChart({
     }
     const cv = pixelToValue(py, MARGIN.top, plotHeight, yMin, yMax)
     const valuesByKey: Record<string, number | null> = {}
-    for (const row of rows) valuesByKey[chartKey(row)] = valueAt(row, metric, idx)
+    for (const row of aligned) valuesByKey[chartKey(row)] = valueAt(row, metric, idx)
     setCursorValue(cv)
     setFocusedKey(nearestKey(valuesByKey, cv))
   }
@@ -107,7 +111,7 @@ export default function TimeSeriesChart({
 
       {/* Legend — swatch opens a color picker; × removes the line. */}
       <div className="flex flex-shrink-0 flex-wrap items-center gap-x-3 gap-y-0.5 px-3 pb-1">
-        {rows.map((row) => {
+        {aligned.map((row) => {
           const key = chartKey(row)
           const dim = focusedKey != null && focusedKey !== key
           return (
@@ -167,7 +171,7 @@ export default function TimeSeriesChart({
               content={(props: any) => (
                 <ChartTooltip
                   {...props}
-                  rows={rows}
+                  rows={aligned}
                   metric={metric}
                   colorFor={colorFor}
                   focusedKey={focusedKey}

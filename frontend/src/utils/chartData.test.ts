@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { DestinationResult, HourlySeries } from '../types'
 import {
+  alignRowToGrid,
   buildChartData,
   chartKey,
   computeYDomain,
@@ -133,5 +134,18 @@ describe('rowsBetween', () => {
 
   it('is empty when a key is not in the list', () => {
     expect(rowsBetween(ordered, 'missing', chartKey(c))).toEqual([])
+  })
+})
+
+describe('alignRowToGrid', () => {
+  it('returns a ranked row (no series_times) unchanged', () => {
+    const r = row('A', 1, { precip_in: [0.1, 0.2] })
+    expect(alignRowToGrid(r, [1000, 2000])).toBe(r)
+  })
+
+  it('remaps a pinned row onto the grid by timestamp, gapping non-overlap', () => {
+    const pin = { ...row('B', 2, { precip_in: [5, 6] }), series_times: [2000, 3000] }
+    const aligned = alignRowToGrid(pin, [1000, 2000, 3000])
+    expect(aligned.series?.precip_in).toEqual([null, 5, 6])
   })
 })

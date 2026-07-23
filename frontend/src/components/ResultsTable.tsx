@@ -264,7 +264,7 @@ export default function ResultsTable({
               key={`pin-${row.latitude},${row.longitude}`}
               className="border-t border-slate-700/50 bg-amber-400/10 hover:bg-amber-400/20 transition-colors"
             >
-              {showChartCol && <td className="px-2 py-1.5" />}
+              {showChartCol && <td className="px-2 py-1.5">{renderChartToggle(row)}</td>}
               {/* Matches the amber search pin on the map */}
               <td className="px-2 py-1.5">
                 <button

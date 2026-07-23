@@ -67,6 +67,11 @@ export interface DestinationResult {
   aqi_max: number | null
   // Hourly series backing the comparison chart, aligned to AnalyzeResponse.times.
   series?: HourlySeries | null
+  // Timestamps for `series` when the row came from its own analyze response
+  // (pinned search forecasts) — absent for ranked rows, which share the
+  // top-level times grid. Client-populated so the chart can align a pin's
+  // series onto the active grid by timestamp; never sent by the API.
+  series_times?: number[]
 }
 
 export interface AnalyzeResponse {

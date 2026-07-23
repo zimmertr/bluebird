@@ -7,7 +7,11 @@ import { colorForIndex } from '../utils/chartColors'
 // stable line colors (assigned on add, overridable via the legend picker), and
 // the active metric. Reset on each analysis — a fresh report starts clean, the
 // same way the table's column sort resets.
-export function useChartSelection(results: DestinationResult[], sortBy: SortBy) {
+export function useChartSelection(
+  results: DestinationResult[],
+  pinned: DestinationResult[],
+  sortBy: SortBy,
+) {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [colorByKey, setColorByKey] = useState<Record<string, string>>({})
   const [metric, setMetric] = useState<ChartMetric>(() => metricForSort(sortBy))
@@ -67,13 +71,13 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
 
   const selectedSet = useMemo(() => new Set(selectedKeys), [selectedKeys])
 
-  const selectedRows = useMemo(
-    () =>
-      selectedKeys
-        .map((k) => results.find((r) => chartKey(r) === k))
-        .filter((r): r is DestinationResult => r != null),
-    [selectedKeys, results],
-  )
+  // Ranked and pinned rows are both chartable; search either pool by key.
+  const selectedRows = useMemo(() => {
+    const pool = [...results, ...pinned]
+    return selectedKeys
+      .map((k) => pool.find((r) => chartKey(r) === k))
+      .filter((r): r is DestinationResult => r != null)
+  }, [selectedKeys, results, pinned])
 
   function isSelected(row: DestinationResult): boolean {
     return selectedSet.has(chartKey(row))
