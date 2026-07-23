@@ -405,6 +405,7 @@ export default function App() {
             onDrawUpdate={handleDrawUpdate}
             results={results}
             sortBy={view.sortBy}
+            fireWarnings={fireWarnings}
             showWildfires={showWildfires}
             searchPins={pinnedForecasts.places}
             minElevationFt={minElevationFt}
@@ -439,7 +440,7 @@ export default function App() {
                       className="inline-block w-3 h-3 rounded-sm border"
                       style={{ backgroundColor: 'rgba(220,38,38,0.35)', borderColor: '#b91c1c' }}
                     />
-                    <span className="text-[11px] text-slate-300">Active wildfire (NIFC)</span>
+                    <span className="text-[11px] text-slate-300">Active Wildfire</span>
                   </div>
                 </div>
               )}

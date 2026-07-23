@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { cellStyle, METRIC_CONFIG } from '../utils/colors'
 import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
+import { compareValues } from '../utils/sortResults'
 import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
 
@@ -96,16 +97,9 @@ export default function ResultsTable({
     }
   }
 
-  const sorted = [...results].sort((a, b) => {
-    const av = a[sortKey]
-    const bv = b[sortKey]
-    // Missing values (e.g. AQI beyond its forecast horizon) sort last either way
-    if (av == null && bv == null) return 0
-    if (av == null) return 1
-    if (bv == null) return -1
-    const cmp = av < bv ? -1 : av > bv ? 1 : 0
-    return sortDir === 'asc' ? cmp : -cmp
-  })
+  // Nulls sort last in both directions; string columns use numeric collation so
+  // a CSV numbered 1..100 reads in order. See compareValues.
+  const sorted = [...results].sort((a, b) => compareValues(a[sortKey], b[sortKey], sortDir))
 
   // The leading checkbox column only appears once an analysis has returned
   // series to chart; rows without series (e.g. pinned search forecasts) render

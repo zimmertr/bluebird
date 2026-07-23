@@ -7,7 +7,8 @@ import type { FeatureCollection, Point } from 'geojson'
 // maplibre-gl.css is imported in index.css under layer(base) — see comment there
 import { GeoPolygon, DestinationResult, SortBy } from '../types'
 import { markerColor } from '../utils/colors'
-import { destinationUrl } from '../utils/destinationUrl'
+import { resultPopupHtml } from '../utils/resultPopup'
+import { FireWarning, fireKey } from '../utils/fireProximity'
 import { Place, boundsAround } from '../utils/geocode'
 import {
   fetchWildfires,
@@ -30,6 +31,9 @@ interface Props {
   onDrawUpdate: (count: number, areaKm2: number | null) => void
   results: DestinationResult[]
   sortBy: SortBy
+  // Fire-proximity warnings keyed by fireKey(lat,lon), mirroring the results
+  // table — a clicked point's popup surfaces the same ⚠️ when one applies.
+  fireWarnings: Map<string, FireWarning>
   showWildfires: boolean
   // Pinned searched locations — one labeled amber dot each, kept in lockstep
   // with the pinned rows in the results table (unpinning removes the dot).
@@ -235,6 +239,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onDrawUpdate,
       results,
       sortBy,
+      fireWarnings,
       showWildfires,
       searchPins,
       minElevationFt,
@@ -256,6 +261,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // repeated clicks replace it instead of stacking popups.
     const resultPopupRef = useRef<maplibregl.Popup | null>(null)
     const fireAbortRef = useRef<AbortController | null>(null)
+    // Latest fire warnings for the marker-click handler, which is registered once
+    // in the load effect and would otherwise close over an empty map. focusResult
+    // reads the live prop directly (its imperative handle re-runs every render).
+    const fireWarningsRef = useRef(fireWarnings)
     // Flipped once the load handler has added every source/layer. A ref wouldn't
     // re-run the wildfire effect, so this is state — it lets a restored `fires=1`
     // link turn the overlay on as soon as the map is ready.
@@ -316,6 +325,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
               aqiMax: result.aqi_max,
               longitude: result.longitude,
               latitude: result.latitude,
+              warning: fireWarnings.get(fireKey(result.latitude, result.longitude)) ?? null,
             }),
           )
           .addTo(map)
@@ -739,6 +749,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
                 aqiMax: p.aqi_max ?? null,
                 longitude: lng,
                 latitude: lat,
+                warning: fireWarningsRef.current.get(fireKey(lat, lng)) ?? null,
               }),
             )
             .addTo(map)
@@ -798,6 +809,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
       pendingResultsRef.current = []
       updateResults(mapRef.current, results, sortBy)
     }, [results, sortBy])
+
+    // Keep the ref current so the once-registered marker-click popup reads live
+    // fire warnings (they arrive asynchronously, after a result set renders).
+    useEffect(() => {
+      fireWarningsRef.current = fireWarnings
+    }, [fireWarnings])
 
     // Amber dot + label per pinned search. Depends on mapReady (not a pending
     // ref) so pins land as soon as the sources/layers exist.
@@ -889,48 +906,6 @@ function searchPinsFC(places: Place[]): FeatureCollection {
       properties: { label: place.label },
     })),
   }
-}
-
-// Popup body shared by a marker click and a table-rank click (focusResult), so
-// the two never drift. Values arrive raw; all formatting — and the coordinate
-// line — lives here.
-function resultPopupHtml(d: {
-  rank: number | string
-  name: string
-  type: DestinationResult['type']
-  osmId: string | null
-  elevationFt: number | null
-  precipTotalIn: number
-  windAvgMph: number
-  tempAvgF: number
-  aqiAvg: number | null
-  aqiMax: number | null
-  longitude: number
-  latitude: number
-}): string {
-  // External link (Peakbagger for peaks, OSM otherwise) as a link icon to the
-  // right of the title, mirroring the results table's name cell.
-  const url = destinationUrl({
-    type: d.type,
-    latitude: d.latitude,
-    longitude: d.longitude,
-    osm_id: d.osmId,
-  })
-  const linkIcon = `<a href="${url}" target="_blank" rel="noopener noreferrer" title="Open in Peakbagger / OpenStreetMap" style="color:#38bdf8;flex-shrink:0;display:inline-flex">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" aria-hidden="true">
-        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-        <polyline points="15 3 21 3 21 9" />
-        <line x1="10" y1="14" x2="21" y2="3" />
-      </svg>
-    </a>`
-  return `<div style="font-family:sans-serif;font-size:13px;line-height:1.5">
-    <div style="display:flex;align-items:center;gap:6px"><strong>#${d.rank} ${d.name}</strong>${linkIcon}</div>
-    ${d.elevationFt != null ? `<div>Elevation: ${Number(d.elevationFt).toLocaleString()} ft</div>` : ''}
-    <div>Precip total: <strong>${Number(d.precipTotalIn).toFixed(3)}"</strong></div>
-    <div>Wind avg: ${Number(d.windAvgMph).toFixed(1)} mph · Temp avg: ${Number(d.tempAvgF).toFixed(1)}°F</div>
-    ${d.aqiAvg != null ? `<div>PM2.5 AQI avg: <strong>${d.aqiAvg}</strong> · max: ${d.aqiMax}</div>` : ''}
-    <div>Coordinates: ${Number(d.latitude).toFixed(5)}, ${Number(d.longitude).toFixed(5)}</div>
-  </div>`
 }
 
 function updateResults(map: maplibregl.Map, results: DestinationResult[], sortBy: SortBy) {
