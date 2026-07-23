@@ -10,6 +10,7 @@ import {
   nearestKey,
   pixelToValue,
   rowsBetween,
+  selectionState,
   valueAt,
 } from './chartData'
 
@@ -134,6 +135,29 @@ describe('rowsBetween', () => {
 
   it('is empty when a key is not in the list', () => {
     expect(rowsBetween(ordered, 'missing', chartKey(c))).toEqual([])
+  })
+})
+
+describe('selectionState', () => {
+  const a = row('A', 1, {})
+  const b = row('B', 2, {})
+  const c = row('C', 3, {})
+
+  it('is "all" when every row is selected', () => {
+    expect(selectionState([a, b, c], () => true)).toBe('all')
+  })
+
+  it('is "none" when no row is selected', () => {
+    expect(selectionState([a, b, c], () => false)).toBe('none')
+  })
+
+  it('is "some" for a partial selection', () => {
+    const on = new Set([chartKey(a)])
+    expect(selectionState([a, b, c], (r) => on.has(chartKey(r)))).toBe('some')
+  })
+
+  it('treats an empty set as "none"', () => {
+    expect(selectionState([], () => true)).toBe('none')
   })
 })
 

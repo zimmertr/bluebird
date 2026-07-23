@@ -78,6 +78,22 @@ export function alignRowToGrid(row: DestinationResult, times: number[]): Destina
   }
 }
 
+// Aggregate selection over the chartable rows for the header "select all" box:
+// 'all' when every row is charted, 'none' when none are, 'some' otherwise (the
+// checkbox's indeterminate dash). Empty input is 'none'. A click targets the
+// opposite of 'all' — select everything unless everything's already selected.
+export function selectionState(
+  rows: DestinationResult[],
+  isSelected: (row: DestinationResult) => boolean,
+): 'all' | 'some' | 'none' {
+  if (rows.length === 0) return 'none'
+  let selected = 0
+  for (const row of rows) if (isSelected(row)) selected++
+  if (selected === 0) return 'none'
+  if (selected === rows.length) return 'all'
+  return 'some'
+}
+
 export function valueAt(row: DestinationResult, metric: ChartMetric, i: number): number | null {
   const arr = row.series ? row.series[SERIES_FIELD[metric]] : undefined
   const v = arr ? arr[i] : null

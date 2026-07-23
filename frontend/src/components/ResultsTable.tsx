@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { cellStyle, METRIC_CONFIG } from '../utils/colors'
-import { chartKey, rowsBetween } from '../utils/chartData'
+import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
 import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
 
@@ -111,6 +111,14 @@ export default function ResultsTable({
   // series to chart; rows without series (e.g. pinned search forecasts) render
   // an empty cell so the columns stay aligned.
   const showChartCol = !!onToggleChart
+
+  // Every chartable row currently in the table — pinned search rows and ranked
+  // results alike — for the header "select all" box. Its state (all/some/none)
+  // drives both the checked mark and the indeterminate dash.
+  const chartableRows = showChartCol
+    ? [...(pinned ?? []), ...results].filter((r) => r.series)
+    : []
+  const headState = selectionState(chartableRows, (r) => isCharted?.(r) ?? false)
 
   function handleChartToggle(row: DestinationResult) {
     const shift = shiftHeldRef.current
@@ -242,7 +250,25 @@ export default function ResultsTable({
       <table className="min-w-full text-xs">
         <thead className="sticky top-0 bg-slate-700 z-10">
           <tr>
-            {showChartCol && <th className="w-6 px-2 py-2" aria-label="Chart" />}
+            {showChartCol && (
+              <th className="w-6 px-2 py-2">
+                {onChartRange && chartableRows.length > 0 && (
+                  <input
+                    type="checkbox"
+                    checked={headState === 'all'}
+                    ref={(el) => {
+                      // `indeterminate` is a DOM property, not an attribute, so
+                      // React can't set it via a prop — sync it on every render.
+                      if (el) el.indeterminate = headState === 'some'
+                    }}
+                    onChange={() => onChartRange(chartableRows, headState !== 'all')}
+                    title="Add or remove every destination on the comparison chart"
+                    aria-label="Chart all destinations"
+                    className="h-3.5 w-3.5 cursor-pointer align-middle accent-sky-500"
+                  />
+                )}
+              </th>
+            )}
             <th className="px-2 py-2 text-left text-slate-400 font-medium w-6">#</th>
             {COLUMNS.map((col) => (
               <th
