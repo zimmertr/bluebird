@@ -123,6 +123,17 @@ class AnalyzeRequest(BaseModel):
         return self
 
 
+class HourlySeries(BaseModel):
+    # Per-hour values over the analyzed window, aligned index-for-index to
+    # AnalyzeResponse.times. Nulls are gaps — a value missing at that hour
+    # (e.g. AQI past its ~5-day horizon) — and render as a break in the chart
+    # line, never an interpolated segment.
+    precip_in: List[Optional[float]]
+    temp_f: List[Optional[float]]
+    wind_mph: List[Optional[float]]
+    aqi: List[Optional[int]]
+
+
 class DestinationResult(BaseModel):
     name: str
     type: str
@@ -143,9 +154,17 @@ class DestinationResult(BaseModel):
     # extends ~5 days out (vs ~16 for weather) and the fetch is best-effort.
     aqi_avg: Optional[int] = None
     aqi_max: Optional[int] = None
+    # Hourly series backing the comparison chart, aligned to
+    # AnalyzeResponse.times. Present for every ranked row; None only for a row
+    # whose upstream forecast carried no in-window hours.
+    series: Optional[HourlySeries] = None
 
 
 class AnalyzeResponse(BaseModel):
     results: List[DestinationResult]
     total_queried: int
     error: Optional[str] = None
+    # Shared hourly grid for every row's `series`, as epoch milliseconds (UTC).
+    # Sent once — it is identical across destinations for a given window — and
+    # rendered in the viewer's local time client-side.
+    times: List[int] = []

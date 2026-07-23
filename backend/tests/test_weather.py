@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.services.weather import (
     _metrics,
     _naive,
     _parse_ts,
+    _series,
     fetch_weather_batch,
 )
 
@@ -124,3 +125,57 @@ def test_naive_strips_timezone():
 
 async def test_fetch_weather_batch_empty_returns_empty():
     assert await fetch_weather_batch([], START, END) == []
+
+
+# ── _series (hourly bake-in for the chart) ─────────────────────────────────
+
+
+def test_series_keeps_every_hour_and_preserves_nulls_per_metric():
+    # Unlike _metrics (which drops a whole hour on any null), _series keeps all
+    # in-window hours and preserves each metric's nulls independently.
+    data = _hourly(
+        ["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00"],
+        [0.1, None, 0.3],
+        [50.0, 52.0, None],
+        [5.0, 7.0, 9.0],
+    )
+    s = _series(data, START, END)
+    assert s["precip_in"] == [0.1, None, 0.3]
+    assert s["temp_f"] == [50.0, 52.0, None]
+    assert s["wind_mph"] == [5.0, 7.0, 9.0]
+    assert len(s["times"]) == 3
+
+
+def test_series_times_are_utc_epoch_ms():
+    data = _hourly(["2026-07-21T00:00"], [0.0], [50.0], [5.0])
+    s = _series(data, START, END)
+    expected = int(datetime(2026, 7, 21, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+    assert s["times"] == [expected]
+
+
+def test_series_excludes_out_of_window():
+    data = _hourly(
+        ["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00", "2026-07-21T03:00"],
+        [0.1, 0.2, 0.3, 99.0],
+        [50.0, 51.0, 52.0, 99.0],
+        [5.0, 6.0, 7.0, 99.0],
+    )
+    s = _series(data, START, END)
+    assert len(s["times"]) == 3
+    assert s["precip_in"] == [0.1, 0.2, 0.3]
+
+
+def test_series_rounds_like_metrics():
+    data = _hourly(["2026-07-21T00:00"], [0.1234567], [50.123456], [5.111111])
+    s = _series(data, START, END)
+    assert s["precip_in"] == [round(0.1234567, 4)]
+    assert s["temp_f"] == [round(50.123456, 1)]
+    assert s["wind_mph"] == [round(5.111111, 1)]
+
+
+def test_series_empty_window_returns_none():
+    assert _series(_hourly([], [], [], []), START, END) is None
+
+
+def test_series_malformed_payload_returns_none():
+    assert _series({"unexpected": True}, START, END) is None

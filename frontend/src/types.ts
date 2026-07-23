@@ -35,6 +35,16 @@ export interface AnalyzeRequest {
   max_elevation_ft?: number | null
 }
 
+// Per-hour values over the analyzed window, aligned index-for-index to
+// AnalyzeResponse.times. Nulls are gaps (a value missing at that hour, e.g. AQI
+// past its ~5-day horizon) and render as breaks in the chart line.
+export interface HourlySeries {
+  precip_in: (number | null)[]
+  temp_f: (number | null)[]
+  wind_mph: (number | null)[]
+  aqi: (number | null)[]
+}
+
 export interface DestinationResult {
   name: string
   type: string
@@ -55,10 +65,20 @@ export interface DestinationResult {
   // forecast horizon or the (best-effort) fetch failed
   aqi_avg: number | null
   aqi_max: number | null
+  // Hourly series backing the comparison chart, aligned to AnalyzeResponse.times.
+  series?: HourlySeries | null
+  // Timestamps for `series` when the row came from its own analyze response
+  // (pinned search forecasts) — absent for ranked rows, which share the
+  // top-level times grid. Client-populated so the chart can align a pin's
+  // series onto the active grid by timestamp; never sent by the API.
+  series_times?: number[]
 }
 
 export interface AnalyzeResponse {
   results: DestinationResult[]
   total_queried: number
   error?: string
+  // Shared hourly grid for every row's `series`, epoch milliseconds (UTC),
+  // rendered in the viewer's local time.
+  times?: number[]
 }

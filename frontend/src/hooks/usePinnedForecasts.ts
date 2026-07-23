@@ -62,7 +62,14 @@ export function usePinnedForecasts() {
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data: AnalyzeResponse = await res.json()
-      byKey = new Map(data.results.map((r) => [pinKey(r.latitude, r.longitude), r]))
+      // Carry the response's shared grid onto each pinned row so the chart can
+      // align its series (a pin may have been fetched for a different window).
+      byKey = new Map(
+        data.results.map((r) => [
+          pinKey(r.latitude, r.longitude),
+          { ...r, series_times: data.times },
+        ]),
+      )
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return
       console.warn('Pinned forecast fetch failed:', e)

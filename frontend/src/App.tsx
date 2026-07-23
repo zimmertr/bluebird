@@ -3,10 +3,12 @@ import MapView, { MapViewHandle } from './components/MapView'
 import ControlPanel from './components/ControlPanel'
 import SearchBox from './components/SearchBox'
 import ResultsTable from './components/ResultsTable'
+import TimeSeriesChart from './components/TimeSeriesChart'
 import WelcomeModal from './components/WelcomeModal'
 import PrivacyModal from './components/PrivacyModal'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
+import { useChartSelection } from './hooks/useChartSelection'
 import { useFireProximity } from './hooks/useFireProximity'
 import { usePinnedForecasts } from './hooks/usePinnedForecasts'
 import { usePreview } from './hooks/usePreview'
@@ -14,6 +16,7 @@ import { useIsDesktop } from './hooks/useIsDesktop'
 import { GeoPolygon, DestinationType, SortBy } from './types'
 import { METRIC_CONFIG, MARKER_COLORS } from './utils/colors'
 import { parseCustomCsv } from './utils/customDestinations'
+import { clampPanelHeight } from './utils/layout'
 import { Place } from './utils/geocode'
 import { encodeState, decodeState, classifyWindow, resolveSearchWindow } from './utils/urlState'
 
@@ -70,6 +73,7 @@ export default function App() {
   const [showWildfires, setShowWildfires] = useState(() => restored?.showWildfires ?? false)
   const [showResults, setShowResults] = useState(false)
   const [tableHeight, setTableHeight] = useState(280)
+  const [chartHeight, setChartHeight] = useState(288)
   const [isDragging, setIsDragging] = useState(false)
   const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('bluebird_welcomed'))
   // Privacy notice, opened from the controls footer. Rendered at the App root
@@ -85,29 +89,31 @@ export default function App() {
     localStorage.setItem('bluebird_welcomed', '1')
     setShowWelcome(false)
   }
-  const dragState = useRef<{ startY: number; startH: number } | null>(null)
+  // A vertical resize handle: drag up to grow the panel (stealing height from
+  // the map above), down to shrink. Shared by the results table and the chart
+  // band above it — each handle drags its own panel, the map absorbs the rest.
+  // `reserved` is the height the map's other neighbor already claims (the
+  // sibling panel plus any preview banner), so a drag can't shrink the map below
+  // its floor and let the bottom-anchored map legend collide with the search box.
+  function resizeHandler(current: number, setHeight: (h: number) => void, reserved: number) {
+    return (e: React.MouseEvent) => {
+      e.preventDefault()
+      const startY = e.clientY
+      setIsDragging(true)
 
-  function handleDragStart(e: React.MouseEvent) {
-    e.preventDefault()
-    dragState.current = { startY: e.clientY, startH: tableHeight }
-    setIsDragging(true)
+      function onMove(ev: MouseEvent) {
+        setHeight(clampPanelHeight(current, startY - ev.clientY, reserved, window.innerHeight))
+      }
 
-    function onMove(e: MouseEvent) {
-      if (!dragState.current) return
-      const delta = dragState.current.startY - e.clientY
-      const next = Math.max(120, Math.min(dragState.current.startH + delta, window.innerHeight - 150))
-      setTableHeight(next)
+      function onUp() {
+        setIsDragging(false)
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onUp)
+      }
+
+      document.addEventListener('mousemove', onMove)
+      document.addEventListener('mouseup', onUp)
     }
-
-    function onUp() {
-      dragState.current = null
-      setIsDragging(false)
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-    }
-
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
   }
 
   const { analyze, cancel, retry, analyzed, loading, error, response, statusMessage, progress } = useAnalyze()
@@ -256,6 +262,20 @@ export default function App() {
   const fireCheckRows = useMemo(() => [...results, ...pinnedRows], [results, pinnedRows])
   const fireWarnings = useFireProximity(fireCheckRows)
 
+  // Comparison-chart selection (checkboxes in the table → lines in the chart).
+  // The shared hourly grid comes from the analysis, or — when only searched
+  // places are pinned — from the pins themselves, so pins are chartable alone.
+  const analysisTimes = response?.times ?? []
+  const pinnedTimes = pinnedRows.find((r) => r.series_times?.length)?.series_times ?? []
+  const chartTimes = analysisTimes.length ? analysisTimes : pinnedTimes
+  const chartable = chartTimes.length > 0
+  const chart = useChartSelection(results, pinnedRows, view.sortBy)
+  const chartShown = chartable && chart.selectedRows.length > 0
+
+  // Space below the map that a resize must leave alone: the preview banner (when
+  // present) plus whichever sibling panel isn't the one being dragged.
+  const bannerPx = preview.enabled ? 32 : 0
+
   return (
     <div className="flex flex-col h-dvh w-screen overflow-hidden bg-slate-900">
       {preview.enabled && <PreviewBanner pr={preview.pr} commit={preview.commit} />}
@@ -385,6 +405,7 @@ export default function App() {
             onDrawUpdate={handleDrawUpdate}
             results={results}
             sortBy={view.sortBy}
+            fireWarnings={fireWarnings}
             showWildfires={showWildfires}
             searchPins={pinnedForecasts.places}
             minElevationFt={minElevationFt}
@@ -419,7 +440,7 @@ export default function App() {
                       className="inline-block w-3 h-3 rounded-sm border"
                       style={{ backgroundColor: 'rgba(220,38,38,0.35)', borderColor: '#b91c1c' }}
                     />
-                    <span className="text-[11px] text-slate-300">Active wildfire (NIFC)</span>
+                    <span className="text-[11px] text-slate-300">Active Wildfire</span>
                   </div>
                 </div>
               )}
@@ -442,6 +463,45 @@ export default function App() {
           )}
         </div>
 
+        {chartShown && (
+          <div
+            className="flex h-56 flex-shrink-0 flex-col bg-slate-800 lg:h-auto"
+            style={isDesktop ? { height: `${chartHeight}px` } : undefined}
+          >
+            {/* Drag handle — mouse-only, so desktop only. Resizes the chart band
+                against the map above it, mirroring the results table below. */}
+            {isDesktop && (
+              <div
+                onMouseDown={resizeHandler(chartHeight, setChartHeight, (showTable ? tableHeight : 0) + bannerPx)}
+                className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
+              >
+                <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
+              </div>
+            )}
+            <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-600 bg-slate-700 px-3 py-1">
+              <span className="text-xs font-semibold text-white">
+                Forecast comparison — {chart.selectedRows.length} selected
+              </span>
+              <button
+                onClick={chart.clear}
+                className="px-1 text-xs text-slate-400 hover:text-white"
+              >
+                Clear
+              </button>
+            </div>
+            <div className="min-h-0 flex-1">
+              <TimeSeriesChart
+                times={chartTimes}
+                rows={chart.selectedRows}
+                metric={chart.metric}
+                onMetricChange={chart.setMetric}
+                colorFor={chart.colorFor}
+                onSetColor={chart.setColor}
+                onRemove={chart.toggle}
+              />
+            </div>
+          </div>
+        )}
         {showTable && (
           <div
             className="flex-shrink-0 bg-slate-800 flex flex-col h-[55dvh] lg:h-auto"
@@ -450,7 +510,7 @@ export default function App() {
             {/* Drag handle — mouse-only, so desktop only */}
             {isDesktop && (
               <div
-                onMouseDown={handleDragStart}
+                onMouseDown={resizeHandler(tableHeight, setTableHeight, (chartShown ? chartHeight : 0) + bannerPx)}
                 className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
               >
                 <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
@@ -484,6 +544,10 @@ export default function App() {
                 pinned={pinnedRows}
                 onUnpin={(row) => pinnedForecasts.removePlace(row.latitude, row.longitude)}
                 onFocusResult={(row) => mapRef.current?.focusResult(row)}
+                onToggleChart={chartable ? chart.toggle : undefined}
+                isCharted={chart.isSelected}
+                chartColor={chart.colorFor}
+                onChartRange={chartable ? chart.setRange : undefined}
               />
             </div>
           </div>

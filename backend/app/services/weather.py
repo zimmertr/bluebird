@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import httpx
@@ -124,7 +124,15 @@ async def _fetch_chunk(
 
     # Single location → object; multiple → array
     items = data if isinstance(data, list) else [data]
-    results = [_metrics(item, start_dt, end_dt) for item in items]
+    results: List[Optional[Dict[str, Any]]] = []
+    for item in items:
+        m = _metrics(item, start_dt, end_dt)
+        if m is not None:
+            # Carry the raw hourly series alongside the aggregates so the route
+            # can bake it into the response for the chart — one upstream fetch,
+            # no re-query. The aggregates in `_metrics` stay byte-for-byte.
+            m = {**m, "series": _series(item, start_dt, end_dt)}
+        results.append(m)
     log.trace("Open-Meteo batch returned %d result(s)", sum(1 for r in results if r is not None))  # type: ignore[attr-defined]
     return results
 
@@ -173,6 +181,48 @@ def _metrics(
         return None
 
 
+def _series(
+    data: Dict[str, Any],
+    start_dt: datetime,
+    end_dt: datetime,
+) -> Optional[Dict[str, Any]]:
+    """Per-hour precip/temp/wind over the window, aligned to a shared grid.
+
+    Unlike `_metrics` — which drops any hour missing a value and collapses the
+    rest into aggregates — this keeps every in-window hour and preserves each
+    metric's nulls independently (the chart renders them as line gaps). Returns
+    None only when the window contains no hours at all.
+    """
+    try:
+        hourly = data.get("hourly", {})
+        times = hourly.get("time", [])
+        precip = hourly.get("precipitation", [])
+        temp = hourly.get("temperature_2m", [])
+        wind = hourly.get("wind_speed_10m", [])
+
+        start = _naive(start_dt)
+        end = _naive(end_dt)
+
+        grid: List[int] = []
+        p_out: List[Optional[float]] = []
+        t_out: List[Optional[float]] = []
+        w_out: List[Optional[float]] = []
+        for i, ts in enumerate(times):
+            parsed = _parse_ts(ts)
+            if parsed is None or not (start <= parsed <= end):
+                continue
+            grid.append(_epoch_ms(parsed))
+            p_out.append(_round_or_none(_at(precip, i), 4))
+            t_out.append(_round_or_none(_at(temp, i), 1))
+            w_out.append(_round_or_none(_at(wind, i), 1))
+
+        if not grid:
+            return None
+        return {"times": grid, "precip_in": p_out, "temp_f": t_out, "wind_mph": w_out}
+    except Exception:
+        return None
+
+
 def _parse_ts(s: str) -> Optional[datetime]:
     try:
         return datetime.fromisoformat(s).replace(tzinfo=None)
@@ -182,3 +232,18 @@ def _parse_ts(s: str) -> Optional[datetime]:
 
 def _naive(dt: datetime) -> datetime:
     return dt.replace(tzinfo=None)
+
+
+def _epoch_ms(dt_naive: datetime) -> int:
+    # Open-Meteo times are UTC (we request timezone=UTC) and `_parse_ts` strips
+    # the tzinfo, so re-stamp UTC before converting to an unambiguous epoch the
+    # browser can render in the viewer's local zone.
+    return int(dt_naive.replace(tzinfo=timezone.utc).timestamp() * 1000)
+
+
+def _at(arr: List[Any], i: int) -> Optional[float]:
+    return arr[i] if i < len(arr) else None
+
+
+def _round_or_none(v: Optional[float], ndigits: int) -> Optional[float]:
+    return round(v, ndigits) if v is not None else None

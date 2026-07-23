@@ -47,4 +47,43 @@ describe('parseCustomCsv', () => {
   it('falls back to the coordinate pair when the name field is blank', () => {
     expect(parseCustomCsv('46.85, -121.76,   ')[0].name).toBe('46.85, -121.76')
   })
+
+  // The "Custom (CSV)" destination type must accept a real, full-sized paste.
+  // examples/bulger-list.csv (the Bulger List — Washington's 100 highest peaks)
+  // is the canonical example dataset; this feeds a representative slice of it
+  // through the parser to prove the destination type handles that data. The
+  // slice mirrors the real file's shape — a "#" header, a blank line, six-decimal
+  // coordinates, and an elevation comma embedded in every name — and the
+  // assertions are about parser behavior, not any particular peak's numbers.
+  describe('Custom (CSV) with example Bulger List data', () => {
+    const sample = [
+      "# The Bulger List — Washington's 100 highest peaks, ordered highest to lowest.",
+      '# into the "Custom (CSV)" destination type. Format: Latitude, Longitude, Name',
+      '',
+      '46.851731, -121.760395, 1. Mount Rainier (14,406 ft)',
+      '46.202494, -121.490746, 2. Mount Adams (12,280 ft)',
+      '48.111844, -121.114120, 5. Glacier Peak (10,550 ft)',
+      '48.507000, -120.488130, 22. Gardner Mountain (8,902 ft)',
+    ].join('\n')
+
+    it('skips the "#" header and blank lines, keeping only the data rows', () => {
+      const out = parseCustomCsv(sample)
+      expect(out).toHaveLength(4)
+      expect(out.some((d) => d.name.startsWith('#'))).toBe(false)
+    })
+
+    it('reads every data row as a finite coordinate pair', () => {
+      const out = parseCustomCsv(sample)
+      expect(out.every((d) => Number.isFinite(d.latitude) && Number.isFinite(d.longitude))).toBe(true)
+    })
+
+    it('keeps each name whole even though its elevation contains a comma', () => {
+      expect(parseCustomCsv(sample).map((d) => d.name)).toEqual([
+        '1. Mount Rainier (14,406 ft)',
+        '2. Mount Adams (12,280 ft)',
+        '5. Glacier Peak (10,550 ft)',
+        '22. Gardner Mountain (8,902 ft)',
+      ])
+    })
+  })
 })
