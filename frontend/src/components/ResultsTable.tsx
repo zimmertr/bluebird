@@ -43,7 +43,7 @@ interface Props {
   // rows, outside the sort and the analysis limit. Clicking a row's 📍 unpins it.
   pinned?: DestinationResult[]
   onUnpin?: (row: DestinationResult) => void
-  // Clicking a ranked row's number centers the map on that destination.
+  // Clicking a row's name centers the map on that destination.
   onFocusResult?: (row: DestinationResult) => void
 }
 
@@ -105,23 +105,48 @@ export default function ResultsTable({
         const warning = fireWarnings.get(fireKey(row.latitude, row.longitude))
         return (
           <td key={col.key} className={cellClass}>
-            {warning && (
-              <span
-                title={fireWarningText(warning)}
-                aria-label={fireWarningText(warning)}
-                className="mr-1 cursor-help"
+            <span className="flex items-center gap-1.5">
+              {warning && (
+                <span
+                  title={fireWarningText(warning)}
+                  aria-label={fireWarningText(warning)}
+                  className="cursor-help"
+                >
+                  ⚠️
+                </span>
+              )}
+              <button
+                onClick={() => onFocusResult?.(row)}
+                title="Center the map on this destination"
+                aria-label={`Center map on ${row.name}`}
+                className="text-sky-400 hover:text-sky-300 hover:underline cursor-pointer text-left"
               >
-                ⚠️
-              </span>
-            )}
-            <a
-              href={destinationUrl(row)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sky-400 hover:text-sky-300 hover:underline"
-            >
-              {display}
-            </a>
+                {display}
+              </button>
+              <a
+                href={destinationUrl(row)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open in Peakbagger / OpenStreetMap"
+                aria-label={`Open ${row.name} in an external map`}
+                className="shrink-0 text-slate-500 hover:text-sky-400"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-3.5 w-3.5"
+                  aria-hidden="true"
+                >
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  <polyline points="15 3 21 3 21 9" />
+                  <line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+              </a>
+            </span>
           </td>
         )
       }
@@ -196,16 +221,7 @@ export default function ResultsTable({
               key={`${row.name}-${i}`}
               className="border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors"
             >
-              <td className="px-2 py-1.5">
-                <button
-                  onClick={() => onFocusResult?.(row)}
-                  title="Center the map on this destination"
-                  aria-label={`Center map on ${row.name}`}
-                  className="text-slate-500 hover:text-sky-400 cursor-pointer tabular-nums"
-                >
-                  {i + 1}
-                </button>
-              </td>
+              <td className="px-2 py-1.5 text-slate-500 tabular-nums">{i + 1}</td>
               {rowCells(row)}
             </tr>
           ))}
