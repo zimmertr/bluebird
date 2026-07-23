@@ -3,10 +3,12 @@ import MapView, { MapViewHandle } from './components/MapView'
 import ControlPanel from './components/ControlPanel'
 import SearchBox from './components/SearchBox'
 import ResultsTable from './components/ResultsTable'
+import TimeSeriesChart from './components/TimeSeriesChart'
 import WelcomeModal from './components/WelcomeModal'
 import PrivacyModal from './components/PrivacyModal'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
+import { useChartSelection } from './hooks/useChartSelection'
 import { useFireProximity } from './hooks/useFireProximity'
 import { usePinnedForecasts } from './hooks/usePinnedForecasts'
 import { usePreview } from './hooks/usePreview'
@@ -256,6 +258,12 @@ export default function App() {
   const fireCheckRows = useMemo(() => [...results, ...pinnedRows], [results, pinnedRows])
   const fireWarnings = useFireProximity(fireCheckRows)
 
+  // Comparison-chart selection (checkboxes in the table → lines in the chart).
+  // Charting is available only once an analysis returns the shared hourly grid.
+  const chartTimes = response?.times ?? []
+  const chartable = chartTimes.length > 0
+  const chart = useChartSelection(results, view.sortBy)
+
   return (
     <div className="flex flex-col h-dvh w-screen overflow-hidden bg-slate-900">
       {preview.enabled && <PreviewBanner pr={preview.pr} commit={preview.commit} />}
@@ -442,6 +450,32 @@ export default function App() {
           )}
         </div>
 
+        {chartable && chart.selectedRows.length > 0 && (
+          <div className="flex h-56 flex-shrink-0 flex-col border-t border-slate-600 bg-slate-800 lg:h-72">
+            <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-600 bg-slate-700 px-3 py-1">
+              <span className="text-xs font-semibold text-white">
+                Forecast comparison — {chart.selectedRows.length} selected
+              </span>
+              <button
+                onClick={chart.clear}
+                className="px-1 text-xs text-slate-400 hover:text-white"
+              >
+                Clear
+              </button>
+            </div>
+            <div className="min-h-0 flex-1">
+              <TimeSeriesChart
+                times={chartTimes}
+                rows={chart.selectedRows}
+                metric={chart.metric}
+                onMetricChange={chart.setMetric}
+                colorFor={chart.colorFor}
+                onSetColor={chart.setColor}
+                onRemove={chart.toggle}
+              />
+            </div>
+          </div>
+        )}
         {showTable && (
           <div
             className="flex-shrink-0 bg-slate-800 flex flex-col h-[55dvh] lg:h-auto"
@@ -484,6 +518,9 @@ export default function App() {
                 pinned={pinnedRows}
                 onUnpin={(row) => pinnedForecasts.removePlace(row.latitude, row.longitude)}
                 onFocusResult={(row) => mapRef.current?.focusResult(row)}
+                onToggleChart={chartable ? chart.toggle : undefined}
+                isCharted={chart.isSelected}
+                chartColor={chart.colorFor}
               />
             </div>
           </div>

@@ -10,6 +10,8 @@ from app.main import app
 from app.models import AnalyzeRequest, DestinationResult, DestinationType, GeoPolygon
 from app.routes import analyze as analyze_mod
 from app.routes.analyze import (
+    _aligned_aqi,
+    _assemble,
     _filter_elevation,
     _noun,
     _sort_key,
@@ -219,7 +221,7 @@ def test_analyze_elevation_band_can_empty_results(stub_upstreams):
     }
     resp = client.post("/api/analyze", json=body)
     assert resp.status_code == 200
-    assert resp.json() == {"results": [], "total_queried": 0, "error": None}
+    assert resp.json() == {"results": [], "total_queried": 0, "error": None, "times": []}
 
 
 def test_analyze_over_peak_cap_is_400(monkeypatch, stub_upstreams):
@@ -271,3 +273,65 @@ def test_analyze_stream_custom_happy_path_emits_result(stub_upstreams):
     result_events = [e for e in events if e["type"] == "result"]
     assert len(result_events) == 1
     assert result_events[0]["data"]["total_queried"] == 2
+
+
+# ── _aligned_aqi / _assemble (series bake-in) ──────────────────────────────
+
+
+def test_aligned_aqi_none_series_is_all_null():
+    assert _aligned_aqi([1000, 2000, 3000], None) == [None, None, None]
+
+
+def test_aligned_aqi_maps_matching_hours_and_trails_null():
+    # AQI covers the first two grid hours; the third is past its horizon → null.
+    aqi_series = {"times": [1000, 2000], "aqi": [40, 55]}
+    assert _aligned_aqi([1000, 2000, 3000], aqi_series) == [40, 55, None]
+
+
+def _dest(name, lat):
+    return {"name": name, "latitude": lat, "longitude": 0.0, "elevation_ft": None, "osm_id": None}
+
+
+def _wx_series(precip_total, times, precip, temp, wind):
+    return {**_wx(precip_total), "series": {
+        "times": times, "precip_in": precip, "temp_f": temp, "wind_mph": wind,
+    }}
+
+
+def test_assemble_bakes_series_and_shares_the_time_grid():
+    times = [1000, 2000]
+    dests = [_dest("a", 1.0), _dest("b", 2.0)]
+    wx_list = [
+        _wx_series(0.1, times, [0.1, None], [50.0, 51.0], [5.0, 6.0]),
+        _wx_series(0.2, times, [0.2, 0.3], [40.0, 41.0], [7.0, 8.0]),
+    ]
+    aqi_list = [
+        {"aqi_avg": 40, "aqi_max": 55, "series": {"times": [1000], "aqi": [40]}},
+        None,
+    ]
+    results, out_times = _assemble(dests, wx_list, aqi_list, "custom")
+
+    assert out_times == times
+    a = results[0]
+    assert a.series.precip_in == [0.1, None]  # per-metric nulls survive as gaps
+    assert a.series.temp_f == [50.0, 51.0]
+    assert a.series.aqi == [40, None]         # AQI present at 1000, null past horizon
+    assert a.aqi_avg == 40                    # aggregates still flow through
+    # Second row had no AQI → all-null AQI series, but the row still has a series.
+    assert results[1].series.aqi == [None, None]
+    assert results[1].aqi_avg is None
+
+
+def test_assemble_without_series_degrades_to_none():
+    # Stubbed weather (aggregates only, no "series") → series is None and the
+    # shared grid is empty. This is exactly what the route stubs produce.
+    results, out_times = _assemble([_dest("a", 1.0)], [_wx(0.1)], [None], "custom")
+    assert out_times == []
+    assert results[0].series is None
+
+
+def test_assemble_drops_rows_with_no_weather():
+    results, _ = _assemble(
+        [_dest("a", 1.0), _dest("b", 2.0)], [None, _wx(0.2)], [None, None], "custom"
+    )
+    assert [r.name for r in results] == ["b"]

@@ -45,6 +45,12 @@ interface Props {
   onUnpin?: (row: DestinationResult) => void
   // Clicking a row's name centers the map on that destination.
   onFocusResult?: (row: DestinationResult) => void
+  // Chart selection. When onToggleChart is provided (the analysis carried
+  // series), each ranked row with series gets a checkbox that toggles it on the
+  // comparison chart, its accent tinted with the destination's line color.
+  onToggleChart?: (row: DestinationResult) => void
+  isCharted?: (row: DestinationResult) => boolean
+  chartColor?: (row: DestinationResult) => string
 }
 
 export default function ResultsTable({
@@ -55,6 +61,9 @@ export default function ResultsTable({
   pinned,
   onUnpin,
   onFocusResult,
+  onToggleChart,
+  isCharted,
+  chartColor,
 }: Props) {
   const coloredGroup = new Set(METRIC_CONFIG[sortBy].group)
   const [sortKey, setSortKey] = useState<SortKey>(sortBy)
@@ -87,6 +96,27 @@ export default function ResultsTable({
     const cmp = av < bv ? -1 : av > bv ? 1 : 0
     return sortDir === 'asc' ? cmp : -cmp
   })
+
+  // The leading checkbox column only appears once an analysis has returned
+  // series to chart; rows without series (e.g. pinned search forecasts) render
+  // an empty cell so the columns stay aligned.
+  const showChartCol = !!onToggleChart
+
+  function renderChartToggle(row: DestinationResult) {
+    if (!onToggleChart || !row.series) return null
+    const on = isCharted?.(row) ?? false
+    return (
+      <input
+        type="checkbox"
+        checked={on}
+        onChange={() => onToggleChart(row)}
+        title="Add to the comparison chart"
+        aria-label={`Chart ${row.name}`}
+        className="h-3.5 w-3.5 cursor-pointer align-middle accent-sky-500"
+        style={on && chartColor ? { accentColor: chartColor(row) } : undefined}
+      />
+    )
+  }
 
   // Everything after the rank cell, shared by ranked rows and the pinned row
   // so the searched point gets identical formatting, links, and cell colors.
@@ -181,6 +211,7 @@ export default function ResultsTable({
       <table className="min-w-full text-xs">
         <thead className="sticky top-0 bg-slate-700 z-10">
           <tr>
+            {showChartCol && <th className="w-6 px-2 py-2" aria-label="Chart" />}
             <th className="px-2 py-2 text-left text-slate-400 font-medium w-6">#</th>
             {COLUMNS.map((col) => (
               <th
@@ -202,6 +233,7 @@ export default function ResultsTable({
               key={`pin-${row.latitude},${row.longitude}`}
               className="border-t border-slate-700/50 bg-amber-400/10 hover:bg-amber-400/20 transition-colors"
             >
+              {showChartCol && <td className="px-2 py-1.5" />}
               {/* Matches the amber search pin on the map */}
               <td className="px-2 py-1.5">
                 <button
@@ -221,6 +253,7 @@ export default function ResultsTable({
               key={`${row.name}-${i}`}
               className="border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors"
             >
+              {showChartCol && <td className="px-2 py-1.5">{renderChartToggle(row)}</td>}
               <td className="px-2 py-1.5 text-slate-500 tabular-nums">{i + 1}</td>
               {rowCells(row)}
             </tr>
