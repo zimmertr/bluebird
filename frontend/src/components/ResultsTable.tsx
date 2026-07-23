@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { cellStyle, METRIC_CONFIG } from '../utils/colors'
+import { chartKey, rowsBetween } from '../utils/chartData'
 import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
 
@@ -51,6 +52,9 @@ interface Props {
   onToggleChart?: (row: DestinationResult) => void
   isCharted?: (row: DestinationResult) => boolean
   chartColor?: (row: DestinationResult) => string
+  // Shift-click range select: (de)select every chartable row in the run,
+  // matching the checked state the click produces.
+  onChartRange?: (rows: DestinationResult[], selected: boolean) => void
 }
 
 export default function ResultsTable({
@@ -64,10 +68,16 @@ export default function ResultsTable({
   onToggleChart,
   isCharted,
   chartColor,
+  onChartRange,
 }: Props) {
   const coloredGroup = new Set(METRIC_CONFIG[sortBy].group)
   const [sortKey, setSortKey] = useState<SortKey>(sortBy)
   const [sortDir, setSortDir] = useState<SortDir>(sortDesc ? 'desc' : 'asc')
+
+  // Shift-click range select: the checkbox last interacted with is the anchor;
+  // a shift-held click extends (de)selection to every chartable row between.
+  const shiftHeldRef = useRef(false)
+  const anchorRef = useRef<string | null>(null)
 
   // Each analysis is a fresh report: reset the column sort to the ranking that
   // produced it (sortBy/sortDesc are the analyzed snapshot, and `results` is a
@@ -102,6 +112,24 @@ export default function ResultsTable({
   // an empty cell so the columns stay aligned.
   const showChartCol = !!onToggleChart
 
+  function handleChartToggle(row: DestinationResult) {
+    const shift = shiftHeldRef.current
+    shiftHeldRef.current = false
+    const anchor = anchorRef.current
+    anchorRef.current = chartKey(row)
+
+    if (shift && anchor && onChartRange) {
+      // Apply the state this click produces (select or clear) to the whole run,
+      // in the current display order — what the user sees between the two boxes.
+      const range = rowsBetween(sorted, anchor, chartKey(row)).filter((r) => r.series)
+      if (range.length > 0) {
+        onChartRange(range, !(isCharted?.(row) ?? false))
+        return
+      }
+    }
+    onToggleChart?.(row)
+  }
+
   function renderChartToggle(row: DestinationResult) {
     if (!onToggleChart || !row.series) return null
     const on = isCharted?.(row) ?? false
@@ -109,8 +137,11 @@ export default function ResultsTable({
       <input
         type="checkbox"
         checked={on}
-        onChange={() => onToggleChart(row)}
-        title="Add to the comparison chart"
+        onClick={(e) => {
+          shiftHeldRef.current = e.shiftKey
+        }}
+        onChange={() => handleChartToggle(row)}
+        title="Add to the comparison chart (shift-click to select a range)"
         aria-label={`Chart ${row.name}`}
         className="h-3.5 w-3.5 cursor-pointer align-middle accent-sky-500"
         style={on && chartColor ? { accentColor: chartColor(row) } : undefined}

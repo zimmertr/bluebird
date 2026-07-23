@@ -36,6 +36,21 @@ export function chartKey(row: DestinationResult): string {
   return `${row.latitude},${row.longitude}`
 }
 
+// The inclusive run of rows between two chart keys in the given display order —
+// for shift-click range selection. Order-agnostic (anchor may be above or below
+// the target); empty if either key isn't in the list.
+export function rowsBetween(
+  ordered: DestinationResult[],
+  anchorKey: string,
+  targetKey: string,
+): DestinationResult[] {
+  const a = ordered.findIndex((r) => chartKey(r) === anchorKey)
+  const b = ordered.findIndex((r) => chartKey(r) === targetKey)
+  if (a === -1 || b === -1) return []
+  const [lo, hi] = a < b ? [a, b] : [b, a]
+  return ordered.slice(lo, hi + 1)
+}
+
 export function valueAt(row: DestinationResult, metric: ChartMetric, i: number): number | null {
   const arr = row.series ? row.series[SERIES_FIELD[metric]] : undefined
   const v = arr ? arr[i] : null

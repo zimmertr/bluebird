@@ -39,6 +39,32 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
     setColorByKey((cbk) => ({ ...cbk, [chartKey(row)]: hex }))
   }
 
+  // Add or remove a run of rows in one shot (shift-click range select). New
+  // additions get colors in list order, continuing the same monotonic sequence.
+  function setRange(rows: DestinationResult[], selected: boolean) {
+    const keys = rows.map(chartKey)
+    if (selected) {
+      setSelectedKeys((prev) => {
+        const have = new Set(prev)
+        return [...prev, ...keys.filter((k) => !have.has(k))]
+      })
+      setColorByKey((cbk) => {
+        const next = { ...cbk }
+        let n = Object.keys(next).length
+        for (const k of keys) {
+          if (!next[k]) {
+            next[k] = colorForIndex(n)
+            n++
+          }
+        }
+        return next
+      })
+    } else {
+      const remove = new Set(keys)
+      setSelectedKeys((prev) => prev.filter((k) => !remove.has(k)))
+    }
+  }
+
   const selectedSet = useMemo(() => new Set(selectedKeys), [selectedKeys])
 
   const selectedRows = useMemo(
@@ -61,5 +87,5 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
     setSelectedKeys([])
   }
 
-  return { selectedRows, isSelected, toggle, colorFor, setColor, clear, metric, setMetric }
+  return { selectedRows, isSelected, toggle, setRange, colorFor, setColor, clear, metric, setMetric }
 }

@@ -521,6 +521,7 @@ export default function App() {
                 onToggleChart={chartable ? chart.toggle : undefined}
                 isCharted={chart.isSelected}
                 chartColor={chart.colorFor}
+                onChartRange={chartable ? chart.setRange : undefined}
               />
             </div>
           </div>

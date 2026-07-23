@@ -8,6 +8,7 @@ import {
   metricForSort,
   nearestKey,
   pixelToValue,
+  rowsBetween,
   valueAt,
 } from './chartData'
 
@@ -111,5 +112,26 @@ describe('formatMetricValue', () => {
     expect(formatMetricValue(0.12345, 'precip')).toBe('0.123')
     expect(formatMetricValue(52.34, 'temp')).toBe('52.3')
     expect(formatMetricValue(87.6, 'aqi')).toBe('88')
+  })
+})
+
+describe('rowsBetween', () => {
+  const a = row('A', 1, {})
+  const b = row('B', 2, {})
+  const c = row('C', 3, {})
+  const d = row('D', 4, {})
+  const ordered = [a, b, c, d]
+
+  it('returns the inclusive range regardless of click direction', () => {
+    expect(rowsBetween(ordered, chartKey(b), chartKey(d)).map((r) => r.name)).toEqual(['B', 'C', 'D'])
+    expect(rowsBetween(ordered, chartKey(d), chartKey(b)).map((r) => r.name)).toEqual(['B', 'C', 'D'])
+  })
+
+  it('returns a single row when anchor equals target', () => {
+    expect(rowsBetween(ordered, chartKey(c), chartKey(c)).map((r) => r.name)).toEqual(['C'])
+  })
+
+  it('is empty when a key is not in the list', () => {
+    expect(rowsBetween(ordered, 'missing', chartKey(c))).toEqual([])
   })
 })
