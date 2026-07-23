@@ -109,42 +109,6 @@ export default function TimeSeriesChart({
         ))}
       </div>
 
-      {/* Legend — swatch opens a color picker; × removes the line. */}
-      <div className="flex flex-shrink-0 flex-wrap items-center gap-x-3 gap-y-0.5 px-3 pb-1">
-        {aligned.map((row) => {
-          const key = chartKey(row)
-          const dim = focusedKey != null && focusedKey !== key
-          return (
-            <span
-              key={key}
-              className={`flex items-center gap-1 text-xs ${dim ? 'opacity-40' : ''} ${
-                focusedKey === key ? 'font-semibold text-white' : 'text-slate-300'
-              }`}
-            >
-              <label className="relative inline-flex h-3 w-3 cursor-pointer" title="Change line color">
-                <span className="h-3 w-3 rounded-sm" style={{ backgroundColor: colorFor(row) }} />
-                <input
-                  type="color"
-                  value={colorFor(row)}
-                  onChange={(e) => onSetColor(row, e.target.value)}
-                  className="absolute inset-0 h-3 w-3 cursor-pointer opacity-0"
-                  aria-label={`Line color for ${row.name}`}
-                />
-              </label>
-              {row.name}
-              <button
-                onClick={() => onRemove(row)}
-                title="Remove from chart"
-                aria-label={`Remove ${row.name} from chart`}
-                className="leading-none text-slate-500 hover:text-slate-200"
-              >
-                ×
-              </button>
-            </span>
-          )
-        })}
-      </div>
-
       <div ref={plotRef} className="min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={MARGIN} onMouseMove={handleMove} onMouseLeave={handleLeave}>
@@ -198,6 +162,44 @@ export default function TimeSeriesChart({
             })}
           </LineChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* Legend below the plot — swatch opens a color picker, × removes the
+          line. Capped with an internal scrollbar so a large selection scrolls
+          rather than squeezing the chart out of the fixed-height band. */}
+      <div className="flex max-h-16 flex-shrink-0 flex-wrap items-center gap-x-3 gap-y-0.5 overflow-y-auto border-t border-slate-700 px-3 py-1 results-scrollbars">
+        {aligned.map((row) => {
+          const key = chartKey(row)
+          const dim = focusedKey != null && focusedKey !== key
+          return (
+            <span
+              key={key}
+              className={`flex items-center gap-1 text-xs ${dim ? 'opacity-40' : ''} ${
+                focusedKey === key ? 'font-semibold text-white' : 'text-slate-300'
+              }`}
+            >
+              <label className="relative inline-flex h-3 w-3 cursor-pointer" title="Change line color">
+                <span className="h-3 w-3 rounded-sm" style={{ backgroundColor: colorFor(row) }} />
+                <input
+                  type="color"
+                  value={colorFor(row)}
+                  onChange={(e) => onSetColor(row, e.target.value)}
+                  className="absolute inset-0 h-3 w-3 cursor-pointer opacity-0"
+                  aria-label={`Line color for ${row.name}`}
+                />
+              </label>
+              {row.name}
+              <button
+                onClick={() => onRemove(row)}
+                title="Remove from chart"
+                aria-label={`Remove ${row.name} from chart`}
+                className="leading-none text-slate-500 hover:text-slate-200"
+              >
+                ×
+              </button>
+            </span>
+          )
+        })}
       </div>
     </div>
   )

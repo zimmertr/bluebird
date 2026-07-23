@@ -72,6 +72,7 @@ export default function App() {
   const [showWildfires, setShowWildfires] = useState(() => restored?.showWildfires ?? false)
   const [showResults, setShowResults] = useState(false)
   const [tableHeight, setTableHeight] = useState(280)
+  const [chartHeight, setChartHeight] = useState(288)
   const [isDragging, setIsDragging] = useState(false)
   const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('bluebird_welcomed'))
   // Privacy notice, opened from the controls footer. Rendered at the App root
@@ -87,29 +88,29 @@ export default function App() {
     localStorage.setItem('bluebird_welcomed', '1')
     setShowWelcome(false)
   }
-  const dragState = useRef<{ startY: number; startH: number } | null>(null)
+  // A vertical resize handle: drag up to grow the panel (stealing height from
+  // the map above), down to shrink. Shared by the results table and the chart
+  // band above it — each handle drags its own panel, the map absorbs the rest.
+  function resizeHandler(current: number, setHeight: (h: number) => void) {
+    return (e: React.MouseEvent) => {
+      e.preventDefault()
+      const startY = e.clientY
+      setIsDragging(true)
 
-  function handleDragStart(e: React.MouseEvent) {
-    e.preventDefault()
-    dragState.current = { startY: e.clientY, startH: tableHeight }
-    setIsDragging(true)
+      function onMove(ev: MouseEvent) {
+        const next = Math.max(120, Math.min(current + (startY - ev.clientY), window.innerHeight - 150))
+        setHeight(next)
+      }
 
-    function onMove(e: MouseEvent) {
-      if (!dragState.current) return
-      const delta = dragState.current.startY - e.clientY
-      const next = Math.max(120, Math.min(dragState.current.startH + delta, window.innerHeight - 150))
-      setTableHeight(next)
+      function onUp() {
+        setIsDragging(false)
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onUp)
+      }
+
+      document.addEventListener('mousemove', onMove)
+      document.addEventListener('mouseup', onUp)
     }
-
-    function onUp() {
-      dragState.current = null
-      setIsDragging(false)
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-    }
-
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
   }
 
   const { analyze, cancel, retry, analyzed, loading, error, response, statusMessage, progress } = useAnalyze()
@@ -454,7 +455,20 @@ export default function App() {
         </div>
 
         {chartable && chart.selectedRows.length > 0 && (
-          <div className="flex h-56 flex-shrink-0 flex-col border-t border-slate-600 bg-slate-800 lg:h-72">
+          <div
+            className="flex h-56 flex-shrink-0 flex-col bg-slate-800 lg:h-auto"
+            style={isDesktop ? { height: `${chartHeight}px` } : undefined}
+          >
+            {/* Drag handle — mouse-only, so desktop only. Resizes the chart band
+                against the map above it, mirroring the results table below. */}
+            {isDesktop && (
+              <div
+                onMouseDown={resizeHandler(chartHeight, setChartHeight)}
+                className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
+              >
+                <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
+              </div>
+            )}
             <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-600 bg-slate-700 px-3 py-1">
               <span className="text-xs font-semibold text-white">
                 Forecast comparison — {chart.selectedRows.length} selected
@@ -487,7 +501,7 @@ export default function App() {
             {/* Drag handle — mouse-only, so desktop only */}
             {isDesktop && (
               <div
-                onMouseDown={handleDragStart}
+                onMouseDown={resizeHandler(tableHeight, setTableHeight)}
                 className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
               >
                 <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
