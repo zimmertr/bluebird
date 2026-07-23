@@ -739,7 +739,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
           const anchor = (f.geometry as Point).coordinates as [number, number]
           const lon = p.lon as number
           const lat = p.lat as number
-          new maplibregl.Popup({ maxWidth: '240px' })
+          // Track this popup in the same ref focusResult uses so only one result
+          // popup is ever open. Marker→marker already dismisses via the map's
+          // closeOnClick, but a table-name click (focusResult) fires no map click,
+          // so without a shared ref the marker popup would linger beside it.
+          resultPopupRef.current?.remove()
+          resultPopupRef.current = new maplibregl.Popup({ maxWidth: '240px' })
             .setLngLat(anchor)
             .setHTML(
               resultPopupHtml({
