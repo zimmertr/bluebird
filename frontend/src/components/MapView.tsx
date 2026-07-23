@@ -6,7 +6,7 @@ import type { FilterSpecification } from 'maplibre-gl'
 import type { FeatureCollection, Point } from 'geojson'
 // maplibre-gl.css is imported in index.css under layer(base) — see comment there
 import { GeoPolygon, DestinationResult, SortBy } from '../types'
-import { markerColor } from '../utils/colors'
+import { resultsFeatureCollection } from '../utils/resultFeatures'
 import { resultPopupHtml } from '../utils/resultPopup'
 import { FireWarning, fireKey } from '../utils/fireProximity'
 import { Place, boundsAround } from '../utils/geocode'
@@ -732,9 +732,15 @@ const MapView = forwardRef<MapViewHandle, Props>(
           const f = e.features?.[0]
           if (!f?.properties) return
           const p = f.properties
-          const [lng, lat] = (f.geometry as Point).coordinates
+          // Anchor the popup at the rendered geometry, but take the exact
+          // coordinates from properties for the readout and the fireKey lookup —
+          // a clicked feature's geometry is snapped to the tile grid, so it won't
+          // reliably match the warning map keyed on exact coordinates.
+          const anchor = (f.geometry as Point).coordinates as [number, number]
+          const lon = p.lon as number
+          const lat = p.lat as number
           new maplibregl.Popup({ maxWidth: '240px' })
-            .setLngLat([lng, lat])
+            .setLngLat(anchor)
             .setHTML(
               resultPopupHtml({
                 rank: p.rank,
@@ -747,9 +753,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
                 tempAvgF: p.temp_avg,
                 aqiAvg: p.aqi_avg ?? null,
                 aqiMax: p.aqi_max ?? null,
-                longitude: lng,
+                longitude: lon,
                 latitude: lat,
-                warning: fireWarningsRef.current.get(fireKey(lat, lng)) ?? null,
+                warning: fireWarningsRef.current.get(fireKey(lat, lon)) ?? null,
               }),
             )
             .addTo(map)
@@ -909,29 +915,5 @@ function searchPinsFC(places: Place[]): FeatureCollection {
 }
 
 function updateResults(map: maplibregl.Map, results: DestinationResult[], sortBy: SortBy) {
-  setSource(map, 'results', {
-    type: 'FeatureCollection',
-    features: results.map((r, i) => ({
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [r.longitude, r.latitude] },
-      properties: {
-        name: r.name,
-        rank: String(i + 1),
-        // Carried through so the popup's external link (destinationUrl) can be
-        // built on a marker click, matching the table's name-cell link.
-        type: r.type,
-        ...(r.osm_id != null ? { osm_id: r.osm_id } : {}),
-        // Sorting by AQI can hit rows with no AQI data (beyond its ~5-day
-        // horizon) — those get a neutral gray instead of a metric color.
-        color: r[sortBy] == null ? '#64748b' : markerColor(r[sortBy] as number, sortBy),
-        precip: r.precip_total_in,
-        elevation_ft: r.elevation_ft,
-        // Raw numbers; resultPopupHtml formats them (and the click handler reads
-        // them straight back from the feature, so they must stay numeric).
-        wind_avg: r.wind_avg_mph,
-        temp_avg: r.temp_avg_f,
-        ...(r.aqi_avg != null ? { aqi_avg: r.aqi_avg, aqi_max: r.aqi_max } : {}),
-      },
-    })),
-  })
+  setSource(map, 'results', resultsFeatureCollection(results, sortBy))
 }
