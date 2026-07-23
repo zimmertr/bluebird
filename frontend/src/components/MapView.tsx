@@ -7,6 +7,7 @@ import type { FeatureCollection, Point } from 'geojson'
 // maplibre-gl.css is imported in index.css under layer(base) — see comment there
 import { GeoPolygon, DestinationResult, SortBy } from '../types'
 import { markerColor } from '../utils/colors'
+import { destinationUrl } from '../utils/destinationUrl'
 import { Place, boundsAround } from '../utils/geocode'
 import {
   fetchWildfires,
@@ -305,6 +306,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
             resultPopupHtml({
               rank: results.indexOf(result) + 1,
               name: result.name,
+              type: result.type,
+              osmId: result.osm_id ?? null,
               elevationFt: result.elevation_ft,
               precipTotalIn: result.precip_total_in,
               windAvgMph: result.wind_avg_mph,
@@ -726,6 +729,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
               resultPopupHtml({
                 rank: p.rank,
                 name: p.name,
+                type: p.type,
+                osmId: p.osm_id ?? null,
                 elevationFt: p.elevation_ft ?? null,
                 precipTotalIn: p.precip,
                 windAvgMph: p.wind_avg,
@@ -892,6 +897,8 @@ function searchPinsFC(places: Place[]): FeatureCollection {
 function resultPopupHtml(d: {
   rank: number | string
   name: string
+  type: DestinationResult['type']
+  osmId: string | null
   elevationFt: number | null
   precipTotalIn: number
   windAvgMph: number
@@ -901,8 +908,23 @@ function resultPopupHtml(d: {
   longitude: number
   latitude: number
 }): string {
+  // External link (Peakbagger for peaks, OSM otherwise) as a link icon to the
+  // right of the title, mirroring the results table's name cell.
+  const url = destinationUrl({
+    type: d.type,
+    latitude: d.latitude,
+    longitude: d.longitude,
+    osm_id: d.osmId,
+  })
+  const linkIcon = `<a href="${url}" target="_blank" rel="noopener noreferrer" title="Open in Peakbagger / OpenStreetMap" style="color:#38bdf8;vertical-align:middle;margin-left:5px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" aria-hidden="true">
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+        <polyline points="15 3 21 3 21 9" />
+        <line x1="10" y1="14" x2="21" y2="3" />
+      </svg>
+    </a>`
   return `<div style="font-family:sans-serif;font-size:13px;line-height:1.5">
-    <strong>#${d.rank} ${d.name}</strong>
+    <strong>#${d.rank} ${d.name}</strong>${linkIcon}
     ${d.elevationFt != null ? `<br>Elevation: ${Number(d.elevationFt).toLocaleString()} ft` : ''}
     <br>Precip total: <strong>${Number(d.precipTotalIn).toFixed(3)}"</strong>
     <br>Wind avg: ${Number(d.windAvgMph).toFixed(1)} mph · Temp avg: ${Number(d.tempAvgF).toFixed(1)}°F
@@ -920,6 +942,10 @@ function updateResults(map: maplibregl.Map, results: DestinationResult[], sortBy
       properties: {
         name: r.name,
         rank: String(i + 1),
+        // Carried through so the popup's external link (destinationUrl) can be
+        // built on a marker click, matching the table's name-cell link.
+        type: r.type,
+        ...(r.osm_id != null ? { osm_id: r.osm_id } : {}),
         // Sorting by AQI can hit rows with no AQI data (beyond its ~5-day
         // horizon) — those get a neutral gray instead of a metric color.
         color: r[sortBy] == null ? '#64748b' : markerColor(r[sortBy] as number, sortBy),
