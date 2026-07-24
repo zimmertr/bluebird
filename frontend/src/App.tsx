@@ -17,6 +17,7 @@ import { GeoPolygon, DestinationType, SortBy } from './types'
 import { METRIC_CONFIG, MARKER_COLORS } from './utils/colors'
 import { parseCustomCsv } from './utils/customDestinations'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
+import { analyzeOverlay } from './utils/analyzeOverlay'
 import { Place } from './utils/geocode'
 import { encodeState, decodeState, classifyWindow, resolveSearchWindow } from './utils/urlState'
 
@@ -154,18 +155,24 @@ export default function App() {
   const view = analyzed ?? { sortBy, sortDesc }
   const preview = usePreview()
 
-  // Elapsed-time counter for phases with no countable progress (the OSM search).
-  // Runs while loading but before the weather phase reports batch progress.
+  // The loading overlay reports whichever work is in flight: the streaming
+  // ranked analysis, or — on a pins-only Analyze — the silent pin refresh that
+  // otherwise gave no feedback. A ranked analysis wins when both run at once.
+  const overlay = analyzeOverlay(loading, statusMessage, pinnedForecasts.loading)
+
+  // Elapsed-time counter for phases with no countable progress (the OSM search,
+  // and the pins-only refresh). Runs whenever the overlay is up but no batch
+  // progress is reported yet.
   const [elapsed, setElapsed] = useState(0)
   useEffect(() => {
-    if (!loading) {
+    if (!overlay.visible) {
       setElapsed(0)
       return
     }
     const start = Date.now()
     const id = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 250)
     return () => clearInterval(id)
-  }, [loading])
+  }, [overlay.visible])
 
   // Live-sync all analysis inputs into the address bar so the URL is always
   // copy-pasteable. replaceState (not pushState) keeps the back button clean;
@@ -224,20 +231,28 @@ export default function App() {
 
     const constraints = { min_elevation_ft: minElevationFt, max_elevation_ft: maxElevationFt }
 
-    // The pinned rows join every Analyze — refetched onto the chosen window so
-    // they stay comparable with any ranked report above them. This runs even
-    // on the pins-only path (no polygon/CSV), which is the whole point: it's
-    // how a searched pin gets resynced after the window is edited.
-    pinnedForecasts.refetchAll(start, end)
+    // Resolve the ranked inputs first so we know whether this click produces a
+    // report. A ranked run needs either a valid custom CSV or a *complete*
+    // polygon (>= 3 points); an incomplete ring is ignored so a mid-draw pin
+    // refresh doesn't fire a bogus analysis. finishDrawing() snapshots the
+    // map's always-editable ring synchronously (and closes it), falling back to
+    // the restored polygon before the map has loaded.
+    const custom = destinationType === 'custom' ? parseCustomCsv(customCsv) : []
+    const resolvedPolygon =
+      destinationType !== 'custom' && drawPointCount >= 3
+        ? mapRef.current?.finishDrawing() ?? polygon
+        : null
+    const willRank = destinationType === 'custom' ? custom.length > 0 : resolvedPolygon !== null
 
-    // Whether this click also produces a ranked report. Either a valid custom
-    // CSV, or a *complete* polygon (>= 3 points) — an incomplete ring is
-    // ignored so a mid-draw pin refresh doesn't fire a bogus analysis.
-    let ranked = false
+    // The pinned rows join every Analyze — refetched onto the chosen window so
+    // they stay comparable with any ranked report above them. On a pins-only
+    // Analyze this IS the whole operation, so announce it (surface the loading
+    // overlay); when a ranked analysis runs too, its own modal already reports
+    // progress, so the pin refresh rides along silently.
+    pinnedForecasts.refetchAll(start, end, !willRank)
+
     if (destinationType === 'custom') {
-      const custom = parseCustomCsv(customCsv)
       if (custom.length > 0) {
-        ranked = true
         await analyze({
           destination_type: 'custom',
           start_datetime: start,
@@ -249,31 +264,23 @@ export default function App() {
           ...constraints,
         })
       }
-    } else if (drawPointCount >= 3) {
-      // Snapshot the map's current (always-editable) ring. finishDrawing()
-      // returns the closed GeoPolygon synchronously so we don't have to wait
-      // for the React state update; falls back to the restored polygon if the
-      // map hasn't loaded yet.
-      const resolvedPolygon = mapRef.current?.finishDrawing() ?? polygon
-      if (resolvedPolygon) {
-        ranked = true
-        await analyze({
-          polygon: resolvedPolygon,
-          destination_type: destinationType,
-          start_datetime: start,
-          end_datetime: end,
-          limit,
-          sort_by: sortBy,
-          sort_desc: sortDesc,
-          ...constraints,
-        })
-      }
+    } else if (resolvedPolygon) {
+      await analyze({
+        polygon: resolvedPolygon,
+        destination_type: destinationType,
+        start_datetime: start,
+        end_datetime: end,
+        limit,
+        sort_by: sortBy,
+        sort_desc: sortDesc,
+        ...constraints,
+      })
     }
 
     // Pins-only Analyze: no ranked run happened, so drop any stale ranked block
     // (rows + markers) left over from a previous analysis whose polygon has
     // since been deleted — leaving only the freshly-refetched pins on screen.
-    if (!ranked) reset()
+    if (!willRank) reset()
 
     setShowResults(true)
   }
@@ -378,7 +385,10 @@ export default function App() {
           setShowWildfires={setShowWildfires}
           windowWarning={windowWarning}
           hasPins={pinnedRows.length > 0}
-          loading={loading}
+          // A pins-only Analyze refresh keeps useAnalyze.loading false, so fold
+          // in the pin-refresh flag to disable the button (and show "Analyzing…")
+          // while it runs. Searches don't announce, so this stays false for them.
+          loading={loading || pinnedForecasts.loading}
           error={error}
           onAnalyze={() => {
             // On mobile the controls are an off-canvas drawer — close it so the
@@ -396,7 +406,7 @@ export default function App() {
       {/* Map + results column */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <div className="flex-1 relative">
-          {loading && (
+          {overlay.visible && (
             <div className="absolute inset-0 bg-slate-900/60 z-20 flex items-center justify-center">
               <div className="bg-slate-800 border border-slate-600 rounded-lg px-6 py-5 text-center shadow-xl w-[280px]">
                 <img
@@ -405,9 +415,9 @@ export default function App() {
                   className="w-12 h-12 rounded-lg object-cover mx-auto mb-3 animate-pulse"
                 />
                 <p className="text-white font-semibold text-sm leading-snug">
-                  {statusMessage ?? 'Starting…'}
+                  {overlay.message}
                 </p>
-                {progress ? (
+                {overlay.source === 'analyze' && progress ? (
                   // Weather phase — countable batch progress.
                   <div className="mt-3">
                     <div className="h-2 w-full rounded-full bg-slate-700 overflow-hidden">
@@ -432,7 +442,7 @@ export default function App() {
                   </div>
                 )}
                 <button
-                  onClick={cancel}
+                  onClick={overlay.source === 'analyze' ? cancel : pinnedForecasts.cancel}
                   className="mt-4 text-xs font-medium text-slate-400 hover:text-white
                     border border-slate-600 hover:border-slate-400 rounded px-3 py-1.5 transition-colors"
                 >

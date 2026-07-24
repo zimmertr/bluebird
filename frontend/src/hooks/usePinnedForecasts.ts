@@ -27,17 +27,31 @@ export function usePinnedForecasts() {
   // immediately, not after the next render.
   const pinsRef = useRef<PinnedPlace[]>([])
   const abortRef = useRef<AbortController | null>(null)
+  // Foreground-refresh flag, driving the loading overlay. Only `announce`d
+  // fetches (an explicit Analyze) flip it; a search's silent pin fetch does
+  // not, so searching never throws up a modal.
+  const [loading, setLoading] = useState(false)
 
   function commit(next: PinnedPlace[]) {
     pinsRef.current = next
     setPins(next)
   }
 
-  async function fetchSet(places: Place[], startIso: string, endIso: string) {
+  async function fetchSet(
+    places: Place[],
+    startIso: string,
+    endIso: string,
+    announce = false,
+  ) {
     abortRef.current?.abort()
     if (places.length === 0) return
     const controller = new AbortController()
     abortRef.current = controller
+    // `abortRef` guarantees a single in-flight fetch, so "loading = the current
+    // fetch is announced" is self-consistent: a superseding silent search-fetch
+    // (announce=false) then correctly lowers an overlay it just cancelled,
+    // without depending on stacking order to keep them from overlapping.
+    setLoading(announce)
 
     const request: AnalyzeRequest = {
       destination_type: 'custom',
@@ -73,6 +87,15 @@ export function usePinnedForecasts() {
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return
       console.warn('Pinned forecast fetch failed:', e)
+    } finally {
+      // Only the latest fetch owns the loading flag: a superseding fetch has
+      // already swapped abortRef, so an older one's cleanup here is a no-op and
+      // can't lower a spinner the newer fetch just raised. On a user cancel the
+      // controller is still current, so this clears the overlay as expected.
+      if (abortRef.current === controller) {
+        abortRef.current = null
+        setLoading(false)
+      }
     }
 
     // Merge into whatever the list looks like NOW — a pin removed mid-flight
@@ -115,13 +138,21 @@ export function usePinnedForecasts() {
   }
 
   // Refetch every pin with a new window (each Analyze does this, so the pinned
-  // block stays comparable with the report it sits above).
-  function refetchAll(startIso: string, endIso: string) {
+  // block stays comparable with the report it sits above). `announce` surfaces
+  // the loading overlay — set on a pins-only Analyze (where nothing else gives
+  // feedback), left off when a ranked analysis is already showing its own modal.
+  function refetchAll(startIso: string, endIso: string, announce = false) {
     void fetchSet(
       pinsRef.current.map((p) => p.place),
       startIso,
       endIso,
+      announce,
     )
+  }
+
+  // Abort an in-flight refresh (wired to the loading overlay's Cancel button).
+  function cancel() {
+    abortRef.current?.abort()
   }
 
   // The backend echoes custom destinations as type "custom" with no osm_id,
@@ -145,5 +176,5 @@ export function usePinnedForecasts() {
   )
   const places = useMemo(() => pins.map((p) => p.place), [pins])
 
-  return { rows, places, addPlace, removePlace, refetchAll }
+  return { rows, places, loading, addPlace, removePlace, refetchAll, cancel }
 }
