@@ -1,5 +1,10 @@
 export type DestinationType = 'peak' | 'trailhead' | 'lake' | 'custom'
 
+// What polygon discovery can find. The UI's type picker offers only these:
+// 'custom' is no longer a mode, just the wire form of a CSV-only request (and
+// the per-row tag custom rows come back with).
+export type DiscoveryType = Exclude<DestinationType, 'custom'>
+
 // One representative ranking value per metric (the backend enum accepts more
 // aggregation keys for direct API callers, but the UI ranks by these four —
 // direction is the second axis, carried separately as sortDesc/sort_desc).

@@ -13,7 +13,7 @@ import { useFireProximity } from './hooks/useFireProximity'
 import { usePinnedForecasts, pinKey } from './hooks/usePinnedForecasts'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
-import { GeoPolygon, DestinationType, SortBy } from './types'
+import { CustomDestination, DiscoveryType, GeoPolygon, SortBy } from './types'
 import { METRIC_CONFIG, MARKER_COLORS } from './utils/colors'
 import { parseCustomCsv } from './utils/customDestinations'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
@@ -55,10 +55,10 @@ function useViewportHeight(): number {
 export default function App() {
   const mapRef = useRef<MapViewHandle>(null)
 
-  // The discovery inputs (polygon + type + elevation + limit + sort) behind the
-  // results currently on screen. An Analyze whose inputs still match this skips
-  // Overpass and just refreshes the known destinations' weather; any change
-  // forces a fresh discovery. Updated only on a real discovery run.
+  // The discovery inputs (polygon + type + CSV + elevation + limit + sort)
+  // behind the results currently on screen. An Analyze whose inputs still match
+  // this skips Overpass and just refreshes the known destinations' weather; any
+  // change forces a fresh discovery. Updated only on a real discovery run.
   const discoverySignatureRef = useRef<string | null>(null)
   // Remembers each discovered row's OSM identity (type + osm_id) by coordinate.
   // A refresh refetches rows through the custom path, which echoes them as
@@ -80,7 +80,7 @@ export default function App() {
     () => Math.max(0, (restored?.polygon?.coordinates[0]?.length ?? 1) - 1),
   )
   const [polygonAreaKm2, setPolygonAreaKm2] = useState<number | null>(null)
-  const [destinationType, setDestinationType] = useState<DestinationType>(
+  const [destinationType, setDestinationType] = useState<DiscoveryType>(
     () => restored?.destinationType ?? 'peak',
   )
   const [startDatetime, setStartDatetime] = useState(() => restored?.startDatetime ?? nowLocal())
@@ -266,11 +266,14 @@ export default function App() {
   // The discovery inputs behind the on-screen results, as a stable string. Two
   // Analyzes with equal signatures discovered the same set, so the second can
   // skip Overpass and just refetch weather. Everything that changes which
-  // destinations are found or how they're ranked/truncated belongs here.
-  function discoverySignature(poly: GeoPolygon | null): string {
+  // destinations are found or how they're ranked/truncated belongs here — the
+  // custom list included (parsed, so a comment or whitespace edit in the
+  // textarea doesn't needlessly bust the refresh).
+  function discoverySignature(poly: GeoPolygon | null, custom: CustomDestination[]): string {
     return JSON.stringify({
       ring: poly?.coordinates[0] ?? null,
       type: destinationType,
+      custom,
       minEl: minElevationFt,
       maxEl: maxElevationFt,
       limit,
@@ -286,29 +289,29 @@ export default function App() {
     const constraints = { min_elevation_ft: minElevationFt, max_elevation_ft: maxElevationFt }
 
     // Resolve the ranked inputs first so we know whether this click produces a
-    // report. A ranked run needs either a valid custom CSV or a *complete*
-    // polygon (>= 3 points); an incomplete ring is ignored so a mid-draw pin
-    // refresh doesn't fire a bogus analysis. finishDrawing() snapshots the
-    // map's always-editable ring synchronously (and closes it), falling back to
-    // the restored polygon before the map has loaded.
-    const custom = destinationType === 'custom' ? parseCustomCsv(customCsv) : []
+    // report. A ranked run needs a valid custom CSV, a *complete* polygon
+    // (>= 3 points), or both — the backend unions them into one report. An
+    // incomplete ring is ignored so a mid-draw pin refresh doesn't fire a bogus
+    // analysis. finishDrawing() snapshots the map's always-editable ring
+    // synchronously (and closes it), falling back to the restored polygon
+    // before the map has loaded.
+    const custom = parseCustomCsv(customCsv)
     const resolvedPolygon =
-      destinationType !== 'custom' && drawPointCount >= 3
-        ? mapRef.current?.finishDrawing() ?? polygon
-        : null
+      drawPointCount >= 3 ? mapRef.current?.finishDrawing() ?? polygon : null
 
     // A polygon run whose discovery inputs are unchanged, with results still on
     // screen, is a pure refresh: skip Overpass and refetch just those
     // destinations' weather through the custom path. Any change to the inputs
-    // (polygon, type, elevation, limit, sort) falls through to a fresh discovery.
-    const signature = discoverySignature(resolvedPolygon)
+    // (polygon, type, CSV, elevation, limit, sort) falls through to a fresh
+    // discovery.
+    const signature = discoverySignature(resolvedPolygon, custom)
     const isRefresh =
       resolvedPolygon !== null &&
       response !== null &&
       response.results.length > 0 &&
       discoverySignatureRef.current === signature
 
-    const willRank = destinationType === 'custom' ? custom.length > 0 : resolvedPolygon !== null
+    const willRank = resolvedPolygon !== null || custom.length > 0
 
     // The pinned rows join every Analyze — refetched onto the chosen window so
     // they stay comparable with any ranked report above them. On a pins-only
@@ -317,24 +320,7 @@ export default function App() {
     // progress, so the pin refresh rides along silently.
     pinnedForecasts.refetchAll(start, end, !willRank)
 
-    if (destinationType === 'custom') {
-      if (custom.length > 0) {
-        // A CSV response isn't a refreshable polygon discovery — clear the
-        // signature so a later identical polygon Analyze can't mistake these
-        // CSV rows for that polygon's discovered set and refresh them instead.
-        discoverySignatureRef.current = null
-        await analyze({
-          destination_type: 'custom',
-          start_datetime: start,
-          end_datetime: end,
-          limit,
-          sort_by: sortBy,
-          sort_desc: sortDesc,
-          custom_destinations: custom,
-          ...constraints,
-        })
-      }
-    } else if (isRefresh && response) {
+    if (isRefresh && response) {
       // Refresh: weather-only over the known destinations (no Overpass). They
       // come back as type "custom" with no osm_id; the results memo restores
       // each row's real identity by coordinate. The discovery signature stays
@@ -355,6 +341,8 @@ export default function App() {
         ...constraints,
       })
     } else if (resolvedPolygon) {
+      // Discovery — with the custom list riding along so the backend ranks the
+      // polygon ∪ CSV union as one report.
       await analyze({
         polygon: resolvedPolygon,
         destination_type: destinationType,
@@ -363,10 +351,26 @@ export default function App() {
         limit,
         sort_by: sortBy,
         sort_desc: sortDesc,
+        ...(custom.length > 0 ? { custom_destinations: custom } : {}),
         ...constraints,
       })
       // Remember these discovery inputs so the next identical Analyze refreshes.
       discoverySignatureRef.current = signature
+    } else if (custom.length > 0) {
+      // CSV-only. Not a refreshable polygon discovery — clear the signature so
+      // a later identical polygon Analyze can't mistake these CSV rows for that
+      // polygon's discovered set and refresh them instead.
+      discoverySignatureRef.current = null
+      await analyze({
+        destination_type: 'custom',
+        start_datetime: start,
+        end_datetime: end,
+        limit,
+        sort_by: sortBy,
+        sort_desc: sortDesc,
+        custom_destinations: custom,
+        ...constraints,
+      })
     }
 
     // Pins-only Analyze: no ranked run happened, so drop any stale ranked block

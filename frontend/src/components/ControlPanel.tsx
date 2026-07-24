@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { DestinationType, SortBy } from '../types'
+import { DiscoveryType, SortBy } from '../types'
 import { MAX_AREA_KM2 } from './MapView'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { canAnalyze } from '../utils/analyzeGate'
@@ -30,19 +30,20 @@ const SORT_METRICS: { value: SortBy; label: string }[] = [
   { value: 'aqi_avg', label: 'AQI (PM2.5)' },
 ]
 
-const DESTINATION_TYPES: { value: DestinationType; label: string; implemented: boolean }[] = [
+// What polygon discovery finds. Custom (CSV) is no longer a mode here — the
+// always-visible Custom Destinations section below adds to any of these.
+const DESTINATION_TYPES: { value: DiscoveryType; label: string; implemented: boolean }[] = [
   { value: 'peak', label: 'Peaks', implemented: true },
   { value: 'trailhead', label: 'Trailheads', implemented: true },
   { value: 'lake', label: 'Lakes', implemented: true },
-  { value: 'custom', label: 'Custom (CSV)', implemented: true },
 ]
 
 interface Props {
   drawPointCount: number
   polygonAreaKm2: number | null
   onCancelDrawing: () => void
-  destinationType: DestinationType
-  setDestinationType: (t: DestinationType) => void
+  destinationType: DiscoveryType
+  setDestinationType: (t: DiscoveryType) => void
   startDatetime: string
   setStartDatetime: (s: string) => void
   endDatetime: string
@@ -109,11 +110,10 @@ export default function ControlPanel({
   resultCount,
   totalQueried,
 }: Props) {
-  const needsPolygon = destinationType !== 'custom'
   // Parse the CSV once per change rather than twice on every render (this and the
   // "N destinations parsed" count below both used to call parseCustomCsv directly).
   const parsedCustom = useMemo(() => parseCustomCsv(customCsv), [customCsv])
-  const hasCustom = destinationType === 'custom' && parsedCustom.length > 0
+  const hasCustom = parsedCustom.length > 0
   const hasDates = startDatetime !== '' && endDatetime !== ''
   const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > MAX_AREA_KM2
 
@@ -123,7 +123,6 @@ export default function ControlPanel({
     hasWindowWarning: windowWarning !== null,
     loading,
     areaTooLarge,
-    needsPolygon,
     polygonReady,
     hasCustom,
     hasPins,
@@ -155,10 +154,11 @@ export default function ControlPanel({
             1. Draw Search Area
           </h2>
 
-          {destinationType === 'custom' ? (
-            <p className="text-xs text-slate-500 italic">Not needed — using CSV destinations.</p>
-          ) : drawPointCount === 0 ? (
-            <p className="text-xs text-slate-400 italic">Click anywhere on the map to start drawing.</p>
+          {drawPointCount === 0 ? (
+            <p className="text-xs text-slate-400 italic">
+              Click anywhere on the map to start drawing. Optional — custom
+              destinations and searched places analyze without one.
+            </p>
           ) : (
             <div className="space-y-2">
               <div className="text-xs text-slate-300 space-y-0.5">
@@ -216,29 +216,29 @@ export default function ControlPanel({
           </div>
         </section>
 
-        {/* Custom CSV */}
-        {destinationType === 'custom' && (
-          <section>
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-              Custom Destinations
-            </h2>
-            <p className="text-xs text-slate-500 mb-1.5">
-              Format: <code className="text-slate-300">Lat,Lon</code> or{' '}
-              <code className="text-slate-300">Lat,Lon,Name</code> — one per line. The name is
-              optional; without it, the coordinates are used.
-            </p>
-            <textarea
-              value={customCsv}
-              onChange={(e) => setCustomCsv(e.target.value)}
-              placeholder={`"Lat,Lon" or "Lat,Lon,Name" per line\n46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909\n48.1122,-121.1139,Glacier Peak`}
-              rows={7}
-              className="w-full text-xs bg-slate-900 border border-slate-600 rounded p-2 text-slate-200 placeholder-slate-600 font-mono resize-y focus:outline-none focus:border-sky-500"
-            />
+        {/* Custom CSV — additive, like search: joins whatever the polygon finds */}
+        <section>
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+            Custom Destinations <span className="text-slate-500">(optional)</span>
+          </h2>
+          <p className="text-xs text-slate-500 mb-1.5">
+            Added to whatever your search area finds — or analyzed on their own.
+            Format: <code className="text-slate-300">Lat,Lon</code> or{' '}
+            <code className="text-slate-300">Lat,Lon,Name</code> — one per line.
+          </p>
+          <textarea
+            value={customCsv}
+            onChange={(e) => setCustomCsv(e.target.value)}
+            placeholder={`"Lat,Lon" or "Lat,Lon,Name" per line\n46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909\n48.1122,-121.1139,Glacier Peak`}
+            rows={7}
+            className="w-full text-xs bg-slate-900 border border-slate-600 rounded p-2 text-slate-200 placeholder-slate-600 font-mono resize-y focus:outline-none focus:border-sky-500"
+          />
+          {customCsv.trim() !== '' && (
             <p className="text-xs text-slate-500 mt-1">
-              {parsedCustom.length} destinations parsed
+              {parsedCustom.length} destination{parsedCustom.length !== 1 ? 's' : ''} parsed
             </p>
-          </section>
-        )}
+          )}
+        </section>
 
         {/* Step 3: Forecast window */}
         <section>
@@ -479,13 +479,9 @@ export default function ControlPanel({
               ? 'Set a forecast window to continue.'
               : windowWarning
               ? 'Adjust the forecast window dates to continue.'
-              : needsPolygon && drawPointCount === 0
-              ? 'Draw a polygon on the map to continue.'
-              : needsPolygon && drawPointCount < 3
-              ? `Add ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon.`
-              : !hasCustom
-              ? 'Enter at least one valid destination.'
-              : ''}
+              : drawPointCount === 0
+              ? 'Draw an area, paste custom destinations, or search for a place to continue.'
+              : `Add ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon.`}
           </p>
         )}
 

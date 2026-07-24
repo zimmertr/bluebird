@@ -7,7 +7,6 @@ const READY_POLYGON: AnalyzeGate = {
   hasWindowWarning: false,
   loading: false,
   areaTooLarge: false,
-  needsPolygon: true,
   polygonReady: true,
   hasCustom: false,
   hasPins: false,
@@ -18,29 +17,23 @@ describe('canAnalyze — ranked inputs', () => {
     expect(canAnalyze(READY_POLYGON)).toBe(true)
   })
 
-  it('blocks an incomplete polygon with no pins', () => {
+  it('blocks an incomplete polygon with no CSV and no pins', () => {
     expect(canAnalyze({ ...READY_POLYGON, polygonReady: false })).toBe(false)
   })
 
-  it('enables the custom-CSV path (no polygon needed)', () => {
+  it('enables with a CSV alone — a polygon is not required', () => {
     expect(
-      canAnalyze({
-        ...READY_POLYGON,
-        needsPolygon: false,
-        polygonReady: false,
-        hasCustom: true,
-      }),
+      canAnalyze({ ...READY_POLYGON, polygonReady: false, hasCustom: true }),
     ).toBe(true)
   })
 
-  it('blocks custom mode with an empty/invalid CSV and no pins', () => {
+  it('enables with a polygon and a CSV together (the union)', () => {
+    expect(canAnalyze({ ...READY_POLYGON, hasCustom: true })).toBe(true)
+  })
+
+  it('blocks when no polygon, CSV, or pin is provided', () => {
     expect(
-      canAnalyze({
-        ...READY_POLYGON,
-        needsPolygon: false,
-        polygonReady: false,
-        hasCustom: false,
-      }),
+      canAnalyze({ ...READY_POLYGON, polygonReady: false, hasCustom: false }),
     ).toBe(false)
   })
 })
@@ -75,7 +68,7 @@ describe('canAnalyze — pins-only path', () => {
   })
 
   it('an incomplete polygon alongside a pin is ignored — pin still enables it', () => {
-    // needsPolygon + polygonReady:false would block on its own; the pin lifts it.
-    expect(canAnalyze({ ...PINS_ONLY, needsPolygon: true, polygonReady: false })).toBe(true)
+    // polygonReady:false would block on its own; the pin lifts it.
+    expect(canAnalyze({ ...PINS_ONLY, polygonReady: false })).toBe(true)
   })
 })

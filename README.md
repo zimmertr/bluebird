@@ -85,19 +85,21 @@ There is no "Finish Polygon" button. Once you have 3 or more points, click **Ana
 | Peaks | `natural=peak` (named nodes) | Implemented |
 | Trailheads | `highway=trailhead` (named nodes/ways) | Implemented |
 | Lakes | `natural=water` + `water=lake` (named nodes/ways/relations) | Implemented |
-| Custom (CSV) | User-supplied coordinates | Implemented |
 
-For the Custom type, paste a CSV of your own coordinates:
+The type only controls what discovery finds inside your polygon.
+
+### Custom Destinations (optional)
+
+Paste a CSV of your own coordinates to add them to the analysis — alongside whatever the polygon finds, or entirely on their own (no polygon needed):
 
 ```
 # Lines beginning with # are ignored
-Name,Latitude,Longitude,Elevation_ft
-Mt Rainier,46.8529,-121.7604,14411
-Mt Adams,46.2024,-121.4909,12281
-Glacier Peak,48.1122,-121.1139,10541
+46.8529,-121.7604,Mount Rainier
+46.2024,-121.4909
+48.1122,-121.1139,Glacier Peak
 ```
 
-Elevation is optional. Leave it out and that field is simply blank in the results.
+The format is `Lat,Lon` or `Lat,Lon,Name`, one per line; without a name the coordinates are used. Custom rows compete in the same ranked table as discovered destinations, and a custom row that duplicates a discovered one (same name or same coordinates) replaces it. Places pinned from the map's search box ride along too, as unranked rows above the ranked table.
 
 ### Step 3: Set a Forecast Window
 
@@ -240,7 +242,9 @@ Request body:
 }
 ```
 
-For `destination_type: "custom"`, drop `polygon` and send `custom_destinations` instead:
+`custom_destinations` may accompany the polygon: the backend unions the list into the discovered set before ranking (a custom row that matches a discovered row's name or 5-decimal coordinates replaces it), and each result row carries its true source in `type` — the discovery type, or `"custom"` with `osm_id: null`.
+
+To analyze only your own list, use `destination_type: "custom"`, drop `polygon`, and send `custom_destinations` alone:
 
 ```json
 {

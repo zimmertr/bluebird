@@ -113,17 +113,23 @@ describe('encodeState / decodeState round-trip', () => {
     expect(roundTrip(base)!.showWildfires).toBeUndefined()
   })
 
-  it('restores a custom-CSV analysis without a polygon', () => {
+  it('restores a CSV-only analysis without a polygon', () => {
     const csv = '46.8529,-121.7604\n46.2024,-121.4909'
     const out = roundTrip({
       ...base,
       polygon: null,
-      destinationType: 'custom',
       customCsv: csv,
     })
-    expect(out!.destinationType).toBe('custom')
     expect(out!.customCsv).toBe(csv)
     expect(out!.polygon).toBeUndefined()
+  })
+
+  it('restores a CSV alongside a polygon — the union analysis', () => {
+    const csv = '46.8529,-121.7604,Mount Rainier'
+    const out = roundTrip({ ...base, customCsv: csv })
+    expect(out!.customCsv).toBe(csv)
+    expect(out!.destinationType).toBe('peak')
+    expect(out!.polygon!.coordinates[0]).toHaveLength(4)
   })
 
   it('round-trips a large multi-line custom CSV through compression', () => {
@@ -135,13 +141,13 @@ describe('encodeState / decodeState round-trip', () => {
         { length: 100 },
         (_, i) => `4${i % 9}.${i}00000, -12${i % 3}.${i}00000, ${i + 1}. Peak #${i + 1} (${i}00 ft)`,
       ).join('\n')
-    const out = roundTrip({ ...base, polygon: null, destinationType: 'custom', customCsv: csv })
+    const out = roundTrip({ ...base, polygon: null, customCsv: csv })
     expect(out!.customCsv).toBe(csv)
   })
 
   it('writes the CSV compressed under `customz`, well below its raw length', () => {
     const csv = Array.from({ length: 100 }, (_, i) => `47.${i}, -121.${i}, Peak ${i}`).join('\n')
-    const qs = encodeState({ ...base, polygon: null, destinationType: 'custom', customCsv: csv })
+    const qs = encodeState({ ...base, polygon: null, customCsv: csv })
     const params = new URLSearchParams(qs)
     expect(params.get('custom')).toBeNull() // legacy raw key is not written
     const customz = params.get('customz')!
@@ -174,7 +180,13 @@ describe('encodeState gate — what triggers a URL update', () => {
     expect(encodeState({ ...pristine, sortBy: 'wind_avg_mph' })).not.toBe('')
     expect(encodeState({ ...pristine, sortDesc: true })).not.toBe('')
     expect(encodeState({ ...pristine, limit: 25 })).not.toBe('')
-    expect(encodeState({ ...pristine, destinationType: 'custom' })).not.toBe('')
+    expect(encodeState({ ...pristine, destinationType: 'trailhead' })).not.toBe('')
+  })
+
+  it('syncs on a CSV alone — no polygon or mode required', () => {
+    const qs = encodeState({ ...pristine, customCsv: '46.8529,-121.7604' })
+    expect(qs).not.toBe('')
+    expect(new URLSearchParams(qs).get('customz')).toBeTruthy()
   })
 
   it('syncs when the wildfire overlay is enabled', () => {
@@ -193,9 +205,11 @@ describe('encodeState', () => {
     expect(qs).not.toContain('maxel')
   })
 
-  it('omits the custom param outside custom mode', () => {
-    const qs = encodeState({ ...base, customCsv: 'ignored' })
-    expect(qs).not.toContain('custom')
+  it('persists the CSV even when a polygon is present — inputs are additive', () => {
+    const params = new URLSearchParams(encodeState({ ...base, customCsv: '46.8,-121.7' }))
+    expect(params.get('customz')).toBeTruthy()
+    expect(params.get('poly')).toBeTruthy()
+    expect(params.get('type')).toBe('peak')
   })
 
   it('rounds polygon coordinates to ~5 decimals', () => {
@@ -331,6 +345,17 @@ describe('decodeState tolerance', () => {
     const raw = '46.8529,-121.7604\n46.2024,-121.4909'
     const out = decodeState('type=custom&custom=' + encodeURIComponent(raw))
     expect(out!.customCsv).toBe(raw)
+    // type=custom predates additive CSV — the picker falls back to its default.
+    expect(out!.destinationType).toBeUndefined()
+  })
+
+  it('restores the CSV from a legacy type=custom&customz= link', () => {
+    const csv = '46.8529,-121.7604,Mount Rainier'
+    const qs = encodeState({ ...base, polygon: null, customCsv: csv })
+    const customz = new URLSearchParams(qs).get('customz')!
+    const out = decodeState(`type=custom&customz=${customz}`)
+    expect(out!.customCsv).toBe(csv)
+    expect(out!.destinationType).toBeUndefined()
   })
 })
 

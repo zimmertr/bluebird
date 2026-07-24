@@ -3,14 +3,14 @@
 // These functions are intentionally pure (no React, no DOM) so they're trivial
 // to unit-test — App.tsx owns the thin glue that reads/writes location.
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
-import { GeoPolygon, DestinationType, SortBy } from '../types'
+import { GeoPolygon, DiscoveryType, SortBy } from '../types'
 import { Place } from './geocode'
 
 // Fields that fully describe an analysis. Results are deliberately excluded —
 // they're re-fetched fresh so a shared link never replays stale forecasts.
 export interface ShareableState {
   polygon: GeoPolygon | null
-  destinationType: DestinationType
+  destinationType: DiscoveryType
   startDatetime: string // datetime-local, e.g. "2026-07-04T10:30"
   endDatetime: string
   sortBy: SortBy
@@ -26,7 +26,7 @@ export interface ShareableState {
   pins: Place[]
 }
 
-const DESTINATION_TYPES: DestinationType[] = ['peak', 'trailhead', 'lake', 'custom']
+const DISCOVERY_TYPES: DiscoveryType[] = ['peak', 'trailhead', 'lake']
 const SORT_OPTIONS: SortBy[] = ['precip_total_in', 'wind_avg_mph', 'temp_avg_f', 'aqi_avg']
 
 // Sort keys from before the metric × direction redesign, when aggregation
@@ -55,7 +55,7 @@ const MS_PER_DAY = 86_400_000
 // Control defaults — must mirror the initial useState values in App.tsx. Used to
 // decide whether the user has changed anything worth persisting to the URL.
 const DEFAULT_SORT: SortBy = 'precip_total_in'
-const DEFAULT_TYPE: DestinationType = 'peak'
+const DEFAULT_TYPE: DiscoveryType = 'peak'
 const DEFAULT_LIMIT = 10
 
 function round(n: number): number {
@@ -163,7 +163,7 @@ function isValidDatetimeLocal(s: string): boolean {
  */
 export function encodeState(state: ShareableState): string {
   const hasPolygon = state.polygon !== null && (state.polygon.coordinates[0]?.length ?? 0) >= 3
-  const hasCustom = state.destinationType === 'custom' && state.customCsv.trim() !== ''
+  const hasCustom = state.customCsv.trim() !== ''
   const hasWindow = isValidDatetimeLocal(state.endDatetime)
   const hasConstraint = state.minElevationFt !== null || state.maxElevationFt !== null
   const hasPins = state.pins.length > 0
@@ -213,9 +213,12 @@ export function decodeState(search: string): Partial<ShareableState> | null {
 
   const out: Partial<ShareableState> = {}
 
+  // Legacy links from when Custom (CSV) was a mode carry type=custom; the CSV
+  // itself restores below via customz/custom, and the type picker just falls
+  // back to its default.
   const type = params.get('type')
-  if (type && DESTINATION_TYPES.includes(type as DestinationType)) {
-    out.destinationType = type as DestinationType
+  if (type && DISCOVERY_TYPES.includes(type as DiscoveryType)) {
+    out.destinationType = type as DiscoveryType
   }
 
   const sort = params.get('sort')
