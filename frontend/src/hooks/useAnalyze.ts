@@ -59,7 +59,11 @@ export function useAnalyze() {
     setError(null)
     setResponse(null)
     setProgress(null)
-    setStatusMessage('Starting…')
+    // Seed the correct first-phase label so nothing generic ("Starting…") flashes
+    // during the click→first-SSE-event gap: a polygon run opens on discovery, a
+    // custom/refresh run goes straight to retrieval (upgraded to the counted label
+    // once the up-front progress event lands).
+    setStatusMessage(request.polygon ? 'Searching for Destinations…' : 'Retrieving Forecasts…')
 
     try {
       const res = await fetch('/api/analyze/stream', {
