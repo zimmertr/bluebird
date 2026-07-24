@@ -30,10 +30,10 @@ describe('composeOverlay', () => {
     expect(view).toEqual({ visible: true, message: 'Searching for Destinations…', progress: null })
   })
 
-  it('shows the plural count while a multi-row fetch is in progress', () => {
+  it('names the total (not a fraction), and keeps the filling bar', () => {
     expect(composeOverlay(RANKED)).toEqual({
       visible: true,
-      message: 'Retrieving Forecasts… (3/10)',
+      message: 'Retrieving 10 Forecasts…',
       progress: { processed: 3, total: 10, percent: 30 },
     })
   })
@@ -47,38 +47,32 @@ describe('composeOverlay', () => {
     })
   })
 
-  it('folds pins into the union count, counting them only once resolved', () => {
-    // 2 discovered + 1 pin still fetching → total 3, done 2 → "(2/3)".
+  it('folds pins into the union total (label) and the bar (once resolved)', () => {
+    // 2 discovered + 1 pin still fetching → total 3; bar at 2/3, label "3".
     const fetching = composeOverlay({
       ...RANKED,
       rankedProgress: { processed: 2, total: 2 },
       pinsCount: 1,
       pinsDone: false,
     })
-    expect(fetching.visible && fetching.message).toBe('Retrieving Forecasts… (2/3)')
+    expect(fetching).toEqual({
+      visible: true,
+      message: 'Retrieving 3 Forecasts…',
+      progress: { processed: 2, total: 3, percent: 67 },
+    })
 
-    // Once the pin lands → "(3/3)".
+    // Once the pin lands, the bar reaches 3/3; the label is unchanged.
     const done = composeOverlay({
       ...RANKED,
       rankedProgress: { processed: 2, total: 2 },
       pinsCount: 1,
       pinsDone: true,
     })
-    expect(done.visible && done.message).toBe('Retrieving Forecasts… (3/3)')
+    expect(done.visible && done.message).toBe('Retrieving 3 Forecasts…')
     expect(done.visible && done.progress?.percent).toBe(100)
   })
 
-  it('a lone discovered peak plus one pin is still plural (union = 2)', () => {
-    const view = composeOverlay({
-      ...RANKED,
-      rankedProgress: { processed: 1, total: 1 },
-      pinsCount: 1,
-      pinsDone: true,
-    })
-    expect(view.visible && view.message).toBe('Retrieving Forecasts… (2/2)')
-  })
-
-  it('pins-only shows the singular/plural label with no live count', () => {
+  it('pins-only names the total over an indeterminate bar (no live fraction)', () => {
     const one = composeOverlay({
       analyzeLoading: false,
       statusMessage: null,
@@ -97,6 +91,6 @@ describe('composeOverlay', () => {
       pinsCount: 4,
       pinsDone: false,
     })
-    expect(many).toEqual({ visible: true, message: 'Retrieving Forecasts…', progress: null })
+    expect(many).toEqual({ visible: true, message: 'Retrieving 4 Forecasts…', progress: null })
   })
 })
