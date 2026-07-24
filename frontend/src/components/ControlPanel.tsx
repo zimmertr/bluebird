@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { DiscoveryType, SortBy } from '../types'
 import { MAX_AREA_KM2 } from './MapView'
 import { parseCustomCsv } from '../utils/customDestinations'
@@ -114,6 +114,9 @@ export default function ControlPanel({
   // "N destinations parsed" count below both used to call parseCustomCsv directly).
   const parsedCustom = useMemo(() => parseCustomCsv(customCsv), [customCsv])
   const hasCustom = parsedCustom.length > 0
+  // The "b. Custom Coordinates" disclosure — open when a restored session already
+  // carries a list, collapsed otherwise (most sessions never paste one).
+  const [csvOpen, setCsvOpen] = useState(customCsv.trim() !== '')
   const hasDates = startDatetime !== '' && endDatetime !== ''
   const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > MAX_AREA_KM2
 
@@ -148,102 +151,111 @@ export default function ControlPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
-        {/* Step 1: Draw area */}
+        {/* Step 1: Define destinations — one input framework, two methods that
+            union into a single ranked report (searched pins ride along besides) */}
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            1. Draw Search Area
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+            1. Define Destinations
           </h2>
+          <p className="text-xs text-slate-500 mb-2.5">
+            Use one or both — discovered and pasted destinations rank together.
+          </p>
 
-          {drawPointCount === 0 ? (
-            <p className="text-xs text-slate-400 italic">
-              Click anywhere on the map to start drawing. Optional — custom
-              destinations and searched places analyze without one.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              <div className="text-xs text-slate-300 space-y-0.5">
-                {pointsNeeded > 0 ? (
-                  <p className="text-sky-300">
-                    {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed —{' '}
-                    {pointsNeeded} more needed. Click a point to remove it.
-                  </p>
-                ) : (
-                  <p className="text-green-400 font-medium">
-                    {drawPointCount} points placed — drag points to adjust, or click Analyze.
-                  </p>
-                )}
-                {polygonAreaKm2 !== null && (
-                  <p className={areaTooLarge ? 'text-red-400' : 'text-slate-400'}>
-                    ~{Math.round(polygonAreaKm2).toLocaleString()} km²
-                    {areaTooLarge && ` (max ${MAX_AREA_KM2.toLocaleString()} km²)`}
+          {/* a. Polygon search */}
+          <div className="mb-3">
+            <h3 className="text-xs font-semibold text-slate-300 mb-1.5">a. Polygon Search</h3>
+            {drawPointCount === 0 ? (
+              <p className="text-xs text-slate-400 italic">Click anywhere on the map to start drawing.</p>
+            ) : (
+              <div className="space-y-2">
+                <div className="text-xs text-slate-300 space-y-0.5">
+                  {pointsNeeded > 0 ? (
+                    <p className="text-sky-300">
+                      {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed —{' '}
+                      {pointsNeeded} more needed. Click a point to remove it.
+                    </p>
+                  ) : (
+                    <p className="text-green-400 font-medium">
+                      {drawPointCount} points placed — drag points to adjust, or click Analyze.
+                    </p>
+                  )}
+                  {polygonAreaKm2 !== null && (
+                    <p className={areaTooLarge ? 'text-red-400' : 'text-slate-400'}>
+                      ~{Math.round(polygonAreaKm2).toLocaleString()} km²
+                      {areaTooLarge && ` (max ${MAX_AREA_KM2.toLocaleString()} km²)`}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={onCancelDrawing}
+                  className="px-3 py-1.5 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2">
+              <span className="text-xs text-slate-400">Find:</span>
+              {DESTINATION_TYPES.map(({ value, label, implemented }) => (
+                <label
+                  key={value}
+                  className={`flex items-center gap-1.5 ${implemented ? 'cursor-pointer' : 'opacity-40 cursor-not-allowed'}`}
+                >
+                  <input
+                    type="radio"
+                    name="destination_type"
+                    value={value}
+                    checked={destinationType === value}
+                    disabled={!implemented}
+                    onChange={() => setDestinationType(value)}
+                    className="accent-sky-500 h-4 w-4"
+                  />
+                  <span className="text-sm text-slate-200">{label}</span>
+                  {!implemented && <span className="text-xs text-slate-500 italic">soon</span>}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* b. Custom coordinates — the sub-header doubles as the disclosure toggle */}
+          <div>
+            <button
+              onClick={() => setCsvOpen(!csvOpen)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-slate-100"
+            >
+              <span className="text-slate-500">{csvOpen ? '▾' : '▸'}</span>
+              b. Custom Coordinates
+              {!csvOpen && parsedCustom.length > 0 && (
+                <span className="font-normal text-slate-500">({parsedCustom.length} parsed)</span>
+              )}
+            </button>
+            {csvOpen && (
+              <div className="mt-1.5">
+                <p className="text-xs text-slate-500 mb-1.5">
+                  Format: <code className="text-slate-300">Lat,Lon</code> or{' '}
+                  <code className="text-slate-300">Lat,Lon,Name</code> — one per line.
+                </p>
+                <textarea
+                  value={customCsv}
+                  onChange={(e) => setCustomCsv(e.target.value)}
+                  placeholder={`"Lat,Lon" or "Lat,Lon,Name" per line\n46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909\n48.1122,-121.1139,Glacier Peak`}
+                  rows={7}
+                  className="w-full text-xs bg-slate-900 border border-slate-600 rounded p-2 text-slate-200 placeholder-slate-600 font-mono resize-y focus:outline-none focus:border-sky-500"
+                />
+                {customCsv.trim() !== '' && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    {parsedCustom.length} destination{parsedCustom.length !== 1 ? 's' : ''} parsed
                   </p>
                 )}
               </div>
-              <button
-                onClick={onCancelDrawing}
-                className="px-3 py-1.5 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
-              >
-                Clear
-              </button>
-            </div>
-          )}
-        </section>
-
-        {/* Step 2: Destination type */}
-        <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            2. Destination Type
-          </h2>
-          <div className="space-y-2 lg:space-y-1.5">
-            {DESTINATION_TYPES.map(({ value, label, implemented }) => (
-              <label
-                key={value}
-                className={`flex items-center gap-2.5 py-1 lg:py-0 ${implemented ? 'cursor-pointer' : 'opacity-40 cursor-not-allowed'}`}
-              >
-                <input
-                  type="radio"
-                  name="destination_type"
-                  value={value}
-                  checked={destinationType === value}
-                  disabled={!implemented}
-                  onChange={() => setDestinationType(value)}
-                  className="accent-sky-500 h-4 w-4"
-                />
-                <span className="text-sm text-slate-200">{label}</span>
-                {!implemented && <span className="text-xs text-slate-500 italic">soon</span>}
-              </label>
-            ))}
+            )}
           </div>
         </section>
 
-        {/* Custom CSV — additive, like search: joins whatever the polygon finds */}
+        {/* Step 2: Forecast window */}
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            Custom Destinations <span className="text-slate-500">(optional)</span>
-          </h2>
-          <p className="text-xs text-slate-500 mb-1.5">
-            Added to whatever your search area finds — or analyzed on their own.
-            Format: <code className="text-slate-300">Lat,Lon</code> or{' '}
-            <code className="text-slate-300">Lat,Lon,Name</code> — one per line.
-          </p>
-          <textarea
-            value={customCsv}
-            onChange={(e) => setCustomCsv(e.target.value)}
-            placeholder={`"Lat,Lon" or "Lat,Lon,Name" per line\n46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909\n48.1122,-121.1139,Glacier Peak`}
-            rows={7}
-            className="w-full text-xs bg-slate-900 border border-slate-600 rounded p-2 text-slate-200 placeholder-slate-600 font-mono resize-y focus:outline-none focus:border-sky-500"
-          />
-          {customCsv.trim() !== '' && (
-            <p className="text-xs text-slate-500 mt-1">
-              {parsedCustom.length} destination{parsedCustom.length !== 1 ? 's' : ''} parsed
-            </p>
-          )}
-        </section>
-
-        {/* Step 3: Forecast window */}
-        <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            3. Forecast Window
+            2. Set Forecast Window
           </h2>
           <div className="space-y-2">
             <div>
@@ -324,7 +336,7 @@ export default function ControlPanel({
             selecting a metric via its radio keeps the current direction. */}
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            4. Rank Results By
+            3. Rank Results By
           </h2>
           <div className="space-y-2 lg:space-y-1.5">
             {SORT_METRICS.map((metric) => {
@@ -380,10 +392,10 @@ export default function ControlPanel({
           </p>
         </section>
 
-        {/* Step 5: Options — result filters, count, and map overlays */}
+        {/* Step 4: Additional options — result filters, count, and map overlays */}
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            5. Options
+            4. Set Additional Options
           </h2>
           <div className="space-y-4">
             {/* Elevation band — filters candidates server-side before the fetch */}
@@ -480,7 +492,7 @@ export default function ControlPanel({
               : windowWarning
               ? 'Adjust the forecast window dates to continue.'
               : drawPointCount === 0
-              ? 'Draw an area, paste custom destinations, or search for a place to continue.'
+              ? 'Draw a search area, paste custom coordinates, or search for a place to continue.'
               : `Add ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon.`}
           </p>
         )}
