@@ -11,6 +11,7 @@ from app.routes.analyze import (
     _aligned_aqi,
     _assemble,
     _filter_elevation,
+    _merge_custom,
     _noun,
     _sort_key,
     _sse,
@@ -123,6 +124,19 @@ def test_summarize_request_polygon_includes_area():
     summary = _summarize_request(req)
     assert "polygon=" in summary
     assert "area=" in summary
+
+
+def test_summarize_request_union_includes_polygon_and_custom():
+    req = AnalyzeRequest(
+        destination_type=DestinationType.peak,
+        start_datetime=datetime.now(timezone.utc),
+        end_datetime=datetime.now(timezone.utc) + timedelta(days=1),
+        polygon=GeoPolygon(type="Polygon", coordinates=[[[0, 0], [0.1, 0], [0.1, 0.1], [0, 0.1], [0, 0]]]),
+        custom_destinations=[{"name": "A", "latitude": 1.0, "longitude": 2.0}],
+    )
+    summary = _summarize_request(req)
+    assert "custom=1" in summary
+    assert "polygon=" in summary
 
 
 # ── /api/analyze route (upstream services stubbed) ─────────────────────────
@@ -311,6 +325,184 @@ def test_analyze_stream_polygon_searches_then_announces_count(monkeypatch, stub_
     assert not any("peak" in s or "Found" in s or "Analyzing" in s or "Retrieving" in s for s in statuses)
 
 
+# ── polygon ∪ custom union ─────────────────────────────────────────────────
+
+
+UNION_POLY = {"type": "Polygon", "coordinates": [[[0, 0], [0.1, 0], [0.1, 0.1], [0, 0.1], [0, 0]]]}
+
+
+def _union_body(start, end, custom):
+    return {
+        "destination_type": "peak", "start_datetime": start, "end_datetime": end,
+        "polygon": UNION_POLY, "custom_destinations": custom,
+    }
+
+
+def test_analyze_union_ranks_polygon_and_custom_together(monkeypatch, stub_upstreams):
+    async def two_peaks(polygon, destination_type, on_status=None):
+        return [
+            {"name": "pk_a", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None, "osm_id": "node/1"},
+            {"name": "pk_b", "latitude": 3.0, "longitude": 4.0, "elevation_ft": None, "osm_id": "node/2"},
+        ]
+
+    monkeypatch.setattr(analyze_mod.osm, "query_osm", two_peaks)
+    start, end = _window()
+    body = _union_body(start, end, [
+        {"name": "cu_a", "latitude": 2.0, "longitude": 5.0},
+        {"name": "cu_b", "latitude": 4.0, "longitude": 6.0},
+    ])
+    resp = client.post("/api/analyze", json=body)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_queried"] == 4
+    # One ranking across both sources (ascending precip == latitude).
+    assert [r["name"] for r in data["results"]] == ["pk_a", "cu_a", "pk_b", "cu_b"]
+    by_name = {r["name"]: r for r in data["results"]}
+    assert by_name["pk_a"]["type"] == "peak" and by_name["pk_a"]["osm_id"] == "node/1"
+    assert by_name["cu_a"]["type"] == "custom" and by_name["cu_a"]["osm_id"] is None
+
+
+def test_analyze_union_dedup_by_name_custom_wins(monkeypatch, stub_upstreams):
+    async def one_peak(polygon, destination_type, on_status=None):
+        return [{"name": "Shared", "latitude": 1.0, "longitude": 2.0, "elevation_ft": 5000, "osm_id": "node/1"}]
+
+    monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)
+    start, end = _window()
+    body = _union_body(start, end, [{"name": "Shared", "latitude": 9.0, "longitude": 9.0}])
+    resp = client.post("/api/analyze", json=body)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_queried"] == 1
+    row = data["results"][0]
+    assert row["type"] == "custom" and row["osm_id"] is None and row["latitude"] == 9.0
+
+
+def test_analyze_union_dedup_by_coord_custom_wins(monkeypatch, stub_upstreams):
+    async def one_peak(polygon, destination_type, on_status=None):
+        return [{"name": "Discovered", "latitude": 46.852890, "longitude": -121.760410, "elevation_ft": None, "osm_id": "node/1"}]
+
+    monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)
+    start, end = _window()
+    # Different name; same coordinate at 5-decimal (~1 m) precision.
+    body = _union_body(start, end, [{"name": "Mine", "latitude": 46.852892, "longitude": -121.760408}])
+    resp = client.post("/api/analyze", json=body)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_queried"] == 1
+    assert data["results"][0]["name"] == "Mine"
+    assert data["results"][0]["type"] == "custom"
+
+
+def test_analyze_union_with_empty_discovery_still_analyzes_custom(monkeypatch, stub_upstreams):
+    async def nothing(polygon, destination_type, on_status=None):
+        return []
+
+    monkeypatch.setattr(analyze_mod.osm, "query_osm", nothing)
+    start, end = _window()
+    body = _union_body(start, end, [{"name": "cu", "latitude": 1.0, "longitude": 2.0}])
+    resp = client.post("/api/analyze", json=body)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_queried"] == 1
+    assert data["results"][0]["name"] == "cu"
+
+
+def test_analyze_stream_union_with_empty_discovery_still_analyzes_custom(monkeypatch, stub_upstreams):
+    async def nothing(polygon, destination_type, on_status=None):
+        return []
+
+    monkeypatch.setattr(analyze_mod.osm, "query_osm", nothing)
+    start, end = _window()
+    body = _union_body(start, end, [{"name": "cu", "latitude": 1.0, "longitude": 2.0}])
+    resp = client.post("/api/analyze/stream", json=body)
+    events = [json.loads(line[len("data: "):]) for line in resp.text.splitlines() if line.startswith("data: ")]
+    result_events = [e for e in events if e["type"] == "result"]
+    assert len(result_events) == 1
+    assert result_events[0]["data"]["total_queried"] == 1
+    assert result_events[0]["data"]["results"][0]["name"] == "cu"
+
+
+def test_analyze_stream_union_emits_search_then_mixed_result(monkeypatch, stub_upstreams):
+    async def one_peak(polygon, destination_type, on_status=None):
+        return [{"name": "pk", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None, "osm_id": "node/1"}]
+
+    monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)
+    start, end = _window()
+    body = _union_body(start, end, [{"name": "cu", "latitude": 2.0, "longitude": 3.0}])
+    resp = client.post("/api/analyze/stream", json=body)
+    events = [json.loads(line[len("data: "):]) for line in resp.text.splitlines() if line.startswith("data: ")]
+    statuses = [e["message"] for e in events if e["type"] == "status"]
+    assert "Searching for Destinations…" in statuses
+    first_progress = next(e for e in events if e["type"] == "progress")
+    assert first_progress["total"] == 2
+    result = next(e for e in events if e["type"] == "result")["data"]
+    types = {r["name"]: r["type"] for r in result["results"]}
+    assert types == {"pk": "peak", "cu": "custom"}
+
+
+def test_analyze_union_counts_toward_cap(monkeypatch, stub_upstreams):
+    from app.models import MAX_ANALYZE_PEAKS
+
+    async def near_cap(polygon, destination_type, on_status=None):
+        # Distinct coords/names — collisions with the custom rows would dedup
+        # away before the cap.
+        return [
+            {"name": f"p{i}", "latitude": i * 0.001, "longitude": 0.0, "elevation_ft": None, "osm_id": None}
+            for i in range(MAX_ANALYZE_PEAKS - 5)
+        ]
+
+    monkeypatch.setattr(analyze_mod.osm, "query_osm", near_cap)
+    start, end = _window()
+    body = _union_body(start, end, [
+        {"name": f"c{i}", "latitude": 50.0 + i, "longitude": 10.0} for i in range(10)
+    ])
+    resp = client.post("/api/analyze", json=body)
+    assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    assert "analysis limit" in detail
+    assert "destinations" in detail          # mixed set speaks generically
+    assert "trim the custom list" in detail  # advice includes the CSV remedy
+
+
+def test_analyze_union_elevation_filter_applies_to_custom_rows(monkeypatch, stub_upstreams):
+    async def one_peak(polygon, destination_type, on_status=None):
+        return [{"name": "pk", "latitude": 1.0, "longitude": 2.0, "elevation_ft": 9000, "osm_id": "node/1"}]
+
+    monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)
+    start, end = _window()
+    body = {
+        **_union_body(start, end, [
+            {"name": "low", "latitude": 2.0, "longitude": 3.0, "elevation_ft": 500},
+            {"name": "mystery", "latitude": 3.0, "longitude": 4.0},
+        ]),
+        "min_elevation_ft": 8000,
+    }
+    resp = client.post("/api/analyze", json=body)
+    assert resp.status_code == 200
+    data = resp.json()
+    # The band drops the low custom row; the unknown-elevation one passes.
+    assert {r["name"] for r in data["results"]} == {"pk", "mystery"}
+    assert data["total_queried"] == 2
+
+
+def test_merge_custom_no_collision_appends():
+    discovered = [{"name": "a", "latitude": 1.0, "longitude": 2.0}]
+    custom = [{"name": "b", "latitude": 3.0, "longitude": 4.0}]
+    assert _merge_custom(discovered, custom) == discovered + custom
+
+
+def test_merge_custom_name_collision_drops_discovered():
+    discovered = [{"name": "same", "latitude": 1.0, "longitude": 2.0}]
+    custom = [{"name": "same", "latitude": 9.0, "longitude": 9.0}]
+    assert _merge_custom(discovered, custom) == custom
+
+
+def test_merge_custom_coord_collision_drops_discovered():
+    discovered = [{"name": "osm", "latitude": 46.852890, "longitude": -121.760410}]
+    custom = [{"name": "mine", "latitude": 46.852892, "longitude": -121.760408}]
+    assert _merge_custom(discovered, custom) == custom
+
+
 # ── _aligned_aqi / _assemble (series bake-in) ──────────────────────────────
 
 
@@ -371,3 +563,9 @@ def test_assemble_drops_rows_with_no_weather():
         [_dest("a", 1.0), _dest("b", 2.0)], [None, _wx(0.2)], [None, None], "custom"
     )
     assert [r.name for r in results] == ["b"]
+
+
+def test_assemble_prefers_per_destination_type():
+    dests = [_dest("pk", 1.0), {**_dest("cu", 2.0), "type": "custom"}]
+    results, _ = _assemble(dests, [_wx(0.1), _wx(0.2)], [None, None], "peak")
+    assert [(r.name, r.type) for r in results] == [("pk", "peak"), ("cu", "custom")]
