@@ -161,15 +161,18 @@ export default function ControlPanel({
           {/* a. Search by name — the search box lives on the map itself */}
           <div className="mb-3">
             <h3 className="text-xs font-semibold text-slate-300 mb-1">a. Search by Name</h3>
-            <p className="text-xs text-slate-500">Search for a destination by name on the map.</p>
+            <p className="text-xs text-slate-500 italic">
+              Search for a destination by name on the map.
+            </p>
           </div>
 
           {/* b. Search by polygon */}
           <div className="mb-3">
-            <h3 className="text-xs font-semibold text-slate-300 mb-1.5">b. Search by Polygon</h3>
-            {drawPointCount === 0 ? (
-              <p className="text-xs text-slate-400 italic">Click anywhere on the map to start drawing.</p>
-            ) : (
+            <h3 className="text-xs font-semibold text-slate-300 mb-1">b. Search by Polygon</h3>
+            <p className="text-xs text-slate-500 italic mb-1.5">
+              Search for destinations by drawing a polygon around an area.
+            </p>
+            {drawPointCount > 0 && (
               <div className="space-y-2">
                 <div className="text-xs text-slate-300 space-y-0.5">
                   {pointsNeeded > 0 ? (
@@ -211,9 +214,9 @@ export default function ControlPanel({
                     checked={destinationType === value}
                     disabled={!implemented}
                     onChange={() => setDestinationType(value)}
-                    className="accent-sky-500 h-4 w-4"
+                    className="accent-sky-500 h-3.5 w-3.5"
                   />
-                  <span className="text-sm text-slate-200">{label}</span>
+                  <span className="text-xs text-slate-200">{label}</span>
                   {!implemented && <span className="text-xs text-slate-500 italic">soon</span>}
                 </label>
               ))}
@@ -223,9 +226,11 @@ export default function ControlPanel({
           {/* c. Search by coordinates */}
           <div>
             <h3 className="text-xs font-semibold text-slate-300 mb-1">c. Search by Coordinates</h3>
-            <p className="text-xs text-slate-500 mb-1.5">
-              Format: <code className="text-slate-300">Lat,Lon</code> or{' '}
-              <code className="text-slate-300">Lat,Lon,Name</code>
+            <p className="text-xs text-slate-500 italic">
+              Search for destinations with coordinate pairs.
+            </p>
+            <p className="text-xs text-slate-500 italic mb-1.5">
+              Format: Lat,Lon or Lat,Lon,Name
             </p>
             <textarea
               value={customCsv}

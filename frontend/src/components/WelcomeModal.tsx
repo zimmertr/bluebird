@@ -3,18 +3,18 @@ interface Props {
 }
 
 const STEPS: [string, string][] = [
-  ['Destinations', 'Discovering destinations can be accomplished using three input criteria — Search by Name, Search by Polygon, and Search by Coordinates.'],
-  ['Forecast Window', 'Specify the start and end date for the period of time you care about.'],
-  ['Result Ranking', 'Specify the way in which you want to rank the destinations after performing an analysis.'],
-  ['Options', 'Apply constraints for your search and enable additional features.'],
-  ['Analyze', 'Construct a list of results and tabulate the forecast data. Select the destination checkboxes to chart the data across your forecast window.'],
-  ['Repeat', 'Adjust your destinations, forecast window, result ranking, or options and re-analyze to update the data at any time.'],
+  ['Destinations', 'Choose where to search by drawing an area on the map, searching by name, or providing custom coordinates.'],
+  ['Forecast Window', 'Select the start and end date for the weather period you care about.'],
+  ['Result Ranking', 'Choose how destinations should be ranked — driest conditions, lowest winds, ideal temperatures, or cleanest air.'],
+  ['Options', 'Apply constraints and enable additional features like wildfire visibility.'],
+  ['Analyze', 'Generate ranked results, explore them on the map, and compare forecast data across your selected destinations.'],
+  ['Repeat', 'Adjust your search area, forecast window, ranking, or options at any time to find a better window.'],
 ]
 
 export default function WelcomeModal({ onDismiss }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-md">
+      <div className="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-md max-h-full overflow-y-auto">
         {/* Header */}
         <div className="flex items-center gap-3 px-6 pt-6 pb-4 border-b border-slate-700">
           <img src="/icon.png" alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
@@ -25,12 +25,19 @@ export default function WelcomeModal({ onDismiss }: Props) {
         </div>
 
         <div className="px-6 py-4">
-          <p className="text-sm text-slate-300 mb-4">
-            It's Friday evening and there's rain blowing in from the west, a fire burning in the
-            east, and a wind squall forming to the south. You'd like to climb a mountain this
-            weekend. Let's work together to find and identify the best weather window and
-            objectives!
+          <p className="text-sm text-slate-300 mb-3">
+            It's Friday evening. Rain is moving in from the west, smoke is drifting from the east,
+            and strong winds are building to the south. You want to climb this weekend, but where
+            should you go?
           </p>
+          <p className="text-sm text-slate-300 mb-4">
+            Bluebird helps you find out. Draw a search area and discover the best peaks, trails,
+            lakes, and other destinations for your next adventure. Bluebird analyzes upcoming
+            weather and ranks destinations by precipitation, wind, temperature, and air quality so
+            you can quickly find the best objective.
+          </p>
+
+          <h2 className="text-sm font-semibold text-white mb-3">How it works</h2>
 
           {/* Steps */}
           <ol className="space-y-3 mb-5">
@@ -48,9 +55,11 @@ export default function WelcomeModal({ onDismiss }: Props) {
             ))}
           </ol>
 
-          <p className="text-sm text-slate-200 font-medium text-center mb-4">
-            Ready to find your bluebird day?
-          </p>
+          <div className="border-t border-slate-700 pt-4 mb-4">
+            <p className="text-sm text-slate-200 font-medium text-center">
+              Ready to find your Bluebird day?
+            </p>
+          </div>
 
           <button
             onClick={onDismiss}
