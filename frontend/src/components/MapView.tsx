@@ -39,6 +39,9 @@ interface Props {
   // forecast popup), but unranked. Kept in lockstep with the pinned rows in the
   // results table (unpinning removes the marker).
   searchResults: DestinationResult[]
+  // Searched places still awaiting a forecast (in flight, or a failed fetch),
+  // drawn as neutral blue dots so a searched point never vanishes.
+  pendingPlaces: Place[]
   minElevationFt: number | null
   maxElevationFt: number | null
 }
@@ -243,6 +246,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       fireWarnings,
       showWildfires,
       searchResults,
+      pendingPlaces,
       minElevationFt,
       maxElevationFt,
     },
@@ -588,6 +592,43 @@ const MapView = forwardRef<MapViewHandle, Props>(
           },
         })
 
+        // ── Pending searched destinations ──────────────────────────────
+        // A searched place whose forecast is in flight or failed: a neutral
+        // bluebird-blue dot so the point never vanishes, no forecast popup yet.
+        // Absent from the blocked-click list on purpose — a pending dot must
+        // never swallow a polygon click while you draw around a just-searched
+        // spot; it starts blocking (opening a popup) once its metric dot lands.
+        map.addSource('search-pending', { type: 'geojson', data: emptyFC as FeatureCollection })
+        map.addLayer({
+          id: 'search-pending-circles',
+          type: 'circle',
+          source: 'search-pending',
+          paint: {
+            'circle-radius': 10,
+            'circle-color': '#3b82f6',
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#fff',
+            'circle-opacity': 0.9,
+          },
+        })
+        map.addLayer({
+          id: 'search-pending-labels',
+          type: 'symbol',
+          source: 'search-pending',
+          layout: {
+            'text-field': ['get', 'name'],
+            'text-offset': [0, 1.6],
+            'text-size': 11,
+            'text-anchor': 'top',
+            'text-font': ['Noto Sans Regular'],
+          },
+          paint: {
+            'text-color': '#f8fafc',
+            'text-halo-color': '#0f172a',
+            'text-halo-width': 1.5,
+          },
+        })
+
         // ── Commit the ring to React state ─────────────────────────────
         // Called at every discrete edit (point add, drag end, midpoint
         // insert, vertex delete) — never during pointermove — so App can
@@ -852,6 +893,13 @@ const MapView = forwardRef<MapViewHandle, Props>(
       setSource(map, 'search', resultsFeatureCollection(searchResults, sortBy, false))
     }, [searchResults, sortBy, mapReady])
 
+    // Neutral blue dot per searched place still awaiting a forecast.
+    useEffect(() => {
+      const map = mapRef.current
+      if (!map || !mapReady) return
+      setSource(map, 'search-pending', pendingPlacesFC(pendingPlaces))
+    }, [pendingPlaces, mapReady])
+
     // Filter the basemap peak layer by the elevation knobs so the mountains
     // shown on the map track the band an analysis would consider. Runs on every
     // knob change and once the layer exists (mapReady) so a restored min/max
@@ -927,4 +975,16 @@ export default MapView
 
 function updateResults(map: maplibregl.Map, results: DestinationResult[], sortBy: SortBy) {
   setSource(map, 'results', resultsFeatureCollection(results, sortBy))
+}
+
+// Minimal features for pending searched places — just position + name label.
+function pendingPlacesFC(places: Place[]): FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: places.map((place) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [place.lon, place.lat] },
+      properties: { name: place.label },
+    })),
+  }
 }

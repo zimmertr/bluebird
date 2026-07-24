@@ -575,6 +575,7 @@ export default function App() {
             fireWarnings={fireWarnings}
             showWildfires={showWildfires}
             searchResults={pinnedRows}
+            pendingPlaces={pinnedForecasts.pendingPlaces}
             minElevationFt={minElevationFt}
             maxElevationFt={maxElevationFt}
           />

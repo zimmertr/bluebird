@@ -106,15 +106,14 @@ export function usePinnedForecasts() {
 
     // Merge into whatever the list looks like NOW — a pin removed mid-flight
     // must stay removed. Pins the fetch produced no row for keep their old
-    // numbers; ones that never had any (a just-added place on a failed fetch)
-    // are dropped, dot and all, rather than lingering blank.
+    // numbers; ones that never had any (a just-added or failed-fetch place)
+    // stay with row=null so the map can show a neutral "pending" dot rather
+    // than the point vanishing — its forecast fills in on a later refetch.
     commit(
-      pinsRef.current
-        .map((p) => {
-          const row = byKey?.get(pinKey(p.place.lat, p.place.lon))
-          return row ? { ...p, row } : p
-        })
-        .filter((p) => p.row !== null),
+      pinsRef.current.map((p) => {
+        const row = byKey?.get(pinKey(p.place.lat, p.place.lon))
+        return row ? { ...p, row } : p
+      }),
     )
   }
 
@@ -190,6 +189,21 @@ export function usePinnedForecasts() {
     [pins],
   )
   const places = useMemo(() => pins.map((p) => p.place), [pins])
+  // Pins still awaiting a forecast (in flight, or a failed fetch) — drawn as a
+  // neutral blue dot on the map until their row lands. `rows` (above) already
+  // excludes them, so the table/chart are unaffected.
+  const pendingPlaces = useMemo(() => pins.flatMap((p) => (p.row === null ? [p.place] : [])), [pins])
 
-  return { rows, places, loading, refreshing, addPlace, removePlace, refetchAll, restore, cancel }
+  return {
+    rows,
+    places,
+    pendingPlaces,
+    loading,
+    refreshing,
+    addPlace,
+    removePlace,
+    refetchAll,
+    restore,
+    cancel,
+  }
 }
