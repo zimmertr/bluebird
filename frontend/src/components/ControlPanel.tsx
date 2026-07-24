@@ -254,7 +254,7 @@ export default function ControlPanel({
             2. Forecast Window
           </h2>
           <p className="text-xs text-slate-500 mb-2.5">
-            Set the window of time to analyze for the destinations.
+            Set the window of time to analyze.
           </p>
           <div className="space-y-2">
             <div>
@@ -280,7 +280,7 @@ export default function ControlPanel({
                     const d = startDatetime.split('T')[0]
                     if (d) setStartDatetime(`${d}T${e.target.value}`)
                   }}
-                  className="w-24 text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-40"
+                  className="w-28 text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-40"
                 />
               </div>
             </div>
@@ -307,7 +307,7 @@ export default function ControlPanel({
                     const d = endDatetime.split('T')[0]
                     if (d) setEndDatetime(`${d}T${e.target.value}`)
                   }}
-                  className="w-24 text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-40"
+                  className="w-28 text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-40"
                 />
               </div>
             </div>
@@ -400,7 +400,7 @@ export default function ControlPanel({
             4. Options
           </h2>
           <p className="text-xs text-slate-500 mb-2.5">
-            Set constraints and enable extra features.
+            Apply constraints and enable extra features.
           </p>
           <div className="space-y-4">
             {/* Elevation band — filters candidates server-side before the fetch */}

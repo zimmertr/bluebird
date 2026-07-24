@@ -67,16 +67,19 @@ body,
    spinners on slate-900 inputs. `dark` flips the glyphs light (matching
    Firefox's rendering); the opacity dims them to the panel's resting grey
    and lifts to full on hover. */
-input[type="datetime-local"],
+input[type="date"],
+input[type="time"],
 input[type="number"] {
   color-scheme: dark;
 }
-input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
 input[type="number"]::-webkit-inner-spin-button {
   opacity: 0.65;
   cursor: pointer;
 }
-input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover,
 input[type="number"]::-webkit-inner-spin-button:hover {
   opacity: 1;
 }
