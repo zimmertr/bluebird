@@ -46,3 +46,16 @@ describe('resultPopupHtml fire warning', () => {
     expect(html).not.toContain('<img src=x>')
   })
 })
+
+describe('resultPopupHtml rank prefix', () => {
+  it('shows "#N name" for a ranked result', () => {
+    const html = resultPopupHtml({ ...base, rank: 3, warning: null })
+    expect(html).toContain('<strong>#3 Mount Rainier</strong>')
+  })
+
+  it('drops the "#" for an unranked (searched) destination', () => {
+    // The title carries no rank prefix (hex colors elsewhere still use '#').
+    const html = resultPopupHtml({ ...base, rank: '', warning: null })
+    expect(html).toContain('<strong>Mount Rainier</strong>')
+  })
+})

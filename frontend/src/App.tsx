@@ -401,9 +401,9 @@ export default function App() {
       }),
     [response],
   )
-  const hasResults = showResults && results.length > 0
-  // The table panel also opens for pinned search forecasts alone; the map
-  // legend stays tied to actual analysis results (hasResults).
+  // Both ranked results and searched destinations are metric-colored on the map,
+  // so the color legend shows whenever either is present.
+  const hasColoredMarkers = showResults && (results.length > 0 || pinnedRows.length > 0)
   const showTable = showResults && (results.length > 0 || pinnedRows.length > 0)
 
   // Flags results within 10 mi of an active US wildfire; independent of the map
@@ -574,7 +574,7 @@ export default function App() {
             sortBy={view.sortBy}
             fireWarnings={fireWarnings}
             showWildfires={showWildfires}
-            searchPins={pinnedForecasts.places}
+            searchResults={pinnedRows}
             minElevationFt={minElevationFt}
             maxElevationFt={maxElevationFt}
           />
@@ -603,7 +603,7 @@ export default function App() {
               can't fit, so a short map can never let the legends ride up over
               those buttons. justify-end keeps them pinned to the bottom when
               there is room. Desktop has ample height, so the clamp lifts. */}
-          {(hasResults || showWildfires) && (
+          {(hasColoredMarkers || showWildfires) && (
             <div className="absolute bottom-8 left-2 top-16 z-10 flex flex-col justify-end gap-2 overflow-y-auto lg:top-auto lg:overflow-visible">
               {showWildfires && (
                 <div className="bg-slate-900/85 border border-slate-700 rounded-lg px-2.5 py-2 shadow-lg backdrop-blur-sm">
@@ -616,7 +616,7 @@ export default function App() {
                   </div>
                 </div>
               )}
-              {hasResults && (
+              {hasColoredMarkers && (
                 <div className="bg-slate-900/85 border border-slate-700 rounded-lg p-2.5 shadow-lg backdrop-blur-sm">
                   <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                     {METRIC_CONFIG[view.sortBy].label}

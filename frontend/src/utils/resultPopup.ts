@@ -44,7 +44,7 @@ export function resultPopupHtml(d: {
     ? `<div style="color:#f59e0b;font-weight:600;margin-top:2px">⚠️ ${escapeHtml(fireWarningText(d.warning))}</div>`
     : ''
   return `<div style="font-family:sans-serif;font-size:13px;line-height:1.5">
-    <div style="display:flex;align-items:center;gap:6px"><strong>#${d.rank} ${d.name}</strong>${linkIcon}</div>
+    <div style="display:flex;align-items:center;gap:6px"><strong>${d.rank ? `#${d.rank} ` : ''}${d.name}</strong>${linkIcon}</div>
     ${fire}
     ${d.elevationFt != null ? `<div>Elevation: ${Number(d.elevationFt).toLocaleString()} ft</div>` : ''}
     <div>Precip total: <strong>${Number(d.precipTotalIn).toFixed(3)}"</strong></div>

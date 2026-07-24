@@ -53,4 +53,16 @@ describe('resultsFeatureCollection', () => {
     const props = resultsFeatureCollection([result({ aqi_avg: null })], 'aqi_avg').features[0].properties!
     expect(props.color).toBe('#64748b')
   })
+
+  it('omits the rank for unranked (searched) destinations', () => {
+    const fc = resultsFeatureCollection(
+      [result(), result({ name: 'Bandit Peak' })],
+      'precip_total_in',
+      false,
+    )
+    // No "#N" — searched destinations sit outside the sort and the limit.
+    expect(fc.features.map((f) => f.properties!.rank)).toEqual(['', ''])
+    // Still metric-colored like ranked results.
+    expect(fc.features[0].properties!.color).not.toBe('#64748b')
+  })
 })

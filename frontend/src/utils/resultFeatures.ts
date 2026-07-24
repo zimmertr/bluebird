@@ -11,6 +11,10 @@ import { markerColor } from './colors'
 export function resultsFeatureCollection(
   results: DestinationResult[],
   sortBy: SortBy,
+  // Ranked results carry a 1-based rank (shown in the marker and popup title).
+  // Searched destinations are unranked (outside the sort/limit) — pass false so
+  // their markers and popups omit the "#N" entirely.
+  ranked = true,
 ): FeatureCollection {
   return {
     type: 'FeatureCollection',
@@ -19,7 +23,7 @@ export function resultsFeatureCollection(
       geometry: { type: 'Point', coordinates: [r.longitude, r.latitude] },
       properties: {
         name: r.name,
-        rank: String(i + 1),
+        rank: ranked ? String(i + 1) : '',
         // Carried through so the popup's external link (destinationUrl) can be
         // built on a marker click, matching the table's name-cell link.
         type: r.type,
