@@ -63,9 +63,8 @@ interface Props {
   showWildfires: boolean
   setShowWildfires: (v: boolean) => void
   windowWarning: 'past' | 'future' | 'order' | null
-  // At least one searched place is pinned to the results table. A pin alone
-  // enables Analyze (which then refetches the pinned forecasts), even with no
-  // polygon drawn or CSV entered.
+  // At least one place has been searched by name. Searched places are a ranked
+  // input like the CSV, so one alone enables Analyze with no polygon drawn.
   hasPins: boolean
   loading: boolean
   error: string | null
@@ -338,7 +337,7 @@ export default function ControlPanel({
             3. Result Ranking
           </h2>
           <p className="text-xs text-slate-500 mb-2.5">
-            Set the metric that decides which destinations make the results, not just their order.
+            Set the metric used to find the top destinations.
           </p>
           <div className="space-y-2 lg:space-y-1.5">
             {SORT_METRICS.map((metric) => {
