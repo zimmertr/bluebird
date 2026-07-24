@@ -197,7 +197,6 @@ async def analyze_stream(request: AnalyzeRequest):
                      "elevation_ft": d.elevation_ft, "osm_id": None}
                     for d in request.custom_destinations
                 ]
-                yield _sse("status", message="Retrieving Forecasts…")
             else:
                 if not request.polygon:
                     yield _sse("error", message="polygon is required for non-custom destination types")
@@ -209,8 +208,11 @@ async def analyze_stream(request: AnalyzeRequest):
                 # status lines promptly via the queue.
                 osm_queue: asyncio.Queue = asyncio.Queue()
 
-                async def on_status(message):
-                    await osm_queue.put(_sse("status", message=message))
+                async def on_status(_message):
+                    # Fold Overpass mirror-failover detail ("Attempting … 2/3")
+                    # under the generic phase label — the mirror internals aren't
+                    # user-facing, and the first attempt can sit for many seconds.
+                    await osm_queue.put(_sse("status", message="Searching for Destinations…"))
 
                 async def run_osm():
                     try:
@@ -243,8 +245,6 @@ async def analyze_stream(request: AnalyzeRequest):
                     yield _sse("result", data=AnalyzeResponse(results=[], total_queried=0).model_dump())
                     return
 
-                yield _sse("status", message="Retrieving Forecasts…")
-
             destinations = _filter_elevation(
                 destinations, request.min_elevation_ft, request.max_elevation_ft
             )
@@ -263,6 +263,12 @@ async def analyze_stream(request: AnalyzeRequest):
                 return
 
             total_queried = len(destinations)
+
+            # Announce the retrieval phase WITH the final count the moment discovery
+            # settles, so the overlay shows "Retrieving N Forecasts…" immediately
+            # rather than a count-less line while the first batch (a full Open-Meteo
+            # round-trip) is still in flight.
+            yield _sse("progress", processed=0, total=total_queried, percent=0)
 
             # Drive the weather fetch on a task and drain per-batch progress from
             # a queue, so we can interleave `progress` SSE events with the await.

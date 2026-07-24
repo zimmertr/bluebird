@@ -272,14 +272,17 @@ def test_analyze_stream_custom_happy_path_emits_result(stub_upstreams):
     result_events = [e for e in events if e["type"] == "result"]
     assert len(result_events) == 1
     assert result_events[0]["data"]["total_queried"] == 2
-    # The custom path skips discovery and goes straight to the generic,
-    # destination-type-agnostic "Retrieving Forecasts…" status.
+    # The count is announced up front via an initial 0-progress event, so the
+    # overlay names it ("Retrieving 2 Forecasts…") without a count-less flash.
+    progress_events = [e for e in events if e["type"] == "progress"]
+    assert progress_events[0]["processed"] == 0
+    assert progress_events[0]["total"] == 2
+    # No leftover per-type status wording.
     statuses = [e["message"] for e in events if e["type"] == "status"]
-    assert "Retrieving Forecasts…" in statuses
-    assert not any("custom" in s or "Analyzing" in s for s in statuses)
+    assert not any("custom" in s or "Analyzing" in s or "Retrieving" in s for s in statuses)
 
 
-def test_analyze_stream_polygon_emits_search_then_analyze_status(monkeypatch, stub_upstreams):
+def test_analyze_stream_polygon_searches_then_announces_count(monkeypatch, stub_upstreams):
     async def two_peaks(polygon, destination_type, on_status=None):
         return [
             {"name": "a", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None, "osm_id": "node/1"},
@@ -294,13 +297,18 @@ def test_analyze_stream_polygon_emits_search_then_analyze_status(monkeypatch, st
     }
     resp = client.post("/api/analyze/stream", json=body)
     events = [json.loads(line[len("data: "):]) for line in resp.text.splitlines() if line.startswith("data: ")]
+    types = [e["type"] for e in events]
     statuses = [e["message"] for e in events if e["type"] == "status"]
-    # Generic two-phase wording: discovery precedes retrieval.
+    # Discovery shows only the generic label, and it precedes the first progress
+    # event (which carries the count) — no count-less "Retrieving…" in between.
     assert "Searching for Destinations…" in statuses
-    assert "Retrieving Forecasts…" in statuses
-    assert statuses.index("Searching for Destinations…") < statuses.index("Retrieving Forecasts…")
-    # No leftover peak-specific, "Found N", or dropped "Analyzing" wording.
-    assert not any("peak" in s or "Found" in s or "Analyzing" in s for s in statuses)
+    assert types.index("status") < types.index("progress")
+    first_progress = next(e for e in events if e["type"] == "progress")
+    assert first_progress["processed"] == 0
+    assert first_progress["total"] == 2
+    # No mirror-failover detail, and no leftover per-type/analyzing wording.
+    assert not any("Attempting" in s or "Lookup" in s for s in statuses)
+    assert not any("peak" in s or "Found" in s or "Analyzing" in s or "Retrieving" in s for s in statuses)
 
 
 # ── _aligned_aqi / _assemble (series bake-in) ──────────────────────────────
