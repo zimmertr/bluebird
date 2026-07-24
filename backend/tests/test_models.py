@@ -3,8 +3,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from pydantic import ValidationError
-
 from app.models import (
     MAX_POLYGON_AREA_KM2,
     AnalyzeRequest,
@@ -14,6 +12,7 @@ from app.models import (
     _as_utc,
     bbox_area_km2,
 )
+from pydantic import ValidationError
 
 
 def _now() -> datetime:

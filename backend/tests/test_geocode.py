@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import httpx
-from fastapi.testclient import TestClient
-
 from app.main import app
 from app.routes import geocode as geocode_mod
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 

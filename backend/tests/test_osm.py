@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import httpx
 import pytest
-
 from app.models import DestinationType, GeoPolygon
 from app.services import osm
 from app.services.errors import UpstreamError

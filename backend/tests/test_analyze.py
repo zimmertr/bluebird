@@ -4,8 +4,6 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.main import app
 from app.models import AnalyzeRequest, DestinationResult, DestinationType, GeoPolygon
 from app.routes import analyze as analyze_mod
@@ -18,6 +16,7 @@ from app.routes.analyze import (
     _sse,
     _summarize_request,
 )
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 
