@@ -57,7 +57,9 @@ export function useAnalyze() {
     abortRef.current = controller
     setLoading(true)
     setError(null)
-    setResponse(null)
+    // The previous response is deliberately kept: rows on screen stay put while
+    // the new analysis runs and are replaced only when its result lands (or
+    // removed by an explicit reset). Cancel/error leave them standing too.
     setProgress(null)
     // Seed the correct first-phase label so nothing generic ("Starting…") flashes
     // during the click→first-SSE-event gap: a polygon run opens on discovery, a
