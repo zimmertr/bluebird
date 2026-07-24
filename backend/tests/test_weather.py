@@ -22,8 +22,8 @@ def _hourly(times, precip, temp, wind):
     }
 
 
-START = datetime(2026, 7, 21, 0, 0)
-END = datetime(2026, 7, 21, 2, 0)
+START = datetime(2026, 7, 21, 0, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
+END = datetime(2026, 7, 21, 2, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
 
 
 def test_metrics_aggregates_full_window():
@@ -109,7 +109,7 @@ def test_metrics_malformed_payload_returns_none():
 
 
 def test_parse_ts_valid():
-    assert _parse_ts("2026-07-21T06:30") == datetime(2026, 7, 21, 6, 30)
+    assert _parse_ts("2026-07-21T06:30") == datetime(2026, 7, 21, 6, 30)  # noqa: DTZ001 — _parse_ts returns naive
 
 
 def test_parse_ts_invalid_returns_none():

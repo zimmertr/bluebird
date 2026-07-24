@@ -123,6 +123,29 @@ describe('encodeState / decodeState round-trip', () => {
     expect(out!.customCsv).toBe(csv)
     expect(out!.polygon).toBeUndefined()
   })
+
+  it('round-trips a large multi-line custom CSV through compression', () => {
+    // Comments, commas inside names, unicode, and 100 rows — the fields that must
+    // survive the compress → percent-encode → decode chain intact.
+    const csv =
+      '# The Bulger List — Washington peaks (commas, 14,406 ft, unicode —)\n' +
+      Array.from(
+        { length: 100 },
+        (_, i) => `4${i % 9}.${i}00000, -12${i % 3}.${i}00000, ${i + 1}. Peak #${i + 1} (${i}00 ft)`,
+      ).join('\n')
+    const out = roundTrip({ ...base, polygon: null, destinationType: 'custom', customCsv: csv })
+    expect(out!.customCsv).toBe(csv)
+  })
+
+  it('writes the CSV compressed under `customz`, well below its raw length', () => {
+    const csv = Array.from({ length: 100 }, (_, i) => `47.${i}, -121.${i}, Peak ${i}`).join('\n')
+    const qs = encodeState({ ...base, polygon: null, destinationType: 'custom', customCsv: csv })
+    const params = new URLSearchParams(qs)
+    expect(params.get('custom')).toBeNull() // legacy raw key is not written
+    const customz = params.get('customz')!
+    expect(customz).toBeTruthy()
+    expect(customz.length).toBeLessThan(csv.length * 0.6)
+  })
 })
 
 describe('encodeState gate — what triggers a URL update', () => {
@@ -244,6 +267,12 @@ describe('decodeState tolerance', () => {
 
   it('rejects a malformed datetime', () => {
     expect(decodeState('start=yesterday')).toBeNull()
+  })
+
+  it('still decodes a legacy raw custom= link (shared before compression)', () => {
+    const raw = '46.8529,-121.7604\n46.2024,-121.4909'
+    const out = decodeState('type=custom&custom=' + encodeURIComponent(raw))
+    expect(out!.customCsv).toBe(raw)
   })
 })
 

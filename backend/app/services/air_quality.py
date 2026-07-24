@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 
@@ -22,10 +22,10 @@ MAX_FORECAST_DAYS = 5
 
 
 async def fetch_aqi_batch(
-    destinations: List[Dict[str, Any]],
+    destinations: list[dict[str, Any]],
     start_dt: datetime,
     end_dt: datetime,
-) -> List[Optional[Dict[str, Any]]]:
+) -> list[dict[str, Any] | None]:
     """Fetch PM2.5 US AQI stats (avg/max over the window) per destination.
 
     Best-effort by design: air quality is supplementary, so upstream failures
@@ -56,7 +56,7 @@ async def fetch_aqi_batch(
 
     sem = asyncio.Semaphore(MAX_CONCURRENT_BATCHES)
 
-    async def gated(chunk: List[Dict[str, Any]]) -> List[Optional[Dict[str, Any]]]:
+    async def gated(chunk: list[dict[str, Any]]) -> list[dict[str, Any] | None]:
         async with sem:
             return await _fetch_chunk(chunk, req_start, req_end, start_dt, end_dt)
 
@@ -65,12 +65,12 @@ async def fetch_aqi_batch(
 
 
 async def _fetch_chunk(
-    destinations: List[Dict[str, Any]],
+    destinations: list[dict[str, Any]],
     req_start: date,
     req_end: date,
     start_dt: datetime,
     end_dt: datetime,
-) -> List[Optional[Dict[str, Any]]]:
+) -> list[dict[str, Any] | None]:
     params = {
         "latitude": ",".join(str(d["latitude"]) for d in destinations),
         "longitude": ",".join(str(d["longitude"]) for d in destinations),
@@ -101,7 +101,7 @@ async def _fetch_chunk(
             len(destinations),
         )
         return [None] * len(destinations)
-    out: List[Optional[Dict[str, Any]]] = []
+    out: list[dict[str, Any] | None] = []
     for item in items:
         m = _metrics(item, start_dt, end_dt)
         if m is not None:
@@ -113,10 +113,10 @@ async def _fetch_chunk(
 
 
 def _metrics(
-    data: Dict[str, Any],
+    data: dict[str, Any],
     start_dt: datetime,
     end_dt: datetime,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     try:
         hourly = data.get("hourly", {})
         times = hourly.get("time", [])
@@ -141,15 +141,15 @@ def _metrics(
             "aqi_avg": round(sum(vals) / len(vals)),
             "aqi_max": round(max(vals)),
         }
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort AQI degrades to None, never fails the analysis
         return None
 
 
 def _series(
-    data: Dict[str, Any],
+    data: dict[str, Any],
     start_dt: datetime,
     end_dt: datetime,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Per-hour PM2.5 US AQI over the window, on its own grid.
 
     The route aligns this onto the (longer) weather grid; hours past the ~5-day
@@ -164,8 +164,8 @@ def _series(
         start = start_dt.replace(tzinfo=None)
         end = end_dt.replace(tzinfo=None)
 
-        grid: List[int] = []
-        out: List[Optional[int]] = []
+        grid: list[int] = []
+        out: list[int | None] = []
         for i, ts in enumerate(times):
             parsed = _parse_ts(ts)
             if parsed is None or not (start <= parsed <= end):
@@ -177,14 +177,14 @@ def _series(
         if not grid:
             return None
         return {"times": grid, "aqi": out}
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort series degrades to None, never fails the analysis
         return None
 
 
-def _parse_ts(s: str) -> Optional[datetime]:
+def _parse_ts(s: str) -> datetime | None:
     try:
         return datetime.fromisoformat(s).replace(tzinfo=None)
-    except Exception:
+    except Exception:  # noqa: BLE001 — unparseable timestamp degrades to None
         return None
 
 

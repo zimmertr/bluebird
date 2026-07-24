@@ -2,6 +2,7 @@
 // Bluebird session can be copied out of the address bar and reopened later.
 // These functions are intentionally pure (no React, no DOM) so they're trivial
 // to unit-test — App.tsx owns the thin glue that reads/writes location.
+import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
 import { GeoPolygon, DestinationType, SortBy } from '../types'
 
 // Fields that fully describe an analysis. Results are deliberately excluded —
@@ -130,7 +131,11 @@ export function encodeState(state: ShareableState): string {
   if (state.minElevationFt !== null) p.set('minel', String(state.minElevationFt))
   if (state.maxElevationFt !== null) p.set('maxel', String(state.maxElevationFt))
   if (hasPolygon && state.polygon) p.set('poly', encodePolygon(state.polygon))
-  if (hasCustom) p.set('custom', state.customCsv)
+  // A 100-row CSV is ~13 KB raw; compressing keeps the shared link ~1-2 KB (and off
+  // Firefox's address-bar / ingress limits). Only this field is opaque — every other
+  // param stays plain text and hand-editable. Written under a distinct `customz` key so
+  // decode can tell it apart from legacy raw `custom=` links (see decodeState).
+  if (hasCustom) p.set('customz', compressToEncodedURIComponent(state.customCsv))
   if (state.showWildfires) p.set('fires', '1')
 
   return p.toString()
@@ -191,8 +196,16 @@ export function decodeState(search: string): Partial<ShareableState> | null {
     if (decoded) out.polygon = decoded
   }
 
-  const custom = params.get('custom')
-  if (custom) out.customCsv = custom
+  // Prefer the compressed field; fall back to the legacy raw `custom=` so links shared
+  // before compression still open. decompress returns null on a garbled value — drop it.
+  const customz = params.get('customz')
+  if (customz) {
+    const decoded = decompressFromEncodedURIComponent(customz)
+    if (decoded) out.customCsv = decoded
+  } else {
+    const custom = params.get('custom')
+    if (custom) out.customCsv = custom
+  }
 
   if (params.get('fires') === '1') out.showWildfires = true
 

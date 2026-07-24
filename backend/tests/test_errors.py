@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import httpx
 import pytest
-
 from app.services.errors import UpstreamError, classify_http_error
 
 PROVIDER = "Test Provider"

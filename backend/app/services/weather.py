@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any
 
 import httpx
 
@@ -24,11 +25,11 @@ ProgressCallback = Callable[[int, int, int, int], Awaitable[None]]
 
 
 async def fetch_weather_batch(
-    destinations: List[Dict[str, Any]],
+    destinations: list[dict[str, Any]],
     start_dt: datetime,
     end_dt: datetime,
-    on_progress: Optional[ProgressCallback] = None,
-) -> List[Optional[Dict[str, Any]]]:
+    on_progress: ProgressCallback | None = None,
+) -> list[dict[str, Any] | None]:
     if not destinations:
         return []
 
@@ -47,7 +48,7 @@ async def fetch_weather_batch(
 
     # Preserve input ordering by placing each batch's results at its own index,
     # while still reporting progress in completion order via as_completed.
-    results_by_index: List[List[Optional[Dict[str, Any]]]] = [[] for _ in chunks]
+    results_by_index: list[list[dict[str, Any] | None]] = [[] for _ in chunks]
     processed = 0
     batches_done = 0
 
@@ -76,20 +77,20 @@ async def fetch_weather_batch(
 
 async def _fetch_chunk_indexed(
     index: int,
-    destinations: List[Dict[str, Any]],
+    destinations: list[dict[str, Any]],
     start_dt: datetime,
     end_dt: datetime,
     sem: asyncio.Semaphore,
-) -> tuple[int, List[Optional[Dict[str, Any]]]]:
+) -> tuple[int, list[dict[str, Any] | None]]:
     async with sem:
         return index, await _fetch_chunk(destinations, start_dt, end_dt)
 
 
 async def _fetch_chunk(
-    destinations: List[Dict[str, Any]],
+    destinations: list[dict[str, Any]],
     start_dt: datetime,
     end_dt: datetime,
-) -> List[Optional[Dict[str, Any]]]:
+) -> list[dict[str, Any] | None]:
     lats = ",".join(str(d["latitude"]) for d in destinations)
     lons = ",".join(str(d["longitude"]) for d in destinations)
 
@@ -124,7 +125,7 @@ async def _fetch_chunk(
 
     # Single location → object; multiple → array
     items = data if isinstance(data, list) else [data]
-    results: List[Optional[Dict[str, Any]]] = []
+    results: list[dict[str, Any] | None] = []
     for item in items:
         m = _metrics(item, start_dt, end_dt)
         if m is not None:
@@ -138,10 +139,10 @@ async def _fetch_chunk(
 
 
 def _metrics(
-    data: Dict[str, Any],
+    data: dict[str, Any],
     start_dt: datetime,
     end_dt: datetime,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     try:
         hourly = data.get("hourly", {})
         times = hourly.get("time", [])
@@ -177,15 +178,15 @@ def _metrics(
             "wind_max_mph": round(max(w_vals), 1),
             "wind_avg_mph": round(sum(w_vals) / len(w_vals), 1),
         }
-    except Exception:
+    except Exception:  # noqa: BLE001 — malformed payload degrades to no metrics
         return None
 
 
 def _series(
-    data: Dict[str, Any],
+    data: dict[str, Any],
     start_dt: datetime,
     end_dt: datetime,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Per-hour precip/temp/wind over the window, aligned to a shared grid.
 
     Unlike `_metrics` — which drops any hour missing a value and collapses the
@@ -203,10 +204,10 @@ def _series(
         start = _naive(start_dt)
         end = _naive(end_dt)
 
-        grid: List[int] = []
-        p_out: List[Optional[float]] = []
-        t_out: List[Optional[float]] = []
-        w_out: List[Optional[float]] = []
+        grid: list[int] = []
+        p_out: list[float | None] = []
+        t_out: list[float | None] = []
+        w_out: list[float | None] = []
         for i, ts in enumerate(times):
             parsed = _parse_ts(ts)
             if parsed is None or not (start <= parsed <= end):
@@ -219,14 +220,14 @@ def _series(
         if not grid:
             return None
         return {"times": grid, "precip_in": p_out, "temp_f": t_out, "wind_mph": w_out}
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort series degrades to None, never fails the analysis
         return None
 
 
-def _parse_ts(s: str) -> Optional[datetime]:
+def _parse_ts(s: str) -> datetime | None:
     try:
         return datetime.fromisoformat(s).replace(tzinfo=None)
-    except Exception:
+    except Exception:  # noqa: BLE001 — unparseable timestamp degrades to None
         return None
 
 
@@ -241,9 +242,9 @@ def _epoch_ms(dt_naive: datetime) -> int:
     return int(dt_naive.replace(tzinfo=timezone.utc).timestamp() * 1000)
 
 
-def _at(arr: List[Any], i: int) -> Optional[float]:
+def _at(arr: list[Any], i: int) -> float | None:
     return arr[i] if i < len(arr) else None
 
 
-def _round_or_none(v: Optional[float], ndigits: int) -> Optional[float]:
+def _round_or_none(v: float | None, ndigits: int) -> float | None:
     return round(v, ndigits) if v is not None else None

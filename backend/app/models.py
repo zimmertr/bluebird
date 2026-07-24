@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import List, Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, field_validator, model_validator
 
@@ -49,10 +49,10 @@ class SortBy(str, Enum):
 
 class GeoPolygon(BaseModel):
     type: Literal["Polygon"]
-    coordinates: List[List[List[float]]]
+    coordinates: list[list[list[float]]]
 
 
-def bbox_area_km2(ring: List[List[float]]) -> float:
+def bbox_area_km2(ring: list[list[float]]) -> float:
     """Approximate bounding-box area in km² for a GeoJSON coordinate ring."""
     lats = [c[1] for c in ring]
     lons = [c[0] for c in ring]
@@ -66,11 +66,11 @@ class CustomDestination(BaseModel):
     name: str
     latitude: float
     longitude: float
-    elevation_ft: Optional[float] = None
+    elevation_ft: float | None = None
 
 
 class AnalyzeRequest(BaseModel):
-    polygon: Optional[GeoPolygon] = None
+    polygon: GeoPolygon | None = None
     destination_type: DestinationType
     start_datetime: datetime
     end_datetime: datetime
@@ -82,9 +82,9 @@ class AnalyzeRequest(BaseModel):
     # Optional elevation band. Applied to candidates before the weather fetch,
     # so a constrained analysis costs fewer upstream calls, and the returned
     # rows always fill `limit` when enough candidates qualify.
-    min_elevation_ft: Optional[float] = None
-    max_elevation_ft: Optional[float] = None
-    custom_destinations: Optional[List[CustomDestination]] = None
+    min_elevation_ft: float | None = None
+    max_elevation_ft: float | None = None
+    custom_destinations: list[CustomDestination] | None = None
 
     @field_validator("limit")
     @classmethod
@@ -95,7 +95,7 @@ class AnalyzeRequest(BaseModel):
 
     @field_validator("polygon")
     @classmethod
-    def polygon_area_limit(cls, v: Optional[GeoPolygon]) -> Optional[GeoPolygon]:
+    def polygon_area_limit(cls, v: GeoPolygon | None) -> GeoPolygon | None:
         if v is None:
             return v
         area = bbox_area_km2(v.coordinates[0])
@@ -108,7 +108,7 @@ class AnalyzeRequest(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def window_within_servable_range(self) -> "AnalyzeRequest":
+    def window_within_servable_range(self) -> AnalyzeRequest:
         now = datetime.now(timezone.utc)
         if _as_utc(self.start_datetime) < now - timedelta(days=PAST_LIMIT_SLACK_DAYS):
             raise ValueError(
@@ -128,10 +128,10 @@ class HourlySeries(BaseModel):
     # AnalyzeResponse.times. Nulls are gaps — a value missing at that hour
     # (e.g. AQI past its ~5-day horizon) — and render as a break in the chart
     # line, never an interpolated segment.
-    precip_in: List[Optional[float]]
-    temp_f: List[Optional[float]]
-    wind_mph: List[Optional[float]]
-    aqi: List[Optional[int]]
+    precip_in: list[float | None]
+    temp_f: list[float | None]
+    wind_mph: list[float | None]
+    aqi: list[int | None]
 
 
 class DestinationResult(BaseModel):
@@ -139,8 +139,8 @@ class DestinationResult(BaseModel):
     type: str
     latitude: float
     longitude: float
-    elevation_ft: Optional[float] = None
-    osm_id: Optional[str] = None
+    elevation_ft: float | None = None
+    osm_id: str | None = None
     precip_total_in: float
     precip_avg_in_hr: float
     precip_max_in_hr: float
@@ -152,19 +152,19 @@ class DestinationResult(BaseModel):
     wind_avg_mph: float
     # PM2.5 US AQI over the window. Nullable: the air-quality forecast only
     # extends ~5 days out (vs ~16 for weather) and the fetch is best-effort.
-    aqi_avg: Optional[int] = None
-    aqi_max: Optional[int] = None
+    aqi_avg: int | None = None
+    aqi_max: int | None = None
     # Hourly series backing the comparison chart, aligned to
     # AnalyzeResponse.times. Present for every ranked row; None only for a row
     # whose upstream forecast carried no in-window hours.
-    series: Optional[HourlySeries] = None
+    series: HourlySeries | None = None
 
 
 class AnalyzeResponse(BaseModel):
-    results: List[DestinationResult]
+    results: list[DestinationResult]
     total_queried: int
-    error: Optional[str] = None
+    error: str | None = None
     # Shared hourly grid for every row's `series`, as epoch milliseconds (UTC).
     # Sent once — it is identical across destinations for a given window — and
     # rendered in the viewer's local time client-side.
-    times: List[int] = []
+    times: list[int] = []

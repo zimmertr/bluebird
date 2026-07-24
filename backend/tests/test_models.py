@@ -3,8 +3,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from pydantic import ValidationError
-
 from app.models import (
     MAX_POLYGON_AREA_KM2,
     AnalyzeRequest,
@@ -14,6 +12,7 @@ from app.models import (
     _as_utc,
     bbox_area_km2,
 )
+from pydantic import ValidationError
 
 
 def _now() -> datetime:
@@ -22,12 +21,12 @@ def _now() -> datetime:
 
 def _valid_request(**overrides):
     """A minimal, in-range custom-destination request; override any field."""
-    base = dict(
-        destination_type=DestinationType.custom,
-        start_datetime=_now(),
-        end_datetime=_now() + timedelta(days=1),
-        custom_destinations=[{"name": "X", "latitude": 47.0, "longitude": -121.0}],
-    )
+    base = {
+        "destination_type": DestinationType.custom,
+        "start_datetime": _now(),
+        "end_datetime": _now() + timedelta(days=1),
+        "custom_destinations": [{"name": "X", "latitude": 47.0, "longitude": -121.0}],
+    }
     base.update(overrides)
     return AnalyzeRequest(**base)
 
@@ -115,7 +114,7 @@ def test_window_far_in_future_is_rejected():
 def test_window_naive_datetimes_are_accepted():
     # Frontend sends local wall-clock strings with no offset; the validator
     # treats naive datetimes as UTC rather than raising.
-    naive_start = datetime.now().replace(tzinfo=None)
+    naive_start = datetime.now().replace(tzinfo=None)  # noqa: DTZ005 — naive is the point of this test
     req = _valid_request(start_datetime=naive_start, end_datetime=naive_start + timedelta(hours=6))
     assert req.start_datetime.replace(tzinfo=None) == naive_start
 
@@ -124,7 +123,7 @@ def test_window_naive_datetimes_are_accepted():
 
 
 def test_as_utc_adds_timezone_to_naive():
-    naive = datetime(2026, 1, 1, 12, 0, 0)
+    naive = datetime(2026, 1, 1, 12, 0, 0)  # noqa: DTZ001 — naive input under test
     assert _as_utc(naive).tzinfo is timezone.utc
 
 

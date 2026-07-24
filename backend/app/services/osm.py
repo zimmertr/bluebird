@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 import httpx
 
@@ -27,7 +28,7 @@ HEADERS = {"User-Agent": "Bluebird/1.0 (bluebirdforecast.com; personal weather t
 # Overpass QL templates per destination type.
 # Peaks query uses nodes only — the vast majority of OSM peaks are nodes,
 # and node-only queries are significantly faster on the public API.
-_QUERIES: Dict[DestinationType, str] = {
+_QUERIES: dict[DestinationType, str] = {
     DestinationType.peak: """\
 [out:json][timeout:60];
 node["natural"="peak"]["name"](poly:"{poly}");
@@ -64,8 +65,8 @@ def _polygon_to_overpass(polygon: GeoPolygon) -> str:
 async def query_osm(
     polygon: GeoPolygon,
     destination_type: DestinationType,
-    on_status: Optional[StatusCallback] = None,
-) -> List[Dict[str, Any]]:
+    on_status: StatusCallback | None = None,
+) -> list[dict[str, Any]]:
     """Return every named destination of the given type inside the polygon.
 
     Deliberately uncapped: the ranking is only exact if every candidate gets a
@@ -84,7 +85,7 @@ async def query_osm(
     log.trace("Overpass query:\n%s", query)  # type: ignore[attr-defined]
     data = await _post_with_fallback(query, on_status)
 
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     seen_names: set[str] = set()
 
     for element in data.get("elements", []):
@@ -130,8 +131,8 @@ async def query_osm(
 
 async def _post_with_fallback(
     query: str,
-    on_status: Optional[StatusCallback] = None,
-) -> Dict[str, Any]:
+    on_status: StatusCallback | None = None,
+) -> dict[str, Any]:
     last_exc: Exception = RuntimeError("No Overpass endpoints configured")
     total = len(OVERPASS_ENDPOINTS)
     async with httpx.AsyncClient(timeout=45.0, headers=HEADERS) as client:
@@ -146,7 +147,7 @@ async def _post_with_fallback(
                 resp.raise_for_status()
                 log.info("Overpass query succeeded via %s", url)
                 return resp.json()
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — try the next mirror on any failure
                 log.warning("Overpass endpoint %s failed: %s", url, exc)
                 last_exc = exc
     # Every mirror failed — surface the last failure as an actionable message.

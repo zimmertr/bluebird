@@ -45,7 +45,9 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - run: pip install ruff
+      # Pin ruff: its default rule set changes between releases, so an unpinned
+      # install can turn a green lint red with no code change on our side.
+      - run: pip install ruff==0.16.0
       - run: ruff check backend/
 
   # Run the backend unit suite: pure logic (aggregation, validation, sorting,

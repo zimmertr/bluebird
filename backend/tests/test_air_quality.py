@@ -9,8 +9,8 @@ from app.services.air_quality import (
     fetch_aqi_batch,
 )
 
-START = datetime(2026, 7, 21, 0, 0)
-END = datetime(2026, 7, 21, 2, 0)
+START = datetime(2026, 7, 21, 0, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
+END = datetime(2026, 7, 21, 2, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
 
 
 def _hourly(times, aqi):
@@ -57,7 +57,7 @@ def test_metrics_malformed_payload_returns_none():
 
 
 def test_parse_ts_roundtrip():
-    assert _parse_ts("2026-07-21T05:00") == datetime(2026, 7, 21, 5, 0)
+    assert _parse_ts("2026-07-21T05:00") == datetime(2026, 7, 21, 5, 0)  # noqa: DTZ001 — _parse_ts returns naive
     assert _parse_ts("garbage") is None
 
 
