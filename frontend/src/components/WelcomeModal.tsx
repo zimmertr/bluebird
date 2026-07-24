@@ -3,11 +3,12 @@ interface Props {
 }
 
 const STEPS: [string, string][] = [
-  ['Draw a search area', 'Click on the map to place polygon vertices. Three or more points form the search boundary.'],
-  ['Choose a destination type', 'Analyze peaks, trailheads, or lakes — or paste custom coordinates as CSV.'],
-  ['Set a forecast window', 'Pick the start and end date/time for the weather period you care about.'],
-  ['Rank & set options', 'Rank by least rain, least wind, coldest temperature, or cleanest air (PM2.5 AQI). Under Options, filter by elevation, cap the result count, or show active US wildfires on the map.'],
-  ['Analyze', 'Results appear on the map as colored markers and in the table below, ranked best to worst.'],
+  ['Destinations', 'Discovering destinations can be accomplished using three input criteria — Search by Name, Search by Polygon, and Search by Coordinates.'],
+  ['Forecast Window', 'Specify the start and end date for the period of time you care about.'],
+  ['Result Ranking', 'Specify the way in which you want to rank the destinations after performing an analysis.'],
+  ['Options', 'Apply constraints for your search and enable additional features.'],
+  ['Analyze', 'Construct a list of results and tabulate the forecast data. Select the destination checkboxes to chart the data across your forecast window.'],
+  ['Repeat', 'Adjust your destinations, forecast window, result ranking, or options and re-analyze to update the data at any time.'],
 ]
 
 export default function WelcomeModal({ onDismiss }: Props) {
@@ -18,15 +19,17 @@ export default function WelcomeModal({ onDismiss }: Props) {
         <div className="flex items-center gap-3 px-6 pt-6 pb-4 border-b border-slate-700">
           <img src="/icon.png" alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
           <div>
-            <h1 className="text-xl font-bold text-white leading-tight">Welcome to Bluebird</h1>
-            <p className="text-sm text-slate-400">Weather Window Finder</p>
+            <h1 className="text-xl font-bold text-white leading-tight">Welcome to Bluebird Forecast</h1>
+            <p className="text-sm text-slate-400">The Weather Window Finder</p>
           </div>
         </div>
 
         <div className="px-6 py-4">
           <p className="text-sm text-slate-300 mb-4">
-            Find peaks and destinations inside a drawn area with the best upcoming weather — ranked by
-            precipitation, wind, temperature, or air quality.
+            It's Friday evening and there's rain blowing in from the west, a fire burning in the
+            east, and a wind squall forming to the south. You'd like to climb a mountain this
+            weekend. Let's work together to find and identify the best weather window and
+            objectives!
           </p>
 
           {/* Steps */}
@@ -45,27 +48,11 @@ export default function WelcomeModal({ onDismiss }: Props) {
             ))}
           </ol>
 
-          {/* Tips */}
-          <div className="bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2.5 mb-5 space-y-1">
-            <p className="text-xs text-slate-400">
-              <span className="text-slate-300 font-medium">Tip:</span> Drag any vertex to reposition it.
-            </p>
-            <p className="text-xs text-slate-400">
-              <span className="text-slate-300 font-medium">Tip:</span> Drag the midpoint between two vertices to insert a new point there.
-            </p>
-            <p className="text-xs text-slate-400">
-              <span className="text-slate-300 font-medium">Tip:</span> Click an existing vertex to remove it.
-            </p>
-            <p className="text-xs text-slate-400">
-              <span className="text-slate-300 font-medium">Tip:</span> Turn on <span className="text-slate-300">Show wildfires</span> to shade active US fire perimeters — destinations within 10 miles of one are flagged with ⚠️ in the results.
-            </p>
-          </div>
-
           <button
             onClick={onDismiss}
             className="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-lg transition-colors text-sm"
           >
-            Let's go
+            Analyze Now
           </button>
         </div>
       </div>
