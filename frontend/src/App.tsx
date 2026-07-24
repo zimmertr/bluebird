@@ -431,8 +431,13 @@ export default function App() {
             )}
             <SearchBox onSelect={handleSearchSelect} />
           </div>
+          {/* Bottom-anchored legends. On mobile the top edge is clamped below
+              the Controls/search cluster (top-16) and the stack scrolls if it
+              can't fit, so a short map can never let the legends ride up over
+              those buttons. justify-end keeps them pinned to the bottom when
+              there is room. Desktop has ample height, so the clamp lifts. */}
           {(hasResults || showWildfires) && (
-            <div className="absolute bottom-8 left-2 z-10 flex flex-col gap-2">
+            <div className="absolute bottom-8 left-2 top-16 z-10 flex flex-col justify-end gap-2 overflow-y-auto lg:top-auto lg:overflow-visible">
               {showWildfires && (
                 <div className="bg-slate-900/85 border border-slate-700 rounded-lg px-2.5 py-2 shadow-lg backdrop-blur-sm">
                   <div className="flex items-center gap-1.5">
@@ -504,7 +509,7 @@ export default function App() {
         )}
         {showTable && (
           <div
-            className="flex-shrink-0 bg-slate-800 flex flex-col h-[55dvh] lg:h-auto"
+            className="flex-shrink-0 bg-slate-800 flex flex-col"
             style={isDesktop ? { height: `${tableHeight}px` } : undefined}
           >
             {/* Drag handle — mouse-only, so desktop only */}
@@ -534,8 +539,14 @@ export default function App() {
                 element scrolled horizontally instead, its scrollbar would sit
                 below the full table height — off-screen until the user
                 scrolled to the last row. results-scrollbars keeps the bars
-                visible (macOS overlay scrollbars hide the sideways hint). */}
-            <div className="flex-1 overflow-auto min-h-0 results-scrollbars">
+                visible (macOS overlay scrollbars hide the sideways hint).
+                On mobile the panel has no fixed height: the body sizes to its
+                rows and the map above keeps the rest. max-h caps it at ~10
+                rows (≈29px each + the sticky header) so a long ranking scrolls
+                instead of crowding the map — where the bottom-anchored legends
+                would otherwise ride up over the Controls button. Desktop keeps
+                the drag-resized panel height (lg:flex-1, no cap). */}
+            <div className="overflow-auto min-h-0 results-scrollbars max-h-[21rem] lg:max-h-none lg:flex-1">
               <ResultsTable
                 results={results}
                 sortBy={view.sortBy}
