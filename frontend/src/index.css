@@ -61,3 +61,25 @@ body,
 .results-scrollbars::-webkit-scrollbar-thumb:hover {
   background-color: #94a3b8;
 }
+
+/* Native form-widget chrome on the dark panel. Without a color-scheme hint
+   Chrome draws its light-theme widgets — a near-black calendar icon and
+   spinners on slate-900 inputs. `dark` flips the stock rendering readable;
+   the filter then re-tints the glyphs bluebird blue (~sky-400) to match the
+   app's accents. Firefox exposes no styling hook for its picker icon, so it
+   keeps the UA grey there. */
+input[type="datetime-local"],
+input[type="number"] {
+  color-scheme: dark;
+}
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="number"]::-webkit-inner-spin-button {
+  /* brightness(0) normalizes the glyph to black regardless of the scheme's
+     starting color; the rest of the chain colorizes it to ~#38bdf8. */
+  filter: brightness(0) saturate(100%) invert(66%) sepia(55%) saturate(2000%)
+    hue-rotate(165deg) brightness(1.05);
+  cursor: pointer;
+}
+input[type="datetime-local"]::-webkit-datetime-edit-ampm-field {
+  color: #38bdf8; /* sky-400, matching the accent-sky controls */
+}
