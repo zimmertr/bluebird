@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { cellStyle, METRIC_CONFIG } from '../utils/colors'
+import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
+import { compareValues } from '../utils/sortResults'
 import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
 
@@ -43,6 +45,17 @@ interface Props {
   // rows, outside the sort and the analysis limit. Clicking a row's 📍 unpins it.
   pinned?: DestinationResult[]
   onUnpin?: (row: DestinationResult) => void
+  // Clicking a row's name centers the map on that destination.
+  onFocusResult?: (row: DestinationResult) => void
+  // Chart selection. When onToggleChart is provided (the analysis carried
+  // series), each ranked row with series gets a checkbox that toggles it on the
+  // comparison chart, its accent tinted with the destination's line color.
+  onToggleChart?: (row: DestinationResult) => void
+  isCharted?: (row: DestinationResult) => boolean
+  chartColor?: (row: DestinationResult) => string
+  // Shift-click range select: (de)select every chartable row in the run,
+  // matching the checked state the click produces.
+  onChartRange?: (rows: DestinationResult[], selected: boolean) => void
 }
 
 export default function ResultsTable({
@@ -52,10 +65,20 @@ export default function ResultsTable({
   fireWarnings,
   pinned,
   onUnpin,
+  onFocusResult,
+  onToggleChart,
+  isCharted,
+  chartColor,
+  onChartRange,
 }: Props) {
   const coloredGroup = new Set(METRIC_CONFIG[sortBy].group)
   const [sortKey, setSortKey] = useState<SortKey>(sortBy)
   const [sortDir, setSortDir] = useState<SortDir>(sortDesc ? 'desc' : 'asc')
+
+  // Shift-click range select: the checkbox last interacted with is the anchor;
+  // a shift-held click extends (de)selection to every chartable row between.
+  const shiftHeldRef = useRef(false)
+  const anchorRef = useRef<string | null>(null)
 
   // Each analysis is a fresh report: reset the column sort to the ranking that
   // produced it (sortBy/sortDesc are the analyzed snapshot, and `results` is a
@@ -74,16 +97,59 @@ export default function ResultsTable({
     }
   }
 
-  const sorted = [...results].sort((a, b) => {
-    const av = a[sortKey]
-    const bv = b[sortKey]
-    // Missing values (e.g. AQI beyond its forecast horizon) sort last either way
-    if (av == null && bv == null) return 0
-    if (av == null) return 1
-    if (bv == null) return -1
-    const cmp = av < bv ? -1 : av > bv ? 1 : 0
-    return sortDir === 'asc' ? cmp : -cmp
-  })
+  // Nulls sort last in both directions; string columns use numeric collation so
+  // a CSV numbered 1..100 reads in order. See compareValues.
+  const sorted = [...results].sort((a, b) => compareValues(a[sortKey], b[sortKey], sortDir))
+
+  // The leading checkbox column only appears once an analysis has returned
+  // series to chart; rows without series (e.g. pinned search forecasts) render
+  // an empty cell so the columns stay aligned.
+  const showChartCol = !!onToggleChart
+
+  // Every chartable row currently in the table — pinned search rows and ranked
+  // results alike — for the header "select all" box. Its state (all/some/none)
+  // drives both the checked mark and the indeterminate dash.
+  const chartableRows = showChartCol
+    ? [...(pinned ?? []), ...results].filter((r) => r.series)
+    : []
+  const headState = selectionState(chartableRows, (r) => isCharted?.(r) ?? false)
+
+  function handleChartToggle(row: DestinationResult) {
+    const shift = shiftHeldRef.current
+    shiftHeldRef.current = false
+    const anchor = anchorRef.current
+    anchorRef.current = chartKey(row)
+
+    if (shift && anchor && onChartRange) {
+      // Apply the state this click produces (select or clear) to the whole run,
+      // in the current display order — what the user sees between the two boxes.
+      const range = rowsBetween(sorted, anchor, chartKey(row)).filter((r) => r.series)
+      if (range.length > 0) {
+        onChartRange(range, !(isCharted?.(row) ?? false))
+        return
+      }
+    }
+    onToggleChart?.(row)
+  }
+
+  function renderChartToggle(row: DestinationResult) {
+    if (!onToggleChart || !row.series) return null
+    const on = isCharted?.(row) ?? false
+    return (
+      <input
+        type="checkbox"
+        checked={on}
+        onClick={(e) => {
+          shiftHeldRef.current = e.shiftKey
+        }}
+        onChange={() => handleChartToggle(row)}
+        title="Add to the comparison chart (shift-click to select a range)"
+        aria-label={`Chart ${row.name}`}
+        className="h-3.5 w-3.5 cursor-pointer align-middle accent-sky-500"
+        style={on && chartColor ? { accentColor: chartColor(row) } : undefined}
+      />
+    )
+  }
 
   // Everything after the rank cell, shared by ranked rows and the pinned row
   // so the searched point gets identical formatting, links, and cell colors.
@@ -102,23 +168,48 @@ export default function ResultsTable({
         const warning = fireWarnings.get(fireKey(row.latitude, row.longitude))
         return (
           <td key={col.key} className={cellClass}>
-            {warning && (
-              <span
-                title={fireWarningText(warning)}
-                aria-label={fireWarningText(warning)}
-                className="mr-1 cursor-help"
+            <span className="flex items-center gap-1.5">
+              {warning && (
+                <span
+                  title={fireWarningText(warning)}
+                  aria-label={fireWarningText(warning)}
+                  className="cursor-help"
+                >
+                  ⚠️
+                </span>
+              )}
+              <button
+                onClick={() => onFocusResult?.(row)}
+                title="Center the map on this destination"
+                aria-label={`Center map on ${row.name}`}
+                className="text-sky-400 hover:text-sky-300 hover:underline cursor-pointer text-left"
               >
-                ⚠️
-              </span>
-            )}
-            <a
-              href={destinationUrl(row)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sky-400 hover:text-sky-300 hover:underline"
-            >
-              {display}
-            </a>
+                {display}
+              </button>
+              <a
+                href={destinationUrl(row)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open in Peakbagger / OpenStreetMap"
+                aria-label={`Open ${row.name} in an external map`}
+                className="shrink-0 text-slate-500 hover:text-sky-400"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-3.5 w-3.5"
+                  aria-hidden="true"
+                >
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  <polyline points="15 3 21 3 21 9" />
+                  <line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+              </a>
+            </span>
           </td>
         )
       }
@@ -153,6 +244,25 @@ export default function ResultsTable({
       <table className="min-w-full text-xs">
         <thead className="sticky top-0 bg-slate-700 z-10">
           <tr>
+            {showChartCol && (
+              <th className="w-6 px-2 py-2">
+                {onChartRange && chartableRows.length > 0 && (
+                  <input
+                    type="checkbox"
+                    checked={headState === 'all'}
+                    ref={(el) => {
+                      // `indeterminate` is a DOM property, not an attribute, so
+                      // React can't set it via a prop — sync it on every render.
+                      if (el) el.indeterminate = headState === 'some'
+                    }}
+                    onChange={() => onChartRange(chartableRows, headState !== 'all')}
+                    title="Add or remove every destination on the comparison chart"
+                    aria-label="Chart all destinations"
+                    className="h-3.5 w-3.5 cursor-pointer align-middle accent-sky-500"
+                  />
+                )}
+              </th>
+            )}
             <th className="px-2 py-2 text-left text-slate-400 font-medium w-6">#</th>
             {COLUMNS.map((col) => (
               <th
@@ -174,6 +284,7 @@ export default function ResultsTable({
               key={`pin-${row.latitude},${row.longitude}`}
               className="border-t border-slate-700/50 bg-amber-400/10 hover:bg-amber-400/20 transition-colors"
             >
+              {showChartCol && <td className="px-2 py-1.5">{renderChartToggle(row)}</td>}
               {/* Matches the amber search pin on the map */}
               <td className="px-2 py-1.5">
                 <button
@@ -193,7 +304,8 @@ export default function ResultsTable({
               key={`${row.name}-${i}`}
               className="border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors"
             >
-              <td className="px-2 py-1.5 text-slate-500">{i + 1}</td>
+              {showChartCol && <td className="px-2 py-1.5">{renderChartToggle(row)}</td>}
+              <td className="px-2 py-1.5 text-slate-500 tabular-nums">{i + 1}</td>
               {rowCells(row)}
             </tr>
           ))}

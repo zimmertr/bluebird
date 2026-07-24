@@ -3,10 +3,12 @@ import maplibregl from 'maplibre-gl'
 import type { FilterSpecification } from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.
-import type { FeatureCollection } from 'geojson'
+import type { FeatureCollection, Point } from 'geojson'
 // maplibre-gl.css is imported in index.css under layer(base) — see comment there
 import { GeoPolygon, DestinationResult, SortBy } from '../types'
-import { markerColor } from '../utils/colors'
+import { resultsFeatureCollection } from '../utils/resultFeatures'
+import { resultPopupHtml } from '../utils/resultPopup'
+import { FireWarning, fireKey } from '../utils/fireProximity'
 import { Place, boundsAround } from '../utils/geocode'
 import {
   fetchWildfires,
@@ -20,6 +22,7 @@ export interface MapViewHandle {
   finishDrawing: () => GeoPolygon | null
   cancelDrawing: () => void
   flyToPlace: (place: Place) => void
+  focusResult: (result: DestinationResult) => void
 }
 
 interface Props {
@@ -28,6 +31,9 @@ interface Props {
   onDrawUpdate: (count: number, areaKm2: number | null) => void
   results: DestinationResult[]
   sortBy: SortBy
+  // Fire-proximity warnings keyed by fireKey(lat,lon), mirroring the results
+  // table — a clicked point's popup surfaces the same ⚠️ when one applies.
+  fireWarnings: Map<string, FireWarning>
   showWildfires: boolean
   // Pinned searched locations — one labeled amber dot each, kept in lockstep
   // with the pinned rows in the results table (unpinning removes the dot).
@@ -233,6 +239,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onDrawUpdate,
       results,
       sortBy,
+      fireWarnings,
       showWildfires,
       searchPins,
       minElevationFt,
@@ -250,7 +257,14 @@ const MapView = forwardRef<MapViewHandle, Props>(
     const vertexPopupRef = useRef<maplibregl.Popup | null>(null)
     const draggingVertexRef = useRef<number | null>(null)
     const firePopupRef = useRef<maplibregl.Popup | null>(null)
+    // The single popup opened by focusResult (table-rank click), tracked so
+    // repeated clicks replace it instead of stacking popups.
+    const resultPopupRef = useRef<maplibregl.Popup | null>(null)
     const fireAbortRef = useRef<AbortController | null>(null)
+    // Latest fire warnings for the marker-click handler, which is registered once
+    // in the load effect and would otherwise close over an empty map. focusResult
+    // reads the live prop directly (its imperative handle re-runs every render).
+    const fireWarningsRef = useRef(fireWarnings)
     // Flipped once the load handler has added every source/layer. A ref wouldn't
     // re-run the wildfire effect, so this is state — it lets a restored `fires=1`
     // link turn the overlay on as soon as the map is ready.
@@ -285,6 +299,36 @@ const MapView = forwardRef<MapViewHandle, Props>(
           return
         }
         map.fitBounds(boundsAround(place, SEARCH_VIEW_MILES), { padding: 40, duration: 1500 })
+      },
+      // Center on a result (clicked from its rank in the table) and open the
+      // same popup a marker click gives. Rank is the analyzed order the markers
+      // are labeled with, so the popup matches the marker it lands on.
+      focusResult(result: DestinationResult) {
+        const map = mapRef.current
+        if (!map || !loadedRef.current) return
+        const center: [number, number] = [result.longitude, result.latitude]
+        map.flyTo({ center, zoom: Math.max(map.getZoom(), 10), duration: 800 })
+        resultPopupRef.current?.remove()
+        resultPopupRef.current = new maplibregl.Popup({ maxWidth: '240px' })
+          .setLngLat(center)
+          .setHTML(
+            resultPopupHtml({
+              rank: results.indexOf(result) + 1,
+              name: result.name,
+              type: result.type,
+              osmId: result.osm_id ?? null,
+              elevationFt: result.elevation_ft,
+              precipTotalIn: result.precip_total_in,
+              windAvgMph: result.wind_avg_mph,
+              tempAvgF: result.temp_avg_f,
+              aqiAvg: result.aqi_avg,
+              aqiMax: result.aqi_max,
+              longitude: result.longitude,
+              latitude: result.latitude,
+              warning: fireWarnings.get(fireKey(result.latitude, result.longitude)) ?? null,
+            }),
+          )
+          .addTo(map)
       },
     }))
 
@@ -685,18 +729,39 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
         // ── Results: popup + cursor ────────────────────────────────────
         map.on('click', 'results-circles', (e) => {
-          const props = e.features?.[0]?.properties
-          if (!props) return
-          new maplibregl.Popup({ maxWidth: '240px' })
-            .setLngLat(e.lngLat)
+          const f = e.features?.[0]
+          if (!f?.properties) return
+          const p = f.properties
+          // Anchor the popup at the rendered geometry, but take the exact
+          // coordinates from properties for the readout and the fireKey lookup —
+          // a clicked feature's geometry is snapped to the tile grid, so it won't
+          // reliably match the warning map keyed on exact coordinates.
+          const anchor = (f.geometry as Point).coordinates as [number, number]
+          const lon = p.lon as number
+          const lat = p.lat as number
+          // Track this popup in the same ref focusResult uses so only one result
+          // popup is ever open. Marker→marker already dismisses via the map's
+          // closeOnClick, but a table-name click (focusResult) fires no map click,
+          // so without a shared ref the marker popup would linger beside it.
+          resultPopupRef.current?.remove()
+          resultPopupRef.current = new maplibregl.Popup({ maxWidth: '240px' })
+            .setLngLat(anchor)
             .setHTML(
-              `<div style="font-family:sans-serif;font-size:13px;line-height:1.5">
-                <strong>#${props.rank} ${props.name}</strong>
-                ${props.elevation_ft != null ? `<br>Elevation: ${Number(props.elevation_ft).toLocaleString()} ft` : ''}
-                <br>Precip total: <strong>${Number(props.precip).toFixed(3)}"</strong>
-                <br>Wind avg: ${props.wind_avg} mph · Temp avg: ${props.temp_avg}°F
-                ${props.aqi_avg != null ? `<br>PM2.5 AQI avg: <strong>${props.aqi_avg}</strong> · max: ${props.aqi_max}` : ''}
-              </div>`,
+              resultPopupHtml({
+                rank: p.rank,
+                name: p.name,
+                type: p.type,
+                osmId: p.osm_id ?? null,
+                elevationFt: p.elevation_ft ?? null,
+                precipTotalIn: p.precip,
+                windAvgMph: p.wind_avg,
+                tempAvgF: p.temp_avg,
+                aqiAvg: p.aqi_avg ?? null,
+                aqiMax: p.aqi_max ?? null,
+                longitude: lon,
+                latitude: lat,
+                warning: fireWarningsRef.current.get(fireKey(lat, lon)) ?? null,
+              }),
             )
             .addTo(map)
         })
@@ -755,6 +820,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
       pendingResultsRef.current = []
       updateResults(mapRef.current, results, sortBy)
     }, [results, sortBy])
+
+    // Keep the ref current so the once-registered marker-click popup reads live
+    // fire warnings (they arrive asynchronously, after a result set renders).
+    useEffect(() => {
+      fireWarningsRef.current = fireWarnings
+    }, [fireWarnings])
 
     // Amber dot + label per pinned search. Depends on mapReady (not a pending
     // ref) so pins land as soon as the sources/layers exist.
@@ -849,23 +920,5 @@ function searchPinsFC(places: Place[]): FeatureCollection {
 }
 
 function updateResults(map: maplibregl.Map, results: DestinationResult[], sortBy: SortBy) {
-  setSource(map, 'results', {
-    type: 'FeatureCollection',
-    features: results.map((r, i) => ({
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [r.longitude, r.latitude] },
-      properties: {
-        name: r.name,
-        rank: String(i + 1),
-        // Sorting by AQI can hit rows with no AQI data (beyond its ~5-day
-        // horizon) — those get a neutral gray instead of a metric color.
-        color: r[sortBy] == null ? '#64748b' : markerColor(r[sortBy] as number, sortBy),
-        precip: r.precip_total_in,
-        elevation_ft: r.elevation_ft,
-        wind_avg: r.wind_avg_mph.toFixed(1),
-        temp_avg: r.temp_avg_f.toFixed(1),
-        ...(r.aqi_avg != null ? { aqi_avg: r.aqi_avg, aqi_max: r.aqi_max } : {}),
-      },
-    })),
-  })
+  setSource(map, 'results', resultsFeatureCollection(results, sortBy))
 }

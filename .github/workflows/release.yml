@@ -119,3 +119,72 @@ jobs:
           git add kustomization.yml
           git diff --cached --quiet || git commit -m "chore: bump bluebird image to ${SEMVER}"
           git push
+
+  # Raise (or update in place) a single PR against bluebird-helm bumping the
+  # chart's default image tag (Chart.yaml appVersion) to this release. A chart
+  # release only fires on a commit under charts/**, so without this the published
+  # chart's default keeps pointing at whatever bluebird release was latest the
+  # last time the chart repo happened to change. Merging this PR provides that
+  # commit; the chart pipeline's own package-time resolver is the correctness
+  # backstop if newer app releases land before it merges.
+  #
+  # Dependabot-style: a fixed branch is force-pushed each release and only one
+  # open PR is ever kept, so rapid releases collapse into a single up-to-date PR
+  # rather than a pile. GH_PAT must additionally carry contents + pull-requests
+  # write on zimmertr/bluebird-helm (it already has them on Kubernetes-Manifests).
+  bump-chart-appversion:
+    name: Bump Helm Chart appVersion
+    runs-on: ubuntu-latest
+    needs: [determine-version, build-and-push, create-release]
+    if: needs.determine-version.outputs.tagExists == 'false'
+    steps:
+      - name: Open or update the appVersion bump PR
+        env:
+          SEMVER: ${{ needs.determine-version.outputs.semVer }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          # Provenance for the generated PR body — the app repo, the merge commit
+          # that triggered this release, and the base GitHub URL.
+          APP_REPO: ${{ github.repository }}
+          APP_SHA: ${{ github.sha }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          BR="chore/bump-appversion"
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/zimmertr/bluebird-helm.git" helm
+          cd helm
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Fresh single commit off main every time, so the branch is always the
+          # newest appVersion and never a stack of prior bumps.
+          git checkout -b "$BR"
+          sed -i -E "s|^appVersion:.*|appVersion: \"${SEMVER}\"|" charts/bluebird/Chart.yaml
+          if git diff --quiet; then
+            echo "Chart appVersion is already ${SEMVER} — nothing to bump."
+            exit 0
+          fi
+          git commit -am "chore(release): bump chart appVersion to ${SEMVER}"
+          git push -f origin "$BR"
+
+          # Link the chart bump back to the app release that produced it: the
+          # GitHub release, the merge commit, and (best-effort) the PR that merged.
+          RELEASE_URL="${SERVER_URL}/${APP_REPO}/releases/tag/v${SEMVER}"
+          COMMIT_URL="${SERVER_URL}/${APP_REPO}/commit/${APP_SHA}"
+          PR_URL="$(gh api "repos/${APP_REPO}/commits/${APP_SHA}/pulls" -q '.[0].html_url' 2>/dev/null || true)"
+
+          # printf (not a YAML multi-line string) keeps the block's indentation out
+          # of the rendered markdown; \` is a literal backtick inside the quotes.
+          BODY="$(printf '%s\n\n%s\n- Release: %s\n- Commit: %s' \
+            "Automated by the bluebird app release pipeline. Points the chart's default image tag (\`appVersion\`) at the freshly published \`zimmertr/bluebird:${SEMVER}\`. Merging republishes the chart with the new default." \
+            "Produced by the app version this points at:" \
+            "$RELEASE_URL" "$COMMIT_URL")"
+          [ -n "$PR_URL" ] && BODY="$(printf '%s\n- Pull request: %s' "$BODY" "$PR_URL")"
+
+          TITLE="chore(release): bump chart appVersion to ${SEMVER}"
+          PR_NUM="$(gh pr list --head "$BR" --state open --json number -q '.[0].number')"
+          if [ -n "$PR_NUM" ]; then
+            # The force-push already refreshed the branch; refresh the description
+            # too so its links track the newest release, not the superseded one.
+            gh pr edit "$PR_NUM" --title "$TITLE" --body "$BODY"
+            echo "Updated existing PR #${PR_NUM} in place."
+          else
+            gh pr create --base main --head "$BR" --title "$TITLE" --body "$BODY"
+          fi

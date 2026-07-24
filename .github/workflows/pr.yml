@@ -42,13 +42,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       # Pin ruff: its default rule set changes between releases, so an unpinned
       # install can turn a green lint red with no code change on our side.
       - run: pip install ruff==0.16.0
       - run: ruff check backend/
+
+  # Run the backend unit suite: pure logic (aggregation, validation, sorting,
+  # error mapping) plus route behavior with the upstream APIs stubbed.
+  backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements-dev.txt
+        working-directory: backend
+      - run: pytest -q
+        working-directory: backend
 
   # Validate the Dockerfile builds end-to-end without pushing the image
   docker-build:

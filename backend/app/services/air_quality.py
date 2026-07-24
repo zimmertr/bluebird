@@ -101,7 +101,15 @@ async def _fetch_chunk(
             len(destinations),
         )
         return [None] * len(destinations)
-    return [_metrics(item, start_dt, end_dt) for item in items]
+    out: list[dict[str, Any] | None] = []
+    for item in items:
+        m = _metrics(item, start_dt, end_dt)
+        if m is not None:
+            # Carry the hourly AQI alongside the avg/max so the route can align
+            # it onto the weather grid for the chart — no second AQI fetch.
+            m = {**m, "series": _series(item, start_dt, end_dt)}
+        out.append(m)
+    return out
 
 
 def _metrics(
@@ -137,8 +145,50 @@ def _metrics(
         return None
 
 
+def _series(
+    data: dict[str, Any],
+    start_dt: datetime,
+    end_dt: datetime,
+) -> dict[str, Any] | None:
+    """Per-hour PM2.5 US AQI over the window, on its own grid.
+
+    The route aligns this onto the (longer) weather grid; hours past the ~5-day
+    AQI horizon aren't present here and become nulls there. Returns None when
+    the window contains no hours.
+    """
+    try:
+        hourly = data.get("hourly", {})
+        times = hourly.get("time", [])
+        aqi = hourly.get("us_aqi_pm2_5", [])
+
+        start = start_dt.replace(tzinfo=None)
+        end = end_dt.replace(tzinfo=None)
+
+        grid: list[int] = []
+        out: list[int | None] = []
+        for i, ts in enumerate(times):
+            parsed = _parse_ts(ts)
+            if parsed is None or not (start <= parsed <= end):
+                continue
+            grid.append(_epoch_ms(parsed))
+            v = aqi[i] if i < len(aqi) else None
+            out.append(round(v) if v is not None else None)
+
+        if not grid:
+            return None
+        return {"times": grid, "aqi": out}
+    except Exception:  # noqa: BLE001 — best-effort series degrades to None, never fails the analysis
+        return None
+
+
 def _parse_ts(s: str) -> datetime | None:
     try:
         return datetime.fromisoformat(s).replace(tzinfo=None)
     except Exception:  # noqa: BLE001 — unparseable timestamp degrades to None
         return None
+
+
+def _epoch_ms(dt_naive: datetime) -> int:
+    # Times come back UTC (timezone=UTC) with tzinfo stripped by `_parse_ts`;
+    # re-stamp UTC for an unambiguous epoch aligned with the weather grid.
+    return int(dt_naive.replace(tzinfo=timezone.utc).timestamp() * 1000)

@@ -11,6 +11,7 @@ from app.models import (
     AnalyzeResponse,
     DestinationResult,
     DestinationType,
+    HourlySeries,
     bbox_area_km2,
 )
 from app.services import air_quality, osm, weather
@@ -108,6 +109,72 @@ async def _drain(queue: asyncio.Queue):
         if item is _STREAM_DONE:
             return
         yield item
+
+
+def _canonical_times(wx_list: list) -> list[int]:
+    """The shared hourly grid for the response. It is identical across
+    destinations for one window, so the first row carrying a series defines it."""
+    for wx in wx_list:
+        if wx and wx.get("series"):
+            return wx["series"]["times"]
+    return []
+
+
+def _aligned_aqi(times_ms: list[int], aqi_series: dict | None) -> list[int | None]:
+    """AQI values aligned onto the weather grid, null where absent.
+
+    AQI has a shorter (~5-day) horizon than weather, so hours beyond it have no
+    entry and stay null — the chart's AQI line simply ends there.
+    """
+    if not aqi_series:
+        return [None] * len(times_ms)
+    lookup = dict(zip(aqi_series["times"], aqi_series["aqi"]))
+    return [lookup.get(t) for t in times_ms]
+
+
+def _assemble(
+    destinations: list,
+    wx_list: list,
+    aqi_list: list,
+    type_value: str,
+) -> tuple[list[DestinationResult], list[int]]:
+    """Zip destinations with their weather + AQI results into rows, baking the
+    hourly series (AQI aligned onto the weather grid) into each.
+
+    Rows whose weather came back None are dropped. Weather dicts without a
+    `series` key (e.g. stubbed in tests) degrade cleanly to `series=None`.
+    """
+    times = _canonical_times(wx_list)
+    results: list[DestinationResult] = []
+    for dest, wx, aqi in zip(destinations, wx_list, aqi_list):
+        if wx is None:
+            continue
+        aqi = aqi or {}
+        wx_series = wx.get("series")
+        agg = {k: v for k, v in wx.items() if k != "series"}
+        aqi_stats = {k: v for k, v in aqi.items() if k != "series"}
+        series = None
+        if wx_series:
+            series = HourlySeries(
+                precip_in=wx_series["precip_in"],
+                temp_f=wx_series["temp_f"],
+                wind_mph=wx_series["wind_mph"],
+                aqi=_aligned_aqi(wx_series["times"], aqi.get("series")),
+            )
+        results.append(
+            DestinationResult(
+                name=dest["name"],
+                type=type_value,
+                latitude=dest["latitude"],
+                longitude=dest["longitude"],
+                elevation_ft=dest.get("elevation_ft"),
+                osm_id=dest.get("osm_id"),
+                **agg,
+                **aqi_stats,
+                series=series,
+            )
+        )
+    return results, times
 
 
 @router.post("/analyze/stream")
@@ -256,22 +323,18 @@ async def analyze_stream(request: AnalyzeRequest):
                     if not task.done():
                         task.cancel()
 
-            results: list[DestinationResult] = []
-            for dest, wx, aqi in zip(destinations, wx_list, aqi_list):
-                if wx is None:
-                    continue
-                results.append(DestinationResult(
-                    name=dest["name"], type=request.destination_type.value,
-                    latitude=dest["latitude"], longitude=dest["longitude"],
-                    elevation_ft=dest.get("elevation_ft"), osm_id=dest.get("osm_id"),
-                    **wx, **(aqi or {}),
-                ))
-
-            sort_field = request.sort_by.value
-            results.sort(key=_sort_key(sort_field, request.sort_desc))
+            results, times = _assemble(
+                destinations, wx_list, aqi_list, request.destination_type.value
+            )
+            results.sort(key=_sort_key(request.sort_by.value, request.sort_desc))
             results = results[: request.limit]
 
-            yield _sse("result", data=AnalyzeResponse(results=results, total_queried=total_queried).model_dump())
+            yield _sse(
+                "result",
+                data=AnalyzeResponse(
+                    results=results, total_queried=total_queried, times=times
+                ).model_dump(),
+            )
 
         except Exception as e:
             log.exception("Unexpected error in analyze_stream")
@@ -366,23 +429,9 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         )
     aqi_list = await aqi_task
 
-    results: list[DestinationResult] = []
-    for dest, wx, aqi in zip(destinations, wx_list, aqi_list):
-        if wx is None:
-            continue
-        results.append(
-            DestinationResult(
-                name=dest["name"],
-                type=request.destination_type.value,
-                latitude=dest["latitude"],
-                longitude=dest["longitude"],
-                elevation_ft=dest.get("elevation_ft"),
-                osm_id=dest.get("osm_id"),
-                **wx,
-                **(aqi or {}),
-            )
-        )
-
+    results, times = _assemble(
+        destinations, wx_list, aqi_list, request.destination_type.value
+    )
     sort_field = request.sort_by.value
     results.sort(key=_sort_key(sort_field, request.sort_desc))
     results = results[: request.limit]
@@ -399,4 +448,4 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         _fmt(results[0]) if results else "—",
         _fmt(results[-1]) if results else "—",
     )
-    return AnalyzeResponse(results=results, total_queried=total_queried)
+    return AnalyzeResponse(results=results, total_queried=total_queried, times=times)
