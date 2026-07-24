@@ -187,6 +187,12 @@ Dependabot opens weekly PRs (`pip` in `/backend`, `npm` in `/frontend`,
 auto-merge for patch (bugfix) bumps only** — GitHub completes the merge once
 `main`'s required checks pass; **minor and major bumps wait for manual review**.
 
+In practice only `pip`/`npm` patches auto-merge: the GitHub Actions are
+major-pinned (`@v7`), so Dependabot raises them as *major* bumps that wait for
+review anyway. The merge PAT is intentionally scoped to Contents + Pull requests
+(not `Workflows`), so if an action is ever repinned to a full version, its patch
+bumps stay manual by design rather than failing the merge.
+
 The merge step runs with a PAT (`AUTO_MERGE_PAT`, stored as a **Dependabot**
 secret — Actions secrets are empty in Dependabot-triggered runs), *not* the
 default `GITHUB_TOKEN`. That's deliberate: a `GITHUB_TOKEN`-driven merge would be
