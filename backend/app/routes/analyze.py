@@ -197,7 +197,7 @@ async def analyze_stream(request: AnalyzeRequest):
                      "elevation_ft": d.elevation_ft, "osm_id": None}
                     for d in request.custom_destinations
                 ]
-                yield _sse("status", message="Analyzing Forecasts…")
+                yield _sse("status", message="Retrieving Forecasts…")
             else:
                 if not request.polygon:
                     yield _sse("error", message="polygon is required for non-custom destination types")
@@ -243,7 +243,7 @@ async def analyze_stream(request: AnalyzeRequest):
                     yield _sse("result", data=AnalyzeResponse(results=[], total_queried=0).model_dump())
                     return
 
-                yield _sse("status", message="Analyzing Forecasts…")
+                yield _sse("status", message="Retrieving Forecasts…")
 
             destinations = _filter_elevation(
                 destinations, request.min_elevation_ft, request.max_elevation_ft

@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { composeOverlay, ANALYZING_MESSAGE, OverlayInputs } from './analyzeOverlay'
+import { composeOverlay, OverlayInputs } from './analyzeOverlay'
 
 // A ranked run mid-weather-fetch with no pins alongside.
 const RANKED: OverlayInputs = {
   analyzeLoading: true,
-  statusMessage: 'Analyzing Forecasts…',
+  statusMessage: 'Retrieving Forecasts…',
   rankedProgress: { processed: 3, total: 10 },
   pinsOnly: false,
   pinsCount: 0,
@@ -30,21 +30,24 @@ describe('composeOverlay', () => {
     expect(view).toEqual({ visible: true, message: 'Searching for Destinations…', progress: null })
   })
 
-  it('falls back to Analyzing when a ranked run has no status yet', () => {
-    const view = composeOverlay({ ...RANKED, rankedProgress: null, statusMessage: null })
-    expect(view).toEqual({ visible: true, message: ANALYZING_MESSAGE, progress: null })
-  })
-
-  it('shows Retrieving with the ranked count when no pins ride along', () => {
-    const view = composeOverlay(RANKED)
-    expect(view).toEqual({
+  it('shows the plural count while a multi-row fetch is in progress', () => {
+    expect(composeOverlay(RANKED)).toEqual({
       visible: true,
       message: 'Retrieving Forecasts… (3/10)',
       progress: { processed: 3, total: 10, percent: 30 },
     })
   })
 
-  it('folds pins into the union total, counting them only once resolved', () => {
+  it('drops the count and pluralization for a lone forecast', () => {
+    const view = composeOverlay({ ...RANKED, rankedProgress: { processed: 0, total: 1 } })
+    expect(view).toEqual({
+      visible: true,
+      message: 'Retrieving Forecast…',
+      progress: { processed: 0, total: 1, percent: 0 },
+    })
+  })
+
+  it('folds pins into the union count, counting them only once resolved', () => {
     // 2 discovered + 1 pin still fetching → total 3, done 2 → "(2/3)".
     const fetching = composeOverlay({
       ...RANKED,
@@ -53,7 +56,6 @@ describe('composeOverlay', () => {
       pinsDone: false,
     })
     expect(fetching.visible && fetching.message).toBe('Retrieving Forecasts… (2/3)')
-    expect(fetching.visible && fetching.progress).toEqual({ processed: 2, total: 3, percent: 67 })
 
     // Once the pin lands → "(3/3)".
     const done = composeOverlay({
@@ -66,15 +68,35 @@ describe('composeOverlay', () => {
     expect(done.visible && done.progress?.percent).toBe(100)
   })
 
-  it('shows indeterminate Analyzing for a pins-only refresh', () => {
+  it('a lone discovered peak plus one pin is still plural (union = 2)', () => {
     const view = composeOverlay({
+      ...RANKED,
+      rankedProgress: { processed: 1, total: 1 },
+      pinsCount: 1,
+      pinsDone: true,
+    })
+    expect(view.visible && view.message).toBe('Retrieving Forecasts… (2/2)')
+  })
+
+  it('pins-only shows the singular/plural label with no live count', () => {
+    const one = composeOverlay({
       analyzeLoading: false,
       statusMessage: null,
       rankedProgress: null,
       pinsOnly: true,
-      pinsCount: 3,
+      pinsCount: 1,
       pinsDone: false,
     })
-    expect(view).toEqual({ visible: true, message: ANALYZING_MESSAGE, progress: null })
+    expect(one).toEqual({ visible: true, message: 'Retrieving Forecast…', progress: null })
+
+    const many = composeOverlay({
+      analyzeLoading: false,
+      statusMessage: null,
+      rankedProgress: null,
+      pinsOnly: true,
+      pinsCount: 4,
+      pinsDone: false,
+    })
+    expect(many).toEqual({ visible: true, message: 'Retrieving Forecasts…', progress: null })
   })
 })

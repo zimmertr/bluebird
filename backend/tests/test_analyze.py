@@ -273,10 +273,10 @@ def test_analyze_stream_custom_happy_path_emits_result(stub_upstreams):
     assert len(result_events) == 1
     assert result_events[0]["data"]["total_queried"] == 2
     # The custom path skips discovery and goes straight to the generic,
-    # destination-type-agnostic "Analyzing Forecasts…" status.
+    # destination-type-agnostic "Retrieving Forecasts…" status.
     statuses = [e["message"] for e in events if e["type"] == "status"]
-    assert "Analyzing Forecasts…" in statuses
-    assert not any("custom" in s for s in statuses)
+    assert "Retrieving Forecasts…" in statuses
+    assert not any("custom" in s or "Analyzing" in s for s in statuses)
 
 
 def test_analyze_stream_polygon_emits_search_then_analyze_status(monkeypatch, stub_upstreams):
@@ -295,12 +295,12 @@ def test_analyze_stream_polygon_emits_search_then_analyze_status(monkeypatch, st
     resp = client.post("/api/analyze/stream", json=body)
     events = [json.loads(line[len("data: "):]) for line in resp.text.splitlines() if line.startswith("data: ")]
     statuses = [e["message"] for e in events if e["type"] == "status"]
-    # Generic wording, and the discovery phase precedes the analyzing phase.
+    # Generic two-phase wording: discovery precedes retrieval.
     assert "Searching for Destinations…" in statuses
-    assert "Analyzing Forecasts…" in statuses
-    assert statuses.index("Searching for Destinations…") < statuses.index("Analyzing Forecasts…")
-    # No leftover peak-specific or "Found N" wording.
-    assert not any("peak" in s or "Found" in s for s in statuses)
+    assert "Retrieving Forecasts…" in statuses
+    assert statuses.index("Searching for Destinations…") < statuses.index("Retrieving Forecasts…")
+    # No leftover peak-specific, "Found N", or dropped "Analyzing" wording.
+    assert not any("peak" in s or "Found" in s or "Analyzing" in s for s in statuses)
 
 
 # ── _aligned_aqi / _assemble (series bake-in) ──────────────────────────────
