@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { DestinationType, SortBy } from '../types'
 import { MAX_AREA_KM2 } from './MapView'
 import { parseCustomCsv } from '../utils/customDestinations'
@@ -103,7 +104,10 @@ export default function ControlPanel({
   totalQueried,
 }: Props) {
   const needsPolygon = destinationType !== 'custom'
-  const hasCustom = destinationType === 'custom' && parseCustomCsv(customCsv).length > 0
+  // Parse the CSV once per change rather than twice on every render (this and the
+  // "N destinations parsed" count below both used to call parseCustomCsv directly).
+  const parsedCustom = useMemo(() => parseCustomCsv(customCsv), [customCsv])
+  const hasCustom = destinationType === 'custom' && parsedCustom.length > 0
   const hasDates = startDatetime !== '' && endDatetime !== ''
   const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > MAX_AREA_KM2
 
@@ -221,7 +225,7 @@ export default function ControlPanel({
               className="w-full text-xs bg-slate-900 border border-slate-600 rounded p-2 text-slate-200 placeholder-slate-600 font-mono resize-y focus:outline-none focus:border-sky-500"
             />
             <p className="text-xs text-slate-500 mt-1">
-              {parseCustomCsv(customCsv).length} destinations parsed
+              {parsedCustom.length} destinations parsed
             </p>
           </section>
         )}
