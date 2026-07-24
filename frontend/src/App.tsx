@@ -16,7 +16,7 @@ import { useIsDesktop } from './hooks/useIsDesktop'
 import { GeoPolygon, DestinationType, SortBy } from './types'
 import { METRIC_CONFIG, MARKER_COLORS } from './utils/colors'
 import { parseCustomCsv } from './utils/customDestinations'
-import { clampPanelHeight } from './utils/layout'
+import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
 import { Place } from './utils/geocode'
 import { encodeState, decodeState, classifyWindow, resolveSearchWindow } from './utils/urlState'
 
@@ -33,6 +33,22 @@ function nowLocal(): string {
   const d = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+// Live viewport height, so the chart/table panel heights can be re-clamped when
+// the window resizes or a phone rotates — otherwise a stale height could let the
+// panels crowd the map below its floor after a resize.
+function useViewportHeight(): number {
+  const [height, setHeight] = useState(() =>
+    typeof window !== 'undefined' ? window.innerHeight : 800,
+  )
+  useEffect(() => {
+    const onResize = () => setHeight(window.innerHeight)
+    window.addEventListener('resize', onResize)
+    onResize()
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  return height
 }
 
 export default function App() {
@@ -89,31 +105,28 @@ export default function App() {
     localStorage.setItem('bluebird_welcomed', '1')
     setShowWelcome(false)
   }
-  // A vertical resize handle: drag up to grow the panel (stealing height from
-  // the map above), down to shrink. Shared by the results table and the chart
-  // band above it — each handle drags its own panel, the map absorbs the rest.
-  // `reserved` is the height the map's other neighbor already claims (the
-  // sibling panel plus any preview banner), so a drag can't shrink the map below
-  // its floor and let the bottom-anchored map legend collide with the search box.
-  function resizeHandler(current: number, setHeight: (h: number) => void, reserved: number) {
-    return (e: React.MouseEvent) => {
-      e.preventDefault()
-      const startY = e.clientY
-      setIsDragging(true)
+  // Pointer-driven vertical resize, shared by mouse and touch (Pointer Events)
+  // and by both breakpoints. `onDrag` receives the drag distance with up
+  // positive; the handles below feed it the map│chart or chart│table geometry.
+  function beginResize(e: React.PointerEvent, onDrag: (dragUpPx: number) => void) {
+    e.preventDefault()
+    const startY = e.clientY
+    setIsDragging(true)
 
-      function onMove(ev: MouseEvent) {
-        setHeight(clampPanelHeight(current, startY - ev.clientY, reserved, window.innerHeight))
-      }
-
-      function onUp() {
-        setIsDragging(false)
-        document.removeEventListener('mousemove', onMove)
-        document.removeEventListener('mouseup', onUp)
-      }
-
-      document.addEventListener('mousemove', onMove)
-      document.addEventListener('mouseup', onUp)
+    function onMove(ev: PointerEvent) {
+      onDrag(startY - ev.clientY)
     }
+
+    function onUp() {
+      setIsDragging(false)
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', onUp)
+      document.removeEventListener('pointercancel', onUp)
+    }
+
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('pointerup', onUp)
+    document.addEventListener('pointercancel', onUp)
   }
 
   const { analyze, cancel, retry, analyzed, loading, error, response, statusMessage, progress } = useAnalyze()
@@ -273,8 +286,20 @@ export default function App() {
   const chartShown = chartable && chart.selectedRows.length > 0
 
   // Space below the map that a resize must leave alone: the preview banner (when
-  // present) plus whichever sibling panel isn't the one being dragged.
+  // present) sits above the map, so the map + chart + table share the rest.
   const bannerPx = preview.enabled ? 32 : 0
+
+  // Applied panel heights, re-derived every render from the desired (state)
+  // heights and the live viewport. Chart-priority: enabling the chart shrinks an
+  // over-tall table to fit rather than pushing the map's legends off-screen, and
+  // the map always keeps its floor. Drives both breakpoints — mobile is resizable
+  // too, so it can no longer rely on Tailwind's fixed panel heights.
+  const viewportH = useViewportHeight()
+  const { chart: chartPanelPx, table: tablePanelPx } = resolvePanelHeights(
+    chartHeight,
+    tableHeight,
+    { chartShown, tableShown: showTable, availPx: viewportH - bannerPx },
+  )
 
   return (
     <div className="flex flex-col h-dvh w-screen overflow-hidden bg-slate-900">
@@ -282,7 +307,7 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden min-h-0 relative">
       {showWelcome && <WelcomeModal onDismiss={dismissWelcome} />}
       {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)} />}
-      {isDragging && <div className="fixed inset-0 z-50 cursor-ns-resize" />}
+      {isDragging && <div className="fixed inset-0 z-50 cursor-ns-resize touch-none" />}
 
       {/* Mobile: dim backdrop behind the open drawer */}
       {sidebarOpen && (
@@ -470,19 +495,29 @@ export default function App() {
 
         {chartShown && (
           <div
-            className="flex h-56 flex-shrink-0 flex-col bg-slate-800 lg:h-auto"
-            style={isDesktop ? { height: `${chartHeight}px` } : undefined}
+            className="flex flex-shrink-0 flex-col bg-slate-800"
+            style={{ height: `${chartPanelPx}px` }}
           >
-            {/* Drag handle — mouse-only, so desktop only. Resizes the chart band
-                against the map above it, mirroring the results table below. */}
-            {isDesktop && (
-              <div
-                onMouseDown={resizeHandler(chartHeight, setChartHeight, (showTable ? tableHeight : 0) + bannerPx)}
-                className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
-              >
-                <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
-              </div>
-            )}
+            {/* Drag handle — the map│chart divider. Dragging up grows the chart,
+                stealing height from the map above; the table below stays put
+                (tablePanelPx is 0 when the table is closed). Pointer events +
+                touch-none so a finger resizes it on mobile too. */}
+            <div
+              onPointerDown={(e) => {
+                // Pin the table's desired height to its applied value first, so a
+                // stale (larger) desired height can't soak up space freed by
+                // shrinking the chart — that space belongs to the map here.
+                setTableHeight(tablePanelPx)
+                beginResize(e, (up) =>
+                  setChartHeight(
+                    clampPanelHeight(chartPanelPx, up, tablePanelPx + bannerPx, window.innerHeight),
+                  ),
+                )
+              }}
+              className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
+            >
+              <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
+            </div>
             <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-600 bg-slate-700 px-3 py-1">
               <span className="text-xs font-semibold text-white">
                 Forecast comparison — {chart.selectedRows.length} selected
@@ -501,8 +536,6 @@ export default function App() {
                 metric={chart.metric}
                 onMetricChange={chart.setMetric}
                 colorFor={chart.colorFor}
-                onSetColor={chart.setColor}
-                onRemove={chart.toggle}
               />
             </div>
           </div>
@@ -510,17 +543,28 @@ export default function App() {
         {showTable && (
           <div
             className="flex-shrink-0 bg-slate-800 flex flex-col"
-            style={isDesktop ? { height: `${tableHeight}px` } : undefined}
+            style={{ height: `${tablePanelPx}px` }}
           >
-            {/* Drag handle — mouse-only, so desktop only */}
-            {isDesktop && (
-              <div
-                onMouseDown={resizeHandler(tableHeight, setTableHeight, (chartShown ? chartHeight : 0) + bannerPx)}
-                className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
-              >
-                <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
-              </div>
-            )}
+            {/* Drag handle. With the chart above, this is the chart│table divider:
+                dragging up grows the table by shrinking the chart, leaving the map
+                untouched. With no chart it steals from the map like the chart
+                handle. Pointer events + touch-none for mobile. */}
+            <div
+              onPointerDown={(e) =>
+                beginResize(e, (up) => {
+                  if (chartShown) {
+                    const next = splitChartTable(chartPanelPx, tablePanelPx, up)
+                    setChartHeight(next.chart)
+                    setTableHeight(next.table)
+                  } else {
+                    setTableHeight(clampPanelHeight(tablePanelPx, up, bannerPx, window.innerHeight))
+                  }
+                })
+              }
+              className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
+            >
+              <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
+            </div>
             {/* Header */}
             <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-slate-700 border-b border-slate-600">
               <span className="text-xs font-semibold text-white">
@@ -540,13 +584,9 @@ export default function App() {
                 below the full table height — off-screen until the user
                 scrolled to the last row. results-scrollbars keeps the bars
                 visible (macOS overlay scrollbars hide the sideways hint).
-                On mobile the panel has no fixed height: the body sizes to its
-                rows and the map above keeps the rest. max-h caps it at ~10
-                rows (≈29px each + the sticky header) so a long ranking scrolls
-                instead of crowding the map — where the bottom-anchored legends
-                would otherwise ride up over the Controls button. Desktop keeps
-                the drag-resized panel height (lg:flex-1, no cap). */}
-            <div className="overflow-auto min-h-0 results-scrollbars max-h-[21rem] lg:max-h-none lg:flex-1">
+                The panel has a drag-resized height on every breakpoint now, so
+                the body just fills it (flex-1) and scrolls a long ranking. */}
+            <div className="overflow-auto min-h-0 results-scrollbars flex-1">
               <ResultsTable
                 results={results}
                 sortBy={view.sortBy}

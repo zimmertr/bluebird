@@ -4,8 +4,9 @@ import { ChartMetric, chartKey, metricForSort } from '../utils/chartData'
 import { colorForIndex } from '../utils/chartColors'
 
 // Chart selection for the results table: which destinations are overlaid, their
-// stable line colors (assigned on add, overridable via the legend picker), and
-// the active metric. Reset on each analysis — a fresh report starts clean, the
+// stable line colors (assigned on add, then fixed), and the active metric. The
+// color is surfaced by the row's checkbox (accent) and the chart tooltip — no
+// legend or picker. Reset on each analysis — a fresh report starts clean, the
 // same way the table's column sort resets.
 export function useChartSelection(
   results: DestinationResult[],
@@ -33,14 +34,10 @@ export function useChartSelection(
     )
     // Assign a color the first time a destination is charted; monotonic in the
     // number already assigned, so a line on the chart never changes hue when
-    // another is toggled. Overrides (setColor) simply replace the entry.
+    // another is toggled.
     setColorByKey((cbk) =>
       cbk[key] ? cbk : { ...cbk, [key]: colorForIndex(Object.keys(cbk).length) },
     )
-  }
-
-  function setColor(row: DestinationResult, hex: string) {
-    setColorByKey((cbk) => ({ ...cbk, [chartKey(row)]: hex }))
   }
 
   // Add or remove a run of rows in one shot (shift-click range select). New
@@ -91,5 +88,5 @@ export function useChartSelection(
     setSelectedKeys([])
   }
 
-  return { selectedRows, isSelected, toggle, setRange, colorFor, setColor, clear, metric, setMetric }
+  return { selectedRows, isSelected, toggle, setRange, colorFor, clear, metric, setMetric }
 }
