@@ -180,6 +180,21 @@ flowchart LR
   `PREVIEW_PR` / `PREVIEW_COMMIT` env (surfaced by `/api/config` → the SPA
   banner). Closing the PR prunes the environment.
 
+## Dependabot auto-merge
+
+Dependabot opens weekly PRs (`pip` in `/backend`, `npm` in `/frontend`,
+`github-actions` in `/`). `dependabot-auto-merge.yml` enables **squash
+auto-merge for patch (bugfix) bumps only** — GitHub completes the merge once
+`main`'s required checks pass; **minor and major bumps wait for manual review**.
+
+The merge step runs with a PAT (`AUTO_MERGE_PAT`, stored as a **Dependabot**
+secret — Actions secrets are empty in Dependabot-triggered runs), *not* the
+default `GITHUB_TOKEN`. That's deliberate: a `GITHUB_TOKEN`-driven merge would be
+suppressed by GitHub's recursion guard and never fire `release.yml`'s `on: push`,
+so the patch would land on `main` but never ship. With the PAT, an auto-merged
+patch deploys through Path 1 like any other merge — the prod canary still gates
+the rollout.
+
 ## A single change, end to end
 
 ```mermaid
