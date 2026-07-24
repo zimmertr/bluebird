@@ -18,9 +18,14 @@ PROVIDER = "OpenStreetMap (Overpass)"
 # only progress signal available for the search phase.
 StatusCallback = Callable[[str], Awaitable[None]]
 
+# overpass-api.de is the busiest public instance and frequently overloaded (slow
+# to first byte), so a less-used mirror (kumi) goes first to cap the common-case
+# wait. overpass-api.de stays as the first fallback (reliable when not overloaded),
+# ahead of maps.mail.ru as a last resort. Paired with a 30s per-mirror timeout so
+# a hung mirror fails over promptly instead of stalling the whole search phase.
 OVERPASS_ENDPOINTS = [
-    "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass-api.de/api/interpreter",
     "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ]
 HEADERS = {"User-Agent": "Bluebird/1.0 (bluebirdforecast.com; personal weather tool)"}
@@ -135,7 +140,7 @@ async def _post_with_fallback(
 ) -> dict[str, Any]:
     last_exc: Exception = RuntimeError("No Overpass endpoints configured")
     total = len(OVERPASS_ENDPOINTS)
-    async with httpx.AsyncClient(timeout=45.0, headers=HEADERS) as client:
+    async with httpx.AsyncClient(timeout=30.0, headers=HEADERS) as client:
         for i, url in enumerate(OVERPASS_ENDPOINTS, start=1):
             # Announce each attempt as it starts; the mirror fallback is the
             # only progress signal available for the opaque Overpass request.
