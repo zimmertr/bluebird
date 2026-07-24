@@ -1,5 +1,8 @@
-# Claude
-.claude/
+# Claude — local settings stay out; the checked-in skills are shared tooling.
+# Must be `.claude/*` not `.claude/`: git never descends into an ignored directory,
+# so a trailing-slash pattern would make the negation below unreachable.
+.claude/*
+!.claude/skills/
 
 # macOS
 .DS_Store
