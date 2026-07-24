@@ -129,7 +129,7 @@ export default function App() {
     document.addEventListener('pointercancel', onUp)
   }
 
-  const { analyze, cancel, retry, analyzed, loading, error, response, statusMessage, progress } = useAnalyze()
+  const { analyze, cancel, retry, reset, analyzed, loading, error, response, statusMessage, progress } = useAnalyze()
 
   // Searched locations pinned to the map and table. Each search adds (or
   // refreshes) a pin; pins persist until their 📍 is clicked in the table.
@@ -224,39 +224,56 @@ export default function App() {
 
     const constraints = { min_elevation_ft: minElevationFt, max_elevation_ft: maxElevationFt }
 
-    // The pinned rows join every analysis, refetched together with the same
-    // window so they stay comparable with the report they sit above.
+    // The pinned rows join every Analyze — refetched onto the chosen window so
+    // they stay comparable with any ranked report above them. This runs even
+    // on the pins-only path (no polygon/CSV), which is the whole point: it's
+    // how a searched pin gets resynced after the window is edited.
+    pinnedForecasts.refetchAll(start, end)
+
+    // Whether this click also produces a ranked report. Either a valid custom
+    // CSV, or a *complete* polygon (>= 3 points) — an incomplete ring is
+    // ignored so a mid-draw pin refresh doesn't fire a bogus analysis.
+    let ranked = false
     if (destinationType === 'custom') {
-      pinnedForecasts.refetchAll(start, end)
-      await analyze({
-        destination_type: 'custom',
-        start_datetime: start,
-        end_datetime: end,
-        limit,
-        sort_by: sortBy,
-        sort_desc: sortDesc,
-        custom_destinations: parseCustomCsv(customCsv),
-        ...constraints,
-      })
-    } else {
+      const custom = parseCustomCsv(customCsv)
+      if (custom.length > 0) {
+        ranked = true
+        await analyze({
+          destination_type: 'custom',
+          start_datetime: start,
+          end_datetime: end,
+          limit,
+          sort_by: sortBy,
+          sort_desc: sortDesc,
+          custom_destinations: custom,
+          ...constraints,
+        })
+      }
+    } else if (drawPointCount >= 3) {
       // Snapshot the map's current (always-editable) ring. finishDrawing()
       // returns the closed GeoPolygon synchronously so we don't have to wait
       // for the React state update; falls back to the restored polygon if the
       // map hasn't loaded yet.
       const resolvedPolygon = mapRef.current?.finishDrawing() ?? polygon
-      if (!resolvedPolygon) return
-      pinnedForecasts.refetchAll(start, end)
-      await analyze({
-        polygon: resolvedPolygon,
-        destination_type: destinationType,
-        start_datetime: start,
-        end_datetime: end,
-        limit,
-        sort_by: sortBy,
-        sort_desc: sortDesc,
-        ...constraints,
-      })
+      if (resolvedPolygon) {
+        ranked = true
+        await analyze({
+          polygon: resolvedPolygon,
+          destination_type: destinationType,
+          start_datetime: start,
+          end_datetime: end,
+          limit,
+          sort_by: sortBy,
+          sort_desc: sortDesc,
+          ...constraints,
+        })
+      }
     }
+
+    // Pins-only Analyze: no ranked run happened, so drop any stale ranked block
+    // (rows + markers) left over from a previous analysis whose polygon has
+    // since been deleted — leaving only the freshly-refetched pins on screen.
+    if (!ranked) reset()
 
     setShowResults(true)
   }
@@ -360,6 +377,7 @@ export default function App() {
           showWildfires={showWildfires}
           setShowWildfires={setShowWildfires}
           windowWarning={windowWarning}
+          hasPins={pinnedRows.length > 0}
           loading={loading}
           error={error}
           onAnalyze={() => {

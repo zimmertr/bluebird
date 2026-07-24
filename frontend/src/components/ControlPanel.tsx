@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { DestinationType, SortBy } from '../types'
 import { MAX_AREA_KM2 } from './MapView'
 import { parseCustomCsv } from '../utils/customDestinations'
+import { canAnalyze } from '../utils/analyzeGate'
 import {
   classifyAqiCoverage,
   AQI_LIMIT_DAYS,
@@ -61,6 +62,10 @@ interface Props {
   showWildfires: boolean
   setShowWildfires: (v: boolean) => void
   windowWarning: 'past' | 'future' | 'order' | null
+  // At least one searched place is pinned to the results table. A pin alone
+  // enables Analyze (which then refetches the pinned forecasts), even with no
+  // polygon drawn or CSV entered.
+  hasPins: boolean
   loading: boolean
   error: string | null
   onAnalyze: () => void
@@ -95,6 +100,7 @@ export default function ControlPanel({
   showWildfires,
   setShowWildfires,
   windowWarning,
+  hasPins,
   loading,
   error,
   onAnalyze,
@@ -112,12 +118,16 @@ export default function ControlPanel({
   const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > MAX_AREA_KM2
 
   const polygonReady = drawPointCount >= 3 && !areaTooLarge
-  const canAnalyze =
-    hasDates &&
-    !windowWarning &&
-    !loading &&
-    (needsPolygon ? polygonReady : hasCustom) &&
-    !areaTooLarge
+  const analyzeEnabled = canAnalyze({
+    hasDates,
+    hasWindowWarning: windowWarning !== null,
+    loading,
+    areaTooLarge,
+    needsPolygon,
+    polygonReady,
+    hasCustom,
+    hasPins,
+  })
 
   // Informational only — never blocks Analyze. AQI simply degrades to "—".
   const aqiCoverage = classifyAqiCoverage(startDatetime, endDatetime, new Date())
@@ -453,7 +463,7 @@ export default function ControlPanel({
       <div className="px-4 py-4 border-t border-slate-700 space-y-3">
         <button
           onClick={onAnalyze}
-          disabled={!canAnalyze}
+          disabled={!analyzeEnabled}
           className="w-full py-3 lg:py-2.5 rounded font-semibold text-sm transition-colors
             bg-sky-600 hover:bg-sky-500 text-white
             disabled:opacity-40 disabled:cursor-not-allowed"
@@ -461,7 +471,7 @@ export default function ControlPanel({
           {loading ? 'Analyzing…' : 'Analyze'}
         </button>
 
-        {!canAnalyze && !loading && (
+        {!analyzeEnabled && !loading && (
           <p className="text-xs text-slate-500 text-center">
             {areaTooLarge
               ? `Area too large — draw a smaller polygon (max ${MAX_AREA_KM2.toLocaleString()} km²).`

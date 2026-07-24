@@ -37,6 +37,16 @@ export function useAnalyze() {
     if (lastRequestRef.current) analyze(lastRequestRef.current)
   }
 
+  // Clear the current ranked results without fetching. Used by a pins-only
+  // Analyze so a stale ranking (e.g. from a since-deleted polygon) doesn't
+  // linger in the table and on the map above the refetched pins.
+  function reset() {
+    setResponse(null)
+    setAnalyzed(null)
+    setError(null)
+    lastRequestRef.current = null
+  }
+
   // One explicit fetch per Analyze click: the server analyzes every candidate
   // in the polygon (refusing loudly above its ceiling) and returns exactly the
   // table rows. Nothing is cached or refetched behind the user's back.
@@ -143,5 +153,5 @@ export function useAnalyze() {
     }
   }
 
-  return { analyze, cancel, retry, analyzed, loading, error, response, statusMessage, progress }
+  return { analyze, cancel, retry, reset, analyzed, loading, error, response, statusMessage, progress }
 }
