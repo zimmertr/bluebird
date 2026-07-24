@@ -4,6 +4,7 @@
 // to unit-test — App.tsx owns the thin glue that reads/writes location.
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
 import { GeoPolygon, DestinationType, SortBy } from '../types'
+import { Place } from './geocode'
 
 // Fields that fully describe an analysis. Results are deliberately excluded —
 // they're re-fetched fresh so a shared link never replays stale forecasts.
@@ -19,6 +20,10 @@ export interface ShareableState {
   limit: number
   customCsv: string
   showWildfires: boolean // live NIFC map overlay; not part of the analysis request
+  // Searched places pinned to the results table. Persisted so a refreshed or
+  // shared link repopulates them (and refetches their forecasts). Only the
+  // fields needed to recreate the pin and its identity link are stored.
+  pins: Place[]
 }
 
 const DESTINATION_TYPES: DestinationType[] = ['peak', 'trailhead', 'lake', 'custom']
@@ -92,6 +97,54 @@ function decodePolygon(raw: string): GeoPolygon | null {
   return { type: 'Polygon', coordinates: [[...pts, pts[0]]] }
 }
 
+// Encode pinned places as "lat,lon,kind,elev,osmId,label" per pin, ';'-joined.
+// Each field is percent-encoded so a label containing ',' or ';' can't collide
+// with the delimiters (URLSearchParams decodes the outer layer on read, then
+// decodePins splits and unescapes each field). Coords are rounded like the
+// polygon ring to keep the URL short. Missing elevation/osmId encode as empty.
+function encodePins(places: Place[]): string {
+  return places
+    .map((p) => {
+      const fields = [
+        String(round(p.lon)),
+        String(round(p.lat)),
+        p.kind,
+        p.elevationFt === undefined ? '' : String(p.elevationFt),
+        p.osmId ?? '',
+        p.label,
+      ]
+      return fields.map((f) => encodeURIComponent(f)).join(',')
+    })
+    .join(';')
+}
+
+// Parse the pins param back into Places. Tolerant like the rest of decodeState:
+// an entry without a finite lon/lat is skipped rather than failing the whole
+// list. `description`/`bbox` aren't persisted — a restored pin doesn't need the
+// disambiguation line or the fly-to extent — so they come back empty/absent.
+function decodePins(raw: string): Place[] {
+  const out: Place[] = []
+  for (const entry of raw.split(';')) {
+    const parts = entry.split(',').map((f) => decodeURIComponent(f))
+    if (parts.length < 6) continue
+    const [lonStr, latStr, kind, elevStr, osmId, label] = parts
+    const lon = Number(lonStr)
+    const lat = Number(latStr)
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue
+    const elev = Number(elevStr)
+    out.push({
+      label: label || `${lat.toFixed(5)}, ${lon.toFixed(5)}`,
+      description: '',
+      kind,
+      lat,
+      lon,
+      ...(elevStr !== '' && Number.isFinite(elev) ? { elevationFt: elev } : {}),
+      ...(osmId ? { osmId } : {}),
+    })
+  }
+  return out
+}
+
 // datetime-local strings only — reject anything Date can't parse so a garbled
 // value doesn't silently become "Invalid Date" downstream.
 function isValidDatetimeLocal(s: string): boolean {
@@ -113,13 +166,15 @@ export function encodeState(state: ShareableState): string {
   const hasCustom = state.destinationType === 'custom' && state.customCsv.trim() !== ''
   const hasWindow = isValidDatetimeLocal(state.endDatetime)
   const hasConstraint = state.minElevationFt !== null || state.maxElevationFt !== null
+  const hasPins = state.pins.length > 0
   const nonDefaultControls =
     state.sortBy !== DEFAULT_SORT ||
     state.sortDesc ||
     state.limit !== DEFAULT_LIMIT ||
     state.destinationType !== DEFAULT_TYPE ||
     state.showWildfires
-  if (!hasPolygon && !hasCustom && !hasWindow && !hasConstraint && !nonDefaultControls) return ''
+  if (!hasPolygon && !hasCustom && !hasWindow && !hasConstraint && !hasPins && !nonDefaultControls)
+    return ''
 
   const p = new URLSearchParams()
   p.set('type', state.destinationType)
@@ -137,6 +192,7 @@ export function encodeState(state: ShareableState): string {
   // decode can tell it apart from legacy raw `custom=` links (see decodeState).
   if (hasCustom) p.set('customz', compressToEncodedURIComponent(state.customCsv))
   if (state.showWildfires) p.set('fires', '1')
+  if (hasPins) p.set('pins', encodePins(state.pins))
 
   return p.toString()
 }
@@ -208,6 +264,12 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   }
 
   if (params.get('fires') === '1') out.showWildfires = true
+
+  const pins = params.get('pins')
+  if (pins) {
+    const decoded = decodePins(pins)
+    if (decoded.length > 0) out.pins = decoded
+  }
 
   return Object.keys(out).length > 0 ? out : null
 }

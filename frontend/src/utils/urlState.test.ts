@@ -36,6 +36,7 @@ const base: ShareableState = {
   limit: 10,
   customCsv: '',
   showWildfires: false,
+  pins: [],
 }
 
 // A truly untouched session: no polygon, no custom CSV, End unset, all controls
@@ -52,6 +53,7 @@ const pristine: ShareableState = {
   limit: 10,
   customCsv: '',
   showWildfires: false,
+  pins: [],
 }
 
 // Round-trip helper: encode, then decode the resulting query string.
@@ -219,6 +221,62 @@ describe('encodeState', () => {
     const poly = new URLSearchParams(encodeState(base)).get('poly')!
     // 3 unique vertices → 3 encoded pairs, not 4.
     expect(poly.split(';')).toHaveLength(3)
+  })
+})
+
+describe('pins in the URL', () => {
+  const whitney = {
+    label: 'Mount Whitney',
+    description: '',
+    kind: 'peak',
+    lat: 36.57849,
+    lon: -118.29194,
+    elevationFt: 14505,
+    osmId: 'node/944865772',
+  }
+  const coord = {
+    label: '36.10000, -118.20000',
+    description: '',
+    kind: 'coordinates',
+    lat: 36.1,
+    lon: -118.2,
+  }
+
+  it('round-trips a peak pin with elevation and osm identity', () => {
+    const out = roundTrip({ ...base, pins: [whitney] })
+    expect(out?.pins).toEqual([whitney])
+  })
+
+  it('round-trips a bare coordinate pin (no elevation, no osmId)', () => {
+    const out = roundTrip({ ...base, pins: [coord] })
+    expect(out?.pins).toEqual([coord])
+    // Absent fields stay absent, not undefined-valued.
+    expect(out?.pins?.[0]).not.toHaveProperty('elevationFt')
+    expect(out?.pins?.[0]).not.toHaveProperty('osmId')
+  })
+
+  it('survives a label containing the delimiters (comma and semicolon)', () => {
+    const tricky = { ...coord, label: 'Cabin, mile 3; near creek' }
+    const out = roundTrip({ ...base, pins: [tricky] })
+    expect(out?.pins).toEqual([tricky])
+  })
+
+  it('round-trips multiple pins in order', () => {
+    const out = roundTrip({ ...base, pins: [whitney, coord] })
+    expect(out?.pins).toEqual([whitney, coord])
+  })
+
+  it('a lone pin is worth persisting (encodeState not empty)', () => {
+    const qs = encodeState({ ...pristine, pins: [coord] })
+    expect(qs).not.toBe('')
+    expect(new URLSearchParams(qs).get('pins')).toBeTruthy()
+  })
+
+  it('drops malformed pin entries but keeps the valid ones', () => {
+    // A valid pin, then an entry with a non-numeric coordinate.
+    const decoded = decodeState('pins=-118.2,36.1,coordinates,,,A;notanum,36.1,,,,B')
+    expect(decoded?.pins).toHaveLength(1)
+    expect(decoded?.pins?.[0].label).toBe('A')
   })
 })
 

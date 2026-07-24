@@ -150,6 +150,15 @@ export function usePinnedForecasts() {
     )
   }
 
+  // Seed pins restored from the URL at load, then fetch their forecasts for the
+  // given window (silently — a shared link opening shouldn't throw up a modal).
+  // Their dots and table rows appear as the forecasts land, just like a search.
+  function restore(places: Place[], startIso: string, endIso: string) {
+    if (places.length === 0) return
+    commit(places.map((place) => ({ place, row: null })))
+    void fetchSet(places, startIso, endIso)
+  }
+
   // Abort an in-flight refresh (wired to the loading overlay's Cancel button).
   function cancel() {
     abortRef.current?.abort()
@@ -176,5 +185,5 @@ export function usePinnedForecasts() {
   )
   const places = useMemo(() => pins.map((p) => p.place), [pins])
 
-  return { rows, places, loading, addPlace, removePlace, refetchAll, cancel }
+  return { rows, places, loading, addPlace, removePlace, refetchAll, restore, cancel }
 }

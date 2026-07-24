@@ -137,6 +137,16 @@ export default function App() {
   const pinnedForecasts = usePinnedForecasts()
   const pinnedRows = pinnedForecasts.rows
 
+  // Repopulate pins restored from the URL, once at mount, and fetch their
+  // forecasts for the restored/servable window (same window logic a fresh
+  // search uses). Runs after first paint so the map/hooks are ready.
+  useEffect(() => {
+    if (!restored?.pins?.length) return
+    const w = resolveSearchWindow(startDatetime, endDatetime, new Date())
+    pinnedForecasts.restore(restored.pins, w.start, w.end)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // A pinned forecast opens the results panel so the rows are visible even
   // before any analysis has run (or after the panel was closed).
   useEffect(() => {
@@ -192,6 +202,7 @@ export default function App() {
       limit,
       customCsv,
       showWildfires,
+      pins: pinnedForecasts.places,
     })
     const url = qs ? `?${qs}` : window.location.pathname
     window.history.replaceState(null, '', url)
@@ -207,6 +218,7 @@ export default function App() {
     limit,
     customCsv,
     showWildfires,
+    pinnedForecasts.places,
   ])
 
   // Warn when a restored/edited window falls outside Open-Meteo's servable
