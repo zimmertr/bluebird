@@ -338,7 +338,7 @@ export default function ControlPanel({
             3. Result Ranking
           </h2>
           <p className="text-xs text-slate-500 mb-2.5">
-            Set the way results will be ranked after analysis.
+            Set the metric that decides which destinations make the results, not just their order.
           </p>
           <div className="space-y-2 lg:space-y-1.5">
             {SORT_METRICS.map((metric) => {
