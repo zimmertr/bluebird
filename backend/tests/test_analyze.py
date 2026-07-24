@@ -205,6 +205,21 @@ def test_analyze_start_after_end_is_400(stub_upstreams):
     assert "before" in resp.json()["detail"]
 
 
+def test_analyze_equal_window_is_current_forecast(stub_upstreams):
+    # start == end is the "current forecast": the model normalizes it to the
+    # hour at hand instead of the routes rejecting it as an empty window.
+    now = datetime.now(timezone.utc)
+    body = {
+        "destination_type": "custom",
+        "start_datetime": now.isoformat(),
+        "end_datetime": now.isoformat(),
+        "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 2.0}],
+    }
+    resp = client.post("/api/analyze", json=body)
+    assert resp.status_code == 200
+    assert resp.json()["total_queried"] == 1
+
+
 def test_analyze_custom_without_destinations_is_400(stub_upstreams):
     start, end = _window()
     resp = client.post("/api/analyze", json={
