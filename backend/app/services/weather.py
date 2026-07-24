@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import datetime
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any
 
 import httpx
 
@@ -24,11 +25,11 @@ ProgressCallback = Callable[[int, int, int, int], Awaitable[None]]
 
 
 async def fetch_weather_batch(
-    destinations: List[Dict[str, Any]],
+    destinations: list[dict[str, Any]],
     start_dt: datetime,
     end_dt: datetime,
-    on_progress: Optional[ProgressCallback] = None,
-) -> List[Optional[Dict[str, Any]]]:
+    on_progress: ProgressCallback | None = None,
+) -> list[dict[str, Any] | None]:
     if not destinations:
         return []
 
@@ -47,7 +48,7 @@ async def fetch_weather_batch(
 
     # Preserve input ordering by placing each batch's results at its own index,
     # while still reporting progress in completion order via as_completed.
-    results_by_index: List[List[Optional[Dict[str, Any]]]] = [[] for _ in chunks]
+    results_by_index: list[list[dict[str, Any] | None]] = [[] for _ in chunks]
     processed = 0
     batches_done = 0
 
@@ -76,20 +77,20 @@ async def fetch_weather_batch(
 
 async def _fetch_chunk_indexed(
     index: int,
-    destinations: List[Dict[str, Any]],
+    destinations: list[dict[str, Any]],
     start_dt: datetime,
     end_dt: datetime,
     sem: asyncio.Semaphore,
-) -> tuple[int, List[Optional[Dict[str, Any]]]]:
+) -> tuple[int, list[dict[str, Any] | None]]:
     async with sem:
         return index, await _fetch_chunk(destinations, start_dt, end_dt)
 
 
 async def _fetch_chunk(
-    destinations: List[Dict[str, Any]],
+    destinations: list[dict[str, Any]],
     start_dt: datetime,
     end_dt: datetime,
-) -> List[Optional[Dict[str, Any]]]:
+) -> list[dict[str, Any] | None]:
     lats = ",".join(str(d["latitude"]) for d in destinations)
     lons = ",".join(str(d["longitude"]) for d in destinations)
 
@@ -130,10 +131,10 @@ async def _fetch_chunk(
 
 
 def _metrics(
-    data: Dict[str, Any],
+    data: dict[str, Any],
     start_dt: datetime,
     end_dt: datetime,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     try:
         hourly = data.get("hourly", {})
         times = hourly.get("time", [])
@@ -169,14 +170,14 @@ def _metrics(
             "wind_max_mph": round(max(w_vals), 1),
             "wind_avg_mph": round(sum(w_vals) / len(w_vals), 1),
         }
-    except Exception:
+    except Exception:  # noqa: BLE001 — malformed payload degrades to no metrics
         return None
 
 
-def _parse_ts(s: str) -> Optional[datetime]:
+def _parse_ts(s: str) -> datetime | None:
     try:
         return datetime.fromisoformat(s).replace(tzinfo=None)
-    except Exception:
+    except Exception:  # noqa: BLE001 — unparseable timestamp degrades to None
         return None
 
 

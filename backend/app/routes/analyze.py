@@ -32,9 +32,7 @@ def _filter_elevation(destinations, min_ft, max_ft):
             return True
         if min_ft is not None and elev < min_ft:
             return False
-        if max_ft is not None and elev > max_ft:
-            return False
-        return True
+        return not (max_ft is not None and elev > max_ft)
 
     return [d for d in destinations if keep(d)]
 
@@ -324,7 +322,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
             raise HTTPException(status_code=400, detail=str(e))
         except UpstreamError as e:
             raise HTTPException(status_code=502, detail=e.message)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — any OSM failure maps to a 502
             raise HTTPException(
                 status_code=502, detail=f"OSM query failed: {e}"
             )
@@ -361,7 +359,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     except UpstreamError as e:
         aqi_task.cancel()
         raise HTTPException(status_code=502, detail=e.message)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — any weather failure maps to a 502
         aqi_task.cancel()
         raise HTTPException(
             status_code=502, detail=f"Weather API request failed: {e}"
