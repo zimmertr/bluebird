@@ -3,6 +3,7 @@ import { DestinationResult, SortBy } from '../types'
 import { cellStyle, METRIC_CONFIG } from '../utils/colors'
 import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
 import { compareValues } from '../utils/sortResults'
+import { orderColumns } from '../utils/tableColumns'
 import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
 
@@ -72,6 +73,11 @@ export default function ResultsTable({
   onChartRange,
 }: Props) {
   const coloredGroup = new Set(METRIC_CONFIG[sortBy].group)
+  // The ranked metric's columns lead the table (right after #/Name/Elev), so
+  // the numbers the ranking was built from are the first thing read. Keyed on
+  // the analyzed snapshot, like the cell colors — panel knob changes don't
+  // reshuffle the displayed report.
+  const orderedColumns = orderColumns(COLUMNS, sortBy)
   const [sortKey, setSortKey] = useState<SortKey>(sortBy)
   const [sortDir, setSortDir] = useState<SortDir>(sortDesc ? 'desc' : 'asc')
 
@@ -154,7 +160,7 @@ export default function ResultsTable({
   // Everything after the rank cell, shared by ranked rows and the pinned row
   // so the searched point gets identical formatting, links, and cell colors.
   function rowCells(row: DestinationResult) {
-    return COLUMNS.map((col) => {
+    return orderedColumns.map((col) => {
       const raw = row[col.key]
       const display = col.format ? col.format(raw) : String(raw ?? '—')
       const sortVal = row[sortBy]
@@ -264,7 +270,7 @@ export default function ResultsTable({
               </th>
             )}
             <th className="px-2 py-2 text-left text-slate-400 font-medium w-6">#</th>
-            {COLUMNS.map((col) => (
+            {orderedColumns.map((col) => (
               <th
                 key={col.key}
                 onClick={() => handleSort(col.key)}
