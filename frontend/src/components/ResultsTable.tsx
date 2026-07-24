@@ -42,10 +42,9 @@ interface Props {
   sortBy: SortBy
   sortDesc: boolean
   fireWarnings: Map<string, FireWarning>
-  // Forecasts for the pinned searched locations — rendered above the ranked
-  // rows, outside the sort and the analysis limit. Clicking a row's 📍 unpins it.
-  pinned?: DestinationResult[]
-  onUnpin?: (row: DestinationResult) => void
+  // The × at the row end — removes the destination from the current report
+  // (and, for a searched place, deregisters it).
+  onRemove?: (row: DestinationResult) => void
   // Clicking a row's name centers the map on that destination.
   onFocusResult?: (row: DestinationResult) => void
   // Chart selection. When onToggleChart is provided (the analysis carried
@@ -64,8 +63,7 @@ export default function ResultsTable({
   sortBy,
   sortDesc,
   fireWarnings,
-  pinned,
-  onUnpin,
+  onRemove,
   onFocusResult,
   onToggleChart,
   isCharted,
@@ -112,12 +110,10 @@ export default function ResultsTable({
   // an empty cell so the columns stay aligned.
   const showChartCol = !!onToggleChart
 
-  // Every chartable row currently in the table — pinned search rows and ranked
-  // results alike — for the header "select all" box. Its state (all/some/none)
-  // drives both the checked mark and the indeterminate dash.
-  const chartableRows = showChartCol
-    ? [...(pinned ?? []), ...results].filter((r) => r.series)
-    : []
+  // Every chartable row currently in the table, for the header "select all"
+  // box. Its state (all/some/none) drives both the checked mark and the
+  // indeterminate dash.
+  const chartableRows = showChartCol ? results.filter((r) => r.series) : []
   const headState = selectionState(chartableRows, (r) => isCharted?.(r) ?? false)
 
   function handleChartToggle(row: DestinationResult) {
@@ -282,37 +278,32 @@ export default function ResultsTable({
                 )}
               </th>
             ))}
+            {onRemove && <th className="w-6 px-1 py-2" aria-label="Remove" />}
           </tr>
         </thead>
         <tbody>
-          {pinned?.map((row) => (
-            <tr
-              key={`pin-${row.latitude},${row.longitude}`}
-              className="border-t border-slate-700/50 bg-amber-400/10 hover:bg-amber-400/20 transition-colors"
-            >
-              {showChartCol && <td className="px-2 py-1.5">{renderChartToggle(row)}</td>}
-              {/* Matches the amber search pin on the map */}
-              <td className="px-2 py-1.5">
-                <button
-                  onClick={() => onUnpin?.(row)}
-                  title="Pinned from search — click to unpin"
-                  aria-label={`Unpin ${row.name}`}
-                  className="cursor-pointer leading-none hover:scale-125 transition-transform"
-                >
-                  📍
-                </button>
-              </td>
-              {rowCells(row)}
-            </tr>
-          ))}
           {sorted.map((row, i) => (
             <tr
               key={`${row.name}-${i}`}
-              className="border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors"
+              className="group border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors"
             >
               {showChartCol && <td className="px-2 py-1.5">{renderChartToggle(row)}</td>}
               <td className="px-2 py-1.5 text-slate-500 tabular-nums">{i + 1}</td>
               {rowCells(row)}
+              {onRemove && (
+                <td className="px-1 py-1.5 text-right">
+                  {/* Hover-revealed on pointer devices; always visible on touch
+                      (the row-remove rule in index.css). */}
+                  <button
+                    onClick={() => onRemove(row)}
+                    title="Remove from the results"
+                    aria-label={`Remove ${row.name}`}
+                    className="row-remove px-1 leading-none text-slate-500 hover:text-slate-200 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 cursor-pointer"
+                  >
+                    ×
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

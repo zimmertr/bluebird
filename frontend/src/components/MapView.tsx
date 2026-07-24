@@ -35,12 +35,9 @@ interface Props {
   // table — a clicked point's popup surfaces the same ⚠️ when one applies.
   fireWarnings: Map<string, FireWarning>
   showWildfires: boolean
-  // Searched destinations — rendered like ranked results (metric-colored dots +
-  // forecast popup), but unranked. Kept in lockstep with the pinned rows in the
-  // results table (unpinning removes the marker).
-  searchResults: DestinationResult[]
-  // Searched places still awaiting a forecast (in flight, or a failed fetch),
-  // drawn as neutral blue dots so a searched point never vanishes.
+  // Searched places not (or not yet) in the displayed analysis — awaiting the
+  // next Analyze, or ranked below the cutoff — drawn as neutral blue dots so a
+  // searched point never vanishes. Analyzed ones arrive inside `results`.
   pendingPlaces: Place[]
   minElevationFt: number | null
   maxElevationFt: number | null
@@ -245,7 +242,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
       sortBy,
       fireWarnings,
       showWildfires,
-      searchResults,
       pendingPlaces,
       minElevationFt,
       maxElevationFt,
@@ -295,8 +291,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
           setSource(mapRef.current, 'draw', emptyFC)
         }
       },
-      // Frame a searched place. Only the camera move — the markers render
-      // declaratively from the searchResults prop.
+      // Frame a searched place. Only the camera move — the place renders
+      // declaratively as a pending dot until the next Analyze ranks it.
       flyToPlace(place: Place) {
         const map = mapRef.current
         if (!map || !loadedRef.current) {
@@ -557,47 +553,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
           },
         })
 
-        // ── Searched destinations ──────────────────────────────────────
-        // Rendered exactly like ranked results — metric-colored dot + name
-        // label + forecast popup — but unranked, so no rank number inside the
-        // dot. Same paint as results-circles so the two read as one legend.
-        map.addSource('search', { type: 'geojson', data: emptyFC as FeatureCollection })
-        map.addLayer({
-          id: 'search-results-circles',
-          type: 'circle',
-          source: 'search',
-          paint: {
-            'circle-radius': 10,
-            'circle-color': ['get', 'color'],
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#fff',
-            'circle-opacity': 0.9,
-          },
-        })
-        map.addLayer({
-          id: 'search-results-labels',
-          type: 'symbol',
-          source: 'search',
-          layout: {
-            'text-field': ['get', 'name'],
-            'text-offset': [0, 1.6],
-            'text-size': 11,
-            'text-anchor': 'top',
-            'text-font': ['Noto Sans Regular'],
-          },
-          paint: {
-            'text-color': '#f8fafc',
-            'text-halo-color': '#0f172a',
-            'text-halo-width': 1.5,
-          },
-        })
-
         // ── Pending searched destinations ──────────────────────────────
-        // A searched place whose forecast is in flight or failed: a neutral
+        // A searched place not yet in the displayed analysis: a neutral
         // bluebird-blue dot so the point never vanishes, no forecast popup yet.
         // Absent from the blocked-click list on purpose — a pending dot must
         // never swallow a polygon click while you draw around a just-searched
-        // spot; it starts blocking (opening a popup) once its metric dot lands.
+        // spot; it starts blocking (opening a popup) once it ranks in.
         map.addSource('search-pending', { type: 'geojson', data: emptyFC as FeatureCollection })
         map.addLayer({
           id: 'search-pending-circles',
@@ -816,7 +777,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         const showCrosshair = () => {
           map.getCanvas().style.cursor = 'crosshair'
         }
-        for (const layer of ['results-circles', 'search-results-circles']) {
+        for (const layer of ['results-circles']) {
           map.on('click', layer, openResultPopup)
           map.on('mouseenter', layer, showPointer)
           map.on('mouseleave', layer, showCrosshair)
@@ -827,7 +788,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
           const blocked = map.queryRenderedFeatures(e.point, {
             layers: [
               'results-circles',
-              'search-results-circles',
               'draw-vertices',
               'draw-midpoints',
               'wildfire-fill',
@@ -883,17 +843,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       fireWarningsRef.current = fireWarnings
     }, [fireWarnings])
 
-    // Metric-colored marker per searched destination, recolored when the sort
-    // metric changes (unranked, so resultsFeatureCollection is passed ranked=false).
-    // Depends on mapReady (not a pending ref) so markers land as soon as the
-    // sources/layers exist.
-    useEffect(() => {
-      const map = mapRef.current
-      if (!map || !mapReady) return
-      setSource(map, 'search', resultsFeatureCollection(searchResults, sortBy, false))
-    }, [searchResults, sortBy, mapReady])
-
-    // Neutral blue dot per searched place still awaiting a forecast.
+    // Neutral blue dot per searched place not yet in the displayed analysis.
     useEffect(() => {
       const map = mapRef.current
       if (!map || !mapReady) return

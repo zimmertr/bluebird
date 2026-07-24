@@ -83,3 +83,11 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover,
 input[type="number"]::-webkit-inner-spin-button:hover {
   opacity: 1;
 }
+
+/* The per-row remove × is hover-revealed on pointer devices (see ResultsTable);
+   touch devices have no hover, so it stays visible there. */
+@media (hover: none) {
+  .row-remove {
+    opacity: 1;
+  }
+}

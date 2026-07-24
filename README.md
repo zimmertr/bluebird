@@ -69,7 +69,7 @@ One analysis ranks a single set of destinations, which you define using one or a
 
 #### a. Search by Name
 
-The search box at the top-left of the map recenters on any named place (a peak, city, lake, river, or trailhead) or on an exact coordinate pair. Type a name like `Mt Whitney` or `Mt Whitney, ca`, or coordinates like `36.57862, -118.29107` (parentheses and space-separated forms work too), then press Enter. Point features get a roughly 10 mile view; larger features like cities, parks, and rivers are framed whole. An amber pin marks the result and stays out of the way of polygon drawing — searched places join the results as unranked rows pinned above the ranked table. Search is powered by [Nominatim](https://nominatim.org), so it works for anything OSM knows about, including places Bluebird can't analyze yet.
+The search box at the top-left of the map recenters on any named place (a peak, city, lake, river, or trailhead) or on an exact coordinate pair. Type a name like `Mt Whitney` or `Mt Whitney, ca`, or coordinates like `36.57862, -118.29107` (parentheses and space-separated forms work too), then press Enter. Point features get a roughly 10 mile view; larger features like cities, parks, and rivers are framed whole. An amber pin marks the result and stays out of the way of polygon drawing. A searched place registers as a destination (a neutral blue dot until analyzed) and competes in the same ranking as everything else on the next Analyze. Search is powered by [Nominatim](https://nominatim.org), so it works for anything OSM knows about, including places Bluebird can't analyze yet.
 
 #### b. Search by Polygon
 
@@ -131,7 +131,7 @@ Click a marker for a popup with rank, precipitation, wind, temperature, and PM2.
 
 ### Results Table
 
-Click any column header to sort by it, ascending or descending. By default the table follows the **Rank Results By** selection, for example lowest total precipitation for driest-first.
+Click any column header to sort by it, ascending or descending. By default the table follows the **Result Ranking** selection, for example lowest total precipitation for driest-first. Hovering a row reveals a × at its end (always visible on touch screens) that removes the destination from the report — the rows below renumber, and a same-inputs re-Analyze keeps it gone; changing the destinations, window, ranking, or options starts a fresh report where it may return.
 
 | Column | Description |
 |---|---|

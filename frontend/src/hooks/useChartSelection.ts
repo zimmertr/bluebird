@@ -8,11 +8,7 @@ import { colorForIndex } from '../utils/chartColors'
 // color is surfaced by the row's checkbox (accent) and the chart tooltip — no
 // legend or picker. Reset on each analysis — a fresh report starts clean, the
 // same way the table's column sort resets.
-export function useChartSelection(
-  results: DestinationResult[],
-  pinned: DestinationResult[],
-  sortBy: SortBy,
-) {
+export function useChartSelection(results: DestinationResult[], sortBy: SortBy) {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [colorByKey, setColorByKey] = useState<Record<string, string>>({})
   const [metric, setMetric] = useState<ChartMetric>(() => metricForSort(sortBy))
@@ -68,13 +64,15 @@ export function useChartSelection(
 
   const selectedSet = useMemo(() => new Set(selectedKeys), [selectedKeys])
 
-  // Ranked and pinned rows are both chartable; search either pool by key.
-  const selectedRows = useMemo(() => {
-    const pool = [...results, ...pinned]
-    return selectedKeys
-      .map((k) => pool.find((r) => chartKey(r) === k))
-      .filter((r): r is DestinationResult => r != null)
-  }, [selectedKeys, results, pinned])
+  // Selections are keyed by coordinate; a row that leaves the report (removed,
+  // ranked out) simply drops off the chart.
+  const selectedRows = useMemo(
+    () =>
+      selectedKeys
+        .map((k) => results.find((r) => chartKey(r) === k))
+        .filter((r): r is DestinationResult => r != null),
+    [selectedKeys, results],
+  )
 
   function isSelected(row: DestinationResult): boolean {
     return selectedSet.has(chartKey(row))

@@ -10,16 +10,17 @@ import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
 import { useChartSelection } from './hooks/useChartSelection'
 import { useFireProximity } from './hooks/useFireProximity'
-import { usePinnedForecasts, pinKey } from './hooks/usePinnedForecasts'
+import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
-import { CustomDestination, DiscoveryType, GeoPolygon, SortBy } from './types'
+import { CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy } from './types'
 import { METRIC_CONFIG, MARKER_COLORS } from './utils/colors'
 import { parseCustomCsv } from './utils/customDestinations'
+import { buildCustomList, pinKey } from './utils/customList'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
 import { composeOverlay } from './utils/analyzeOverlay'
-import { Place } from './utils/geocode'
-import { encodeState, decodeState, classifyWindow, resolveSearchWindow } from './utils/urlState'
+import { Place, isPeakKind } from './utils/geocode'
+import { encodeState, decodeState, classifyWindow } from './utils/urlState'
 
 // Composed with the direction into e.g. "lowest total precipitation" /
 // "highest average temperature" for the results header.
@@ -60,11 +61,16 @@ export default function App() {
   // this skips Overpass and just refreshes the known destinations' weather; any
   // change forces a fresh discovery. Updated only on a real discovery run.
   const discoverySignatureRef = useRef<string | null>(null)
-  // Remembers each discovered row's OSM identity (type + osm_id) by coordinate.
-  // A refresh refetches rows through the custom path, which echoes them as
-  // type "custom" with no osm_id — this map restores their real identity so a
-  // refreshed peak still links to Peakbagger and shows the right badge.
-  const identityMapRef = useRef<Map<string, { type: string; osm_id: string }>>(new Map())
+  // Remembers each row's real identity (type + osm_id) by coordinate — from
+  // discovered rows (which carry an osm_id) and from searched places (whose
+  // geocoding knew their kind and OSM id). Rows echoed through the custom path
+  // come back as type "custom" with no osm_id; this map restores them so a
+  // peak still links to Peakbagger and shows the right badge.
+  const identityMapRef = useRef<Map<string, { type: string; osm_id: string | null }>>(new Map())
+  // Rows the user ×-removed from the current report, by coordinate key. A
+  // same-inputs refresh echoes only the surviving rows so removals stick; any
+  // fresh analysis clears this — changed inputs may bring a destination back.
+  const [removedKeys, setRemovedKeys] = useState<Set<string>>(new Set())
 
   // Restore any prior session encoded in the URL once, at mount. Feeding each
   // useState a lazy initializer avoids a redraw flash — the restored values are
@@ -146,31 +152,21 @@ export default function App() {
 
   const { analyze, cancel, retry, reset, analyzed, loading, error, response, statusMessage, progress } = useAnalyze()
 
-  // Searched locations pinned to the map and table. Each search adds (or
-  // refreshes) a pin; pins persist until their 📍 is clicked in the table.
-  const pinnedForecasts = usePinnedForecasts()
-  const pinnedRows = pinnedForecasts.rows
+  // Places searched by name — the third destination input. Searching registers
+  // the place (map dot + URL persistence); its forecast joins the next Analyze,
+  // where the list folds into the ranked request alongside the CSV.
+  const searched = useSearchedPlaces()
 
-  // Repopulate pins restored from the URL, once at mount, and fetch their
-  // forecasts for the restored/servable window (same window logic a fresh
-  // search uses). Runs after first paint so the map/hooks are ready.
+  // Repopulate searched places restored from the URL, once at mount. They show
+  // as pending dots until the user runs an Analyze — nothing fetches on load.
   useEffect(() => {
-    if (!restored?.pins?.length) return
-    const w = resolveSearchWindow(startDatetime, endDatetime, new Date())
-    pinnedForecasts.restore(restored.pins, w.start, w.end)
+    if (restored?.pins?.length) searched.restore(restored.pins)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // A pinned forecast opens the results panel so the rows are visible even
-  // before any analysis has run (or after the panel was closed).
-  useEffect(() => {
-    if (pinnedRows.length > 0) setShowResults(true)
-  }, [pinnedRows])
-
   function handleSearchSelect(place: Place) {
     mapRef.current?.flyToPlace(place)
-    const searchWindow = resolveSearchWindow(startDatetime, endDatetime, new Date())
-    pinnedForecasts.addPlace(place, searchWindow.start, searchWindow.end)
+    searched.addPlace(place)
   }
 
   // Everything derived from the results renders from the snapshot of the
@@ -179,17 +175,13 @@ export default function App() {
   const view = analyzed ?? { sortBy, sortDesc }
   const preview = usePreview()
 
-  // The loading overlay reports the Analyze operation as one thing: the ranked
-  // streaming analysis and the pin refresh riding along with it, folded into a
-  // single "Retrieving Forecasts… (x/y)" union count. A pins-only Analyze (no
-  // ranked run) shows the indeterminate "Analyzing Forecasts…".
+  // The loading overlay for the one ranked streaming analysis — searched
+  // places ride inside it as custom destinations, so there is no separate pin
+  // refresh to fold in anymore.
   const overlay = composeOverlay({
     analyzeLoading: loading,
     statusMessage,
     rankedProgress: progress ? { processed: progress.processed, total: progress.total } : null,
-    pinsOnly: pinnedForecasts.loading,
-    pinsCount: pinnedForecasts.places.length,
-    pinsDone: !pinnedForecasts.refreshing,
   })
 
   // Elapsed-time counter for phases with no countable progress (the OSM search,
@@ -224,7 +216,7 @@ export default function App() {
       limit,
       customCsv,
       showWildfires,
-      pins: pinnedForecasts.places,
+      pins: searched.places,
     })
     const url = qs ? `?${qs}` : window.location.pathname
     window.history.replaceState(null, '', url)
@@ -240,7 +232,7 @@ export default function App() {
     limit,
     customCsv,
     showWildfires,
-    pinnedForecasts.places,
+    searched.places,
   ])
 
   // Warn when a restored/edited window falls outside Open-Meteo's servable
@@ -259,12 +251,6 @@ export default function App() {
     // cancelDrawing fires onDrawUpdate(0, null) to reset counts
   }
 
-  // Cancel whatever an Analyze has in flight — the ranked stream, the pin
-  // refresh, or both. Each canceller no-ops when its request isn't running.
-  function cancelAll() {
-    cancel()
-    pinnedForecasts.cancel()
-  }
 
   // The discovery inputs behind the on-screen results, as a stable string. Two
   // Analyzes with equal signatures discovered the same set, so the second can
@@ -291,14 +277,14 @@ export default function App() {
 
     const constraints = { min_elevation_ft: minElevationFt, max_elevation_ft: maxElevationFt }
 
-    // Resolve the ranked inputs first so we know whether this click produces a
-    // report. A ranked run needs a valid custom CSV, a *complete* polygon
-    // (>= 3 points), or both — the backend unions them into one report. An
-    // incomplete ring is ignored so a mid-draw pin refresh doesn't fire a bogus
-    // analysis. finishDrawing() snapshots the map's always-editable ring
-    // synchronously (and closes it), falling back to the restored polygon
-    // before the map has loaded.
-    const custom = parseCustomCsv(customCsv)
+    // Resolve the ranked inputs first. The custom side of the analysis is the
+    // pasted CSV ∪ the searched places — with a *complete* polygon (>= 3
+    // points) the backend unions discovery in too. An incomplete ring is
+    // ignored so a mid-draw Analyze doesn't fire a bogus discovery.
+    // finishDrawing() snapshots the map's always-editable ring synchronously
+    // (and closes it), falling back to the restored polygon before the map has
+    // loaded.
+    const custom = buildCustomList(parseCustomCsv(customCsv), searched.places)
     const resolvedPolygon =
       drawPointCount >= 3 ? mapRef.current?.finishDrawing() ?? polygon : null
 
@@ -316,18 +302,12 @@ export default function App() {
 
     const willRank = resolvedPolygon !== null || custom.length > 0
 
-    // The pinned rows join every Analyze — refetched onto the chosen window so
-    // they stay comparable with any ranked report above them. On a pins-only
-    // Analyze this IS the whole operation, so announce it (surface the loading
-    // overlay); when a ranked analysis runs too, its own modal already reports
-    // progress, so the pin refresh rides along silently.
-    pinnedForecasts.refetchAll(start, end, !willRank)
-
     if (isRefresh && response) {
       // Refresh: weather-only over the known destinations (no Overpass). They
       // come back as type "custom" with no osm_id; the results memo restores
       // each row's real identity by coordinate. The discovery signature stays
-      // put — the discovered set didn't change.
+      // put — the discovered set didn't change. Echoing the *displayed* rows
+      // (not the raw response) is what keeps ×-removed destinations gone.
       await analyze({
         destination_type: 'custom',
         start_datetime: start,
@@ -335,7 +315,7 @@ export default function App() {
         limit,
         sort_by: sortBy,
         sort_desc: sortDesc,
-        custom_destinations: response.results.map((r) => ({
+        custom_destinations: results.map((r) => ({
           name: r.name,
           latitude: r.latitude,
           longitude: r.longitude,
@@ -344,6 +324,9 @@ export default function App() {
         ...constraints,
       })
     } else if (resolvedPolygon) {
+      // A fresh analysis re-opens the field: rows the user removed from the
+      // previous report may legitimately return under the changed inputs.
+      setRemovedKeys(new Set())
       // Discovery — with the custom list riding along so the backend ranks the
       // polygon ∪ CSV union as one report.
       await analyze({
@@ -360,10 +343,11 @@ export default function App() {
       // Remember these discovery inputs so the next identical Analyze refreshes.
       discoverySignatureRef.current = signature
     } else if (custom.length > 0) {
-      // CSV-only. Not a refreshable polygon discovery — clear the signature so
-      // a later identical polygon Analyze can't mistake these CSV rows for that
-      // polygon's discovered set and refresh them instead.
+      // Custom-only (CSV and/or searched places). Not a refreshable polygon
+      // discovery — clear the signature so a later identical polygon Analyze
+      // can't mistake these rows for that polygon's discovered set.
       discoverySignatureRef.current = null
+      setRemovedKeys(new Set())
       await analyze({
         destination_type: 'custom',
         start_datetime: start,
@@ -376,9 +360,8 @@ export default function App() {
       })
     }
 
-    // Pins-only Analyze: no ranked run happened, so drop any stale ranked block
-    // (rows + markers) left over from a previous analysis whose polygon has
-    // since been deleted — leaving only the freshly-refetched pins on screen.
+    // Nothing to rank (unreachable through the gate, which requires an input,
+    // but kept as a safety net): drop any stale report.
     if (!willRank) reset()
 
     setShowResults(true)
@@ -394,6 +377,18 @@ export default function App() {
     }
   }, [response])
 
+  // Searched places know more than the custom echo carries: their geocoded
+  // kind (peak vs not) and OSM id. Seed those identities so their ranked rows
+  // link where the feature belongs.
+  useEffect(() => {
+    for (const p of searched.places) {
+      identityMapRef.current.set(pinKey(p.lat, p.lon), {
+        type: isPeakKind(p.kind) ? 'peak' : 'custom',
+        osm_id: p.osmId ?? null,
+      })
+    }
+  }, [searched.places])
+
   // Memoized so its reference is stable between renders — the fire-proximity
   // effect keys off it and would otherwise re-run (and refetch) every render.
   // Rows returned without an osm_id (a refresh's custom echo) are re-tagged from
@@ -401,32 +396,41 @@ export default function App() {
   // simply have no match and pass through unchanged.
   const results = useMemo(
     () =>
-      (response?.results ?? []).map((r) => {
-        if (r.osm_id) return r
-        const id = identityMapRef.current.get(pinKey(r.latitude, r.longitude))
-        return id ? { ...r, type: id.type, osm_id: id.osm_id } : r
-      }),
-    [response],
+      (response?.results ?? [])
+        .filter((r) => !removedKeys.has(pinKey(r.latitude, r.longitude)))
+        .map((r) => {
+          if (r.osm_id) return r
+          const id = identityMapRef.current.get(pinKey(r.latitude, r.longitude))
+          return id ? { ...r, type: id.type, osm_id: id.osm_id } : r
+        }),
+    [response, removedKeys],
   )
-  // Both ranked results and searched destinations are metric-colored on the map,
-  // so the color legend shows whenever either is present.
-  const hasColoredMarkers = showResults && (results.length > 0 || pinnedRows.length > 0)
-  const showTable = showResults && (results.length > 0 || pinnedRows.length > 0)
+
+  // × on a table row. Removing a searched place also deregisters it — else the
+  // next analysis would simply rediscover it from the searched list.
+  function handleRemoveResult(row: DestinationResult) {
+    setRemovedKeys((prev) => new Set(prev).add(pinKey(row.latitude, row.longitude)))
+    searched.removePlace(row.latitude, row.longitude)
+  }
+
+  // Searched places absent from the displayed report — not yet analyzed, ranked
+  // below the cutoff, or awaiting a fresh run — drawn as neutral pending dots.
+  const pendingPlaces = useMemo(() => {
+    const shown = new Set(results.map((r) => pinKey(r.latitude, r.longitude)))
+    return searched.places.filter((p) => !shown.has(pinKey(p.lat, p.lon)))
+  }, [results, searched.places])
+  const hasColoredMarkers = showResults && results.length > 0
+  const showTable = showResults && results.length > 0
 
   // Flags results within 10 mi of an active US wildfire; independent of the map
   // overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
-  // Pinned search rows are checked right alongside the ranked rows.
-  const fireCheckRows = useMemo(() => [...results, ...pinnedRows], [results, pinnedRows])
-  const fireWarnings = useFireProximity(fireCheckRows)
+  const fireWarnings = useFireProximity(results)
 
   // Comparison-chart selection (checkboxes in the table → lines in the chart).
-  // The shared hourly grid comes from the analysis, or — when only searched
-  // places are pinned — from the pins themselves, so pins are chartable alone.
-  const analysisTimes = response?.times ?? []
-  const pinnedTimes = pinnedRows.find((r) => r.series_times?.length)?.series_times ?? []
-  const chartTimes = analysisTimes.length ? analysisTimes : pinnedTimes
+  // Every row shares the analysis's hourly grid.
+  const chartTimes = response?.times ?? []
   const chartable = chartTimes.length > 0
-  const chart = useChartSelection(results, pinnedRows, view.sortBy)
+  const chart = useChartSelection(results, view.sortBy)
   const chartShown = chartable && chart.selectedRows.length > 0
 
   // Space below the map that a resize must leave alone: the preview banner (when
@@ -504,11 +508,11 @@ export default function App() {
           showWildfires={showWildfires}
           setShowWildfires={setShowWildfires}
           windowWarning={windowWarning}
-          hasPins={pinnedRows.length > 0}
+          hasPins={searched.places.length > 0}
           // A pins-only Analyze refresh keeps useAnalyze.loading false, so fold
           // in the pin-refresh flag to disable the button (and show "Analyzing…")
           // while it runs. Searches don't announce, so this stays false for them.
-          loading={loading || pinnedForecasts.loading}
+          loading={loading}
           error={error}
           onAnalyze={() => {
             // On mobile the controls are an off-canvas drawer — close it so the
@@ -518,7 +522,7 @@ export default function App() {
           }}
           onRetry={retry}
           onShowPrivacy={() => setShowPrivacy(true)}
-          resultCount={response?.results.length}
+          resultCount={response ? results.length : undefined}
           totalQueried={response?.total_queried}
         />
       </aside>
@@ -563,7 +567,7 @@ export default function App() {
                   </div>
                 )}
                 <button
-                  onClick={cancelAll}
+                  onClick={cancel}
                   className="mt-4 text-xs font-medium text-slate-400 hover:text-white
                     border border-slate-600 hover:border-slate-400 rounded px-3 py-1.5 transition-colors"
                 >
@@ -581,8 +585,7 @@ export default function App() {
             sortBy={view.sortBy}
             fireWarnings={fireWarnings}
             showWildfires={showWildfires}
-            searchResults={pinnedRows}
-            pendingPlaces={pinnedForecasts.pendingPlaces}
+            pendingPlaces={pendingPlaces}
             minElevationFt={minElevationFt}
             maxElevationFt={maxElevationFt}
           />
@@ -742,8 +745,7 @@ export default function App() {
                 sortBy={view.sortBy}
                 sortDesc={view.sortDesc}
                 fireWarnings={fireWarnings}
-                pinned={pinnedRows}
-                onUnpin={(row) => pinnedForecasts.removePlace(row.latitude, row.longitude)}
+                onRemove={handleRemoveResult}
                 onFocusResult={(row) => mapRef.current?.focusResult(row)}
                 onToggleChart={chartable ? chart.toggle : undefined}
                 isCharted={chart.isSelected}
