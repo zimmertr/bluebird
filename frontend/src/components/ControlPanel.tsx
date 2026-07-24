@@ -230,7 +230,8 @@ export default function ControlPanel({
               Search for destinations with coordinate pairs.
             </p>
             <p className="text-xs text-slate-500 italic mb-1.5">
-              Format: Lat,Lon or Lat,Lon,Name
+              Format: <code className="text-slate-300">Lat,Lon</code> or{' '}
+              <code className="text-slate-300">Lat,Lon,Name</code>
             </p>
             <textarea
               value={customCsv}
@@ -249,9 +250,12 @@ export default function ControlPanel({
 
         {/* Step 2: Forecast window */}
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
             2. Forecast Window
           </h2>
+          <p className="text-xs text-slate-500 mb-2.5">
+            Set the window of time to analyze for the destinations.
+          </p>
           <div className="space-y-2">
             <div>
               <label className="text-xs text-slate-400 block mb-1">Start</label>
@@ -330,9 +334,12 @@ export default function ControlPanel({
             toggle stays clickable on inactive rows so any ranking is one click;
             selecting a metric via its radio keeps the current direction. */}
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
             3. Result Ranking
           </h2>
+          <p className="text-xs text-slate-500 mb-2.5">
+            Set the way results will be ranked after analysis.
+          </p>
           <div className="space-y-2 lg:space-y-1.5">
             {SORT_METRICS.map((metric) => {
               const isActive = sortBy === metric.value
@@ -389,9 +396,12 @@ export default function ControlPanel({
 
         {/* Step 4: Additional options — result filters, count, and map overlays */}
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
             4. Options
           </h2>
+          <p className="text-xs text-slate-500 mb-2.5">
+            Set constraints and enable extra features.
+          </p>
           <div className="space-y-4">
             {/* Elevation band — filters candidates server-side before the fetch */}
             <div>
@@ -453,9 +463,9 @@ export default function ControlPanel({
                   type="checkbox"
                   checked={showWildfires}
                   onChange={(e) => setShowWildfires(e.target.checked)}
-                  className="accent-sky-500 h-4 w-4"
+                  className="accent-sky-500 h-3.5 w-3.5"
                 />
-                <span className="text-sm text-slate-200">Show wildfires</span>
+                <span className="text-xs text-slate-400">Show wildfires</span>
               </label>
             </div>
           </div>
