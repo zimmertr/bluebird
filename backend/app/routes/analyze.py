@@ -197,12 +197,12 @@ async def analyze_stream(request: AnalyzeRequest):
                      "elevation_ft": d.elevation_ft, "osm_id": None}
                     for d in request.custom_destinations
                 ]
-                yield _sse("status", message=f"Loaded {len(destinations)} custom {noun}(s) — fetching forecasts…")
+                yield _sse("status", message="Analyzing Forecasts…")
             else:
                 if not request.polygon:
                     yield _sse("error", message="polygon is required for non-custom destination types")
                     return
-                yield _sse("status", message=f"Searching OpenStreetMap for {noun}s in your area…")
+                yield _sse("status", message="Searching for Destinations…")
 
                 # Overpass is one opaque request per mirror, so the only progress
                 # signal is mirror failover. Run it on a task and surface those
@@ -243,9 +243,7 @@ async def analyze_stream(request: AnalyzeRequest):
                     yield _sse("result", data=AnalyzeResponse(results=[], total_queried=0).model_dump())
                     return
 
-                n = len(destinations)
-                plural = f"{n} {noun}{'s' if n != 1 else ''}"
-                yield _sse("status", message=f"Found {plural} — fetching weather forecasts…")
+                yield _sse("status", message="Analyzing Forecasts…")
 
             destinations = _filter_elevation(
                 destinations, request.min_elevation_ft, request.max_elevation_ft

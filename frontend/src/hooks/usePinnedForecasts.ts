@@ -27,10 +27,14 @@ export function usePinnedForecasts() {
   // immediately, not after the next render.
   const pinsRef = useRef<PinnedPlace[]>([])
   const abortRef = useRef<AbortController | null>(null)
-  // Foreground-refresh flag, driving the loading overlay. Only `announce`d
-  // fetches (an explicit Analyze) flip it; a search's silent pin fetch does
-  // not, so searching never throws up a modal.
+  // Foreground-refresh flag, driving a standalone pins-only overlay. Only
+  // `announce`d fetches (an explicit pins-only Analyze) flip it; a search's
+  // silent pin fetch does not, so searching never throws up a modal.
   const [loading, setLoading] = useState(false)
+  // In-flight flag for ANY pin fetch (announced or not). Lets a concurrent
+  // ranked analysis fold the pin refresh into its union progress ("x/y") —
+  // pins count as done the moment this clears.
+  const [refreshing, setRefreshing] = useState(false)
 
   function commit(next: PinnedPlace[]) {
     pinsRef.current = next
@@ -52,6 +56,7 @@ export function usePinnedForecasts() {
     // (announce=false) then correctly lowers an overlay it just cancelled,
     // without depending on stacking order to keep them from overlapping.
     setLoading(announce)
+    setRefreshing(true)
 
     const request: AnalyzeRequest = {
       destination_type: 'custom',
@@ -95,6 +100,7 @@ export function usePinnedForecasts() {
       if (abortRef.current === controller) {
         abortRef.current = null
         setLoading(false)
+        setRefreshing(false)
       }
     }
 
@@ -185,5 +191,5 @@ export function usePinnedForecasts() {
   )
   const places = useMemo(() => pins.map((p) => p.place), [pins])
 
-  return { rows, places, loading, addPlace, removePlace, refetchAll, restore, cancel }
+  return { rows, places, loading, refreshing, addPlace, removePlace, refetchAll, restore, cancel }
 }

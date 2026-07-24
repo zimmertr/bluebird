@@ -272,6 +272,35 @@ def test_analyze_stream_custom_happy_path_emits_result(stub_upstreams):
     result_events = [e for e in events if e["type"] == "result"]
     assert len(result_events) == 1
     assert result_events[0]["data"]["total_queried"] == 2
+    # The custom path skips discovery and goes straight to the generic,
+    # destination-type-agnostic "Analyzing Forecasts…" status.
+    statuses = [e["message"] for e in events if e["type"] == "status"]
+    assert "Analyzing Forecasts…" in statuses
+    assert not any("custom" in s for s in statuses)
+
+
+def test_analyze_stream_polygon_emits_search_then_analyze_status(monkeypatch, stub_upstreams):
+    async def two_peaks(polygon, destination_type, on_status=None):
+        return [
+            {"name": "a", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None, "osm_id": "node/1"},
+            {"name": "b", "latitude": 2.0, "longitude": 3.0, "elevation_ft": None, "osm_id": "node/2"},
+        ]
+
+    monkeypatch.setattr(analyze_mod.osm, "query_osm", two_peaks)
+    start, end = _window()
+    body = {
+        "destination_type": "peak", "start_datetime": start, "end_datetime": end,
+        "polygon": {"type": "Polygon", "coordinates": [[[0, 0], [0.1, 0], [0.1, 0.1], [0, 0.1], [0, 0]]]},
+    }
+    resp = client.post("/api/analyze/stream", json=body)
+    events = [json.loads(line[len("data: "):]) for line in resp.text.splitlines() if line.startswith("data: ")]
+    statuses = [e["message"] for e in events if e["type"] == "status"]
+    # Generic wording, and the discovery phase precedes the analyzing phase.
+    assert "Searching for Destinations…" in statuses
+    assert "Analyzing Forecasts…" in statuses
+    assert statuses.index("Searching for Destinations…") < statuses.index("Analyzing Forecasts…")
+    # No leftover peak-specific or "Found N" wording.
+    assert not any("peak" in s or "Found" in s for s in statuses)
 
 
 # ── _aligned_aqi / _assemble (series bake-in) ──────────────────────────────

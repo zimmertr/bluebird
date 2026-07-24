@@ -10,14 +10,14 @@ import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
 import { useChartSelection } from './hooks/useChartSelection'
 import { useFireProximity } from './hooks/useFireProximity'
-import { usePinnedForecasts } from './hooks/usePinnedForecasts'
+import { usePinnedForecasts, pinKey } from './hooks/usePinnedForecasts'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { GeoPolygon, DestinationType, SortBy } from './types'
 import { METRIC_CONFIG, MARKER_COLORS } from './utils/colors'
 import { parseCustomCsv } from './utils/customDestinations'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
-import { analyzeOverlay } from './utils/analyzeOverlay'
+import { composeOverlay } from './utils/analyzeOverlay'
 import { Place } from './utils/geocode'
 import { encodeState, decodeState, classifyWindow, resolveSearchWindow } from './utils/urlState'
 
@@ -54,6 +54,17 @@ function useViewportHeight(): number {
 
 export default function App() {
   const mapRef = useRef<MapViewHandle>(null)
+
+  // The discovery inputs (polygon + type + elevation + limit + sort) behind the
+  // results currently on screen. An Analyze whose inputs still match this skips
+  // Overpass and just refreshes the known destinations' weather; any change
+  // forces a fresh discovery. Updated only on a real discovery run.
+  const discoverySignatureRef = useRef<string | null>(null)
+  // Remembers each discovered row's OSM identity (type + osm_id) by coordinate.
+  // A refresh refetches rows through the custom path, which echoes them as
+  // type "custom" with no osm_id — this map restores their real identity so a
+  // refreshed peak still links to Peakbagger and shows the right badge.
+  const identityMapRef = useRef<Map<string, { type: string; osm_id: string }>>(new Map())
 
   // Restore any prior session encoded in the URL once, at mount. Feeding each
   // useState a lazy initializer avoids a redraw flash — the restored values are
@@ -165,10 +176,18 @@ export default function App() {
   const view = analyzed ?? { sortBy, sortDesc }
   const preview = usePreview()
 
-  // The loading overlay reports whichever work is in flight: the streaming
-  // ranked analysis, or — on a pins-only Analyze — the silent pin refresh that
-  // otherwise gave no feedback. A ranked analysis wins when both run at once.
-  const overlay = analyzeOverlay(loading, statusMessage, pinnedForecasts.loading)
+  // The loading overlay reports the Analyze operation as one thing: the ranked
+  // streaming analysis and the pin refresh riding along with it, folded into a
+  // single "Retrieving Forecasts… (x/y)" union count. A pins-only Analyze (no
+  // ranked run) shows the indeterminate "Analyzing Forecasts…".
+  const overlay = composeOverlay({
+    analyzeLoading: loading,
+    statusMessage,
+    rankedProgress: progress ? { processed: progress.processed, total: progress.total } : null,
+    pinsOnly: pinnedForecasts.loading,
+    pinsCount: pinnedForecasts.places.length,
+    pinsDone: !pinnedForecasts.refreshing,
+  })
 
   // Elapsed-time counter for phases with no countable progress (the OSM search,
   // and the pins-only refresh). Runs whenever the overlay is up but no batch
@@ -237,6 +256,29 @@ export default function App() {
     // cancelDrawing fires onDrawUpdate(0, null) to reset counts
   }
 
+  // Cancel whatever an Analyze has in flight — the ranked stream, the pin
+  // refresh, or both. Each canceller no-ops when its request isn't running.
+  function cancelAll() {
+    cancel()
+    pinnedForecasts.cancel()
+  }
+
+  // The discovery inputs behind the on-screen results, as a stable string. Two
+  // Analyzes with equal signatures discovered the same set, so the second can
+  // skip Overpass and just refetch weather. Everything that changes which
+  // destinations are found or how they're ranked/truncated belongs here.
+  function discoverySignature(poly: GeoPolygon | null): string {
+    return JSON.stringify({
+      ring: poly?.coordinates[0] ?? null,
+      type: destinationType,
+      minEl: minElevationFt,
+      maxEl: maxElevationFt,
+      limit,
+      sortBy,
+      sortDesc,
+    })
+  }
+
   async function handleAnalyze() {
     const start = new Date(startDatetime).toISOString()
     const end = new Date(endDatetime).toISOString()
@@ -254,6 +296,18 @@ export default function App() {
       destinationType !== 'custom' && drawPointCount >= 3
         ? mapRef.current?.finishDrawing() ?? polygon
         : null
+
+    // A polygon run whose discovery inputs are unchanged, with results still on
+    // screen, is a pure refresh: skip Overpass and refetch just those
+    // destinations' weather through the custom path. Any change to the inputs
+    // (polygon, type, elevation, limit, sort) falls through to a fresh discovery.
+    const signature = discoverySignature(resolvedPolygon)
+    const isRefresh =
+      resolvedPolygon !== null &&
+      response !== null &&
+      response.results.length > 0 &&
+      discoverySignatureRef.current === signature
+
     const willRank = destinationType === 'custom' ? custom.length > 0 : resolvedPolygon !== null
 
     // The pinned rows join every Analyze — refetched onto the chosen window so
@@ -265,6 +319,10 @@ export default function App() {
 
     if (destinationType === 'custom') {
       if (custom.length > 0) {
+        // A CSV response isn't a refreshable polygon discovery — clear the
+        // signature so a later identical polygon Analyze can't mistake these
+        // CSV rows for that polygon's discovered set and refresh them instead.
+        discoverySignatureRef.current = null
         await analyze({
           destination_type: 'custom',
           start_datetime: start,
@@ -276,6 +334,26 @@ export default function App() {
           ...constraints,
         })
       }
+    } else if (isRefresh && response) {
+      // Refresh: weather-only over the known destinations (no Overpass). They
+      // come back as type "custom" with no osm_id; the results memo restores
+      // each row's real identity by coordinate. The discovery signature stays
+      // put — the discovered set didn't change.
+      await analyze({
+        destination_type: 'custom',
+        start_datetime: start,
+        end_datetime: end,
+        limit,
+        sort_by: sortBy,
+        sort_desc: sortDesc,
+        custom_destinations: response.results.map((r) => ({
+          name: r.name,
+          latitude: r.latitude,
+          longitude: r.longitude,
+          elevation_ft: r.elevation_ft ?? undefined,
+        })),
+        ...constraints,
+      })
     } else if (resolvedPolygon) {
       await analyze({
         polygon: resolvedPolygon,
@@ -287,6 +365,8 @@ export default function App() {
         sort_desc: sortDesc,
         ...constraints,
       })
+      // Remember these discovery inputs so the next identical Analyze refreshes.
+      discoverySignatureRef.current = signature
     }
 
     // Pins-only Analyze: no ranked run happened, so drop any stale ranked block
@@ -297,9 +377,30 @@ export default function App() {
     setShowResults(true)
   }
 
+  // Record every discovered row's OSM identity (rows that carry an osm_id) so a
+  // later refresh — which comes back through the custom path with osm_id null —
+  // can have its identity restored below. Runs after each response lands.
+  useEffect(() => {
+    if (!response) return
+    for (const r of response.results) {
+      if (r.osm_id) identityMapRef.current.set(pinKey(r.latitude, r.longitude), { type: r.type, osm_id: r.osm_id })
+    }
+  }, [response])
+
   // Memoized so its reference is stable between renders — the fire-proximity
   // effect keys off it and would otherwise re-run (and refetch) every render.
-  const results = useMemo(() => response?.results ?? [], [response])
+  // Rows returned without an osm_id (a refresh's custom echo) are re-tagged from
+  // the remembered discovery identities by coordinate; genuine custom-CSV rows
+  // simply have no match and pass through unchanged.
+  const results = useMemo(
+    () =>
+      (response?.results ?? []).map((r) => {
+        if (r.osm_id) return r
+        const id = identityMapRef.current.get(pinKey(r.latitude, r.longitude))
+        return id ? { ...r, type: id.type, osm_id: id.osm_id } : r
+      }),
+    [response],
+  )
   const hasResults = showResults && results.length > 0
   // The table panel also opens for pinned search forecasts alone; the map
   // legend stays tied to actual analysis results (hasResults).
@@ -429,21 +530,22 @@ export default function App() {
                 <p className="text-white font-semibold text-sm leading-snug">
                   {overlay.message}
                 </p>
-                {overlay.source === 'analyze' && progress ? (
-                  // Weather phase — countable batch progress.
+                {overlay.progress ? (
+                  // Weather phase — countable batch progress (the union count is
+                  // already in the "(x/y)" headline, so the bar just visualizes it).
                   <div className="mt-3">
                     <div className="h-2 w-full rounded-full bg-slate-700 overflow-hidden">
                       <div
                         className="h-full bg-sky-500 transition-all duration-300 ease-out"
-                        style={{ width: `${progress.percent}%` }}
+                        style={{ width: `${overlay.progress.percent}%` }}
                       />
                     </div>
                     <p className="mt-1.5 text-xs text-slate-400 font-mono">
-                      {progress.processed} of {progress.total} destinations · {progress.percent}%
+                      {overlay.progress.percent}%
                     </p>
                   </div>
                 ) : (
-                  // Search phase — no countable progress; show activity + elapsed.
+                  // Search / analyzing phase — no countable progress; show activity.
                   <div className="mt-3">
                     <div className="h-2 w-full rounded-full bg-slate-700 overflow-hidden">
                       <div className="h-full w-1/3 rounded-full bg-sky-500 animate-indeterminate" />
@@ -454,7 +556,7 @@ export default function App() {
                   </div>
                 )}
                 <button
-                  onClick={overlay.source === 'analyze' ? cancel : pinnedForecasts.cancel}
+                  onClick={cancelAll}
                   className="mt-4 text-xs font-medium text-slate-400 hover:text-white
                     border border-slate-600 hover:border-slate-400 rounded px-3 py-1.5 transition-colors"
                 >
