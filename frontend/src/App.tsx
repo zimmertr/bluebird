@@ -84,8 +84,11 @@ export default function App() {
     () => restored?.destinationType ?? 'peak',
   )
   const [startDatetime, setStartDatetime] = useState(() => restored?.startDatetime ?? nowLocal())
-  const [endDatetime, setEndDatetime] = useState(() => restored?.endDatetime ?? '')
-  const [limit, setLimit] = useState(() => restored?.limit ?? 10)
+  // End pre-fills to "now" like Start: an equal window is valid ("the current
+  // forecast" — the backend analyzes the hour at hand), so a fresh load can
+  // Analyze immediately once any destination input exists.
+  const [endDatetime, setEndDatetime] = useState(() => restored?.endDatetime ?? nowLocal())
+  const [limit, setLimit] = useState(() => restored?.limit ?? 100)
   const [customCsv, setCustomCsv] = useState(() => restored?.customCsv ?? '')
   const [sortBy, setSortBy] = useState<SortBy>(() => restored?.sortBy ?? 'precip_total_in')
   const [sortDesc, setSortDesc] = useState(() => restored?.sortDesc ?? false)

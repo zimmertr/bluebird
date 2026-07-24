@@ -39,18 +39,19 @@ const base: ShareableState = {
   pins: [],
 }
 
-// A truly untouched session: no polygon, no custom CSV, End unset, all controls
-// at their App defaults. Start is pre-filled but must not, on its own, sync.
+// A truly untouched session: no polygon, no custom CSV, all controls at their
+// App defaults. Both dates are pre-filled to "now" (an equal window is the
+// instant current forecast) and must not, on their own, sync to the URL.
 const pristine: ShareableState = {
   polygon: null,
   destinationType: 'peak',
   startDatetime: '2026-07-04T06:00',
-  endDatetime: '',
+  endDatetime: '2026-07-04T06:00',
   sortBy: 'precip_total_in',
   sortDesc: false,
   minElevationFt: null,
   maxElevationFt: null,
-  limit: 10,
+  limit: 100,
   customCsv: '',
   showWildfires: false,
   pins: [],
@@ -165,10 +166,10 @@ describe('encodeState gate — what triggers a URL update', () => {
     expect(encodeState({ ...pristine, startDatetime: '2030-01-01T00:00' })).toBe('')
   })
 
-  it('syncs when only the End date is set, with no polygon', () => {
-    const qs = encodeState({ ...pristine, endDatetime: '2026-07-07T18:00' })
-    expect(qs).not.toBe('')
-    expect(new URLSearchParams(qs).get('end')).toBe('2026-07-07T18:00')
+  it('does not sync for the pre-filled window alone — End is no longer a signal', () => {
+    // Both dates default to "now", so a filled window says nothing about user
+    // intent. It rides along once any other signal is present (see round-trips).
+    expect(encodeState({ ...pristine, endDatetime: '2026-07-07T18:00' })).toBe('')
   })
 
   it('syncs when only an elevation constraint is set', () => {
@@ -412,8 +413,8 @@ describe('classifyWindow', () => {
     expect(classifyWindow(shift(3), shift(1), now)).toBe('order')
   })
 
-  it('is order when the end equals the start (zero-length window)', () => {
-    expect(classifyWindow(shift(1), shift(1), now)).toBe('order')
+  it('accepts an equal start and end — the current-forecast window', () => {
+    expect(classifyWindow(shift(1), shift(1), now)).toBe('ok')
   })
 
   it('prefers the order warning over a horizon warning when both apply', () => {
@@ -483,6 +484,14 @@ describe('resolveSearchWindow', () => {
 
   it('falls back when the window is reversed', () => {
     expect(resolveSearchWindow(shift(4), shift(1), now)).toEqual(fallback)
+  })
+
+  it('honors an equal window — pins match the current-forecast analysis', () => {
+    const t = shift(1)
+    expect(resolveSearchWindow(t, t, now)).toEqual({
+      start: new Date(t).toISOString(),
+      end: new Date(t).toISOString(),
+    })
   })
 
   it('falls back when the window is outside the servable range', () => {

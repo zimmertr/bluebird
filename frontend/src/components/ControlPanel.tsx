@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { DiscoveryType, SortBy } from '../types'
 import { MAX_AREA_KM2 } from './MapView'
 import { parseCustomCsv } from '../utils/customDestinations'
@@ -34,8 +34,8 @@ const SORT_METRICS: { value: SortBy; label: string }[] = [
 // always-visible Custom Destinations section below adds to any of these.
 const DESTINATION_TYPES: { value: DiscoveryType; label: string; implemented: boolean }[] = [
   { value: 'peak', label: 'Peaks', implemented: true },
-  { value: 'trailhead', label: 'Trailheads', implemented: true },
   { value: 'lake', label: 'Lakes', implemented: true },
+  { value: 'trailhead', label: 'Trailheads', implemented: true },
 ]
 
 interface Props {
@@ -114,9 +114,6 @@ export default function ControlPanel({
   // "N destinations parsed" count below both used to call parseCustomCsv directly).
   const parsedCustom = useMemo(() => parseCustomCsv(customCsv), [customCsv])
   const hasCustom = parsedCustom.length > 0
-  // The "b. Custom Coordinates" disclosure — open when a restored session already
-  // carries a list, collapsed otherwise (most sessions never paste one).
-  const [csvOpen, setCsvOpen] = useState(customCsv.trim() !== '')
   const hasDates = startDatetime !== '' && endDatetime !== ''
   const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > MAX_AREA_KM2
 
@@ -145,25 +142,31 @@ export default function ControlPanel({
       <div className="border-b border-slate-700 flex">
         <img src="/icon.png" alt="" className="w-20 object-cover flex-shrink-0" />
         <div className="px-3 py-4 flex flex-col justify-center">
-          <h1 className="text-lg font-bold text-white leading-tight">Bluebird</h1>
+          <h1 className="text-lg font-bold text-white leading-tight">Bluebird Forecast</h1>
           <p className="text-xs text-slate-400">Weather Window Finder</p>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
-        {/* Step 1: Define destinations — one input framework, two methods that
-            union into a single ranked report (searched pins ride along besides) */}
+        {/* Step 1: Destinations — one list, defined via any of three methods
+            that union into a single ranked report */}
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-            1. Define Destinations
+            1. Destinations
           </h2>
           <p className="text-xs text-slate-500 mb-2.5">
-            Use one or both — discovered and pasted destinations rank together.
+            Define a list of destinations to analyze using one or all of the following methods:
           </p>
 
-          {/* a. Polygon search */}
+          {/* a. Search by name — the search box lives on the map itself */}
           <div className="mb-3">
-            <h3 className="text-xs font-semibold text-slate-300 mb-1.5">a. Polygon Search</h3>
+            <h3 className="text-xs font-semibold text-slate-300 mb-1">a. Search by Name</h3>
+            <p className="text-xs text-slate-500">Search for a destination by name on the map.</p>
+          </div>
+
+          {/* b. Search by polygon */}
+          <div className="mb-3">
+            <h3 className="text-xs font-semibold text-slate-300 mb-1.5">b. Search by Polygon</h3>
             {drawPointCount === 0 ? (
               <p className="text-xs text-slate-400 italic">Click anywhere on the map to start drawing.</p>
             ) : (
@@ -217,37 +220,24 @@ export default function ControlPanel({
             </div>
           </div>
 
-          {/* b. Custom coordinates — the sub-header doubles as the disclosure toggle */}
+          {/* c. Search by coordinates */}
           <div>
-            <button
-              onClick={() => setCsvOpen(!csvOpen)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-slate-100"
-            >
-              <span className="text-slate-500">{csvOpen ? '▾' : '▸'}</span>
-              b. Custom Coordinates
-              {!csvOpen && parsedCustom.length > 0 && (
-                <span className="font-normal text-slate-500">({parsedCustom.length} parsed)</span>
-              )}
-            </button>
-            {csvOpen && (
-              <div className="mt-1.5">
-                <p className="text-xs text-slate-500 mb-1.5">
-                  Format: <code className="text-slate-300">Lat,Lon</code> or{' '}
-                  <code className="text-slate-300">Lat,Lon,Name</code> — one per line.
-                </p>
-                <textarea
-                  value={customCsv}
-                  onChange={(e) => setCustomCsv(e.target.value)}
-                  placeholder={`"Lat,Lon" or "Lat,Lon,Name" per line\n46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909\n48.1122,-121.1139,Glacier Peak`}
-                  rows={7}
-                  className="w-full text-xs bg-slate-900 border border-slate-600 rounded p-2 text-slate-200 placeholder-slate-600 font-mono resize-y focus:outline-none focus:border-sky-500"
-                />
-                {customCsv.trim() !== '' && (
-                  <p className="text-xs text-slate-500 mt-1">
-                    {parsedCustom.length} destination{parsedCustom.length !== 1 ? 's' : ''} parsed
-                  </p>
-                )}
-              </div>
+            <h3 className="text-xs font-semibold text-slate-300 mb-1">c. Search by Coordinates</h3>
+            <p className="text-xs text-slate-500 mb-1.5">
+              Format: <code className="text-slate-300">Lat,Lon</code> or{' '}
+              <code className="text-slate-300">Lat,Lon,Name</code>
+            </p>
+            <textarea
+              value={customCsv}
+              onChange={(e) => setCustomCsv(e.target.value)}
+              placeholder={`46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909\n48.1122,-121.1139,Glacier Peak`}
+              rows={3}
+              className="w-full text-xs bg-slate-900 border border-slate-600 rounded p-2 text-slate-200 placeholder-slate-600 font-mono resize-y focus:outline-none focus:border-sky-500"
+            />
+            {customCsv.trim() !== '' && (
+              <p className="text-xs text-slate-500 mt-1">
+                {parsedCustom.length} destination{parsedCustom.length !== 1 ? 's' : ''} parsed
+              </p>
             )}
           </div>
         </section>
@@ -255,7 +245,7 @@ export default function ControlPanel({
         {/* Step 2: Forecast window */}
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            2. Set Forecast Window
+            2. Forecast Window
           </h2>
           <div className="space-y-2">
             <div>
@@ -336,7 +326,7 @@ export default function ControlPanel({
             selecting a metric via its radio keeps the current direction. */}
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            3. Rank Results By
+            3. Result Ranking
           </h2>
           <div className="space-y-2 lg:space-y-1.5">
             {SORT_METRICS.map((metric) => {
@@ -395,7 +385,7 @@ export default function ControlPanel({
         {/* Step 4: Additional options — result filters, count, and map overlays */}
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            4. Set Additional Options
+            4. Options
           </h2>
           <div className="space-y-4">
             {/* Elevation band — filters candidates server-side before the fetch */}
@@ -445,7 +435,7 @@ export default function ControlPanel({
                 max={200}
                 value={limit}
                 onChange={(e) =>
-                  setLimit(Math.max(1, Math.min(200, parseInt(e.target.value) || 10)))
+                  setLimit(Math.max(1, Math.min(200, parseInt(e.target.value) || 100)))
                 }
                 className="w-24 text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500"
               />
@@ -462,10 +452,6 @@ export default function ControlPanel({
                 />
                 <span className="text-sm text-slate-200">Show wildfires</span>
               </label>
-              <p className="text-xs text-slate-500 mt-1">
-                Red shading marks active U.S. wildfire perimeters (NIFC). Hover a fire for its size,
-                containment, and last update.
-              </p>
             </div>
           </div>
         </section>

@@ -56,7 +56,7 @@ const MS_PER_DAY = 86_400_000
 // decide whether the user has changed anything worth persisting to the URL.
 const DEFAULT_SORT: SortBy = 'precip_total_in'
 const DEFAULT_TYPE: DiscoveryType = 'peak'
-const DEFAULT_LIMIT = 10
+const DEFAULT_LIMIT = 100
 
 function round(n: number): number {
   const f = 10 ** POLY_PRECISION
@@ -156,15 +156,15 @@ function isValidDatetimeLocal(s: string): boolean {
  * the user hasn't provided anything worth persisting, so the address bar stays
  * clean on a pristine load.
  *
- * A lone Start date is intentionally excluded from the "worth sharing" test: it's
- * pre-filled to "now", so treating it as meaningful would write a timestamp into
- * the URL (and rewrite it on every reload) before the user has done anything.
- * Once any other signal is present, Start rides along and stays live.
+ * The forecast window is intentionally excluded from the "worth sharing" test:
+ * both dates are pre-filled to "now", so treating a filled window as meaningful
+ * would write timestamps into the URL (and rewrite them on every reload) before
+ * the user has done anything. Once any other signal is present, the window
+ * rides along and stays live.
  */
 export function encodeState(state: ShareableState): string {
   const hasPolygon = state.polygon !== null && (state.polygon.coordinates[0]?.length ?? 0) >= 3
   const hasCustom = state.customCsv.trim() !== ''
-  const hasWindow = isValidDatetimeLocal(state.endDatetime)
   const hasConstraint = state.minElevationFt !== null || state.maxElevationFt !== null
   const hasPins = state.pins.length > 0
   const nonDefaultControls =
@@ -173,7 +173,7 @@ export function encodeState(state: ShareableState): string {
     state.limit !== DEFAULT_LIMIT ||
     state.destinationType !== DEFAULT_TYPE ||
     state.showWildfires
-  if (!hasPolygon && !hasCustom && !hasWindow && !hasConstraint && !hasPins && !nonDefaultControls)
+  if (!hasPolygon && !hasCustom && !hasConstraint && !hasPins && !nonDefaultControls)
     return ''
 
   const p = new URLSearchParams()
@@ -299,9 +299,10 @@ export function classifyWindow(
   const earliest = now.getTime() - PAST_LIMIT_DAYS * MS_PER_DAY
   const latest = now.getTime() + FUTURE_LIMIT_DAYS * MS_PER_DAY
 
-  // A zero-length or reversed window is a user error, not a horizon problem —
-  // flag it first so the message is about ordering, not the servable range.
-  if (end <= start) return 'order'
+  // A reversed window is a user error, not a horizon problem — flag it first
+  // so the message is about ordering, not the servable range. Equal is fine:
+  // start == end means "the current forecast" (the backend analyzes that hour).
+  if (end < start) return 'order'
   if (start < earliest) return 'past'
   if (end > latest) return 'future'
   return 'ok'
@@ -322,7 +323,9 @@ export function resolveSearchWindow(
   if (isValidDatetimeLocal(startDatetime) && isValidDatetimeLocal(endDatetime)) {
     const start = new Date(startDatetime)
     const end = new Date(endDatetime)
-    if (start < end && classifyWindow(startDatetime, endDatetime, now) === 'ok') {
+    // Equal passes through: the backend treats start == end as the current
+    // hour, so pins stay consistent with a ranked analysis over that window.
+    if (start <= end && classifyWindow(startDatetime, endDatetime, now) === 'ok') {
       return { start: start.toISOString(), end: end.toISOString() }
     }
   }

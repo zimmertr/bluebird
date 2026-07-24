@@ -63,15 +63,15 @@ The Vite dev server comes up on `http://localhost:5173` and proxies `/api` reque
 
 ## Using the App
 
-### Find a Place (optional)
+### Step 1: Destinations
 
-The search box at the top-left of the map recenters on any named place (a peak, city, lake, river, or trailhead) or on an exact coordinate pair. Type a name like `Mt Whitney` or `Mt Whitney, ca`, or coordinates like `36.57862, -118.29107` (parentheses and space-separated forms work too), then press Enter. Point features get a roughly 10 mile view; larger features like cities, parks, and rivers are framed whole. An amber pin marks the result and stays out of the way of polygon drawing. Search is powered by [Nominatim](https://nominatim.org), so it works for anything OSM knows about, including places Bluebird can't analyze yet.
+One analysis ranks a single set of destinations, which you define using one or all of the following methods.
 
-### Step 1: Define Destinations
+#### a. Search by Name
 
-One analysis ranks a single set of destinations, which you define through one or both of the methods below. Places pinned from the map's search box ride along besides, as unranked rows above the ranked table.
+The search box at the top-left of the map recenters on any named place (a peak, city, lake, river, or trailhead) or on an exact coordinate pair. Type a name like `Mt Whitney` or `Mt Whitney, ca`, or coordinates like `36.57862, -118.29107` (parentheses and space-separated forms work too), then press Enter. Point features get a roughly 10 mile view; larger features like cities, parks, and rivers are framed whole. An amber pin marks the result and stays out of the way of polygon drawing — searched places join the results as unranked rows pinned above the ranked table. Search is powered by [Nominatim](https://nominatim.org), so it works for anything OSM knows about, including places Bluebird can't analyze yet.
 
-#### a. Polygon Search
+#### b. Search by Polygon
 
 Click anywhere on the map to start drawing — each click drops a point, and the polygon previews live as you add them.
 
@@ -87,10 +87,10 @@ The **Find** picker controls what discovery looks for inside your polygon:
 | Type | OSM Query | Status |
 |---|---|---|
 | Peaks | `natural=peak` (named nodes) | Implemented |
-| Trailheads | `highway=trailhead` (named nodes/ways) | Implemented |
 | Lakes | `natural=water` + `water=lake` (named nodes/ways/relations) | Implemented |
+| Trailheads | `highway=trailhead` (named nodes/ways) | Implemented |
 
-#### b. Custom Coordinates
+#### c. Search by Coordinates
 
 Paste a CSV of your own coordinates to add them to the analysis — alongside whatever the polygon finds, or entirely on their own (no polygon needed):
 
@@ -103,15 +103,15 @@ Paste a CSV of your own coordinates to add them to the analysis — alongside wh
 
 The format is `Lat,Lon` or `Lat,Lon,Name`, one per line; without a name the coordinates are used. Custom rows compete in the same ranked table as discovered destinations, and a custom row that duplicates a discovered one (same name or same coordinates) replaces it.
 
-### Step 2: Set a Forecast Window
+### Step 2: Forecast Window
 
-Pick a start and end datetime. Open-Meteo provides hourly forecasts up to 16 days ahead and about 90 days of history, so the date pickers are constrained to that range and a window outside it disables Analyze with an explanation. Everything is entered in your local browser time and converted to UTC for the API.
+Pick a start and end datetime. Both default to the current time — an equal window means "the current forecast" (the hour at hand), so a fresh load can Analyze immediately. Open-Meteo provides hourly forecasts up to 16 days ahead and about 90 days of history, so the date pickers are constrained to that range and a window outside it disables Analyze with an explanation. Everything is entered in your local browser time and converted to UTC for the API.
 
 Air quality (PM2.5 AQI) forecasts run shorter, because the underlying CAMS model only reaches about 5 days out. Windows past that still analyze fine. The AQI columns just show a blank for hours beyond the horizon, and the app notes this next to the date inputs.
 
 ### Step 3: Set Max Results
 
-The default is 10 and the maximum is 200. The backend fetches weather for *every* named destination in the polygon (after the optional elevation filter) and returns the top N by the selected ranking. There is no sampling, so the winners really are the extremes of the area. Analyses are capped at 1,000 destinations. Past that, the app asks you to draw a smaller polygon or narrow the elevation range rather than silently truncating.
+The default is 100 and the maximum is 200. The backend fetches weather for *every* named destination in the polygon (after the optional elevation filter) and returns the top N by the selected ranking. There is no sampling, so the winners really are the extremes of the area. Analyses are capped at 1,000 destinations. Past that, the app asks you to draw a smaller polygon or narrow the elevation range rather than silently truncating.
 
 ### Step 4: Analyze
 
@@ -246,6 +246,8 @@ Request body:
 
 `custom_destinations` may accompany the polygon: the backend unions the list into the discovered set before ranking (a custom row that matches a discovered row's name or 5-decimal coordinates replaces it), and each result row carries its true source in `type` — the discovery type, or `"custom"` with `osm_id: null`.
 
+An equal `start_datetime` and `end_datetime` is valid and means "the current forecast": the request is analyzed over the hour at hand.
+
 To analyze only your own list, use `destination_type: "custom"`, drop `polygon`, and send `custom_destinations` alone:
 
 ```json
@@ -296,7 +298,7 @@ Error responses:
 
 | Code | Condition |
 |---|---|
-| 400 | `start_datetime` is at or after `end_datetime`, the `destination_type` isn't implemented, or `custom_destinations` is missing for a custom request |
+| 400 | `start_datetime` is after `end_datetime`, the `destination_type` isn't implemented, or `custom_destinations` is missing for a custom request |
 | 422 | Validation failure: polygon too large, limit out of range, or a window outside the servable window (about 90 days past to 16 days ahead) |
 | 502 | Overpass is unreachable across all mirrors, or Open-Meteo fails |
 
