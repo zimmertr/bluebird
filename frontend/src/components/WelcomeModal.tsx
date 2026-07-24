@@ -48,11 +48,15 @@ export default function WelcomeModal({ onDismiss }: Props) {
             ))}
           </ol>
 
+          <p className="text-sm text-slate-200 font-medium text-center mb-4">
+            Ready to find your bluebird day?
+          </p>
+
           <button
             onClick={onDismiss}
             className="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-lg transition-colors text-sm"
           >
-            Analyze Now
+            Search Now
           </button>
         </div>
       </div>
