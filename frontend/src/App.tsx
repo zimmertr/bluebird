@@ -693,6 +693,20 @@ export default function App() {
                     />
                     <span className="text-[11px] text-slate-300">Active Wildfire</span>
                   </div>
+                  {/* CC BY 3.0 requires a visible credit wherever the fire data
+                      is displayed, not just a source-code comment. */}
+                  <p className="mt-1 text-[10px] text-slate-500">
+                    Fire data:{' '}
+                    <a
+                      href="https://data-nifc.opendata.arcgis.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-slate-300"
+                    >
+                      NIFC
+                    </a>{' '}
+                    (CC BY 3.0)
+                  </p>
                 </div>
               )}
               {hasColoredMarkers && (
@@ -803,6 +817,17 @@ export default function App() {
                   ? `Forecast Table: ${view.sortDesc ? 'Highest' : 'Lowest'} ${SORT_NOUNS[view.sortBy]}`
                   : 'Forecast Table'}
               </span>
+              {/* CC-BY 4.0 requires this credit beside the data itself, not
+                  just in the privacy modal; the docked header bar keeps it
+                  visible whenever forecasts are on screen. */}
+              <a
+                href="https://open-meteo.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto mr-2 text-[10px] text-slate-400 hover:text-slate-200 underline decoration-slate-600"
+              >
+                Weather data by Open-Meteo.com
+              </a>
               <button
                 onClick={() => setTableCollapsed((c) => !c)}
                 title={tableCollapsed ? 'Expand the table' : 'Collapse the table'}
@@ -842,7 +867,9 @@ export default function App() {
 
         {showResults && response && results.length === 0 && !loading && (
           <div className="flex-shrink-0 border-t border-slate-600 bg-slate-800 px-4 py-3 text-sm text-slate-400">
-            No destinations found. Try a larger polygon or different time window.
+            {removedKeys.size > 0
+              ? 'All rows have been removed from this analysis — add destinations or adjust the inputs, then Analyze again.'
+              : 'No destinations found. Try a larger polygon or different time window.'}
           </div>
         )}
       </div>

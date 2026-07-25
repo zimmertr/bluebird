@@ -68,9 +68,9 @@ function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; 
 const COLUMNS: ColDef[] = [
   { key: 'name', label: 'Name' },
   { key: 'elevation_ft', label: 'Elev (ft)', format: (v) => (v != null ? Number(v).toLocaleString() : '—') },
-  { key: 'precip_total_in', label: 'Precip Total"', format: (v) => Number(v).toFixed(3), windyLayer: 'rain' },
-  { key: 'precip_avg_in_hr', label: 'Precip Avg"/hr', format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
-  { key: 'precip_max_in_hr', label: 'Precip Max"/hr', format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
+  { key: 'precip_total_in', label: 'Precip Total (in)', format: (v) => Number(v).toFixed(3), windyLayer: 'rain' },
+  { key: 'precip_avg_in_hr', label: 'Precip Avg (in/hr)', format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
+  { key: 'precip_max_in_hr', label: 'Precip Max (in/hr)', format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
   { key: 'temp_min_f', label: 'Temp Min°F', format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
   { key: 'temp_max_f', label: 'Temp Max°F', format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
   { key: 'temp_avg_f', label: 'Temp Avg°F', format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
