@@ -14,7 +14,7 @@ END = datetime(2026, 7, 21, 2, 0)  # noqa: DTZ001 — Open-Meteo timestamps are 
 
 
 def _hourly(times, aqi):
-    return {"hourly": {"time": times, "us_aqi_pm2_5": aqi}}
+    return {"hourly": {"time": times, "us_aqi": aqi}}
 
 
 def test_metrics_avg_and_max():

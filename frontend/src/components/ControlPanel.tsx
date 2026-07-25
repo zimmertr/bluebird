@@ -27,7 +27,7 @@ const SORT_METRICS: { value: SortBy; label: string }[] = [
   { value: 'precip_total_in', label: 'Precipitation' },
   { value: 'wind_avg_mph', label: 'Wind' },
   { value: 'temp_avg_f', label: 'Temperature' },
-  { value: 'aqi_avg', label: 'AQI (PM2.5)' },
+  { value: 'aqi_avg', label: 'AQI' },
 ]
 
 // What polygon discovery finds. Custom (CSV) is no longer a mode here — the
@@ -67,6 +67,9 @@ interface Props {
   showWildfires: boolean
   setShowWildfires: (v: boolean) => void
   windowWarning: 'past' | 'future' | 'order' | null
+  // The ranking knobs no longer match the analysis on screen (the displayed
+  // report is a snapshot) — show the "press Analyze to apply" cue.
+  rankingChanged?: boolean
   // At least one place has been searched by name. Searched places are a ranked
   // input like the CSV, so one alone enables Analyze with no polygon drawn.
   hasPins: boolean
@@ -106,6 +109,7 @@ export default function ControlPanel({
   showWildfires,
   setShowWildfires,
   windowWarning,
+  rankingChanged,
   hasPins,
   loading,
   error,
@@ -183,12 +187,12 @@ export default function ControlPanel({
                 <div className="text-xs text-slate-300 space-y-0.5">
                   {pointsNeeded > 0 ? (
                     <p className="text-sky-300">
-                      {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed —{' '}
+                      {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed,{' '}
                       {pointsNeeded} more needed. Click a point to remove it.
                     </p>
                   ) : (
                     <p className="text-green-400 font-medium">
-                      {drawPointCount} points placed — drag points to adjust, or click Analyze.
+                      {drawPointCount} points placed. Drag points to adjust, or click Analyze.
                     </p>
                   )}
                   {polygonAreaKm2 !== null && (
@@ -240,6 +244,7 @@ export default function ControlPanel({
               <code className="text-slate-300">Lat,Lon,Name</code>
             </p>
             <textarea
+              aria-label="Custom destination coordinates — one per line as latitude, longitude, optional name"
               value={customCsv}
               onChange={(e) => setCustomCsv(e.target.value)}
               placeholder={`46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909\n48.1122,-121.1139,Glacier Peak`}
@@ -277,9 +282,10 @@ export default function ControlPanel({
           </label>
           <div className={`space-y-2 ${nowMode ? 'opacity-40' : ''}`}>
             <div>
-              <label className="text-xs text-slate-400 block mb-1">Start</label>
+              <label htmlFor="window-start-date" className="text-xs text-slate-400 block mb-1">Start</label>
               <div className="flex gap-1">
                 <input
+                  id="window-start-date"
                   type="date"
                   value={startDatetime.split('T')[0] ?? ''}
                   min={minPickable}
@@ -294,6 +300,7 @@ export default function ControlPanel({
                 />
                 <input
                   type="time"
+                  aria-label="Start time"
                   value={startDatetime.split('T')[1] ?? '00:00'}
                   disabled={nowMode || !startDatetime}
                   onChange={(e) => {
@@ -305,9 +312,10 @@ export default function ControlPanel({
               </div>
             </div>
             <div>
-              <label className="text-xs text-slate-400 block mb-1">End</label>
+              <label htmlFor="window-end-date" className="text-xs text-slate-400 block mb-1">End</label>
               <div className="flex gap-1">
                 <input
+                  id="window-end-date"
                   type="date"
                   value={endDatetime.split('T')[0] ?? ''}
                   min={startDatetime.split('T')[0] || minPickable}
@@ -322,6 +330,7 @@ export default function ControlPanel({
                 />
                 <input
                   type="time"
+                  aria-label="End time"
                   value={endDatetime.split('T')[1] ?? '00:00'}
                   disabled={nowMode || !endDatetime}
                   onChange={(e) => {
@@ -338,15 +347,15 @@ export default function ControlPanel({
               {windowWarning === 'order'
                 ? `The window's end must be after its start. Adjust the dates to run an analysis.`
                 : windowWarning === 'past'
-                ? `This forecast window starts before the ~${PAST_LIMIT_DAYS}-day history limit — adjust the dates to run an analysis.`
-                : `This forecast window extends beyond the ~${FUTURE_LIMIT_DAYS}-day forecast horizon — adjust the dates to run an analysis.`}
+                ? `This forecast window starts before the ${PAST_LIMIT_DAYS}-day history limit. Adjust the dates to run an analysis.`
+                : `This forecast window extends beyond the ${FUTURE_LIMIT_DAYS}-day forecast horizon. Adjust the dates to run an analysis.`}
             </p>
           )}
           {!nowMode && !windowWarning && aqiCoverage !== 'full' && (
             <p className="mt-2 text-xs text-sky-300 bg-sky-950/40 border border-sky-800/60 rounded p-2">
               {aqiCoverage === 'partial'
-                ? `Air-quality (PM2.5 AQI) forecasts only extend ~${AQI_LIMIT_DAYS} days out, so AQI may cover just the start of this window. Weather data covers all of it.`
-                : `Air-quality (PM2.5 AQI) forecasts only extend ~${AQI_LIMIT_DAYS} days out — AQI columns will be empty for this window. Weather data is unaffected.`}
+                ? `Air-quality (AQI) forecasts only extend ${AQI_LIMIT_DAYS} days out, so AQI may cover just the start of this window. Weather data covers all of it.`
+                : `Air-quality (AQI) forecasts only extend ${AQI_LIMIT_DAYS} days out. AQI columns will be empty for this window. Weather data is unaffected.`}
             </p>
           )}
         </section>
@@ -390,6 +399,7 @@ export default function ControlPanel({
                     ].map((dir, i) => (
                       <button
                         key={dir.label}
+                        aria-pressed={isActive && sortDesc === dir.desc}
                         onClick={() => {
                           setSortBy(metric.value)
                           setSortDesc(dir.desc)
@@ -432,7 +442,7 @@ export default function ControlPanel({
               <div className="flex items-center gap-2">
                 <input
                   type="number"
-                  placeholder="Min"
+                  placeholder="Min (ft)"
                   value={minElevationFt ?? ''}
                   min={0}
                   max={30000}
@@ -444,7 +454,7 @@ export default function ControlPanel({
                 <span className="text-slate-500 flex-shrink-0">–</span>
                 <input
                   type="number"
-                  placeholder="Max"
+                  placeholder="Max (ft)"
                   value={maxElevationFt ?? ''}
                   min={0}
                   max={30000}
@@ -454,6 +464,12 @@ export default function ControlPanel({
                   className="w-full text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-sky-500"
                 />
               </div>
+              {/* Many OSM features carry no elevation tag; silently dropping
+                  them would be surprising, so the filter lets them through —
+                  say so where the band is set. */}
+              <p className="mt-1 text-[11px] text-slate-500">
+                Destinations with unknown elevation are always included.
+              </p>
               {(minElevationFt !== null || maxElevationFt !== null) && (
                 <button
                   onClick={() => { setMinElevationFt(null); setMaxElevationFt(null) }}
@@ -507,10 +523,16 @@ export default function ControlPanel({
           {loading ? 'Analyzing…' : 'Analyze'}
         </button>
 
+        {rankingChanged && !loading && (
+          <p className="text-xs text-amber-300 text-center whitespace-nowrap">
+            Ranking changed. Press Analyze to update.
+          </p>
+        )}
+
         {!analyzeEnabled && !loading && (
           <p className="text-xs text-slate-500 text-center">
             {areaTooLarge
-              ? `Area too large — draw a smaller polygon (max ${MAX_AREA_KM2.toLocaleString()} km²).`
+              ? `Area too large. Draw a smaller polygon (max ${MAX_AREA_KM2.toLocaleString()} km²).`
               : !hasDates
               ? 'Set a forecast window to continue.'
               : windowWarning
