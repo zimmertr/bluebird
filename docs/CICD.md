@@ -89,8 +89,11 @@ concurrency-serialized):
 1. **Determine Version** — GitVersion (Mainline, conventional commits) computes
    the SemVer. **Immutability guard:** if `docker manifest inspect
    zimmertr/bluebird:<semver>` already exists, every downstream job skips.
-2. **Build & Push** — builds the image to Docker Hub `zimmertr/bluebird:<semver>`
-   and pushes the `v<semver>` git tag.
+2. **Build & Push** — builds a **multi-arch manifest (`linux/amd64` +
+   `linux/arm64`, arm64 via QEMU)** with SBOM + provenance attestations (the
+   attestation manifests appear as "unknown/unknown" rows in Docker Hub's UI),
+   pushes it to Docker Hub as `zimmertr/bluebird:<semver>`, and pushes the
+   `v<semver>` git tag.
 3. **Create GitHub Release** — auto-generated notes.
 4. **Update Kubernetes-Manifests** — a **direct commit** (no PR) sets
    `images.newTag: <semver>` in `public/bluebird/kustomization.yml`. Argo CD
@@ -141,7 +144,7 @@ flowchart LR
 
     subgraph BB["zimmertr/bluebird"]
         pr["PR opened / updated"]
-        checks["pr.yml<br/>typecheck, Vitest, ruff, pytest, docker build"]
+        checks["pr.yml<br/>typecheck, Vitest, ruff, pytest, hadolint, docker build"]
         preview["pr-preview.yml<br/>pull_request_target (same-repo gate)"]
         label["label: create pr container"]
         comment["sticky preview-URL comment"]
