@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DestinationResult, SortBy } from '../types'
-import { ChartMetric, chartKey, metricForSort } from '../utils/chartData'
+import { ChartMetric, chartKey, defaultChartRows, metricForSort } from '../utils/chartData'
 import { colorForIndex } from '../utils/chartColors'
 
 // Chart selection for the results table: which destinations are overlaid, their
@@ -32,7 +32,8 @@ export function useChartSelection(
   //    the "ever charted" memory, so a deliberate uncheck isn't repeated.
   //  - When no selected key exists in the report (first analysis, or a new
   //    report that replaced every charted row — stale selections must not
-  //    block the default), chart its top rows.
+  //    block the default), chart every row: the chart mirrors the whole table
+  //    by default, and unchecking is how the user prunes it.
   const selectedKeysRef = useRef<string[]>([])
   selectedKeysRef.current = selectedKeys
   const colorByKeyRef = useRef<Record<string, string>>({})
@@ -48,10 +49,8 @@ export function useChartSelection(
     )
     if (debut.length > 0) setRange(debut, true)
 
-    const present = new Set(results.map(chartKey))
-    if (selectedKeysRef.current.some((k) => present.has(k))) return
-    const top = results.filter((r) => r.series).slice(0, 3)
-    if (top.length > 0) setRange(top, true)
+    const defaults = defaultChartRows(results, selectedKeysRef.current)
+    if (defaults) setRange(defaults, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results])
 
