@@ -21,6 +21,7 @@ import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/
 import { composeOverlay } from './utils/analyzeOverlay'
 import { Place, isPeakKind } from './utils/geocode'
 import { encodeState, decodeState, classifyWindow } from './utils/urlState'
+import { DEFAULT_WINDOW_HOURS, nowLocal } from './utils/datetimeLocal'
 import { rankingStale } from './utils/staleness'
 
 // Composed with the direction into e.g. "Lowest Total Precipitation" /
@@ -48,12 +49,6 @@ function Chevron({ up }: { up: boolean }) {
       <polyline points={up ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
     </svg>
   )
-}
-
-function nowLocal(): string {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 // Live viewport height, so the chart/table panel heights can be re-clamped when
@@ -115,10 +110,13 @@ export default function App() {
     () => restored?.destinationType ?? 'peak',
   )
   const [startDatetime, setStartDatetime] = useState(() => restored?.startDatetime ?? nowLocal())
-  // End pre-fills to "now" like Start: an equal window is valid ("the current
-  // forecast" — the backend analyzes the hour at hand), so a fresh load can
-  // Analyze immediately once any destination input exists.
-  const [endDatetime, setEndDatetime] = useState(() => restored?.endDatetime ?? nowLocal())
+  // End pre-fills three days out so a fresh session's first Analyze is a real
+  // weather window. start == end stays valid for users who set it deliberately
+  // ("the current forecast" — the backend analyzes the hour at hand), but as a
+  // default it produced a single-hour, all-zero table that read as broken.
+  const [endDatetime, setEndDatetime] = useState(
+    () => restored?.endDatetime ?? nowLocal(DEFAULT_WINDOW_HOURS),
+  )
   const [limit, setLimit] = useState(() => restored?.limit ?? 100)
   const [customCsv, setCustomCsv] = useState(() => restored?.customCsv ?? '')
   const [sortBy, setSortBy] = useState<SortBy>(() => restored?.sortBy ?? 'precip_total_in')
