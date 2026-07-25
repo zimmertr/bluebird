@@ -63,6 +63,9 @@ interface Props {
   showWildfires: boolean
   setShowWildfires: (v: boolean) => void
   windowWarning: 'past' | 'future' | 'order' | null
+  // The ranking knobs no longer match the analysis on screen (the displayed
+  // report is a snapshot) — show the "press Analyze to apply" cue.
+  rankingChanged?: boolean
   // At least one place has been searched by name. Searched places are a ranked
   // input like the CSV, so one alone enables Analyze with no polygon drawn.
   hasPins: boolean
@@ -100,6 +103,7 @@ export default function ControlPanel({
   showWildfires,
   setShowWildfires,
   windowWarning,
+  rankingChanged,
   hasPins,
   loading,
   error,
@@ -494,6 +498,12 @@ export default function ControlPanel({
         >
           {loading ? 'Analyzing…' : 'Analyze'}
         </button>
+
+        {rankingChanged && !loading && (
+          <p className="text-xs text-amber-300 text-center whitespace-nowrap">
+            Ranking changed. Press Analyze to update.
+          </p>
+        )}
 
         {!analyzeEnabled && !loading && (
           <p className="text-xs text-slate-500 text-center">
