@@ -3,7 +3,12 @@
 .claude/
 .gitignore
 .dockerignore
+.ruff_cache/
+.DS_Store
 *.md
+docs/
+examples/
+LICENSE
 docker-compose.yml
 GitVersion.yml
 frontend/node_modules/
