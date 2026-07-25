@@ -14,10 +14,12 @@ export type Progress = {
 export type AnalyzedView = {
   sortBy: SortBy
   sortDesc: boolean
-  // 'now' when the analysis was a current-conditions snapshot — drives the
-  // collapsed table columns, "Current …" wording, and hidden chart.
+  // 'now'/'at' when the analysis was a point sample — drives the collapsed
+  // table columns, point wording, and hidden chart.
   mode: AnalysisMode
-  // When the analysis ran (epoch ms) — the "as of HH:MM" caption for now mode.
+  // The sampled moment (epoch ms): the click time for 'now', the chosen hour
+  // for 'at' — the "as of HH:MM" / "for <datetime>" caption. Meaningless (the
+  // click time) for window analyses, which never display it.
   analyzedAt: number
 }
 
@@ -146,7 +148,10 @@ export function useAnalyze() {
               sortBy: request.sort_by ?? 'precip_total_in',
               sortDesc: request.sort_desc ?? false,
               mode,
-              analyzedAt: Date.now(),
+              // Point modes send the sampled moment as start_datetime (for
+              // 'now' it IS the click time), so it doubles as the caption.
+              analyzedAt:
+                mode === 'window' ? Date.now() : Date.parse(request.start_datetime),
             })
           }
         }

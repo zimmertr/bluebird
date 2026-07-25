@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { nowModeColumns, orderColumns } from './tableColumns'
+import { pointModeColumns, orderColumns } from './tableColumns'
 import { SortBy } from '../types'
 
 // The table's canonical column keys, in their ResultsTable order.
@@ -71,11 +71,11 @@ describe('orderColumns', () => {
   })
 })
 
-describe('nowModeColumns', () => {
+describe('pointModeColumns', () => {
   const labeled = COLS.map((c) => ({ ...c, label: c.key }))
 
   it('collapses each metric group to its single representative column', () => {
-    expect(nowModeColumns(labeled).map((c) => c.key)).toEqual([
+    expect(pointModeColumns(labeled).map((c) => c.key)).toEqual([
       'name',
       'elevation_ft',
       'precip_avg_in_hr',
@@ -86,7 +86,7 @@ describe('nowModeColumns', () => {
   })
 
   it('drops the Avg/Min/Max qualifiers from the headers', () => {
-    const labels = new Map(nowModeColumns(labeled).map((c) => [c.key, c.label]))
+    const labels = new Map(pointModeColumns(labeled).map((c) => [c.key, c.label]))
     expect(labels.get('precip_avg_in_hr')).toBe('Precip"/hr')
     expect(labels.get('temp_avg_f')).toBe('Temp°F')
     expect(labels.get('wind_avg_mph')).toBe('Wind mph')
@@ -96,7 +96,7 @@ describe('nowModeColumns', () => {
   })
 
   it('composes with orderColumns — the ranked metric still leads', () => {
-    expect(orderColumns(nowModeColumns(labeled), 'aqi_avg').map((c) => c.key)).toEqual([
+    expect(orderColumns(pointModeColumns(labeled), 'aqi_avg').map((c) => c.key)).toEqual([
       'name',
       'elevation_ft',
       'aqi_avg',

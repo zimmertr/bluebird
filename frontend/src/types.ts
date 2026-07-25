@@ -5,12 +5,13 @@ export type DestinationType = 'peak' | 'trailhead' | 'lake' | 'custom'
 // the per-row tag custom rows come back with).
 export type DiscoveryType = Exclude<DestinationType, 'custom'>
 
-// How the analysis window was chosen: an explicit start–end forecast window,
-// or "now" — the current conditions snapshot. On the wire "now" is just
-// start == end == the Analyze click time (the backend normalizes that to the
-// current hour); the mode exists so the UI can present a point sample honestly
-// (single-value columns, no chart) instead of degenerate avg/min/max triplets.
-export type AnalysisMode = 'window' | 'now'
+// How the analysis time was chosen: an explicit start–end forecast window,
+// "now" — the current-conditions snapshot — or "at", a single chosen hour.
+// On the wire both point modes are just start == end == the moment (the
+// backend normalizes that to the hour containing it); the mode exists so the
+// UI can present a point sample honestly (single-value columns, no chart)
+// instead of degenerate avg/min/max triplets.
+export type AnalysisMode = 'window' | 'now' | 'at'
 
 // One representative ranking value per metric (the backend enum accepts more
 // aggregation keys for direct API callers, but the UI ranks by these four —

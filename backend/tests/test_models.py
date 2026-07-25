@@ -121,13 +121,25 @@ def test_window_naive_datetimes_are_accepted():
     assert req.start_datetime.replace(tzinfo=None) == naive_start
 
 
-def test_window_equal_start_end_normalizes_to_one_hour():
-    # A zero-length window means "the current forecast" — the model bumps the
-    # end an hour so the pipeline only ever sees an ordinary one-hour window.
-    t = _now()
+def test_window_equal_start_end_normalizes_to_point_sample():
+    # A zero-length window is a point sample: the model floors the moment to
+    # its hour and spans one minute, so the inclusive hourly filter downstream
+    # matches exactly one timestamp — the hour containing the request.
+    t = _now().replace(minute=30, second=15, microsecond=250)
+    req = _valid_request(start_datetime=t, end_datetime=t)
+    floored = t.replace(minute=0, second=0, microsecond=0)
+    assert req.start_datetime == floored
+    assert req.end_datetime == floored + timedelta(minutes=1)
+
+
+def test_window_equal_on_the_hour_stays_that_hour():
+    # A moment exactly on an hour boundary — the common case for the Future
+    # Day/Time picker — must sample that hour, not spill into the next one
+    # (the old +1h normalization caught two hourly stamps here).
+    t = _now().replace(minute=0, second=0, microsecond=0) + timedelta(hours=30)
     req = _valid_request(start_datetime=t, end_datetime=t)
     assert req.start_datetime == t
-    assert req.end_datetime == t + timedelta(hours=1)
+    assert req.end_datetime == t + timedelta(minutes=1)
 
 
 # ── helpers / enums ────────────────────────────────────────────────────────

@@ -206,13 +206,29 @@ def test_analyze_start_after_end_is_400(stub_upstreams):
 
 
 def test_analyze_equal_window_is_current_forecast(stub_upstreams):
-    # start == end is the "current forecast": the model normalizes it to the
-    # hour at hand instead of the routes rejecting it as an empty window.
+    # start == end is a point sample ("current conditions"): the model
+    # normalizes it to the hour at hand instead of the routes rejecting it as
+    # an empty window.
     now = datetime.now(timezone.utc)
     body = {
         "destination_type": "custom",
         "start_datetime": now.isoformat(),
         "end_datetime": now.isoformat(),
+        "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 2.0}],
+    }
+    resp = client.post("/api/analyze", json=body)
+    assert resp.status_code == 200
+    assert resp.json()["total_queried"] == 1
+
+
+def test_analyze_equal_window_at_future_moment(stub_upstreams):
+    # The "future day/time" mode is the same wire shape at a later hour —
+    # a future equal window must analyze, not 400 as empty or out of range.
+    at = datetime.now(timezone.utc) + timedelta(hours=30)
+    body = {
+        "destination_type": "custom",
+        "start_datetime": at.isoformat(),
+        "end_datetime": at.isoformat(),
         "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 2.0}],
     }
     resp = client.post("/api/analyze", json=body)

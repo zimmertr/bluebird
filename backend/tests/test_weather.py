@@ -60,6 +60,25 @@ def test_metrics_excludes_timestamps_outside_window():
     assert m["temp_max_f"] == 54.0
 
 
+def test_metrics_point_sample_window_hits_exactly_one_hour():
+    # The models normalize an equal start/end (the "now" / "future day-time"
+    # modes) to [floor(T), floor(T)+1min]. With the inclusive hour filter that
+    # must catch exactly the requested hour's stamp — never the next one —
+    # so every aggregate collapses to that single sample.
+    data = _hourly(
+        ["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00"],
+        [0.1, 0.2, 0.4],
+        [50.0, 52.0, 54.0],
+        [5.0, 7.0, 9.0],
+    )
+    start = datetime(2026, 7, 21, 1, 0)  # noqa: DTZ001 — matches the API's naive stamps
+    end = datetime(2026, 7, 21, 1, 1)  # noqa: DTZ001
+    m = _metrics(data, start, end)
+    assert m["precip_total_in"] == 0.2
+    assert m["temp_min_f"] == m["temp_avg_f"] == m["temp_max_f"] == 52.0
+    assert m["wind_min_mph"] == m["wind_avg_mph"] == m["wind_max_mph"] == 7.0
+
+
 def test_metrics_skips_hours_with_missing_values():
     # Any hour with a None in precip/temp/wind is dropped whole.
     data = _hourly(
