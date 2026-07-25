@@ -3,13 +3,13 @@ name: Dependabot auto-merge
 # Runs on every PR; the job no-ops for non-Dependabot actors.
 on: pull_request
 
-# GITHUB_TOKEN stays read-only — it's used only to read Dependabot metadata.
+# GITHUB_TOKEN reads Dependabot metadata and writes the explanatory comment.
 # The privileged merge is done with AUTO_MERGE_PAT (below) on purpose: a merge
 # driven by the default GITHUB_TOKEN would NOT trigger release.yml's `on: push`
 # (GitHub's recursion guard), leaving the patch merged but undeployed.
 permissions:
   contents: read
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   auto-merge:
@@ -32,3 +32,26 @@ jobs:
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.AUTO_MERGE_PAT }}
+
+      # Say so on the PR, so the self-merge is legible from the PR page instead
+      # of something to infer after the fact. Marker-guarded: Dependabot
+      # rebases re-trigger this job, and re-runs must not stack duplicates.
+      - name: Comment that auto-merge is armed
+        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-patch' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          MARKER='<!-- bluebird-auto-merge -->'
+          if gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" --paginate \
+              --jq '.[].body' | grep -qF "$MARKER"; then
+            exit 0
+          fi
+          BODY=$(printf '%s\n' \
+            "$MARKER" \
+            "### 🤖 Auto-merge armed" \
+            "" \
+            "This is a patch-level (bugfix) update, so it merges itself once the required checks pass, then releases and deploys through the normal pipeline. Minor and major bumps wait for human review instead." \
+            "" \
+            "To stop it, run \`gh pr merge --disable-auto\` on this PR or simply close it.")
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" -f body="$BODY" >/dev/null

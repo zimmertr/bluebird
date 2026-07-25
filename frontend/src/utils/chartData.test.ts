@@ -5,6 +5,7 @@ import {
   buildChartData,
   chartKey,
   computeYDomain,
+  defaultChartRows,
   formatMetricValue,
   metricForSort,
   nearestKey,
@@ -171,5 +172,34 @@ describe('alignRowToGrid', () => {
     const pin = { ...row('B', 2, { precip_in: [5, 6] }), series_times: [2000, 3000] }
     const aligned = alignRowToGrid(pin, [1000, 2000, 3000])
     expect(aligned.series?.precip_in).toEqual([null, 5, 6])
+  })
+})
+
+describe('defaultChartRows', () => {
+  const a = row('A', 1, {})
+  const b = row('B', 2, {})
+  const c = row('C', 3, {})
+
+  it('selects every chartable row when nothing is charted yet', () => {
+    expect(defaultChartRows([a, b, c], [])?.map((r) => r.name)).toEqual(['A', 'B', 'C'])
+  })
+
+  it('excludes rows without series data', () => {
+    const bare = { ...row('D', 4, {}), series: undefined }
+    expect(defaultChartRows([a, bare, c], [])?.map((r) => r.name)).toEqual(['A', 'C'])
+  })
+
+  it('defers to a surviving selection so unchecks are never clobbered', () => {
+    expect(defaultChartRows([a, b, c], [chartKey(b)])).toBeNull()
+  })
+
+  it('re-defaults when every previously charted key left the report', () => {
+    expect(defaultChartRows([a, b], ['gone,0'])?.map((r) => r.name)).toEqual(['A', 'B'])
+  })
+
+  it('is null when no row can chart', () => {
+    const bare = { ...row('A', 1, {}), series: undefined }
+    expect(defaultChartRows([bare], [])).toBeNull()
+    expect(defaultChartRows([], [])).toBeNull()
   })
 })

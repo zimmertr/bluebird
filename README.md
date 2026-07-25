@@ -4,7 +4,7 @@ I do a lot of hiking and mountaineering in the Pacific Northwest, where the weat
 
 You draw a polygon on a map, pick a destination type and a forecast window, and get back a ranked table of every named destination inside that polygon, sorted driest first. Each row links out to Windy for a visual overview. No account, no API keys, nothing to sign up for.
 
-Bluebird is live at [bluebirdforecast.com](https://bluebirdforecast.com).
+Bluebird is live at [bluebirdforecast.com](https://bluebirdforecast.com). Planned and outstanding work is tracked on the [GitHub issue board](https://github.com/zimmertr/bluebird/issues).
 
 It is not a recommendation engine. It does not decide what weather is "good" or "bad." It attaches objective forecast data to geographic features and lets you sort the results however you like. A typical question it answers: it's Thursday, the weekend looks wet across Washington, so which peaks in the North Cascades see the least total precipitation from Saturday morning through Sunday evening?
 
@@ -20,7 +20,6 @@ It is not a recommendation engine. It does not decide what weather is "good" or 
 - [Architecture](#architecture)
 - [Data Sources](#data-sources)
 - [Kubernetes Deployment](#kubernetes-deployment)
-- [Roadmap](#roadmap)
 - [License](#license)
 
 ## Quick Start
@@ -367,15 +366,6 @@ containers:
       - name: LOG_LEVEL
         value: "WARNING"
 ```
-
-## Roadmap
-
-- [x] Additional destination types (trailheads and lakes, queried from OSM like peaks)
-- [x] Air quality (US AQI), useful during wildfire smoke and summer ozone season
-- [ ] Historical analysis by switching to the Open-Meteo archive endpoint for past dates
-- [ ] Saved searches in LocalStorage for polygons and settings
-- [ ] CSV export of results
-- [ ] Mountain-forecast.com links as an alternative hotlink for summit-specific forecasts
 
 ## License
 
