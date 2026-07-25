@@ -98,9 +98,9 @@ The SPA fetches only on an explicit Analyze click and renders results from a sna
 
 See [`docs/CICD.md`](docs/CICD.md) for the full end-to-end flow with diagrams (bluebird → bluebird-helm → Kubernetes-Manifests → Argo CD / Argo Rollouts, plus Docker Hub, Artifact Hub, and the PR preview environments). The summary below covers this repo's workflows.
 
-**PR checks** (`pr.yml`): runs on all non-main branches and PRs → TypeScript typecheck + Vitest, ruff lint, pytest (backend tests), Docker build (no push).
+**PR checks** (`pr.yml`): runs on all non-main branches and PRs → TypeScript typecheck + Vitest, ruff lint, pytest (backend tests), hadolint, Docker build (no push).
 
-**Release** (`release.yml`): triggers on merge to `main` → GitVersion calculates SemVer from conventional commits → builds and pushes `zimmertr/bluebird:<semver>` to Docker Hub → creates GitHub release → updates `kustomization.yml` in the `zimmertr/Kubernetes-Manifests` repo, which ArgoCD auto-syncs.
+**Release** (`release.yml`): triggers on merge to `main` → GitVersion calculates SemVer from conventional commits → builds and pushes a multi-arch `zimmertr/bluebird:<semver>` (amd64 + arm64, with SBOM/provenance attestations) to Docker Hub → creates GitHub release → updates `kustomization.yml` in the `zimmertr/Kubernetes-Manifests` repo, which ArgoCD auto-syncs.
 
 **GitVersion** (`GitVersion.yml`): Mainline mode. Commit prefix mapping:
 - `feat!` / `BREAKING CHANGE:` → major bump
