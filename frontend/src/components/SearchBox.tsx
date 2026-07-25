@@ -72,7 +72,7 @@ export default function SearchBox({ onSelect }: Props) {
         setHighlight(0)
       }
     } catch {
-      setError('Search failed — try again.')
+      setError('Search failed. Try again.')
     } finally {
       setLoading(false)
     }

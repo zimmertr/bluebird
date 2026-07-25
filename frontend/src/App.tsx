@@ -868,7 +868,7 @@ export default function App() {
         {showResults && response && results.length === 0 && !loading && (
           <div className="flex-shrink-0 border-t border-slate-600 bg-slate-800 px-4 py-3 text-sm text-slate-400">
             {removedKeys.size > 0
-              ? 'All rows have been removed from this analysis — add destinations or adjust the inputs, then Analyze again.'
+              ? 'All rows have been removed from this analysis. Add destinations or adjust the inputs, then Analyze again.'
               : 'No destinations found. Try a larger polygon or different time window.'}
           </div>
         )}

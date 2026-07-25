@@ -21,7 +21,7 @@ export default function PrivacyModal({ onClose }: Props) {
 
         <div className="px-6 py-4 overflow-y-auto">
           <p className="text-sm text-slate-300 mb-4">
-            Bluebird is a free, non-commercial project — no ads, no paid tiers, no monetization.
+            Bluebird is a free, non-commercial project. No ads, no paid tiers, no monetization.
             It has no accounts, no sign-in, and no tracking. There are no analytics scripts, no
             advertising, and no cookies used to follow you.
           </p>
@@ -41,8 +41,8 @@ export default function PrivacyModal({ onClose }: Props) {
             <li>
               <span className="text-white font-semibold">Nothing is stored about you.</span> Searches
               aren't saved to a database or tied to your identity. Server logs (which include your
-              IP address) are used only for debugging and are discarded by routine log rotation —
-              typically within days, never archived or shared.
+              IP address) are used only for debugging and are discarded by routine log rotation,
+              typically within days. They are never archived or shared.
             </li>
             <li>
               <span className="text-white font-semibold">On your device</span>, the only thing saved

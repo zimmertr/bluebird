@@ -176,12 +176,12 @@ export default function ControlPanel({
                 <div className="text-xs text-slate-300 space-y-0.5">
                   {pointsNeeded > 0 ? (
                     <p className="text-sky-300">
-                      {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed —{' '}
+                      {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed,{' '}
                       {pointsNeeded} more needed. Click a point to remove it.
                     </p>
                   ) : (
                     <p className="text-green-400 font-medium">
-                      {drawPointCount} points placed — drag points to adjust, or click Analyze.
+                      {drawPointCount} points placed. Drag points to adjust, or click Analyze.
                     </p>
                   )}
                   {polygonAreaKm2 !== null && (
@@ -316,15 +316,15 @@ export default function ControlPanel({
               {windowWarning === 'order'
                 ? `The window's end must be after its start. Adjust the dates to run an analysis.`
                 : windowWarning === 'past'
-                ? `This forecast window starts before the ${PAST_LIMIT_DAYS}-day history limit — adjust the dates to run an analysis.`
-                : `This forecast window extends beyond the ${FUTURE_LIMIT_DAYS}-day forecast horizon — adjust the dates to run an analysis.`}
+                ? `This forecast window starts before the ${PAST_LIMIT_DAYS}-day history limit. Adjust the dates to run an analysis.`
+                : `This forecast window extends beyond the ${FUTURE_LIMIT_DAYS}-day forecast horizon. Adjust the dates to run an analysis.`}
             </p>
           )}
           {!windowWarning && aqiCoverage !== 'full' && (
             <p className="mt-2 text-xs text-sky-300 bg-sky-950/40 border border-sky-800/60 rounded p-2">
               {aqiCoverage === 'partial'
                 ? `Air-quality (AQI) forecasts only extend ${AQI_LIMIT_DAYS} days out, so AQI may cover just the start of this window. Weather data covers all of it.`
-                : `Air-quality (AQI) forecasts only extend ${AQI_LIMIT_DAYS} days out — AQI columns will be empty for this window. Weather data is unaffected.`}
+                : `Air-quality (AQI) forecasts only extend ${AQI_LIMIT_DAYS} days out. AQI columns will be empty for this window. Weather data is unaffected.`}
             </p>
           )}
         </section>
@@ -492,7 +492,7 @@ export default function ControlPanel({
         {!analyzeEnabled && !loading && (
           <p className="text-xs text-slate-500 text-center">
             {areaTooLarge
-              ? `Area too large — draw a smaller polygon (max ${MAX_AREA_KM2.toLocaleString()} km²).`
+              ? `Area too large. Draw a smaller polygon (max ${MAX_AREA_KM2.toLocaleString()} km²).`
               : !hasDates
               ? 'Set a forecast window to continue.'
               : windowWarning

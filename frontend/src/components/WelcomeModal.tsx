@@ -5,7 +5,7 @@ interface Props {
 const STEPS: [string, string][] = [
   ['Destinations', 'Choose where to search by drawing an area on the map, searching by name, or providing custom coordinates.'],
   ['Forecast Window', 'Select the start and end date for the weather period you care about.'],
-  ['Result Ranking', 'Choose how destinations should be ranked — driest conditions, lowest winds, ideal temperatures, or cleanest air.'],
+  ['Result Ranking', 'Choose how destinations should be ranked: driest conditions, lowest winds, ideal temperatures, or cleanest air.'],
   ['Options', 'Apply constraints and enable additional features like wildfire visibility.'],
   ['Analyze', 'Generate ranked results, explore them on the map, and compare forecast data across your selected destinations.'],
   ['Repeat', 'Adjust your search area, forecast window, ranking, or options at any time to find a better window.'],
@@ -48,7 +48,7 @@ export default function WelcomeModal({ onDismiss }: Props) {
                 </span>
                 <p className="text-slate-300 leading-snug">
                   <span className="text-white font-semibold">{title}</span>
-                  {' — '}
+                  {': '}
                   {desc}
                 </p>
               </li>
