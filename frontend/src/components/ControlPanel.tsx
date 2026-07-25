@@ -27,7 +27,7 @@ const SORT_METRICS: { value: SortBy; label: string }[] = [
   { value: 'precip_total_in', label: 'Precipitation' },
   { value: 'wind_avg_mph', label: 'Wind' },
   { value: 'temp_avg_f', label: 'Temperature' },
-  { value: 'aqi_avg', label: 'AQI (PM2.5)' },
+  { value: 'aqi_avg', label: 'AQI' },
 ]
 
 // What polygon discovery finds. Custom (CSV) is no longer a mode here — the
@@ -316,15 +316,15 @@ export default function ControlPanel({
               {windowWarning === 'order'
                 ? `The window's end must be after its start. Adjust the dates to run an analysis.`
                 : windowWarning === 'past'
-                ? `This forecast window starts before the ~${PAST_LIMIT_DAYS}-day history limit — adjust the dates to run an analysis.`
-                : `This forecast window extends beyond the ~${FUTURE_LIMIT_DAYS}-day forecast horizon — adjust the dates to run an analysis.`}
+                ? `This forecast window starts before the ${PAST_LIMIT_DAYS}-day history limit — adjust the dates to run an analysis.`
+                : `This forecast window extends beyond the ${FUTURE_LIMIT_DAYS}-day forecast horizon — adjust the dates to run an analysis.`}
             </p>
           )}
           {!windowWarning && aqiCoverage !== 'full' && (
             <p className="mt-2 text-xs text-sky-300 bg-sky-950/40 border border-sky-800/60 rounded p-2">
               {aqiCoverage === 'partial'
-                ? `Air-quality (PM2.5 AQI) forecasts only extend ~${AQI_LIMIT_DAYS} days out, so AQI may cover just the start of this window. Weather data covers all of it.`
-                : `Air-quality (PM2.5 AQI) forecasts only extend ~${AQI_LIMIT_DAYS} days out — AQI columns will be empty for this window. Weather data is unaffected.`}
+                ? `Air-quality (AQI) forecasts only extend ${AQI_LIMIT_DAYS} days out, so AQI may cover just the start of this window. Weather data covers all of it.`
+                : `Air-quality (AQI) forecasts only extend ${AQI_LIMIT_DAYS} days out — AQI columns will be empty for this window. Weather data is unaffected.`}
             </p>
           )}
         </section>
@@ -408,7 +408,7 @@ export default function ControlPanel({
               <div className="flex items-center gap-2">
                 <input
                   type="number"
-                  placeholder="Min"
+                  placeholder="Min (ft)"
                   value={minElevationFt ?? ''}
                   min={0}
                   max={30000}
@@ -420,7 +420,7 @@ export default function ControlPanel({
                 <span className="text-slate-500 flex-shrink-0">–</span>
                 <input
                   type="number"
-                  placeholder="Max"
+                  placeholder="Max (ft)"
                   value={maxElevationFt ?? ''}
                   min={0}
                   max={30000}
@@ -430,6 +430,12 @@ export default function ControlPanel({
                   className="w-full text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-sky-500"
                 />
               </div>
+              {/* Many OSM features carry no elevation tag; silently dropping
+                  them would be surprising, so the filter lets them through —
+                  say so where the band is set. */}
+              <p className="mt-1 text-[11px] text-slate-500">
+                Destinations with unknown elevation are always included.
+              </p>
               {(minElevationFt !== null || maxElevationFt !== null) && (
                 <button
                   onClick={() => { setMinElevationFt(null); setMaxElevationFt(null) }}

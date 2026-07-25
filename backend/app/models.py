@@ -68,6 +68,41 @@ class CustomDestination(BaseModel):
     longitude: float
     elevation_ft: float | None = None
 
+    @field_validator("name")
+    @classmethod
+    def name_sane(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Custom destination names cannot be empty.")
+        if len(v) > 255:
+            raise ValueError("Custom destination names are limited to 255 characters.")
+        return v
+
+    @field_validator("latitude")
+    @classmethod
+    def latitude_range(cls, v: float) -> float:
+        if not -90.0 <= v <= 90.0:
+            raise ValueError(f"Latitude {v} is outside the valid -90 to 90 range.")
+        return v
+
+    @field_validator("longitude")
+    @classmethod
+    def longitude_range(cls, v: float) -> float:
+        if not -180.0 <= v <= 180.0:
+            raise ValueError(f"Longitude {v} is outside the valid -180 to 180 range.")
+        return v
+
+    @field_validator("elevation_ft")
+    @classmethod
+    def elevation_plausible(cls, v: float | None) -> float | None:
+        # Dead Sea shoreline to above-Everest, in feet — wide enough for any
+        # real destination, tight enough to reject unit mix-ups and garbage.
+        if v is not None and not -1500.0 <= v <= 30_000.0:
+            raise ValueError(
+                f"Elevation {v} ft is outside the plausible -1,500 to 30,000 ft range."
+            )
+        return v
+
 
 class AnalyzeRequest(BaseModel):
     polygon: GeoPolygon | None = None
@@ -91,6 +126,19 @@ class AnalyzeRequest(BaseModel):
     def limit_range(cls, v: int) -> int:
         if v < 1 or v > 200:
             raise ValueError("limit must be between 1 and 200")
+        return v
+
+    @field_validator("custom_destinations")
+    @classmethod
+    def custom_list_cap(cls, v: list[CustomDestination] | None) -> list[CustomDestination] | None:
+        # Same ceiling the route enforces on the merged candidate field —
+        # rejecting an oversized list at the door keeps a single request from
+        # smuggling in an unbounded payload.
+        if v is not None and len(v) > MAX_ANALYZE_PEAKS:
+            raise ValueError(
+                f"Too many custom destinations ({len(v):,}). Maximum is "
+                f"{MAX_ANALYZE_PEAKS:,} — trim the list or split it into multiple analyses."
+            )
         return v
 
     @field_validator("polygon")
@@ -156,7 +204,7 @@ class DestinationResult(BaseModel):
     wind_min_mph: float
     wind_max_mph: float
     wind_avg_mph: float
-    # PM2.5 US AQI over the window. Nullable: the air-quality forecast only
+    # US AQI over the window (combined across EPA pollutants). Nullable: the air-quality forecast only
     # extends ~5 days out (vs ~16 for weather) and the fetch is best-effort.
     aqi_avg: int | None = None
     aqi_max: int | None = None

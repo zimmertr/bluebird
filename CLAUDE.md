@@ -66,7 +66,7 @@ Single container, multi-stage Docker build:
 The FastAPI backend handles `POST /api/analyze`, which:
 1. Validates polygon area (bounding-box approximation, max 50,000 km²)
 2. Queries Overpass API for **every** named OSM feature in the polygon — no sampling (peaks, trailheads, and lakes; available types are gated by `_IMPLEMENTED` in `osm.py`), then drops candidates outside the optional elevation band (unknown elevations pass through). Analyses over `MAX_ANALYZE_PEAKS = 1_000` candidates refuse with a clear error instead of silently truncating
-3. Fetches hourly weather from Open-Meteo in batches of 50, at most 4 batches in flight at once; PM2.5 US AQI is fetched the same way from Open-Meteo's air-quality endpoint alongside it (best-effort: failures and the short horizon degrade to `null` AQI, never fail the analysis — weather forecasts reach ~16 days, air quality only ~5)
+3. Fetches hourly weather from Open-Meteo in batches of 50, at most 4 batches in flight at once; US AQI (combined across EPA pollutants) is fetched the same way from Open-Meteo's air-quality endpoint alongside it (best-effort: failures and the short horizon degrade to `null` AQI, never fail the analysis — weather forecasts reach ~16 days, air quality only ~5)
 4. Ranks by `sort_by` + `sort_desc` and returns the top `limit` rows (nullable AQI sort keys push `None` last in either direction)
 
 The SPA fetches only on an explicit Analyze click and renders results from a snapshot of the ranking that produced them (`analyzed` in `useAnalyze.ts`) — panel knob changes never mutate the displayed analysis.
@@ -79,7 +79,7 @@ The SPA fetches only on an explicit Analyze click and renders results from a sna
 - `app/routes/analyze.py` — single route handler
 - `app/services/osm.py` — Overpass query with 3-endpoint fallback chain
 - `app/services/weather.py` — Open-Meteo batched parallel fetch
-- `app/services/air_quality.py` — Open-Meteo air-quality (PM2.5 US AQI) batched fetch, best-effort
+- `app/services/air_quality.py` — Open-Meteo air-quality (US AQI) batched fetch, best-effort
 
 **Frontend layout:**
 - `src/App.tsx` — root component
@@ -98,9 +98,9 @@ The SPA fetches only on an explicit Analyze click and renders results from a sna
 
 See [`docs/CICD.md`](docs/CICD.md) for the full end-to-end flow with diagrams (bluebird → bluebird-helm → Kubernetes-Manifests → Argo CD / Argo Rollouts, plus Docker Hub, Artifact Hub, and the PR preview environments). The summary below covers this repo's workflows.
 
-**PR checks** (`pr.yml`): runs on all non-main branches and PRs → TypeScript typecheck + Vitest, ruff lint, pytest (backend tests), Docker build (no push).
+**PR checks** (`pr.yml`): runs on all non-main branches and PRs → TypeScript typecheck + Vitest, ruff lint, pytest (backend tests), hadolint, Docker build (no push).
 
-**Release** (`release.yml`): triggers on merge to `main` → GitVersion calculates SemVer from conventional commits → builds and pushes `zimmertr/bluebird:<semver>` to Docker Hub → creates GitHub release → updates `kustomization.yml` in the `zimmertr/Kubernetes-Manifests` repo, which ArgoCD auto-syncs.
+**Release** (`release.yml`): triggers on merge to `main` → GitVersion calculates SemVer from conventional commits → builds and pushes a multi-arch `zimmertr/bluebird:<semver>` (amd64 + arm64, with SBOM/provenance attestations) to Docker Hub → creates GitHub release → updates `kustomization.yml` in the `zimmertr/Kubernetes-Manifests` repo, which ArgoCD auto-syncs.
 
 **GitVersion** (`GitVersion.yml`): Mainline mode. Commit prefix mapping:
 - `feat!` / `BREAKING CHANGE:` → major bump
