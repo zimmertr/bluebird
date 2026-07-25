@@ -150,6 +150,10 @@ async def test_post_with_fallback_all_partial_raises(monkeypatch):
     fake = _FakeClient([_FakeResp(partial), _FakeResp(partial), _FakeResp(partial)])
     monkeypatch.setattr(osm.httpx, "AsyncClient", lambda *a, **k: fake)
 
-    with pytest.raises(UpstreamError):
+    with pytest.raises(UpstreamError) as excinfo:
         await osm._post_with_fallback("q")
     assert fake.calls == len(osm.OVERPASS_ENDPOINTS)
+    # The user should be told the query was too demanding, not shown a raw
+    # "failed unexpectedly" fallback string.
+    assert "part of the results" in excinfo.value.message
+    assert "smaller search area" in excinfo.value.message

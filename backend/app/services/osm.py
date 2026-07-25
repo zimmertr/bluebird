@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 
 from app.models import DestinationType, GeoPolygon
-from app.services.errors import UpstreamError, classify_http_error
+from app.services.errors import PartialResultError, UpstreamError, classify_http_error
 
 log = logging.getLogger(__name__)
 
@@ -158,7 +158,7 @@ async def _post_with_fallback(
                 # way), so a remark fails this mirror and the chain moves on.
                 remark = data.get("remark")
                 if remark:
-                    raise RuntimeError(f"Overpass returned a partial result: {remark}")
+                    raise PartialResultError(f"Overpass returned a partial result: {remark}")
                 log.info("Overpass query succeeded via %s", url)
                 return data
             except Exception as exc:  # noqa: BLE001 — try the next mirror on any failure
