@@ -547,7 +547,7 @@ export default function App() {
         <button
           onClick={() => setSidebarOpen(false)}
           aria-label="Close controls"
-          className="absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-slate-700/80 text-slate-200 text-xl leading-none hover:bg-slate-600 active:bg-slate-600"
+          className="absolute top-2 right-2 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-slate-700/80 text-slate-200 text-2xl leading-none hover:bg-slate-600 active:bg-slate-600"
         >
           ×
         </button>

@@ -430,6 +430,12 @@ export default function ControlPanel({
                   className="w-full text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-sky-500"
                 />
               </div>
+              {/* Many OSM features carry no elevation tag; silently dropping
+                  them would be surprising, so the filter lets them through —
+                  say so where the band is set. */}
+              <p className="mt-1 text-[11px] text-slate-500">
+                Destinations with unknown elevation are always included.
+              </p>
               {(minElevationFt !== null || maxElevationFt !== null) && (
                 <button
                   onClick={() => { setMinElevationFt(null); setMaxElevationFt(null) }}
