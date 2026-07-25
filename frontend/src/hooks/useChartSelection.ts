@@ -20,14 +20,16 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
     setMetric(metricForSort(sortBy))
   }, [sortBy])
 
-  // Default-shown chart: when a report arrives and nothing is selected, chart
-  // its top rows. Keyed on the report's identity only, with the selection read
-  // through a ref — unchecking the last box must close the chart, not trigger
-  // an instant re-select.
-  const selectedCountRef = useRef(0)
-  selectedCountRef.current = selectedKeys.length
+  // Default-shown chart: when a report arrives and none of the selected keys
+  // exist in it (first analysis, or a new report that replaced every charted
+  // row — stale selections must not block the default), chart its top rows.
+  // Keyed on the report's identity only, with the selection read through a
+  // ref — unchecking the last box must close the chart, not re-select.
+  const selectedKeysRef = useRef<string[]>([])
+  selectedKeysRef.current = selectedKeys
   useEffect(() => {
-    if (selectedCountRef.current > 0) return
+    const present = new Set(results.map(chartKey))
+    if (selectedKeysRef.current.some((k) => present.has(k))) return
     const top = results.filter((r) => r.series).slice(0, 3)
     if (top.length > 0) setRange(top, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
