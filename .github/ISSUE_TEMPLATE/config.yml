@@ -1,1 +1,5 @@
 blank_issues_enabled: true
+contact_links:
+  - name: Questions and discussion
+    url: https://github.com/zimmertr/bluebird/discussions
+    about: For questions or open-ended conversation that is not yet a concrete bug or proposal.
