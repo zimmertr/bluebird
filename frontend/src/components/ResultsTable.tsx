@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { DestinationResult, SortBy } from '../types'
+import { AnalysisMode, DestinationResult, SortBy } from '../types'
 import { cellStyle, METRIC_CONFIG } from '../utils/colors'
 import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
 import { compareValues } from '../utils/sortResults'
-import { orderColumns } from '../utils/tableColumns'
+import { nowModeColumns, orderColumns } from '../utils/tableColumns'
 import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
 import { Place, isPeakKind } from '../utils/geocode'
@@ -85,6 +85,9 @@ interface Props {
   results: DestinationResult[]
   sortBy: SortBy
   sortDesc: boolean
+  // From the analyzed snapshot, like sortBy/sortDesc: a 'now' analysis shows
+  // one column per metric instead of the avg/min/max triplets.
+  mode?: AnalysisMode
   fireWarnings: Map<string, FireWarning>
   // Searched places awaiting their first analysis — shown immediately as
   // un-forecasted rows (name + elevation, "—" metrics) so a search has
@@ -111,6 +114,7 @@ export default function ResultsTable({
   results,
   sortBy,
   sortDesc,
+  mode = 'window',
   fireWarnings,
   pending,
   onRemovePending,
@@ -126,7 +130,7 @@ export default function ResultsTable({
   // the numbers the ranking was built from are the first thing read. Keyed on
   // the analyzed snapshot, like the cell colors — panel knob changes don't
   // reshuffle the displayed report.
-  const orderedColumns = orderColumns(COLUMNS, sortBy)
+  const orderedColumns = orderColumns(mode === 'now' ? nowModeColumns(COLUMNS) : COLUMNS, sortBy)
   const [sortKey, setSortKey] = useState<SortKey>(sortBy)
   const [sortDir, setSortDir] = useState<SortDir>(sortDesc ? 'desc' : 'asc')
 

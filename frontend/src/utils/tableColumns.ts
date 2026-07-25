@@ -16,3 +16,24 @@ export function orderColumns<T extends { key: string }>(columns: T[], sortBy: So
   const rest = columns.filter((c) => !LEAD_KEYS.has(c.key) && !group.has(c.key))
   return [...lead, ...ranked, ...rest]
 }
+
+// A "now" analysis is a point sample, so its avg/min/max triplets are the same
+// number three times — collapse each metric group to one representative column
+// and drop the window-total/aggregate labels from the headers.
+const NOW_LABELS: Record<string, string> = {
+  precip_avg_in_hr: 'Precip"/hr',
+  temp_avg_f: 'Temp°F',
+  wind_avg_mph: 'Wind mph',
+  aqi_avg: 'AQI',
+}
+
+/**
+ * Reduce the full window-mode column set to the single-value columns a "now"
+ * analysis shows: identity columns plus one column per metric, relabeled
+ * without the Avg/Min/Max qualifiers.
+ */
+export function nowModeColumns<T extends { key: string; label: string }>(columns: T[]): T[] {
+  return columns
+    .filter((c) => LEAD_KEYS.has(c.key) || c.key in NOW_LABELS)
+    .map((c) => (c.key in NOW_LABELS ? { ...c, label: NOW_LABELS[c.key] } : c))
+}

@@ -31,6 +31,22 @@ const SORT_NOUNS: Record<SortBy, string> = {
   aqi_avg: 'Average AQI (PM2.5)',
 }
 
+// A now-mode analysis is a point sample, so the window aggregates ("Total",
+// "Average") come off the header and legend wording.
+const NOW_SORT_NOUNS: Record<SortBy, string> = {
+  precip_total_in: 'Precipitation',
+  wind_avg_mph: 'Wind',
+  temp_avg_f: 'Temperature',
+  aqi_avg: 'AQI (PM2.5)',
+}
+
+const NOW_LEGEND_LABELS: Record<SortBy, string> = {
+  precip_total_in: 'Current Precip',
+  wind_avg_mph: 'Current Wind',
+  temp_avg_f: 'Current Temp',
+  aqi_avg: 'Current AQI',
+}
+
 // Collapse/expand affordance for the bottom panels' header bars.
 function Chevron({ up }: { up: boolean }) {
   return (
@@ -118,6 +134,9 @@ export default function App() {
   // forecast" — the backend analyzes the hour at hand), so a fresh load can
   // Analyze immediately once any destination input exists.
   const [endDatetime, setEndDatetime] = useState(() => restored?.endDatetime ?? nowLocal())
+  // "Current conditions": Analyze samples the click time instead of the window.
+  // The window values above stay untouched so unchecking restores them.
+  const [nowMode, setNowMode] = useState(() => restored?.nowMode ?? false)
   const [limit, setLimit] = useState(() => restored?.limit ?? 100)
   const [customCsv, setCustomCsv] = useState(() => restored?.customCsv ?? '')
   const [sortBy, setSortBy] = useState<SortBy>(() => restored?.sortBy ?? 'precip_total_in')
@@ -215,7 +234,7 @@ export default function App() {
   // Everything derived from the results renders from the snapshot of the
   // ranking that produced them — panel knobs only affect the NEXT Analyze.
   // Falls back to the live knobs before the first analysis (nothing shown yet).
-  const view = analyzed ?? { sortBy, sortDesc }
+  const view = analyzed ?? { sortBy, sortDesc, mode: nowMode ? ('now' as const) : ('window' as const) }
   const preview = usePreview()
 
   // The loading overlay for the one ranked streaming analysis — searched
@@ -252,6 +271,7 @@ export default function App() {
       destinationType,
       startDatetime,
       endDatetime,
+      nowMode,
       sortBy,
       sortDesc,
       minElevationFt,
@@ -268,6 +288,7 @@ export default function App() {
     destinationType,
     startDatetime,
     endDatetime,
+    nowMode,
     sortBy,
     sortDesc,
     minElevationFt,
@@ -281,8 +302,9 @@ export default function App() {
   // Warn when a restored/edited window falls outside Open-Meteo's servable
   // range. Blocks Analyze (in ControlPanel): Open-Meteo rejects out-of-range
   // dates outright, so submitting would only produce an upstream error.
+  // Moot in now mode — the disabled pickers aren't what will be analyzed.
   const windowStatus = classifyWindow(startDatetime, endDatetime, new Date())
-  const windowWarning = windowStatus === 'ok' ? null : windowStatus
+  const windowWarning = nowMode || windowStatus === 'ok' ? null : windowStatus
 
   const handleDrawUpdate = useCallback((count: number, areaKm2: number | null) => {
     setDrawPointCount(count)
@@ -314,8 +336,11 @@ export default function App() {
   }
 
   async function handleAnalyze() {
-    const start = new Date(startDatetime).toISOString()
-    const end = new Date(endDatetime).toISOString()
+    // Now mode sends start == end == the click time — the backend normalizes
+    // an equal window to the current hour ("the current forecast").
+    const mode = nowMode ? 'now' : 'window'
+    const start = nowMode ? new Date().toISOString() : new Date(startDatetime).toISOString()
+    const end = nowMode ? start : new Date(endDatetime).toISOString()
 
     const constraints = { min_elevation_ft: minElevationFt, max_elevation_ft: maxElevationFt }
 
@@ -387,7 +412,7 @@ export default function App() {
           elevation_ft: r.elevation_ft ?? undefined,
         })),
         ...constraints,
-      })
+      }, mode)
     } else if (resolvedPolygon) {
       // Discovery — with the custom list riding along so the backend ranks the
       // polygon ∪ CSV union as one report.
@@ -401,7 +426,7 @@ export default function App() {
         sort_desc: sortDesc,
         ...(custom.length > 0 ? { custom_destinations: custom } : {}),
         ...constraints,
-      })
+      }, mode)
       // Remember these discovery inputs so the next compatible Analyze refreshes.
       discoveryRef.current = { base, searchedKeys }
     } else if (custom.length > 0) {
@@ -418,7 +443,7 @@ export default function App() {
         sort_desc: sortDesc,
         custom_destinations: custom,
         ...constraints,
-      })
+      }, mode)
     }
 
     // Nothing to rank (unreachable through the gate, which requires an input,
@@ -488,9 +513,10 @@ export default function App() {
   const fireWarnings = useFireProximity(results)
 
   // Comparison-chart selection (checkboxes in the table → lines in the chart).
-  // Every row shares the analysis's hourly grid.
+  // Every row shares the analysis's hourly grid. A now-mode analysis has a
+  // single-point "series" — nothing worth charting, so the chart stays off.
   const chartTimes = response?.times ?? []
-  const chartable = chartTimes.length > 0
+  const chartable = chartTimes.length > 0 && view.mode !== 'now'
   const chart = useChartSelection(
     results,
     view.sortBy,
@@ -561,6 +587,8 @@ export default function App() {
           setStartDatetime={setStartDatetime}
           endDatetime={endDatetime}
           setEndDatetime={setEndDatetime}
+          nowMode={nowMode}
+          setNowMode={setNowMode}
           limit={limit}
           setLimit={setLimit}
           customCsv={customCsv}
@@ -698,7 +726,7 @@ export default function App() {
               {hasColoredMarkers && (
                 <div className="w-40 bg-slate-900/85 border border-slate-700 rounded-lg p-2.5 shadow-lg backdrop-blur-sm">
                   <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    {METRIC_CONFIG[view.sortBy].label}
+                    {view.mode === 'now' ? NOW_LEGEND_LABELS[view.sortBy] : METRIC_CONFIG[view.sortBy].label}
                   </p>
                   {MARKER_COLORS.map((color, i) => (
                     <div key={i} className="flex items-center gap-1.5 py-0.5">
@@ -799,9 +827,20 @@ export default function App() {
               className={`flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
             >
               <span className="text-xs font-semibold text-white">
-                {results.length > 0
-                  ? `Forecast Table: ${view.sortDesc ? 'Highest' : 'Lowest'} ${SORT_NOUNS[view.sortBy]}`
-                  : 'Forecast Table'}
+                {results.length === 0
+                  ? 'Forecast Table'
+                  : view.mode === 'now'
+                  ? `Current Conditions: ${view.sortDesc ? 'Highest' : 'Lowest'} ${NOW_SORT_NOUNS[view.sortBy]}`
+                  : `Forecast Table: ${view.sortDesc ? 'Highest' : 'Lowest'} ${SORT_NOUNS[view.sortBy]}`}
+                {results.length > 0 && analyzed?.mode === 'now' && (
+                  <span className="ml-1.5 font-normal text-slate-400">
+                    as of{' '}
+                    {new Date(analyzed.analyzedAt).toLocaleTimeString([], {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                )}
               </span>
               <button
                 onClick={() => setTableCollapsed((c) => !c)}
@@ -825,6 +864,7 @@ export default function App() {
                   results={results}
                   sortBy={view.sortBy}
                   sortDesc={view.sortDesc}
+                  mode={view.mode}
                   fireWarnings={fireWarnings}
                   pending={pendingPlaces}
                   onRemove={handleRemoveResult}

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { AnalyzeRequest, AnalyzeResponse, SortBy } from '../types'
+import { AnalysisMode, AnalyzeRequest, AnalyzeResponse, SortBy } from '../types'
 
 export type Progress = {
   processed: number
@@ -14,6 +14,11 @@ export type Progress = {
 export type AnalyzedView = {
   sortBy: SortBy
   sortDesc: boolean
+  // 'now' when the analysis was a current-conditions snapshot — drives the
+  // collapsed table columns, "Current …" wording, and hidden chart.
+  mode: AnalysisMode
+  // When the analysis ran (epoch ms) — the "as of HH:MM" caption for now mode.
+  analyzedAt: number
 }
 
 export function useAnalyze() {
@@ -24,7 +29,7 @@ export function useAnalyze() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
   const abortRef = useRef<AbortController | null>(null)
-  const lastRequestRef = useRef<AnalyzeRequest | null>(null)
+  const lastRequestRef = useRef<{ request: AnalyzeRequest; mode: AnalysisMode } | null>(null)
 
   // Abort the in-flight request. The fetch loop swallows AbortError so no error
   // banner shows — the user chose to stop.
@@ -34,7 +39,7 @@ export function useAnalyze() {
 
   // Re-run the most recent request (used by the "Try again" button on errors).
   function retry() {
-    if (lastRequestRef.current) analyze(lastRequestRef.current)
+    if (lastRequestRef.current) analyze(lastRequestRef.current.request, lastRequestRef.current.mode)
   }
 
   // Clear the current ranked results without fetching. Used by a pins-only
@@ -50,8 +55,8 @@ export function useAnalyze() {
   // One explicit fetch per Analyze click: the server analyzes every candidate
   // in the polygon (refusing loudly above its ceiling) and returns exactly the
   // table rows. Nothing is cached or refetched behind the user's back.
-  async function analyze(request: AnalyzeRequest) {
-    lastRequestRef.current = request
+  async function analyze(request: AnalyzeRequest, mode: AnalysisMode = 'window') {
+    lastRequestRef.current = { request, mode }
 
     const controller = new AbortController()
     abortRef.current = controller
@@ -140,6 +145,8 @@ export function useAnalyze() {
             setAnalyzed({
               sortBy: request.sort_by ?? 'precip_total_in',
               sortDesc: request.sort_desc ?? false,
+              mode,
+              analyzedAt: Date.now(),
             })
           }
         }

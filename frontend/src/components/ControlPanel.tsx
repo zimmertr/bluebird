@@ -48,6 +48,10 @@ interface Props {
   setStartDatetime: (s: string) => void
   endDatetime: string
   setEndDatetime: (s: string) => void
+  // "Current conditions": Analyze samples now instead of the window. The
+  // pickers stay mounted but disabled so their values survive a round trip.
+  nowMode: boolean
+  setNowMode: (v: boolean) => void
   limit: number
   setLimit: (n: number) => void
   customCsv: string
@@ -85,6 +89,8 @@ export default function ControlPanel({
   setStartDatetime,
   endDatetime,
   setEndDatetime,
+  nowMode,
+  setNowMode,
   limit,
   setLimit,
   customCsv,
@@ -113,7 +119,8 @@ export default function ControlPanel({
   // "N destinations parsed" count below both used to call parseCustomCsv directly).
   const parsedCustom = useMemo(() => parseCustomCsv(customCsv), [customCsv])
   const hasCustom = parsedCustom.length > 0
-  const hasDates = startDatetime !== '' && endDatetime !== ''
+  // "Current conditions" needs no window at all — the click time is the window.
+  const hasDates = nowMode || (startDatetime !== '' && endDatetime !== '')
   const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > MAX_AREA_KM2
 
   const polygonReady = drawPointCount >= 3 && !areaTooLarge
@@ -255,7 +262,20 @@ export default function ControlPanel({
           <p className="text-xs text-slate-500 mb-2.5">
             Set the window of time to analyze.
           </p>
-          <div className="space-y-2">
+          {/* Current conditions — a point-in-time sample instead of a window.
+              The pickers stay mounted but disabled so their values are
+              preserved and restored when the box is unchecked. */}
+          <label className="flex items-center gap-2.5 cursor-pointer mb-2.5">
+            <input
+              type="checkbox"
+              checked={nowMode}
+              onChange={(e) => setNowMode(e.target.checked)}
+              className="accent-sky-500 h-3.5 w-3.5"
+            />
+            <span className="text-xs text-slate-200">Current conditions</span>
+            <span className="text-xs text-slate-500 italic">analyze right now</span>
+          </label>
+          <div className={`space-y-2 ${nowMode ? 'opacity-40' : ''}`}>
             <div>
               <label className="text-xs text-slate-400 block mb-1">Start</label>
               <div className="flex gap-1">
@@ -264,6 +284,7 @@ export default function ControlPanel({
                   value={startDatetime.split('T')[0] ?? ''}
                   min={minPickable}
                   max={maxPickable}
+                  disabled={nowMode}
                   onChange={(e) => {
                     const d = e.target.value
                     const t = startDatetime.split('T')[1] ?? '00:00'
@@ -274,7 +295,7 @@ export default function ControlPanel({
                 <input
                   type="time"
                   value={startDatetime.split('T')[1] ?? '00:00'}
-                  disabled={!startDatetime}
+                  disabled={nowMode || !startDatetime}
                   onChange={(e) => {
                     const d = startDatetime.split('T')[0]
                     if (d) setStartDatetime(`${d}T${e.target.value}`)
@@ -291,6 +312,7 @@ export default function ControlPanel({
                   value={endDatetime.split('T')[0] ?? ''}
                   min={startDatetime.split('T')[0] || minPickable}
                   max={maxPickable}
+                  disabled={nowMode}
                   onChange={(e) => {
                     const d = e.target.value
                     const t = endDatetime.split('T')[1] ?? '00:00'
@@ -301,7 +323,7 @@ export default function ControlPanel({
                 <input
                   type="time"
                   value={endDatetime.split('T')[1] ?? '00:00'}
-                  disabled={!endDatetime}
+                  disabled={nowMode || !endDatetime}
                   onChange={(e) => {
                     const d = endDatetime.split('T')[0]
                     if (d) setEndDatetime(`${d}T${e.target.value}`)
@@ -311,7 +333,7 @@ export default function ControlPanel({
               </div>
             </div>
           </div>
-          {windowWarning && (
+          {!nowMode && windowWarning && (
             <p className="mt-2 text-xs text-amber-400 bg-amber-950/40 border border-amber-800/60 rounded p-2">
               {windowWarning === 'order'
                 ? `The window's end must be after its start. Adjust the dates to run an analysis.`
@@ -320,7 +342,7 @@ export default function ControlPanel({
                 : `This forecast window extends beyond the ~${FUTURE_LIMIT_DAYS}-day forecast horizon — adjust the dates to run an analysis.`}
             </p>
           )}
-          {!windowWarning && aqiCoverage !== 'full' && (
+          {!nowMode && !windowWarning && aqiCoverage !== 'full' && (
             <p className="mt-2 text-xs text-sky-300 bg-sky-950/40 border border-sky-800/60 rounded p-2">
               {aqiCoverage === 'partial'
                 ? `Air-quality (PM2.5 AQI) forecasts only extend ~${AQI_LIMIT_DAYS} days out, so AQI may cover just the start of this window. Weather data covers all of it.`
@@ -389,7 +411,9 @@ export default function ControlPanel({
             })}
           </div>
           <p className="text-xs text-slate-500 mt-2">
-            Precipitation ranks by window total; wind, temperature, and AQI by window average.
+            {nowMode
+              ? 'Ranks by conditions at the current hour.'
+              : 'Precipitation ranks by window total; wind, temperature, and AQI by window average.'}
           </p>
         </section>
 

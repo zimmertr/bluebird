@@ -29,6 +29,7 @@ const base: ShareableState = {
   destinationType: 'peak',
   startDatetime: '2026-07-04T06:00',
   endDatetime: '2026-07-07T18:00',
+  nowMode: false,
   sortBy: 'precip_total_in',
   sortDesc: false,
   minElevationFt: null,
@@ -47,6 +48,7 @@ const pristine: ShareableState = {
   destinationType: 'peak',
   startDatetime: '2026-07-04T06:00',
   endDatetime: '2026-07-04T06:00',
+  nowMode: false,
   sortBy: 'precip_total_in',
   sortDesc: false,
   minElevationFt: null,
@@ -507,5 +509,35 @@ describe('resolveSearchWindow', () => {
       start: new Date(start).toISOString(),
       end: new Date(end).toISOString(),
     })
+  })
+})
+
+describe('now mode (mode=now)', () => {
+  it('encodes mode=now and omits the window dates', () => {
+    const params = new URLSearchParams(encodeState({ ...base, nowMode: true }))
+    expect(params.get('mode')).toBe('now')
+    // A shared "now" link re-samples at open time — the author's window
+    // timestamps must not ride along.
+    expect(params.get('start')).toBeNull()
+    expect(params.get('end')).toBeNull()
+  })
+
+  it('is worth persisting on its own', () => {
+    expect(encodeState({ ...pristine, nowMode: true })).not.toBe('')
+  })
+
+  it('decodes mode=now', () => {
+    expect(decodeState('mode=now')!.nowMode).toBe(true)
+  })
+
+  it('ignores unknown mode values', () => {
+    expect(decodeState('mode=warp')?.nowMode).toBeUndefined()
+  })
+
+  it('round-trips, and window-mode links stay byte-identical to before', () => {
+    expect(roundTrip({ ...base, nowMode: true })!.nowMode).toBe(true)
+    // Backward compat: a window-mode state encodes with no mode param at all.
+    expect(new URLSearchParams(encodeState(base)).get('mode')).toBeNull()
+    expect(roundTrip(base)!.nowMode).toBeUndefined()
   })
 })

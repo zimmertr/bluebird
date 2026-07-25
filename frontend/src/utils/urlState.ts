@@ -13,6 +13,11 @@ export interface ShareableState {
   destinationType: DiscoveryType
   startDatetime: string // datetime-local, e.g. "2026-07-04T10:30"
   endDatetime: string
+  // "Current conditions" checkbox: Analyze samples now instead of the window
+  // above. The window values are kept in state (and restored on uncheck) but
+  // deliberately NOT written to the URL while this is on — a shared "now" link
+  // should re-sample at open time, not replay the author's timestamps.
+  nowMode: boolean
   sortBy: SortBy
   sortDesc: boolean // false = lowest first (the historical behavior)
   minElevationFt: number | null
@@ -172,7 +177,8 @@ export function encodeState(state: ShareableState): string {
     state.sortDesc ||
     state.limit !== DEFAULT_LIMIT ||
     state.destinationType !== DEFAULT_TYPE ||
-    state.showWildfires
+    state.showWildfires ||
+    state.nowMode
   if (!hasPolygon && !hasCustom && !hasConstraint && !hasPins && !nonDefaultControls)
     return ''
 
@@ -181,8 +187,12 @@ export function encodeState(state: ShareableState): string {
   p.set('sort', state.sortBy)
   if (state.sortDesc) p.set('desc', '1')
   p.set('limit', String(state.limit))
-  if (isValidDatetimeLocal(state.startDatetime)) p.set('start', state.startDatetime)
-  if (isValidDatetimeLocal(state.endDatetime)) p.set('end', state.endDatetime)
+  if (state.nowMode) {
+    p.set('mode', 'now')
+  } else {
+    if (isValidDatetimeLocal(state.startDatetime)) p.set('start', state.startDatetime)
+    if (isValidDatetimeLocal(state.endDatetime)) p.set('end', state.endDatetime)
+  }
   if (state.minElevationFt !== null) p.set('minel', String(state.minElevationFt))
   if (state.maxElevationFt !== null) p.set('maxel', String(state.maxElevationFt))
   if (hasPolygon && state.polygon) p.set('poly', encodePolygon(state.polygon))
@@ -237,6 +247,8 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   if (start && isValidDatetimeLocal(start)) out.startDatetime = start
   const end = params.get('end')
   if (end && isValidDatetimeLocal(end)) out.endDatetime = end
+
+  if (params.get('mode') === 'now') out.nowMode = true
 
   const minel = params.get('minel')
   if (minel !== null) {
