@@ -126,7 +126,7 @@ export default function SearchBox({ onSelect }: Props) {
             setError(null)
           }}
           onKeyDown={onKeyDown}
-          placeholder="Find a peak, city, lake…"
+          placeholder="Find a peak, city, lake… (press Enter)"
           title="Search by name (Mt Whitney) or coordinates (36.58, -118.29)"
           aria-label="Search for a place"
           autoComplete="off"
