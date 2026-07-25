@@ -1,5 +1,5 @@
 # Stage 1: Build React frontend
-FROM node:22-alpine AS frontend-builder
+FROM node:26-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 # Cache mount keeps npm's download cache out of the layer but warm across
@@ -8,8 +8,10 @@ RUN --mount=type=cache,target=/root/.npm npm ci
 COPY frontend/ ./
 RUN npm run build
 
-# Stage 2: Python backend serving built frontend as static files
-FROM python:3.12-slim
+# Stage 2: Python backend serving built frontend as static files.
+# Alpine over slim: Debian's base layer ships dozens of no-fix CVEs (perl-base,
+# libc6, …) that scanners flag forever; musl's ~10-package base scans clean.
+FROM python:3.14-alpine
 
 LABEL org.opencontainers.image.title="Bluebird" \
       org.opencontainers.image.description="Map-based weather window finder for hikers and mountaineers" \
@@ -24,18 +26,25 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 COPY backend/requirements.txt ./
-# hadolint ignore=DL3042
-RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+# Upgrade pip first: the version bundled with the base image trails pip's own
+# security fixes (e.g. CVE-2025-8869 tar link-following), and scanners flag it.
+# Deliberately unpinned (DL3013): a pin here would sit outside Dependabot's
+# view and go stale; floating rides each rebuild to the current fix.
+# hadolint ignore=DL3042,DL3013
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip && \
+    pip install -r requirements.txt
 COPY backend/app/ ./app/
 COPY --from=frontend-builder /app/frontend/dist/ ./static/
 # Nothing needs root at runtime — uvicorn binds 8000 and the app only reads
 # baked-in files — so serve as an unprivileged user. Fixed numeric UID/GID so
 # Kubernetes runAsNonRoot can verify without resolving names inside the image.
-RUN groupadd -r -g 10001 bluebird && useradd -r -u 10001 -g bluebird bluebird
+RUN addgroup -S -g 10001 bluebird && adduser -S -u 10001 -G bluebird bluebird
 USER 10001:10001
 EXPOSE 8000
 # Kubernetes ignores HEALTHCHECK (its probes hit /healthz directly); this is
-# for plain docker/compose users. Stdlib only — slim ships no curl/wget.
+# for plain docker/compose users. Python stdlib rather than busybox wget so the
+# check doesn't depend on which base-image flavor is underneath.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
   CMD ["python", "-c", "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2).status == 200 else 1)"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

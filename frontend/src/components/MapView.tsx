@@ -1,5 +1,12 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import maplibregl from 'maplibre-gl'
+// Namespace import: maplibre-gl v6 is ESM-only and no longer has a default export
+import * as maplibregl from 'maplibre-gl'
+// v6 resolves its web worker with a runtime-computed `new URL(...)` that Vite
+// can't statically bundle, so production builds 404 the worker and silently
+// render no tiles. Bundle the worker as its own entry and point maplibre at it.
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
+
+maplibregl.setWorkerUrl(maplibreWorkerUrl)
 import type { FilterSpecification } from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.

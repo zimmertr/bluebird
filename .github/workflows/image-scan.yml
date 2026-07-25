@@ -1,0 +1,61 @@
+name: Scheduled Image Scan
+
+# The PR-time scan gates what enters Docker Hub, but CVEs are published after
+# images ship — the deployed image rots while nothing rebuilds it. This scan
+# re-checks the latest *released* image on a clock. Two outputs:
+#   - SARIF → the repo Security tab (code-scanning alerts, full history)
+#   - a red run (→ GitHub failure email) only when a *fixable* Critical/High
+#     exists, i.e. only when there is something to actually do. Remediation is
+#     usually merging the waiting Dependabot base-image PR, which cuts a patch
+#     release on the fresh base.
+on:
+  schedule:
+    - cron: '17 14 * * 1'  # Mondays 14:17 UTC — off the top of the hour, when GitHub sheds cron load
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Scan released image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # SARIF upload to the Security tab
+    steps:
+      - name: Resolve latest release tag
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          echo "semver=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "Scanning zimmertr/bluebird:${TAG#v}"
+
+      - name: Scan image (Trivy)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: zimmertr/bluebird:${{ steps.release.outputs.semver }}
+          format: sarif
+          output: trivy.sarif
+          ignore-unfixed: true
+
+      - name: Upload results to the Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy.sarif
+          category: trivy-released-image
+
+      # Rendered from the SARIF's source scan re-run as JSON so the gate uses
+      # the same ignore-unfixed filtering; trivy is on PATH via the action above.
+      - name: Fail on fixable Critical/High vulnerabilities
+        run: |
+          trivy image --format json --output trivy.json --ignore-unfixed \
+            zimmertr/bluebird:${{ steps.release.outputs.semver }}
+          CRIT_HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL" or .Severity == "HIGH")] | length' trivy.json)
+          if [ "$CRIT_HIGH" -gt 0 ]; then
+            echo "::error::${CRIT_HIGH} fixable Critical/High vulnerabilities in zimmertr/bluebird:${{ steps.release.outputs.semver }}. Rebase onto a fresh base image (merge the open Dependabot bump) and release."
+            exit 1
+          fi
+          echo "No fixable Critical/High vulnerabilities." >> "$GITHUB_STEP_SUMMARY"
