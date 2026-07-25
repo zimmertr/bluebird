@@ -237,7 +237,7 @@ async def analyze_stream(request: AnalyzeRequest):
         log.info("Analyze request (stream): %s", _summarize_request(request))
         try:
             if request.start_datetime >= request.end_datetime:
-                yield _sse("error", message="start_datetime must be before end_datetime")
+                yield _sse("error", message="The start date must be before the end date.")
                 return
 
             # A union (polygon + custom list) is a mixed set, so its messages
@@ -417,7 +417,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
 
     if request.start_datetime >= request.end_datetime:
         raise HTTPException(
-            status_code=400, detail="start_datetime must be before end_datetime"
+            status_code=400, detail="The start date must be before the end date."
         )
 
     # Resolve destinations

@@ -1,21 +1,14 @@
 import { SortBy } from '../types'
 
-// Hex anchors — still used for the legend dots
-export const MARKER_COLORS = ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'] as const
-
-// RGB equivalents of MARKER_COLORS for smooth interpolation
-const ANCHOR_RGB: [number, number, number][] = [
-  [34, 197, 94],   // green  #22c55e
-  [132, 204, 22],  // lime   #84cc16
-  [234, 179, 8],   // yellow #eab308
-  [249, 115, 22],  // orange #f97316
-  [239, 68, 68],   // red    #ef4444
-]
-
 type MetricConfig = {
-  thresholds: [number, number, number, number]
+  // Band boundaries — always one fewer than colors. Values at or below
+  // thresholds[0] take colors[0]; each band blends toward the next anchor;
+  // values past the last threshold extrapolate into the final color over one
+  // more last-band width, then clamp.
+  thresholds: number[]
+  colors: string[]
   label: string
-  legendLabels: [string, string, string, string, string]
+  legendLabels: string[]
   group: string[]
 }
 
@@ -25,30 +18,50 @@ type MetricConfig = {
 export const METRIC_CONFIG: Record<SortBy, MetricConfig> = {
   precip_total_in: {
     thresholds: [0.01, 0.10, 0.25, 0.50],
+    colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
     label: 'Total Precip',
     legendLabels: ['≤ 0.01"', '0.01 – 0.10"', '0.10 – 0.25"', '0.25 – 0.50"', '> 0.50"'],
     group: ['precip_total_in', 'precip_avg_in_hr', 'precip_max_in_hr'],
   },
   wind_avg_mph: {
     thresholds: [5, 15, 25, 35],
+    colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
     label: 'Avg Wind',
     legendLabels: ['≤ 5 mph', '5 – 15 mph', '15 – 25 mph', '25 – 35 mph', '> 35 mph'],
     group: ['wind_min_mph', 'wind_avg_mph', 'wind_max_mph'],
   },
   temp_avg_f: {
     thresholds: [30, 45, 55, 65],
+    colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
     label: 'Avg Temp',
     legendLabels: ['≤ 30°F', '30 – 45°F', '45 – 55°F', '55 – 65°F', '> 65°F'],
     group: ['temp_min_f', 'temp_avg_f', 'temp_max_f'],
   },
-  // Thresholds are the US EPA AQI category boundaries (Good / Moderate /
-  // Sensitive / Unhealthy / worse) — they map 1:1 onto the green→red anchors.
+  // All six US EPA AQI categories — Good / Moderate / Sensitive / Unhealthy /
+  // Very Unhealthy / Hazardous — in the app's hues. The purple/maroon top
+  // bands exist so an AQI of 250 and one of 350 never look the same.
   aqi_avg: {
-    thresholds: [50, 100, 150, 200],
-    label: 'Avg AQI (PM2.5)',
-    legendLabels: ['≤ 50', '50 – 100', '100 – 150', '150 – 200', '> 200'],
+    thresholds: [50, 100, 150, 200, 300],
+    colors: ['#22c55e', '#eab308', '#f97316', '#ef4444', '#a855f7', '#991b1b'],
+    label: 'Avg AQI',
+    legendLabels: [
+      '≤ 50 AQI',
+      '50 – 100 AQI',
+      '100 – 150 AQI',
+      '150 – 200 AQI',
+      '200 – 300 AQI',
+      '> 300 AQI',
+    ],
     group: ['aqi_avg', 'aqi_max'],
   },
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  return [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ]
 }
 
 function lerp(a: number, b: number, t: number): number {
@@ -64,20 +77,19 @@ function mix(
 }
 
 function interpolateRgb(value: number, sortBy: SortBy): [number, number, number] {
-  const [t0, t1, t2, t3] = METRIC_CONFIG[sortBy].thresholds
-  const [c0, c1, c2, c3, c4] = ANCHOR_RGB as [
-    [number, number, number],
-    [number, number, number],
-    [number, number, number],
-    [number, number, number],
-    [number, number, number],
-  ]
-  if (value <= t0) return [...c0] as [number, number, number]
-  if (value <= t1) return mix(c0, c1, (value - t0) / (t1 - t0))
-  if (value <= t2) return mix(c1, c2, (value - t1) / (t2 - t1))
-  if (value <= t3) return mix(c2, c3, (value - t2) / (t3 - t2))
-  // Extrapolate orange → red for one additional segment past the last anchor
-  return mix(c3, c4, Math.min(1, (value - t3) / (t3 - t2)))
+  const { thresholds, colors } = METRIC_CONFIG[sortBy]
+  const anchors = colors.map(hexToRgb)
+  if (value <= thresholds[0]) return [...anchors[0]] as [number, number, number]
+  for (let i = 1; i < thresholds.length; i++) {
+    if (value <= thresholds[i]) {
+      return mix(anchors[i - 1], anchors[i], (value - thresholds[i - 1]) / (thresholds[i] - thresholds[i - 1]))
+    }
+  }
+  // Extrapolate into the final anchor for one additional band past the last
+  // threshold, then clamp fully saturated.
+  const n = thresholds.length
+  const lastWidth = thresholds[n - 1] - thresholds[n - 2]
+  return mix(anchors[n - 1], anchors[n], Math.min(1, (value - thresholds[n - 1]) / lastWidth))
 }
 
 export function markerColor(value: number, sortBy: SortBy): string {

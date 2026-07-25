@@ -65,6 +65,21 @@ async def test_query_osm_bad_elevation_tag_is_ignored(monkeypatch):
     assert results[0]["elevation_ft"] is None
 
 
+async def test_query_osm_peak_query_includes_volcanoes(monkeypatch):
+    # Regression: Cascade volcanoes (Baker, Rainier, ...) are tagged
+    # natural=volcano, not natural=peak — the peak query must ask for both.
+    captured: dict[str, str] = {}
+
+    async def fake_post(query, on_status=None):
+        captured["query"] = query
+        return {"elements": []}
+
+    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    await osm.query_osm(POLY, DestinationType.peak)
+    assert 'node["natural"="peak"]["name"]' in captured["query"]
+    assert 'node["natural"="volcano"]["name"]' in captured["query"]
+
+
 async def test_query_osm_unimplemented_type_raises():
     with pytest.raises(NotImplementedError):
         await osm.query_osm(POLY, DestinationType.custom)
@@ -129,3 +144,31 @@ async def test_post_with_fallback_all_endpoints_fail(monkeypatch):
     with pytest.raises(UpstreamError):
         await osm._post_with_fallback("q")
     assert fake.calls == len(osm.OVERPASS_ENDPOINTS)
+
+
+async def test_post_with_fallback_rejects_partial_remark(monkeypatch):
+    # A mirror that times out mid-query returns 200 with PARTIAL elements plus
+    # a `remark` — that must count as a mirror failure, not a result, or a
+    # truncated candidate list gets ranked as if it were complete.
+    partial = _FakeResp({"remark": "runtime error: Query timed out in 'query'", "elements": [{"type": "node"}]})
+    clean = _FakeResp({"elements": []})
+    fake = _FakeClient([partial, clean])
+    monkeypatch.setattr(osm.httpx, "AsyncClient", lambda *a, **k: fake)
+
+    result = await osm._post_with_fallback("q")
+    assert result == {"elements": []}
+    assert fake.calls == 2
+
+
+async def test_post_with_fallback_all_partial_raises(monkeypatch):
+    partial = {"remark": "runtime error: Query timed out", "elements": []}
+    fake = _FakeClient([_FakeResp(partial), _FakeResp(partial), _FakeResp(partial)])
+    monkeypatch.setattr(osm.httpx, "AsyncClient", lambda *a, **k: fake)
+
+    with pytest.raises(UpstreamError) as excinfo:
+        await osm._post_with_fallback("q")
+    assert fake.calls == len(osm.OVERPASS_ENDPOINTS)
+    # The user should be told the query was too demanding, not shown a raw
+    # "failed unexpectedly" fallback string.
+    assert "part of the results" in excinfo.value.message
+    assert "smaller search area" in excinfo.value.message
