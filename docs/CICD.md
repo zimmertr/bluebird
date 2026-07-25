@@ -191,6 +191,45 @@ flowchart LR
   `PREVIEW_PR` / `PREVIEW_COMMIT` env (surfaced by `/api/config` → the SPA
   banner). Closing the PR prunes the environment.
 
+## Unattended maintenance
+
+Two loops keep shipped artifacts current with nobody initiating a change: a
+weekly re-scan of the released image, and Dependabot dependency PRs with patch
+auto-merge. Both funnel into Path 1, so the prod canary still gates everything
+they produce. The next two sections give the details.
+
+```mermaid
+flowchart LR
+    subgraph SCAN["Weekly image re-scan"]
+        cron["image-scan.yml<br/>cron, Trivy"]
+        released["Docker Hub<br/>latest released image"]
+        sarif["Security tab<br/>SARIF alerts"]
+        email["failure email<br/>fixable Crit/High only"]
+    end
+
+    subgraph DEP["Dependency updates"]
+        bot["Dependabot<br/>weekly PRs"]
+        am["dependabot-auto-merge.yml"]
+        note["armed comment on PR"]
+        merge["squash auto-merge<br/>after required checks"]
+        review(["TJ reviews<br/>minor / major"])
+    end
+
+    rel["release.yml<br/>Path 1: canary to prod"]
+
+    cron -->|scan| released
+    cron --> sarif
+    cron -->|only when actionable| email
+    email -.->|fix: merge base-image PR| bot
+
+    bot --> am
+    am -->|patch| note
+    am -->|patch| merge
+    bot -->|minor / major| review
+    merge --> rel
+    review -.-> rel
+```
+
 ## Scheduled image scan
 
 PR-time scanning gates what gets *published*, but CVEs are disclosed after
