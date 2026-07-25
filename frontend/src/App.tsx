@@ -14,13 +14,14 @@ import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy } from './types'
-import { METRIC_CONFIG, MARKER_COLORS } from './utils/colors'
+import { METRIC_CONFIG } from './utils/colors'
 import { parseCustomCsv } from './utils/customDestinations'
 import { buildCustomList, pinKey } from './utils/customList'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
 import { composeOverlay } from './utils/analyzeOverlay'
 import { Place, isPeakKind } from './utils/geocode'
 import { encodeState, decodeState, classifyWindow } from './utils/urlState'
+import { rankingStale } from './utils/staleness'
 
 // Composed with the direction into e.g. "Lowest Total Precipitation" /
 // "Highest Average Temperature" for the results header.
@@ -28,7 +29,7 @@ const SORT_NOUNS: Record<SortBy, string> = {
   precip_total_in: 'Total Precipitation',
   wind_avg_mph: 'Average Wind',
   temp_avg_f: 'Average Temperature',
-  aqi_avg: 'Average AQI (PM2.5)',
+  aqi_avg: 'Average AQI',
 }
 
 // Collapse/expand affordance for the bottom panels' header bars.
@@ -216,6 +217,10 @@ export default function App() {
   // ranking that produced them — panel knobs only affect the NEXT Analyze.
   // Falls back to the live knobs before the first analysis (nothing shown yet).
   const view = analyzed ?? { sortBy, sortDesc }
+  // The displayed report renders from the analyzed snapshot, so changing the
+  // ranking knobs changes nothing on screen by design — surface that state as
+  // a "press Analyze to apply" cue or the controls feel dead after first use.
+  const rankingChanged = rankingStale(analyzed, sortBy, sortDesc) && !loading && response !== null
   const preview = usePreview()
 
   // The loading overlay for the one ranked streaming analysis — searched
@@ -565,6 +570,7 @@ export default function App() {
           setLimit={setLimit}
           customCsv={customCsv}
           setCustomCsv={setCustomCsv}
+          rankingChanged={rankingChanged}
           sortBy={sortBy}
           setSortBy={setSortBy}
           sortDesc={sortDesc}
@@ -606,7 +612,10 @@ export default function App() {
                   alt=""
                   className="w-12 h-12 rounded-lg object-cover mx-auto mb-3 animate-pulse"
                 />
-                <p className="text-white font-semibold text-sm leading-snug">
+                {/* role=status + aria-live: without it, the analysis phase is
+                    the one moment the app goes completely silent for screen
+                    readers — announce each status line as it changes. */}
+                <p role="status" aria-live="polite" className="text-white font-semibold text-sm leading-snug">
                   {overlay.message}
                 </p>
                 {overlay.progress ? (
@@ -693,6 +702,20 @@ export default function App() {
                     />
                     <span className="text-[11px] text-slate-300">Active Wildfire</span>
                   </div>
+                  {/* CC BY 3.0 requires a visible credit wherever the fire data
+                      is displayed, not just a source-code comment. */}
+                  <p className="mt-1 text-[10px] text-slate-500">
+                    Fire data:{' '}
+                    <a
+                      href="https://data-nifc.opendata.arcgis.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-slate-300"
+                    >
+                      NIFC
+                    </a>{' '}
+                    (CC BY 3.0)
+                  </p>
                 </div>
               )}
               {hasColoredMarkers && (
@@ -700,7 +723,7 @@ export default function App() {
                   <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                     {METRIC_CONFIG[view.sortBy].label}
                   </p>
-                  {MARKER_COLORS.map((color, i) => (
+                  {METRIC_CONFIG[view.sortBy].colors.map((color, i) => (
                     <div key={i} className="flex items-center gap-1.5 py-0.5">
                       <span style={{ color }} className="text-sm leading-none">●</span>
                       <span className="text-[11px] text-slate-300 font-mono">
@@ -803,6 +826,17 @@ export default function App() {
                   ? `Forecast Table: ${view.sortDesc ? 'Highest' : 'Lowest'} ${SORT_NOUNS[view.sortBy]}`
                   : 'Forecast Table'}
               </span>
+              {/* CC-BY 4.0 requires this credit beside the data itself, not
+                  just in the privacy modal; the docked header bar keeps it
+                  visible whenever forecasts are on screen. */}
+              <a
+                href="https://open-meteo.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto mr-2 text-[10px] text-slate-400 hover:text-slate-200 underline decoration-slate-600"
+              >
+                Weather data by Open-Meteo.com
+              </a>
               <button
                 onClick={() => setTableCollapsed((c) => !c)}
                 title={tableCollapsed ? 'Expand the table' : 'Collapse the table'}
@@ -842,7 +876,9 @@ export default function App() {
 
         {showResults && response && results.length === 0 && !loading && (
           <div className="flex-shrink-0 border-t border-slate-600 bg-slate-800 px-4 py-3 text-sm text-slate-400">
-            No destinations found. Try a larger polygon or different time window.
+            {removedKeys.size > 0
+              ? 'All rows have been removed from this analysis. Add destinations or adjust the inputs, then Analyze again.'
+              : 'No destinations found. Try a larger polygon or different time window.'}
           </div>
         )}
       </div>
