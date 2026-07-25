@@ -50,7 +50,7 @@ docker compose up --build -d
 docker compose logs -f
 ```
 
-Two suites: the frontend's pure logic under Vitest (`frontend/src/utils/*.test.ts`, e.g. URL state serialization in `urlState.ts` and marker colors in `colors.ts`), and the backend under pytest (`backend/tests/`, covering weather/AQI aggregation, request validation, ranking/elevation filtering, upstream-error mapping, and the routes with the external APIs stubbed). CI validates via TypeScript typecheck, the Vitest unit tests, pytest, Python ruff lint, and a full Docker build.
+Two suites: the frontend's pure logic under Vitest (`frontend/src/utils/*.test.ts`, e.g. URL state serialization in `urlState.ts` and marker colors in `colors.ts`), and the backend under pytest (`backend/tests/`, covering weather/AQI aggregation, request validation, ranking/elevation filtering, upstream-error mapping, and the routes with the external APIs stubbed). CI validates via TypeScript typecheck, the Vitest unit tests, pytest, Python ruff lint, and a full Docker build followed by a Trivy vulnerability scan of the built image.
 
 ## Rules for every change
 
@@ -60,8 +60,8 @@ Two suites: the frontend's pure logic under Vitest (`frontend/src/utils/*.test.t
 ## Architecture
 
 Single container, multi-stage Docker build:
-- Stage 1: `node:22-alpine` — builds the React SPA (`npm run build`)
-- Stage 2: `python:3.12-slim` — runs uvicorn and serves the built SPA as static files at `/`
+- Stage 1: `node:22-alpine` builds the React SPA (`npm run build`)
+- Stage 2: `python:3.12-alpine` runs uvicorn and serves the built SPA as static files at `/` (alpine over slim so the shipped image carries none of Debian's perpetual no-fix CVEs)
 
 The FastAPI backend handles `POST /api/analyze`, which:
 1. Validates polygon area (bounding-box approximation, max 50,000 km²)
@@ -98,7 +98,9 @@ The SPA fetches only on an explicit Analyze click and renders results from a sna
 
 See [`docs/CICD.md`](docs/CICD.md) for the full end-to-end flow with diagrams (bluebird → bluebird-helm → Kubernetes-Manifests → Argo CD / Argo Rollouts, plus Docker Hub, Artifact Hub, and the PR preview environments). The summary below covers this repo's workflows.
 
-**PR checks** (`pr.yml`): runs on all non-main branches and PRs → TypeScript typecheck + Vitest, ruff lint, pytest (backend tests), hadolint, Docker build (no push).
+**PR checks** (`pr.yml`): runs on all non-main branches and PRs → TypeScript typecheck + Vitest, ruff lint, pytest (backend tests), hadolint, Docker build (no push) + Trivy image scan (sticky PR comment; fails only on *fixable* Critical/High vulns).
+
+**Scheduled image scan** (`image-scan.yml`): weekly Trivy scan of the latest released `zimmertr/bluebird` image → SARIF to the GitHub Security tab; the job goes red (→ failure email) only on fixable Critical/High vulns. Remediation: merge the open Dependabot base-image PR to cut a patch release on a fresh base.
 
 **Release** (`release.yml`): triggers on merge to `main` → GitVersion calculates SemVer from conventional commits → builds and pushes a multi-arch `zimmertr/bluebird:<semver>` (amd64 + arm64, with SBOM/provenance attestations) to Docker Hub → creates GitHub release → updates `kustomization.yml` in the `zimmertr/Kubernetes-Manifests` repo, which ArgoCD auto-syncs.
 

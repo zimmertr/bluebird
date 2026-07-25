@@ -144,7 +144,7 @@ flowchart LR
 
     subgraph BB["zimmertr/bluebird"]
         pr["PR opened / updated"]
-        checks["pr.yml<br/>typecheck, Vitest, ruff, pytest, hadolint, docker build"]
+        checks["pr.yml<br/>typecheck, Vitest, ruff, pytest, hadolint,<br/>docker build + Trivy scan (sticky comment)"]
         preview["pr-preview.yml<br/>pull_request_target (same-repo gate)"]
         label["label: create pr container"]
         comment["sticky preview-URL comment"]
@@ -171,6 +171,12 @@ flowchart LR
     pr -.->|PR closed: automated prune| env
 ```
 
+- `pr.yml`'s docker-build job loads the amd64 image into the runner and scans it
+  with **Trivy** (`ignore-unfixed`: Debian/Alpine no-fix CVEs never gate). The
+  report lands in the job step summary and as a **sticky PR comment** (matched by
+  a hidden `<!-- bluebird-image-scan -->` marker, not `--edit-last`, so it can't
+  clobber the preview-URL comment). The job fails only on **fixable
+  Critical/High** findings.
 - `pr-preview.yml` runs under **`pull_request_target`** (so it can reach the base
   repo's secrets to push images) behind a **hard same-repo gate** — fork PRs
   never execute with secrets. It builds `zimmertr/bluebird-pr:pr-<N>-<head_sha>`.
@@ -183,16 +189,36 @@ flowchart LR
   `PREVIEW_PR` / `PREVIEW_COMMIT` env (surfaced by `/api/config` → the SPA
   banner). Closing the PR prunes the environment.
 
+## Scheduled image scan
+
+PR-time scanning gates what gets *published*, but CVEs are disclosed after
+images ship. The released image rots while nothing rebuilds it.
+`image-scan.yml` (weekly cron + `workflow_dispatch`) re-scans the **latest
+released** `zimmertr/bluebird:<semver>` with Trivy:
+
+- **Always:** SARIF upload → code-scanning alerts in the repo **Security tab**.
+- **Gate:** the job fails — triggering GitHub's workflow-failure email — only
+  when a **fixable Critical/High** vulnerability exists, i.e. only when there
+  is something to do. Expected remediation: merge the open Dependabot
+  base-image PR (below), which cuts a patch release on the fresh base and
+  rolls it out through Path 1.
+
+Docker Hub's Scout insights cover the same registry-side rot but only update
+the Hub dashboard; the cron's failure email is the push-based signal.
+
 ## Dependabot auto-merge
 
 Dependabot opens weekly PRs (`pip` in `/backend`, `npm` in `/frontend`,
-`github-actions` in `/`). `dependabot-auto-merge.yml` enables **squash
+`github-actions` and `docker` base images in `/`). `dependabot-auto-merge.yml` enables **squash
 auto-merge for patch (bugfix) bumps only** — GitHub completes the merge once
 `main`'s required checks pass; **minor and major bumps wait for manual review**.
 
 In practice only `pip`/`npm` patches auto-merge: the GitHub Actions are
 major-pinned (`@v7`), so Dependabot raises them as *major* bumps that wait for
-review anyway. The merge PAT is intentionally scoped to Contents + Pull requests
+review anyway. The Dockerfile's base tags float at the minor (`python:3.12-alpine`,
+`node:22-alpine`), so docker-ecosystem PRs are minor/major runtime bumps that
+also wait for review — base-OS *patch* fixes arrive without any PR, picked up
+by whatever build happens next. The merge PAT is intentionally scoped to Contents + Pull requests
 (not `Workflows`), so if an action is ever repinned to a full version, its patch
 bumps stay manual by design rather than failing the merge.
 
