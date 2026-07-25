@@ -33,10 +33,16 @@ HEADERS = {"User-Agent": "Bluebird/1.0 (bluebirdforecast.com; personal weather t
 # Overpass QL templates per destination type.
 # Peaks query uses nodes only — the vast majority of OSM peaks are nodes,
 # and node-only queries are significantly faster on the public API.
+# natural=volcano is unioned in because OSM tags volcanic summits as volcano
+# INSTEAD of peak — without it, Baker, Rainier, Glacier Peak, Adams, and
+# St. Helens are all invisible to a Cascades polygon search.
 _QUERIES: dict[DestinationType, str] = {
     DestinationType.peak: """\
 [out:json][timeout:60];
-node["natural"="peak"]["name"](poly:"{poly}");
+(
+  node["natural"="peak"]["name"](poly:"{poly}");
+  node["natural"="volcano"]["name"](poly:"{poly}");
+);
 out;
 """,
     DestinationType.trailhead: """\

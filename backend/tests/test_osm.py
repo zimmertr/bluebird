@@ -65,6 +65,21 @@ async def test_query_osm_bad_elevation_tag_is_ignored(monkeypatch):
     assert results[0]["elevation_ft"] is None
 
 
+async def test_query_osm_peak_query_includes_volcanoes(monkeypatch):
+    # Regression: Cascade volcanoes (Baker, Rainier, ...) are tagged
+    # natural=volcano, not natural=peak — the peak query must ask for both.
+    captured: dict[str, str] = {}
+
+    async def fake_post(query, on_status=None):
+        captured["query"] = query
+        return {"elements": []}
+
+    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    await osm.query_osm(POLY, DestinationType.peak)
+    assert 'node["natural"="peak"]["name"]' in captured["query"]
+    assert 'node["natural"="volcano"]["name"]' in captured["query"]
+
+
 async def test_query_osm_unimplemented_type_raises():
     with pytest.raises(NotImplementedError):
         await osm.query_osm(POLY, DestinationType.custom)
