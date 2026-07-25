@@ -53,6 +53,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: determine-version
     if: needs.determine-version.outputs.tagExists == 'false'
+    # Releases serialize on one concurrency group, so a hung registry push here
+    # dams every queued release until GitHub's 6h default kills the job (it
+    # blocked deploys for 2.5h on 2026-07-25). Normal multi-arch builds take
+    # ~10 minutes; 30 is generous headroom for a cold cache.
+    timeout-minutes: 30
     permissions:
       contents: write  # Required to push the git tag
     steps:

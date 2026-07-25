@@ -93,7 +93,9 @@ concurrency-serialized):
    `linux/arm64`, arm64 via QEMU)** with SBOM + provenance attestations (the
    attestation manifests appear as "unknown/unknown" rows in Docker Hub's UI),
    pushes it to Docker Hub as `zimmertr/bluebird:<semver>`, and pushes the
-   `v<semver>` git tag.
+   `v<semver>` git tag. Capped at `timeout-minutes: 30`: because releases
+   serialize, a job hung on a registry timeout would otherwise dam every
+   queued release for up to GitHub's 6-hour default.
 3. **Create GitHub Release** — auto-generated notes.
 4. **Update Kubernetes-Manifests** — a **direct commit** (no PR) sets
    `images.newTag: <semver>` in `public/bluebird/kustomization.yml`. Argo CD
@@ -189,6 +191,45 @@ flowchart LR
   `PREVIEW_PR` / `PREVIEW_COMMIT` env (surfaced by `/api/config` → the SPA
   banner). Closing the PR prunes the environment.
 
+## Unattended maintenance
+
+Two loops keep shipped artifacts current with nobody initiating a change: a
+weekly re-scan of the released image, and Dependabot dependency PRs with patch
+auto-merge. Both funnel into Path 1, so the prod canary still gates everything
+they produce. The next two sections give the details.
+
+```mermaid
+flowchart LR
+    subgraph SCAN["Weekly image re-scan"]
+        cron["image-scan.yml<br/>cron, Trivy"]
+        released["Docker Hub<br/>latest released image"]
+        sarif["Security tab<br/>SARIF alerts"]
+        email["failure email<br/>fixable Crit/High only"]
+    end
+
+    subgraph DEP["Dependency updates"]
+        bot["Dependabot<br/>weekly PRs"]
+        am["dependabot-auto-merge.yml"]
+        note["armed comment on PR"]
+        merge["squash auto-merge<br/>after required checks"]
+        review(["TJ reviews<br/>minor / major"])
+    end
+
+    rel["release.yml<br/>Path 1: canary to prod"]
+
+    cron -->|scan| released
+    cron --> sarif
+    cron -->|only when actionable| email
+    email -.->|fix: merge base-image PR| bot
+
+    bot --> am
+    am -->|patch| note
+    am -->|patch| merge
+    bot -->|minor / major| review
+    merge --> rel
+    review -.-> rel
+```
+
 ## Scheduled image scan
 
 PR-time scanning gates what gets *published*, but CVEs are disclosed after
@@ -212,11 +253,14 @@ Dependabot opens weekly PRs (`pip` in `/backend`, `npm` in `/frontend`,
 `github-actions` and `docker` base images in `/`). `dependabot-auto-merge.yml` enables **squash
 auto-merge for patch (bugfix) bumps only** — GitHub completes the merge once
 `main`'s required checks pass; **minor and major bumps wait for manual review**.
+When it arms auto-merge it also posts a marker-guarded comment on the PR saying
+so (and how to stop it), so the self-merge is visible from the PR page rather
+than something to infer from the merge timeline.
 
 In practice only `pip`/`npm` patches auto-merge: the GitHub Actions are
 major-pinned (`@v7`), so Dependabot raises them as *major* bumps that wait for
 review anyway. The Dockerfile's base tags float at the minor (`python:3.14-alpine`,
-`node:22-alpine`), so docker-ecosystem PRs are minor/major runtime bumps that
+`node:26-alpine`), so docker-ecosystem PRs are minor/major runtime bumps that
 also wait for review — base-OS *patch* fixes arrive without any PR, picked up
 by whatever build happens next. The merge PAT is intentionally scoped to Contents + Pull requests
 (not `Workflows`), so if an action is ever repinned to a full version, its patch
