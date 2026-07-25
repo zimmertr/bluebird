@@ -4,8 +4,10 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from app.models import (
+    MAX_ANALYZE_PEAKS,
     MAX_POLYGON_AREA_KM2,
     AnalyzeRequest,
+    CustomDestination,
     DestinationType,
     GeoPolygon,
     SortBy,
@@ -150,3 +152,53 @@ def test_sortby_values_match_result_fields():
 
 def test_destination_type_membership():
     assert {t.value for t in DestinationType} == {"peak", "trailhead", "lake", "custom"}
+
+
+# ── CustomDestination validation ───────────────────────────────────────────
+
+
+def _cd(**overrides):
+    base = {"name": "X", "latitude": 47.0, "longitude": -121.0}
+    base.update(overrides)
+    return base
+
+
+def test_custom_destination_rejects_out_of_range_coordinates():
+    for bad in [{"latitude": 99.0}, {"latitude": -90.5}, {"longitude": 199.0}, {"longitude": -180.5}]:
+        with pytest.raises(ValidationError):
+            CustomDestination(**_cd(**bad))
+
+
+def test_custom_destination_accepts_boundary_coordinates():
+    CustomDestination(**_cd(latitude=90.0, longitude=-180.0))
+    CustomDestination(**_cd(latitude=-90.0, longitude=180.0))
+
+
+def test_custom_destination_name_rules():
+    with pytest.raises(ValidationError):
+        CustomDestination(**_cd(name=""))
+    with pytest.raises(ValidationError):
+        CustomDestination(**_cd(name="   "))
+    with pytest.raises(ValidationError):
+        CustomDestination(**_cd(name="x" * 256))
+    # Whitespace trims; a max-length name passes.
+    assert CustomDestination(**_cd(name="  Peak  ")).name == "Peak"
+    CustomDestination(**_cd(name="x" * 255))
+
+
+def test_custom_destination_elevation_bounds():
+    with pytest.raises(ValidationError):
+        CustomDestination(**_cd(elevation_ft=99_999.0))
+    with pytest.raises(ValidationError):
+        CustomDestination(**_cd(elevation_ft=-2_000.0))
+    CustomDestination(**_cd(elevation_ft=None))
+    CustomDestination(**_cd(elevation_ft=-1_500.0))
+    CustomDestination(**_cd(elevation_ft=30_000.0))
+
+
+def test_analyze_request_caps_custom_destination_list():
+    rows = [{"name": f"P{i}", "latitude": 1.0, "longitude": 2.0} for i in range(MAX_ANALYZE_PEAKS + 1)]
+    with pytest.raises(ValidationError, match="Too many custom destinations"):
+        _valid_request(custom_destinations=rows)
+    # Exactly at the cap is allowed at the model layer.
+    _valid_request(custom_destinations=rows[:MAX_ANALYZE_PEAKS])
