@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { ChartMetric, chartKey, metricForSort } from '../utils/chartData'
 import { colorForIndex } from '../utils/chartColors'
@@ -6,24 +6,52 @@ import { colorForIndex } from '../utils/chartColors'
 // Chart selection for the results table: which destinations are overlaid, their
 // stable line colors (assigned on add, then fixed), and the active metric. The
 // color is surfaced by the row's checkbox (accent) and the chart tooltip — no
-// legend or picker. Reset on each analysis — a fresh report starts clean, the
-// same way the table's column sort resets.
+// legend or picker. Selections persist until the user changes them — removals
+// and re-analyses never uncheck a box (a key whose row leaves the report simply
+// stops rendering, and returns if the row does).
 export function useChartSelection(
   results: DestinationResult[],
-  pinned: DestinationResult[],
   sortBy: SortBy,
+  // Keys (chartKey format) that chart themselves on their first appearance in
+  // a report — searched places, which the user added one by one.
+  autoChartKeys: string[] = [],
 ) {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [colorByKey, setColorByKey] = useState<Record<string, string>>({})
   const [metric, setMetric] = useState<ChartMetric>(() => metricForSort(sortBy))
 
+  // The metric follows each new ranking; a same-ranking refresh leaves a
+  // manually chosen metric alone (the dep is the value, not the report).
   useEffect(() => {
-    setSelectedKeys([])
-    setColorByKey({})
     setMetric(metricForSort(sortBy))
-    // `results` identity changes per analysis; sortBy is that report's snapshot.
-    // Intentionally not keyed on sortBy — panel knob changes must not disturb a
-    // selection until the next Analyze.
+  }, [sortBy])
+
+  // Default selections, applied when a report arrives (keyed on its identity
+  // only; live state is read through refs so unchecking never re-selects):
+  //  - A searched place charts itself on its FIRST appearance — colorByKey is
+  //    the "ever charted" memory, so a deliberate uncheck isn't repeated.
+  //  - When no selected key exists in the report (first analysis, or a new
+  //    report that replaced every charted row — stale selections must not
+  //    block the default), chart its top rows.
+  const selectedKeysRef = useRef<string[]>([])
+  selectedKeysRef.current = selectedKeys
+  const colorByKeyRef = useRef<Record<string, string>>({})
+  colorByKeyRef.current = colorByKey
+  const autoChartKeysRef = useRef<Set<string>>(new Set())
+  autoChartKeysRef.current = new Set(autoChartKeys)
+  useEffect(() => {
+    const debut = results.filter(
+      (r) =>
+        r.series &&
+        autoChartKeysRef.current.has(chartKey(r)) &&
+        !colorByKeyRef.current[chartKey(r)],
+    )
+    if (debut.length > 0) setRange(debut, true)
+
+    const present = new Set(results.map(chartKey))
+    if (selectedKeysRef.current.some((k) => present.has(k))) return
+    const top = results.filter((r) => r.series).slice(0, 3)
+    if (top.length > 0) setRange(top, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results])
 
@@ -68,13 +96,15 @@ export function useChartSelection(
 
   const selectedSet = useMemo(() => new Set(selectedKeys), [selectedKeys])
 
-  // Ranked and pinned rows are both chartable; search either pool by key.
-  const selectedRows = useMemo(() => {
-    const pool = [...results, ...pinned]
-    return selectedKeys
-      .map((k) => pool.find((r) => chartKey(r) === k))
-      .filter((r): r is DestinationResult => r != null)
-  }, [selectedKeys, results, pinned])
+  // Selections are keyed by coordinate; a row that leaves the report (removed,
+  // ranked out) simply drops off the chart.
+  const selectedRows = useMemo(
+    () =>
+      selectedKeys
+        .map((k) => results.find((r) => chartKey(r) === k))
+        .filter((r): r is DestinationResult => r != null),
+    [selectedKeys, results],
+  )
 
   function isSelected(row: DestinationResult): boolean {
     return selectedSet.has(chartKey(row))

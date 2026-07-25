@@ -38,6 +38,57 @@ def _filter_elevation(destinations, min_ft, max_ft):
     return [d for d in destinations if keep(d)]
 
 
+def _custom_dicts(custom_destinations) -> list[dict]:
+    """The request's custom destinations in the same dict shape discovery
+    produces. Each carries its own "type" so a mixed (union) response can tag
+    every row by true source — discovered rows fall back to the request type."""
+    return [
+        {
+            "name": d.name,
+            "latitude": d.latitude,
+            "longitude": d.longitude,
+            "elevation_ft": d.elevation_ft,
+            "osm_id": None,
+            "type": "custom",
+        }
+        for d in custom_destinations
+    ]
+
+
+def _coord_key(dest) -> str:
+    return f"{dest['latitude']:.5f},{dest['longitude']:.5f}"
+
+
+def _merge_custom(discovered: list[dict], custom: list[dict]) -> list[dict]:
+    """Union of discovered + custom rows where the custom row wins a collision.
+
+    A discovered row is dropped when a custom row claims its exact name (the
+    identity rule query_osm already applies within its own results) or its
+    5-decimal coordinate key (~1 m — the frontend's pinKey precedent). The
+    user's own rows always survive; near-misses simply coexist as two rows.
+    """
+    names = {c["name"] for c in custom}
+    coords = {_coord_key(c) for c in custom}
+    kept = [
+        d for d in discovered if d["name"] not in names and _coord_key(d) not in coords
+    ]
+    return kept + custom
+
+
+def _cap_detail(count: int, noun: str, *, has_polygon: bool, has_custom: bool) -> str:
+    """The over-cap refusal, advising only the remedies actually in play."""
+    if has_polygon and has_custom:
+        advice = "Draw a smaller polygon, narrow the elevation range, or trim the custom list."
+    elif has_polygon:
+        advice = "Draw a smaller polygon or narrow the elevation range."
+    else:
+        advice = "Trim the custom list or narrow the elevation range."
+    return (
+        f"This search covers {count:,} {noun}s — the analysis limit is "
+        f"{MAX_ANALYZE_PEAKS:,}. {advice}"
+    )
+
+
 def _sort_key(sort_field: str, descending: bool = False):
     # AQI fields are nullable (short forecast horizon / best-effort fetch);
     # None sorts after every real value in either direction so it never wins
@@ -80,9 +131,9 @@ def _summarize_request(request: AnalyzeRequest) -> str:
         parts.append(f"min_elev_ft={request.min_elevation_ft:.0f}")
     if request.max_elevation_ft is not None:
         parts.append(f"max_elev_ft={request.max_elevation_ft:.0f}")
-    if request.destination_type == DestinationType.custom:
+    if request.destination_type == DestinationType.custom or request.custom_destinations:
         parts.append(f"custom={len(request.custom_destinations or [])}")
-    elif request.polygon is not None:
+    if request.destination_type != DestinationType.custom and request.polygon is not None:
         ring = request.polygon.coordinates[0]
         parts.append(f"polygon={max(0, len(ring) - 1)}pts")
         parts.append(f"area={bbox_area_km2(ring):,.0f}km2")
@@ -143,6 +194,9 @@ def _assemble(
 
     Rows whose weather came back None are dropped. Weather dicts without a
     `series` key (e.g. stubbed in tests) degrade cleanly to `series=None`.
+
+    A row's `type` prefers the destination dict's own tag — a union response
+    mixes discovered and custom rows — falling back to the request-level value.
     """
     times = _canonical_times(wx_list)
     results: list[DestinationResult] = []
@@ -164,7 +218,7 @@ def _assemble(
         results.append(
             DestinationResult(
                 name=dest["name"],
-                type=type_value,
+                type=dest.get("type", type_value),
                 latitude=dest["latitude"],
                 longitude=dest["longitude"],
                 elevation_ft=dest.get("elevation_ft"),
@@ -186,31 +240,31 @@ async def analyze_stream(request: AnalyzeRequest):
                 yield _sse("error", message="start_datetime must be before end_datetime")
                 return
 
-            noun = _noun(request.destination_type)
+            # A union (polygon + custom list) is a mixed set, so its messages
+            # say "destinations" rather than any one type's noun.
+            noun = "destination" if request.custom_destinations else _noun(request.destination_type)
 
             if request.destination_type == DestinationType.custom:
                 if not request.custom_destinations:
                     yield _sse("error", message="custom_destinations is required for custom type")
                     return
-                destinations = [
-                    {"name": d.name, "latitude": d.latitude, "longitude": d.longitude,
-                     "elevation_ft": d.elevation_ft, "osm_id": None}
-                    for d in request.custom_destinations
-                ]
-                yield _sse("status", message=f"Loaded {len(destinations)} custom {noun}(s) — fetching forecasts…")
+                destinations = _custom_dicts(request.custom_destinations)
             else:
                 if not request.polygon:
                     yield _sse("error", message="polygon is required for non-custom destination types")
                     return
-                yield _sse("status", message=f"Searching OpenStreetMap for {noun}s in your area…")
+                yield _sse("status", message="Searching for Destinations…")
 
                 # Overpass is one opaque request per mirror, so the only progress
                 # signal is mirror failover. Run it on a task and surface those
                 # status lines promptly via the queue.
                 osm_queue: asyncio.Queue = asyncio.Queue()
 
-                async def on_status(message):
-                    await osm_queue.put(_sse("status", message=message))
+                async def on_status(_message):
+                    # Fold Overpass mirror-failover detail ("Attempting … 2/3")
+                    # under the generic phase label — the mirror internals aren't
+                    # user-facing, and the first attempt can sit for many seconds.
+                    await osm_queue.put(_sse("status", message="Searching for Destinations…"))
 
                 async def run_osm():
                     try:
@@ -239,13 +293,16 @@ async def analyze_stream(request: AnalyzeRequest):
                     if not osm_task.done():
                         osm_task.cancel()
 
+                # The user's own list rides along with whatever discovery found —
+                # the union proceeds even when the polygon itself found nothing.
+                if request.custom_destinations:
+                    destinations = _merge_custom(
+                        destinations, _custom_dicts(request.custom_destinations)
+                    )
+
                 if not destinations:
                     yield _sse("result", data=AnalyzeResponse(results=[], total_queried=0).model_dump())
                     return
-
-                n = len(destinations)
-                plural = f"{n} {noun}{'s' if n != 1 else ''}"
-                yield _sse("status", message=f"Found {plural} — fetching weather forecasts…")
 
             destinations = _filter_elevation(
                 destinations, request.min_elevation_ft, request.max_elevation_ft
@@ -256,15 +313,22 @@ async def analyze_stream(request: AnalyzeRequest):
             if len(destinations) > MAX_ANALYZE_PEAKS:
                 yield _sse(
                     "error",
-                    message=(
-                        f"This search covers {len(destinations):,} {noun}s — the analysis "
-                        f"limit is {MAX_ANALYZE_PEAKS:,}. Draw a smaller polygon or "
-                        "narrow the elevation range."
+                    message=_cap_detail(
+                        len(destinations),
+                        noun,
+                        has_polygon=request.destination_type != DestinationType.custom,
+                        has_custom=bool(request.custom_destinations),
                     ),
                 )
                 return
 
             total_queried = len(destinations)
+
+            # Announce the retrieval phase WITH the final count the moment discovery
+            # settles, so the overlay shows "Retrieving N Forecasts…" immediately
+            # rather than a count-less line while the first batch (a full Open-Meteo
+            # round-trip) is still in flight.
+            yield _sse("progress", processed=0, total=total_queried, percent=0)
 
             # Drive the weather fetch on a task and drain per-batch progress from
             # a queue, so we can interleave `progress` SSE events with the await.
@@ -363,16 +427,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
                 status_code=400,
                 detail="custom_destinations is required when destination_type is 'custom'",
             )
-        destinations = [
-            {
-                "name": d.name,
-                "latitude": d.latitude,
-                "longitude": d.longitude,
-                "elevation_ft": d.elevation_ft,
-                "osm_id": None,
-            }
-            for d in request.custom_destinations
-        ]
+        destinations = _custom_dicts(request.custom_destinations)
     else:
         if not request.polygon:
             raise HTTPException(
@@ -390,6 +445,13 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
                 status_code=502, detail=f"OSM query failed: {e}"
             )
 
+        # The user's own list rides along with whatever discovery found — the
+        # union proceeds even when the polygon itself found nothing.
+        if request.custom_destinations:
+            destinations = _merge_custom(
+                destinations, _custom_dicts(request.custom_destinations)
+            )
+
     destinations = _filter_elevation(
         destinations, request.min_elevation_ft, request.max_elevation_ft
     )
@@ -397,13 +459,14 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         log.info("No destinations to analyze (none found, or none within the elevation band)")
         return AnalyzeResponse(results=[], total_queried=0)
     if len(destinations) > MAX_ANALYZE_PEAKS:
+        noun = "destination" if request.custom_destinations else _noun(request.destination_type)
         raise HTTPException(
             status_code=400,
-            detail=(
-                f"This search covers {len(destinations):,} "
-                f"{_noun(request.destination_type)}s — the analysis limit is "
-                f"{MAX_ANALYZE_PEAKS:,}. Draw a smaller polygon or narrow the "
-                "elevation range."
+            detail=_cap_detail(
+                len(destinations),
+                noun,
+                has_polygon=request.destination_type != DestinationType.custom,
+                has_custom=bool(request.custom_destinations),
             ),
         )
 

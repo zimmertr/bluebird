@@ -119,6 +119,15 @@ def test_window_naive_datetimes_are_accepted():
     assert req.start_datetime.replace(tzinfo=None) == naive_start
 
 
+def test_window_equal_start_end_normalizes_to_one_hour():
+    # A zero-length window means "the current forecast" — the model bumps the
+    # end an hour so the pipeline only ever sees an ordinary one-hour window.
+    t = _now()
+    req = _valid_request(start_datetime=t, end_datetime=t)
+    assert req.start_datetime == t
+    assert req.end_datetime == t + timedelta(hours=1)
+
+
 # ── helpers / enums ────────────────────────────────────────────────────────
 
 

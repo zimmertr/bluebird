@@ -61,3 +61,35 @@ body,
 .results-scrollbars::-webkit-scrollbar-thumb:hover {
   background-color: #94a3b8;
 }
+
+/* Native form-widget chrome on the dark panel. Without a color-scheme hint
+   Chrome draws its light-theme widgets — a near-black calendar icon and
+   spinners on slate-900 inputs. `dark` flips the glyphs light (matching
+   Firefox's rendering); the opacity dims them to the panel's resting grey
+   and lifts to full on hover. */
+input[type="date"],
+input[type="time"],
+input[type="number"] {
+  color-scheme: dark;
+}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="number"]::-webkit-inner-spin-button {
+  opacity: 0.65;
+  cursor: pointer;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover,
+input[type="number"]::-webkit-inner-spin-button:hover {
+  opacity: 1;
+}
+
+/* The per-row remove × swaps in for the rank number on row hover (see
+   ResultsTable's RankRemoveCell). Touch devices have no hover, so they show
+   the number and the × side by side instead. */
+@media (hover: none) {
+  .row-remove {
+    display: inline;
+    margin-left: 0.375rem;
+  }
+}

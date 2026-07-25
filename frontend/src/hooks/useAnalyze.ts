@@ -37,6 +37,16 @@ export function useAnalyze() {
     if (lastRequestRef.current) analyze(lastRequestRef.current)
   }
 
+  // Clear the current ranked results without fetching. Used by a pins-only
+  // Analyze so a stale ranking (e.g. from a since-deleted polygon) doesn't
+  // linger in the table and on the map above the refetched pins.
+  function reset() {
+    setResponse(null)
+    setAnalyzed(null)
+    setError(null)
+    lastRequestRef.current = null
+  }
+
   // One explicit fetch per Analyze click: the server analyzes every candidate
   // in the polygon (refusing loudly above its ceiling) and returns exactly the
   // table rows. Nothing is cached or refetched behind the user's back.
@@ -47,9 +57,15 @@ export function useAnalyze() {
     abortRef.current = controller
     setLoading(true)
     setError(null)
-    setResponse(null)
+    // The previous response is deliberately kept: rows on screen stay put while
+    // the new analysis runs and are replaced only when its result lands (or
+    // removed by an explicit reset). Cancel/error leave them standing too.
     setProgress(null)
-    setStatusMessage('Starting…')
+    // Seed the correct first-phase label so nothing generic ("Starting…") flashes
+    // during the click→first-SSE-event gap: a polygon run opens on discovery, a
+    // custom/refresh run goes straight to retrieval (upgraded to the counted label
+    // once the up-front progress event lands).
+    setStatusMessage(request.polygon ? 'Searching for Destinations…' : 'Retrieving Forecasts…')
 
     try {
       const res = await fetch('/api/analyze/stream', {
@@ -143,5 +159,5 @@ export function useAnalyze() {
     }
   }
 
-  return { analyze, cancel, retry, analyzed, loading, error, response, statusMessage, progress }
+  return { analyze, cancel, retry, reset, analyzed, loading, error, response, statusMessage, progress }
 }

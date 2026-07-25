@@ -36,22 +36,25 @@ const base: ShareableState = {
   limit: 10,
   customCsv: '',
   showWildfires: false,
+  pins: [],
 }
 
-// A truly untouched session: no polygon, no custom CSV, End unset, all controls
-// at their App defaults. Start is pre-filled but must not, on its own, sync.
+// A truly untouched session: no polygon, no custom CSV, all controls at their
+// App defaults. Both dates are pre-filled to "now" (an equal window is the
+// instant current forecast) and must not, on their own, sync to the URL.
 const pristine: ShareableState = {
   polygon: null,
   destinationType: 'peak',
   startDatetime: '2026-07-04T06:00',
-  endDatetime: '',
+  endDatetime: '2026-07-04T06:00',
   sortBy: 'precip_total_in',
   sortDesc: false,
   minElevationFt: null,
   maxElevationFt: null,
-  limit: 10,
+  limit: 100,
   customCsv: '',
   showWildfires: false,
+  pins: [],
 }
 
 // Round-trip helper: encode, then decode the resulting query string.
@@ -111,17 +114,23 @@ describe('encodeState / decodeState round-trip', () => {
     expect(roundTrip(base)!.showWildfires).toBeUndefined()
   })
 
-  it('restores a custom-CSV analysis without a polygon', () => {
+  it('restores a CSV-only analysis without a polygon', () => {
     const csv = '46.8529,-121.7604\n46.2024,-121.4909'
     const out = roundTrip({
       ...base,
       polygon: null,
-      destinationType: 'custom',
       customCsv: csv,
     })
-    expect(out!.destinationType).toBe('custom')
     expect(out!.customCsv).toBe(csv)
     expect(out!.polygon).toBeUndefined()
+  })
+
+  it('restores a CSV alongside a polygon — the union analysis', () => {
+    const csv = '46.8529,-121.7604,Mount Rainier'
+    const out = roundTrip({ ...base, customCsv: csv })
+    expect(out!.customCsv).toBe(csv)
+    expect(out!.destinationType).toBe('peak')
+    expect(out!.polygon!.coordinates[0]).toHaveLength(4)
   })
 
   it('round-trips a large multi-line custom CSV through compression', () => {
@@ -133,13 +142,13 @@ describe('encodeState / decodeState round-trip', () => {
         { length: 100 },
         (_, i) => `4${i % 9}.${i}00000, -12${i % 3}.${i}00000, ${i + 1}. Peak #${i + 1} (${i}00 ft)`,
       ).join('\n')
-    const out = roundTrip({ ...base, polygon: null, destinationType: 'custom', customCsv: csv })
+    const out = roundTrip({ ...base, polygon: null, customCsv: csv })
     expect(out!.customCsv).toBe(csv)
   })
 
   it('writes the CSV compressed under `customz`, well below its raw length', () => {
     const csv = Array.from({ length: 100 }, (_, i) => `47.${i}, -121.${i}, Peak ${i}`).join('\n')
-    const qs = encodeState({ ...base, polygon: null, destinationType: 'custom', customCsv: csv })
+    const qs = encodeState({ ...base, polygon: null, customCsv: csv })
     const params = new URLSearchParams(qs)
     expect(params.get('custom')).toBeNull() // legacy raw key is not written
     const customz = params.get('customz')!
@@ -157,10 +166,10 @@ describe('encodeState gate — what triggers a URL update', () => {
     expect(encodeState({ ...pristine, startDatetime: '2030-01-01T00:00' })).toBe('')
   })
 
-  it('syncs when only the End date is set, with no polygon', () => {
-    const qs = encodeState({ ...pristine, endDatetime: '2026-07-07T18:00' })
-    expect(qs).not.toBe('')
-    expect(new URLSearchParams(qs).get('end')).toBe('2026-07-07T18:00')
+  it('does not sync for the pre-filled window alone — End is no longer a signal', () => {
+    // Both dates default to "now", so a filled window says nothing about user
+    // intent. It rides along once any other signal is present (see round-trips).
+    expect(encodeState({ ...pristine, endDatetime: '2026-07-07T18:00' })).toBe('')
   })
 
   it('syncs when only an elevation constraint is set', () => {
@@ -172,7 +181,13 @@ describe('encodeState gate — what triggers a URL update', () => {
     expect(encodeState({ ...pristine, sortBy: 'wind_avg_mph' })).not.toBe('')
     expect(encodeState({ ...pristine, sortDesc: true })).not.toBe('')
     expect(encodeState({ ...pristine, limit: 25 })).not.toBe('')
-    expect(encodeState({ ...pristine, destinationType: 'custom' })).not.toBe('')
+    expect(encodeState({ ...pristine, destinationType: 'trailhead' })).not.toBe('')
+  })
+
+  it('syncs on a CSV alone — no polygon or mode required', () => {
+    const qs = encodeState({ ...pristine, customCsv: '46.8529,-121.7604' })
+    expect(qs).not.toBe('')
+    expect(new URLSearchParams(qs).get('customz')).toBeTruthy()
   })
 
   it('syncs when the wildfire overlay is enabled', () => {
@@ -191,9 +206,11 @@ describe('encodeState', () => {
     expect(qs).not.toContain('maxel')
   })
 
-  it('omits the custom param outside custom mode', () => {
-    const qs = encodeState({ ...base, customCsv: 'ignored' })
-    expect(qs).not.toContain('custom')
+  it('persists the CSV even when a polygon is present — inputs are additive', () => {
+    const params = new URLSearchParams(encodeState({ ...base, customCsv: '46.8,-121.7' }))
+    expect(params.get('customz')).toBeTruthy()
+    expect(params.get('poly')).toBeTruthy()
+    expect(params.get('type')).toBe('peak')
   })
 
   it('rounds polygon coordinates to ~5 decimals', () => {
@@ -219,6 +236,62 @@ describe('encodeState', () => {
     const poly = new URLSearchParams(encodeState(base)).get('poly')!
     // 3 unique vertices → 3 encoded pairs, not 4.
     expect(poly.split(';')).toHaveLength(3)
+  })
+})
+
+describe('pins in the URL', () => {
+  const whitney = {
+    label: 'Mount Whitney',
+    description: '',
+    kind: 'peak',
+    lat: 36.57849,
+    lon: -118.29194,
+    elevationFt: 14505,
+    osmId: 'node/944865772',
+  }
+  const coord = {
+    label: '36.10000, -118.20000',
+    description: '',
+    kind: 'coordinates',
+    lat: 36.1,
+    lon: -118.2,
+  }
+
+  it('round-trips a peak pin with elevation and osm identity', () => {
+    const out = roundTrip({ ...base, pins: [whitney] })
+    expect(out?.pins).toEqual([whitney])
+  })
+
+  it('round-trips a bare coordinate pin (no elevation, no osmId)', () => {
+    const out = roundTrip({ ...base, pins: [coord] })
+    expect(out?.pins).toEqual([coord])
+    // Absent fields stay absent, not undefined-valued.
+    expect(out?.pins?.[0]).not.toHaveProperty('elevationFt')
+    expect(out?.pins?.[0]).not.toHaveProperty('osmId')
+  })
+
+  it('survives a label containing the delimiters (comma and semicolon)', () => {
+    const tricky = { ...coord, label: 'Cabin, mile 3; near creek' }
+    const out = roundTrip({ ...base, pins: [tricky] })
+    expect(out?.pins).toEqual([tricky])
+  })
+
+  it('round-trips multiple pins in order', () => {
+    const out = roundTrip({ ...base, pins: [whitney, coord] })
+    expect(out?.pins).toEqual([whitney, coord])
+  })
+
+  it('a lone pin is worth persisting (encodeState not empty)', () => {
+    const qs = encodeState({ ...pristine, pins: [coord] })
+    expect(qs).not.toBe('')
+    expect(new URLSearchParams(qs).get('pins')).toBeTruthy()
+  })
+
+  it('drops malformed pin entries but keeps the valid ones', () => {
+    // A valid pin, then an entry with a non-numeric coordinate.
+    const decoded = decodeState('pins=-118.2,36.1,coordinates,,,A;notanum,36.1,,,,B')
+    expect(decoded?.pins).toHaveLength(1)
+    expect(decoded?.pins?.[0].label).toBe('A')
   })
 })
 
@@ -273,6 +346,17 @@ describe('decodeState tolerance', () => {
     const raw = '46.8529,-121.7604\n46.2024,-121.4909'
     const out = decodeState('type=custom&custom=' + encodeURIComponent(raw))
     expect(out!.customCsv).toBe(raw)
+    // type=custom predates additive CSV — the picker falls back to its default.
+    expect(out!.destinationType).toBeUndefined()
+  })
+
+  it('restores the CSV from a legacy type=custom&customz= link', () => {
+    const csv = '46.8529,-121.7604,Mount Rainier'
+    const qs = encodeState({ ...base, polygon: null, customCsv: csv })
+    const customz = new URLSearchParams(qs).get('customz')!
+    const out = decodeState(`type=custom&customz=${customz}`)
+    expect(out!.customCsv).toBe(csv)
+    expect(out!.destinationType).toBeUndefined()
   })
 })
 
@@ -329,8 +413,8 @@ describe('classifyWindow', () => {
     expect(classifyWindow(shift(3), shift(1), now)).toBe('order')
   })
 
-  it('is order when the end equals the start (zero-length window)', () => {
-    expect(classifyWindow(shift(1), shift(1), now)).toBe('order')
+  it('accepts an equal start and end — the current-forecast window', () => {
+    expect(classifyWindow(shift(1), shift(1), now)).toBe('ok')
   })
 
   it('prefers the order warning over a horizon warning when both apply', () => {
@@ -400,6 +484,14 @@ describe('resolveSearchWindow', () => {
 
   it('falls back when the window is reversed', () => {
     expect(resolveSearchWindow(shift(4), shift(1), now)).toEqual(fallback)
+  })
+
+  it('honors an equal window — pins match the current-forecast analysis', () => {
+    const t = shift(1)
+    expect(resolveSearchWindow(t, t, now)).toEqual({
+      start: new Date(t).toISOString(),
+      end: new Date(t).toISOString(),
+    })
   })
 
   it('falls back when the window is outside the servable range', () => {

@@ -3,8 +3,10 @@ import { DestinationResult, SortBy } from '../types'
 import { cellStyle, METRIC_CONFIG } from '../utils/colors'
 import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
 import { compareValues } from '../utils/sortResults'
+import { orderColumns } from '../utils/tableColumns'
 import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
+import { Place, isPeakKind } from '../utils/geocode'
 
 function windyUrl(lat: number, lon: number, layer: string): string {
   return `https://www.windy.com/?${layer},${lat.toFixed(4)},${lon.toFixed(4)},11`
@@ -18,6 +20,49 @@ type ColDef = {
   label: string
   format?: (v: unknown) => string
   windyLayer?: string
+}
+
+function ExternalLinkIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-3.5 w-3.5"
+      aria-hidden="true"
+    >
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <polyline points="15 3 21 3 21 9" />
+      <line x1="10" y1="14" x2="21" y2="3" />
+    </svg>
+  )
+}
+
+// The number cell that swaps to the remove × on row hover (touch devices show
+// both — the row-remove rule in index.css). `rank` is "—" for pending rows.
+function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; onRemove?: () => void }) {
+  return (
+    <td className="px-2 py-1.5 tabular-nums whitespace-nowrap">
+      {onRemove ? (
+        <>
+          <span className="text-slate-500 group-hover:hidden">{rank}</span>
+          <button
+            onClick={onRemove}
+            title="Remove from the results"
+            aria-label={`Remove ${name}`}
+            className="row-remove hidden group-hover:inline leading-none text-slate-400 hover:text-slate-200 cursor-pointer"
+          >
+            ×
+          </button>
+        </>
+      ) : (
+        <span className="text-slate-500">{rank}</span>
+      )}
+    </td>
+  )
 }
 
 const COLUMNS: ColDef[] = [
@@ -41,10 +86,14 @@ interface Props {
   sortBy: SortBy
   sortDesc: boolean
   fireWarnings: Map<string, FireWarning>
-  // Forecasts for the pinned searched locations — rendered above the ranked
-  // rows, outside the sort and the analysis limit. Clicking a row's 📍 unpins it.
-  pinned?: DestinationResult[]
-  onUnpin?: (row: DestinationResult) => void
+  // Searched places awaiting their first analysis — shown immediately as
+  // un-forecasted rows (name + elevation, "—" metrics) so a search has
+  // feedback before Analyze runs.
+  pending?: Place[]
+  onRemovePending?: (place: Place) => void
+  // The × that replaces a row's rank number on hover — removes the destination
+  // from the current report (and, for a searched place, deregisters it).
+  onRemove?: (row: DestinationResult) => void
   // Clicking a row's name centers the map on that destination.
   onFocusResult?: (row: DestinationResult) => void
   // Chart selection. When onToggleChart is provided (the analysis carried
@@ -63,8 +112,9 @@ export default function ResultsTable({
   sortBy,
   sortDesc,
   fireWarnings,
-  pinned,
-  onUnpin,
+  pending,
+  onRemovePending,
+  onRemove,
   onFocusResult,
   onToggleChart,
   isCharted,
@@ -72,6 +122,11 @@ export default function ResultsTable({
   onChartRange,
 }: Props) {
   const coloredGroup = new Set(METRIC_CONFIG[sortBy].group)
+  // The ranked metric's columns lead the table (right after #/Name/Elev), so
+  // the numbers the ranking was built from are the first thing read. Keyed on
+  // the analyzed snapshot, like the cell colors — panel knob changes don't
+  // reshuffle the displayed report.
+  const orderedColumns = orderColumns(COLUMNS, sortBy)
   const [sortKey, setSortKey] = useState<SortKey>(sortBy)
   const [sortDir, setSortDir] = useState<SortDir>(sortDesc ? 'desc' : 'asc')
 
@@ -106,12 +161,10 @@ export default function ResultsTable({
   // an empty cell so the columns stay aligned.
   const showChartCol = !!onToggleChart
 
-  // Every chartable row currently in the table — pinned search rows and ranked
-  // results alike — for the header "select all" box. Its state (all/some/none)
-  // drives both the checked mark and the indeterminate dash.
-  const chartableRows = showChartCol
-    ? [...(pinned ?? []), ...results].filter((r) => r.series)
-    : []
+  // Every chartable row currently in the table, for the header "select all"
+  // box. Its state (all/some/none) drives both the checked mark and the
+  // indeterminate dash.
+  const chartableRows = showChartCol ? results.filter((r) => r.series) : []
   const headState = selectionState(chartableRows, (r) => isCharted?.(r) ?? false)
 
   function handleChartToggle(row: DestinationResult) {
@@ -154,7 +207,7 @@ export default function ResultsTable({
   // Everything after the rank cell, shared by ranked rows and the pinned row
   // so the searched point gets identical formatting, links, and cell colors.
   function rowCells(row: DestinationResult) {
-    return COLUMNS.map((col) => {
+    return orderedColumns.map((col) => {
       const raw = row[col.key]
       const display = col.format ? col.format(raw) : String(raw ?? '—')
       const sortVal = row[sortBy]
@@ -194,20 +247,7 @@ export default function ResultsTable({
                 aria-label={`Open ${row.name} in an external map`}
                 className="shrink-0 text-slate-500 hover:text-sky-400"
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-3.5 w-3.5"
-                  aria-hidden="true"
-                >
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                  <polyline points="15 3 21 3 21 9" />
-                  <line x1="10" y1="14" x2="21" y2="3" />
-                </svg>
+                <ExternalLinkIcon />
               </a>
             </span>
           </td>
@@ -264,7 +304,7 @@ export default function ResultsTable({
               </th>
             )}
             <th className="px-2 py-2 text-left text-slate-400 font-medium w-6">#</th>
-            {COLUMNS.map((col) => (
+            {orderedColumns.map((col) => (
               <th
                 key={col.key}
                 onClick={() => handleSort(col.key)}
@@ -279,33 +319,69 @@ export default function ResultsTable({
           </tr>
         </thead>
         <tbody>
-          {pinned?.map((row) => (
+          {pending?.map((place) => (
             <tr
-              key={`pin-${row.latitude},${row.longitude}`}
-              className="border-t border-slate-700/50 bg-amber-400/10 hover:bg-amber-400/20 transition-colors"
+              key={`pending-${place.lat},${place.lon}`}
+              className="group border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors"
             >
-              {showChartCol && <td className="px-2 py-1.5">{renderChartToggle(row)}</td>}
-              {/* Matches the amber search pin on the map */}
-              <td className="px-2 py-1.5">
-                <button
-                  onClick={() => onUnpin?.(row)}
-                  title="Pinned from search — click to unpin"
-                  aria-label={`Unpin ${row.name}`}
-                  className="cursor-pointer leading-none hover:scale-125 transition-transform"
-                >
-                  📍
-                </button>
-              </td>
-              {rowCells(row)}
+              {showChartCol && <td className="px-2 py-1.5" />}
+              <RankRemoveCell
+                rank="—"
+                name={place.label}
+                onRemove={onRemovePending ? () => onRemovePending(place) : undefined}
+              />
+              {orderedColumns.map((col) => {
+                if (col.key === 'name') {
+                  return (
+                    <td key={col.key} className="px-2 py-1.5 whitespace-nowrap font-sans font-medium text-slate-200">
+                      <span className="flex items-center gap-1.5">
+                        {place.label}
+                        <a
+                          href={destinationUrl({
+                            name: place.label,
+                            type: isPeakKind(place.kind) ? 'peak' : 'custom',
+                            osm_id: place.osmId ?? null,
+                            latitude: place.lat,
+                            longitude: place.lon,
+                          } as DestinationResult)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Open in Peakbagger / OpenStreetMap"
+                          aria-label={`Open ${place.label} in an external map`}
+                          className="shrink-0 text-slate-500 hover:text-sky-400"
+                        >
+                          <ExternalLinkIcon />
+                        </a>
+                      </span>
+                    </td>
+                  )
+                }
+                if (col.key === 'elevation_ft') {
+                  return (
+                    <td key={col.key} className="px-2 py-1.5 whitespace-nowrap font-mono text-slate-200">
+                      {place.elevationFt != null ? place.elevationFt.toLocaleString() : '—'}
+                    </td>
+                  )
+                }
+                return (
+                  <td key={col.key} className="px-2 py-1.5 whitespace-nowrap font-mono text-slate-500">
+                    —
+                  </td>
+                )
+              })}
             </tr>
           ))}
           {sorted.map((row, i) => (
             <tr
               key={`${row.name}-${i}`}
-              className="border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors"
+              className="group border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors"
             >
               {showChartCol && <td className="px-2 py-1.5">{renderChartToggle(row)}</td>}
-              <td className="px-2 py-1.5 text-slate-500 tabular-nums">{i + 1}</td>
+              <RankRemoveCell
+                rank={String(i + 1)}
+                name={row.name}
+                onRemove={onRemove ? () => onRemove(row) : undefined}
+              />
               {rowCells(row)}
             </tr>
           ))}

@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
-import { DestinationType, SortBy } from '../types'
+import { DiscoveryType, SortBy } from '../types'
 import { MAX_AREA_KM2 } from './MapView'
 import { parseCustomCsv } from '../utils/customDestinations'
+import { canAnalyze } from '../utils/analyzeGate'
 import {
   classifyAqiCoverage,
   AQI_LIMIT_DAYS,
@@ -29,19 +30,20 @@ const SORT_METRICS: { value: SortBy; label: string }[] = [
   { value: 'aqi_avg', label: 'AQI (PM2.5)' },
 ]
 
-const DESTINATION_TYPES: { value: DestinationType; label: string; implemented: boolean }[] = [
+// What polygon discovery finds. Custom (CSV) is no longer a mode here — the
+// always-visible Custom Destinations section below adds to any of these.
+const DESTINATION_TYPES: { value: DiscoveryType; label: string; implemented: boolean }[] = [
   { value: 'peak', label: 'Peaks', implemented: true },
-  { value: 'trailhead', label: 'Trailheads', implemented: true },
   { value: 'lake', label: 'Lakes', implemented: true },
-  { value: 'custom', label: 'Custom (CSV)', implemented: true },
+  { value: 'trailhead', label: 'Trailheads', implemented: true },
 ]
 
 interface Props {
   drawPointCount: number
   polygonAreaKm2: number | null
   onCancelDrawing: () => void
-  destinationType: DestinationType
-  setDestinationType: (t: DestinationType) => void
+  destinationType: DiscoveryType
+  setDestinationType: (t: DiscoveryType) => void
   startDatetime: string
   setStartDatetime: (s: string) => void
   endDatetime: string
@@ -61,6 +63,9 @@ interface Props {
   showWildfires: boolean
   setShowWildfires: (v: boolean) => void
   windowWarning: 'past' | 'future' | 'order' | null
+  // At least one place has been searched by name. Searched places are a ranked
+  // input like the CSV, so one alone enables Analyze with no polygon drawn.
+  hasPins: boolean
   loading: boolean
   error: string | null
   onAnalyze: () => void
@@ -95,6 +100,7 @@ export default function ControlPanel({
   showWildfires,
   setShowWildfires,
   windowWarning,
+  hasPins,
   loading,
   error,
   onAnalyze,
@@ -103,21 +109,23 @@ export default function ControlPanel({
   resultCount,
   totalQueried,
 }: Props) {
-  const needsPolygon = destinationType !== 'custom'
   // Parse the CSV once per change rather than twice on every render (this and the
   // "N destinations parsed" count below both used to call parseCustomCsv directly).
   const parsedCustom = useMemo(() => parseCustomCsv(customCsv), [customCsv])
-  const hasCustom = destinationType === 'custom' && parsedCustom.length > 0
+  const hasCustom = parsedCustom.length > 0
   const hasDates = startDatetime !== '' && endDatetime !== ''
   const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > MAX_AREA_KM2
 
   const polygonReady = drawPointCount >= 3 && !areaTooLarge
-  const canAnalyze =
-    hasDates &&
-    !windowWarning &&
-    !loading &&
-    (needsPolygon ? polygonReady : hasCustom) &&
-    !areaTooLarge
+  const analyzeEnabled = canAnalyze({
+    hasDates,
+    hasWindowWarning: windowWarning !== null,
+    loading,
+    areaTooLarge,
+    polygonReady,
+    hasCustom,
+    hasPins,
+  })
 
   // Informational only — never blocks Analyze. AQI simply degrades to "—".
   const aqiCoverage = classifyAqiCoverage(startDatetime, endDatetime, new Date())
@@ -133,108 +141,120 @@ export default function ControlPanel({
       <div className="border-b border-slate-700 flex">
         <img src="/icon.png" alt="" className="w-20 object-cover flex-shrink-0" />
         <div className="px-3 py-4 flex flex-col justify-center">
-          <h1 className="text-lg font-bold text-white leading-tight">Bluebird</h1>
+          <h1 className="text-lg font-bold text-white leading-tight">Bluebird Forecast</h1>
           <p className="text-xs text-slate-400">Weather Window Finder</p>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
-        {/* Step 1: Draw area */}
+        {/* Step 1: Destinations — one list, defined via any of three methods
+            that union into a single ranked report */}
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            1. Draw Search Area
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+            1. Destinations
           </h2>
+          <p className="text-xs text-slate-500 mb-2.5">
+            Define a list of destinations to analyze using one or all of the following methods:
+          </p>
 
-          {destinationType === 'custom' ? (
-            <p className="text-xs text-slate-500 italic">Not needed — using CSV destinations.</p>
-          ) : drawPointCount === 0 ? (
-            <p className="text-xs text-slate-400 italic">Click anywhere on the map to start drawing.</p>
-          ) : (
-            <div className="space-y-2">
-              <div className="text-xs text-slate-300 space-y-0.5">
-                {pointsNeeded > 0 ? (
-                  <p className="text-sky-300">
-                    {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed —{' '}
-                    {pointsNeeded} more needed. Click a point to remove it.
-                  </p>
-                ) : (
-                  <p className="text-green-400 font-medium">
-                    {drawPointCount} points placed — drag points to adjust, or click Analyze.
-                  </p>
-                )}
-                {polygonAreaKm2 !== null && (
-                  <p className={areaTooLarge ? 'text-red-400' : 'text-slate-400'}>
-                    ~{Math.round(polygonAreaKm2).toLocaleString()} km²
-                    {areaTooLarge && ` (max ${MAX_AREA_KM2.toLocaleString()} km²)`}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={onCancelDrawing}
-                className="px-3 py-1.5 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
-              >
-                Clear
-              </button>
-            </div>
-          )}
-        </section>
-
-        {/* Step 2: Destination type */}
-        <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            2. Destination Type
-          </h2>
-          <div className="space-y-2 lg:space-y-1.5">
-            {DESTINATION_TYPES.map(({ value, label, implemented }) => (
-              <label
-                key={value}
-                className={`flex items-center gap-2.5 py-1 lg:py-0 ${implemented ? 'cursor-pointer' : 'opacity-40 cursor-not-allowed'}`}
-              >
-                <input
-                  type="radio"
-                  name="destination_type"
-                  value={value}
-                  checked={destinationType === value}
-                  disabled={!implemented}
-                  onChange={() => setDestinationType(value)}
-                  className="accent-sky-500 h-4 w-4"
-                />
-                <span className="text-sm text-slate-200">{label}</span>
-                {!implemented && <span className="text-xs text-slate-500 italic">soon</span>}
-              </label>
-            ))}
+          {/* a. Search by name — the search box lives on the map itself */}
+          <div className="mb-3">
+            <h3 className="text-xs font-semibold text-slate-300 mb-1">a. Search by Name</h3>
+            <p className="text-xs text-slate-500 italic">
+              Search for a destination by name on the map.
+            </p>
           </div>
-        </section>
 
-        {/* Custom CSV */}
-        {destinationType === 'custom' && (
-          <section>
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-              Custom Destinations
-            </h2>
-            <p className="text-xs text-slate-500 mb-1.5">
+          {/* b. Search by polygon */}
+          <div className="mb-3">
+            <h3 className="text-xs font-semibold text-slate-300 mb-1">b. Search by Polygon</h3>
+            <p className="text-xs text-slate-500 italic mb-1.5">
+              Search for destinations by drawing a polygon around an area.
+            </p>
+            {drawPointCount > 0 && (
+              <div className="space-y-2">
+                <div className="text-xs text-slate-300 space-y-0.5">
+                  {pointsNeeded > 0 ? (
+                    <p className="text-sky-300">
+                      {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed —{' '}
+                      {pointsNeeded} more needed. Click a point to remove it.
+                    </p>
+                  ) : (
+                    <p className="text-green-400 font-medium">
+                      {drawPointCount} points placed — drag points to adjust, or click Analyze.
+                    </p>
+                  )}
+                  {polygonAreaKm2 !== null && (
+                    <p className={areaTooLarge ? 'text-red-400' : 'text-slate-400'}>
+                      ~{Math.round(polygonAreaKm2).toLocaleString()} km²
+                      {areaTooLarge && ` (max ${MAX_AREA_KM2.toLocaleString()} km²)`}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={onCancelDrawing}
+                  className="px-3 py-1.5 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2">
+              <span className="text-xs text-slate-400">Find:</span>
+              {DESTINATION_TYPES.map(({ value, label, implemented }) => (
+                <label
+                  key={value}
+                  className={`flex items-center gap-1.5 ${implemented ? 'cursor-pointer' : 'opacity-40 cursor-not-allowed'}`}
+                >
+                  <input
+                    type="radio"
+                    name="destination_type"
+                    value={value}
+                    checked={destinationType === value}
+                    disabled={!implemented}
+                    onChange={() => setDestinationType(value)}
+                    className="accent-sky-500 h-3.5 w-3.5"
+                  />
+                  <span className="text-xs text-slate-200">{label}</span>
+                  {!implemented && <span className="text-xs text-slate-500 italic">soon</span>}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* c. Search by coordinates */}
+          <div>
+            <h3 className="text-xs font-semibold text-slate-300 mb-1">c. Search by Coordinates</h3>
+            <p className="text-xs text-slate-500 italic">
+              Search for destinations with coordinate pairs.
+            </p>
+            <p className="text-xs text-slate-500 italic mb-1.5">
               Format: <code className="text-slate-300">Lat,Lon</code> or{' '}
-              <code className="text-slate-300">Lat,Lon,Name</code> — one per line. The name is
-              optional; without it, the coordinates are used.
+              <code className="text-slate-300">Lat,Lon,Name</code>
             </p>
             <textarea
               value={customCsv}
               onChange={(e) => setCustomCsv(e.target.value)}
-              placeholder={`"Lat,Lon" or "Lat,Lon,Name" per line\n46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909\n48.1122,-121.1139,Glacier Peak`}
-              rows={7}
+              placeholder={`46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909\n48.1122,-121.1139,Glacier Peak`}
+              rows={3}
               className="w-full text-xs bg-slate-900 border border-slate-600 rounded p-2 text-slate-200 placeholder-slate-600 font-mono resize-y focus:outline-none focus:border-sky-500"
             />
-            <p className="text-xs text-slate-500 mt-1">
-              {parsedCustom.length} destinations parsed
-            </p>
-          </section>
-        )}
+            {customCsv.trim() !== '' && (
+              <p className="text-xs text-slate-500 mt-1">
+                {parsedCustom.length} destination{parsedCustom.length !== 1 ? 's' : ''} parsed
+              </p>
+            )}
+          </div>
+        </section>
 
-        {/* Step 3: Forecast window */}
+        {/* Step 2: Forecast window */}
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            3. Forecast Window
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+            2. Forecast Window
           </h2>
+          <p className="text-xs text-slate-500 mb-2.5">
+            Set the window of time to analyze.
+          </p>
           <div className="space-y-2">
             <div>
               <label className="text-xs text-slate-400 block mb-1">Start</label>
@@ -259,7 +279,7 @@ export default function ControlPanel({
                     const d = startDatetime.split('T')[0]
                     if (d) setStartDatetime(`${d}T${e.target.value}`)
                   }}
-                  className="w-24 text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-40"
+                  className="w-28 text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-40"
                 />
               </div>
             </div>
@@ -286,7 +306,7 @@ export default function ControlPanel({
                     const d = endDatetime.split('T')[0]
                     if (d) setEndDatetime(`${d}T${e.target.value}`)
                   }}
-                  className="w-24 text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-40"
+                  className="w-28 text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-40"
                 />
               </div>
             </div>
@@ -313,9 +333,12 @@ export default function ControlPanel({
             toggle stays clickable on inactive rows so any ranking is one click;
             selecting a metric via its radio keeps the current direction. */}
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            4. Rank Results By
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+            3. Result Ranking
           </h2>
+          <p className="text-xs text-slate-500 mb-2.5">
+            Set the metric used to find the top destinations.
+          </p>
           <div className="space-y-2 lg:space-y-1.5">
             {SORT_METRICS.map((metric) => {
               const isActive = sortBy === metric.value
@@ -370,11 +393,14 @@ export default function ControlPanel({
           </p>
         </section>
 
-        {/* Step 5: Options — result filters, count, and map overlays */}
+        {/* Step 4: Additional options — result filters, count, and map overlays */}
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            5. Options
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+            4. Options
           </h2>
+          <p className="text-xs text-slate-500 mb-2.5">
+            Apply constraints and enable extra features.
+          </p>
           <div className="space-y-4">
             {/* Elevation band — filters candidates server-side before the fetch */}
             <div>
@@ -423,7 +449,7 @@ export default function ControlPanel({
                 max={200}
                 value={limit}
                 onChange={(e) =>
-                  setLimit(Math.max(1, Math.min(200, parseInt(e.target.value) || 10)))
+                  setLimit(Math.max(1, Math.min(200, parseInt(e.target.value) || 100)))
                 }
                 className="w-24 text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500"
               />
@@ -436,14 +462,10 @@ export default function ControlPanel({
                   type="checkbox"
                   checked={showWildfires}
                   onChange={(e) => setShowWildfires(e.target.checked)}
-                  className="accent-sky-500 h-4 w-4"
+                  className="accent-sky-500 h-3.5 w-3.5"
                 />
-                <span className="text-sm text-slate-200">Show wildfires</span>
+                <span className="text-xs text-slate-400">Show wildfires</span>
               </label>
-              <p className="text-xs text-slate-500 mt-1">
-                Red shading marks active U.S. wildfire perimeters (NIFC). Hover a fire for its size,
-                containment, and last update.
-              </p>
             </div>
           </div>
         </section>
@@ -453,7 +475,7 @@ export default function ControlPanel({
       <div className="px-4 py-4 border-t border-slate-700 space-y-3">
         <button
           onClick={onAnalyze}
-          disabled={!canAnalyze}
+          disabled={!analyzeEnabled}
           className="w-full py-3 lg:py-2.5 rounded font-semibold text-sm transition-colors
             bg-sky-600 hover:bg-sky-500 text-white
             disabled:opacity-40 disabled:cursor-not-allowed"
@@ -461,7 +483,7 @@ export default function ControlPanel({
           {loading ? 'Analyzing…' : 'Analyze'}
         </button>
 
-        {!canAnalyze && !loading && (
+        {!analyzeEnabled && !loading && (
           <p className="text-xs text-slate-500 text-center">
             {areaTooLarge
               ? `Area too large — draw a smaller polygon (max ${MAX_AREA_KM2.toLocaleString()} km²).`
@@ -469,13 +491,9 @@ export default function ControlPanel({
               ? 'Set a forecast window to continue.'
               : windowWarning
               ? 'Adjust the forecast window dates to continue.'
-              : needsPolygon && drawPointCount === 0
-              ? 'Draw a polygon on the map to continue.'
-              : needsPolygon && drawPointCount < 3
-              ? `Add ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon.`
-              : !hasCustom
-              ? 'Enter at least one valid destination.'
-              : ''}
+              : drawPointCount === 0
+              ? 'Draw a search area, paste custom coordinates, or search for a place to continue.'
+              : `Add ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon.`}
           </p>
         )}
 

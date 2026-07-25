@@ -35,9 +35,10 @@ interface Props {
   // table — a clicked point's popup surfaces the same ⚠️ when one applies.
   fireWarnings: Map<string, FireWarning>
   showWildfires: boolean
-  // Pinned searched locations — one labeled amber dot each, kept in lockstep
-  // with the pinned rows in the results table (unpinning removes the dot).
-  searchPins: Place[]
+  // Searched places not (or not yet) in the displayed analysis — awaiting the
+  // next Analyze, or ranked below the cutoff — drawn as neutral blue dots so a
+  // searched point never vanishes. Analyzed ones arrive inside `results`.
+  pendingPlaces: Place[]
   minElevationFt: number | null
   maxElevationFt: number | null
 }
@@ -241,7 +242,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       sortBy,
       fireWarnings,
       showWildfires,
-      searchPins,
+      pendingPlaces,
       minElevationFt,
       maxElevationFt,
     },
@@ -290,8 +291,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
           setSource(mapRef.current, 'draw', emptyFC)
         }
       },
-      // Frame a searched place. Only the camera move — the pin dots render
-      // declaratively from the searchPins prop.
+      // Frame a searched place. Only the camera move — the place renders
+      // declaratively as a pending dot until the next Analyze ranks it.
       flyToPlace(place: Place) {
         const map = mapRef.current
         if (!map || !loadedRef.current) {
@@ -552,36 +553,38 @@ const MapView = forwardRef<MapViewHandle, Props>(
           },
         })
 
-        // ── Search pin ─────────────────────────────────────────────────
-        // Deliberately absent from the general click handler's blocked-layer
-        // list: the pin only marks a searched spot and must never swallow a
-        // polygon click placed on top of it.
-        map.addSource('search', { type: 'geojson', data: emptyFC as FeatureCollection })
+        // ── Pending searched destinations ──────────────────────────────
+        // A searched place not yet in the displayed analysis: a neutral
+        // bluebird-blue dot so the point never vanishes, no forecast popup yet.
+        // Absent from the blocked-click list on purpose — a pending dot must
+        // never swallow a polygon click while you draw around a just-searched
+        // spot; it starts blocking (opening a popup) once it ranks in.
+        map.addSource('search-pending', { type: 'geojson', data: emptyFC as FeatureCollection })
         map.addLayer({
-          id: 'search-pin',
+          id: 'search-pending-circles',
           type: 'circle',
-          source: 'search',
+          source: 'search-pending',
           paint: {
-            'circle-radius': 7,
-            'circle-color': '#f59e0b',
+            'circle-radius': 10,
+            'circle-color': '#3b82f6',
+            'circle-stroke-width': 2,
             'circle-stroke-color': '#fff',
-            'circle-stroke-width': 2.5,
-            'circle-opacity': 0.95,
+            'circle-opacity': 0.9,
           },
         })
         map.addLayer({
-          id: 'search-pin-label',
+          id: 'search-pending-labels',
           type: 'symbol',
-          source: 'search',
+          source: 'search-pending',
           layout: {
-            'text-field': ['get', 'label'],
-            'text-offset': [0, 1.2],
-            'text-size': 12,
+            'text-field': ['get', 'name'],
+            'text-offset': [0, 1.6],
+            'text-size': 11,
             'text-anchor': 'top',
-            'text-font': ['Noto Sans Bold'],
+            'text-font': ['Noto Sans Regular'],
           },
           paint: {
-            'text-color': '#fcd34d',
+            'text-color': '#f8fafc',
             'text-halo-color': '#0f172a',
             'text-halo-width': 1.5,
           },
@@ -727,8 +730,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
           if (draggingVertexRef.current === null) map.getCanvas().style.cursor = 'crosshair'
         })
 
-        // ── Results: popup + cursor ────────────────────────────────────
-        map.on('click', 'results-circles', (e) => {
+        // ── Results & searched destinations: popup + cursor ────────────
+        // Both layers share one handler — a searched destination opens the same
+        // forecast popup as a ranked result (its feature just carries an empty
+        // rank, so the popup title drops the "#N").
+        const openResultPopup = (e: maplibregl.MapLayerMouseEvent) => {
           const f = e.features?.[0]
           if (!f?.properties) return
           const p = f.properties
@@ -764,18 +770,28 @@ const MapView = forwardRef<MapViewHandle, Props>(
               }),
             )
             .addTo(map)
-        })
-        map.on('mouseenter', 'results-circles', () => {
+        }
+        const showPointer = () => {
           map.getCanvas().style.cursor = 'pointer'
-        })
-        map.on('mouseleave', 'results-circles', () => {
+        }
+        const showCrosshair = () => {
           map.getCanvas().style.cursor = 'crosshair'
-        })
+        }
+        for (const layer of ['results-circles']) {
+          map.on('click', layer, openResultPopup)
+          map.on('mouseenter', layer, showPointer)
+          map.on('mouseleave', layer, showCrosshair)
+        }
 
         // ── General click → add new polygon point ──────────────────────
         map.on('click', (e) => {
           const blocked = map.queryRenderedFeatures(e.point, {
-            layers: ['results-circles', 'draw-vertices', 'draw-midpoints', 'wildfire-fill'],
+            layers: [
+              'results-circles',
+              'draw-vertices',
+              'draw-midpoints',
+              'wildfire-fill',
+            ],
           })
           if (blocked.length > 0) return
 
@@ -827,13 +843,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
       fireWarningsRef.current = fireWarnings
     }, [fireWarnings])
 
-    // Amber dot + label per pinned search. Depends on mapReady (not a pending
-    // ref) so pins land as soon as the sources/layers exist.
+    // Neutral blue dot per searched place not yet in the displayed analysis.
     useEffect(() => {
       const map = mapRef.current
       if (!map || !mapReady) return
-      setSource(map, 'search', searchPinsFC(searchPins))
-    }, [searchPins, mapReady])
+      setSource(map, 'search-pending', pendingPlacesFC(pendingPlaces))
+    }, [pendingPlaces, mapReady])
 
     // Filter the basemap peak layer by the elevation knobs so the mountains
     // shown on the map track the band an analysis would consider. Runs on every
@@ -908,17 +923,18 @@ const MapView = forwardRef<MapViewHandle, Props>(
 MapView.displayName = 'MapView'
 export default MapView
 
-function searchPinsFC(places: Place[]): FeatureCollection {
+function updateResults(map: maplibregl.Map, results: DestinationResult[], sortBy: SortBy) {
+  setSource(map, 'results', resultsFeatureCollection(results, sortBy))
+}
+
+// Minimal features for pending searched places — just position + name label.
+function pendingPlacesFC(places: Place[]): FeatureCollection {
   return {
     type: 'FeatureCollection',
     features: places.map((place) => ({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [place.lon, place.lat] },
-      properties: { label: place.label },
+      properties: { name: place.label },
     })),
   }
-}
-
-function updateResults(map: maplibregl.Map, results: DestinationResult[], sortBy: SortBy) {
-  setSource(map, 'results', resultsFeatureCollection(results, sortBy))
 }

@@ -10,23 +10,43 @@ import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
 import { useChartSelection } from './hooks/useChartSelection'
 import { useFireProximity } from './hooks/useFireProximity'
-import { usePinnedForecasts } from './hooks/usePinnedForecasts'
+import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
-import { GeoPolygon, DestinationType, SortBy } from './types'
+import { CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy } from './types'
 import { METRIC_CONFIG, MARKER_COLORS } from './utils/colors'
 import { parseCustomCsv } from './utils/customDestinations'
+import { buildCustomList, pinKey } from './utils/customList'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
-import { Place } from './utils/geocode'
-import { encodeState, decodeState, classifyWindow, resolveSearchWindow } from './utils/urlState'
+import { composeOverlay } from './utils/analyzeOverlay'
+import { Place, isPeakKind } from './utils/geocode'
+import { encodeState, decodeState, classifyWindow } from './utils/urlState'
 
-// Composed with the direction into e.g. "lowest total precipitation" /
-// "highest average temperature" for the results header.
+// Composed with the direction into e.g. "Lowest Total Precipitation" /
+// "Highest Average Temperature" for the results header.
 const SORT_NOUNS: Record<SortBy, string> = {
-  precip_total_in: 'total precipitation',
-  wind_avg_mph: 'average wind',
-  temp_avg_f: 'average temperature',
-  aqi_avg: 'average AQI (PM2.5)',
+  precip_total_in: 'Total Precipitation',
+  wind_avg_mph: 'Average Wind',
+  temp_avg_f: 'Average Temperature',
+  aqi_avg: 'Average AQI (PM2.5)',
+}
+
+// Collapse/expand affordance for the bottom panels' header bars.
+function Chevron({ up }: { up: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <polyline points={up ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
+    </svg>
+  )
 }
 
 function nowLocal(): string {
@@ -54,6 +74,28 @@ function useViewportHeight(): number {
 export default function App() {
   const mapRef = useRef<MapViewHandle>(null)
 
+  // The discovery inputs behind the results currently on screen: `base` covers
+  // the user-authored inputs (polygon + type + CSV rows + elevation + limit +
+  // sort) and `searchedKeys` the searched places that competed. An Analyze
+  // whose base matches and whose searched list only SHRANK (row removals) skips
+  // Overpass and just refreshes the surviving rows' weather; a NEW searched
+  // place — which must compete against the full candidate field the refresh
+  // echo doesn't have — or any base change forces a fresh discovery.
+  const discoveryRef = useRef<{ base: string; searchedKeys: string[] } | null>(null)
+  // Remembers each row's real identity (type + osm_id) by coordinate — from
+  // discovered rows (which carry an osm_id) and from searched places (whose
+  // geocoding knew their kind and OSM id). Rows echoed through the custom path
+  // come back as type "custom" with no osm_id; this map restores them so a
+  // peak still links to Peakbagger and shows the right badge.
+  const identityMapRef = useRef<Map<string, { type: string; osm_id: string | null }>>(new Map())
+  // Rows the user ×-removed from the current report, by coordinate key. Scoped
+  // to the user-authored discovery inputs (removalScopeRef): removing a row —
+  // even a searched place, which shrinks the custom list — must not count as
+  // changing them. Only a polygon/type/elevation/CSV edit starts a clean slate
+  // where removed destinations may legitimately return.
+  const [removedKeys, setRemovedKeys] = useState<Set<string>>(new Set())
+  const removalScopeRef = useRef<string | null>(null)
+
   // Restore any prior session encoded in the URL once, at mount. Feeding each
   // useState a lazy initializer avoids a redraw flash — the restored values are
   // the initial render, not a post-mount setState.
@@ -68,12 +110,15 @@ export default function App() {
     () => Math.max(0, (restored?.polygon?.coordinates[0]?.length ?? 1) - 1),
   )
   const [polygonAreaKm2, setPolygonAreaKm2] = useState<number | null>(null)
-  const [destinationType, setDestinationType] = useState<DestinationType>(
+  const [destinationType, setDestinationType] = useState<DiscoveryType>(
     () => restored?.destinationType ?? 'peak',
   )
   const [startDatetime, setStartDatetime] = useState(() => restored?.startDatetime ?? nowLocal())
-  const [endDatetime, setEndDatetime] = useState(() => restored?.endDatetime ?? '')
-  const [limit, setLimit] = useState(() => restored?.limit ?? 10)
+  // End pre-fills to "now" like Start: an equal window is valid ("the current
+  // forecast" — the backend analyzes the hour at hand), so a fresh load can
+  // Analyze immediately once any destination input exists.
+  const [endDatetime, setEndDatetime] = useState(() => restored?.endDatetime ?? nowLocal())
+  const [limit, setLimit] = useState(() => restored?.limit ?? 100)
   const [customCsv, setCustomCsv] = useState(() => restored?.customCsv ?? '')
   const [sortBy, setSortBy] = useState<SortBy>(() => restored?.sortBy ?? 'precip_total_in')
   const [sortDesc, setSortDesc] = useState(() => restored?.sortDesc ?? false)
@@ -90,6 +135,10 @@ export default function App() {
   const [showResults, setShowResults] = useState(false)
   const [tableHeight, setTableHeight] = useState(280)
   const [chartHeight, setChartHeight] = useState(288)
+  // Chevron-collapsed panels: the header bar stays docked at the bottom (the
+  // panel never unmounts); expanding restores the previous height.
+  const [chartCollapsed, setChartCollapsed] = useState(false)
+  const [tableCollapsed, setTableCollapsed] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('bluebird_welcomed'))
   // Privacy notice, opened from the controls footer. Rendered at the App root
@@ -129,24 +178,39 @@ export default function App() {
     document.addEventListener('pointercancel', onUp)
   }
 
-  const { analyze, cancel, retry, analyzed, loading, error, response, statusMessage, progress } = useAnalyze()
+  const { analyze, cancel, retry, reset, analyzed, loading, error, response, statusMessage, progress } = useAnalyze()
 
-  // Searched locations pinned to the map and table. Each search adds (or
-  // refreshes) a pin; pins persist until their 📍 is clicked in the table.
-  const pinnedForecasts = usePinnedForecasts()
-  const pinnedRows = pinnedForecasts.rows
+  // Places searched by name — the third destination input. Searching registers
+  // the place (map dot + URL persistence); its forecast joins the next Analyze,
+  // where the list folds into the ranked request alongside the CSV.
+  const searched = useSearchedPlaces()
 
-  // A pinned forecast opens the results panel so the rows are visible even
-  // before any analysis has run (or after the panel was closed).
+  // Repopulate searched places restored from the URL, once at mount. They show
+  // as pending dots until the user runs an Analyze — nothing fetches on load.
   useEffect(() => {
-    if (pinnedRows.length > 0) setShowResults(true)
-  }, [pinnedRows])
+    if (restored?.pins?.length) searched.restore(restored.pins)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function handleSearchSelect(place: Place) {
     mapRef.current?.flyToPlace(place)
-    const searchWindow = resolveSearchWindow(startDatetime, endDatetime, new Date())
-    pinnedForecasts.addPlace(place, searchWindow.start, searchWindow.end)
+    searched.addPlace(place)
+    // Re-searching a previously ×-removed spot is an explicit re-request —
+    // drop the stale removal so the place isn't filtered out of its next report.
+    setRemovedKeys((prev) => {
+      const key = pinKey(place.lat, place.lon)
+      if (!prev.has(key)) return prev
+      const next = new Set(prev)
+      next.delete(key)
+      return next
+    })
   }
+
+  // A search opens the results panel immediately — the place appears as an
+  // un-forecasted row, so there's feedback before any analysis runs.
+  useEffect(() => {
+    if (searched.places.length > 0) setShowResults(true)
+  }, [searched.places])
 
   // Everything derived from the results renders from the snapshot of the
   // ranking that produced them — panel knobs only affect the NEXT Analyze.
@@ -154,18 +218,28 @@ export default function App() {
   const view = analyzed ?? { sortBy, sortDesc }
   const preview = usePreview()
 
-  // Elapsed-time counter for phases with no countable progress (the OSM search).
-  // Runs while loading but before the weather phase reports batch progress.
+  // The loading overlay for the one ranked streaming analysis — searched
+  // places ride inside it as custom destinations, so there is no separate pin
+  // refresh to fold in anymore.
+  const overlay = composeOverlay({
+    analyzeLoading: loading,
+    statusMessage,
+    rankedProgress: progress ? { processed: progress.processed, total: progress.total } : null,
+  })
+
+  // Elapsed-time counter for phases with no countable progress (the OSM search,
+  // and the pins-only refresh). Runs whenever the overlay is up but no batch
+  // progress is reported yet.
   const [elapsed, setElapsed] = useState(0)
   useEffect(() => {
-    if (!loading) {
+    if (!overlay.visible) {
       setElapsed(0)
       return
     }
     const start = Date.now()
     const id = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 250)
     return () => clearInterval(id)
-  }, [loading])
+  }, [overlay.visible])
 
   // Live-sync all analysis inputs into the address bar so the URL is always
   // copy-pasteable. replaceState (not pushState) keeps the back button clean;
@@ -185,6 +259,7 @@ export default function App() {
       limit,
       customCsv,
       showWildfires,
+      pins: searched.places,
     })
     const url = qs ? `?${qs}` : window.location.pathname
     window.history.replaceState(null, '', url)
@@ -200,6 +275,7 @@ export default function App() {
     limit,
     customCsv,
     showWildfires,
+    searched.places,
   ])
 
   // Warn when a restored/edited window falls outside Open-Meteo's servable
@@ -218,16 +294,85 @@ export default function App() {
     // cancelDrawing fires onDrawUpdate(0, null) to reset counts
   }
 
+
+  // The user-authored discovery inputs as a stable string. Everything that
+  // changes which destinations are found or how they're ranked/truncated
+  // belongs here — the CSV as parsed rows (a comment or whitespace edit doesn't
+  // needlessly bust the refresh) but NOT the searched places, which are
+  // compared separately so removals stay refresh-eligible.
+  function discoveryBase(poly: GeoPolygon | null, csvRows: CustomDestination[]): string {
+    return JSON.stringify({
+      ring: poly?.coordinates[0] ?? null,
+      type: destinationType,
+      csv: csvRows,
+      minEl: minElevationFt,
+      maxEl: maxElevationFt,
+      limit,
+      sortBy,
+      sortDesc,
+    })
+  }
+
   async function handleAnalyze() {
     const start = new Date(startDatetime).toISOString()
     const end = new Date(endDatetime).toISOString()
 
     const constraints = { min_elevation_ft: minElevationFt, max_elevation_ft: maxElevationFt }
 
-    // The pinned rows join every analysis, refetched together with the same
-    // window so they stay comparable with the report they sit above.
-    if (destinationType === 'custom') {
-      pinnedForecasts.refetchAll(start, end)
+    // Resolve the ranked inputs first. The custom side of the analysis is the
+    // pasted CSV ∪ the searched places — with a *complete* polygon (>= 3
+    // points) the backend unions discovery in too. An incomplete ring is
+    // ignored so a mid-draw Analyze doesn't fire a bogus discovery.
+    // finishDrawing() snapshots the map's always-editable ring synchronously
+    // (and closes it), falling back to the restored polygon before the map has
+    // loaded.
+    const csvRows = parseCustomCsv(customCsv)
+    const custom = buildCustomList(csvRows, searched.places)
+    const resolvedPolygon =
+      drawPointCount >= 3 ? mapRef.current?.finishDrawing() ?? polygon : null
+
+    // Reset the removal set only when the user changed a discovery input —
+    // searched places are deliberately absent (their list shrinks on removal).
+    const removalScope = JSON.stringify({
+      ring: resolvedPolygon?.coordinates[0] ?? null,
+      type: destinationType,
+      minEl: minElevationFt,
+      maxEl: maxElevationFt,
+      csv: customCsv.trim(),
+    })
+    if (removalScopeRef.current !== removalScope) {
+      removalScopeRef.current = removalScope
+      setRemovedKeys(new Set())
+    }
+
+    // A polygon run whose base inputs are unchanged, with results still on
+    // screen, is a pure refresh: skip Overpass and refetch just those
+    // destinations' weather through the custom path. A SHRUNK searched list is
+    // refresh-compatible too — the departed rows are already gone from the
+    // displayed report the refresh echoes. Any base change or NEW searched
+    // place (which must compete against the full candidate field) falls
+    // through to a fresh discovery.
+    const base = discoveryBase(resolvedPolygon, csvRows)
+    const searchedKeys = searched.places.map((p) => pinKey(p.lat, p.lon))
+    const prev = discoveryRef.current
+    const isRefresh =
+      resolvedPolygon !== null &&
+      response !== null &&
+      response.results.length > 0 &&
+      prev !== null &&
+      prev.base === base &&
+      searchedKeys.every((k) => prev.searchedKeys.includes(k))
+
+    const willRank = resolvedPolygon !== null || custom.length > 0
+
+    if (isRefresh && response) {
+      // Refresh: weather-only over the known destinations (no Overpass). They
+      // come back as type "custom" with no osm_id; the results memo restores
+      // each row's real identity by coordinate. Echoing the *displayed* rows
+      // (not the raw response) is what keeps ×-removed destinations gone.
+      // Record the shrunk searched list so re-adding one of these places later
+      // reads as an addition (fresh run), not a refresh that would skip it.
+      discoveryRef.current = { base, searchedKeys }
       await analyze({
         destination_type: 'custom',
         start_datetime: start,
@@ -235,17 +380,17 @@ export default function App() {
         limit,
         sort_by: sortBy,
         sort_desc: sortDesc,
-        custom_destinations: parseCustomCsv(customCsv),
+        custom_destinations: results.map((r) => ({
+          name: r.name,
+          latitude: r.latitude,
+          longitude: r.longitude,
+          elevation_ft: r.elevation_ft ?? undefined,
+        })),
         ...constraints,
       })
-    } else {
-      // Snapshot the map's current (always-editable) ring. finishDrawing()
-      // returns the closed GeoPolygon synchronously so we don't have to wait
-      // for the React state update; falls back to the restored polygon if the
-      // map hasn't loaded yet.
-      const resolvedPolygon = mapRef.current?.finishDrawing() ?? polygon
-      if (!resolvedPolygon) return
-      pinnedForecasts.refetchAll(start, end)
+    } else if (resolvedPolygon) {
+      // Discovery — with the custom list riding along so the backend ranks the
+      // polygon ∪ CSV union as one report.
       await analyze({
         polygon: resolvedPolygon,
         destination_type: destinationType,
@@ -254,35 +399,103 @@ export default function App() {
         limit,
         sort_by: sortBy,
         sort_desc: sortDesc,
+        ...(custom.length > 0 ? { custom_destinations: custom } : {}),
+        ...constraints,
+      })
+      // Remember these discovery inputs so the next compatible Analyze refreshes.
+      discoveryRef.current = { base, searchedKeys }
+    } else if (custom.length > 0) {
+      // Custom-only (CSV and/or searched places). Not a refreshable polygon
+      // discovery — clear the record so a later identical polygon Analyze
+      // can't mistake these rows for that polygon's discovered set.
+      discoveryRef.current = null
+      await analyze({
+        destination_type: 'custom',
+        start_datetime: start,
+        end_datetime: end,
+        limit,
+        sort_by: sortBy,
+        sort_desc: sortDesc,
+        custom_destinations: custom,
         ...constraints,
       })
     }
 
+    // Nothing to rank (unreachable through the gate, which requires an input,
+    // but kept as a safety net): drop any stale report.
+    if (!willRank) reset()
+
     setShowResults(true)
   }
 
+  // Record every discovered row's OSM identity (rows that carry an osm_id) so a
+  // later refresh — which comes back through the custom path with osm_id null —
+  // can have its identity restored below. Runs after each response lands.
+  useEffect(() => {
+    if (!response) return
+    for (const r of response.results) {
+      if (r.osm_id) identityMapRef.current.set(pinKey(r.latitude, r.longitude), { type: r.type, osm_id: r.osm_id })
+    }
+  }, [response])
+
+  // Searched places know more than the custom echo carries: their geocoded
+  // kind (peak vs not) and OSM id. Seed those identities so their ranked rows
+  // link where the feature belongs.
+  useEffect(() => {
+    for (const p of searched.places) {
+      identityMapRef.current.set(pinKey(p.lat, p.lon), {
+        type: isPeakKind(p.kind) ? 'peak' : 'custom',
+        osm_id: p.osmId ?? null,
+      })
+    }
+  }, [searched.places])
+
   // Memoized so its reference is stable between renders — the fire-proximity
   // effect keys off it and would otherwise re-run (and refetch) every render.
-  const results = useMemo(() => response?.results ?? [], [response])
-  const hasResults = showResults && results.length > 0
-  // The table panel also opens for pinned search forecasts alone; the map
-  // legend stays tied to actual analysis results (hasResults).
-  const showTable = showResults && (results.length > 0 || pinnedRows.length > 0)
+  // Rows returned without an osm_id (a refresh's custom echo) are re-tagged from
+  // the remembered discovery identities by coordinate; genuine custom-CSV rows
+  // simply have no match and pass through unchanged.
+  const results = useMemo(
+    () =>
+      (response?.results ?? [])
+        .filter((r) => !removedKeys.has(pinKey(r.latitude, r.longitude)))
+        .map((r) => {
+          if (r.osm_id) return r
+          const id = identityMapRef.current.get(pinKey(r.latitude, r.longitude))
+          return id ? { ...r, type: id.type, osm_id: id.osm_id } : r
+        }),
+    [response, removedKeys],
+  )
+
+  // × on a table row. Removing a searched place also deregisters it — else the
+  // next analysis would simply rediscover it from the searched list.
+  function handleRemoveResult(row: DestinationResult) {
+    setRemovedKeys((prev) => new Set(prev).add(pinKey(row.latitude, row.longitude)))
+    searched.removePlace(row.latitude, row.longitude)
+  }
+
+  // Searched places absent from the displayed report — not yet analyzed, ranked
+  // below the cutoff, or awaiting a fresh run — drawn as neutral pending dots.
+  const pendingPlaces = useMemo(() => {
+    const shown = new Set(results.map((r) => pinKey(r.latitude, r.longitude)))
+    return searched.places.filter((p) => !shown.has(pinKey(p.lat, p.lon)))
+  }, [results, searched.places])
+  const hasColoredMarkers = showResults && results.length > 0
+  const showTable = showResults && (results.length > 0 || pendingPlaces.length > 0)
 
   // Flags results within 10 mi of an active US wildfire; independent of the map
   // overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
-  // Pinned search rows are checked right alongside the ranked rows.
-  const fireCheckRows = useMemo(() => [...results, ...pinnedRows], [results, pinnedRows])
-  const fireWarnings = useFireProximity(fireCheckRows)
+  const fireWarnings = useFireProximity(results)
 
   // Comparison-chart selection (checkboxes in the table → lines in the chart).
-  // The shared hourly grid comes from the analysis, or — when only searched
-  // places are pinned — from the pins themselves, so pins are chartable alone.
-  const analysisTimes = response?.times ?? []
-  const pinnedTimes = pinnedRows.find((r) => r.series_times?.length)?.series_times ?? []
-  const chartTimes = analysisTimes.length ? analysisTimes : pinnedTimes
+  // Every row shares the analysis's hourly grid.
+  const chartTimes = response?.times ?? []
   const chartable = chartTimes.length > 0
-  const chart = useChartSelection(results, pinnedRows, view.sortBy)
+  const chart = useChartSelection(
+    results,
+    view.sortBy,
+    searched.places.map((p) => pinKey(p.lat, p.lon)),
+  )
   const chartShown = chartable && chart.selectedRows.length > 0
 
   // Space below the map that a resize must leave alone: the preview banner (when
@@ -295,10 +508,13 @@ export default function App() {
   // the map always keeps its floor. Drives both breakpoints — mobile is resizable
   // too, so it can no longer rely on Tailwind's fixed panel heights.
   const viewportH = useViewportHeight()
+  // A collapsed panel is just its header bar — it takes no share of the band.
+  const chartExpanded = chartShown && !chartCollapsed
+  const tableExpanded = showTable && !tableCollapsed
   const { chart: chartPanelPx, table: tablePanelPx } = resolvePanelHeights(
     chartHeight,
     tableHeight,
-    { chartShown, tableShown: showTable, availPx: viewportH - bannerPx },
+    { chartShown: chartExpanded, tableShown: tableExpanded, availPx: viewportH - bannerPx },
   )
 
   return (
@@ -360,6 +576,10 @@ export default function App() {
           showWildfires={showWildfires}
           setShowWildfires={setShowWildfires}
           windowWarning={windowWarning}
+          hasPins={searched.places.length > 0}
+          // A pins-only Analyze refresh keeps useAnalyze.loading false, so fold
+          // in the pin-refresh flag to disable the button (and show "Analyzing…")
+          // while it runs. Searches don't announce, so this stays false for them.
           loading={loading}
           error={error}
           onAnalyze={() => {
@@ -370,7 +590,7 @@ export default function App() {
           }}
           onRetry={retry}
           onShowPrivacy={() => setShowPrivacy(true)}
-          resultCount={response?.results.length}
+          resultCount={response ? results.length : undefined}
           totalQueried={response?.total_queried}
         />
       </aside>
@@ -378,7 +598,7 @@ export default function App() {
       {/* Map + results column */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <div className="flex-1 relative">
-          {loading && (
+          {overlay.visible && (
             <div className="absolute inset-0 bg-slate-900/60 z-20 flex items-center justify-center">
               <div className="bg-slate-800 border border-slate-600 rounded-lg px-6 py-5 text-center shadow-xl w-[280px]">
                 <img
@@ -387,23 +607,24 @@ export default function App() {
                   className="w-12 h-12 rounded-lg object-cover mx-auto mb-3 animate-pulse"
                 />
                 <p className="text-white font-semibold text-sm leading-snug">
-                  {statusMessage ?? 'Starting…'}
+                  {overlay.message}
                 </p>
-                {progress ? (
-                  // Weather phase — countable batch progress.
+                {overlay.progress ? (
+                  // Weather phase — countable batch progress (the union count is
+                  // already in the "(x/y)" headline, so the bar just visualizes it).
                   <div className="mt-3">
                     <div className="h-2 w-full rounded-full bg-slate-700 overflow-hidden">
                       <div
                         className="h-full bg-sky-500 transition-all duration-300 ease-out"
-                        style={{ width: `${progress.percent}%` }}
+                        style={{ width: `${overlay.progress.percent}%` }}
                       />
                     </div>
                     <p className="mt-1.5 text-xs text-slate-400 font-mono">
-                      {progress.processed} of {progress.total} destinations · {progress.percent}%
+                      {overlay.progress.percent}%
                     </p>
                   </div>
                 ) : (
-                  // Search phase — no countable progress; show activity + elapsed.
+                  // Search / analyzing phase — no countable progress; show activity.
                   <div className="mt-3">
                     <div className="h-2 w-full rounded-full bg-slate-700 overflow-hidden">
                       <div className="h-full w-1/3 rounded-full bg-sky-500 animate-indeterminate" />
@@ -432,7 +653,7 @@ export default function App() {
             sortBy={view.sortBy}
             fireWarnings={fireWarnings}
             showWildfires={showWildfires}
-            searchPins={pinnedForecasts.places}
+            pendingPlaces={pendingPlaces}
             minElevationFt={minElevationFt}
             maxElevationFt={maxElevationFt}
           />
@@ -461,10 +682,10 @@ export default function App() {
               can't fit, so a short map can never let the legends ride up over
               those buttons. justify-end keeps them pinned to the bottom when
               there is room. Desktop has ample height, so the clamp lifts. */}
-          {(hasResults || showWildfires) && (
+          {(hasColoredMarkers || showWildfires) && (
             <div className="absolute bottom-8 left-2 top-16 z-10 flex flex-col justify-end gap-2 overflow-y-auto lg:top-auto lg:overflow-visible">
               {showWildfires && (
-                <div className="bg-slate-900/85 border border-slate-700 rounded-lg px-2.5 py-2 shadow-lg backdrop-blur-sm">
+                <div className="w-40 bg-slate-900/85 border border-slate-700 rounded-lg px-2.5 py-2 shadow-lg backdrop-blur-sm">
                   <div className="flex items-center gap-1.5">
                     <span
                       className="inline-block w-3 h-3 rounded-sm border"
@@ -474,8 +695,8 @@ export default function App() {
                   </div>
                 </div>
               )}
-              {hasResults && (
-                <div className="bg-slate-900/85 border border-slate-700 rounded-lg p-2.5 shadow-lg backdrop-blur-sm">
+              {hasColoredMarkers && (
+                <div className="w-40 bg-slate-900/85 border border-slate-700 rounded-lg p-2.5 shadow-lg backdrop-blur-sm">
                   <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                     {METRIC_CONFIG[view.sortBy].label}
                   </p>
@@ -496,87 +717,99 @@ export default function App() {
         {chartShown && (
           <div
             className="flex flex-shrink-0 flex-col bg-slate-800"
-            style={{ height: `${chartPanelPx}px` }}
+            style={chartCollapsed ? undefined : { height: `${chartPanelPx}px` }}
           >
-            {/* Drag handle — the map│chart divider. Dragging up grows the chart,
-                stealing height from the map above; the table below stays put
-                (tablePanelPx is 0 when the table is closed). Pointer events +
-                touch-none so a finger resizes it on mobile too. */}
-            <div
-              onPointerDown={(e) => {
-                // Pin the table's desired height to its applied value first, so a
-                // stale (larger) desired height can't soak up space freed by
-                // shrinking the chart — that space belongs to the map here.
-                setTableHeight(tablePanelPx)
-                beginResize(e, (up) =>
-                  setChartHeight(
-                    clampPanelHeight(chartPanelPx, up, tablePanelPx + bannerPx, window.innerHeight),
-                  ),
-                )
-              }}
-              className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
-            >
-              <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
-            </div>
-            <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-600 bg-slate-700 px-3 py-1">
-              <span className="text-xs font-semibold text-white">
-                Forecast comparison — {chart.selectedRows.length} selected
-              </span>
-              <button
-                onClick={chart.clear}
-                className="px-1 text-xs text-slate-400 hover:text-white"
+            {!chartCollapsed && (
+              /* Drag handle — the map│chart divider. Dragging up grows the chart,
+                 stealing height from the map above; the table below stays put
+                 (tablePanelPx is 0 when the table is closed). Pointer events +
+                 touch-none so a finger resizes it on mobile too. */
+              <div
+                onPointerDown={(e) => {
+                  // Pin the table's desired height to its applied value first, so a
+                  // stale (larger) desired height can't soak up space freed by
+                  // shrinking the chart — that space belongs to the map here.
+                  setTableHeight(tablePanelPx)
+                  beginResize(e, (up) =>
+                    setChartHeight(
+                      clampPanelHeight(chartPanelPx, up, tablePanelPx + bannerPx, window.innerHeight),
+                    ),
+                  )
+                }}
+                className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
               >
-                Clear
+                <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
+              </div>
+            )}
+            <div
+              className={`flex flex-shrink-0 items-center justify-between border-b border-slate-600 bg-slate-700 px-3 py-1 ${chartCollapsed ? 'border-t' : ''}`}
+            >
+              <span className="text-xs font-semibold text-white">Forecast Chart</span>
+              <button
+                onClick={() => setChartCollapsed((c) => !c)}
+                title={chartCollapsed ? 'Expand the chart' : 'Collapse the chart'}
+                aria-label={chartCollapsed ? 'Expand the forecast chart' : 'Collapse the forecast chart'}
+                className="px-1 text-slate-400 hover:text-white"
+              >
+                <Chevron up={chartCollapsed} />
               </button>
             </div>
-            <div className="min-h-0 flex-1">
-              <TimeSeriesChart
-                times={chartTimes}
-                rows={chart.selectedRows}
-                metric={chart.metric}
-                onMetricChange={chart.setMetric}
-                colorFor={chart.colorFor}
-              />
-            </div>
+            {!chartCollapsed && (
+              <div className="min-h-0 flex-1">
+                <TimeSeriesChart
+                  times={chartTimes}
+                  rows={chart.selectedRows}
+                  metric={chart.metric}
+                  onMetricChange={chart.setMetric}
+                  colorFor={chart.colorFor}
+                />
+              </div>
+            )}
           </div>
         )}
         {showTable && (
           <div
             className="flex-shrink-0 bg-slate-800 flex flex-col"
-            style={{ height: `${tablePanelPx}px` }}
+            style={tableCollapsed ? undefined : { height: `${tablePanelPx}px` }}
           >
-            {/* Drag handle. With the chart above, this is the chart│table divider:
-                dragging up grows the table by shrinking the chart, leaving the map
-                untouched. With no chart it steals from the map like the chart
-                handle. Pointer events + touch-none for mobile. */}
-            <div
-              onPointerDown={(e) =>
-                beginResize(e, (up) => {
-                  if (chartShown) {
-                    const next = splitChartTable(chartPanelPx, tablePanelPx, up)
-                    setChartHeight(next.chart)
-                    setTableHeight(next.table)
-                  } else {
-                    setTableHeight(clampPanelHeight(tablePanelPx, up, bannerPx, window.innerHeight))
-                  }
-                })
-              }
-              className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
-            >
-              <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
-            </div>
+            {!tableCollapsed && (
+              /* Drag handle. With the chart above, this is the chart│table divider:
+                 dragging up grows the table by shrinking the chart, leaving the map
+                 untouched. With no chart it steals from the map like the chart
+                 handle. Pointer events + touch-none for mobile. */
+              <div
+                onPointerDown={(e) =>
+                  beginResize(e, (up) => {
+                    if (chartExpanded) {
+                      const next = splitChartTable(chartPanelPx, tablePanelPx, up)
+                      setChartHeight(next.chart)
+                      setTableHeight(next.table)
+                    } else {
+                      setTableHeight(clampPanelHeight(tablePanelPx, up, bannerPx, window.innerHeight))
+                    }
+                  })
+                }
+                className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
+              >
+                <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
+              </div>
+            )}
             {/* Header */}
-            <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-slate-700 border-b border-slate-600">
+            <div
+              className={`flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
+            >
               <span className="text-xs font-semibold text-white">
                 {results.length > 0
-                  ? `Results — ${view.sortDesc ? 'highest' : 'lowest'} ${SORT_NOUNS[view.sortBy]} first`
-                  : 'Pinned location forecasts'}
+                  ? `Forecast Table: ${view.sortDesc ? 'Highest' : 'Lowest'} ${SORT_NOUNS[view.sortBy]}`
+                  : 'Forecast Table'}
               </span>
               <button
-                onClick={() => setShowResults(false)}
-                className="text-slate-400 hover:text-white text-lg leading-none px-1"
+                onClick={() => setTableCollapsed((c) => !c)}
+                title={tableCollapsed ? 'Expand the table' : 'Collapse the table'}
+                aria-label={tableCollapsed ? 'Expand the forecast table' : 'Collapse the forecast table'}
+                className="px-1 text-slate-400 hover:text-white"
               >
-                ×
+                <Chevron up={tableCollapsed} />
               </button>
             </div>
             {/* Scrollable table. One container owns BOTH axes: if a nested
@@ -586,21 +819,24 @@ export default function App() {
                 visible (macOS overlay scrollbars hide the sideways hint).
                 The panel has a drag-resized height on every breakpoint now, so
                 the body just fills it (flex-1) and scrolls a long ranking. */}
-            <div className="overflow-auto min-h-0 results-scrollbars flex-1">
-              <ResultsTable
-                results={results}
-                sortBy={view.sortBy}
-                sortDesc={view.sortDesc}
-                fireWarnings={fireWarnings}
-                pinned={pinnedRows}
-                onUnpin={(row) => pinnedForecasts.removePlace(row.latitude, row.longitude)}
-                onFocusResult={(row) => mapRef.current?.focusResult(row)}
-                onToggleChart={chartable ? chart.toggle : undefined}
-                isCharted={chart.isSelected}
-                chartColor={chart.colorFor}
-                onChartRange={chartable ? chart.setRange : undefined}
-              />
-            </div>
+            {!tableCollapsed && (
+              <div className="overflow-auto min-h-0 results-scrollbars flex-1">
+                <ResultsTable
+                  results={results}
+                  sortBy={view.sortBy}
+                  sortDesc={view.sortDesc}
+                  fireWarnings={fireWarnings}
+                  pending={pendingPlaces}
+                  onRemove={handleRemoveResult}
+                  onRemovePending={(place) => searched.removePlace(place.lat, place.lon)}
+                  onFocusResult={(row) => mapRef.current?.focusResult(row)}
+                  onToggleChart={chartable ? chart.toggle : undefined}
+                  isCharted={chart.isSelected}
+                  chartColor={chart.colorFor}
+                  onChartRange={chartable ? chart.setRange : undefined}
+                />
+              </div>
+            )}
           </div>
         )}
 

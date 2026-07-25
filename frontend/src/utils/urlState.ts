@@ -3,13 +3,14 @@
 // These functions are intentionally pure (no React, no DOM) so they're trivial
 // to unit-test — App.tsx owns the thin glue that reads/writes location.
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
-import { GeoPolygon, DestinationType, SortBy } from '../types'
+import { GeoPolygon, DiscoveryType, SortBy } from '../types'
+import { Place } from './geocode'
 
 // Fields that fully describe an analysis. Results are deliberately excluded —
 // they're re-fetched fresh so a shared link never replays stale forecasts.
 export interface ShareableState {
   polygon: GeoPolygon | null
-  destinationType: DestinationType
+  destinationType: DiscoveryType
   startDatetime: string // datetime-local, e.g. "2026-07-04T10:30"
   endDatetime: string
   sortBy: SortBy
@@ -19,9 +20,13 @@ export interface ShareableState {
   limit: number
   customCsv: string
   showWildfires: boolean // live NIFC map overlay; not part of the analysis request
+  // Searched places pinned to the results table. Persisted so a refreshed or
+  // shared link repopulates them (and refetches their forecasts). Only the
+  // fields needed to recreate the pin and its identity link are stored.
+  pins: Place[]
 }
 
-const DESTINATION_TYPES: DestinationType[] = ['peak', 'trailhead', 'lake', 'custom']
+const DISCOVERY_TYPES: DiscoveryType[] = ['peak', 'trailhead', 'lake']
 const SORT_OPTIONS: SortBy[] = ['precip_total_in', 'wind_avg_mph', 'temp_avg_f', 'aqi_avg']
 
 // Sort keys from before the metric × direction redesign, when aggregation
@@ -50,8 +55,8 @@ const MS_PER_DAY = 86_400_000
 // Control defaults — must mirror the initial useState values in App.tsx. Used to
 // decide whether the user has changed anything worth persisting to the URL.
 const DEFAULT_SORT: SortBy = 'precip_total_in'
-const DEFAULT_TYPE: DestinationType = 'peak'
-const DEFAULT_LIMIT = 10
+const DEFAULT_TYPE: DiscoveryType = 'peak'
+const DEFAULT_LIMIT = 100
 
 function round(n: number): number {
   const f = 10 ** POLY_PRECISION
@@ -92,6 +97,54 @@ function decodePolygon(raw: string): GeoPolygon | null {
   return { type: 'Polygon', coordinates: [[...pts, pts[0]]] }
 }
 
+// Encode pinned places as "lat,lon,kind,elev,osmId,label" per pin, ';'-joined.
+// Each field is percent-encoded so a label containing ',' or ';' can't collide
+// with the delimiters (URLSearchParams decodes the outer layer on read, then
+// decodePins splits and unescapes each field). Coords are rounded like the
+// polygon ring to keep the URL short. Missing elevation/osmId encode as empty.
+function encodePins(places: Place[]): string {
+  return places
+    .map((p) => {
+      const fields = [
+        String(round(p.lon)),
+        String(round(p.lat)),
+        p.kind,
+        p.elevationFt === undefined ? '' : String(p.elevationFt),
+        p.osmId ?? '',
+        p.label,
+      ]
+      return fields.map((f) => encodeURIComponent(f)).join(',')
+    })
+    .join(';')
+}
+
+// Parse the pins param back into Places. Tolerant like the rest of decodeState:
+// an entry without a finite lon/lat is skipped rather than failing the whole
+// list. `description`/`bbox` aren't persisted — a restored pin doesn't need the
+// disambiguation line or the fly-to extent — so they come back empty/absent.
+function decodePins(raw: string): Place[] {
+  const out: Place[] = []
+  for (const entry of raw.split(';')) {
+    const parts = entry.split(',').map((f) => decodeURIComponent(f))
+    if (parts.length < 6) continue
+    const [lonStr, latStr, kind, elevStr, osmId, label] = parts
+    const lon = Number(lonStr)
+    const lat = Number(latStr)
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue
+    const elev = Number(elevStr)
+    out.push({
+      label: label || `${lat.toFixed(5)}, ${lon.toFixed(5)}`,
+      description: '',
+      kind,
+      lat,
+      lon,
+      ...(elevStr !== '' && Number.isFinite(elev) ? { elevationFt: elev } : {}),
+      ...(osmId ? { osmId } : {}),
+    })
+  }
+  return out
+}
+
 // datetime-local strings only — reject anything Date can't parse so a garbled
 // value doesn't silently become "Invalid Date" downstream.
 function isValidDatetimeLocal(s: string): boolean {
@@ -103,23 +156,25 @@ function isValidDatetimeLocal(s: string): boolean {
  * the user hasn't provided anything worth persisting, so the address bar stays
  * clean on a pristine load.
  *
- * A lone Start date is intentionally excluded from the "worth sharing" test: it's
- * pre-filled to "now", so treating it as meaningful would write a timestamp into
- * the URL (and rewrite it on every reload) before the user has done anything.
- * Once any other signal is present, Start rides along and stays live.
+ * The forecast window is intentionally excluded from the "worth sharing" test:
+ * both dates are pre-filled to "now", so treating a filled window as meaningful
+ * would write timestamps into the URL (and rewrite them on every reload) before
+ * the user has done anything. Once any other signal is present, the window
+ * rides along and stays live.
  */
 export function encodeState(state: ShareableState): string {
   const hasPolygon = state.polygon !== null && (state.polygon.coordinates[0]?.length ?? 0) >= 3
-  const hasCustom = state.destinationType === 'custom' && state.customCsv.trim() !== ''
-  const hasWindow = isValidDatetimeLocal(state.endDatetime)
+  const hasCustom = state.customCsv.trim() !== ''
   const hasConstraint = state.minElevationFt !== null || state.maxElevationFt !== null
+  const hasPins = state.pins.length > 0
   const nonDefaultControls =
     state.sortBy !== DEFAULT_SORT ||
     state.sortDesc ||
     state.limit !== DEFAULT_LIMIT ||
     state.destinationType !== DEFAULT_TYPE ||
     state.showWildfires
-  if (!hasPolygon && !hasCustom && !hasWindow && !hasConstraint && !nonDefaultControls) return ''
+  if (!hasPolygon && !hasCustom && !hasConstraint && !hasPins && !nonDefaultControls)
+    return ''
 
   const p = new URLSearchParams()
   p.set('type', state.destinationType)
@@ -137,6 +192,7 @@ export function encodeState(state: ShareableState): string {
   // decode can tell it apart from legacy raw `custom=` links (see decodeState).
   if (hasCustom) p.set('customz', compressToEncodedURIComponent(state.customCsv))
   if (state.showWildfires) p.set('fires', '1')
+  if (hasPins) p.set('pins', encodePins(state.pins))
 
   return p.toString()
 }
@@ -157,9 +213,12 @@ export function decodeState(search: string): Partial<ShareableState> | null {
 
   const out: Partial<ShareableState> = {}
 
+  // Legacy links from when Custom (CSV) was a mode carry type=custom; the CSV
+  // itself restores below via customz/custom, and the type picker just falls
+  // back to its default.
   const type = params.get('type')
-  if (type && DESTINATION_TYPES.includes(type as DestinationType)) {
-    out.destinationType = type as DestinationType
+  if (type && DISCOVERY_TYPES.includes(type as DiscoveryType)) {
+    out.destinationType = type as DiscoveryType
   }
 
   const sort = params.get('sort')
@@ -209,6 +268,12 @@ export function decodeState(search: string): Partial<ShareableState> | null {
 
   if (params.get('fires') === '1') out.showWildfires = true
 
+  const pins = params.get('pins')
+  if (pins) {
+    const decoded = decodePins(pins)
+    if (decoded.length > 0) out.pins = decoded
+  }
+
   return Object.keys(out).length > 0 ? out : null
 }
 
@@ -234,9 +299,10 @@ export function classifyWindow(
   const earliest = now.getTime() - PAST_LIMIT_DAYS * MS_PER_DAY
   const latest = now.getTime() + FUTURE_LIMIT_DAYS * MS_PER_DAY
 
-  // A zero-length or reversed window is a user error, not a horizon problem —
-  // flag it first so the message is about ordering, not the servable range.
-  if (end <= start) return 'order'
+  // A reversed window is a user error, not a horizon problem — flag it first
+  // so the message is about ordering, not the servable range. Equal is fine:
+  // start == end means "the current forecast" (the backend analyzes that hour).
+  if (end < start) return 'order'
   if (start < earliest) return 'past'
   if (end > latest) return 'future'
   return 'ok'
@@ -257,7 +323,9 @@ export function resolveSearchWindow(
   if (isValidDatetimeLocal(startDatetime) && isValidDatetimeLocal(endDatetime)) {
     const start = new Date(startDatetime)
     const end = new Date(endDatetime)
-    if (start < end && classifyWindow(startDatetime, endDatetime, now) === 'ok') {
+    // Equal passes through: the backend treats start == end as the current
+    // hour, so pins stay consistent with a ranked analysis over that window.
+    if (start <= end && classifyWindow(startDatetime, endDatetime, now) === 'ok') {
       return { start: start.toISOString(), end: end.toISOString() }
     }
   }
