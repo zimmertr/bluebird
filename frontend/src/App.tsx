@@ -14,7 +14,7 @@ import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy } from './types'
-import { METRIC_CONFIG, MARKER_COLORS } from './utils/colors'
+import { METRIC_CONFIG } from './utils/colors'
 import { parseCustomCsv } from './utils/customDestinations'
 import { buildCustomList, pinKey } from './utils/customList'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
@@ -28,7 +28,7 @@ const SORT_NOUNS: Record<SortBy, string> = {
   precip_total_in: 'Total Precipitation',
   wind_avg_mph: 'Average Wind',
   temp_avg_f: 'Average Temperature',
-  aqi_avg: 'Average AQI (PM2.5)',
+  aqi_avg: 'Average AQI',
 }
 
 // Collapse/expand affordance for the bottom panels' header bars.
@@ -700,7 +700,7 @@ export default function App() {
                   <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                     {METRIC_CONFIG[view.sortBy].label}
                   </p>
-                  {MARKER_COLORS.map((color, i) => (
+                  {METRIC_CONFIG[view.sortBy].colors.map((color, i) => (
                     <div key={i} className="flex items-center gap-1.5 py-0.5">
                       <span style={{ color }} className="text-sm leading-none">●</span>
                       <span className="text-[11px] text-slate-300 font-mono">

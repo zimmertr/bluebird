@@ -49,7 +49,7 @@ export function resultPopupHtml(d: {
     ${d.elevationFt != null ? `<div>Elevation: ${Number(d.elevationFt).toLocaleString()} ft</div>` : ''}
     <div>Precip total: <strong>${Number(d.precipTotalIn).toFixed(3)}"</strong></div>
     <div>Wind avg: ${Number(d.windAvgMph).toFixed(1)} mph · Temp avg: ${Number(d.tempAvgF).toFixed(1)}°F</div>
-    ${d.aqiAvg != null ? `<div>PM2.5 AQI avg: <strong>${d.aqiAvg}</strong> · max: ${d.aqiMax}</div>` : ''}
+    ${d.aqiAvg != null ? `<div>AQI avg: <strong>${d.aqiAvg}</strong> · max: ${d.aqiMax}</div>` : ''}
     <div>Coordinates: ${Number(d.latitude).toFixed(5)}, ${Number(d.longitude).toFixed(5)}</div>
   </div>`
 }

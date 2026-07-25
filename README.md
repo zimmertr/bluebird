@@ -107,7 +107,7 @@ The format is `Lat,Lon` or `Lat,Lon,Name`, one per line; without a name the coor
 
 Pick a start and end datetime. Both default to the current time — an equal window means "the current forecast" (the hour at hand), so a fresh load can Analyze immediately. Open-Meteo provides hourly forecasts up to 16 days ahead and about 90 days of history, so the date pickers are constrained to that range and a window outside it disables Analyze with an explanation. Everything is entered in your local browser time and converted to UTC for the API.
 
-Air quality (PM2.5 AQI) forecasts run shorter, because the underlying CAMS model only reaches about 5 days out. Windows past that still analyze fine. The AQI columns just show a blank for hours beyond the horizon, and the app notes this next to the date inputs.
+Air quality (AQI) forecasts run shorter, because the underlying CAMS model only reaches about 5 days out. Windows past that still analyze fine. The AQI columns just show a blank for hours beyond the horizon, and the app notes this next to the date inputs.
 
 ### Step 3: Set Max Results
 
@@ -127,7 +127,7 @@ Marker colors follow total precipitation:
 | Orange | 0.25" to 0.50" |
 | Red | more than 0.50" |
 
-Click a marker for a popup with rank, precipitation, wind, temperature, and PM2.5 AQI. Click a destination name in the table to open Windy centered on that spot with the rain overlay. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200).
+Click a marker for a popup with rank, precipitation, wind, temperature, and AQI. Click a destination name in the table to open Windy centered on that spot with the rain overlay. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300).
 
 ### Results Table
 
@@ -292,7 +292,7 @@ Response:
 }
 ```
 
-`aqi_avg` and `aqi_max` are PM2.5 US AQI values over the window. They come back `null` when the window falls past the roughly 5-day air-quality horizon, or when the best-effort air-quality fetch fails. An air-quality outage never fails the analysis.
+`aqi_avg` and `aqi_max` are US AQI values (all EPA pollutants combined) over the window. They come back `null` when the window falls past the roughly 5-day air-quality horizon, or when the best-effort air-quality fetch fails. An air-quality outage never fails the analysis.
 
 Error responses:
 
@@ -330,7 +330,7 @@ None of the external APIs need a key:
 |---|---|---|---|
 | [OpenStreetMap](https://www.openstreetmap.org) via [Overpass API](https://overpass-api.de) | Destination names, coordinates, elevation | Free | None |
 | [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind | Free (non-commercial) | None |
-| [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly PM2.5 US AQI | Free (non-commercial) | None |
+| [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly US AQI | Free (non-commercial) | None |
 | [OpenFreeMap](https://openfreemap.org) | Vector map tiles | Free | None |
 | [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
 
@@ -371,7 +371,7 @@ containers:
 ## Roadmap
 
 - [x] Additional destination types (trailheads and lakes, queried from OSM like peaks)
-- [x] Air quality (PM2.5), useful during wildfire smoke season
+- [x] Air quality (US AQI), useful during wildfire smoke and summer ozone season
 - [ ] Historical analysis by switching to the Open-Meteo archive endpoint for past dates
 - [ ] Saved searches in LocalStorage for polygons and settings
 - [ ] CSV export of results

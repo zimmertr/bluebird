@@ -13,7 +13,7 @@ export const CHART_METRICS: { key: ChartMetric; label: string }[] = [
   { key: 'precip', label: 'Precip (in)' },
   { key: 'temp', label: 'Temp (°F)' },
   { key: 'wind', label: 'Wind (mph)' },
-  { key: 'aqi', label: 'AQI (PM2.5)' },
+  { key: 'aqi', label: 'AQI' },
 ]
 
 // The chart opens on whatever metric the results were ranked by.

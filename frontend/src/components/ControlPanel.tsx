@@ -27,7 +27,7 @@ const SORT_METRICS: { value: SortBy; label: string }[] = [
   { value: 'precip_total_in', label: 'Precipitation' },
   { value: 'wind_avg_mph', label: 'Wind' },
   { value: 'temp_avg_f', label: 'Temperature' },
-  { value: 'aqi_avg', label: 'AQI (PM2.5)' },
+  { value: 'aqi_avg', label: 'AQI' },
 ]
 
 // What polygon discovery finds. Custom (CSV) is no longer a mode here — the
@@ -323,8 +323,8 @@ export default function ControlPanel({
           {!windowWarning && aqiCoverage !== 'full' && (
             <p className="mt-2 text-xs text-sky-300 bg-sky-950/40 border border-sky-800/60 rounded p-2">
               {aqiCoverage === 'partial'
-                ? `Air-quality (PM2.5 AQI) forecasts only extend ~${AQI_LIMIT_DAYS} days out, so AQI may cover just the start of this window. Weather data covers all of it.`
-                : `Air-quality (PM2.5 AQI) forecasts only extend ~${AQI_LIMIT_DAYS} days out — AQI columns will be empty for this window. Weather data is unaffected.`}
+                ? `Air-quality (AQI) forecasts only extend ~${AQI_LIMIT_DAYS} days out, so AQI may cover just the start of this window. Weather data covers all of it.`
+                : `Air-quality (AQI) forecasts only extend ~${AQI_LIMIT_DAYS} days out — AQI columns will be empty for this window. Weather data is unaffected.`}
             </p>
           )}
         </section>

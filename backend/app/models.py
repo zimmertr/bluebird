@@ -156,7 +156,7 @@ class DestinationResult(BaseModel):
     wind_min_mph: float
     wind_max_mph: float
     wind_avg_mph: float
-    # PM2.5 US AQI over the window. Nullable: the air-quality forecast only
+    # US AQI over the window (combined across EPA pollutants). Nullable: the air-quality forecast only
     # extends ~5 days out (vs ~16 for weather) and the fetch is best-effort.
     aqi_avg: int | None = None
     aqi_max: int | None = None
