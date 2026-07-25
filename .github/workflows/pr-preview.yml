@@ -93,7 +93,13 @@ jobs:
             "<hr>" \
             "" \
             "_Updated for each push; torn down when the PR closes._")
-          # Sticky: edit this bot's existing comment (bumping to the current commit's
-          # tag) or create it on the first push.
-          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" \
-            --edit-last --create-if-none --body "$BODY"
+          # Sticky by marker, not --edit-last: the scan job in pr.yml also
+          # comments as github-actions[bot], and --edit-last matches by author
+          # only, so it would hijack whichever bot comment happens to be newest.
+          CID=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" --paginate \
+            --jq '.[] | select(.body | startswith("<!-- bluebird-preview -->")) | .id' | head -n1)
+          if [ -n "$CID" ]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${CID}" -f body="$BODY" >/dev/null
+          else
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" -f body="$BODY" >/dev/null
+          fi

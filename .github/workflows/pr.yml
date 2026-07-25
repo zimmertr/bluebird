@@ -70,7 +70,9 @@ jobs:
   # proves the Dockerfile assembles; the release workflow builds the arm64
   # half (emulated builds would roughly double this job for no extra signal).
   docker-build:
-    name: Docker Build & Scan
+    # Branch protection requires a check named exactly "Docker Build" — renaming
+    # this job strands PRs on a phantom "Expected" check that never reports.
+    name: Docker Build
     runs-on: ubuntu-latest
     permissions:
       contents: read
