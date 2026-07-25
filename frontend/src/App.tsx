@@ -21,6 +21,7 @@ import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/
 import { composeOverlay } from './utils/analyzeOverlay'
 import { Place, isPeakKind } from './utils/geocode'
 import { encodeState, decodeState, classifyWindow } from './utils/urlState'
+import { rankingStale } from './utils/staleness'
 
 // Composed with the direction into e.g. "Lowest Total Precipitation" /
 // "Highest Average Temperature" for the results header.
@@ -216,6 +217,10 @@ export default function App() {
   // ranking that produced them — panel knobs only affect the NEXT Analyze.
   // Falls back to the live knobs before the first analysis (nothing shown yet).
   const view = analyzed ?? { sortBy, sortDesc }
+  // The displayed report renders from the analyzed snapshot, so changing the
+  // ranking knobs changes nothing on screen by design — surface that state as
+  // a "press Analyze to apply" cue or the controls feel dead after first use.
+  const rankingChanged = rankingStale(analyzed, sortBy, sortDesc) && !loading && response !== null
   const preview = usePreview()
 
   // The loading overlay for the one ranked streaming analysis — searched
@@ -565,6 +570,7 @@ export default function App() {
           setLimit={setLimit}
           customCsv={customCsv}
           setCustomCsv={setCustomCsv}
+          rankingChanged={rankingChanged}
           sortBy={sortBy}
           setSortBy={setSortBy}
           sortDesc={sortDesc}
