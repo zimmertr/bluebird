@@ -1,3 +1,5 @@
+import { useDialog } from '../hooks/useDialog'
+
 interface Props {
   onDismiss: () => void
 }
@@ -12,14 +14,22 @@ const STEPS: [string, string][] = [
 ]
 
 export default function WelcomeModal({ onDismiss }: Props) {
+  const panelRef = useDialog(onDismiss)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-md max-h-full overflow-y-auto">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="welcome-title"
+        tabIndex={-1}
+        className="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-md max-h-full overflow-y-auto focus:outline-none"
+      >
         {/* Header */}
         <div className="flex items-center gap-3 px-6 pt-6 pb-4 border-b border-slate-700">
           <img src="/icon.png" alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
           <div>
-            <h1 className="text-xl font-bold text-white leading-tight">Welcome to Bluebird Forecast</h1>
+            <h1 id="welcome-title" className="text-xl font-bold text-white leading-tight">Welcome to Bluebird Forecast</h1>
             <p className="text-sm text-slate-400">The Weather Window Finder</p>
           </div>
         </div>
