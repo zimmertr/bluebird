@@ -500,8 +500,8 @@ export default function ControlPanel({
         </button>
 
         {rankingChanged && !loading && (
-          <p className="text-xs text-sky-300 text-center">
-            Ranking changed — press Analyze to update the results.
+          <p className="text-xs text-amber-300 text-center whitespace-nowrap">
+            Ranking changed. Press Analyze to update.
           </p>
         )}
 
