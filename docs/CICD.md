@@ -93,7 +93,9 @@ concurrency-serialized):
    `linux/arm64`, arm64 via QEMU)** with SBOM + provenance attestations (the
    attestation manifests appear as "unknown/unknown" rows in Docker Hub's UI),
    pushes it to Docker Hub as `zimmertr/bluebird:<semver>`, and pushes the
-   `v<semver>` git tag.
+   `v<semver>` git tag. Capped at `timeout-minutes: 30`: because releases
+   serialize, a job hung on a registry timeout would otherwise dam every
+   queued release for up to GitHub's 6-hour default.
 3. **Create GitHub Release** — auto-generated notes.
 4. **Update Kubernetes-Manifests** — a **direct commit** (no PR) sets
    `images.newTag: <semver>` in `public/bluebird/kustomization.yml`. Argo CD
