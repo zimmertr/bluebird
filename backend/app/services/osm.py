@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 
 from app.models import DestinationType, GeoPolygon
-from app.services.errors import UpstreamError, classify_http_error
+from app.services.errors import PartialResultError, UpstreamError, classify_http_error
 
 log = logging.getLogger(__name__)
 
@@ -156,8 +156,17 @@ async def _post_with_fallback(
                 log.info("Trying Overpass endpoint: %s", url)
                 resp = await client.post(url, data={"data": query})
                 resp.raise_for_status()
+                data = resp.json()
+                # Overpass reports mid-query timeouts/errors via `remark` on an
+                # otherwise-200 response carrying PARTIAL elements. Accepting it
+                # would present a truncated candidate list as a complete ranking
+                # (a Ptarmigan Traverse box came back 19 of 29 named peaks this
+                # way), so a remark fails this mirror and the chain moves on.
+                remark = data.get("remark")
+                if remark:
+                    raise PartialResultError(f"Overpass returned a partial result: {remark}")
                 log.info("Overpass query succeeded via %s", url)
-                return resp.json()
+                return data
             except Exception as exc:  # noqa: BLE001 — try the next mirror on any failure
                 log.warning("Overpass endpoint %s failed: %s", url, exc)
                 last_exc = exc
