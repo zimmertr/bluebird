@@ -7,7 +7,7 @@ interface Props {
 const STEPS: [string, string][] = [
   ['Destinations', 'Choose where to search by drawing an area on the map, searching by name, or providing custom coordinates.'],
   ['Forecast Window', 'Select the start and end date for the weather period you care about.'],
-  ['Result Ranking', 'Choose how destinations should be ranked — driest conditions, lowest winds, ideal temperatures, or cleanest air.'],
+  ['Result Ranking', 'Choose how destinations should be ranked: driest conditions, lowest winds, ideal temperatures, or cleanest air.'],
   ['Options', 'Apply constraints and enable additional features like wildfire visibility.'],
   ['Analyze', 'Generate ranked results, explore them on the map, and compare forecast data across your selected destinations.'],
   ['Repeat', 'Adjust your search area, forecast window, ranking, or options at any time to find a better window.'],
@@ -58,12 +58,29 @@ export default function WelcomeModal({ onDismiss }: Props) {
                 </span>
                 <p className="text-slate-300 leading-snug">
                   <span className="text-white font-semibold">{title}</span>
-                  {' — '}
+                  {': '}
                   {desc}
                 </p>
               </li>
             ))}
           </ol>
+
+          {/* The one sentence the lawyers asked for: people plan real
+              backcountry trips with this data, so the app itself must say it
+              is not a safety tool — the README saying so isn't user-visible. */}
+          <p className="text-xs text-slate-500 mb-4">
+            Bluebird is a planning aid, not a safety tool. Forecasts are automated estimates.
+            Verify conditions with official sources such as{' '}
+            <a
+              href="https://www.weather.gov"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-slate-300"
+            >
+              weather.gov
+            </a>{' '}
+            before committing to backcountry travel.
+          </p>
 
           <div className="border-t border-slate-700 pt-4 mb-4">
             <p className="text-sm text-slate-200 font-medium text-center">
