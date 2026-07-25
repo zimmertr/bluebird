@@ -22,13 +22,13 @@ import { composeOverlay } from './utils/analyzeOverlay'
 import { Place, isPeakKind } from './utils/geocode'
 import { encodeState, decodeState, classifyWindow } from './utils/urlState'
 
-// Composed with the direction into e.g. "lowest total precipitation" /
-// "highest average temperature" for the results header.
+// Composed with the direction into e.g. "Lowest Total Precipitation" /
+// "Highest Average Temperature" for the results header.
 const SORT_NOUNS: Record<SortBy, string> = {
-  precip_total_in: 'total precipitation',
-  wind_avg_mph: 'average wind',
-  temp_avg_f: 'average temperature',
-  aqi_avg: 'average AQI (PM2.5)',
+  precip_total_in: 'Total Precipitation',
+  wind_avg_mph: 'Average Wind',
+  temp_avg_f: 'Average Temperature',
+  aqi_avg: 'Average AQI (PM2.5)',
 }
 
 function nowLocal(): string {
@@ -67,10 +67,13 @@ export default function App() {
   // come back as type "custom" with no osm_id; this map restores them so a
   // peak still links to Peakbagger and shows the right badge.
   const identityMapRef = useRef<Map<string, { type: string; osm_id: string | null }>>(new Map())
-  // Rows the user ×-removed from the current report, by coordinate key. A
-  // same-inputs refresh echoes only the surviving rows so removals stick; any
-  // fresh analysis clears this — changed inputs may bring a destination back.
+  // Rows the user ×-removed from the current report, by coordinate key. Scoped
+  // to the user-authored discovery inputs (removalScopeRef): removing a row —
+  // even a searched place, which shrinks the custom list — must not count as
+  // changing them. Only a polygon/type/elevation/CSV edit starts a clean slate
+  // where removed destinations may legitimately return.
   const [removedKeys, setRemovedKeys] = useState<Set<string>>(new Set())
+  const removalScopeRef = useRef<string | null>(null)
 
   // Restore any prior session encoded in the URL once, at mount. Feeding each
   // useState a lazy initializer avoids a redraw flash — the restored values are
@@ -111,6 +114,10 @@ export default function App() {
   const [showResults, setShowResults] = useState(false)
   const [tableHeight, setTableHeight] = useState(280)
   const [chartHeight, setChartHeight] = useState(288)
+  // Chevron-collapsed panels: the header bar stays docked at the bottom (the
+  // panel never unmounts); expanding restores the previous height.
+  const [chartCollapsed, setChartCollapsed] = useState(false)
+  const [tableCollapsed, setTableCollapsed] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('bluebird_welcomed'))
   // Privacy notice, opened from the controls footer. Rendered at the App root
@@ -168,6 +175,12 @@ export default function App() {
     mapRef.current?.flyToPlace(place)
     searched.addPlace(place)
   }
+
+  // A search opens the results panel immediately — the place appears as an
+  // un-forecasted row, so there's feedback before any analysis runs.
+  useEffect(() => {
+    if (searched.places.length > 0) setShowResults(true)
+  }, [searched.places])
 
   // Everything derived from the results renders from the snapshot of the
   // ranking that produced them — panel knobs only affect the NEXT Analyze.
@@ -288,6 +301,20 @@ export default function App() {
     const resolvedPolygon =
       drawPointCount >= 3 ? mapRef.current?.finishDrawing() ?? polygon : null
 
+    // Reset the removal set only when the user changed a discovery input —
+    // searched places are deliberately absent (their list shrinks on removal).
+    const removalScope = JSON.stringify({
+      ring: resolvedPolygon?.coordinates[0] ?? null,
+      type: destinationType,
+      minEl: minElevationFt,
+      maxEl: maxElevationFt,
+      csv: customCsv.trim(),
+    })
+    if (removalScopeRef.current !== removalScope) {
+      removalScopeRef.current = removalScope
+      setRemovedKeys(new Set())
+    }
+
     // A polygon run whose discovery inputs are unchanged, with results still on
     // screen, is a pure refresh: skip Overpass and refetch just those
     // destinations' weather through the custom path. Any change to the inputs
@@ -324,9 +351,6 @@ export default function App() {
         ...constraints,
       })
     } else if (resolvedPolygon) {
-      // A fresh analysis re-opens the field: rows the user removed from the
-      // previous report may legitimately return under the changed inputs.
-      setRemovedKeys(new Set())
       // Discovery — with the custom list riding along so the backend ranks the
       // polygon ∪ CSV union as one report.
       await analyze({
@@ -347,7 +371,6 @@ export default function App() {
       // discovery — clear the signature so a later identical polygon Analyze
       // can't mistake these rows for that polygon's discovered set.
       discoverySignatureRef.current = null
-      setRemovedKeys(new Set())
       await analyze({
         destination_type: 'custom',
         start_datetime: start,
@@ -420,7 +443,7 @@ export default function App() {
     return searched.places.filter((p) => !shown.has(pinKey(p.lat, p.lon)))
   }, [results, searched.places])
   const hasColoredMarkers = showResults && results.length > 0
-  const showTable = showResults && results.length > 0
+  const showTable = showResults && (results.length > 0 || pendingPlaces.length > 0)
 
   // Flags results within 10 mi of an active US wildfire; independent of the map
   // overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
@@ -443,10 +466,13 @@ export default function App() {
   // the map always keeps its floor. Drives both breakpoints — mobile is resizable
   // too, so it can no longer rely on Tailwind's fixed panel heights.
   const viewportH = useViewportHeight()
+  // A collapsed panel is just its header bar — it takes no share of the band.
+  const chartExpanded = chartShown && !chartCollapsed
+  const tableExpanded = showTable && !tableCollapsed
   const { chart: chartPanelPx, table: tablePanelPx } = resolvePanelHeights(
     chartHeight,
     tableHeight,
-    { chartShown, tableShown: showTable, availPx: viewportH - bannerPx },
+    { chartShown: chartExpanded, tableShown: tableExpanded, availPx: viewportH - bannerPx },
   )
 
   return (
@@ -649,87 +675,99 @@ export default function App() {
         {chartShown && (
           <div
             className="flex flex-shrink-0 flex-col bg-slate-800"
-            style={{ height: `${chartPanelPx}px` }}
+            style={chartCollapsed ? undefined : { height: `${chartPanelPx}px` }}
           >
-            {/* Drag handle — the map│chart divider. Dragging up grows the chart,
-                stealing height from the map above; the table below stays put
-                (tablePanelPx is 0 when the table is closed). Pointer events +
-                touch-none so a finger resizes it on mobile too. */}
+            {!chartCollapsed && (
+              /* Drag handle — the map│chart divider. Dragging up grows the chart,
+                 stealing height from the map above; the table below stays put
+                 (tablePanelPx is 0 when the table is closed). Pointer events +
+                 touch-none so a finger resizes it on mobile too. */
+              <div
+                onPointerDown={(e) => {
+                  // Pin the table's desired height to its applied value first, so a
+                  // stale (larger) desired height can't soak up space freed by
+                  // shrinking the chart — that space belongs to the map here.
+                  setTableHeight(tablePanelPx)
+                  beginResize(e, (up) =>
+                    setChartHeight(
+                      clampPanelHeight(chartPanelPx, up, tablePanelPx + bannerPx, window.innerHeight),
+                    ),
+                  )
+                }}
+                className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
+              >
+                <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
+              </div>
+            )}
             <div
-              onPointerDown={(e) => {
-                // Pin the table's desired height to its applied value first, so a
-                // stale (larger) desired height can't soak up space freed by
-                // shrinking the chart — that space belongs to the map here.
-                setTableHeight(tablePanelPx)
-                beginResize(e, (up) =>
-                  setChartHeight(
-                    clampPanelHeight(chartPanelPx, up, tablePanelPx + bannerPx, window.innerHeight),
-                  ),
-                )
-              }}
-              className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
+              className={`flex flex-shrink-0 items-center justify-between border-b border-slate-600 bg-slate-700 px-3 py-1 ${chartCollapsed ? 'border-t' : ''}`}
             >
-              <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
-            </div>
-            <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-600 bg-slate-700 px-3 py-1">
-              <span className="text-xs font-semibold text-white">
-                Forecast comparison — {chart.selectedRows.length} selected
-              </span>
+              <span className="text-xs font-semibold text-white">Forecast Chart</span>
               <button
-                onClick={chart.clear}
+                onClick={() => setChartCollapsed((c) => !c)}
+                title={chartCollapsed ? 'Expand the chart' : 'Collapse the chart'}
+                aria-label={chartCollapsed ? 'Expand the forecast chart' : 'Collapse the forecast chart'}
                 className="px-1 text-xs text-slate-400 hover:text-white"
               >
-                Clear
+                {chartCollapsed ? '▴' : '▾'}
               </button>
             </div>
-            <div className="min-h-0 flex-1">
-              <TimeSeriesChart
-                times={chartTimes}
-                rows={chart.selectedRows}
-                metric={chart.metric}
-                onMetricChange={chart.setMetric}
-                colorFor={chart.colorFor}
-              />
-            </div>
+            {!chartCollapsed && (
+              <div className="min-h-0 flex-1">
+                <TimeSeriesChart
+                  times={chartTimes}
+                  rows={chart.selectedRows}
+                  metric={chart.metric}
+                  onMetricChange={chart.setMetric}
+                  colorFor={chart.colorFor}
+                />
+              </div>
+            )}
           </div>
         )}
         {showTable && (
           <div
             className="flex-shrink-0 bg-slate-800 flex flex-col"
-            style={{ height: `${tablePanelPx}px` }}
+            style={tableCollapsed ? undefined : { height: `${tablePanelPx}px` }}
           >
-            {/* Drag handle. With the chart above, this is the chart│table divider:
-                dragging up grows the table by shrinking the chart, leaving the map
-                untouched. With no chart it steals from the map like the chart
-                handle. Pointer events + touch-none for mobile. */}
-            <div
-              onPointerDown={(e) =>
-                beginResize(e, (up) => {
-                  if (chartShown) {
-                    const next = splitChartTable(chartPanelPx, tablePanelPx, up)
-                    setChartHeight(next.chart)
-                    setTableHeight(next.table)
-                  } else {
-                    setTableHeight(clampPanelHeight(tablePanelPx, up, bannerPx, window.innerHeight))
-                  }
-                })
-              }
-              className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
-            >
-              <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
-            </div>
+            {!tableCollapsed && (
+              /* Drag handle. With the chart above, this is the chart│table divider:
+                 dragging up grows the table by shrinking the chart, leaving the map
+                 untouched. With no chart it steals from the map like the chart
+                 handle. Pointer events + touch-none for mobile. */
+              <div
+                onPointerDown={(e) =>
+                  beginResize(e, (up) => {
+                    if (chartExpanded) {
+                      const next = splitChartTable(chartPanelPx, tablePanelPx, up)
+                      setChartHeight(next.chart)
+                      setTableHeight(next.table)
+                    } else {
+                      setTableHeight(clampPanelHeight(tablePanelPx, up, bannerPx, window.innerHeight))
+                    }
+                  })
+                }
+                className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
+              >
+                <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
+              </div>
+            )}
             {/* Header */}
-            <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-slate-700 border-b border-slate-600">
+            <div
+              className={`flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
+            >
               <span className="text-xs font-semibold text-white">
                 {results.length > 0
-                  ? `Results — ${view.sortDesc ? 'highest' : 'lowest'} ${SORT_NOUNS[view.sortBy]} first`
-                  : 'Pinned location forecasts'}
+                  ? `Forecast Table: ${view.sortDesc ? 'Highest' : 'Lowest'} ${SORT_NOUNS[view.sortBy]}`
+                  : 'Forecast Table'}
               </span>
               <button
-                onClick={() => setShowResults(false)}
-                className="text-slate-400 hover:text-white text-lg leading-none px-1"
+                onClick={() => setTableCollapsed((c) => !c)}
+                title={tableCollapsed ? 'Expand the table' : 'Collapse the table'}
+                aria-label={tableCollapsed ? 'Expand the forecast table' : 'Collapse the forecast table'}
+                className="px-1 text-xs text-slate-400 hover:text-white"
               >
-                ×
+                {tableCollapsed ? '▴' : '▾'}
               </button>
             </div>
             {/* Scrollable table. One container owns BOTH axes: if a nested
@@ -739,20 +777,24 @@ export default function App() {
                 visible (macOS overlay scrollbars hide the sideways hint).
                 The panel has a drag-resized height on every breakpoint now, so
                 the body just fills it (flex-1) and scrolls a long ranking. */}
-            <div className="overflow-auto min-h-0 results-scrollbars flex-1">
-              <ResultsTable
-                results={results}
-                sortBy={view.sortBy}
-                sortDesc={view.sortDesc}
-                fireWarnings={fireWarnings}
-                onRemove={handleRemoveResult}
-                onFocusResult={(row) => mapRef.current?.focusResult(row)}
-                onToggleChart={chartable ? chart.toggle : undefined}
-                isCharted={chart.isSelected}
-                chartColor={chart.colorFor}
-                onChartRange={chartable ? chart.setRange : undefined}
-              />
-            </div>
+            {!tableCollapsed && (
+              <div className="overflow-auto min-h-0 results-scrollbars flex-1">
+                <ResultsTable
+                  results={results}
+                  sortBy={view.sortBy}
+                  sortDesc={view.sortDesc}
+                  fireWarnings={fireWarnings}
+                  pending={pendingPlaces}
+                  onRemove={handleRemoveResult}
+                  onRemovePending={(place) => searched.removePlace(place.lat, place.lon)}
+                  onFocusResult={(row) => mapRef.current?.focusResult(row)}
+                  onToggleChart={chartable ? chart.toggle : undefined}
+                  isCharted={chart.isSelected}
+                  chartColor={chart.colorFor}
+                  onChartRange={chartable ? chart.setRange : undefined}
+                />
+              </div>
+            )}
           </div>
         )}
 

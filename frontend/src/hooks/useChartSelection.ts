@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { ChartMetric, chartKey, metricForSort } from '../utils/chartData'
 import { colorForIndex } from '../utils/chartColors'
@@ -6,20 +6,30 @@ import { colorForIndex } from '../utils/chartColors'
 // Chart selection for the results table: which destinations are overlaid, their
 // stable line colors (assigned on add, then fixed), and the active metric. The
 // color is surfaced by the row's checkbox (accent) and the chart tooltip — no
-// legend or picker. Reset on each analysis — a fresh report starts clean, the
-// same way the table's column sort resets.
+// legend or picker. Selections persist until the user changes them — removals
+// and re-analyses never uncheck a box (a key whose row leaves the report simply
+// stops rendering, and returns if the row does).
 export function useChartSelection(results: DestinationResult[], sortBy: SortBy) {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [colorByKey, setColorByKey] = useState<Record<string, string>>({})
   const [metric, setMetric] = useState<ChartMetric>(() => metricForSort(sortBy))
 
+  // The metric follows each new ranking; a same-ranking refresh leaves a
+  // manually chosen metric alone (the dep is the value, not the report).
   useEffect(() => {
-    setSelectedKeys([])
-    setColorByKey({})
     setMetric(metricForSort(sortBy))
-    // `results` identity changes per analysis; sortBy is that report's snapshot.
-    // Intentionally not keyed on sortBy — panel knob changes must not disturb a
-    // selection until the next Analyze.
+  }, [sortBy])
+
+  // Default-shown chart: when a report arrives and nothing is selected, chart
+  // its top rows. Keyed on the report's identity only, with the selection read
+  // through a ref — unchecking the last box must close the chart, not trigger
+  // an instant re-select.
+  const selectedCountRef = useRef(0)
+  selectedCountRef.current = selectedKeys.length
+  useEffect(() => {
+    if (selectedCountRef.current > 0) return
+    const top = results.filter((r) => r.series).slice(0, 3)
+    if (top.length > 0) setRange(top, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results])
 
