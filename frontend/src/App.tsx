@@ -31,6 +31,24 @@ const SORT_NOUNS: Record<SortBy, string> = {
   aqi_avg: 'Average AQI (PM2.5)',
 }
 
+// Collapse/expand affordance for the bottom panels' header bars.
+function Chevron({ up }: { up: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <polyline points={up ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
+    </svg>
+  )
+}
+
 function nowLocal(): string {
   const d = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -56,11 +74,14 @@ function useViewportHeight(): number {
 export default function App() {
   const mapRef = useRef<MapViewHandle>(null)
 
-  // The discovery inputs (polygon + type + CSV + elevation + limit + sort)
-  // behind the results currently on screen. An Analyze whose inputs still match
-  // this skips Overpass and just refreshes the known destinations' weather; any
-  // change forces a fresh discovery. Updated only on a real discovery run.
-  const discoverySignatureRef = useRef<string | null>(null)
+  // The discovery inputs behind the results currently on screen: `base` covers
+  // the user-authored inputs (polygon + type + CSV rows + elevation + limit +
+  // sort) and `searchedKeys` the searched places that competed. An Analyze
+  // whose base matches and whose searched list only SHRANK (row removals) skips
+  // Overpass and just refreshes the surviving rows' weather; a NEW searched
+  // place — which must compete against the full candidate field the refresh
+  // echo doesn't have — or any base change forces a fresh discovery.
+  const discoveryRef = useRef<{ base: string; searchedKeys: string[] } | null>(null)
   // Remembers each row's real identity (type + osm_id) by coordinate — from
   // discovered rows (which carry an osm_id) and from searched places (whose
   // geocoding knew their kind and OSM id). Rows echoed through the custom path
@@ -174,6 +195,15 @@ export default function App() {
   function handleSearchSelect(place: Place) {
     mapRef.current?.flyToPlace(place)
     searched.addPlace(place)
+    // Re-searching a previously ×-removed spot is an explicit re-request —
+    // drop the stale removal so the place isn't filtered out of its next report.
+    setRemovedKeys((prev) => {
+      const key = pinKey(place.lat, place.lon)
+      if (!prev.has(key)) return prev
+      const next = new Set(prev)
+      next.delete(key)
+      return next
+    })
   }
 
   // A search opens the results panel immediately — the place appears as an
@@ -265,17 +295,16 @@ export default function App() {
   }
 
 
-  // The discovery inputs behind the on-screen results, as a stable string. Two
-  // Analyzes with equal signatures discovered the same set, so the second can
-  // skip Overpass and just refetch weather. Everything that changes which
-  // destinations are found or how they're ranked/truncated belongs here — the
-  // custom list included (parsed, so a comment or whitespace edit in the
-  // textarea doesn't needlessly bust the refresh).
-  function discoverySignature(poly: GeoPolygon | null, custom: CustomDestination[]): string {
+  // The user-authored discovery inputs as a stable string. Everything that
+  // changes which destinations are found or how they're ranked/truncated
+  // belongs here — the CSV as parsed rows (a comment or whitespace edit doesn't
+  // needlessly bust the refresh) but NOT the searched places, which are
+  // compared separately so removals stay refresh-eligible.
+  function discoveryBase(poly: GeoPolygon | null, csvRows: CustomDestination[]): string {
     return JSON.stringify({
       ring: poly?.coordinates[0] ?? null,
       type: destinationType,
-      custom,
+      csv: csvRows,
       minEl: minElevationFt,
       maxEl: maxElevationFt,
       limit,
@@ -297,7 +326,8 @@ export default function App() {
     // finishDrawing() snapshots the map's always-editable ring synchronously
     // (and closes it), falling back to the restored polygon before the map has
     // loaded.
-    const custom = buildCustomList(parseCustomCsv(customCsv), searched.places)
+    const csvRows = parseCustomCsv(customCsv)
+    const custom = buildCustomList(csvRows, searched.places)
     const resolvedPolygon =
       drawPointCount >= 3 ? mapRef.current?.finishDrawing() ?? polygon : null
 
@@ -315,26 +345,34 @@ export default function App() {
       setRemovedKeys(new Set())
     }
 
-    // A polygon run whose discovery inputs are unchanged, with results still on
+    // A polygon run whose base inputs are unchanged, with results still on
     // screen, is a pure refresh: skip Overpass and refetch just those
-    // destinations' weather through the custom path. Any change to the inputs
-    // (polygon, type, CSV, elevation, limit, sort) falls through to a fresh
-    // discovery.
-    const signature = discoverySignature(resolvedPolygon, custom)
+    // destinations' weather through the custom path. A SHRUNK searched list is
+    // refresh-compatible too — the departed rows are already gone from the
+    // displayed report the refresh echoes. Any base change or NEW searched
+    // place (which must compete against the full candidate field) falls
+    // through to a fresh discovery.
+    const base = discoveryBase(resolvedPolygon, csvRows)
+    const searchedKeys = searched.places.map((p) => pinKey(p.lat, p.lon))
+    const prev = discoveryRef.current
     const isRefresh =
       resolvedPolygon !== null &&
       response !== null &&
       response.results.length > 0 &&
-      discoverySignatureRef.current === signature
+      prev !== null &&
+      prev.base === base &&
+      searchedKeys.every((k) => prev.searchedKeys.includes(k))
 
     const willRank = resolvedPolygon !== null || custom.length > 0
 
     if (isRefresh && response) {
       // Refresh: weather-only over the known destinations (no Overpass). They
       // come back as type "custom" with no osm_id; the results memo restores
-      // each row's real identity by coordinate. The discovery signature stays
-      // put — the discovered set didn't change. Echoing the *displayed* rows
+      // each row's real identity by coordinate. Echoing the *displayed* rows
       // (not the raw response) is what keeps ×-removed destinations gone.
+      // Record the shrunk searched list so re-adding one of these places later
+      // reads as an addition (fresh run), not a refresh that would skip it.
+      discoveryRef.current = { base, searchedKeys }
       await analyze({
         destination_type: 'custom',
         start_datetime: start,
@@ -364,13 +402,13 @@ export default function App() {
         ...(custom.length > 0 ? { custom_destinations: custom } : {}),
         ...constraints,
       })
-      // Remember these discovery inputs so the next identical Analyze refreshes.
-      discoverySignatureRef.current = signature
+      // Remember these discovery inputs so the next compatible Analyze refreshes.
+      discoveryRef.current = { base, searchedKeys }
     } else if (custom.length > 0) {
       // Custom-only (CSV and/or searched places). Not a refreshable polygon
-      // discovery — clear the signature so a later identical polygon Analyze
+      // discovery — clear the record so a later identical polygon Analyze
       // can't mistake these rows for that polygon's discovered set.
-      discoverySignatureRef.current = null
+      discoveryRef.current = null
       await analyze({
         destination_type: 'custom',
         start_datetime: start,
@@ -643,7 +681,7 @@ export default function App() {
           {(hasColoredMarkers || showWildfires) && (
             <div className="absolute bottom-8 left-2 top-16 z-10 flex flex-col justify-end gap-2 overflow-y-auto lg:top-auto lg:overflow-visible">
               {showWildfires && (
-                <div className="bg-slate-900/85 border border-slate-700 rounded-lg px-2.5 py-2 shadow-lg backdrop-blur-sm">
+                <div className="w-40 bg-slate-900/85 border border-slate-700 rounded-lg px-2.5 py-2 shadow-lg backdrop-blur-sm">
                   <div className="flex items-center gap-1.5">
                     <span
                       className="inline-block w-3 h-3 rounded-sm border"
@@ -654,7 +692,7 @@ export default function App() {
                 </div>
               )}
               {hasColoredMarkers && (
-                <div className="bg-slate-900/85 border border-slate-700 rounded-lg p-2.5 shadow-lg backdrop-blur-sm">
+                <div className="w-40 bg-slate-900/85 border border-slate-700 rounded-lg p-2.5 shadow-lg backdrop-blur-sm">
                   <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                     {METRIC_CONFIG[view.sortBy].label}
                   </p>
@@ -707,9 +745,9 @@ export default function App() {
                 onClick={() => setChartCollapsed((c) => !c)}
                 title={chartCollapsed ? 'Expand the chart' : 'Collapse the chart'}
                 aria-label={chartCollapsed ? 'Expand the forecast chart' : 'Collapse the forecast chart'}
-                className="px-1 text-xs text-slate-400 hover:text-white"
+                className="px-1 text-slate-400 hover:text-white"
               >
-                {chartCollapsed ? '▴' : '▾'}
+                <Chevron up={chartCollapsed} />
               </button>
             </div>
             {!chartCollapsed && (
@@ -765,9 +803,9 @@ export default function App() {
                 onClick={() => setTableCollapsed((c) => !c)}
                 title={tableCollapsed ? 'Expand the table' : 'Collapse the table'}
                 aria-label={tableCollapsed ? 'Expand the forecast table' : 'Collapse the forecast table'}
-                className="px-1 text-xs text-slate-400 hover:text-white"
+                className="px-1 text-slate-400 hover:text-white"
               >
-                {tableCollapsed ? '▴' : '▾'}
+                <Chevron up={tableCollapsed} />
               </button>
             </div>
             {/* Scrollable table. One container owns BOTH axes: if a nested
