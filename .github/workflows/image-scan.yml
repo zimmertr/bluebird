@@ -55,7 +55,7 @@ jobs:
             zimmertr/bluebird:${{ steps.release.outputs.semver }}
           CRIT_HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL" or .Severity == "HIGH")] | length' trivy.json)
           if [ "$CRIT_HIGH" -gt 0 ]; then
-            echo "::error::${CRIT_HIGH} fixable Critical/High vulnerabilities in zimmertr/bluebird:${{ steps.release.outputs.semver }} — rebase onto a fresh base image (merge the open Dependabot bump) and release."
+            echo "::error::${CRIT_HIGH} fixable Critical/High vulnerabilities in zimmertr/bluebird:${{ steps.release.outputs.semver }}. Rebase onto a fresh base image (merge the open Dependabot bump) and release."
             exit 1
           fi
           echo "No fixable Critical/High vulnerabilities." >> "$GITHUB_STEP_SUMMARY"

@@ -77,7 +77,7 @@ jobs:
 
       # Only the labeled (owner) PRs actually get a preview, so only they get the
       # "reachable at ..." comment — no misleading promise on Dependabot PRs.
-      - name: Comment preview URL (sticky — rewrites on each push)
+      - name: Comment preview URL (sticky, rewrites on each push)
         if: github.event.pull_request.user.login == github.repository_owner
         env:
           GH_TOKEN: ${{ github.token }}

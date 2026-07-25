@@ -172,7 +172,7 @@ flowchart LR
 ```
 
 - `pr.yml`'s docker-build job loads the amd64 image into the runner and scans it
-  with **Trivy** (`ignore-unfixed` — Debian/Alpine no-fix CVEs never gate). The
+  with **Trivy** (`ignore-unfixed`: Debian/Alpine no-fix CVEs never gate). The
   report lands in the job step summary and as a **sticky PR comment** (matched by
   a hidden `<!-- bluebird-image-scan -->` marker, not `--edit-last`, so it can't
   clobber the preview-URL comment). The job fails only on **fixable
@@ -192,7 +192,7 @@ flowchart LR
 ## Scheduled image scan
 
 PR-time scanning gates what gets *published*, but CVEs are disclosed after
-images ship — the released image rots while nothing rebuilds it.
+images ship. The released image rots while nothing rebuilds it.
 `image-scan.yml` (weekly cron + `workflow_dispatch`) re-scans the **latest
 released** `zimmertr/bluebird:<semver>` with Trivy:
 

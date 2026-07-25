@@ -60,8 +60,8 @@ Two suites: the frontend's pure logic under Vitest (`frontend/src/utils/*.test.t
 ## Architecture
 
 Single container, multi-stage Docker build:
-- Stage 1: `node:22-alpine` — builds the React SPA (`npm run build`)
-- Stage 2: `python:3.12-alpine` — runs uvicorn and serves the built SPA as static files at `/` (alpine over slim so the shipped image carries none of Debian's perpetual no-fix CVEs)
+- Stage 1: `node:22-alpine` builds the React SPA (`npm run build`)
+- Stage 2: `python:3.12-alpine` runs uvicorn and serves the built SPA as static files at `/` (alpine over slim so the shipped image carries none of Debian's perpetual no-fix CVEs)
 
 The FastAPI backend handles `POST /api/analyze`, which:
 1. Validates polygon area (bounding-box approximation, max 50,000 km²)

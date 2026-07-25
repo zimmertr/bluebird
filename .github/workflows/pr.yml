@@ -120,7 +120,7 @@ jobs:
             if [ "$TOTAL" -eq 0 ]; then
               echo "✅ **No fixable vulnerabilities.**"
             else
-              echo "⚠️ **${TOTAL} fixable vulnerabilities (${CRIT_HIGH} Critical/High — Critical/High fail this check).**"
+              echo "⚠️ **${TOTAL} fixable vulnerabilities (${CRIT_HIGH} Critical/High; Critical/High fail this check).**"
               echo ""
               echo "<details><summary>Full report</summary>"
               echo ""
@@ -144,7 +144,7 @@ jobs:
       # so editing "the last one" would clobber whichever posted more recently.
       # Skipped for Dependabot: its pull_request runs get a read-only token,
       # so the step summary above is the only surface there.
-      - name: Comment scan result (sticky — rewrites on each push)
+      - name: Comment scan result (sticky, rewrites on each push)
         if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -164,6 +164,6 @@ jobs:
           CRIT_HIGH: ${{ steps.report.outputs.crit_high }}
         run: |
           if [ "$CRIT_HIGH" -gt 0 ]; then
-            echo "::error::${CRIT_HIGH} fixable Critical/High vulnerabilities in the image — see the scan report above."
+            echo "::error::${CRIT_HIGH} fixable Critical/High vulnerabilities in the image. See the scan report above."
             exit 1
           fi
