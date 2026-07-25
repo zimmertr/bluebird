@@ -17,3 +17,12 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+
+  # Base image bumps (python/node in the Dockerfile). Patch tag updates ride
+  # the existing auto-merge; these PRs are also the standing remediation path
+  # when the scheduled image scan flags a fixable CVE in the released image.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

@@ -44,7 +44,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.12'
+          python-version: '3.14'
       # Pin ruff: its default rule set changes between releases, so an unpinned
       # install can turn a green lint red with no code change on our side.
       - run: pip install ruff==0.16.0
@@ -59,19 +59,24 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.12'
+          python-version: '3.14'
       - run: pip install -r requirements-dev.txt
         working-directory: backend
       - run: pytest -q
         working-directory: backend
 
-  # Validate the Dockerfile builds end-to-end without pushing the image.
-  # amd64-only on purpose: this gate proves the Dockerfile assembles; the
-  # release workflow builds the arm64 half (emulated builds would roughly
-  # double this job for no extra signal).
+  # Validate the Dockerfile builds end-to-end without pushing the image, then
+  # scan the result for vulnerabilities. amd64-only on purpose: this gate
+  # proves the Dockerfile assembles; the release workflow builds the arm64
+  # half (emulated builds would roughly double this job for no extra signal).
   docker-build:
+    # Branch protection requires a check named exactly "Docker Build" — renaming
+    # this job strands PRs on a phantom "Expected" check that never reports.
     name: Docker Build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write  # Sticky scan-result comment on PRs
     steps:
       - uses: actions/checkout@v7
       - name: Lint Dockerfile
@@ -84,5 +89,83 @@ jobs:
           context: .
           platforms: linux/amd64
           push: false
+          # Load into the runner's docker daemon so Trivy can scan it below
+          load: true
+          tags: bluebird:pr-scan
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # ignore-unfixed everywhere: Debian/Alpine ship CVEs upstream has not
+      # patched; flagging those would perma-red the pipeline over vulns nobody
+      # can act on. JSON once, then jq/`trivy convert` derive the human table,
+      # the PR comment, and the gate from the same scan.
+      - name: Scan image (Trivy)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: bluebird:pr-scan
+          format: json
+          output: trivy.json
+          ignore-unfixed: true
+
+      - name: Render scan report
+        env:
+          PR_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          CRIT_HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL" or .Severity == "HIGH")] | length' trivy.json)
+          TOTAL=$(jq '[.Results[]?.Vulnerabilities[]?] | length' trivy.json)
+          {
+            echo "<!-- bluebird-image-scan -->"
+            echo "### 🛡️ Image vulnerability scan"
+            echo ""
+            echo "Trivy scan of this PR's image at \`${PR_SHA}\` (linux/amd64, fixable vulnerabilities only)."
+            echo ""
+            if [ "$TOTAL" -eq 0 ]; then
+              echo "✅ **No fixable vulnerabilities.**"
+            else
+              echo "⚠️ **${TOTAL} fixable vulnerabilities (${CRIT_HIGH} Critical/High; Critical/High fail this check).**"
+              echo ""
+              echo "<details><summary>Full report</summary>"
+              echo ""
+              echo '```text'
+              trivy convert --format table trivy.json
+              echo '```'
+              echo ""
+              echo "</details>"
+            fi
+            echo ""
+            echo "<hr>"
+            echo ""
+            echo "_Updated for each push; unfixable OS CVEs are excluded._"
+          } > scan-comment.md
+          cat scan-comment.md >> "$GITHUB_STEP_SUMMARY"
+          echo "crit_high=$CRIT_HIGH" >> "$GITHUB_OUTPUT"
+        id: report
+
+      # Sticky like the preview-URL comment, but matched by the hidden marker
+      # instead of `--edit-last` — both comments come from github-actions[bot],
+      # so editing "the last one" would clobber whichever posted more recently.
+      # Skipped for Dependabot: its pull_request runs get a read-only token,
+      # so the step summary above is the only surface there.
+      - name: Comment scan result (sticky, rewrites on each push)
+        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          CID=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" --paginate \
+            --jq '.[] | select(.body | startswith("<!-- bluebird-image-scan -->")) | .id' | head -n1)
+          if [ -n "$CID" ]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${CID}" -F body=@scan-comment.md >/dev/null
+          else
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" -F body=@scan-comment.md >/dev/null
+          fi
+
+      # The actual gate, after the comment so a red run still explains itself
+      - name: Fail on fixable Critical/High vulnerabilities
+        env:
+          CRIT_HIGH: ${{ steps.report.outputs.crit_high }}
+        run: |
+          if [ "$CRIT_HIGH" -gt 0 ]; then
+            echo "::error::${CRIT_HIGH} fixable Critical/High vulnerabilities in the image. See the scan report above."
+            exit 1
+          fi
