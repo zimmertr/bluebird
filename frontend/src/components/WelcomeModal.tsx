@@ -59,8 +59,8 @@ export default function WelcomeModal({ onDismiss }: Props) {
               backcountry trips with this data, so the app itself must say it
               is not a safety tool — the README saying so isn't user-visible. */}
           <p className="text-xs text-slate-500 mb-4">
-            Bluebird is a planning aid, not a safety tool. Forecasts are automated estimates —
-            verify conditions with official sources such as{' '}
+            Bluebird is a planning aid, not a safety tool. Forecasts are automated estimates.
+            Verify conditions with official sources such as{' '}
             <a
               href="https://www.weather.gov"
               target="_blank"
