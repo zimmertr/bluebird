@@ -39,8 +39,8 @@ export default function PrivacyModal({ onClose }: Props) {
             </li>
             <li>
               <span className="text-white font-semibold">Nothing is stored about you.</span> Searches
-              aren't saved to a database or tied to your identity. Server logs are short-lived and
-              used only for debugging.
+              aren't saved to a database or tied to your identity. Server logs include your IP
+              address, are short-lived, and are used only for debugging.
             </li>
             <li>
               <span className="text-white font-semibold">On your device</span>, the only thing saved
