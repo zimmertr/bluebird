@@ -16,6 +16,15 @@ class UpstreamError(Exception):
         self.message = message
 
 
+class PartialResultError(RuntimeError):
+    """An upstream returned HTTP 200 but only part of the requested data.
+
+    Overpass signals mid-query timeouts this way (a ``remark`` field alongside
+    truncated ``elements``), so this deserves its own user-facing message: the
+    query was too demanding, not the network or the service as a whole.
+    """
+
+
 def classify_http_error(exc: Exception, provider: str) -> str:
     """Translate an httpx/network exception into an actionable message.
 
@@ -23,6 +32,13 @@ def classify_http_error(exc: Exception, provider: str) -> str:
     ``"Open-Meteo (weather service)"``. The returned string names the provider,
     the likely cause, and a suggested next step where one exists.
     """
+    if isinstance(exc, PartialResultError):
+        return (
+            f"{provider} could only return part of the results — the search area "
+            "is too demanding for its servers right now. Try again shortly, or "
+            "draw a smaller search area."
+        )
+
     if isinstance(exc, httpx.TimeoutException):
         return (
             f"{provider} took too long to respond. It may be under heavy load — "

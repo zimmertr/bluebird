@@ -26,7 +26,7 @@ async def fetch_aqi_batch(
     start_dt: datetime,
     end_dt: datetime,
 ) -> list[dict[str, Any] | None]:
-    """Fetch PM2.5 US AQI stats (avg/max over the window) per destination.
+    """Fetch US AQI stats (all EPA pollutants combined) (avg/max over the window) per destination.
 
     Best-effort by design: air quality is supplementary, so upstream failures
     degrade to None entries (rendered as "—") instead of failing the analysis
@@ -74,7 +74,7 @@ async def _fetch_chunk(
     params = {
         "latitude": ",".join(str(d["latitude"]) for d in destinations),
         "longitude": ",".join(str(d["longitude"]) for d in destinations),
-        "hourly": "us_aqi_pm2_5",
+        "hourly": "us_aqi",
         "start_date": req_start.isoformat(),
         "end_date": req_end.isoformat(),
         "timezone": "UTC",
@@ -120,7 +120,7 @@ def _metrics(
     try:
         hourly = data.get("hourly", {})
         times = hourly.get("time", [])
-        aqi = hourly.get("us_aqi_pm2_5", [])
+        aqi = hourly.get("us_aqi", [])
 
         start = start_dt.replace(tzinfo=None)
         end = end_dt.replace(tzinfo=None)
@@ -150,7 +150,7 @@ def _series(
     start_dt: datetime,
     end_dt: datetime,
 ) -> dict[str, Any] | None:
-    """Per-hour PM2.5 US AQI over the window, on its own grid.
+    """Per-hour US AQI (combined) over the window, on its own grid.
 
     The route aligns this onto the (longer) weather grid; hours past the ~5-day
     AQI horizon aren't present here and become nulls there. Returns None when
@@ -159,7 +159,7 @@ def _series(
     try:
         hourly = data.get("hourly", {})
         times = hourly.get("time", [])
-        aqi = hourly.get("us_aqi_pm2_5", [])
+        aqi = hourly.get("us_aqi", [])
 
         start = start_dt.replace(tzinfo=None)
         end = end_dt.replace(tzinfo=None)

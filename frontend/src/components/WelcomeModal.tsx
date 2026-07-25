@@ -1,3 +1,5 @@
+import { useDialog } from '../hooks/useDialog'
+
 interface Props {
   onDismiss: () => void
 }
@@ -5,21 +7,29 @@ interface Props {
 const STEPS: [string, string][] = [
   ['Destinations', 'Choose where to search by drawing an area on the map, searching by name, or providing custom coordinates.'],
   ['Forecast Window', 'Select the start and end date for the weather period you care about.'],
-  ['Result Ranking', 'Choose how destinations should be ranked — driest conditions, lowest winds, ideal temperatures, or cleanest air.'],
+  ['Result Ranking', 'Choose how destinations should be ranked: driest conditions, lowest winds, ideal temperatures, or cleanest air.'],
   ['Options', 'Apply constraints and enable additional features like wildfire visibility.'],
   ['Analyze', 'Generate ranked results, explore them on the map, and compare forecast data across your selected destinations.'],
   ['Repeat', 'Adjust your search area, forecast window, ranking, or options at any time to find a better window.'],
 ]
 
 export default function WelcomeModal({ onDismiss }: Props) {
+  const panelRef = useDialog(onDismiss)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-md max-h-full overflow-y-auto">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="welcome-title"
+        tabIndex={-1}
+        className="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-md max-h-full overflow-y-auto focus:outline-none"
+      >
         {/* Header */}
         <div className="flex items-center gap-3 px-6 pt-6 pb-4 border-b border-slate-700">
           <img src="/icon.png" alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
           <div>
-            <h1 className="text-xl font-bold text-white leading-tight">Welcome to Bluebird Forecast</h1>
+            <h1 id="welcome-title" className="text-xl font-bold text-white leading-tight">Welcome to Bluebird Forecast</h1>
             <p className="text-sm text-slate-400">The Weather Window Finder</p>
           </div>
         </div>
@@ -48,12 +58,29 @@ export default function WelcomeModal({ onDismiss }: Props) {
                 </span>
                 <p className="text-slate-300 leading-snug">
                   <span className="text-white font-semibold">{title}</span>
-                  {' — '}
+                  {': '}
                   {desc}
                 </p>
               </li>
             ))}
           </ol>
+
+          {/* The one sentence the lawyers asked for: people plan real
+              backcountry trips with this data, so the app itself must say it
+              is not a safety tool — the README saying so isn't user-visible. */}
+          <p className="text-xs text-slate-500 mb-4">
+            Bluebird is a planning aid, not a safety tool. Forecasts are automated estimates.
+            Verify conditions with official sources such as{' '}
+            <a
+              href="https://www.weather.gov"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-slate-300"
+            >
+              weather.gov
+            </a>{' '}
+            before committing to backcountry travel.
+          </p>
 
           <div className="border-t border-slate-700 pt-4 mb-4">
             <p className="text-sm text-slate-200 font-medium text-center">
