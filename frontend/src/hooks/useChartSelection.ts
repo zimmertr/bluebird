@@ -9,7 +9,13 @@ import { colorForIndex } from '../utils/chartColors'
 // legend or picker. Selections persist until the user changes them — removals
 // and re-analyses never uncheck a box (a key whose row leaves the report simply
 // stops rendering, and returns if the row does).
-export function useChartSelection(results: DestinationResult[], sortBy: SortBy) {
+export function useChartSelection(
+  results: DestinationResult[],
+  sortBy: SortBy,
+  // Keys (chartKey format) that chart themselves on their first appearance in
+  // a report — searched places, which the user added one by one.
+  autoChartKeys: string[] = [],
+) {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [colorByKey, setColorByKey] = useState<Record<string, string>>({})
   const [metric, setMetric] = useState<ChartMetric>(() => metricForSort(sortBy))
@@ -20,14 +26,28 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
     setMetric(metricForSort(sortBy))
   }, [sortBy])
 
-  // Default-shown chart: when a report arrives and none of the selected keys
-  // exist in it (first analysis, or a new report that replaced every charted
-  // row — stale selections must not block the default), chart its top rows.
-  // Keyed on the report's identity only, with the selection read through a
-  // ref — unchecking the last box must close the chart, not re-select.
+  // Default selections, applied when a report arrives (keyed on its identity
+  // only; live state is read through refs so unchecking never re-selects):
+  //  - A searched place charts itself on its FIRST appearance — colorByKey is
+  //    the "ever charted" memory, so a deliberate uncheck isn't repeated.
+  //  - When no selected key exists in the report (first analysis, or a new
+  //    report that replaced every charted row — stale selections must not
+  //    block the default), chart its top rows.
   const selectedKeysRef = useRef<string[]>([])
   selectedKeysRef.current = selectedKeys
+  const colorByKeyRef = useRef<Record<string, string>>({})
+  colorByKeyRef.current = colorByKey
+  const autoChartKeysRef = useRef<Set<string>>(new Set())
+  autoChartKeysRef.current = new Set(autoChartKeys)
   useEffect(() => {
+    const debut = results.filter(
+      (r) =>
+        r.series &&
+        autoChartKeysRef.current.has(chartKey(r)) &&
+        !colorByKeyRef.current[chartKey(r)],
+    )
+    if (debut.length > 0) setRange(debut, true)
+
     const present = new Set(results.map(chartKey))
     if (selectedKeysRef.current.some((k) => present.has(k))) return
     const top = results.filter((r) => r.series).slice(0, 3)

@@ -491,7 +491,11 @@ export default function App() {
   // Every row shares the analysis's hourly grid.
   const chartTimes = response?.times ?? []
   const chartable = chartTimes.length > 0
-  const chart = useChartSelection(results, view.sortBy)
+  const chart = useChartSelection(
+    results,
+    view.sortBy,
+    searched.places.map((p) => pinKey(p.lat, p.lon)),
+  )
   const chartShown = chartable && chart.selectedRows.length > 0
 
   // Space below the map that a resize must leave alone: the preview banner (when
