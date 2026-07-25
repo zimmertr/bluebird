@@ -303,10 +303,12 @@ export default function ResultsTable({
                 )}
               </th>
             )}
-            <th className="px-2 py-2 text-left text-slate-400 font-medium w-6">#</th>
+            <th scope="col" className="px-2 py-2 text-left text-slate-400 font-medium w-6">#</th>
             {orderedColumns.map((col) => (
               <th
                 key={col.key}
+                scope="col"
+                aria-sort={sortKey === col.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                 onClick={() => handleSort(col.key)}
                 className="px-2 py-2 text-left text-slate-400 font-medium cursor-pointer whitespace-nowrap hover:text-white select-none"
               >

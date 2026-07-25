@@ -606,7 +606,10 @@ export default function App() {
                   alt=""
                   className="w-12 h-12 rounded-lg object-cover mx-auto mb-3 animate-pulse"
                 />
-                <p className="text-white font-semibold text-sm leading-snug">
+                {/* role=status + aria-live: without it, the analysis phase is
+                    the one moment the app goes completely silent for screen
+                    readers — announce each status line as it changes. */}
+                <p role="status" aria-live="polite" className="text-white font-semibold text-sm leading-snug">
                   {overlay.message}
                 </p>
                 {overlay.progress ? (

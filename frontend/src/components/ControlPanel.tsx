@@ -233,6 +233,7 @@ export default function ControlPanel({
               <code className="text-slate-300">Lat,Lon,Name</code>
             </p>
             <textarea
+              aria-label="Custom destination coordinates — one per line as latitude, longitude, optional name"
               value={customCsv}
               onChange={(e) => setCustomCsv(e.target.value)}
               placeholder={`46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909\n48.1122,-121.1139,Glacier Peak`}
@@ -257,9 +258,10 @@ export default function ControlPanel({
           </p>
           <div className="space-y-2">
             <div>
-              <label className="text-xs text-slate-400 block mb-1">Start</label>
+              <label htmlFor="window-start-date" className="text-xs text-slate-400 block mb-1">Start</label>
               <div className="flex gap-1">
                 <input
+                  id="window-start-date"
                   type="date"
                   value={startDatetime.split('T')[0] ?? ''}
                   min={minPickable}
@@ -273,6 +275,7 @@ export default function ControlPanel({
                 />
                 <input
                   type="time"
+                  aria-label="Start time"
                   value={startDatetime.split('T')[1] ?? '00:00'}
                   disabled={!startDatetime}
                   onChange={(e) => {
@@ -284,9 +287,10 @@ export default function ControlPanel({
               </div>
             </div>
             <div>
-              <label className="text-xs text-slate-400 block mb-1">End</label>
+              <label htmlFor="window-end-date" className="text-xs text-slate-400 block mb-1">End</label>
               <div className="flex gap-1">
                 <input
+                  id="window-end-date"
                   type="date"
                   value={endDatetime.split('T')[0] ?? ''}
                   min={startDatetime.split('T')[0] || minPickable}
@@ -300,6 +304,7 @@ export default function ControlPanel({
                 />
                 <input
                   type="time"
+                  aria-label="End time"
                   value={endDatetime.split('T')[1] ?? '00:00'}
                   disabled={!endDatetime}
                   onChange={(e) => {
@@ -368,6 +373,7 @@ export default function ControlPanel({
                     ].map((dir, i) => (
                       <button
                         key={dir.label}
+                        aria-pressed={isActive && sortDesc === dir.desc}
                         onClick={() => {
                           setSortBy(metric.value)
                           setSortDesc(dir.desc)
