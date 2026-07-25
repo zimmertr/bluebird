@@ -212,11 +212,14 @@ Dependabot opens weekly PRs (`pip` in `/backend`, `npm` in `/frontend`,
 `github-actions` and `docker` base images in `/`). `dependabot-auto-merge.yml` enables **squash
 auto-merge for patch (bugfix) bumps only** — GitHub completes the merge once
 `main`'s required checks pass; **minor and major bumps wait for manual review**.
+When it arms auto-merge it also posts a marker-guarded comment on the PR saying
+so (and how to stop it), so the self-merge is visible from the PR page rather
+than something to infer from the merge timeline.
 
 In practice only `pip`/`npm` patches auto-merge: the GitHub Actions are
 major-pinned (`@v7`), so Dependabot raises them as *major* bumps that wait for
 review anyway. The Dockerfile's base tags float at the minor (`python:3.14-alpine`,
-`node:22-alpine`), so docker-ecosystem PRs are minor/major runtime bumps that
+`node:26-alpine`), so docker-ecosystem PRs are minor/major runtime bumps that
 also wait for review — base-OS *patch* fixes arrive without any PR, picked up
 by whatever build happens next. The merge PAT is intentionally scoped to Contents + Pull requests
 (not `Workflows`), so if an action is ever repinned to a full version, its patch
