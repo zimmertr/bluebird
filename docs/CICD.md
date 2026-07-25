@@ -215,7 +215,7 @@ auto-merge for patch (bugfix) bumps only** — GitHub completes the merge once
 
 In practice only `pip`/`npm` patches auto-merge: the GitHub Actions are
 major-pinned (`@v7`), so Dependabot raises them as *major* bumps that wait for
-review anyway. The Dockerfile's base tags float at the minor (`python:3.12-alpine`,
+review anyway. The Dockerfile's base tags float at the minor (`python:3.14-alpine`,
 `node:22-alpine`), so docker-ecosystem PRs are minor/major runtime bumps that
 also wait for review — base-OS *patch* fixes arrive without any PR, picked up
 by whatever build happens next. The merge PAT is intentionally scoped to Contents + Pull requests

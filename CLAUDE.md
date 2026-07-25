@@ -8,7 +8,7 @@ Bluebird is a map-based weather window finder for hikers and mountaineers, live 
 
 ## Development commands
 
-**Backend (FastAPI, Python 3.12):**
+**Backend (FastAPI, Python 3.14):**
 ```bash
 cd backend
 pip install -r requirements.txt
@@ -35,7 +35,7 @@ docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine \
 
 **Backend unit tests (pytest) — run in Docker, not on the local machine:**
 ```bash
-docker run --rm -v "$PWD/backend":/app -w /app python:3.12-slim \
+docker run --rm -v "$PWD/backend":/app -w /app python:3.14-slim \
   sh -c "pip install -r requirements-dev.txt && pytest"
 ```
 
@@ -61,7 +61,7 @@ Two suites: the frontend's pure logic under Vitest (`frontend/src/utils/*.test.t
 
 Single container, multi-stage Docker build:
 - Stage 1: `node:22-alpine` builds the React SPA (`npm run build`)
-- Stage 2: `python:3.12-alpine` runs uvicorn and serves the built SPA as static files at `/` (alpine over slim so the shipped image carries none of Debian's perpetual no-fix CVEs)
+- Stage 2: `python:3.14-alpine` runs uvicorn and serves the built SPA as static files at `/` (alpine over slim so the shipped image carries none of Debian's perpetual no-fix CVEs)
 
 The FastAPI backend handles `POST /api/analyze`, which:
 1. Validates polygon area (bounding-box approximation, max 50,000 km²)
