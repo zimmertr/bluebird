@@ -47,7 +47,7 @@ flowchart TD
     subgraph KM["GitHub: zimmertr/Kubernetes-Manifests"]
         kmCheck["pr.yml — Validate manifests<br/>required check: YAML parse<br/>+ kustomize build of affected apps"]
         kmImagePR["PR: chore/bluebird-image<br/>(self-merging)"]
-        kmStablePR["PR: chore/bluebird-stable-chart<br/>(self-merging)"]
+        kmStablePR["PR: chore/bluebird-stable-chart<br/>(self-merging only if<br/>the chart change is inert)"]
         kmPreviewPR["PR: chore/bluebird-preview-chart<br/>(self-merging)"]
         kmStable["public/bluebird<br/>kustomization.yml"]
         kmPreview["public/bluebird-pr<br/>applicationset.yml"]
@@ -85,7 +85,7 @@ flowchart TD
     kmCheck -.->|gates| kmStablePR
     kmCheck -.->|gates| kmPreviewPR
     kmImagePR -->|auto-merge once green| kmStable
-    kmStablePR -->|auto-merge once green| kmStable
+    kmStablePR -->|"auto-merge once green if inert,<br/>else wait for a human"| kmStable
     kmPreviewPR -->|auto-merge once green| kmPreview
 
     kmStable --> argocd
@@ -138,12 +138,15 @@ touching `charts/**`):
    resolver is the source of truth), then `helm package --version <chartver>
    --app-version <appver>` and `helm push` to the OCI repo; tags + GitHub release.
 3. **bump-manifests** moves `Kubernetes-Manifests` onto the new chart via two
-   **self-merging PRs**, one per consumer:
+   PRs, one per consumer:
    - preview: `chore/bluebird-preview-chart` sets `targetRevision: <chartver>`
      in `public/bluebird-pr/applicationset.yml` (the ephemeral per-PR envs).
+     Always **self-merging** — nothing it touches reaches prod.
    - stable: `chore/bluebird-stable-chart` sets `helmCharts[0].version:
      <chartver>` in `public/bluebird/kustomization.yml` (prod, triggers the
-     canary rollout).
+     canary rollout). **Self-merging only when the chart change is provably
+     inert**, otherwise held for review — see [Gating the stable chart
+     bump](#gating-the-stable-chart-bump).
 
    They are separate branches rather than one PR touching both files so a
    preview bump is never blocked behind a prod change, and either can be closed
@@ -169,21 +172,24 @@ rollout itself is a four-step canary — a zero-traffic smoke-test gate, then
 ### Two independent knobs reach prod
 
 - **Image tag** — Path 1, a self-merging PR (`chore/bluebird-image`).
-- **Chart version (stable)** — Path 2 → Path 3, a self-merging PR
-  (`chore/bluebird-stable-chart`).
+- **Chart version (stable)** — Path 2 → Path 3, a **conditionally** self-merging
+  PR (`chore/bluebird-stable-chart`): it merges itself when the chart change is
+  inert, and waits for a human when the chart itself changed.
 - **Chart version (preview)** — Path 2, a self-merging PR
   (`chore/bluebird-preview-chart`); ephemeral per-PR environments only, so it
   never touches prod.
 
 A routine code change ships via the image tag alone; the chart version only
 moves when the chart itself changes (or its default `appVersion` is bumped).
-No hop in the pipeline waits on a human.
+So the only hop that ever waits on a human is a real chart change reaching
+prod, and it never blocks an app release: prod code ships on the image-tag PR
+regardless, which is what keeps the gate from becoming a rubber stamp.
 
 ### Writes into Kubernetes-Manifests
 
 `Kubernetes-Manifests/main` **forbids direct commits**. All three automated
-writes above go through a PR that merges itself, and the thing they wait on is
-`pr.yml` / **`Validate manifests`**, a required check in that repo which:
+writes above go through a PR, and the thing they wait on is `pr.yml` /
+**`Validate manifests`**, a required check in that repo which:
 
 1. YAML-parses every changed `.yml`/`.yaml`. This is the failure mode the bump
    jobs can actually cause — they rewrite version lines with targeted `sed`, and
@@ -193,7 +199,7 @@ writes above go through a PR that merges itself, and the thing they wait on is
    `deprecated/` and `*.disable*`). A chart version or image tag that doesn't
    resolve fails the PR instead of failing an Argo CD sync.
 
-Three constraints hold this together, and breaking any one of them silently
+Five constraints hold this together, and breaking any one of them silently
 strands the automation:
 
 - **Auto-merge needs something to wait on.** `gh pr merge --auto` is rejected on
@@ -201,9 +207,24 @@ strands the automation:
   required check is what makes the queue non-empty; without it, arming
   auto-merge errors out. Each job falls back to a plain `gh pr merge --squash`
   to cover the narrow window where the check already went green.
-- **Auto-merge is armed unconditionally**, on the update path as well as the
-  create path, because GitHub disables it on any force-push to the head branch —
-  and every one of these jobs force-pushes its fixed branch each release.
+- **Auto-merge is re-armed on every release** where it applies, on the update
+  path as well as the create path, because GitHub disables it on any force-push
+  to the head branch — and every one of these jobs force-pushes its fixed branch
+  each release.
+- **The stable chart PR arms auto-merge conditionally**, and explicitly
+  *disarms* it (`gh pr merge --disable-auto`) when a release is held. A prior
+  release may have armed it on the same long-lived PR, so relying on the
+  force-push to have disabled it would auto-merge a chart change that was
+  supposed to wait. See [Gating the stable chart
+  bump](#gating-the-stable-chart-bump).
+- **The stable chart branch is not force-pushed if it carries a human commit.**
+  Holding a PR invites someone to push the matching `values.yml` edit onto that
+  branch, and the next release's force-push would destroy it. The job compares
+  `origin/chore/bluebird-stable-chart` against `origin/main` for any author
+  other than the bot's exact address and, finding one, leaves the branch alone
+  and comments the new chart version on the PR instead. The comment is not
+  optional politeness: a hold that stops refreshing is otherwise
+  indistinguishable from the PR having been stranded.
 - **"Require branches to be up to date" must stay off** (`strict: false`). These
   branches are cut fresh off `main` and force-pushed; nothing ever rebases them,
   so requiring an up-to-date branch would deadlock whichever PR merged second.
@@ -213,6 +234,52 @@ The `GH_PAT` used for all of this needs contents + pull-requests write on
 writes to the *same* file are safe: the image tag and the stable chart version
 both live in `public/bluebird/kustomization.yml` but on lines far enough apart
 that a three-way merge of the two branches never conflicts.
+
+### Gating the stable chart bump
+
+The stable chart PR is the one automated write that can break prod in a way the
+required check won't catch: a chart change can need a matching edit to
+`public/bluebird/values.yml`, which the bot does not make. So it self-merges
+only when the change is **provably inert**, classified from the GitHub compare
+API between the chart version prod is *currently on* and the new one:
+
+| Files changed under `charts/` between `v<deployed>` and `v<new>` | Class | Action |
+| --- | --- | --- |
+| none | inert | arm auto-merge |
+| exactly `charts/bluebird/Chart.yaml`, every `+`/`-` line matching `^[+-]appVersion:` | inert | arm auto-merge |
+| anything else | needs review | raise/refresh the PR, leave auto-merge off |
+| the compare call fails, or the deployed version can't be read | needs review | fail safe |
+
+Both inert classes are common (a routine `appVersion` bump is the usual chart
+release), so the gate is neither vacuous nor constantly noisy.
+
+**Why `appVersion`-only is safe.** `bluebird.labels` — the only helper carrying
+`app.kubernetes.io/version` — is applied to *object* metadata, while the
+Rollout's pod template uses `bluebird.selectorLabels`, which omits it. The pod
+template therefore cannot change, and Argo Rollouts has nothing to canary.
+`bluebird.image` does default to `.Chart.AppVersion`, but KM's `images:`
+transformer pins an explicit `newTag` that wins. Rendering `public/bluebird`
+against charts `0.4.7` (appVersion `0.29.3`) and `0.4.8` (`0.29.4`) confirms it:
+the pod template is byte-identical and the image stays `0.29.4`. The whole
+effect on prod is two cosmetic labels, `app.kubernetes.io/version` and
+`helm.sh/chart`.
+
+**The base is the deployed version, not the previous release.** The PR's net
+effect on prod is `deployed → new`, so a template change anywhere in that range
+keeps the PR held even if the most recent chart release alone was
+`appVersion`-only.
+
+**A failed compare and "no chart files changed" must not be conflated.** Both
+are the empty string but opposite verdicts, and treating an API failure as
+"nothing changed" auto-merges every PR that should have been held. The job
+captures the compare call's exit status explicitly rather than swallowing it
+with `|| true` — these `run:` blocks execute under `bash -e` *without*
+`pipefail`, so a failure mid-pipeline is otherwise silent.
+
+A held PR still collapses across releases the same way an armed one does: the
+branch is fixed, so five releases leave one PR at the newest version, not five.
+The single exception is the human-edit case above, which deliberately stops
+refreshing and comments instead.
 
 ## Inside the prod canary (Argo Rollouts)
 
@@ -529,11 +596,17 @@ sequenceDiagram
     Note over Dev,ARGO: New code is now live via the image tag.
     HELM->>HELM: auto-merge appVersion PR (after lint)
     HELM->>DH: helm push chart (new version)
-    HELM->>KM: open/update preview + stable chart PRs, arm auto-merge
-    KM->>KM: auto-merge both (after Validate manifests)
+    HELM->>KM: open/update preview + stable chart PRs
+    KM->>KM: auto-merge preview PR (after Validate manifests)
+    KM->>KM: stable PR: appVersion-only, so classified inert and auto-merged
     KM->>ARGO: auto-sync
-    ARGO->>ARGO: canary rollout (new chart)
+    ARGO->>ARGO: no canary — the chart change only moves object-metadata labels
 ```
+
+Had that chart release touched a template or `values.yaml` instead, the stable
+PR would have been held for review rather than auto-merged, and prod would keep
+running the older chart with the new image until someone merged it. See [Gating
+the stable chart bump](#gating-the-stable-chart-bump).
 
 ## Conventions
 
