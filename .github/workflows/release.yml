@@ -137,13 +137,19 @@ jobs:
           git diff --cached --quiet || git commit -m "chore: bump bluebird image to ${SEMVER}"
           git push
 
-  # Raise (or update in place) a single PR against bluebird-helm bumping the
-  # chart's default image tag (Chart.yaml appVersion) to this release. A chart
-  # release only fires on a commit under charts/**, so without this the published
-  # chart's default keeps pointing at whatever bluebird release was latest the
-  # last time the chart repo happened to change. Merging this PR provides that
-  # commit; the chart pipeline's own package-time resolver is the correctness
-  # backstop if newer app releases land before it merges.
+  # Land a commit on bluebird-helm bumping the chart's default image tag
+  # (Chart.yaml appVersion) to this release. A chart release only fires on a
+  # commit under charts/**, so without this the published chart's default keeps
+  # pointing at whatever bluebird release was latest the last time the chart repo
+  # happened to change. The chart pipeline's own package-time resolver is the
+  # correctness backstop if newer app releases land before this one lands.
+  #
+  # This goes through a self-merging PR rather than a direct push (the way
+  # update-manifests above pushes straight to Kubernetes-Manifests) only because
+  # bluebird-helm/main is protected by a required review AND a required "Lint &
+  # render" check. GitHub enforces both on direct pushes, and that check only
+  # triggers on pull_request, so a push could never satisfy it. Arming auto-merge
+  # gets the same hands-off result while keeping helm lint as a gate.
   #
   # Dependabot-style: a fixed branch is force-pushed each release and only one
   # open PR is ever kept, so rapid releases collapse into a single up-to-date PR
@@ -205,3 +211,18 @@ jobs:
           else
             gh pr create --base main --head "$BR" --title "$TITLE" --body "$BODY"
           fi
+
+          # Arm auto-merge so the bump lands without a human. Unconditional on
+          # purpose: GitHub disables auto-merge whenever the head branch is
+          # force-pushed, and this job force-pushes $BR on every release, so the
+          # update-in-place path above must re-arm rather than assume it stuck.
+          #
+          # Squash because that's the only merge type bluebird-helm allows, and
+          # its GitVersion reads the squash commit message ("chore(release):" →
+          # patch bump on the chart).
+          #
+          # GH_TOKEN here is GH_PAT, which is load-bearing: a merge driven by a
+          # GITHUB_TOKEN would not fire bluebird-helm/release.yml's `on: push`
+          # (GitHub's recursion guard), leaving the bump merged but the chart
+          # never republished. Same trap documented in dependabot-auto-merge.yml.
+          gh pr merge --auto --squash "$BR"
