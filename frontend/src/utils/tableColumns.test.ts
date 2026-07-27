@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { orderColumns } from './tableColumns'
+import { pointModeColumns, orderColumns } from './tableColumns'
 import { SortBy } from '../types'
 
 // The table's canonical column keys, in their ResultsTable order.
@@ -68,5 +68,41 @@ describe('orderColumns', () => {
       expect(keys(m).slice(0, 2)).toEqual(['name', 'elevation_ft'])
       expect(keys(m)).toHaveLength(COLS.length)
     }
+  })
+})
+
+describe('pointModeColumns', () => {
+  const labeled = COLS.map((c) => ({ ...c, label: c.key }))
+
+  it('collapses each metric group to its single representative column', () => {
+    expect(pointModeColumns(labeled).map((c) => c.key)).toEqual([
+      'name',
+      'elevation_ft',
+      'precip_avg_in_hr',
+      'temp_avg_f',
+      'wind_avg_mph',
+      'aqi_avg',
+    ])
+  })
+
+  it('drops the Avg/Min/Max qualifiers from the headers', () => {
+    const labels = new Map(pointModeColumns(labeled).map((c) => [c.key, c.label]))
+    expect(labels.get('precip_avg_in_hr')).toBe('Precip"/hr')
+    expect(labels.get('temp_avg_f')).toBe('Temp°F')
+    expect(labels.get('wind_avg_mph')).toBe('Wind mph')
+    expect(labels.get('aqi_avg')).toBe('AQI')
+    // Identity columns keep their labels untouched.
+    expect(labels.get('name')).toBe('name')
+  })
+
+  it('composes with orderColumns — the ranked metric still leads', () => {
+    expect(orderColumns(pointModeColumns(labeled), 'aqi_avg').map((c) => c.key)).toEqual([
+      'name',
+      'elevation_ft',
+      'aqi_avg',
+      'precip_avg_in_hr',
+      'temp_avg_f',
+      'wind_avg_mph',
+    ])
   })
 })

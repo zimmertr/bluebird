@@ -3,6 +3,7 @@ import {
   encodeState,
   decodeState,
   classifyWindow,
+  classifyMoment,
   classifyAqiCoverage,
   resolveSearchWindow,
   ShareableState,
@@ -29,6 +30,8 @@ const base: ShareableState = {
   destinationType: 'peak',
   startDatetime: '2026-07-04T06:00',
   endDatetime: '2026-07-07T18:00',
+  mode: 'window',
+  atDatetime: '',
   sortBy: 'precip_total_in',
   sortDesc: false,
   minElevationFt: null,
@@ -40,13 +43,14 @@ const base: ShareableState = {
 }
 
 // A truly untouched session: no polygon, no custom CSV, all controls at their
-// App defaults. Both dates are pre-filled to "now" (an equal window is the
-// instant current forecast) and must not, on their own, sync to the URL.
+// App defaults. The pre-filled window must not, on its own, sync to the URL.
 const pristine: ShareableState = {
   polygon: null,
   destinationType: 'peak',
   startDatetime: '2026-07-04T06:00',
   endDatetime: '2026-07-04T06:00',
+  mode: 'window',
+  atDatetime: '',
   sortBy: 'precip_total_in',
   sortDesc: false,
   minElevationFt: null,
@@ -413,8 +417,16 @@ describe('classifyWindow', () => {
     expect(classifyWindow(shift(3), shift(1), now)).toBe('order')
   })
 
-  it('accepts an equal start and end — the current-forecast window', () => {
-    expect(classifyWindow(shift(1), shift(1), now)).toBe('ok')
+  it('flags an equal start and end — the point modes own zero-length analyses', () => {
+    expect(classifyWindow(shift(1), shift(1), now)).toBe('equal')
+  })
+
+  it('prefers the equal warning over a horizon warning when both apply', () => {
+    // Equal AND beyond the horizon: the actionable fix is switching modes
+    // (or adding duration), so 'equal' wins like 'order' does.
+    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 5), shift(FUTURE_LIMIT_DAYS + 5), now)).toBe(
+      'equal',
+    )
   })
 
   it('prefers the order warning over a horizon warning when both apply', () => {
@@ -486,12 +498,9 @@ describe('resolveSearchWindow', () => {
     expect(resolveSearchWindow(shift(4), shift(1), now)).toEqual(fallback)
   })
 
-  it('honors an equal window — pins match the current-forecast analysis', () => {
+  it('falls back on an equal window — zero-length belongs to the point modes', () => {
     const t = shift(1)
-    expect(resolveSearchWindow(t, t, now)).toEqual({
-      start: new Date(t).toISOString(),
-      end: new Date(t).toISOString(),
-    })
+    expect(resolveSearchWindow(t, t, now)).toEqual(fallback)
   })
 
   it('falls back when the window is outside the servable range', () => {
@@ -507,5 +516,106 @@ describe('resolveSearchWindow', () => {
       start: new Date(start).toISOString(),
       end: new Date(end).toISOString(),
     })
+  })
+})
+
+describe('now mode (mode=now)', () => {
+  it('encodes mode=now and omits the window dates', () => {
+    const params = new URLSearchParams(encodeState({ ...base, mode: 'now' }))
+    expect(params.get('mode')).toBe('now')
+    // A shared "now" link re-samples at open time — the author's window
+    // timestamps must not ride along.
+    expect(params.get('start')).toBeNull()
+    expect(params.get('end')).toBeNull()
+    expect(params.get('at')).toBeNull()
+  })
+
+  it('is worth persisting on its own', () => {
+    expect(encodeState({ ...pristine, mode: 'now' })).not.toBe('')
+  })
+
+  it('decodes mode=now', () => {
+    expect(decodeState('mode=now')!.mode).toBe('now')
+  })
+
+  it('ignores unknown mode values', () => {
+    expect(decodeState('mode=warp')?.mode).toBeUndefined()
+  })
+
+  it('round-trips, and window-mode links stay byte-identical to before', () => {
+    expect(roundTrip({ ...base, mode: 'now' })!.mode).toBe('now')
+    // Backward compat: a window-mode state encodes with no mode param at all.
+    expect(new URLSearchParams(encodeState(base)).get('mode')).toBeNull()
+    expect(roundTrip(base)!.mode).toBeUndefined()
+  })
+})
+
+describe('at mode (mode=at)', () => {
+  const at = '2026-07-06T15:00'
+
+  it('encodes mode=at with the moment, omitting the window dates', () => {
+    const params = new URLSearchParams(encodeState({ ...base, mode: 'at', atDatetime: at }))
+    expect(params.get('mode')).toBe('at')
+    // Unlike "now", the chosen moment IS the analysis — it must ride along.
+    expect(params.get('at')).toBe(at)
+    expect(params.get('start')).toBeNull()
+    expect(params.get('end')).toBeNull()
+  })
+
+  it('is worth persisting on its own', () => {
+    expect(encodeState({ ...pristine, mode: 'at', atDatetime: at })).not.toBe('')
+  })
+
+  it('decodes mode=at with its moment', () => {
+    const out = decodeState(`mode=at&at=${encodeURIComponent(at)}`)
+    expect(out!.mode).toBe('at')
+    expect(out!.atDatetime).toBe(at)
+  })
+
+  it('keeps the mode but drops a malformed moment', () => {
+    const out = decodeState('mode=at&at=teatime')
+    expect(out!.mode).toBe('at')
+    expect(out!.atDatetime).toBeUndefined()
+  })
+
+  it('round-trips', () => {
+    const out = roundTrip({ ...base, mode: 'at', atDatetime: at })
+    expect(out!.mode).toBe('at')
+    expect(out!.atDatetime).toBe(at)
+  })
+
+  it('omits an invalid moment from the encoded URL', () => {
+    const params = new URLSearchParams(encodeState({ ...base, mode: 'at', atDatetime: '' }))
+    expect(params.get('mode')).toBe('at')
+    expect(params.get('at')).toBeNull()
+  })
+})
+
+describe('classifyMoment', () => {
+  const now = new Date('2026-07-04T12:00')
+  const iso = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+  const shift = (days: number) => iso(new Date(now.getTime() + days * 86_400_000))
+
+  it('is ok for a near-future moment', () => {
+    expect(classifyMoment(shift(1), now)).toBe('ok')
+  })
+
+  it('is ok for a recent-past moment — history is analyzable', () => {
+    expect(classifyMoment(shift(-10), now)).toBe('ok')
+  })
+
+  it('is past beyond the history horizon', () => {
+    expect(classifyMoment(shift(-(PAST_LIMIT_DAYS + 2)), now)).toBe('past')
+  })
+
+  it('is future beyond the forecast horizon', () => {
+    expect(classifyMoment(shift(FUTURE_LIMIT_DAYS + 2), now)).toBe('future')
+  })
+
+  it('is ok while nothing is picked', () => {
+    expect(classifyMoment('', now)).toBe('ok')
   })
 })

@@ -13,14 +13,14 @@ import { useFireProximity } from './hooks/useFireProximity'
 import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
-import { CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy } from './types'
+import { AnalysisMode, CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy } from './types'
 import { METRIC_CONFIG } from './utils/colors'
 import { parseCustomCsv } from './utils/customDestinations'
 import { buildCustomList, pinKey } from './utils/customList'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
 import { composeOverlay } from './utils/analyzeOverlay'
 import { Place, isPeakKind } from './utils/geocode'
-import { encodeState, decodeState, classifyWindow } from './utils/urlState'
+import { encodeState, decodeState, classifyWindow, classifyMoment } from './utils/urlState'
 import { DEFAULT_WINDOW_HOURS, nowLocal } from './utils/datetimeLocal'
 import { rankingStale } from './utils/staleness'
 
@@ -31,6 +31,24 @@ const SORT_NOUNS: Record<SortBy, string> = {
   wind_avg_mph: 'Average Wind',
   temp_avg_f: 'Average Temperature',
   aqi_avg: 'Average AQI',
+}
+
+// A point-sample analysis ('now'/'at') covers one hour, so the window
+// aggregates ("Total", "Average") come off the header and legend wording.
+// The 'at' legend uses these nouns too — "Current …" would be wrong for a
+// future hour.
+const POINT_SORT_NOUNS: Record<SortBy, string> = {
+  precip_total_in: 'Precipitation',
+  wind_avg_mph: 'Wind',
+  temp_avg_f: 'Temperature',
+  aqi_avg: 'AQI (PM2.5)',
+}
+
+const NOW_LEGEND_LABELS: Record<SortBy, string> = {
+  precip_total_in: 'Current Precip',
+  wind_avg_mph: 'Current Wind',
+  temp_avg_f: 'Current Temp',
+  aqi_avg: 'Current AQI',
 }
 
 // Collapse/expand affordance for the bottom panels' header bars.
@@ -117,6 +135,13 @@ export default function App() {
   const [endDatetime, setEndDatetime] = useState(
     () => restored?.endDatetime ?? nowLocal(DEFAULT_WINDOW_HOURS),
   )
+  // How Analyze picks its time: the start–end window above, "now" (the click
+  // time), or "at" — a single chosen hour. Every mode's inputs stay in state
+  // while another is selected, so switching back restores them.
+  const [forecastMode, setForecastMode] = useState<AnalysisMode>(() => restored?.mode ?? 'window')
+  // Future Day/Time pre-fills "tomorrow around this time" — a plausible first
+  // point-in-time question — and is only sent when that mode is selected.
+  const [atDatetime, setAtDatetime] = useState(() => restored?.atDatetime ?? nowLocal(24))
   const [limit, setLimit] = useState(() => restored?.limit ?? 100)
   const [customCsv, setCustomCsv] = useState(() => restored?.customCsv ?? '')
   const [sortBy, setSortBy] = useState<SortBy>(() => restored?.sortBy ?? 'precip_total_in')
@@ -214,7 +239,7 @@ export default function App() {
   // Everything derived from the results renders from the snapshot of the
   // ranking that produced them — panel knobs only affect the NEXT Analyze.
   // Falls back to the live knobs before the first analysis (nothing shown yet).
-  const view = analyzed ?? { sortBy, sortDesc }
+  const view = analyzed ?? { sortBy, sortDesc, mode: forecastMode }
   // The displayed report renders from the analyzed snapshot, so changing the
   // ranking knobs changes nothing on screen by design — surface that state as
   // a "press Analyze to apply" cue or the controls feel dead after first use.
@@ -255,6 +280,8 @@ export default function App() {
       destinationType,
       startDatetime,
       endDatetime,
+      mode: forecastMode,
+      atDatetime,
       sortBy,
       sortDesc,
       minElevationFt,
@@ -271,6 +298,8 @@ export default function App() {
     destinationType,
     startDatetime,
     endDatetime,
+    forecastMode,
+    atDatetime,
     sortBy,
     sortDesc,
     minElevationFt,
@@ -281,11 +310,15 @@ export default function App() {
     searched.places,
   ])
 
-  // Warn when a restored/edited window falls outside Open-Meteo's servable
-  // range. Blocks Analyze (in ControlPanel): Open-Meteo rejects out-of-range
-  // dates outright, so submitting would only produce an upstream error.
+  // Warn when the selected mode's inputs fall outside Open-Meteo's servable
+  // range (or, for a window, have no duration). Blocks Analyze (in
+  // ControlPanel): Open-Meteo rejects out-of-range dates outright, so
+  // submitting would only produce an upstream error. Only the active mode is
+  // validated — the disabled pickers aren't what will be analyzed.
   const windowStatus = classifyWindow(startDatetime, endDatetime, new Date())
-  const windowWarning = windowStatus === 'ok' ? null : windowStatus
+  const windowWarning = forecastMode !== 'window' || windowStatus === 'ok' ? null : windowStatus
+  const momentStatus = classifyMoment(atDatetime, new Date())
+  const momentWarning = forecastMode !== 'at' || momentStatus === 'ok' ? null : momentStatus
 
   const handleDrawUpdate = useCallback((count: number, areaKm2: number | null) => {
     setDrawPointCount(count)
@@ -317,8 +350,17 @@ export default function App() {
   }
 
   async function handleAnalyze() {
-    const start = new Date(startDatetime).toISOString()
-    const end = new Date(endDatetime).toISOString()
+    // Point modes send start == end — the backend normalizes an equal window
+    // to the single hour containing that moment. 'now' samples the click
+    // time, 'at' the picked hour.
+    const mode = forecastMode
+    const start =
+      mode === 'now'
+        ? new Date().toISOString()
+        : mode === 'at'
+        ? new Date(atDatetime).toISOString()
+        : new Date(startDatetime).toISOString()
+    const end = mode === 'window' ? new Date(endDatetime).toISOString() : start
 
     const constraints = { min_elevation_ft: minElevationFt, max_elevation_ft: maxElevationFt }
 
@@ -390,7 +432,7 @@ export default function App() {
           elevation_ft: r.elevation_ft ?? undefined,
         })),
         ...constraints,
-      })
+      }, mode)
     } else if (resolvedPolygon) {
       // Discovery — with the custom list riding along so the backend ranks the
       // polygon ∪ CSV union as one report.
@@ -404,7 +446,7 @@ export default function App() {
         sort_desc: sortDesc,
         ...(custom.length > 0 ? { custom_destinations: custom } : {}),
         ...constraints,
-      })
+      }, mode)
       // Remember these discovery inputs so the next compatible Analyze refreshes.
       discoveryRef.current = { base, searchedKeys }
     } else if (custom.length > 0) {
@@ -421,7 +463,7 @@ export default function App() {
         sort_desc: sortDesc,
         custom_destinations: custom,
         ...constraints,
-      })
+      }, mode)
     }
 
     // Nothing to rank (unreachable through the gate, which requires an input,
@@ -491,7 +533,9 @@ export default function App() {
   const fireWarnings = useFireProximity(results)
 
   // Comparison-chart selection (checkboxes in the table → lines in the chart).
-  // Every row shares the analysis's hourly grid.
+  // Every row shares the analysis's hourly grid. Point-sample analyses
+  // ('now'/'at') chart too: their single-instant grid renders as one dot per
+  // destination — still a cross-destination comparison, same default-select-all.
   const chartTimes = response?.times ?? []
   const chartable = chartTimes.length > 0
   const chart = useChartSelection(
@@ -564,6 +608,10 @@ export default function App() {
           setStartDatetime={setStartDatetime}
           endDatetime={endDatetime}
           setEndDatetime={setEndDatetime}
+          forecastMode={forecastMode}
+          setForecastMode={setForecastMode}
+          atDatetime={atDatetime}
+          setAtDatetime={setAtDatetime}
           limit={limit}
           setLimit={setLimit}
           customCsv={customCsv}
@@ -580,6 +628,7 @@ export default function App() {
           showWildfires={showWildfires}
           setShowWildfires={setShowWildfires}
           windowWarning={windowWarning}
+          momentWarning={momentWarning}
           hasPins={searched.places.length > 0}
           // A pins-only Analyze refresh keeps useAnalyze.loading false, so fold
           // in the pin-refresh flag to disable the button (and show "Analyzing…")
@@ -719,7 +768,11 @@ export default function App() {
               {hasColoredMarkers && (
                 <div className="w-40 bg-slate-900/85 border border-slate-700 rounded-lg p-2.5 shadow-lg backdrop-blur-sm">
                   <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    {METRIC_CONFIG[view.sortBy].label}
+                    {view.mode === 'now'
+                      ? NOW_LEGEND_LABELS[view.sortBy]
+                      : view.mode === 'at'
+                      ? POINT_SORT_NOUNS[view.sortBy]
+                      : METRIC_CONFIG[view.sortBy].label}
                   </p>
                   {METRIC_CONFIG[view.sortBy].colors.map((color, i) => (
                     <div key={i} className="flex items-center gap-1.5 py-0.5">
@@ -820,9 +873,33 @@ export default function App() {
               className={`flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
             >
               <span className="text-xs font-semibold text-white">
-                {results.length > 0
-                  ? `Forecast Table: ${view.sortDesc ? 'Highest' : 'Lowest'} ${SORT_NOUNS[view.sortBy]}`
-                  : 'Forecast Table'}
+                {results.length === 0
+                  ? 'Forecast Table'
+                  : view.mode === 'now'
+                  ? `Current Conditions: ${view.sortDesc ? 'Highest' : 'Lowest'} ${POINT_SORT_NOUNS[view.sortBy]}`
+                  : view.mode === 'at'
+                  ? `Forecast: ${view.sortDesc ? 'Highest' : 'Lowest'} ${POINT_SORT_NOUNS[view.sortBy]}`
+                  : `Forecast Table: ${view.sortDesc ? 'Highest' : 'Lowest'} ${SORT_NOUNS[view.sortBy]}`}
+                {results.length > 0 && analyzed?.mode === 'now' && (
+                  <span className="ml-1.5 font-normal text-slate-400">
+                    as of{' '}
+                    {new Date(analyzed.analyzedAt).toLocaleTimeString([], {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                )}
+                {results.length > 0 && analyzed?.mode === 'at' && (
+                  <span className="ml-1.5 font-normal text-slate-400">
+                    for{' '}
+                    {new Date(analyzed.analyzedAt).toLocaleString([], {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                )}
               </span>
               {/* CC-BY 4.0 requires this credit beside the data itself, not
                   just in the privacy modal; the docked header bar keeps it
@@ -857,6 +934,7 @@ export default function App() {
                   results={results}
                   sortBy={view.sortBy}
                   sortDesc={view.sortDesc}
+                  mode={view.mode}
                   fireWarnings={fireWarnings}
                   pending={pendingPlaces}
                   onRemove={handleRemoveResult}

@@ -3,7 +3,7 @@
 // These functions are intentionally pure (no React, no DOM) so they're trivial
 // to unit-test — App.tsx owns the thin glue that reads/writes location.
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
-import { GeoPolygon, DiscoveryType, SortBy } from '../types'
+import { AnalysisMode, GeoPolygon, DiscoveryType, SortBy } from '../types'
 import { Place } from './geocode'
 
 // Fields that fully describe an analysis. Results are deliberately excluded —
@@ -13,6 +13,13 @@ export interface ShareableState {
   destinationType: DiscoveryType
   startDatetime: string // datetime-local, e.g. "2026-07-04T10:30"
   endDatetime: string
+  // Forecast-time mode. 'window' analyzes start–end above; 'at' analyzes the
+  // single hour of atDatetime; 'now' samples the Analyze click time. Only the
+  // selected mode's inputs go in the URL: a shared "now" link deliberately
+  // omits timestamps so it re-samples at open time, and a window link omits
+  // the unused atDatetime (and vice versa).
+  mode: AnalysisMode
+  atDatetime: string // datetime-local, only meaningful when mode === 'at'
   sortBy: SortBy
   sortDesc: boolean // false = lowest first (the historical behavior)
   minElevationFt: number | null
@@ -172,7 +179,8 @@ export function encodeState(state: ShareableState): string {
     state.sortDesc ||
     state.limit !== DEFAULT_LIMIT ||
     state.destinationType !== DEFAULT_TYPE ||
-    state.showWildfires
+    state.showWildfires ||
+    state.mode !== 'window'
   if (!hasPolygon && !hasCustom && !hasConstraint && !hasPins && !nonDefaultControls)
     return ''
 
@@ -181,8 +189,15 @@ export function encodeState(state: ShareableState): string {
   p.set('sort', state.sortBy)
   if (state.sortDesc) p.set('desc', '1')
   p.set('limit', String(state.limit))
-  if (isValidDatetimeLocal(state.startDatetime)) p.set('start', state.startDatetime)
-  if (isValidDatetimeLocal(state.endDatetime)) p.set('end', state.endDatetime)
+  if (state.mode === 'now') {
+    p.set('mode', 'now')
+  } else if (state.mode === 'at') {
+    p.set('mode', 'at')
+    if (isValidDatetimeLocal(state.atDatetime)) p.set('at', state.atDatetime)
+  } else {
+    if (isValidDatetimeLocal(state.startDatetime)) p.set('start', state.startDatetime)
+    if (isValidDatetimeLocal(state.endDatetime)) p.set('end', state.endDatetime)
+  }
   if (state.minElevationFt !== null) p.set('minel', String(state.minElevationFt))
   if (state.maxElevationFt !== null) p.set('maxel', String(state.maxElevationFt))
   if (hasPolygon && state.polygon) p.set('poly', encodePolygon(state.polygon))
@@ -238,6 +253,11 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   const end = params.get('end')
   if (end && isValidDatetimeLocal(end)) out.endDatetime = end
 
+  const mode = params.get('mode')
+  if (mode === 'now' || mode === 'at') out.mode = mode
+  const at = params.get('at')
+  if (at && isValidDatetimeLocal(at)) out.atDatetime = at
+
   const minel = params.get('minel')
   if (minel !== null) {
     const n = Number(minel)
@@ -282,15 +302,16 @@ export function decodeState(search: string): Partial<ShareableState> | null {
  * injected for deterministic testing. The whole window must fit inside the
  * servable band: Open-Meteo rejects requests whose dates fall outside it, so
  * even a partial overhang would fail upstream. Returns 'order' when the end
- * isn't after the start (the backend rejects this outright), 'past' when the
- * window starts before the history horizon, and 'future' when it ends beyond
- * the forecast horizon.
+ * is before the start (the backend rejects this outright), 'equal' when the
+ * window has zero length (the point-in-time modes own that case), 'past' when
+ * the window starts before the history horizon, and 'future' when it ends
+ * beyond the forecast horizon.
  */
 export function classifyWindow(
   startDatetime: string,
   endDatetime: string,
   now: Date,
-): 'ok' | 'order' | 'past' | 'future' {
+): 'ok' | 'order' | 'equal' | 'past' | 'future' {
   if (!isValidDatetimeLocal(startDatetime) || !isValidDatetimeLocal(endDatetime)) {
     return 'ok' // incomplete window — nothing to warn about yet
   }
@@ -299,12 +320,32 @@ export function classifyWindow(
   const earliest = now.getTime() - PAST_LIMIT_DAYS * MS_PER_DAY
   const latest = now.getTime() + FUTURE_LIMIT_DAYS * MS_PER_DAY
 
-  // A reversed window is a user error, not a horizon problem — flag it first
-  // so the message is about ordering, not the servable range. Equal is fine:
-  // start == end means "the current forecast" (the backend analyzes that hour).
+  // A reversed or zero-length window is a user error, not a horizon problem —
+  // flag those first so the message is about the dates, not the servable
+  // range. Equal gets its own status (not 'order') so the warning can point
+  // at Current Conditions / Future Day/Time instead of "end must be after
+  // start", which would read as pedantry when the fix is a different mode.
   if (end < start) return 'order'
+  if (end === start) return 'equal'
   if (start < earliest) return 'past'
   if (end > latest) return 'future'
+  return 'ok'
+}
+
+/**
+ * Classify a single point-in-time moment ("Future Day/Time") against the same
+ * servable range — the point-mode counterpart of classifyWindow, with no
+ * ordering concept. Permissive about the recent past on purpose: Open-Meteo
+ * serves history, so "what was it like at 6am" works even though the UI
+ * labels the mode Future.
+ */
+export function classifyMoment(datetime: string, now: Date): 'ok' | 'past' | 'future' {
+  if (!isValidDatetimeLocal(datetime)) {
+    return 'ok' // nothing picked yet — nothing to warn about
+  }
+  const t = new Date(datetime).getTime()
+  if (t < now.getTime() - PAST_LIMIT_DAYS * MS_PER_DAY) return 'past'
+  if (t > now.getTime() + FUTURE_LIMIT_DAYS * MS_PER_DAY) return 'future'
   return 'ok'
 }
 
@@ -323,9 +364,10 @@ export function resolveSearchWindow(
   if (isValidDatetimeLocal(startDatetime) && isValidDatetimeLocal(endDatetime)) {
     const start = new Date(startDatetime)
     const end = new Date(endDatetime)
-    // Equal passes through: the backend treats start == end as the current
-    // hour, so pins stay consistent with a ranked analysis over that window.
-    if (start <= end && classifyWindow(startDatetime, endDatetime, now) === 'ok') {
+    // An equal window classifies as 'equal' (not 'ok') now that the point
+    // modes own zero-length analyses, so it falls through to the "conditions
+    // right now" default below — same hour the backend would have sampled.
+    if (start < end && classifyWindow(startDatetime, endDatetime, now) === 'ok') {
       return { start: start.toISOString(), end: end.toISOString() }
     }
   }

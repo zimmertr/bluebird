@@ -157,12 +157,20 @@ class AnalyzeRequest(BaseModel):
 
     @model_validator(mode="after")
     def window_within_servable_range(self) -> AnalyzeRequest:
-        # A zero-length window means "the current forecast": analyze the hour at
-        # hand. Normalizing here — before the range checks and ahead of the
-        # routes' ordering guard — means the rest of the pipeline only ever
-        # sees an ordinary one-hour window.
+        # A zero-length window is a point sample ("current conditions" /
+        # "future day/time"): analyze exactly the hour containing the moment.
+        # Flooring to the hour and spanning one minute keeps the weather
+        # service's inclusive hour filter to a single hourly timestamp — a
+        # bare +1h span would catch two stamps whenever the moment lands
+        # exactly on an hour boundary, the common case for a time picker.
+        # Normalizing here — before the range checks and ahead of the routes'
+        # ordering guard — means the rest of the pipeline only ever sees an
+        # ordinary ordered window.
         if self.start_datetime == self.end_datetime:
-            self.end_datetime = self.end_datetime + timedelta(hours=1)
+            self.start_datetime = self.start_datetime.replace(
+                minute=0, second=0, microsecond=0
+            )
+            self.end_datetime = self.start_datetime + timedelta(minutes=1)
         now = datetime.now(timezone.utc)
         if _as_utc(self.start_datetime) < now - timedelta(days=PAST_LIMIT_SLACK_DAYS):
             raise ValueError(
