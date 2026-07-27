@@ -16,7 +16,7 @@ import { GeoPolygon, DestinationResult, SortBy } from '../types'
 import { resultsFeatureCollection } from '../utils/resultFeatures'
 import { resultPopupHtml } from '../utils/resultPopup'
 import { FireWarning, fireKey } from '../utils/fireProximity'
-import { Place, boundsAround } from '../utils/geocode'
+import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import {
   fetchWildfires,
   wildfirePopupHtml,
@@ -29,11 +29,16 @@ export interface MapViewHandle {
   finishDrawing: () => GeoPolygon | null
   cancelDrawing: () => void
   flyToPlace: (place: Place) => void
+  fitToPoints: (points: { latitude: number; longitude: number }[]) => void
   focusResult: (result: DestinationResult) => void
 }
 
 interface Props {
   polygon: GeoPolygon | null // initial ring (e.g. restored from the URL)
+  // Custom CSV destinations restored from the URL, parsed once at mount. Like
+  // a restored polygon they suppress geolocation and are framed on load, so a
+  // shared list link opens on the list, not on the visitor's hometown.
+  restoredCustomPoints: { latitude: number; longitude: number }[]
   onPolygonChange: (polygon: GeoPolygon | null) => void
   onDrawUpdate: (count: number, areaKm2: number | null) => void
   results: DestinationResult[]
@@ -243,6 +248,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
   (
     {
       polygon,
+      restoredCustomPoints,
       onPolygonChange,
       onDrawUpdate,
       results,
@@ -262,6 +268,13 @@ const MapView = forwardRef<MapViewHandle, Props>(
     const pendingResultsRef = useRef<DestinationResult[]>([])
     const pendingSortByRef = useRef<SortBy>('precip_total_in')
     const pendingSearchRef = useRef<Place | null>(null)
+    // CSV list pasted before the map finished loading — folded into the load
+    // handler's opening frame, mirroring pendingSearchRef.
+    const pendingFitPointsRef = useRef<{ latitude: number; longitude: number }[] | null>(null)
+    // True once anything has deliberately framed the view (restored-state fit,
+    // search, CSV fit, result focus). A late geolocation grant checks this so
+    // it can't yank the camera away from a frame the user asked for.
+    const cameraCommittedRef = useRef(false)
     const vertexPopupRef = useRef<maplibregl.Popup | null>(null)
     const draggingVertexRef = useRef<number | null>(null)
     const firePopupRef = useRef<maplibregl.Popup | null>(null)
@@ -301,6 +314,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // Frame a searched place. Only the camera move — the place renders
       // declaratively as a pending dot until the next Analyze ranks it.
       flyToPlace(place: Place) {
+        cameraCommittedRef.current = true
         const map = mapRef.current
         if (!map || !loadedRef.current) {
           pendingSearchRef.current = place
@@ -308,12 +322,27 @@ const MapView = forwardRef<MapViewHandle, Props>(
         }
         map.fitBounds(boundsAround(place, SEARCH_VIEW_MILES), { padding: 40, duration: 1500 })
       },
+      // Frame a pasted custom CSV list whole. Deferred like a pre-load search
+      // when the map isn't ready — the load handler folds the points into its
+      // opening frame.
+      fitToPoints(points: { latitude: number; longitude: number }[]) {
+        const bounds = boundsForPoints(points, SEARCH_VIEW_MILES)
+        if (!bounds) return
+        cameraCommittedRef.current = true
+        const map = mapRef.current
+        if (!map || !loadedRef.current) {
+          pendingFitPointsRef.current = points
+          return
+        }
+        map.fitBounds(bounds, { padding: 60, duration: 1500 })
+      },
       // Center on a result (clicked from its rank in the table) and open the
       // same popup a marker click gives. Rank is the analyzed order the markers
       // are labeled with, so the popup matches the marker it lands on.
       focusResult(result: DestinationResult) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
+        cameraCommittedRef.current = true
         const center: [number, number] = [result.longitude, result.latitude]
         map.flyTo({ center, zoom: Math.max(map.getZoom(), 10), duration: 800 })
         resultPopupRef.current?.remove()
@@ -359,13 +388,17 @@ const MapView = forwardRef<MapViewHandle, Props>(
       const resizeObserver = new ResizeObserver(() => map.resize())
       resizeObserver.observe(containerRef.current)
 
-      // A polygon restored from the URL takes precedence over geolocation —
-      // don't scroll the user away from the area their link points at.
+      // A polygon or custom CSV list restored from the URL takes precedence
+      // over geolocation — don't scroll the user away from the area their link
+      // points at. The committed-camera guard covers the rest: geolocation can
+      // resolve seconds late (8s timeout), after a paste or search has already
+      // framed the view, and must not yank the user away from it.
       const restoredPolygon = polygon
       let pendingGeo: [number, number] | null = null
-      if (navigator.geolocation && !restoredPolygon) {
+      if (navigator.geolocation && !restoredPolygon && restoredCustomPoints.length === 0) {
         navigator.geolocation.getCurrentPosition(
           (pos) => {
+            if (cameraCommittedRef.current) return
             const center: [number, number] = [pos.coords.longitude, pos.coords.latitude]
             if (loadedRef.current) map.flyTo({ center, zoom: 9 })
             else pendingGeo = center
@@ -377,25 +410,37 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
       map.on('load', () => {
         loadedRef.current = true
+        // One opening frame for everything the session starts with: a restored
+        // polygon ring, restored CSV destinations, and any list pasted while
+        // the map was still loading — their union, so a link carrying both a
+        // polygon and a CSV shows the whole analysis area. Geolocation is only
+        // the fallback when none of these exist.
+        const corners: [number, number][] = []
         if (restoredPolygon) {
           const ring = restoredPolygon.coordinates[0] ?? []
-          if (ring.length >= 3) {
-            const bounds = ring.reduce(
-              (b, [lng, lat]) => b.extend([lng, lat]),
-              new maplibregl.LngLatBounds(
-                ring[0] as [number, number],
-                ring[0] as [number, number],
-              ),
-            )
-            // Pull back one zoom level from the tight fit so the whole polygon
-            // clears the viewport with margin — a snug fit can clip vertices
-            // behind the controls drawer or browser chrome on small screens.
-            const camera = map.cameraForBounds(bounds, { padding: 60 })
-            if (camera?.zoom !== undefined) {
-              map.jumpTo({ center: camera.center, zoom: camera.zoom - 1 })
-            } else {
-              map.fitBounds(bounds, { padding: 60, duration: 0 })
-            }
+          if (ring.length >= 3) for (const [lng, lat] of ring) corners.push([lng, lat])
+        }
+        const pastedEarly = pendingFitPointsRef.current ?? []
+        pendingFitPointsRef.current = null
+        const pointBounds = boundsForPoints(
+          [...restoredCustomPoints, ...pastedEarly],
+          SEARCH_VIEW_MILES,
+        )
+        if (pointBounds) corners.push(...pointBounds)
+        if (corners.length > 0) {
+          cameraCommittedRef.current = true
+          const bounds = corners.reduce(
+            (b, c) => b.extend(c),
+            new maplibregl.LngLatBounds(corners[0], corners[0]),
+          )
+          // Pull back one zoom level from the tight fit so the whole area
+          // clears the viewport with margin — a snug fit can clip vertices
+          // behind the controls drawer or browser chrome on small screens.
+          const camera = map.cameraForBounds(bounds, { padding: 60 })
+          if (camera?.zoom !== undefined) {
+            map.jumpTo({ center: camera.center, zoom: camera.zoom - 1 })
+          } else {
+            map.fitBounds(bounds, { padding: 60, duration: 0 })
           }
         } else if (pendingGeo) {
           map.flyTo({ center: pendingGeo, zoom: 9 })

@@ -116,6 +116,13 @@ export default function App() {
   const restoredRef = useRef(decodeState(window.location.search))
   const restored = restoredRef.current
 
+  // Custom CSV points restored from the URL, parsed once — MapView frames them
+  // on load instead of geolocating, mirroring the restored-polygon behavior.
+  const restoredCustomPoints = useMemo(
+    () => (restored?.customCsv ? parseCustomCsv(restored.customCsv) : []),
+    [restored],
+  )
+
   const [polygon, setPolygon] = useState<GeoPolygon | null>(() => restored?.polygon ?? null)
   // The polygon is always editable on the map — no draw/ready mode split. A
   // restored polygon seeds the count so Analyze unlocks before the map loads
@@ -616,6 +623,7 @@ export default function App() {
           setLimit={setLimit}
           customCsv={customCsv}
           setCustomCsv={setCustomCsv}
+          onCsvPasted={(points) => mapRef.current?.fitToPoints(points)}
           rankingChanged={rankingChanged}
           sortBy={sortBy}
           setSortBy={setSortBy}
@@ -703,6 +711,7 @@ export default function App() {
           <MapView
             ref={mapRef}
             polygon={polygon}
+            restoredCustomPoints={restoredCustomPoints}
             onPolygonChange={setPolygon}
             onDrawUpdate={handleDrawUpdate}
             results={results}

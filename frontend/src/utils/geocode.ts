@@ -68,6 +68,46 @@ export function boundsAround(
   ]
 }
 
+// Bounds enveloping every point, with each axis grown (symmetrically, so the
+// centroid stays put) to at least `minDiameterMiles` — a one-row CSV or a tight
+// cluster frames a usable view instead of a max-zoom dive, while a spread-out
+// list is simply shown whole. Longitude scaling and the polar cos() clamp match
+// boundsAround. Returns null for an empty list. Assumes the points don't
+// straddle the antimeridian; a list that does (Aleutians) merely over-zooms out.
+export function boundsForPoints(
+  points: { latitude: number; longitude: number }[],
+  minDiameterMiles: number,
+): [[number, number], [number, number]] | null {
+  if (points.length === 0) return null
+  let w = Infinity
+  let s = Infinity
+  let e = -Infinity
+  let n = -Infinity
+  for (const p of points) {
+    if (p.longitude < w) w = p.longitude
+    if (p.longitude > e) e = p.longitude
+    if (p.latitude < s) s = p.latitude
+    if (p.latitude > n) n = p.latitude
+  }
+  const minDLat = minDiameterMiles / MILES_PER_DEG_LAT
+  const latScale = Math.max(Math.cos((((s + n) / 2) * Math.PI) / 180), 0.01)
+  const minDLon = minDiameterMiles / (MILES_PER_DEG_LON_EQUATOR * latScale)
+  if (n - s < minDLat) {
+    const pad = (minDLat - (n - s)) / 2
+    s -= pad
+    n += pad
+  }
+  if (e - w < minDLon) {
+    const pad = (minDLon - (e - w)) / 2
+    w -= pad
+    e += pad
+  }
+  return [
+    [w, s],
+    [e, n],
+  ]
+}
+
 interface NominatimRow {
   name?: string
   display_name: string
