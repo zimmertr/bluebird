@@ -224,86 +224,55 @@ The displayed value is a bounding-box approximation rather than the true polygon
 
 ## API Reference
 
-### `POST /api/analyze`
+Everything the web app does is available over HTTP, with no API key, no account,
+and no authentication.
 
-Runs a destination query and returns weather-ranked results.
+- **Interactive reference:** [bluebirdforecast.com/docs](https://bluebirdforecast.com/docs)
+- **OpenAPI 3.1 schema:** [bluebirdforecast.com/openapi.json](https://bluebirdforecast.com/openapi.json)
+- **Guide with worked examples:** [`docs/API.md`](docs/API.md)
 
-Request body:
+`/docs` is generated from the running code, so it cannot drift from actual
+behavior. A copy of the schema is committed at
+[`backend/openapi.json`](backend/openapi.json) and verified in CI.
 
-```json
-{
-  "polygon": {
-    "type": "Polygon",
-    "coordinates": [[[-121.5, 47.1], [-120.8, 47.1], [-120.8, 48.2], [-121.5, 47.1]]]
-  },
-  "destination_type": "peak",
-  "start_datetime": "2026-06-28T08:00:00Z",
-  "end_datetime": "2026-06-29T20:00:00Z",
-  "limit": 10
-}
+| Endpoint | What it does |
+| --- | --- |
+| `POST /api/analyze` | Discover destinations, forecast each one, return a ranking. |
+| `POST /api/analyze/stream` | The same analysis as Server-Sent Events, with progress. |
+| `GET /api/capabilities` | Supported destination types, sort keys, and enforced limits. |
+| `GET /api/version` | Which build is running: version, commit, build time. |
+| `GET /api/geocode` | Place lookup by name, proxied to Nominatim. |
+| `GET /healthz` | Liveness probe. |
+
+Rank the peaks around Tiger Mountain by how dry the next two days look:
+
+```bash
+START=$(date -u +%Y-%m-%dT%H:00:00Z)
+END=$(date -u -d '+48 hours' +%Y-%m-%dT%H:00:00Z 2>/dev/null \
+   || date -u -v+48H +%Y-%m-%dT%H:00:00Z)
+
+curl -s https://bluebirdforecast.com/api/analyze \
+  -H 'Content-Type: application/json' \
+  -d "{
+    \"polygon\": { \"type\": \"Polygon\", \"coordinates\": [[
+      [-122.03, 47.44], [-121.91, 47.44], [-121.91, 47.53],
+      [-122.03, 47.53], [-122.03, 47.44]
+    ]] },
+    \"destination_type\": \"peak\",
+    \"start_datetime\": \"$START\",
+    \"end_datetime\": \"$END\",
+    \"limit\": 3
+  }" | jq '.results[] | {name, precip_total_in}'
 ```
 
-`custom_destinations` may accompany the polygon: the backend unions the list into the discovered set before ranking (a custom row that matches a discovered row's name or 5-decimal coordinates replaces it), and each result row carries its true source in `type` — the discovery type, or `"custom"` with `osm_id: null`.
-
-An equal `start_datetime` and `end_datetime` is valid and means "the current forecast": the request is analyzed over the hour at hand.
-
-To analyze only your own list, use `destination_type: "custom"`, drop `polygon`, and send `custom_destinations` alone:
-
-```json
-{
-  "destination_type": "custom",
-  "start_datetime": "2026-06-28T08:00:00Z",
-  "end_datetime": "2026-06-29T20:00:00Z",
-  "limit": 10,
-  "custom_destinations": [
-    { "name": "Mt Rainier", "latitude": 46.8529, "longitude": -121.7604, "elevation_ft": 14411 },
-    { "name": "Mt Adams",   "latitude": 46.2024, "longitude": -121.4909, "elevation_ft": 12281 }
-  ]
-}
-```
-
-Response:
-
-```json
-{
-  "results": [
-    {
-      "name": "Black Peak",
-      "type": "peak",
-      "latitude": 48.6341,
-      "longitude": -120.8214,
-      "elevation_ft": 8973,
-      "osm_id": "node/123456",
-      "precip_total_in": 0.012,
-      "precip_avg_in_hr": 0.0005,
-      "precip_max_in_hr": 0.004,
-      "temp_min_f": 38.2,
-      "temp_max_f": 55.1,
-      "temp_avg_f": 46.8,
-      "wind_min_mph": 3.1,
-      "wind_max_mph": 18.4,
-      "wind_avg_mph": 9.2,
-      "aqi_avg": 42,
-      "aqi_max": 58
-    }
-  ],
-  "total_queried": 34
-}
-```
-
-`aqi_avg` and `aqi_max` are US AQI values (all EPA pollutants combined) over the window. They come back `null` when the window falls past the roughly 5-day air-quality horizon, or when the best-effort air-quality fetch fails. An air-quality outage never fails the analysis.
-
-Error responses:
-
-| Code | Condition |
-|---|---|
-| 400 | `start_datetime` is after `end_datetime`, the `destination_type` isn't implemented, or `custom_destinations` is missing for a custom request |
-| 422 | Validation failure: polygon too large, limit out of range, or a window outside the servable window (about 90 days past to 16 days ahead) |
-| 502 | Overpass is unreachable across all mirrors, or Open-Meteo fails |
+Bluebird has no rate limiting. Every upstream it depends on is free, keyless, and
+run by people paying for it, so please keep polygons no larger than you need. See
+[`docs/API.md`](docs/API.md) for the full guide, including custom destinations,
+the streaming endpoint, and error handling.
 
 ## Architecture
 
-Bluebird is one FastAPI service that also serves the built React SPA as static files. A browser talks only to `POST /api/analyze`, and everything else the app needs it fetches from free, keyless public APIs.
+Bluebird is one FastAPI service that also serves the built React SPA as static files. The web app talks to `POST /api/analyze/stream` so it can show progress during a long analysis, and everything else it needs comes from free, keyless public APIs.
 
 When a request comes in, the backend:
 
@@ -314,8 +283,8 @@ When a request comes in, the backend:
 
 The whole thing builds as a single multi-stage Docker image:
 
-- Stage 1 runs `node:22-alpine` to `npm run build` the SPA.
-- Stage 2 runs `python:3.12-slim` with uvicorn, serving the API and the built SPA together.
+- Stage 1 runs `node:26-alpine` to `npm run build` the SPA, and vendors Swagger UI's assets so `/docs` renders without reaching out to a CDN.
+- Stage 2 runs `python:3.14-alpine` with uvicorn, serving the API and the built SPA together.
 
 None of the external APIs need a key:
 

@@ -64,6 +64,13 @@ jobs:
         working-directory: backend
       - run: pytest -q
         working-directory: backend
+      # openapi.json is committed so a contract change shows up as a reviewable
+      # diff. This fails the PR when the app and the snapshot disagree, which
+      # means someone changed a route, model, or description without running
+      # `python scripts/generate_openapi.py`.
+      - name: Check OpenAPI snapshot is current
+        run: python scripts/generate_openapi.py --check
+        working-directory: backend
 
   # Validate the Dockerfile builds end-to-end without pushing the image, then
   # scan the result for vulnerabilities. amd64-only on purpose: this gate

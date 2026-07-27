@@ -69,6 +69,11 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # GitHub exposes no build-start timestamp, and github.event.repository
+      # .updated_at is the last push, not this build. Stamp it ourselves so
+      # GET /api/version reports when the image was actually produced.
+      - id: stamp
+        run: echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v7
         with:
           context: .
@@ -76,6 +81,13 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: zimmertr/bluebird:${{ needs.determine-version.outputs.semVer }}
+          # Baked into the image so the running service can answer
+          # GET /api/version, and so OpenAPI's info.version is the real release
+          # rather than a hardcoded placeholder.
+          build-args: |
+            APP_VERSION=${{ needs.determine-version.outputs.semVer }}
+            APP_COMMIT=${{ github.sha }}
+            APP_BUILT_AT=${{ steps.stamp.outputs.built_at }}
           # Version/revision vary per release, so they're stamped here rather
           # than baked into the Dockerfile's static labels.
           labels: |

@@ -24,6 +24,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
     "postcss": "^8.5.23",
+    "swagger-ui-dist": "^5.32.11",
     "tailwindcss": "^4.3.2",
     "typescript": "^7.0.2",
     "vite": "^8.1.5",

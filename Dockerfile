@@ -36,10 +36,29 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 COPY backend/app/ ./app/
 COPY --from=frontend-builder /app/frontend/dist/ ./static/
+# Swagger UI's assets, vendored so /docs renders without reaching out to a CDN.
+# Taken straight from the builder's node_modules rather than through a Vite
+# plugin: frontend/package.json is "type": "module", so a plugin doing this in
+# CommonJS would break, and routing 1 MB of vendor JS through Vite's hashing
+# buys nothing.
+COPY --from=frontend-builder \
+  /app/frontend/node_modules/swagger-ui-dist/swagger-ui-bundle.js \
+  /app/frontend/node_modules/swagger-ui-dist/swagger-ui.css \
+  ./static/swagger-ui/
 # Nothing needs root at runtime — uvicorn binds 8000 and the app only reads
 # baked-in files — so serve as an unprivileged user. Fixed numeric UID/GID so
 # Kubernetes runAsNonRoot can verify without resolving names inside the image.
 RUN addgroup -S -g 10001 bluebird && adduser -S -u 10001 -G bluebird bluebird
+# Build identity for GET /api/version and the OpenAPI info.version, populated by
+# release.yml and pr-preview.yml. Deliberately the LAST thing before USER:
+# APP_BUILT_AT changes on every build, so declaring it any earlier would
+# invalidate the pip-install and COPY layers on every single build.
+ARG APP_VERSION=dev
+ARG APP_COMMIT=dev
+ARG APP_BUILT_AT=dev
+ENV APP_VERSION=${APP_VERSION} \
+    APP_COMMIT=${APP_COMMIT} \
+    APP_BUILT_AT=${APP_BUILT_AT}
 USER 10001:10001
 EXPOSE 8000
 # Kubernetes ignores HEALTHCHECK (its probes hit /healthz directly); this is

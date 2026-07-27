@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 MAX_POLYGON_AREA_KM2 = 50_000
 
@@ -22,6 +22,11 @@ MAX_ANALYZE_PEAKS = 1_000
 # a year ahead) fails fast with a clear message instead of an upstream 400.
 PAST_LIMIT_SLACK_DAYS = 95
 FUTURE_LIMIT_SLACK_DAYS = 17
+
+# Rows returned per analysis. Named rather than inline so the validator and
+# GET /api/capabilities cannot drift apart.
+MIN_LIMIT = 1
+MAX_LIMIT = 200
 
 
 def _as_utc(dt: datetime) -> datetime:
@@ -48,8 +53,17 @@ class SortBy(str, Enum):
 
 
 class GeoPolygon(BaseModel):
+    """A GeoJSON Polygon bounding the search area."""
+
     type: Literal["Polygon"]
-    coordinates: list[list[list[float]]]
+    coordinates: list[list[list[float]]] = Field(
+        description=(
+            "GeoJSON coordinate rings. Only the outer ring is read. Positions "
+            "are `[longitude, latitude]`, which is GeoJSON order and the "
+            "reverse of how coordinates are usually spoken. The ring should "
+            "close by repeating its first position."
+        )
+    )
 
 
 def bbox_area_km2(ring: list[list[float]]) -> float:
@@ -63,10 +77,21 @@ def bbox_area_km2(ring: list[list[float]]) -> float:
 
 
 class CustomDestination(BaseModel):
-    name: str
-    latitude: float
-    longitude: float
-    elevation_ft: float | None = None
+    """A caller-supplied destination, analyzed alongside discovered ones."""
+
+    name: str = Field(description="Display name, 1 to 255 characters.")
+    latitude: float = Field(description="Latitude in decimal degrees, -90 to 90.")
+    longitude: float = Field(
+        description="Longitude in decimal degrees, -180 to 180."
+    )
+    elevation_ft: float | None = Field(
+        default=None,
+        description=(
+            "Elevation in feet. Optional, but supplying it is what lets the row "
+            "take part in an elevation-band filter: rows with an unknown "
+            "elevation are never filtered out."
+        ),
+    )
 
     @field_validator("name")
     @classmethod
@@ -105,27 +130,115 @@ class CustomDestination(BaseModel):
 
 
 class AnalyzeRequest(BaseModel):
-    polygon: GeoPolygon | None = None
-    destination_type: DestinationType
-    start_datetime: datetime
-    end_datetime: datetime
-    limit: int = 10
-    sort_by: SortBy = SortBy.precip_total
-    # False ranks lowest values first (driest/calmest/coldest/cleanest);
-    # True flips to highest-first (wettest/windiest/warmest/smokiest).
-    sort_desc: bool = False
-    # Optional elevation band. Applied to candidates before the weather fetch,
-    # so a constrained analysis costs fewer upstream calls, and the returned
-    # rows always fill `limit` when enough candidates qualify.
-    min_elevation_ft: float | None = None
-    max_elevation_ft: float | None = None
-    custom_destinations: list[CustomDestination] | None = None
+    """One analysis: which destinations, over which window, ranked how."""
+
+    polygon: GeoPolygon | None = Field(
+        default=None,
+        description=(
+            "Search area for destination discovery. Required unless "
+            "`destination_type` is `custom`, in which case discovery is skipped "
+            "entirely and only `custom_destinations` are analyzed."
+        ),
+    )
+    destination_type: DestinationType = Field(
+        description=(
+            "What to discover inside the polygon. `GET /api/capabilities` lists "
+            "the types this deployment actually supports, which is narrower "
+            "than this enum."
+        )
+    )
+    start_datetime: datetime = Field(
+        description=(
+            "Start of the forecast window, ISO 8601. A naive timestamp is read "
+            "as UTC. Setting this equal to `end_datetime` means current "
+            "conditions: the single hour containing that moment."
+        )
+    )
+    end_datetime: datetime = Field(
+        description=(
+            "End of the forecast window, ISO 8601, inclusive of the hour it "
+            "lands in. Must not precede `start_datetime`."
+        )
+    )
+    limit: int = Field(
+        default=10,
+        description=(
+            "How many ranked rows to return. Discovery is never sampled, so "
+            "this trims the response, not the work: every candidate is "
+            "forecast and ranked before the cut."
+        ),
+    )
+    sort_by: SortBy = Field(
+        default=SortBy.precip_total, description="Metric the ranking sorts on."
+    )
+    sort_desc: bool = Field(
+        default=False,
+        description=(
+            "Sort direction. False ranks lowest first, which is the useful "
+            "default: driest, calmest, coldest, cleanest. True flips it to "
+            "wettest, windiest, warmest, smokiest."
+        ),
+    )
+    # Applied to candidates before the weather fetch, so a constrained analysis
+    # costs fewer upstream calls, and the returned rows always fill `limit` when
+    # enough candidates qualify.
+    min_elevation_ft: float | None = Field(
+        default=None,
+        description=(
+            "Drop candidates below this elevation. Candidates with an unknown "
+            "elevation always pass through rather than being silently dropped."
+        ),
+    )
+    max_elevation_ft: float | None = Field(
+        default=None, description="Drop candidates above this elevation."
+    )
+    custom_destinations: list[CustomDestination] | None = Field(
+        default=None,
+        description=(
+            "Your own destinations, merged into whatever the polygon discovers. "
+            "A custom row matching a discovered one by name or by coordinates "
+            "to five decimals replaces it."
+        ),
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    # Tiger Mountain, Issaquah WA. Deliberately the same area the
+                    # release smoke test uses, so the documented example and the
+                    # thing gating deploys exercise identical ground.
+                    "polygon": {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [
+                                [-122.03, 47.44],
+                                [-121.91, 47.44],
+                                [-121.91, 47.53],
+                                [-122.03, 47.53],
+                                [-122.03, 47.44],
+                            ]
+                        ],
+                    },
+                    "destination_type": "peak",
+                    # Illustrative only. A window outside the horizon reported by
+                    # GET /api/capabilities is rejected with 422, so replace
+                    # these before sending.
+                    "start_datetime": "2026-08-01T14:00:00Z",
+                    "end_datetime": "2026-08-03T02:00:00Z",
+                    "limit": 5,
+                    "sort_by": "precip_total_in",
+                    "sort_desc": False,
+                }
+            ]
+        }
+    }
 
     @field_validator("limit")
     @classmethod
     def limit_range(cls, v: int) -> int:
-        if v < 1 or v > 200:
-            raise ValueError("limit must be between 1 and 200")
+        if v < MIN_LIMIT or v > MAX_LIMIT:
+            raise ValueError(f"limit must be between {MIN_LIMIT} and {MAX_LIMIT}")
         return v
 
     @field_validator("custom_destinations")
@@ -186,47 +299,117 @@ class AnalyzeRequest(BaseModel):
 
 
 class HourlySeries(BaseModel):
-    # Per-hour values over the analyzed window, aligned index-for-index to
-    # AnalyzeResponse.times. Nulls are gaps — a value missing at that hour
-    # (e.g. AQI past its ~5-day horizon) — and render as a break in the chart
-    # line, never an interpolated segment.
-    precip_in: list[float | None]
-    temp_f: list[float | None]
-    wind_mph: list[float | None]
-    aqi: list[int | None]
+    """Per-hour values, aligned index-for-index to `AnalyzeResponse.times`.
+
+    A null is a genuine gap, meaning no value at that hour, most often AQI past
+    its shorter horizon. Consumers should render a break rather than
+    interpolating across one.
+    """
+
+    precip_in: list[float | None] = Field(description="Precipitation, inches.")
+    temp_f: list[float | None] = Field(description="Temperature, degrees Fahrenheit.")
+    wind_mph: list[float | None] = Field(description="Wind speed, miles per hour.")
+    aqi: list[int | None] = Field(description="US AQI, all EPA pollutants combined.")
 
 
 class DestinationResult(BaseModel):
-    name: str
-    type: str
-    latitude: float
-    longitude: float
-    elevation_ft: float | None = None
-    osm_id: str | None = None
-    precip_total_in: float
-    precip_avg_in_hr: float
-    precip_max_in_hr: float
-    temp_min_f: float
-    temp_max_f: float
-    temp_avg_f: float
-    wind_min_mph: float
-    wind_max_mph: float
-    wind_avg_mph: float
-    # US AQI over the window (combined across EPA pollutants). Nullable: the air-quality forecast only
-    # extends ~5 days out (vs ~16 for weather) and the fetch is best-effort.
-    aqi_avg: int | None = None
-    aqi_max: int | None = None
-    # Hourly series backing the comparison chart, aligned to
-    # AnalyzeResponse.times. Present for every ranked row; None only for a row
-    # whose upstream forecast carried no in-window hours.
-    series: HourlySeries | None = None
+    """One ranked destination, summarized over the analyzed window."""
+
+    name: str = Field(description="Destination name, from OSM or your CSV.")
+    type: str = Field(
+        description=(
+            "Where the row came from: the discovery type, or `custom` for a "
+            "caller-supplied destination."
+        )
+    )
+    latitude: float = Field(description="Latitude in decimal degrees.")
+    longitude: float = Field(description="Longitude in decimal degrees.")
+    elevation_ft: float | None = Field(
+        default=None, description="Elevation in feet, when known."
+    )
+    osm_id: str | None = Field(
+        default=None,
+        description=(
+            "OpenStreetMap identifier such as `node/12345`. Null for custom "
+            "destinations, which have no OSM identity."
+        ),
+    )
+    precip_total_in: float = Field(
+        description="Total precipitation across the window, inches."
+    )
+    precip_avg_in_hr: float = Field(description="Mean hourly precipitation, inches.")
+    precip_max_in_hr: float = Field(
+        description="Wettest single hour in the window, inches."
+    )
+    temp_min_f: float = Field(description="Coldest hour, degrees Fahrenheit.")
+    temp_max_f: float = Field(description="Warmest hour, degrees Fahrenheit.")
+    temp_avg_f: float = Field(description="Mean temperature, degrees Fahrenheit.")
+    wind_min_mph: float = Field(description="Calmest hour, miles per hour.")
+    wind_max_mph: float = Field(description="Windiest hour, miles per hour.")
+    wind_avg_mph: float = Field(description="Mean wind speed, miles per hour.")
+    aqi_avg: int | None = Field(
+        default=None,
+        description=(
+            "Mean US AQI across the window, all EPA pollutants combined. Null "
+            "past the air-quality horizon, or if the best-effort fetch failed. "
+            "An air-quality outage never fails an analysis."
+        ),
+    )
+    aqi_max: int | None = Field(
+        default=None, description="Worst single AQI hour. Null under the same terms."
+    )
+    series: HourlySeries | None = Field(
+        default=None,
+        description=(
+            "Hourly detail behind the summary figures above, aligned to "
+            "`times`. Null only when the upstream forecast carried no hours "
+            "inside the window."
+        ),
+    )
+
+
+class ErrorResponse(BaseModel):
+    """Body of a hand-raised API error.
+
+    Note that a 422 differs: request validation is Pydantic's, and its `detail`
+    is a list of per-field objects rather than a string. That shape is
+    documented separately as `HTTPValidationError`.
+    """
+
+    detail: str = Field(
+        description=(
+            "Plain-language explanation of what went wrong, written to be shown "
+            "to an end user unmodified."
+        )
+    )
 
 
 class AnalyzeResponse(BaseModel):
-    results: list[DestinationResult]
-    total_queried: int
-    error: str | None = None
-    # Shared hourly grid for every row's `series`, as epoch milliseconds (UTC).
-    # Sent once — it is identical across destinations for a given window — and
-    # rendered in the viewer's local time client-side.
-    times: list[int] = []
+    """A completed analysis: the ranking, and what it was drawn from."""
+
+    results: list[DestinationResult] = Field(
+        description="Ranked destinations, best first, at most `limit` of them."
+    )
+    total_queried: int = Field(
+        description=(
+            "How many candidates were forecast and ranked before `limit` cut "
+            "the list. Compare against `len(results)` to see how much of the "
+            "ranking is not being shown."
+        )
+    )
+    error: str | None = Field(
+        default=None,
+        description=(
+            "Always null here. A failed analysis returns a 4xx or 5xx with a "
+            "`detail` message instead. The field exists because the streaming "
+            "endpoint reuses this shape."
+        ),
+    )
+    times: list[int] = Field(
+        default=[],
+        description=(
+            "Shared hourly grid for every row's `series`, as epoch "
+            "milliseconds UTC. Sent once because it is identical across "
+            "destinations for a given window."
+        ),
+    )

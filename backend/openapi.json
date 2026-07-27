@@ -1,0 +1,1063 @@
+{
+  "components": {
+    "schemas": {
+      "AnalyzeRequest": {
+        "description": "One analysis: which destinations, over which window, ranked how.",
+        "examples": [
+          {
+            "destination_type": "peak",
+            "end_datetime": "2026-08-03T02:00:00Z",
+            "limit": 5,
+            "polygon": {
+              "coordinates": [
+                [
+                  [
+                    -122.03,
+                    47.44
+                  ],
+                  [
+                    -121.91,
+                    47.44
+                  ],
+                  [
+                    -121.91,
+                    47.53
+                  ],
+                  [
+                    -122.03,
+                    47.53
+                  ],
+                  [
+                    -122.03,
+                    47.44
+                  ]
+                ]
+              ],
+              "type": "Polygon"
+            },
+            "sort_by": "precip_total_in",
+            "sort_desc": false,
+            "start_datetime": "2026-08-01T14:00:00Z"
+          }
+        ],
+        "properties": {
+          "custom_destinations": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CustomDestination"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Your own destinations, merged into whatever the polygon discovers. A custom row matching a discovered one by name or by coordinates to five decimals replaces it.",
+            "title": "Custom Destinations"
+          },
+          "destination_type": {
+            "$ref": "#/components/schemas/DestinationType",
+            "description": "What to discover inside the polygon. `GET /api/capabilities` lists the types this deployment actually supports, which is narrower than this enum."
+          },
+          "end_datetime": {
+            "description": "End of the forecast window, ISO 8601, inclusive of the hour it lands in. Must not precede `start_datetime`.",
+            "format": "date-time",
+            "title": "End Datetime",
+            "type": "string"
+          },
+          "limit": {
+            "default": 10,
+            "description": "How many ranked rows to return. Discovery is never sampled, so this trims the response, not the work: every candidate is forecast and ranked before the cut.",
+            "title": "Limit",
+            "type": "integer"
+          },
+          "max_elevation_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop candidates above this elevation.",
+            "title": "Max Elevation Ft"
+          },
+          "min_elevation_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop candidates below this elevation. Candidates with an unknown elevation always pass through rather than being silently dropped.",
+            "title": "Min Elevation Ft"
+          },
+          "polygon": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GeoPolygon"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Search area for destination discovery. Required unless `destination_type` is `custom`, in which case discovery is skipped entirely and only `custom_destinations` are analyzed."
+          },
+          "sort_by": {
+            "$ref": "#/components/schemas/SortBy",
+            "default": "precip_total_in",
+            "description": "Metric the ranking sorts on."
+          },
+          "sort_desc": {
+            "default": false,
+            "description": "Sort direction. False ranks lowest first, which is the useful default: driest, calmest, coldest, cleanest. True flips it to wettest, windiest, warmest, smokiest.",
+            "title": "Sort Desc",
+            "type": "boolean"
+          },
+          "start_datetime": {
+            "description": "Start of the forecast window, ISO 8601. A naive timestamp is read as UTC. Setting this equal to `end_datetime` means current conditions: the single hour containing that moment.",
+            "format": "date-time",
+            "title": "Start Datetime",
+            "type": "string"
+          }
+        },
+        "required": [
+          "destination_type",
+          "start_datetime",
+          "end_datetime"
+        ],
+        "title": "AnalyzeRequest",
+        "type": "object"
+      },
+      "AnalyzeResponse": {
+        "description": "A completed analysis: the ranking, and what it was drawn from.",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Always null here. A failed analysis returns a 4xx or 5xx with a `detail` message instead. The field exists because the streaming endpoint reuses this shape.",
+            "title": "Error"
+          },
+          "results": {
+            "description": "Ranked destinations, best first, at most `limit` of them.",
+            "items": {
+              "$ref": "#/components/schemas/DestinationResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "times": {
+            "default": [],
+            "description": "Shared hourly grid for every row's `series`, as epoch milliseconds UTC. Sent once because it is identical across destinations for a given window.",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Times",
+            "type": "array"
+          },
+          "total_queried": {
+            "description": "How many candidates were forecast and ranked before `limit` cut the list. Compare against `len(results)` to see how much of the ranking is not being shown.",
+            "title": "Total Queried",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "results",
+          "total_queried"
+        ],
+        "title": "AnalyzeResponse",
+        "type": "object"
+      },
+      "CapabilitiesResponse": {
+        "description": "What this deployment can do, and the bounds it enforces.",
+        "properties": {
+          "data_sources": {
+            "items": {
+              "$ref": "#/components/schemas/DataSource"
+            },
+            "title": "Data Sources",
+            "type": "array"
+          },
+          "destination_types": {
+            "description": "Destination types this deployment can actually analyze. Narrower than the `destination_type` enum, which also models types that are not yet discoverable.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Destination Types",
+            "type": "array"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits"
+          },
+          "sort_keys": {
+            "description": "Accepted values for `sort_by`, usable with `sort_desc`.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Sort Keys",
+            "type": "array"
+          }
+        },
+        "required": [
+          "destination_types",
+          "sort_keys",
+          "limits",
+          "data_sources"
+        ],
+        "title": "CapabilitiesResponse",
+        "type": "object"
+      },
+      "ConfigResponse": {
+        "description": "Runtime configuration the SPA reads on load.\n\nDeployment-specific, and not part of the analysis contract. For build\nidentity use `GET /api/version`; for the limits requests are validated\nagainst use `GET /api/capabilities`.",
+        "properties": {
+          "preview": {
+            "$ref": "#/components/schemas/PreviewConfig"
+          }
+        },
+        "required": [
+          "preview"
+        ],
+        "title": "ConfigResponse",
+        "type": "object"
+      },
+      "CustomDestination": {
+        "description": "A caller-supplied destination, analyzed alongside discovered ones.",
+        "properties": {
+          "elevation_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Elevation in feet. Optional, but supplying it is what lets the row take part in an elevation-band filter: rows with an unknown elevation are never filtered out.",
+            "title": "Elevation Ft"
+          },
+          "latitude": {
+            "description": "Latitude in decimal degrees, -90 to 90.",
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "description": "Longitude in decimal degrees, -180 to 180.",
+            "title": "Longitude",
+            "type": "number"
+          },
+          "name": {
+            "description": "Display name, 1 to 255 characters.",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "latitude",
+          "longitude"
+        ],
+        "title": "CustomDestination",
+        "type": "object"
+      },
+      "DataSource": {
+        "description": "One upstream Bluebird depends on.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "provides": {
+            "title": "Provides",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "url",
+          "provides"
+        ],
+        "title": "DataSource",
+        "type": "object"
+      },
+      "DestinationResult": {
+        "description": "One ranked destination, summarized over the analyzed window.",
+        "properties": {
+          "aqi_avg": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean US AQI across the window, all EPA pollutants combined. Null past the air-quality horizon, or if the best-effort fetch failed. An air-quality outage never fails an analysis.",
+            "title": "Aqi Avg"
+          },
+          "aqi_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Worst single AQI hour. Null under the same terms.",
+            "title": "Aqi Max"
+          },
+          "elevation_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Elevation in feet, when known.",
+            "title": "Elevation Ft"
+          },
+          "latitude": {
+            "description": "Latitude in decimal degrees.",
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "description": "Longitude in decimal degrees.",
+            "title": "Longitude",
+            "type": "number"
+          },
+          "name": {
+            "description": "Destination name, from OSM or your CSV.",
+            "title": "Name",
+            "type": "string"
+          },
+          "osm_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "OpenStreetMap identifier such as `node/12345`. Null for custom destinations, which have no OSM identity.",
+            "title": "Osm Id"
+          },
+          "precip_avg_in_hr": {
+            "description": "Mean hourly precipitation, inches.",
+            "title": "Precip Avg In Hr",
+            "type": "number"
+          },
+          "precip_max_in_hr": {
+            "description": "Wettest single hour in the window, inches.",
+            "title": "Precip Max In Hr",
+            "type": "number"
+          },
+          "precip_total_in": {
+            "description": "Total precipitation across the window, inches.",
+            "title": "Precip Total In",
+            "type": "number"
+          },
+          "series": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HourlySeries"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hourly detail behind the summary figures above, aligned to `times`. Null only when the upstream forecast carried no hours inside the window."
+          },
+          "temp_avg_f": {
+            "description": "Mean temperature, degrees Fahrenheit.",
+            "title": "Temp Avg F",
+            "type": "number"
+          },
+          "temp_max_f": {
+            "description": "Warmest hour, degrees Fahrenheit.",
+            "title": "Temp Max F",
+            "type": "number"
+          },
+          "temp_min_f": {
+            "description": "Coldest hour, degrees Fahrenheit.",
+            "title": "Temp Min F",
+            "type": "number"
+          },
+          "type": {
+            "description": "Where the row came from: the discovery type, or `custom` for a caller-supplied destination.",
+            "title": "Type",
+            "type": "string"
+          },
+          "wind_avg_mph": {
+            "description": "Mean wind speed, miles per hour.",
+            "title": "Wind Avg Mph",
+            "type": "number"
+          },
+          "wind_max_mph": {
+            "description": "Windiest hour, miles per hour.",
+            "title": "Wind Max Mph",
+            "type": "number"
+          },
+          "wind_min_mph": {
+            "description": "Calmest hour, miles per hour.",
+            "title": "Wind Min Mph",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "latitude",
+          "longitude",
+          "precip_total_in",
+          "precip_avg_in_hr",
+          "precip_max_in_hr",
+          "temp_min_f",
+          "temp_max_f",
+          "temp_avg_f",
+          "wind_min_mph",
+          "wind_max_mph",
+          "wind_avg_mph"
+        ],
+        "title": "DestinationResult",
+        "type": "object"
+      },
+      "DestinationType": {
+        "enum": [
+          "peak",
+          "trailhead",
+          "lake",
+          "custom"
+        ],
+        "title": "DestinationType",
+        "type": "string"
+      },
+      "ErrorResponse": {
+        "description": "Body of a hand-raised API error.\n\nNote that a 422 differs: request validation is Pydantic's, and its `detail`\nis a list of per-field objects rather than a string. That shape is\ndocumented separately as `HTTPValidationError`.",
+        "properties": {
+          "detail": {
+            "description": "Plain-language explanation of what went wrong, written to be shown to an end user unmodified.",
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "GeoPolygon": {
+        "description": "A GeoJSON Polygon bounding the search area.",
+        "properties": {
+          "coordinates": {
+            "description": "GeoJSON coordinate rings. Only the outer ring is read. Positions are `[longitude, latitude]`, which is GeoJSON order and the reverse of how coordinates are usually spoken. The ring should close by repeating its first position.",
+            "items": {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "title": "Coordinates",
+            "type": "array"
+          },
+          "type": {
+            "const": "Polygon",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "coordinates"
+        ],
+        "title": "GeoPolygon",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HourlySeries": {
+        "description": "Per-hour values, aligned index-for-index to `AnalyzeResponse.times`.\n\nA null is a genuine gap, meaning no value at that hour, most often AQI past\nits shorter horizon. Consumers should render a break rather than\ninterpolating across one.",
+        "properties": {
+          "aqi": {
+            "description": "US AQI, all EPA pollutants combined.",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Aqi",
+            "type": "array"
+          },
+          "precip_in": {
+            "description": "Precipitation, inches.",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Precip In",
+            "type": "array"
+          },
+          "temp_f": {
+            "description": "Temperature, degrees Fahrenheit.",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Temp F",
+            "type": "array"
+          },
+          "wind_mph": {
+            "description": "Wind speed, miles per hour.",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Wind Mph",
+            "type": "array"
+          }
+        },
+        "required": [
+          "precip_in",
+          "temp_f",
+          "wind_mph",
+          "aqi"
+        ],
+        "title": "HourlySeries",
+        "type": "object"
+      },
+      "Limits": {
+        "description": "Hard bounds every request is validated against.",
+        "properties": {
+          "aqi_forecast_days": {
+            "description": "How far ahead air quality is available. The underlying CAMS model runs far shorter than the weather forecast, so `aqi_avg` and `aqi_max` come back null for hours past this horizon. An analysis never fails because of it.",
+            "title": "Aqi Forecast Days",
+            "type": "integer"
+          },
+          "max_destinations": {
+            "description": "Ceiling on candidates in a single analysis, counting discovered and custom destinations together. Every candidate gets a real forecast, so this is what bounds upstream cost. Exceeding it fails loudly rather than silently truncating the ranking.",
+            "title": "Max Destinations",
+            "type": "integer"
+          },
+          "max_future_days": {
+            "description": "How far ahead `end_datetime` may reach. The weather API forecasts roughly 16 days; this bound carries the same slack.",
+            "title": "Max Future Days",
+            "type": "integer"
+          },
+          "max_limit": {
+            "description": "Largest accepted `limit`.",
+            "title": "Max Limit",
+            "type": "integer"
+          },
+          "max_past_days": {
+            "description": "How far back `start_datetime` may reach. The weather API serves roughly 90 days of history; this bound carries slack so a legitimate edge window is never falsely rejected.",
+            "title": "Max Past Days",
+            "type": "integer"
+          },
+          "max_polygon_area_km2": {
+            "description": "Largest drawable search area, measured as a bounding-box approximation of the polygon. Larger areas are rejected with 422.",
+            "title": "Max Polygon Area Km2",
+            "type": "integer"
+          },
+          "min_limit": {
+            "description": "Smallest accepted `limit`.",
+            "title": "Min Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_polygon_area_km2",
+          "max_destinations",
+          "min_limit",
+          "max_limit",
+          "max_past_days",
+          "max_future_days",
+          "aqi_forecast_days"
+        ],
+        "title": "Limits",
+        "type": "object"
+      },
+      "PreviewConfig": {
+        "description": "Preview-environment banner state.",
+        "properties": {
+          "commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Commit this preview was built from. Null unless enabled.",
+            "title": "Commit"
+          },
+          "enabled": {
+            "description": "Whether this deployment is a PR preview rather than production.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "pr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pull request number this preview was built from. Null unless enabled.",
+            "title": "Pr"
+          }
+        },
+        "required": [
+          "enabled",
+          "pr",
+          "commit"
+        ],
+        "title": "PreviewConfig",
+        "type": "object"
+      },
+      "SortBy": {
+        "enum": [
+          "precip_total_in",
+          "precip_max_in_hr",
+          "wind_avg_mph",
+          "wind_max_mph",
+          "temp_min_f",
+          "temp_avg_f",
+          "temp_max_f",
+          "aqi_avg",
+          "aqi_max"
+        ],
+        "title": "SortBy",
+        "type": "string"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "VersionResponse": {
+        "description": "Build identity of the running service.",
+        "properties": {
+          "built_at": {
+            "description": "ISO 8601 UTC timestamp of the image build, or \"dev\".",
+            "examples": [
+              "2026-07-27T18:42:11Z"
+            ],
+            "title": "Built At",
+            "type": "string"
+          },
+          "commit": {
+            "description": "Git SHA the image was built from, or \"dev\".",
+            "examples": [
+              "bce6660f1a2b3c4d5e6f708192a3b4c5d6e7f809"
+            ],
+            "title": "Commit",
+            "type": "string"
+          },
+          "version": {
+            "description": "Semantic version of the running release, or \"dev\".",
+            "examples": [
+              "0.28.0"
+            ],
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "commit",
+          "built_at"
+        ],
+        "title": "VersionResponse",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "contact": {
+      "name": "Bluebird on GitHub",
+      "url": "https://github.com/zimmertr/bluebird"
+    },
+    "description": "\nBluebird ranks outdoor destinations by their forecast weather.\n\nDraw a polygon and every named peak, trailhead, or lake inside it is discovered\nfrom OpenStreetMap, given a real hourly forecast, and ranked. Or skip discovery\nentirely and send your own coordinates.\n\nThere is no API key, no authentication, and no rate limit. Every upstream is\nfree and keyless, so please be considerate: a single analysis can fan out to\nhundreds of forecast requests.\n\nStart with `GET /api/capabilities` to learn the limits this deployment enforces,\nand `GET /api/version` to confirm which build you are talking to.\n",
+    "license": {
+      "name": "GPL-3.0-only",
+      "url": "https://www.gnu.org/licenses/gpl-3.0-standalone.html"
+    },
+    "summary": "Map-based weather window finder for hikers and mountaineers.",
+    "title": "Bluebird",
+    "version": "dev"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/analyze": {
+      "post": {
+        "description": "Discovers every named destination of the requested type inside the polygon, unions in any `custom_destinations`, fetches a real hourly forecast for each, and returns the top `limit` ranked by `sort_by`.\n\nDiscovery is never sampled, so cost scales with how many destinations the polygon contains, not with `limit`. A large polygon over dense terrain can take tens of seconds. For a progress feed instead of a single long wait, use `POST /api/analyze/stream`.",
+        "operationId": "analyze_api_analyze_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyzeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyzeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The request parsed but does not describe a runnable analysis: the window is inverted, the destination type is not discoverable, `custom_destinations` is missing for a custom analysis, the elevation band excludes every candidate, or the candidate count exceeds the cap."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "An upstream failed: every Overpass mirror was unreachable, or the weather API did not answer. Transient and worth retrying. Air quality is exempt, since a failure there degrades to null rather than failing the analysis."
+          }
+        },
+        "summary": "Rank destinations by forecast weather",
+        "tags": [
+          "analysis"
+        ]
+      }
+    },
+    "/api/analyze/stream": {
+      "post": {
+        "description": "Identical analysis to `POST /api/analyze`, delivered as Server-Sent Events so a caller can show progress instead of waiting on one long request.\n\nThe HTTP status is **always 200**, including for failures: the connection is already open and streaming by the time most problems surface. Check the event stream, not the status code. Four event types arrive as `data:` lines carrying a JSON object with a `type` field:\n\n- `status` \u2014 a human-readable phase message in `message`\n- `progress` \u2014 `processed`, `total`, and `percent` counters\n- `result` \u2014 the terminal success event, carrying a full `AnalyzeResponse` in `data`\n- `error` \u2014 the terminal failure event, with the reason in `message`\n\nExactly one `result` or one `error` ends the stream.",
+        "operationId": "analyze_stream_api_analyze_stream_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyzeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "example": "data: {\"type\": \"status\", \"message\": \"Searching for Destinations\u2026\"}\n\ndata: {\"type\": \"progress\", \"processed\": 50, \"total\": 120, \"percent\": 41}\n\ndata: {\"type\": \"result\", \"data\": {\"results\": [], \"total_queried\": 0}}\n\n",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "An SSE stream. Ends with either a `result` or an `error` event."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rank destinations, streaming progress as it goes",
+        "tags": [
+          "analysis"
+        ]
+      }
+    },
+    "/api/capabilities": {
+      "get": {
+        "description": "Everything a client needs to build a valid request without hardcoding constants or scraping the docs. Every value is read from the same constants the validators enforce, so this can never drift from actual behavior.",
+        "operationId": "capabilities_api_capabilities_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilitiesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Describe supported features and enforced limits",
+        "tags": [
+          "metadata"
+        ]
+      }
+    },
+    "/api/config": {
+      "get": {
+        "operationId": "config_api_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Report deployment-specific UI configuration",
+        "tags": [
+          "metadata"
+        ]
+      }
+    },
+    "/api/geocode": {
+      "get": {
+        "description": "Thin proxy to Nominatim, forwarding its JSON verbatim. The response shape is therefore Nominatim's `jsonv2` format, not something Bluebird defines, and each row carries `lat`, `lon`, `display_name`, and `extratags` (which is where a summit's `ele` lives).\n\nThis exists because Nominatim's usage policy asks callers to identify themselves with a real User-Agent, which a browser fetch cannot set. That same policy forbids autocomplete, so call this on an explicit search action rather than on every keystroke.",
+        "operationId": "geocode_api_geocode_get",
+        "parameters": [
+          {
+            "description": "Place name to search for, such as `Mount Rainier`.",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "description": "Place name to search for, such as `Mount Rainier`.",
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum places to return.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "description": "Maximum places to return.",
+              "maximum": 10,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Matching places, in Nominatim's `jsonv2` format."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Nominatim was unreachable or returned an unexpected payload."
+          }
+        },
+        "summary": "Look up a place by name",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/api/version": {
+      "get": {
+        "description": "Answers what release is actually live, without cross-referencing the GitHub release, the Docker Hub tag, and the manifests repo. Preview builds report `pr-<number>`. Local and Docker Compose builds report `dev` for every field, because nothing baked a real identity in.",
+        "operationId": "version_api_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Report the running build",
+        "tags": [
+          "metadata"
+        ]
+      }
+    },
+    "/healthz": {
+      "get": {
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Healthz Healthz Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Liveness probe",
+        "tags": [
+          "metadata"
+        ]
+      }
+    }
+  },
+  "tags": [
+    {
+      "description": "Discover destinations and rank them by forecast weather.",
+      "name": "analysis"
+    },
+    {
+      "description": "Build identity, enforced limits, and deployment configuration. These answer from memory, touch no upstream, and are safe to poll.",
+      "name": "metadata"
+    },
+    {
+      "description": "Look up a place by name, proxied to Nominatim.",
+      "name": "search"
+    }
+  ]
+}
