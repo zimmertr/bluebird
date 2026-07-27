@@ -6,7 +6,7 @@ interface Props {
 
 const STEPS: [string, string][] = [
   ['Destinations', 'Choose where to search by drawing an area on the map, searching by name, or providing custom coordinates.'],
-  ['Forecast Window', 'Select the start and end date for the weather period you care about.'],
+  ['Forecast Window', 'Analyze conditions right now, at a specific day and time, or across a multi-hour window.'],
   ['Result Ranking', 'Choose how destinations should be ranked: driest conditions, lowest winds, ideal temperatures, or cleanest air.'],
   ['Options', 'Apply constraints and enable additional features like wildfire visibility.'],
   ['Analyze', 'Generate ranked results, explore them on the map, and compare forecast data across your selected destinations.'],
