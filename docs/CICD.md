@@ -38,7 +38,7 @@ flowchart TD
     end
 
     subgraph HELM["GitHub: zimmertr/bluebird-helm"]
-        helmPR["PR: chore/bump-appversion"]
+        helmPR["PR: chore/bump-appversion<br/>(self-merging)"]
         helmMain["main (charts/**)"]
         helmRel["release.yml"]
     end
@@ -68,7 +68,7 @@ flowchart TD
     bbRel -->|direct commit: image newTag| kmStable
     bbRel -->|open/update PR| helmPR
 
-    helmPR -.->|TJ merges| helmMain
+    helmPR -->|auto-merge once lint passes| helmMain
     helmMain --> helmRel
     ghRelease -.->|appVersion from releases/latest| helmRel
     helmRel -->|helm push| dhChart
@@ -101,9 +101,20 @@ concurrency-serialized):
    `images.newTag: <semver>` in `public/bluebird/kustomization.yml`. Argo CD
    auto-syncs, so this is the fast path that rolls the new image to prod.
 5. **Bump Helm Chart appVersion** — force-pushes a fixed `chore/bump-appversion`
-   branch on `bluebird-helm` setting `Chart.yaml` `appVersion=<semver>`, and
-   opens **or updates in place** a single PR (Dependabot-style dedup). Requires
-   `GH_PAT` with contents + pull-requests write on `bluebird-helm`.
+   branch on `bluebird-helm` setting `Chart.yaml` `appVersion=<semver>`, opens
+   **or updates in place** a single PR (Dependabot-style dedup), then arms
+   **squash auto-merge** so it lands itself once `Lint & render` passes. No human
+   step. Requires `GH_PAT` with contents + pull-requests write on `bluebird-helm`,
+   and `allow_auto_merge` enabled on that repo.
+
+   Two non-obvious constraints hold this together:
+   - It's a self-merging PR rather than a direct push (the way step 4 pushes) only
+     because `bluebird-helm/main` requires both a PR *and* the `Lint & render`
+     check, which GitHub enforces on direct pushes too — and that check only
+     triggers `on: pull_request`, so a push could never satisfy it.
+   - Auto-merge is armed **unconditionally**, on the update path as well as the
+     create path, because GitHub disables auto-merge on any force-push to the head
+     branch — and this job force-pushes that branch every release.
 
 **Path 2 — Chart release** (`bluebird-helm/release.yml`, on merge to `main`
 touching `charts/**`):
@@ -274,6 +285,11 @@ so the patch would land on `main` but never ship. With the PAT, an auto-merged
 patch deploys through Path 1 like any other merge — the prod canary still gates
 the rollout.
 
+The same trap applies to Path 1 step 5's auto-merged `appVersion` bump, which is
+why that `gh pr merge` runs under `GH_PAT`: a `GITHUB_TOKEN`-driven merge there
+would land the bump on `bluebird-helm/main` without ever firing Path 2, leaving
+the chart unpublished.
+
 ## A single change, end to end
 
 ```mermaid
@@ -288,11 +304,11 @@ sequenceDiagram
     Dev->>BB: merge PR to main
     BB->>DH: push bluebird:0.21.1
     BB->>KM: commit image newTag=0.21.1 (direct)
-    BB->>HELM: open/update appVersion bump PR
+    BB->>HELM: open/update appVersion bump PR + arm auto-merge
     KM->>ARGO: auto-sync
     ARGO->>ARGO: canary rollout (new image)
     Note over Dev,ARGO: New code is now live via the image tag.
-    Dev->>HELM: merge appVersion PR
+    HELM->>HELM: auto-merge appVersion PR (after lint)
     HELM->>DH: helm push chart (new version)
     HELM->>KM: open 2 chart-bump PRs
     Dev->>KM: merge stable chart PR
