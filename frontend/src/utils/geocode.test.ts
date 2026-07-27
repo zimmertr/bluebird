@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { parseCoordinates, boundsAround, placeFromNominatimRow, isPeakKind } from './geocode'
+import {
+  parseCoordinates,
+  boundsAround,
+  boundsForPoints,
+  placeFromNominatimRow,
+  isPeakKind,
+} from './geocode'
 
 describe('parseCoordinates', () => {
   it('parses "lat, lon"', () => {
@@ -75,6 +81,71 @@ describe('boundsAround', () => {
       { lat: 0, lon: 0, bbox: [-0.001, -0.001, 0.001, 0.001] },
       10,
     )
+    expect(n - s).toBeCloseTo(10 / 69.05, 5)
+  })
+})
+
+describe('boundsForPoints', () => {
+  it('returns null for an empty list', () => {
+    expect(boundsForPoints([], 10)).toBeNull()
+  })
+
+  it('spans the minimum diameter, centered, for a single point', () => {
+    const [[w, s], [e, n]] = boundsForPoints([{ latitude: 0, longitude: 0 }], 10)!
+    expect(n - s).toBeCloseTo(10 / 69.05, 5)
+    expect(e - w).toBeCloseTo(10 / 69.17, 5)
+    expect((w + e) / 2).toBeCloseTo(0, 8)
+    expect((s + n) / 2).toBeCloseTo(0, 8)
+  })
+
+  it('envelopes spread points exactly, with no extra padding', () => {
+    const bounds = boundsForPoints(
+      [
+        { latitude: 45, longitude: -122 },
+        { latitude: 48, longitude: -120 },
+        { latitude: 46, longitude: -121 },
+      ],
+      10,
+    )
+    expect(bounds).toEqual([
+      [-122, 45],
+      [-120, 48],
+    ])
+  })
+
+  it('expands a tight cluster to the minimum diameter, keeping its center', () => {
+    const [[w, s], [e, n]] = boundsForPoints(
+      [
+        { latitude: 46.85, longitude: -121.76 },
+        { latitude: 46.852, longitude: -121.758 },
+      ],
+      10,
+    )!
+    expect(n - s).toBeCloseTo(10 / 69.05, 5)
+    expect((s + n) / 2).toBeCloseTo(46.851, 6)
+    expect((w + e) / 2).toBeCloseTo(-121.759, 6)
+    // cos(46.85°) scaling → wider in degrees than the same box at the equator
+    expect(e - w).toBeGreaterThan(10 / 69.17)
+  })
+
+  it('widens the longitude span at high latitude', () => {
+    const [[w], [e]] = boundsForPoints([{ latitude: 60, longitude: 10 }], 10)!
+    // cos(60°) = 0.5 → the box must be ~2× wider in degrees than at the equator
+    expect(e - w).toBeCloseTo(10 / 69.17 / 0.5, 5)
+  })
+
+  it('pads only the axis below the minimum', () => {
+    // A 3°-long east-west line at the equator: longitude already exceeds the
+    // floor and must stay exact; degenerate latitude must grow to it.
+    const [[w, s], [e, n]] = boundsForPoints(
+      [
+        { latitude: 0, longitude: 0 },
+        { latitude: 0, longitude: 3 },
+      ],
+      10,
+    )!
+    expect(w).toBe(0)
+    expect(e).toBe(3)
     expect(n - s).toBeCloseTo(10 / 69.05, 5)
   })
 })

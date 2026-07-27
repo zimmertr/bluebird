@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { AnalysisMode, DiscoveryType, SortBy } from '../types'
+import { useMemo, useRef } from 'react'
+import { AnalysisMode, CustomDestination, DiscoveryType, SortBy } from '../types'
 import { MAX_AREA_KM2 } from './MapView'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { canAnalyze } from '../utils/analyzeGate'
@@ -59,6 +59,9 @@ interface Props {
   setLimit: (n: number) => void
   customCsv: string
   setCustomCsv: (s: string) => void
+  // A paste landed in the CSV box and parsed to at least one destination —
+  // App frames the list on the map. Paste only: typing never moves the camera.
+  onCsvPasted: (points: CustomDestination[]) => void
   sortBy: SortBy
   setSortBy: (s: SortBy) => void
   sortDesc: boolean
@@ -106,6 +109,7 @@ export default function ControlPanel({
   setLimit,
   customCsv,
   setCustomCsv,
+  onCsvPasted,
   sortBy,
   setSortBy,
   sortDesc,
@@ -132,6 +136,13 @@ export default function ControlPanel({
   // "N destinations parsed" count below both used to call parseCustomCsv directly).
   const parsedCustom = useMemo(() => parseCustomCsv(customCsv), [customCsv])
   const hasCustom = parsedCustom.length > 0
+  // True between a paste into the CSV box and the change event it produces —
+  // how onChange tells a pasted list (frame it on the map) from typing (leave
+  // the camera alone). A keydown always precedes the input event it causes
+  // (cmd+V's keydown fires before its paste event), so the flag is freshly
+  // true exactly when a change came from a paste — including a paste that
+  // replaces existing text — and stale flags can't survive into typing.
+  const csvPasteRef = useRef(false)
   // Each mode gates Analyze on its own inputs: Current Conditions needs no
   // dates at all (the click time is the moment), Future Day/Time needs its
   // moment picked, Multi-Hour Window needs both ends.
@@ -266,7 +277,17 @@ export default function ControlPanel({
             <textarea
               aria-label="Custom destination coordinates — one per line as latitude, longitude, optional name"
               value={customCsv}
-              onChange={(e) => setCustomCsv(e.target.value)}
+              onKeyDown={() => (csvPasteRef.current = false)}
+              onPaste={() => (csvPasteRef.current = true)}
+              onChange={(e) => {
+                const wasPaste = csvPasteRef.current
+                csvPasteRef.current = false
+                setCustomCsv(e.target.value)
+                if (wasPaste) {
+                  const points = parseCustomCsv(e.target.value)
+                  if (points.length > 0) onCsvPasted(points)
+                }
+              }}
               placeholder={`46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909\n48.1122,-121.1139,Glacier Peak`}
               rows={3}
               className="w-full text-xs bg-slate-900 border border-slate-600 rounded p-2 text-slate-200 placeholder-slate-600 font-mono resize-y focus:outline-none focus:border-sky-500"

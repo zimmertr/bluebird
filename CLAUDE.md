@@ -90,7 +90,7 @@ The SPA fetches only on an explicit Analyze click and renders results from a sna
 - `src/hooks/useAnalyze.ts` — fetch logic for `POST /api/analyze`
 - `src/types.ts` — TypeScript types mirroring backend Pydantic models
 - `src/utils/colors.ts` — marker/cell color thresholds per sortable metric (precip, wind, temp, AQI)
-- `src/utils/geocode.ts` — coordinate parsing, Nominatim client, and search-view bounds math for the search box
+- `src/utils/geocode.ts` — coordinate parsing, Nominatim client, and bounds math: search-view bounds for the search box plus the multi-point fit that frames pasted/restored CSV lists
 - `src/utils/wildfires.ts` — NIFC WFIGS query builder + popup formatting for the optional wildfire overlay (fetched client-side by viewport; US-only, keyless, best-effort)
 - `src/utils/fireProximity.ts` — pure point-to-perimeter distance math flagging results within 10 mi of an active fire; driven by `src/hooks/useFireProximity.ts`, which fetches NIFC around the result set after each analysis (independent of the overlay toggle, best-effort)
 
