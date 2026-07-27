@@ -97,10 +97,13 @@ data: {"type": "progress", "processed": 50, "total": 120, "percent": 41}
 data: {"type": "result", "data": {"results": [...], "total_queried": 120}}
 ```
 
-One important catch: **the HTTP status is always 200, even for failures.** The
-connection is already open and streaming by the time most problems surface, so
-check the stream, not the status code. Exactly one `result` or one `error` event
-ends the stream.
+One important catch: **check the status code first, then the stream.** A request
+that fails validation is rejected with a `422` before the stream opens, exactly
+as on `POST /api/analyze`. But once the stream does open, the status stays `200`
+for the rest of the exchange even if the analysis then fails, because the
+connection is already streaming by the time an upstream problem surfaces. So a
+`200` here means your request was accepted, not that it succeeded. Exactly one
+`result` or one `error` event ends the stream.
 
 ## Discovering the limits
 

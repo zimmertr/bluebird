@@ -75,13 +75,15 @@ def test_stream_is_documented_as_server_sent_events(schema):
 
 
 def test_request_and_response_fields_carry_descriptions(schema):
+    # Every property, with no exemptions: Pydantic puts the description on the
+    # parent even for a nullable field (which it renders as `anyOf`), so there
+    # is no shape that legitimately lacks one.
     schemas = schema["components"]["schemas"]
     for model in ("AnalyzeRequest", "DestinationResult"):
         undocumented = [
             name
             for name, spec in schemas[model]["properties"].items()
-            # anyOf wraps nullable fields; the description sits on the parent.
-            if not spec.get("description") and not spec.get("allOf")
+            if not spec.get("description")
         ]
         assert undocumented == [], f"{model} has undocumented fields"
 
