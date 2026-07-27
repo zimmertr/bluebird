@@ -122,10 +122,12 @@ touching `charts/**`):
 
 **Path 3 — GitOps sync** (Argo CD → cluster): Argo CD reconciles
 `public/bluebird/`. Kustomize inflates the OCI `helmCharts` entry with
-`values.yml`, overlays the namespace / `AnalysisTemplate` / api-test ConfigMap,
+`values.yml`, overlays the namespace / `AnalysisTemplate`s / api-test ConfigMap,
 and pins the image via `images.newTag`. The chart renders an **Argo Rollout**
-(canary `33% → 66% → 100%` gated by the `AnalysisTemplate` api-test in prod)
-plus the Istio `VirtualService`/`Gateway`; cert-manager terminates TLS.
+plus the Istio `VirtualService`/`Gateway`; cert-manager terminates TLS. The
+rollout itself is a four-step canary — a zero-traffic smoke-test gate, then
+`33% → 66% → 100%` under a background health tripwire — described in
+[Inside the prod canary](#inside-the-prod-canary-argo-rollouts) below.
 
 ### Two independent knobs reach prod
 
@@ -134,6 +136,155 @@ plus the Istio `VirtualService`/`Gateway`; cert-manager terminates TLS.
 
 A routine code change ships via the image tag alone; the chart version only
 moves when the chart itself changes (or its default `appVersion` is bumped).
+
+## Inside the prod canary (Argo Rollouts)
+
+Every path above ends the same way: Argo CD applies a change to the Rollout's
+**pod template** — the image tag (Path 1) or the chart/values (Path 2 → 3) —
+and the Argo Rollouts controller takes over. This section is what "canary
+rollout" means concretely in this cluster. There are **no `pause` steps and no
+manual promotion**: a release either promotes itself to 100% or aborts itself
+back to stable, which is what makes the unattended loops in the next section
+safe — a Dependabot auto-merge faces exactly the same gates as a hand-cut
+release.
+
+The moving parts ("KM" = `Kubernetes-Manifests/public/bluebird/`):
+
+| Resource | Comes from | Role |
+| --- | --- | --- |
+| `Rollout bluebird` | chart `workload.yaml`; strategy, steps, and history limits from KM `values.yml` | the workload — `strategy: Canary` turns the chart's Deployment into a Rollout |
+| `Service bluebird` / `bluebird-canary` | chart | stable/canary endpoints; the controller injects `rollouts-pod-template-hash` selectors so each always tracks the right ReplicaSet |
+| `VirtualService bluebird` | chart | the weighted route `bluebird-stable` (the knob the controller turns) plus an `experiment: true` header-match route |
+| `AnalysisTemplate bluebird-api-test` | KM `resources/analysisTemplate.yml` | pre-traffic functional gate (runs a Job) |
+| `AnalysisTemplate bluebird-health` | KM `resources/analysisTemplate.yml` | in-flight tripwire (controller-side web probe, no pods) |
+| `ConfigMap api-test-sh` | KM `configMapGenerator` from `files/api-test.sh` | the smoke-test script the gate Job runs |
+
+### The data plane
+
+cert-manager terminates TLS at the Istio ingress gateway, which routes by the
+`bluebird` VirtualService. Its named route `bluebird-stable` carries two
+weighted destinations — the stable and canary Services — and the Rollouts
+controller owns those weights while a release is in flight:
+
+```mermaid
+flowchart LR
+    user(["User"])
+    gw["Istio ingress gateway<br/>TLS: cert-manager"]
+
+    subgraph NS["namespace bluebird-system"]
+        vs["VirtualService bluebird<br/>route bluebird-stable"]
+        ssvc["Service bluebird<br/>(stable)"]
+        csvc["Service bluebird-canary"]
+        esvc["Service bluebird-experiment<br/>(gate step only)"]
+        srs["stable ReplicaSet<br/>pods labeled role=stable"]
+        crs["canary ReplicaSet<br/>pods labeled role=canary"]
+        epod["experiment pod<br/>(new version)"]
+    end
+
+    user --> gw --> vs
+    vs -->|"weight 100 - W"| ssvc --> srs
+    vs -->|"weight W (controller-managed)"| csvc --> crs
+    vs -->|"header experiment: true"| esvc --> epod
+```
+
+### The four steps
+
+Prod runs `replicas: 3` with `dynamicStableScale: true`: the canary ReplicaSet
+scales up to match the traffic share it is about to receive while the stable
+one scales down to what it still serves, so a rollout never doubles capacity.
+
+```mermaid
+flowchart TD
+    apply["Argo CD applies a new pod template<br/>(image newTag via Path 1, chart/values via Path 2)"]
+    detect["Rollouts controller detects the new revision"]
+
+    subgraph GATE["Step 0 — experiment gate (0% user traffic)"]
+        exp["Experiment: 1 new-version pod behind<br/>Service bluebird-experiment"]
+        gate["AnalysisRun bluebird-api-test (Job)<br/>POST /api/analyze via the real gateway + TLS,<br/>header experiment: true<br/>3 measurements, 30 s apart, 1 flake forgiven"]
+    end
+
+    subgraph SHIFT["Steps 1–3 — traffic shift (tripwire armed)"]
+        w33["setWeight 33 — VS 67/33"]
+        w66["setWeight 66 — VS 34/66"]
+        w100["setWeight 100 — VS 0/100"]
+    end
+
+    trip["Background AnalysisRun bluebird-health:<br/>controller polls canary Service /openapi.json<br/>every 15 s, expects title Bluebird"]
+
+    done["Promoted — canary ReplicaSet becomes stable,<br/>VirtualService reset to 100/0, history pruned"]
+    abort["Aborted — VS back to 100% stable,<br/>canary scaled to 0, Rollout Degraded<br/>(Argo CD: Synced + Degraded)"]
+    fix["Fix through git: patch release via Path 1<br/>(or revert the newTag commit)"]
+
+    apply --> detect --> exp --> gate
+    gate -->|"passes"| w33
+    w33 --> w66 --> w100 --> done
+    w33 -.->|"arms"| trip
+    gate -->|"2 failures"| abort
+    trip -->|"2 failures or<br/>3 consecutive errors"| abort
+    abort -.-> fix
+```
+
+**Step 0 — experiment gate, 0% user traffic.** The controller starts an
+`Experiment`: one pod of the *new* version behind the fixed-name Service
+`bluebird-experiment`, reachable only through the VirtualService's
+`experiment: true` header route — ordinary users keep hitting stable. An
+`AnalysisRun` from `bluebird-api-test` runs `api-test.sh` as a Job
+(`curlimages/curl`; Istio sidecar disabled because sidecar'd Jobs never
+complete; `backoffLimit: 0` so retries are governed only by the metric;
+finished pods self-delete after 5 minutes). The script POSTs a known-good
+polygon (Tiger Mountain, Issaquah WA — 8 named OSM peaks) to
+`https://bluebirdforecast.com/api/analyze` with a window computed at run time
+(now → +48 h) and requires HTTP 200 with at least one ranked peak — exercising
+gateway, TLS, header routing, FastAPI, Overpass, and Open-Meteo end to end.
+`--connect-to` pins the TCP connection to the in-cluster gateway Service
+(`gateway.istio-gateway.svc.cluster.local:443`) while still TLS-validating the
+public hostname, so external DNS or NAT reflection can never flake the gate.
+Three measurements, 30 s apart, `failureLimit: 1`: one flake is forgiven, two
+failures abort. The analysis is `requiredForCompletion`, so the step ends
+exactly when it does — and the flip side is deliberate: an extended
+Overpass/Open-Meteo outage *blocks* releases rather than skipping validation.
+
+**Steps 1–3 — `setWeight` 33 → 66 → 100.** Each step scales the canary
+ReplicaSet to its share, waits for those pods to pass their `/healthz` startup
+probes, then rewrites the two destination weights on the `bluebird-stable`
+route (67/33 → 34/66 → 0/100). From the first weight step
+(`startingStep: 1`) a **background** `AnalysisRun` from `bluebird-health` is
+armed: the controller itself polls
+`http://bluebird-canary.bluebird-system.svc.cluster.local:8000/openapi.json`
+every 15 s (web provider — no Job pods) and asserts `$.info.title` is
+`Bluebird`, with a 30 s initial delay for pods still starting,
+`failureLimit: 1`, and `consecutiveErrorLimit: 2`. It deliberately probes the
+canary Service directly rather than the gateway path: step 0 already proved
+the ingress, so the only thing that can fail this probe is the canary itself —
+exactly the case where rollback is the right response.
+
+**Promotion.** After 100%, the canary ReplicaSet *becomes* stable: the
+controller repoints both Services' hash selectors, resets the VirtualService
+to 100/0, and scales the old ReplicaSet down. History is kept deliberately
+short for Argo CD UI legibility: `revisionHistoryLimit: 1` (current plus one
+previous ReplicaSet) and one successful / two unsuccessful `AnalysisRun`s.
+
+**Abort.** If either analysis fails — or someone runs `kubectl argo rollouts
+abort` — traffic snaps back: the stable ReplicaSet is rescaled to full size
+first (`dynamicStableScale` had shrunk it), the VirtualService returns to 100%
+stable, the canary scales to zero, and the Rollout reports **Degraded**.
+
+### How this coexists with Argo CD
+
+The `bluebird` Application is generated by the `public` ApplicationSet
+(`Kubernetes-Manifests/public/applicationset.yml`) with automated sync, prune,
+and **`selfHeal`** — which would instantly revert the controller's weight
+edits mid-rollout. The ApplicationSet therefore carries an
+`ignoreDifferences` jq rule matching exactly the destination weights on any
+`*-stable` VirtualService route, so live weight drift is invisible to the
+diff. Argo CD's health assessment understands Rollouts natively: the app shows
+*Progressing* during a canary, *Healthy* at promotion, and *Degraded* after an
+abort **while still being Synced** — an aborted rollout is Rollouts state, not
+git drift, so `selfHeal` won't retry it. Remediation flows through git like
+everything else: ship a fixed patch release via Path 1 (or revert the `newTag`
+commit in `Kubernetes-Manifests`); the next pod-template change supersedes the
+aborted revision and starts a fresh canary. `kubectl argo rollouts retry`
+exists for one-off flakes, but the normal path is git.
 
 ## PR preview environments
 
@@ -195,8 +346,9 @@ flowchart LR
 
 Two loops keep shipped artifacts current with nobody initiating a change: a
 weekly re-scan of the released image, and Dependabot dependency PRs with patch
-auto-merge. Both funnel into Path 1, so the prod canary still gates everything
-they produce. The next two sections give the details.
+auto-merge. Both funnel into Path 1, so the [prod
+canary](#inside-the-prod-canary-argo-rollouts) still gates everything they
+produce. The next two sections give the details.
 
 ```mermaid
 flowchart LR
