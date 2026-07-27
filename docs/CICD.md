@@ -44,6 +44,7 @@ flowchart TD
     end
 
     subgraph KM["GitHub: zimmertr/Kubernetes-Manifests"]
+        kmStablePR["PR: chore/bluebird-stable-chart<br/>(self-updating)"]
         kmStable["public/bluebird<br/>kustomization.yml"]
         kmPreview["public/bluebird-pr<br/>applicationset.yml"]
     end
@@ -73,8 +74,9 @@ flowchart TD
     ghRelease -.->|appVersion from releases/latest| helmRel
     helmRel -->|helm push| dhChart
     dhChart --> ah
-    helmRel -->|open 2 PRs: chart version| kmStable
-    helmRel -->|open 2 PRs: targetRevision| kmPreview
+    helmRel -->|open/update 1 PR: chart version| kmStablePR
+    kmStablePR -.->|TJ merges| kmStable
+    helmRel -->|direct commit: targetRevision| kmPreview
 
     kmStable --> argocd
     dhChart -->|OCI pull| argocd
@@ -125,11 +127,22 @@ touching `charts/**`):
    (the value committed to `Chart.yaml` is only a local-render fallback — the
    resolver is the source of truth), then `helm package --version <chartver>
    --app-version <appver>` and `helm push` to the OCI repo; tags + GitHub release.
-3. **bump-manifests** opens **two PRs** against `Kubernetes-Manifests`:
-   - preview: `public/bluebird-pr/applicationset.yml` → `targetRevision: <chartver>`
-   - stable: `public/bluebird/kustomization.yml` → `helmCharts[0].version: <chartver>`
+3. **bump-manifests** moves `Kubernetes-Manifests` onto the new chart, treating
+   its two consumers differently:
+   - preview: a **direct commit** to `main` setting `targetRevision: <chartver>`
+     in `public/bluebird-pr/applicationset.yml`. This only drives ephemeral
+     per-PR environments, so there's nothing reaching prod for a review to gate.
+   - stable: a **PR** setting `helmCharts[0].version: <chartver>` in
+     `public/bluebird/kustomization.yml`, so a chart change reaching prod gets
+     review. Like step 5 of Path 1, it uses a **fixed** branch
+     (`chore/bluebird-stable-chart`) that is force-pushed and edited in place,
+     so rapid chart releases collapse into one always-current PR. Title and body
+     are refreshed alongside the force-push, since both name the version.
 
-   Kept as PRs (not direct commits) so a chart change reaching prod gets review.
+   The fixed branch matters: version-suffixed branch names were the norm here
+   until they stranded 6 open PRs across three chart releases while prod stayed
+   pinned to an old chart. A new branch per version means `gh pr create` opens a
+   new PR every time instead of advancing the existing one.
 
 **Path 3 — GitOps sync** (Argo CD → cluster): Argo CD reconciles
 `public/bluebird/`. Kustomize inflates the OCI `helmCharts` entry with
@@ -143,7 +156,10 @@ rollout itself is a four-step canary — a zero-traffic smoke-test gate, then
 ### Two independent knobs reach prod
 
 - **Image tag** — Path 1, a direct commit, fast and unreviewed.
-- **Chart version** — Path 2 → Path 3, a reviewed PR.
+- **Chart version (stable)** — Path 2 → Path 3, a reviewed PR. The only hop in
+  the whole pipeline that still waits on a human.
+- **Chart version (preview)** — Path 2, a direct commit; ephemeral per-PR
+  environments only, so it never touches prod.
 
 A routine code change ships via the image tag alone; the chart version only
 moves when the chart itself changes (or its default `appVersion` is bumped).
@@ -462,7 +478,8 @@ sequenceDiagram
     Note over Dev,ARGO: New code is now live via the image tag.
     HELM->>HELM: auto-merge appVersion PR (after lint)
     HELM->>DH: helm push chart (new version)
-    HELM->>KM: open 2 chart-bump PRs
+    HELM->>KM: commit preview targetRevision (direct)
+    HELM->>KM: open/update the stable chart PR
     Dev->>KM: merge stable chart PR
     KM->>ARGO: auto-sync
     ARGO->>ARGO: canary rollout (new chart)
