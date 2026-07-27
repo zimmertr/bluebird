@@ -111,8 +111,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Update the image tag in Kubernetes-Manifests so Argo CD rolls out the new version
-  # GH_PAT must have contents: write on zimmertr/Kubernetes-Manifests
+  # Update the image tag in Kubernetes-Manifests so Argo CD rolls out the new version.
+  #
+  # This lands through a self-merging PR rather than a direct push: Kubernetes-Manifests
+  # forbids direct commits to main, and its "Validate manifests" check renders the
+  # affected kustomization before anything reaches Argo CD. A tag that doesn't resolve
+  # fails the PR instead of failing a sync.
+  #
+  # Dependabot-style fixed branch: force-pushed every release and edited in place, so
+  # rapid releases collapse into one up-to-date PR rather than a pile of stale ones.
+  #
+  # GH_PAT must have contents + pull-requests write on zimmertr/Kubernetes-Manifests.
   update-manifests:
     name: Update Kubernetes Manifests
     runs-on: ubuntu-latest
@@ -123,19 +132,49 @@ jobs:
         with:
           kustomize-version: '5.4.3'
 
-      - name: Update kustomization image tag
+      - name: Open or update the image bump PR
         env:
           SEMVER: ${{ needs.determine-version.outputs.semVer }}
-          GH_PAT: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          APP_REPO: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
         run: |
-          git clone "https://x-access-token:${GH_PAT}@github.com/zimmertr/Kubernetes-Manifests.git" k8s-manifests
-          cd k8s-manifests/public/bluebird
-          kustomize edit set image zimmertr/bluebird=zimmertr/bluebird:${SEMVER}
+          BR="chore/bluebird-image"
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/zimmertr/Kubernetes-Manifests.git" k8s-manifests
+          cd k8s-manifests
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add kustomization.yml
-          git diff --cached --quiet || git commit -m "chore: bump bluebird image to ${SEMVER}"
-          git push
+          # Fresh off main every time, so the branch is always exactly one commit
+          # carrying the newest tag, never a stack of prior bumps.
+          git checkout -B "$BR" origin/main
+          (cd public/bluebird && kustomize edit set image zimmertr/bluebird=zimmertr/bluebird:${SEMVER})
+          if git diff --quiet; then
+            echo "Manifests already at ${SEMVER} — nothing to bump."
+            exit 0
+          fi
+          git commit -am "chore: bump bluebird image to ${SEMVER}"
+          git push -f origin "$BR"
+
+          TITLE="chore: bump bluebird image to ${SEMVER}"
+          BODY="Automated by the bluebird ${SEMVER} release. Rolls the stable app onto the freshly published \`zimmertr/bluebird:${SEMVER}\` (triggers the canary rollout).
+
+          - Release: ${SERVER_URL}/${APP_REPO}/releases/tag/v${SEMVER}"
+          PR_NUM="$(gh pr list --head "$BR" --state open --json number -q '.[0].number')"
+          if [ -n "$PR_NUM" ]; then
+            # The force-push already advanced the branch. Refresh title and body
+            # too: both name the version, so a PR carried across several releases
+            # would otherwise advertise a superseded one.
+            gh pr edit "$PR_NUM" --title "$TITLE" --body "$BODY"
+            echo "Advanced existing PR #${PR_NUM} to ${SEMVER}."
+          else
+            gh pr create --base main --head "$BR" --title "$TITLE" --body "$BODY"
+          fi
+
+          # Re-arm unconditionally: GitHub disables auto-merge whenever the head
+          # branch is force-pushed, and this job force-pushes on every release.
+          # The || fallback covers the window where the required check has already
+          # gone green, which makes the PR "clean" and rejects --auto outright.
+          gh pr merge --auto --squash "$BR" || gh pr merge --squash "$BR"
 
   # Land a commit on bluebird-helm bumping the chart's default image tag
   # (Chart.yaml appVersion) to this release. A chart release only fires on a

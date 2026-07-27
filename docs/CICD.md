@@ -15,7 +15,7 @@ three repositories and the supporting services that automate the path.
 | --- | --- |
 | **`zimmertr/bluebird`** | Application monorepo (FastAPI backend + React SPA), built into a single Docker image. |
 | **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`), published as an **OCI** artifact. |
-| **`zimmertr/Kubernetes-Manifests`** | GitOps repo Argo CD watches. `public/bluebird/` is the stable app; `public/bluebird-pr/` is the per-PR preview `ApplicationSet`. |
+| **`zimmertr/Kubernetes-Manifests`** | GitOps repo Argo CD watches. `public/bluebird/` is the stable app; `public/bluebird-pr/` is the per-PR preview `ApplicationSet`. `main` forbids direct commits; every write lands via a PR gated on the `Validate manifests` check. |
 | **Docker Hub** | `zimmertr/bluebird` (release images), `zimmertr/bluebird-pr` (preview images), and the OCI chart at `oci://registry-1.docker.io/zimmertr/bluebird-helm`. |
 | **Artifact Hub** | Indexes the published OCI chart and security-scans its rendered **default image** (why the chart's `appVersion` must always name a real, published image tag). |
 | **Cluster** | Argo CD (`argo-system`) syncing into `bluebird-system`; Argo Rollouts (canary + `AnalysisTemplate`), Istio `VirtualService`/`Gateway`, and cert-manager for `bluebirdforecast.com`. |
@@ -25,7 +25,8 @@ Argo CD `repoURL: oci://…`); nothing uses a classic Helm repo index.
 
 ## Release and promotion
 
-Solid arrows are automated; dashed arrows are a human merging a PR.
+Solid arrows are automated; dashed arrows are a human action, or a read that
+doesn't itself trigger the next step.
 
 ```mermaid
 flowchart TD
@@ -44,7 +45,10 @@ flowchart TD
     end
 
     subgraph KM["GitHub: zimmertr/Kubernetes-Manifests"]
-        kmStablePR["PR: chore/bluebird-stable-chart<br/>(self-updating)"]
+        kmCheck["pr.yml — Validate manifests<br/>required check: YAML parse<br/>+ kustomize build of affected apps"]
+        kmImagePR["PR: chore/bluebird-image<br/>(self-merging)"]
+        kmStablePR["PR: chore/bluebird-stable-chart<br/>(self-merging)"]
+        kmPreviewPR["PR: chore/bluebird-preview-chart<br/>(self-merging)"]
         kmStable["public/bluebird<br/>kustomization.yml"]
         kmPreview["public/bluebird-pr<br/>applicationset.yml"]
     end
@@ -66,7 +70,7 @@ flowchart TD
     bbMain --> bbRel
     bbRel -->|GitVersion, then build| dhImage
     bbRel --> ghRelease
-    bbRel -->|direct commit: image newTag| kmStable
+    bbRel -->|open/update PR: image newTag| kmImagePR
     bbRel -->|open/update PR| helmPR
 
     helmPR -->|auto-merge once lint passes| helmMain
@@ -74,9 +78,15 @@ flowchart TD
     ghRelease -.->|appVersion from releases/latest| helmRel
     helmRel -->|helm push| dhChart
     dhChart --> ah
-    helmRel -->|open/update 1 PR: chart version| kmStablePR
-    kmStablePR -.->|TJ merges| kmStable
-    helmRel -->|direct commit: targetRevision| kmPreview
+    helmRel -->|open/update PR: chart version| kmStablePR
+    helmRel -->|open/update PR: targetRevision| kmPreviewPR
+
+    kmCheck -.->|gates| kmImagePR
+    kmCheck -.->|gates| kmStablePR
+    kmCheck -.->|gates| kmPreviewPR
+    kmImagePR -->|auto-merge once green| kmStable
+    kmStablePR -->|auto-merge once green| kmStable
+    kmPreviewPR -->|auto-merge once green| kmPreview
 
     kmStable --> argocd
     dhChart -->|OCI pull| argocd
@@ -99,9 +109,12 @@ concurrency-serialized):
    serialize, a job hung on a registry timeout would otherwise dam every
    queued release for up to GitHub's 6-hour default.
 3. **Create GitHub Release** — auto-generated notes.
-4. **Update Kubernetes-Manifests** — a **direct commit** (no PR) sets
-   `images.newTag: <semver>` in `public/bluebird/kustomization.yml`. Argo CD
-   auto-syncs, so this is the fast path that rolls the new image to prod.
+4. **Update Kubernetes-Manifests** — a **self-merging PR** on the fixed
+   `chore/bluebird-image` branch sets `images.newTag: <semver>` in
+   `public/bluebird/kustomization.yml`. Once `Validate manifests` goes green it
+   squash-merges itself, Argo CD auto-syncs, and the new image rolls to prod. No
+   human step. See [Writes into Kubernetes-Manifests](#writes-into-kubernetes-manifests)
+   for why every write is shaped this way.
 5. **Bump Helm Chart appVersion** — force-pushes a fixed `chore/bump-appversion`
    branch on `bluebird-helm` setting `Chart.yaml` `appVersion=<semver>`, opens
    **or updates in place** a single PR (Dependabot-style dedup), then arms
@@ -109,14 +122,11 @@ concurrency-serialized):
    step. Requires `GH_PAT` with contents + pull-requests write on `bluebird-helm`,
    and `allow_auto_merge` enabled on that repo.
 
-   Two non-obvious constraints hold this together:
-   - It's a self-merging PR rather than a direct push (the way step 4 pushes) only
-     because `bluebird-helm/main` requires both a PR *and* the `Lint & render`
-     check, which GitHub enforces on direct pushes too — and that check only
-     triggers `on: pull_request`, so a push could never satisfy it.
-   - Auto-merge is armed **unconditionally**, on the update path as well as the
-     create path, because GitHub disables auto-merge on any force-push to the head
-     branch — and this job force-pushes that branch every release.
+   Same shape as every write into `Kubernetes-Manifests`, for the same reasons:
+   `bluebird-helm/main` requires both a PR *and* the `Lint & render` check, and
+   auto-merge must be re-armed on the update path because GitHub disables it on
+   any force-push to the head branch. See
+   [Writes into Kubernetes-Manifests](#writes-into-kubernetes-manifests).
 
 **Path 2 — Chart release** (`bluebird-helm/release.yml`, on merge to `main`
 touching `charts/**`):
@@ -127,17 +137,20 @@ touching `charts/**`):
    (the value committed to `Chart.yaml` is only a local-render fallback — the
    resolver is the source of truth), then `helm package --version <chartver>
    --app-version <appver>` and `helm push` to the OCI repo; tags + GitHub release.
-3. **bump-manifests** moves `Kubernetes-Manifests` onto the new chart, treating
-   its two consumers differently:
-   - preview: a **direct commit** to `main` setting `targetRevision: <chartver>`
-     in `public/bluebird-pr/applicationset.yml`. This only drives ephemeral
-     per-PR environments, so there's nothing reaching prod for a review to gate.
-   - stable: a **PR** setting `helmCharts[0].version: <chartver>` in
-     `public/bluebird/kustomization.yml`, so a chart change reaching prod gets
-     review. Like step 5 of Path 1, it uses a **fixed** branch
-     (`chore/bluebird-stable-chart`) that is force-pushed and edited in place,
-     so rapid chart releases collapse into one always-current PR. Title and body
-     are refreshed alongside the force-push, since both name the version.
+3. **bump-manifests** moves `Kubernetes-Manifests` onto the new chart via two
+   **self-merging PRs**, one per consumer:
+   - preview: `chore/bluebird-preview-chart` sets `targetRevision: <chartver>`
+     in `public/bluebird-pr/applicationset.yml` (the ephemeral per-PR envs).
+   - stable: `chore/bluebird-stable-chart` sets `helmCharts[0].version:
+     <chartver>` in `public/bluebird/kustomization.yml` (prod, triggers the
+     canary rollout).
+
+   They are separate branches rather than one PR touching both files so a
+   preview bump is never blocked behind a prod change, and either can be closed
+   independently. The chart release workflow is `concurrency`-serialized
+   (`group: chart-release`): both branches are force-pushed, so two concurrent
+   runs would clobber each other and leave the surviving PR pinned to whichever
+   version pushed last.
 
    The fixed branch matters: version-suffixed branch names were the norm here
    until they stranded 6 open PRs across three chart releases while prod stayed
@@ -155,14 +168,51 @@ rollout itself is a four-step canary — a zero-traffic smoke-test gate, then
 
 ### Two independent knobs reach prod
 
-- **Image tag** — Path 1, a direct commit, fast and unreviewed.
-- **Chart version (stable)** — Path 2 → Path 3, a reviewed PR. The only hop in
-  the whole pipeline that still waits on a human.
-- **Chart version (preview)** — Path 2, a direct commit; ephemeral per-PR
-  environments only, so it never touches prod.
+- **Image tag** — Path 1, a self-merging PR (`chore/bluebird-image`).
+- **Chart version (stable)** — Path 2 → Path 3, a self-merging PR
+  (`chore/bluebird-stable-chart`).
+- **Chart version (preview)** — Path 2, a self-merging PR
+  (`chore/bluebird-preview-chart`); ephemeral per-PR environments only, so it
+  never touches prod.
 
 A routine code change ships via the image tag alone; the chart version only
 moves when the chart itself changes (or its default `appVersion` is bumped).
+No hop in the pipeline waits on a human.
+
+### Writes into Kubernetes-Manifests
+
+`Kubernetes-Manifests/main` **forbids direct commits**. All three automated
+writes above go through a PR that merges itself, and the thing they wait on is
+`pr.yml` / **`Validate manifests`**, a required check in that repo which:
+
+1. YAML-parses every changed `.yml`/`.yaml`. This is the failure mode the bump
+   jobs can actually cause — they rewrite version lines with targeted `sed`, and
+   a regex matching more than intended corrupts the file.
+2. Renders every kustomization affected by the PR with `kustomize build
+   --enable-helm` (nearest-ancestor mapping from changed files, skipping
+   `deprecated/` and `*.disable*`). A chart version or image tag that doesn't
+   resolve fails the PR instead of failing an Argo CD sync.
+
+Three constraints hold this together, and breaking any one of them silently
+strands the automation:
+
+- **Auto-merge needs something to wait on.** `gh pr merge --auto` is rejected on
+  a PR with nothing blocking it (`Pull request is in clean status`). The
+  required check is what makes the queue non-empty; without it, arming
+  auto-merge errors out. Each job falls back to a plain `gh pr merge --squash`
+  to cover the narrow window where the check already went green.
+- **Auto-merge is armed unconditionally**, on the update path as well as the
+  create path, because GitHub disables it on any force-push to the head branch —
+  and every one of these jobs force-pushes its fixed branch each release.
+- **"Require branches to be up to date" must stay off** (`strict: false`). These
+  branches are cut fresh off `main` and force-pushed; nothing ever rebases them,
+  so requiring an up-to-date branch would deadlock whichever PR merged second.
+
+The `GH_PAT` used for all of this needs contents + pull-requests write on
+`Kubernetes-Manifests`, and `allow_auto_merge` must be on there. Concurrent
+writes to the *same* file are safe: the image tag and the stable chart version
+both live in `public/bluebird/kustomization.yml` but on lines far enough apart
+that a three-way merge of the two branches never conflicts.
 
 ## Inside the prod canary (Argo Rollouts)
 
@@ -471,16 +521,16 @@ sequenceDiagram
 
     Dev->>BB: merge PR to main
     BB->>DH: push bluebird:0.21.1
-    BB->>KM: commit image newTag=0.21.1 (direct)
+    BB->>KM: open/update image newTag=0.21.1 PR + arm auto-merge
     BB->>HELM: open/update appVersion bump PR + arm auto-merge
+    KM->>KM: auto-merge image PR (after Validate manifests)
     KM->>ARGO: auto-sync
     ARGO->>ARGO: canary rollout (new image)
     Note over Dev,ARGO: New code is now live via the image tag.
     HELM->>HELM: auto-merge appVersion PR (after lint)
     HELM->>DH: helm push chart (new version)
-    HELM->>KM: commit preview targetRevision (direct)
-    HELM->>KM: open/update the stable chart PR
-    Dev->>KM: merge stable chart PR
+    HELM->>KM: open/update preview + stable chart PRs, arm auto-merge
+    KM->>KM: auto-merge both (after Validate manifests)
     KM->>ARGO: auto-sync
     ARGO->>ARGO: canary rollout (new chart)
 ```
