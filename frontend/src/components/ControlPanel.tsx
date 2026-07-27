@@ -190,7 +190,7 @@ export default function ControlPanel({
 
           {/* a. Search by name — the search box lives on the map itself */}
           <div className="mb-3">
-            <h3 className="text-xs font-semibold text-slate-300 mb-1">a. Search by Name</h3>
+            <h3 className="text-xs font-semibold text-slate-300 mb-1">Search by Name</h3>
             <p className="text-xs text-slate-500 italic">
               Search for a destination by name on the map.
             </p>
@@ -198,7 +198,7 @@ export default function ControlPanel({
 
           {/* b. Search by polygon */}
           <div className="mb-3">
-            <h3 className="text-xs font-semibold text-slate-300 mb-1">b. Search by Polygon</h3>
+            <h3 className="text-xs font-semibold text-slate-300 mb-1">Search by Polygon</h3>
             <p className="text-xs text-slate-500 italic mb-1.5">
               Search for destinations by drawing a polygon around an area.
             </p>
@@ -255,7 +255,7 @@ export default function ControlPanel({
 
           {/* c. Search by coordinates */}
           <div>
-            <h3 className="text-xs font-semibold text-slate-300 mb-1">c. Search by Coordinates</h3>
+            <h3 className="text-xs font-semibold text-slate-300 mb-1">Search by Coordinates</h3>
             <p className="text-xs text-slate-500 italic">
               Search for destinations with coordinate pairs.
             </p>
@@ -285,7 +285,7 @@ export default function ControlPanel({
             2. Forecast Window
           </h2>
           <p className="text-xs text-slate-500 mb-2.5">
-            Analyze conditions right now, at a specific time, or across a window:
+            Analyze conditions now, later, or for a window
           </p>
 
           {/* a. Current Conditions — a point-in-time sample of the moment
@@ -299,7 +299,7 @@ export default function ControlPanel({
                 onChange={() => setForecastMode('now')}
                 className="accent-sky-500 h-3.5 w-3.5"
               />
-              <span className="text-xs font-semibold text-slate-300">a. Current Conditions</span>
+              <span className="text-xs font-semibold text-slate-300">Current Conditions</span>
             </label>
           </div>
 
@@ -315,7 +315,7 @@ export default function ControlPanel({
                 onChange={() => setForecastMode('at')}
                 className="accent-sky-500 h-3.5 w-3.5"
               />
-              <span className="text-xs font-semibold text-slate-300">b. Future Day/Time</span>
+              <span className="text-xs font-semibold text-slate-300">Future Day/Time</span>
             </label>
             <div className={`flex gap-1 ${forecastMode !== 'at' ? 'opacity-40' : ''}`}>
               <input
@@ -357,7 +357,7 @@ export default function ControlPanel({
                 onChange={() => setForecastMode('window')}
                 className="accent-sky-500 h-3.5 w-3.5"
               />
-              <span className="text-xs font-semibold text-slate-300">c. Multi-Hour Window</span>
+              <span className="text-xs font-semibold text-slate-300">Multi-Hour Window</span>
             </label>
             <div className={`space-y-2 ${forecastMode !== 'window' ? 'opacity-40' : ''}`}>
               <div>
@@ -560,7 +560,7 @@ export default function ControlPanel({
                   them would be surprising, so the filter lets them through —
                   say so where the band is set. */}
               <p className="mt-1 text-[11px] text-slate-500">
-                Destinations with unknown elevation are always included.
+                Destinations with unknown elevation are included.
               </p>
               {(minElevationFt !== null || maxElevationFt !== null) && (
                 <button

@@ -50,6 +50,10 @@ export default function TimeSeriesChart({
   // Align each series onto the active grid by timestamp — a no-op for ranked
   // rows; a pinned row may have been fetched for a different window.
   const aligned = useMemo(() => rows.map((r) => alignRowToGrid(r, times)), [rows, times])
+  // A point-sample analysis ('now'/'at') has a one-timestamp grid: there are
+  // no segments to stroke, so each series must render as a dot or the chart
+  // would come up blank.
+  const pointGrid = times.length === 1
   const data = buildChartData(times, aligned, metric)
   const [yMin, yMax] = computeYDomain(aligned, metric)
 
@@ -141,6 +145,7 @@ export default function TimeSeriesChart({
             />
             {ordered.map((row) => {
               const key = chartKey(row)
+              const dimmed = focusedKey != null && focusedKey !== key
               return (
                 <Line
                   key={key}
@@ -148,11 +153,20 @@ export default function TimeSeriesChart({
                   dataKey={key}
                   name={row.name}
                   stroke={colorFor(row)}
-                  dot={false}
+                  dot={
+                    pointGrid
+                      ? {
+                          r: focusedKey === key ? 4.5 : 3.5,
+                          strokeWidth: 0,
+                          fill: colorFor(row),
+                          fillOpacity: dimmed ? 0.25 : 1,
+                        }
+                      : false
+                  }
                   connectNulls={false}
                   isAnimationActive={false}
                   strokeWidth={focusedKey === key ? 2.5 : 1.5}
-                  strokeOpacity={focusedKey != null && focusedKey !== key ? 0.25 : 1}
+                  strokeOpacity={dimmed ? 0.25 : 1}
                 />
               )
             })}

@@ -533,11 +533,11 @@ export default function App() {
   const fireWarnings = useFireProximity(results)
 
   // Comparison-chart selection (checkboxes in the table → lines in the chart).
-  // Every row shares the analysis's hourly grid. A point-sample analysis
-  // ('now'/'at') has a single-point "series" — nothing worth charting, so the
-  // chart stays off.
+  // Every row shares the analysis's hourly grid. Point-sample analyses
+  // ('now'/'at') chart too: their single-instant grid renders as one dot per
+  // destination — still a cross-destination comparison, same default-select-all.
   const chartTimes = response?.times ?? []
-  const chartable = chartTimes.length > 0 && view.mode === 'window'
+  const chartable = chartTimes.length > 0
   const chart = useChartSelection(
     results,
     view.sortBy,
