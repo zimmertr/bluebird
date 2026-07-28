@@ -1,4 +1,5 @@
 import { SortBy } from '../types'
+import { metricLabel } from '../metrics'
 import { METRIC_CONFIG } from './colors'
 
 // Identity columns that always lead the table, ahead of any metric group.
@@ -6,8 +7,9 @@ const LEAD_KEYS = new Set(['name', 'elevation_ft'])
 
 /**
  * Order the table's columns so the ranked metric's group comes right after the
- * identity columns — an AQI ranking reads "#, Name, Elev (ft), AQI Avg,
- * AQI Max, …" — while the remaining groups keep their canonical relative order.
+ * identity columns — an AQI ranking reads "#, Name, Elevation (ft), AQI ·
+ * Average, AQI · Maximum, …" — while the remaining groups keep their canonical
+ * relative order.
  */
 export function orderColumns<T extends { key: string }>(columns: T[], sortBy: SortBy): T[] {
   const group = new Set<string>(METRIC_CONFIG[sortBy].group)
@@ -22,16 +24,16 @@ export function orderColumns<T extends { key: string }>(columns: T[], sortBy: So
 // group to one representative column and drop the window-total/aggregate
 // labels from the headers.
 const POINT_LABELS: Record<string, string> = {
-  precip_avg_in_hr: 'Precip"/hr',
-  temp_avg_f: 'Temp°F',
-  wind_avg_mph: 'Wind mph',
-  aqi_avg: 'AQI',
+  precip_avg_in_hr: metricLabel('precip', undefined, 'in/hr'),
+  temp_avg_f: metricLabel('temp'),
+  wind_avg_mph: metricLabel('wind'),
+  aqi_avg: metricLabel('aqi'),
 }
 
 /**
  * Reduce the full window-mode column set to the single-value columns a
  * point-sample analysis shows: identity columns plus one column per metric,
- * relabeled without the Avg/Min/Max qualifiers.
+ * relabeled without the aggregate qualifier.
  */
 export function pointModeColumns<T extends { key: string; label: string }>(columns: T[]): T[] {
   return columns

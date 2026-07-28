@@ -1,6 +1,7 @@
 import { DestinationResult, HourlySeries, SortBy } from '../types'
+import { MetricFamily, metricLabel } from '../metrics'
 
-export type ChartMetric = 'precip' | 'temp' | 'wind' | 'aqi'
+export type ChartMetric = MetricFamily
 
 const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
   precip: 'precip_in',
@@ -9,12 +10,11 @@ const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
   aqi: 'aqi',
 }
 
-export const CHART_METRICS: { key: ChartMetric; label: string }[] = [
-  { key: 'precip', label: 'Precip (in)' },
-  { key: 'temp', label: 'Temp (°F)' },
-  { key: 'wind', label: 'Wind (mph)' },
-  { key: 'aqi', label: 'AQI' },
-]
+// The chart's radios. No aggregate: these plot the raw hourly series, so a
+// point is that hour's own value rather than anything reduced over the window.
+export const CHART_METRICS: { key: ChartMetric; label: string }[] = (
+  ['precip', 'temp', 'wind', 'aqi'] as const
+).map((key) => ({ key, label: metricLabel(key) }))
 
 // The chart opens on whatever metric the results were ranked by.
 export function metricForSort(sortBy: SortBy): ChartMetric {

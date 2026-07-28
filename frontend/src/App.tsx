@@ -15,6 +15,7 @@ import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { AnalysisMode, CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy } from './types'
 import { BUTTON_SECONDARY, LINK, PROSE, RADIUS, SURFACE_CARD, SURFACE_FLOATING, TEXT } from './styles'
+import { legendTitle, rankedNoun } from './metrics'
 import { METRIC_CONFIG } from './utils/colors'
 import { parseCustomCsv } from './utils/customDestinations'
 import { buildCustomList, pendingDestinations, pinKey } from './utils/customList'
@@ -25,31 +26,20 @@ import { encodeState, decodeState, classifyWindow, classifyMoment } from './util
 import { DEFAULT_WINDOW_HOURS, nowLocal } from './utils/datetimeLocal'
 import { rankingStale } from './utils/staleness'
 
-// Composed with the direction into e.g. "Lowest Total Precipitation" /
-// "Highest Average Temperature" for the results header.
-const SORT_NOUNS: Record<SortBy, string> = {
-  precip_total_in: 'Total Precipitation',
-  wind_avg_mph: 'Average Wind',
-  temp_avg_f: 'Average Temperature',
-  aqi_avg: 'Average AQI',
-}
+// Both map legends, sized as one. They stack in a single column, so a width
+// set on only one of them reads as a ragged edge rather than as two boxes.
+// Wide enough for the longest title metrics.ts can produce — "Forecast
+// Precipitation", 147px of the 172px this leaves at TEXT.overline — with room
+// for the wider faces Windows and Android substitute for macOS's.
+const LEGEND_WIDTH = 'w-48'
 
-// A point-sample analysis ('now'/'at') covers one hour, so the window
-// aggregates ("Total", "Average") come off the header and legend wording.
-// The 'at' legend uses these nouns too — "Current …" would be wrong for a
-// future hour.
-const POINT_SORT_NOUNS: Record<SortBy, string> = {
-  precip_total_in: 'Precipitation',
-  wind_avg_mph: 'Wind',
-  temp_avg_f: 'Temperature',
-  aqi_avg: 'AQI (PM2.5)',
-}
-
-const NOW_LEGEND_LABELS: Record<SortBy, string> = {
-  precip_total_in: 'Current Precip',
-  wind_avg_mph: 'Current Wind',
-  temp_avg_f: 'Current Temp',
-  aqi_avg: 'Current AQI',
+// What the results header calls the analysis, before the ranking it lists.
+// This prefix is why rankedNoun() leaves a point sample unqualified: saying
+// "Current Conditions: Highest Current Precipitation" states the tense twice.
+const HEADER_PREFIX: Record<AnalysisMode, string> = {
+  now: 'Current Conditions',
+  at: 'Forecast',
+  window: 'Forecast Table',
 }
 
 // Collapse/expand affordance for the bottom panels' header bars.
@@ -759,7 +749,7 @@ export default function App() {
           {(hasColoredMarkers || showWildfires) && (
             <div className="absolute bottom-8 left-2 top-16 z-10 flex flex-col justify-end gap-2 overflow-y-auto lg:top-auto lg:overflow-visible">
               {showWildfires && (
-                <div className={`${SURFACE_FLOATING} w-40 px-2.5 py-2`}>
+                <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} px-2.5 py-2`}>
                   <div className="flex items-center gap-1.5">
                     <span
                       className={`inline-block w-3 h-3 ${RADIUS.control} border`}
@@ -784,13 +774,9 @@ export default function App() {
                 </div>
               )}
               {hasColoredMarkers && (
-                <div className={`${SURFACE_FLOATING} w-40 p-2.5`}>
+                <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} p-2.5`}>
                   <p className={`${TEXT.overline} mb-1.5`}>
-                    {view.mode === 'now'
-                      ? NOW_LEGEND_LABELS[view.sortBy]
-                      : view.mode === 'at'
-                      ? POINT_SORT_NOUNS[view.sortBy]
-                      : METRIC_CONFIG[view.sortBy].label}
+                    {legendTitle(view.sortBy, view.mode)}
                   </p>
                   {METRIC_CONFIG[view.sortBy].colors.map((color, i) => (
                     <div key={i} className="flex items-center gap-1.5 py-0.5">
@@ -892,12 +878,8 @@ export default function App() {
             >
               <span className={TEXT.subheading}>
                 {results.length === 0
-                  ? 'Forecast Table'
-                  : view.mode === 'now'
-                  ? `Current Conditions: ${view.sortDesc ? 'Highest' : 'Lowest'} ${POINT_SORT_NOUNS[view.sortBy]}`
-                  : view.mode === 'at'
-                  ? `Forecast: ${view.sortDesc ? 'Highest' : 'Lowest'} ${POINT_SORT_NOUNS[view.sortBy]}`
-                  : `Forecast Table: ${view.sortDesc ? 'Highest' : 'Lowest'} ${SORT_NOUNS[view.sortBy]}`}
+                  ? HEADER_PREFIX.window
+                  : `${HEADER_PREFIX[view.mode]}: ${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, view.mode)}`}
                 {results.length > 0 && analyzed?.mode === 'now' && (
                   <span className="ml-1.5 font-normal text-slate-400">
                     as of{' '}
