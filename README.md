@@ -104,7 +104,13 @@ The format is `Lat,Lon` or `Lat,Lon,Name`, one per line; without a name the coor
 
 ### Step 2: Forecast Window
 
-Pick a start and end datetime. Both default to the current time — an equal window means "the current forecast" (the hour at hand), so a fresh load can Analyze immediately. Open-Meteo provides hourly forecasts up to 16 days ahead and about 90 days of history, so the date pickers are constrained to that range and a window outside it disables Analyze with an explanation. Everything is entered in your local browser time and converted to UTC for the API.
+Three ways to pick the time being analyzed:
+
+- **Current Conditions** (the default) samples the hour you click Analyze. It needs no date input, so a fresh load can Analyze immediately.
+- **Future Day/Time** samples a single chosen hour.
+- **Multi-Hour Window** takes a start and an end, and aggregates across it: precipitation ranks by window total, wind, temperature, and AQI by window average.
+
+Open-Meteo provides hourly forecasts up to 16 days ahead and about 90 days of history, so the date pickers are constrained to that range and a window outside it disables Analyze with an explanation. Each mode keeps its own inputs while another is selected, so switching back restores them. Everything is entered in your local browser time and converted to UTC for the API.
 
 Air quality (AQI) forecasts run shorter, because the underlying CAMS model only reaches about 5 days out. Windows past that still analyze fine. The AQI columns just show a blank for hours beyond the horizon, and the app notes this next to the date inputs.
 

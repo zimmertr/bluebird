@@ -180,7 +180,7 @@ export function encodeState(state: ShareableState): string {
     state.limit !== DEFAULT_LIMIT ||
     state.destinationType !== DEFAULT_TYPE ||
     state.showWildfires ||
-    state.mode !== 'window'
+    state.mode !== 'now'
   if (!hasPolygon && !hasCustom && !hasConstraint && !hasPins && !nonDefaultControls)
     return ''
 
@@ -189,12 +189,14 @@ export function encodeState(state: ShareableState): string {
   p.set('sort', state.sortBy)
   if (state.sortDesc) p.set('desc', '1')
   p.set('limit', String(state.limit))
-  if (state.mode === 'now') {
-    p.set('mode', 'now')
-  } else if (state.mode === 'at') {
-    p.set('mode', 'at')
+  // Always written, like type/sort/limit above, even at its default. Links used
+  // to leave `mode` out for the then-default window mode and let the reader
+  // infer it; that made every shared link hostage to the app's current default.
+  // Spelling it out costs one param and makes the link self-describing.
+  p.set('mode', state.mode)
+  if (state.mode === 'at') {
     if (isValidDatetimeLocal(state.atDatetime)) p.set('at', state.atDatetime)
-  } else {
+  } else if (state.mode === 'window') {
     if (isValidDatetimeLocal(state.startDatetime)) p.set('start', state.startDatetime)
     if (isValidDatetimeLocal(state.endDatetime)) p.set('end', state.endDatetime)
   }
@@ -254,7 +256,14 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   if (end && isValidDatetimeLocal(end)) out.endDatetime = end
 
   const mode = params.get('mode')
-  if (mode === 'now' || mode === 'at') out.mode = mode
+  if (mode === 'now' || mode === 'at' || mode === 'window') out.mode = mode
+  // Links minted while the multi-hour window was the default carry no `mode` at
+  // all — the bare start/end pair was the window. Now that "now" is the default,
+  // those links would silently restore as a current-conditions snapshot, so the
+  // dates themselves stand in for the missing mode. Keyed off the *parsed*
+  // dates above, not the raw params: a malformed date is dropped, and a dropped
+  // date must not imply a mode.
+  else if (out.startDatetime !== undefined || out.endDatetime !== undefined) out.mode = 'window'
   const at = params.get('at')
   if (at && isValidDatetimeLocal(at)) out.atDatetime = at
 
