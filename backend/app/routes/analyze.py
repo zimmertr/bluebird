@@ -86,7 +86,7 @@ def _cap_detail(count: int, noun: str, *, has_polygon: bool, has_custom: bool) -
     else:
         advice = "Trim the custom list or narrow the elevation range."
     return (
-        f"This search covers {count:,} {noun}s — the analysis limit is "
+        f"This search covers {count:,} {noun}s. The analysis limit is "
         f"{MAX_ANALYZE_PEAKS:,}. {advice}"
     )
 
@@ -411,7 +411,7 @@ async def analyze_stream(request: AnalyzeRequest):
                         percent=percent,
                         batches_done=batches_done,
                         total_batches=total_batches,
-                        message=f"Retrieving forecasts — {processed} of {total} {noun}s…",
+                        message=f"Retrieving forecasts: {processed} of {total} {noun}s…",
                     )
                 )
 
