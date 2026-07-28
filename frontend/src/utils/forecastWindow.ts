@@ -51,14 +51,14 @@ export function resolveWindow(
   }
   if (startMs < nowMs - PAST_LIMIT_SLACK_DAYS * DAY_MS) {
     throw new Error(
-      'start_datetime is beyond the ~90-day history limit of the weather API — ' +
-        'move the window start closer to today.',
+      'start_datetime is beyond the ~90-day history limit of the weather API. ' +
+        'Move the window start closer to today.',
     )
   }
   if (endMs > nowMs + FUTURE_LIMIT_SLACK_DAYS * DAY_MS) {
     throw new Error(
-      'end_datetime is beyond the ~16-day forecast horizon of the weather API — ' +
-        'move the window end closer to today.',
+      'end_datetime is beyond the ~16-day forecast horizon of the weather API. ' +
+        'Move the window end closer to today.',
     )
   }
   return { startMs, endMs }

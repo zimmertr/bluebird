@@ -56,7 +56,7 @@ export function capDetail(
       ? 'Draw a smaller polygon or narrow the elevation range.'
       : 'Trim the custom list or narrow the elevation range.'
   return (
-    `This search covers ${count.toLocaleString('en-US')} ${noun}s — the ` +
+    `This search covers ${count.toLocaleString('en-US')} ${noun}s. The ` +
     `analysis limit is ${MAX_ANALYZE_DESTINATIONS.toLocaleString('en-US')}. ${advice}`
   )
 }
@@ -224,7 +224,7 @@ export async function runClientAnalysis(
           processed,
           total,
           // Byte-identical to the SSE progress copy, so both paths read alike.
-          `Retrieving forecasts — ${processed} of ${total} ${noun}s…`,
+          `Retrieving forecasts: ${processed} of ${total} ${noun}s…`,
         ),
     }),
     fetchAqi(coords, startMs, endMs, { signal, nowMs }),
