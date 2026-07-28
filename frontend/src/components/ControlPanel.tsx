@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react'
 import { AnalysisMode, CustomDestination, DiscoveryType, SortBy } from '../types'
 import { MAX_AREA_KM2 } from './MapView'
 import { parseCustomCsv } from '../utils/customDestinations'
-import { TEXT } from '../styles'
+import { BUTTON_PRIMARY, FIELD, TEXT } from '../styles'
 import { canAnalyze } from '../utils/analyzeGate'
 import {
   classifyAqiCoverage,
@@ -295,7 +295,7 @@ export default function ControlPanel({
               }}
               placeholder={`46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909\n48.1122,-121.1139,Glacier Peak`}
               rows={3}
-              className={`${TEXT.control} w-full bg-slate-900 border border-slate-600 rounded p-2 placeholder-slate-600 font-mono resize-y focus:outline-none focus:border-sky-500`}
+              className={`${FIELD} w-full p-2 placeholder-slate-600 font-mono resize-y`}
             />
             {customCsv.trim() !== '' && (
               <p className={`${TEXT.helper} mt-1`}>
@@ -356,7 +356,7 @@ export default function ControlPanel({
                   const t = atDatetime.split('T')[1] ?? '00:00'
                   setAtDatetime(d ? `${d}T${t}` : '')
                 }}
-                className={`${TEXT.control} flex-1 min-w-0 bg-slate-900 border border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-sky-500`}
+                className={`${FIELD} flex-1 min-w-0 px-2 py-1.5`}
               />
               <input
                 type="time"
@@ -367,7 +367,7 @@ export default function ControlPanel({
                   const d = atDatetime.split('T')[0]
                   if (d) setAtDatetime(`${d}T${e.target.value}`)
                 }}
-                className={`${TEXT.control} w-28 bg-slate-900 border border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-sky-500 disabled:opacity-40`}
+                className={`${FIELD} w-28 px-2 py-1.5 disabled:opacity-40`}
               />
             </div>
           </div>
@@ -401,7 +401,7 @@ export default function ControlPanel({
                       const t = startDatetime.split('T')[1] ?? '00:00'
                       setStartDatetime(d ? `${d}T${t}` : '')
                     }}
-                    className={`${TEXT.control} flex-1 min-w-0 bg-slate-900 border border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-sky-500`}
+                    className={`${FIELD} flex-1 min-w-0 px-2 py-1.5`}
                   />
                   <input
                     type="time"
@@ -412,7 +412,7 @@ export default function ControlPanel({
                       const d = startDatetime.split('T')[0]
                       if (d) setStartDatetime(`${d}T${e.target.value}`)
                     }}
-                    className={`${TEXT.control} w-28 bg-slate-900 border border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-sky-500 disabled:opacity-40`}
+                    className={`${FIELD} w-28 px-2 py-1.5 disabled:opacity-40`}
                   />
                 </div>
               </div>
@@ -431,7 +431,7 @@ export default function ControlPanel({
                       const t = endDatetime.split('T')[1] ?? '00:00'
                       setEndDatetime(d ? `${d}T${t}` : '')
                     }}
-                    className={`${TEXT.control} flex-1 min-w-0 bg-slate-900 border border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-sky-500`}
+                    className={`${FIELD} flex-1 min-w-0 px-2 py-1.5`}
                   />
                   <input
                     type="time"
@@ -442,7 +442,7 @@ export default function ControlPanel({
                       const d = endDatetime.split('T')[0]
                       if (d) setEndDatetime(`${d}T${e.target.value}`)
                     }}
-                    className={`${TEXT.control} w-28 bg-slate-900 border border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-sky-500 disabled:opacity-40`}
+                    className={`${FIELD} w-28 px-2 py-1.5 disabled:opacity-40`}
                   />
                 </div>
               </div>
@@ -567,7 +567,7 @@ export default function ControlPanel({
                   onChange={(e) =>
                     setMinElevationFt(e.target.value === '' ? null : Number(e.target.value))
                   }
-                  className={`${TEXT.control} w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 placeholder-slate-600 focus:outline-none focus:border-sky-500`}
+                  className={`${FIELD} w-full px-2 py-1.5 placeholder-slate-600`}
                 />
                 <span className="text-xs text-slate-500 flex-shrink-0">–</span>
                 <input
@@ -579,7 +579,7 @@ export default function ControlPanel({
                   onChange={(e) =>
                     setMaxElevationFt(e.target.value === '' ? null : Number(e.target.value))
                   }
-                  className={`${TEXT.control} w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 placeholder-slate-600 focus:outline-none focus:border-sky-500`}
+                  className={`${FIELD} w-full px-2 py-1.5 placeholder-slate-600`}
                 />
               </div>
               {/* Many OSM features carry no elevation tag; silently dropping
@@ -609,7 +609,7 @@ export default function ControlPanel({
                 onChange={(e) =>
                   setLimit(Math.max(1, Math.min(200, parseInt(e.target.value) || 100)))
                 }
-                className={`${TEXT.control} w-24 bg-slate-900 border border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-sky-500`}
+                className={`${FIELD} w-24 px-2 py-1.5`}
               />
             </div>
 
@@ -634,9 +634,7 @@ export default function ControlPanel({
         <button
           onClick={onAnalyze}
           disabled={!analyzeEnabled}
-          className={`${TEXT.cta} w-full py-2.5 touch:py-3 rounded transition-colors
-            bg-sky-600 hover:bg-sky-500 text-white
-            disabled:opacity-40 disabled:cursor-not-allowed`}
+          className={`${BUTTON_PRIMARY} disabled:opacity-40 disabled:cursor-not-allowed`}
         >
           {loading ? 'Analyzing…' : 'Analyze'}
         </button>

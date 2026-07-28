@@ -1,4 +1,5 @@
 import { useDialog } from '../hooks/useDialog'
+import { BUTTON_PRIMARY } from '../styles'
 
 interface Props {
   onClose: () => void
@@ -120,7 +121,7 @@ export default function PrivacyModal({ onClose }: Props) {
 
           <button
             onClick={onClose}
-            className="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-lg transition-colors text-sm flex-shrink-0"
+            className={`${BUTTON_PRIMARY} flex-shrink-0`}
           >
             Got it
           </button>

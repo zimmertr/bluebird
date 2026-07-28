@@ -1,4 +1,5 @@
 import { useDialog } from '../hooks/useDialog'
+import { BUTTON_PRIMARY } from '../styles'
 
 interface Props {
   onDismiss: () => void
@@ -90,7 +91,7 @@ export default function WelcomeModal({ onDismiss }: Props) {
 
           <button
             onClick={onDismiss}
-            className="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-lg transition-colors text-sm"
+            className={BUTTON_PRIMARY}
           >
             Search Now
           </button>

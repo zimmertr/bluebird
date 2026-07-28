@@ -34,3 +34,25 @@ export const TEXT = {
   appTitle: 'text-lg font-bold text-white leading-tight',
   appSubtitle: 'text-xs text-slate-400',
 } as const
+
+/**
+ * The full-width primary action: Analyze, and the modals' dismiss buttons.
+ *
+ * It had been written out three times and had drifted into two radii, with the
+ * coarse-pointer padding on only one of the three. Call sites append their own
+ * disabled/layout classes; nothing here is a size or color they should restate.
+ */
+export const BUTTON_PRIMARY =
+  `${TEXT.cta} w-full py-2.5 touch:py-3 rounded-lg transition-colors ` +
+  'bg-sky-600 hover:bg-sky-500 text-white'
+
+/**
+ * The shared surface under every text-entry control in the panel.
+ *
+ * Padding stays at the call site: a textarea and a one-line input want
+ * different insets, and a second padding utility here would collide with
+ * theirs rather than override it.
+ */
+export const FIELD =
+  `${TEXT.control} bg-slate-900 border border-slate-600 rounded ` +
+  'focus:outline-none focus:border-sky-500'
