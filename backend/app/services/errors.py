@@ -34,15 +34,15 @@ def classify_http_error(exc: Exception, provider: str) -> str:
     """
     if isinstance(exc, PartialResultError):
         return (
-            f"{provider} could only return part of the results — the search area "
+            f"{provider} could only return part of the results. The search area "
             "is too demanding for its servers right now. Try again shortly, or "
             "draw a smaller search area."
         )
 
     if isinstance(exc, httpx.TimeoutException):
         return (
-            f"{provider} took too long to respond. It may be under heavy load — "
-            "wait a moment and try again, or draw a smaller search area."
+            f"{provider} took too long to respond. It may be under heavy load. "
+            "Wait a moment and try again, or draw a smaller search area."
         )
 
     if isinstance(exc, httpx.HTTPStatusError):
@@ -54,13 +54,13 @@ def classify_http_error(exc: Exception, provider: str) -> str:
             )
         if code in (401, 403):
             return (
-                f"{provider} rejected the request (HTTP {code} — authentication or "
+                f"{provider} rejected the request (HTTP {code}: authentication or "
                 "authorization error). This is a server-side configuration issue."
             )
         if 500 <= code < 600:
             return (
                 f"{provider} is having server trouble (HTTP {code}). This is on their "
-                "end — please try again shortly."
+                "end. Please try again shortly."
             )
         return f"{provider} returned an unexpected response (HTTP {code})."
 
