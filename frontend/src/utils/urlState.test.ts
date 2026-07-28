@@ -43,13 +43,14 @@ const base: ShareableState = {
 }
 
 // A truly untouched session: no polygon, no custom CSV, all controls at their
-// App defaults. The pre-filled window must not, on its own, sync to the URL.
+// App defaults — including mode 'now'. The pre-filled window must not, on its
+// own, sync to the URL.
 const pristine: ShareableState = {
   polygon: null,
   destinationType: 'peak',
   startDatetime: '2026-07-04T06:00',
   endDatetime: '2026-07-04T06:00',
-  mode: 'window',
+  mode: 'now',
   atDatetime: '',
   sortBy: 'precip_total_in',
   sortDesc: false,
@@ -530,8 +531,8 @@ describe('now mode (mode=now)', () => {
     expect(params.get('at')).toBeNull()
   })
 
-  it('is worth persisting on its own', () => {
-    expect(encodeState({ ...pristine, mode: 'now' })).not.toBe('')
+  it('is the default, so it does not make a pristine session worth persisting', () => {
+    expect(encodeState({ ...pristine, mode: 'now' })).toBe('')
   })
 
   it('decodes mode=now', () => {
@@ -542,11 +543,62 @@ describe('now mode (mode=now)', () => {
     expect(decodeState('mode=warp')?.mode).toBeUndefined()
   })
 
-  it('round-trips, and window-mode links stay byte-identical to before', () => {
+  it('round-trips', () => {
     expect(roundTrip({ ...base, mode: 'now' })!.mode).toBe('now')
-    // Backward compat: a window-mode state encodes with no mode param at all.
-    expect(new URLSearchParams(encodeState(base)).get('mode')).toBeNull()
-    expect(roundTrip(base)!.mode).toBeUndefined()
+  })
+})
+
+describe('window mode (mode=window)', () => {
+  it('spells the mode out rather than implying it from the dates', () => {
+    const params = new URLSearchParams(encodeState(base))
+    expect(params.get('mode')).toBe('window')
+    expect(params.get('start')).toBe('2026-07-04T06:00')
+    expect(params.get('end')).toBe('2026-07-07T18:00')
+    expect(params.get('at')).toBeNull()
+  })
+
+  it('is worth persisting on its own, now that "now" is the default', () => {
+    expect(encodeState({ ...pristine, mode: 'window' })).not.toBe('')
+  })
+
+  it('decodes mode=window', () => {
+    expect(decodeState('mode=window')!.mode).toBe('window')
+  })
+
+  it('round-trips', () => {
+    const out = roundTrip(base)
+    expect(out!.mode).toBe('window')
+    expect(out!.startDatetime).toBe('2026-07-04T06:00')
+    expect(out!.endDatetime).toBe('2026-07-07T18:00')
+  })
+
+  // Links shared before "now" became the default omitted `mode` entirely and
+  // encoded the window as a bare start/end pair. Falling through to the new
+  // default would turn someone's saved 3-day window into a single-hour
+  // snapshot, so the dates stand in for the missing mode.
+  it('infers window mode from a legacy link that carries dates but no mode', () => {
+    expect(decodeState('type=peak&sort=precip_total_in&limit=10&start=2026-07-04T06:00&end=2026-07-07T18:00')!.mode)
+      .toBe('window')
+    expect(decodeState('start=2026-07-04T06:00')!.mode).toBe('window')
+    expect(decodeState('end=2026-07-07T18:00')!.mode).toBe('window')
+  })
+
+  it('does not infer window mode from a legacy link with no dates at all', () => {
+    expect(decodeState('type=peak&limit=10')?.mode).toBeUndefined()
+  })
+
+  // The inference keys off the parsed dates, not the raw params, so a garbled
+  // date stays dropped instead of conjuring a mode out of nothing usable.
+  it('does not infer window mode from a malformed date', () => {
+    expect(decodeState('start=yesterday')).toBeNull()
+    expect(decodeState('type=peak&end=teatime')?.mode).toBeUndefined()
+  })
+
+  // An explicit mode always wins: a "now" link that happens to carry stray
+  // dates (hand-edited, or a truncated paste) must stay a "now" link.
+  it('lets an explicit mode override the legacy date inference', () => {
+    expect(decodeState('mode=now&start=2026-07-04T06:00')!.mode).toBe('now')
+    expect(decodeState('mode=at&at=2026-07-06T15:00&end=2026-07-07T18:00')!.mode).toBe('at')
   })
 })
 

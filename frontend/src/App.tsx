@@ -144,8 +144,11 @@ export default function App() {
   )
   // How Analyze picks its time: the start–end window above, "now" (the click
   // time), or "at" — a single chosen hour. Every mode's inputs stay in state
-  // while another is selected, so switching back restores them.
-  const [forecastMode, setForecastMode] = useState<AnalysisMode>(() => restored?.mode ?? 'window')
+  // while another is selected, so switching back restores them. Defaults to
+  // "now": the first question most people arrive with is "where is it clear
+  // right now", and it needs no date input to answer, so a fresh load can
+  // Analyze without touching Step 2 at all.
+  const [forecastMode, setForecastMode] = useState<AnalysisMode>(() => restored?.mode ?? 'now')
   // Future Day/Time pre-fills "tomorrow around this time" — a plausible first
   // point-in-time question — and is only sent when that mode is selected.
   const [atDatetime, setAtDatetime] = useState(() => restored?.atDatetime ?? nowLocal(24))
