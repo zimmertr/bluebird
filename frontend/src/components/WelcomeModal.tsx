@@ -38,8 +38,8 @@ export default function WelcomeModal({ onDismiss }: Props) {
         <div className="px-6 py-4">
           <p className="text-sm text-slate-300 mb-3">
             It's Friday evening. Rain is moving in from the west, smoke is drifting from the east,
-            and strong winds are building to the south. You want to climb this weekend, but where
-            should you go?
+            and strong winds are building to the south. You want to get outside this weekend, but
+            where should you go?
           </p>
           <p className="text-sm text-slate-300 mb-4">
             Bluebird helps you find out. Draw a search area and discover the best peaks, trails,
