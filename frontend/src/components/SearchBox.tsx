@@ -133,7 +133,7 @@ export default function SearchBox({ onSelect }: Props) {
           autoComplete="off"
           spellCheck={false}
           enterKeyHint="search"
-          className={`${TEXT.control} w-36 sm:w-64 bg-transparent placeholder-slate-500 focus:outline-none`}
+          className={`${TEXT.control} w-36 sm:w-64 bg-transparent placeholder-slate-400 focus:outline-none`}
         />
         {loading ? (
           <div
@@ -165,11 +165,14 @@ export default function SearchBox({ onSelect }: Props) {
         >
           {places.map((p, i) => (
             <li key={`${p.lat},${p.lon},${i}`} role="option" aria-selected={i === highlight}>
+              {/* The table's row-highlight tint, not opaque slate-700: the
+                  description below is a caption, and on a full slate-700 bar
+                  it would fall back under 4.5:1 (4.0). */}
               <button
                 onClick={() => pick(p)}
                 onMouseEnter={() => setHighlight(i)}
                 className={`w-full px-3 py-2 text-left transition-colors ${
-                  i === highlight ? 'bg-slate-700' : ''
+                  i === highlight ? 'bg-slate-700/30' : ''
                 }`}
               >
                 <span className={`${TEXT.control} block truncate`}>

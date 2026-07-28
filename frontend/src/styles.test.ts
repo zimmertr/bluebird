@@ -53,9 +53,8 @@ describe('the compact tier', () => {
     )
   })
 
-  it('keeps clarifying prose subdued and italic, and a caption the same minus the italic', () => {
+  it('keeps clarifying prose italic, and a caption the same minus the italic', () => {
     expect(TEXT.helper).toContain('italic')
-    expect(TEXT.helper).toMatch(/text-slate-[5-9]00/)
     expect(TEXT.helper.split(' ').filter((c) => c !== 'italic')).toEqual(TEXT.caption.split(' '))
   })
 
@@ -68,6 +67,15 @@ describe('the compact tier', () => {
   // stylesheet order, not class-list order.
   it('keeps the micro step legible on the lightest surface it lands on', () => {
     expect(TEXT.micro).toContain('text-slate-300')
+  })
+
+  // The 12px secondary step lands on the slate-800 panel, cards and dialogs.
+  // slate-400 is the dimmest step clearing 4.5:1 there (5.7, and 7.0 on the
+  // slate-900 fields); slate-500, where this tier sat, managed 3.1:1 — a
+  // deliberate recession, but below what AA permits for text. Same rule as
+  // the micro step: a call site cannot dim this back, so the floor is here.
+  it('keeps the caption step legible on the panel it lands on', () => {
+    expect(TEXT.caption).toContain('text-slate-400')
   })
 })
 
@@ -92,6 +100,13 @@ describe('the reading tier', () => {
   // become a second scale rather than the same one a step up.
   it('shares its small step with the compact tier base', () => {
     expect(PROSE.note).toBe(TEXT.caption)
+  })
+
+  // The dialog subtitle is the caption step one size up — the recipe the app
+  // tagline wears since the two roles merged in #165. If this drifts, the
+  // tiers have stopped rhyming and the tagline needs a role of its own again.
+  it('keeps the dialog subtitle one size up from the caption step', () => {
+    expect(PROSE.subtitle.replace('text-sm', 'text-xs')).toBe(TEXT.caption)
   })
 })
 
@@ -126,6 +141,14 @@ describe('every component', () => {
     const used = new Set(source.match(/\brounded(?:-[a-z0-9]+)?\b/g) ?? [])
 
     expect([...used].filter((c) => !scale.has(c))).toEqual([])
+  })
+
+  // The placeholder color lives in FIELD; the search box, not a field, sets
+  // its own at the same step. What no component may do is dim one below AA
+  // again. Written so no banned class appears verbatim: v4 scans this file as
+  // raw text and would emit its CSS.
+  it.each(Object.entries(sources))('%s dims no placeholder below AA', (_path, source) => {
+    expect(source).not.toMatch(/placeholder[:-](?:text-)?slate-[56]00/)
   })
 
   // The glob covers components added later, which is the point: a fourth copy
@@ -173,6 +196,14 @@ describe('shared recipes', () => {
   it('grows the primary action for coarse pointers wherever it appears', () => {
     expect(BUTTON_PRIMARY).toContain('touch:')
     expect(FIELD).toContain(TEXT.control)
+  })
+
+  // Placeholders are content, held to the same 4.5:1 as the text typed over
+  // them. slate-400 is 7.0:1 on the field surface; the slate-600 the call
+  // sites had drifted into read at 2.4:1, and the color lives in the recipe
+  // because a call site cannot override it anyway.
+  it('keeps every field placeholder legible', () => {
+    expect(FIELD).toContain('placeholder-slate-400')
   })
 
   // Every floating box on the map is one surface: the search field and its

@@ -50,7 +50,7 @@ function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; 
     <td className="px-2 py-1.5 tabular-nums whitespace-nowrap">
       {onRemove ? (
         <>
-          <span className="text-slate-500 group-hover:hidden">{rank}</span>
+          <span className="text-slate-400 group-hover:hidden">{rank}</span>
           <button
             onClick={onRemove}
             title="Remove from the results"
@@ -61,7 +61,7 @@ function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; 
           </button>
         </>
       ) : (
-        <span className="text-slate-500">{rank}</span>
+        <span className="text-slate-400">{rank}</span>
       )}
     </td>
   )
@@ -381,7 +381,7 @@ export default function ResultsTable({
                   )
                 }
                 return (
-                  <td key={col.key} className="px-2 py-1.5 whitespace-nowrap font-mono text-slate-500">
+                  <td key={col.key} className="px-2 py-1.5 whitespace-nowrap font-mono text-slate-400">
                     —
                   </td>
                 )

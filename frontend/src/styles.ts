@@ -7,8 +7,9 @@
  * the analysis overlay card — are wide, and you read them once, carefully.
  *
  * They are not two scales. The dialog title is the panel header's title one
- * size up, and the dialog subtitle is the panel's subtitle one size up; even
- * the copy rhymes ("Weather Window Finder" / "The Weather Window Finder").
+ * size up, and the dialog subtitle is the caption step one size up — the same
+ * recipe the tagline under the app title wears; even the copy rhymes
+ * ("Weather Window Finder" / "The Weather Window Finder").
  * And the reading tier's small step lands exactly on the compact tier's base,
  * so the two share the 12px rung rather than running past each other. Naming
  * them as one ramp keeps a dialog from drifting into a second look.
@@ -42,8 +43,17 @@
  */
 const MICRO = 'text-[10px] text-slate-300'
 
-/** The base size, stepped back: secondary text that is read, not scanned. */
-const CAPTION = 'text-xs text-slate-500'
+/**
+ * The base size, stepped back: secondary text that is read, not scanned.
+ *
+ * This step lands on the slate-800 panel, cards and dialogs. slate-400 is the
+ * dimmest step clearing 4.5:1 there (5.7, and 7.0 on slate-900 fields);
+ * slate-500, where this tier sat through #159, managed 3.1:1 — receding on
+ * purpose, but past what AA permits for text. Brightening it made the tagline
+ * under the app title the same recipe, so what had been two roles is one, and
+ * as with MICRO above, a call site cannot dim it back. (#165)
+ */
+const CAPTION = 'text-xs text-slate-400'
 
 /** The compact tier: panel, table, map chrome, chart. */
 export const TEXT = {
@@ -57,9 +67,7 @@ export const TEXT = {
   subheading: 'text-xs font-semibold text-slate-200',
   /** Anything you read or type in a control: radio labels, inputs, pickers. */
   control: 'text-xs text-slate-200',
-  /** The tagline under the app title. */
-  appSubtitle: 'text-xs text-slate-400',
-  /** Secondary text: a place's description, a dialog's closing note. */
+  /** Secondary text: the app tagline, a place's description, a dialog's note. */
   caption: CAPTION,
   /** Prose that explains a control without being one. */
   helper: `${CAPTION} italic`,
@@ -188,10 +196,15 @@ export const BUTTON_SECONDARY =
 /**
  * The shared surface under every text-entry control in the panel.
  *
+ * The placeholder color lives here for the same reason every color above
+ * does: a call site cannot override it. Placeholders are content held to the
+ * same 4.5:1 as text, and the slate-600 the call sites had drifted into read
+ * at 2.4:1 on this surface; slate-400 is 7.0:1. (#165)
+ *
  * Padding stays at the call site: a textarea and a one-line input want
  * different insets, and a second padding utility here would collide with
  * theirs rather than override it.
  */
 export const FIELD =
   `${TEXT.control} bg-slate-900 border border-slate-600 ${RADIUS.control} ` +
-  'focus:outline-none focus:border-sky-500'
+  'focus:outline-none focus:border-sky-500 placeholder-slate-400'
