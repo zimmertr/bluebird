@@ -14,6 +14,7 @@ import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { AnalysisMode, CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy } from './types'
+import { LINK, PROSE, RADIUS, SURFACE_CARD, SURFACE_FLOATING, TEXT } from './styles'
 import { METRIC_CONFIG } from './utils/colors'
 import { parseCustomCsv } from './utils/customDestinations'
 import { buildCustomList, pendingDestinations, pinKey } from './utils/customList'
@@ -610,7 +611,7 @@ export default function App() {
         <button
           onClick={() => setSidebarOpen(false)}
           aria-label="Close controls"
-          className="absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-slate-700/80 text-slate-200 text-xl leading-none hover:bg-slate-600 active:bg-slate-600"
+          className={`absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center ${RADIUS.pill} bg-slate-700/80 text-slate-200 text-xl leading-none hover:bg-slate-600 active:bg-slate-600`}
         >
           ×
         </button>
@@ -670,23 +671,23 @@ export default function App() {
         <div className="flex-1 relative">
           {overlay.visible && (
             <div className="absolute inset-0 bg-slate-900/60 z-20 flex items-center justify-center">
-              <div className="bg-slate-800 border border-slate-600 rounded-lg px-6 py-5 text-center shadow-xl w-[280px]">
+              <div className={`${SURFACE_CARD} px-6 py-5 text-center w-[280px]`}>
                 <img
                   src="/icon.png"
                   alt=""
-                  className="w-12 h-12 rounded-lg object-cover mx-auto mb-3 animate-pulse"
+                  className={`w-12 h-12 ${RADIUS.surface} object-cover mx-auto mb-3 animate-pulse`}
                 />
                 {/* role=status + aria-live: without it, the analysis phase is
                     the one moment the app goes completely silent for screen
                     readers — announce each status line as it changes. */}
-                <p role="status" aria-live="polite" className="text-white font-semibold text-sm leading-snug">
+                <p role="status" aria-live="polite" className={`${PROSE.heading} leading-snug`}>
                   {overlay.message}
                 </p>
                 {overlay.progress ? (
                   // Weather phase — countable batch progress (the union count is
                   // already in the "(x/y)" headline, so the bar just visualizes it).
                   <div className="mt-3">
-                    <div className="h-2 w-full rounded-full bg-slate-700 overflow-hidden">
+                    <div className={`h-2 w-full ${RADIUS.pill} bg-slate-700 overflow-hidden`}>
                       <div
                         className="h-full bg-sky-500 transition-all duration-300 ease-out"
                         style={{ width: `${overlay.progress.percent}%` }}
@@ -699,8 +700,8 @@ export default function App() {
                 ) : (
                   // Search / analyzing phase — no countable progress; show activity.
                   <div className="mt-3">
-                    <div className="h-2 w-full rounded-full bg-slate-700 overflow-hidden">
-                      <div className="h-full w-1/3 rounded-full bg-sky-500 animate-indeterminate" />
+                    <div className={`h-2 w-full ${RADIUS.pill} bg-slate-700 overflow-hidden`}>
+                      <div className={`h-full w-1/3 ${RADIUS.pill} bg-sky-500 animate-indeterminate`} />
                     </div>
                     <p className="mt-1.5 text-xs text-slate-400 font-mono">
                       Elapsed {elapsed}s
@@ -709,8 +710,8 @@ export default function App() {
                 )}
                 <button
                   onClick={cancel}
-                  className="mt-4 text-xs font-medium text-slate-400 hover:text-white
-                    border border-slate-600 hover:border-slate-400 rounded px-3 py-1.5 transition-colors"
+                  className={`mt-4 text-xs font-medium text-slate-400 hover:text-white
+                    border border-slate-600 hover:border-slate-400 ${RADIUS.control} px-3 py-1.5 transition-colors`}
                 >
                   Cancel
                 </button>
@@ -739,7 +740,7 @@ export default function App() {
               <button
                 onClick={() => setSidebarOpen(true)}
                 aria-label="Open controls"
-                className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-slate-800/95 border border-slate-600 px-3 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-sm transition-colors hover:border-sky-400 hover:text-sky-400 active:bg-slate-700"
+                className={`${SURFACE_FLOATING} ${TEXT.cta} flex flex-shrink-0 items-center gap-2 px-3 py-2 text-white transition-colors hover:border-sky-400 hover:text-sky-400 active:bg-slate-700`}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="3" y1="6" x2="21" y2="6" />
@@ -759,23 +760,23 @@ export default function App() {
           {(hasColoredMarkers || showWildfires) && (
             <div className="absolute bottom-8 left-2 top-16 z-10 flex flex-col justify-end gap-2 overflow-y-auto lg:top-auto lg:overflow-visible">
               {showWildfires && (
-                <div className="w-40 bg-slate-900/85 border border-slate-700 rounded-lg px-2.5 py-2 shadow-lg backdrop-blur-sm">
+                <div className={`${SURFACE_FLOATING} w-40 px-2.5 py-2`}>
                   <div className="flex items-center gap-1.5">
                     <span
-                      className="inline-block w-3 h-3 rounded-sm border"
+                      className={`inline-block w-3 h-3 ${RADIUS.control} border`}
                       style={{ backgroundColor: 'rgba(220,38,38,0.35)', borderColor: '#b91c1c' }}
                     />
-                    <span className="text-[11px] text-slate-300">Active Wildfire</span>
+                    <span className={TEXT.control}>Active Wildfire</span>
                   </div>
                   {/* CC BY 3.0 requires a visible credit wherever the fire data
                       is displayed, not just a source-code comment. */}
-                  <p className="mt-1 text-[10px] text-slate-500">
+                  <p className={`${TEXT.micro} mt-1`}>
                     Fire data:{' '}
                     <a
                       href="https://data-nifc.opendata.arcgis.com/"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="underline hover:text-slate-300"
+                      className={LINK}
                     >
                       NIFC
                     </a>{' '}
@@ -784,8 +785,8 @@ export default function App() {
                 </div>
               )}
               {hasColoredMarkers && (
-                <div className="w-40 bg-slate-900/85 border border-slate-700 rounded-lg p-2.5 shadow-lg backdrop-blur-sm">
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                <div className={`${SURFACE_FLOATING} w-40 p-2.5`}>
+                  <p className={`${TEXT.overline} mb-1.5`}>
                     {view.mode === 'now'
                       ? NOW_LEGEND_LABELS[view.sortBy]
                       : view.mode === 'at'
@@ -795,7 +796,7 @@ export default function App() {
                   {METRIC_CONFIG[view.sortBy].colors.map((color, i) => (
                     <div key={i} className="flex items-center gap-1.5 py-0.5">
                       <span style={{ color }} className="text-sm leading-none">●</span>
-                      <span className="text-[11px] text-slate-300 font-mono">
+                      <span className={`${TEXT.control} font-mono`}>
                         {METRIC_CONFIG[view.sortBy].legendLabels[i]}
                       </span>
                     </div>
@@ -830,13 +831,13 @@ export default function App() {
                 }}
                 className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
               >
-                <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
+                <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
               </div>
             )}
             <div
               className={`flex flex-shrink-0 items-center justify-between border-b border-slate-600 bg-slate-700 px-3 py-1 ${chartCollapsed ? 'border-t' : ''}`}
             >
-              <span className="text-xs font-semibold text-white">Forecast Chart</span>
+              <span className={TEXT.subheading}>Forecast Chart</span>
               <button
                 onClick={() => setChartCollapsed((c) => !c)}
                 title={chartCollapsed ? 'Expand the chart' : 'Collapse the chart'}
@@ -883,14 +884,14 @@ export default function App() {
                 }
                 className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
               >
-                <div className="w-10 h-0.5 rounded-full bg-slate-500 group-hover:bg-slate-300 transition-colors" />
+                <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
               </div>
             )}
             {/* Header */}
             <div
               className={`flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
             >
-              <span className="text-xs font-semibold text-white">
+              <span className={TEXT.subheading}>
                 {results.length === 0
                   ? 'Forecast Table'
                   : view.mode === 'now'
@@ -926,7 +927,7 @@ export default function App() {
                 href="https://open-meteo.com/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="ml-auto mr-2 text-[10px] text-slate-400 hover:text-slate-200 underline decoration-slate-600"
+                className={`${TEXT.micro} ${LINK} ml-auto mr-2`}
               >
                 Weather data by Open-Meteo.com
               </a>
@@ -969,7 +970,7 @@ export default function App() {
         )}
 
         {showResults && response && results.length === 0 && !loading && (
-          <div className="flex-shrink-0 border-t border-slate-600 bg-slate-800 px-4 py-3 text-sm text-slate-400">
+          <div className={`${PROSE.body} flex-shrink-0 border-t border-slate-600 bg-slate-800 px-4 py-3`}>
             {removedKeys.size > 0
               ? 'All rows have been removed from this analysis. Add destinations or adjust the inputs, then Analyze again.'
               : 'No destinations found. Try a larger polygon or different time window.'}

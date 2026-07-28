@@ -9,6 +9,7 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult } from '../types'
+import { RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
 import {
   CHART_METRICS,
   ChartMetric,
@@ -95,7 +96,7 @@ export default function TimeSeriesChart({
         {CHART_METRICS.map((m) => (
           <label
             key={m.key}
-            className="flex cursor-pointer items-center gap-1 text-xs text-slate-300"
+            className={`${TEXT.control} flex cursor-pointer items-center gap-1`}
           >
             <input
               type="radio"
@@ -240,25 +241,25 @@ function ChartTooltip({
   const rest = items.length - shown.length
 
   return (
-    <div className="rounded-lg border border-slate-600 bg-slate-800/95 px-2.5 py-1.5 text-xs shadow-lg">
+    <div className={`${SURFACE_FLOATING} ${TEXT.control} px-2.5 py-1.5`}>
       {label != null && (
-        <div className="mb-1 font-mono text-[10px] text-slate-400">{fmtTooltipTime(label)}</div>
+        <div className={`${TEXT.micro} mb-1 font-mono`}>{fmtTooltipTime(label)}</div>
       )}
       {shown.map((it) => (
         <div
           key={it.key}
           className={`flex items-center justify-between gap-3 ${
-            it.key === focusedKey ? 'font-semibold text-white' : 'text-slate-300'
+            it.key === focusedKey ? 'font-semibold text-white' : ''
           }`}
         >
           <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: colorFor(it.row) }} />
+            <span className={`h-2 w-2 ${RADIUS.control}`} style={{ backgroundColor: colorFor(it.row) }} />
             {it.row.name}
           </span>
           <span className="font-mono">{formatMetricValue(it.value, metric)}</span>
         </div>
       ))}
-      {rest > 0 && <div className="mt-0.5 text-[10px] text-slate-500">+{rest} more</div>}
+      {rest > 0 && <div className={`${TEXT.micro} mt-0.5`}>+{rest} more</div>}
     </div>
   )
 }
