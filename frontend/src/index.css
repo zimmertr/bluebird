@@ -8,6 +8,15 @@
 @import "maplibre-gl/dist/maplibre-gl.css" layer(base);
 @config "../tailwind.config.js";
 
+/* Roomier tap targets belong to coarse pointers, not narrow windows. The
+   controls panel is 320px wide at every breakpoint (max-w-xs below lg,
+   lg:w-80 above), so a viewport-width variant re-spaced its contents on a
+   desktop window that had not changed size, while a 1180px tablet still got
+   mouse-tight rows. Keying off (hover: none) asks the question we mean.
+   Load-bearing: delete this and Tailwind treats `touch:` as an unknown
+   variant, silently emitting no CSS rather than failing the build. */
+@custom-variant touch (@media (hover: none));
+
 html,
 body,
 #root {

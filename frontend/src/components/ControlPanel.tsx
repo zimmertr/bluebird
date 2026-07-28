@@ -481,13 +481,13 @@ export default function ControlPanel({
           <p className="text-xs text-slate-500 mb-2.5">
             Set the metric used to find the top destinations.
           </p>
-          <div className="space-y-2 lg:space-y-1.5">
+          <div className="space-y-1.5 touch:space-y-2">
             {SORT_METRICS.map((metric) => {
               const isActive = sortBy === metric.value
               return (
                 <div
                   key={metric.value}
-                  className="flex items-center justify-between gap-2 py-1 lg:py-0"
+                  className="flex items-center justify-between gap-2 touch:py-1"
                 >
                   <label className="flex items-center gap-2.5 cursor-pointer min-w-0">
                     <input
@@ -629,7 +629,7 @@ export default function ControlPanel({
         <button
           onClick={onAnalyze}
           disabled={!analyzeEnabled}
-          className="w-full py-3 lg:py-2.5 rounded font-semibold text-sm transition-colors
+          className="w-full py-2.5 touch:py-3 rounded font-semibold text-sm transition-colors
             bg-sky-600 hover:bg-sky-500 text-white
             disabled:opacity-40 disabled:cursor-not-allowed"
         >
