@@ -185,7 +185,7 @@ export default function ControlPanel({
         <img src="/icon.png" alt="" className="w-20 object-cover flex-shrink-0" />
         <div className="px-3 py-4 flex flex-col justify-center">
           <h1 className={TEXT.appTitle}>Bluebird Forecast</h1>
-          <p className={TEXT.appSubtitle}>Weather Window Finder</p>
+          <p className={TEXT.caption}>Weather Window Finder</p>
         </div>
       </div>
 
@@ -295,7 +295,7 @@ export default function ControlPanel({
               }}
               placeholder={`46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909\n48.1122,-121.1139,Glacier Peak`}
               rows={3}
-              className={`${FIELD} w-full p-2 placeholder-slate-600 font-mono resize-y`}
+              className={`${FIELD} w-full p-2 font-mono resize-y`}
             />
             {customCsv.trim() !== '' && (
               <p className={`${TEXT.helper} mt-1`}>
@@ -567,7 +567,7 @@ export default function ControlPanel({
                   onChange={(e) =>
                     setMinElevationFt(e.target.value === '' ? null : Number(e.target.value))
                   }
-                  className={`${FIELD} w-full px-2 py-1.5 placeholder-slate-600`}
+                  className={`${FIELD} w-full px-2 py-1.5`}
                 />
                 <span className={`${TEXT.caption} flex-shrink-0`}>–</span>
                 <input
@@ -579,7 +579,7 @@ export default function ControlPanel({
                   onChange={(e) =>
                     setMaxElevationFt(e.target.value === '' ? null : Number(e.target.value))
                   }
-                  className={`${FIELD} w-full px-2 py-1.5 placeholder-slate-600`}
+                  className={`${FIELD} w-full px-2 py-1.5`}
                 />
               </div>
               {/* Many OSM features carry no elevation tag; silently dropping
