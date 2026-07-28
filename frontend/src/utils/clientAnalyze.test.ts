@@ -218,7 +218,9 @@ describe('runClientAnalysis', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
-        const isWeather = url.includes('api.open-meteo.com')
+        // Hostname compare rather than a substring: routes the mock exactly
+        // and keeps CodeQL's URL-sanitization rule quiet.
+        const isWeather = new URL(url).hostname === 'api.open-meteo.com'
         const count = new URL(url).searchParams.get('latitude')!.split(',').length
         return {
           ok: true,
