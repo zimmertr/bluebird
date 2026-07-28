@@ -591,7 +591,7 @@ export default function ControlPanel({
               {(minElevationFt !== null || maxElevationFt !== null) && (
                 <button
                   onClick={() => { setMinElevationFt(null); setMaxElevationFt(null) }}
-                  className={`${LINK} mt-1`}
+                  className={`${BUTTON_SECONDARY} mt-2`}
                 >
                   Clear
                 </button>

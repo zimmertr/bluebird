@@ -111,6 +111,11 @@ export const PROSE = {
  * the point rather than a footnote: today, the results table's destination
  * names. Keeping that the only thing wearing sky at rest is what lets sky mean
  * one thing across the app.
+ *
+ * Neither sets a size, because a link takes the size of the sentence holding
+ * it. That means they belong inside text a role has already sized — put one on
+ * a bare element and it inherits the browser's 16px, which is how the Options
+ * section briefly got a Clear button twice the size of everything near it.
  */
 export const LINK = 'text-slate-300 hover:text-sky-400 underline'
 export const LINK_ACTION = 'text-sky-400 hover:text-sky-300 hover:underline'
