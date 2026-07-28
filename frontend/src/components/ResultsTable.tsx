@@ -8,6 +8,7 @@ import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
 import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
+import { LINK_ACTION, TEXT } from '../styles'
 
 function windyUrl(lat: number, lon: number, layer: string): string {
   return `https://www.windy.com/?${layer},${lat.toFixed(4)},${lon.toFixed(4)},11`
@@ -220,9 +221,11 @@ export default function ResultsTable({
       const display = col.format ? col.format(raw) : String(raw ?? '—')
       const sortVal = row[sortBy]
       const isColored = coloredGroup.has(col.key as string) && sortVal != null
+      // Color comes from the table's own base, or inline from cellStyle for a
+      // ranked column — an inline color beats the inherited one either way.
       const cellClass = `px-2 py-1.5 whitespace-nowrap ${
         col.key === 'name' ? 'font-sans font-medium' : 'font-mono'
-      } ${!isColored ? 'text-slate-200' : ''}`
+      }`
       const colorSty = isColored ? cellStyle(sortVal as number, sortBy) : undefined
 
       if (col.key === 'name') {
@@ -243,7 +246,7 @@ export default function ResultsTable({
                 onClick={() => onFocusResult?.(row)}
                 title="Center the map on this destination"
                 aria-label={`Center map on ${row.name}`}
-                className="text-sky-400 hover:text-sky-300 hover:underline cursor-pointer text-left"
+                className={`${LINK_ACTION} cursor-pointer text-left`}
               >
                 {display}
               </button>
@@ -289,7 +292,9 @@ export default function ResultsTable({
     // No overflow here — the panel's scroll container in App.tsx owns both
     // axes so the horizontal scrollbar stays pinned to the visible bottom.
     <div>
-      <table className="min-w-full text-xs">
+      {/* The table's base type is set once here so every cell inherits it and
+          only the ranked columns' inline colors override. */}
+      <table className={`min-w-full ${TEXT.control}`}>
         <thead className="sticky top-0 bg-slate-700 z-10">
           <tr>
             {showChartCol && (
@@ -311,14 +316,14 @@ export default function ResultsTable({
                 )}
               </th>
             )}
-            <th scope="col" className="px-2 py-2 text-left text-slate-400 font-medium w-6">#</th>
+            <th scope="col" className={`${TEXT.subheading} px-2 py-2 text-left w-6`}>#</th>
             {orderedColumns.map((col) => (
               <th
                 key={col.key}
                 scope="col"
                 aria-sort={sortKey === col.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                 onClick={() => handleSort(col.key)}
-                className="px-2 py-2 text-left text-slate-400 font-medium cursor-pointer whitespace-nowrap hover:text-white select-none"
+                className={`${TEXT.subheading} px-2 py-2 text-left cursor-pointer whitespace-nowrap hover:text-white select-none`}
               >
                 {col.label}
                 {sortKey === col.key && (
@@ -345,7 +350,7 @@ export default function ResultsTable({
               {orderedColumns.map((col) => {
                 if (col.key === 'name') {
                   return (
-                    <td key={col.key} className="px-2 py-1.5 whitespace-nowrap font-sans font-medium text-slate-200">
+                    <td key={col.key} className="px-2 py-1.5 whitespace-nowrap font-sans font-medium">
                       <span className="flex items-center gap-1.5">
                         {d.name}
                         <a
@@ -370,7 +375,7 @@ export default function ResultsTable({
                 }
                 if (col.key === 'elevation_ft') {
                   return (
-                    <td key={col.key} className="px-2 py-1.5 whitespace-nowrap font-mono text-slate-200">
+                    <td key={col.key} className="px-2 py-1.5 whitespace-nowrap font-mono">
                       {d.elevation_ft != null ? d.elevation_ft.toLocaleString() : '—'}
                     </td>
                   )

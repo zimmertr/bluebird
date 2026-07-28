@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Place, parseCoordinates, searchPlaces } from '../utils/geocode'
+import { SURFACE_FLOATING, TEXT } from '../styles'
 
 interface Props {
   onSelect: (place: Place) => void
@@ -103,7 +104,7 @@ export default function SearchBox({ onSelect }: Props) {
 
   return (
     <div ref={rootRef} className="relative">
-      <div className="flex items-center gap-2 rounded-lg bg-slate-800/95 border border-slate-600 px-2.5 py-2 shadow-lg backdrop-blur-sm transition-colors focus-within:border-sky-400">
+      <div className={`${SURFACE_FLOATING} flex items-center gap-2 px-2.5 py-2 transition-colors focus-within:border-sky-400`}>
         <svg
           width="15"
           height="15"
@@ -132,7 +133,7 @@ export default function SearchBox({ onSelect }: Props) {
           autoComplete="off"
           spellCheck={false}
           enterKeyHint="search"
-          className="w-36 sm:w-64 bg-transparent text-sm text-white placeholder-slate-500 focus:outline-none"
+          className={`${TEXT.control} w-36 sm:w-64 bg-transparent placeholder-slate-500 focus:outline-none`}
         />
         {loading ? (
           <div
@@ -151,7 +152,7 @@ export default function SearchBox({ onSelect }: Props) {
       </div>
 
       {error && (
-        <div className="absolute left-0 top-full mt-1 w-full rounded-lg bg-slate-800/95 border border-slate-600 px-3 py-2 text-xs text-amber-300 shadow-lg backdrop-blur-sm">
+        <div className={`${SURFACE_FLOATING} absolute left-0 top-full mt-1 w-full px-3 py-2 text-xs text-amber-300`}>
           {error}
         </div>
       )}
@@ -160,7 +161,7 @@ export default function SearchBox({ onSelect }: Props) {
         <ul
           role="listbox"
           aria-label="Search results"
-          className="absolute left-0 top-full mt-1 w-72 sm:w-80 rounded-lg bg-slate-800/95 border border-slate-600 shadow-lg backdrop-blur-sm overflow-hidden divide-y divide-slate-700/60"
+          className={`${SURFACE_FLOATING} absolute left-0 top-full mt-1 w-72 sm:w-80 overflow-hidden divide-y divide-slate-700/60`}
         >
           {places.map((p, i) => (
             <li key={`${p.lat},${p.lon},${i}`} role="option" aria-selected={i === highlight}>
@@ -171,16 +172,16 @@ export default function SearchBox({ onSelect }: Props) {
                   i === highlight ? 'bg-slate-700' : ''
                 }`}
               >
-                <span className="block truncate text-sm text-slate-200">
+                <span className={`${TEXT.control} block truncate`}>
                   {p.label}
                   {p.kind && (
-                    <span className="ml-2 text-[10px] uppercase tracking-wider text-sky-300/90">
+                    <span className={`${TEXT.overline} ml-2`}>
                       {p.kind}
                     </span>
                   )}
                 </span>
                 {p.description && (
-                  <span className="block truncate text-xs text-slate-500">{p.description}</span>
+                  <span className={`${TEXT.caption} block truncate`}>{p.description}</span>
                 )}
               </button>
             </li>

@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react'
 import { AnalysisMode, CustomDestination, DiscoveryType, SortBy } from '../types'
 import { MAX_AREA_KM2 } from './MapView'
 import { parseCustomCsv } from '../utils/customDestinations'
-import { BUTTON_PRIMARY, FIELD, TEXT } from '../styles'
+import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD, LINK, TEXT } from '../styles'
 import { canAnalyze } from '../utils/analyzeGate'
 import {
   classifyAqiCoverage,
@@ -236,7 +236,7 @@ export default function ControlPanel({
                 </div>
                 <button
                   onClick={onCancelDrawing}
-                  className="px-3 py-1.5 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
+                  className={BUTTON_SECONDARY}
                 >
                   Clear
                 </button>
@@ -569,7 +569,7 @@ export default function ControlPanel({
                   }
                   className={`${FIELD} w-full px-2 py-1.5 placeholder-slate-600`}
                 />
-                <span className="text-xs text-slate-500 flex-shrink-0">–</span>
+                <span className={`${TEXT.caption} flex-shrink-0`}>–</span>
                 <input
                   type="number"
                   placeholder="Max (ft)"
@@ -591,7 +591,7 @@ export default function ControlPanel({
               {(minElevationFt !== null || maxElevationFt !== null) && (
                 <button
                   onClick={() => { setMinElevationFt(null); setMaxElevationFt(null) }}
-                  className="mt-1 text-xs text-slate-500 hover:text-slate-300 underline"
+                  className={`${BUTTON_SECONDARY} mt-2`}
                 >
                   Clear
                 </button>
@@ -684,22 +684,22 @@ export default function ControlPanel({
           </p>
         )}
 
-        <p className={`${TEXT.fineprint} text-center leading-relaxed`}>
+        <p className={`${TEXT.caption} text-center leading-relaxed`}>
           Data:{' '}
-          <a href="https://www.openstreetmap.org" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-sky-400 underline">OpenStreetMap</a>
+          <a href="https://www.openstreetmap.org" target="_blank" rel="noreferrer" className={LINK}>OpenStreetMap</a>
           {' · '}
-          <a href="https://open-meteo.com" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-sky-400 underline">Open-Meteo</a>
+          <a href="https://open-meteo.com" target="_blank" rel="noreferrer" className={LINK}>Open-Meteo</a>
           {' · '}
-          <a href="https://atmosphere.copernicus.eu" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-sky-400 underline">CAMS</a>
+          <a href="https://atmosphere.copernicus.eu" target="_blank" rel="noreferrer" className={LINK}>CAMS</a>
           {' · '}
-          <a href="https://openfreemap.org" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-sky-400 underline">OpenFreeMap</a>
+          <a href="https://openfreemap.org" target="_blank" rel="noreferrer" className={LINK}>OpenFreeMap</a>
           {' · '}
-          <a href="https://nominatim.org" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-sky-400 underline">Nominatim</a>
+          <a href="https://nominatim.org" target="_blank" rel="noreferrer" className={LINK}>Nominatim</a>
           {' · '}
-          <a href="https://www.nifc.gov" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-sky-400 underline">NIFC</a>
+          <a href="https://www.nifc.gov" target="_blank" rel="noreferrer" className={LINK}>NIFC</a>
         </p>
-        <p className={`${TEXT.fineprint} text-center`}>
-          <button onClick={onShowPrivacy} className="text-slate-500 hover:text-slate-300 underline">
+        <p className={`${TEXT.caption} text-center`}>
+          <button onClick={onShowPrivacy} className={LINK}>
             Privacy
           </button>
         </p>

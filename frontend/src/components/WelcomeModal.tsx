@@ -1,5 +1,5 @@
 import { useDialog } from '../hooks/useDialog'
-import { BUTTON_PRIMARY } from '../styles'
+import { BUTTON_PRIMARY, LINK, PROSE, RADIUS, SURFACE_CARD } from '../styles'
 
 interface Props {
   onDismiss: () => void
@@ -24,41 +24,41 @@ export default function WelcomeModal({ onDismiss }: Props) {
         aria-modal="true"
         aria-labelledby="welcome-title"
         tabIndex={-1}
-        className="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-md max-h-full overflow-y-auto focus:outline-none"
+        className={`${SURFACE_CARD} w-full max-w-md max-h-full overflow-y-auto focus:outline-none`}
       >
         {/* Header */}
         <div className="flex items-center gap-3 px-6 pt-6 pb-4 border-b border-slate-700">
-          <img src="/icon.png" alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
+          <img src="/icon.png" alt="" className={`w-12 h-12 ${RADIUS.surface} object-cover flex-shrink-0`} />
           <div>
-            <h1 id="welcome-title" className="text-xl font-bold text-white leading-tight">Welcome to Bluebird Forecast</h1>
-            <p className="text-sm text-slate-400">The Weather Window Finder</p>
+            <h1 id="welcome-title" className={PROSE.title}>Welcome to Bluebird Forecast</h1>
+            <p className={PROSE.subtitle}>The Weather Window Finder</p>
           </div>
         </div>
 
         <div className="px-6 py-4">
-          <p className="text-sm text-slate-300 mb-3">
+          <p className={`${PROSE.body} mb-3`}>
             It's Friday evening. Rain is moving in from the west, smoke is drifting from the east,
             and strong winds are building to the south. You want to get outside this weekend, but
             where should you go?
           </p>
-          <p className="text-sm text-slate-300 mb-4">
+          <p className={`${PROSE.body} mb-4`}>
             Bluebird helps you find out. Draw a search area and discover the best peaks, trails,
             lakes, and other destinations for your next adventure. Bluebird analyzes upcoming
             weather and ranks destinations by precipitation, wind, temperature, and air quality so
             you can quickly find the best objective.
           </p>
 
-          <h2 className="text-sm font-semibold text-white mb-3">How it works</h2>
+          <h2 className={`${PROSE.heading} mb-3`}>How it works</h2>
 
           {/* Steps */}
           <ol className="space-y-3 mb-5">
             {STEPS.map(([title, desc], i) => (
-              <li key={i} className="flex gap-3 text-sm">
-                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-sky-600 text-white text-[11px] font-bold flex items-center justify-center mt-0.5">
+              <li key={i} className={`${PROSE.body} flex gap-3`}>
+                <span className={`flex-shrink-0 w-5 h-5 ${RADIUS.pill} bg-sky-600 text-white text-xs font-bold flex items-center justify-center mt-0.5`}>
                   {i + 1}
                 </span>
-                <p className="text-slate-300 leading-snug">
-                  <span className="text-white font-semibold">{title}</span>
+                <p className="leading-snug">
+                  <span className={PROSE.strong}>{title}</span>
                   {': '}
                   {desc}
                 </p>
@@ -69,14 +69,14 @@ export default function WelcomeModal({ onDismiss }: Props) {
           {/* The one sentence the lawyers asked for: people plan real
               backcountry trips with this data, so the app itself must say it
               is not a safety tool — the README saying so isn't user-visible. */}
-          <p className="text-xs text-slate-500 mb-4">
+          <p className={`${PROSE.note} mb-4`}>
             Bluebird is a planning aid, not a safety tool. Forecasts are automated estimates.
             Verify conditions with official sources such as{' '}
             <a
               href="https://www.weather.gov"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline hover:text-slate-300"
+              className={LINK}
             >
               weather.gov
             </a>{' '}
@@ -84,7 +84,7 @@ export default function WelcomeModal({ onDismiss }: Props) {
           </p>
 
           <div className="border-t border-slate-700 pt-4 mb-4">
-            <p className="text-sm text-slate-200 font-medium text-center">
+            <p className={`${PROSE.heading} text-center`}>
               Ready to find your Bluebird day?
             </p>
           </div>
