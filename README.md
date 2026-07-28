@@ -372,4 +372,4 @@ The public [privacy and terms page](https://bluebirdforecast.com/privacy) covers
 
 Copyright (c) 2026 TJ Zimmerman. Bluebird is source-available: the code is public, but it is not open source software.
 
-Bluebird is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may use, modify, self-host, and share it for any noncommercial purpose. Commercial use of any kind requires a separate license: contact [tj@tjzimmerman.com](mailto:tj@tjzimmerman.com). It comes with no warranty; see [LICENSE](LICENSE) for the full terms.
+Bluebird is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may use, modify, self-host, and share it for any noncommercial purpose. Commercial use of any kind requires a separate license: contact [hello@bluebirdforecast.com](mailto:hello@bluebirdforecast.com). It comes with no warranty; see [LICENSE](LICENSE) for the full terms.

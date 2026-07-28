@@ -17,7 +17,7 @@ export default function PrivacyBody() {
   return (
     <div className="space-y-4">
       <p className={PROSE.body}>
-        Bluebird is a free, non-commercial project. No ads, no paid tiers, no monetization.
+        Bluebird is free to use. There are no ads, no paid tiers, and nothing to sign up for.
         It has no accounts, no sign-in, and no tracking. There are no analytics scripts, no
         advertising, and no cookies used to follow you.
       </p>

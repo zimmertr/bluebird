@@ -33,8 +33,8 @@ export default function PrivacyPage() {
       subtitle="What Bluebird does with your data, and the terms of using it"
     >
       <p className={PROSE.body}>
-        Bluebird Forecast is a free, non-commercial tool for finding good weather windows in
-        the mountains. This page is the full version of the privacy note shown in the app,
+        Bluebird Forecast is a free tool for finding good weather windows in the mountains.
+        This page is the full version of the privacy note shown in the app,
         plus the terms of use, where the data comes from, and how to get in touch.
       </p>
 
@@ -51,16 +51,22 @@ export default function PrivacyPage() {
       <Section id="terms" title="Terms">
         <div className={`${PROSE.body} space-y-3`}>
           <p>
-            Bluebird is free to use and free software, licensed under the{' '}
+            Bluebird is free to use. Its source is public but it is not open source: it is
+            licensed under the{' '}
             <a
-              href="https://www.gnu.org/licenses/gpl-3.0-standalone.html"
+              href="https://polyformproject.org/licenses/noncommercial/1.0.0"
               target="_blank"
               rel="noreferrer"
               className={LINK}
             >
-              GNU General Public License v3.0 or later
+              PolyForm Noncommercial License 1.0.0
             </a>
-            . You can read, modify, and redistribute the source under those terms.
+            . You may read, modify, self-host, and share it for any noncommercial purpose.
+            Commercial use of any kind needs a separate license: email{' '}
+            <a href={`mailto:${SUPPORT_EMAIL}`} className={LINK}>
+              {SUPPORT_EMAIL}
+            </a>{' '}
+            to arrange one.
           </p>
           <p>
             It comes with no warranty of any kind. Forecasts are automated estimates from

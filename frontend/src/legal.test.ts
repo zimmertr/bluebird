@@ -49,10 +49,41 @@ describe('the page and the app share their copy', () => {
   // Neither surface may restate the copy locally: an inlined sentence would
   // pass the import assertions above while drifting anyway.
   it('keeps the shared sentences out of their callers', () => {
-    expect(privacyModal).not.toMatch(/non-commercial project/)
-    expect(privacyPage).not.toMatch(/non-commercial project/)
+    expect(privacyModal).not.toMatch(/no analytics scripts/)
+    expect(privacyPage).not.toMatch(/no analytics scripts/)
     expect(welcomeModal).not.toMatch(/planning aid/)
     expect(privacyPage).not.toMatch(/planning aid/)
+  })
+})
+
+// #171 relicensed from GPL-3.0 to PolyForm Noncommercial while this page was
+// in review, and the page had already shipped the GPL sentence into its terms.
+// A license is exactly the kind of claim that is written once and then quietly
+// outlived by a decision made in another file, so it gets pinned like the
+// privacy claims below.
+describe('the license the terms name', () => {
+  it('is the one the project actually carries', () => {
+    expect(privacyPage).toMatch(/PolyForm Noncommercial License 1\.0\.0/)
+    expect(privacyPage).toMatch(/polyformproject\.org/)
+  })
+
+  it('does not still claim a license the project has left', () => {
+    expect(privacyPage).not.toMatch(/GNU General Public|GPL|gnu\.org/)
+  })
+
+  // "Noncommercial" in PolyForm constrains the licensee, not the copyright
+  // holder, so describing Bluebird itself as a non-commercial project reads as
+  // a promise never to charge, which relicensing deliberately kept open.
+  it('does not describe the project itself as non-commercial', () => {
+    for (const source of [privacyBody, privacyPage]) {
+      expect(copy(source)).not.toMatch(/non-commercial (project|tool)/i)
+    }
+  })
+
+  // Source-available is not open source, and #171's README is explicit about
+  // the distinction. The page must not soften it back.
+  it('does not call the project open source', () => {
+    expect(copy(privacyPage)).not.toMatch(/\bis open source\b/)
   })
 })
 
