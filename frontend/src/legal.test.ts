@@ -146,11 +146,11 @@ describe('the support contact', () => {
   // match how the source spells it: the constant, never the value. Checking
   // for the interpolated address here would only ever pass if someone had
   // hardcoded it, which is the thing the next test forbids.
-  it.each([
-    ['PrivacyPage.tsx', privacyPage],
-    ['NotFoundPage.tsx', notFoundPage],
-  ])('%s reaches a human without a GitHub account', (_name, source) => {
-    expect(source).toMatch(/href={`mailto:\$\{SUPPORT_EMAIL\}`}/)
+  //
+  // The public page carries this alone. The 404 deliberately does not, per the
+  // bare-page test below.
+  it('reaches a human without a GitHub account', () => {
+    expect(privacyPage).toMatch(/href={`mailto:\$\{SUPPORT_EMAIL\}`}/)
   })
 
   // Anything hardcoded here is an address that outlives the constant it was
@@ -170,6 +170,20 @@ describe('the public page', () => {
 
   it('is linked from the privacy dialog', () => {
     expect(privacyModal).toMatch(/href="\/privacy"/)
+  })
+
+  // The 404 page is deliberately bare: the fact, the picture, one way back.
+  // It had shipped with three paragraphs guessing at what went wrong, a second
+  // destination, and an invitation to report a bug, none of which a visitor who
+  // mistyped a URL wants. That is a decision nothing else in the codebase
+  // records, and it is easy to undo one helpful sentence at a time, so the
+  // shape is pinned rather than trusted. Every link the page has comes from the
+  // shell around it.
+  it('sends people home and nowhere else', () => {
+    const markup = copy(notFoundPage)
+
+    expect(markup).not.toMatch(/href=/)
+    expect(markup).not.toMatch(/mailto:|github\.com|\/privacy/)
   })
 
   // Separate Vite entries exist so a text page doesn't ship the map. An import

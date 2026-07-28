@@ -3,7 +3,8 @@ import { LINK, PROSE, RADIUS, SURFACE_CARD } from '../styles'
 
 interface Props {
   title: string
-  subtitle: string
+  /** Optional: the 404 states the fact and stops, so it passes a title alone. */
+  subtitle?: string
   children: ReactNode
 }
 
@@ -20,7 +21,7 @@ export default function PageShell({ title, subtitle, children }: Props) {
     <div className="min-h-dvh bg-slate-900 px-4 py-10">
       <div className="mx-auto w-full max-w-2xl">
         <div className="flex items-center gap-3 mb-6">
-          <a href="/" aria-label="Back to Bluebird">
+          <a href="/" aria-label="Back to Bluebird Forecast">
             <img
               src="/icon.png"
               alt=""
@@ -29,7 +30,7 @@ export default function PageShell({ title, subtitle, children }: Props) {
           </a>
           <div>
             <h1 className={PROSE.title}>{title}</h1>
-            <p className={PROSE.subtitle}>{subtitle}</p>
+            {subtitle && <p className={PROSE.subtitle}>{subtitle}</p>}
           </div>
         </div>
 
@@ -37,7 +38,7 @@ export default function PageShell({ title, subtitle, children }: Props) {
 
         <p className={`${PROSE.note} mt-6 text-center`}>
           <a href="/" className={LINK}>
-            Back to the map
+            Back to Bluebird Forecast
           </a>
         </p>
       </div>
