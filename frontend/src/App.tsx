@@ -14,7 +14,7 @@ import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { AnalysisMode, CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy } from './types'
-import { LINK, PROSE, RADIUS, SURFACE_CARD, SURFACE_FLOATING, TEXT } from './styles'
+import { BUTTON_SECONDARY, LINK, PROSE, RADIUS, SURFACE_CARD, SURFACE_FLOATING, TEXT } from './styles'
 import { METRIC_CONFIG } from './utils/colors'
 import { parseCustomCsv } from './utils/customDestinations'
 import { buildCustomList, pendingDestinations, pinKey } from './utils/customList'
@@ -710,8 +710,7 @@ export default function App() {
                 )}
                 <button
                   onClick={cancel}
-                  className={`mt-4 text-xs font-medium text-slate-400 hover:text-white
-                    border border-slate-600 hover:border-slate-400 ${RADIUS.control} px-3 py-1.5 transition-colors`}
+                  className={`${BUTTON_SECONDARY} mt-4`}
                 >
                   Cancel
                 </button>
@@ -927,6 +926,9 @@ export default function App() {
                 href="https://open-meteo.com/"
                 target="_blank"
                 rel="noopener noreferrer"
+                // Both roles carry a color, and they carry the same one. That
+                // is deliberate rather than redundant: two colors here would
+                // be resolved by stylesheet order, not by the order written.
                 className={`${TEXT.micro} ${LINK} ml-auto mr-2`}
               >
                 Weather data by Open-Meteo.com

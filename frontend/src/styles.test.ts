@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   BUTTON_PRIMARY,
+  BUTTON_SECONDARY,
   FIELD,
   LINK,
   LINK_ACTION,
@@ -58,13 +59,15 @@ describe('the compact tier', () => {
     expect(TEXT.helper.split(' ').filter((c) => c !== 'italic')).toEqual(TEXT.caption.split(' '))
   })
 
-  // The 10px step lands on three background lightnesses, the brightest of them
-  // the slate-700 table header bar carrying a required CC-BY credit. slate-500
-  // measures 2.2:1 there. Dimming this role is not a style change, it is an
-  // accessibility regression, and a call site cannot undo it: Tailwind resolves
-  // competing color utilities by stylesheet order, not class-list order.
+  // The 10px step lands on three background lightnesses, the lightest of them
+  // the slate-700 table header bar carrying a required CC-BY credit. slate-300
+  // is the dimmest step clearing 4.5:1 on all three (7.0 / 9.9 / 12.0);
+  // slate-400 manages 4.0:1 on that bar and slate-500 only 2.2:1. Dimming this
+  // role is not a style change, it is an accessibility regression, and a call
+  // site cannot undo it: Tailwind resolves competing color utilities by
+  // stylesheet order, not class-list order.
   it('keeps the micro step legible on the lightest surface it lands on', () => {
-    expect(TEXT.micro).toContain('text-slate-400')
+    expect(TEXT.micro).toContain('text-slate-300')
   })
 })
 
@@ -190,5 +193,25 @@ describe('shared recipes', () => {
     expect(LINK_ACTION).toContain('text-sky-400')
     expect(LINK).not.toMatch(/(^|\s)text-sky-/)
     expect(LINK).toContain('hover:text-sky-400')
+  })
+
+  // The map's Open-Meteo credit is a link *and* a 10px caption, so it wears
+  // both roles at once. Two color utilities in one class list are decided by
+  // stylesheet order, not by the order they were written, so composing them is
+  // only safe while they agree. If one moves, the other has to move with it.
+  it('lets a link and the micro step be worn together', () => {
+    const color = (recipe: string) => recipe.split(' ').find((c) => /^text-slate-/.test(c))
+
+    expect(color(LINK)).toBe(color(TEXT.micro))
+  })
+
+  // The two secondary actions had been a filled button in the panel and an
+  // outlined one on the overlay, same size and padding, same background.
+  it('builds the secondary action from the ramp and the radius scale', () => {
+    expect(BUTTON_SECONDARY).toContain(TEXT.control)
+    expect(BUTTON_SECONDARY).toContain(RADIUS.control)
+    // Tap-target sizing is #160's job, deliberately across all controls at
+    // once rather than one at a time.
+    expect(BUTTON_SECONDARY).not.toContain('touch:')
   })
 })

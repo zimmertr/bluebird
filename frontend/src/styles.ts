@@ -28,17 +28,19 @@
 /**
  * The 10px step, for chrome that must not compete with what it labels.
  *
- * slate-400 rather than the dimmer slate-500 its sites had drifted between:
- * this step appears over three background lightnesses (the slate-900/85 map
- * legends, the slate-800/95 chart tooltip, the slate-700 table header bar) and
- * slate-500 measures 2.2:1 on the last of them, which is the one carrying a
- * required CC-BY credit. slate-400 clears all three.
+ * This step lands on three background lightnesses — the slate-900/85 map
+ * legends, the slate-800/95 chart tooltip, and the slate-700 table header bar
+ * — and two of its sites are attributions a license requires people to be
+ * able to read. slate-300 is the dimmest step clearing 4.5:1 on all three
+ * (7.0 / 9.9 / 12.0); slate-400, where these sites had drifted, manages only
+ * 4.0:1 on the header bar.
  *
- * Baking the color in also keeps it honest: Tailwind resolves two competing
- * color utilities by their order in the generated stylesheet, not by their
- * order in the class list, so a call site cannot reliably override this.
+ * The color has to live here rather than at the call site. Tailwind resolves
+ * two competing color utilities by their order in the generated stylesheet,
+ * not by their order in the class list, so a site cannot reliably brighten a
+ * role it was handed — which is also why LINK below shares this exact color.
  */
-const MICRO = 'text-[10px] text-slate-400'
+const MICRO = 'text-[10px] text-slate-300'
 
 /** The base size, stepped back: secondary text that is read, not scanned. */
 const CAPTION = 'text-xs text-slate-500'
@@ -97,15 +99,20 @@ export const PROSE = {
  * The app had five spellings of "underlined link", differing in resting color,
  * hover color, and whether the underline got its own tint. `LINK` settles the
  * ambient ones — data credits, provider lists, the privacy dialog — on the
- * majority hover (sky-400) and the brighter rest (slate-400 reads at 5.7:1 on
- * the panel where slate-500 managed 3.1:1).
+ * majority hover (sky-400) and on MICRO's rest color.
+ *
+ * Sharing that color is not a coincidence, it is the only safe way to compose
+ * the two: the map's Open-Meteo credit is a link *and* a 10px caption, and had
+ * they disagreed the class list would not have decided which won. It is also
+ * the dimmest step that keeps every link in the app readable — several of
+ * these sat at 3.1:1 by inheriting the prose around them.
  *
  * `LINK_ACTION` is for a link inside the content itself, where following it is
  * the point rather than a footnote: today, the results table's destination
  * names. Keeping that the only thing wearing sky at rest is what lets sky mean
  * one thing across the app.
  */
-export const LINK = 'text-slate-400 hover:text-sky-400 underline'
+export const LINK = 'text-slate-300 hover:text-sky-400 underline'
 export const LINK_ACTION = 'text-sky-400 hover:text-sky-300 hover:underline'
 
 /**
@@ -155,6 +162,23 @@ export const SURFACE_CARD =
 export const BUTTON_PRIMARY =
   `${TEXT.cta} w-full py-2.5 touch:py-3 ${RADIUS.surface} transition-colors ` +
   'bg-sky-600 hover:bg-sky-500 text-white'
+
+/**
+ * The secondary action standing next to something else: Clear under the
+ * polygon status, Cancel on the analysis overlay.
+ *
+ * The two were already the same size at the same padding on the same
+ * slate-800 background, and differed only in whether they wore a fill or a
+ * border — so a phone user met a filled button in the panel and an outlined
+ * one on the overlay for the same kind of action. Buttons in this app are
+ * fills and fields are bordered, so the fill stays and the border goes.
+ *
+ * Deliberately no coarse-pointer padding: sizing tap targets is #160's job,
+ * and doing it one control at a time is what broke the panel's rhythm before.
+ */
+export const BUTTON_SECONDARY =
+  `${TEXT.control} px-3 py-1.5 ${RADIUS.control} transition-colors ` +
+  'bg-slate-700 hover:bg-slate-600'
 
 /**
  * The shared surface under every text-entry control in the panel.

@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react'
 import { AnalysisMode, CustomDestination, DiscoveryType, SortBy } from '../types'
 import { MAX_AREA_KM2 } from './MapView'
 import { parseCustomCsv } from '../utils/customDestinations'
-import { BUTTON_PRIMARY, FIELD, LINK, TEXT } from '../styles'
+import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD, LINK, TEXT } from '../styles'
 import { canAnalyze } from '../utils/analyzeGate'
 import {
   classifyAqiCoverage,
@@ -236,7 +236,7 @@ export default function ControlPanel({
                 </div>
                 <button
                   onClick={onCancelDrawing}
-                  className="px-3 py-1.5 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
+                  className={BUTTON_SECONDARY}
                 >
                   Clear
                 </button>
@@ -591,7 +591,7 @@ export default function ControlPanel({
               {(minElevationFt !== null || maxElevationFt !== null) && (
                 <button
                   onClick={() => { setMinElevationFt(null); setMaxElevationFt(null) }}
-                  className={`${TEXT.caption} mt-1 hover:text-slate-300 underline`}
+                  className={`${LINK} mt-1`}
                 >
                   Clear
                 </button>
