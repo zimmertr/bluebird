@@ -423,9 +423,17 @@ ReplicaSet scales to the full `replicas: 3`, *becomes* stable — the controller
 repoints the `bluebird` Service's hash selector at it and returns the route to
 100/0 against the new pods — and the old ReplicaSet scales down. The cutover is
 therefore all-at-once after the gate rather than gradual. History is kept
-deliberately short for Argo CD UI legibility: `revisionHistoryLimit: 1` (current
-plus one previous ReplicaSet) and one successful / two unsuccessful
-`AnalysisRun`s.
+deliberately short for Argo CD UI legibility by a single knob:
+`revisionHistoryLimit: 1`, current plus one previous ReplicaSet. That one knob
+bounds `AnalysisRun`s too, because a run whose ReplicaSet is gone is deleted
+outright, so what survives is the gates of the last two releases. The
+`successfulRunHistoryLimit` / `unsuccessfulRunHistoryLimit` counts are
+deliberately **not** set: the controller's defaults sit above that cap and
+never bind, and a count low enough to bind is a trap. Those counts are per
+Rollout rather than per release, so anything below the number of analysis steps
+deletes a gate's run the instant it passes — which is what a former
+`successfulRunHistoryLimit: 1` did, leaving green releases looking like they
+had only ever run one gate.
 
 **Abort.** If either analysis fails — or someone runs `kubectl argo rollouts
 abort` — the canary ReplicaSet scales to zero and the Rollout reports
