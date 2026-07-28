@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+from app import ratelimit
 from app.models import (
     FUTURE_LIMIT_SLACK_DAYS,
     MAX_ANALYZE_PEAKS,
@@ -23,6 +24,41 @@ class DataSource(BaseModel):
     name: str
     url: str
     provides: str
+
+
+class RateLimits(BaseModel):
+    """Per-client request pacing on the expensive endpoints.
+
+    Enforced per backend instance, so behind a multi-replica deployment the
+    effective ceiling is roughly the number shown times the replica count.
+    Requests past a limit receive 429 with a `Retry-After` header.
+    """
+
+    analyze_per_minute: int = Field(
+        description=(
+            "Sustained `POST /api/analyze` + `/api/analyze/stream` requests "
+            "allowed per client address per minute (the two share one "
+            "bucket). 0 means the limit is disabled."
+        )
+    )
+    analyze_burst: int = Field(
+        description=(
+            "How many analyze requests an idle client can send back-to-back "
+            "before the per-minute pace applies."
+        )
+    )
+    geocode_per_minute: int = Field(
+        description=(
+            "Sustained `GET /api/geocode` requests per client address per "
+            "minute. 0 means the limit is disabled."
+        )
+    )
+    geocode_burst: int = Field(
+        description=(
+            "How many geocode requests an idle client can send back-to-back "
+            "before the per-minute pace applies."
+        )
+    )
 
 
 class Limits(BaseModel):
@@ -63,6 +99,13 @@ class Limits(BaseModel):
             "runs far shorter than the weather forecast, so `aqi_avg` and "
             "`aqi_max` come back null for hours past this horizon. An analysis "
             "never fails because of it."
+        )
+    )
+    rate: RateLimits = Field(
+        description=(
+            "Per-client request pacing. Unlike the bounds above, exceeding "
+            "these is not a request error: the same request succeeds once "
+            "`Retry-After` has elapsed."
         )
     )
 
@@ -112,6 +155,14 @@ async def capabilities() -> CapabilitiesResponse:
             max_past_days=PAST_LIMIT_SLACK_DAYS,
             max_future_days=FUTURE_LIMIT_SLACK_DAYS,
             aqi_forecast_days=AQI_FORECAST_DAYS,
+            # Read from the live limiter instances, not the env constants, so
+            # what this publishes is what enforcement actually counts.
+            rate=RateLimits(
+                analyze_per_minute=ratelimit.ANALYZE_LIMITER.per_minute,
+                analyze_burst=ratelimit.ANALYZE_LIMITER.burst,
+                geocode_per_minute=ratelimit.GEOCODE_LIMITER.per_minute,
+                geocode_burst=ratelimit.GEOCODE_LIMITER.burst,
+            ),
         ),
         data_sources=[
             DataSource(

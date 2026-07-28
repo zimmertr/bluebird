@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 
+from app import ratelimit
 from app.services.errors import UpstreamError, classify_http_error
 
 log = logging.getLogger(__name__)
@@ -15,7 +16,9 @@ log = logging.getLogger(__name__)
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 BATCH_SIZE = 50  # Open-Meteo handles up to ~100; 50 is conservative
 # Exhaustive analyses can mean dozens of batches — gate how many are in
-# flight at once so a big polygon doesn't burst-hammer the free API.
+# flight at once so a big polygon doesn't burst-hammer the free API. This is
+# the per-analysis fairness cap; ratelimit.WEATHER_BUDGET additionally caps
+# the pod-wide total, so N concurrent analyses can't multiply into 4×N.
 MAX_CONCURRENT_BATCHES = 4
 PROVIDER = "Open-Meteo (weather service)"
 
@@ -82,7 +85,11 @@ async def _fetch_chunk_indexed(
     end_dt: datetime,
     sem: asyncio.Semaphore,
 ) -> tuple[int, list[dict[str, Any] | None]]:
-    async with sem:
+    # Per-analysis slot first, then a pod-wide one: the outer semaphore keeps
+    # one analysis from hogging the whole budget, the budget keeps concurrent
+    # analyses from collectively flooding Open-Meteo. Exhaustion raises and
+    # fails the analysis with a 503, unlike best-effort AQI.
+    async with sem, ratelimit.WEATHER_BUDGET.slot():
         return index, await _fetch_chunk(destinations, start_dt, end_dt)
 
 

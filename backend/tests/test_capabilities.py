@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from app import ratelimit
 from app.main import app
 from app.models import (
     FUTURE_LIMIT_SLACK_DAYS,
@@ -42,6 +43,15 @@ def test_limits_mirror_the_constants_the_validators_enforce():
         "max_past_days": PAST_LIMIT_SLACK_DAYS,
         "max_future_days": FUTURE_LIMIT_SLACK_DAYS,
         "aqi_forecast_days": MAX_FORECAST_DAYS,
+        # Rate limits come from the live limiter instances (patched off in
+        # conftest), not env constants — value plumbing is asserted with real
+        # numbers in test_ratelimit.py.
+        "rate": {
+            "analyze_per_minute": ratelimit.ANALYZE_LIMITER.per_minute,
+            "analyze_burst": ratelimit.ANALYZE_LIMITER.burst,
+            "geocode_per_minute": ratelimit.GEOCODE_LIMITER.per_minute,
+            "geocode_burst": ratelimit.GEOCODE_LIMITER.burst,
+        },
     }
 
 

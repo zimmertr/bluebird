@@ -80,6 +80,7 @@ The SPA fetches only on an explicit Analyze click and renders results from a sna
 - `app/main.py` — FastAPI app + OpenAPI metadata (tags, description), logging setup (includes custom `TRACE` level at value 5), self-hosted Swagger UI at `/docs`, static file mount. `docs_url`/`redoc_url` are `None` in the **constructor**: `FastAPI.setup()` registers those routes at the end of `__init__`, so assigning them afterward has no effect
 - `app/version.py` — build identity read from `APP_VERSION`/`APP_COMMIT`/`APP_BUILT_AT`, baked by the Dockerfile; `"dev"` everywhere else
 - `app/models.py` — Pydantic request/response models, polygon area validation, and the limit constants `/api/capabilities` publishes
+- `app/ratelimit.py` — per-client token buckets (429 + Retry-After, enforced as route dependencies on analyze/geocode) and pod-wide upstream budgets/gates (queue then shed 503; best-effort AQI degrades to null instead). In-memory per pod by design (~replicas × the configured ceiling); env knobs documented in the README Configuration table and published by `/api/capabilities` under `limits.rate`. Traffic/limits changes update [`docs/TRAFFIC.md`](docs/TRAFFIC.md) in the same PR
 - `app/routes/analyze.py` — single route handler
 - `app/routes/version.py`, `app/routes/capabilities.py` — build identity and the machine-readable limits/feature contract
 - `app/routes/notfound.py` — `/api` catch-all returning a JSON 404 (or a 405 with `Allow`) instead of letting unknown API paths fall into the SPA static mount. Must stay the **last** router registered under `/api`

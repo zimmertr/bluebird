@@ -6,6 +6,7 @@ from typing import Any
 
 import httpx
 
+from app import ratelimit
 from app.models import DestinationType, GeoPolygon
 from app.services.errors import PartialResultError, UpstreamError, classify_http_error
 
@@ -101,7 +102,10 @@ async def query_osm(
 
     log.info("Querying OSM Overpass for type=%s", destination_type.value)
     log.trace("Overpass query:\n%s", query)  # type: ignore[attr-defined]
-    data = await _post_with_fallback(query, on_status)
+    # Pod-wide slot matching overpass-api.de's ~2-per-IP policy, held across
+    # the whole mirror-failover chain — failing over must not double-count.
+    async with ratelimit.OVERPASS_BUDGET.slot():
+        data = await _post_with_fallback(query, on_status)
 
     results: list[dict[str, Any]] = []
     seen_names: set[str] = set()
