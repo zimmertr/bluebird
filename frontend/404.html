@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Page not found | Bluebird Forecast</title>
+    <link rel="icon" type="image/png" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/icon.png" />
+
+    <!-- Starlette's StaticFiles(html=True) looks for exactly this filename at
+         the static root on any miss and serves it with a 404 status, so the
+         build shipping it is the whole wiring. No OG tags: an error page has
+         nothing worth unfurling, and nothing should index it. -->
+    <meta name="robots" content="noindex" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/notfound.tsx"></script>
+  </body>
+</html>

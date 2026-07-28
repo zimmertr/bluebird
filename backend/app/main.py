@@ -3,10 +3,10 @@ import os
 import time
 from pathlib import Path
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import ratelimit
@@ -234,6 +234,27 @@ async def swagger_ui() -> HTMLResponse:
         swagger_css_url=f"{_swagger_base}/swagger-ui.css",
         swagger_favicon_url="/favicon-32.png",
     )
+
+
+# The public privacy and terms page, built as its own SPA entry so a shared
+# link is a real document with its own title and unfurl rather than app state.
+#
+# The static mount below would already serve this file as a directory index,
+# but only at /privacy/ — it 307s /privacy to the trailing-slash form first.
+# This route exists so the canonical URL is the one people actually type and
+# paste. Both spellings work; only this one avoids the redirect.
+#
+# Registered unconditionally and 404ing on a missing file, rather than being
+# skipped when the build output is absent: a route that disappears in a source
+# checkout is a route the tests cannot describe.
+_privacy_page = static_dir / "privacy" / "index.html"
+
+
+@app.get("/privacy", include_in_schema=False)
+async def privacy_page() -> FileResponse:
+    if not _privacy_page.is_file():
+        raise HTTPException(status_code=404)
+    return FileResponse(_privacy_page)
 
 
 if static_dir.exists():

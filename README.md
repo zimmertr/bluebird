@@ -20,6 +20,7 @@ It is not a recommendation engine. It does not decide what weather is "good" or 
 - [Architecture](#architecture)
 - [Data Sources](#data-sources)
 - [Kubernetes Deployment](#kubernetes-deployment)
+- [Support](#support)
 - [License](#license)
 
 ## Quick Start
@@ -358,6 +359,14 @@ containers:
       - name: LOG_LEVEL
         value: "WARNING"
 ```
+
+## Support
+
+Email **hello@bluebirdforecast.com** about anything: a summit at the wrong elevation, a destination that should be listed and isn't, a privacy question, or a page that will not load. No GitHub account needed.
+
+If you can describe how to reproduce something, the [issue board](https://github.com/zimmertr/bluebird/issues) is the better channel. Security vulnerabilities go through [GitHub's private advisory form](https://github.com/zimmertr/bluebird/security/advisories/new) rather than a public issue, as described in [SECURITY.md](SECURITY.md).
+
+The public [privacy and terms page](https://bluebirdforecast.com/privacy) covers what Bluebird does with your data, the terms of use, and the data sources with their licenses. It renders the same components the app does, so it cannot drift from what the app tells users.
 
 ## License
 

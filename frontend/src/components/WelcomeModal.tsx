@@ -1,5 +1,6 @@
 import { useDialog } from '../hooks/useDialog'
-import { BUTTON_PRIMARY, LINK, PROSE, RADIUS, SURFACE_CARD } from '../styles'
+import SafetyNotice from './SafetyNotice'
+import { BUTTON_PRIMARY, PROSE, RADIUS, SURFACE_CARD } from '../styles'
 
 interface Props {
   onDismiss: () => void
@@ -66,21 +67,8 @@ export default function WelcomeModal({ onDismiss }: Props) {
             ))}
           </ol>
 
-          {/* The one sentence the lawyers asked for: people plan real
-              backcountry trips with this data, so the app itself must say it
-              is not a safety tool — the README saying so isn't user-visible. */}
           <p className={`${PROSE.note} mb-4`}>
-            Bluebird is a planning aid, not a safety tool. Forecasts are automated estimates.
-            Verify conditions with official sources such as{' '}
-            <a
-              href="https://www.weather.gov"
-              target="_blank"
-              rel="noopener noreferrer"
-              className={LINK}
-            >
-              weather.gov
-            </a>{' '}
-            before committing to backcountry travel.
+            <SafetyNotice />
           </p>
 
           <div className="border-t border-slate-700 pt-4 mb-4">

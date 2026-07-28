@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy and terms | Bluebird Forecast</title>
+    <meta
+      name="description"
+      content="What Bluebird Forecast does with your data, the terms of using it, where the forecast and destination data comes from, and how to get in touch."
+    />
+    <link rel="icon" type="image/png" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/icon.png" />
+
+    <!-- Starlette also serves this file at /privacy/ as a directory index, so
+         both spellings resolve. The canonical points at the no-slash form the
+         app links to, which is the one people will paste. -->
+    <link rel="canonical" href="https://bluebirdforecast.com/privacy" />
+
+    <!-- Its own unfurl rather than the app's: a privacy link pasted into a
+         thread should say what it is instead of advertising the map. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Bluebird Forecast" />
+    <meta property="og:title" content="Privacy and terms" />
+    <meta
+      property="og:description"
+      content="No accounts, no tracking, nothing stored about you. What Bluebird Forecast does with your data, and the terms of using it."
+    />
+    <meta property="og:url" content="https://bluebirdforecast.com/privacy" />
+    <meta property="og:image" content="https://bluebirdforecast.com/icon.png" />
+    <meta property="og:image:width" content="1024" />
+    <meta property="og:image:height" content="1024" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/privacy.tsx"></script>
+  </body>
+</html>
