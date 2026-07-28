@@ -17,6 +17,7 @@ import { resultsFeatureCollection } from '../utils/resultFeatures'
 import { resultPopupHtml } from '../utils/resultPopup'
 import { FireWarning, fireKey } from '../utils/fireProximity'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
+import type { PendingDestination } from '../utils/customList'
 import {
   fetchWildfires,
   wildfirePopupHtml,
@@ -47,10 +48,11 @@ interface Props {
   // table — a clicked point's popup surfaces the same ⚠️ when one applies.
   fireWarnings: Map<string, FireWarning>
   showWildfires: boolean
-  // Searched places not (or not yet) in the displayed analysis — awaiting the
-  // next Analyze, or ranked below the cutoff — drawn as neutral blue dots so a
-  // searched point never vanishes. Analyzed ones arrive inside `results`.
-  pendingPlaces: Place[]
+  // Custom destinations — pasted CSV rows and searched places alike — not (or
+  // not yet) in the displayed analysis: awaiting the next Analyze, or ranked
+  // below the cutoff. Drawn as neutral blue dots so a point the user named
+  // never vanishes. Analyzed ones arrive inside `results`.
+  pending: PendingDestination[]
   minElevationFt: number | null
   maxElevationFt: number | null
 }
@@ -88,6 +90,13 @@ function peakElevationFilter(
 // A search result frames at least this much map around the hit; features with
 // a larger extent (cities, parks, rivers) get their whole bounding box instead.
 const SEARCH_VIEW_MILES = 10
+
+// Breathing room around a multi-point fit, and how long that fit stays
+// re-appliable while the surrounding layout settles — long enough to cover the
+// results panel opening in response to the same paste, short enough that a
+// later panel drag isn't mistaken for it.
+const FIT_PADDING_PX = 60
+const REFIT_WINDOW_MS = 1_000
 
 function bboxAreaKm2(pts: [number, number][]): number | null {
   if (pts.length < 3) return null
@@ -255,7 +264,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       sortBy,
       fireWarnings,
       showWildfires,
-      pendingPlaces,
+      pending,
       minElevationFt,
       maxElevationFt,
     },
@@ -271,6 +280,14 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // CSV list pasted before the map finished loading — folded into the load
     // handler's opening frame, mirroring pendingSearchRef.
     const pendingFitPointsRef = useRef<{ latitude: number; longitude: number }[] | null>(null)
+    // A fit issued moments ago, held just long enough to survive the layout it
+    // triggers. Pasting a CSV also opens the results panel, which shrinks the
+    // map *after* these bounds became a camera — so the far edge of the list
+    // would end up tucked under the panel. React can't be relied on to order
+    // this (the panel opens from a passive effect, which runs after paint), so
+    // the resize observer re-applies the fit instead.
+    const refitPointsRef = useRef<{ latitude: number; longitude: number }[] | null>(null)
+    const refitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     // True once anything has deliberately framed the view (restored-state fit,
     // search, CSV fit, result focus). A late geolocation grant checks this so
     // it can't yank the camera away from a frame the user asked for.
@@ -334,7 +351,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
           pendingFitPointsRef.current = points
           return
         }
-        map.fitBounds(bounds, { padding: 60, duration: 1500 })
+        refitPointsRef.current = points
+        if (refitTimerRef.current) clearTimeout(refitTimerRef.current)
+        refitTimerRef.current = setTimeout(() => (refitPointsRef.current = null), REFIT_WINDOW_MS)
+        map.fitBounds(bounds, { padding: FIT_PADDING_PX, duration: 1500 })
       },
       // Center on a result (clicked from its rank in the table) and open the
       // same popup a marker click gives. Rank is the analyzed order the markers
@@ -385,7 +405,16 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // Keep the canvas in sync with its container. MapLibre only tracks window
       // resizes, but our container also changes size when the results panel
       // opens/closes or the device rotates — observe it directly.
-      const resizeObserver = new ResizeObserver(() => map.resize())
+      const resizeObserver = new ResizeObserver(() => {
+        map.resize()
+        // Re-frame a just-issued fit against the size the map actually ended up
+        // with. Re-issued with the same easing so it reads as one camera move,
+        // not a jump partway through.
+        const points = refitPointsRef.current
+        if (!points) return
+        const bounds = boundsForPoints(points, SEARCH_VIEW_MILES)
+        if (bounds) map.fitBounds(bounds, { padding: FIT_PADDING_PX, duration: 1500 })
+      })
       resizeObserver.observe(containerRef.current)
 
       // A polygon or custom CSV list restored from the URL takes precedence
@@ -605,17 +634,20 @@ const MapView = forwardRef<MapViewHandle, Props>(
           },
         })
 
-        // ── Pending searched destinations ──────────────────────────────
-        // A searched place not yet in the displayed analysis: a neutral
-        // bluebird-blue dot so the point never vanishes, no forecast popup yet.
-        // Absent from the blocked-click list on purpose — a pending dot must
-        // never swallow a polygon click while you draw around a just-searched
-        // spot; it starts blocking (opening a popup) once it ranks in.
-        map.addSource('search-pending', { type: 'geojson', data: emptyFC as FeatureCollection })
+        // ── Pending custom destinations ────────────────────────────────
+        // A pasted CSV row or searched place not yet in the displayed analysis:
+        // a neutral bluebird-blue dot so the point never vanishes, no forecast
+        // popup yet. Absent from the blocked-click list on purpose — a pending
+        // dot must never swallow a polygon click while you draw around a
+        // just-added spot; it starts blocking (opening a popup) once it ranks in.
+        map.addSource('pending-destinations', {
+          type: 'geojson',
+          data: emptyFC as FeatureCollection,
+        })
         map.addLayer({
-          id: 'search-pending-circles',
+          id: 'pending-destinations-circles',
           type: 'circle',
-          source: 'search-pending',
+          source: 'pending-destinations',
           paint: {
             'circle-radius': 10,
             'circle-color': '#3b82f6',
@@ -625,9 +657,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
           },
         })
         map.addLayer({
-          id: 'search-pending-labels',
+          id: 'pending-destinations-labels',
           type: 'symbol',
-          source: 'search-pending',
+          source: 'pending-destinations',
           layout: {
             'text-field': ['get', 'name'],
             'text-offset': [0, 1.6],
@@ -874,6 +906,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         loadedRef.current = false
         vertexPopupRef.current = null
         resizeObserver.disconnect()
+        if (refitTimerRef.current) clearTimeout(refitTimerRef.current)
         map.remove()
         mapRef.current = null
       }
@@ -895,12 +928,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
       fireWarningsRef.current = fireWarnings
     }, [fireWarnings])
 
-    // Neutral blue dot per searched place not yet in the displayed analysis.
+    // Neutral blue dot per custom destination not yet in the displayed analysis.
     useEffect(() => {
       const map = mapRef.current
       if (!map || !mapReady) return
-      setSource(map, 'search-pending', pendingPlacesFC(pendingPlaces))
-    }, [pendingPlaces, mapReady])
+      setSource(map, 'pending-destinations', pendingFC(pending))
+    }, [pending, mapReady])
 
     // Filter the basemap peak layer by the elevation knobs so the mountains
     // shown on the map track the band an analysis would consider. Runs on every
@@ -979,14 +1012,15 @@ function updateResults(map: maplibregl.Map, results: DestinationResult[], sortBy
   setSource(map, 'results', resultsFeatureCollection(results, sortBy))
 }
 
-// Minimal features for pending searched places — just position + name label.
-function pendingPlacesFC(places: Place[]): FeatureCollection {
+// Minimal features for pending custom destinations — just position + name
+// label. There is no forecast to color or rank by yet.
+function pendingFC(pending: PendingDestination[]): FeatureCollection {
   return {
     type: 'FeatureCollection',
-    features: places.map((place) => ({
+    features: pending.map((d) => ({
       type: 'Feature',
-      geometry: { type: 'Point', coordinates: [place.lon, place.lat] },
-      properties: { name: place.label },
+      geometry: { type: 'Point', coordinates: [d.longitude, d.latitude] },
+      properties: { name: d.name },
     })),
   }
 }

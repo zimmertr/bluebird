@@ -1,4 +1,4 @@
-import { CustomDestination } from '../types'
+import { CustomDestination, DestinationResult } from '../types'
 import { Place } from './geocode'
 
 // ~1 m precision — enough to match a backend-echoed coordinate back to its
@@ -8,21 +8,66 @@ export function pinKey(lat: number, lon: number): string {
   return `${lat.toFixed(5)},${lon.toFixed(5)}`
 }
 
-// The full custom side of an analysis: pasted CSV rows ∪ searched places, as
-// one deduped list for the ranked request. A searched place wins a coordinate
-// collision — it carries identity (kind, OSM id) and often an elevation the
-// CSV line lacks.
-export function buildCustomList(
-  csvRows: CustomDestination[],
-  places: Place[],
-): CustomDestination[] {
+// A custom destination plus the bits only the UI needs: where it came from
+// (a CSV row is removed by editing the textarea, so it gets no × ) and the
+// geocoded identity a searched place carries.
+export interface PendingDestination extends CustomDestination {
+  kind?: string
+  osmId?: string
+  source: 'csv' | 'search'
+}
+
+// The custom side of an analysis: pasted CSV rows ∪ searched places, deduped by
+// coordinate. A searched place wins a collision — it carries identity (kind,
+// OSM id) and often an elevation the CSV line lacks.
+function mergeCustom(csvRows: CustomDestination[], places: Place[]): PendingDestination[] {
   const placeKeys = new Set(places.map((p) => pinKey(p.lat, p.lon)))
-  const csvKept = csvRows.filter((r) => !placeKeys.has(pinKey(r.latitude, r.longitude)))
-  const fromPlaces = places.map((p) => ({
+  const fromCsv: PendingDestination[] = csvRows
+    .filter((r) => !placeKeys.has(pinKey(r.latitude, r.longitude)))
+    .map((r) => ({ ...r, source: 'csv' }))
+  const fromPlaces: PendingDestination[] = places.map((p) => ({
     name: p.label,
     latitude: p.lat,
     longitude: p.lon,
     elevation_ft: p.elevationFt,
+    kind: p.kind,
+    osmId: p.osmId,
+    source: 'search',
   }))
-  return [...csvKept, ...fromPlaces]
+  return [...fromCsv, ...fromPlaces]
+}
+
+// The same list narrowed to the wire shape. Deliberately re-projected rather
+// than passed through: this is the `custom_destinations` request body, and the
+// OpenAPI contract shouldn't quietly grow the UI-only fields above.
+export function buildCustomList(
+  csvRows: CustomDestination[],
+  places: Place[],
+): CustomDestination[] {
+  return mergeCustom(csvRows, places).map(({ name, latitude, longitude, elevation_ft }) => ({
+    name,
+    latitude,
+    longitude,
+    elevation_ft,
+  }))
+}
+
+// Custom destinations with no forecast on screen yet — not yet analyzed, ranked
+// below the cutoff, or awaiting a fresh run. Drawn as neutral pending dots and
+// un-forecasted table rows so pasting a CSV gives the same immediate feedback a
+// search does, instead of leaving the map empty until an analysis returns.
+export function pendingDestinations(
+  csvRows: CustomDestination[],
+  places: Place[],
+  results: DestinationResult[],
+  removed: Set<string>,
+): PendingDestination[] {
+  const shown = new Set(results.map((r) => pinKey(r.latitude, r.longitude)))
+  return mergeCustom(csvRows, places).filter((d) => {
+    const key = pinKey(d.latitude, d.longitude)
+    // `removed` carries the weight for CSV rows: × on a searched place also
+    // deregisters it, but a CSV row's text stays in the textarea, so without
+    // this it would reappear as a dot the moment it left the report.
+    return !shown.has(key) && !removed.has(key)
+  })
 }

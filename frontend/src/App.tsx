@@ -16,7 +16,7 @@ import { useIsDesktop } from './hooks/useIsDesktop'
 import { AnalysisMode, CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy } from './types'
 import { METRIC_CONFIG } from './utils/colors'
 import { parseCustomCsv } from './utils/customDestinations'
-import { buildCustomList, pinKey } from './utils/customList'
+import { buildCustomList, pendingDestinations, pinKey } from './utils/customList'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
 import { composeOverlay } from './utils/analyzeOverlay'
 import { Place, isPeakKind } from './utils/geocode'
@@ -151,6 +151,9 @@ export default function App() {
   const [atDatetime, setAtDatetime] = useState(() => restored?.atDatetime ?? nowLocal(24))
   const [limit, setLimit] = useState(() => restored?.limit ?? 100)
   const [customCsv, setCustomCsv] = useState(() => restored?.customCsv ?? '')
+  // Parsed once per edit and shared by the pending markers and the Analyze
+  // request, so what the map shows and what gets ranked can't drift apart.
+  const csvRows = useMemo(() => parseCustomCsv(customCsv), [customCsv])
   const [sortBy, setSortBy] = useState<SortBy>(() => restored?.sortBy ?? 'precip_total_in')
   const [sortDesc, setSortDesc] = useState(() => restored?.sortDesc ?? false)
   const [minElevationFt, setMinElevationFt] = useState<number | null>(
@@ -237,11 +240,13 @@ export default function App() {
     })
   }
 
-  // A search opens the results panel immediately — the place appears as an
-  // un-forecasted row, so there's feedback before any analysis runs.
+  // Naming a destination — by search or by pasting CSV — opens the results
+  // panel immediately: it appears as an un-forecasted row, so there's feedback
+  // before any analysis runs. Keyed on the inputs rather than the derived
+  // `pending` list, which is declared further down.
   useEffect(() => {
-    if (searched.places.length > 0) setShowResults(true)
-  }, [searched.places])
+    if (searched.places.length > 0 || csvRows.length > 0) setShowResults(true)
+  }, [searched.places, csvRows])
 
   // Everything derived from the results renders from the snapshot of the
   // ranking that produced them — panel knobs only affect the NEXT Analyze.
@@ -378,7 +383,6 @@ export default function App() {
     // finishDrawing() snapshots the map's always-editable ring synchronously
     // (and closes it), falling back to the restored polygon before the map has
     // loaded.
-    const csvRows = parseCustomCsv(customCsv)
     const custom = buildCustomList(csvRows, searched.places)
     const resolvedPolygon =
       drawPointCount >= 3 ? mapRef.current?.finishDrawing() ?? polygon : null
@@ -526,14 +530,16 @@ export default function App() {
     searched.removePlace(row.latitude, row.longitude)
   }
 
-  // Searched places absent from the displayed report — not yet analyzed, ranked
-  // below the cutoff, or awaiting a fresh run — drawn as neutral pending dots.
-  const pendingPlaces = useMemo(() => {
-    const shown = new Set(results.map((r) => pinKey(r.latitude, r.longitude)))
-    return searched.places.filter((p) => !shown.has(pinKey(p.lat, p.lon)))
-  }, [results, searched.places])
+  // Custom destinations absent from the displayed report — not yet analyzed,
+  // ranked below the cutoff, or awaiting a fresh run — drawn as neutral pending
+  // dots and un-forecasted rows. Pasted CSV rows count: a list should show up
+  // the moment it's pasted, not only once an analysis returns.
+  const pending = useMemo(
+    () => pendingDestinations(csvRows, searched.places, results, removedKeys),
+    [csvRows, searched.places, results, removedKeys],
+  )
   const hasColoredMarkers = showResults && results.length > 0
-  const showTable = showResults && (results.length > 0 || pendingPlaces.length > 0)
+  const showTable = showResults && (results.length > 0 || pending.length > 0)
 
   // Flags results within 10 mi of an active US wildfire; independent of the map
   // overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
@@ -718,7 +724,7 @@ export default function App() {
             sortBy={view.sortBy}
             fireWarnings={fireWarnings}
             showWildfires={showWildfires}
-            pendingPlaces={pendingPlaces}
+            pending={pending}
             minElevationFt={minElevationFt}
             maxElevationFt={maxElevationFt}
           />
@@ -945,9 +951,9 @@ export default function App() {
                   sortDesc={view.sortDesc}
                   mode={view.mode}
                   fireWarnings={fireWarnings}
-                  pending={pendingPlaces}
+                  pending={pending}
                   onRemove={handleRemoveResult}
-                  onRemovePending={(place) => searched.removePlace(place.lat, place.lon)}
+                  onRemovePending={(d) => searched.removePlace(d.latitude, d.longitude)}
                   onFocusResult={(row) => mapRef.current?.focusResult(row)}
                   onToggleChart={chartable ? chart.toggle : undefined}
                   isCharted={chart.isSelected}
