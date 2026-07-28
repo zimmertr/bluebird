@@ -240,7 +240,7 @@ function ChartTooltip({
   const rest = items.length - shown.length
 
   return (
-    <div className="rounded-md border border-slate-600 bg-slate-800/95 px-2.5 py-1.5 text-xs shadow-lg">
+    <div className="rounded-lg border border-slate-600 bg-slate-800/95 px-2.5 py-1.5 text-xs shadow-lg">
       {label != null && (
         <div className="mb-1 font-mono text-[10px] text-slate-400">{fmtTooltipTime(label)}</div>
       )}
