@@ -32,6 +32,32 @@ describe('user-facing copy', () => {
   })
 })
 
+// Every component, not just the legal ones, because #175 swept the backend's
+// user-facing strings and left the frontend's untouched.
+//
+// A blanket ban across all of them would be wrong rather than merely strict:
+// the results table renders a bare em dash for a missing value and the legend
+// and date range use en dashes between numbers, all of which are correct
+// typography. Attribute copy has no such ambiguity. Anything inside an
+// aria-label, title, placeholder or alt is a sentence read aloud or shown as a
+// hint, so a dash in one is always prose. That is exactly where the instance
+// #175 missed was hiding, in a screen-reader label nobody reads by eye.
+const componentSources = import.meta.glob('./components/*.tsx', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>
+
+describe('attribute copy', () => {
+  it('found the components', () => {
+    expect(Object.keys(componentSources).length).toBeGreaterThan(6)
+  })
+
+  it.each(Object.entries(componentSources))('%s uses no dash in a label', (_path, source) => {
+    expect(copy(source)).not.toMatch(/(?:aria-label|title|placeholder|alt)="[^"]*[—–]/)
+  })
+})
+
 // The reason the public page is worth having is that it says what the app
 // says. Asserting the shared imports makes that structural rather than a
 // promise someone has to keep by re-reading two files.

@@ -281,7 +281,7 @@ export default function ControlPanel({
               <code className="text-slate-300">Lat,Lon,Name</code>
             </p>
             <textarea
-              aria-label="Custom destination coordinates — one per line as latitude, longitude, optional name"
+              aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"
               value={customCsv}
               onKeyDown={() => (csvPasteRef.current = false)}
               onPaste={() => (csvPasteRef.current = true)}
