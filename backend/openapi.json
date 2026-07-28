@@ -471,6 +471,130 @@
         "title": "DestinationType",
         "type": "string"
       },
+      "DestinationsRequest": {
+        "description": "Discovery only: which destinations exist inside a polygon.\n\nThis is the first half of `POST /api/analyze`, with no forecasts\nattached. The SPA uses it to get the candidate list and then fetches\nOpen-Meteo itself, so a browser analysis costs this deployment one\nOverpass query instead of dozens of forecast calls.",
+        "properties": {
+          "destination_type": {
+            "$ref": "#/components/schemas/DestinationType",
+            "description": "What to discover. `custom` is rejected here: custom destinations are supplied by the caller, so there is nothing to discover."
+          },
+          "max_elevation_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop candidates above this elevation.",
+            "title": "Max Elevation Ft"
+          },
+          "min_elevation_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop candidates below this elevation. Candidates with an unknown elevation always pass through rather than being silently dropped.",
+            "title": "Min Elevation Ft"
+          },
+          "polygon": {
+            "$ref": "#/components/schemas/GeoPolygon",
+            "description": "Search area, validated exactly as on `POST /api/analyze`."
+          }
+        },
+        "required": [
+          "polygon",
+          "destination_type"
+        ],
+        "title": "DestinationsRequest",
+        "type": "object"
+      },
+      "DestinationsResponse": {
+        "description": "Everything discovery found, after the optional elevation band.",
+        "properties": {
+          "destinations": {
+            "description": "Every named match inside the polygon, never sampled. Order is OSM's, not a ranking; ranking is the caller's job once forecasts are attached.",
+            "items": {
+              "$ref": "#/components/schemas/DiscoveredDestination"
+            },
+            "title": "Destinations",
+            "type": "array"
+          },
+          "total": {
+            "description": "Same as `len(destinations)`, for convenience.",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "destinations",
+          "total"
+        ],
+        "title": "DestinationsResponse",
+        "type": "object"
+      },
+      "DiscoveredDestination": {
+        "description": "One discovery candidate, forecast-free.",
+        "properties": {
+          "elevation_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Elevation in feet, when OSM knows it.",
+            "title": "Elevation Ft"
+          },
+          "latitude": {
+            "description": "Latitude in decimal degrees.",
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "description": "Longitude in decimal degrees.",
+            "title": "Longitude",
+            "type": "number"
+          },
+          "name": {
+            "description": "Destination name, from OSM.",
+            "title": "Name",
+            "type": "string"
+          },
+          "osm_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "OpenStreetMap identifier such as `node/12345`.",
+            "title": "Osm Id"
+          },
+          "type": {
+            "description": "The discovery type this row matched.",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "latitude",
+          "longitude"
+        ],
+        "title": "DiscoveredDestination",
+        "type": "object"
+      },
       "ErrorResponse": {
         "description": "Body of a hand-raised API error.\n\nNote that a 422 differs: request validation is Pydantic's, and its `detail`\nis a list of per-field objects rather than a string. That shape is\ndocumented separately as `HTTPValidationError`.",
         "properties": {
@@ -1025,6 +1149,88 @@
         "summary": "Report deployment-specific UI configuration",
         "tags": [
           "metadata"
+        ]
+      }
+    },
+    "/api/destinations": {
+      "post": {
+        "description": "The discovery half of `POST /api/analyze` on its own: every named destination of the requested type inside the polygon, with no forecasts attached. Discovery is never sampled, and the same candidate ceiling applies, so a list that would refuse there refuses identically here.\n\nThis exists so a browser client can fetch forecasts itself, spending its own Open-Meteo quota instead of this deployment's \u2014 which is exactly what the bundled web app does. If you are building a client and want ranked forecasts in one call, `POST /api/analyze` remains the endpoint for that.",
+        "operationId": "destinations_api_destinations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DestinationsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DestinationsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The request parsed but is not discoverable: the destination type is `custom` (caller-supplied, nothing to discover) or not yet implemented, or the polygon contains more candidates than the analysis ceiling."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This client is requesting faster than the per-address limit (shared with the analyze endpoints). `Retry-After` says how many seconds to wait."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Every Overpass mirror failed. Transient and worth retrying."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This instance's Overpass budget stayed saturated too long. Transient; `Retry-After` says when a retry is worthwhile."
+          }
+        },
+        "summary": "Discover destinations without forecasts",
+        "tags": [
+          "analysis"
         ]
       }
     },

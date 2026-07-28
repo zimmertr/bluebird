@@ -73,11 +73,26 @@ telling you.
 | --- | --- |
 | `POST /api/analyze` | Discover destinations, forecast each one, return a ranking. The main event. |
 | `POST /api/analyze/stream` | The same analysis as Server-Sent Events, with progress while it runs. |
+| `POST /api/destinations` | Discovery alone: the polygon's candidates with no forecasts attached. |
 | `GET /api/capabilities` | Supported destination types, sort keys, and every limit enforced. |
 | `GET /api/version` | Which build is running: version, commit, build time. |
 | `GET /api/geocode` | Place lookup by name, proxied to Nominatim. |
 | `GET /api/config` | Deployment-specific UI settings. Internal to the web app. |
 | `GET /healthz` | Liveness probe. Answers `GET` and `HEAD`. |
+
+### Discovery without forecasts
+
+`POST /api/destinations` takes a `polygon`, a `destination_type`, and the
+optional elevation band, and returns every named candidate inside — the same
+never-sampled discovery an analysis starts with, under the same candidate
+ceiling and rate-limit bucket, just without the weather. It exists so a
+client can attach forecasts itself: the bundled web app calls it and then
+fetches Open-Meteo **directly from the browser**, spending the visitor's own
+free-tier quota instead of this deployment's (falling back to
+`POST /api/analyze/stream` when Open-Meteo is unreachable from the browser).
+If you are building a client and want ranked forecasts in one call,
+`POST /api/analyze` remains the endpoint for that; if you want to do your own
+ranking or your own weather, this one saves you a scrape.
 
 ## Bringing your own destinations
 

@@ -1,0 +1,715 @@
+{
+  "_generated_by": "backend/scripts/generate_weather_vectors.py \u2014 do not hand-edit",
+  "weather": [
+    {
+      "name": "simple_aggregation",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T02:00"
+      },
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00",
+            "2026-07-21T02:00"
+          ],
+          "precipitation": [
+            0.1,
+            0.2,
+            0.0
+          ],
+          "temperature_2m": [
+            50.0,
+            52.0,
+            54.0
+          ],
+          "wind_speed_10m": [
+            5.0,
+            7.0,
+            9.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.3,
+        "precip_avg_in_hr": 0.1,
+        "precip_max_in_hr": 0.2,
+        "temp_min_f": 50.0,
+        "temp_max_f": 54.0,
+        "temp_avg_f": 52.0,
+        "wind_min_mph": 5.0,
+        "wind_max_mph": 9.0,
+        "wind_avg_mph": 7.0
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000,
+          1784599200000
+        ],
+        "precip_in": [
+          0.1,
+          0.2,
+          0.0
+        ],
+        "temp_f": [
+          50.0,
+          52.0,
+          54.0
+        ],
+        "wind_mph": [
+          5.0,
+          7.0,
+          9.0
+        ]
+      }
+    },
+    {
+      "name": "partial_nulls_drop_the_hour_from_metrics_only",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T02:00"
+      },
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00",
+            "2026-07-21T02:00"
+          ],
+          "precipitation": [
+            0.1,
+            null,
+            0.3
+          ],
+          "temperature_2m": [
+            50.0,
+            52.0,
+            null
+          ],
+          "wind_speed_10m": [
+            5.0,
+            7.0,
+            9.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.1,
+        "precip_avg_in_hr": 0.1,
+        "precip_max_in_hr": 0.1,
+        "temp_min_f": 50.0,
+        "temp_max_f": 50.0,
+        "temp_avg_f": 50.0,
+        "wind_min_mph": 5.0,
+        "wind_max_mph": 5.0,
+        "wind_avg_mph": 5.0
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000,
+          1784599200000
+        ],
+        "precip_in": [
+          0.1,
+          null,
+          0.3
+        ],
+        "temp_f": [
+          50.0,
+          52.0,
+          null
+        ],
+        "wind_mph": [
+          5.0,
+          7.0,
+          9.0
+        ]
+      }
+    },
+    {
+      "name": "all_hours_incomplete_metrics_null_series_kept",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T02:00"
+      },
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00",
+            "2026-07-21T02:00"
+          ],
+          "precipitation": [
+            null,
+            null,
+            null
+          ],
+          "temperature_2m": [
+            50.0,
+            52.0,
+            54.0
+          ],
+          "wind_speed_10m": [
+            5.0,
+            7.0,
+            9.0
+          ]
+        }
+      },
+      "expected_metrics": null,
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000,
+          1784599200000
+        ],
+        "precip_in": [
+          null,
+          null,
+          null
+        ],
+        "temp_f": [
+          50.0,
+          52.0,
+          54.0
+        ],
+        "wind_mph": [
+          5.0,
+          7.0,
+          9.0
+        ]
+      }
+    },
+    {
+      "name": "point_sample_single_hour",
+      "window": {
+        "start": "2026-07-21T01:00",
+        "end": "2026-07-21T01:01"
+      },
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00",
+            "2026-07-21T02:00"
+          ],
+          "precipitation": [
+            0.1,
+            0.2,
+            0.4
+          ],
+          "temperature_2m": [
+            50.0,
+            52.0,
+            54.0
+          ],
+          "wind_speed_10m": [
+            5.0,
+            7.0,
+            9.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.2,
+        "precip_avg_in_hr": 0.2,
+        "precip_max_in_hr": 0.2,
+        "temp_min_f": 52.0,
+        "temp_max_f": 52.0,
+        "temp_avg_f": 52.0,
+        "wind_min_mph": 7.0,
+        "wind_max_mph": 7.0,
+        "wind_avg_mph": 7.0
+      },
+      "expected_series": {
+        "times": [
+          1784595600000
+        ],
+        "precip_in": [
+          0.2
+        ],
+        "temp_f": [
+          52.0
+        ],
+        "wind_mph": [
+          7.0
+        ]
+      }
+    },
+    {
+      "name": "empty_payload_is_null_null",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T02:00"
+      },
+      "payload": {
+        "hourly": {
+          "time": [],
+          "precipitation": [],
+          "temperature_2m": [],
+          "wind_speed_10m": []
+        }
+      },
+      "expected_metrics": null,
+      "expected_series": null
+    },
+    {
+      "name": "no_hours_inside_window_is_null_null",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T02:00"
+      },
+      "payload": {
+        "hourly": {
+          "time": [
+            "2020-01-01T00:00"
+          ],
+          "precipitation": [
+            0.1
+          ],
+          "temperature_2m": [
+            50.0
+          ],
+          "wind_speed_10m": [
+            5.0
+          ]
+        }
+      },
+      "expected_metrics": null,
+      "expected_series": null
+    },
+    {
+      "name": "malformed_timestamp_skipped",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T02:00"
+      },
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "not-a-time",
+            "2026-07-21T02:00"
+          ],
+          "precipitation": [
+            0.1,
+            0.2,
+            0.3
+          ],
+          "temperature_2m": [
+            50.0,
+            51.0,
+            52.0
+          ],
+          "wind_speed_10m": [
+            5.0,
+            6.0,
+            7.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.4,
+        "precip_avg_in_hr": 0.2,
+        "precip_max_in_hr": 0.3,
+        "temp_min_f": 50.0,
+        "temp_max_f": 52.0,
+        "temp_avg_f": 51.0,
+        "wind_min_mph": 5.0,
+        "wind_max_mph": 7.0,
+        "wind_avg_mph": 6.0
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784599200000
+        ],
+        "precip_in": [
+          0.1,
+          0.3
+        ],
+        "temp_f": [
+          50.0,
+          52.0
+        ],
+        "wind_mph": [
+          5.0,
+          7.0
+        ]
+      }
+    },
+    {
+      "name": "short_metric_array_zip_vs_series_padding",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T02:00"
+      },
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00",
+            "2026-07-21T02:00"
+          ],
+          "precipitation": [
+            0.1,
+            0.2
+          ],
+          "temperature_2m": [
+            50.0,
+            52.0,
+            54.0
+          ],
+          "wind_speed_10m": [
+            5.0,
+            7.0,
+            9.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.3,
+        "precip_avg_in_hr": 0.15,
+        "precip_max_in_hr": 0.2,
+        "temp_min_f": 50.0,
+        "temp_max_f": 52.0,
+        "temp_avg_f": 51.0,
+        "wind_min_mph": 5.0,
+        "wind_max_mph": 7.0,
+        "wind_avg_mph": 6.0
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000,
+          1784599200000
+        ],
+        "precip_in": [
+          0.1,
+          0.2,
+          null
+        ],
+        "temp_f": [
+          50.0,
+          52.0,
+          54.0
+        ],
+        "wind_mph": [
+          5.0,
+          7.0,
+          9.0
+        ]
+      }
+    },
+    {
+      "name": "half_even_rounding_boundary",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "precipitation": [
+            0.03125,
+            0.03125
+          ],
+          "temperature_2m": [
+            50.25,
+            50.25
+          ],
+          "wind_speed_10m": [
+            7.25,
+            7.25
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.0625,
+        "precip_avg_in_hr": 0.0312,
+        "precip_max_in_hr": 0.0312,
+        "temp_min_f": 50.2,
+        "temp_max_f": 50.2,
+        "temp_avg_f": 50.2,
+        "wind_min_mph": 7.2,
+        "wind_max_mph": 7.2,
+        "wind_avg_mph": 7.2
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "precip_in": [
+          0.0312,
+          0.0312
+        ],
+        "temp_f": [
+          50.2,
+          50.2
+        ],
+        "wind_mph": [
+          7.2,
+          7.2
+        ]
+      }
+    }
+  ],
+  "aqi": [
+    {
+      "name": "simple_aggregation",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T02:00"
+      },
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00",
+            "2026-07-21T02:00"
+          ],
+          "us_aqi": [
+            80,
+            90,
+            100
+          ]
+        }
+      },
+      "expected_metrics": {
+        "aqi_avg": 90,
+        "aqi_max": 100
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000,
+          1784599200000
+        ],
+        "aqi": [
+          80,
+          90,
+          100
+        ]
+      }
+    },
+    {
+      "name": "half_even_80_5_rounds_down_to_even",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "us_aqi": [
+            80,
+            81
+          ]
+        }
+      },
+      "expected_metrics": {
+        "aqi_avg": 80,
+        "aqi_max": 81
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "aqi": [
+          80,
+          81
+        ]
+      }
+    },
+    {
+      "name": "half_even_81_5_rounds_up_to_even",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "us_aqi": [
+            81,
+            82
+          ]
+        }
+      },
+      "expected_metrics": {
+        "aqi_avg": 82,
+        "aqi_max": 82
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "aqi": [
+          81,
+          82
+        ]
+      }
+    },
+    {
+      "name": "nulls_skipped_in_metrics_kept_in_series",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T02:00"
+      },
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00",
+            "2026-07-21T02:00"
+          ],
+          "us_aqi": [
+            80,
+            null,
+            100
+          ]
+        }
+      },
+      "expected_metrics": {
+        "aqi_avg": 90,
+        "aqi_max": 100
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000,
+          1784599200000
+        ],
+        "aqi": [
+          80,
+          null,
+          100
+        ]
+      }
+    },
+    {
+      "name": "all_null_metrics_null_series_kept",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "us_aqi": [
+            null,
+            null
+          ]
+        }
+      },
+      "expected_metrics": null,
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "aqi": [
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "name": "empty_payload_is_null_null",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T02:00"
+      },
+      "payload": {
+        "hourly": {
+          "time": [],
+          "us_aqi": []
+        }
+      },
+      "expected_metrics": null,
+      "expected_series": null
+    }
+  ],
+  "align": [
+    {
+      "name": "shorter_series_nulls_past_horizon",
+      "times_ms": [
+        1784592000000,
+        1784595600000,
+        1784599200000
+      ],
+      "aqi_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "aqi": [
+          80,
+          90
+        ]
+      },
+      "expected": [
+        80,
+        90,
+        null
+      ]
+    },
+    {
+      "name": "missing_series_is_all_nulls",
+      "times_ms": [
+        1784592000000,
+        1784595600000,
+        1784599200000
+      ],
+      "aqi_series": null,
+      "expected": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "name": "exact_cover",
+      "times_ms": [
+        1784592000000,
+        1784595600000,
+        1784599200000
+      ],
+      "aqi_series": {
+        "times": [
+          1784592000000,
+          1784595600000,
+          1784599200000
+        ],
+        "aqi": [
+          80,
+          null,
+          100
+        ]
+      },
+      "expected": [
+        80,
+        null,
+        100
+      ]
+    }
+  ]
+}

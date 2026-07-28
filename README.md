@@ -295,14 +295,16 @@ for how traffic flows in and out of the deployment.
 
 ## Architecture
 
-Bluebird is one FastAPI service that also serves the built React SPA as static files. The web app talks to `POST /api/analyze/stream` so it can show progress during a long analysis, and everything else it needs comes from free, keyless public APIs.
+Bluebird is one FastAPI service that also serves the built React SPA as static files. The web app asks the server only for discovery — `POST /api/destinations`, one Overpass query — and fetches the Open-Meteo forecasts **directly from the browser**, so each visitor spends their own free-tier quota instead of the server's one shared egress IP. The browser's aggregation is a port of the backend's, pinned identical by shared test vectors (`weather_vectors.json`, checked by both suites and diffed in CI), and if Open-Meteo is unreachable from the browser the app falls back to `POST /api/analyze/stream`, the same server pipeline API callers use.
 
-When a request comes in, the backend:
+When a full server-side analysis runs (an API caller, or that fallback), the backend:
 
 1. Validates the polygon area.
 2. Queries the Overpass API for named OSM features, falling back across three mirrors if the first is down.
 3. Batches the matched destinations into Open-Meteo weather and air-quality requests, all fired concurrently with `asyncio.gather`.
 4. Sorts by the requested metric and returns the top N.
+
+Because the browser talks to Open-Meteo itself (as it already does to NIFC for the wildfire overlay), those services see each visitor's IP address and the coordinates being analyzed — the same information the server would otherwise send on the visitor's behalf.
 
 The whole thing builds as a single multi-stage Docker image:
 

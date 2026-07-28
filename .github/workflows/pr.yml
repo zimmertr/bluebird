@@ -36,6 +36,17 @@ jobs:
       - run: npm test
         working-directory: frontend
 
+  # The backend and frontend test containers each mount only their own
+  # subtree, so the shared weather/AQI aggregation vectors exist as two
+  # committed copies. Each suite asserts its own implementation against its
+  # copy; this check is what makes the two copies one contract.
+  vectors:
+    name: Aggregation vectors in sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: diff backend/tests/data/weather_vectors.json frontend/src/utils/weather_vectors.json
+
   # Catch Python style and logic issues
   lint:
     name: Python Lint

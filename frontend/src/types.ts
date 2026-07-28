@@ -95,3 +95,19 @@ export interface AnalyzeResponse {
   // rendered in the viewer's local time.
   times?: number[]
 }
+
+// One candidate from POST /api/destinations: discovery without forecasts.
+// The client-side analysis path attaches the weather itself (openMeteo.ts).
+export interface DiscoveredDestination {
+  name: string
+  type: string
+  latitude: number
+  longitude: number
+  elevation_ft: number | null
+  osm_id: string | null
+}
+
+export interface DestinationsResponse {
+  destinations: DiscoveredDestination[]
+  total: number
+}

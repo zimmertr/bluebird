@@ -13,6 +13,7 @@ from app import ratelimit
 from app.routes.analyze import router
 from app.routes.capabilities import router as capabilities_router
 from app.routes.config import router as config_router
+from app.routes.destinations import router as destinations_router
 from app.routes.geocode import router as geocode_router
 from app.routes.notfound import router as notfound_router
 from app.routes.version import router as version_router
@@ -186,6 +187,7 @@ async def access_log(request: Request, call_next) -> Response:
 
 
 app.include_router(router, prefix="/api")
+app.include_router(destinations_router, prefix="/api")
 app.include_router(config_router, prefix="/api")
 app.include_router(geocode_router, prefix="/api")
 app.include_router(version_router, prefix="/api")
