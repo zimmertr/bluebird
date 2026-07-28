@@ -64,6 +64,13 @@ jobs:
         working-directory: backend
       - run: pytest -q
         working-directory: backend
+      # openapi.json is committed so a contract change shows up as a reviewable
+      # diff. This fails the PR when the app and the snapshot disagree, which
+      # means someone changed a route, model, or description without running
+      # `python scripts/generate_openapi.py`.
+      - name: Check OpenAPI snapshot is current
+        run: python scripts/generate_openapi.py --check
+        working-directory: backend
 
   # Validate the Dockerfile builds end-to-end without pushing the image, then
   # scan the result for vulnerabilities. amd64-only on purpose: this gate
@@ -89,9 +96,17 @@ jobs:
           context: .
           platforms: linux/amd64
           push: false
-          # Load into the runner's docker daemon so Trivy can scan it below
+          # Load into the runner's docker daemon so Trivy can scan it, and the
+          # smoke test below can actually run it
           load: true
           tags: bluebird:pr-scan
+          # A sentinel rather than a real version: the smoke test asserts this
+          # exact string comes back from /api/version, which is what proves the
+          # ARG -> ENV -> endpoint chain survived a Dockerfile edit.
+          build-args: |
+            APP_VERSION=0.0.0-ci
+            APP_COMMIT=${{ github.sha }}
+            APP_BUILT_AT=1970-01-01T00:00:00Z
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -159,6 +174,49 @@ jobs:
           else
             gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" -F body=@scan-comment.md >/dev/null
           fi
+
+      # Assertions that only hold against a built image, so pytest structurally
+      # cannot make them. The big one is the self-hosted Swagger UI: /docs falls
+      # back to a CDN whenever `static/swagger-ui` is absent, and in a source
+      # checkout it always is. Without this, retargeting the Dockerfile's COPY
+      # would silently restore the third-party script surface that a strict CSP
+      # (#132) depends on being gone, with every other check still green.
+      - name: Smoke test the built image
+        run: |
+          docker run -d --rm --name smoke -p 8000:8000 bluebird:pr-scan
+          for _ in $(seq 1 30); do
+            curl -fsS localhost:8000/healthz >/dev/null 2>&1 && break
+            sleep 1
+          done
+
+          fail=0
+          check() {  # label, actual, expected
+            if [ "$2" = "$3" ]; then
+              echo "  ok    $1"
+            else
+              echo "  FAIL  $1 (want '$3', got '$2')"
+              fail=1
+            fi
+          }
+
+          check "build args reach /api/version" \
+            "$(curl -fsS localhost:8000/api/version | jq -r .version)" "0.0.0-ci"
+          check "the same version fills openapi info.version" \
+            "$(curl -fsS localhost:8000/openapi.json | jq -r .info.version)" "0.0.0-ci"
+          check "Swagger UI is served from the image" \
+            "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/swagger-ui/swagger-ui-bundle.js)" "200"
+          check "/docs references no third-party host" \
+            "$(curl -fsS localhost:8000/docs | grep -cE 'jsdelivr|googleapis|tiangolo' || true)" "0"
+          check "/redoc is gone" \
+            "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/redoc)" "404"
+          check "an unknown /api path answers as the API, not the SPA" \
+            "$(curl -s -o /dev/null -w '%{content_type}' localhost:8000/api/nope)" "application/json"
+          check "the SPA is still served at /" \
+            "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/)" "200"
+
+          docker stop smoke >/dev/null 2>&1 || true
+          [ "$fail" -eq 0 ] || echo "::error::The built image failed its smoke test. See the failures above."
+          exit $fail
 
       # The actual gate, after the comment so a red run still explains itself
       - name: Fail on fixable Critical/High vulnerabilities

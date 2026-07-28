@@ -108,6 +108,21 @@ concurrency-serialized):
    `v<semver>` git tag. Capped at `timeout-minutes: 30`: because releases
    serialize, a job hung on a registry timeout would otherwise dam every
    queued release for up to GitHub's 6-hour default.
+
+   **Build identity.** Three build args are passed here and baked into the
+   image as env vars: `APP_VERSION` (the GitVersion SemVer), `APP_COMMIT`
+   (`github.sha`), and `APP_BUILT_AT` (stamped by a `date -u` step, because
+   `github.event.repository.updated_at` is the last push rather than this
+   build). They are what `GET /api/version` reports and what fills
+   `info.version` in `/openapi.json`. `pr-preview.yml` passes the same three,
+   with `APP_VERSION=pr-<number>`, so a preview environment can be verified the
+   same way. Anything built without them (a local `docker build`, `docker
+   compose up`) honestly reports `dev`.
+
+   These args are declared at the very **end** of the Dockerfile, immediately
+   before `USER`. `APP_BUILT_AT` changes on every build, so declaring them any
+   earlier would invalidate the `pip install` layer every time and throw away
+   the build cache.
 3. **Create GitHub Release** — auto-generated notes.
 4. **Update Kubernetes-Manifests** — a **self-merging PR** on the fixed
    `chore/bluebird-image` branch sets `images.newTag: <semver>` in
@@ -444,7 +459,7 @@ flowchart LR
 
     subgraph BB["zimmertr/bluebird"]
         pr["PR opened / updated"]
-        checks["pr.yml<br/>typecheck, Vitest, ruff, pytest, hadolint,<br/>docker build + Trivy scan (sticky comment)"]
+        checks["pr.yml<br/>typecheck, Vitest, ruff, pytest, OpenAPI drift,<br/>hadolint, docker build + Trivy scan (sticky comment)"]
         preview["pr-preview.yml<br/>pull_request_target (same-repo gate)"]
         label["label: create pr container"]
         comment["sticky preview-URL comment"]
@@ -471,6 +486,13 @@ flowchart LR
     pr -.->|PR closed: automated prune| env
 ```
 
+- `pr.yml`'s backend job runs `scripts/generate_openapi.py --check` after pytest.
+  `backend/openapi.json` is committed so an API change lands as a reviewable diff
+  instead of hiding inside Python, and this step fails the PR when the app and
+  the snapshot disagree. Regenerate with `cd backend && python
+  scripts/generate_openapi.py`. The script pins `APP_VERSION` to `dev` before
+  importing the app, so `info.version` stays deterministic and a released build
+  never reads as drift.
 - `pr.yml`'s docker-build job loads the amd64 image into the runner and scans it
   with **Trivy** (`ignore-unfixed`: Debian/Alpine no-fix CVEs never gate). The
   report lands in the job step summary and as a **sticky PR comment** (matched by

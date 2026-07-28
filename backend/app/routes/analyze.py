@@ -11,6 +11,7 @@ from app.models import (
     AnalyzeResponse,
     DestinationResult,
     DestinationType,
+    ErrorResponse,
     HourlySeries,
     bbox_area_km2,
 )
@@ -231,7 +232,55 @@ def _assemble(
     return results, times
 
 
-@router.post("/analyze/stream")
+@router.post(
+    "/analyze/stream",
+    tags=["analysis"],
+    summary="Rank destinations, streaming progress as it goes",
+    # Without this, FastAPI assumes JSONResponse and documents the 200 as
+    # application/json, which is what the schema wrongly claimed before.
+    # StreamingResponse declares no media type of its own, so the only content
+    # type in the schema is the one spelled out below.
+    response_class=StreamingResponse,
+    description=(
+        "Identical analysis to `POST /api/analyze`, delivered as Server-Sent "
+        "Events so a caller can show progress instead of waiting on one long "
+        "request.\n\n"
+        "Check the status code first, then the stream. A request that fails "
+        "validation is rejected with **422 before the stream opens**, exactly "
+        "as on `POST /api/analyze`. Once the stream does open the status is "
+        "**200 for the rest of the exchange**, including for failures, because "
+        "the connection is already streaming by the time an upstream problem "
+        "surfaces. So a 200 here means the request was accepted, not that the "
+        "analysis succeeded. Four event "
+        "types arrive as `data:` lines carrying a JSON object with a `type` "
+        "field:\n\n"
+        "- `status` — a human-readable phase message in `message`\n"
+        "- `progress` — `processed`, `total`, and `percent` counters\n"
+        "- `result` — the terminal success event, carrying a full "
+        "`AnalyzeResponse` in `data`\n"
+        "- `error` — the terminal failure event, with the reason in `message`\n\n"
+        "Exactly one `result` or one `error` ends the stream."
+    ),
+    responses={
+        200: {
+            "description": (
+                "An SSE stream. Ends with either a `result` or an `error` event."
+            ),
+            "content": {
+                "text/event-stream": {
+                    "schema": {
+                        "type": "string",
+                        "example": (
+                            'data: {"type": "status", "message": "Searching for Destinations…"}\n\n'
+                            'data: {"type": "progress", "processed": 50, "total": 120, "percent": 41}\n\n'
+                            'data: {"type": "result", "data": {"results": [], "total_queried": 0}}\n\n'
+                        ),
+                    }
+                }
+            },
+        }
+    },
+)
 async def analyze_stream(request: AnalyzeRequest):
     async def generate():
         log.info("Analyze request (stream): %s", _summarize_request(request))
@@ -411,7 +460,42 @@ async def analyze_stream(request: AnalyzeRequest):
     )
 
 
-@router.post("/analyze", response_model=AnalyzeResponse)
+@router.post(
+    "/analyze",
+    response_model=AnalyzeResponse,
+    tags=["analysis"],
+    summary="Rank destinations by forecast weather",
+    description=(
+        "Discovers every named destination of the requested type inside the "
+        "polygon, unions in any `custom_destinations`, fetches a real hourly "
+        "forecast for each, and returns the top `limit` ranked by `sort_by`.\n\n"
+        "Discovery is never sampled, so cost scales with how many destinations "
+        "the polygon contains, not with `limit`. A large polygon over dense "
+        "terrain can take tens of seconds. For a progress feed instead of a "
+        "single long wait, use `POST /api/analyze/stream`."
+    ),
+    responses={
+        400: {
+            "model": ErrorResponse,
+            "description": (
+                "The request parsed but does not describe a runnable analysis: "
+                "the window is inverted, the destination type is not "
+                "discoverable, `custom_destinations` is missing for a custom "
+                "analysis, the elevation band excludes every candidate, or the "
+                "candidate count exceeds the cap."
+            ),
+        },
+        502: {
+            "model": ErrorResponse,
+            "description": (
+                "An upstream failed: every Overpass mirror was unreachable, or "
+                "the weather API did not answer. Transient and worth retrying. "
+                "Air quality is exempt, since a failure there degrades to null "
+                "rather than failing the analysis."
+            ),
+        },
+    },
+)
 async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     log.info("Analyze request: %s", _summarize_request(request))
 

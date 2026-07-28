@@ -56,16 +56,18 @@ Two suites: the frontend's pure logic under Vitest (`frontend/src/utils/*.test.t
 
 - **Ship tests with behavior.** Any change to the frontend, backend, or anything else testable adds or updates coverage in the same PR — Vitest under `frontend/src/utils/*.test.ts` for frontend logic, pytest under `backend/tests/` for the backend (both run in Docker; commands above). A behavior change without a matching test is incomplete.
 - **Keep the CI/CD diagram current.** Any change that alters the deploy flow — a workflow in this repo or `bluebird-helm`, an image/chart/tag convention, or the `Kubernetes-Manifests` wiring — updates [`docs/CICD.md`](docs/CICD.md) in the same PR. That diagram spans two sibling repos (`bluebird-helm` and `Kubernetes-Manifests`), so flow changes made there come back here too; nothing enforces this automatically.
+- **Regenerate the OpenAPI snapshot.** Any change to a route, a Pydantic model, a `Field(description=...)`, or a route decorator changes the API contract. Run `cd backend && python scripts/generate_openapi.py` and commit `backend/openapi.json`; `pr.yml` fails the PR otherwise. The snapshot exists so a contract change is visible in review instead of buried in Python.
+- **Update [`docs/API.md`](docs/API.md) in the same PR.** Prose API docs live there, never hand-copied endpoint listings. Nothing enforces this the way CI enforces the snapshot, so it is the artifact that silently rots, and the README delegates to it so a stale page is what a new caller reads first. Check the worked examples, not just the prose: grep the docs for the fields you changed.
 
 ## Architecture
 
 Single container, multi-stage Docker build:
-- Stage 1: `node:22-alpine` builds the React SPA (`npm run build`)
+- Stage 1: `node:26-alpine` builds the React SPA (`npm run build`) and provides the vendored `swagger-ui-dist` assets copied into `static/swagger-ui/`, so `/docs` loads nothing from a CDN
 - Stage 2: `python:3.14-alpine` runs uvicorn and serves the built SPA as static files at `/` (alpine over slim so the shipped image carries none of Debian's perpetual no-fix CVEs)
 
 The FastAPI backend handles `POST /api/analyze`, which:
 1. Validates polygon area (bounding-box approximation, max 50,000 km²)
-2. Queries Overpass API for **every** named OSM feature in the polygon — no sampling (peaks, trailheads, and lakes; available types are gated by `_IMPLEMENTED` in `osm.py`), then drops candidates outside the optional elevation band (unknown elevations pass through). Analyses over `MAX_ANALYZE_PEAKS = 1_000` candidates refuse with a clear error instead of silently truncating
+2. Queries Overpass API for **every** named OSM feature in the polygon, with no sampling (peaks, trailheads, and lakes; available types are gated by `IMPLEMENTED_TYPES` in `osm.py`, which `GET /api/capabilities` publishes), then drops candidates outside the optional elevation band (unknown elevations pass through). Analyses over `MAX_ANALYZE_PEAKS = 1_000` candidates refuse with a clear error instead of silently truncating
 3. Fetches hourly weather from Open-Meteo in batches of 50, at most 4 batches in flight at once; US AQI (combined across EPA pollutants) is fetched the same way from Open-Meteo's air-quality endpoint alongside it (best-effort: failures and the short horizon degrade to `null` AQI, never fail the analysis — weather forecasts reach ~16 days, air quality only ~5)
 4. Ranks by `sort_by` + `sort_desc` and returns the top `limit` rows (nullable AQI sort keys push `None` last in either direction)
 
@@ -74,10 +76,14 @@ The SPA fetches only on an explicit Analyze click and renders results from a sna
 **Key constraint shared between frontend and backend:** `MAX_POLYGON_AREA_KM2 = 50_000` is defined in both `backend/app/models.py` and `frontend/src/components/MapView.tsx` — keep them in sync.
 
 **Backend layout:**
-- `app/main.py` — FastAPI app, logging setup (includes custom `TRACE` level at value 5), static file mount
-- `app/models.py` — Pydantic request/response models, polygon area validation
+- `app/main.py` — FastAPI app + OpenAPI metadata (tags, description), logging setup (includes custom `TRACE` level at value 5), self-hosted Swagger UI at `/docs`, static file mount. `docs_url`/`redoc_url` are `None` in the **constructor**: `FastAPI.setup()` registers those routes at the end of `__init__`, so assigning them afterward has no effect
+- `app/version.py` — build identity read from `APP_VERSION`/`APP_COMMIT`/`APP_BUILT_AT`, baked by the Dockerfile; `"dev"` everywhere else
+- `app/models.py` — Pydantic request/response models, polygon area validation, and the limit constants `/api/capabilities` publishes
 - `app/routes/analyze.py` — single route handler
-- `app/services/osm.py` — Overpass query with 3-endpoint fallback chain
+- `app/routes/version.py`, `app/routes/capabilities.py` — build identity and the machine-readable limits/feature contract
+- `app/routes/notfound.py` — `/api` catch-all returning a JSON 404 (or a 405 with `Allow`) instead of letting unknown API paths fall into the SPA static mount. Must stay the **last** router registered under `/api`
+- `scripts/generate_openapi.py` — writes/verifies the committed `backend/openapi.json`
+- `app/services/osm.py` — Overpass query with 3-endpoint fallback chain; `IMPLEMENTED_TYPES` gates which destination types are discoverable
 - `app/services/weather.py` — Open-Meteo batched parallel fetch
 - `app/services/air_quality.py` — Open-Meteo air-quality (US AQI) batched fetch, best-effort
 
@@ -116,5 +122,5 @@ Manifests live in a separate repo (`zimmertr/Kubernetes-Manifests`) under `publi
 ## Adding a new destination type
 
 1. Add the type to `DestinationType` enum in `backend/app/models.py`
-2. Add an Overpass QL query to `_QUERIES` in `backend/app/services/osm.py` and add the type to `_IMPLEMENTED`
+2. Add an Overpass QL query to `_QUERIES` in `backend/app/services/osm.py` and add the type to `IMPLEMENTED_TYPES` (which `GET /api/capabilities` publishes, so no further change is needed to advertise it)
 3. Add the corresponding option in the frontend `ControlPanel.tsx`

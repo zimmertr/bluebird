@@ -58,12 +58,21 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - id: stamp
+        run: echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64
           push: true
           tags: ${{ env.IMAGE }}:${{ env.TAG }}
+          # A preview build has no semver, so GET /api/version reports the PR it
+          # came from. That is what makes "did my preview actually redeploy?"
+          # answerable the same way it is for a release.
+          build-args: |
+            APP_VERSION=pr-${{ github.event.pull_request.number }}
+            APP_COMMIT=${{ github.event.pull_request.head.sha }}
+            APP_BUILT_AT=${{ steps.stamp.outputs.built_at }}
           # Under pull_request_target every preview run's ref is main, so all
           # PRs share one cache namespace: unscoped writes collide with each
           # other and with release builds ("failed to reserve cache" after the

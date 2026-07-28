@@ -5,6 +5,7 @@ import logging
 import httpx
 from fastapi import APIRouter, HTTPException, Query
 
+from app.models import ErrorResponse
 from app.services.errors import classify_http_error
 
 log = logging.getLogger(__name__)
@@ -18,16 +19,37 @@ USER_AGENT = "Bluebird/1.0 (https://bluebirdforecast.com)"
 PROVIDER = "Nominatim (place search)"
 
 
-@router.get("/geocode")
+@router.get(
+    "/geocode",
+    tags=["search"],
+    summary="Look up a place by name",
+    description=(
+        "Thin proxy to Nominatim, forwarding its JSON verbatim. The response "
+        "shape is therefore Nominatim's `jsonv2` format, not something Bluebird "
+        "defines, and each row carries `lat`, `lon`, `display_name`, and "
+        "`extratags` (which is where a summit's `ele` lives).\n\n"
+        "This exists because Nominatim's usage policy asks callers to identify "
+        "themselves with a real User-Agent, which a browser fetch cannot set. "
+        "That same policy forbids autocomplete, so call this on an explicit "
+        "search action rather than on every keystroke."
+    ),
+    response_description="Matching places, in Nominatim's `jsonv2` format.",
+    responses={
+        502: {
+            "model": ErrorResponse,
+            "description": "Nominatim was unreachable or returned an unexpected payload.",
+        },
+    },
+)
 async def geocode(
-    q: str = Query(..., min_length=1, max_length=200),
-    limit: int = Query(5, ge=1, le=10),
+    q: str = Query(
+        ...,
+        min_length=1,
+        max_length=200,
+        description="Place name to search for, such as `Mount Rainier`.",
+    ),
+    limit: int = Query(5, ge=1, le=10, description="Maximum places to return."),
 ):
-    """Proxy a place search to Nominatim, forwarding its JSON verbatim.
-
-    The frontend keeps ownership of the row→Place mapping; this route only
-    adds logging, the policy User-Agent, and friendly upstream error text.
-    """
     log.info("Geocode query: %r", q)
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:

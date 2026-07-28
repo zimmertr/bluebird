@@ -64,7 +64,14 @@ out center;
 """,
 }
 
-_IMPLEMENTED = {DestinationType.peak, DestinationType.trailhead, DestinationType.lake}
+# Public because GET /api/capabilities publishes it: DestinationType carries
+# every type the API models, but only these are actually discoverable via
+# Overpass, and a caller has no other way to tell the difference.
+IMPLEMENTED_TYPES = {
+    DestinationType.peak,
+    DestinationType.trailhead,
+    DestinationType.lake,
+}
 
 
 def _polygon_to_overpass(polygon: GeoPolygon) -> str:
@@ -84,7 +91,7 @@ async def query_osm(
     forecast, so the analysis-size ceiling lives in the route (loud refusal),
     not here (silent truncation).
     """
-    if destination_type not in _IMPLEMENTED:
+    if destination_type not in IMPLEMENTED_TYPES:
         raise NotImplementedError(
             f"Destination type '{destination_type.value}' is not yet implemented."
         )
