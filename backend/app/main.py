@@ -247,10 +247,18 @@ async def swagger_ui() -> HTMLResponse:
 # Registered unconditionally and 404ing on a missing file, rather than being
 # skipped when the build output is absent: a route that disappears in a source
 # checkout is a route the tests cannot describe.
+#
+# HEAD is named explicitly for the reason /healthz above spells out, and it
+# matters more here: link checkers and unfurlers reach for HEAD, and without it
+# the canonical URL this route exists to protect would hand exactly those
+# clients the 307 it was added to avoid. Both methods fit on one route because
+# include_in_schema=False keeps the pair out of the schema entirely, so the
+# duplicate-operationId problem that forced /healthz into two handlers cannot
+# arise.
 _privacy_page = static_dir / "privacy" / "index.html"
 
 
-@app.get("/privacy", include_in_schema=False)
+@app.api_route("/privacy", methods=["GET", "HEAD"], include_in_schema=False)
 async def privacy_page() -> FileResponse:
     if not _privacy_page.is_file():
         raise HTTPException(status_code=404)

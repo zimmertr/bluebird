@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from app import main
 from app.main import app
 from fastapi.testclient import TestClient
@@ -28,16 +29,22 @@ def test_privacy_page_is_served_at_the_path_people_paste(tmp_path, monkeypatch):
     assert "Privacy and terms" in response.text
 
 
-def test_privacy_page_does_not_redirect(tmp_path, monkeypatch):
+@pytest.mark.parametrize("method", ["GET", "HEAD"])
+def test_privacy_page_does_not_redirect(method, tmp_path, monkeypatch):
     # The static mount would also serve this file, as the directory index for
     # /privacy/, but only after 307ing /privacy to the trailing-slash form.
     # This route exists so the canonical URL is the one people type, and a
     # redirect creeping back in is the regression worth catching.
+    #
+    # HEAD is parametrized in rather than assumed: FastAPI's APIRoute does not
+    # imply it from GET the way Starlette's plain Route does, so a GET-only
+    # route sends every link checker and unfurler down the redirect this test
+    # is here to forbid, while the GET case above keeps passing.
     page = tmp_path / "index.html"
     page.write_text("<!doctype html>", encoding="utf-8")
     monkeypatch.setattr(main, "_privacy_page", page)
 
-    response = client.get("/privacy")
+    response = client.request(method, "/privacy")
 
     assert not response.history
     assert response.status_code == 200
