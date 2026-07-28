@@ -9,6 +9,7 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+from app import ratelimit
 from app.routes.analyze import router
 from app.routes.capabilities import router as capabilities_router
 from app.routes.config import router as config_router
@@ -72,16 +73,13 @@ _access_log = logging.getLogger("bluebird.access")
 
 
 def _client_ip(request: Request) -> str:
-    """Best-effort real client IP.
+    """The client identity for the access log.
 
-    Behind Istio/Envoy the socket peer is the sidecar (127.0.0.6), so the real
-    client is the first hop of X-Forwarded-For. Falls back to the peer address
-    when the header is absent (local dev, direct hits).
+    Delegates to the rate limiter's key function so what the log prints is
+    exactly what enforcement counted — a mismatch there would make throttle
+    log lines impossible to correlate.
     """
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "-"
+    return ratelimit.client_key(request)
 
 # ── App ───────────────────────────────────────────────────────────────────────
 
@@ -96,9 +94,11 @@ Draw a polygon and every named peak, trailhead, or lake inside it is discovered
 from OpenStreetMap, given a real hourly forecast, and ranked. Or skip discovery
 entirely and send your own coordinates.
 
-There is no API key, no authentication, and no rate limit. Every upstream is
-free and keyless, so please be considerate: a single analysis can fan out to
-hundreds of forecast requests.
+There is no API key and no authentication. Light per-address rate limits and
+an instance-wide upstream budget protect the free, keyless APIs underneath:
+requests past them receive 429 or 503 with a `Retry-After` header, and
+`GET /api/capabilities` publishes the numbers. Please stay considerate all the
+same: a single analysis can fan out to hundreds of forecast requests.
 
 Start with `GET /api/capabilities` to learn the limits this deployment enforces,
 and `GET /api/version` to confirm which build you are talking to.
@@ -155,6 +155,9 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
+    # Without this a cross-origin caller can see a 429/503 but not read how
+    # long Retry-After told it to back off.
+    expose_headers=["Retry-After"],
 )
 
 

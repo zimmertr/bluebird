@@ -12,11 +12,21 @@ def _request(headers=None, client_host="10.0.0.1"):
     )
 
 
-def test_client_ip_prefers_first_forwarded_hop():
-    # Behind Istio/Envoy the socket peer is the sidecar; the real client is the
-    # first X-Forwarded-For hop.
-    req = _request(headers={"x-forwarded-for": "203.0.113.5, 10.0.0.6"}, client_host="127.0.0.6")
+def test_client_ip_prefers_cf_connecting_ip():
+    # Cloudflare overwrites this header, so for proxied traffic it is the one
+    # identity a client cannot rotate.
+    req = _request(
+        headers={"cf-connecting-ip": "203.0.113.5", "x-forwarded-for": "8.8.8.8, 10.0.0.6"},
+        client_host="127.0.0.6",
+    )
     assert _client_ip(req) == "203.0.113.5"
+
+
+def test_client_ip_takes_rightmost_forwarded_hop():
+    # The log prints what rate limiting counts: the rightmost XFF hop (the peer
+    # our edge saw), never the client-typed leftmost one.
+    req = _request(headers={"x-forwarded-for": "203.0.113.5, 10.0.0.6"}, client_host="127.0.0.6")
+    assert _client_ip(req) == "10.0.0.6"
 
 
 def test_client_ip_falls_back_to_peer():

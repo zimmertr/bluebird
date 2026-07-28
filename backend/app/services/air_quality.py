@@ -7,6 +7,8 @@ from typing import Any
 
 import httpx
 
+from app import ratelimit
+
 log = logging.getLogger(__name__)
 
 AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
@@ -57,8 +59,16 @@ async def fetch_aqi_batch(
     sem = asyncio.Semaphore(MAX_CONCURRENT_BATCHES)
 
     async def gated(chunk: list[dict[str, Any]]) -> list[dict[str, Any] | None]:
+        # Per-analysis slot first, then the pod-wide AQI budget. Budget
+        # exhaustion degrades this chunk to None rows like any other AQI
+        # failure — air quality never fails or delays the analysis.
         async with sem:
-            return await _fetch_chunk(chunk, req_start, req_end, start_dt, end_dt)
+            try:
+                async with ratelimit.AQI_BUDGET.slot():
+                    return await _fetch_chunk(chunk, req_start, req_end, start_dt, end_dt)
+            except ratelimit.BudgetExhausted:
+                log.warning("AQI budget exhausted (continuing without AQI)")
+                return [None] * len(chunk)
 
     chunk_results = await asyncio.gather(*(gated(chunk) for chunk in chunks))
     return [item for sublist in chunk_results for item in sublist]

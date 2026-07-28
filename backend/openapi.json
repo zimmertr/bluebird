@@ -648,6 +648,10 @@
             "description": "Smallest accepted `limit`.",
             "title": "Min Limit",
             "type": "integer"
+          },
+          "rate": {
+            "$ref": "#/components/schemas/RateLimits",
+            "description": "Per-client request pacing. Unlike the bounds above, exceeding these is not a request error: the same request succeeds once `Retry-After` has elapsed."
           }
         },
         "required": [
@@ -657,7 +661,8 @@
           "max_limit",
           "max_past_days",
           "max_future_days",
-          "aqi_forecast_days"
+          "aqi_forecast_days",
+          "rate"
         ],
         "title": "Limits",
         "type": "object"
@@ -701,6 +706,39 @@
           "commit"
         ],
         "title": "PreviewConfig",
+        "type": "object"
+      },
+      "RateLimits": {
+        "description": "Per-client request pacing on the expensive endpoints.\n\nEnforced per backend instance, so behind a multi-replica deployment the\neffective ceiling is roughly the number shown times the replica count.\nRequests past a limit receive 429 with a `Retry-After` header.",
+        "properties": {
+          "analyze_burst": {
+            "description": "How many analyze requests an idle client can send back-to-back before the per-minute pace applies.",
+            "title": "Analyze Burst",
+            "type": "integer"
+          },
+          "analyze_per_minute": {
+            "description": "Sustained `POST /api/analyze` + `/api/analyze/stream` requests allowed per client address per minute (the two share one bucket). 0 means the limit is disabled.",
+            "title": "Analyze Per Minute",
+            "type": "integer"
+          },
+          "geocode_burst": {
+            "description": "How many geocode requests an idle client can send back-to-back before the per-minute pace applies.",
+            "title": "Geocode Burst",
+            "type": "integer"
+          },
+          "geocode_per_minute": {
+            "description": "Sustained `GET /api/geocode` requests per client address per minute. 0 means the limit is disabled.",
+            "title": "Geocode Per Minute",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "analyze_per_minute",
+          "analyze_burst",
+          "geocode_per_minute",
+          "geocode_burst"
+        ],
+        "title": "RateLimits",
         "type": "object"
       },
       "SortBy": {
@@ -801,7 +839,7 @@
       "name": "Bluebird on GitHub",
       "url": "https://github.com/zimmertr/bluebird"
     },
-    "description": "\nBluebird ranks outdoor destinations by their forecast weather.\n\nDraw a polygon and every named peak, trailhead, or lake inside it is discovered\nfrom OpenStreetMap, given a real hourly forecast, and ranked. Or skip discovery\nentirely and send your own coordinates.\n\nThere is no API key, no authentication, and no rate limit. Every upstream is\nfree and keyless, so please be considerate: a single analysis can fan out to\nhundreds of forecast requests.\n\nStart with `GET /api/capabilities` to learn the limits this deployment enforces,\nand `GET /api/version` to confirm which build you are talking to.\n",
+    "description": "\nBluebird ranks outdoor destinations by their forecast weather.\n\nDraw a polygon and every named peak, trailhead, or lake inside it is discovered\nfrom OpenStreetMap, given a real hourly forecast, and ranked. Or skip discovery\nentirely and send your own coordinates.\n\nThere is no API key and no authentication. Light per-address rate limits and\nan instance-wide upstream budget protect the free, keyless APIs underneath:\nrequests past them receive 429 or 503 with a `Retry-After` header, and\n`GET /api/capabilities` publishes the numbers. Please stay considerate all the\nsame: a single analysis can fan out to hundreds of forecast requests.\n\nStart with `GET /api/capabilities` to learn the limits this deployment enforces,\nand `GET /api/version` to confirm which build you are talking to.\n",
     "license": {
       "name": "GPL-3.0-only",
       "url": "https://www.gnu.org/licenses/gpl-3.0-standalone.html"
@@ -857,6 +895,16 @@
             },
             "description": "Validation Error"
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This client is analyzing faster than the per-address limit (shared with `POST /api/analyze/stream`). `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit."
+          },
           "502": {
             "content": {
               "application/json": {
@@ -866,6 +914,16 @@
               }
             },
             "description": "An upstream failed: every Overpass mirror was unreachable, or the weather API did not answer. Transient and worth retrying. Air quality is exempt, since a failure there degrades to null rather than failing the analysis."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This instance's upstream budget is saturated: too many analyses already have calls in flight to the shared free APIs. Transient by nature; `Retry-After` says when a retry is worthwhile."
           }
         },
         "summary": "Rank destinations by forecast weather",
@@ -876,7 +934,7 @@
     },
     "/api/analyze/stream": {
       "post": {
-        "description": "Identical analysis to `POST /api/analyze`, delivered as Server-Sent Events so a caller can show progress instead of waiting on one long request.\n\nCheck the status code first, then the stream. A request that fails validation is rejected with **422 before the stream opens**, exactly as on `POST /api/analyze`. Once the stream does open the status is **200 for the rest of the exchange**, including for failures, because the connection is already streaming by the time an upstream problem surfaces. So a 200 here means the request was accepted, not that the analysis succeeded. Four event types arrive as `data:` lines carrying a JSON object with a `type` field:\n\n- `status` \u2014 a human-readable phase message in `message`\n- `progress` \u2014 `processed`, `total`, and `percent` counters\n- `result` \u2014 the terminal success event, carrying a full `AnalyzeResponse` in `data`\n- `error` \u2014 the terminal failure event, with the reason in `message`\n\nExactly one `result` or one `error` ends the stream.",
+        "description": "Identical analysis to `POST /api/analyze`, delivered as Server-Sent Events so a caller can show progress instead of waiting on one long request.\n\nCheck the status code first, then the stream. A request that fails validation is rejected with **422 before the stream opens**, exactly as on `POST /api/analyze`. Once the stream does open the status is **200 for the rest of the exchange**, including for failures, because the connection is already streaming by the time an upstream problem surfaces. So a 200 here means the request was accepted, not that the analysis succeeded. Four event types arrive as `data:` lines carrying a JSON object with a `type` field:\n\n- `status` \u2014 a human-readable phase message in `message`\n- `progress` \u2014 `processed`, `total`, and `percent` counters\n- `result` \u2014 the terminal success event, carrying a full `AnalyzeResponse` in `data`\n- `error` \u2014 the terminal failure event, with the reason in `message`\n\nExactly one `result` or one `error` ends the stream.\n\nRate limiting applies before the stream opens: a client past the per-address limit gets a plain **429 with `Retry-After`**, exactly as on `POST /api/analyze`. Capacity problems found mid-analysis (the instance-wide upstream budget saturating) arrive as an `error` event, since the stream is already open.",
         "operationId": "analyze_stream_api_analyze_stream_post",
         "requestBody": {
           "content": {
@@ -909,6 +967,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This client is analyzing faster than the per-address limit. `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit."
           }
         },
         "summary": "Rank destinations, streaming progress as it goes",
@@ -1012,6 +1080,16 @@
             },
             "description": "Validation Error"
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This client is searching faster than the per-address limit. `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit."
+          },
           "502": {
             "content": {
               "application/json": {
@@ -1021,6 +1099,16 @@
               }
             },
             "description": "Nominatim was unreachable or returned an unexpected payload."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This instance is already at Nominatim's usage-policy pace and the queue is full. Transient; `Retry-After` says when to retry."
           }
         },
         "summary": "Look up a place by name",

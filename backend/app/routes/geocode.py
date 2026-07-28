@@ -3,8 +3,9 @@ from __future__ import annotations
 import logging
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app import ratelimit
 from app.models import ErrorResponse
 from app.services.errors import classify_http_error
 
@@ -35,11 +36,27 @@ PROVIDER = "Nominatim (place search)"
     ),
     response_description="Matching places, in Nominatim's `jsonv2` format.",
     responses={
+        429: {
+            "model": ErrorResponse,
+            "description": (
+                "This client is searching faster than the per-address limit. "
+                "`Retry-After` says how many seconds to wait. "
+                "`GET /api/capabilities` publishes the limit."
+            ),
+        },
         502: {
             "model": ErrorResponse,
             "description": "Nominatim was unreachable or returned an unexpected payload.",
         },
+        503: {
+            "model": ErrorResponse,
+            "description": (
+                "This instance is already at Nominatim's usage-policy pace and "
+                "the queue is full. Transient; `Retry-After` says when to retry."
+            ),
+        },
     },
+    dependencies=[Depends(ratelimit.geocode_rate_limit)],
 )
 async def geocode(
     q: str = Query(
@@ -51,6 +68,16 @@ async def geocode(
     limit: int = Query(5, ge=1, le=10, description="Maximum places to return."),
 ):
     log.info("Geocode query: %r", q)
+    # Pace the shared egress IP to Nominatim's ~1 req/s policy before opening
+    # a connection; a full queue sheds here rather than piling onto them.
+    try:
+        await ratelimit.NOMINATIM_GATE.acquire()
+    except ratelimit.BudgetExhausted as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=exc.message,
+            headers={"Retry-After": str(exc.retry_after_s)},
+        ) from None
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(

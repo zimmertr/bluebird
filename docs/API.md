@@ -140,8 +140,10 @@ curl -s https://bluebirdforecast.com/api/capabilities | jq
 It reports the searchable destination types (narrower than the enum in the
 schema, since not every modelled type is discoverable yet), the sort keys, the
 maximum polygon area, the cap on destinations per analysis, the accepted `limit`
-range, and how far forward and back a window may reach. Those values are read
-from the same constants the validators enforce, so they cannot drift.
+range, how far forward and back a window may reach, and (under `limits.rate`)
+the per-address request pacing behind `429` responses. Those values are read
+from the same constants the validators and limiters enforce, so they cannot
+drift.
 
 Air quality deserves a note. Its horizon is far shorter than the weather
 forecast, so `aqi_avg` and `aqi_max` come back `null` for hours beyond it. That
@@ -155,10 +157,17 @@ is expected, not an error, and an air-quality outage never fails an analysis.
 | `404` | No such endpoint. The body names the path and points at `/docs`. |
 | `405` | Right path, wrong method. The `Allow` header lists what the path accepts. |
 | `422` | Request validation failed. Polygon too large, `limit` out of range, or a window outside the servable horizon. |
+| `429` | This client is sending faster than the per-address limit. The `Retry-After` header says how many seconds to wait, and the same request succeeds once it has elapsed. Analyze and geocode have separate buckets; `GET /api/capabilities` publishes both under `limits.rate`. |
 | `502` | An upstream failed. Every Overpass mirror was unreachable, or the weather API did not answer. Transient, and worth retrying. |
+| `503` | The instance is at capacity: its budget of in-flight upstream calls stayed saturated too long, so the request was shed instead of queued forever. Transient by nature; `Retry-After` says when a retry is worthwhile. |
 
 A `422` carries Pydantic's per-field `detail` list. Every other error carries a
 single plain-language `detail` string, written to be shown to a person as-is.
+
+On `POST /api/analyze/stream`, a `429` arrives as a plain HTTP response because
+rate limiting runs before the stream opens. A capacity problem discovered
+mid-analysis, though, arrives as an `error` event on the already-open `200`
+stream, exactly like any other upstream failure.
 
 ## Generating a client
 
@@ -174,12 +183,17 @@ and checked in CI, so it always matches the code in the same commit.
 
 ## Please be considerate
 
-Bluebird has no rate limiting, which is a request for good behavior rather than
-an invitation. Every upstream it depends on (Overpass, Open-Meteo, Nominatim) is
-free, keyless, and run by people paying for it. A single analysis can fan out to
-hundreds of forecast requests.
+Every upstream Bluebird depends on (Overpass, Open-Meteo, Nominatim) is free,
+keyless, and run by people paying for it, and a single analysis can fan out to
+hundreds of forecast requests. Light per-address rate limits and an
+instance-wide upstream budget enforce a floor of good behavior: past them you
+get a `429` or `503` with `Retry-After` instead of service. The numbers are
+published by `GET /api/capabilities` under `limits.rate`, and the full picture
+of what calls what lives in [`TRAFFIC.md`](TRAFFIC.md).
 
-Keep polygons no larger than you need, prefer one wide window over many narrow
-ones, and cache results you intend to reuse. If you want to run something heavy,
-the whole stack is one container and runs locally in a single command. See the
-[README](../README.md).
+The limits are sized so a person iterating on a map never meets them. Scripts
+should stay well under them anyway: keep polygons no larger than you need,
+prefer one wide window over many narrow ones, and cache results you intend to
+reuse. If you want to run something heavy, the whole stack is one container and
+runs locally in a single command, with every limit tunable or off via
+environment variables. See the [README](../README.md).

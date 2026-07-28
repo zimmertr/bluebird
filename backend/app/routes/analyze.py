@@ -2,9 +2,10 @@ import asyncio
 import json
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
+from app import ratelimit
 from app.models import (
     MAX_ANALYZE_PEAKS,
     AnalyzeRequest,
@@ -259,9 +260,23 @@ def _assemble(
         "- `result` — the terminal success event, carrying a full "
         "`AnalyzeResponse` in `data`\n"
         "- `error` — the terminal failure event, with the reason in `message`\n\n"
-        "Exactly one `result` or one `error` ends the stream."
+        "Exactly one `result` or one `error` ends the stream.\n\n"
+        "Rate limiting applies before the stream opens: a client past the "
+        "per-address limit gets a plain **429 with `Retry-After`**, exactly as "
+        "on `POST /api/analyze`. Capacity problems found mid-analysis (the "
+        "instance-wide upstream budget saturating) arrive as an `error` event, "
+        "since the stream is already open."
     ),
+    dependencies=[Depends(ratelimit.analyze_rate_limit)],
     responses={
+        429: {
+            "model": ErrorResponse,
+            "description": (
+                "This client is analyzing faster than the per-address limit. "
+                "`Retry-After` says how many seconds to wait. "
+                "`GET /api/capabilities` publishes the limit."
+            ),
+        },
         200: {
             "description": (
                 "An SSE stream. Ends with either a `result` or an `error` event."
@@ -330,6 +345,9 @@ async def analyze_stream(request: AnalyzeRequest):
                     destinations = await osm_task
                 except NotImplementedError as e:
                     yield _sse("error", message=str(e))
+                    return
+                except ratelimit.BudgetExhausted as e:
+                    yield _sse("error", message=e.message)
                     return
                 except UpstreamError as e:
                     yield _sse("error", message=e.message)
@@ -422,6 +440,9 @@ async def analyze_stream(request: AnalyzeRequest):
 
                 wx_list = await fetch_task
                 aqi_list = await aqi_task
+            except ratelimit.BudgetExhausted as e:
+                yield _sse("error", message=e.message)
+                return
             except UpstreamError as e:
                 yield _sse("error", message=e.message)
                 return
@@ -474,7 +495,26 @@ async def analyze_stream(request: AnalyzeRequest):
         "terrain can take tens of seconds. For a progress feed instead of a "
         "single long wait, use `POST /api/analyze/stream`."
     ),
+    dependencies=[Depends(ratelimit.analyze_rate_limit)],
     responses={
+        429: {
+            "model": ErrorResponse,
+            "description": (
+                "This client is analyzing faster than the per-address limit "
+                "(shared with `POST /api/analyze/stream`). `Retry-After` says "
+                "how many seconds to wait. `GET /api/capabilities` publishes "
+                "the limit."
+            ),
+        },
+        503: {
+            "model": ErrorResponse,
+            "description": (
+                "This instance's upstream budget is saturated: too many "
+                "analyses already have calls in flight to the shared free "
+                "APIs. Transient by nature; `Retry-After` says when a retry "
+                "is worthwhile."
+            ),
+        },
         400: {
             "model": ErrorResponse,
             "description": (
@@ -522,6 +562,12 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
             destinations = await osm.query_osm(request.polygon, request.destination_type)
         except NotImplementedError as e:
             raise HTTPException(status_code=400, detail=str(e))
+        except ratelimit.BudgetExhausted as e:
+            raise HTTPException(
+                status_code=503,
+                detail=e.message,
+                headers={"Retry-After": str(e.retry_after_s)},
+            )
         except UpstreamError as e:
             raise HTTPException(status_code=502, detail=e.message)
         except Exception as e:  # noqa: BLE001 — any OSM failure maps to a 502
@@ -565,6 +611,13 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     try:
         wx_list = await weather.fetch_weather_batch(
             destinations, request.start_datetime, request.end_datetime
+        )
+    except ratelimit.BudgetExhausted as e:
+        aqi_task.cancel()
+        raise HTTPException(
+            status_code=503,
+            detail=e.message,
+            headers={"Retry-After": str(e.retry_after_s)},
         )
     except UpstreamError as e:
         aqi_task.cancel()

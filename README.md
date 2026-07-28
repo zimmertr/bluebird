@@ -171,6 +171,24 @@ LOG_LEVEL=DEBUG docker compose up -d
 
 `LOG_LEVEL` is read at container startup, so changing it needs no rebuild.
 
+The rate limiting and upstream budgets are tunable the same way. Per-client
+limits are enforced per backend instance, so behind a multi-replica deployment
+the effective ceiling is roughly the value times the replica count (documented
+in detail in [`docs/TRAFFIC.md`](docs/TRAFFIC.md)):
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `LOG_LEVEL` | `WARNING` | Log verbosity: `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. |
+| `RATE_LIMIT_ANALYZE_PER_MINUTE` | `12` | Sustained analyze requests per client address per minute, shared by `POST /api/analyze` and `/api/analyze/stream`. `0` disables the limit. |
+| `RATE_LIMIT_ANALYZE_BURST` | `6` | Analyze requests an idle client may send back-to-back before the per-minute pace applies. |
+| `RATE_LIMIT_GEOCODE_PER_MINUTE` | `30` | Sustained `GET /api/geocode` requests per client address per minute. `0` disables the limit. |
+| `RATE_LIMIT_GEOCODE_BURST` | `10` | Geocode requests an idle client may send back-to-back. |
+| `UPSTREAM_CONCURRENCY_WEATHER` | `8` | In-flight Open-Meteo weather batches, totalled across every concurrent analysis in the instance. |
+| `UPSTREAM_CONCURRENCY_AQI` | `8` | Same cap for the air-quality API. |
+| `UPSTREAM_CONCURRENCY_OVERPASS` | `2` | In-flight Overpass queries per instance, matching overpass-api.de's per-IP slot policy. |
+| `NOMINATIM_MIN_INTERVAL_MS` | `2000` | Minimum spacing between Nominatim calls per instance, honoring their ~1 req/s policy across replicas. |
+| `UPSTREAM_BUDGET_WAIT_S` | `30` | How long an analysis may queue for a saturated upstream budget before shedding with a 503. |
+
 ## Log Levels
 
 Bluebird uses Python's standard `logging` module plus one custom level, `TRACE`. Set `LOG_LEVEL` (case-insensitive) to control verbosity. The default is `WARNING`.
@@ -266,10 +284,14 @@ curl -s https://bluebirdforecast.com/api/analyze \
   }' | jq '.results[] | {name, precip_total_in}'
 ```
 
-Bluebird has no rate limiting. Every upstream it depends on is free, keyless, and
-run by people paying for it, so please keep polygons no larger than you need. See
+Bluebird enforces light per-address rate limits and an instance-wide budget on
+its own upstream traffic; requests past them receive `429` or `503` with a
+`Retry-After` header, and `GET /api/capabilities` publishes the numbers. Every
+upstream it depends on is free, keyless, and run by people paying for it, so
+please still keep polygons no larger than you need. See
 [`docs/API.md`](docs/API.md) for the full guide, including custom destinations,
-the streaming endpoint, and error handling.
+the streaming endpoint, and error handling, and [`docs/TRAFFIC.md`](docs/TRAFFIC.md)
+for how traffic flows in and out of the deployment.
 
 ## Architecture
 
