@@ -361,4 +361,8 @@ containers:
 
 ## License
 
-Bluebird is free software licensed under the [GNU General Public License v3.0 or later](LICENSE). You can redistribute and modify it under those terms. It comes with no warranty. See the [LICENSE](LICENSE) file for the full text.
+Copyright (c) 2026 TJ Zimmerman. Bluebird is source-available: the code is public, but it is not open source software.
+
+Bluebird is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may use, modify, self-host, and share it for any noncommercial purpose. Commercial use of any kind requires a separate license: contact [tj@tjzimmerman.com](mailto:tj@tjzimmerman.com). It comes with no warranty; see [LICENSE](LICENSE) for the full terms.
+
+Versions up to and including [v0.33.0](https://github.com/zimmertr/bluebird/releases/tag/v0.33.0) were published under the GNU General Public License v3.0 and remain available under those terms; the license change applies only to later versions.

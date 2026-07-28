@@ -2,7 +2,7 @@
   "name": "bluebird",
   "version": "0.1.0",
   "private": true,
-  "license": "GPL-3.0-or-later",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

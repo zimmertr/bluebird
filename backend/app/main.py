@@ -131,8 +131,8 @@ app = FastAPI(
     description=_DESCRIPTION,
     openapi_tags=_TAGS,
     license_info={
-        "name": "GPL-3.0-only",
-        "url": "https://www.gnu.org/licenses/gpl-3.0-standalone.html",
+        "name": "PolyForm-Noncommercial-1.0.0",
+        "url": "https://polyformproject.org/licenses/noncommercial/1.0.0",
     },
     contact={"name": "Bluebird on GitHub", "url": "https://github.com/zimmertr/bluebird"},
     # Both must be disabled here rather than reassigned later: FastAPI.setup()
