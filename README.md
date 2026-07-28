@@ -247,22 +247,17 @@ behavior. A copy of the schema is committed at
 Rank the peaks around Tiger Mountain by how dry the next two days look:
 
 ```bash
-START=$(date -u +%Y-%m-%dT%H:00:00Z)
-END=$(date -u -d '+48 hours' +%Y-%m-%dT%H:00:00Z 2>/dev/null \
-   || date -u -v+48H +%Y-%m-%dT%H:00:00Z)
-
 curl -s https://bluebirdforecast.com/api/analyze \
   -H 'Content-Type: application/json' \
-  -d "{
-    \"polygon\": { \"type\": \"Polygon\", \"coordinates\": [[
+  -d '{
+    "polygon": { "type": "Polygon", "coordinates": [[
       [-122.03, 47.44], [-121.91, 47.44], [-121.91, 47.53],
       [-122.03, 47.53], [-122.03, 47.44]
     ]] },
-    \"destination_type\": \"peak\",
-    \"start_datetime\": \"$START\",
-    \"end_datetime\": \"$END\",
-    \"limit\": 3
-  }" | jq '.results[] | {name, precip_total_in}'
+    "destination_type": "peak",
+    "forecast_mode": "current",
+    "limit": 3
+  }' | jq '.results[] | {name, precip_total_in}'
 ```
 
 Bluebird has no rate limiting. Every upstream it depends on is free, keyless, and

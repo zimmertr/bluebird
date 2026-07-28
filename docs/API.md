@@ -12,35 +12,60 @@ also has a "Try it out" button that sends real requests from your browser.
 
 ## A first request
 
-Rank the peaks around Tiger Mountain by how dry the next two days look. The
-window has to be computed rather than pasted, because a request outside the
-forecast horizon is rejected:
+Rank the peaks around Tiger Mountain by how dry it is right now:
 
 ```bash
-START=$(date -u +%Y-%m-%dT%H:00:00Z)
-END=$(date -u -d '+48 hours' +%Y-%m-%dT%H:00:00Z 2>/dev/null \
-   || date -u -v+48H +%Y-%m-%dT%H:00:00Z)
-
 curl -s https://bluebirdforecast.com/api/analyze \
   -H 'Content-Type: application/json' \
-  -d "{
-    \"polygon\": {
-      \"type\": \"Polygon\",
-      \"coordinates\": [[
+  -d '{
+    "polygon": {
+      "type": "Polygon",
+      "coordinates": [[
         [-122.03, 47.44], [-121.91, 47.44], [-121.91, 47.53],
         [-122.03, 47.53], [-122.03, 47.44]
       ]]
     },
-    \"destination_type\": \"peak\",
-    \"start_datetime\": \"$START\",
-    \"end_datetime\": \"$END\",
-    \"limit\": 3
-  }" | jq '.results[] | {name, precip_total_in, wind_avg_mph}'
+    "destination_type": "peak",
+    "forecast_mode": "current",
+    "limit": 3
+  }' | jq '.results[] | {name, precip_total_in, wind_avg_mph}'
 ```
 
 Two things to notice. Polygon positions are `[longitude, latitude]`, which is
 GeoJSON order and the reverse of how people usually say coordinates. And the
 ring closes by repeating its first position.
+
+## Choosing a forecast window
+
+`forecast_mode` says which of three questions you are asking, and determines
+which timestamps the request needs:
+
+| Mode | Timestamps | Question |
+| --- | --- | --- |
+| `current` | none | How is it right now? |
+| `at` | `start_datetime` | How is it at one specific hour? |
+| `window` | `start_datetime` and `end_datetime` | How is it across a span? |
+
+```jsonc
+{ "forecast_mode": "current" }
+
+{ "forecast_mode": "at",
+  "start_datetime": "2026-08-01T14:00:00Z" }
+
+{ "forecast_mode": "window",
+  "start_datetime": "2026-08-01T14:00:00Z",
+  "end_datetime":   "2026-08-03T02:00:00Z" }
+```
+
+Sending a timestamp a mode does not use is a `422` rather than something the
+server quietly ignores. `at` works for past hours too, not just future ones,
+since the weather API serves roughly 90 days of history.
+
+Omitting `forecast_mode` still works and is inferred: both timestamps mean
+`window`, neither means `current`. Sending exactly one without a mode is
+refused, because it reads equally as `at` or as a `window` missing its end, and
+guessing would turn a fat-fingered window into a one-hour sample without
+telling you.
 
 ## The endpoints
 
@@ -61,8 +86,7 @@ You do not need a polygon. Send coordinates directly and skip discovery:
 ```json
 {
   "destination_type": "custom",
-  "start_datetime": "...",
-  "end_datetime": "...",
+  "forecast_mode": "current",
   "custom_destinations": [
     { "name": "Mt Rainier", "latitude": 46.8529, "longitude": -121.7604, "elevation_ft": 14411 },
     { "name": "Mt Adams",   "latitude": 46.2024, "longitude": -121.4909, "elevation_ft": 12281 }

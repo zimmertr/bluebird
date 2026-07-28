@@ -40,6 +40,14 @@ class DestinationType(str, Enum):
     custom = "custom"
 
 
+class ForecastMode(str, Enum):
+    # `at` rather than `future` because the API serves roughly 90 days of
+    # history, so a single-moment sample is not necessarily ahead of now.
+    current = "current"
+    at = "at"
+    window = "window"
+
+
 class SortBy(str, Enum):
     precip_total = "precip_total_in"
     precip_max = "precip_max_in_hr"
@@ -147,18 +155,32 @@ class AnalyzeRequest(BaseModel):
             "than this enum."
         )
     )
-    start_datetime: datetime = Field(
+    forecast_mode: ForecastMode | None = Field(
+        default=None,
         description=(
-            "Start of the forecast window, ISO 8601. A naive timestamp is read "
-            "as UTC. Setting this equal to `end_datetime` means current "
-            "conditions: the single hour containing that moment."
-        )
+            "Which of the three forecast modes this request is. `current` needs "
+            "no timestamps and analyzes the hour at hand. `at` takes "
+            "`start_datetime` alone and samples that single hour, past or "
+            "future. `window` takes both and analyzes the span.\n\n"
+            "Omitting it is supported for compatibility and inferred from what "
+            "you send: both timestamps means `window`, neither means `current`. "
+            "Sending only `start_datetime` without a mode is rejected, because "
+            "it could equally mean `at` or a `window` missing its end."
+        ),
     )
-    end_datetime: datetime = Field(
+    start_datetime: datetime | None = Field(
+        default=None,
         description=(
-            "End of the forecast window, ISO 8601, inclusive of the hour it "
-            "lands in. Must not precede `start_datetime`."
-        )
+            "ISO 8601; a naive timestamp is read as UTC. Required for `at` and "
+            "`window`, and rejected for `current`."
+        ),
+    )
+    end_datetime: datetime | None = Field(
+        default=None,
+        description=(
+            "ISO 8601, inclusive of the hour it lands in. Required for "
+            "`window`, and rejected for the other two modes."
+        ),
     )
     limit: int = Field(
         default=10,
@@ -221,11 +243,7 @@ class AnalyzeRequest(BaseModel):
                         ],
                     },
                     "destination_type": "peak",
-                    # Illustrative only. A window outside the horizon reported by
-                    # GET /api/capabilities is rejected with 422, so replace
-                    # these before sending.
-                    "start_datetime": "2026-08-01T14:00:00Z",
-                    "end_datetime": "2026-08-03T02:00:00Z",
+                    "forecast_mode": "current",
                     "limit": 5,
                     "sort_by": "precip_total_in",
                     "sort_desc": False,
@@ -268,8 +286,57 @@ class AnalyzeRequest(BaseModel):
             )
         return v
 
+    def _resolve_forecast_mode(self) -> None:
+        """Settle `forecast_mode` and fill in the timestamps it implies.
+
+        Leaves both timestamps non-None for everything downstream, so the
+        pipeline only ever sees an ordinary ordered window.
+        """
+        mode = self.forecast_mode
+        if mode is None:
+            if self.start_datetime and self.end_datetime:
+                mode = ForecastMode.window
+            elif not self.start_datetime and not self.end_datetime:
+                mode = ForecastMode.current
+            else:
+                # Refused rather than guessed. Picking one here would recreate
+                # the defect the mode exists to remove: a window that quietly
+                # collapses into a one-hour sample because a field was missed.
+                raise ValueError(
+                    "Ambiguous request: one timestamp was sent without a "
+                    "forecast_mode. Send forecast_mode='at' with "
+                    "start_datetime to sample a single hour, or send both "
+                    "timestamps for a window."
+                )
+            self.forecast_mode = mode
+
+        if mode is ForecastMode.current:
+            if self.start_datetime or self.end_datetime:
+                raise ValueError(
+                    "forecast_mode='current' analyzes the hour at hand and "
+                    "takes no timestamps. Drop them, or use 'at' or 'window'."
+                )
+            self.start_datetime = datetime.now(timezone.utc)
+            self.end_datetime = self.start_datetime
+        elif mode is ForecastMode.at:
+            if not self.start_datetime:
+                raise ValueError("forecast_mode='at' requires start_datetime.")
+            if self.end_datetime:
+                raise ValueError(
+                    "forecast_mode='at' samples the single hour containing "
+                    "start_datetime and takes no end_datetime. Use "
+                    "forecast_mode='window' for a span."
+                )
+            self.end_datetime = self.start_datetime
+        elif not self.start_datetime or not self.end_datetime:
+            raise ValueError(
+                "forecast_mode='window' requires both start_datetime and "
+                "end_datetime."
+            )
+
     @model_validator(mode="after")
     def window_within_servable_range(self) -> AnalyzeRequest:
+        self._resolve_forecast_mode()
         # A zero-length window is a point sample ("current conditions" /
         # "future day/time"): analyze exactly the hour containing the moment.
         # Flooring to the hour and spanning one minute keeps the weather
