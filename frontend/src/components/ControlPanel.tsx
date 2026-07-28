@@ -241,6 +241,10 @@ export default function ControlPanel({
                 </button>
               </div>
             )}
+            {/* Panel-wide label convention, first established here: something
+                you pick is text-xs/slate-200, something that names a field is
+                text-xs/slate-400. Hierarchy is the section heading's job — a
+                bolder choice label just competes with it. */}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2">
               <span className="text-xs text-slate-400">Find:</span>
               {DESTINATION_TYPES.map(({ value, label, implemented }) => (
@@ -320,7 +324,7 @@ export default function ControlPanel({
                 onChange={() => setForecastMode('now')}
                 className="accent-sky-500 h-3.5 w-3.5"
               />
-              <span className="text-xs font-semibold text-slate-300">Current Conditions</span>
+              <span className="text-xs text-slate-200">Current Conditions</span>
             </label>
           </div>
 
@@ -336,7 +340,7 @@ export default function ControlPanel({
                 onChange={() => setForecastMode('at')}
                 className="accent-sky-500 h-3.5 w-3.5"
               />
-              <span className="text-xs font-semibold text-slate-300">Future Day/Time</span>
+              <span className="text-xs text-slate-200">Future Day/Time</span>
             </label>
             <div className={`flex gap-1 ${forecastMode !== 'at' ? 'opacity-40' : ''}`}>
               <input
@@ -378,7 +382,7 @@ export default function ControlPanel({
                 onChange={() => setForecastMode('window')}
                 className="accent-sky-500 h-3.5 w-3.5"
               />
-              <span className="text-xs font-semibold text-slate-300">Multi-Hour Window</span>
+              <span className="text-xs text-slate-200">Multi-Hour Window</span>
             </label>
             <div className={`space-y-2 ${forecastMode !== 'window' ? 'opacity-40' : ''}`}>
               <div>
@@ -617,7 +621,7 @@ export default function ControlPanel({
                   onChange={(e) => setShowWildfires(e.target.checked)}
                   className="accent-sky-500 h-3.5 w-3.5"
                 />
-                <span className="text-xs text-slate-400">Show Wildfires</span>
+                <span className="text-xs text-slate-200">Show Wildfires</span>
               </label>
             </div>
           </div>
