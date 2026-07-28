@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react'
 import { AnalysisMode, CustomDestination, DiscoveryType, SortBy } from '../types'
 import { MAX_AREA_KM2 } from './MapView'
 import { parseCustomCsv } from '../utils/customDestinations'
+import { TEXT } from '../styles'
 import { canAnalyze } from '../utils/analyzeGate'
 import {
   classifyAqiCoverage,
@@ -183,8 +184,8 @@ export default function ControlPanel({
       <div className="border-b border-slate-700 flex">
         <img src="/icon.png" alt="" className="w-20 object-cover flex-shrink-0" />
         <div className="px-3 py-4 flex flex-col justify-center">
-          <h1 className="text-lg font-bold text-white leading-tight">Bluebird Forecast</h1>
-          <p className="text-xs text-slate-400">Weather Window Finder</p>
+          <h1 className={TEXT.appTitle}>Bluebird Forecast</h1>
+          <p className={TEXT.appSubtitle}>Weather Window Finder</p>
         </div>
       </div>
 
@@ -192,25 +193,25 @@ export default function ControlPanel({
         {/* Step 1: Destinations — one list, defined via any of three methods
             that union into a single ranked report */}
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+          <h2 className={`${TEXT.section} mb-1`}>
             1. Destinations
           </h2>
-          <p className="text-xs text-slate-500 mb-2.5">
+          <p className={`${TEXT.helper} mb-2.5`}>
             Define a list of destinations to analyze using one or all of the following methods:
           </p>
 
           {/* a. Search by name — the search box lives on the map itself */}
           <div className="mb-3">
-            <h3 className="text-xs font-semibold text-slate-300 mb-1">Search by Name</h3>
-            <p className="text-xs text-slate-500 italic">
+            <h3 className={`${TEXT.subheading} mb-1`}>Search by Name</h3>
+            <p className={TEXT.helper}>
               Search for a destination by name on the map.
             </p>
           </div>
 
           {/* b. Search by polygon */}
           <div className="mb-3">
-            <h3 className="text-xs font-semibold text-slate-300 mb-1">Search by Polygon</h3>
-            <p className="text-xs text-slate-500 italic mb-1.5">
+            <h3 className={`${TEXT.subheading} mb-1`}>Search by Polygon</h3>
+            <p className={`${TEXT.helper} mb-1.5`}>
               Search for destinations by drawing a polygon around an area.
             </p>
             {drawPointCount > 0 && (
@@ -246,7 +247,7 @@ export default function ControlPanel({
                 text-xs/slate-400. Hierarchy is the section heading's job — a
                 bolder choice label just competes with it. */}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2">
-              <span className="text-xs text-slate-400">Find:</span>
+              <span className={TEXT.subheading}>Find:</span>
               {DESTINATION_TYPES.map(({ value, label, implemented }) => (
                 <label
                   key={value}
@@ -261,8 +262,8 @@ export default function ControlPanel({
                     onChange={() => setDestinationType(value)}
                     className="accent-sky-500 h-3.5 w-3.5"
                   />
-                  <span className="text-xs text-slate-200">{label}</span>
-                  {!implemented && <span className="text-xs text-slate-500 italic">soon</span>}
+                  <span className={TEXT.control}>{label}</span>
+                  {!implemented && <span className={TEXT.helper}>soon</span>}
                 </label>
               ))}
             </div>
@@ -270,11 +271,11 @@ export default function ControlPanel({
 
           {/* c. Search by coordinates */}
           <div>
-            <h3 className="text-xs font-semibold text-slate-300 mb-1">Search by Coordinates</h3>
-            <p className="text-xs text-slate-500 italic">
+            <h3 className={`${TEXT.subheading} mb-1`}>Search by Coordinates</h3>
+            <p className={TEXT.helper}>
               Search for destinations with coordinate pairs.
             </p>
-            <p className="text-xs text-slate-500 italic mb-1.5">
+            <p className={`${TEXT.helper} mb-1.5`}>
               Format: <code className="text-slate-300">Lat,Lon</code> or{' '}
               <code className="text-slate-300">Lat,Lon,Name</code>
             </p>
@@ -294,10 +295,10 @@ export default function ControlPanel({
               }}
               placeholder={`46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909\n48.1122,-121.1139,Glacier Peak`}
               rows={3}
-              className="w-full text-xs bg-slate-900 border border-slate-600 rounded p-2 text-slate-200 placeholder-slate-600 font-mono resize-y focus:outline-none focus:border-sky-500"
+              className={`${TEXT.control} w-full bg-slate-900 border border-slate-600 rounded p-2 placeholder-slate-600 font-mono resize-y focus:outline-none focus:border-sky-500`}
             />
             {customCsv.trim() !== '' && (
-              <p className="text-xs text-slate-500 mt-1">
+              <p className={`${TEXT.helper} mt-1`}>
                 {parsedCustom.length} destination{parsedCustom.length !== 1 ? 's' : ''} parsed
               </p>
             )}
@@ -306,10 +307,10 @@ export default function ControlPanel({
 
         {/* Step 2: Forecast window */}
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+          <h2 className={`${TEXT.section} mb-1`}>
             2. Forecast Window
           </h2>
-          <p className="text-xs text-slate-500 mb-2.5">
+          <p className={`${TEXT.helper} mb-2.5`}>
             Analyze conditions now, later, or for a window
           </p>
 
@@ -324,7 +325,7 @@ export default function ControlPanel({
                 onChange={() => setForecastMode('now')}
                 className="accent-sky-500 h-3.5 w-3.5"
               />
-              <span className="text-xs text-slate-200">Current Conditions</span>
+              <span className={TEXT.control}>Current Conditions</span>
             </label>
           </div>
 
@@ -340,7 +341,7 @@ export default function ControlPanel({
                 onChange={() => setForecastMode('at')}
                 className="accent-sky-500 h-3.5 w-3.5"
               />
-              <span className="text-xs text-slate-200">Future Day/Time</span>
+              <span className={TEXT.control}>Future Day/Time</span>
             </label>
             <div className={`flex gap-1 ${forecastMode !== 'at' ? 'opacity-40' : ''}`}>
               <input
@@ -355,7 +356,7 @@ export default function ControlPanel({
                   const t = atDatetime.split('T')[1] ?? '00:00'
                   setAtDatetime(d ? `${d}T${t}` : '')
                 }}
-                className="flex-1 min-w-0 text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500"
+                className={`${TEXT.control} flex-1 min-w-0 bg-slate-900 border border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-sky-500`}
               />
               <input
                 type="time"
@@ -366,7 +367,7 @@ export default function ControlPanel({
                   const d = atDatetime.split('T')[0]
                   if (d) setAtDatetime(`${d}T${e.target.value}`)
                 }}
-                className="w-28 text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-40"
+                className={`${TEXT.control} w-28 bg-slate-900 border border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-sky-500 disabled:opacity-40`}
               />
             </div>
           </div>
@@ -382,11 +383,11 @@ export default function ControlPanel({
                 onChange={() => setForecastMode('window')}
                 className="accent-sky-500 h-3.5 w-3.5"
               />
-              <span className="text-xs text-slate-200">Multi-Hour Window</span>
+              <span className={TEXT.control}>Multi-Hour Window</span>
             </label>
             <div className={`space-y-2 ${forecastMode !== 'window' ? 'opacity-40' : ''}`}>
               <div>
-                <label htmlFor="window-start-date" className="text-xs text-slate-400 block mb-1">Start</label>
+                <label htmlFor="window-start-date" className={`${TEXT.subheading} block mb-1`}>Start</label>
                 <div className="flex gap-1">
                   <input
                     id="window-start-date"
@@ -400,7 +401,7 @@ export default function ControlPanel({
                       const t = startDatetime.split('T')[1] ?? '00:00'
                       setStartDatetime(d ? `${d}T${t}` : '')
                     }}
-                    className="flex-1 min-w-0 text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500"
+                    className={`${TEXT.control} flex-1 min-w-0 bg-slate-900 border border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-sky-500`}
                   />
                   <input
                     type="time"
@@ -411,12 +412,12 @@ export default function ControlPanel({
                       const d = startDatetime.split('T')[0]
                       if (d) setStartDatetime(`${d}T${e.target.value}`)
                     }}
-                    className="w-28 text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-40"
+                    className={`${TEXT.control} w-28 bg-slate-900 border border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-sky-500 disabled:opacity-40`}
                   />
                 </div>
               </div>
               <div>
-                <label htmlFor="window-end-date" className="text-xs text-slate-400 block mb-1">End</label>
+                <label htmlFor="window-end-date" className={`${TEXT.subheading} block mb-1`}>End</label>
                 <div className="flex gap-1">
                   <input
                     id="window-end-date"
@@ -430,7 +431,7 @@ export default function ControlPanel({
                       const t = endDatetime.split('T')[1] ?? '00:00'
                       setEndDatetime(d ? `${d}T${t}` : '')
                     }}
-                    className="flex-1 min-w-0 text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500"
+                    className={`${TEXT.control} flex-1 min-w-0 bg-slate-900 border border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-sky-500`}
                   />
                   <input
                     type="time"
@@ -441,7 +442,7 @@ export default function ControlPanel({
                       const d = endDatetime.split('T')[0]
                       if (d) setEndDatetime(`${d}T${e.target.value}`)
                     }}
-                    className="w-28 text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-40"
+                    className={`${TEXT.control} w-28 bg-slate-900 border border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-sky-500 disabled:opacity-40`}
                   />
                 </div>
               </div>
@@ -479,10 +480,10 @@ export default function ControlPanel({
             toggle stays clickable on inactive rows so any ranking is one click;
             selecting a metric via its radio keeps the current direction. */}
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+          <h2 className={`${TEXT.section} mb-1`}>
             3. Result Ranking
           </h2>
-          <p className="text-xs text-slate-500 mb-2.5">
+          <p className={`${TEXT.helper} mb-2.5`}>
             Set the metric used to find the top destinations.
           </p>
           <div className="space-y-1.5">
@@ -501,7 +502,7 @@ export default function ControlPanel({
                       onChange={() => setSortBy(metric.value)}
                       className="accent-sky-500 h-3.5 w-3.5 flex-shrink-0"
                     />
-                    <span className="text-xs text-slate-200 truncate">{metric.label}</span>
+                    <span className={`${TEXT.control} truncate`}>{metric.label}</span>
                   </label>
                   <div
                     className={`flex rounded border border-slate-600 overflow-hidden flex-shrink-0 ${
@@ -535,7 +536,7 @@ export default function ControlPanel({
               )
             })}
           </div>
-          <p className="text-xs text-slate-500 mt-2">
+          <p className={`${TEXT.helper} mt-2`}>
             {forecastMode === 'now'
               ? 'Ranks by conditions at the current hour.'
               : forecastMode === 'at'
@@ -546,16 +547,16 @@ export default function ControlPanel({
 
         {/* Step 4: Additional options — result filters, count, and map overlays */}
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+          <h2 className={`${TEXT.section} mb-1`}>
             4. Options
           </h2>
-          <p className="text-xs text-slate-500 mb-2.5">
+          <p className={`${TEXT.helper} mb-2.5`}>
             Apply constraints and enable extra features.
           </p>
           <div className="space-y-4">
             {/* Elevation band — filters candidates server-side before the fetch */}
             <div>
-              <label className="text-xs text-slate-400 block mb-1">Elevation range (ft)</label>
+              <label className={`${TEXT.subheading} block mb-1`}>Elevation range (ft)</label>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
@@ -566,9 +567,9 @@ export default function ControlPanel({
                   onChange={(e) =>
                     setMinElevationFt(e.target.value === '' ? null : Number(e.target.value))
                   }
-                  className="w-full text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-sky-500"
+                  className={`${TEXT.control} w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 placeholder-slate-600 focus:outline-none focus:border-sky-500`}
                 />
-                <span className="text-slate-500 flex-shrink-0">–</span>
+                <span className="text-xs text-slate-500 flex-shrink-0">–</span>
                 <input
                   type="number"
                   placeholder="Max (ft)"
@@ -578,13 +579,13 @@ export default function ControlPanel({
                   onChange={(e) =>
                     setMaxElevationFt(e.target.value === '' ? null : Number(e.target.value))
                   }
-                  className="w-full text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-sky-500"
+                  className={`${TEXT.control} w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 placeholder-slate-600 focus:outline-none focus:border-sky-500`}
                 />
               </div>
               {/* Many OSM features carry no elevation tag; silently dropping
                   them would be surprising, so the filter lets them through —
                   say so where the band is set. */}
-              <p className="mt-1 text-[11px] text-slate-500">
+              <p className={`${TEXT.helper} mt-1`}>
                 Destinations with unknown elevation are included.
               </p>
               {(minElevationFt !== null || maxElevationFt !== null) && (
@@ -599,7 +600,7 @@ export default function ControlPanel({
 
             {/* Max results */}
             <div>
-              <label className="text-xs text-slate-400 block mb-1">Max results</label>
+              <label className={`${TEXT.subheading} block mb-1`}>Max results</label>
               <input
                 type="number"
                 min={1}
@@ -608,7 +609,7 @@ export default function ControlPanel({
                 onChange={(e) =>
                   setLimit(Math.max(1, Math.min(200, parseInt(e.target.value) || 100)))
                 }
-                className="w-24 text-sm bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500"
+                className={`${TEXT.control} w-24 bg-slate-900 border border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-sky-500`}
               />
             </div>
 
@@ -621,7 +622,7 @@ export default function ControlPanel({
                   onChange={(e) => setShowWildfires(e.target.checked)}
                   className="accent-sky-500 h-3.5 w-3.5"
                 />
-                <span className="text-xs text-slate-200">Show Wildfires</span>
+                <span className={TEXT.control}>Show Wildfires</span>
               </label>
             </div>
           </div>
@@ -633,9 +634,9 @@ export default function ControlPanel({
         <button
           onClick={onAnalyze}
           disabled={!analyzeEnabled}
-          className="w-full py-2.5 touch:py-3 rounded font-semibold text-sm transition-colors
+          className={`${TEXT.cta} w-full py-2.5 touch:py-3 rounded transition-colors
             bg-sky-600 hover:bg-sky-500 text-white
-            disabled:opacity-40 disabled:cursor-not-allowed"
+            disabled:opacity-40 disabled:cursor-not-allowed`}
         >
           {loading ? 'Analyzing…' : 'Analyze'}
         </button>
@@ -647,7 +648,7 @@ export default function ControlPanel({
         )}
 
         {!analyzeEnabled && !loading && (
-          <p className="text-xs text-slate-500 text-center">
+          <p className={`${TEXT.helper} text-center`}>
             {areaTooLarge
               ? `Area too large. Draw a smaller polygon (max ${MAX_AREA_KM2.toLocaleString()} km²).`
               : !hasDates
@@ -685,7 +686,7 @@ export default function ControlPanel({
           </p>
         )}
 
-        <p className="text-[11px] text-slate-600 text-center leading-relaxed">
+        <p className={`${TEXT.fineprint} text-center leading-relaxed`}>
           Data:{' '}
           <a href="https://www.openstreetmap.org" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-sky-400 underline">OpenStreetMap</a>
           {' · '}
@@ -699,7 +700,7 @@ export default function ControlPanel({
           {' · '}
           <a href="https://www.nifc.gov" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-sky-400 underline">NIFC</a>
         </p>
-        <p className="text-[11px] text-slate-600 text-center">
+        <p className={`${TEXT.fineprint} text-center`}>
           <button onClick={onShowPrivacy} className="text-slate-500 hover:text-slate-300 underline">
             Privacy
           </button>
