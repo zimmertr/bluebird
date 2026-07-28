@@ -13,6 +13,11 @@
    lg:w-80 above), so a viewport-width variant re-spaced its contents on a
    desktop window that had not changed size, while a 1180px tablet still got
    mouse-tight rows. Keying off (hover: none) asks the question we mean.
+
+   Reach for this only where a control has no siblings to stay in rhythm with
+   (today: the Analyze button). Padding one row of a group on touch alone is
+   what broke the panel's rhythm on phones — see ControlPanel's rank rows.
+
    Load-bearing: delete this and Tailwind treats `touch:` as an unknown
    variant, silently emitting no CSS rather than failing the build. */
 @custom-variant touch (@media (hover: none));

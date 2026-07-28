@@ -481,13 +481,13 @@ export default function ControlPanel({
           <p className="text-xs text-slate-500 mb-2.5">
             Set the metric used to find the top destinations.
           </p>
-          <div className="space-y-1.5 touch:space-y-2">
+          <div className="space-y-1.5">
             {SORT_METRICS.map((metric) => {
               const isActive = sortBy === metric.value
               return (
                 <div
                   key={metric.value}
-                  className="flex items-center justify-between gap-2 touch:py-1"
+                  className="flex items-center justify-between gap-2"
                 >
                   <label className="flex items-center gap-2.5 cursor-pointer min-w-0">
                     <input
@@ -495,9 +495,9 @@ export default function ControlPanel({
                       name="sort_metric"
                       checked={isActive}
                       onChange={() => setSortBy(metric.value)}
-                      className="accent-sky-500 h-4 w-4 flex-shrink-0"
+                      className="accent-sky-500 h-3.5 w-3.5 flex-shrink-0"
                     />
-                    <span className="text-sm text-slate-200 truncate">{metric.label}</span>
+                    <span className="text-xs text-slate-200 truncate">{metric.label}</span>
                   </label>
                   <div
                     className={`flex rounded border border-slate-600 overflow-hidden flex-shrink-0 ${
