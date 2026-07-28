@@ -50,18 +50,21 @@ in front of the whole cluster:
 
 | | |
 | --- | --- |
-| Match | `bluebirdforecast.com/api/*` |
-| Threshold | 20 requests per 10 seconds per client IP |
-| Action | Block for the mitigation window |
+| Ruleset | `Bluebird API rate limit` (phase `http_ratelimit`) |
+| Expression | `(starts_with(http.request.uri.path, "/api/"))` |
+| Threshold | 20 requests per 10 seconds, counted per `ip.src` + `cf.colo.id` |
+| Action | Block for 10 seconds (the free-plan mitigation window), `429` + `Retry-After: 10` |
 
 The rule is blunt on purpose: normal use (a page load, an analysis, a search)
 is a handful of `/api` calls, so a client tripping it is hammering. The app's
-own limits are the precise ones. This rule is configured in the Cloudflare
-dashboard/API, not in git; if it changes, change this table in the same
-breath.
+own limits are the precise ones. This rule is configured via the Cloudflare
+API, not in git; if it changes, change this table in the same breath.
 
-> **Status:** pending. The rule will be applied once the Cloudflare API token
-> gains its zone scopes; until then only the app-layer limits below enforce.
+> **Status:** applied and verified 2026-07-28 — a 25-request burst passed ~20,
+> then received edge `429`s with `Retry-After: 10`, recovered after the
+> window, and left non-`/api/` paths untouched. Counting is per Cloudflare
+> colo, so a client spread across colos can briefly exceed the nominal
+> threshold; the app-layer limits below are the precise backstop.
 
 ## App-layer limits
 
