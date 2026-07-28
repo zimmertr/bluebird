@@ -6,7 +6,8 @@ import { compareValues } from '../utils/sortResults'
 import { pointModeColumns, orderColumns } from '../utils/tableColumns'
 import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
-import { Place, isPeakKind } from '../utils/geocode'
+import { isPeakKind } from '../utils/geocode'
+import type { PendingDestination } from '../utils/customList'
 
 function windyUrl(lat: number, lon: number, layer: string): string {
   return `https://www.windy.com/?${layer},${lat.toFixed(4)},${lon.toFixed(4)},11`
@@ -90,11 +91,13 @@ interface Props {
   // triplets.
   mode?: AnalysisMode
   fireWarnings: Map<string, FireWarning>
-  // Searched places awaiting their first analysis — shown immediately as
-  // un-forecasted rows (name + elevation, "—" metrics) so a search has
-  // feedback before Analyze runs.
-  pending?: Place[]
-  onRemovePending?: (place: Place) => void
+  // Custom destinations awaiting their first analysis — pasted CSV rows and
+  // searched places alike — shown immediately as un-forecasted rows (name +
+  // elevation, "—" metrics) so both inputs have feedback before Analyze runs.
+  pending?: PendingDestination[]
+  // Absent for a CSV row: its truth is the textarea text, so it is removed by
+  // editing that, not by an × here.
+  onRemovePending?: (d: PendingDestination) => void
   // The × that replaces a row's rank number on hover — removes the destination
   // from the current report (and, for a searched place, deregisters it).
   onRemove?: (row: DestinationResult) => void
@@ -326,35 +329,37 @@ export default function ResultsTable({
           </tr>
         </thead>
         <tbody>
-          {pending?.map((place) => (
+          {pending?.map((d) => (
             <tr
-              key={`pending-${place.lat},${place.lon}`}
+              key={`pending-${d.latitude},${d.longitude}`}
               className="group border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors"
             >
               {showChartCol && <td className="px-2 py-1.5" />}
               <RankRemoveCell
                 rank="—"
-                name={place.label}
-                onRemove={onRemovePending ? () => onRemovePending(place) : undefined}
+                name={d.name}
+                onRemove={
+                  onRemovePending && d.source === 'search' ? () => onRemovePending(d) : undefined
+                }
               />
               {orderedColumns.map((col) => {
                 if (col.key === 'name') {
                   return (
                     <td key={col.key} className="px-2 py-1.5 whitespace-nowrap font-sans font-medium text-slate-200">
                       <span className="flex items-center gap-1.5">
-                        {place.label}
+                        {d.name}
                         <a
                           href={destinationUrl({
-                            name: place.label,
-                            type: isPeakKind(place.kind) ? 'peak' : 'custom',
-                            osm_id: place.osmId ?? null,
-                            latitude: place.lat,
-                            longitude: place.lon,
+                            name: d.name,
+                            type: isPeakKind(d.kind ?? '') ? 'peak' : 'custom',
+                            osm_id: d.osmId ?? null,
+                            latitude: d.latitude,
+                            longitude: d.longitude,
                           } as DestinationResult)}
                           target="_blank"
                           rel="noopener noreferrer"
                           title="Open in Peakbagger / OpenStreetMap"
-                          aria-label={`Open ${place.label} in an external map`}
+                          aria-label={`Open ${d.name} in an external map`}
                           className="shrink-0 text-slate-500 hover:text-sky-400"
                         >
                           <ExternalLinkIcon />
@@ -366,7 +371,7 @@ export default function ResultsTable({
                 if (col.key === 'elevation_ft') {
                   return (
                     <td key={col.key} className="px-2 py-1.5 whitespace-nowrap font-mono text-slate-200">
-                      {place.elevationFt != null ? place.elevationFt.toLocaleString() : '—'}
+                      {d.elevation_ft != null ? d.elevation_ft.toLocaleString() : '—'}
                     </td>
                   )
                 }
