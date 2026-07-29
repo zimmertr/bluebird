@@ -142,7 +142,12 @@ class _TokenBucket:
         self.updated = now
 
     def _refill(self, now: float) -> None:
-        self.tokens = min(self.capacity, self.tokens + (now - self.updated) * self.rate_per_s)
+        # Elapsed time is clamped at zero: the production clock is monotonic,
+        # but a clock that ever ran backwards would otherwise DRAIN tokens and
+        # punish clients for time that never passed.
+        self.tokens = min(
+            self.capacity, self.tokens + max(0.0, now - self.updated) * self.rate_per_s
+        )
         self.updated = now
 
     def try_acquire(self, now: float) -> bool:
@@ -367,8 +372,12 @@ class WeightedBudget:
         return self.per_minute > 0
 
     def _refill(self, now: float) -> None:
+        # Same zero-clamp as _TokenBucket._refill: a backwards clock must
+        # never manufacture a deficit (it would compound here, since deficits
+        # translate directly into sleep time for pace waits).
         self._tokens = min(
-            float(self.per_minute), self._tokens + (now - self._updated) * self._rate
+            float(self.per_minute),
+            self._tokens + max(0.0, now - self._updated) * self._rate,
         )
         self._updated = now
 
