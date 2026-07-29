@@ -26,8 +26,12 @@ export function useChartSelection(
     setMetric(metricForSort(sortBy))
   }, [sortBy])
 
-  // Default selections, applied when a report arrives (keyed on its identity
-  // only; live state is read through refs so unchecking never re-selects):
+  // Default selections, applied whenever the displayed set changes (live state
+  // is read through refs so unchecking never re-selects). Keyed on the rows and
+  // not on the report, deliberately: since #188 a live ranking change can swap
+  // every row on screen without a new analysis, and the "chart every row when
+  // none of the selected ones are here" rule below is exactly what should
+  // happen then.
   //  - A searched place charts itself on its FIRST appearance — colorByKey is
   //    the "ever charted" memory, so a deliberate uncheck isn't repeated.
   //  - When no selected key exists in the report (first analysis, or a new

@@ -71,6 +71,29 @@ export function capDetail(
   return detail
 }
 
+// Port of _filter_elevation. Unknown elevations pass through: many OSM peaks
+// carry no `ele` tag, and dropping them would make narrowing the band look
+// like destinations were vanishing.
+//
+// The band is normally applied server-side at discovery, so this exists for
+// the one case the server cannot answer: narrowing the band over a field the
+// browser already holds, which is a subset of it and needs no refetch (#188).
+// Keeping it a port rather than a lookalike is what makes that subset match
+// what the server would have returned for the narrower band.
+export function filterElevation<T extends { elevation_ft: number | null }>(
+  destinations: readonly T[],
+  minFt: number | null,
+  maxFt: number | null,
+): readonly T[] {
+  if (minFt === null && maxFt === null) return destinations
+  return destinations.filter((d) => {
+    const elev = d.elevation_ft
+    if (elev == null) return true
+    if (minFt !== null && elev < minFt) return false
+    return !(maxFt !== null && elev > maxFt)
+  })
+}
+
 // Port of _suggest_elevation_floor: a minimum elevation that would bring the
 // candidate count under `cap`, or null when none can (unknown elevations
 // always pass elevation filters, so too many unknowns make a floor useless).
@@ -264,11 +287,14 @@ export interface ClientAnalysis {
   // Every candidate that got a forecast, ranked by the same key, BEFORE the
   // cut. Weather is fetched for the whole field anyway (exact ranking demands
   // it), so this costs nothing to keep and is what makes a later window change
-  // exact instead of a re-rank of whatever happened to be on screen (#177).
+  // exact instead of a re-rank of whatever happened to be on screen (#177),
+  // and what lets sort/limit/elevation-narrowing re-present the field with no
+  // second Analyze (#188, `utils/present.ts`).
   //
-  // The first `limit` entries are the SAME objects as `response.results`, not
-  // copies — the AQI backfill below attaches to displayed rows in place, and
-  // both views are meant to see it. Nothing mutates a row after this returns.
+  // Every row carries every metric, air quality included, so any of the four
+  // rankings can be applied to the whole field later. The first `limit`
+  // entries are the SAME objects as `response.results`, not copies; nothing
+  // mutates a row after this returns.
   universe: DestinationResult[]
 }
 
@@ -333,12 +359,26 @@ export async function runClientAnalysis(
 
   try {
     const sortBy = request.sort_by ?? 'precip_total_in'
-    const aqiSort = sortBy.startsWith('aqi')
 
-    // Weather first — it is the ranking input. AQI is fetched for every
-    // candidate only when it IS the ranking key; otherwise it is display
-    // data and is attached to just the returned rows below, which is the
-    // difference between ~2N and ~N weighted calls on the visitor's quota.
+    // AQI rides ALONGSIDE weather for the whole field rather than trailing the
+    // ranking for the displayed rows. Open-Meteo bills weighted calls per
+    // SERVICE, and air quality has its own 600/min quota (openMeteo.ts), so
+    // this spends a bucket the weather fetch cannot touch, and the two waits
+    // overlap instead of stacking — measurably cheaper in wall clock than the
+    // lazy version it replaces, whose tail batch was a second serialized pace.
+    // It is also what lets an AQI ranking be a live presentation knob: sorting
+    // the held field by air quality needs air quality for all of it (#188).
+    //
+    // The server path stays lazy (#181). There the budget is the pod's, shared
+    // across visitors, so the same arithmetic comes out the other way.
+    const aqiPending = fetchAqi(coords, startMs, endMs, {
+      signal: internal.signal,
+      nowMs,
+    })
+      // fetchAqi only ever throws AbortError, which is what a weather failure
+      // (or Cancel) triggers below. Swallow it here so it cannot surface as an
+      // unhandled rejection once the caller has already taken the real error.
+      .catch((): AqiResult[] => new Array(candidates.length).fill(null))
     const wxList = await fetchWeather(coords, startMs, endMs, {
       signal: internal.signal,
       onPace,
@@ -350,28 +390,11 @@ export async function runClientAnalysis(
           `Retrieving forecasts: ${processed} of ${total} ${noun}s…`,
         ),
     })
-    const aqiList: AqiResult[] = aqiSort
-      ? await fetchAqi(coords, startMs, endMs, { signal: internal.signal, nowMs })
-      : new Array(candidates.length).fill(null)
+    const aqiList = await aqiPending
 
     const { results, times } = assemble(candidates, wxList, aqiList)
     results.sort(rankComparator(sortBy, request.sort_desc ?? false))
     const top = results.slice(0, request.limit)
-
-    if (!aqiSort && top.length > 0) {
-      const topCoords = top.map((r) => ({ latitude: r.latitude, longitude: r.longitude }))
-      const aqiTop = await fetchAqi(topCoords, startMs, endMs, {
-        signal: internal.signal,
-        nowMs,
-      })
-      top.forEach((row, i) => {
-        const aqi = aqiTop[i]
-        if (!aqi) return
-        row.aqi_avg = aqi.aqi_avg
-        row.aqi_max = aqi.aqi_max
-        if (row.series) row.series.aqi = alignAqi(times, aqi.series ?? null)
-      })
-    }
 
     return {
       response: {

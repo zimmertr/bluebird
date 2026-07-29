@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AnalyzeRequest, DestinationResult, DiscoveredDestination } from '../types'
 import {
   MAX_ANALYZE_DESTINATIONS,
@@ -8,6 +8,7 @@ import {
   canonicalTimes,
   capDetail,
   customRows,
+  filterElevation,
   mergeCustom,
   rankComparator,
   refreshEchoRows,
@@ -16,7 +17,7 @@ import {
   truncateTopElevation,
 } from './clientAnalyze'
 import { pinKey } from './customList'
-import { WeatherResult } from './openMeteo'
+import { WeatherResult, resetOpenMeteoState } from './openMeteo'
 import vectors from './weather_vectors.json'
 
 // ── Vector-pinned: the AQI-onto-weather-grid alignment ─────────────────────
@@ -181,6 +182,40 @@ describe('capDetail', () => {
   })
 })
 
+// ── filterElevation (port of _filter_elevation) ────────────────────────────
+
+describe('filterElevation', () => {
+  const dests = [
+    { elevation_ft: null, name: 'untagged' },
+    { elevation_ft: 1000, name: 'low' },
+    { elevation_ft: 5000, name: 'high' },
+    { elevation_ft: 3000, name: 'mid' },
+  ]
+
+  it('returns the input untouched when no band is set', () => {
+    expect(filterElevation(dests, null, null)).toBe(dests)
+  })
+
+  it('keeps unknown elevations, matching the backend', () => {
+    // Many OSM peaks carry no `ele` tag. Dropping them would make narrowing the
+    // band look like destinations disappearing.
+    expect(filterElevation(dests, 2000, null).map((d) => d.name)).toEqual([
+      'untagged',
+      'high',
+      'mid',
+    ])
+  })
+
+  it('applies each edge inclusively', () => {
+    expect(filterElevation(dests, 3000, 5000).map((d) => d.name)).toEqual([
+      'untagged',
+      'high',
+      'mid',
+    ])
+    expect(filterElevation(dests, null, 1000).map((d) => d.name)).toEqual(['untagged', 'low'])
+  })
+})
+
 // ── Refusal remedies (ports of _suggest_elevation_floor/_truncate_top) ─────
 
 describe('suggestElevationFloor', () => {
@@ -288,6 +323,13 @@ const THREE = [
 ]
 const THREE_PRECIPS = [0.3, 0.1, 0.2]
 
+beforeEach(() => {
+  // openMeteo.ts caches forecasts per location+window and paces against
+  // module-level budgets, so without this a test sees the previous test's
+  // answers and makes no request of its own.
+  resetOpenMeteoState()
+})
+
 afterEach(() => {
   vi.unstubAllGlobals()
 })
@@ -316,10 +358,102 @@ describe('runClientAnalysis', () => {
     // Ranked by the request's key but NOT trimmed: 'Wet' lost the limit=2 cut
     // and is exactly the row a window change used to be unable to promote.
     expect(out.universe.map((r) => r.name)).toEqual(['Dry', 'Mid', 'Wet'])
-    // Shared objects, not copies: the AQI backfill attaches to the displayed
-    // rows in place and both views are meant to see it.
+    // Shared objects, not copies: the displayed rows are a window onto the
+    // field, so the two views can never disagree about a row's numbers.
     expect(out.universe[0]).toBe(out.response.results[0])
     expect(out.universe[1]).toBe(out.response.results[1])
+  })
+
+  it('fetches air quality for every candidate, not just the rows it returns', async () => {
+    const aqiCounts: number[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const count = new URL(url).searchParams.get('latitude')!.split(',').length
+        const isWeather = new URL(url).hostname === 'api.open-meteo.com'
+        if (!isWeather) aqiCounts.push(count)
+        return {
+          ok: true,
+          status: 200,
+          json: async () =>
+            isWeather
+              ? weatherBody(THREE_PRECIPS.slice(0, count))
+              : Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })),
+        }
+      }),
+    )
+    const startMs = Date.parse('2026-07-21T00:00:00Z')
+    const endMs = Date.parse('2026-07-21T02:00:00Z')
+    // limit=2 of 3 candidates: the lazy version asked for 2 here, which left
+    // the third row unable to show air quality if a live knob surfaced it.
+    await runClientAnalysis(REQUEST, customRows(THREE), startMs, endMs, { nowMs: startMs })
+    expect(aqiCounts).toEqual([3])
+  })
+
+  it('issues the air-quality request alongside weather, not after the ranking', async () => {
+    // The concurrency is what makes the whole field affordable: weather and air
+    // quality bill against separate per-service quotas, so overlapping them
+    // costs no extra wall clock. Gate the weather response and assert the AQI
+    // request has already gone out while weather is still in flight.
+    let releaseWeather = () => {}
+    const weatherGate = new Promise<void>((resolve) => {
+      releaseWeather = resolve
+    })
+    const hosts: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const host = new URL(url).hostname
+        hosts.push(host)
+        const count = new URL(url).searchParams.get('latitude')!.split(',').length
+        if (host === 'api.open-meteo.com') {
+          await weatherGate
+          return {
+            ok: true,
+            status: 200,
+            json: async () => weatherBody(THREE_PRECIPS.slice(0, count)),
+          }
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })),
+        }
+      }),
+    )
+    const startMs = Date.parse('2026-07-21T00:00:00Z')
+    const endMs = Date.parse('2026-07-21T02:00:00Z')
+    const pending = runClientAnalysis(REQUEST, customRows(THREE), startMs, endMs, {
+      nowMs: startMs,
+    })
+    await vi.waitFor(() => expect(hosts).toContain('air-quality-api.open-meteo.com'))
+    releaseWeather()
+    await expect(pending).resolves.toBeDefined()
+  })
+
+  it('still ranks when air quality fails outright, with null AQI', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const isWeather = new URL(url).hostname === 'api.open-meteo.com'
+        if (!isWeather) throw new TypeError('Failed to fetch')
+        const count = new URL(url).searchParams.get('latitude')!.split(',').length
+        return {
+          ok: true,
+          status: 200,
+          json: async () => weatherBody(THREE_PRECIPS.slice(0, count)),
+        }
+      }),
+    )
+    const startMs = Date.parse('2026-07-21T00:00:00Z')
+    const endMs = Date.parse('2026-07-21T02:00:00Z')
+    const out = await runClientAnalysis(REQUEST, customRows(THREE), startMs, endMs, {
+      nowMs: startMs,
+    })
+    // Air quality is supplementary: a ranking on another metric must survive
+    // losing it, or an AQI outage takes the whole analysis down with it.
+    expect(out.response.results.map((r) => r.name)).toEqual(['Dry', 'Mid'])
+    expect(out.universe.every((r) => r.aqi_avg === null)).toBe(true)
   })
 
   it('refuses over-cap lists with the server wording, before any fetch', async () => {

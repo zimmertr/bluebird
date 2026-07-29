@@ -11,7 +11,7 @@ const AREA_NOTE_KM2 = 40_000
 import { parseCustomCsv } from '../utils/customDestinations'
 import { DATA_SOURCES } from '../utils/dataSources'
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD, LINK, TEXT } from '../styles'
-import { AGGREGATE, NOUN, familyOf } from '../metrics'
+import { AGGREGATE, NOUN, RANKING_KEYS, familyOf } from '../metrics'
 import { canAnalyze } from '../utils/analyzeGate'
 import {
   classifyAqiCoverage,
@@ -33,9 +33,20 @@ function pickableDate(offsetDays: number): string {
 // Each metric ranks by one representative value — total precipitation,
 // window-average wind/temperature/AQI. The finer min/avg/max detail stays
 // visible (and click-sortable) in the results table.
-const SORT_METRICS: { value: SortBy; label: string }[] = (
-  ['precip_total_in', 'wind_avg_mph', 'temp_avg_f', 'aqi_avg'] as const
-).map((value) => ({ value, label: NOUN[familyOf(value)] }))
+const SORT_METRICS: { value: SortBy; label: string }[] = RANKING_KEYS.map((value) => ({
+  value,
+  label: NOUN[familyOf(value)],
+}))
+
+// Why a knob stopped applying live. Each case leads with the action, because
+// that is what the reader wants first; the sentence after it is the reason the
+// controls went quiet, which is the thing this cue exists to not leave unsaid.
+const COMMIT_CUE: Record<'server-path' | 'elevation-widened', string> = {
+  'elevation-widened': 'Press Analyze to apply. A wider elevation range needs a new search.',
+  // The overlay already announced the fallback itself ("Weather service
+  // unreachable from this browser"), so this only has to name the consequence.
+  'server-path': 'Press Analyze to apply. The server analysis returns only the rows shown.',
+}
 
 // What polygon discovery finds. Custom (CSV) is no longer a mode here — the
 // always-visible Custom Destinations section below adds to any of these.
@@ -83,9 +94,11 @@ interface Props {
   // Out-of-range warning for the Future Day/Time moment (only ever non-null
   // while that mode is selected).
   momentWarning: 'past' | 'future' | null
-  // The ranking knobs no longer match the analysis on screen (the displayed
-  // report is a snapshot) — show the "press Analyze to apply" cue.
-  rankingChanged?: boolean
+  // Why a knob has stopped applying live, or null while they all do. Sort,
+  // limit and elevation-narrowing normally re-present the held field with no
+  // Analyze at all (#188), so this cue is the exception rather than the rule
+  // and has to say which exception it is.
+  commitReason?: 'server-path' | 'elevation-widened' | null
   // At least one place has been searched by name. Searched places are a ranked
   // input like the CSV, so one alone enables Analyze with no polygon drawn.
   hasPins: boolean
@@ -145,7 +158,7 @@ export default function ControlPanel({
   setShowWildfires,
   windowWarning,
   momentWarning,
-  rankingChanged,
+  commitReason,
   hasPins,
   loading,
   error,
@@ -677,10 +690,8 @@ export default function ControlPanel({
           {loading ? 'Analyzing…' : 'Analyze'}
         </button>
 
-        {rankingChanged && !loading && (
-          <p className="text-xs text-amber-300 text-center whitespace-nowrap">
-            Ranking changed. Press Analyze to update.
-          </p>
+        {commitReason && !loading && (
+          <p className="text-xs text-amber-300 text-center">{COMMIT_CUE[commitReason]}</p>
         )}
 
         {!analyzeEnabled && !loading && (

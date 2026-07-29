@@ -9,7 +9,7 @@ import { destinationUrl } from '../utils/destinationUrl'
 import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
 import { LINK_ACTION, TEXT } from '../styles'
-import { AGGREGATE, metricLabel } from '../metrics'
+import { AGGREGATE, RANKING_KEYS, metricLabel } from '../metrics'
 
 function windyUrl(lat: number, lon: number, layer: string): string {
   return `https://www.windy.com/?${layer},${lat.toFixed(4)},${lon.toFixed(4)},11`
@@ -90,11 +90,21 @@ const COLUMNS: ColDef[] = [
 
 interface Props {
   results: DestinationResult[]
+  // The ranking the displayed rows are already in. Live on the client path,
+  // where the panel re-derives the rows from the held field on every change.
   sortBy: SortBy
   sortDesc: boolean
-  // From the analyzed snapshot, like sortBy/sortDesc: a point-sample analysis
+  // Re-rank the whole field by one of the four ranking metrics. Absent on the
+  // server path, which holds no field to re-rank, so a header click there falls
+  // back to reordering the rows on screen.
+  onRank?: (key: SortBy, desc: boolean) => void
+  // Identifies the report rather than the row array: live knobs rebuild the
+  // rows constantly, and the detail-column sort should survive that while still
+  // resetting for a genuinely new analysis.
+  analysisSeq?: number
+  // From the analyzed snapshot, unlike sortBy/sortDesc: a point-sample analysis
   // ('now'/'at') shows one column per metric instead of the avg/min/max
-  // triplets.
+  // triplets, and no knob can change that without a new analysis.
   mode?: AnalysisMode
   fireWarnings: Map<string, FireWarning>
   // Custom destinations awaiting their first analysis — pasted CSV rows and
@@ -124,6 +134,8 @@ export default function ResultsTable({
   results,
   sortBy,
   sortDesc,
+  onRank,
+  analysisSeq,
   mode = 'window',
   fireWarnings,
   pending,
@@ -149,15 +161,34 @@ export default function ResultsTable({
   const shiftHeldRef = useRef(false)
   const anchorRef = useRef<string | null>(null)
 
-  // Each analysis is a fresh report: reset the column sort to the ranking that
-  // produced it (sortBy/sortDesc are the analyzed snapshot, and `results` is a
-  // new array per analysis). Manual header clicks override until then.
+  // Follow the ranking: on a new report, and on a live ranking change, drop any
+  // detail-column sort and read in the order the rows arrived in.
+  //
+  // Keyed on the report rather than on `results`, which is a new array on every
+  // live limit or elevation change and would otherwise throw away a sort the
+  // user just asked for.
   useEffect(() => {
     setSortKey(sortBy)
     setSortDir(sortDesc ? 'desc' : 'asc')
-  }, [sortBy, sortDesc, results])
+  }, [sortBy, sortDesc, analysisSeq])
 
+  // A header click means "rank by this", and for the four metrics that are also
+  // ranking keys it can mean it literally: `onRank` re-cuts the whole held field,
+  // so clicking Wind gives the least windy destinations in the area rather than
+  // the driest ones reordered by wind. The remaining columns are detail, and
+  // reorder the rows on screen as they always have. Widening the ranking
+  // vocabulary to cover them needs marker thresholds, a URL spelling and an
+  // aggregate-aware header noun per key, which is a separate change (see
+  // RANKING_KEYS in metrics.ts).
+  //
+  // Column ORDER keys off the ranking metric and not its direction, so toggling
+  // ascending/descending never moves the header out from under the cursor;
+  // switching metric does move it, which is the report changing shape.
   function handleSort(key: SortKey) {
+    if (onRank && (RANKING_KEYS as readonly string[]).includes(key)) {
+      onRank(key as SortBy, key === sortBy ? !sortDesc : false)
+      return
+    }
     if (key === sortKey) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
     } else {

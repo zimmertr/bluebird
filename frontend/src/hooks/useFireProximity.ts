@@ -9,19 +9,25 @@ import {
   pointsBbox,
 } from '../utils/fireProximity'
 
-// For each result within FIRE_WARN_MILES of an active US wildfire, returns a map
-// (keyed by fireKey(lat, lon)) to its nearest-fire warning. Independent of the
-// map overlay toggle — this is safety info, not a display option — and
+// For each destination within FIRE_WARN_MILES of an active US wildfire, returns
+// a map (keyed by fireKey(lat, lon)) to its nearest-fire warning. Independent of
+// the map overlay toggle — this is safety info, not a display option — and
 // best-effort: any fetch failure or non-US area yields an empty map and never
 // disturbs the displayed results.
-export function useFireProximity(results: DestinationResult[]): Map<string, FireWarning> {
+//
+// Takes the analyzed FIELD, not the rows on screen. Since #188 the displayed
+// rows are re-derived on every sort, limit and elevation change, so keying off
+// them would fire a NIFC query per knob twiddle. The field changes once per
+// analysis, and warnings for destinations below the cut are simply never looked
+// up — cheap, since the extra work is local distance math against one query's
+// perimeters rather than another request.
+export function useFireProximity(field: DestinationResult[]): Map<string, FireWarning> {
   const [warnings, setWarnings] = useState<Map<string, FireWarning>>(new Map())
 
   useEffect(() => {
     // Clear (without churning renders when already empty) when there's nothing
-    // to check. `results` is memoized upstream, so this effect only re-runs when
-    // a new analysis produces a new array — not on every render.
-    const bbox = pointsBbox(results, FIRE_WARN_MILES + 1)
+    // to check.
+    const bbox = pointsBbox(field, FIRE_WARN_MILES + 1)
     if (!bbox) {
       setWarnings((prev) => (prev.size === 0 ? prev : new Map()))
       return
@@ -36,7 +42,7 @@ export function useFireProximity(results: DestinationResult[]): Map<string, Fire
         const fires = await fetchWildfires(bbox, undefined, ac.signal)
         if (cancelled) return
         const next = new Map<string, FireWarning>()
-        for (const r of results) {
+        for (const r of field) {
           const near = nearestFire(r.latitude, r.longitude, fires)
           if (near && near.miles <= FIRE_WARN_MILES) {
             next.set(fireKey(r.latitude, r.longitude), near)
@@ -54,7 +60,7 @@ export function useFireProximity(results: DestinationResult[]): Map<string, Fire
       cancelled = true
       ac.abort()
     }
-  }, [results])
+  }, [field])
 
   return warnings
 }

@@ -4,6 +4,7 @@
 // to unit-test — App.tsx owns the thin glue that reads/writes location.
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
 import { AnalysisMode, GeoPolygon, DiscoveryType, SortBy } from '../types'
+import { RANKING_KEYS } from '../metrics'
 import { Place } from './geocode'
 
 // Fields that fully describe an analysis. Results are deliberately excluded —
@@ -34,7 +35,6 @@ export interface ShareableState {
 }
 
 const DISCOVERY_TYPES: DiscoveryType[] = ['peak', 'trailhead', 'lake']
-const SORT_OPTIONS: SortBy[] = ['precip_total_in', 'wind_avg_mph', 'temp_avg_f', 'aqi_avg']
 
 // Sort keys from before the metric × direction redesign, when aggregation
 // variants were individually rankable. Old shared links fall back to their
@@ -239,7 +239,7 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   }
 
   const sort = params.get('sort')
-  if (sort && SORT_OPTIONS.includes(sort as SortBy)) out.sortBy = sort as SortBy
+  if (sort && (RANKING_KEYS as readonly string[]).includes(sort)) out.sortBy = sort as SortBy
   else if (sort && sort in LEGACY_SORT_MAP) out.sortBy = LEGACY_SORT_MAP[sort]
 
   if (params.get('desc') === '1') out.sortDesc = true

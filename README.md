@@ -117,11 +117,15 @@ Air quality (AQI) forecasts run shorter, because the underlying CAMS model only 
 
 ### Step 3: Set Max Results
 
-The default is 100 and the maximum is 200. The backend fetches weather for *every* named destination in the polygon (after the optional elevation filter) and returns the top N by the selected ranking. There is no sampling, so the winners really are the extremes of the area. Analyses are capped at 1,000 destinations. Past that, the app asks you to draw a smaller polygon or narrow the elevation range rather than silently truncating.
+The default is 100 and the maximum is 200. The backend fetches weather for *every* named destination in the polygon (after the optional elevation filter) and returns the top N by the selected ranking. There is no sampling, so the winners really are the extremes of the area. Analyses are capped at 1,500 destinations. Past that, the app asks you to draw a smaller polygon or narrow the elevation range rather than silently truncating.
 
 ### Step 4: Analyze
 
 Click **Analyze**. Results appear in a sortable table below the map and as color-coded markers on the map itself.
+
+Once results are up, the knobs split in two. **Ranking, max results, and narrowing the elevation range apply instantly**, with no second click: the browser keeps the forecast for every destination it found, not just the ones that fit on screen, so it can re-rank and re-cut them for free. Changing the **destinations, the forecast window, or widening the elevation range** needs Analyze again, because those need forecasts the app does not have yet. That is also why the numbers are exact rather than approximate: a new ranking reconsiders every destination in your area, not just the rows currently listed.
+
+If the weather service cannot be reached from your browser, Bluebird says so and retries through its own server. That path only receives the rows it shows, so on it every knob goes back to needing Analyze, and the app says which one is waiting.
 
 Marker colors follow total precipitation:
 
@@ -137,7 +141,11 @@ Click a marker for a popup with rank, precipitation, wind, temperature, and AQI.
 
 ### Results Table
 
-Click any column header to sort by it, ascending or descending. By default the table follows the **Result Ranking** selection, for example lowest total precipitation for driest-first. Hovering a row reveals a × at its end (always visible on touch screens) that removes the destination from the report — the rows below renumber, and a same-inputs re-Analyze keeps it gone; changing the destinations, window, ranking, or options starts a fresh report where it may return.
+Click any column header to sort by it, ascending or descending. By default the table follows the **Result Ranking** selection, for example lowest total precipitation for driest-first.
+
+The four columns that are also ranking options (Precip Total, Wind Avg, Temp Avg, AQI Avg) *are* that selection: clicking one re-ranks every destination in your area and re-picks the top N, and the Result Ranking control moves to match. So clicking **Wind** gives you the least windy destinations in the area, not the driest ones reordered by wind. The remaining columns are detail rather than ranking, and reorder the rows currently listed.
+
+Hovering a row reveals a × at its end (always visible on touch screens) that removes the destination from the report — the rows below renumber, and it stays gone as you re-rank, raise the max results, or narrow the elevation range. Changing the destinations, the window, or widening the elevation range starts a fresh report where it may return.
 
 | Column | Description |
 |---|---|
