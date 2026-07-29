@@ -3,10 +3,10 @@ import os
 import time
 from pathlib import Path
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import ratelimit
@@ -234,6 +234,53 @@ async def swagger_ui() -> HTMLResponse:
         swagger_css_url=f"{_swagger_base}/swagger-ui.css",
         swagger_favicon_url="/favicon-32.png",
     )
+
+
+# The public document pages, each built as its own SPA entry so a shared link
+# is a real document with its own title and unfurl rather than app state.
+#
+# Two pages rather than one covering both, because that is how they get asked
+# for: app stores, payment processors and data providers want a privacy link
+# and a terms link separately, and a "Terms" label pointing at /privacy is a
+# small lie told in the URL bar.
+#
+# The static mount below would already serve these files as directory indexes,
+# but only at /privacy/ and /terms/, 307ing the bare paths to the trailing
+# slash first. These routes exist so the canonical URL is the one people
+# actually type and paste. Both spellings work; only these avoid the redirect.
+#
+# Registered unconditionally and 404ing on a missing file, rather than being
+# skipped when the build output is absent: a route that disappears in a source
+# checkout is a route the tests cannot describe.
+#
+# HEAD is named explicitly for the reason /healthz above spells out, and it
+# matters more here: link checkers and unfurlers reach for HEAD, and without it
+# the canonical URLs these routes exist to protect would hand exactly those
+# clients the 307 they were added to avoid. Both methods fit on one route
+# because include_in_schema=False keeps the pair out of the schema entirely, so
+# the duplicate-operationId problem that forced /healthz into two handlers
+# cannot arise.
+#
+# The paths stay module-level names rather than closure variables so the tests
+# can point them at a tmp_path and exercise both the present and absent cases.
+_privacy_page = static_dir / "privacy" / "index.html"
+_terms_page = static_dir / "terms" / "index.html"
+
+
+def _document_response(page: Path) -> FileResponse:
+    if not page.is_file():
+        raise HTTPException(status_code=404)
+    return FileResponse(page)
+
+
+@app.api_route("/privacy", methods=["GET", "HEAD"], include_in_schema=False)
+async def privacy_page() -> FileResponse:
+    return _document_response(_privacy_page)
+
+
+@app.api_route("/terms", methods=["GET", "HEAD"], include_in_schema=False)
+async def terms_page() -> FileResponse:
+    return _document_response(_terms_page)
 
 
 if static_dir.exists():

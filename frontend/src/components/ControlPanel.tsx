@@ -1,7 +1,8 @@
-import { useMemo, useRef } from 'react'
+import { Fragment, useMemo, useRef } from 'react'
 import { AnalysisMode, CustomDestination, DiscoveryType, SortBy } from '../types'
 import { MAX_AREA_KM2 } from './MapView'
 import { parseCustomCsv } from '../utils/customDestinations'
+import { DATA_SOURCES } from '../utils/dataSources'
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD, LINK, TEXT } from '../styles'
 import { canAnalyze } from '../utils/analyzeGate'
 import {
@@ -87,7 +88,6 @@ interface Props {
   error: string | null
   onAnalyze: () => void
   onRetry: () => void
-  onShowPrivacy: () => void
   resultCount?: number
   totalQueried?: number
 }
@@ -129,7 +129,6 @@ export default function ControlPanel({
   error,
   onAnalyze,
   onRetry,
-  onShowPrivacy,
   resultCount,
   totalQueried,
 }: Props) {
@@ -280,7 +279,7 @@ export default function ControlPanel({
               <code className="text-slate-300">Lat,Lon,Name</code>
             </p>
             <textarea
-              aria-label="Custom destination coordinates — one per line as latitude, longitude, optional name"
+              aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"
               value={customCsv}
               onKeyDown={() => (csvPasteRef.current = false)}
               onPaste={() => (csvPasteRef.current = true)}
@@ -686,22 +685,28 @@ export default function ControlPanel({
 
         <p className={`${TEXT.caption} text-center leading-relaxed`}>
           Data:{' '}
-          <a href="https://www.openstreetmap.org" target="_blank" rel="noreferrer" className={LINK}>OpenStreetMap</a>
-          {' · '}
-          <a href="https://open-meteo.com" target="_blank" rel="noreferrer" className={LINK}>Open-Meteo</a>
-          {' · '}
-          <a href="https://atmosphere.copernicus.eu" target="_blank" rel="noreferrer" className={LINK}>CAMS</a>
-          {' · '}
-          <a href="https://openfreemap.org" target="_blank" rel="noreferrer" className={LINK}>OpenFreeMap</a>
-          {' · '}
-          <a href="https://nominatim.org" target="_blank" rel="noreferrer" className={LINK}>Nominatim</a>
-          {' · '}
-          <a href="https://www.nifc.gov" target="_blank" rel="noreferrer" className={LINK}>NIFC</a>
+          {DATA_SOURCES.map((source, i) => (
+            <Fragment key={source.name}>
+              {i > 0 && ' · '}
+              <a href={source.href} target="_blank" rel="noreferrer" className={LINK}>
+                {source.name}
+              </a>
+            </Fragment>
+          ))}
         </p>
+        {/* Two labels, two pages, and each label goes where it says. The
+            privacy copy used to open a dialog here, which meant it had no URL
+            and the Terms link next to it pointed at the privacy page anyway.
+            Both open in a new tab so reading either never costs you a drawn
+            polygon and its results. */}
         <p className={`${TEXT.caption} text-center`}>
-          <button onClick={onShowPrivacy} className={LINK}>
+          <a href="/privacy" target="_blank" rel="noreferrer" className={LINK}>
             Privacy
-          </button>
+          </a>
+          {' · '}
+          <a href="/terms" target="_blank" rel="noreferrer" className={LINK}>
+            Terms
+          </a>
         </p>
       </div>
     </div>

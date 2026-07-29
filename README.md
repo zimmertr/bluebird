@@ -20,6 +20,7 @@ It is not a recommendation engine. It does not decide what weather is "good" or 
 - [Architecture](#architecture)
 - [Data Sources](#data-sources)
 - [Kubernetes Deployment](#kubernetes-deployment)
+- [Support](#support)
 - [License](#license)
 
 ## Quick Start
@@ -359,8 +360,16 @@ containers:
         value: "WARNING"
 ```
 
+## Support
+
+Email **hello@bluebirdforecast.com** about anything: a summit at the wrong elevation, a destination that should be listed and isn't, a privacy question, or a page that will not load. No GitHub account needed.
+
+If you can describe how to reproduce something, the [issue board](https://github.com/zimmertr/bluebird/issues) is the better channel. Security vulnerabilities go through [GitHub's private advisory form](https://github.com/zimmertr/bluebird/security/advisories/new) rather than a public issue, as described in [SECURITY.md](SECURITY.md).
+
+Two public pages carry the rest: [privacy](https://bluebirdforecast.com/privacy) for what Bluebird does with your data and which providers your requests reach, and [terms](https://bluebirdforecast.com/terms) for the license, the absence of any warranty, availability, and the licenses covering the data. Separate URLs because that is how they get asked for. Both render the same shared components, so the provider list and the contact address cannot drift between them.
+
 ## License
 
 Copyright (c) 2026 TJ Zimmerman. Bluebird is source-available: the code is public, but it is not open source software.
 
-Bluebird is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may use, modify, self-host, and share it for any noncommercial purpose. Commercial use of any kind requires a separate license: contact [tj@tjzimmerman.com](mailto:tj@tjzimmerman.com). It comes with no warranty; see [LICENSE](LICENSE) for the full terms.
+Bluebird is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may use, modify, self-host, and share it for any noncommercial purpose. Commercial use of any kind requires a separate license: contact [hello@bluebirdforecast.com](mailto:hello@bluebirdforecast.com). It comes with no warranty; see [LICENSE](LICENSE) for the full terms.
