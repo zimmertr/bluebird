@@ -40,8 +40,7 @@ export type MetricFamily = 'precip' | 'temp' | 'wind' | 'aqi'
  * legend would have to wrap to fit. It is also deliberately not "AQI (PM2.5)",
  * which the results header claimed for a while — `air_quality.py` fetches
  * Open-Meteo's `us_aqi`, the EPA index combined across every pollutant, so
- * naming one of them understated what the number covers. The qualifier that
- * survives is the scale, and it rides in UNIT below.
+ * naming one of them understated what the number covers.
  */
 export const NOUN: Record<MetricFamily, string> = {
   precip: 'Precipitation',
@@ -51,24 +50,17 @@ export const NOUN: Record<MetricFamily, string> = {
 }
 
 /**
- * The unit a metric is quoted in.
+ * The unit a metric is quoted in, empty where it has none.
  *
- * Callers override it where a column reports a rate rather than the base
+ * Callers append their own where a column reports a rate rather than the base
  * quantity — precipitation is inches in a window total but inches per hour in
  * the average and peak columns.
- *
- * AQI's "unit" is its scale. An index has no physical unit, but a US AQI of
- * 150 and a European AQI of 150 are different claims the way 60°F and 60°C
- * are, and the legend's color breakpoints are the US EPA ones. This is what
- * the old "(PM2.5)" qualifier was reaching for and got wrong — the number is
- * Open-Meteo's `us_aqi`, combined across every pollutant, so the honest
- * qualifier is the scale, not a pollutant.
  */
 export const UNIT: Record<MetricFamily, string> = {
   precip: 'in',
   temp: '°F',
   wind: 'mph',
-  aqi: 'US',
+  aqi: '',
 }
 
 /**
