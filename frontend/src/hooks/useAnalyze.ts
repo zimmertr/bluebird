@@ -7,6 +7,8 @@ import {
   DiscoveredDestination,
   SortBy,
 } from '../types'
+import { drainSseBuffer } from '../utils/analyzeEvents'
+import { SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
 import { customRows, mergeCustom, runClientAnalysis } from '../utils/clientAnalyze'
 import { resolveWindow } from '../utils/forecastWindow'
 import { OpenMeteoUnreachable } from '../utils/openMeteo'
@@ -56,6 +58,8 @@ export function useAnalyze() {
   const [response, setResponse] = useState<AnalyzeResponse | null>(null)
   const [analyzed, setAnalyzed] = useState<AnalyzedView | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  // Secondary line for the search phase (SSE `detail`): mirror-failover news.
+  const [statusDetail, setStatusDetail] = useState<string | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const lastRequestRef = useRef<{ request: AnalyzeRequest; mode: AnalysisMode } | null>(null)
@@ -177,30 +181,16 @@ export function useAnalyze() {
       if (done) break
       buffer += decoder.decode(value, { stream: true })
 
-      // SSE events are separated by double newlines
-      const parts = buffer.split('\n\n')
-      buffer = parts.pop() ?? ''
+      const drained = drainSseBuffer(buffer)
+      buffer = drained.rest
 
-      for (const part of parts) {
-        const dataLine = part.split('\n').find((l) => l.startsWith('data: '))
-        if (!dataLine) continue
-        let event: {
-          type: string
-          message?: string
-          data?: AnalyzeResponse
-          processed?: number
-          total?: number
-          percent?: number
-        }
-        try {
-          event = JSON.parse(dataLine.slice(6))
-        } catch {
-          continue
-        }
-
+      for (const event of drained.events) {
         if (event.type === 'status' && event.message) {
           setStatusMessage(event.message)
+          // Absent detail on a status event clears any stale failover line.
+          setStatusDetail(event.detail ?? null)
         } else if (event.type === 'progress') {
+          setStatusDetail(null)
           if (event.message) setStatusMessage(event.message)
           if (event.total != null && event.processed != null) {
             setProgress({
@@ -236,7 +226,8 @@ export function useAnalyze() {
     // during the click→first-event gap: a polygon run opens on discovery, a
     // custom/refresh run goes straight to retrieval (upgraded to the counted label
     // once the up-front progress lands).
-    setStatusMessage(request.polygon ? 'Searching for Destinations…' : 'Retrieving Forecasts…')
+    setStatusMessage(request.polygon ? SEARCHING_MESSAGE : 'Retrieving Forecasts…')
+    setStatusDetail(null)
 
     try {
       try {
@@ -250,6 +241,7 @@ export function useAnalyze() {
         if (!(e instanceof OpenMeteoUnreachable)) throw e
         console.warn('Open-Meteo unreachable from this browser; falling back to the server analysis:', e.message)
         setStatusMessage('Retrieving Forecasts…')
+        setStatusDetail(null)
         setProgress(null)
       }
       await analyzeViaServer(request, mode, controller.signal)
@@ -264,9 +256,22 @@ export function useAnalyze() {
       abortRef.current = null
       setLoading(false)
       setStatusMessage(null)
+      setStatusDetail(null)
       setProgress(null)
     }
   }
 
-  return { analyze, cancel, retry, reset, analyzed, loading, error, response, statusMessage, progress }
+  return {
+    analyze,
+    cancel,
+    retry,
+    reset,
+    analyzed,
+    loading,
+    error,
+    response,
+    statusMessage,
+    statusDetail,
+    progress,
+  }
 }

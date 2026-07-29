@@ -204,7 +204,7 @@ export default function App() {
     document.addEventListener('pointercancel', onUp)
   }
 
-  const { analyze, cancel, retry, reset, analyzed, loading, error, response, statusMessage, progress } = useAnalyze()
+  const { analyze, cancel, retry, reset, analyzed, loading, error, response, statusMessage, statusDetail, progress } = useAnalyze()
 
   // Places searched by name — the third destination input. Searching registers
   // the place (map dot + URL persistence); its forecast joins the next Analyze,
@@ -250,19 +250,22 @@ export default function App() {
   const rankingChanged = rankingStale(analyzed, sortBy, sortDesc) && !loading && response !== null
   const preview = usePreview()
 
+  // Elapsed-time counter for phases with no countable progress (the OSM search,
+  // and the pins-only refresh). Declared before the overlay composition, which
+  // reads it to stage the "Still searching…" reassurance line.
+  const [elapsed, setElapsed] = useState(0)
+
   // The loading overlay for the one ranked streaming analysis — searched
   // places ride inside it as custom destinations, so there is no separate pin
   // refresh to fold in anymore.
   const overlay = composeOverlay({
     analyzeLoading: loading,
     statusMessage,
+    statusDetail,
+    elapsedS: elapsed,
     rankedProgress: progress ? { processed: progress.processed, total: progress.total } : null,
   })
 
-  // Elapsed-time counter for phases with no countable progress (the OSM search,
-  // and the pins-only refresh). Runs whenever the overlay is up but no batch
-  // progress is reported yet.
-  const [elapsed, setElapsed] = useState(0)
   useEffect(() => {
     if (!overlay.visible) {
       setElapsed(0)
@@ -665,10 +668,15 @@ export default function App() {
                 />
                 {/* role=status + aria-live: without it, the analysis phase is
                     the one moment the app goes completely silent for screen
-                    readers — announce each status line as it changes. */}
-                <p role="status" aria-live="polite" className={`${PROSE.heading} leading-snug`}>
-                  {overlay.message}
-                </p>
+                    readers — announce each status line as it changes. The
+                    wrapper covers the detail line too, so failover news
+                    ("Trying backup map server…") is announced as well. */}
+                <div role="status" aria-live="polite">
+                  <p className={`${PROSE.heading} leading-snug`}>{overlay.message}</p>
+                  {overlay.detail && (
+                    <p className={`${TEXT.caption} mt-1 leading-snug`}>{overlay.detail}</p>
+                  )}
+                </div>
                 {overlay.progress ? (
                   // Weather phase — countable batch progress (the union count is
                   // already in the "(x/y)" headline, so the bar just visualizes it).
