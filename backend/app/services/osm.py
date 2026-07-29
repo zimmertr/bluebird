@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -149,8 +150,10 @@ async def query_osm(
     # /api/destinations and its server fallback re-runs the identical query
     # seconds later, and repeat Analyze clicks re-run it every minute. Only
     # complete results can land here — a partial (remark) response raises in
-    # _post_with_fallback before this point. The cached list is returned as a
-    # copy so callers' filtering never mutates the shared entry.
+    # _post_with_fallback before this point. Hits are DEEP copies: a shallow
+    # list copy would share the destination dicts, and the first caller to
+    # mutate one in place would silently corrupt every response served from
+    # this entry for the rest of its TTL.
     cache_key = cache.discovery_key(
         polygon.coordinates[0], destination_type.value
     )
@@ -161,7 +164,7 @@ async def query_osm(
             len(cached),
             destination_type.value,
         )
-        return list(cached)
+        return copy.deepcopy(cached)
 
     poly_str = _polygon_to_overpass(polygon)
     query = _QUERIES[destination_type].format(poly=poly_str)
@@ -213,7 +216,10 @@ async def query_osm(
         log.trace("  OSM element: %s (%.4f, %.4f) ele=%s", name, lat, lon, elevation_ft)  # type: ignore[attr-defined]
 
     log.info("OSM returned %d named destination(s)", len(results))
-    cache.DISCOVERY_CACHE.put(cache_key, list(results))
+    # Deep copy on store too: the fresh path returns `results` to its caller,
+    # so a shallow-stored entry would share dicts with that caller the same
+    # way a shallow hit would.
+    cache.DISCOVERY_CACHE.put(cache_key, copy.deepcopy(results))
     return results
 
 

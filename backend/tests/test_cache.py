@@ -77,11 +77,16 @@ async def test_query_osm_serves_repeat_from_cache(monkeypatch):
     second = await osm.query_osm(_POLY, DestinationType.peak)
     assert calls == 1
     assert first == second
-    # The cached list is returned as a copy: mutating one caller's result
-    # must not corrupt the entry the next caller receives.
+    # True copies, at both depths and in both directions: mutating the FRESH
+    # call's dicts (which the cache stored) or a HIT's list/dicts must never
+    # corrupt what the next caller receives.
+    first[0]["elevation_ft"] = -1.0  # fresh-path dict shared with the store?
+    second[0]["name"] = "corrupted"  # hit-path dict shared with the entry?
     second.clear()
     third = await osm.query_osm(_POLY, DestinationType.peak)
     assert len(third) == 1
+    assert third[0]["name"] == "A"
+    assert third[0].get("elevation_ft") is None
 
 
 async def test_partial_results_are_never_cached(monkeypatch):

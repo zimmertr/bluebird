@@ -132,3 +132,21 @@ def test_rate_limit_messages_state_the_horizon():
     assert "top of the hour" in rate_limit_message("Open-Meteo (weather service)", "hourly")
     assert "daily" in rate_limit_message("Open-Meteo (weather service)", "daily")
     assert "minute" in rate_limit_message("Open-Meteo (weather service)", None)
+
+
+def test_backwards_clock_never_manufactures_a_deficit():
+    # time.monotonic cannot regress, but a clock that did must not drain
+    # tokens: without the refill clamp this estimate read ~51s, punishing
+    # clients for time that never passed.
+    clock = _Clock()
+    budget = ratelimit.WeightedBudget("test", 60, clock=clock)
+    asyncio.run(budget.acquire(60))
+    clock.t = -50.0
+    assert budget.wait_estimate_s(1) == pytest.approx(1.0)
+
+
+def test_token_bucket_backwards_clock_keeps_tokens():
+    clock = _Clock(t=100.0)
+    bucket = ratelimit._TokenBucket(capacity=5, rate_per_s=1.0, now=clock.t)
+    clock.t = 0.0  # clock regresses a full 100 seconds
+    assert bucket.try_acquire(clock.t) is True  # still spends from a full bucket
