@@ -56,9 +56,9 @@ export function resultPopupHtml(d: {
     <div style="display:flex;align-items:center;gap:6px"><strong>${d.rank ? `#${d.rank} ` : ''}${d.name}</strong>${linkIcon}</div>
     ${fire}
     ${d.elevationFt != null ? `<div>Elevation: ${Number(d.elevationFt).toLocaleString()} ft</div>` : ''}
-    <div>${NOUN.precip} ${TOTAL}: <strong>${Number(d.precipTotalIn).toFixed(3)}"</strong></div>
+    <div>${NOUN.precip} ${TOTAL}: ${Number(d.precipTotalIn).toFixed(3)}"</div>
     <div>${NOUN.wind} ${AVERAGE}: ${Number(d.windAvgMph).toFixed(1)} mph · ${NOUN.temp} ${AVERAGE}: ${Number(d.tempAvgF).toFixed(1)}°F</div>
-    ${d.aqiAvg != null ? `<div>${NOUN.aqi} ${AVERAGE}: <strong>${d.aqiAvg}</strong> · ${MAXIMUM}: ${d.aqiMax}</div>` : ''}
+    ${d.aqiAvg != null ? `<div>${NOUN.aqi} ${AVERAGE}: ${d.aqiAvg} · ${MAXIMUM}: ${d.aqiMax}</div>` : ''}
     <div>Coordinates: ${Number(d.latitude).toFixed(5)}, ${Number(d.longitude).toFixed(5)}</div>
   </div>`
 }

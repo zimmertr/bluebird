@@ -59,3 +59,15 @@ describe('resultPopupHtml rank prefix', () => {
     expect(html).toContain('<strong>Mount Rainier</strong>')
   })
 })
+
+describe('resultPopupHtml emphasis', () => {
+  // The popup's only bold is its title. Precip-total and AQI-avg wore
+  // <strong> from the original implementation onward, singling out two values
+  // by no rule — not the ranked metric (that varies; the markup didn't), not
+  // line position (wind led its line unbolded).
+  it('bolds the name and nothing else', () => {
+    const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
+    expect(html.match(/<strong>/g)).toHaveLength(1)
+    expect(html.indexOf('<strong>')).toBeLessThan(html.indexOf('Mount Rainier'))
+  })
+})
