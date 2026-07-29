@@ -154,6 +154,19 @@ describe('the privacy copy', () => {
     expect(text).toMatch(/in memory/i)
   })
 
+  // #174 moved forecast fetches into the browser while this copy still routed
+  // them through the server, the third such drift in a week (#169's rate
+  // limiting, #171's license). The request path is now a pinned claim too: the
+  // browser talks to Open-Meteo itself, and the server steps in only as the
+  // fallback.
+  it('describes forecasts as fetched by the browser, with the server as fallback', () => {
+    const text = copy(privacyPage)
+
+    expect(text).toMatch(/directly from\s+Open-Meteo/)
+    expect(text).toMatch(/server fetches\s+forecasts instead/)
+    expect(text).not.toMatch(/server to fetch forecasts/)
+  })
+
   // The other claims that are only true until someone changes behavior. #112
   // would falsify the analytics one; whichever PR does that updates this file
   // and this test together.

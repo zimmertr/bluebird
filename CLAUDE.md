@@ -59,6 +59,7 @@ Two suites: the frontend's pure logic under Vitest (`frontend/src/utils/*.test.t
 - **Keep the CI/CD diagram current.** Any change that alters the deploy flow — a workflow in this repo or `bluebird-helm`, an image/chart/tag convention, or the `Kubernetes-Manifests` wiring — updates [`docs/CICD.md`](docs/CICD.md) in the same PR. That diagram spans two sibling repos (`bluebird-helm` and `Kubernetes-Manifests`), so flow changes made there come back here too; nothing enforces this automatically.
 - **Regenerate the OpenAPI snapshot.** Any change to a route, a Pydantic model, a `Field(description=...)`, or a route decorator changes the API contract. Run `cd backend && python scripts/generate_openapi.py` and commit `backend/openapi.json`; `pr.yml` fails the PR otherwise. The snapshot exists so a contract change is visible in review instead of buried in Python.
 - **Update [`docs/API.md`](docs/API.md) in the same PR.** Prose API docs live there, never hand-copied endpoint listings. Nothing enforces this the way CI enforces the snapshot, so it is the artifact that silently rots, and the README delegates to it so a stale page is what a new caller reads first. Check the worked examples, not just the prose: grep the docs for the fields you changed.
+- **Keep the aggregation vectors in lockstep.** The browser reimplements the backend's weather/AQI aggregation (`frontend/src/utils/openMeteo.ts` ↔ `backend/app/services/weather.py`/`air_quality.py`), pinned by shared vectors. Any semantic change there: change the backend first, run `cd backend && python scripts/generate_weather_vectors.py`, `cp tests/data/weather_vectors.json ../frontend/src/utils/weather_vectors.json`, and mirror the change in the TypeScript port. Pytest fails on a stale backend copy, Vitest fails on a drifted port, and the `vectors` CI job fails if the two copies differ.
 
 ## Architecture
 
@@ -74,7 +75,7 @@ The FastAPI backend handles `POST /api/analyze`, which:
 
 The SPA fetches only on an explicit Analyze click and renders results from a snapshot of the ranking that produced them (`analyzed` in `useAnalyze.ts`) — panel knob changes never mutate the displayed analysis.
 
-**Key constraint shared between frontend and backend:** `MAX_POLYGON_AREA_KM2 = 50_000` is defined in both `backend/app/models.py` and `frontend/src/components/MapView.tsx` — keep them in sync.
+**Key constraints shared between frontend and backend:** `MAX_POLYGON_AREA_KM2 = 50_000` is defined in both `backend/app/models.py` and `frontend/src/components/MapView.tsx`, and `MAX_ANALYZE_PEAKS = 1_000` is mirrored as `MAX_ANALYZE_DESTINATIONS` in `frontend/src/utils/clientAnalyze.ts` (the browser enforces it for analyses that never touch the server) — keep each pair in sync.
 
 **Backend layout:**
 - `app/main.py` — FastAPI app + OpenAPI metadata (tags, description), logging setup (includes custom `TRACE` level at value 5), self-hosted Swagger UI at `/docs`, static file mount. `docs_url`/`redoc_url` are `None` in the **constructor**: `FastAPI.setup()` registers those routes at the end of `__init__`, so assigning them afterward has no effect
@@ -83,8 +84,10 @@ The SPA fetches only on an explicit Analyze click and renders results from a sna
 - `app/ratelimit.py` — per-client token buckets (429 + Retry-After, enforced as route dependencies on analyze/geocode) and pod-wide upstream budgets/gates (queue then shed 503; best-effort AQI degrades to null instead). In-memory per pod by design (~replicas × the configured ceiling); env knobs documented in the README Configuration table and published by `/api/capabilities` under `limits.rate`. Traffic/limits changes update [`docs/TRAFFIC.md`](docs/TRAFFIC.md) in the same PR
 - `app/routes/analyze.py` — single route handler
 - `app/routes/version.py`, `app/routes/capabilities.py` — build identity and the machine-readable limits/feature contract
+- `app/routes/destinations.py` — `POST /api/destinations`: discovery without forecasts (the SPA's only per-analysis server call; shares the analyze rate-limit bucket)
 - `app/routes/notfound.py` — `/api` catch-all returning a JSON 404 (or a 405 with `Allow`) instead of letting unknown API paths fall into the SPA static mount. Must stay the **last** router registered under `/api`
 - `scripts/generate_openapi.py` — writes/verifies the committed `backend/openapi.json`
+- `scripts/generate_weather_vectors.py` — regenerates `tests/data/weather_vectors.json` from the reference aggregation (see the vectors rule above)
 - `app/services/osm.py` — Overpass query with 3-endpoint fallback chain; `IMPLEMENTED_TYPES` gates which destination types are discoverable
 - `app/services/weather.py` — Open-Meteo batched parallel fetch
 - `app/services/air_quality.py` — Open-Meteo air-quality (US AQI) batched fetch, best-effort
@@ -95,7 +98,10 @@ The SPA fetches only on an explicit Analyze click and renders results from a sna
 - `src/components/ControlPanel.tsx` — sidebar controls
 - `src/components/SearchBox.tsx` — floating map search (Nominatim place lookup + local coordinate parsing; Enter-to-search only, per Nominatim's no-autocomplete policy)
 - `src/components/ResultsTable.tsx` — sortable results table
-- `src/hooks/useAnalyze.ts` — fetch logic for `POST /api/analyze`
+- `src/hooks/useAnalyze.ts` — analysis orchestration: the client-side path first (discovery via `POST /api/destinations`, then browser Open-Meteo fetches), falling back to the `POST /api/analyze/stream` SSE pipeline only when Open-Meteo is unreachable from the browser
+- `src/utils/openMeteo.ts` — browser Open-Meteo fetch + the aggregation ports of `weather.py`/`air_quality.py`, pinned to the backend by `weather_vectors.json` (round-half-even, naive-UTC stamp parsing, zip-vs-series loop asymmetry all deliberate)
+- `src/utils/clientAnalyze.ts` — ports of the analyze route's merge/align/assemble/rank helpers + the browser-side candidate cap
+- `src/utils/forecastWindow.ts` — window normalization twin of `models.py` (point sample → floored hour + 1 min; horizon checks)
 - `src/types.ts` — TypeScript types mirroring backend Pydantic models
 - `src/styles.ts` — the type ramp plus the surface/button/field roles; components compose these instead of picking sizes and colors at the call site (`src/styles.test.ts` enforces it)
 - `src/metrics.ts` — the one vocabulary for the four metrics: nouns (spelled out), units, aggregates (their short forms: `Avg`/`Min`/`Max`), and the composers behind the results header and table headers; the map legend titles itself with the bare noun and leaves the hour/window framing to those surfaces. **A surface never spells a metric's name itself** — `src/metrics.test.ts` reads the consuming files as text and fails on a literal `Precip`/`Temp`/`Avg`

@@ -1,0 +1,134 @@
+from __future__ import annotations
+
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException
+
+from app import ratelimit
+from app.models import (
+    MAX_ANALYZE_PEAKS,
+    DestinationsRequest,
+    DestinationsResponse,
+    DestinationType,
+    DiscoveredDestination,
+    ErrorResponse,
+    bbox_area_km2,
+)
+from app.routes.analyze import _cap_detail, _filter_elevation, _noun
+from app.services import osm
+from app.services.errors import UpstreamError
+
+log = logging.getLogger(__name__)
+router = APIRouter()
+
+
+@router.post(
+    "/destinations",
+    response_model=DestinationsResponse,
+    tags=["analysis"],
+    summary="Discover destinations without forecasts",
+    description=(
+        "The discovery half of `POST /api/analyze` on its own: every named "
+        "destination of the requested type inside the polygon, with no "
+        "forecasts attached. Discovery is never sampled, and the same "
+        "candidate ceiling applies, so a list that would refuse there "
+        "refuses identically here.\n\n"
+        "This exists so a browser client can fetch forecasts itself, "
+        "spending its own Open-Meteo quota instead of this deployment's — "
+        "which is exactly what the bundled web app does. If you are building "
+        "a client and want ranked forecasts in one call, `POST /api/analyze` "
+        "remains the endpoint for that."
+    ),
+    dependencies=[Depends(ratelimit.analyze_rate_limit)],
+    responses={
+        400: {
+            "model": ErrorResponse,
+            "description": (
+                "The request parsed but is not discoverable: the destination "
+                "type is `custom` (caller-supplied, nothing to discover) or "
+                "not yet implemented, or the polygon contains more candidates "
+                "than the analysis ceiling."
+            ),
+        },
+        429: {
+            "model": ErrorResponse,
+            "description": (
+                "This client is requesting faster than the per-address limit "
+                "(shared with the analyze endpoints). `Retry-After` says how "
+                "many seconds to wait."
+            ),
+        },
+        502: {
+            "model": ErrorResponse,
+            "description": "Every Overpass mirror failed. Transient and worth retrying.",
+        },
+        503: {
+            "model": ErrorResponse,
+            "description": (
+                "This instance's Overpass budget stayed saturated too long. "
+                "Transient; `Retry-After` says when a retry is worthwhile."
+            ),
+        },
+    },
+)
+async def destinations(request: DestinationsRequest) -> DestinationsResponse:
+    ring = request.polygon.coordinates[0]
+    log.info(
+        "Destinations request: type=%s polygon=%dpts area=%.0fkm2",
+        request.destination_type.value,
+        max(0, len(ring) - 1),
+        bbox_area_km2(ring),
+    )
+
+    if request.destination_type == DestinationType.custom:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Custom destinations are supplied by the caller, so there is "
+                "nothing to discover. Pick a discoverable type from "
+                "GET /api/capabilities."
+            ),
+        )
+
+    try:
+        found = await osm.query_osm(request.polygon, request.destination_type)
+    except NotImplementedError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ratelimit.BudgetExhausted as e:
+        raise HTTPException(
+            status_code=503,
+            detail=e.message,
+            headers={"Retry-After": str(e.retry_after_s)},
+        )
+    except UpstreamError as e:
+        raise HTTPException(status_code=502, detail=e.message)
+    except Exception as e:  # noqa: BLE001 — any OSM failure maps to a 502
+        raise HTTPException(status_code=502, detail=f"OSM query failed: {e}")
+
+    found = _filter_elevation(
+        found, request.min_elevation_ft, request.max_elevation_ft
+    )
+    if len(found) > MAX_ANALYZE_PEAKS:
+        raise HTTPException(
+            status_code=400,
+            detail=_cap_detail(
+                len(found),
+                _noun(request.destination_type),
+                has_polygon=True,
+                has_custom=False,
+            ),
+        )
+
+    rows = [
+        DiscoveredDestination(
+            name=d["name"],
+            type=request.destination_type.value,
+            latitude=d["latitude"],
+            longitude=d["longitude"],
+            elevation_ft=d.get("elevation_ft"),
+            osm_id=d.get("osm_id"),
+        )
+        for d in found
+    ]
+    log.info("Returning %d destination(s)", len(rows))
+    return DestinationsResponse(destinations=rows, total=len(rows))

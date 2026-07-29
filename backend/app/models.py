@@ -137,6 +137,19 @@ class CustomDestination(BaseModel):
         return v
 
 
+def _check_polygon_area(v: GeoPolygon) -> GeoPolygon:
+    """Shared by every polygon-carrying request so the area ceiling and its
+    message cannot drift between endpoints."""
+    area = bbox_area_km2(v.coordinates[0])
+    if area > MAX_POLYGON_AREA_KM2:
+        raise ValueError(
+            f"Search area is too large (~{area:,.0f} km²). "
+            f"Maximum allowed is {MAX_POLYGON_AREA_KM2:,} km². "
+            "Draw a smaller polygon to stay within API rate limits."
+        )
+    return v
+
+
 class AnalyzeRequest(BaseModel):
     """One analysis: which destinations, over which window, ranked how."""
 
@@ -277,14 +290,7 @@ class AnalyzeRequest(BaseModel):
     def polygon_area_limit(cls, v: GeoPolygon | None) -> GeoPolygon | None:
         if v is None:
             return v
-        area = bbox_area_km2(v.coordinates[0])
-        if area > MAX_POLYGON_AREA_KM2:
-            raise ValueError(
-                f"Search area is too large (~{area:,.0f} km²). "
-                f"Maximum allowed is {MAX_POLYGON_AREA_KM2:,} km². "
-                "Draw a smaller polygon to stay within API rate limits."
-            )
-        return v
+        return _check_polygon_area(v)
 
     def _resolve_forecast_mode(self) -> None:
         """Settle `forecast_mode` and fill in the timestamps it implies.
@@ -480,3 +486,66 @@ class AnalyzeResponse(BaseModel):
             "destinations for a given window."
         ),
     )
+
+
+class DestinationsRequest(BaseModel):
+    """Discovery only: which destinations exist inside a polygon.
+
+    This is the first half of `POST /api/analyze`, with no forecasts
+    attached. The SPA uses it to get the candidate list and then fetches
+    Open-Meteo itself, so a browser analysis costs this deployment one
+    Overpass query instead of dozens of forecast calls.
+    """
+
+    polygon: GeoPolygon = Field(
+        description="Search area, validated exactly as on `POST /api/analyze`."
+    )
+    destination_type: DestinationType = Field(
+        description=(
+            "What to discover. `custom` is rejected here: custom destinations "
+            "are supplied by the caller, so there is nothing to discover."
+        )
+    )
+    min_elevation_ft: float | None = Field(
+        default=None,
+        description=(
+            "Drop candidates below this elevation. Candidates with an unknown "
+            "elevation always pass through rather than being silently dropped."
+        ),
+    )
+    max_elevation_ft: float | None = Field(
+        default=None, description="Drop candidates above this elevation."
+    )
+
+    @field_validator("polygon")
+    @classmethod
+    def polygon_area_limit(cls, v: GeoPolygon) -> GeoPolygon:
+        return _check_polygon_area(v)
+
+
+class DiscoveredDestination(BaseModel):
+    """One discovery candidate, forecast-free."""
+
+    name: str = Field(description="Destination name, from OSM.")
+    type: str = Field(description="The discovery type this row matched.")
+    latitude: float = Field(description="Latitude in decimal degrees.")
+    longitude: float = Field(description="Longitude in decimal degrees.")
+    elevation_ft: float | None = Field(
+        default=None, description="Elevation in feet, when OSM knows it."
+    )
+    osm_id: str | None = Field(
+        default=None, description="OpenStreetMap identifier such as `node/12345`."
+    )
+
+
+class DestinationsResponse(BaseModel):
+    """Everything discovery found, after the optional elevation band."""
+
+    destinations: list[DiscoveredDestination] = Field(
+        description=(
+            "Every named match inside the polygon, never sampled. Order is "
+            "OSM's, not a ranking; ranking is the caller's job once forecasts "
+            "are attached."
+        )
+    )
+    total: int = Field(description="Same as `len(destinations)`, for convenience.")
