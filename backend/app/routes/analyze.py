@@ -1,13 +1,15 @@
 import asyncio
 import json
 import logging
+import math
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from app import ratelimit
 from app.models import (
     MAX_ANALYZE_PEAKS,
+    AnalysisRefusal,
     AnalyzeRequest,
     AnalyzeResponse,
     DestinationResult,
@@ -17,7 +19,7 @@ from app.models import (
     bbox_area_km2,
 )
 from app.services import air_quality, osm, weather
-from app.services.errors import UpstreamError
+from app.services.errors import UpstreamError, UpstreamRateLimited
 
 
 def _filter_elevation(destinations, min_ft, max_ft):
@@ -77,7 +79,54 @@ def _merge_custom(discovered: list[dict], custom: list[dict]) -> list[dict]:
     return kept + custom
 
 
-def _cap_detail(count: int, noun: str, *, has_polygon: bool, has_custom: bool) -> str:
+def _suggest_elevation_floor(
+    destinations: list[dict], cap: int
+) -> tuple[int, int] | None:
+    """A minimum elevation that would bring the candidate count under ``cap``.
+
+    Returns ``(floor_ft, keeps)`` or None when no floor can work — which
+    happens exactly when the unknown-elevation rows alone exceed the cap,
+    since elevation filters always let unknowns through. The floor is rounded
+    up to the next 100 ft so the suggestion reads like a number a person would
+    type; rounding up can only keep fewer rows, never more, so the suggestion
+    always actually works.
+    """
+    unknowns = sum(1 for d in destinations if d.get("elevation_ft") is None)
+    budget = cap - unknowns
+    if budget <= 0:
+        return None
+    known = sorted(
+        (d["elevation_ft"] for d in destinations if d.get("elevation_ft") is not None),
+        reverse=True,
+    )
+    if len(known) <= budget:
+        return None  # already under cap; nothing to suggest
+    threshold = known[budget - 1]
+    floor = math.ceil(threshold / 100.0) * 100
+    keeps = unknowns + sum(1 for e in known if e >= floor)
+    return floor, keeps
+
+
+def _truncate_top_elevation(destinations: list[dict], cap: int) -> list[dict]:
+    """The explicit opt-in cut: the ``cap`` highest-elevation candidates.
+
+    Unknown-elevation rows are dropped first — a row that cannot prove any
+    elevation cannot claim to be among the highest. Never called without the
+    request's ``top_by_elevation`` flag; silent truncation stays impossible.
+    """
+    known = [d for d in destinations if d.get("elevation_ft") is not None]
+    known.sort(key=lambda d: d["elevation_ft"], reverse=True)
+    return known[:cap]
+
+
+def _cap_detail(
+    count: int,
+    noun: str,
+    *,
+    has_polygon: bool,
+    has_custom: bool,
+    suggestion: tuple[int, int] | None = None,
+) -> str:
     """The over-cap refusal, advising only the remedies actually in play."""
     if has_polygon and has_custom:
         advice = "Draw a smaller polygon, narrow the elevation range, or trim the custom list."
@@ -85,10 +134,43 @@ def _cap_detail(count: int, noun: str, *, has_polygon: bool, has_custom: bool) -
         advice = "Draw a smaller polygon or narrow the elevation range."
     else:
         advice = "Trim the custom list or narrow the elevation range."
-    return (
+    detail = (
         f"This search covers {count:,} {noun}s. The analysis limit is "
-        f"{MAX_ANALYZE_PEAKS:,}. {advice}"
+        f"{MAX_ANALYZE_PEAKS:,} destinations. {advice}"
     )
+    if suggestion is not None:
+        floor, keeps = suggestion
+        detail += (
+            f" Setting a minimum elevation of {floor:,} ft would keep about "
+            f"{keeps:,} {noun}s."
+        )
+    return detail
+
+
+def _refusal_body(
+    count: int,
+    noun: str,
+    *,
+    has_polygon: bool,
+    has_custom: bool,
+    suggestion: tuple[int, int] | None,
+) -> dict:
+    """The structured 400 body (`AnalysisRefusal`) for an over-cap refusal."""
+    body = AnalysisRefusal(
+        detail=_cap_detail(
+            count,
+            noun,
+            has_polygon=has_polygon,
+            has_custom=has_custom,
+            suggestion=suggestion,
+        ),
+        found=count,
+        limit=MAX_ANALYZE_PEAKS,
+    )
+    if suggestion is not None:
+        body.suggested_min_elevation_ft = float(suggestion[0])
+        body.suggested_keeps = suggestion[1]
+    return body.model_dump()
 
 
 def _sort_key(sort_field: str, descending: bool = False):
@@ -162,6 +244,62 @@ async def _drain(queue: asyncio.Queue):
         if item is _STREAM_DONE:
             return
         yield item
+
+
+# Cloudflare closes proxied connections idle for ~100 seconds, and a paced
+# analysis can legitimately go quiet for most of a minute while the weighted
+# budget refills. Emitted often enough to keep a healthy margin.
+KEEPALIVE_INTERVAL_S = 25.0
+
+
+async def _with_keepalive(source, interval_s: float = KEEPALIVE_INTERVAL_S):
+    """Re-yield `source`, inserting a `keepalive` event during silences.
+
+    Consumers that switch on the event `type` ignore it by construction; its
+    only job is keeping proxy idle timers from killing a paced stream.
+    """
+    iterator = source.__aiter__()
+    next_item = asyncio.ensure_future(anext(iterator))
+    try:
+        while True:
+            try:
+                item = await asyncio.wait_for(asyncio.shield(next_item), interval_s)
+            except TimeoutError:
+                yield _sse("keepalive")
+                continue
+            except StopAsyncIteration:
+                return
+            yield item
+            next_item = asyncio.ensure_future(anext(iterator))
+    finally:
+        next_item.cancel()
+
+
+async def _attach_aqi(
+    results: list[DestinationResult],
+    times: list[int],
+    start_dt,
+    end_dt,
+) -> None:
+    """Fetch AQI for exactly the rows being returned and merge it in.
+
+    The lazy half of ranking-then-AQI: when the sort key is not an AQI
+    metric, air quality is display data for the top rows only, so fetching
+    it for every candidate (as the pre-#180 code did) doubled the weighted
+    Open-Meteo spend for nothing. Best-effort like all AQI: the batch fetch
+    degrades to nulls rather than raising.
+    """
+    if not results:
+        return
+    dests = [{"latitude": r.latitude, "longitude": r.longitude} for r in results]
+    aqi_list = await air_quality.fetch_aqi_batch(dests, start_dt, end_dt)
+    for row, aqi in zip(results, aqi_list):
+        if not aqi:
+            continue
+        row.aqi_avg = aqi.get("aqi_avg")
+        row.aqi_max = aqi.get("aqi_max")
+        if row.series is not None:
+            row.series.aqi = _aligned_aqi(times, aqi.get("series"))
 
 
 def _canonical_times(wx_list: list) -> list[int]:
@@ -256,12 +394,17 @@ def _assemble(
         "types arrive as `data:` lines carrying a JSON object with a `type` "
         "field:\n\n"
         "- `status` — a human-readable phase message in `message`, plus an "
-        "optional `detail` line when the search falls over to a backup map "
-        "server\n"
+        "optional `detail` line for mid-phase news: a fall-over to a backup "
+        "map server, or a weather-quota pace wait with its resume estimate\n"
         "- `progress` — `processed`, `total`, and `percent` counters\n"
+        "- `keepalive` — periodic no-op during quiet stretches (a paced "
+        "analysis can wait most of a minute for quota); ignore it\n"
         "- `result` — the terminal success event, carrying a full "
         "`AnalyzeResponse` in `data`\n"
-        "- `error` — the terminal failure event, with the reason in `message`\n\n"
+        "- `error` — the terminal failure event, with the reason in "
+        "`message`; an over-limit refusal also carries the "
+        "`AnalysisRefusal` remedy fields, and an upstream rate limit "
+        "carries `scope` and `retry_after_s`\n\n"
         "Exactly one `result` or one `error` ends the stream.\n\n"
         "Rate limiting applies before the stream opens: a client past the "
         "per-address limit gets a plain **429 with `Retry-After`**, exactly as "
@@ -383,17 +526,27 @@ async def analyze_stream(request: AnalyzeRequest):
             if not destinations:
                 yield _sse("result", data=AnalyzeResponse(results=[], total_queried=0).model_dump())
                 return
+            total_found: int | None = None
+            truncated = False
             if len(destinations) > MAX_ANALYZE_PEAKS:
-                yield _sse(
-                    "error",
-                    message=_cap_detail(
+                if request.top_by_elevation:
+                    total_found = len(destinations)
+                    destinations = _truncate_top_elevation(destinations, MAX_ANALYZE_PEAKS)
+                    truncated = True
+                else:
+                    suggestion = _suggest_elevation_floor(destinations, MAX_ANALYZE_PEAKS)
+                    body = _refusal_body(
                         len(destinations),
                         noun,
                         has_polygon=request.destination_type != DestinationType.custom,
                         has_custom=bool(request.custom_destinations),
-                    ),
-                )
-                return
+                        suggestion=suggestion,
+                    )
+                    # The error event carries the same structured remedy
+                    # fields the HTTP 400 does, message first so a plain
+                    # consumer can just render it.
+                    yield _sse("error", message=body.pop("detail"), **body)
+                    return
 
             total_queried = len(destinations)
 
@@ -421,6 +574,17 @@ async def analyze_stream(request: AnalyzeRequest):
                     )
                 )
 
+            async def on_pace(seconds: int):
+                # A pace wait is silence the user would otherwise read as a
+                # hang; the detail line narrates it under the phase heading.
+                await progress_queue.put(
+                    _sse(
+                        "status",
+                        message="Retrieving Forecasts…",
+                        detail=f"Weather service quota: resuming in about {seconds}s",
+                    )
+                )
+
             async def run_fetch():
                 try:
                     return await weather.fetch_weather_batch(
@@ -428,16 +592,25 @@ async def analyze_stream(request: AnalyzeRequest):
                         request.start_datetime,
                         request.end_datetime,
                         on_progress,
+                        on_pace,
                     )
                 finally:
                     await progress_queue.put(_STREAM_DONE)
 
-            # Air quality rides alongside the weather fetch; it never raises
-            # (failures degrade to None entries), so awaiting it is safe.
-            aqi_task = asyncio.create_task(
-                air_quality.fetch_aqi_batch(
-                    destinations, request.start_datetime, request.end_datetime
+            # Air quality is fetched for every candidate ONLY when it is the
+            # ranking key (the order cannot be known without it). Otherwise it
+            # is display data for the returned rows alone and is attached
+            # after the cut — for a 908-peak default-sort analysis that is the
+            # difference between ~1,800 and ~1,000 weighted calls.
+            aqi_sort = request.sort_by.value.startswith("aqi")
+            aqi_task = (
+                asyncio.create_task(
+                    air_quality.fetch_aqi_batch(
+                        destinations, request.start_datetime, request.end_datetime
+                    )
                 )
+                if aqi_sort
+                else None
             )
             fetch_task = asyncio.create_task(run_fetch())
             try:
@@ -445,9 +618,16 @@ async def analyze_stream(request: AnalyzeRequest):
                     yield event
 
                 wx_list = await fetch_task
-                aqi_list = await aqi_task
+                aqi_list = (
+                    await aqi_task if aqi_task is not None else [None] * len(destinations)
+                )
             except ratelimit.BudgetExhausted as e:
                 yield _sse("error", message=e.message)
+                return
+            except UpstreamRateLimited as e:
+                yield _sse(
+                    "error", message=e.message, scope=e.scope, retry_after_s=e.retry_after_s
+                )
                 return
             except UpstreamError as e:
                 yield _sse("error", message=e.message)
@@ -460,7 +640,7 @@ async def analyze_stream(request: AnalyzeRequest):
                 # If the client disconnected (generator torn down) before the
                 # fetch finished, don't leave the request running in the background.
                 for task in (fetch_task, aqi_task):
-                    if not task.done():
+                    if task is not None and not task.done():
                         task.cancel()
 
             results, times = _assemble(
@@ -468,11 +648,19 @@ async def analyze_stream(request: AnalyzeRequest):
             )
             results.sort(key=_sort_key(request.sort_by.value, request.sort_desc))
             results = results[: request.limit]
+            if not aqi_sort:
+                await _attach_aqi(
+                    results, times, request.start_datetime, request.end_datetime
+                )
 
             yield _sse(
                 "result",
                 data=AnalyzeResponse(
-                    results=results, total_queried=total_queried, times=times
+                    results=results,
+                    total_queried=total_queried,
+                    times=times,
+                    total_found=total_found,
+                    truncated=truncated,
                 ).model_dump(),
             )
 
@@ -481,7 +669,7 @@ async def analyze_stream(request: AnalyzeRequest):
             yield _sse("error", message=f"Unexpected error: {e}")
 
     return StreamingResponse(
-        generate(),
+        _with_keepalive(generate()),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -506,10 +694,12 @@ async def analyze_stream(request: AnalyzeRequest):
         429: {
             "model": ErrorResponse,
             "description": (
-                "This client is analyzing faster than the per-address limit "
-                "(shared with `POST /api/analyze/stream`). `Retry-After` says "
-                "how many seconds to wait. `GET /api/capabilities` publishes "
-                "the limit."
+                "Either this client is analyzing faster than the per-address "
+                "limit (shared with `POST /api/analyze/stream`), or the "
+                "upstream weather service rate-limited this deployment "
+                "mid-analysis. `Retry-After` says how many seconds to wait "
+                "in both cases. `GET /api/capabilities` publishes the "
+                "per-address limit."
             ),
         },
         503: {
@@ -522,13 +712,17 @@ async def analyze_stream(request: AnalyzeRequest):
             ),
         },
         400: {
-            "model": ErrorResponse,
+            "model": AnalysisRefusal,
             "description": (
                 "The request parsed but does not describe a runnable analysis: "
                 "the window is inverted, the destination type is not "
                 "discoverable, `custom_destinations` is missing for a custom "
                 "analysis, the elevation band excludes every candidate, or the "
-                "candidate count exceeds the cap."
+                "candidate count exceeds the cap. Over-cap refusals carry the "
+                "structured remedy fields (`found`, `limit`, and a computed "
+                "elevation-floor suggestion when one exists); send "
+                "`top_by_elevation: true` to elect an explicit top-N analysis "
+                "instead."
             ),
         },
         502: {
@@ -594,46 +788,73 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     if not destinations:
         log.info("No destinations to analyze (none found, or none within the elevation band)")
         return AnalyzeResponse(results=[], total_queried=0)
+    total_found: int | None = None
+    truncated = False
     if len(destinations) > MAX_ANALYZE_PEAKS:
         noun = "destination" if request.custom_destinations else _noun(request.destination_type)
-        raise HTTPException(
-            status_code=400,
-            detail=_cap_detail(
-                len(destinations),
-                noun,
-                has_polygon=request.destination_type != DestinationType.custom,
-                has_custom=bool(request.custom_destinations),
-            ),
-        )
+        if request.top_by_elevation:
+            total_found = len(destinations)
+            destinations = _truncate_top_elevation(destinations, MAX_ANALYZE_PEAKS)
+            truncated = True
+        else:
+            suggestion = _suggest_elevation_floor(destinations, MAX_ANALYZE_PEAKS)
+            return JSONResponse(
+                status_code=400,
+                content=_refusal_body(
+                    len(destinations),
+                    noun,
+                    has_polygon=request.destination_type != DestinationType.custom,
+                    has_custom=bool(request.custom_destinations),
+                    suggestion=suggestion,
+                ),
+            )
 
     total_queried = len(destinations)
     log.info("Fetching weather for %d destination(s)", total_queried)
 
-    aqi_task = asyncio.create_task(
-        air_quality.fetch_aqi_batch(
-            destinations, request.start_datetime, request.end_datetime
+    # AQI for every candidate only when it is the ranking key; otherwise it is
+    # attached to just the returned rows after the cut (see _attach_aqi).
+    aqi_sort = request.sort_by.value.startswith("aqi")
+    aqi_task = (
+        asyncio.create_task(
+            air_quality.fetch_aqi_batch(
+                destinations, request.start_datetime, request.end_datetime
+            )
         )
+        if aqi_sort
+        else None
     )
     try:
         wx_list = await weather.fetch_weather_batch(
             destinations, request.start_datetime, request.end_datetime
         )
     except ratelimit.BudgetExhausted as e:
-        aqi_task.cancel()
+        if aqi_task is not None:
+            aqi_task.cancel()
         raise HTTPException(
             status_code=503,
             detail=e.message,
             headers={"Retry-After": str(e.retry_after_s)},
         )
+    except UpstreamRateLimited as e:
+        if aqi_task is not None:
+            aqi_task.cancel()
+        raise HTTPException(
+            status_code=429,
+            detail=e.message,
+            headers={"Retry-After": str(e.retry_after_s)},
+        )
     except UpstreamError as e:
-        aqi_task.cancel()
+        if aqi_task is not None:
+            aqi_task.cancel()
         raise HTTPException(status_code=502, detail=e.message)
     except Exception as e:  # noqa: BLE001 — any weather failure maps to a 502
-        aqi_task.cancel()
+        if aqi_task is not None:
+            aqi_task.cancel()
         raise HTTPException(
             status_code=502, detail=f"Weather API request failed: {e}"
         )
-    aqi_list = await aqi_task
+    aqi_list = await aqi_task if aqi_task is not None else [None] * len(destinations)
 
     results, times = _assemble(
         destinations, wx_list, aqi_list, request.destination_type.value
@@ -641,6 +862,8 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     sort_field = request.sort_by.value
     results.sort(key=_sort_key(sort_field, request.sort_desc))
     results = results[: request.limit]
+    if not aqi_sort:
+        await _attach_aqi(results, times, request.start_datetime, request.end_datetime)
 
     def _fmt(r: DestinationResult) -> str:
         v = getattr(r, sort_field)
@@ -654,4 +877,10 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         _fmt(results[0]) if results else "—",
         _fmt(results[-1]) if results else "—",
     )
-    return AnalyzeResponse(results=results, total_queried=total_queried, times=times)
+    return AnalyzeResponse(
+        results=results,
+        total_queried=total_queried,
+        times=times,
+        total_found=total_found,
+        truncated=truncated,
+    )

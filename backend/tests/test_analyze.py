@@ -160,7 +160,7 @@ def _window():
 def stub_upstreams(monkeypatch):
     """Weather returns precip = destination latitude; AQI degrades to None."""
 
-    async def fake_wx(destinations, start, end, on_progress=None):
+    async def fake_wx(destinations, start, end, on_progress=None, on_pace=None):
         return [_wx(d["latitude"]) for d in destinations]
 
     async def fake_aqi(destinations, start, end):
@@ -265,7 +265,14 @@ def test_analyze_elevation_band_can_empty_results(stub_upstreams):
     }
     resp = client.post("/api/analyze", json=body)
     assert resp.status_code == 200
-    assert resp.json() == {"results": [], "total_queried": 0, "error": None, "times": []}
+    assert resp.json() == {
+        "results": [],
+        "total_queried": 0,
+        "error": None,
+        "times": [],
+        "total_found": None,
+        "truncated": False,
+    }
 
 
 def test_analyze_over_peak_cap_is_400(monkeypatch, stub_upstreams):

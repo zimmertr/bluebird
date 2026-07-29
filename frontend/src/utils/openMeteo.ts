@@ -19,10 +19,168 @@ const MAX_CONCURRENT_BATCHES = 4
 // The CAMS air-quality model publishes ~5 days; requesting past that 400s.
 const AQI_MAX_FORECAST_DAYS = 5
 
-// Thrown for any failure reaching Open-Meteo itself (network, CORS, HTTP,
-// malformed counts). useAnalyze treats this class — and only this class — as
-// "fall back to the server analysis".
+// Thrown only for failures that mean the browser genuinely cannot talk to
+// Open-Meteo: network errors, DNS, a blocked CORS preflight, malformed
+// responses. useAnalyze treats this class — and only this class — as "fall
+// back to the server analysis", because a different network path can help
+// with exactly these. It must NEVER cover HTTP 429: rate limiting means the
+// service is reachable and the quota is spent, and the 2026-07-29 incident
+// (issue #180) was this class swallowing 429s and pointing the retry at a
+// server sharing the same exhausted IP.
 export class OpenMeteoUnreachable extends Error {}
+
+// Thrown for HTTP 429: reachable, refusing volume. scope names which quota
+// tripped (Open-Meteo's 429 body says "Minutely/Hourly/Daily API request
+// limit exceeded"), which decides whether waiting can help.
+export class OpenMeteoRateLimited extends Error {
+  scope: 'minutely' | 'hourly' | 'daily' | 'monthly' | null
+  retryAfterS: number
+  constructor(message: string, scope: OpenMeteoRateLimited['scope'], retryAfterS: number) {
+    super(message)
+    this.scope = scope
+    this.retryAfterS = retryAfterS
+  }
+}
+
+// Any other HTTP status: reachable, failed. The server shares the same
+// upstream, so a fallback would fail identically — surface it instead.
+export class OpenMeteoHttpError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.status = status
+  }
+}
+
+// ── Weighted-call pacing ───────────────────────────────────────────────────
+
+// Open-Meteo bills weighted calls, not HTTP requests: one location in a batch
+// is one call, times max(1, days/14) x max(1, vars/10). Mirror of
+// backend/app/services/openmeteo_weight.py — keep them in sync.
+export function callWeight(
+  nLocations: number,
+  startMs: number,
+  endMs: number,
+  nVariables: number,
+): number {
+  const days = Math.max(
+    1,
+    Math.floor((Date.parse(utcDate(endMs)) - Date.parse(utcDate(startMs))) / 86_400_000) + 1,
+  )
+  return nLocations * Math.max(1, days / 14) * Math.max(1, nVariables / 10)
+}
+
+// The visitor's own per-IP budget is 600 weighted calls/minute per service;
+// 550 leaves margin for other tabs and clock skew. Spending is paced, not
+// burst: a bucket holding one minute of budget refills continuously, callers
+// deduct immediately and sleep off any deficit (negative tokens serialize
+// concurrent batches fairly). This protects the visitor's own quota — the
+// server-side budgets protect the deployment's.
+const CLIENT_WEIGHT_PER_MINUTE = 550
+
+class WeightedBudget {
+  private tokens: number
+  private updated: number
+  constructor(private perMinute: number) {
+    this.tokens = perMinute
+    this.updated = performance.now()
+  }
+  private refill(now: number): void {
+    const rate = this.perMinute / 60_000 // tokens per ms
+    this.tokens = Math.min(this.perMinute, this.tokens + (now - this.updated) * rate)
+    this.updated = now
+  }
+  /** Deduct `weight`, sleeping off any deficit. Reports waits via onWait. */
+  async acquire(
+    weight: number,
+    signal?: AbortSignal,
+    onWait?: (seconds: number) => void,
+  ): Promise<void> {
+    const now = performance.now()
+    this.refill(now)
+    const deficit = weight - this.tokens
+    this.tokens -= weight
+    if (deficit <= 0) return
+    const waitMs = (deficit / this.perMinute) * 60_000
+    if (waitMs > 3_000) onWait?.(Math.ceil(waitMs / 1000))
+    await abortableSleep(waitMs, signal)
+  }
+}
+
+// Module-level: the budget is the visitor's wall-clock quota, so it must
+// survive across analyses, not reset per click.
+let weatherBudget = new WeightedBudget(CLIENT_WEIGHT_PER_MINUTE)
+let aqiBudget = new WeightedBudget(CLIENT_WEIGHT_PER_MINUTE)
+
+function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Aborted', 'AbortError'))
+      return
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    function onAbort() {
+      clearTimeout(timer)
+      reject(new DOMException('Aborted', 'AbortError'))
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+// ── Per-location result cache ──────────────────────────────────────────────
+
+// Repeat clicks on an unchanged polygon and window cost zero upstream calls.
+// Keys are exact coordinates on purpose: Open-Meteo interpolates per
+// coordinate (including elevation downscaling), so a rounded key would serve
+// one peak its neighbor's forecast and silently change displayed values.
+// TTL sits under Open-Meteo's roughly hourly model-update cadence.
+const CACHE_TTL_MS = 15 * 60_000
+const CACHE_MAX_ENTRIES = 5_000
+// "No data for this window" is a real cached answer, distinct from a miss.
+const NO_DATA = 'NO_DATA'
+
+type CacheEntry = { expires: number; value: WeatherResult | AqiResult | typeof NO_DATA }
+const forecastCache = new Map<string, CacheEntry>()
+
+function cacheKey(
+  service: 'weather' | 'aqi',
+  c: Coordinate,
+  startMs: number,
+  endMs: number,
+): string {
+  return `${service}|${c.latitude}|${c.longitude}|${startMs}|${endMs}`
+}
+
+function cacheGet(key: string): CacheEntry['value'] | undefined {
+  const entry = forecastCache.get(key)
+  if (!entry) return undefined
+  if (performance.now() >= entry.expires) {
+    forecastCache.delete(key)
+    return undefined
+  }
+  return entry.value
+}
+
+function cachePut(key: string, value: CacheEntry['value']): void {
+  forecastCache.set(key, { expires: performance.now() + CACHE_TTL_MS, value })
+  if (forecastCache.size > CACHE_MAX_ENTRIES) {
+    for (const oldest of forecastCache.keys()) {
+      forecastCache.delete(oldest)
+      if (forecastCache.size <= CACHE_MAX_ENTRIES) break
+    }
+  }
+}
+
+// Test hook: budgets and cache are module state that must not leak between
+// unit tests.
+export function resetOpenMeteoState(): void {
+  forecastCache.clear()
+  weatherBudget = new WeightedBudget(CLIENT_WEIGHT_PER_MINUTE)
+  aqiBudget = new WeightedBudget(CLIENT_WEIGHT_PER_MINUTE)
+}
 
 // ── Parity primitives ──────────────────────────────────────────────────────
 
@@ -286,15 +444,21 @@ function chunked<T>(items: readonly T[], size: number): T[][] {
 }
 
 // Run `tasks` with at most `limit` in flight, resolving to results in input
-// order. The first rejection wins and the shared signal stops the rest.
+// order. Workers check the signal before pulling each task, so an abort (or
+// a failure that aborts the shared controller upstream) actually stops the
+// queue — the pre-#180 version's comment claimed this while the workers
+// churned every remaining task, which is what kept burning quota after the
+// first 429 during the incident.
 async function pooled<T>(
   tasks: Array<() => Promise<T>>,
   limit: number,
+  signal?: AbortSignal,
 ): Promise<T[]> {
   const results = new Array<T>(tasks.length)
   let next = 0
   async function worker(): Promise<void> {
     while (next < tasks.length) {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
       const index = next++
       results[index] = await tasks[index]()
     }
@@ -309,25 +473,63 @@ function utcDate(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10)
 }
 
+// Open-Meteo's 429 body names the tripped quota: {"reason": "Minutely API
+// request limit exceeded..."}. Best-effort parse; an unreadable body still
+// classifies as a rate limit, just without a scope.
+async function classify429(res: Response): Promise<OpenMeteoRateLimited> {
+  let scope: OpenMeteoRateLimited['scope'] = null
+  try {
+    const body = (await res.json()) as { reason?: string }
+    const match = /\b(minutely|hourly|daily|monthly)\b/i.exec(body.reason ?? '')
+    if (match) scope = match[1].toLowerCase() as NonNullable<OpenMeteoRateLimited['scope']>
+  } catch {
+    // body unreadable; scope stays null
+  }
+  const floors: Record<string, number> = { minutely: 60, hourly: 900, daily: 3600, monthly: 3600 }
+  let retryAfterS = floors[scope ?? ''] ?? 60
+  // Optional-chained: a real Response always has headers, but keeping this
+  // tolerant costs nothing and minimal fetch stubs in tests omit them.
+  const header = res.headers?.get?.('Retry-After')
+  if (header && Number.isFinite(Number(header))) retryAfterS = Math.max(1, Math.ceil(Number(header)))
+  const message =
+    scope === 'hourly'
+      ? 'The weather service has used up its hourly request quota for your connection. Try again after the top of the hour, or analyze a smaller area.'
+      : scope === 'daily' || scope === 'monthly'
+      ? `The weather service has used up its ${scope} request quota for your connection. Try again later, or analyze a smaller area.`
+      : 'The weather service is rate-limiting requests from your connection. Bluebird pauses and resumes automatically; if this keeps failing, wait a minute and try again.'
+  return new OpenMeteoRateLimited(message, scope, retryAfterS)
+}
+
 async function getJson(
   url: string,
   params: Record<string, string>,
   signal: AbortSignal | undefined,
 ): Promise<unknown> {
   const qs = new URLSearchParams(params).toString()
-  // Network-level failures (offline, DNS, a blocked CORS preflight) reject
-  // the fetch promise with a TypeError rather than returning a response —
-  // that is the primary "corporate network" case the server fallback exists
-  // for, so it must map to OpenMeteoUnreachable exactly like an HTTP error.
+  // The error taxonomy the fallback decision hangs on (issue #180):
+  // - fetch rejecting with a TypeError = network/DNS/CORS = genuinely
+  //   unreachable from THIS browser; the server's different network path can
+  //   help, so it maps to OpenMeteoUnreachable.
+  // - HTTP 429 = reachable, quota spent = OpenMeteoRateLimited; a same-IP
+  //   server retry cannot help and must never be triggered by it.
+  // - any other HTTP status = reachable, failed = OpenMeteoHttpError; the
+  //   server talks to the same upstream, so surface it honestly instead.
   // Only a user cancel passes through untranslated.
   try {
     const res = await fetch(`${url}?${qs}`, { signal })
+    if (res.status === 429) throw await classify429(res)
     if (!res.ok) {
-      throw new OpenMeteoUnreachable(`Open-Meteo returned HTTP ${res.status}`)
+      throw new OpenMeteoHttpError(
+        res.status >= 500
+          ? `The weather service is having trouble on their end (HTTP ${res.status}). Try again shortly.`
+          : `The weather service returned an unexpected response (HTTP ${res.status}).`,
+        res.status,
+      )
     }
     return await res.json()
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') throw e
+    if (e instanceof OpenMeteoRateLimited || e instanceof OpenMeteoHttpError) throw e
     if (e instanceof OpenMeteoUnreachable) throw e
     throw new OpenMeteoUnreachable(
       `Open-Meteo request failed: ${e instanceof Error ? e.message : String(e)}`,
@@ -350,22 +552,62 @@ function asItems(data: unknown): HourlyPayload[] {
 export interface FetchWeatherOptions {
   signal?: AbortSignal
   onProgress?: (processed: number, total: number) => void
+  // The pacer or a minutely resume is about to sleep this many seconds.
+  onPace?: (seconds: number) => void
 }
 
-// Port of weather.fetch_weather_batch: any batch failure fails the whole
-// fetch (the caller falls back to the server path), unlike best-effort AQI.
+// getJson plus one automatic resume for a minutely 429: that quota refills
+// within the minute, so a single narrated wait usually completes the batch
+// instead of failing the analysis. Hourly/daily limits rethrow immediately —
+// no wait we are willing to impose can help those.
+async function getJsonWithResume(
+  url: string,
+  params: Record<string, string>,
+  signal: AbortSignal | undefined,
+  onPace?: (seconds: number) => void,
+): Promise<unknown> {
+  try {
+    return await getJson(url, params, signal)
+  } catch (e) {
+    if (!(e instanceof OpenMeteoRateLimited) || e.scope !== 'minutely') throw e
+    onPace?.(e.retryAfterS)
+    await abortableSleep(e.retryAfterS * 1000, signal)
+    return await getJson(url, params, signal)
+  }
+}
+
+// Port of weather.fetch_weather_batch: cache first, then paced fetches for
+// the misses; any batch failure fails the whole fetch, unlike best-effort
+// AQI. What the failure MEANS is the caller's decision, via the error class.
 export async function fetchWeather(
   destinations: readonly Coordinate[],
   startMs: number,
   endMs: number,
-  { signal, onProgress }: FetchWeatherOptions = {},
+  { signal, onProgress, onPace }: FetchWeatherOptions = {},
 ): Promise<WeatherResult[]> {
   if (destinations.length === 0) return []
-  const chunks = chunked(destinations, BATCH_SIZE)
-  let processed = 0
+
+  const results: WeatherResult[] = new Array(destinations.length).fill(null)
+  const missIdx: number[] = []
+  destinations.forEach((c, i) => {
+    const hit = cacheGet(cacheKey('weather', c, startMs, endMs))
+    if (hit === undefined) missIdx.push(i)
+    else results[i] = hit === NO_DATA ? null : (hit as WeatherResult)
+  })
+  const misses = missIdx.map((i) => destinations[i])
+  let processed = destinations.length - misses.length
+  if (processed > 0) onProgress?.(processed, destinations.length)
+  if (misses.length === 0) return results
+
+  const chunks = chunked(misses, BATCH_SIZE)
 
   const tasks = chunks.map((chunk) => async (): Promise<WeatherResult[]> => {
-    const data = await getJson(
+    await weatherBudget.acquire(
+      callWeight(chunk.length, startMs, endMs, 3),
+      signal,
+      onPace,
+    )
+    const data = await getJsonWithResume(
       FORECAST_URL,
       {
         ...coordParams(chunk),
@@ -378,6 +620,7 @@ export async function fetchWeather(
         timezone: 'UTC',
       },
       signal,
+      onPace,
     )
     const items = asItems(data)
     if (items.length !== chunk.length) {
@@ -385,18 +628,25 @@ export async function fetchWeather(
         `Open-Meteo returned ${items.length} results for ${chunk.length} locations`,
       )
     }
-    const results = items.map((item): WeatherResult => {
+    const chunkResults = items.map((item): WeatherResult => {
       const metrics = weatherMetrics(item, startMs, endMs)
       if (metrics === null) return null
       return { ...metrics, series: weatherSeries(item, startMs, endMs) }
     })
     processed += chunk.length
     onProgress?.(processed, destinations.length)
-    return results
+    return chunkResults
   })
 
-  const perChunk = await pooled(tasks, MAX_CONCURRENT_BATCHES)
-  return perChunk.flat()
+  const perChunk = await pooled(tasks, MAX_CONCURRENT_BATCHES, signal)
+  const fetched = perChunk.flat()
+  fetched.forEach((r, j) => {
+    cachePut(cacheKey('weather', misses[j], startMs, endMs), r ?? NO_DATA)
+  })
+  missIdx.forEach((i, j) => {
+    results[i] = fetched[j]
+  })
+  return results
 }
 
 export interface FetchAqiOptions {
@@ -407,7 +657,12 @@ export interface FetchAqiOptions {
 
 // Port of air_quality.fetch_aqi_batch: best-effort by design. Any failure —
 // network, HTTP, a miscounted response — degrades to nulls and never throws
-// (an AbortError still propagates so cancel works).
+// (an AbortError still propagates so cancel works). The first rate limit
+// short-circuits every remaining batch: once the AQI quota is spent, more
+// requests only burn budget to learn the same thing (the incident's zombie
+// AQI batches drained the next minute's budget exactly that way). AQI never
+// waits out a minutely limit either — it is supplementary, and delaying the
+// ranked results a minute for a display column would invert its priority.
 export async function fetchAqi(
   destinations: readonly Coordinate[],
   startMs: number,
@@ -422,9 +677,25 @@ export async function fetchAqi(
   const reqEnd = utcDate(endMs) < endCap ? utcDate(endMs) : endCap
   if (reqStart > reqEnd) return destinations.map(() => null)
 
-  const chunks = chunked(destinations, BATCH_SIZE)
-  const tasks = chunks.map((chunk) => async (): Promise<AqiResult[]> => {
+  const results: AqiResult[] = new Array(destinations.length).fill(null)
+  const missIdx: number[] = []
+  destinations.forEach((c, i) => {
+    const hit = cacheGet(cacheKey('aqi', c, startMs, endMs))
+    if (hit === undefined) missIdx.push(i)
+    else results[i] = hit === NO_DATA ? null : (hit as AqiResult)
+  })
+  const misses = missIdx.map((i) => destinations[i])
+  if (misses.length === 0) return results
+
+  let rateLimited = false
+  const chunks = chunked(misses, BATCH_SIZE)
+  const tasks = chunks.map((chunk) => async (): Promise<{
+    rows: AqiResult[]
+    cacheable: boolean
+  }> => {
+    if (rateLimited) return { rows: chunk.map(() => null), cacheable: false }
     try {
+      await aqiBudget.acquire(callWeight(chunk.length, startMs, endMs, 1), signal)
       const data = await getJson(
         AIR_QUALITY_URL,
         {
@@ -437,18 +708,38 @@ export async function fetchAqi(
         signal,
       )
       const items = asItems(data)
-      if (items.length !== chunk.length) return chunk.map(() => null)
-      return items.map((item): AqiResult => {
-        const metrics = aqiMetrics(item, startMs, endMs)
-        if (metrics === null) return null
-        return { ...metrics, series: aqiSeries(item, startMs, endMs) }
-      })
+      if (items.length !== chunk.length) {
+        return { rows: chunk.map(() => null), cacheable: false }
+      }
+      return {
+        rows: items.map((item): AqiResult => {
+          const metrics = aqiMetrics(item, startMs, endMs)
+          if (metrics === null) return null
+          return { ...metrics, series: aqiSeries(item, startMs, endMs) }
+        }),
+        cacheable: true,
+      }
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') throw e
-      return chunk.map(() => null)
+      if (e instanceof OpenMeteoRateLimited) rateLimited = true
+      return { rows: chunk.map(() => null), cacheable: false }
     }
   })
 
-  const perChunk = await pooled(tasks, MAX_CONCURRENT_BATCHES)
-  return perChunk.flat()
+  const perChunk = await pooled(tasks, MAX_CONCURRENT_BATCHES, signal)
+  let offset = 0
+  for (const { rows, cacheable } of perChunk) {
+    rows.forEach((r, k) => {
+      const missPosition = offset + k
+      // Only real answers are cached; a failed or skipped chunk's nulls mean
+      // "unknown", and freezing an outage into the TTL would hide AQI for 15
+      // minutes after the quota recovers.
+      if (cacheable) {
+        cachePut(cacheKey('aqi', misses[missPosition], startMs, endMs), r ?? NO_DATA)
+      }
+      results[missIdx[missPosition]] = r
+    })
+    offset += rows.length
+  }
+  return results
 }

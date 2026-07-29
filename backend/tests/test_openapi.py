@@ -55,10 +55,15 @@ def test_analyze_declares_the_errors_it_actually_raises(schema):
     # to promise only 200 and 422. A generated client had no model for the two
     # statuses it would actually meet in the wild.
     responses = schema["paths"]["/api/analyze"]["post"]["responses"]
-    assert {"200", "400", "422", "502"} <= set(responses)
-    for status in ("400", "502"):
-        content = responses[status]["content"]["application/json"]
-        assert content["schema"]["$ref"].endswith("ErrorResponse")
+    assert {"200", "400", "422", "429", "502", "503"} <= set(responses)
+    # The over-limit 400 carries structured remedy fields (issue #180); the
+    # transient 502 stays the plain error shape.
+    assert responses["400"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "AnalysisRefusal"
+    )
+    assert responses["502"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "ErrorResponse"
+    )
 
 
 def test_geocode_declares_its_upstream_failure(schema):

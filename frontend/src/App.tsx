@@ -7,6 +7,7 @@ import TimeSeriesChart from './components/TimeSeriesChart'
 import WelcomeModal from './components/WelcomeModal'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
+import { useCapabilities } from './hooks/useCapabilities'
 import { useChartSelection } from './hooks/useChartSelection'
 import { useFireProximity } from './hooks/useFireProximity'
 import { useSearchedPlaces } from './hooks/useSearchedPlaces'
@@ -204,7 +205,27 @@ export default function App() {
     document.addEventListener('pointercancel', onUp)
   }
 
-  const { analyze, cancel, retry, reset, analyzed, loading, error, response, statusMessage, statusDetail, progress } = useAnalyze()
+  // Live limits from /api/capabilities: the analysis cap gates the client-side
+  // paths and the results knob's ceiling, so a server recalibration reaches
+  // the UI without a frontend release.
+  const caps = useCapabilities()
+  const {
+    analyze,
+    cancel,
+    retry,
+    retryWithFloor,
+    retryTopByElevation,
+    reset,
+    analyzed,
+    loading,
+    error,
+    refusal,
+    response,
+    statusMessage,
+    statusDetail,
+    progress,
+    paceEndMs,
+  } = useAnalyze(caps.maxDestinations)
 
   // Places searched by name — the third destination input. Searching registers
   // the place (map dot + URL persistence); its forecast joins the next Analyze,
@@ -264,6 +285,10 @@ export default function App() {
     statusDetail,
     elapsedS: elapsed,
     rankedProgress: progress ? { processed: progress.processed, total: progress.total } : null,
+    // Live countdown while the client pacer sleeps off a quota deficit; the
+    // 250ms elapsed ticker below keeps this recomputing.
+    paceRemainingS:
+      paceEndMs !== null ? Math.max(0, Math.ceil((paceEndMs - Date.now()) / 1000)) : null,
   })
 
   useEffect(() => {
@@ -643,6 +668,23 @@ export default function App() {
           // while it runs. Searches don't announce, so this stays false for them.
           loading={loading}
           error={error}
+          refusal={refusal}
+          onRetryWithFloor={(ft) => {
+            // Sync the panel/URL state so the applied floor is visible and
+            // survives, then re-run from the request snapshot (state updates
+            // land asynchronously, so the re-run cannot read them).
+            setMinElevationFt(ft)
+            retryWithFloor(ft)
+          }}
+          onRetryTopByElevation={retryTopByElevation}
+          maxLimit={caps.maxLimit}
+          totalFound={response?.total_found}
+          truncated={response?.truncated}
+          aqiAllNull={
+            response !== null &&
+            results.length > 0 &&
+            results.every((r) => r.aqi_avg == null)
+          }
           onAnalyze={() => {
             // On mobile the controls are an off-canvas drawer — close it so the
             // user sees the map/results. On desktop the panel is docked; leave it.

@@ -9,6 +9,7 @@ import httpx
 
 from app import ratelimit
 from app.models import DestinationType, GeoPolygon
+from app.services import cache
 from app.services.errors import PartialResultError, UpstreamError, classify_http_error
 
 log = logging.getLogger(__name__)
@@ -144,6 +145,24 @@ async def query_osm(
             f"Destination type '{destination_type.value}' is not yet implemented."
         )
 
+    # Discovery is cached post-parse for ~10 minutes: the browser flow calls
+    # /api/destinations and its server fallback re-runs the identical query
+    # seconds later, and repeat Analyze clicks re-run it every minute. Only
+    # complete results can land here — a partial (remark) response raises in
+    # _post_with_fallback before this point. The cached list is returned as a
+    # copy so callers' filtering never mutates the shared entry.
+    cache_key = cache.discovery_key(
+        polygon.coordinates[0], destination_type.value
+    )
+    cached = cache.DISCOVERY_CACHE.get(cache_key)
+    if cached is not None:
+        log.info(
+            "OSM discovery served from cache: %d destination(s) for type=%s",
+            len(cached),
+            destination_type.value,
+        )
+        return list(cached)
+
     poly_str = _polygon_to_overpass(polygon)
     query = _QUERIES[destination_type].format(poly=poly_str)
 
@@ -194,6 +213,7 @@ async def query_osm(
         log.trace("  OSM element: %s (%.4f, %.4f) ele=%s", name, lat, lon, elevation_ft)  # type: ignore[attr-defined]
 
     log.info("OSM returned %d named destination(s)", len(results))
+    cache.DISCOVERY_CACHE.put(cache_key, list(results))
     return results
 
 

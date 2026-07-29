@@ -426,11 +426,14 @@ def test_gate_zero_interval_is_a_noop():
 
 def test_capabilities_publishes_live_limiter_values(monkeypatch):
     monkeypatch.setattr(ratelimit, "ANALYZE_LIMITER", ratelimit.RateLimiter(12, 6))
+    monkeypatch.setattr(ratelimit, "DESTINATIONS_LIMITER", ratelimit.RateLimiter(30, 10))
     monkeypatch.setattr(ratelimit, "GEOCODE_LIMITER", ratelimit.RateLimiter(30, 10))
     rate = client.get("/api/capabilities").json()["limits"]["rate"]
     assert rate == {
         "analyze_per_minute": 12,
         "analyze_burst": 6,
+        "destinations_per_minute": 30,
+        "destinations_burst": 10,
         "geocode_per_minute": 30,
         "geocode_burst": 10,
     }

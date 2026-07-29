@@ -46,6 +46,10 @@ export interface AnalyzeRequest {
   // Elevation band, filtered server-side before the weather fetch
   min_elevation_ft?: number | null
   max_elevation_ft?: number | null
+  // Explicit opt-in: an over-limit candidate set keeps its highest-elevation
+  // rows up to the analysis cap instead of refusing. The response then says
+  // truncated: true with the pre-cut count in total_found — never silent.
+  top_by_elevation?: boolean
 }
 
 // Per-hour values over the analyzed window, aligned index-for-index to
@@ -94,6 +98,22 @@ export interface AnalyzeResponse {
   // Shared hourly grid for every row's `series`, epoch milliseconds (UTC),
   // rendered in the viewer's local time.
   times?: number[]
+  // Pre-truncation candidate count when truncated is true; lets the header
+  // caption an elected top-N honestly ("top 1,500 of 2,340").
+  total_found?: number | null
+  // True only when the request opted into top_by_elevation and the found set
+  // exceeded the analysis cap.
+  truncated?: boolean
+}
+
+// Structured fields riding on an over-limit 400 (or the stream's error
+// event) so the refusal panel can offer working remedies instead of a dead
+// retry. Mirrors the backend's AnalysisRefusal model.
+export interface RefusalFields {
+  found?: number | null
+  limit?: number | null
+  suggested_min_elevation_ft?: number | null
+  suggested_keeps?: number | null
 }
 
 // One candidate from POST /api/destinations: discovery without forecasts.
@@ -110,4 +130,6 @@ export interface DiscoveredDestination {
 export interface DestinationsResponse {
   destinations: DiscoveredDestination[]
   total: number
+  total_found?: number | null
+  truncated?: boolean
 }

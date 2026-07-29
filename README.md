@@ -182,12 +182,17 @@ in detail in [`docs/TRAFFIC.md`](docs/TRAFFIC.md)):
 | `LOG_LEVEL` | `WARNING` | Log verbosity: `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. |
 | `RATE_LIMIT_ANALYZE_PER_MINUTE` | `12` | Sustained analyze requests per client address per minute, shared by `POST /api/analyze` and `/api/analyze/stream`. `0` disables the limit. |
 | `RATE_LIMIT_ANALYZE_BURST` | `6` | Analyze requests an idle client may send back-to-back before the per-minute pace applies. |
+| `RATE_LIMIT_DESTINATIONS_PER_MINUTE` | `30` | Sustained `POST /api/destinations` requests per client address per minute, its own bucket so discovery never starves analyses. `0` disables the limit. |
+| `RATE_LIMIT_DESTINATIONS_BURST` | `10` | Destinations requests an idle client may send back-to-back. |
 | `RATE_LIMIT_GEOCODE_PER_MINUTE` | `30` | Sustained `GET /api/geocode` requests per client address per minute. `0` disables the limit. |
 | `RATE_LIMIT_GEOCODE_BURST` | `10` | Geocode requests an idle client may send back-to-back. |
-| `UPSTREAM_CONCURRENCY_WEATHER` | `8` | In-flight Open-Meteo weather batches, totalled across every concurrent analysis in the instance. |
-| `UPSTREAM_CONCURRENCY_AQI` | `8` | Same cap for the air-quality API. |
+| `UPSTREAM_CONCURRENCY_WEATHER` | `4` | In-flight Open-Meteo weather batches, totalled across every concurrent analysis in the instance. A fairness knob: the weighted budgets below are the actual rate protection. |
+| `UPSTREAM_CONCURRENCY_AQI` | `4` | Same cap for the air-quality API. |
+| `UPSTREAM_WEIGHT_PER_MINUTE_WEATHER` | `180` | Instance spend budget for the weather API in Open-Meteo's own unit (weighted calls: one location in a batch is one call). 550 safe-rate divided across 3 replicas; batches pace instead of bursting. `0` disables pacing. |
+| `UPSTREAM_WEIGHT_PER_MINUTE_AQI` | `180` | Same budget for the air-quality API, which meters separately. |
+| `UPSTREAM_WEIGHT_MAX_WAIT_S` | `120` | A single paced batch that would wait longer than this sheds with a 503 instead: something is wedged, not merely busy. |
 | `UPSTREAM_CONCURRENCY_OVERPASS` | `2` | In-flight Overpass queries per instance **per mirror**, matching each mirror operator's own per-IP slot policy (overpass-api.de documents 2). |
-| `NOMINATIM_MIN_INTERVAL_MS` | `2000` | Minimum spacing between Nominatim calls per instance, honoring their ~1 req/s policy across replicas. |
+| `NOMINATIM_MIN_INTERVAL_MS` | `3500` | Minimum spacing between Nominatim calls per instance: 3 replicas at 3.5s ≈ 0.86 req/s aggregate, honoring their absolute ~1 req/s policy (2s per pod quietly exceeded it). |
 | `UPSTREAM_BUDGET_WAIT_S` | `30` | How long an analysis may queue for a saturated upstream budget before shedding with a 503. |
 
 ## Log Levels

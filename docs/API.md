@@ -85,7 +85,7 @@ telling you.
 `POST /api/destinations` takes a `polygon`, a `destination_type`, and the
 optional elevation band, and returns every named candidate inside — the same
 never-sampled discovery an analysis starts with, under the same candidate
-ceiling and rate-limit bucket, just without the weather. It exists so a
+ceiling (with its own, cheaper rate-limit bucket), just without the weather. It exists so a
 client can attach forecasts itself: the bundled web app calls it and then
 fetches Open-Meteo **directly from the browser**, spending the visitor's own
 free-tier quota instead of this deployment's (falling back to
@@ -117,6 +117,24 @@ Supplying `elevation_ft` is optional but worth doing: it is what lets a row take
 part in a `min_elevation_ft` / `max_elevation_ft` filter. Rows with an unknown
 elevation are never filtered out.
 
+## When a search finds too much
+
+Every candidate gets a real forecast, so analyses are capped (1,500
+destinations; `GET /api/capabilities` publishes the live number). An
+over-limit search refuses with a `400` that carries remedies, not just
+words: `found`, `limit`, and — when one exists — a computed
+`suggested_min_elevation_ft` with `suggested_keeps`, the elevation floor
+that would bring the search under the cap. Prefer that filter: it keeps the
+ranking exact.
+
+If you would rather cut than filter, opt in explicitly with
+`"top_by_elevation": true` on `POST /api/analyze`, `/api/analyze/stream`, or
+`/api/destinations`: the highest-elevation candidates up to the cap are
+analyzed (rows with unknown elevation are dropped first), and the response
+says so with `"truncated": true` and the pre-cut count in `total_found`.
+Truncation never happens without that flag — an unasked-for cut would
+misrepresent the ranking.
+
 ## Watching a long analysis
 
 Discovery is never sampled. Every named destination inside the polygon gets a
@@ -138,11 +156,15 @@ data: {"type": "progress", "processed": 50, "total": 120, "percent": 41}
 data: {"type": "result", "data": {"results": [...], "total_queried": 120}}
 ```
 
-A `status` event may carry an optional `detail` line alongside `message`: it
-appears when the destination search fails over to a backup map server, which is
-also your cue that this analysis will run longer than usual. `message` stays the
+A `status` event may carry an optional `detail` line alongside `message`: a
+fall-over to a backup map server, or a weather-quota pace wait with its resume
+estimate ("Weather service quota: resuming in about 34s"). `message` stays the
 stable phase heading, so a client can key its UI on it and show `detail` as
-secondary text.
+secondary text. During quiet stretches — a paced analysis can legitimately
+wait most of a minute for quota — the stream emits `{"type": "keepalive"}`
+events; ignore them. A terminal `error` event carries the refusal remedy
+fields when the search was over-limit, or `scope` and `retry_after_s` when an
+upstream rate limit ended the analysis.
 
 One important catch: **check the status code first, then the stream.** A request
 that fails validation is rejected with a `422` before the stream opens, exactly
@@ -176,11 +198,11 @@ is expected, not an error, and an air-quality outage never fails an analysis.
 
 | Status | Meaning |
 | --- | --- |
-| `400` | The request parsed but does not describe a runnable analysis. Inverted window, undiscoverable destination type, missing `custom_destinations`, or too many candidates. |
+| `400` | The request parsed but does not describe a runnable analysis. Inverted window, undiscoverable destination type, missing `custom_destinations`, or too many candidates — the over-limit case carries the structured remedy fields described above. |
 | `404` | No such endpoint. The body names the path and points at `/docs`. |
 | `405` | Right path, wrong method. The `Allow` header lists what the path accepts. |
 | `422` | Request validation failed. Polygon too large, `limit` out of range, or a window outside the servable horizon. |
-| `429` | This client is sending faster than the per-address limit. The `Retry-After` header says how many seconds to wait, and the same request succeeds once it has elapsed. Analyze and geocode have separate buckets; `GET /api/capabilities` publishes both under `limits.rate`. |
+| `429` | Either this client is sending faster than the per-address limit, or the upstream weather service rate-limited the deployment mid-analysis. The `Retry-After` header says how many seconds to wait in both cases. Analyze, destinations, and geocode have separate per-address buckets; `GET /api/capabilities` publishes them under `limits.rate`. |
 | `502` | An upstream failed. Every Overpass mirror was unreachable, or the weather API did not answer. Transient, and worth retrying. |
 | `503` | The instance is at capacity: its budget of in-flight upstream calls stayed saturated too long, so the request was shed instead of queued forever. Transient by nature; `Retry-After` says when a retry is worthwhile. |
 
@@ -207,8 +229,9 @@ and checked in CI, so it always matches the code in the same commit.
 ## Please be considerate
 
 Every upstream Bluebird depends on (Overpass, Open-Meteo, Nominatim) is free,
-keyless, and run by people paying for it, and a single analysis can fan out to
-hundreds of forecast requests. Light per-address rate limits and an
+keyless, and run by people paying for it — and Open-Meteo meters weighted
+calls (each location in a batch counts), so a single large analysis can spend
+over a thousand of them. Light per-address rate limits and an
 instance-wide upstream budget enforce a floor of good behavior: past them you
 get a `429` or `503` with `Retry-After` instead of service. The numbers are
 published by `GET /api/capabilities` under `limits.rate`, and the full picture

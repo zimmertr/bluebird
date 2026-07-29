@@ -55,9 +55,13 @@ def _env_int(name: str, default: int) -> int:
 
 # Per-client limits. A per-minute value of 0 disables that limiter outright
 # (the dev/preview escape hatch). Defaults are generous for a human iterating
-# on a map and hostile to a hammering script.
+# on a map and hostile to a hammering script. Destinations (one Overpass
+# query, no forecasts) is far cheaper than a full analysis, so it gets its own
+# bucket instead of starving analyses from the shared one (issue #180).
 RATE_LIMIT_ANALYZE_PER_MINUTE = _env_int("RATE_LIMIT_ANALYZE_PER_MINUTE", 12)
 RATE_LIMIT_ANALYZE_BURST = _env_int("RATE_LIMIT_ANALYZE_BURST", 6)
+RATE_LIMIT_DESTINATIONS_PER_MINUTE = _env_int("RATE_LIMIT_DESTINATIONS_PER_MINUTE", 30)
+RATE_LIMIT_DESTINATIONS_BURST = _env_int("RATE_LIMIT_DESTINATIONS_BURST", 10)
 RATE_LIMIT_GEOCODE_PER_MINUTE = _env_int("RATE_LIMIT_GEOCODE_PER_MINUTE", 30)
 RATE_LIMIT_GEOCODE_BURST = _env_int("RATE_LIMIT_GEOCODE_BURST", 10)
 
@@ -65,12 +69,33 @@ RATE_LIMIT_GEOCODE_BURST = _env_int("RATE_LIMIT_GEOCODE_BURST", 10)
 # across every concurrent analysis; the Overpass value is applied PER MIRROR
 # (osm.py builds one budget per endpoint from it), since ~2-slots-per-IP is
 # each operator's own policy, not a shared pool across operators; the
-# Nominatim spacing honors their absolute ~1 req/s policy (2s per pod x 3
-# replicas ≈ 1/s aggregate from our one IP).
-UPSTREAM_CONCURRENCY_WEATHER = _env_int("UPSTREAM_CONCURRENCY_WEATHER", 8)
-UPSTREAM_CONCURRENCY_AQI = _env_int("UPSTREAM_CONCURRENCY_AQI", 8)
+# Nominatim spacing honors their absolute ~1 req/s policy (3.5s per pod x 3
+# replicas ≈ 0.86/s aggregate from our one IP; the previous 2s x 3 ≈ 1.5/s
+# quietly exceeded the policy).
+#
+# The in-flight caps are fairness/latency knobs, not the rate protection: the
+# weighted budgets below are what actually bound spend per minute (issue #180
+# — Open-Meteo bills weighted calls per location, not HTTP requests, so a
+# concurrency semaphore alone cannot bound the thing they meter).
+UPSTREAM_CONCURRENCY_WEATHER = _env_int("UPSTREAM_CONCURRENCY_WEATHER", 4)
+UPSTREAM_CONCURRENCY_AQI = _env_int("UPSTREAM_CONCURRENCY_AQI", 4)
 UPSTREAM_CONCURRENCY_OVERPASS = _env_int("UPSTREAM_CONCURRENCY_OVERPASS", 2)
-NOMINATIM_MIN_INTERVAL_MS = _env_int("NOMINATIM_MIN_INTERVAL_MS", 2000)
+NOMINATIM_MIN_INTERVAL_MS = _env_int("NOMINATIM_MIN_INTERVAL_MS", 3500)
+
+# Pod-wide Open-Meteo spend budgets, in the provider's own unit: weighted
+# calls, where one location in a batch is one call (times a factor for >14-day
+# windows or >10 variables — see services.openmeteo_weight). Their per-IP
+# budget is 600/min per service; 550 leaves margin, and the default divides it
+# by the 3 production replicas (documented slop: a canary rollout roughly
+# doubles pod count and therefore the cluster ceiling for its duration; the
+# #65 shared store is the durable exactness fix). 0 disables pacing.
+UPSTREAM_WEIGHT_PER_MINUTE_WEATHER = _env_int("UPSTREAM_WEIGHT_PER_MINUTE_WEATHER", 180)
+UPSTREAM_WEIGHT_PER_MINUTE_AQI = _env_int("UPSTREAM_WEIGHT_PER_MINUTE_AQI", 180)
+# A single acquire that would have to wait longer than this sheds instead —
+# at the default refill (180/min = 3/s) even a worst-case 50-location batch
+# behind a full queue clears in well under this bound, so tripping it means
+# something is genuinely wedged, not merely busy.
+UPSTREAM_WEIGHT_MAX_WAIT_S = _env_int("UPSTREAM_WEIGHT_MAX_WAIT_S", 120)
 
 # How long a request may queue for a saturated budget before shedding, and
 # the Retry-After a shed suggests. The wait keeps ordinary contention
@@ -301,13 +326,105 @@ class MinIntervalGate:
             await asyncio.sleep(wait)
 
 
+class WeightedBudget:
+    """Rolling spend budget for one provider, in weighted-call units.
+
+    A token bucket holding one minute of budget: capacity ``per_minute``,
+    refilled continuously at ``per_minute/60`` per second. ``acquire(weight)``
+    deducts immediately and, when the bucket has gone negative (callers ahead
+    in line already spent it), sleeps until the deficit refills — so bursts up
+    to one minute of budget pass instantly and anything beyond is *paced*, not
+    refused. Negative tokens are what serialize concurrent callers fairly on
+    the single event loop; no lock is needed for the same reason the other
+    classes here need none.
+
+    An acquire whose wait would exceed ``max_wait_s`` sheds with
+    :class:`BudgetExhausted` (something is wedged, not merely busy). A
+    ``per_minute`` of 0 disables the budget outright, mirroring the limiters'
+    dev escape hatch.
+    """
+
+    def __init__(
+        self,
+        provider: str,
+        per_minute: int,
+        *,
+        max_wait_s: float | None = None,
+        clock: Callable[[], float] = time.monotonic,
+    ):
+        self.provider = provider
+        self.per_minute = per_minute
+        self._rate = per_minute / 60.0
+        self._max_wait = float(
+            UPSTREAM_WEIGHT_MAX_WAIT_S if max_wait_s is None else max_wait_s
+        )
+        self._clock = clock
+        self._tokens = float(per_minute)
+        self._updated = clock()
+
+    @property
+    def enabled(self) -> bool:
+        return self.per_minute > 0
+
+    def _refill(self, now: float) -> None:
+        self._tokens = min(
+            float(self.per_minute), self._tokens + (now - self._updated) * self._rate
+        )
+        self._updated = now
+
+    def wait_estimate_s(self, weight: float) -> float:
+        """Seconds a caller would wait to spend ``weight`` right now.
+
+        Read-only: lets the fetch layer narrate an upcoming pace wait
+        ("resuming in ~34s") without committing to the spend yet.
+        """
+        if not self.enabled:
+            return 0.0
+        self._refill(self._clock())
+        deficit = weight - self._tokens
+        return max(0.0, deficit / self._rate)
+
+    async def acquire(self, weight: float) -> None:
+        if not self.enabled or weight <= 0:
+            return
+        now = self._clock()
+        self._refill(now)
+        deficit = weight - self._tokens
+        wait = max(0.0, deficit / self._rate)
+        if wait > self._max_wait:
+            log.warning(
+                "event=weight_shed provider=%s weight=%.0f wait_s=%.0f max_wait_s=%.0f",
+                self.provider,
+                weight,
+                wait,
+                self._max_wait,
+            )
+            raise BudgetExhausted(self.provider, retry_after_s=math.ceil(wait))
+        self._tokens -= weight
+        if wait > 0:
+            log.info(
+                "event=weight_pace provider=%s weight=%.0f wait_s=%.1f",
+                self.provider,
+                weight,
+                wait,
+            )
+            await asyncio.sleep(wait)
+
+
 # ── Instances ─────────────────────────────────────────────────────────────────
 
 ANALYZE_LIMITER = RateLimiter(RATE_LIMIT_ANALYZE_PER_MINUTE, RATE_LIMIT_ANALYZE_BURST)
+DESTINATIONS_LIMITER = RateLimiter(
+    RATE_LIMIT_DESTINATIONS_PER_MINUTE, RATE_LIMIT_DESTINATIONS_BURST
+)
 GEOCODE_LIMITER = RateLimiter(RATE_LIMIT_GEOCODE_PER_MINUTE, RATE_LIMIT_GEOCODE_BURST)
 
 WEATHER_BUDGET = UpstreamBudget("Open-Meteo (weather service)", UPSTREAM_CONCURRENCY_WEATHER)
 AQI_BUDGET = UpstreamBudget("Open-Meteo (air quality)", UPSTREAM_CONCURRENCY_AQI)
+WEATHER_WEIGHT = WeightedBudget(
+    "Open-Meteo (weather service)", UPSTREAM_WEIGHT_PER_MINUTE_WEATHER
+)
+AQI_WEIGHT = WeightedBudget("Open-Meteo (air quality)", UPSTREAM_WEIGHT_PER_MINUTE_AQI)
 # Overpass budgets are per mirror and live in osm.py's OVERPASS_MIRRORS table,
 # built from UPSTREAM_CONCURRENCY_OVERPASS above.
 NOMINATIM_GATE = MinIntervalGate("Nominatim (place search)", NOMINATIM_MIN_INTERVAL_MS / 1000.0)
@@ -339,6 +456,16 @@ def _throttle(limiter: RateLimiter, request: Request) -> None:
 async def analyze_rate_limit(request: Request) -> None:
     """Route dependency: one shared per-address bucket for both analyze endpoints."""
     _throttle(ANALYZE_LIMITER, request)
+
+
+async def destinations_rate_limit(request: Request) -> None:
+    """Route dependency: the discovery bucket, independent of analyze.
+
+    Discovery is one Overpass query with no forecasts attached, so the
+    browser flow (discover, then fetch Open-Meteo itself) should never eat
+    the analyze budget of someone running full server-side analyses.
+    """
+    _throttle(DESTINATIONS_LIMITER, request)
 
 
 async def geocode_rate_limit(request: Request) -> None:

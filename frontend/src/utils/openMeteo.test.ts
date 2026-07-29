@@ -1,11 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  OpenMeteoHttpError,
+  OpenMeteoRateLimited,
   OpenMeteoUnreachable,
   aqiMetrics,
   aqiSeries,
+  callWeight,
   fetchAqi,
   fetchWeather,
   parseTs,
+  resetOpenMeteoState,
   roundHalfEven,
   weatherMetrics,
   weatherSeries,
@@ -104,6 +108,9 @@ function jsonResponse(body: unknown): Response {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  // Module-level state (per-location cache, pacer buckets) must not let one
+  // test's successful fetch answer the next test from cache.
+  resetOpenMeteoState()
 })
 
 describe('fetchWeather', () => {
@@ -119,14 +126,80 @@ describe('fetchWeather', () => {
     expect(out[0]?.series?.times).toHaveLength(2)
   })
 
-  it('throws OpenMeteoUnreachable on HTTP errors (the fallback trigger)', async () => {
+  it('serves an identical repeat from the cache without refetching', async () => {
+    const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    const coords = [{ latitude: 47.5, longitude: -121.9 }]
+    await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs)
+    const again = await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs)
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(again[0]?.precip_total_in).toBe(0.3)
+  })
+
+  it('classifies HTTP 429 as rate limited, never as unreachable', async () => {
+    // The 2026-07-29 regression: a 429 read as "unreachable" pointed the
+    // retry at a server sharing the same exhausted IP (issue #180). A
+    // scope-less 429 must throw immediately, with no fallback trigger.
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => ({ ok: false, status: 429, json: async () => ({}) })),
     )
     await expect(
       fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs),
-    ).rejects.toBeInstanceOf(OpenMeteoUnreachable)
+    ).rejects.toBeInstanceOf(OpenMeteoRateLimited)
+  })
+
+  it('reads the tripped quota scope from the 429 body', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 429,
+        json: async () => ({ error: true, reason: 'Hourly API request limit exceeded.' }),
+      })),
+    )
+    await expect(
+      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs),
+    ).rejects.toMatchObject({ scope: 'hourly' })
+  })
+
+  it('resumes once after a minutely 429 and completes the batch', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchSpy = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 429,
+          headers: { get: (h: string) => (h === 'Retry-After' ? '1' : null) },
+          json: async () => ({ error: true, reason: 'Minutely API request limit exceeded.' }),
+        })
+        .mockResolvedValueOnce(jsonResponse(hourlyPayload()))
+      vi.stubGlobal('fetch', fetchSpy)
+      const pending = fetchWeather(
+        [{ latitude: 0, longitude: 0 }],
+        WINDOW.startMs,
+        WINDOW.endMs,
+      )
+      await vi.advanceTimersByTimeAsync(1_100)
+      const out = await pending
+      expect(fetchSpy).toHaveBeenCalledTimes(2)
+      expect(out[0]?.precip_total_in).toBe(0.3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('classifies other HTTP statuses as an upstream error, not unreachable', async () => {
+    // The server talks to the same upstream, so a 5xx must surface honestly
+    // instead of triggering a doomed fallback.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) })),
+    )
+    await expect(
+      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs),
+    ).rejects.toBeInstanceOf(OpenMeteoHttpError)
   })
 
   it('wraps network-level rejections too — the corporate-proxy case', async () => {
@@ -246,5 +319,27 @@ describe('fetchAqi', () => {
       { nowMs: now },
     )
     expect(requested).toBe('2026-07-26')
+  })
+})
+
+// ── Weighted-call accounting (mirror of backend openmeteo_weight) ──────────
+
+describe('callWeight', () => {
+  const day = (d: string) => Date.parse(`${d}T00:00:00Z`)
+
+  it('floors to one call per location for short windows and few variables', () => {
+    expect(callWeight(50, day('2026-07-29'), day('2026-07-29'), 3)).toBe(50)
+  })
+
+  it('scales by days over 14 — the full-horizon worst case', () => {
+    expect(callWeight(50, day('2026-07-01'), day('2026-07-16'), 3)).toBeCloseTo(
+      50 * (16 / 14),
+    )
+  })
+
+  it('prices the incident shape at one call per location per endpoint', () => {
+    const weather = callWeight(908, day('2026-07-29'), day('2026-08-01'), 3)
+    const aqi = callWeight(908, day('2026-07-29'), day('2026-08-01'), 1)
+    expect(weather + aqi).toBe(1816)
   })
 })

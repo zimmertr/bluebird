@@ -8,9 +8,11 @@
 // The message carries only the TOTAL, not a live "x of y" fraction; the filling
 // progress BAR visualizes the real batch progress underneath it.
 //
-// Under the message, the search phase can show one secondary `detail` line:
-// real backend news (mirror failover, via the SSE `detail` field) wins over the
-// timer-staged reassurance that appears once a search has run long.
+// Under the message, one secondary `detail` line can appear in either phase:
+// real news (mirror failover or the announced server fallback, via the SSE
+// `detail` field / hook state) or, during retrieval, the live quota countdown
+// while the pacer sleeps. When nothing real is happening, a timer-staged
+// reassurance appears once a search has run long.
 export type OverlayProgress = { processed: number; total: number; percent: number }
 
 export type OverlayView =
@@ -20,9 +22,13 @@ export type OverlayView =
 export interface OverlayInputs {
   analyzeLoading: boolean // ranked streaming request in flight
   statusMessage: string | null // latest backend status (drives phase 1 + the gap)
-  statusDetail: string | null // backend failover detail (SSE `detail` field)
+  statusDetail: string | null // secondary line (SSE detail / fallback announcement)
   elapsedS: number // whole seconds since the overlay appeared
   rankedProgress: { processed: number; total: number } | null // batch progress
+  // Seconds until the client-side pacer resumes spending quota; null/absent
+  // when it is not sleeping. Rendered as a live countdown so a paced wait
+  // reads as scheduled work, not a hang.
+  paceRemainingS?: number | null
 }
 
 // The discovery-phase heading. Shared with useAnalyze's optimistic seed so the
@@ -30,11 +36,15 @@ export interface OverlayInputs {
 // second copy of the string drifting.
 export const SEARCHING_MESSAGE = 'Searching for Destinations…'
 
-// Reassurance for a long-running search: the common case lands well under this
-// (overpass-api.de measured 12-17s, issue #177), so the line only appears for
-// the analyses genuinely big or unlucky enough to need explaining.
-const STILL_SEARCHING_AFTER_S = 12
-const STILL_SEARCHING = 'Still searching. Large areas can take up to 30 seconds.'
+// Staged reassurance, tiered to the measured mirror behavior (issue #180):
+// overpass-api.de answers big polygons in 12-42s; a failover adds the backup
+// mirror's 38-45s on top, so "up to 30 seconds" (the old copy) measured false
+// the first time a search crossed it. Tier one covers the common case
+// honestly; tier two admits the failover tail without catastrophizing.
+const STILL_SEARCHING_AFTER_S = 20
+const STILL_SEARCHING = 'Still searching. Large areas often take 40 to 60 seconds.'
+const LONG_SEARCH_AFTER_S = 45
+const LONG_SEARCH = 'Still searching. Some searches take over a minute.'
 
 // "Retrieving Forecast…" for exactly one, "Retrieving {N} Forecasts…" otherwise.
 function retrievingLabel(total: number): string {
@@ -51,17 +61,28 @@ export function composeOverlay(i: OverlayInputs): OverlayView {
     // Staged copy only while genuinely searching — in the retrieval gap it
     // would contradict the heading above it.
     const staged =
-      message === SEARCHING_MESSAGE && i.elapsedS >= STILL_SEARCHING_AFTER_S
+      message === SEARCHING_MESSAGE && i.elapsedS >= LONG_SEARCH_AFTER_S
+        ? LONG_SEARCH
+        : message === SEARCHING_MESSAGE && i.elapsedS >= STILL_SEARCHING_AFTER_S
         ? STILL_SEARCHING
         : null
     return { visible: true, message, detail: i.statusDetail ?? staged, progress: null }
   }
   const { processed, total } = i.rankedProgress
   const percent = total ? Math.round((processed / total) * 100) : 100
+  // During retrieval the detail line carries the live pace countdown when the
+  // quota bucket is refilling, else any server-sent detail (its own pace
+  // narration, or the fallback announcement). A paced analysis must never
+  // look hung: the countdown plus the elapsed timer is what proves the wait
+  // is scheduled.
+  const detail =
+    i.paceRemainingS != null && i.paceRemainingS > 0
+      ? `Weather service quota: resuming in ${i.paceRemainingS}s`
+      : i.statusDetail
   return {
     visible: true,
     message: retrievingLabel(total),
-    detail: null,
+    detail,
     progress: { processed, total, percent },
   }
 }
