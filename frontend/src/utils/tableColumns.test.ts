@@ -91,7 +91,7 @@ describe('pointModeColumns', () => {
     expect(labels.get('precip_avg_in_hr')).toBe('Precipitation (in/hr)')
     expect(labels.get('temp_avg_f')).toBe('Temperature (°F)')
     expect(labels.get('wind_avg_mph')).toBe('Wind (mph)')
-    expect(labels.get('aqi_avg')).toBe('AQI')
+    expect(labels.get('aqi_avg')).toBe('AQI (US)')
     // No aggregate means no separator to hang one off.
     for (const label of labels.values()) expect(label).not.toContain(SEP)
     // Identity columns keep their labels untouched.

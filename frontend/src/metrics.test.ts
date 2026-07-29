@@ -45,11 +45,14 @@ describe('the vocabulary', () => {
     expect(Object.values(AGGREGATE)).toEqual(['Total', 'Avg', 'Min', 'Max'])
   })
 
-  it('gives every metric a unit but AQI, which has none', () => {
+  // AQI's "unit" is its scale: an index has no physical unit, but the US and
+  // European scales disagree the way °F and °C do, and the color breakpoints
+  // are the US EPA ones. The honest successor to the wrong "(PM2.5)".
+  it('gives every metric a unit, with AQI carrying its scale', () => {
     for (const family of Object.keys(NOUN) as MetricFamily[]) {
-      expect(typeof UNIT[family]).toBe('string')
+      expect(UNIT[family]).not.toBe('')
     }
-    expect(UNIT.aqi).toBe('')
+    expect(UNIT.aqi).toBe('US')
   })
 })
 
@@ -113,9 +116,14 @@ describe('metricLabel', () => {
     expect(metricLabel('wind', AGGREGATE.average)).toBe(`Wind ${SEP} Avg (mph)`)
   })
 
-  it('omits the parentheses for a metric with no unit', () => {
-    expect(metricLabel('aqi', AGGREGATE.average)).toBe(`AQI ${SEP} Avg`)
-    expect(metricLabel('aqi')).toBe('AQI')
+  it('parenthesises the AQI scale like any other unit', () => {
+    expect(metricLabel('aqi', AGGREGATE.average)).toBe(`AQI ${SEP} Avg (US)`)
+    expect(metricLabel('aqi')).toBe('AQI (US)')
+  })
+
+  it('omits the parentheses when a caller overrides the unit away', () => {
+    expect(metricLabel('aqi', AGGREGATE.average, '')).toBe(`AQI ${SEP} Avg`)
+    expect(metricLabel('temp', undefined, '')).toBe('Temperature')
   })
 
   it('drops the separator when there is no aggregate to separate', () => {
