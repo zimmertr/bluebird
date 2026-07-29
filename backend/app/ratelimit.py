@@ -13,8 +13,10 @@ Two mechanisms:
   dependencies on the expensive endpoints only. Over the limit: 429 with a
   ``Retry-After`` header.
 - ``UpstreamBudget`` / ``MinIntervalGate``: pod-wide caps on in-flight calls
-  (or call spacing) per upstream provider, shared by every concurrent
-  request in the pod. Saturation queues briefly, then sheds with
+  (or call spacing) per upstream operator, shared by every concurrent
+  request in the pod. Overpass gets one budget per mirror (built in osm.py
+  next to the mirror table, since each mirror is a separate operator with
+  its own per-IP policy). Saturation queues briefly, then sheds with
   ``BudgetExhausted`` (surfaced as 503, or degraded to null for best-effort
   air quality).
 
@@ -60,9 +62,11 @@ RATE_LIMIT_GEOCODE_PER_MINUTE = _env_int("RATE_LIMIT_GEOCODE_PER_MINUTE", 30)
 RATE_LIMIT_GEOCODE_BURST = _env_int("RATE_LIMIT_GEOCODE_BURST", 10)
 
 # Pod-wide upstream caps. Weather/AQI count in-flight Open-Meteo batches
-# across every concurrent analysis; Overpass matches overpass-api.de's
-# ~2-slots-per-IP policy; the Nominatim spacing honors their absolute
-# ~1 req/s policy (2s per pod x 3 replicas ≈ 1/s aggregate from our one IP).
+# across every concurrent analysis; the Overpass value is applied PER MIRROR
+# (osm.py builds one budget per endpoint from it), since ~2-slots-per-IP is
+# each operator's own policy, not a shared pool across operators; the
+# Nominatim spacing honors their absolute ~1 req/s policy (2s per pod x 3
+# replicas ≈ 1/s aggregate from our one IP).
 UPSTREAM_CONCURRENCY_WEATHER = _env_int("UPSTREAM_CONCURRENCY_WEATHER", 8)
 UPSTREAM_CONCURRENCY_AQI = _env_int("UPSTREAM_CONCURRENCY_AQI", 8)
 UPSTREAM_CONCURRENCY_OVERPASS = _env_int("UPSTREAM_CONCURRENCY_OVERPASS", 2)
@@ -304,7 +308,8 @@ GEOCODE_LIMITER = RateLimiter(RATE_LIMIT_GEOCODE_PER_MINUTE, RATE_LIMIT_GEOCODE_
 
 WEATHER_BUDGET = UpstreamBudget("Open-Meteo (weather service)", UPSTREAM_CONCURRENCY_WEATHER)
 AQI_BUDGET = UpstreamBudget("Open-Meteo (air quality)", UPSTREAM_CONCURRENCY_AQI)
-OVERPASS_BUDGET = UpstreamBudget("OpenStreetMap (Overpass)", UPSTREAM_CONCURRENCY_OVERPASS)
+# Overpass budgets are per mirror and live in osm.py's OVERPASS_MIRRORS table,
+# built from UPSTREAM_CONCURRENCY_OVERPASS above.
 NOMINATIM_GATE = MinIntervalGate("Nominatim (place search)", NOMINATIM_MIN_INTERVAL_MS / 1000.0)
 
 

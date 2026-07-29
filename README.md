@@ -186,7 +186,7 @@ in detail in [`docs/TRAFFIC.md`](docs/TRAFFIC.md)):
 | `RATE_LIMIT_GEOCODE_BURST` | `10` | Geocode requests an idle client may send back-to-back. |
 | `UPSTREAM_CONCURRENCY_WEATHER` | `8` | In-flight Open-Meteo weather batches, totalled across every concurrent analysis in the instance. |
 | `UPSTREAM_CONCURRENCY_AQI` | `8` | Same cap for the air-quality API. |
-| `UPSTREAM_CONCURRENCY_OVERPASS` | `2` | In-flight Overpass queries per instance, matching overpass-api.de's per-IP slot policy. |
+| `UPSTREAM_CONCURRENCY_OVERPASS` | `2` | In-flight Overpass queries per instance **per mirror**, matching each mirror operator's own per-IP slot policy (overpass-api.de documents 2). |
 | `NOMINATIM_MIN_INTERVAL_MS` | `2000` | Minimum spacing between Nominatim calls per instance, honoring their ~1 req/s policy across replicas. |
 | `UPSTREAM_BUDGET_WAIT_S` | `30` | How long an analysis may queue for a saturated upstream budget before shedding with a 503. |
 
@@ -314,7 +314,7 @@ The whole thing builds as a single multi-stage Docker image:
 
 None of the external APIs need a key:
 
-- **Overpass** handles the OSM feature queries. Three public endpoints are tried in order: `overpass-api.de`, then `overpass.kumi.systems`, then `maps.mail.ru`.
+- **Overpass** handles the OSM feature queries. Three public endpoints are tried in order: `overpass-api.de`, then `maps.mail.ru`, then `overpass.kumi.systems` (ordered by measured latency; see the dated table in `osm.py`).
 - **Open-Meteo** provides the hourly forecast and air-quality data, batched up to 50 locations per request.
 - **OpenFreeMap** serves the vector map tiles.
 

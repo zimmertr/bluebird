@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import dataclasses
+
 import httpx
 import pytest
+from app import ratelimit
 from app.models import DestinationType, GeoPolygon
 from app.services import osm
 from app.services.errors import UpstreamError
@@ -85,7 +88,7 @@ async def test_query_osm_unimplemented_type_raises():
         await osm.query_osm(POLY, DestinationType.custom)
 
 
-# ── _post_with_fallback (the 3-endpoint mirror chain) ──────────────────────
+# ── _post_with_fallback (the 3-mirror failover chain) ──────────────────────
 
 
 class _FakeResp:
@@ -101,11 +104,14 @@ class _FakeResp:
 
 class _FakeClient:
     """Async-context httpx stand-in that replays a scripted list of behaviors,
-    one per .post() call (an Exception is raised, anything else is returned)."""
+    one per .post() call (an Exception is raised, anything else is returned).
+    Records the url and timeout of every attempt for per-mirror assertions."""
 
     def __init__(self, behaviors):
         self._behaviors = behaviors
         self.calls = 0
+        self.urls: list[str] = []
+        self.timeouts: list[float | None] = []
 
     async def __aenter__(self):
         return self
@@ -113,12 +119,29 @@ class _FakeClient:
     async def __aexit__(self, *exc):
         return False
 
-    async def post(self, url, data=None):
+    async def post(self, url, data=None, timeout=None):
         behavior = self._behaviors[self.calls]
         self.calls += 1
+        self.urls.append(url)
+        self.timeouts.append(timeout)
         if isinstance(behavior, Exception):
             raise behavior
         return behavior
+
+
+def test_mirror_order_and_timeouts_match_measurements():
+    # Guard for issue #177 (measured 2026-07-28): overpass-api.de 12-17s,
+    # mail.ru 38.8s, kumi 77-108s. Reordering or retuning this table should
+    # come with fresh measurements (or #77 telemetry) in hand — update the
+    # dated comment in osm.py alongside this test.
+    assert [m.url for m in osm.OVERPASS_MIRRORS] == [
+        "https://overpass-api.de/api/interpreter",
+        "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+        "https://overpass.kumi.systems/api/interpreter",
+    ]
+    assert [m.timeout_s for m in osm.OVERPASS_MIRRORS] == [25.0, 45.0, 45.0]
+    # Separate operators get separate budgets, not one shared pool.
+    assert len({id(m.budget) for m in osm.OVERPASS_MIRRORS}) == len(osm.OVERPASS_MIRRORS)
 
 
 async def test_post_with_fallback_recovers_on_second_endpoint(monkeypatch):
@@ -133,8 +156,8 @@ async def test_post_with_fallback_recovers_on_second_endpoint(monkeypatch):
     result = await osm._post_with_fallback("q", on_status)
     assert result == {"elements": []}
     assert fake.calls == 2
-    # Each attempt announces itself before firing.
-    assert len(statuses) == 2
+    # The healthy first attempt is silent; only failover gets narrated.
+    assert statuses == ["Trying backup map server 2 of 3…"]
 
 
 async def test_post_with_fallback_all_endpoints_fail(monkeypatch):
@@ -143,7 +166,53 @@ async def test_post_with_fallback_all_endpoints_fail(monkeypatch):
 
     with pytest.raises(UpstreamError):
         await osm._post_with_fallback("q")
-    assert fake.calls == len(osm.OVERPASS_ENDPOINTS)
+    assert fake.calls == len(osm.OVERPASS_MIRRORS)
+    # Each attempt carries its own mirror's leash, not one shared client value.
+    assert fake.timeouts == [m.timeout_s for m in osm.OVERPASS_MIRRORS]
+
+
+async def test_post_with_fallback_skips_saturated_mirror(monkeypatch):
+    # Mirror 1's pod-wide budget is fully occupied: the chain must move to the
+    # next operator (its own capacity) instead of shedding the analysis.
+    saturated = ratelimit.UpstreamBudget("test (saturated)", 1, wait_s=0.01)
+    await saturated._sem.acquire()
+    mirrors = [
+        dataclasses.replace(osm.OVERPASS_MIRRORS[0], budget=saturated),
+        *osm.OVERPASS_MIRRORS[1:],
+    ]
+    monkeypatch.setattr(osm, "OVERPASS_MIRRORS", mirrors)
+
+    statuses: list[str] = []
+
+    async def on_status(msg):
+        statuses.append(msg)
+
+    fake = _FakeClient([_FakeResp({"elements": []})])
+    monkeypatch.setattr(osm.httpx, "AsyncClient", lambda *a, **k: fake)
+
+    result = await osm._post_with_fallback("q", on_status)
+    assert result == {"elements": []}
+    # The saturated mirror never fired an HTTP request.
+    assert fake.urls == [mirrors[1].url]
+    assert statuses == ["Trying backup map server 2 of 3…"]
+
+
+async def test_post_with_fallback_all_mirrors_saturated_raises(monkeypatch):
+    # Saturation of the FINAL mirror is terminal and keeps its BudgetExhausted
+    # type, so the routes' existing 503 + Retry-After mapping still applies.
+    mirrors = []
+    for m in osm.OVERPASS_MIRRORS:
+        budget = ratelimit.UpstreamBudget("test (saturated)", 1, wait_s=0.01)
+        await budget._sem.acquire()
+        mirrors.append(dataclasses.replace(m, budget=budget))
+    monkeypatch.setattr(osm, "OVERPASS_MIRRORS", mirrors)
+
+    fake = _FakeClient([])
+    monkeypatch.setattr(osm.httpx, "AsyncClient", lambda *a, **k: fake)
+
+    with pytest.raises(ratelimit.BudgetExhausted):
+        await osm._post_with_fallback("q")
+    assert fake.calls == 0
 
 
 async def test_post_with_fallback_rejects_partial_remark(monkeypatch):
@@ -167,7 +236,7 @@ async def test_post_with_fallback_all_partial_raises(monkeypatch):
 
     with pytest.raises(UpstreamError) as excinfo:
         await osm._post_with_fallback("q")
-    assert fake.calls == len(osm.OVERPASS_ENDPOINTS)
+    assert fake.calls == len(osm.OVERPASS_MIRRORS)
     # The user should be told the query was too demanding, not shown a raw
     # "failed unexpectedly" fallback string.
     assert "part of the results" in excinfo.value.message

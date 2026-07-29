@@ -108,7 +108,7 @@ you claim to be.
 
 | Provider | Called by | From | Policy | Governor |
 | --- | --- | --- | --- | --- |
-| [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) | backend (`osm.py`), 1 query per discovery/analysis, 3-mirror failover | cluster egress IP | ~2 slots per IP (overpass-api.de) | `UPSTREAM_CONCURRENCY_OVERPASS=2` per pod, slot held across the whole failover chain |
+| [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) | backend (`osm.py`), 1 query per discovery/analysis, 3-mirror failover | cluster egress IP | ~2 slots per IP **per mirror operator** (overpass-api.de documents 2) | `UPSTREAM_CONCURRENCY_OVERPASS=2` per pod **per mirror** — one budget per endpoint, slot held only while that mirror's request is in flight, released before failover |
 | [Open-Meteo forecast](https://open-meteo.com) | **browser** (`openMeteo.ts`) for the web app; backend (`weather.py`) only for API callers and the browser's fallback | each visitor's own IP; cluster egress IP for the server path | ~10k calls/day/IP, non-commercial | browser: the visitor's own quota, same 50-per-batch / 4-in-flight pacing. Server path: `UPSTREAM_CONCURRENCY_WEATHER=8` per pod + per-analysis cap of 4 |
 | [Open-Meteo air quality](https://open-meteo.com/en/docs/air-quality-api) | same split, best-effort on both paths | same split | same | browser: same pacing, failures degrade to null. Server: `UPSTREAM_CONCURRENCY_AQI=8` per pod |
 | [Nominatim](https://operations.osmfoundation.org/policies/nominatim/) | backend (`geocode.py`) proxying the search box | cluster egress IP | absolute ~1 req/s per service, real User-Agent required | `NOMINATIM_MIN_INTERVAL_MS=2000` spacing per pod (~1/s aggregate at 3 replicas) + per-client geocode bucket |

@@ -255,7 +255,9 @@ def _assemble(
         "analysis succeeded. Four event "
         "types arrive as `data:` lines carrying a JSON object with a `type` "
         "field:\n\n"
-        "- `status` — a human-readable phase message in `message`\n"
+        "- `status` — a human-readable phase message in `message`, plus an "
+        "optional `detail` line when the search falls over to a backup map "
+        "server\n"
         "- `progress` — `processed`, `total`, and `percent` counters\n"
         "- `result` — the terminal success event, carrying a full "
         "`AnalyzeResponse` in `data`\n"
@@ -287,6 +289,8 @@ def _assemble(
                         "type": "string",
                         "example": (
                             'data: {"type": "status", "message": "Searching for Destinations…"}\n\n'
+                            'data: {"type": "status", "message": "Searching for Destinations…", '
+                            '"detail": "Trying backup map server 2 of 3…"}\n\n'
                             'data: {"type": "progress", "processed": 50, "total": 120, "percent": 41}\n\n'
                             'data: {"type": "result", "data": {"results": [], "total_queried": 0}}\n\n'
                         ),
@@ -324,11 +328,13 @@ async def analyze_stream(request: AnalyzeRequest):
                 # status lines promptly via the queue.
                 osm_queue: asyncio.Queue = asyncio.Queue()
 
-                async def on_status(_message):
-                    # Fold Overpass mirror-failover detail ("Attempting … 2/3")
-                    # under the generic phase label — the mirror internals aren't
-                    # user-facing, and the first attempt can sit for many seconds.
-                    await osm_queue.put(_sse("status", message="Searching for Destinations…"))
+                async def on_status(detail):
+                    # Mirror failover ("Trying backup map server 2 of 3…") rides
+                    # the optional `detail` field; `message` stays the stable
+                    # phase heading the overlay keys on.
+                    await osm_queue.put(
+                        _sse("status", message="Searching for Destinations…", detail=detail)
+                    )
 
                 async def run_osm():
                     try:

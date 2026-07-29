@@ -356,6 +356,37 @@ def test_analyze_stream_polygon_searches_then_announces_count(monkeypatch, stub_
     assert not any("peak" in s or "Found" in s or "Analyzing" in s or "Retrieving" in s for s in statuses)
 
 
+def test_analyze_stream_mirror_failover_rides_the_detail_field(monkeypatch, stub_upstreams):
+    # osm.query_osm narrates failover via on_status; the stream must surface it
+    # as `detail` on a status event whose `message` stays the stable heading.
+    async def failing_over(polygon, destination_type, on_status=None):
+        if on_status is not None:
+            await on_status("Trying backup map server 2 of 3…")
+        return [
+            {"name": "a", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None, "osm_id": "node/1"},
+        ]
+
+    monkeypatch.setattr(analyze_mod.osm, "query_osm", failing_over)
+    start, end = _window()
+    body = {
+        "destination_type": "peak", "start_datetime": start, "end_datetime": end,
+        "polygon": {"type": "Polygon", "coordinates": [[[0, 0], [0.1, 0], [0.1, 0.1], [0, 0.1], [0, 0]]]},
+    }
+    resp = client.post("/api/analyze/stream", json=body)
+    events = [json.loads(line[len("data: "):]) for line in resp.text.splitlines() if line.startswith("data: ")]
+    detail_events = [e for e in events if e["type"] == "status" and e.get("detail")]
+    assert detail_events == [
+        {
+            "type": "status",
+            "message": "Searching for Destinations…",
+            "detail": "Trying backup map server 2 of 3…",
+        }
+    ]
+    # The initial (healthy-path) status event carries no detail key at all.
+    first_status = next(e for e in events if e["type"] == "status")
+    assert "detail" not in first_status
+
+
 # ── polygon ∪ custom union ─────────────────────────────────────────────────
 
 

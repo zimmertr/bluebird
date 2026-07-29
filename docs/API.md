@@ -131,10 +131,18 @@ curl -N https://bluebirdforecast.com/api/analyze/stream \
 ```
 data: {"type": "status", "message": "Searching for Destinations…"}
 
+data: {"type": "status", "message": "Searching for Destinations…", "detail": "Trying backup map server 2 of 3…"}
+
 data: {"type": "progress", "processed": 50, "total": 120, "percent": 41}
 
 data: {"type": "result", "data": {"results": [...], "total_queried": 120}}
 ```
+
+A `status` event may carry an optional `detail` line alongside `message`: it
+appears when the destination search fails over to a backup map server, which is
+also your cue that this analysis will run longer than usual. `message` stays the
+stable phase heading, so a client can key its UI on it and show `detail` as
+secondary text.
 
 One important catch: **check the status code first, then the stream.** A request
 that fails validation is rejected with a `422` before the stream opens, exactly

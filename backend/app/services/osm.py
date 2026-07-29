@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
@@ -14,20 +15,66 @@ log = logging.getLogger(__name__)
 
 PROVIDER = "OpenStreetMap (Overpass)"
 
-# Called with a human-readable status line as the mirror fallback chain
-# progresses. Overpass is a single opaque request per mirror, so this is the
+# Called with a user-facing detail line when the chain falls over to a backup
+# mirror. Overpass is a single opaque request per mirror, so failover is the
 # only progress signal available for the search phase.
 StatusCallback = Callable[[str], Awaitable[None]]
 
-# overpass-api.de is the busiest public instance and frequently overloaded (slow
-# to first byte), so a less-used mirror (kumi) goes first to cap the common-case
-# wait. overpass-api.de stays as the first fallback (reliable when not overloaded),
-# ahead of maps.mail.ru as a last resort. Paired with a 30s per-mirror timeout so
-# a hung mirror fails over promptly instead of stalling the whole search phase.
-OVERPASS_ENDPOINTS = [
-    "https://overpass.kumi.systems/api/interpreter",
-    "https://overpass-api.de/api/interpreter",
-    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+
+@dataclass(frozen=True)
+class OverpassMirror:
+    """One public Overpass endpoint and the per-mirror beliefs that go with it.
+
+    Order, timeout, and concurrency cap live together on purpose: issue #177
+    traced a 30s-per-analysis tax to these beliefs drifting apart from the
+    endpoint list they described.
+    """
+
+    url: str
+    # Per-request timeout. The primary gets a tight leash (it is fast or it is
+    # broken); fallbacks get a generous one (by the time one is tried, a slow
+    # answer beats no answer, and the overlay is narrating the wait).
+    timeout_s: float
+    # Pod-wide cap on in-flight calls to THIS mirror. Limits are per operator,
+    # not per provider: overpass-api.de documents ~2 slots per IP, and the
+    # other mirrors are separate operators with separate capacity.
+    budget: ratelimit.UpstreamBudget
+
+
+# Measured 2026-07-28 (issue #177): single sequential requests, the exact peaks
+# query, over an 18,700 km2 Cascades polygon. Re-measure before reordering;
+# #77's per-provider latency telemetry is the durable fix for this comment
+# rotting silently, and should retune the timeouts when it lands.
+#
+#   overpass-api.de  12.0 / 15.0 / 17.4s -> 200   primary: ~1.5x observed p95
+#   maps.mail.ru     38.8s -> 200                  fallback: slow but real
+#   kumi.systems     77-108s, sometimes 504        hail-mary: last resort
+#
+# kumi previously sat FIRST on the belief that overpass-api.de was the
+# overloaded one. At 77-108s against a 30s client timeout it could never
+# succeed, so every polygon analysis paid the full timeout as a fixed tax.
+OVERPASS_MIRRORS = [
+    OverpassMirror(
+        url="https://overpass-api.de/api/interpreter",
+        timeout_s=25.0,
+        budget=ratelimit.UpstreamBudget(
+            "OpenStreetMap (overpass-api.de)", ratelimit.UPSTREAM_CONCURRENCY_OVERPASS
+        ),
+    ),
+    OverpassMirror(
+        url="https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+        timeout_s=45.0,
+        budget=ratelimit.UpstreamBudget(
+            "OpenStreetMap (maps.mail.ru)", ratelimit.UPSTREAM_CONCURRENCY_OVERPASS
+        ),
+    ),
+    OverpassMirror(
+        url="https://overpass.kumi.systems/api/interpreter",
+        timeout_s=45.0,
+        budget=ratelimit.UpstreamBudget(
+            "OpenStreetMap (kumi.systems)", ratelimit.UPSTREAM_CONCURRENCY_OVERPASS
+        ),
+    ),
 ]
 HEADERS = {"User-Agent": "Bluebird/1.0 (bluebirdforecast.com; personal weather tool)"}
 
@@ -102,10 +149,9 @@ async def query_osm(
 
     log.info("Querying OSM Overpass for type=%s", destination_type.value)
     log.trace("Overpass query:\n%s", query)  # type: ignore[attr-defined]
-    # Pod-wide slot matching overpass-api.de's ~2-per-IP policy, held across
-    # the whole mirror-failover chain — failing over must not double-count.
-    async with ratelimit.OVERPASS_BUDGET.slot():
-        data = await _post_with_fallback(query, on_status)
+    # Budgets are per mirror and acquired per attempt inside the failover
+    # chain, so a failover releases mirror A before it queues on mirror B.
+    data = await _post_with_fallback(query, on_status)
 
     results: list[dict[str, Any]] = []
     seen_names: set[str] = set()
@@ -155,17 +201,24 @@ async def _post_with_fallback(
     query: str,
     on_status: StatusCallback | None = None,
 ) -> dict[str, Any]:
-    last_exc: Exception = RuntimeError("No Overpass endpoints configured")
-    total = len(OVERPASS_ENDPOINTS)
-    async with httpx.AsyncClient(timeout=30.0, headers=HEADERS) as client:
-        for i, url in enumerate(OVERPASS_ENDPOINTS, start=1):
-            # Announce each attempt as it starts; the mirror fallback is the
-            # only progress signal available for the opaque Overpass request.
-            if on_status is not None:
-                await on_status(f"Attempting OpenStreetMap Lookup {i}/{total}")
+    last_exc: Exception = RuntimeError("No Overpass mirrors configured")
+    total = len(OVERPASS_MIRRORS)
+    # No client-level timeout: each attempt sets its own from the mirror table
+    # (httpx would otherwise apply its 5s default to any request that missed one).
+    async with httpx.AsyncClient(timeout=None, headers=HEADERS) as client:
+        for i, mirror in enumerate(OVERPASS_MIRRORS, start=1):
+            # Failover is news the user can act on (the wait just got longer);
+            # the healthy first attempt needs no narration.
+            if i > 1 and on_status is not None:
+                await on_status(f"Trying backup map server {i} of {total}…")
             try:
-                log.info("Trying Overpass endpoint: %s", url)
-                resp = await client.post(url, data={"data": query})
+                log.info("Trying Overpass endpoint: %s", mirror.url)
+                # The slot is held only while this mirror's request is in
+                # flight; parsing and validation happen after release.
+                async with mirror.budget.slot():
+                    resp = await client.post(
+                        mirror.url, data={"data": query}, timeout=mirror.timeout_s
+                    )
                 resp.raise_for_status()
                 data = resp.json()
                 # Overpass reports mid-query timeouts/errors via `remark` on an
@@ -176,10 +229,20 @@ async def _post_with_fallback(
                 remark = data.get("remark")
                 if remark:
                     raise PartialResultError(f"Overpass returned a partial result: {remark}")
-                log.info("Overpass query succeeded via %s", url)
+                log.info("Overpass query succeeded via %s", mirror.url)
                 return data
+            except ratelimit.BudgetExhausted:
+                # This mirror is saturated pod-wide, but the next one is a
+                # different operator with its own capacity. Only the LAST
+                # mirror's saturation is terminal, preserving the 503 +
+                # Retry-After mapping the routes already apply.
+                if i == total:
+                    raise
+                log.warning(
+                    "Overpass mirror %s budget saturated; trying next mirror", mirror.url
+                )
             except Exception as exc:  # noqa: BLE001 — try the next mirror on any failure
-                log.warning("Overpass endpoint %s failed: %s", url, exc)
+                log.warning("Overpass endpoint %s failed: %s", mirror.url, exc)
                 last_exc = exc
     # Every mirror failed — surface the last failure as an actionable message.
     raise UpstreamError(classify_http_error(last_exc, PROVIDER)) from last_exc
