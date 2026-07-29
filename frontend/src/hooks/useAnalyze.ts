@@ -3,6 +3,7 @@ import {
   AnalysisMode,
   AnalyzeRequest,
   AnalyzeResponse,
+  DestinationResult,
   DestinationsResponse,
   DiscoveredDestination,
   RefusalFields,
@@ -93,6 +94,11 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
   const [error, setError] = useState<string | null>(null)
   const [refusal, setRefusal] = useState<Refusal | null>(null)
   const [response, setResponse] = useState<AnalyzeResponse | null>(null)
+  // The full ranked field behind `response`, before the `limit` cut, when the
+  // browser did the analysis itself. Null on the server SSE path, which only
+  // sends the trimmed rows — callers must treat "no universe" as a real state
+  // and degrade, not assume the displayed rows are the whole field.
+  const [universe, setUniverse] = useState<DestinationResult[] | null>(null)
   const [analyzed, setAnalyzed] = useState<AnalyzedView | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   // Secondary line for the search phase (SSE `detail`): mirror-failover news,
@@ -141,14 +147,24 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
   // linger in the table and on the map above the refetched pins.
   function reset() {
     setResponse(null)
+    setUniverse(null)
     setAnalyzed(null)
     setError(null)
     setRefusal(null)
     lastRequestRef.current = null
   }
 
-  function commit(data: AnalyzeResponse, request: AnalyzeRequest, mode: AnalysisMode) {
+  // `universe` is required rather than defaulted: a path that cannot supply the
+  // full field has to say so at the call site, since silently passing the
+  // trimmed rows as the universe is exactly the #177 bug.
+  function commit(
+    data: AnalyzeResponse,
+    request: AnalyzeRequest,
+    mode: AnalysisMode,
+    fullField: DestinationResult[] | null,
+  ) {
     setResponse(data)
+    setUniverse(fullField)
     setAnalyzed({
       sortBy: request.sort_by ?? 'precip_total_in',
       sortDesc: request.sort_desc ?? false,
@@ -232,20 +248,26 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
     // settles, exactly like the streaming endpoint's up-front progress event.
     setProgress({ processed: 0, total: candidates.length, percent: 0 })
 
-    const data = await runClientAnalysis(request, candidates, startMs, endMs, {
-      signal,
-      maxDestinations,
-      onPace: handlePace,
-      onProgress: (processed, total, message) => {
-        setPaceEndMs(null)
-        setStatusMessage(message)
-        setProgress({
-          processed,
-          total,
-          percent: total ? Math.round((processed / total) * 100) : 100,
-        })
+    const { response: data, universe: fullField } = await runClientAnalysis(
+      request,
+      candidates,
+      startMs,
+      endMs,
+      {
+        signal,
+        maxDestinations,
+        onPace: handlePace,
+        onProgress: (processed, total, message) => {
+          setPaceEndMs(null)
+          setStatusMessage(message)
+          setProgress({
+            processed,
+            total,
+            percent: total ? Math.round((processed / total) * 100) : 100,
+          })
+        },
       },
-    })
+    )
     // Server-side truncation happened at discovery; client-side (custom/union
     // overflow) inside runClientAnalysis. Either way the caption fields win
     // over per-path nulls.
@@ -257,6 +279,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
       },
       request,
       mode,
+      fullField,
     )
   }
 
@@ -323,7 +346,12 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
           }
           throw new Error(event.message)
         } else if (event.type === 'result' && event.data) {
-          commit(event.data, request, mode)
+          // No universe: the stream sends the ranked rows already cut to
+          // `limit` (routes/analyze.py trims before the result event), so this
+          // path cannot offer an exact re-rank later. Deliberate: growing the
+          // response shape to serve a fallback the browser takes only when
+          // Open-Meteo is unreachable is not worth the contract change (#177).
+          commit(event.data, request, mode, null)
         }
         // Unknown types (keepalive) are ignored by construction.
       }
@@ -415,6 +443,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
     error,
     refusal,
     response,
+    universe,
     statusMessage,
     statusDetail,
     progress,

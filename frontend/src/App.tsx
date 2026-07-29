@@ -17,6 +17,7 @@ import { AnalysisMode, CustomDestination, DestinationResult, DiscoveryType, GeoP
 import { BUTTON_SECONDARY, LINK, PROSE, RADIUS, SURFACE_CARD, SURFACE_FLOATING, TEXT } from './styles'
 import { NOUN, familyOf, rankedNoun } from './metrics'
 import { METRIC_CONFIG } from './utils/colors'
+import { refreshEchoRows } from './utils/clientAnalyze'
 import { parseCustomCsv } from './utils/customDestinations'
 import { buildCustomList, pendingDestinations, pinKey } from './utils/customList'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
@@ -221,6 +222,7 @@ export default function App() {
     error,
     refusal,
     response,
+    universe,
     statusMessage,
     statusDetail,
     progress,
@@ -444,8 +446,14 @@ export default function App() {
     if (isRefresh && response) {
       // Refresh: weather-only over the known destinations (no Overpass). They
       // come back as type "custom" with no osm_id; the results memo restores
-      // each row's real identity by coordinate. Echoing the *displayed* rows
-      // (not the raw response) is what keeps ×-removed destinations gone.
+      // each row's real identity by coordinate.
+      //
+      // The echo is the FULL analyzed field, not the displayed rows. A window
+      // change lands here (discoveryBase deliberately omits the window), and
+      // re-ranking only the last cut's survivors ranked 10 of 851 candidates:
+      // fast, silent, and wrong (#177). Exactness costs a real refetch of the
+      // whole field at the new window — the same price the first Analyze paid,
+      // minus Overpass — which the progress bar and pace countdown narrate.
       // Record the shrunk searched list so re-adding one of these places later
       // reads as an addition (fresh run), not a refresh that would skip it.
       discoveryRef.current = { base, searchedKeys }
@@ -456,12 +464,7 @@ export default function App() {
         limit,
         sort_by: sortBy,
         sort_desc: sortDesc,
-        custom_destinations: results.map((r) => ({
-          name: r.name,
-          latitude: r.latitude,
-          longitude: r.longitude,
-          elevation_ft: r.elevation_ft ?? undefined,
-        })),
+        custom_destinations: refreshEchoRows(universe, results, removedKeys),
         ...constraints,
       }, mode)
     } else if (resolvedPolygon) {
@@ -507,12 +510,18 @@ export default function App() {
   // Record every discovered row's OSM identity (rows that carry an osm_id) so a
   // later refresh — which comes back through the custom path with osm_id null —
   // can have its identity restored below. Runs after each response lands.
+  //
+  // Registers the whole analyzed field, not only the displayed rows: the refresh
+  // echoes the universe (#177), so a destination that ranked below the last cut
+  // can surface in the next report and would otherwise come back permanently
+  // identity-less (no peak link, wrong marker type).
   useEffect(() => {
-    if (!response) return
-    for (const r of response.results) {
+    const rows = universe ?? response?.results
+    if (!rows) return
+    for (const r of rows) {
       if (r.osm_id) identityMapRef.current.set(pinKey(r.latitude, r.longitude), { type: r.type, osm_id: r.osm_id })
     }
-  }, [response])
+  }, [response, universe])
 
   // Searched places know more than the custom echo carries: their geocoded
   // kind (peak vs not) and OSM id. Seed those identities so their ranked rows
