@@ -57,7 +57,11 @@ interface Props {
   maxElevationFt: number | null
 }
 
-export const MAX_AREA_KM2 = 50_000
+// Mirror of MAX_POLYGON_AREA_KM2 in backend/app/models.py — keep them in
+// sync. Bounds the Overpass query (measured: ~103k km2 answers in ~26s;
+// ~151k km2 drew a "too busy" 504), not Open-Meteo spend; the destination
+// cap does that.
+export const MAX_AREA_KM2 = 100_000
 
 // Build a filter for the basemap peak layer from the elevation knobs so the
 // mountains drawn on the map match the band an analysis would actually consider.

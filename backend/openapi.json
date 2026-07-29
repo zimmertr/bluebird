@@ -1,6 +1,69 @@
 {
   "components": {
     "schemas": {
+      "AnalysisRefusal": {
+        "description": "400 body for a request that parsed but cannot run as asked.\n\n`detail` is always present and readable on its own, exactly like\n`ErrorResponse`. The structured fields appear only on over-limit\nrefusals, so a client can offer working remedies (prefill an elevation\nfloor, offer an explicit top-N analysis) instead of a dead retry button.",
+        "properties": {
+          "detail": {
+            "description": "Plain-language refusal, shown to an end user unmodified.",
+            "title": "Detail",
+            "type": "string"
+          },
+          "found": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How many candidates the search actually found.",
+            "title": "Found"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The analysis ceiling the count exceeded (destinations).",
+            "title": "Limit"
+          },
+          "suggested_keeps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How many candidates would remain with the suggested floor applied (unknown elevations always pass elevation filters, so this can be well under the limit).",
+            "title": "Suggested Keeps"
+          },
+          "suggested_min_elevation_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A computed elevation floor that would bring the candidate count under the limit, when one exists. Rounded up to a clean number.",
+            "title": "Suggested Min Elevation Ft"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "AnalysisRefusal",
+        "type": "object"
+      },
       "AnalyzeRequest": {
         "description": "One analysis: which destinations, over which window, ranked how.",
         "examples": [
@@ -147,6 +210,12 @@
             ],
             "description": "ISO 8601; a naive timestamp is read as UTC. Required for `at` and `window`, and rejected for `current`.",
             "title": "Start Datetime"
+          },
+          "top_by_elevation": {
+            "default": false,
+            "description": "Explicit opt-in for an over-limit candidate set: instead of refusing, keep the highest-elevation candidates up to the analysis limit (rows with unknown elevation are dropped first, since they cannot claim to be among the highest). The response then reports `truncated: true` and the pre-cut count in `total_found`, so a partial ranking is never silent. Off by default: an unasked-for cut would misrepresent the ranking.",
+            "title": "Top By Elevation",
+            "type": "boolean"
           }
         },
         "required": [
@@ -187,10 +256,28 @@
             "title": "Times",
             "type": "array"
           },
+          "total_found": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pre-truncation candidate count when `truncated` is true; null otherwise. Lets a client caption an elected top-N honestly (\"top 1,500 of 2,340\").",
+            "title": "Total Found"
+          },
           "total_queried": {
             "description": "How many candidates were forecast and ranked before `limit` cut the list. Compare against `len(results)` to see how much of the ranking is not being shown.",
             "title": "Total Queried",
             "type": "integer"
+          },
+          "truncated": {
+            "default": false,
+            "description": "True only when the request set `top_by_elevation` and the candidate set exceeded the limit, so only the highest candidates were analyzed. Never true otherwise: an over-limit set without the opt-in refuses with a 400 instead.",
+            "title": "Truncated",
+            "type": "boolean"
           }
         },
         "required": [
@@ -505,6 +592,12 @@
           "polygon": {
             "$ref": "#/components/schemas/GeoPolygon",
             "description": "Search area, validated exactly as on `POST /api/analyze`."
+          },
+          "top_by_elevation": {
+            "default": false,
+            "description": "Explicit opt-in for an over-limit result: keep the highest-elevation candidates up to the analysis limit instead of refusing (unknown elevations are dropped first). The response reports `truncated: true` and the pre-cut count in `total_found`.",
+            "title": "Top By Elevation",
+            "type": "boolean"
           }
         },
         "required": [
@@ -529,6 +622,24 @@
             "description": "Same as `len(destinations)`, for convenience.",
             "title": "Total",
             "type": "integer"
+          },
+          "total_found": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pre-truncation candidate count when `truncated` is true; null otherwise.",
+            "title": "Total Found"
+          },
+          "truncated": {
+            "default": false,
+            "description": "True only when the request set `top_by_elevation` and the found set exceeded the limit, so `destinations` holds the highest candidates only.",
+            "title": "Truncated",
+            "type": "boolean"
           }
         },
         "required": [
@@ -845,6 +956,16 @@
             "title": "Analyze Per Minute",
             "type": "integer"
           },
+          "destinations_burst": {
+            "description": "How many destinations requests an idle client can send back-to-back before the per-minute pace applies.",
+            "title": "Destinations Burst",
+            "type": "integer"
+          },
+          "destinations_per_minute": {
+            "description": "Sustained `POST /api/destinations` requests per client address per minute. Its own bucket: discovery is one map query with no forecasts, so it does not spend the analyze budget. 0 means the limit is disabled.",
+            "title": "Destinations Per Minute",
+            "type": "integer"
+          },
           "geocode_burst": {
             "description": "How many geocode requests an idle client can send back-to-back before the per-minute pace applies.",
             "title": "Geocode Burst",
@@ -859,6 +980,8 @@
         "required": [
           "analyze_per_minute",
           "analyze_burst",
+          "destinations_per_minute",
+          "destinations_burst",
           "geocode_per_minute",
           "geocode_burst"
         ],
@@ -1003,11 +1126,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/AnalysisRefusal"
                 }
               }
             },
-            "description": "The request parsed but does not describe a runnable analysis: the window is inverted, the destination type is not discoverable, `custom_destinations` is missing for a custom analysis, the elevation band excludes every candidate, or the candidate count exceeds the cap."
+            "description": "The request parsed but does not describe a runnable analysis: the window is inverted, the destination type is not discoverable, `custom_destinations` is missing for a custom analysis, the elevation band excludes every candidate, or the candidate count exceeds the cap. Over-cap refusals carry the structured remedy fields (`found`, `limit`, and a computed elevation-floor suggestion when one exists); send `top_by_elevation: true` to elect an explicit top-N analysis instead."
           },
           "422": {
             "content": {
@@ -1027,7 +1150,7 @@
                 }
               }
             },
-            "description": "This client is analyzing faster than the per-address limit (shared with `POST /api/analyze/stream`). `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit."
+            "description": "Either this client is analyzing faster than the per-address limit (shared with `POST /api/analyze/stream`), or the upstream weather service rate-limited this deployment mid-analysis. `Retry-After` says how many seconds to wait in both cases. `GET /api/capabilities` publishes the per-address limit."
           },
           "502": {
             "content": {
@@ -1058,7 +1181,7 @@
     },
     "/api/analyze/stream": {
       "post": {
-        "description": "Identical analysis to `POST /api/analyze`, delivered as Server-Sent Events so a caller can show progress instead of waiting on one long request.\n\nCheck the status code first, then the stream. A request that fails validation is rejected with **422 before the stream opens**, exactly as on `POST /api/analyze`. Once the stream does open the status is **200 for the rest of the exchange**, including for failures, because the connection is already streaming by the time an upstream problem surfaces. So a 200 here means the request was accepted, not that the analysis succeeded. Four event types arrive as `data:` lines carrying a JSON object with a `type` field:\n\n- `status` \u2014 a human-readable phase message in `message`, plus an optional `detail` line when the search falls over to a backup map server\n- `progress` \u2014 `processed`, `total`, and `percent` counters\n- `result` \u2014 the terminal success event, carrying a full `AnalyzeResponse` in `data`\n- `error` \u2014 the terminal failure event, with the reason in `message`\n\nExactly one `result` or one `error` ends the stream.\n\nRate limiting applies before the stream opens: a client past the per-address limit gets a plain **429 with `Retry-After`**, exactly as on `POST /api/analyze`. Capacity problems found mid-analysis (the instance-wide upstream budget saturating) arrive as an `error` event, since the stream is already open.",
+        "description": "Identical analysis to `POST /api/analyze`, delivered as Server-Sent Events so a caller can show progress instead of waiting on one long request.\n\nCheck the status code first, then the stream. A request that fails validation is rejected with **422 before the stream opens**, exactly as on `POST /api/analyze`. Once the stream does open the status is **200 for the rest of the exchange**, including for failures, because the connection is already streaming by the time an upstream problem surfaces. So a 200 here means the request was accepted, not that the analysis succeeded. Four event types arrive as `data:` lines carrying a JSON object with a `type` field:\n\n- `status` \u2014 a human-readable phase message in `message`, plus an optional `detail` line for mid-phase news: a fall-over to a backup map server, or a weather-quota pace wait with its resume estimate\n- `progress` \u2014 `processed`, `total`, and `percent` counters\n- `keepalive` \u2014 periodic no-op during quiet stretches (a paced analysis can wait most of a minute for quota); ignore it\n- `result` \u2014 the terminal success event, carrying a full `AnalyzeResponse` in `data`\n- `error` \u2014 the terminal failure event, with the reason in `message`; an over-limit refusal also carries the `AnalysisRefusal` remedy fields, and an upstream rate limit carries `scope` and `retry_after_s`\n\nExactly one `result` or one `error` ends the stream.\n\nRate limiting applies before the stream opens: a client past the per-address limit gets a plain **429 with `Retry-After`**, exactly as on `POST /api/analyze`. Capacity problems found mid-analysis (the instance-wide upstream budget saturating) arrive as an `error` event, since the stream is already open.",
         "operationId": "analyze_stream_api_analyze_stream_post",
         "requestBody": {
           "content": {
@@ -1181,11 +1304,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/AnalysisRefusal"
                 }
               }
             },
-            "description": "The request parsed but is not discoverable: the destination type is `custom` (caller-supplied, nothing to discover) or not yet implemented, or the polygon contains more candidates than the analysis ceiling."
+            "description": "The request parsed but is not discoverable: the destination type is `custom` (caller-supplied, nothing to discover) or not yet implemented, or the polygon contains more candidates than the analysis ceiling. Over-cap refusals carry the structured remedy fields; send `top_by_elevation: true` to elect an explicit top-N result instead."
           },
           "422": {
             "content": {
@@ -1205,7 +1328,7 @@
                 }
               }
             },
-            "description": "This client is requesting faster than the per-address limit (shared with the analyze endpoints). `Retry-After` says how many seconds to wait."
+            "description": "This client is discovering faster than the per-address limit (its own bucket, independent of the analyze endpoints). `Retry-After` says how many seconds to wait."
           },
           "502": {
             "content": {

@@ -58,12 +58,12 @@ def test_bbox_area_shrinks_with_latitude():
 # ── AnalyzeRequest.limit ───────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("limit", [1, 10, 200])
+@pytest.mark.parametrize("limit", [1, 10, 1500])
 def test_limit_accepts_in_range(limit):
     assert _valid_request(limit=limit).limit == limit
 
 
-@pytest.mark.parametrize("limit", [0, -1, 201, 1000])
+@pytest.mark.parametrize("limit", [0, -1, 1501, 5000])
 def test_limit_rejects_out_of_range(limit):
     with pytest.raises(ValidationError):
         _valid_request(limit=limit)

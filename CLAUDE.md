@@ -69,13 +69,13 @@ Single container, multi-stage Docker build:
 
 The FastAPI backend handles `POST /api/analyze`, which:
 1. Validates polygon area (bounding-box approximation, max 50,000 km²)
-2. Queries Overpass API for **every** named OSM feature in the polygon, with no sampling (peaks, trailheads, and lakes; available types are gated by `IMPLEMENTED_TYPES` in `osm.py`, which `GET /api/capabilities` publishes), then drops candidates outside the optional elevation band (unknown elevations pass through). Analyses over `MAX_ANALYZE_PEAKS = 1_000` candidates refuse with a clear error instead of silently truncating
-3. Fetches hourly weather from Open-Meteo in batches of 50, at most 4 batches in flight at once; US AQI (combined across EPA pollutants) is fetched the same way from Open-Meteo's air-quality endpoint alongside it (best-effort: failures and the short horizon degrade to `null` AQI, never fail the analysis — weather forecasts reach ~16 days, air quality only ~5)
+2. Queries Overpass API for **every** named OSM feature in the polygon, with no sampling (peaks, trailheads, and lakes; available types are gated by `IMPLEMENTED_TYPES` in `osm.py`, which `GET /api/capabilities` publishes), then drops candidates outside the optional elevation band (unknown elevations pass through). Discovery is cached ~10 minutes per (polygon, type). Analyses over `MAX_ANALYZE_PEAKS = 1_500` candidates refuse with a structured 400 carrying remedies (a computed elevation-floor suggestion; an explicit `top_by_elevation` opt-in analyzes the highest instead) — never silent truncation
+3. Fetches hourly weather from Open-Meteo in batches of 50 (at most 4 in flight), **paced under weighted-call budgets** — Open-Meteo bills per location, not per request (`services/openmeteo_weight.py`); results are cached ~15 minutes per location+window (`services/cache.py`). US AQI is fetched **lazily**: for the displayed rows only, unless `sort_by` is an AQI key (best-effort: failures and the short horizon degrade to `null` AQI, never fail the analysis — weather forecasts reach ~16 days, air quality only ~5). Upstream 429s are parsed (minutely resumes automatically; hourly/daily stop honestly)
 4. Ranks by `sort_by` + `sort_desc` and returns the top `limit` rows (nullable AQI sort keys push `None` last in either direction)
 
 The SPA fetches only on an explicit Analyze click and renders results from a snapshot of the ranking that produced them (`analyzed` in `useAnalyze.ts`) — panel knob changes never mutate the displayed analysis.
 
-**Key constraints shared between frontend and backend:** `MAX_POLYGON_AREA_KM2 = 50_000` is defined in both `backend/app/models.py` and `frontend/src/components/MapView.tsx`, and `MAX_ANALYZE_PEAKS = 1_000` is mirrored as `MAX_ANALYZE_DESTINATIONS` in `frontend/src/utils/clientAnalyze.ts` (the browser enforces it for analyses that never touch the server) — keep each pair in sync.
+**Key constraints shared between frontend and backend:** `MAX_POLYGON_AREA_KM2 = 100_000` is defined in both `backend/app/models.py` and `frontend/src/components/MapView.tsx`, and `MAX_ANALYZE_PEAKS = 1_500` is mirrored as `MAX_ANALYZE_DESTINATIONS` in `frontend/src/utils/clientAnalyze.ts` (the browser enforces it for analyses that never touch the server, and reads the live value from `/api/capabilities` otherwise) — keep each pair in sync. The Open-Meteo weighted-call formula is a third mirrored pair: `backend/app/services/openmeteo_weight.py` ↔ `callWeight` in `frontend/src/utils/openMeteo.ts`. All capacity math is written in weighted calls (one location in a batch = one call), never HTTP requests — pricing spend in requests is the unit error behind the 2026-07-29 rate-limit incident (issue #180).
 
 **Backend layout:**
 - `app/main.py` — FastAPI app + OpenAPI metadata (tags, description), logging setup (includes custom `TRACE` level at value 5), self-hosted Swagger UI at `/docs`, static file mount. `docs_url`/`redoc_url` are `None` in the **constructor**: `FastAPI.setup()` registers those routes at the end of `__init__`, so assigning them afterward has no effect
@@ -89,8 +89,11 @@ The SPA fetches only on an explicit Analyze click and renders results from a sna
 - `scripts/generate_openapi.py` — writes/verifies the committed `backend/openapi.json`
 - `scripts/generate_weather_vectors.py` — regenerates `tests/data/weather_vectors.json` from the reference aggregation (see the vectors rule above)
 - `app/services/osm.py` — Overpass query with 3-endpoint fallback chain; `IMPLEMENTED_TYPES` gates which destination types are discoverable
-- `app/services/weather.py` — Open-Meteo batched parallel fetch
-- `app/services/air_quality.py` — Open-Meteo air-quality (US AQI) batched fetch, best-effort
+- `app/services/weather.py` — Open-Meteo batched parallel fetch, paced by the pod's weighted budget, cached per location+window
+- `app/services/air_quality.py` — Open-Meteo air-quality (US AQI) batched fetch, best-effort, same pacing/cache; the first 429 short-circuits its remaining batches
+- `app/services/openmeteo_weight.py` — the weighted-call accounting every capacity number uses
+- `app/services/cache.py` — TTL/LRU caches: discovery (~10 min per polygon+type) and per-location forecasts (~15 min)
+- `app/ratelimit.py` — per-client token buckets (analyze / destinations / geocode), pod-wide in-flight budgets, and the `WeightedBudget` pacers
 
 **Frontend layout:**
 - `src/App.tsx` — root component

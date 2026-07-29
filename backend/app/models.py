@@ -7,13 +7,24 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-MAX_POLYGON_AREA_KM2 = 50_000
+# Bounds the Overpass query, not Open-Meteo spend (the count cap below does
+# that). Measured 2026-07-29 against overpass-api.de with the production peaks
+# query: a ~103,000 km2 sparse box (Iowa) answered in 25.8s; a ~151,000 km2 box
+# drew a dispatcher "too busy" 504; a ~50,000 km2 dense box (WA/OR Cascades)
+# answered in 21.2s with 1,576 peaks. 100,000 sits inside measured-reliable
+# territory with the [timeout:60] in osm.py as the true backstop. Re-measure
+# before raising further.
+MAX_POLYGON_AREA_KM2 = 100_000
 
 # Every candidate inside the polygon gets a forecast (no silent sampling), so
-# this ceiling is what actually bounds upstream cost per analysis: 1,000 peaks
-# = 20 batched Open-Meteo calls. Beyond it the analysis refuses loudly and the
-# user shrinks the polygon or narrows the elevation band.
-MAX_ANALYZE_PEAKS = 1_000
+# this ceiling is what actually bounds upstream cost per analysis, in
+# Open-Meteo's own unit (see services/openmeteo_weight.py): 1,500 destinations
+# is ~1,500 weighted weather calls (times 16/14 for the longest window) plus
+# AQI for the displayed rows, against their 600/minute/IP budget — about three
+# paced minutes worst case. Beyond it the analysis refuses loudly with
+# remedies (narrow the elevation band, elect the top-N, shrink the polygon);
+# truncation only ever happens when the request explicitly opts in.
+MAX_ANALYZE_PEAKS = 1_500
 
 # Open-Meteo serves roughly the last ~90 days of history through ~16 days
 # ahead; the frontend blocks windows outside that band (urlState.ts). These
@@ -24,9 +35,13 @@ PAST_LIMIT_SLACK_DAYS = 95
 FUTURE_LIMIT_SLACK_DAYS = 17
 
 # Rows returned per analysis. Named rather than inline so the validator and
-# GET /api/capabilities cannot drift apart.
+# GET /api/capabilities cannot drift apart. The ceiling equals the analysis
+# cap on purpose: `limit` trims the response, never the upstream work, and a
+# smaller server ceiling than the SPA's knob would make the rare server
+# fallback reject requests the browser path accepts (issue #180). Response
+# size stays bounded by the analysis cap regardless.
 MIN_LIMIT = 1
-MAX_LIMIT = 200
+MAX_LIMIT = MAX_ANALYZE_PEAKS
 
 
 def _as_utc(dt: datetime) -> datetime:
@@ -145,7 +160,8 @@ def _check_polygon_area(v: GeoPolygon) -> GeoPolygon:
         raise ValueError(
             f"Search area is too large (~{area:,.0f} km²). "
             f"Maximum allowed is {MAX_POLYGON_AREA_KM2:,} km². "
-            "Draw a smaller polygon to stay within API rate limits."
+            "Larger areas are more than the map search service can scan in "
+            "one query. Draw a smaller polygon."
         )
     return v
 
@@ -233,6 +249,18 @@ class AnalyzeRequest(BaseModel):
             "Your own destinations, merged into whatever the polygon discovers. "
             "A custom row matching a discovered one by name or by coordinates "
             "to five decimals replaces it."
+        ),
+    )
+    top_by_elevation: bool = Field(
+        default=False,
+        description=(
+            "Explicit opt-in for an over-limit candidate set: instead of "
+            "refusing, keep the highest-elevation candidates up to the "
+            "analysis limit (rows with unknown elevation are dropped first, "
+            "since they cannot claim to be among the highest). The response "
+            "then reports `truncated: true` and the pre-cut count in "
+            "`total_found`, so a partial ranking is never silent. Off by "
+            "default: an unasked-for cut would misrepresent the ranking."
         ),
     )
 
@@ -457,6 +485,43 @@ class ErrorResponse(BaseModel):
     )
 
 
+class AnalysisRefusal(BaseModel):
+    """400 body for a request that parsed but cannot run as asked.
+
+    `detail` is always present and readable on its own, exactly like
+    `ErrorResponse`. The structured fields appear only on over-limit
+    refusals, so a client can offer working remedies (prefill an elevation
+    floor, offer an explicit top-N analysis) instead of a dead retry button.
+    """
+
+    detail: str = Field(
+        description="Plain-language refusal, shown to an end user unmodified."
+    )
+    found: int | None = Field(
+        default=None,
+        description="How many candidates the search actually found.",
+    )
+    limit: int | None = Field(
+        default=None,
+        description="The analysis ceiling the count exceeded (destinations).",
+    )
+    suggested_min_elevation_ft: float | None = Field(
+        default=None,
+        description=(
+            "A computed elevation floor that would bring the candidate count "
+            "under the limit, when one exists. Rounded up to a clean number."
+        ),
+    )
+    suggested_keeps: int | None = Field(
+        default=None,
+        description=(
+            "How many candidates would remain with the suggested floor "
+            "applied (unknown elevations always pass elevation filters, so "
+            "this can be well under the limit)."
+        ),
+    )
+
+
 class AnalyzeResponse(BaseModel):
     """A completed analysis: the ranking, and what it was drawn from."""
 
@@ -476,6 +541,23 @@ class AnalyzeResponse(BaseModel):
             "Always null here. A failed analysis returns a 4xx or 5xx with a "
             "`detail` message instead. The field exists because the streaming "
             "endpoint reuses this shape."
+        ),
+    )
+    total_found: int | None = Field(
+        default=None,
+        description=(
+            "Pre-truncation candidate count when `truncated` is true; null "
+            "otherwise. Lets a client caption an elected top-N honestly "
+            "(\"top 1,500 of 2,340\")."
+        ),
+    )
+    truncated: bool = Field(
+        default=False,
+        description=(
+            "True only when the request set `top_by_elevation` and the "
+            "candidate set exceeded the limit, so only the highest "
+            "candidates were analyzed. Never true otherwise: an over-limit "
+            "set without the opt-in refuses with a 400 instead."
         ),
     )
     times: list[int] = Field(
@@ -516,6 +598,15 @@ class DestinationsRequest(BaseModel):
     max_elevation_ft: float | None = Field(
         default=None, description="Drop candidates above this elevation."
     )
+    top_by_elevation: bool = Field(
+        default=False,
+        description=(
+            "Explicit opt-in for an over-limit result: keep the "
+            "highest-elevation candidates up to the analysis limit instead of "
+            "refusing (unknown elevations are dropped first). The response "
+            "reports `truncated: true` and the pre-cut count in `total_found`."
+        ),
+    )
 
     @field_validator("polygon")
     @classmethod
@@ -549,3 +640,18 @@ class DestinationsResponse(BaseModel):
         )
     )
     total: int = Field(description="Same as `len(destinations)`, for convenience.")
+    total_found: int | None = Field(
+        default=None,
+        description=(
+            "Pre-truncation candidate count when `truncated` is true; null "
+            "otherwise."
+        ),
+    )
+    truncated: bool = Field(
+        default=False,
+        description=(
+            "True only when the request set `top_by_elevation` and the found "
+            "set exceeded the limit, so `destinations` holds the highest "
+            "candidates only."
+        ),
+    )

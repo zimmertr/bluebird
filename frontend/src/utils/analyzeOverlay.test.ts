@@ -72,13 +72,19 @@ describe('composeOverlay', () => {
     expect(view.visible && view.detail).toBe('Trying backup map server 2 of 3…')
   })
 
-  it('stages the reassurance line once a search has run 12s', () => {
+  it('stages tiered reassurance as a search runs long', () => {
     const search = { ...idle, analyzeLoading: true, statusMessage: SEARCHING_MESSAGE }
-    const early = composeOverlay({ ...search, elapsedS: 11 })
+    const early = composeOverlay({ ...search, elapsedS: 19 })
     expect(early.visible && early.detail).toBe(null)
-    const late = composeOverlay({ ...search, elapsedS: 12 })
-    expect(late.visible && late.detail).toBe(
-      'Still searching. Large areas can take up to 30 seconds.'
+    const staged = composeOverlay({ ...search, elapsedS: 20 })
+    expect(staged.visible && staged.detail).toBe(
+      'Still searching. Large areas often take 40 to 60 seconds.'
+    )
+    // Tier two admits the mirror-failover tail without a false ceiling (the
+    // old "up to 30 seconds" measured false at 44s on a healthy primary).
+    const long = composeOverlay({ ...search, elapsedS: 45 })
+    expect(long.visible && long.detail).toBe(
+      'Still searching. Some searches take over a minute.'
     )
   })
 
@@ -107,14 +113,37 @@ describe('composeOverlay', () => {
     expect(custom.visible && custom.detail).toBe(null)
   })
 
-  it('drops detail entirely once batch progress takes over', () => {
+  it('carries live detail into the progress phase', () => {
+    // Mid-retrieval news (a server pace narration, the announced fallback)
+    // must stay visible over the progress bar; staleness is the state
+    // layer's job — useAnalyze clears statusDetail on every progress event.
     const view = composeOverlay({
       ...idle,
       analyzeLoading: true,
-      statusDetail: 'Trying backup map server 2 of 3…',
+      statusDetail: 'Weather service quota: resuming in about 30s',
       elapsedS: 40,
       rankedProgress: { processed: 10, total: 100 },
     })
-    expect(view.visible && view.detail).toBe(null)
+    expect(view.visible && view.detail).toBe(
+      'Weather service quota: resuming in about 30s'
+    )
+  })
+
+  it('renders the pace countdown over any other detail during retrieval', () => {
+    const view = composeOverlay({
+      ...idle,
+      analyzeLoading: true,
+      statusDetail: 'stale line',
+      rankedProgress: { processed: 550, total: 908 },
+      paceRemainingS: 34,
+    })
+    expect(view.visible && view.detail).toBe('Weather service quota: resuming in 34s')
+    const done = composeOverlay({
+      ...idle,
+      analyzeLoading: true,
+      rankedProgress: { processed: 550, total: 908 },
+      paceRemainingS: 0,
+    })
+    expect(done.visible && done.detail).toBe(null)
   })
 })

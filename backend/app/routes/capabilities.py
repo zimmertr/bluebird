@@ -47,6 +47,20 @@ class RateLimits(BaseModel):
             "before the per-minute pace applies."
         )
     )
+    destinations_per_minute: int = Field(
+        description=(
+            "Sustained `POST /api/destinations` requests per client address "
+            "per minute. Its own bucket: discovery is one map query with no "
+            "forecasts, so it does not spend the analyze budget. 0 means the "
+            "limit is disabled."
+        )
+    )
+    destinations_burst: int = Field(
+        description=(
+            "How many destinations requests an idle client can send "
+            "back-to-back before the per-minute pace applies."
+        )
+    )
     geocode_per_minute: int = Field(
         description=(
             "Sustained `GET /api/geocode` requests per client address per "
@@ -160,6 +174,8 @@ async def capabilities() -> CapabilitiesResponse:
             rate=RateLimits(
                 analyze_per_minute=ratelimit.ANALYZE_LIMITER.per_minute,
                 analyze_burst=ratelimit.ANALYZE_LIMITER.burst,
+                destinations_per_minute=ratelimit.DESTINATIONS_LIMITER.per_minute,
+                destinations_burst=ratelimit.DESTINATIONS_LIMITER.burst,
                 geocode_per_minute=ratelimit.GEOCODE_LIMITER.per_minute,
                 geocode_burst=ratelimit.GEOCODE_LIMITER.burst,
             ),

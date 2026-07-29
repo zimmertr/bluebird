@@ -3,10 +3,12 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 
 from app import ratelimit
 from app.models import (
     MAX_ANALYZE_PEAKS,
+    AnalysisRefusal,
     DestinationsRequest,
     DestinationsResponse,
     DestinationType,
@@ -14,7 +16,13 @@ from app.models import (
     ErrorResponse,
     bbox_area_km2,
 )
-from app.routes.analyze import _cap_detail, _filter_elevation, _noun
+from app.routes.analyze import (
+    _filter_elevation,
+    _noun,
+    _refusal_body,
+    _suggest_elevation_floor,
+    _truncate_top_elevation,
+)
 from app.services import osm
 from app.services.errors import UpstreamError
 
@@ -39,23 +47,25 @@ router = APIRouter()
         "a client and want ranked forecasts in one call, `POST /api/analyze` "
         "remains the endpoint for that."
     ),
-    dependencies=[Depends(ratelimit.analyze_rate_limit)],
+    dependencies=[Depends(ratelimit.destinations_rate_limit)],
     responses={
         400: {
-            "model": ErrorResponse,
+            "model": AnalysisRefusal,
             "description": (
                 "The request parsed but is not discoverable: the destination "
                 "type is `custom` (caller-supplied, nothing to discover) or "
                 "not yet implemented, or the polygon contains more candidates "
-                "than the analysis ceiling."
+                "than the analysis ceiling. Over-cap refusals carry the "
+                "structured remedy fields; send `top_by_elevation: true` to "
+                "elect an explicit top-N result instead."
             ),
         },
         429: {
             "model": ErrorResponse,
             "description": (
-                "This client is requesting faster than the per-address limit "
-                "(shared with the analyze endpoints). `Retry-After` says how "
-                "many seconds to wait."
+                "This client is discovering faster than the per-address limit "
+                "(its own bucket, independent of the analyze endpoints). "
+                "`Retry-After` says how many seconds to wait."
             ),
         },
         502: {
@@ -108,16 +118,25 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse:
     found = _filter_elevation(
         found, request.min_elevation_ft, request.max_elevation_ft
     )
+    total_found: int | None = None
+    truncated = False
     if len(found) > MAX_ANALYZE_PEAKS:
-        raise HTTPException(
-            status_code=400,
-            detail=_cap_detail(
-                len(found),
-                _noun(request.destination_type),
-                has_polygon=True,
-                has_custom=False,
-            ),
-        )
+        if request.top_by_elevation:
+            total_found = len(found)
+            found = _truncate_top_elevation(found, MAX_ANALYZE_PEAKS)
+            truncated = True
+        else:
+            suggestion = _suggest_elevation_floor(found, MAX_ANALYZE_PEAKS)
+            return JSONResponse(
+                status_code=400,
+                content=_refusal_body(
+                    len(found),
+                    _noun(request.destination_type),
+                    has_polygon=True,
+                    has_custom=False,
+                    suggestion=suggestion,
+                ),
+            )
 
     rows = [
         DiscoveredDestination(
@@ -130,5 +149,11 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse:
         )
         for d in found
     ]
-    log.info("Returning %d destination(s)", len(rows))
-    return DestinationsResponse(destinations=rows, total=len(rows))
+    log.info(
+        "Returning %d destination(s)%s",
+        len(rows),
+        f" (top by elevation of {total_found})" if truncated else "",
+    )
+    return DestinationsResponse(
+        destinations=rows, total=len(rows), total_found=total_found, truncated=truncated
+    )

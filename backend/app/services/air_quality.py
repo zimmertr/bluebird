@@ -8,12 +8,21 @@ from typing import Any
 import httpx
 
 from app import ratelimit
+from app.services import cache
+from app.services.errors import (
+    UpstreamRateLimited,
+    parse_rate_limit,
+    rate_limit_message,
+)
+from app.services.openmeteo_weight import call_weight
 
 log = logging.getLogger(__name__)
 
 AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 BATCH_SIZE = 50  # same conservative batching as the weather service
 MAX_CONCURRENT_BATCHES = 4  # same in-flight gate as the weather service
+N_VARIABLES = 1  # us_aqi
+PROVIDER = "Open-Meteo (air quality)"
 
 # The underlying CAMS model publishes ~5 days of forecast. The API accepts
 # end_date a day or two past that, but the exact boundary tracks the model-run
@@ -46,32 +55,93 @@ async def fetch_aqi_batch(
         log.info("AQI window starts beyond the ~%dd forecast horizon — skipping fetch", MAX_FORECAST_DAYS)
         return [None] * len(destinations)
 
-    chunks = [
-        destinations[i : i + BATCH_SIZE]
-        for i in range(0, len(destinations), BATCH_SIZE)
-    ]
+    # Serve repeats from the per-location cache; fetch only the misses (same
+    # pattern as the weather service, same incident rationale).
+    results: list[dict[str, Any] | None] = [None] * len(destinations)
+    miss_indices: list[int] = []
+    for i, dest in enumerate(destinations):
+        key = cache.forecast_key(
+            "aqi",
+            dest["latitude"],
+            dest["longitude"],
+            start_dt.isoformat(),
+            end_dt.isoformat(),
+        )
+        hit = cache.FORECAST_CACHE.get(key)
+        if hit is None:
+            miss_indices.append(i)
+        else:
+            results[i] = None if hit == cache.NO_DATA else hit
+
+    misses = [destinations[i] for i in miss_indices]
+    if not misses:
+        log.info(
+            "Open-Meteo air quality: all %d destination(s) served from cache",
+            len(destinations),
+        )
+        return results
+
+    chunks = [misses[i : i + BATCH_SIZE] for i in range(0, len(misses), BATCH_SIZE)]
     log.info(
-        "Fetching Open-Meteo air quality: %d destination(s) across %d batch(es)",
+        "Fetching Open-Meteo air quality: %d destination(s), %d cached, %d across %d batch(es)",
         len(destinations),
+        len(destinations) - len(misses),
+        len(misses),
         len(chunks),
     )
 
     sem = asyncio.Semaphore(MAX_CONCURRENT_BATCHES)
+    # Once one chunk sees a 429, the AQI quota is spent: every further batch
+    # would burn budget (and the shared minute window) to learn the same
+    # thing. The 2026-07-29 incident's "zombie" AQI batches did exactly that,
+    # draining the next minute's budget mid-fallback — so the first rate
+    # limit short-circuits the rest of this fetch to nulls.
+    rate_limited = asyncio.Event()
 
     async def gated(chunk: list[dict[str, Any]]) -> list[dict[str, Any] | None]:
-        # Per-analysis slot first, then the pod-wide AQI budget. Budget
-        # exhaustion degrades this chunk to None rows like any other AQI
-        # failure — air quality never fails or delays the analysis.
+        # Per-analysis slot first, then the pod's weighted spend, then the
+        # pod-wide in-flight slot. Budget exhaustion or a rate limit degrades
+        # this chunk to None rows like any other AQI failure — air quality
+        # never fails the analysis.
         async with sem:
+            if rate_limited.is_set():
+                return [None] * len(chunk)
             try:
+                weight = call_weight(len(chunk), req_start, req_end, N_VARIABLES)
+                await ratelimit.AQI_WEIGHT.acquire(weight)
                 async with ratelimit.AQI_BUDGET.slot():
                     return await _fetch_chunk(chunk, req_start, req_end, start_dt, end_dt)
             except ratelimit.BudgetExhausted:
                 log.warning("AQI budget exhausted (continuing without AQI)")
                 return [None] * len(chunk)
+            except UpstreamRateLimited as exc:
+                log.warning(
+                    "AQI rate limited (%s); skipping remaining AQI batches",
+                    exc.scope or "unknown",
+                )
+                rate_limited.set()
+                return [None] * len(chunk)
 
     chunk_results = await asyncio.gather(*(gated(chunk) for chunk in chunks))
-    return [item for sublist in chunk_results for item in sublist]
+    fetched = [item for sublist in chunk_results for item in sublist]
+
+    # A rate-limited or failed batch produced None rows that mean "unknown",
+    # not "no data for this window" — caching those would freeze the outage
+    # into the TTL. Only real answers are cached, and a real all-null window
+    # is cached as NO_DATA.
+    if not rate_limited.is_set():
+        for dest, result in zip(misses, fetched):
+            key = cache.forecast_key(
+                "aqi",
+                dest["latitude"],
+                dest["longitude"],
+                start_dt.isoformat(),
+                end_dt.isoformat(),
+            )
+            cache.FORECAST_CACHE.put(key, cache.NO_DATA if result is None else result)
+    for i, result in zip(miss_indices, fetched):
+        results[i] = result
+    return results
 
 
 async def _fetch_chunk(
@@ -96,6 +166,16 @@ async def _fetch_chunk(
             resp = await client.get(AIR_QUALITY_URL, params=params)
             resp.raise_for_status()
             data = resp.json()
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 429:
+            # Raised (not degraded) so the caller can stop burning the AQI
+            # quota on the remaining batches; it still degrades to nulls there.
+            scope, retry_after = parse_rate_limit(exc)
+            raise UpstreamRateLimited(
+                PROVIDER, scope, retry_after, rate_limit_message(PROVIDER, scope)
+            ) from exc
+        log.warning("Open-Meteo air quality request failed (continuing without AQI): %s", exc)
+        return [None] * len(destinations)
     except httpx.HTTPError as exc:
         log.warning("Open-Meteo air quality request failed (continuing without AQI): %s", exc)
         return [None] * len(destinations)

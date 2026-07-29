@@ -49,6 +49,8 @@ def test_limits_mirror_the_constants_the_validators_enforce():
         "rate": {
             "analyze_per_minute": ratelimit.ANALYZE_LIMITER.per_minute,
             "analyze_burst": ratelimit.ANALYZE_LIMITER.burst,
+            "destinations_per_minute": ratelimit.DESTINATIONS_LIMITER.per_minute,
+            "destinations_burst": ratelimit.DESTINATIONS_LIMITER.burst,
             "geocode_per_minute": ratelimit.GEOCODE_LIMITER.per_minute,
             "geocode_burst": ratelimit.GEOCODE_LIMITER.burst,
         },

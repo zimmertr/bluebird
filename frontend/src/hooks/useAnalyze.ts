@@ -5,18 +5,37 @@ import {
   AnalyzeResponse,
   DestinationsResponse,
   DiscoveredDestination,
+  RefusalFields,
   SortBy,
 } from '../types'
 import { drainSseBuffer } from '../utils/analyzeEvents'
 import { SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
-import { customRows, mergeCustom, runClientAnalysis } from '../utils/clientAnalyze'
 import { resolveWindow } from '../utils/forecastWindow'
+import {
+  AnalysisRefusalError,
+  MAX_ANALYZE_DESTINATIONS,
+  customRows,
+  mergeCustom,
+  runClientAnalysis,
+} from '../utils/clientAnalyze'
 import { OpenMeteoUnreachable } from '../utils/openMeteo'
 
 export type Progress = {
   processed: number
   total: number
   percent: number
+}
+
+// An over-limit refusal, normalized from whichever path produced it (the
+// server's structured 400, the stream's error event, or the client-only
+// paths' AnalysisRefusalError). Drives the remedy panel instead of the plain
+// error box: a deterministic refusal retried verbatim can only repeat itself.
+export type Refusal = {
+  message: string
+  found: number | null
+  limit: number | null
+  suggestedMinElevationFt: number | null
+  suggestedKeeps: number | null
 }
 
 // The ranking that produced the current response. Everything derived from the
@@ -36,10 +55,16 @@ export type AnalyzedView = {
 }
 
 // FastAPI validation errors (422) carry detail as an array of {msg, ...}
-// objects rather than a string — flatten to something readable.
-async function readErrorDetail(res: Response): Promise<string> {
-  const body = await res.json().catch(() => ({}))
-  const detail = (body as { detail?: unknown }).detail
+// objects rather than a string; over-limit 400s carry the structured
+// AnalysisRefusal fields alongside detail. Flatten to one readable message
+// plus whatever refusal fields rode along.
+async function readErrorBody(
+  res: Response,
+): Promise<{ message: string; refusal: RefusalFields | null }> {
+  const body = (await res.json().catch(() => ({}))) as {
+    detail?: unknown
+  } & RefusalFields
+  const detail = body.detail
   const message =
     typeof detail === 'string'
       ? detail
@@ -49,18 +74,34 @@ async function readErrorDetail(res: Response): Promise<string> {
           .filter(Boolean)
           .join('; ')
       : ''
-  return message || `HTTP ${res.status}`
+  const refusal = body.found != null ? body : null
+  return { message: message || `HTTP ${res.status}`, refusal }
 }
 
-export function useAnalyze() {
+function refusalFromFields(message: string, fields: RefusalFields): Refusal {
+  return {
+    message,
+    found: fields.found ?? null,
+    limit: fields.limit ?? null,
+    suggestedMinElevationFt: fields.suggested_min_elevation_ft ?? null,
+    suggestedKeeps: fields.suggested_keeps ?? null,
+  }
+}
+
+export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [refusal, setRefusal] = useState<Refusal | null>(null)
   const [response, setResponse] = useState<AnalyzeResponse | null>(null)
   const [analyzed, setAnalyzed] = useState<AnalyzedView | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
-  // Secondary line for the search phase (SSE `detail`): mirror-failover news.
+  // Secondary line for the search phase (SSE `detail`): mirror-failover news,
+  // a pace wait, or the announced server fallback.
   const [statusDetail, setStatusDetail] = useState<string | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
+  // When the client pacer is sleeping off a quota deficit, the wall-clock
+  // moment it resumes — the overlay renders a live countdown from this.
+  const [paceEndMs, setPaceEndMs] = useState<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const lastRequestRef = useRef<{ request: AnalyzeRequest; mode: AnalysisMode } | null>(null)
 
@@ -70,9 +111,29 @@ export function useAnalyze() {
     abortRef.current?.abort()
   }
 
-  // Re-run the most recent request (used by the "Try again" button on errors).
+  // Re-run the most recent request (used by the "Try again" button on
+  // transient errors; deterministic refusals get remedy actions instead).
   function retry() {
     if (lastRequestRef.current) analyze(lastRequestRef.current.request, lastRequestRef.current.mode)
+  }
+
+  // Remedy: re-run the last request with the suggested elevation floor.
+  function retryWithFloor(minElevationFt: number) {
+    const last = lastRequestRef.current
+    if (!last) return
+    analyze(
+      { ...last.request, min_elevation_ft: minElevationFt, top_by_elevation: false },
+      last.mode,
+    )
+  }
+
+  // Remedy: re-run the last request electing the top-N-by-elevation cut.
+  // Discovery for the identical polygon is served from the server's cache,
+  // so the re-run costs no second Overpass query.
+  function retryTopByElevation() {
+    const last = lastRequestRef.current
+    if (!last) return
+    analyze({ ...last.request, top_by_elevation: true }, last.mode)
   }
 
   // Clear the current ranked results without fetching. Used by a pins-only
@@ -82,6 +143,7 @@ export function useAnalyze() {
     setResponse(null)
     setAnalyzed(null)
     setError(null)
+    setRefusal(null)
     lastRequestRef.current = null
   }
 
@@ -97,13 +159,19 @@ export function useAnalyze() {
     })
   }
 
+  function handlePace(seconds: number) {
+    setPaceEndMs(Date.now() + seconds * 1000)
+  }
+
   // The primary path (#170): the browser does the analysis itself. Discovery
   // is the only server call — POST /api/destinations, one Overpass query —
   // and the forecasts come straight from Open-Meteo on the visitor's own IP
-  // and quota. Custom/refresh analyses skip the server entirely. Throws
-  // OpenMeteoUnreachable when the forecast API can't be reached, which is
-  // the caller's cue to fall back to the server pipeline; every other error
-  // is surfaced as-is because the server would refuse identically.
+  // and quota, paced under it. Throws OpenMeteoUnreachable when the forecast
+  // API can't be reached (network/CORS), which is the caller's cue to fall
+  // back to the server pipeline. A rate limit is NOT that cue: the quota is
+  // per IP, and for a deployment sharing its egress with the visitor a
+  // same-IP retry only deepens the exhaustion (issue #180) — those surface
+  // honestly instead.
   async function analyzeViaClient(
     request: AnalyzeRequest,
     mode: AnalysisMode,
@@ -112,6 +180,10 @@ export function useAnalyze() {
     const { startMs, endMs } = resolveWindow(request.start_datetime, request.end_datetime)
 
     let candidates: DiscoveredDestination[]
+    let discoveredTruncation: { totalFound: number | null; truncated: boolean } = {
+      totalFound: null,
+      truncated: false,
+    }
     if (request.polygon) {
       const res = await fetch('/api/destinations', {
         method: 'POST',
@@ -121,16 +193,37 @@ export function useAnalyze() {
           destination_type: request.destination_type,
           min_elevation_ft: request.min_elevation_ft,
           max_elevation_ft: request.max_elevation_ft,
+          top_by_elevation: request.top_by_elevation ?? false,
         }),
         signal,
       })
-      if (!res.ok) throw new Error(await readErrorDetail(res))
-      const discovered = ((await res.json()) as DestinationsResponse).destinations
+      if (!res.ok) {
+        const { message, refusal: fields } = await readErrorBody(res)
+        if (fields) {
+          throw new AnalysisRefusalError(
+            message,
+            fields.found ?? 0,
+            fields.limit ?? maxDestinations,
+            fields.suggested_min_elevation_ft != null
+              ? {
+                  floorFt: fields.suggested_min_elevation_ft,
+                  keeps: fields.suggested_keeps ?? 0,
+                }
+              : null,
+          )
+        }
+        throw new Error(message)
+      }
+      const discovered = (await res.json()) as DestinationsResponse
+      discoveredTruncation = {
+        totalFound: discovered.total_found ?? null,
+        truncated: discovered.truncated ?? false,
+      }
       // The user's own list rides along with whatever discovery found — the
       // union proceeds even when the polygon itself found nothing.
       candidates = request.custom_destinations?.length
-        ? mergeCustom(discovered, customRows(request.custom_destinations))
-        : discovered
+        ? mergeCustom(discovered.destinations, customRows(request.custom_destinations))
+        : discovered.destinations
     } else {
       candidates = customRows(request.custom_destinations ?? [])
     }
@@ -141,7 +234,10 @@ export function useAnalyze() {
 
     const data = await runClientAnalysis(request, candidates, startMs, endMs, {
       signal,
+      maxDestinations,
+      onPace: handlePace,
       onProgress: (processed, total, message) => {
+        setPaceEndMs(null)
         setStatusMessage(message)
         setProgress({
           processed,
@@ -150,12 +246,23 @@ export function useAnalyze() {
         })
       },
     })
-    commit(data, request, mode)
+    // Server-side truncation happened at discovery; client-side (custom/union
+    // overflow) inside runClientAnalysis. Either way the caption fields win
+    // over per-path nulls.
+    commit(
+      {
+        ...data,
+        total_found: data.total_found ?? discoveredTruncation.totalFound,
+        truncated: data.truncated || discoveredTruncation.truncated,
+      },
+      request,
+      mode,
+    )
   }
 
-  // The server pipeline, unchanged: POST /api/analyze/stream and render its
-  // SSE events. Still the canonical API and the fallback when the browser
-  // cannot reach Open-Meteo directly (corporate proxies, outages).
+  // The server pipeline, unchanged in role: POST /api/analyze/stream and
+  // render its SSE events. Still the canonical API and the fallback when the
+  // browser cannot reach Open-Meteo directly (corporate proxies, outages).
   async function analyzeViaServer(
     request: AnalyzeRequest,
     mode: AnalysisMode,
@@ -169,7 +276,8 @@ export function useAnalyze() {
     })
 
     if (!res.ok || !res.body) {
-      throw new Error(await readErrorDetail(res))
+      const { message } = await readErrorBody(res)
+      throw new Error(message)
     }
 
     const reader = res.body.getReader()
@@ -200,17 +308,33 @@ export function useAnalyze() {
             })
           }
         } else if (event.type === 'error' && event.message) {
+          if (event.found != null) {
+            throw new AnalysisRefusalError(
+              event.message,
+              event.found,
+              event.limit ?? maxDestinations,
+              event.suggested_min_elevation_ft != null
+                ? {
+                    floorFt: event.suggested_min_elevation_ft,
+                    keeps: event.suggested_keeps ?? 0,
+                  }
+                : null,
+            )
+          }
           throw new Error(event.message)
         } else if (event.type === 'result' && event.data) {
           commit(event.data, request, mode)
         }
+        // Unknown types (keepalive) are ignored by construction.
       }
     }
   }
 
   // One explicit fetch per Analyze click: every candidate in the polygon is
-  // analyzed (refusing loudly above the ceiling) and the table shows exactly
-  // the ranked rows. Nothing is cached or refetched behind the user's back.
+  // analyzed (refusing loudly above the ceiling, truncating only on explicit
+  // election) and the table shows exactly the ranked rows. Repeats may be
+  // served from short-lived caches; nothing is refetched behind the user's
+  // back.
   async function analyze(request: AnalyzeRequest, mode: AnalysisMode = 'window') {
     lastRequestRef.current = { request, mode }
 
@@ -218,10 +342,12 @@ export function useAnalyze() {
     abortRef.current = controller
     setLoading(true)
     setError(null)
+    setRefusal(null)
     // The previous response is deliberately kept: rows on screen stay put while
     // the new analysis runs and are replaced only when its result lands (or
     // removed by an explicit reset). Cancel/error leave them standing too.
     setProgress(null)
+    setPaceEndMs(null)
     // Seed the correct first-phase label so nothing generic ("Starting…") flashes
     // during the click→first-event gap: a polygon run opens on discovery, a
     // custom/refresh run goes straight to retrieval (upgraded to the counted label
@@ -234,21 +360,36 @@ export function useAnalyze() {
         await analyzeViaClient(request, mode, controller.signal)
         return
       } catch (e) {
-        // Only an unreachable forecast API reroutes to the server (which
-        // fetches Open-Meteo from its own network). Everything else —
-        // validation, discovery refusals, rate limits, a user cancel — means
-        // the server would refuse identically, so surface it instead.
+        // ONLY an unreachable forecast API reroutes to the server, whose
+        // different network path can genuinely help. Everything else —
+        // validation, refusals, rate limits (same IP pool), HTTP errors
+        // (same upstream), a user cancel — surfaces directly. And the
+        // reroute announces itself: the silent phase regression was the
+        // "restart loop" of issue #180.
         if (!(e instanceof OpenMeteoUnreachable)) throw e
-        console.warn('Open-Meteo unreachable from this browser; falling back to the server analysis:', e.message)
+        console.warn(
+          'Open-Meteo unreachable from this browser; falling back to the server analysis:',
+          e.message,
+        )
         setStatusMessage('Retrieving Forecasts…')
-        setStatusDetail(null)
+        setStatusDetail('Weather service unreachable from this browser. Retrying through the server.')
         setProgress(null)
+        setPaceEndMs(null)
       }
       await analyzeViaServer(request, mode, controller.signal)
     } catch (e) {
       // User-initiated cancel — not an error worth surfacing.
       if (e instanceof DOMException && e.name === 'AbortError') {
         setStatusMessage(null)
+      } else if (e instanceof AnalysisRefusalError) {
+        setRefusal(
+          refusalFromFields(e.message, {
+            found: e.found,
+            limit: e.limit,
+            suggested_min_elevation_ft: e.suggestedMinElevationFt,
+            suggested_keeps: e.suggestedKeeps,
+          }),
+        )
       } else {
         setError(e instanceof Error ? e.message : 'Unknown error')
       }
@@ -258,6 +399,7 @@ export function useAnalyze() {
       setStatusMessage(null)
       setStatusDetail(null)
       setProgress(null)
+      setPaceEndMs(null)
     }
   }
 
@@ -265,13 +407,17 @@ export function useAnalyze() {
     analyze,
     cancel,
     retry,
+    retryWithFloor,
+    retryTopByElevation,
     reset,
     analyzed,
     loading,
     error,
+    refusal,
     response,
     statusMessage,
     statusDetail,
     progress,
+    paceEndMs,
   }
 }

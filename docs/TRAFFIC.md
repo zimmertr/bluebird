@@ -82,7 +82,12 @@ clients by `GET /api/capabilities`.
 | Bucket | Routes | Default |
 | --- | --- | --- |
 | analyze | `POST /api/analyze`, `POST /api/analyze/stream` | 12/min, burst 6 |
+| destinations | `POST /api/destinations` | 30/min, burst 10 |
 | geocode | `GET /api/geocode` | 30/min, burst 10 |
+
+Destinations is deliberately its own bucket (issue #180): discovery is one
+map query with no forecasts, and sharing the analyze bucket let the browser
+flow starve real analyses.
 
 **Pod-wide upstream budgets** capping what all concurrent requests may have
 in flight against each provider. Saturation queues up to
@@ -109,9 +114,9 @@ you claim to be.
 | Provider | Called by | From | Policy | Governor |
 | --- | --- | --- | --- | --- |
 | [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) | backend (`osm.py`), 1 query per discovery/analysis, 3-mirror failover | cluster egress IP | ~2 slots per IP **per mirror operator** (overpass-api.de documents 2) | `UPSTREAM_CONCURRENCY_OVERPASS=2` per pod **per mirror** — one budget per endpoint, slot held only while that mirror's request is in flight, released before failover |
-| [Open-Meteo forecast](https://open-meteo.com) | **browser** (`openMeteo.ts`) for the web app; backend (`weather.py`) only for API callers and the browser's fallback | each visitor's own IP; cluster egress IP for the server path | ~10k calls/day/IP, non-commercial | browser: the visitor's own quota, same 50-per-batch / 4-in-flight pacing. Server path: `UPSTREAM_CONCURRENCY_WEATHER=8` per pod + per-analysis cap of 4 |
-| [Open-Meteo air quality](https://open-meteo.com/en/docs/air-quality-api) | same split, best-effort on both paths | same split | same | browser: same pacing, failures degrade to null. Server: `UPSTREAM_CONCURRENCY_AQI=8` per pod |
-| [Nominatim](https://operations.osmfoundation.org/policies/nominatim/) | backend (`geocode.py`) proxying the search box | cluster egress IP | absolute ~1 req/s per service, real User-Agent required | `NOMINATIM_MIN_INTERVAL_MS=2000` spacing per pod (~1/s aggregate at 3 replicas) + per-client geocode bucket |
+| [Open-Meteo forecast](https://open-meteo.com) | **browser** (`openMeteo.ts`) for the web app; backend (`weather.py`) only for API callers and the browser's fallback | each visitor's own IP; cluster egress IP for the server path | **weighted calls** per IP: 600/min, 5,000/hr, 10,000/day (see accounting below), non-commercial | browser: a rolling ~550 weighted/min pacer on the visitor's own quota, a 15-min per-location result cache, one automatic minutely-429 resume, and abort-on-first-failure so nothing spends after the outcome is decided. Server path: `UPSTREAM_WEIGHT_PER_MINUTE_WEATHER=180` per pod (550 ÷ 3 replicas, documented slop; a canary roughly doubles it) + in-flight cap 4 + the same cache |
+| [Open-Meteo air quality](https://open-meteo.com/en/docs/air-quality-api) | same split, best-effort on both paths, fetched **lazily**: only for the displayed rows unless the ranking key is an AQI metric | same split | same accounting, metered separately | browser and server: same pacing shape (`UPSTREAM_WEIGHT_PER_MINUTE_AQI=180` per pod), failures degrade to null, and the first 429 short-circuits the remaining AQI batches |
+| [Nominatim](https://operations.osmfoundation.org/policies/nominatim/) | backend (`geocode.py`) proxying the search box | cluster egress IP | absolute ~1 req/s per service, real User-Agent required | `NOMINATIM_MIN_INTERVAL_MS=3500` spacing per pod (~0.86/s aggregate at 3 replicas; the previous 2s ≈ 1.5/s quietly exceeded the policy) + per-client geocode bucket |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) (wildfire overlay) | **browser**, per viewport | each visitor's own IP | public ArcGIS service | none needed; load scales with visitors, not with us |
 
 Everything the browser fetches itself costs our egress IP nothing — that is
@@ -126,16 +131,35 @@ browser (corporate proxies), the SPA falls back to the server pipeline.
 Nominatim can never move client-side: its policy requires an identifying
 `User-Agent`, which browsers refuse to set.
 
+## Weighted-call accounting
+
+Open-Meteo does not bill HTTP requests. Per their published accounting
+(pricing page and the official multi-location post):
+
+    weight = locations × max(1, days/14) × max(1, variables/10)
+
+so a 50-location batch costs at least 50 calls, and the full 16-day window
+makes it 57. The per-factor floor is inferred from observed enforcement, not
+documented (issue #180 tracks the upstream confirmation); assuming it is the
+conservative choice. **Every capacity number in this file is written in this
+unit** — the 2026-07-29 incident happened because three layers of this
+system priced spend in HTTP requests and were consistently wrong by the
+batch factor of 50.
+
 ## Worst-case math
 
-One analysis of 1,000 destinations (the `MAX_ANALYZE_PEAKS` cap) is 1
-Overpass query + 20 weather batches + 20 AQI batches ≈ **41 upstream
-calls** — but only ~1 of them is the server's for a browser analysis, which
-fetches the 40 Open-Meteo batches itself on the visitor's own quota. The
-full 41 land on the cluster egress IP only for direct API callers and
-browser fallbacks. The per-client bucket bounds one address to a burst of 6
-requests and 12/minute sustained (per pod, shared across
-`/api/analyze[/stream]` and `/api/destinations`); the budgets bound the
-whole pod to 8+8+2 upstream calls in flight regardless of how many clients
-are asking. Multiply by replicas for the cluster ceiling, and remember a
-canary rollout roughly doubles pod count for its duration.
+One analysis of 1,500 destinations (the `MAX_ANALYZE_PEAKS` cap) over the
+full 16-day window costs ~1,710 weighted weather calls (1,500 × 16/14), plus
+AQI for the displayed rows only (≤ the `limit`), against a 600/minute/IP
+budget — call it **~3 minutes of paced fetching, worst case**, narrated in
+the UI with a countdown. A repeat of the same analysis inside the cache TTL
+costs ~0. For a browser analysis all of that lands on the visitor's own IP
+and the server pays 1 Overpass query (or 0, within the 10-minute discovery
+cache); the full spend lands on the cluster egress IP only for direct API
+callers and the browser's unreachable-fallback, where the per-pod weighted
+budgets (180/min per service, 550 safe-rate ÷ 3 replicas) pace it. The
+per-client buckets bound one address to 12 analyses + 30 discoveries per
+minute per pod; the in-flight caps (4+4+2-per-mirror) bound burst
+concurrency. Multiply by replicas for the cluster ceiling, remember a canary
+rollout roughly doubles pod count for its duration, and re-derive this
+paragraph if any constant in it changes.

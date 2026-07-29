@@ -1,6 +1,13 @@
 import { Fragment, useMemo, useRef } from 'react'
 import { AnalysisMode, CustomDestination, DiscoveryType, SortBy } from '../types'
+import { Refusal } from '../hooks/useAnalyze'
 import { MAX_AREA_KM2 } from './MapView'
+
+// Above this drawn area, an informational note warns that dense regions can
+// exceed the destination limit and searches slow down. Advisory only — the
+// hard gate stays MAX_AREA_KM2 — sized to where Cascades-density terrain
+// starts brushing the analysis cap (~26,000 km² held 1,117 peaks).
+const AREA_NOTE_KM2 = 40_000
 import { parseCustomCsv } from '../utils/customDestinations'
 import { DATA_SOURCES } from '../utils/dataSources'
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD, LINK, TEXT } from '../styles'
@@ -84,10 +91,27 @@ interface Props {
   hasPins: boolean
   loading: boolean
   error: string | null
+  // An over-limit refusal with its remedy fields. Rendered as an action
+  // panel, never with "Try again": retrying a deterministic refusal verbatim
+  // re-buys the same 10-40s map query for the same answer.
+  refusal: Refusal | null
   onAnalyze: () => void
   onRetry: () => void
+  // Remedies: re-run with the suggested elevation floor / elect the top-N cut.
+  onRetryWithFloor: (minElevationFt: number) => void
+  onRetryTopByElevation: () => void
+  // Live ceiling for the results knob, from /api/capabilities (falls back to
+  // the compiled analysis cap).
+  maxLimit: number
   resultCount?: number
   totalQueried?: number
+  // Pre-truncation count when the shown analysis was an elected top-N.
+  totalFound?: number | null
+  truncated?: boolean
+  // Every displayed row has null AQI although the window is inside the AQI
+  // horizon: the best-effort fetch failed, and the dashes deserve one line
+  // of explanation.
+  aqiAllNull?: boolean
 }
 
 export default function ControlPanel({
@@ -125,10 +149,17 @@ export default function ControlPanel({
   hasPins,
   loading,
   error,
+  refusal,
   onAnalyze,
   onRetry,
+  onRetryWithFloor,
+  onRetryTopByElevation,
+  maxLimit,
   resultCount,
   totalQueried,
+  totalFound,
+  truncated,
+  aqiAllNull,
 }: Props) {
   // Parse the CSV once per change rather than twice on every render (this and the
   // "N destinations parsed" count below both used to call parseCustomCsv directly).
@@ -230,6 +261,14 @@ export default function ControlPanel({
                       {areaTooLarge && ` (max ${MAX_AREA_KM2.toLocaleString()} km²)`}
                     </p>
                   )}
+                  {polygonAreaKm2 !== null &&
+                    polygonAreaKm2 > AREA_NOTE_KM2 &&
+                    !areaTooLarge && (
+                      <p className="text-amber-300/90">
+                        Large area: dense regions this size can exceed the
+                        destination limit, and searches take longer.
+                      </p>
+                    )}
                 </div>
                 <button
                   onClick={onCancelDrawing}
@@ -595,16 +634,18 @@ export default function ControlPanel({
               )}
             </div>
 
-            {/* Result-count cap */}
+            {/* Result-count cap. The ceiling is the live analysis cap from
+                /api/capabilities: `limit` trims what is shown, never what is
+                analyzed, so there is no cheaper number to protect. */}
             <div>
               <label className={`${TEXT.subheading} block mb-1`}>{AGGREGATE.maximum} results</label>
               <input
                 type="number"
                 min={1}
-                max={200}
+                max={maxLimit}
                 value={limit}
                 onChange={(e) =>
-                  setLimit(Math.max(1, Math.min(200, parseInt(e.target.value) || 100)))
+                  setLimit(Math.max(1, Math.min(maxLimit, parseInt(e.target.value) || 100)))
                 }
                 className={`${FIELD} w-24 px-2 py-1.5`}
               />
@@ -660,7 +701,30 @@ export default function ControlPanel({
           </p>
         )}
 
-        {error && (
+        {refusal && !loading && (
+          <div className="text-xs bg-amber-950/40 border border-amber-800/60 rounded p-2 space-y-2">
+            <p className="text-amber-300">{refusal.message}</p>
+            {refusal.suggestedMinElevationFt !== null && (
+              <button
+                onClick={() => onRetryWithFloor(refusal.suggestedMinElevationFt as number)}
+                className={`${BUTTON_SECONDARY} w-full`}
+              >
+                Set min elevation to{' '}
+                {refusal.suggestedMinElevationFt.toLocaleString()} ft and analyze
+              </button>
+            )}
+            {refusal.limit !== null && (
+              <button
+                onClick={onRetryTopByElevation}
+                className={`${BUTTON_SECONDARY} w-full`}
+              >
+                Analyze the {refusal.limit.toLocaleString()} highest instead
+              </button>
+            )}
+          </div>
+        )}
+
+        {error && !refusal && (
           <div className="text-xs text-red-400 bg-red-950/50 border border-red-800 rounded p-2 space-y-2">
             <p>{error}</p>
             <button
@@ -675,10 +739,17 @@ export default function ControlPanel({
           </div>
         )}
 
-        {resultCount !== undefined && !loading && !error && (
-          <p className="text-xs text-slate-400 text-center">
-            Showing {resultCount} of {totalQueried} destinations
-          </p>
+        {resultCount !== undefined && !loading && !error && !refusal && (
+          <div className="text-xs text-slate-400 text-center space-y-0.5">
+            <p>
+              {truncated && totalFound != null
+                ? `Showing ${resultCount} of the ${totalQueried} highest destinations (${totalFound.toLocaleString()} found)`
+                : `Showing ${resultCount} of ${totalQueried} destinations`}
+            </p>
+            {aqiAllNull && aqiCoverage !== 'none' && (
+              <p>Air quality data unavailable for this forecast window.</p>
+            )}
+          </div>
         )}
 
         <p className={`${TEXT.caption} text-center leading-relaxed`}>

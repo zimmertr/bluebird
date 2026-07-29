@@ -11,6 +11,8 @@ import {
   mergeCustom,
   rankComparator,
   runClientAnalysis,
+  suggestElevationFloor,
+  truncateTopElevation,
 } from './clientAnalyze'
 import { WeatherResult } from './openMeteo'
 import vectors from './weather_vectors.json'
@@ -165,9 +167,54 @@ describe('capDetail', () => {
     expect(capDetail(1201, 'destination', true, true)).toContain('or trim the custom list')
   })
 
-  it('formats counts with separators like the backend', () => {
-    expect(capDetail(1201, 'peak', true, false)).toContain('1,201 peaks')
-    expect(capDetail(1201, 'peak', true, false)).toContain('1,000')
+  it('formats counts with separators and names the unit like the backend', () => {
+    expect(capDetail(1601, 'peak', true, false)).toContain('1,601 peaks')
+    expect(capDetail(1601, 'peak', true, false)).toContain('1,500 destinations')
+  })
+
+  it('appends the computed elevation-floor suggestion when one exists', () => {
+    expect(
+      capDetail(1601, 'peak', true, false, { floorFt: 5600, keeps: 950 }),
+    ).toContain('minimum elevation of 5,600 ft would keep about 950 peaks')
+  })
+})
+
+// ── Refusal remedies (ports of _suggest_elevation_floor/_truncate_top) ─────
+
+describe('suggestElevationFloor', () => {
+  const dests = (elevs: (number | null)[]) =>
+    elevs.map((e, i) => ({ elevation_ft: e, name: `P${i}` }))
+
+  it('picks the elevation that cuts the list under the cap', () => {
+    expect(suggestElevationFloor(dests([1000, 2000, 3000, 4000, 5000]), 3)).toEqual({
+      floorFt: 3000,
+      keeps: 3,
+    })
+  })
+
+  it('rounds up to a clean number and never overshoots the cap', () => {
+    const s = suggestElevationFloor(dests([4980, 4880, 4780, 4680]), 2)
+    expect(s?.floorFt).toBe(4900)
+    expect(s!.keeps).toBeLessThanOrEqual(2)
+  })
+
+  it('is impossible when unknown elevations alone exceed the cap', () => {
+    expect(suggestElevationFloor(dests([null, null, null, 1000]), 2)).toBeNull()
+  })
+})
+
+describe('truncateTopElevation', () => {
+  it('keeps the highest and drops unknowns first', () => {
+    const kept = truncateTopElevation(
+      [
+        { elevation_ft: null, name: 'unknown' },
+        { elevation_ft: 1000, name: 'low' },
+        { elevation_ft: 5000, name: 'high' },
+        { elevation_ft: 3000, name: 'mid' },
+      ],
+      2,
+    )
+    expect(kept.map((d) => d.name)).toEqual(['high', 'mid'])
   })
 })
 
