@@ -82,15 +82,17 @@ describe('the document pages', () => {
   })
 
   // Separate URLs are only worth having if each page answers its own question
-  // without sending the reader to the other one. Both carry the provider list
-  // and a way to get in touch; each links the other so neither is a dead end.
+  // on its own. Both carry the provider list and a way to get in touch, which
+  // is what makes that possible, and neither links the other: someone who
+  // followed a terms link wants the terms, not a menu. The footer is the one
+  // place both are offered together.
   it.each([
     ['PrivacyPage.tsx', privacyPage, '/terms'],
     ['TermsPage.tsx', termsPage, '/privacy'],
-  ])('%s stands alone and points at its sibling', (_name, source, sibling) => {
+  ])('%s stands alone rather than pointing at its sibling', (_name, source, sibling) => {
     expect(source).toMatch(/import ContactBody from '\.\/ContactBody'/)
     expect(source).toMatch(/import DataSourceList from '\.\/DataSourceList'/)
-    expect(source).toMatch(new RegExp(`href="${sibling}"`))
+    expect(copy(source)).not.toMatch(new RegExp(`href="${sibling}"`))
   })
 
   // Neither may restate shared copy locally: an inlined sentence would pass

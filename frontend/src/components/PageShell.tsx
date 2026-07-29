@@ -3,8 +3,7 @@ import { LINK, PROSE, RADIUS, SURFACE_CARD } from '../styles'
 
 interface Props {
   title: string
-  /** Optional: the 404 states the fact and stops, so it passes a title alone. */
-  subtitle?: string
+  subtitle: string
   children: ReactNode
 }
 
@@ -51,7 +50,7 @@ export default function PageShell({ title, subtitle, children }: Props) {
           </a>
           <div>
             <h1 className={PROSE.title}>{title}</h1>
-            {subtitle && <p className={PROSE.subtitle}>{subtitle}</p>}
+            <p className={PROSE.subtitle}>{subtitle}</p>
           </div>
         </div>
 

@@ -1,7 +1,7 @@
 import PageShell, { Section } from './PageShell'
 import ContactBody from './ContactBody'
 import DataSourceList from './DataSourceList'
-import { LINK, PROSE } from '../styles'
+import { PROSE } from '../styles'
 
 // The public privacy policy: the address you can paste into an email, hand to
 // a data provider, or put in a form that asks for one. Terms live at /terms,
@@ -64,13 +64,7 @@ export default function PrivacyPage() {
         <ContactBody />
       </Section>
 
-      <p className={`${PROSE.note} mt-6`}>
-        The{' '}
-        <a href="/terms" className={LINK}>
-          terms of use
-        </a>{' '}
-        are a separate page. Last updated 28 July 2026.
-      </p>
+      <p className={`${PROSE.note} mt-6`}>Last updated 28 July 2026.</p>
     </PageShell>
   )
 }

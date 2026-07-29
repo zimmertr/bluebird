@@ -89,13 +89,7 @@ export default function TermsPage() {
         <ContactBody />
       </Section>
 
-      <p className={`${PROSE.note} mt-6`}>
-        The{' '}
-        <a href="/privacy" className={LINK}>
-          privacy policy
-        </a>{' '}
-        is a separate page. Last updated 28 July 2026.
-      </p>
+      <p className={`${PROSE.note} mt-6`}>Last updated 28 July 2026.</p>
     </PageShell>
   )
 }
