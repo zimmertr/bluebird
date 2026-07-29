@@ -15,7 +15,7 @@ import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { AnalysisMode, CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy } from './types'
 import { BUTTON_SECONDARY, LINK, PROSE, RADIUS, SURFACE_CARD, SURFACE_FLOATING, TEXT } from './styles'
-import { legendTitle, rankedNoun } from './metrics'
+import { NOUN, familyOf, rankedNoun } from './metrics'
 import { METRIC_CONFIG } from './utils/colors'
 import { parseCustomCsv } from './utils/customDestinations'
 import { buildCustomList, pendingDestinations, pinKey } from './utils/customList'
@@ -28,12 +28,13 @@ import { rankingStale } from './utils/staleness'
 
 // Both map legends, sized as one: they stack in a single column, so differing
 // widths would read as a ragged edge rather than as two boxes. The step is a
-// measured magic number. The longest title metrics.ts can produce is
-// "Forecast Precipitation" — 147px at TEXT.overline on the widest face in the
-// stack (macOS's SF; Arial and Roboto run ~2px narrower) — and w-44 leaves
-// 156px inside the p-2.5 padding, ~9px of slack. Re-measure before shipping a
-// longer title, or it wraps.
-const LEGEND_WIDTH = 'w-44'
+// measured magic number, and with the legend titling only the bare metric
+// (≤ 85px at TEXT.overline) the governor is the wildfire credit line —
+// "Fire data: NIFC (CC BY 3.0)", 131px at TEXT.micro — then the widest AQI
+// band row at 113px. w-40 leaves 140px inside the p-2.5 padding, ~9px of
+// slack on macOS's SF, the widest face in the stack. Re-measure before adding
+// a longer line to either box, or it wraps.
+const LEGEND_WIDTH = 'w-40'
 
 // What the results header calls the analysis, before the ranking it lists.
 // This prefix is why rankedNoun() leaves a point sample unqualified: saying
@@ -777,8 +778,11 @@ export default function App() {
               )}
               {hasColoredMarkers && (
                 <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} p-2.5`}>
+                  {/* The bare metric only: which hour or window the colors
+                      describe, and how it was reduced, is stated by the
+                      results header and the table's own column headers. */}
                   <p className={`${TEXT.overline} mb-1.5`}>
-                    {legendTitle(view.sortBy, view.mode)}
+                    {NOUN[familyOf(view.sortBy)]}
                   </p>
                   {METRIC_CONFIG[view.sortBy].colors.map((color, i) => (
                     <div key={i} className="flex items-center gap-1.5 py-0.5">

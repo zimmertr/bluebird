@@ -6,12 +6,11 @@ import {
   SEP,
   UNIT,
   familyOf,
-  legendTitle,
   metricLabel,
   rankedNoun,
   windowAggregate,
 } from './metrics'
-import { AnalysisMode, SortBy } from './types'
+import { SortBy } from './types'
 // `?raw` gives us each file's text without executing it, so the drift guard
 // below stays a pure node test with no DOM — the same trick styles.test.ts
 // uses to lint class lists.
@@ -25,7 +24,6 @@ import resultPopupSource from './utils/resultPopup.ts?raw'
 import tableColumnsSource from './utils/tableColumns.ts?raw'
 
 const SORTS: SortBy[] = ['precip_total_in', 'wind_avg_mph', 'temp_avg_f', 'aqi_avg']
-const MODES: AnalysisMode[] = ['now', 'at', 'window']
 
 describe('the vocabulary', () => {
   it('names every metric in full, with no short form', () => {
@@ -93,47 +91,6 @@ describe('windowAggregate', () => {
     expect(windowAggregate('wind_avg_mph')).toBe('Avg')
     expect(windowAggregate('temp_avg_f')).toBe('Avg')
     expect(windowAggregate('aqi_avg')).toBe('Avg')
-  })
-})
-
-describe('legendTitle', () => {
-  // The bug this module exists for: one metric, three names on one screen.
-  // Every mode now qualifies the noun, and qualifies it the same way.
-  it('qualifies the metric in all three modes', () => {
-    expect(SORTS.map((s) => legendTitle(s, 'now'))).toEqual([
-      'Current Precipitation',
-      'Current Wind',
-      'Current Temperature',
-      'Current AQI',
-    ])
-    expect(SORTS.map((s) => legendTitle(s, 'at'))).toEqual([
-      'Forecast Precipitation',
-      'Forecast Wind',
-      'Forecast Temperature',
-      'Forecast AQI',
-    ])
-    expect(SORTS.map((s) => legendTitle(s, 'window'))).toEqual([
-      'Total Precipitation',
-      'Avg Wind',
-      'Avg Temperature',
-      'Avg AQI',
-    ])
-  })
-
-  it('never leaves a title unqualified', () => {
-    for (const mode of MODES) {
-      for (const sortBy of SORTS) {
-        const title = legendTitle(sortBy, mode)
-        expect(title.split(' ').length).toBeGreaterThan(1)
-        expect(title).toContain(NOUN[familyOf(sortBy)])
-      }
-    }
-  })
-
-  // 'at' is a future hour, so "Current" would be a claim about the present
-  // that the forecast cannot make.
-  it('does not call a future hour current', () => {
-    for (const sortBy of SORTS) expect(legendTitle(sortBy, 'at')).not.toContain('Current')
   })
 })
 

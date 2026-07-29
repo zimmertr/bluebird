@@ -131,23 +131,6 @@ export function rankedNoun(sortBy: SortBy, mode: AnalysisMode): string {
 }
 
 /**
- * The legend's title: what the marker colors mean in this analysis.
- *
- * One rule across all three modes, which is the whole point — the legend used
- * to say "Current Wind", "Wind" and "Avg Wind" for the same colors depending
- * only on how the window was picked. The legend has no prefix to lean on the
- * way the header does, so a point sample takes a tense here; 'at' takes
- * "Forecast" rather than "Current" because "Current" would be a lie about a
- * future hour.
- */
-export function legendTitle(sortBy: SortBy, mode: AnalysisMode): string {
-  const noun = NOUN[familyOf(sortBy)]
-  if (mode === 'now') return `Current ${noun}`
-  if (mode === 'at') return `Forecast ${noun}`
-  return rankedNoun(sortBy, mode)
-}
-
-/**
  * A metric named alongside its unit, for the surfaces that tabulate rather
  * than rank: "Precipitation · Total (in)", "AQI · Avg", "Wind (mph)".
  *
