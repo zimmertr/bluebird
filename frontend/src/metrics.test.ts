@@ -40,8 +40,11 @@ describe('the vocabulary', () => {
     expect(NOUN.aqi).toBe('AQI')
   })
 
-  it('spells out the aggregates too', () => {
-    expect(Object.values(AGGREGATE)).toEqual(['Total', 'Average', 'Minimum', 'Maximum'])
+  // Nouns are identity and spell out; aggregates are modifiers and wear the
+  // short forms every spreadsheet taught. Single-sourcing, not length, is what
+  // keeps the surfaces consistent.
+  it('keeps the aggregates to their universal short forms', () => {
+    expect(Object.values(AGGREGATE)).toEqual(['Total', 'Avg', 'Min', 'Max'])
   })
 
   it('gives every metric a unit but AQI, which has none', () => {
@@ -87,9 +90,9 @@ describe('familyOf', () => {
 describe('windowAggregate', () => {
   it('totals precipitation and averages everything else', () => {
     expect(windowAggregate('precip_total_in')).toBe('Total')
-    expect(windowAggregate('wind_avg_mph')).toBe('Average')
-    expect(windowAggregate('temp_avg_f')).toBe('Average')
-    expect(windowAggregate('aqi_avg')).toBe('Average')
+    expect(windowAggregate('wind_avg_mph')).toBe('Avg')
+    expect(windowAggregate('temp_avg_f')).toBe('Avg')
+    expect(windowAggregate('aqi_avg')).toBe('Avg')
   })
 })
 
@@ -111,9 +114,9 @@ describe('legendTitle', () => {
     ])
     expect(SORTS.map((s) => legendTitle(s, 'window'))).toEqual([
       'Total Precipitation',
-      'Average Wind',
-      'Average Temperature',
-      'Average AQI',
+      'Avg Wind',
+      'Avg Temperature',
+      'Avg AQI',
     ])
   })
 
@@ -139,7 +142,7 @@ describe('rankedNoun', () => {
   // sample takes no qualifier here or the tense gets stated twice.
   it('qualifies a window ranking and leaves a point sample bare', () => {
     expect(rankedNoun('precip_total_in', 'window')).toBe('Total Precipitation')
-    expect(rankedNoun('temp_avg_f', 'window')).toBe('Average Temperature')
+    expect(rankedNoun('temp_avg_f', 'window')).toBe('Avg Temperature')
     expect(rankedNoun('precip_total_in', 'now')).toBe('Precipitation')
     expect(rankedNoun('precip_total_in', 'at')).toBe('Precipitation')
     expect(rankedNoun('aqi_avg', 'now')).toBe('AQI')
@@ -149,12 +152,12 @@ describe('rankedNoun', () => {
 describe('metricLabel', () => {
   it('separates the metric from its aggregate and appends the unit', () => {
     expect(metricLabel('precip', AGGREGATE.total)).toBe(`Precipitation ${SEP} Total (in)`)
-    expect(metricLabel('temp', AGGREGATE.minimum)).toBe(`Temperature ${SEP} Minimum (°F)`)
-    expect(metricLabel('wind', AGGREGATE.average)).toBe(`Wind ${SEP} Average (mph)`)
+    expect(metricLabel('temp', AGGREGATE.minimum)).toBe(`Temperature ${SEP} Min (°F)`)
+    expect(metricLabel('wind', AGGREGATE.average)).toBe(`Wind ${SEP} Avg (mph)`)
   })
 
   it('omits the parentheses for a metric with no unit', () => {
-    expect(metricLabel('aqi', AGGREGATE.average)).toBe(`AQI ${SEP} Average`)
+    expect(metricLabel('aqi', AGGREGATE.average)).toBe(`AQI ${SEP} Avg`)
     expect(metricLabel('aqi')).toBe('AQI')
   })
 
@@ -165,7 +168,7 @@ describe('metricLabel', () => {
 
   it('takes an overriding unit for the columns reporting a rate', () => {
     expect(metricLabel('precip', AGGREGATE.average, 'in/hr')).toBe(
-      `Precipitation ${SEP} Average (in/hr)`,
+      `Precipitation ${SEP} Avg (in/hr)`,
     )
     expect(metricLabel('precip', undefined, 'in/hr')).toBe('Precipitation (in/hr)')
   })

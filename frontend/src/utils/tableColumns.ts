@@ -7,9 +7,10 @@ const LEAD_KEYS = new Set(['name', 'elevation_ft'])
 
 /**
  * Order the table's columns so the ranked metric's group comes right after the
- * identity columns — an AQI ranking reads "#, Name, Elevation (ft), AQI ·
- * Average, AQI · Maximum, …" — while the remaining groups keep their canonical
- * relative order.
+ * identity columns — an AQI ranking leads with both AQI columns straight after
+ * "#, Name, Elevation (ft)" — while the remaining groups keep their canonical
+ * relative order. (No metric names in this comment: the metrics.test.ts source
+ * lint scans comments too.)
  */
 export function orderColumns<T extends { key: string }>(columns: T[], sortBy: SortBy): T[] {
   const group = new Set<string>(METRIC_CONFIG[sortBy].group)

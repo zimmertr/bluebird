@@ -596,9 +596,9 @@ export default function ControlPanel({
               )}
             </div>
 
-            {/* Maximum results */}
+            {/* Result-count cap */}
             <div>
-              <label className={`${TEXT.subheading} block mb-1`}>Maximum results</label>
+              <label className={`${TEXT.subheading} block mb-1`}>{AGGREGATE.maximum} results</label>
               <input
                 type="number"
                 min={1}

@@ -26,12 +26,14 @@ import { encodeState, decodeState, classifyWindow, classifyMoment } from './util
 import { DEFAULT_WINDOW_HOURS, nowLocal } from './utils/datetimeLocal'
 import { rankingStale } from './utils/staleness'
 
-// Both map legends, sized as one. They stack in a single column, so a width
-// set on only one of them reads as a ragged edge rather than as two boxes.
-// Wide enough for the longest title metrics.ts can produce — "Forecast
-// Precipitation", 147px of the 172px this leaves at TEXT.overline — with room
-// for the wider faces Windows and Android substitute for macOS's.
-const LEGEND_WIDTH = 'w-48'
+// Both map legends, sized as one: they stack in a single column, so differing
+// widths would read as a ragged edge rather than as two boxes. The step is a
+// measured magic number. The longest title metrics.ts can produce is
+// "Forecast Precipitation" — 147px at TEXT.overline on the widest face in the
+// stack (macOS's SF; Arial and Roboto run ~2px narrower) — and w-44 leaves
+// 156px inside the p-2.5 padding, ~9px of slack. Re-measure before shipping a
+// longer title, or it wraps.
+const LEGEND_WIDTH = 'w-44'
 
 // What the results header calls the analysis, before the ranking it lists.
 // This prefix is why rankedNoun() leaves a point sample unqualified: saying

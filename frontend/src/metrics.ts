@@ -66,15 +66,18 @@ export const UNIT: Record<MetricFamily, string> = {
 /**
  * How a value was reduced over the analysis window.
  *
- * Spelled out for the same reason the nouns are: the legend says "AVERAGE
- * PRECIPITATION", so a table column reading "Precipitation · Avg" would put the
- * inconsistency back one surface over.
+ * The nouns above spell out because they are the identity of what's measured;
+ * these wear their universal short forms because they are modifiers, and
+ * spreadsheets and weather UIs long ago taught everyone to read them. What
+ * keeps the surfaces consistent is not the length of these strings but their
+ * address: they exist only here, and the source lint in metrics.test.ts fails
+ * any consumer that writes one by hand.
  */
 export const AGGREGATE = {
   total: 'Total',
-  average: 'Average',
-  minimum: 'Minimum',
-  maximum: 'Maximum',
+  average: 'Avg',
+  minimum: 'Min',
+  maximum: 'Max',
 } as const
 
 /**
@@ -146,7 +149,7 @@ export function legendTitle(sortBy: SortBy, mode: AnalysisMode): string {
 
 /**
  * A metric named alongside its unit, for the surfaces that tabulate rather
- * than rank: "Precipitation · Total (in)", "AQI · Average", "Wind (mph)".
+ * than rank: "Precipitation · Total (in)", "AQI · Avg", "Wind (mph)".
  *
  * The aggregate is optional because two callers have none. A point-sample
  * analysis collapses its avg/min/max triplets to one column — they would be
