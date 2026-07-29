@@ -13,6 +13,7 @@ import {
   DiscoveredDestination,
   HourlySeries,
 } from '../types'
+import { pinKey } from './customList'
 import {
   AqiResult,
   Coordinate,
@@ -256,6 +257,21 @@ export interface ClientAnalysisCallbacks {
   maxDestinations?: number
 }
 
+export interface ClientAnalysis {
+  // What the table shows: ranked and cut to `limit`, the wire shape the server
+  // routes return.
+  response: AnalyzeResponse
+  // Every candidate that got a forecast, ranked by the same key, BEFORE the
+  // cut. Weather is fetched for the whole field anyway (exact ranking demands
+  // it), so this costs nothing to keep and is what makes a later window change
+  // exact instead of a re-rank of whatever happened to be on screen (#177).
+  //
+  // The first `limit` entries are the SAME objects as `response.results`, not
+  // copies — the AQI backfill below attaches to displayed rows in place, and
+  // both views are meant to see it. Nothing mutates a row after this returns.
+  universe: DestinationResult[]
+}
+
 // The client-side counterpart of the analyze routes' fetch-and-rank half:
 // candidates in, ranked AnalyzeResponse out. Throws AnalysisRefusalError for
 // an over-limit set (with remedy fields), plain Error for conditions the
@@ -268,9 +284,9 @@ export async function runClientAnalysis(
   startMs: number,
   endMs: number,
   { signal, onProgress, onPace, nowMs, maxDestinations }: ClientAnalysisCallbacks = {},
-): Promise<AnalyzeResponse> {
+): Promise<ClientAnalysis> {
   if (destinations.length === 0) {
-    return { results: [], total_queried: 0 }
+    return { response: { results: [], total_queried: 0 }, universe: [] }
   }
   const cap = maxDestinations ?? MAX_ANALYZE_DESTINATIONS
   const noun = analysisNoun(request)
@@ -358,11 +374,14 @@ export async function runClientAnalysis(
     }
 
     return {
-      results: top,
-      total_queried: candidates.length,
-      times,
-      total_found: totalFound,
-      truncated,
+      response: {
+        results: top,
+        total_queried: candidates.length,
+        times,
+        total_found: totalFound,
+        truncated,
+      },
+      universe: results,
     }
   } catch (e) {
     internal.abort()
@@ -370,4 +389,29 @@ export async function runClientAnalysis(
   } finally {
     signal?.removeEventListener('abort', onCallerAbort)
   }
+}
+
+// The destinations a refresh re-analyzes: the held universe when there is one,
+// so a window change re-ranks the field the analysis actually saw rather than
+// the handful the last cut left on screen (#177). Falls back to the displayed
+// rows when no universe is held — the server SSE path only ever hands the
+// browser its trimmed rows, so that path keeps the old approximation rather
+// than growing the response shape to fix a fallback nobody normally takes.
+//
+// Removals have to be applied here explicitly. Echoing the displayed rows used
+// to drop ×-removed destinations as a side effect of them already being gone
+// from the display; the universe never saw the removal.
+export function refreshEchoRows(
+  universe: readonly DestinationResult[] | null,
+  displayed: readonly DestinationResult[],
+  removedKeys: ReadonlySet<string>,
+): CustomDestination[] {
+  return (universe ?? displayed)
+    .filter((r) => !removedKeys.has(pinKey(r.latitude, r.longitude)))
+    .map((r) => ({
+      name: r.name,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      elevation_ft: r.elevation_ft ?? undefined,
+    }))
 }

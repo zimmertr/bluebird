@@ -10,10 +10,12 @@ import {
   customRows,
   mergeCustom,
   rankComparator,
+  refreshEchoRows,
   runClientAnalysis,
   suggestElevationFloor,
   truncateTopElevation,
 } from './clientAnalyze'
+import { pinKey } from './customList'
 import { WeatherResult } from './openMeteo'
 import vectors from './weather_vectors.json'
 
@@ -256,42 +258,68 @@ function weatherBody(precips: number[]) {
   }))
 }
 
+// Hostname compare rather than a substring: routes the mock exactly and keeps
+// CodeQL's URL-sanitization rule quiet. One body per batched location.
+function stubOpenMeteo(precips: number[]) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      const isWeather = new URL(url).hostname === 'api.open-meteo.com'
+      const count = new URL(url).searchParams.get('latitude')!.split(',').length
+      return {
+        ok: true,
+        status: 200,
+        json: async () =>
+          isWeather
+            ? weatherBody(precips.slice(0, count))
+            : Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })),
+      }
+    }),
+  )
+}
+
+// Three candidates, hourly precip doubled into the window total, so the
+// ascending ranking is Dry (0.2) < Mid (0.4) < Wet (0.6) and REQUEST's
+// limit of 2 cuts Wet.
+const THREE = [
+  { name: 'Wet', latitude: 1, longitude: 1 },
+  { name: 'Dry', latitude: 2, longitude: 2 },
+  { name: 'Mid', latitude: 3, longitude: 3 },
+]
+const THREE_PRECIPS = [0.3, 0.1, 0.2]
+
 afterEach(() => {
   vi.unstubAllGlobals()
 })
 
 describe('runClientAnalysis', () => {
   it('ranks, trims to limit, and reports total_queried', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (url: string) => {
-        // Hostname compare rather than a substring: routes the mock exactly
-        // and keeps CodeQL's URL-sanitization rule quiet.
-        const isWeather = new URL(url).hostname === 'api.open-meteo.com'
-        const count = new URL(url).searchParams.get('latitude')!.split(',').length
-        return {
-          ok: true,
-          status: 200,
-          json: async () =>
-            isWeather
-              ? weatherBody([0.3, 0.1, 0.2].slice(0, count))
-              : Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })),
-        }
-      }),
-    )
-    const dests = customRows([
-      { name: 'Wet', latitude: 1, longitude: 1 },
-      { name: 'Dry', latitude: 2, longitude: 2 },
-      { name: 'Mid', latitude: 3, longitude: 3 },
-    ])
+    stubOpenMeteo(THREE_PRECIPS)
+    const dests = customRows(THREE)
     const startMs = Date.parse('2026-07-21T00:00:00Z')
     const endMs = Date.parse('2026-07-21T02:00:00Z')
     const out = await runClientAnalysis(REQUEST, dests, startMs, endMs, {
       nowMs: startMs,
     })
-    expect(out.total_queried).toBe(3)
-    expect(out.results.map((r) => r.name)).toEqual(['Dry', 'Mid'])
-    expect(out.times).toHaveLength(2)
+    expect(out.response.total_queried).toBe(3)
+    expect(out.response.results.map((r) => r.name)).toEqual(['Dry', 'Mid'])
+    expect(out.response.times).toHaveLength(2)
+  })
+
+  it('keeps the full ranked field behind the cut, for an exact re-rank later', async () => {
+    stubOpenMeteo(THREE_PRECIPS)
+    const startMs = Date.parse('2026-07-21T00:00:00Z')
+    const endMs = Date.parse('2026-07-21T02:00:00Z')
+    const out = await runClientAnalysis(REQUEST, customRows(THREE), startMs, endMs, {
+      nowMs: startMs,
+    })
+    // Ranked by the request's key but NOT trimmed: 'Wet' lost the limit=2 cut
+    // and is exactly the row a window change used to be unable to promote.
+    expect(out.universe.map((r) => r.name)).toEqual(['Dry', 'Mid', 'Wet'])
+    // Shared objects, not copies: the AQI backfill attaches to the displayed
+    // rows in place and both views are meant to see it.
+    expect(out.universe[0]).toBe(out.response.results[0])
+    expect(out.universe[1]).toBe(out.response.results[1])
   })
 
   it('refuses over-cap lists with the server wording, before any fetch', async () => {
@@ -308,6 +336,46 @@ describe('runClientAnalysis', () => {
 
   it('returns the empty result shape for zero candidates', async () => {
     const out = await runClientAnalysis(REQUEST, [], 0, 1)
-    expect(out).toEqual({ results: [], total_queried: 0 })
+    expect(out).toEqual({ response: { results: [], total_queried: 0 }, universe: [] })
+  })
+})
+
+// ── refreshEchoRows: what a window change re-analyzes ──────────────────────
+
+describe('refreshEchoRows', () => {
+  function at(name: string, lat: number, elevationFt: number | null = null): DestinationResult {
+    return { ...row(name, null), latitude: lat, longitude: -121.9, elevation_ft: elevationFt }
+  }
+
+  const universe = [at('Dry', 1), at('Mid', 2), at('Wet', 3)]
+  const displayed = universe.slice(0, 2)
+
+  it('echoes the whole analyzed field, not the rows that survived the cut', () => {
+    // The #177 bug: re-ranking `displayed` could never promote 'Wet' into the
+    // new window's top rows, however wet the other two turned out to be.
+    expect(refreshEchoRows(universe, displayed, new Set()).map((r) => r.name)).toEqual([
+      'Dry',
+      'Mid',
+      'Wet',
+    ])
+  })
+
+  it('falls back to the displayed rows when no universe is held', () => {
+    // The server SSE path sends only its trimmed rows, so it keeps the old
+    // approximation rather than pretending to a field it never received.
+    expect(refreshEchoRows(null, displayed, new Set()).map((r) => r.name)).toEqual(['Dry', 'Mid'])
+  })
+
+  it('drops ×-removed destinations from the universe explicitly', () => {
+    // Echoing the displayed rows used to do this as a side effect; the universe
+    // never saw the removal, so the filter has to be applied here.
+    const removed = new Set([pinKey(3, -121.9), pinKey(1, -121.9)])
+    expect(refreshEchoRows(universe, displayed, removed).map((r) => r.name)).toEqual(['Mid'])
+  })
+
+  it('sends elevation as undefined, not null, so the request stays valid', () => {
+    const [known, unknown] = refreshEchoRows([at('Known', 4, 9000), at('Unknown', 5)], [], new Set())
+    expect(known.elevation_ft).toBe(9000)
+    expect(unknown.elevation_ft).toBeUndefined()
   })
 })
