@@ -8,10 +8,31 @@ interface Props {
   children: ReactNode
 }
 
-// The frame both standalone pages wear: /privacy and the 404. Neither is the
-// app, so neither gets the map's chrome, but they are reading surfaces in the
-// same sense the dialogs are and so they wear the same card and the same PROSE
-// tier rather than inventing a third look.
+// A titled block inside a document page, anchored so /terms#license lands
+// somewhere useful when the page gets cited in an issue or a reply. Lives here
+// with the frame rather than in either page, so /privacy and /terms cannot
+// drift into two ideas of what a section looks like.
+export function Section({
+  id,
+  title,
+  children,
+}: {
+  id: string
+  title: string
+  children: ReactNode
+}) {
+  return (
+    <section id={id} className="mt-6 pt-6 border-t border-slate-700">
+      <h2 className={`${PROSE.heading} mb-3`}>{title}</h2>
+      {children}
+    </section>
+  )
+}
+
+// The frame all three standalone pages wear: /privacy, /terms and the 404.
+// None is the app, so none gets the map's chrome, but they are reading
+// surfaces in the same sense the dialogs are and so they wear the same card
+// and the same PROSE tier rather than inventing a third look.
 //
 // Deliberately no router and no shared state with App.tsx: these are separate
 // Vite entries, so importing anything from the map's tree would pull maplibre

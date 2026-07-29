@@ -10,6 +10,7 @@ export default {
   content: [
     './index.html',
     './privacy/index.html',
+    './terms/index.html',
     './404.html',
     './src/**/*.{js,ts,jsx,tsx}',
   ],

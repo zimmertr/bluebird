@@ -88,7 +88,6 @@ interface Props {
   error: string | null
   onAnalyze: () => void
   onRetry: () => void
-  onShowPrivacy: () => void
   resultCount?: number
   totalQueried?: number
 }
@@ -130,7 +129,6 @@ export default function ControlPanel({
   error,
   onAnalyze,
   onRetry,
-  onShowPrivacy,
   resultCount,
   totalQueried,
 }: Props) {
@@ -696,16 +694,17 @@ export default function ControlPanel({
             </Fragment>
           ))}
         </p>
-        {/* Privacy opens the dialog rather than navigating, so reading it
-            never costs you a drawn polygon. Terms is the public page, which
-            is the same copy plus the sections a link you can paste has to
-            carry: safety, licensing, and how to get in touch. */}
+        {/* Two labels, two pages, and each label goes where it says. The
+            privacy copy used to open a dialog here, which meant it had no URL
+            and the Terms link next to it pointed at the privacy page anyway.
+            Both open in a new tab so reading either never costs you a drawn
+            polygon and its results. */}
         <p className={`${TEXT.caption} text-center`}>
-          <button onClick={onShowPrivacy} className={LINK}>
-            Privacy
-          </button>
-          {' · '}
           <a href="/privacy" target="_blank" rel="noreferrer" className={LINK}>
+            Privacy
+          </a>
+          {' · '}
+          <a href="/terms" target="_blank" rel="noreferrer" className={LINK}>
             Terms
           </a>
         </p>

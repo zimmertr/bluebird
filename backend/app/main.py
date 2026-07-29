@@ -236,13 +236,18 @@ async def swagger_ui() -> HTMLResponse:
     )
 
 
-# The public privacy and terms page, built as its own SPA entry so a shared
-# link is a real document with its own title and unfurl rather than app state.
+# The public document pages, each built as its own SPA entry so a shared link
+# is a real document with its own title and unfurl rather than app state.
 #
-# The static mount below would already serve this file as a directory index,
-# but only at /privacy/ — it 307s /privacy to the trailing-slash form first.
-# This route exists so the canonical URL is the one people actually type and
-# paste. Both spellings work; only this one avoids the redirect.
+# Two pages rather than one covering both, because that is how they get asked
+# for: app stores, payment processors and data providers want a privacy link
+# and a terms link separately, and a "Terms" label pointing at /privacy is a
+# small lie told in the URL bar.
+#
+# The static mount below would already serve these files as directory indexes,
+# but only at /privacy/ and /terms/, 307ing the bare paths to the trailing
+# slash first. These routes exist so the canonical URL is the one people
+# actually type and paste. Both spellings work; only these avoid the redirect.
 #
 # Registered unconditionally and 404ing on a missing file, rather than being
 # skipped when the build output is absent: a route that disappears in a source
@@ -250,19 +255,32 @@ async def swagger_ui() -> HTMLResponse:
 #
 # HEAD is named explicitly for the reason /healthz above spells out, and it
 # matters more here: link checkers and unfurlers reach for HEAD, and without it
-# the canonical URL this route exists to protect would hand exactly those
-# clients the 307 it was added to avoid. Both methods fit on one route because
-# include_in_schema=False keeps the pair out of the schema entirely, so the
-# duplicate-operationId problem that forced /healthz into two handlers cannot
-# arise.
+# the canonical URLs these routes exist to protect would hand exactly those
+# clients the 307 they were added to avoid. Both methods fit on one route
+# because include_in_schema=False keeps the pair out of the schema entirely, so
+# the duplicate-operationId problem that forced /healthz into two handlers
+# cannot arise.
+#
+# The paths stay module-level names rather than closure variables so the tests
+# can point them at a tmp_path and exercise both the present and absent cases.
 _privacy_page = static_dir / "privacy" / "index.html"
+_terms_page = static_dir / "terms" / "index.html"
+
+
+def _document_response(page: Path) -> FileResponse:
+    if not page.is_file():
+        raise HTTPException(status_code=404)
+    return FileResponse(page)
 
 
 @app.api_route("/privacy", methods=["GET", "HEAD"], include_in_schema=False)
 async def privacy_page() -> FileResponse:
-    if not _privacy_page.is_file():
-        raise HTTPException(status_code=404)
-    return FileResponse(_privacy_page)
+    return _document_response(_privacy_page)
+
+
+@app.api_route("/terms", methods=["GET", "HEAD"], include_in_schema=False)
+async def terms_page() -> FileResponse:
+    return _document_response(_terms_page)
 
 
 if static_dir.exists():

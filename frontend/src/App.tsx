@@ -5,7 +5,6 @@ import SearchBox from './components/SearchBox'
 import ResultsTable from './components/ResultsTable'
 import TimeSeriesChart from './components/TimeSeriesChart'
 import WelcomeModal from './components/WelcomeModal'
-import PrivacyModal from './components/PrivacyModal'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
 import { useChartSelection } from './hooks/useChartSelection'
@@ -179,10 +178,6 @@ export default function App() {
   const [tableCollapsed, setTableCollapsed] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('bluebird_welcomed'))
-  // Privacy notice, opened from the controls footer. Rendered at the App root
-  // (not inside the panel) because the panel's `transform` would otherwise
-  // become the containing block for the modal's `position: fixed`.
-  const [showPrivacy, setShowPrivacy] = useState(false)
   // The controls panel is docked on desktop and an off-canvas drawer on phones.
   // It starts open on both; a close button collapses it to widen the map.
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -586,7 +581,6 @@ export default function App() {
       {preview.enabled && <PreviewBanner pr={preview.pr} commit={preview.commit} />}
       <div className="flex flex-1 overflow-hidden min-h-0 relative">
       {showWelcome && <WelcomeModal onDismiss={dismissWelcome} />}
-      {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)} />}
       {isDragging && <div className="fixed inset-0 z-50 cursor-ns-resize touch-none" />}
 
       {/* Mobile: dim backdrop behind the open drawer */}
@@ -660,7 +654,6 @@ export default function App() {
             handleAnalyze()
           }}
           onRetry={retry}
-          onShowPrivacy={() => setShowPrivacy(true)}
           resultCount={response ? results.length : undefined}
           totalQueried={response?.total_queried}
         />

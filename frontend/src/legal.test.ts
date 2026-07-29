@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest'
 // `?raw` gives us each file's text without executing it, so this stays a pure
 // node test with no DOM, matching vitest.config.ts. Same trick styles.test.ts
 // uses to lint components it cannot render.
+import app from './App.tsx?raw'
+import contactBody from './components/ContactBody.tsx?raw'
 import controlPanel from './components/ControlPanel.tsx?raw'
+import dataSourceList from './components/DataSourceList.tsx?raw'
 import notFoundPage from './components/NotFoundPage.tsx?raw'
-import privacyBody from './components/PrivacyBody.tsx?raw'
-import privacyModal from './components/PrivacyModal.tsx?raw'
 import privacyPage from './components/PrivacyPage.tsx?raw'
 import safetyNotice from './components/SafetyNotice.tsx?raw'
+import termsPage from './components/TermsPage.tsx?raw'
 import welcomeModal from './components/WelcomeModal.tsx?raw'
 import { SUPPORT_EMAIL } from './utils/contact'
 
@@ -19,9 +21,11 @@ function copy(source: string): string {
 }
 
 const PROSE_SOURCES: Record<string, string> = {
-  'PrivacyBody.tsx': privacyBody,
   'PrivacyPage.tsx': privacyPage,
+  'TermsPage.tsx': termsPage,
   'NotFoundPage.tsx': notFoundPage,
+  'ContactBody.tsx': contactBody,
+  'DataSourceList.tsx': dataSourceList,
   'SafetyNotice.tsx': safetyNotice,
   'WelcomeModal.tsx': welcomeModal,
 }
@@ -58,50 +62,73 @@ describe('attribute copy', () => {
   })
 })
 
-// The reason the public page is worth having is that it says what the app
-// says. Asserting the shared imports makes that structural rather than a
-// promise someone has to keep by re-reading two files.
-describe('the page and the app share their copy', () => {
-  it('renders one privacy body in both the dialog and the page', () => {
-    expect(privacyModal).toMatch(/import PrivacyBody from '\.\/PrivacyBody'/)
-    expect(privacyPage).toMatch(/import PrivacyBody from '\.\/PrivacyBody'/)
+// Two pages, two URLs, each one asked for by name. The privacy copy used to
+// live in a dialog with a PrivacyBody component shared between it and a
+// combined /privacy page; the dialog had no URL, and the "Terms" link beside
+// it pointed at the privacy page anyway.
+describe('the document pages', () => {
+  it('are both reachable from the control panel footer', () => {
+    expect(controlPanel).toMatch(/href="\/privacy"/)
+    expect(controlPanel).toMatch(/href="\/terms"/)
   })
 
-  it('renders one safety notice in both the welcome dialog and the page', () => {
-    expect(welcomeModal).toMatch(/import SafetyNotice from '\.\/SafetyNotice'/)
-    expect(privacyPage).toMatch(/import SafetyNotice from '\.\/SafetyNotice'/)
+  // The failure this replaces: a label that says one thing and navigates
+  // somewhere else. A button here means a dialog came back.
+  it('are links, not a dialog the app has to hold state for', () => {
+    expect(controlPanel).not.toMatch(/onShowPrivacy/)
+    expect(app).not.toMatch(/PrivacyModal|showPrivacy/)
+    expect(Object.keys(componentSources)).not.toContain('./components/PrivacyModal.tsx')
+    expect(Object.keys(componentSources)).not.toContain('./components/PrivacyBody.tsx')
   })
 
-  // Neither surface may restate the copy locally: an inlined sentence would
-  // pass the import assertions above while drifting anyway.
+  // Separate URLs are only worth having if each page answers its own question
+  // without sending the reader to the other one. Both carry the provider list
+  // and a way to get in touch; each links the other so neither is a dead end.
+  it.each([
+    ['PrivacyPage.tsx', privacyPage, '/terms'],
+    ['TermsPage.tsx', termsPage, '/privacy'],
+  ])('%s stands alone and points at its sibling', (_name, source, sibling) => {
+    expect(source).toMatch(/import ContactBody from '\.\/ContactBody'/)
+    expect(source).toMatch(/import DataSourceList from '\.\/DataSourceList'/)
+    expect(source).toMatch(new RegExp(`href="${sibling}"`))
+  })
+
+  // Neither may restate shared copy locally: an inlined sentence would pass
+  // the import assertions above while drifting anyway.
   it('keeps the shared sentences out of their callers', () => {
-    expect(privacyModal).not.toMatch(/no analytics scripts/)
-    expect(privacyPage).not.toMatch(/no analytics scripts/)
+    for (const source of [privacyPage, termsPage]) {
+      expect(source).not.toMatch(/Each provider's own license and privacy policy/)
+    }
     expect(welcomeModal).not.toMatch(/planning aid/)
-    expect(privacyPage).not.toMatch(/planning aid/)
+    expect(termsPage).not.toMatch(/planning aid/)
+  })
+
+  it('renders one safety notice in both the welcome dialog and the terms', () => {
+    expect(welcomeModal).toMatch(/import SafetyNotice from '\.\/SafetyNotice'/)
+    expect(termsPage).toMatch(/import SafetyNotice from '\.\/SafetyNotice'/)
   })
 })
 
 // #171 relicensed from GPL-3.0 to PolyForm Noncommercial while this page was
-// in review, and the page had already shipped the GPL sentence into its terms.
-// A license is exactly the kind of claim that is written once and then quietly
-// outlived by a decision made in another file, so it gets pinned like the
-// privacy claims below.
+// in review, and the copy had already shipped the GPL sentence. A license is
+// exactly the kind of claim that is written once and then quietly outlived by
+// a decision made in another file, so it gets pinned like the privacy claims
+// below.
 describe('the license the terms name', () => {
   it('is the one the project actually carries', () => {
-    expect(privacyPage).toMatch(/PolyForm Noncommercial License 1\.0\.0/)
-    expect(privacyPage).toMatch(/polyformproject\.org/)
+    expect(termsPage).toMatch(/PolyForm Noncommercial License 1\.0\.0/)
+    expect(termsPage).toMatch(/polyformproject\.org/)
   })
 
   it('does not still claim a license the project has left', () => {
-    expect(privacyPage).not.toMatch(/GNU General Public|GPL|gnu\.org/)
+    expect(termsPage).not.toMatch(/GNU General Public|GPL|gnu\.org/)
   })
 
   // "Noncommercial" in PolyForm constrains the licensee, not the copyright
   // holder, so describing Bluebird itself as a non-commercial project reads as
   // a promise never to charge, which relicensing deliberately kept open.
   it('does not describe the project itself as non-commercial', () => {
-    for (const source of [privacyBody, privacyPage]) {
+    for (const source of [privacyPage, termsPage]) {
       expect(copy(source)).not.toMatch(/non-commercial (project|tool)/i)
     }
   })
@@ -109,7 +136,7 @@ describe('the license the terms name', () => {
   // Source-available is not open source, and #171's README is explicit about
   // the distinction. The page must not soften it back.
   it('does not call the project open source', () => {
-    expect(copy(privacyPage)).not.toMatch(/\bis open source\b/)
+    expect(copy(termsPage)).not.toMatch(/\bis open source\b/)
   })
 })
 
@@ -119,7 +146,7 @@ describe('the privacy copy', () => {
   // notice. Pinning the disclosure means a revert fails here rather than
   // shipping a promise Bluebird no longer keeps.
   it('discloses that addresses are used for rate limiting, not only logging', () => {
-    const text = copy(privacyBody)
+    const text = copy(privacyPage)
 
     expect(text).toMatch(/rate limit/i)
     expect(text).toMatch(/in memory/i)
@@ -129,7 +156,7 @@ describe('the privacy copy', () => {
   // would falsify the analytics one; whichever PR does that updates this file
   // and this test together.
   it('still claims no analytics, no cookies, and no accounts', () => {
-    const text = copy(privacyBody)
+    const text = copy(privacyPage)
 
     expect(text).toMatch(/no analytics scripts/i)
     expect(text).toMatch(/no cookies/i)
@@ -146,11 +173,11 @@ describe('the support contact', () => {
   // match how the source spells it: the constant, never the value. Checking
   // for the interpolated address here would only ever pass if someone had
   // hardcoded it, which is the thing the next test forbids.
-  //
-  // The public page carries this alone. The 404 deliberately does not, per the
-  // bare-page test below.
-  it('reaches a human without a GitHub account', () => {
-    expect(privacyPage).toMatch(/href={`mailto:\$\{SUPPORT_EMAIL\}`}/)
+  it.each([
+    ['ContactBody.tsx', contactBody],
+    ['TermsPage.tsx', termsPage],
+  ])('%s reaches a human without a GitHub account', (_name, source) => {
+    expect(source).toMatch(/href={`mailto:\$\{SUPPORT_EMAIL\}`}/)
   })
 
   // Anything hardcoded here is an address that outlives the constant it was
@@ -161,17 +188,7 @@ describe('the support contact', () => {
   })
 })
 
-describe('the public page', () => {
-  // The acceptance criterion for #134: reachable from the footer, not only
-  // from inside a dialog someone has to know to open.
-  it('is linked from the control panel footer', () => {
-    expect(controlPanel).toMatch(/href="\/privacy"/)
-  })
-
-  it('is linked from the privacy dialog', () => {
-    expect(privacyModal).toMatch(/href="\/privacy"/)
-  })
-
+describe('the standalone pages', () => {
   // The 404 page is deliberately bare: the fact, the picture, one way back.
   // It had shipped with three paragraphs guessing at what went wrong, a second
   // destination, and an invitation to report a bug, none of which a visitor who
@@ -179,11 +196,11 @@ describe('the public page', () => {
   // records, and it is easy to undo one helpful sentence at a time, so the
   // shape is pinned rather than trusted. Every link the page has comes from the
   // shell around it.
-  it('sends people home and nowhere else', () => {
+  it('leave the 404 sending people home and nowhere else', () => {
     const markup = copy(notFoundPage)
 
     expect(markup).not.toMatch(/href=/)
-    expect(markup).not.toMatch(/mailto:|github\.com|\/privacy/)
+    expect(markup).not.toMatch(/mailto:|github\.com|\/privacy|\/terms/)
   })
 
   // Separate Vite entries exist so a text page doesn't ship the map. An import
@@ -191,6 +208,7 @@ describe('the public page', () => {
   // rather than breaking a build.
   it.each([
     ['PrivacyPage.tsx', privacyPage],
+    ['TermsPage.tsx', termsPage],
     ['NotFoundPage.tsx', notFoundPage],
   ])('%s pulls nothing from the app tree', (_name, source) => {
     expect(source).not.toMatch(/from '\.\.\/App'/)

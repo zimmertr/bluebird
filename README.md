@@ -366,7 +366,7 @@ Email **hello@bluebirdforecast.com** about anything: a summit at the wrong eleva
 
 If you can describe how to reproduce something, the [issue board](https://github.com/zimmertr/bluebird/issues) is the better channel. Security vulnerabilities go through [GitHub's private advisory form](https://github.com/zimmertr/bluebird/security/advisories/new) rather than a public issue, as described in [SECURITY.md](SECURITY.md).
 
-The public [privacy and terms page](https://bluebirdforecast.com/privacy) covers what Bluebird does with your data, the terms of use, and the data sources with their licenses. It renders the same components the app does, so it cannot drift from what the app tells users.
+Two public pages carry the rest: [privacy](https://bluebirdforecast.com/privacy) for what Bluebird does with your data and which providers your requests reach, and [terms](https://bluebirdforecast.com/terms) for the license, the absence of any warranty, availability, and the licenses covering the data. Separate URLs because that is how they get asked for. Both render the same shared components, so the provider list and the contact address cannot drift between them.
 
 ## License
 
