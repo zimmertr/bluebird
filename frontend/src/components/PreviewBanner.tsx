@@ -1,11 +1,9 @@
+import { REPO_URL } from '../utils/contact'
+
 type Props = {
   pr: string | null
   commit: string | null
 }
-
-// Preview environments only ever run off this repo's PRs, so the slug is safe
-// to hardcode rather than plumb through the runtime /api/config payload.
-const REPO_URL = 'https://github.com/zimmertr/bluebird'
 
 const BANNER_CLASS =
   'flex-shrink-0 bg-red-600 text-white text-center text-xs sm:text-sm font-semibold py-1.5 px-4 z-30 shadow-md'

@@ -281,7 +281,7 @@ class AnalyzeRequest(BaseModel):
         if v is not None and len(v) > MAX_ANALYZE_PEAKS:
             raise ValueError(
                 f"Too many custom destinations ({len(v):,}). Maximum is "
-                f"{MAX_ANALYZE_PEAKS:,} — trim the list or split it into multiple analyses."
+                f"{MAX_ANALYZE_PEAKS:,}. Trim the list or split it into multiple analyses."
             )
         return v
 
@@ -361,12 +361,12 @@ class AnalyzeRequest(BaseModel):
         if _as_utc(self.start_datetime) < now - timedelta(days=PAST_LIMIT_SLACK_DAYS):
             raise ValueError(
                 "start_datetime is beyond the ~90-day history limit of the "
-                "weather API — move the window start closer to today."
+                "weather API. Move the window start closer to today."
             )
         if _as_utc(self.end_datetime) > now + timedelta(days=FUTURE_LIMIT_SLACK_DAYS):
             raise ValueError(
                 "end_datetime is beyond the ~16-day forecast horizon of the "
-                "weather API — move the window end closer to today."
+                "weather API. Move the window end closer to today."
             )
         return self
 

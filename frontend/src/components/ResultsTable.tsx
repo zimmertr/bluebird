@@ -9,6 +9,7 @@ import { destinationUrl } from '../utils/destinationUrl'
 import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
 import { LINK_ACTION, TEXT } from '../styles'
+import { AGGREGATE, metricLabel } from '../metrics'
 
 function windyUrl(lat: number, lon: number, layer: string): string {
   return `https://www.windy.com/?${layer},${lat.toFixed(4)},${lon.toFixed(4)},11`
@@ -67,20 +68,24 @@ function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; 
   )
 }
 
+// Headers name the metric and then how it was reduced over the window, split
+// by metrics.ts's separator so the eye doesn't have to find the seam. The rate
+// columns override the unit: precipitation is inches over a whole window but
+// inches per hour when averaged or peaked.
 const COLUMNS: ColDef[] = [
   { key: 'name', label: 'Name' },
-  { key: 'elevation_ft', label: 'Elev (ft)', format: (v) => (v != null ? Number(v).toLocaleString() : '—') },
-  { key: 'precip_total_in', label: 'Precip Total (in)', format: (v) => Number(v).toFixed(3), windyLayer: 'rain' },
-  { key: 'precip_avg_in_hr', label: 'Precip Avg (in/hr)', format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
-  { key: 'precip_max_in_hr', label: 'Precip Max (in/hr)', format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
-  { key: 'temp_min_f', label: 'Temp Min°F', format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
-  { key: 'temp_max_f', label: 'Temp Max°F', format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
-  { key: 'temp_avg_f', label: 'Temp Avg°F', format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
-  { key: 'wind_min_mph', label: 'Wind Min mph', format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
-  { key: 'wind_max_mph', label: 'Wind Max mph', format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
-  { key: 'wind_avg_mph', label: 'Wind Avg mph', format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
-  { key: 'aqi_avg', label: 'AQI Avg', format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
-  { key: 'aqi_max', label: 'AQI Max', format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
+  { key: 'elevation_ft', label: 'Elevation (ft)', format: (v) => (v != null ? Number(v).toLocaleString() : '—') },
+  { key: 'precip_total_in', label: metricLabel('precip', AGGREGATE.total), format: (v) => Number(v).toFixed(3), windyLayer: 'rain' },
+  { key: 'precip_avg_in_hr', label: metricLabel('precip', AGGREGATE.average, 'in/hr'), format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
+  { key: 'precip_max_in_hr', label: metricLabel('precip', AGGREGATE.maximum, 'in/hr'), format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
+  { key: 'temp_min_f', label: metricLabel('temp', AGGREGATE.minimum), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
+  { key: 'temp_max_f', label: metricLabel('temp', AGGREGATE.maximum), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
+  { key: 'temp_avg_f', label: metricLabel('temp', AGGREGATE.average), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
+  { key: 'wind_min_mph', label: metricLabel('wind', AGGREGATE.minimum), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
+  { key: 'wind_max_mph', label: metricLabel('wind', AGGREGATE.maximum), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
+  { key: 'wind_avg_mph', label: metricLabel('wind', AGGREGATE.average), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
+  { key: 'aqi_avg', label: metricLabel('aqi', AGGREGATE.average), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
+  { key: 'aqi_max', label: metricLabel('aqi', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
 ]
 
 interface Props {
@@ -131,7 +136,7 @@ export default function ResultsTable({
   onChartRange,
 }: Props) {
   const coloredGroup = new Set(METRIC_CONFIG[sortBy].group)
-  // The ranked metric's columns lead the table (right after #/Name/Elev), so
+  // The ranked metric's columns lead the table (right after #/Name/Elevation), so
   // the numbers the ranking was built from are the first thing read. Keyed on
   // the analyzed snapshot, like the cell colors — panel knob changes don't
   // reshuffle the displayed report.

@@ -103,6 +103,8 @@ The SPA fetches only on an explicit Analyze click and renders results from a sna
 - `src/utils/clientAnalyze.ts` — ports of the analyze route's merge/align/assemble/rank helpers + the browser-side candidate cap
 - `src/utils/forecastWindow.ts` — window normalization twin of `models.py` (point sample → floored hour + 1 min; horizon checks)
 - `src/types.ts` — TypeScript types mirroring backend Pydantic models
+- `src/styles.ts` — the type ramp plus the surface/button/field roles; components compose these instead of picking sizes and colors at the call site (`src/styles.test.ts` enforces it)
+- `src/metrics.ts` — the one vocabulary for the four metrics: nouns (spelled out), units, aggregates (their short forms: `Avg`/`Min`/`Max`), and the composers behind the results header and table headers; the map legend titles itself with the bare noun and leaves the hour/window framing to those surfaces. **A surface never spells a metric's name itself** — `src/metrics.test.ts` reads the consuming files as text and fails on a literal `Precip`/`Temp`/`Avg`
 - `src/utils/colors.ts` — marker/cell color thresholds per sortable metric (precip, wind, temp, AQI)
 - `src/utils/geocode.ts` — coordinate parsing, Nominatim client, and bounds math: search-view bounds for the search box plus the multi-point fit that frames pasted/restored CSV lists
 - `src/utils/wildfires.ts` — NIFC WFIGS query builder + popup formatting for the optional wildfire overlay (fetched client-side by viewport; US-only, keyless, best-effort)

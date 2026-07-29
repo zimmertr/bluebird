@@ -17,7 +17,7 @@ LABEL org.opencontainers.image.title="Bluebird" \
       org.opencontainers.image.description="Map-based weather window finder for hikers and mountaineers" \
       org.opencontainers.image.source="https://github.com/zimmertr/bluebird" \
       org.opencontainers.image.url="https://bluebirdforecast.com" \
-      org.opencontainers.image.licenses="GPL-3.0-only"
+      org.opencontainers.image.licenses="PolyForm-Noncommercial-1.0.0"
 
 # Unbuffered so logs reach the container runtime immediately; no .pyc writes
 # because the app dir is root-owned and read-only to the runtime user anyway.

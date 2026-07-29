@@ -965,8 +965,8 @@
     },
     "description": "\nBluebird ranks outdoor destinations by their forecast weather.\n\nDraw a polygon and every named peak, trailhead, or lake inside it is discovered\nfrom OpenStreetMap, given a real hourly forecast, and ranked. Or skip discovery\nentirely and send your own coordinates.\n\nThere is no API key and no authentication. Light per-address rate limits and\nan instance-wide upstream budget protect the free, keyless APIs underneath:\nrequests past them receive 429 or 503 with a `Retry-After` header, and\n`GET /api/capabilities` publishes the numbers. Please stay considerate all the\nsame: a single analysis can fan out to hundreds of forecast requests.\n\nStart with `GET /api/capabilities` to learn the limits this deployment enforces,\nand `GET /api/version` to confirm which build you are talking to.\n",
     "license": {
-      "name": "GPL-3.0-only",
-      "url": "https://www.gnu.org/licenses/gpl-3.0-standalone.html"
+      "name": "PolyForm-Noncommercial-1.0.0",
+      "url": "https://polyformproject.org/licenses/noncommercial/1.0.0"
     },
     "summary": "Map-based weather window finder for hikers and mountaineers.",
     "title": "Bluebird",

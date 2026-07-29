@@ -1,8 +1,10 @@
-import { useMemo, useRef } from 'react'
+import { Fragment, useMemo, useRef } from 'react'
 import { AnalysisMode, CustomDestination, DiscoveryType, SortBy } from '../types'
 import { MAX_AREA_KM2 } from './MapView'
 import { parseCustomCsv } from '../utils/customDestinations'
+import { DATA_SOURCES } from '../utils/dataSources'
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD, LINK, TEXT } from '../styles'
+import { AGGREGATE, NOUN, familyOf } from '../metrics'
 import { canAnalyze } from '../utils/analyzeGate'
 import {
   classifyAqiCoverage,
@@ -24,12 +26,9 @@ function pickableDate(offsetDays: number): string {
 // Each metric ranks by one representative value — total precipitation,
 // window-average wind/temperature/AQI. The finer min/avg/max detail stays
 // visible (and click-sortable) in the results table.
-const SORT_METRICS: { value: SortBy; label: string }[] = [
-  { value: 'precip_total_in', label: 'Precipitation' },
-  { value: 'wind_avg_mph', label: 'Wind' },
-  { value: 'temp_avg_f', label: 'Temperature' },
-  { value: 'aqi_avg', label: 'AQI' },
-]
+const SORT_METRICS: { value: SortBy; label: string }[] = (
+  ['precip_total_in', 'wind_avg_mph', 'temp_avg_f', 'aqi_avg'] as const
+).map((value) => ({ value, label: NOUN[familyOf(value)] }))
 
 // What polygon discovery finds. Custom (CSV) is no longer a mode here — the
 // always-visible Custom Destinations section below adds to any of these.
@@ -87,7 +86,6 @@ interface Props {
   error: string | null
   onAnalyze: () => void
   onRetry: () => void
-  onShowPrivacy: () => void
   resultCount?: number
   totalQueried?: number
 }
@@ -129,7 +127,6 @@ export default function ControlPanel({
   error,
   onAnalyze,
   onRetry,
-  onShowPrivacy,
   resultCount,
   totalQueried,
 }: Props) {
@@ -280,7 +277,7 @@ export default function ControlPanel({
               <code className="text-slate-300">Lat,Lon,Name</code>
             </p>
             <textarea
-              aria-label="Custom destination coordinates — one per line as latitude, longitude, optional name"
+              aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"
               value={customCsv}
               onKeyDown={() => (csvPasteRef.current = false)}
               onPaste={() => (csvPasteRef.current = true)}
@@ -560,7 +557,7 @@ export default function ControlPanel({
               <div className="flex items-center gap-2">
                 <input
                   type="number"
-                  placeholder="Min (ft)"
+                  placeholder={AGGREGATE.minimum}
                   value={minElevationFt ?? ''}
                   min={0}
                   max={30000}
@@ -572,7 +569,7 @@ export default function ControlPanel({
                 <span className={`${TEXT.caption} flex-shrink-0`}>–</span>
                 <input
                   type="number"
-                  placeholder="Max (ft)"
+                  placeholder={AGGREGATE.maximum}
                   value={maxElevationFt ?? ''}
                   min={0}
                   max={30000}
@@ -598,9 +595,9 @@ export default function ControlPanel({
               )}
             </div>
 
-            {/* Max results */}
+            {/* Result-count cap */}
             <div>
-              <label className={`${TEXT.subheading} block mb-1`}>Max results</label>
+              <label className={`${TEXT.subheading} block mb-1`}>{AGGREGATE.maximum} results</label>
               <input
                 type="number"
                 min={1}
@@ -686,22 +683,28 @@ export default function ControlPanel({
 
         <p className={`${TEXT.caption} text-center leading-relaxed`}>
           Data:{' '}
-          <a href="https://www.openstreetmap.org" target="_blank" rel="noreferrer" className={LINK}>OpenStreetMap</a>
-          {' · '}
-          <a href="https://open-meteo.com" target="_blank" rel="noreferrer" className={LINK}>Open-Meteo</a>
-          {' · '}
-          <a href="https://atmosphere.copernicus.eu" target="_blank" rel="noreferrer" className={LINK}>CAMS</a>
-          {' · '}
-          <a href="https://openfreemap.org" target="_blank" rel="noreferrer" className={LINK}>OpenFreeMap</a>
-          {' · '}
-          <a href="https://nominatim.org" target="_blank" rel="noreferrer" className={LINK}>Nominatim</a>
-          {' · '}
-          <a href="https://www.nifc.gov" target="_blank" rel="noreferrer" className={LINK}>NIFC</a>
+          {DATA_SOURCES.map((source, i) => (
+            <Fragment key={source.name}>
+              {i > 0 && ' · '}
+              <a href={source.href} target="_blank" rel="noreferrer" className={LINK}>
+                {source.name}
+              </a>
+            </Fragment>
+          ))}
         </p>
+        {/* Two labels, two pages, and each label goes where it says. The
+            privacy copy used to open a dialog here, which meant it had no URL
+            and the Terms link next to it pointed at the privacy page anyway.
+            Both open in a new tab so reading either never costs you a drawn
+            polygon and its results. */}
         <p className={`${TEXT.caption} text-center`}>
-          <button onClick={onShowPrivacy} className={LINK}>
+          <a href="/privacy" target="_blank" rel="noreferrer" className={LINK}>
             Privacy
-          </button>
+          </a>
+          {' · '}
+          <a href="/terms" target="_blank" rel="noreferrer" className={LINK}>
+            Terms
+          </a>
         </p>
       </div>
     </div>

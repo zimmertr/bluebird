@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { pointModeColumns, orderColumns } from './tableColumns'
+import { SEP } from '../metrics'
 import { SortBy } from '../types'
 
 // The table's canonical column keys, in their ResultsTable order.
@@ -85,12 +86,14 @@ describe('pointModeColumns', () => {
     ])
   })
 
-  it('drops the Avg/Min/Max qualifiers from the headers', () => {
+  it('drops the aggregate qualifier from the headers', () => {
     const labels = new Map(pointModeColumns(labeled).map((c) => [c.key, c.label]))
-    expect(labels.get('precip_avg_in_hr')).toBe('Precip"/hr')
-    expect(labels.get('temp_avg_f')).toBe('Temp°F')
-    expect(labels.get('wind_avg_mph')).toBe('Wind mph')
+    expect(labels.get('precip_avg_in_hr')).toBe('Precipitation (in/hr)')
+    expect(labels.get('temp_avg_f')).toBe('Temperature (°F)')
+    expect(labels.get('wind_avg_mph')).toBe('Wind (mph)')
     expect(labels.get('aqi_avg')).toBe('AQI')
+    // No aggregate means no separator to hang one off.
+    for (const label of labels.values()) expect(label).not.toContain(SEP)
     // Identity columns keep their labels untouched.
     expect(labels.get('name')).toBe('name')
   })

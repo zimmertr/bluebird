@@ -7,7 +7,8 @@ type MetricConfig = {
   // more last-band width, then clamp.
   thresholds: number[]
   colors: string[]
-  label: string
+  // Captions for the bands above, not a name for the metric — that comes from
+  // metrics.ts, which knows the analysis mode these thresholds do not.
   legendLabels: string[]
   group: string[]
 }
@@ -19,21 +20,18 @@ export const METRIC_CONFIG: Record<SortBy, MetricConfig> = {
   precip_total_in: {
     thresholds: [0.01, 0.10, 0.25, 0.50],
     colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
-    label: 'Total Precip',
     legendLabels: ['≤ 0.01"', '0.01 – 0.10"', '0.10 – 0.25"', '0.25 – 0.50"', '> 0.50"'],
     group: ['precip_total_in', 'precip_avg_in_hr', 'precip_max_in_hr'],
   },
   wind_avg_mph: {
     thresholds: [5, 15, 25, 35],
     colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
-    label: 'Avg Wind',
     legendLabels: ['≤ 5 mph', '5 – 15 mph', '15 – 25 mph', '25 – 35 mph', '> 35 mph'],
     group: ['wind_min_mph', 'wind_avg_mph', 'wind_max_mph'],
   },
   temp_avg_f: {
     thresholds: [30, 45, 55, 65],
     colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
-    label: 'Avg Temp',
     legendLabels: ['≤ 30°F', '30 – 45°F', '45 – 55°F', '55 – 65°F', '> 65°F'],
     group: ['temp_min_f', 'temp_avg_f', 'temp_max_f'],
   },
@@ -43,7 +41,6 @@ export const METRIC_CONFIG: Record<SortBy, MetricConfig> = {
   aqi_avg: {
     thresholds: [50, 100, 150, 200, 300],
     colors: ['#22c55e', '#eab308', '#f97316', '#ef4444', '#a855f7', '#991b1b'],
-    label: 'Avg AQI',
     legendLabels: [
       '≤ 50 AQI',
       '50 – 100 AQI',
