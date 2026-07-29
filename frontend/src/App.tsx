@@ -25,7 +25,7 @@ import { composeOverlay } from './utils/analyzeOverlay'
 import { Place, isPeakKind } from './utils/geocode'
 import { encodeState, decodeState, classifyWindow, classifyMoment } from './utils/urlState'
 import { DEFAULT_WINDOW_HOURS, nowLocal } from './utils/datetimeLocal'
-import { rankingStale } from './utils/staleness'
+import { PresentationKnobs, bandNarrows, commitNeeded, presentResults } from './utils/present'
 
 // Both map legends, sized as one: they stack in a single column, so differing
 // widths would read as a ragged edge rather than as two boxes. The step is a
@@ -218,6 +218,7 @@ export default function App() {
     retryTopByElevation,
     reset,
     analyzed,
+    analysisSeq,
     loading,
     error,
     refusal,
@@ -263,14 +264,29 @@ export default function App() {
     if (searched.places.length > 0 || csvRows.length > 0) setShowResults(true)
   }, [searched.places, csvRows])
 
-  // Everything derived from the results renders from the snapshot of the
-  // ranking that produced them — panel knobs only affect the NEXT Analyze.
-  // Falls back to the live knobs before the first analysis (nothing shown yet).
-  const view = analyzed ?? { sortBy, sortDesc, mode: forecastMode }
-  // The displayed report renders from the analyzed snapshot, so changing the
-  // ranking knobs changes nothing on screen by design — surface that state as
-  // a "press Analyze to apply" cue or the controls feel dead after first use.
-  const rankingChanged = rankingStale(analyzed, sortBy, sortDesc) && !loading && response !== null
+  // The knobs the displayed report is rendered under: markers, legend, results
+  // header, and table column order all read from here.
+  //
+  // With a field held, the panel's ranking IS the displayed ranking — the rows
+  // below are re-derived from it on every change, so reading the snapshot here
+  // would show a legend that disagreed with the table. Mode stays from the
+  // snapshot either way: it is a data knob, and a point sample cannot become a
+  // window without a new analysis. Without a field (the SSE fallback, or before
+  // the first analysis) this is the pre-#188 behavior unchanged.
+  const liveKnobs: PresentationKnobs = useMemo(
+    () => ({ sortBy, sortDesc, limit, band: { min: minElevationFt, max: maxElevationFt } }),
+    [sortBy, sortDesc, limit, minElevationFt, maxElevationFt],
+  )
+  const view =
+    universe !== null && analyzed !== null
+      ? { sortBy, sortDesc, mode: analyzed.mode }
+      : analyzed ?? { sortBy, sortDesc, mode: forecastMode }
+  // A knob that has stopped being live, and why. Null while everything applies
+  // instantly, which is the normal case: the cue exists so the controls never
+  // feel dead, and showing it when they are in fact live would ask for an
+  // Analyze that changes nothing.
+  const commitReason =
+    !loading && response !== null ? commitNeeded(analyzed, liveKnobs, universe !== null) : null
   const preview = usePreview()
 
   // Elapsed-time counter for phases with no countable progress (the OSM search,
@@ -366,10 +382,17 @@ export default function App() {
 
 
   // The user-authored discovery inputs as a stable string. Everything that
-  // changes which destinations are found or how they're ranked/truncated
-  // belongs here — the CSV as parsed rows (a comment or whitespace edit doesn't
-  // needlessly bust the refresh) but NOT the searched places, which are
-  // compared separately so removals stay refresh-eligible.
+  // changes which destinations are FOUND belongs here — the CSV as parsed rows
+  // (a comment or whitespace edit doesn't needlessly bust the refresh) but NOT
+  // the searched places, which are compared separately so removals stay
+  // refresh-eligible.
+  //
+  // Ranking and limit used to be in here, which is what made every sort or
+  // limit change a full rediscovery. They re-present the held field now
+  // (#188), so they never reach this function at all. The elevation band DOES
+  // stay: a narrowing is likewise handled live and never gets here, but a
+  // WIDENING needs candidates outside the held field, and letting it take the
+  // refresh path would echo the narrower field and silently ignore the request.
   function discoveryBase(poly: GeoPolygon | null, csvRows: CustomDestination[]): string {
     return JSON.stringify({
       ring: poly?.coordinates[0] ?? null,
@@ -377,9 +400,6 @@ export default function App() {
       csv: csvRows,
       minEl: minElevationFt,
       maxEl: maxElevationFt,
-      limit,
-      sortBy,
-      sortDesc,
     })
   }
 
@@ -411,14 +431,23 @@ export default function App() {
 
     // Reset the removal set only when the user changed a discovery input —
     // searched places are deliberately absent (their list shrinks on removal).
+    //
+    // The elevation band is compared by DIRECTION rather than by equality. It
+    // used to sit in the hash, which was harmless while every band change
+    // forced an analysis; now that narrowing is live, a user who narrows and
+    // then changes the forecast window would arrive here with a band that
+    // differs from the last analysis and lose their × removals for a reason
+    // nothing on screen explains. A narrowing keeps them (the same field, fewer
+    // rows); only a widening starts a fresh report, since it readmits
+    // destinations this report never ranked.
     const removalScope = JSON.stringify({
       ring: resolvedPolygon?.coordinates[0] ?? null,
       type: destinationType,
-      minEl: minElevationFt,
-      maxEl: maxElevationFt,
       csv: customCsv.trim(),
     })
-    if (removalScopeRef.current !== removalScope) {
+    const widened =
+      analyzed !== null && !bandNarrows(analyzed.band, { min: minElevationFt, max: maxElevationFt })
+    if (removalScopeRef.current !== removalScope || widened) {
       removalScopeRef.current = removalScope
       setRemovedKeys(new Set())
     }
@@ -535,21 +564,26 @@ export default function App() {
     }
   }, [searched.places])
 
-  // Memoized so its reference is stable between renders — the fire-proximity
-  // effect keys off it and would otherwise re-run (and refetch) every render.
+  // The displayed report, re-derived from the held field on every knob change
+  // (#188). presentResults owns the whole decision — band, removals, ranking,
+  // cut — so the table, the markers, and the count cannot disagree about which
+  // rows are on screen.
+  //
   // Rows returned without an osm_id (a refresh's custom echo) are re-tagged from
   // the remembered discovery identities by coordinate; genuine custom-CSV rows
   // simply have no match and pass through unchanged.
+  const presented = useMemo(
+    () => presentResults(universe, response, liveKnobs, removedKeys),
+    [universe, response, liveKnobs, removedKeys],
+  )
   const results = useMemo(
     () =>
-      (response?.results ?? [])
-        .filter((r) => !removedKeys.has(pinKey(r.latitude, r.longitude)))
-        .map((r) => {
-          if (r.osm_id) return r
-          const id = identityMapRef.current.get(pinKey(r.latitude, r.longitude))
-          return id ? { ...r, type: id.type, osm_id: id.osm_id } : r
-        }),
-    [response, removedKeys],
+      presented.rows.map((r) => {
+        if (r.osm_id) return r
+        const id = identityMapRef.current.get(pinKey(r.latitude, r.longitude))
+        return id ? { ...r, type: id.type, osm_id: id.osm_id } : r
+      }),
+    [presented],
   )
 
   // × on a table row. Removing a searched place also deregisters it — else the
@@ -570,9 +604,11 @@ export default function App() {
   const hasColoredMarkers = showResults && results.length > 0
   const showTable = showResults && (results.length > 0 || pending.length > 0)
 
-  // Flags results within 10 mi of an active US wildfire; independent of the map
-  // overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
-  const fireWarnings = useFireProximity(results)
+  // Flags destinations within 10 mi of an active US wildfire; independent of the
+  // map overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
+  // Fed the whole analyzed field so live knobs re-present rows without
+  // re-querying NIFC; falls back to the displayed rows on the server path.
+  const fireWarnings = useFireProximity(universe ?? results)
 
   // Comparison-chart selection (checkboxes in the table → lines in the chart).
   // Every row shares the analysis's hourly grid. Point-sample analyses
@@ -658,7 +694,7 @@ export default function App() {
           customCsv={customCsv}
           setCustomCsv={setCustomCsv}
           onCsvPasted={(points) => mapRef.current?.fitToPoints(points)}
-          rankingChanged={rankingChanged}
+          commitReason={commitReason}
           sortBy={sortBy}
           setSortBy={setSortBy}
           sortDesc={sortDesc}
@@ -702,7 +738,10 @@ export default function App() {
           }}
           onRetry={retry}
           resultCount={response ? results.length : undefined}
-          totalQueried={response?.total_queried}
+          // What the current elevation band admits, not what the analysis
+          // fetched: narrowing the band live has to move the "of M" or the
+          // count describes a field the table no longer shows.
+          totalQueried={response ? presented.eligible : undefined}
         />
       </aside>
 
@@ -995,6 +1034,18 @@ export default function App() {
                   results={results}
                   sortBy={view.sortBy}
                   sortDesc={view.sortDesc}
+                  // A header click on a ranking metric IS the panel knob, so
+                  // the two cannot mean different things. Only offered when a
+                  // field is held to re-rank.
+                  onRank={
+                    universe !== null
+                      ? (key, desc) => {
+                          setSortBy(key)
+                          setSortDesc(desc)
+                        }
+                      : undefined
+                  }
+                  analysisSeq={analysisSeq}
                   mode={view.mode}
                   fireWarnings={fireWarnings}
                   pending={pending}

@@ -33,6 +33,25 @@ import { AnalysisMode, SortBy } from './types'
 export type MetricFamily = 'precip' | 'temp' | 'wind' | 'aqi'
 
 /**
+ * The four keys a report can be RANKED by, one per family: the ranking picker's
+ * options, the values the URL's `sort` param accepts, and the table columns
+ * whose header click re-cuts the whole field rather than reordering the rows on
+ * screen (#188).
+ *
+ * One list because there were three, and a fourth key would have had to be
+ * added to each of them. The table's other columns are detail, not ranking:
+ * making them rank the field too would need marker thresholds in `colors.ts`, a
+ * URL spelling, and an aggregate-aware `rankedNoun` for each, which is a
+ * separate change.
+ */
+export const RANKING_KEYS = [
+  'precip_total_in',
+  'wind_avg_mph',
+  'temp_avg_f',
+  'aqi_avg',
+] as const satisfies readonly SortBy[]
+
+/**
  * The metric's name. Spelled out, with no short form anywhere.
  *
  * "AQI" is the exception that proves the rule: it is an initialism people read

@@ -7,7 +7,6 @@ import {
   DestinationsResponse,
   DiscoveredDestination,
   RefusalFields,
-  SortBy,
 } from '../types'
 import { drainSseBuffer } from '../utils/analyzeEvents'
 import { SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
@@ -20,6 +19,7 @@ import {
   runClientAnalysis,
 } from '../utils/clientAnalyze'
 import { OpenMeteoUnreachable } from '../utils/openMeteo'
+import { PresentationKnobs } from '../utils/present'
 
 export type Progress = {
   processed: number
@@ -39,15 +39,21 @@ export type Refusal = {
   suggestedKeeps: number | null
 }
 
-// The ranking that produced the current response. Everything derived from the
-// results (table order, marker colors, legend, header) renders from this
-// snapshot, not from the live panel knobs — knob changes never touch the
-// displayed analysis until the next explicit Analyze.
-export type AnalyzedView = {
-  sortBy: SortBy
-  sortDesc: boolean
+// The data snapshot behind the current response: the window it sampled, and
+// the presentation knobs it was requested with.
+//
+// The knobs are recorded so the live ones can be compared against them, which
+// is how `utils/present.ts` decides whether the display can be re-derived from
+// the held field or genuinely needs another Analyze (#188). On the client path
+// sort and limit are re-derived, so this copy of them is history rather than
+// the display source; on the server SSE path, where there is no field to
+// re-derive from, it stays the display source as it always was.
+// Composes PresentationKnobs rather than restating them, so the recorded set
+// and the compared set cannot drift apart.
+export type AnalyzedView = PresentationKnobs & {
   // 'now'/'at' when the analysis was a point sample — drives the collapsed
-  // table columns, point wording, and hidden chart.
+  // table columns, point wording, and hidden chart. A data knob: unlike sort
+  // and limit it is never re-derived, so it always reads from here.
   mode: AnalysisMode
   // The sampled moment (epoch ms): the click time for 'now', the chosen hour
   // for 'at' — the "as of HH:MM" / "for <datetime>" caption. Meaningless (the
@@ -100,6 +106,8 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
   // and degrade, not assume the displayed rows are the whole field.
   const [universe, setUniverse] = useState<DestinationResult[] | null>(null)
   const [analyzed, setAnalyzed] = useState<AnalyzedView | null>(null)
+  // Bumped once per committed analysis. See commit().
+  const [analysisSeq, setAnalysisSeq] = useState(0)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   // Secondary line for the search phase (SSE `detail`): mirror-failover news,
   // a pace wait, or the announced server fallback.
@@ -168,11 +176,20 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
     setAnalyzed({
       sortBy: request.sort_by ?? 'precip_total_in',
       sortDesc: request.sort_desc ?? false,
+      limit: request.limit,
+      band: {
+        min: request.min_elevation_ft ?? null,
+        max: request.max_elevation_ft ?? null,
+      },
       mode,
       // Point modes send the sampled moment as start_datetime (for 'now' it
       // IS the click time), so it doubles as the caption.
       analyzedAt: mode === 'window' ? Date.now() : Date.parse(request.start_datetime),
     })
+    // A fresh report, which is not the same event as a fresh row array: live
+    // knobs rebuild the rows constantly. Surfaces that reset per report (the
+    // table's detail-column sort) key off this rather than off the rows.
+    setAnalysisSeq((n) => n + 1)
   }
 
   function handlePace(seconds: number) {
@@ -439,6 +456,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
     retryTopByElevation,
     reset,
     analyzed,
+    analysisSeq,
     loading,
     error,
     refusal,
