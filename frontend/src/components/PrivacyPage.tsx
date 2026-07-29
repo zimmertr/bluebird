@@ -31,9 +31,11 @@ export default function PrivacyPage() {
           </li>
           <li>
             <span className={PROSE.strong}>Your searches</span> (the area you draw and
-            the dates you pick) are sent to the Bluebird server to fetch forecasts, and to the
-            data providers below to look up destinations, weather, maps, and fires. As with any web
-            request, those providers can see your IP address.
+            the dates you pick) are sent to the Bluebird server to look up destinations. Your
+            browser then fetches weather and air quality for them directly from Open-Meteo, and
+            maps and fires from the providers below, so those requests carry your address, not
+            the server's. If your browser cannot reach Open-Meteo, the Bluebird server fetches
+            forecasts instead. As with any web request, those providers can see your IP address.
           </li>
           <li>
             <span className={PROSE.strong}>Nothing is stored about you.</span> Searches
