@@ -667,7 +667,7 @@ export default function ControlPanel({
                   Keep it under ~50 characters or the sidebar wraps it to a
                   second line, which is why the count itself is not named here. */}
               <p className={`${TEXT.helper} mt-1`}>
-                Number of results shown. All are analyzed.
+                Number of results shown. All points are analyzed.
               </p>
             </div>
 
