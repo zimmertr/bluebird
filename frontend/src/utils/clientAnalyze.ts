@@ -1,15 +1,21 @@
 // The browser-side analysis pipeline (#170): everything POST /api/analyze
 // does after discovery, ported so the SPA can attach forecasts itself via
 // openMeteo.ts. Each helper is a deliberate port of its analyze.py
-// counterpart (_merge_custom, _aligned_aqi, _assemble, _sort_key,
-// _cap_detail) — behavior changes happen there first and get mirrored here,
-// with the align cases pinned by the shared weather_vectors.json.
+// counterpart (_aligned_aqi, _assemble, _sort_key, _cap_detail) — behavior
+// changes happen there first and get mirrored here, with the align cases
+// pinned by the shared weather_vectors.json.
+//
+// _merge_custom has no port here. Custom rows are now resolved server-side
+// on the way in (issue #207), and the same trip returns them already merged
+// with whatever discovery found, so a second union in the browser would only
+// be a chance for the two to disagree.
 
 import {
   AnalyzeRequest,
   AnalyzeResponse,
   CustomDestination,
   DestinationResult,
+  DestinationsResponse,
   DiscoveredDestination,
   HourlySeries,
 } from '../types'
@@ -164,27 +170,48 @@ export function customRows(custom: readonly CustomDestination[]): DiscoveredDest
   }))
 }
 
-// Port of _coord_key. toFixed rounds ties away from zero where Python's
-// format rounds half-even; the divergence could only matter when a custom
-// and a discovered row sit at an exact 5th-decimal tie (~1 m), where the
-// worst case is a duplicate row instead of a replacement.
-function coordKey(d: { latitude: number; longitude: number }): string {
-  return `${d.latitude.toFixed(5)},${d.longitude.toFixed(5)}`
+// The custom-only analysis path's one server call: what does OSM know about
+// these coordinates? A pasted CSV row carries a name and a point and nothing
+// else, so this is the only way it can learn its elevation (issue #207).
+//
+// Deliberately a nicety rather than a dependency. The elevation band and the
+// destination cap both run client-side already, so nothing here is load
+// bearing, and every failure path returns the rows unresolved — which is
+// exactly how this path behaved before, when it made no server call at all.
+// An abort is the exception: that is the user's own doing and has to
+// propagate rather than masquerade as a resolved-nothing result.
+export async function resolveCustomOnly(
+  custom: readonly CustomDestination[],
+  signal?: AbortSignal,
+): Promise<DiscoveredDestination[]> {
+  const rows = customRows(custom)
+  // Nothing to ask about: an empty list, or a list whose every row already
+  // knows its elevation. The second case is the pins-only refresh, where each
+  // searched place carries Nominatim's answer — so that path still reaches no
+  // server at all, exactly as it did before this call existed. The server
+  // makes the same check; this one keeps the round trip itself from happening.
+  if (!rows.length || rows.every((r) => r.elevation_ft != null)) return rows
+  try {
+    const res = await fetch('/api/destinations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        destination_type: 'custom',
+        custom_destinations: custom,
+      }),
+      signal,
+    })
+    if (!res.ok) return rows
+    const body = (await res.json()) as DestinationsResponse
+    // A short answer means the server dropped rows this path never asked it
+    // to drop, so trust the list we already hold over a surprising one.
+    return body.destinations?.length === rows.length ? body.destinations : rows
+  } catch (err) {
+    if (signal?.aborted) throw err
+    return rows
+  }
 }
 
-// Port of _merge_custom: the union where the custom row wins a collision by
-// exact name or by 5-decimal coordinate key.
-export function mergeCustom(
-  discovered: readonly DiscoveredDestination[],
-  custom: readonly DiscoveredDestination[],
-): DiscoveredDestination[] {
-  const names = new Set(custom.map((c) => c.name))
-  const coords = new Set(custom.map(coordKey))
-  const kept = discovered.filter(
-    (d) => !names.has(d.name) && !coords.has(coordKey(d)),
-  )
-  return [...kept, ...custom]
-}
 
 // Port of _aligned_aqi: AQI values on the weather grid, null where absent
 // (the AQI horizon is ~5 days against weather's ~16).

@@ -508,7 +508,11 @@ flowchart LR
   report lands in the job step summary and as a **sticky PR comment** (matched by
   a hidden `<!-- bluebird-image-scan -->` marker, not `--edit-last`, so it can't
   clobber the preview-URL comment). The job fails only on **fixable
-  Critical/High** findings.
+  Critical/High** findings. File-level exclusions live in **`trivy.yaml`** at the
+  repo root, read by this job and by `image-scan.yml` below, so the gate that
+  admits an image and the gate that re-checks it later cannot disagree. Each
+  entry there carries its reasoning; today the only one is pip's vendored-source
+  SBOM, which Trivy would otherwise read as installed inventory.
 - `pr-preview.yml` runs under **`pull_request_target`** (so it can reach the base
   repo's secrets to push images) behind a **hard same-repo gate** — fork PRs
   never execute with secrets. It builds `zimmertr/bluebird-pr:pr-<N>-<head_sha>`.
@@ -574,6 +578,11 @@ released** `zimmertr/bluebird:<semver>` with Trivy:
   is something to do. Expected remediation: merge the open Dependabot
   base-image PR (below), which cuts a patch release on the fresh base and
   rolls it out through Path 1.
+
+This job scans a published image rather than a checkout, so its `actions/checkout`
+step exists purely to read `trivy.yaml`. That is deliberate: without the PR gate's
+exclusions, an image could pass `pr.yml` and then fail here on findings that gate
+had already ruled out.
 
 Docker Hub's Scout insights cover the same registry-side rot but only update
 the Hub dashboard; the cron's failure email is the push-based signal.

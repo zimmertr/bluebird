@@ -18,8 +18,10 @@ from app.models import (
 )
 from app.routes.analyze import (
     _filter_elevation,
+    _merge_custom,
     _noun,
     _refusal_body,
+    _resolve_custom,
     _suggest_elevation_floor,
     _truncate_top_elevation,
 )
@@ -34,13 +36,19 @@ router = APIRouter()
     "/destinations",
     response_model=DestinationsResponse,
     tags=["analysis"],
-    summary="Discover destinations without forecasts",
+    summary="Discover and resolve destinations without forecasts",
     description=(
         "The discovery half of `POST /api/analyze` on its own: every named "
         "destination of the requested type inside the polygon, with no "
         "forecasts attached. Discovery is never sampled, and the same "
         "candidate ceiling applies, so a list that would refuse there "
         "refuses identically here.\n\n"
+        "It also *resolves* `custom_destinations`, matching each caller-"
+        "supplied coordinate to the nearest OSM peak to fill in the elevation "
+        "and OSM id that a bare coordinate pair cannot carry. Send a custom "
+        "list alone (with `destination_type: custom`) to resolve without "
+        "discovering anything, or alongside a polygon to get both in one "
+        "call.\n\n"
         "This exists so a browser client can fetch forecasts itself, "
         "spending its own Open-Meteo quota instead of this deployment's — "
         "which is exactly what the bundled web app does. If you are building "
@@ -52,12 +60,13 @@ router = APIRouter()
         400: {
             "model": AnalysisRefusal,
             "description": (
-                "The request parsed but is not discoverable: the destination "
-                "type is `custom` (caller-supplied, nothing to discover) or "
-                "not yet implemented, or the polygon contains more candidates "
-                "than the analysis ceiling. Over-cap refusals carry the "
-                "structured remedy fields; send `top_by_elevation: true` to "
-                "elect an explicit top-N result instead."
+                "The request parsed but describes nothing to do: neither a "
+                "polygon nor a custom list was sent, the destination type is "
+                "`custom` with no list to resolve, the type is not yet "
+                "implemented, or the polygon contains more candidates than "
+                "the analysis ceiling. Over-cap refusals carry the structured "
+                "remedy fields; send `top_by_elevation: true` to elect an "
+                "explicit top-N result instead."
             ),
         },
         429: {
@@ -82,38 +91,57 @@ router = APIRouter()
     },
 )
 async def destinations(request: DestinationsRequest) -> DestinationsResponse:
-    ring = request.polygon.coordinates[0]
-    log.info(
-        "Destinations request: type=%s polygon=%dpts area=%.0fkm2",
-        request.destination_type.value,
-        max(0, len(ring) - 1),
-        bbox_area_km2(ring),
-    )
+    parts = [f"type={request.destination_type.value}"]
+    if request.polygon is not None:
+        ring = request.polygon.coordinates[0]
+        parts.append(f"polygon={max(0, len(ring) - 1)}pts")
+        parts.append(f"area={bbox_area_km2(ring):.0f}km2")
+    if request.custom_destinations:
+        parts.append(f"custom={len(request.custom_destinations)}")
+    log.info("Destinations request: %s", " ".join(parts))
 
     if request.destination_type == DestinationType.custom:
+        # Discovery is skipped entirely for the custom type, exactly as on
+        # POST /api/analyze. Without a list there is genuinely nothing to do.
+        if not request.custom_destinations:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Custom destinations are supplied by the caller, so there is "
+                    "nothing to discover. Send custom_destinations to resolve a "
+                    "list, or pick a discoverable type from GET /api/capabilities."
+                ),
+            )
+        found: list[dict] = []
+    elif request.polygon is None:
         raise HTTPException(
             status_code=400,
             detail=(
-                "Custom destinations are supplied by the caller, so there is "
-                "nothing to discover. Pick a discoverable type from "
-                "GET /api/capabilities."
+                "polygon is required for non-custom destination types. Send a "
+                "polygon to discover, or custom_destinations with "
+                "destination_type 'custom' to resolve a list."
             ),
         )
+    else:
+        try:
+            found = await osm.query_osm(request.polygon, request.destination_type)
+        except NotImplementedError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except ratelimit.BudgetExhausted as e:
+            raise HTTPException(
+                status_code=503,
+                detail=e.message,
+                headers={"Retry-After": str(e.retry_after_s)},
+            )
+        except UpstreamError as e:
+            raise HTTPException(status_code=502, detail=e.message)
+        except Exception as e:  # noqa: BLE001 — any OSM failure maps to a 502
+            raise HTTPException(status_code=502, detail=f"OSM query failed: {e}")
 
-    try:
-        found = await osm.query_osm(request.polygon, request.destination_type)
-    except NotImplementedError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except ratelimit.BudgetExhausted as e:
-        raise HTTPException(
-            status_code=503,
-            detail=e.message,
-            headers={"Retry-After": str(e.retry_after_s)},
-        )
-    except UpstreamError as e:
-        raise HTTPException(status_code=502, detail=e.message)
-    except Exception as e:  # noqa: BLE001 — any OSM failure maps to a 502
-        raise HTTPException(status_code=502, detail=f"OSM query failed: {e}")
+    # Resolved before the band filter, so an elevation the caller never knew
+    # is one the band can actually act on.
+    if request.custom_destinations:
+        found = _merge_custom(found, await _resolve_custom(request.custom_destinations))
 
     found = _filter_elevation(
         found, request.min_elevation_ft, request.max_elevation_ft
@@ -127,13 +155,21 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse:
             truncated = True
         else:
             suggestion = _suggest_elevation_floor(found, MAX_ANALYZE_PEAKS)
+            # A union is a mixed set, so its refusal says "destinations" and
+            # advises only the remedies actually in play — the same rule the
+            # analyze routes apply.
+            noun = (
+                "destination"
+                if request.custom_destinations
+                else _noun(request.destination_type)
+            )
             return JSONResponse(
                 status_code=400,
                 content=_refusal_body(
                     len(found),
-                    _noun(request.destination_type),
-                    has_polygon=True,
-                    has_custom=False,
+                    noun,
+                    has_polygon=request.polygon is not None,
+                    has_custom=bool(request.custom_destinations),
                     suggestion=suggestion,
                 ),
             )
@@ -141,7 +177,9 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse:
     rows = [
         DiscoveredDestination(
             name=d["name"],
-            type=request.destination_type.value,
+            # A union response tags every row by true source; discovered rows
+            # fall back to the request type, exactly as in _assemble.
+            type=d.get("type", request.destination_type.value),
             latitude=d["latitude"],
             longitude=d["longitude"],
             elevation_ft=d.get("elevation_ft"),
