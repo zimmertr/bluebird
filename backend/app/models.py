@@ -571,22 +571,44 @@ class AnalyzeResponse(BaseModel):
 
 
 class DestinationsRequest(BaseModel):
-    """Discovery only: which destinations exist inside a polygon.
+    """Discovery only: which destinations exist, with no forecasts attached.
 
-    This is the first half of `POST /api/analyze`, with no forecasts
-    attached. The SPA uses it to get the candidate list and then fetches
-    Open-Meteo itself, so a browser analysis costs this deployment one
-    Overpass query instead of dozens of forecast calls.
+    This is the first half of `POST /api/analyze`. The SPA uses it to get the
+    candidate list and then fetches Open-Meteo itself, so a browser analysis
+    costs this deployment one Overpass query instead of dozens of forecast
+    calls.
+
+    Two kinds of candidate arrive here. A polygon is *discovered*; a
+    `custom_destinations` list is *resolved* — the caller already knows where
+    its points are, so the only open question is what OSM knows about them.
     """
 
-    polygon: GeoPolygon = Field(
-        description="Search area, validated exactly as on `POST /api/analyze`."
+    polygon: GeoPolygon | None = Field(
+        default=None,
+        description=(
+            "Search area, validated exactly as on `POST /api/analyze`. "
+            "Required unless `custom_destinations` is supplied; send both to "
+            "resolve a caller's list alongside a discovery."
+        ),
     )
     destination_type: DestinationType = Field(
         description=(
-            "What to discover. `custom` is rejected here: custom destinations "
-            "are supplied by the caller, so there is nothing to discover."
+            "What to discover inside the polygon. Send `custom` for a "
+            "resolve-only request: discovery is skipped and only "
+            "`custom_destinations` come back."
         )
+    )
+    custom_destinations: list[CustomDestination] | None = Field(
+        default=None,
+        description=(
+            "Caller-supplied destinations to resolve against OSM. Each is "
+            "matched to the nearest peak within ~150 m, filling in "
+            "`elevation_ft` and `osm_id` where OSM knows them — a point with "
+            "no match keeps whatever it arrived with. A row that already "
+            "carries an elevation is never looked up or overwritten.\n\n"
+            "Resolution is best-effort: if the map service is unreachable the "
+            "rows come back exactly as sent rather than failing the request."
+        ),
     )
     min_elevation_ft: float | None = Field(
         default=None,
@@ -610,19 +632,49 @@ class DestinationsRequest(BaseModel):
 
     @field_validator("polygon")
     @classmethod
-    def polygon_area_limit(cls, v: GeoPolygon) -> GeoPolygon:
+    def polygon_area_limit(cls, v: GeoPolygon | None) -> GeoPolygon | None:
+        if v is None:
+            return v
         return _check_polygon_area(v)
+
+    @field_validator("custom_destinations")
+    @classmethod
+    def custom_list_cap(
+        cls, v: list[CustomDestination] | None
+    ) -> list[CustomDestination] | None:
+        # The same door-level ceiling AnalyzeRequest applies: resolving a list
+        # is cheaper than analyzing one, but an unbounded payload is still an
+        # unbounded payload, and a list too big to analyze is not worth
+        # resolving.
+        if v is not None and len(v) > MAX_ANALYZE_PEAKS:
+            raise ValueError(
+                f"Too many custom destinations ({len(v):,}). Maximum is "
+                f"{MAX_ANALYZE_PEAKS:,}. Trim the list or split it into multiple requests."
+            )
+        return v
 
 
 class DiscoveredDestination(BaseModel):
-    """One discovery candidate, forecast-free."""
+    """One candidate, forecast-free."""
 
-    name: str = Field(description="Destination name, from OSM.")
-    type: str = Field(description="The discovery type this row matched.")
+    name: str = Field(
+        description="Destination name: OSM's for a discovered row, the caller's for a custom one."
+    )
+    type: str = Field(
+        description=(
+            "The discovery type this row matched, or `custom` for a "
+            "caller-supplied row."
+        )
+    )
     latitude: float = Field(description="Latitude in decimal degrees.")
     longitude: float = Field(description="Longitude in decimal degrees.")
     elevation_ft: float | None = Field(
-        default=None, description="Elevation in feet, when OSM knows it."
+        default=None,
+        description=(
+            "Elevation in feet, when OSM knows it. For a custom row this is "
+            "the caller's own value if one was sent, otherwise the matched "
+            "peak's — null when neither exists."
+        ),
     )
     osm_id: str | None = Field(
         default=None, description="OpenStreetMap identifier such as `node/12345`."
@@ -630,13 +682,14 @@ class DiscoveredDestination(BaseModel):
 
 
 class DestinationsResponse(BaseModel):
-    """Everything discovery found, after the optional elevation band."""
+    """Everything found, after the optional elevation band."""
 
     destinations: list[DiscoveredDestination] = Field(
         description=(
-            "Every named match inside the polygon, never sampled. Order is "
-            "OSM's, not a ranking; ranking is the caller's job once forecasts "
-            "are attached."
+            "Every named match inside the polygon, never sampled, plus any "
+            "resolved `custom_destinations`. Order is OSM's with the caller's "
+            "own rows last, not a ranking; ranking is the caller's job once "
+            "forecasts are attached."
         )
     )
     total: int = Field(description="Same as `len(destinations)`, for convenience.")

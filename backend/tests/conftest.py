@@ -9,8 +9,14 @@ in their own strict instances explicitly (see test_ratelimit.py).
 from __future__ import annotations
 
 import pytest
+
+# Imported for its import-time side effect: main.py is where the custom TRACE
+# level is attached to logging.Logger, and services call log.trace freely. Most
+# test modules import the app anyway and got this for free, so a single-file
+# run like `pytest tests/test_osm.py` used to fail on the missing attribute.
+from app import main as _main  # noqa: F401
 from app import ratelimit
-from app.services import cache
+from app.services import cache, osm
 
 
 @pytest.fixture(autouse=True)
@@ -34,11 +40,27 @@ def _rate_limiting_off(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_live_enrichment(monkeypatch):
+    """Custom-destination enrichment reaches Overpass, so it is neutered by
+    default: any route test that sends `custom_destinations` would otherwise
+    make a live call and depend on the network to pass. Tests that mean to
+    exercise it stub their own (test_destinations.py) or hold a reference to
+    the real function taken before this fixture runs (test_osm.py)."""
+
+    async def passthrough(destinations):
+        return [dict(d) for d in destinations]
+
+    monkeypatch.setattr(osm, "enrich_custom", passthrough)
+
+
+@pytest.fixture(autouse=True)
 def _caches_clear():
     # Module-level TTL caches would otherwise leak state between tests (a
     # stubbed discovery cached in one test answering the next).
     cache.DISCOVERY_CACHE.clear()
+    cache.ENRICH_CACHE.clear()
     cache.FORECAST_CACHE.clear()
     yield
     cache.DISCOVERY_CACHE.clear()
+    cache.ENRICH_CACHE.clear()
     cache.FORECAST_CACHE.clear()

@@ -1,12 +1,15 @@
 """Small in-memory TTL caches for upstream results (issue #180).
 
-Two things get cached, each because a real incident showed the same work
-being paid for twice within minutes:
+Three things get cached, each because the same work was otherwise paid for
+twice within minutes:
 
 - Overpass discovery, keyed by (polygon ring, type): the browser flow calls
   ``POST /api/destinations`` and a fallback ``POST /api/analyze/stream``
   re-ran the identical query 2 seconds later; repeat Analyze clicks re-ran
   it again every ~60 seconds all night.
+- Overpass elevation lookups for custom destinations, keyed by the coordinate
+  set: a pasted list is re-analyzed at window after window, and the peaks
+  standing on those coordinates do not move between clicks.
 - Per-location Open-Meteo results, keyed by (coordinate, window, service):
   eight clicks on the same polygon re-bought ~1,800 weighted calls each
   time against a 600/minute budget.
@@ -38,6 +41,12 @@ CACHE_VERSION = 1
 
 DISCOVERY_TTL_S = 10 * 60
 DISCOVERY_MAX_ENTRIES = 64
+
+# Same 10 minutes as discovery, and for the same reason: this is OSM data,
+# which drifts on a human timescale. An entry is one list's coordinate→match
+# map — a few hundred small dicts, far lighter than a discovery entry.
+ENRICH_TTL_S = 10 * 60
+ENRICH_MAX_ENTRIES = 64
 
 FORECAST_TTL_S = 15 * 60
 # A 1,500-destination analysis is up to 3,000 entries (weather + AQI); this
@@ -90,6 +99,7 @@ class TTLCache:
 
 
 DISCOVERY_CACHE = TTLCache(DISCOVERY_MAX_ENTRIES, DISCOVERY_TTL_S)
+ENRICH_CACHE = TTLCache(ENRICH_MAX_ENTRIES, ENRICH_TTL_S)
 FORECAST_CACHE = TTLCache(FORECAST_MAX_ENTRIES, FORECAST_TTL_S)
 
 
@@ -104,6 +114,19 @@ def discovery_key(ring: list[list[float]], type_value: str) -> tuple:
     """
     coords = tuple((round(lon, 5), round(lat, 5)) for lon, lat in ring)
     return (CACHE_VERSION, type_value, coords)
+
+
+def custom_enrich_key(points: list[tuple[float, float]]) -> tuple:
+    """Cache key for one custom list's elevation lookup.
+
+    Coordinates are rounded to 5 decimals (~1 m), the same precision
+    ``discovery_key`` and the frontend's ``pinKey`` use, then sorted: the
+    question being asked is "what stands on this SET of points", so two
+    pastes of the same peaks in a different order must hit the same entry.
+    That is the reasoning behind ``pointsKey`` in ``fireProximity.ts`` too.
+    """
+    coords = tuple(sorted((round(lat, 5), round(lon, 5)) for lat, lon in points))
+    return (CACHE_VERSION, "custom-enrich", coords)
 
 
 # Cached values are per-WINDOW results (aggregates and series computed over

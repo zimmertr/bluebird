@@ -241,3 +241,175 @@ async def test_post_with_fallback_all_partial_raises(monkeypatch):
     # "failed unexpectedly" fallback string.
     assert "part of the results" in excinfo.value.message
     assert "smaller search area" in excinfo.value.message
+
+
+# ── Custom-destination enrichment (issue #207) ────────────────────────────────
+
+# conftest neutralizes osm.enrich_custom for every test so no route test makes
+# a live Overpass call. These tests are the ones that mean to exercise it, so
+# they hold the real function, captured at import time before that fixture runs.
+_enrich_custom = osm.enrich_custom
+
+
+# ~110 m and ~1.1 km north of the probe point: inside and outside the match
+# radius, using the ~111 km per degree of latitude that holds anywhere.
+_NEAR_DEG = 0.001
+_FAR_DEG = 0.01
+
+
+def _row(lat: float, lon: float, name: str = "Row", **extra) -> dict:
+    return {
+        "name": name,
+        "latitude": lat,
+        "longitude": lon,
+        "elevation_ft": None,
+        "osm_id": None,
+        "type": "custom",
+        **extra,
+    }
+
+
+def _node(node_id: int, lat: float, lon: float, ele: str | None = "1000") -> dict:
+    tags: dict = {"name": f"Peak {node_id}"}
+    if ele is not None:
+        tags["ele"] = ele
+    return {"type": "node", "id": node_id, "lat": lat, "lon": lon, "tags": tags}
+
+
+def _stub_overpass(monkeypatch, elements, spy: list | None = None):
+    async def fake_post(query, on_status=None):
+        if spy is not None:
+            spy.append(query)
+        return {"elements": elements}
+
+    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+
+
+async def test_enrich_custom_fills_elevation_and_identity(monkeypatch):
+    _stub_overpass(monkeypatch, [_node(1, 47.0 + _NEAR_DEG, -121.0)])
+    [row] = await _enrich_custom([_row(47.0, -121.0)])
+    assert row["elevation_ft"] == 3281.0  # 1000 m in feet
+    assert row["osm_id"] == "node/1"
+    # Enrichment resolves; it does not rename. The pasted label is the user's.
+    assert row["name"] == "Row"
+
+
+async def test_enrich_custom_leaves_unmatched_points_alone(monkeypatch):
+    _stub_overpass(monkeypatch, [_node(1, 47.0 + _FAR_DEG, -121.0)])
+    [row] = await _enrich_custom([_row(47.0, -121.0)])
+    assert row["elevation_ft"] is None
+    assert row["osm_id"] is None
+
+
+async def test_enrich_custom_attaches_identity_even_without_an_ele_tag(monkeypatch):
+    # A matched peak that OSM has not measured still answers "which peak is
+    # this", so the row earns its OSM id while staying honestly elevation-less.
+    _stub_overpass(monkeypatch, [_node(7, 47.0, -121.0, ele=None)])
+    [row] = await _enrich_custom([_row(47.0, -121.0)])
+    assert row["elevation_ft"] is None
+    assert row["osm_id"] == "node/7"
+
+
+async def test_enrich_custom_picks_the_nearest_of_several_in_radius(monkeypatch):
+    _stub_overpass(
+        monkeypatch,
+        [
+            _node(1, 47.0 + _NEAR_DEG, -121.0, ele="1000"),
+            _node(2, 47.0 + _NEAR_DEG / 4, -121.0, ele="2000"),
+        ],
+    )
+    [row] = await _enrich_custom([_row(47.0, -121.0)])
+    assert row["osm_id"] == "node/2"
+    assert row["elevation_ft"] == 6562.0
+
+
+async def test_enrich_custom_never_overwrites_a_known_elevation(monkeypatch):
+    spy: list = []
+    _stub_overpass(monkeypatch, [_node(1, 47.0, -121.0, ele="1000")], spy)
+    [row] = await _enrich_custom([_row(47.0, -121.0, elevation_ft=9999.0)])
+    assert row["elevation_ft"] == 9999.0
+    # A row that already knows its elevation is not even asked about, so a
+    # list of searched places costs no Overpass call at all.
+    assert spy == []
+
+
+async def test_enrich_custom_returns_rows_unchanged_when_overpass_fails(monkeypatch):
+    async def boom(query, on_status=None):
+        raise UpstreamError("Every Overpass mirror failed")
+
+    monkeypatch.setattr(osm, "_post_with_fallback", boom)
+    [row] = await _enrich_custom([_row(47.0, -121.0)])
+    assert row["elevation_ft"] is None
+    assert row["name"] == "Row"
+
+
+async def test_enrich_custom_degrades_rather_than_raising_on_budget_exhaustion(monkeypatch):
+    # Enrichment must never turn a saturated Overpass budget into a 503 for an
+    # analysis that only wanted forecasts.
+    async def saturated(query, on_status=None):
+        raise ratelimit.BudgetExhausted("OpenStreetMap (Overpass)")
+
+    monkeypatch.setattr(osm, "_post_with_fallback", saturated)
+    [row] = await _enrich_custom([_row(47.0, -121.0)])
+    assert row["elevation_ft"] is None
+
+
+async def test_enrich_custom_does_not_mutate_the_rows_it_was_given(monkeypatch):
+    _stub_overpass(monkeypatch, [_node(1, 47.0, -121.0)])
+    original = _row(47.0, -121.0)
+    enriched = await _enrich_custom([original])
+    assert original["elevation_ft"] is None
+    assert enriched[0]["elevation_ft"] == 3281.0
+
+
+async def test_enrich_custom_serves_a_repeat_list_from_cache(monkeypatch):
+    spy: list = []
+    _stub_overpass(monkeypatch, [_node(1, 47.0, -121.0)], spy)
+    rows = [_row(47.0, -121.0)]
+    await _enrich_custom(rows)
+    await _enrich_custom(rows)
+    assert len(spy) == 1
+
+
+async def test_enrich_custom_cache_ignores_the_order_points_arrive_in(monkeypatch):
+    spy: list = []
+    _stub_overpass(
+        monkeypatch, [_node(1, 47.0, -121.0), _node(2, 48.0, -122.0)], spy
+    )
+    a, b = _row(47.0, -121.0, "A"), _row(48.0, -122.0, "B")
+    await _enrich_custom([a, b])
+    await _enrich_custom([b, a])
+    # The question is "what stands on this set of points", so a reordered
+    # paste of the same peaks must not re-buy the answer.
+    assert len(spy) == 1
+
+
+async def test_enrich_custom_queries_peaks_and_volcanoes_within_the_radius(monkeypatch):
+    spy: list = []
+    _stub_overpass(monkeypatch, [], spy)
+    await _enrich_custom([_row(47.123456, -121.654321)])
+    [query] = spy
+    assert f"around:{osm.CUSTOM_MATCH_RADIUS_M:.0f}" in query
+    assert "47.123456,-121.654321" in query
+    # Volcanoes are unioned in for the same reason discovery does it: OSM tags
+    # Rainier and Baker as volcano rather than peak.
+    assert "volcano" in query
+
+
+async def test_enrich_custom_splits_a_list_too_big_for_one_query(monkeypatch):
+    spy: list = []
+    _stub_overpass(monkeypatch, [], spy)
+    rows = [
+        _row(47.0 + i * _FAR_DEG, -121.0, f"P{i}")
+        for i in range(osm.CUSTOM_ENRICH_CHUNK + 1)
+    ]
+    await _enrich_custom(rows)
+    assert len(spy) == 2
+
+
+async def test_enrich_custom_skips_the_lookup_when_nothing_is_missing(monkeypatch):
+    spy: list = []
+    _stub_overpass(monkeypatch, [], spy)
+    rows = await _enrich_custom([_row(47.0, -121.0, elevation_ft=100.0)])
+    assert spy == []
+    assert rows[0]["elevation_ft"] == 100.0

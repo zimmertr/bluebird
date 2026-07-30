@@ -113,7 +113,7 @@ you claim to be.
 
 | Provider | Called by | From | Policy | Governor |
 | --- | --- | --- | --- | --- |
-| [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) | backend (`osm.py`), 1 query per discovery/analysis, 3-mirror failover | cluster egress IP | ~2 slots per IP **per mirror operator** (overpass-api.de documents 2) | `UPSTREAM_CONCURRENCY_OVERPASS=2` per pod **per mirror** — one budget per endpoint, slot held only while that mirror's request is in flight, released before failover |
+| [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) | backend (`osm.py`), 1 query per discovery/analysis plus 1 to resolve a custom list's coordinates (batched, so one query covers a whole 100-row paste), 3-mirror failover | cluster egress IP | ~2 slots per IP **per mirror operator** (overpass-api.de documents 2) | `UPSTREAM_CONCURRENCY_OVERPASS=2` per pod **per mirror** — one budget per endpoint, slot held only while that mirror's request is in flight, released before failover |
 | [Open-Meteo forecast](https://open-meteo.com) | **browser** (`openMeteo.ts`) for the web app; backend (`weather.py`) only for API callers and the browser's fallback | each visitor's own IP; cluster egress IP for the server path | **weighted calls** per IP: 600/min, 5,000/hr, 10,000/day (see accounting below), non-commercial | browser: a rolling ~550 weighted/min pacer on the visitor's own quota, a 15-min per-location result cache, one automatic minutely-429 resume, and abort-on-first-failure so nothing spends after the outcome is decided. Server path: `UPSTREAM_WEIGHT_PER_MINUTE_WEATHER=550` per pod — the full safe rate on **every** pod, not a per-replica share, because one analysis runs end to end on one pod and must cover its whole fan-out. The cluster can therefore exceed 550/min when several pods fetch at once; accepted, since this path is the exception and the per-minute pacer never bounded the hourly or daily quotas anyway (issue #65's shared store is the exact fix) + in-flight cap 4 + the same cache |
 | [Open-Meteo air quality](https://open-meteo.com/en/docs/air-quality-api) | same split, best-effort on both paths, fetched **lazily**: only for the displayed rows unless the ranking key is an AQI metric | same split | same accounting, metered separately | browser and server: same pacing shape (`UPSTREAM_WEIGHT_PER_MINUTE_AQI=550` per pod, undivided for the same reason), failures degrade to null, and the first 429 short-circuits the remaining AQI batches |
 | [Nominatim](https://operations.osmfoundation.org/policies/nominatim/) | backend (`geocode.py`) proxying the search box | cluster egress IP | absolute ~1 req/s per service, real User-Agent required | `NOMINATIM_MIN_INTERVAL_MS=3500` spacing per pod (~0.86/s aggregate at 3 replicas; the previous 2s ≈ 1.5/s quietly exceeded the policy) + per-client geocode bucket |
@@ -122,10 +122,14 @@ you claim to be.
 Everything the browser fetches itself costs our egress IP nothing — that is
 [#170](https://github.com/zimmertr/bluebird/issues/170): the web app calls
 `POST /api/destinations` (one Overpass query) and attaches forecasts itself,
-so a browser analysis spends the visitor's Open-Meteo quota, not ours, and a
-custom-CSV or pins-refresh analysis touches no server endpoint at all (an
-accepted observability trade: those analyses no longer appear in server
-logs). The browser aggregation is pinned to the backend's by the shared
+so a browser analysis spends the visitor's Open-Meteo quota, not ours. A
+custom-CSV analysis makes that one call too, to resolve its coordinates
+against OSM for the elevation a coordinate pair cannot carry
+([#207](https://github.com/zimmertr/bluebird/issues/207)) — cheap, cached per
+coordinate set, and skipped entirely when every row already knows its
+elevation, which is why a pins-only refresh still touches no server endpoint
+at all (an accepted observability trade: those analyses do not appear in
+server logs). The browser aggregation is pinned to the backend's by the shared
 vectors in `weather_vectors.json`, and when Open-Meteo is unreachable from a
 browser (corporate proxies), the SPA falls back to the server pipeline.
 Nominatim can never move client-side: its policy requires an identifying
