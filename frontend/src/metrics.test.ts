@@ -21,6 +21,7 @@ import timeSeriesChartSource from './components/TimeSeriesChart.tsx?raw'
 import chartDataSource from './utils/chartData.ts?raw'
 import colorsSource from './utils/colors.ts?raw'
 import resultPopupSource from './utils/resultPopup.ts?raw'
+import resultsCsvSource from './utils/resultsCsv.ts?raw'
 import tableColumnsSource from './utils/tableColumns.ts?raw'
 
 const SORTS: SortBy[] = ['precip_total_in', 'wind_avg_mph', 'temp_avg_f', 'aqi_avg']
@@ -147,6 +148,9 @@ describe('no surface writes its own metric name', () => {
     ['chartData.ts', chartDataSource],
     ['colors.ts', colorsSource],
     ['resultPopup.ts', resultPopupSource],
+    // The seventh surface: a downloaded file is read in a spreadsheet, where
+    // nothing around it says which app wrote the header.
+    ['resultsCsv.ts', resultsCsvSource],
     ['tableColumns.ts', tableColumnsSource],
   ]
 
