@@ -1,0 +1,16 @@
+# Scan settings shared by every Trivy run against this repo's image: the PR
+# gate in pr.yml, the weekly re-scan of the released image in image-scan.yml,
+# and a local `trivy image` from the repo root. One file so the gate that lets
+# an image through and the gate that re-checks it later cannot disagree.
+scan:
+  skip-files:
+    # pip publishes a CycloneDX SBOM of the source it vendors, and Trivy reads
+    # any SBOM it finds as image inventory. This one is not inventory: with
+    # msgpack 1.2.1 and setuptools 83.0.0 genuinely installed, Trivy still
+    # reported the 1.1.2 and 70.3.0 that this file names. The flagged code is
+    # not even present, since pip vendors only pkg_resources/__init__.py while
+    # CVE-2025-47273 lives in setuptools.package_index.
+    #
+    # Skipping the file rather than the CVE ids keeps this true as pip
+    # re-vendors, and leaves every actually-installed package scanned.
+    - '**/pip/_vendor/bom.cdx.json'

@@ -14,8 +14,7 @@ import { resolveWindow } from '../utils/forecastWindow'
 import {
   AnalysisRefusalError,
   MAX_ANALYZE_DESTINATIONS,
-  customRows,
-  mergeCustom,
+  resolveCustomOnly,
   runClientAnalysis,
 } from '../utils/clientAnalyze'
 import { pinKey } from '../utils/customList'
@@ -207,15 +206,20 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
     setPaceEndMs(Date.now() + seconds * 1000)
   }
 
-  // The primary path (#170): the browser does the analysis itself. Discovery
-  // is the only server call — POST /api/destinations, one Overpass query —
-  // and the forecasts come straight from Open-Meteo on the visitor's own IP
-  // and quota, paced under it. Throws OpenMeteoUnreachable when the forecast
-  // API can't be reached (network/CORS), which is the caller's cue to fall
-  // back to the server pipeline. A rate limit is NOT that cue: the quota is
-  // per IP, and for a deployment sharing its egress with the visitor a
-  // same-IP retry only deepens the exhaustion (issue #180) — those surface
-  // honestly instead.
+  // The primary path (#170): the browser does the analysis itself. The
+  // candidate list is the only server call — POST /api/destinations, one
+  // Overpass query — and the forecasts come straight from Open-Meteo on the
+  // visitor's own IP and quota, paced under it. Throws OpenMeteoUnreachable
+  // when the forecast API can't be reached (network/CORS), which is the
+  // caller's cue to fall back to the server pipeline. A rate limit is NOT
+  // that cue: the quota is per IP, and for a deployment sharing its egress
+  // with the visitor a same-IP retry only deepens the exhaustion (issue
+  // #180) — those surface honestly instead.
+  //
+  // That one call answers two different questions. A polygon is *discovered*
+  // (what is in here?); a custom list is *resolved* (what does OSM know about
+  // these coordinates?) — which is the only way a pasted CSV row can learn
+  // its elevation, since a coordinate pair carries none (issue #207).
   async function analyzeViaClient(
     request: AnalyzeRequest,
     mode: AnalysisMode,
@@ -228,6 +232,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
       totalFound: null,
       truncated: false,
     }
+    const customList = request.custom_destinations ?? []
     if (request.polygon) {
       const res = await fetch('/api/destinations', {
         method: 'POST',
@@ -238,6 +243,11 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
           min_elevation_ft: request.min_elevation_ft,
           max_elevation_ft: request.max_elevation_ft,
           top_by_elevation: request.top_by_elevation ?? false,
+          // The user's own list rides along with whatever discovery found —
+          // the union proceeds even when the polygon itself found nothing.
+          // The server owns this merge now, because resolving those rows and
+          // then merging them are the same trip.
+          ...(customList.length ? { custom_destinations: customList } : {}),
         }),
         signal,
       })
@@ -263,13 +273,9 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
         totalFound: discovered.total_found ?? null,
         truncated: discovered.truncated ?? false,
       }
-      // The user's own list rides along with whatever discovery found — the
-      // union proceeds even when the polygon itself found nothing.
-      candidates = request.custom_destinations?.length
-        ? mergeCustom(discovered.destinations, customRows(request.custom_destinations))
-        : discovered.destinations
+      candidates = discovered.destinations
     } else {
-      candidates = customRows(request.custom_destinations ?? [])
+      candidates = await resolveCustomOnly(customList, signal)
     }
 
     // Announce the retrieval phase with the final count the moment discovery

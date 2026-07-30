@@ -559,11 +559,26 @@
         "type": "string"
       },
       "DestinationsRequest": {
-        "description": "Discovery only: which destinations exist inside a polygon.\n\nThis is the first half of `POST /api/analyze`, with no forecasts\nattached. The SPA uses it to get the candidate list and then fetches\nOpen-Meteo itself, so a browser analysis costs this deployment one\nOverpass query instead of dozens of forecast calls.",
+        "description": "Discovery only: which destinations exist, with no forecasts attached.\n\nThis is the first half of `POST /api/analyze`. The SPA uses it to get the\ncandidate list and then fetches Open-Meteo itself, so a browser analysis\ncosts this deployment one Overpass query instead of dozens of forecast\ncalls.\n\nTwo kinds of candidate arrive here. A polygon is *discovered*; a\n`custom_destinations` list is *resolved* \u2014 the caller already knows where\nits points are, so the only open question is what OSM knows about them.",
         "properties": {
+          "custom_destinations": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CustomDestination"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Caller-supplied destinations to resolve against OSM. Each is matched to the nearest peak within ~150 m, filling in `elevation_ft` and `osm_id` where OSM knows them \u2014 a point with no match keeps whatever it arrived with. A row that already carries an elevation is never looked up or overwritten.\n\nResolution is best-effort: if the map service is unreachable the rows come back exactly as sent rather than failing the request.",
+            "title": "Custom Destinations"
+          },
           "destination_type": {
             "$ref": "#/components/schemas/DestinationType",
-            "description": "What to discover. `custom` is rejected here: custom destinations are supplied by the caller, so there is nothing to discover."
+            "description": "What to discover inside the polygon. Send `custom` for a resolve-only request: discovery is skipped and only `custom_destinations` come back."
           },
           "max_elevation_ft": {
             "anyOf": [
@@ -590,8 +605,15 @@
             "title": "Min Elevation Ft"
           },
           "polygon": {
-            "$ref": "#/components/schemas/GeoPolygon",
-            "description": "Search area, validated exactly as on `POST /api/analyze`."
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GeoPolygon"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Search area, validated exactly as on `POST /api/analyze`. Required unless `custom_destinations` is supplied; send both to resolve a caller's list alongside a discovery."
           },
           "top_by_elevation": {
             "default": false,
@@ -601,17 +623,16 @@
           }
         },
         "required": [
-          "polygon",
           "destination_type"
         ],
         "title": "DestinationsRequest",
         "type": "object"
       },
       "DestinationsResponse": {
-        "description": "Everything discovery found, after the optional elevation band.",
+        "description": "Everything found, after the optional elevation band.",
         "properties": {
           "destinations": {
-            "description": "Every named match inside the polygon, never sampled. Order is OSM's, not a ranking; ranking is the caller's job once forecasts are attached.",
+            "description": "Every named match inside the polygon, never sampled, plus any resolved `custom_destinations`. Order is OSM's with the caller's own rows last, not a ranking; ranking is the caller's job once forecasts are attached.",
             "items": {
               "$ref": "#/components/schemas/DiscoveredDestination"
             },
@@ -650,7 +671,7 @@
         "type": "object"
       },
       "DiscoveredDestination": {
-        "description": "One discovery candidate, forecast-free.",
+        "description": "One candidate, forecast-free.",
         "properties": {
           "elevation_ft": {
             "anyOf": [
@@ -661,7 +682,7 @@
                 "type": "null"
               }
             ],
-            "description": "Elevation in feet, when OSM knows it.",
+            "description": "Elevation in feet, when OSM knows it. For a custom row this is the caller's own value if one was sent, otherwise the matched peak's \u2014 null when neither exists.",
             "title": "Elevation Ft"
           },
           "latitude": {
@@ -675,7 +696,7 @@
             "type": "number"
           },
           "name": {
-            "description": "Destination name, from OSM.",
+            "description": "Destination name: OSM's for a discovered row, the caller's for a custom one.",
             "title": "Name",
             "type": "string"
           },
@@ -692,7 +713,7 @@
             "title": "Osm Id"
           },
           "type": {
-            "description": "The discovery type this row matched.",
+            "description": "The discovery type this row matched, or `custom` for a caller-supplied row.",
             "title": "Type",
             "type": "string"
           }
@@ -1277,7 +1298,7 @@
     },
     "/api/destinations": {
       "post": {
-        "description": "The discovery half of `POST /api/analyze` on its own: every named destination of the requested type inside the polygon, with no forecasts attached. Discovery is never sampled, and the same candidate ceiling applies, so a list that would refuse there refuses identically here.\n\nThis exists so a browser client can fetch forecasts itself, spending its own Open-Meteo quota instead of this deployment's \u2014 which is exactly what the bundled web app does. If you are building a client and want ranked forecasts in one call, `POST /api/analyze` remains the endpoint for that.",
+        "description": "The discovery half of `POST /api/analyze` on its own: every named destination of the requested type inside the polygon, with no forecasts attached. Discovery is never sampled, and the same candidate ceiling applies, so a list that would refuse there refuses identically here.\n\nIt also *resolves* `custom_destinations`, matching each caller-supplied coordinate to the nearest OSM peak to fill in the elevation and OSM id that a bare coordinate pair cannot carry. Send a custom list alone (with `destination_type: custom`) to resolve without discovering anything, or alongside a polygon to get both in one call.\n\nThis exists so a browser client can fetch forecasts itself, spending its own Open-Meteo quota instead of this deployment's \u2014 which is exactly what the bundled web app does. If you are building a client and want ranked forecasts in one call, `POST /api/analyze` remains the endpoint for that.",
         "operationId": "destinations_api_destinations_post",
         "requestBody": {
           "content": {
@@ -1308,7 +1329,7 @@
                 }
               }
             },
-            "description": "The request parsed but is not discoverable: the destination type is `custom` (caller-supplied, nothing to discover) or not yet implemented, or the polygon contains more candidates than the analysis ceiling. Over-cap refusals carry the structured remedy fields; send `top_by_elevation: true` to elect an explicit top-N result instead."
+            "description": "The request parsed but describes nothing to do: neither a polygon nor a custom list was sent, the destination type is `custom` with no list to resolve, the type is not yet implemented, or the polygon contains more candidates than the analysis ceiling. Over-cap refusals carry the structured remedy fields; send `top_by_elevation: true` to elect an explicit top-N result instead."
           },
           "422": {
             "content": {
@@ -1351,7 +1372,7 @@
             "description": "This instance's Overpass budget stayed saturated too long. Transient; `Retry-After` says when a retry is worthwhile."
           }
         },
-        "summary": "Discover destinations without forecasts",
+        "summary": "Discover and resolve destinations without forecasts",
         "tags": [
           "analysis"
         ]

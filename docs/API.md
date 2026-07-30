@@ -94,6 +94,57 @@ If you are building a client and want ranked forecasts in one call,
 `POST /api/analyze` remains the endpoint for that; if you want to do your own
 ranking or your own weather, this one saves you a scrape.
 
+### Resolving your own coordinates
+
+The same endpoint also answers a second question: what does OpenStreetMap know
+about coordinates you already have? Send `custom_destinations` and each one is
+matched to the nearest peak, filling in the `elevation_ft` and `osm_id` a bare
+coordinate pair cannot carry. Send them without a polygon (with
+`destination_type: "custom"`) to resolve and discover nothing:
+
+```json
+{
+  "destination_type": "custom",
+  "custom_destinations": [
+    { "name": "McClellan Butte", "latitude": 47.406905, "longitude": -121.622215 }
+  ]
+}
+```
+
+```json
+{
+  "destinations": [
+    {
+      "name": "McClellan Butte",
+      "type": "custom",
+      "latitude": 47.406905,
+      "longitude": -121.622215,
+      "elevation_ft": 5164.0,
+      "osm_id": "node/3055500576"
+    }
+  ],
+  "total": 1
+}
+```
+
+Send them alongside a polygon to get both in one call, merged by the rule
+below. Either way at least one of `polygon` or `custom_destinations` is
+required; a request with neither is a `400`.
+
+Three things worth knowing about resolution:
+
+- **It never overwrites.** A row that arrives with its own `elevation_ft` is
+  left exactly as sent, and is not looked up at all.
+- **It is best-effort.** If the map service is unreachable the rows come back
+  as sent rather than failing the request, so a null elevation means "nobody
+  could say", never "the request failed".
+- **Not every point resolves.** A coordinate with no OSM peak beside it keeps
+  a null elevation. That is a real answer about OSM's coverage, not an error.
+
+The same resolution runs inside `POST /api/analyze` and
+`POST /api/analyze/stream`, so a custom row is ranked and filtered on the
+elevation OSM knows even when you never call this endpoint yourself.
+
 ## Bringing your own destinations
 
 You do not need a polygon. Send coordinates directly and skip discovery:
@@ -113,9 +164,12 @@ Custom destinations can also accompany a polygon, in which case they are merged
 into whatever discovery finds. A custom row matching a discovered one by name or
 by coordinates to five decimals replaces it.
 
-Supplying `elevation_ft` is optional but worth doing: it is what lets a row take
-part in a `min_elevation_ft` / `max_elevation_ft` filter. Rows with an unknown
-elevation are never filtered out.
+Supplying `elevation_ft` is optional. Leave it out and the service resolves it
+against OpenStreetMap for you (see [Resolving your own
+coordinates](#resolving-your-own-coordinates)), which is what lets a row take
+part in a `min_elevation_ft` / `max_elevation_ft` filter. Send it and your
+value stands, untouched. Rows whose elevation is still unknown after all that
+are never filtered out.
 
 ## When a search finds too much
 
