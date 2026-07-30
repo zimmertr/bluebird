@@ -30,10 +30,16 @@ COPY backend/requirements.txt ./
 # security fixes (e.g. CVE-2025-8869 tar link-following), and scanners flag it.
 # Deliberately unpinned (DL3013): a pin here would sit outside Dependabot's
 # view and go stale; floating rides each rebuild to the current fix.
+# Then drop pip itself: nothing installs packages at runtime, and since 26.2 pip
+# ships a CycloneDX SBOM of its vendored libs (pip/_vendor/bom.cdx.json) that
+# scanners read as image inventory. That surfaces pip's bundled msgpack and
+# setuptools as image CVEs we cannot patch without waiting on a pip release.
+# Shipping no pip retires the whole class rather than suppressing it per-CVE.
 # hadolint ignore=DL3042,DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip && \
-    pip install -r requirements.txt
+    pip install -r requirements.txt && \
+    pip uninstall -y pip
 COPY backend/app/ ./app/
 COPY --from=frontend-builder /app/frontend/dist/ ./static/
 # Swagger UI's assets, vendored so /docs renders without reaching out to a CDN.

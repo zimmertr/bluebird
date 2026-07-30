@@ -224,6 +224,12 @@ jobs:
             "$(curl -s -o /dev/null -w '%{content_type}' localhost:8000/api/nope)" "application/json"
           check "the SPA is still served at /" \
             "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/)" "200"
+          # pip ships a CycloneDX SBOM of its vendored libs, which Trivy reads as
+          # image inventory, so a pip left in the runtime layer re-imports CVEs
+          # in msgpack/setuptools that nothing here can patch. Nothing installs
+          # packages at runtime, so its absence is the invariant worth pinning.
+          check "no pip in the runtime image" \
+            "$(docker exec smoke python -m pip --version >/dev/null 2>&1 && echo present || echo absent)" "absent"
 
           docker stop smoke >/dev/null 2>&1 || true
           [ "$fail" -eq 0 ] || echo "::error::The built image failed its smoke test. See the failures above."
