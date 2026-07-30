@@ -252,7 +252,7 @@ export default function ControlPanel({
           <div className="mb-3">
             <h3 className={`${TEXT.subheading} mb-1`}>Search by Polygon</h3>
             <p className={`${TEXT.helper} mb-1.5`}>
-              Search for destinations by drawing a polygon around an area.
+              Search for destinations by drawing a polygon.
             </p>
             {drawPointCount > 0 && (
               <div className="space-y-2">
@@ -657,10 +657,18 @@ export default function ControlPanel({
                 max={maxLimit}
                 value={limit}
                 onChange={(e) =>
-                  setLimit(Math.max(1, Math.min(maxLimit, parseInt(e.target.value) || 100)))
+                  setLimit(Math.max(1, Math.min(maxLimit, parseInt(e.target.value) || 200)))
                 }
                 className={`${FIELD} w-24 px-2 py-1.5`}
               />
+              {/* The knob reads like a cap on the work, and users have taken it
+                  for one (#205): a list longer than this looks half-fetched.
+                  The API description and the comment above say it the same way.
+                  Keep it under ~50 characters or the sidebar wraps it to a
+                  second line, which is why the count itself is not named here. */}
+              <p className={`${TEXT.helper} mt-1`}>
+                Number of results shown. All are analyzed.
+              </p>
             </div>
 
             {/* Show wildfires — live NIFC perimeter overlay, off by default */}
