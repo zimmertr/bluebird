@@ -194,7 +194,7 @@ describe('the wildfire column', () => {
 
   it('keeps the column when the check ran and found nothing', () => {
     const header = cells(lines(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES))[0])
-    expect(header[header.length - 1]).toBe('Wildfire Distance (mi)')
+    expect(header[header.length - 1]).toBe('Nearby Wildfire (mi)')
   })
 
   // The distinction the null carries. A column of blanks in a file nobody can
@@ -203,7 +203,7 @@ describe('the wildfire column', () => {
   describe('when the lookup produced no trustworthy answer', () => {
     it('leaves the column out of the header entirely', () => {
       const header = cells(lines(buildResultsCsv([row()], WINDOW_COLUMNS, null))[0])
-      expect(header).not.toContain('Wildfire Distance (mi)')
+      expect(header).not.toContain('Nearby Wildfire (mi)')
       expect(header[header.length - 1]).toBe(WINDOW_COLUMNS[WINDOW_COLUMNS.length - 1].label)
     })
 

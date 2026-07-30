@@ -113,8 +113,10 @@ What lands in the file:
   alike, numbered by a leading **Rank** column.
 - The columns the table is showing, under the same headers, which means a
   single-hour analysis exports the collapsed set.
-- A **Wildfire Distance (mi)** column, which the table itself carries as the ⚠️
-  beside a name. A file has nowhere to hover, so the number gets a column.
+- A **Nearby Wildfire (mi)** column, which the table itself carries as the ⚠️
+  beside a name. A file has nowhere to hover, so the number gets a column. It
+  holds a distance only where one is within 10 miles, and is blank otherwise,
+  which is why it is not headed as a distance to the nearest fire outright.
 - Nothing a removed row would have contributed. Removals and the max-results
   cut apply first, exactly as on screen.
 

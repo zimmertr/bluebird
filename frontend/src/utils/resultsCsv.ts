@@ -29,8 +29,14 @@ const RANK_HEADER = 'Rank'
  * Distance to the nearest active wildfire, which the table carries as the ⚠️
  * beside a name and its tooltip. A file has nowhere to hover, so the number
  * that the tooltip spells out becomes a column of its own.
+ *
+ * "Nearby" rather than plain "Distance" because the column is not a distance
+ * to everything: it is populated only within the warning radius, and blank
+ * beyond it. A header reading "Wildfire Distance" invites the blank cells to be
+ * read as an unknown or a zero, when what they mean is "no active fire is
+ * near". The word carries the threshold that the numbers alone cannot.
  */
-const FIRE_HEADER = 'Wildfire Distance (mi)'
+const FIRE_HEADER = 'Nearby Wildfire (mi)'
 
 /**
  * Byte-order mark.
