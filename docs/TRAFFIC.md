@@ -73,7 +73,7 @@ With R replicas the effective ceiling is about R times the configured number;
 that slop is accepted (the goal is a bound, not precision), and the shared
 datastore planned in [#65](https://github.com/zimmertr/bluebird/issues/65)
 can make both exact later. All knobs are env vars, documented in the
-[README's Configuration table](../README.md#configuration) and published to
+[CONFIGURATION.md table](CONFIGURATION.md#configuration) and published to
 clients by `GET /api/capabilities`.
 
 **Per-client token buckets** on the expensive routes only. Over the limit:

@@ -198,7 +198,7 @@ Two things about the value itself, for anyone rendering it. It is sampled from
 a model grid measured in tens of kilometers, so nearby destinations often carry
 identical numbers and none of them is a reading at that summit. And `us_aqi` is
 the US EPA scale applied worldwide, not the index the surrounding country
-publishes. The [README's data sources section](../README.md#air-quality) has
+publishes. [DATA.md's air quality section](DATA.md#air-quality) has
 the reasoning, along with the equivalent caveats for the other providers.
 
 ## When something goes wrong
@@ -255,5 +255,6 @@ The limits are sized so a person iterating on a map never meets them. Scripts
 should stay well under them anyway: keep polygons no larger than you need,
 prefer one wide window over many narrow ones, and cache results you intend to
 reuse. If you want to run something heavy, the whole stack is one container and
-runs locally in a single command, with every limit tunable or off via
-environment variables. See the [README](../README.md).
+runs locally in a single command (see the [README](../README.md)), with every
+limit tunable or off via environment variables
+([CONFIGURATION.md](CONFIGURATION.md)).
