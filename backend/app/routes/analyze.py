@@ -59,6 +59,17 @@ def _custom_dicts(custom_destinations) -> list[dict]:
     ]
 
 
+async def _resolve_custom(custom_destinations) -> list[dict]:
+    """The request's custom destinations as candidate dicts, with elevation
+    resolved from OSM wherever the caller did not supply one.
+
+    Every path that turns `custom_destinations` into candidates goes through
+    here rather than calling `_custom_dicts` directly, so no route can serve a
+    custom row that skipped enrichment (issue #207).
+    """
+    return await osm.enrich_custom(_custom_dicts(custom_destinations))
+
+
 def _coord_key(dest) -> str:
     return f"{dest['latitude']:.5f},{dest['longitude']:.5f}"
 
@@ -459,7 +470,7 @@ async def analyze_stream(request: AnalyzeRequest):
                 if not request.custom_destinations:
                     yield _sse("error", message="custom_destinations is required for custom type")
                     return
-                destinations = _custom_dicts(request.custom_destinations)
+                destinations = await _resolve_custom(request.custom_destinations)
             else:
                 if not request.polygon:
                     yield _sse("error", message="polygon is required for non-custom destination types")
@@ -513,7 +524,7 @@ async def analyze_stream(request: AnalyzeRequest):
                 # the union proceeds even when the polygon itself found nothing.
                 if request.custom_destinations:
                     destinations = _merge_custom(
-                        destinations, _custom_dicts(request.custom_destinations)
+                        destinations, await _resolve_custom(request.custom_destinations)
                     )
 
                 if not destinations:
@@ -751,7 +762,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
                 status_code=400,
                 detail="custom_destinations is required when destination_type is 'custom'",
             )
-        destinations = _custom_dicts(request.custom_destinations)
+        destinations = await _resolve_custom(request.custom_destinations)
     else:
         if not request.polygon:
             raise HTTPException(
@@ -779,7 +790,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         # union proceeds even when the polygon itself found nothing.
         if request.custom_destinations:
             destinations = _merge_custom(
-                destinations, _custom_dicts(request.custom_destinations)
+                destinations, await _resolve_custom(request.custom_destinations)
             )
 
     destinations = _filter_elevation(

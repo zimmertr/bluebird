@@ -3,11 +3,12 @@
 Usage: python3 verify_csv.py <lid> <csvfile> [--bbox LAT_MIN LAT_MAX LON_MIN LON_MAX]
 
 Cross-checks every row against peaks<lid>.json rather than only checking the file's shape,
-so a coordinate attached to the wrong peak, a dropped row, or a mangled elevation is caught.
+so a coordinate attached to the wrong peak or a dropped row is caught. Elevation is not in
+the CSV (bluebird resolves it from OSM), so ordering is checked against the list page.
 """
 import json, re, sys
 
-ROW = re.compile(r'^(-?\d+\.\d{6}), (-?\d+\.\d{6}), (\d+)\. (.+) \(([\d,]+) ft\)$')
+ROW = re.compile(r'^(-?\d+\.\d{6}), (-?\d+\.\d{6}), (\d+)\. (.+)$')
 
 lid, csvfile = sys.argv[1], sys.argv[2]
 bbox = None
@@ -32,7 +33,7 @@ for n, line in enumerate(data, 1):
     if not m:
         problems.append(f'row {n}: malformed -> {line!r}')
         continue
-    lat, lon, num, name, elev = m.group(1), m.group(2), int(m.group(3)), m.group(4), m.group(5)
+    lat, lon, num, name = m.group(1), m.group(2), int(m.group(3)), m.group(4)
 
     if num != n:
         problems.append(f'row {n}: numbered {num}, expected {n}')
@@ -40,8 +41,6 @@ for n, line in enumerate(data, 1):
         want = peaks[n - 1]
         if name != want['name']:
             problems.append(f'row {n}: name {name!r} != list {want["name"]!r}')
-        if elev.replace(',', '') != want['elev'].replace(',', ''):
-            problems.append(f'row {n}: elev {elev} != list {want["elev"]}')
     if bbox and not (bbox[0] <= float(lat) <= bbox[1] and bbox[2] <= float(lon) <= bbox[3]):
         problems.append(f'row {n} ({name}): {lat},{lon} outside expected bbox')
     # Two peaks sharing an exact 6-decimal fix means a page was misparsed or misattributed.
@@ -50,7 +49,9 @@ for n, line in enumerate(data, 1):
         problems.append(f'row {n} ({name}): duplicate coordinate of row {seen_coords[key]}')
     seen_coords[key] = n
 
-ev = [int(m.group(5).replace(',', '')) for m in (ROW.match(l) for l in data) if m]
+# Rows are positional mirrors of the list, and every name is checked against its
+# position above, so the list's own elevations answer for the CSV's ordering.
+ev = [int(p['elev'].replace(',', '')) for p in peaks]
 if ev and not all(ev[i] >= ev[i + 1] for i in range(len(ev) - 1)):
     problems.append('rows are not ordered highest -> lowest by elevation')
 
@@ -60,6 +61,6 @@ if problems:
         print('  ' + p)
     sys.exit(1)
 
-print(f'OK {csvfile}: {len(data)} rows, all names/elevations match list {lid}, '
+print(f'OK {csvfile}: {len(data)} rows, all names match list {lid}, '
       f'coords unique, elevation-descending'
       + (f', all within bbox {bbox}' if bbox else ''))

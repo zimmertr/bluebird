@@ -41,6 +41,25 @@ by region in exactly the way volunteer mapping is uneven.
 [Search by Coordinates](USAGE.md#c-search-by-coordinates) exists for that gap:
 whatever OSM does not know, you can paste.
 
+OSM is also what gives a pasted coordinate its elevation. A CSV row carries a
+name and a point and nothing else, so each one is matched to the nearest mapped
+peak within about 150 metres and takes that peak's `ele` tag. Three things
+follow from that, all of them visible in the Elevation column:
+
+- **A point with no mapped peak beside it stays blank.** Against the bundled
+  100-peak Washington lists the match rate is 97%; the misses are summits no
+  volunteer has mapped as a node, not failures of the lookup.
+- **The number is OSM's, not your guidebook's.** Where the two disagree, the
+  column shows what OSM says, which is the same figure a polygon search shows
+  for that peak. Agreement between the two ways of asking is the point;
+  agreement with any particular book is not on offer.
+- **It is best-effort.** If Overpass cannot be reached the rows simply keep a
+  blank elevation and the analysis runs regardless, so a blank means "nobody
+  could say" rather than "something broke".
+
+An elevation you supply yourself in the API's `elevation_ft` is never
+overwritten by this.
+
 Overpass is the query service in front of OSM, run by volunteers on donated
 hardware, and its operators publish a per-address concurrency policy that
 Bluebird holds itself to separately for each mirror. Three public mirrors are
@@ -49,7 +68,8 @@ carries a dated table of measured response times behind it, giving the fastest
 mirror a tight timeout and the slower fallbacks a looser one, so a healthy
 primary is never held up waiting on the patience a last resort needs. Discovery
 results are cached for several minutes, so redrawing the same polygon costs
-Overpass nothing.
+Overpass nothing, and a resolved coordinate set is cached the same way, so
+re-analyzing a pasted list at window after window asks only once.
 
 ## Open-Meteo
 

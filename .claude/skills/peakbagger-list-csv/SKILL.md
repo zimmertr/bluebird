@@ -6,19 +6,22 @@ description: Crawl one or more peakbagger.com peak lists into bluebird examples/
 # Peakbagger list → bluebird CSV
 
 Turns a peakbagger.com list (`list.aspx?lid=<N>`) into `examples/<list-slug>.csv`, matching
-`examples/bulger-list.csv`. One CSV row per peak in the list — no sampling, no truncation.
+`examples/washington-bulger-list.csv`. One CSV row per peak in the list — no sampling, no
+truncation.
 
-**Row format** (mirrors `examples/bulger-list.csv` exactly):
+**Row format** (mirrors `examples/washington-bulger-list.csv` exactly):
 
 ```
 # <List Title> — ordered highest to lowest.
-# Source: peakbagger.com list <lid>. Elevations from the list page; coordinates
-# (WGS84 decimal degrees, 6 places) from each peak page. Paste the rows below
-# into the "Custom (CSV)" destination type. Format: Latitude, Longitude, Name
-46.851731, -121.760395, 1. Mount Rainier (14,406 ft)
+# Source: peakbagger.com list <lid>. Coordinates (WGS84 decimal degrees, 6 places)
+# from each peak page; Bluebird resolves elevation itself from OpenStreetMap.
+# Paste the rows below into the "Custom (CSV)" destination type. Format: Latitude, Longitude, Name
+46.851731, -121.760395, 1. Mount Rainier
 ```
 
-Four comment lines, then `Lat, Lon, N. Name (E,EEE ft)`.
+Four comment lines, then `Lat, Lon, N. Name`. The name carries **no** elevation: bluebird
+matches each coordinate to its OSM peak and fills the Elevation column itself (issue #207),
+so a figure here would only be a second number to disagree with the one on screen.
 
 ## The one thing that makes this hard
 

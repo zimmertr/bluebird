@@ -9,9 +9,9 @@ import {
   capDetail,
   customRows,
   filterElevation,
-  mergeCustom,
   rankComparator,
   refreshEchoRows,
+  resolveCustomOnly,
   runClientAnalysis,
   suggestElevationFloor,
   truncateTopElevation,
@@ -36,34 +36,125 @@ describe('alignAqi vectors', () => {
   }
 })
 
-// ── mergeCustom (port of _merge_custom) ────────────────────────────────────
+// ── resolveCustomOnly (the custom-only path's one server call) ─────────────
 
 function discovered(name: string, lat = 47.5, lon = -121.9): DiscoveredDestination {
   return { name, type: 'peak', latitude: lat, longitude: lon, elevation_ft: null, osm_id: 'node/1' }
 }
 
-describe('mergeCustom', () => {
-  it('drops a discovered row claimed by exact name', () => {
-    const custom = customRows([{ name: 'Alpha', latitude: 1, longitude: 1 }])
-    const merged = mergeCustom([discovered('Alpha'), discovered('Beta')], custom)
-    expect(merged.map((d) => `${d.name}:${d.type}`)).toEqual(['Beta:peak', 'Alpha:custom'])
+function resolved(name: string, elevationFt: number): DiscoveredDestination {
+  return {
+    name,
+    type: 'custom',
+    latitude: 47.5,
+    longitude: -121.9,
+    elevation_ft: elevationFt,
+    osm_id: 'node/1',
+  }
+}
+
+describe('resolveCustomOnly', () => {
+  const ROWS = [{ name: 'McClellan Butte', latitude: 47.5, longitude: -121.9 }]
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
-  it('drops a discovered row claimed by 5-decimal coordinates', () => {
-    const custom = customRows([{ name: 'Mine', latitude: 47.5, longitude: -121.9 }])
-    const merged = mergeCustom([discovered('Alpha', 47.5, -121.9)], custom)
-    expect(merged.map((d) => d.name)).toEqual(['Mine'])
+  function stubFetch(impl: () => unknown) {
+    const spy = vi.fn((_url: string, _init: RequestInit) => impl())
+    vi.stubGlobal('fetch', spy)
+    return spy
+  }
+
+  function sentBody(spy: ReturnType<typeof stubFetch>) {
+    return JSON.parse(String(spy.mock.calls[0][1].body))
+  }
+
+  it('returns the elevations the server resolved', async () => {
+    stubFetch(() => ({
+      ok: true,
+      json: async () => ({ destinations: [resolved('McClellan Butte', 5165)], total: 1 }),
+    }))
+    const out = await resolveCustomOnly(ROWS)
+    expect(out.map((d) => d.elevation_ft)).toEqual([5165])
+    expect(out[0].osm_id).toBe('node/1')
   })
 
-  it('keeps near-misses as two rows', () => {
-    const custom = customRows([{ name: 'Mine', latitude: 47.50002, longitude: -121.9 }])
-    const merged = mergeCustom([discovered('Alpha', 47.5, -121.9)], custom)
-    expect(merged.map((d) => d.name)).toEqual(['Alpha', 'Mine'])
+  it('asks for a resolve, never a discovery', async () => {
+    const spy = stubFetch(() => ({
+      ok: true,
+      json: async () => ({ destinations: [resolved('McClellan Butte', 5165)], total: 1 }),
+    }))
+    await resolveCustomOnly(ROWS)
+    const body = sentBody(spy)
+    expect(body.destination_type).toBe('custom')
+    expect(body.custom_destinations).toHaveLength(1)
+    // The band and the cap stay client-side on this path, so sending them
+    // would hand the server a say it is not being asked for.
+    expect(body.polygon).toBeUndefined()
+    expect(body.min_elevation_ft).toBeUndefined()
   })
 
-  it('custom rows always survive, appended after discovery', () => {
-    const custom = customRows([{ name: 'Solo', latitude: 2, longitude: 2 }])
-    expect(mergeCustom([], custom).map((d) => d.name)).toEqual(['Solo'])
+  it('falls back to unresolved rows when the server refuses', async () => {
+    stubFetch(() => ({ ok: false, status: 503, json: async () => ({}) }))
+    const out = await resolveCustomOnly(ROWS)
+    expect(out.map((d) => d.name)).toEqual(['McClellan Butte'])
+    expect(out[0].elevation_ft).toBeNull()
+  })
+
+  it('falls back to unresolved rows when the request cannot be made', async () => {
+    stubFetch(() => {
+      throw new TypeError('Failed to fetch')
+    })
+    const out = await resolveCustomOnly(ROWS)
+    expect(out[0].elevation_ft).toBeNull()
+  })
+
+  it('falls back when the server answers with a different number of rows', async () => {
+    stubFetch(() => ({ ok: true, json: async () => ({ destinations: [], total: 0 }) }))
+    const out = await resolveCustomOnly(ROWS)
+    expect(out.map((d) => d.name)).toEqual(['McClellan Butte'])
+  })
+
+  it('propagates an abort instead of reporting resolved-nothing', async () => {
+    const controller = new AbortController()
+    stubFetch(() => {
+      controller.abort()
+      throw new DOMException('Aborted', 'AbortError')
+    })
+    await expect(resolveCustomOnly(ROWS, controller.signal)).rejects.toThrow()
+  })
+
+  it('makes no call at all for an empty list', async () => {
+    const spy = stubFetch(() => ({ ok: true, json: async () => ({ destinations: [] }) }))
+    expect(await resolveCustomOnly([])).toEqual([])
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('makes no call when every row already knows its elevation', async () => {
+    // The pins-only refresh: each searched place carries Nominatim's answer,
+    // so this path reaches no server, exactly as it did before #207.
+    const spy = stubFetch(() => ({ ok: true, json: async () => ({ destinations: [] }) }))
+    const out = await resolveCustomOnly([
+      { name: 'Pinned', latitude: 47.5, longitude: -121.9, elevation_ft: 6000 },
+    ])
+    expect(out[0].elevation_ft).toBe(6000)
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('still asks when only some rows know their elevation', async () => {
+    const spy = stubFetch(() => ({
+      ok: true,
+      json: async () => ({
+        destinations: [resolved('Pinned', 6000), resolved('Pasted', 5165)],
+        total: 2,
+      }),
+    }))
+    await resolveCustomOnly([
+      { name: 'Pinned', latitude: 47.5, longitude: -121.9, elevation_ft: 6000 },
+      { name: 'Pasted', latitude: 47.4, longitude: -121.6 },
+    ])
+    expect(spy).toHaveBeenCalledTimes(1)
   })
 })
 

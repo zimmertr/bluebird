@@ -42,6 +42,8 @@ Paste a CSV of your own coordinates to add them to the analysis — alongside wh
 
 The format is `Lat,Lon` or `Lat,Lon,Name`, one per line; without a name the coordinates are used. Custom rows compete in the same ranked table as discovered destinations, and a custom row that duplicates a discovered one (same name or same coordinates) replaces it.
 
+You do not need to supply an elevation, and there is nowhere in the format to put one. Each pasted coordinate is matched to the nearest mapped peak and shows that peak's elevation once you analyze, the same figure a polygon search shows for it. A point with no mapped peak beside it stays blank, and a blank elevation is never filtered out by the elevation range, so those rows always ride along. The ready-made lists in [`examples/`](../examples/) are formatted this way.
+
 ## Step 2: Forecast Window
 
 Three ways to pick the time being analyzed:
