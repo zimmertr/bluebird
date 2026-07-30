@@ -26,15 +26,13 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 COPY backend/requirements.txt ./
-# Upgrade pip first: the version bundled with the base image trails pip's own
-# security fixes (e.g. CVE-2025-8869 tar link-following), and scanners flag it.
-# Deliberately unpinned (DL3013): a pin here would sit outside Dependabot's
-# view and go stale; floating rides each rebuild to the current fix.
-# Then drop pip itself: nothing installs packages at runtime, and since 26.2 pip
-# ships a CycloneDX SBOM of its vendored libs (pip/_vendor/bom.cdx.json) that
-# scanners read as image inventory. That surfaces pip's bundled msgpack and
-# setuptools as image CVEs we cannot patch without waiting on a pip release.
-# Shipping no pip retires the whole class rather than suppressing it per-CVE.
+# pip is build-time only here, which is what the upgrade and the uninstall each
+# follow from. Upgrading guards the extraction pip is about to do, since the
+# bundled version trails pip's own fixes (e.g. CVE-2025-8869 tar link-following);
+# unpinned despite DL3013 so a rebuild takes the current pip rather than a pin
+# nothing watches. Uninstalling keeps pip out of the image's scanned inventory:
+# it publishes an SBOM of the libraries it vendors, so a shipped pip reports
+# their CVEs as ours, against copies no dependency bump here can reach.
 # hadolint ignore=DL3042,DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip && \
