@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { AnalysisMode, CustomDestination, DiscoveryType, SortBy } from '../types'
 import { Refusal } from '../hooks/useAnalyze'
 import { MAX_AREA_KM2 } from './MapView'
@@ -9,7 +9,6 @@ import { MAX_AREA_KM2 } from './MapView'
 // starts brushing the analysis cap (~26,000 km² held 1,117 peaks).
 const AREA_NOTE_KM2 = 40_000
 import { parseCustomCsv } from '../utils/customDestinations'
-import { DATA_SOURCES } from '../utils/dataSources'
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD, LINK, TEXT } from '../styles'
 import { AGGREGATE, NOUN, RANKING_KEYS, familyOf } from '../metrics'
 import { canAnalyze } from '../utils/analyzeGate'
@@ -763,17 +762,6 @@ export default function ControlPanel({
           </div>
         )}
 
-        <p className={`${TEXT.caption} text-center leading-relaxed`}>
-          Data:{' '}
-          {DATA_SOURCES.map((source, i) => (
-            <Fragment key={source.name}>
-              {i > 0 && ' · '}
-              <a href={source.href} target="_blank" rel="noreferrer" className={LINK}>
-                {source.name}
-              </a>
-            </Fragment>
-          ))}
-        </p>
         {/* Two labels, two pages, and each label goes where it says. The
             privacy copy used to open a dialog here, which meant it had no URL
             and the Terms link next to it pointed at the privacy page anyway.

@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import date
 
 import httpx
 import pytest
 from app import ratelimit
+from app.services import weather
 from app.services.errors import parse_rate_limit, rate_limit_message
+from app.services.openmeteo_weight import call_weight
 
 
 class _Clock:
@@ -150,3 +153,31 @@ def test_token_bucket_backwards_clock_keeps_tokens():
     bucket = ratelimit._TokenBucket(capacity=5, rate_per_s=1.0, now=clock.t)
     clock.t = 0.0  # clock regresses a full 100 seconds
     assert bucket.try_acquire(clock.t) is True  # still spends from a full bucket
+
+
+# ── Undivided per-pod budget ───────────────────────────────────────────────
+
+
+def test_weight_budget_default_is_the_full_undivided_safe_rate():
+    # 550 on every pod, not 550/replicas. One analysis runs end to end on a
+    # single pod, so the budget has to cover one request's whole fan-out.
+    assert ratelimit.UPSTREAM_WEIGHT_PER_MINUTE_WEATHER == 550
+    assert ratelimit.UPSTREAM_WEIGHT_PER_MINUTE_AQI == 550
+
+
+def test_default_budget_clears_a_worst_case_batch_without_pacing():
+    # The invariant that rules out dividing the budget by replica count:
+    # WeightedBudget capacity IS per_minute, so a budget below one batch's cost
+    # can never hold enough tokens for it and would pace every batch even on a
+    # completely idle pod. A 1/10 share (55) sits under the 57.1 a full 50-
+    # location 16-day batch costs; the undivided 550 clears it outright.
+    worst_batch = call_weight(
+        weather.BATCH_SIZE, date(2026, 1, 1), date(2026, 1, 16), weather.N_VARIABLES
+    )
+    assert worst_batch == pytest.approx(57.14, abs=0.01)
+
+    idle = ratelimit.WeightedBudget("test", ratelimit.UPSTREAM_WEIGHT_PER_MINUTE_WEATHER)
+    assert idle.wait_estimate_s(worst_batch) == 0.0
+
+    rationed = ratelimit.WeightedBudget("test", 550 // 10)
+    assert rationed.wait_estimate_s(worst_batch) > 0.0

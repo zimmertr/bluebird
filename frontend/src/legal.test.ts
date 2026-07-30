@@ -111,6 +111,19 @@ describe('the document pages', () => {
   })
 })
 
+// The footer carried its own provider credit line until #135, a third copy of
+// dataSources.ts. Every credit a license requires sits beside the data it
+// covers instead: OpenStreetMap in the map's corner control (delivered by the
+// tile server's TileJSON, not by anything in this repo), Open-Meteo in the
+// docked results header, NIFC on the fire legend. The document pages carry the
+// full inventory and NOTICES.md transcribes it for the repo. A dataSources
+// reference reappearing here means the fourth copy came back.
+describe('the provider credits', () => {
+  it('stay off the panel footer, which offers only the document pages', () => {
+    expect(controlPanel).not.toMatch(/dataSources|DATA_SOURCES/)
+  })
+})
+
 // #171 relicensed from GPL-3.0 to PolyForm Noncommercial while this page was
 // in review, and the copy had already shipped the GPL sentence. A license is
 // exactly the kind of claim that is written once and then quietly outlived by
