@@ -119,11 +119,15 @@ What lands in the file:
   cut apply first, exactly as on screen.
 
 A blank cell means no value, never a zero. AQI is blank past its forecast
-horizon, and elevation is blank where OpenStreetMap has no `ele` tag. **A blank
-wildfire cell is not proof there is no fire**: it means none within 10 miles was
-reported, or that the best-effort fire query returned nothing at all, and
-[the wildfire notes](DATA.md#wildfires) explain why those two are
-indistinguishable.
+horizon, and elevation is blank where OpenStreetMap has no `ele` tag.
+
+The wildfire column is the one that can disappear. If the fire check could not
+run, the column is left out of the file entirely and the results header says
+**Wildfire check unavailable**, rather than the file reporting every row as
+clear. So a blank wildfire cell means the check ran and found nothing within 10
+miles, which still is not proof there is no fire:
+[the wildfire notes](DATA.md#wildfires) explain the coverage gap that a
+successful check can still miss.
 
 Coordinates are deliberately absent. The file is meant to be read, not pasted
 back into [Search by Coordinates](#c-search-by-coordinates).

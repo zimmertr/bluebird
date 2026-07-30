@@ -81,6 +81,39 @@ export function wildfireQueryUrl(bbox: BBox, simplifyTol?: number): string {
 }
 
 /**
+ * An error ArcGIS reported inside a 200 response, or `null` for a normal body.
+ *
+ * ArcGIS answers **HTTP 200 with an `{error}` payload** rather than the status
+ * code you would expect, and the case that matters most is its per-minute quota:
+ *
+ *     {"error":{"code":429,"message":"Unable to perform query. Too many
+ *      requests.","details":["API calls quota exceeded (62896 request units)!
+ *      maximum allowed request units (57600) per Minute. Retry after 60 sec."]}}
+ *
+ * That quota belongs to NIFC's ArcGIS organization and is shared by every
+ * consumer of this public service, so it can be exhausted by traffic that has
+ * nothing to do with Bluebird. Reading the envelope is what turns "unexpected
+ * response shape" — which says nothing and sent us hunting through our own code
+ * — into a fact a console line can state. Pure, so it is testable without a
+ * network.
+ */
+export function readArcgisError(data: unknown): { code: number | null; message: string } | null {
+  const err = (data as { error?: { code?: unknown; message?: unknown; details?: unknown } })?.error
+  if (!err || typeof err !== 'object') return null
+  const code = typeof err.code === 'number' ? err.code : null
+  const detail = Array.isArray(err.details) ? err.details.filter((d) => typeof d === 'string') : []
+  const message = [typeof err.message === 'string' ? err.message : '', ...detail]
+    .filter(Boolean)
+    .join(' ')
+  return { code, message: message || 'ArcGIS reported an error with no message' }
+}
+
+/** Is this failure a quota/throttle rejection, i.e. one that retrying makes worse? */
+export function isRateLimited(err: unknown): boolean {
+  return (err as { rateLimited?: boolean } | null)?.rateLimited === true
+}
+
+/**
  * Fetch active wildfire perimeters intersecting `bbox` as a GeoJSON
  * FeatureCollection. `signal` lets a stale in-flight request be aborted when the
  * user pans again. ArcGIS can return HTTP 200 with an `{error}` body, so the
@@ -94,6 +127,15 @@ export async function fetchWildfires(
   const res = await fetch(wildfireQueryUrl(bbox, simplifyTol), { signal })
   if (!res.ok) throw new Error(`NIFC request failed: ${res.status}`)
   const data = await res.json()
+  const reported = readArcgisError(data)
+  if (reported) {
+    const err = new Error(
+      `NIFC query rejected${reported.code === null ? '' : ` (${reported.code})`}: ${reported.message}`,
+    ) as Error & { rateLimited?: boolean }
+    // 429 is the documented one; 503 comes back the same way under load.
+    err.rateLimited = reported.code === 429 || reported.code === 503
+    throw err
+  }
   if (!data || data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
     throw new Error('Unexpected NIFC response shape')
   }

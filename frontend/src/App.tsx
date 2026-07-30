@@ -650,21 +650,26 @@ export default function App() {
   // map overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
   // Fed the whole analyzed field so live knobs re-present rows without
   // re-querying NIFC; falls back to the displayed rows on the server path.
-  const fireWarnings = useFireProximity(universe ?? results)
+  const fire = useFireProximity(universe ?? results, analysisSeq)
 
   // Download the displayed report (#125). Everything that decides what the file
-  // contains is already resolved above, so this only has to hand three settled
-  // values to the formatter and hang the result off an anchor.
+  // contains is already resolved above, so this only has to hand settled values
+  // to the formatter and hang the result off an anchor.
+  //
+  // The warnings go over only when the lookup actually produced them. Anything
+  // else is `null`, which drops the wildfire column from the file rather than
+  // filling it with blanks that would read as "checked, nothing near".
   //
   // The object URL is revoked on the next frame rather than immediately:
   // click() only queues the download, and Safari has historically cancelled it
   // if the URL is released in the same task.
   function handleDownloadCsv() {
-    const url = URL.createObjectURL(
-      new Blob([buildResultsCsv(tableRows, tableColumns, fireWarnings)], {
-        type: 'text/csv;charset=utf-8',
-      }),
+    const csv = buildResultsCsv(
+      tableRows,
+      tableColumns,
+      fire.status === 'ready' ? fire.warnings : null,
     )
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a')
     link.href = url
     link.download = csvFilename(new Date())
@@ -871,7 +876,7 @@ export default function App() {
             onDrawUpdate={handleDrawUpdate}
             results={results}
             sortBy={view.sortBy}
-            fireWarnings={fireWarnings}
+            fireWarnings={fire.warnings}
             showWildfires={showWildfires}
             pending={pending}
             minElevationFt={minElevationFt}
@@ -1060,6 +1065,22 @@ export default function App() {
                   </span>
                 )}
               </span>
+              {/* The fire check is best-effort, and every way it can fail used
+                  to render as an all-clear: no ⚠️ on any row, and since #125 an
+                  empty column in the download. For a safety warning that is the
+                  wrong way round, so a failed lookup says so. Status text sits
+                  outside the type ramp by styles.ts's own rule, wearing the
+                  base size and a semantic color; it cannot compose TEXT.micro
+                  because that role carries slate-300 and two color utilities
+                  would resolve by stylesheet order rather than by intent. */}
+              {fire.status === 'unavailable' && results.length > 0 && (
+                <span
+                  className="ml-2 text-xs text-amber-300"
+                  title="The wildfire service could not be reached, so no destination has been checked for fire proximity. Rows are not flagged, and the downloaded CSV leaves the wildfire column out rather than reporting every row as clear."
+                >
+                  Wildfire check unavailable
+                </span>
+              )}
               {/* CC-BY 4.0 requires this credit beside the data itself, not
                   just in the privacy modal; the docked header bar keeps it
                   visible whenever forecasts are on screen. */}
@@ -1130,7 +1151,7 @@ export default function App() {
                   detailSortDir={detailSort.dir}
                   onDetailSort={(key, dir) => setDetailSort({ key, dir })}
                   mode={view.mode}
-                  fireWarnings={fireWarnings}
+                  fireWarnings={fire.warnings}
                   pending={pending}
                   onRemove={handleRemoveResult}
                   onRemovePending={(d) => searched.removePlace(d.latitude, d.longitude)}

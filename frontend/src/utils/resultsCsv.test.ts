@@ -187,14 +187,40 @@ describe('the wildfire column', () => {
 
   // Presence in the map IS the threshold: useFireProximity only admits
   // warnings within FIRE_WARN_MILES, so this must not re-test it.
-  it('leaves the cell empty for a row with no warning', () => {
+  it('leaves the cell empty for a row the check cleared', () => {
     const csv = buildResultsCsv([row({ latitude: 40, longitude: -120 })], WINDOW_COLUMNS, near)
     expect(lines(csv)[1].endsWith(',')).toBe(true)
   })
 
-  it('keeps the column even when nothing was found, so the shape never varies', () => {
+  it('keeps the column when the check ran and found nothing', () => {
     const header = cells(lines(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES))[0])
     expect(header[header.length - 1]).toBe('Wildfire Distance (mi)')
+  })
+
+  // The distinction the null carries. A column of blanks in a file nobody can
+  // see the app beside is not missing data, it is a claim that every row was
+  // checked and cleared. Withholding the column claims nothing.
+  describe('when the lookup produced no trustworthy answer', () => {
+    it('leaves the column out of the header entirely', () => {
+      const header = cells(lines(buildResultsCsv([row()], WINDOW_COLUMNS, null))[0])
+      expect(header).not.toContain('Wildfire Distance (mi)')
+      expect(header[header.length - 1]).toBe(WINDOW_COLUMNS[WINDOW_COLUMNS.length - 1].label)
+    })
+
+    it('gives every row one fewer cell, so nothing reads as an empty distance', () => {
+      const withCheck = lines(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES))
+      const without = lines(buildResultsCsv([row()], WINDOW_COLUMNS, null))
+      expect(cells(without[0])).toHaveLength(cells(withCheck[0]).length - 1)
+      expect(cells(without[1])).toHaveLength(cells(withCheck[1]).length - 1)
+      expect(without[1].endsWith(',')).toBe(false)
+    })
+
+    it('changes nothing else about the file', () => {
+      const csv = buildResultsCsv([row(), row({ name: 'Glacier Peak' })], WINDOW_COLUMNS, null)
+      expect(csv.charCodeAt(0)).toBe(0xfeff)
+      expect(cells(lines(csv)[0])[0]).toBe('Rank')
+      expect(lines(csv)).toHaveLength(3)
+    })
   })
 })
 

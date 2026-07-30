@@ -75,10 +75,9 @@ function cell(row: DestinationResult, col: ColDef): string {
  * Miles to the nearest active fire, or an empty cell.
  *
  * No threshold test: useFireProximity only admits warnings within
- * FIRE_WARN_MILES, so presence in the map is the condition. An empty cell means
- * no fire within that radius OR that the best-effort NIFC query returned
- * nothing, which is the same ambiguity the map overlay carries and docs/DATA.md
- * already spells out.
+ * FIRE_WARN_MILES, so presence in the map is the condition. An empty cell here
+ * means the check ran and found nothing within that radius, which is only true
+ * because the caller withholds the map entirely when it did not run.
  */
 function fireCell(row: DestinationResult, warnings: ReadonlyMap<string, FireWarning>): string {
   const warning = warnings.get(fireKey(row.latitude, row.longitude))
@@ -90,18 +89,29 @@ function fireCell(row: DestinationResult, warnings: ReadonlyMap<string, FireWarn
  *
  * `rows` must already be in display order and `columns` must already be the set
  * the table is drawing, both of which the caller has on hand.
+ *
+ * `fireWarnings` is `null` when the wildfire lookup has no trustworthy answer:
+ * still in flight, or failed. The column is then **left out of the file
+ * entirely** rather than written empty. The distinction is the whole point. On
+ * screen an empty flag column is self-correcting, because the ⚠️ appears a
+ * second later and the reader watches it happen; a file is read once, detached
+ * from the app, with nothing around it to say the check never ran. A column of
+ * blanks in that setting is not missing data, it is an assertion that every
+ * destination was checked and none is near a fire. An absent column asserts
+ * nothing, which is the honest thing to say when nothing is known.
  */
 export function buildResultsCsv(
   rows: readonly DestinationResult[],
   columns: readonly ColDef[],
-  fireWarnings: ReadonlyMap<string, FireWarning>,
+  fireWarnings: ReadonlyMap<string, FireWarning> | null,
 ): string {
-  const header = [RANK_HEADER, ...columns.map((c) => c.label), FIRE_HEADER]
-  const body = rows.map((row, i) => [
-    String(i + 1),
-    ...columns.map((c) => cell(row, c)),
-    fireCell(row, fireWarnings),
-  ])
+  const header = [RANK_HEADER, ...columns.map((c) => c.label)]
+  if (fireWarnings) header.push(FIRE_HEADER)
+  const body = rows.map((row, i) => {
+    const cells = [String(i + 1), ...columns.map((c) => cell(row, c))]
+    if (fireWarnings) cells.push(fireCell(row, fireWarnings))
+    return cells
+  })
   return BOM + [header, ...body].map((r) => r.map(escapeCell).join(',')).join(CRLF) + CRLF
 }
 

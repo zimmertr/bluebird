@@ -30,6 +30,23 @@ export function fireWarningText(w: FireWarning): string {
   return `${w.miles.toFixed(1)} mi from an active wildfire (${w.name})`
 }
 
+/**
+ * Identity of a SET of destinations, order-independent.
+ *
+ * useFireProximity keys its lookup on this rather than on the array holding the
+ * points. The array is rebuilt on paths that re-derive it per render, and
+ * keying on the reference meant re-querying NIFC — and aborting the request
+ * already in flight — for a set of points that had not changed at all. Sorted
+ * because a re-rank reorders the same destinations, which is not a new question
+ * to ask about fires.
+ */
+export function pointsKey(points: { latitude: number; longitude: number }[]): string {
+  return points
+    .map((p) => fireKey(p.latitude, p.longitude))
+    .sort()
+    .join('|')
+}
+
 // Bounding box around all points, padded by `marginMi` on every side so a fire
 // up to that margin outside the cluster still intersects the query envelope.
 export function pointsBbox(
