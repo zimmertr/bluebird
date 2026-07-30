@@ -63,7 +63,7 @@ const MS_PER_DAY = 86_400_000
 // decide whether the user has changed anything worth persisting to the URL.
 const DEFAULT_SORT: SortBy = 'precip_total_in'
 const DEFAULT_TYPE: DiscoveryType = 'peak'
-const DEFAULT_LIMIT = 100
+const DEFAULT_LIMIT = 200
 
 function round(n: number): number {
   const f = 10 ** POLY_PRECISION

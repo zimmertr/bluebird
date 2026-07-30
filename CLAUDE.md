@@ -6,6 +6,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Bluebird is a map-based weather window finder for hikers and mountaineers, live at `bluebirdforecast.com`. Users draw a polygon on a map, pick a destination type and forecast window, and get a ranked table of destinations sorted by precipitation. No API keys are required — all external APIs (Overpass/OSM, Open-Meteo, OpenFreeMap, and NIFC for the optional wildfire overlay) are free and unauthenticated.
 
+## Documentation
+
+Prose lives in `docs/`. The README is an index, not a manual: it carries the
+Summary, How It Works, Quick Start, the docs table, Support, and License, and
+nothing else. Anything longer than a paragraph belongs on a page below, with
+the README linking to it. It was split out of a 560-line README in #192
+(issue #113); do not let it grow back.
+
+| Page | What belongs there |
+|---|---|
+| [`docs/USAGE.md`](docs/USAGE.md) | The user-facing walkthrough: destinations, forecast windows, max results, Analyze, marker colors, the results table |
+| [`docs/LIMITS.md`](docs/LIMITS.md) | The four caps (polygon area, candidates, rows, request pacing), why each exists, and the `429`/`502`/`503` mapping |
+| [`docs/DATA.md`](docs/DATA.md) | Per-provider truth: what each source can and cannot tell you, its fair-use posture, and the data-quality caveats |
+| [`docs/API.md`](docs/API.md) | HTTP API prose for callers: endpoints, worked examples, error handling |
+| [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | The env-var table and log levels |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How the service is built, and the Kubernetes deployment |
+| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Hot-reload setup and the test/lint commands (the public copy of the section below; keep the two in sync) |
+| [`docs/TRAFFIC.md`](docs/TRAFFIC.md) | How requests reach the pod and what the pod calls out to: Cloudflare, rate limits, upstream budgets |
+| [`docs/CICD.md`](docs/CICD.md) | The pipeline from merge to production, with diagrams |
+| [`NOTICES.md`](NOTICES.md) | Third-party attribution, at the repo root: the data-provider half transcribes `frontend/src/utils/dataSources.ts` (change one, change both in the same PR), plus bundled-software licenses |
+| `docs/images/` | README assets only (`screenshot.jpg` is the front-page shot) |
+
+Two conventions hold across every page:
+
+- **Never restate a numeric limit that `GET /api/capabilities` publishes.** Describe the shape and the reasoning, and point at the endpoint for the value. Prose copies drift: the split found three that already had (polygon cap, max results, CAMS grid). This is the whole point of issue #113.
+- **A doc change ships in the PR that causes it.** Nothing here is CI-enforced, so these are the artifacts that rot silently.
+
 ## Development commands
 
 **Backend (FastAPI, Python 3.14):**
@@ -58,7 +85,7 @@ Two suites: the frontend's pure logic under Vitest (`frontend/src/utils/*.test.t
 - **Style through the design system, never ad hoc.** Every frontend type, color, radius, and surface decision composes the roles in `frontend/src/styles.ts` (`TEXT`, `PROSE`, `LINK`/`LINK_ACTION`, `RADIUS`, `SURFACE_*`, `BUTTON_*`, `FIELD`). If no role fits, add or derive one **there** — with its rationale in a comment and an assertion in `frontend/src/styles.test.ts` — rather than spelling one-off utilities at a call site; that drift is what #159–#165 spent five PRs unwinding. Colors must clear WCAG AA on the surface they actually land on (4.5:1 for text and placeholders, 3:1 for icons and UI boundaries; the measured slate-vs-background table lives in issue #165). Two Tailwind v4 facts shape this: competing color utilities resolve by stylesheet order, not class-list order (so a role's color cannot be overridden at a call site), and source files are scanned as raw text (so a class name quoted in any comment or test emits its CSS — `styles.test.ts` shows how to write around it).
 - **Keep the CI/CD diagram current.** Any change that alters the deploy flow — a workflow in this repo or `bluebird-helm`, an image/chart/tag convention, or the `Kubernetes-Manifests` wiring — updates [`docs/CICD.md`](docs/CICD.md) in the same PR. That diagram spans two sibling repos (`bluebird-helm` and `Kubernetes-Manifests`), so flow changes made there come back here too; nothing enforces this automatically.
 - **Regenerate the OpenAPI snapshot.** Any change to a route, a Pydantic model, a `Field(description=...)`, or a route decorator changes the API contract. Run `cd backend && python scripts/generate_openapi.py` and commit `backend/openapi.json`; `pr.yml` fails the PR otherwise. The snapshot exists so a contract change is visible in review instead of buried in Python.
-- **Update [`docs/API.md`](docs/API.md) in the same PR.** Prose API docs live there, never hand-copied endpoint listings. Nothing enforces this the way CI enforces the snapshot, so it is the artifact that silently rots, and the README delegates to it so a stale page is what a new caller reads first. Check the worked examples, not just the prose: grep the docs for the fields you changed. The same freshness rule covers the rest of the docs library. The README is only an index; the substance lives in [`docs/USAGE.md`](docs/USAGE.md), [`docs/LIMITS.md`](docs/LIMITS.md), [`docs/DATA.md`](docs/DATA.md), [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), and [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md), and a change to a cap, an env knob, a data source, or the user-visible flow updates the matching page in the same PR. None of these restate a numeric limit that `GET /api/capabilities` publishes; they describe shape and reasoning and point at the endpoint for values (issue #113).
+- **Update the affected page in [`docs/`](docs/) in the same PR.** The Documentation table above says which page owns which topic: a new cap goes to `LIMITS.md`, a new env knob to `CONFIGURATION.md`, a provider caveat to `DATA.md`, a flow change to `USAGE.md`, an endpoint change to `API.md`. Nothing enforces this the way CI enforces the OpenAPI snapshot, so these are the artifacts that silently rot, and the README delegates to them so a stale page is what a new reader hits first. Check the worked examples, not just the prose: grep the docs for the fields you changed.
 - **Keep the aggregation vectors in lockstep.** The browser reimplements the backend's weather/AQI aggregation (`frontend/src/utils/openMeteo.ts` ↔ `backend/app/services/weather.py`/`air_quality.py`), pinned by shared vectors. Any semantic change there: change the backend first, run `cd backend && python scripts/generate_weather_vectors.py`, `cp tests/data/weather_vectors.json ../frontend/src/utils/weather_vectors.json`, and mirror the change in the TypeScript port. Pytest fails on a stale backend copy, Vitest fails on a drifted port, and the `vectors` CI job fails if the two copies differ.
 
 ## Architecture
@@ -107,11 +134,13 @@ The FastAPI backend handles `POST /api/analyze`, which:
 - `src/components/MapView.tsx` — MapLibre GL map, polygon drawing with native pointer events
 - `src/components/ControlPanel.tsx` — sidebar controls
 - `src/components/SearchBox.tsx` — floating map search (Nominatim place lookup + local coordinate parsing; Enter-to-search only, per Nominatim's no-autocomplete policy)
-- `src/components/ResultsTable.tsx` — sortable results table. A header click on one of the four `RANKING_KEYS` re-ranks the **whole field** through the panel knob (so it means the same thing as the ranking picker); the detail columns reorder the rows on screen, as they always have
+- `src/components/ResultsTable.tsx` — sortable results table, and *only* the rendering of one: it receives its rows already in display order. A header click on one of the four `RANKING_KEYS` re-ranks the **whole field** through the panel knob (so it means the same thing as the ranking picker); the detail columns reorder the rows on screen, as they always have, but that order is `App.tsx` state (`detailSort`) so the CSV export can leave in it
 - `src/hooks/useAnalyze.ts` — analysis orchestration: the client-side path first (discovery via `POST /api/destinations`, then browser Open-Meteo fetches), falling back to the `POST /api/analyze/stream` SSE pipeline only when Open-Meteo is unreachable from the browser
 - `src/utils/openMeteo.ts` — browser Open-Meteo fetch + the aggregation ports of `weather.py`/`air_quality.py`, pinned to the backend by `weather_vectors.json` (round-half-even, naive-UTC stamp parsing, zip-vs-series loop asymmetry all deliberate)
 - `src/utils/clientAnalyze.ts` — ports of the analyze route's merge/align/assemble/rank/filter-elevation helpers + the browser-side candidate cap; returns the trimmed `response` **and** the full ranked `universe`, and owns `refreshEchoRows` (which field a re-analysis re-ranks, and how removals apply to it)
 - `src/utils/present.ts` — the one derivation from held field + live knobs to displayed rows (`presentResults`), plus `bandNarrows` (is this elevation band a subset of the analyzed one?) and `commitNeeded` (which knob has stopped applying live, and why)
+- `src/utils/tableColumns.ts` — the column set itself (`COLUMNS`, with an optional `csv` projection where a display formatter would be unparseable) and the one derivation of which columns a report shows (`displayedColumns` = point-sample collapse, then ranked group lifted to the front). The table and the CSV export both read it, so a file's columns cannot disagree with the screen's
+- `src/utils/resultsCsv.ts` — the displayed report as a file (`buildResultsCsv`, `csvFilename`). Pure and DOM-free so it is testable under the node-env Vitest; the Blob and anchor live in `App.tsx`. Takes rows already in display order and columns already resolved — it re-derives nothing, because a second answer to "what is on screen" is the bug `present.ts` exists to prevent. A `null` fire map **drops the wildfire column** instead of writing it blank: on screen an empty flag column self-corrects when the ⚠️ arrives a moment later, but a file is read detached from the app, where a column of blanks asserts that every row was checked and cleared
 - `src/utils/forecastWindow.ts` — window normalization twin of `models.py` (point sample → floored hour + 1 min; horizon checks)
 - `src/types.ts` — TypeScript types mirroring backend Pydantic models
 - `src/styles.ts` — the type ramp plus the surface/button/field roles; components compose these instead of picking sizes and colors at the call site (`src/styles.test.ts` enforces it)
@@ -119,7 +148,7 @@ The FastAPI backend handles `POST /api/analyze`, which:
 - `src/utils/colors.ts` — marker/cell color thresholds per sortable metric (precip, wind, temp, AQI)
 - `src/utils/geocode.ts` — coordinate parsing, Nominatim client, and bounds math: search-view bounds for the search box plus the multi-point fit that frames pasted/restored CSV lists
 - `src/utils/wildfires.ts` — NIFC WFIGS query builder + popup formatting for the optional wildfire overlay (fetched client-side by viewport; US-only, keyless, best-effort)
-- `src/utils/fireProximity.ts` — pure point-to-perimeter distance math flagging results within 10 mi of an active fire; driven by `src/hooks/useFireProximity.ts`, which fetches NIFC once per analysis around the whole analyzed field, not the displayed rows — those are re-derived on every live knob change, and keying off them would mean a NIFC query per twiddle (independent of the overlay toggle, best-effort)
+- `src/utils/fireProximity.ts` — pure point-to-perimeter distance math flagging results within 10 mi of an active fire, plus `pointsKey` (the order-independent identity of a destination *set*); driven by `src/hooks/useFireProximity.ts`, which fetches NIFC once per analysis around the whole analyzed field, not the displayed rows — those are re-derived on every live knob change, and keying off them would mean a NIFC query per twiddle (independent of the overlay toggle). The hook keys its effect on `pointsKey`, not the array reference, or a re-rank aborts the request in flight and refetches the same question. It returns a **status** (`idle`/`loading`/`ready`/`unavailable`) beside the warnings, retries a failed lookup, and logs the caught error: every failure mode used to collapse into one empty map, so the feature's failure was indistinguishable from its all-clear. `ready` + empty means checked and nothing near; `unavailable` means the caller must not imply either
 
 ## CI/CD pipeline
 

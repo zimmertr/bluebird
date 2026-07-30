@@ -18,6 +18,7 @@ import {
   mergeCustom,
   runClientAnalysis,
 } from '../utils/clientAnalyze'
+import { pinKey } from '../utils/customList'
 import { OpenMeteoUnreachable } from '../utils/openMeteo'
 import { PresentationKnobs } from '../utils/present'
 
@@ -59,6 +60,13 @@ export type AnalyzedView = PresentationKnobs & {
   // for 'at' — the "as of HH:MM" / "for <datetime>" caption. Meaningless (the
   // click time) for window analyses, which never display it.
   analyzedAt: number
+  // The custom destinations this analysis covered — searched places and pasted
+  // CSV rows, by pinKey. Recorded off the request rather than read back off the
+  // results, which are cut to `limit` and so cannot answer "was this analyzed?"
+  // for a field bigger than the cut (#205). Taken from the request also makes
+  // the answer path-independent: the SSE fallback sends no universe, but the
+  // browser still knows what it submitted.
+  customKeys: ReadonlySet<string>
 }
 
 // FastAPI validation errors (422) carry detail as an array of {msg, ...}
@@ -185,6 +193,9 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
       // Point modes send the sampled moment as start_datetime (for 'now' it
       // IS the click time), so it doubles as the caption.
       analyzedAt: mode === 'window' ? Date.now() : Date.parse(request.start_datetime),
+      customKeys: new Set(
+        (request.custom_destinations ?? []).map((d) => pinKey(d.latitude, d.longitude)),
+      ),
     })
     // A fresh report, which is not the same event as a fresh row array: live
     // knobs rebuild the rows constantly. Surfaces that reset per report (the

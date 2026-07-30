@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { DATA_SOURCES } from './dataSources'
 
 // Two of these entries are attributions ODbL and CC BY require, so the list
-// being well-formed is a licensing property, not a cosmetic one. It renders in
-// three places (panel footer, privacy dialog, privacy page) and every one of
-// them trusts these fields without checking them.
+// being well-formed is a licensing property, not a cosmetic one. It renders on
+// the privacy and terms pages, NOTICES.md transcribes it, and every consumer
+// trusts these fields without checking them.
 describe('data sources', () => {
   it('credits every source with a name and an https link', () => {
     expect(DATA_SOURCES.length).toBeGreaterThan(0)
@@ -39,8 +39,9 @@ describe('data sources', () => {
     expect(byName.NIFC?.license).toBe('CC BY 3.0')
   })
 
-  // House style for anything a user reads. Checked here rather than only in
-  // legal.test.ts because this copy reaches the panel footer too.
+  // House style for anything a user reads. Checked here because legal.test.ts
+  // lints component source, and this copy is data those components interpolate
+  // at runtime; it never appears in their source text.
   it('uses no em or en dashes', () => {
     for (const source of DATA_SOURCES) {
       expect(`${source.name} ${source.provides} ${source.license ?? ''}`).not.toMatch(/[—–]/)

@@ -1,4 +1,4 @@
-import { CustomDestination, DestinationResult } from '../types'
+import { CustomDestination } from '../types'
 import { Place } from './geocode'
 
 // ~1 m precision — enough to match a backend-echoed coordinate back to its
@@ -52,22 +52,31 @@ export function buildCustomList(
   }))
 }
 
-// Custom destinations with no forecast on screen yet — not yet analyzed, ranked
-// below the cutoff, or awaiting a fresh run. Drawn as neutral pending dots and
+// Custom destinations no analysis has covered yet — freshly pasted, freshly
+// searched, or waiting on the first run. Drawn as neutral pending dots and
 // un-forecasted table rows so pasting a CSV gives the same immediate feedback a
 // search does, instead of leaving the map empty until an analysis returns.
+//
+// `analyzed` is the custom set the last completed analysis covered, NOT the
+// rows on screen. Keying off the rows was the #205 bug: they are the top-`limit`
+// cut, so every added destination that ranked below the cut came back as an
+// un-forecasted row claiming it had never been fetched, while its forecast sat
+// in the held field the whole time. `limit` trims what is shown, never what is
+// analyzed, and pending has to mean the same thing or the two disagree on
+// screen. A destination the analysis covered but the display drops — below the
+// cut, outside the elevation band — is simply not shown, like any other row the
+// knobs exclude.
 export function pendingDestinations(
   csvRows: CustomDestination[],
   places: Place[],
-  results: DestinationResult[],
+  analyzed: ReadonlySet<string>,
   removed: Set<string>,
 ): PendingDestination[] {
-  const shown = new Set(results.map((r) => pinKey(r.latitude, r.longitude)))
   return mergeCustom(csvRows, places).filter((d) => {
     const key = pinKey(d.latitude, d.longitude)
     // `removed` carries the weight for CSV rows: × on a searched place also
     // deregisters it, but a CSV row's text stays in the textarea, so without
     // this it would reappear as a dot the moment it left the report.
-    return !shown.has(key) && !removed.has(key)
+    return !analyzed.has(key) && !removed.has(key)
   })
 }
