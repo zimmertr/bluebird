@@ -4,6 +4,7 @@ import {
   fireKey,
   fireWarningText,
   pointsBbox,
+  pointsKey,
   nearestFire,
   FIRE_WARN_MILES,
 } from './fireProximity'
@@ -150,5 +151,37 @@ describe('nearestFire', () => {
     const near = nearestFire(30, -100, square)
     expect(near).not.toBeNull()
     expect(near!.miles).toBeGreaterThan(FIRE_WARN_MILES)
+  })
+})
+
+// The identity useFireProximity keys its lookup on. Keying on the array
+// reference instead meant re-querying NIFC, and aborting the request already in
+// flight, every time a re-rank handed the hook a fresh array holding the very
+// same destinations.
+describe('pointsKey', () => {
+  const a = { latitude: 46.8523, longitude: -121.7603 }
+  const b = { latitude: 48.1122, longitude: -121.1139 }
+
+  it('ignores the order the same destinations arrive in', () => {
+    expect(pointsKey([a, b])).toBe(pointsKey([b, a]))
+  })
+
+  it('ignores the identity of the array holding them', () => {
+    expect(pointsKey([a, b])).toBe(pointsKey([{ ...a }, { ...b }]))
+  })
+
+  it('changes when a destination joins or leaves', () => {
+    expect(pointsKey([a])).not.toBe(pointsKey([a, b]))
+    expect(pointsKey([])).not.toBe(pointsKey([a]))
+  })
+
+  it('changes when a destination moves', () => {
+    expect(pointsKey([a])).not.toBe(pointsKey([{ latitude: 46.9, longitude: -121.7603 }]))
+  })
+
+  // Same rounding as the warning keys themselves, so two rows the map treats
+  // as one place cannot look like two questions to ask about fires.
+  it('collapses coordinates finer than the warning key resolution', () => {
+    expect(pointsKey([a])).toBe(pointsKey([{ latitude: 46.852301, longitude: -121.760299 }]))
   })
 })

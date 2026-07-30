@@ -1,12 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {
-  wildfireQueryUrl,
-  formatAcres,
-  formatContainment,
-  formatUpdated,
-  wildfirePopupHtml,
-  nifcFireUrl,
-} from './wildfires'
+import { wildfireQueryUrl, formatAcres, formatContainment, formatUpdated, wildfirePopupHtml, nifcFireUrl, readArcgisError, isRateLimited } from './wildfires'
 
 // A representative fire-scoped NIFC link, reused by the popup tests.
 const NIFC = nifcFireUrl(-121.5, 39.5, 11)
@@ -109,5 +102,53 @@ describe('wildfirePopupHtml', () => {
     const html = wildfirePopupHtml({ attr_IncidentName: 'Beehive' }, NIFC)
     expect(html).toContain(`href="${NIFC}"`)
     expect(html).toContain('target="_blank"')
+  })
+})
+
+// ArcGIS answers HTTP 200 with an {error} payload, so a rejected query used to
+// reach the app as "Unexpected NIFC response shape" — a message that says
+// nothing and points at our own parsing. The real one, observed live on
+// 2026-07-30, is a shared per-minute quota belonging to NIFC's organization.
+describe('readArcgisError', () => {
+  const quota = {
+    error: {
+      code: 429,
+      message: 'Unable to perform query. Too many requests.',
+      details: [
+        'API calls quota exceeded (62896 request units)! maximum allowed request units (57600) per Minute. Retry after 60 sec.',
+      ],
+    },
+  }
+
+  it('returns null for a normal FeatureCollection', () => {
+    expect(readArcgisError({ type: 'FeatureCollection', features: [] })).toBeNull()
+    expect(readArcgisError(null)).toBeNull()
+    expect(readArcgisError('nonsense')).toBeNull()
+  })
+
+  it('reads the code and folds the details into the message', () => {
+    const read = readArcgisError(quota)
+    expect(read?.code).toBe(429)
+    expect(read?.message).toContain('Too many requests')
+    expect(read?.message).toContain('57600')
+  })
+
+  it('survives an error object with nothing useful in it', () => {
+    expect(readArcgisError({ error: {} })).toEqual({
+      code: null,
+      message: 'ArcGIS reported an error with no message',
+    })
+  })
+})
+
+// Retrying a quota rejection spends units belonging to every other caller of
+// the same shared organization, and ArcGIS asks for 60 seconds anyway.
+describe('isRateLimited', () => {
+  it('is true only for a failure flagged as a quota rejection', () => {
+    const err = new Error('quota') as Error & { rateLimited?: boolean }
+    err.rateLimited = true
+    expect(isRateLimited(err)).toBe(true)
+    expect(isRateLimited(new Error('network'))).toBe(false)
+    expect(isRateLimited(null)).toBe(false)
   })
 })

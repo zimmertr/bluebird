@@ -82,16 +82,52 @@ Click a marker for a popup with rank, precipitation, wind, temperature, and AQI.
 
 Click any column header to sort by it, ascending or descending. By default the table follows the **Result Ranking** selection, for example lowest total precipitation for driest-first.
 
-The four columns that are also ranking options (Precip Total, Wind Avg, Temp Avg, AQI Avg) *are* that selection: clicking one re-ranks every destination in your area and re-picks the top N, and the Result Ranking control moves to match. So clicking **Wind** gives you the least windy destinations in the area, not the driest ones reordered by wind. The remaining columns are detail rather than ranking, and reorder the rows currently listed.
+The four columns that are also ranking options (Precipitation · Total, Wind · Avg, Temperature · Avg, AQI · Avg) *are* that selection: clicking one re-ranks every destination in your area and re-picks the top N, and the Result Ranking control moves to match. So clicking **Wind** gives you the least windy destinations in the area, not the driest ones reordered by wind. The remaining columns are detail rather than ranking, and reorder the rows currently listed.
 
 Hovering a row reveals a × at its end (always visible on touch screens) that removes the destination from the report — the rows below renumber, and it stays gone as you re-rank, raise the max results, or narrow the elevation range. Changing the destinations, the window, or widening the elevation range starts a fresh report where it may return.
 
 | Column | Description |
 |---|---|
 | Name | Destination name, links to Windy |
-| Elev (ft) | Elevation in feet, from the OSM `ele` tag |
-| Precip Total" | Sum of hourly precipitation over the window, in inches |
-| Precip Avg"/hr | Average hourly precipitation rate |
-| Precip Max"/hr | Peak single-hour precipitation rate |
-| Temp Min/Max/Avg °F | Temperature range and average over the window |
-| Wind Min/Max/Avg mph | Wind speed range and average over the window |
+| Elevation (ft) | Elevation in feet, from the OSM `ele` tag |
+| Precipitation · Total (in) | Sum of hourly precipitation over the window, in inches |
+| Precipitation · Avg (in/hr) | Average hourly precipitation rate |
+| Precipitation · Max (in/hr) | Peak single-hour precipitation rate |
+| Temperature · Min/Max/Avg (°F) | Temperature range and average over the window |
+| Wind · Min/Max/Avg (mph) | Wind speed range and average over the window |
+| AQI · Avg/Max | US AQI over the window, blank past the air quality horizon |
+
+A single-hour analysis ("now", or a chosen moment) collapses each of those
+groups to one column, because over one hour the average, the minimum and the
+maximum are the same number three times.
+
+### Downloading the Table
+
+**Download CSV**, in the table's header bar, saves what is currently on screen
+as a file. It is a pure copy of the report you are looking at rather than a
+fresh query, so nothing is fetched and nothing is spent.
+
+What lands in the file:
+
+- The rows in the order you are reading them, ranking or detail-column sort
+  alike, numbered by a leading **Rank** column.
+- The columns the table is showing, under the same headers, which means a
+  single-hour analysis exports the collapsed set.
+- A **Wildfire Distance (mi)** column, which the table itself carries as the ⚠️
+  beside a name. A file has nowhere to hover, so the number gets a column.
+- Nothing a removed row would have contributed. Removals and the max-results
+  cut apply first, exactly as on screen.
+
+A blank cell means no value, never a zero. AQI is blank past its forecast
+horizon, and elevation is blank where OpenStreetMap has no `ele` tag.
+
+The wildfire column is the one that can disappear. If the fire check could not
+run, the column is left out of the file entirely and the results header says
+**Wildfire check unavailable**, rather than the file reporting every row as
+clear. So a blank wildfire cell means the check ran and found nothing within 10
+miles, which still is not proof there is no fire:
+[the wildfire notes](DATA.md#wildfires) explain the coverage gap that a
+successful check can still miss.
+
+Coordinates are deliberately absent. The file is meant to be read, not pasted
+back into [Search by Coordinates](#c-search-by-coordinates).

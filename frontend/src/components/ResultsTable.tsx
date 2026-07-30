@@ -1,28 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef } from 'react'
 import { AnalysisMode, DestinationResult, SortBy } from '../types'
 import { cellStyle, METRIC_CONFIG } from '../utils/colors'
 import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
-import { compareValues } from '../utils/sortResults'
-import { pointModeColumns, orderColumns } from '../utils/tableColumns'
+import { SortDir, SortKey, displayedColumns } from '../utils/tableColumns'
 import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
 import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
 import { LINK_ACTION, TEXT } from '../styles'
-import { AGGREGATE, RANKING_KEYS, metricLabel } from '../metrics'
+import { RANKING_KEYS } from '../metrics'
 
 function windyUrl(lat: number, lon: number, layer: string): string {
   return `https://www.windy.com/?${layer},${lat.toFixed(4)},${lon.toFixed(4)},11`
-}
-
-type SortKey = keyof DestinationResult
-type SortDir = 'asc' | 'desc'
-
-type ColDef = {
-  key: SortKey
-  label: string
-  format?: (v: unknown) => string
-  windyLayer?: string
 }
 
 function ExternalLinkIcon() {
@@ -68,27 +57,9 @@ function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; 
   )
 }
 
-// Headers name the metric and then how it was reduced over the window, split
-// by metrics.ts's separator so the eye doesn't have to find the seam. The rate
-// columns override the unit: precipitation is inches over a whole window but
-// inches per hour when averaged or peaked.
-const COLUMNS: ColDef[] = [
-  { key: 'name', label: 'Name' },
-  { key: 'elevation_ft', label: 'Elevation (ft)', format: (v) => (v != null ? Number(v).toLocaleString() : '—') },
-  { key: 'precip_total_in', label: metricLabel('precip', AGGREGATE.total), format: (v) => Number(v).toFixed(3), windyLayer: 'rain' },
-  { key: 'precip_avg_in_hr', label: metricLabel('precip', AGGREGATE.average, 'in/hr'), format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
-  { key: 'precip_max_in_hr', label: metricLabel('precip', AGGREGATE.maximum, 'in/hr'), format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
-  { key: 'temp_min_f', label: metricLabel('temp', AGGREGATE.minimum), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
-  { key: 'temp_max_f', label: metricLabel('temp', AGGREGATE.maximum), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
-  { key: 'temp_avg_f', label: metricLabel('temp', AGGREGATE.average), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
-  { key: 'wind_min_mph', label: metricLabel('wind', AGGREGATE.minimum), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
-  { key: 'wind_max_mph', label: metricLabel('wind', AGGREGATE.maximum), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
-  { key: 'wind_avg_mph', label: metricLabel('wind', AGGREGATE.average), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
-  { key: 'aqi_avg', label: metricLabel('aqi', AGGREGATE.average), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
-  { key: 'aqi_max', label: metricLabel('aqi', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
-]
-
 interface Props {
+  // Already in display order: App applies the detail-column sort below before
+  // handing these over, so the rows arrive as they are drawn.
   results: DestinationResult[]
   // The ranking the displayed rows are already in. Live on the client path,
   // where the panel re-derives the rows from the held field on every change.
@@ -98,10 +69,14 @@ interface Props {
   // server path, which holds no field to re-rank, so a header click there falls
   // back to reordering the rows on screen.
   onRank?: (key: SortBy, desc: boolean) => void
-  // Identifies the report rather than the row array: live knobs rebuild the
-  // rows constantly, and the detail-column sort should survive that while still
-  // resetting for a genuinely new analysis.
-  analysisSeq?: number
+  // The detail-column sort: which non-ranking column the rows are read in, and
+  // which way. Held by App rather than here since #125, because the CSV export
+  // has to leave in the order that is on screen, and a component that keeps its
+  // own display order privately is the one thing that can contradict
+  // present.ts's promise that a single place answers what the table shows.
+  detailSortKey: SortKey
+  detailSortDir: SortDir
+  onDetailSort: (key: SortKey, dir: SortDir) => void
   // From the analyzed snapshot, unlike sortBy/sortDesc: a point-sample analysis
   // ('now'/'at') shows one column per metric instead of the avg/min/max
   // triplets, and no knob can change that without a new analysis.
@@ -135,7 +110,9 @@ export default function ResultsTable({
   sortBy,
   sortDesc,
   onRank,
-  analysisSeq,
+  detailSortKey,
+  detailSortDir,
+  onDetailSort,
   mode = 'window',
   fireWarnings,
   pending,
@@ -152,25 +129,12 @@ export default function ResultsTable({
   // the numbers the ranking was built from are the first thing read. Keyed on
   // the analyzed snapshot, like the cell colors — panel knob changes don't
   // reshuffle the displayed report.
-  const orderedColumns = orderColumns(mode !== 'window' ? pointModeColumns(COLUMNS) : COLUMNS, sortBy)
-  const [sortKey, setSortKey] = useState<SortKey>(sortBy)
-  const [sortDir, setSortDir] = useState<SortDir>(sortDesc ? 'desc' : 'asc')
+  const orderedColumns = displayedColumns(mode, sortBy)
 
   // Shift-click range select: the checkbox last interacted with is the anchor;
   // a shift-held click extends (de)selection to every chartable row between.
   const shiftHeldRef = useRef(false)
   const anchorRef = useRef<string | null>(null)
-
-  // Follow the ranking: on a new report, and on a live ranking change, drop any
-  // detail-column sort and read in the order the rows arrived in.
-  //
-  // Keyed on the report rather than on `results`, which is a new array on every
-  // live limit or elevation change and would otherwise throw away a sort the
-  // user just asked for.
-  useEffect(() => {
-    setSortKey(sortBy)
-    setSortDir(sortDesc ? 'desc' : 'asc')
-  }, [sortBy, sortDesc, analysisSeq])
 
   // A header click means "rank by this", and for the four metrics that are also
   // ranking keys it can mean it literally: `onRank` re-cuts the whole held field,
@@ -189,17 +153,8 @@ export default function ResultsTable({
       onRank(key as SortBy, key === sortBy ? !sortDesc : false)
       return
     }
-    if (key === sortKey) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
-    } else {
-      setSortKey(key)
-      setSortDir('asc')
-    }
+    onDetailSort(key, key === detailSortKey && detailSortDir === 'asc' ? 'desc' : 'asc')
   }
-
-  // Nulls sort last in both directions; string columns use numeric collation so
-  // a CSV numbered 1..100 reads in order. See compareValues.
-  const sorted = [...results].sort((a, b) => compareValues(a[sortKey], b[sortKey], sortDir))
 
   // The leading checkbox column only appears once an analysis has returned
   // series to chart; rows without series (e.g. pinned search forecasts) render
@@ -221,7 +176,7 @@ export default function ResultsTable({
     if (shift && anchor && onChartRange) {
       // Apply the state this click produces (select or clear) to the whole run,
       // in the current display order — what the user sees between the two boxes.
-      const range = rowsBetween(sorted, anchor, chartKey(row)).filter((r) => r.series)
+      const range = rowsBetween(results, anchor, chartKey(row)).filter((r) => r.series)
       if (range.length > 0) {
         onChartRange(range, !(isCharted?.(row) ?? false))
         return
@@ -357,13 +312,13 @@ export default function ResultsTable({
               <th
                 key={col.key}
                 scope="col"
-                aria-sort={sortKey === col.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                aria-sort={detailSortKey === col.key ? (detailSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                 onClick={() => handleSort(col.key)}
                 className={`${TEXT.subheading} px-2 py-2 text-left cursor-pointer whitespace-nowrap hover:text-white select-none`}
               >
                 {col.label}
-                {sortKey === col.key && (
-                  <span className="ml-1 text-sky-400">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                {detailSortKey === col.key && (
+                  <span className="ml-1 text-sky-400">{detailSortDir === 'asc' ? '↑' : '↓'}</span>
                 )}
               </th>
             ))}
@@ -424,7 +379,7 @@ export default function ResultsTable({
               })}
             </tr>
           ))}
-          {sorted.map((row, i) => (
+          {results.map((row, i) => (
             <tr
               key={`${row.name}-${i}`}
               className="group border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors"

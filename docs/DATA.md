@@ -120,11 +120,37 @@ every analysis whether or not the overlay is switched on, and measure to the
 fire perimeter rather than its centroid, because a large fire's centroid can
 sit many miles inside its own edge.
 
+The overlay and the warnings are two different queries, which is why you can
+sometimes see fire outlines on the map while no row is flagged. The overlay asks
+about the area you are looking at and accepts simplified outlines, so it is
+small and refetches as you pan. The warnings ask about the area your
+destinations occupy, padded by the warning radius, and take perimeters at full
+resolution because simplifying them would move the edge the distance is measured
+to. One is cheap and repeated; the other is larger and runs once per analysis.
+
 WFIGS is the authoritative national dataset and it is **United States only**.
 Outside the US the query returns nothing, which draws as an empty overlay and
 warns on no rows, and that is indistinguishable from "nothing burning nearby."
-Both features are best-effort: if the service is unreachable they go quiet
-rather than failing your analysis. Perimeters are a surveyed product with
+
+The service meters a **per-minute request quota belonging to NIFC's own ArcGIS
+organization**, shared by every consumer of this public dataset, so it can be
+exhausted by traffic that has nothing to do with Bluebird. It rejects over-quota
+queries in an unusual way: HTTP 200, with the refusal in the response body, so
+nothing about the status code says anything went wrong. That is what makes the
+warnings come and go over minutes while the overlay keeps drawing, and it is why
+Bluebird does not retry that particular failure. ArcGIS asks for a 60 second
+wait, which is longer than anyone will hold a results table for, and the extra
+attempts would spend units belonging to every other caller.
+
+Both features are best-effort, but a failed check is no longer silent. Other
+failures retry briefly, and if the check still cannot run, the results header
+says **Wildfire check unavailable** and a downloaded CSV omits its wildfire
+column rather than leaving it blank on every row. Running Analyze again asks
+afresh, which is the way to recover once the quota window has passed. A blank cell in that column
+means the check ran and found nothing within the radius; an absent column means
+no destination was checked at all. The distinction matters more in a file than
+on screen, because a file is read later, somewhere else, with nothing beside it
+to say the check never happened. Perimeters are a surveyed product with
 reporting lag, so read them as where a fire has been mapped, not where it is
 burning right now. For decisions about an active incident, use
 [InciWeb](https://inciweb.wildfire.gov) and the responsible agency.
