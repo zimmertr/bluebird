@@ -15,11 +15,11 @@
 
 It's Friday evening. Rain is moving in from the west, smoke is drifting from the east, and strong winds are building to the south. You want to get outside this weekend, but where should you go?
 
-Bluebird helps you find out. Draw a search area and discover the best peaks, trails, lakes, and other destinations for your next adventure. Bluebird analyzes upcoming weather and ranks destinations by precipitation, wind, temperature, and air quality so you can quickly find the best objective.
+Bluebird helps you find out. Search for destinations, provide a list of coordinates, or draw a polygon and discover the best peaks, trails, lakes, and other destinations for your next adventure. Bluebird analyzes upcoming weather and ranks destinations by precipitation, wind, temperature, and air quality so you can quickly find the best objective.
 
-Bluebird is live at [bluebirdforecast.com](https://bluebirdforecast.com). No account, no API keys, nothing to sign up for.
+Ready to find your Bluebird day? https://bluebirdforecast.com
 
-![Bluebird analyzing peaks in the North Cascades](docs/images/screenshot.png)
+![Bluebird analyzing peaks in the North Cascades](docs/images/screenshot.jpg)
 
 <hr>
 
@@ -46,11 +46,7 @@ cd bluebird
 docker compose up --build -d
 ```
 
-Then open `http://localhost:8000`. To follow the logs:
-
-```bash
-docker compose logs -f
-```
+Then open `http://localhost:8000`. 
 
 <hr>
 
