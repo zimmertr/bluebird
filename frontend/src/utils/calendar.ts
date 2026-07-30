@@ -115,12 +115,19 @@ export function monthKey(key: string): string {
 
 /**
  * The same day-of-month inside another month, for paging a keyboard focus by
- * month. Overflow is the Date constructor's, so the 31st of a 30-day month
- * lands on the 1st of the next rather than on nothing.
+ * month.
+ *
+ * Clamped to the target month's last day rather than allowed to overflow into
+ * the next one. Page Up from the 31st of January has to land somewhere, and the
+ * Date constructor's own answer is March 3rd — which is drawn in February's grid
+ * as a trailing cell, so focus would be visible but in the wrong month. The 28th
+ * is what a reader means by "the same place, one month back".
  */
 export function dayInMonth(month: string, dayOfMonth: number): string {
   const [y, m] = month.split('-').map(Number)
-  return dayKey(new Date(y, m - 1, dayOfMonth))
+  // Day 0 of the following month is the last day of this one.
+  const last = new Date(y, m, 0).getDate()
+  return `${month}-${pad(Math.min(dayOfMonth, last))}`
 }
 
 /** Shift a month by whole months. Day-of-month is irrelevant here. */

@@ -106,10 +106,15 @@ describe('day arithmetic', () => {
     expect(monthKey('2026-07-04')).toBe('2026-07')
   })
 
-  it('carries a day-of-month into another month, overflowing rather than failing', () => {
+  it('carries a day-of-month into another month, clamped to that month', () => {
     expect(dayInMonth('2026-08', 15)).toBe('2026-08-15')
-    // Paging a focus off the 31st into a 30-day month has to land somewhere.
-    expect(dayInMonth('2026-04', 31)).toBe('2026-05-01')
+    // Paging a keyboard focus off the 31st has to land somewhere, and it has to
+    // land inside the month being drawn: the constructor's own overflow answer
+    // (May 1st, March 3rd) is a trailing cell of the target month's grid, so
+    // focus would be visible but a month adrift.
+    expect(dayInMonth('2026-04', 31)).toBe('2026-04-30')
+    expect(dayInMonth('2026-02', 31)).toBe('2026-02-28')
+    expect(dayInMonth('2028-02', 31)).toBe('2028-02-29')
   })
 
   it('counts calendar days inclusively, DST included', () => {
