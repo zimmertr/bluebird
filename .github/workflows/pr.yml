@@ -124,7 +124,9 @@ jobs:
       # ignore-unfixed everywhere: Debian/Alpine ship CVEs upstream has not
       # patched; flagging those would perma-red the pipeline over vulns nobody
       # can act on. JSON once, then jq/`trivy convert` derive the human table,
-      # the PR comment, and the gate from the same scan.
+      # the PR comment, and the gate from the same scan. File-level exclusions
+      # live in trivy.yaml, shared with image-scan.yml so this gate and the
+      # weekly re-scan judge an image the same way.
       - name: Scan image (Trivy)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -132,6 +134,7 @@ jobs:
           format: json
           output: trivy.json
           ignore-unfixed: true
+          trivy-config: trivy.yaml
 
       - name: Render scan report
         env:

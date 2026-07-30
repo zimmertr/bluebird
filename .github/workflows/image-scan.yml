@@ -24,6 +24,12 @@ jobs:
       contents: read
       security-events: write  # SARIF upload to the Security tab
     steps:
+      # This job scans a published image, not a checkout, so the only thing
+      # wanted from the repo is trivy.yaml: the same file-level exclusions the
+      # PR gate applied. Without it a release could pass pr.yml and then fail
+      # here on findings that gate deliberately ruled out.
+      - uses: actions/checkout@v7
+
       - name: Resolve latest release tag
         id: release
         env:
@@ -40,6 +46,7 @@ jobs:
           format: sarif
           output: trivy.sarif
           ignore-unfixed: true
+          trivy-config: trivy.yaml
 
       - name: Upload results to the Security tab
         uses: github/codeql-action/upload-sarif@v4
@@ -52,6 +59,7 @@ jobs:
       - name: Fail on fixable Critical/High vulnerabilities
         run: |
           trivy image --format json --output trivy.json --ignore-unfixed \
+            --config trivy.yaml \
             zimmertr/bluebird:${{ steps.release.outputs.semver }}
           CRIT_HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL" or .Severity == "HIGH")] | length' trivy.json)
           if [ "$CRIT_HIGH" -gt 0 ]; then
