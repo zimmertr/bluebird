@@ -26,6 +26,9 @@ import { Place, isPeakKind } from './utils/geocode'
 import { encodeState, decodeState, classifyWindow, classifyMoment } from './utils/urlState'
 import { DEFAULT_WINDOW_HOURS, nowLocal } from './utils/datetimeLocal'
 import { PresentationKnobs, bandNarrows, commitNeeded, presentResults } from './utils/present'
+import { SortDir, SortKey, displayedColumns } from './utils/tableColumns'
+import { compareValues } from './utils/sortResults'
+import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
 
 // Both map legends, sized as one: they stack in a single column, so differing
 // widths would read as a ragged edge rather than as two boxes. The step is a
@@ -45,6 +48,11 @@ const HEADER_PREFIX: Record<AnalysisMode, string> = {
   at: 'Forecast',
   window: 'Forecast Table',
 }
+
+// Stands in for the analysis snapshot's covered set before the first analysis.
+// A module constant rather than an inline `new Set()`, which would be a fresh
+// identity on every render and rebuild the pending list underneath the map.
+const NO_CUSTOM: ReadonlySet<string> = new Set()
 
 // Collapse/expand affordance for the bottom panels' header bars.
 function Chevron({ up }: { up: boolean }) {
@@ -147,7 +155,12 @@ export default function App() {
   // Future Day/Time pre-fills "tomorrow around this time" — a plausible first
   // point-in-time question — and is only sent when that mode is selected.
   const [atDatetime, setAtDatetime] = useState(() => restored?.atDatetime ?? nowLocal(24))
-  const [limit, setLimit] = useState(() => restored?.limit ?? 100)
+  // 200 rather than 100 because the pasted lists people bring are themselves
+  // often 100 long (peakbagger exports, the examples/ CSVs). At 100 a list plus
+  // anything else — one searched peak, a polygon — spills over the cut on its
+  // first analysis, which is what made #205 visible. Mirrored by DEFAULT_LIMIT
+  // in urlState.ts.
+  const [limit, setLimit] = useState(() => restored?.limit ?? 200)
   const [customCsv, setCustomCsv] = useState(() => restored?.customCsv ?? '')
   // Parsed once per edit and shared by the pending markers and the Analyze
   // request, so what the map shows and what gets ranked can't drift apart.
@@ -586,6 +599,45 @@ export default function App() {
     [presented],
   )
 
+  // The detail-column sort, held here rather than inside ResultsTable (#125).
+  //
+  // Clicking one of the four ranking columns re-cuts the whole field through
+  // the panel knob and is already answered by `results` above. Clicking any
+  // other column is a reading aid: it reorders the rows on screen without
+  // changing which rows they are. That order used to be private to the table,
+  // which made the table the only thing that knew what it was showing —
+  // tolerable while nothing else needed the answer, and wrong the moment a
+  // download had to leave in the order on screen.
+  //
+  // The pair below is therefore two arrays, not one, and the difference
+  // matters: `results` stays in ranking order for the markers, the legend, the
+  // fire lookup and the chart's default selection, while `tableRows` is what
+  // the table draws and what the CSV writes. Handing `tableRows` to the map
+  // would quietly make the markers follow a detail sort, and the types would
+  // not complain.
+  const [detailSort, setDetailSort] = useState<{ key: SortKey; dir: SortDir }>({
+    key: sortBy,
+    dir: sortDesc ? 'desc' : 'asc',
+  })
+
+  // Follow the ranking: on a new report, and on a live ranking change, drop any
+  // detail-column sort and read in the order the rows arrived in.
+  //
+  // Keyed on the report rather than on the rows, which are a new array on every
+  // live limit or elevation change and would otherwise throw away a sort the
+  // user just asked for.
+  useEffect(() => {
+    setDetailSort({ key: view.sortBy, dir: view.sortDesc ? 'desc' : 'asc' })
+  }, [view.sortBy, view.sortDesc, analysisSeq])
+
+  // Nulls sort last in both directions; string columns use numeric collation so
+  // a pasted list numbered 1..100 reads in order. See compareValues.
+  const tableRows = useMemo(
+    () => [...results].sort((a, b) => compareValues(a[detailSort.key], b[detailSort.key], detailSort.dir)),
+    [results, detailSort],
+  )
+  const tableColumns = useMemo(() => displayedColumns(view.mode, view.sortBy), [view.mode, view.sortBy])
+
   // × on a table row. Removing a searched place also deregisters it — else the
   // next analysis would simply rediscover it from the searched list.
   function handleRemoveResult(row: DestinationResult) {
@@ -593,13 +645,18 @@ export default function App() {
     searched.removePlace(row.latitude, row.longitude)
   }
 
-  // Custom destinations absent from the displayed report — not yet analyzed,
-  // ranked below the cutoff, or awaiting a fresh run — drawn as neutral pending
+  // Custom destinations no analysis has covered yet — drawn as neutral pending
   // dots and un-forecasted rows. Pasted CSV rows count: a list should show up
   // the moment it's pasted, not only once an analysis returns.
+  //
+  // Measured against the analysis snapshot, never against `results`: those are
+  // the top-`limit` rows, so asking them turned every added destination below
+  // the cut back into an un-forecasted row (#205). Before the first analysis
+  // there is no snapshot, so everything named is pending, which is the point.
   const pending = useMemo(
-    () => pendingDestinations(csvRows, searched.places, results, removedKeys),
-    [csvRows, searched.places, results, removedKeys],
+    () =>
+      pendingDestinations(csvRows, searched.places, analyzed?.customKeys ?? NO_CUSTOM, removedKeys),
+    [csvRows, searched.places, analyzed, removedKeys],
   )
   const hasColoredMarkers = showResults && results.length > 0
   const showTable = showResults && (results.length > 0 || pending.length > 0)
@@ -608,7 +665,32 @@ export default function App() {
   // map overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
   // Fed the whole analyzed field so live knobs re-present rows without
   // re-querying NIFC; falls back to the displayed rows on the server path.
-  const fireWarnings = useFireProximity(universe ?? results)
+  const fire = useFireProximity(universe ?? results, analysisSeq)
+
+  // Download the displayed report (#125). Everything that decides what the file
+  // contains is already resolved above, so this only has to hand settled values
+  // to the formatter and hang the result off an anchor.
+  //
+  // The warnings go over only when the lookup actually produced them. Anything
+  // else is `null`, which drops the wildfire column from the file rather than
+  // filling it with blanks that would read as "checked, nothing near".
+  //
+  // The object URL is revoked on the next frame rather than immediately:
+  // click() only queues the download, and Safari has historically cancelled it
+  // if the URL is released in the same task.
+  function handleDownloadCsv() {
+    const csv = buildResultsCsv(
+      tableRows,
+      tableColumns,
+      fire.status === 'ready' ? fire.warnings : null,
+    )
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = csvFilename(new Date())
+    link.click()
+    requestAnimationFrame(() => URL.revokeObjectURL(url))
+  }
 
   // Comparison-chart selection (checkboxes in the table → lines in the chart).
   // Every row shares the analysis's hourly grid. Point-sample analyses
@@ -809,7 +891,7 @@ export default function App() {
             onDrawUpdate={handleDrawUpdate}
             results={results}
             sortBy={view.sortBy}
-            fireWarnings={fireWarnings}
+            fireWarnings={fire.warnings}
             showWildfires={showWildfires}
             pending={pending}
             minElevationFt={minElevationFt}
@@ -998,6 +1080,22 @@ export default function App() {
                   </span>
                 )}
               </span>
+              {/* The fire check is best-effort, and every way it can fail used
+                  to render as an all-clear: no ⚠️ on any row, and since #125 an
+                  empty column in the download. For a safety warning that is the
+                  wrong way round, so a failed lookup says so. Status text sits
+                  outside the type ramp by styles.ts's own rule, wearing the
+                  base size and a semantic color; it cannot compose TEXT.micro
+                  because that role carries slate-300 and two color utilities
+                  would resolve by stylesheet order rather than by intent. */}
+              {fire.status === 'unavailable' && results.length > 0 && (
+                <span
+                  className="ml-2 text-xs text-amber-300"
+                  title="The wildfire service could not be reached, so no destination has been checked for fire proximity. Rows are not flagged, and the downloaded CSV leaves the wildfire column out rather than reporting every row as clear."
+                >
+                  Wildfire check unavailable
+                </span>
+              )}
               {/* CC-BY 4.0 requires this credit beside the data itself, not
                   just in the privacy modal; the docked header bar keeps it
                   visible whenever forecasts are on screen. */}
@@ -1012,6 +1110,25 @@ export default function App() {
               >
                 Weather data by Open-Meteo.com
               </a>
+              {/* Sits after the credit rather than before it so the credit
+                  keeps the one ml-auto in this bar: two of them would split the
+                  free space between the pair instead of pushing both right, and
+                  the credit has to survive on its own when there is nothing to
+                  download. Which is the other condition here — the panel also
+                  opens for un-forecasted pending rows, and a file of empty
+                  cells is not a report. Wearing the same two roles as the
+                  credit because it is the same kind of thing: a quiet aside in
+                  a bar whose subject is the title on its left. */}
+              {results.length > 0 && (
+                <button
+                  onClick={handleDownloadCsv}
+                  title="Download these results as a CSV file"
+                  aria-label="Download these results as a CSV file"
+                  className={`${TEXT.micro} ${LINK} mr-2 cursor-pointer`}
+                >
+                  Download CSV
+                </button>
+              )}
               <button
                 onClick={() => setTableCollapsed((c) => !c)}
                 title={tableCollapsed ? 'Expand the table' : 'Collapse the table'}
@@ -1031,7 +1148,7 @@ export default function App() {
             {!tableCollapsed && (
               <div className="overflow-auto min-h-0 results-scrollbars flex-1">
                 <ResultsTable
-                  results={results}
+                  results={tableRows}
                   sortBy={view.sortBy}
                   sortDesc={view.sortDesc}
                   // A header click on a ranking metric IS the panel knob, so
@@ -1045,9 +1162,11 @@ export default function App() {
                         }
                       : undefined
                   }
-                  analysisSeq={analysisSeq}
+                  detailSortKey={detailSort.key}
+                  detailSortDir={detailSort.dir}
+                  onDetailSort={(key, dir) => setDetailSort({ key, dir })}
                   mode={view.mode}
-                  fireWarnings={fireWarnings}
+                  fireWarnings={fire.warnings}
                   pending={pending}
                   onRemove={handleRemoveResult}
                   onRemovePending={(d) => searched.removePlace(d.latitude, d.longitude)}

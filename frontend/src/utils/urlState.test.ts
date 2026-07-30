@@ -56,7 +56,7 @@ const pristine: ShareableState = {
   sortDesc: false,
   minElevationFt: null,
   maxElevationFt: null,
-  limit: 100,
+  limit: 200,
   customCsv: '',
   showWildfires: false,
   pins: [],

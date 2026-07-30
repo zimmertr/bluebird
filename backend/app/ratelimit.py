@@ -85,14 +85,35 @@ NOMINATIM_MIN_INTERVAL_MS = _env_int("NOMINATIM_MIN_INTERVAL_MS", 3500)
 # Pod-wide Open-Meteo spend budgets, in the provider's own unit: weighted
 # calls, where one location in a batch is one call (times a factor for >14-day
 # windows or >10 variables — see services.openmeteo_weight). Their per-IP
-# budget is 600/min per service; 550 leaves margin, and the default divides it
-# by the 3 production replicas (documented slop: a canary rollout roughly
-# doubles pod count and therefore the cluster ceiling for its duration; the
-# #65 shared store is the durable exactness fix). 0 disables pacing.
-UPSTREAM_WEIGHT_PER_MINUTE_WEATHER = _env_int("UPSTREAM_WEIGHT_PER_MINUTE_WEATHER", 180)
-UPSTREAM_WEIGHT_PER_MINUTE_AQI = _env_int("UPSTREAM_WEIGHT_PER_MINUTE_AQI", 180)
+# budget is 600/min per service; 550 leaves margin on accounting we infer
+# rather than read from a spec.
+#
+# Every pod gets the whole 550 rather than a 1/replicas share. Dividing was
+# wrong in both directions. It under-serves, because one analysis is handled
+# end to end by a single pod and can cost ~1,713 weighted calls (30 batches of
+# 50 across a 16-day window), so the budget must cover one request's entire
+# fan-out rather than a fair slice of aggregate traffic — and a divided share
+# is floor-limited anyway, since bucket capacity is per_minute and 550/10 = 55
+# sits below the 57.1 a single batch costs, which would pace every batch on an
+# otherwise idle pod. It also over-protects, because since the client path
+# shipped the SPA fetches Open-Meteo from the browser on the visitor's own IP;
+# the server path runs only when the browser cannot reach Open-Meteo, so
+# pod-originated spend is the exception rather than the norm.
+#
+# The trade is that the cluster as a whole can exceed 550/min when several pods
+# fetch at once. Accepted deliberately: this is a ceiling, not a reservation,
+# and the per-minute pacer never protected the hourly (5,000) or daily (10,000)
+# quotas anyway — even at 180 a pod exhausts a day's allowance in under an
+# hour. What protects those is the browser-first split above. #65's shared
+# store is the durable fix that makes this exact instead of approximate.
+#
+# 0 disables pacing, and is worse than any positive value: unpaced, four
+# concurrent batches fire ~228 weighted calls at once, trip the minute ceiling,
+# burn the single automatic retry in weather.py and fail the analysis outright.
+UPSTREAM_WEIGHT_PER_MINUTE_WEATHER = _env_int("UPSTREAM_WEIGHT_PER_MINUTE_WEATHER", 550)
+UPSTREAM_WEIGHT_PER_MINUTE_AQI = _env_int("UPSTREAM_WEIGHT_PER_MINUTE_AQI", 550)
 # A single acquire that would have to wait longer than this sheds instead —
-# at the default refill (180/min = 3/s) even a worst-case 50-location batch
+# at the default refill (550/min ≈ 9.2/s) even a worst-case 50-location batch
 # behind a full queue clears in well under this bound, so tripping it means
 # something is genuinely wedged, not merely busy.
 UPSTREAM_WEIGHT_MAX_WAIT_S = _env_int("UPSTREAM_WEIGHT_MAX_WAIT_S", 120)

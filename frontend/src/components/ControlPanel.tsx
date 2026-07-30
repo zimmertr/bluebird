@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { AnalysisMode, CustomDestination, DiscoveryType, SortBy } from '../types'
 import { Refusal } from '../hooks/useAnalyze'
 import { MAX_AREA_KM2 } from './MapView'
@@ -9,7 +9,6 @@ import { MAX_AREA_KM2 } from './MapView'
 // starts brushing the analysis cap (~26,000 km² held 1,117 peaks).
 const AREA_NOTE_KM2 = 40_000
 import { parseCustomCsv } from '../utils/customDestinations'
-import { DATA_SOURCES } from '../utils/dataSources'
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD, LINK, TEXT } from '../styles'
 import { AGGREGATE, NOUN, RANKING_KEYS, familyOf } from '../metrics'
 import { canAnalyze } from '../utils/analyzeGate'
@@ -253,7 +252,7 @@ export default function ControlPanel({
           <div className="mb-3">
             <h3 className={`${TEXT.subheading} mb-1`}>Search by Polygon</h3>
             <p className={`${TEXT.helper} mb-1.5`}>
-              Search for destinations by drawing a polygon around an area.
+              Search for destinations by drawing a polygon.
             </p>
             {drawPointCount > 0 && (
               <div className="space-y-2">
@@ -658,10 +657,18 @@ export default function ControlPanel({
                 max={maxLimit}
                 value={limit}
                 onChange={(e) =>
-                  setLimit(Math.max(1, Math.min(maxLimit, parseInt(e.target.value) || 100)))
+                  setLimit(Math.max(1, Math.min(maxLimit, parseInt(e.target.value) || 200)))
                 }
                 className={`${FIELD} w-24 px-2 py-1.5`}
               />
+              {/* The knob reads like a cap on the work, and users have taken it
+                  for one (#205): a list longer than this looks half-fetched.
+                  The API description and the comment above say it the same way.
+                  Keep it under ~50 characters or the sidebar wraps it to a
+                  second line, which is why the count itself is not named here. */}
+              <p className={`${TEXT.helper} mt-1`}>
+                Number of results shown. All points are analyzed.
+              </p>
             </div>
 
             {/* Show wildfires — live NIFC perimeter overlay, off by default */}
@@ -763,17 +770,6 @@ export default function ControlPanel({
           </div>
         )}
 
-        <p className={`${TEXT.caption} text-center leading-relaxed`}>
-          Data:{' '}
-          {DATA_SOURCES.map((source, i) => (
-            <Fragment key={source.name}>
-              {i > 0 && ' · '}
-              <a href={source.href} target="_blank" rel="noreferrer" className={LINK}>
-                {source.name}
-              </a>
-            </Fragment>
-          ))}
-        </p>
         {/* Two labels, two pages, and each label goes where it says. The
             privacy copy used to open a dialog here, which meant it had no URL
             and the Terms link next to it pointed at the privacy page anyway.
