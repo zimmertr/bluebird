@@ -1,16 +1,10 @@
-// Formats a Date as the `datetime-local` input value ("YYYY-MM-DDTHH:MM"),
-// in the user's local timezone — the shape the forecast-window inputs and
-// URL state (start=/end=) both speak.
+// Formats a Date as the `datetime-local` string ("YYYY-MM-DDTHH:MM"), in the
+// user's local timezone — the shape the URL's legacy start=/end=/at= params
+// speak, and the shape a calendar selection resolves to before it is converted
+// to UTC for the API (`utils/calendar.ts`).
 
-/** Local "now" shifted by offsetHours, formatted for a datetime-local input. */
-export function nowLocal(offsetHours = 0): string {
-  const d = new Date(Date.now() + offsetHours * 3_600_000)
+/** Local `now`, formatted for a datetime-local value. */
+export function nowLocal(now: Date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`
 }
-
-// A fresh session's End pre-fill: Start stays "now", End lands three days out,
-// so the first Analyze is a real multi-day window instead of the single-hour
-// snapshot start == end produces (valid, but it reads as an all-zero table to
-// a first-time user).
-export const DEFAULT_WINDOW_HOURS = 72

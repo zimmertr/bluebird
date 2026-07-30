@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react'
-import { AnalysisMode, CustomDestination, DiscoveryType, SortBy } from '../types'
+import { CustomDestination, DiscoveryType, SortBy } from '../types'
 import { Refusal } from '../hooks/useAnalyze'
 // Above this drawn area, an informational note warns that dense regions can
 // exceed the destination limit and searches slow down. Advisory only: the hard
@@ -7,26 +7,20 @@ import { Refusal } from '../hooks/useAnalyze'
 // Sized to where Cascades-density terrain starts brushing the analysis cap
 // (~26,000 km² held 1,117 peaks).
 const AREA_NOTE_KM2 = 40_000
+import ForecastCalendar from './ForecastCalendar'
 import { parseCustomCsv } from '../utils/customDestinations'
-import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD, LINK, TEXT } from '../styles'
+import { ACCENT_FILL, BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD, LINK, TEXT } from '../styles'
 import { AGGREGATE, NOUN, RANKING_KEYS, familyOf } from '../metrics'
 import { canAnalyze } from '../utils/analyzeGate'
+import { classifyAqiCoverage, clampLimit } from '../utils/urlState'
 import {
-  classifyAqiCoverage,
-  clampLimit,
   AQI_LIMIT_DAYS,
-  PAST_LIMIT_DAYS,
   FUTURE_LIMIT_DAYS,
-} from '../utils/urlState'
-
-// Constrain the native date pickers to Open-Meteo's servable range so an
-// unservable window (e.g. a year ahead) can't be picked in the first place.
-// Typed-in dates can still exceed this — classifyWindow blocks those.
-function pickableDate(offsetDays: number): string {
-  const d = new Date(Date.now() + offsetDays * 86_400_000)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
+  ForecastSelection,
+  PAST_LIMIT_DAYS,
+  selectionLocalWindow,
+} from '../utils/calendar'
+import { isPointSample } from '../utils/forecastWindow'
 
 // The app's core question: "top N peaks by <metric>, lowest or highest".
 // Each metric ranks by one representative value — total precipitation,
@@ -40,8 +34,9 @@ const SORT_METRICS: { value: SortBy; label: string }[] = RANKING_KEYS.map((value
 // Why a knob stopped applying live. Each case leads with the action, because
 // that is what the reader wants first; the sentence after it is the reason the
 // controls went quiet, which is the thing this cue exists to not leave unsaid.
-const COMMIT_CUE: Record<'server-path' | 'elevation-widened', string> = {
+const COMMIT_CUE: Record<'server-path' | 'elevation-widened' | 'window-changed', string> = {
   'elevation-widened': 'Press Analyze to apply. A wider elevation range needs a new search.',
+  'window-changed': 'Press Analyze to apply. A different forecast window needs new forecasts.',
   // The overlay already announced the fallback itself ("Weather service
   // unreachable from this browser"), so this only has to name the consequence.
   'server-path': 'Press Analyze to apply. The server analysis returns only the rows shown.',
@@ -61,17 +56,11 @@ interface Props {
   onCancelDrawing: () => void
   destinationType: DiscoveryType
   setDestinationType: (t: DiscoveryType) => void
-  startDatetime: string
-  setStartDatetime: (s: string) => void
-  endDatetime: string
-  setEndDatetime: (s: string) => void
-  // Forecast-time mode: Current Conditions ('now'), Future Day/Time ('at'),
-  // or Multi-Hour Window ('window'). The inactive modes' pickers stay mounted
-  // but disabled so their values survive a round trip through another mode.
-  forecastMode: AnalysisMode
-  setForecastMode: (m: AnalysisMode) => void
-  atDatetime: string
-  setAtDatetime: (s: string) => void
+  // What the analysis asks about: the current hour, or days off the calendar.
+  // One value rather than a mode plus three sets of timestamps (#166), so there
+  // is no dormant state to preserve across a switch.
+  selection: ForecastSelection
+  setSelection: (s: ForecastSelection) => void
   limit: number
   setLimit: (n: number) => void
   customCsv: string
@@ -89,15 +78,15 @@ interface Props {
   setMaxElevationFt: (v: number | null) => void
   showWildfires: boolean
   setShowWildfires: (v: boolean) => void
-  windowWarning: 'past' | 'future' | 'order' | 'equal' | null
-  // Out-of-range warning for the Future Day/Time moment (only ever non-null
-  // while that mode is selected).
-  momentWarning: 'past' | 'future' | null
+  // The selection is unservable, or its narrowed hours run backwards. A horizon
+  // case only arrives through a shared link: the calendar draws those days
+  // disabled.
+  windowWarning: 'past' | 'future' | 'order' | null
   // Why a knob has stopped applying live, or null while they all do. Sort,
   // limit and elevation-narrowing normally re-present the held field with no
   // Analyze at all (#188), so this cue is the exception rather than the rule
   // and has to say which exception it is.
-  commitReason?: 'server-path' | 'elevation-widened' | null
+  commitReason?: 'server-path' | 'elevation-widened' | 'window-changed' | null
   // At least one place has been searched by name. Searched places are a ranked
   // input like the CSV, so one alone enables Analyze with no polygon drawn.
   hasPins: boolean
@@ -135,14 +124,8 @@ export default function ControlPanel({
   onCancelDrawing,
   destinationType,
   setDestinationType,
-  startDatetime,
-  setStartDatetime,
-  endDatetime,
-  setEndDatetime,
-  forecastMode,
-  setForecastMode,
-  atDatetime,
-  setAtDatetime,
+  selection,
+  setSelection,
   limit,
   setLimit,
   customCsv,
@@ -159,7 +142,6 @@ export default function ControlPanel({
   showWildfires,
   setShowWildfires,
   windowWarning,
-  momentWarning,
   commitReason,
   hasPins,
   loading,
@@ -188,18 +170,11 @@ export default function ControlPanel({
   // true exactly when a change came from a paste — including a paste that
   // replaces existing text — and stale flags can't survive into typing.
   const csvPasteRef = useRef(false)
-  // Each mode gates Analyze on its own inputs: Current Conditions needs no
-  // dates at all (the click time is the moment), Future Day/Time needs its
-  // moment picked, Multi-Hour Window needs both ends.
-  const hasDates =
-    forecastMode === 'now' ||
-    (forecastMode === 'at' ? atDatetime !== '' : startDatetime !== '' && endDatetime !== '')
   const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > maxAreaKm2
 
   const polygonReady = drawPointCount >= 3 && !areaTooLarge
   const analyzeEnabled = canAnalyze({
-    hasDates,
-    hasWindowWarning: windowWarning !== null || momentWarning !== null,
+    hasWindowWarning: windowWarning !== null,
     loading,
     areaTooLarge,
     polygonReady,
@@ -207,18 +182,16 @@ export default function ControlPanel({
     hasPins,
   })
 
-  // Informational only — never blocks Analyze. AQI simply degrades to "—".
-  // 'now' is always inside the ~5-day AQI horizon; 'at' checks its single
-  // moment (a zero-length span is either fully covered or not at all).
+  // The selection as the datetime pair the warnings read. The calendar marks
+  // days past the air-quality horizon in the grid; this is the sentence that
+  // explains the mark once a selection actually crosses it.
+  const window = selectionLocalWindow(selection, new Date())
+  // Informational only — never blocks Analyze. AQI simply degrades to "—". The
+  // current hour is always inside the ~5-day horizon.
   const aqiCoverage =
-    forecastMode === 'now'
-      ? 'full'
-      : forecastMode === 'at'
-      ? classifyAqiCoverage(atDatetime, atDatetime, new Date())
-      : classifyAqiCoverage(startDatetime, endDatetime, new Date())
-
-  const minPickable = pickableDate(-PAST_LIMIT_DAYS)
-  const maxPickable = pickableDate(FUTURE_LIMIT_DAYS)
+    selection.kind === 'now' ? 'full' : classifyAqiCoverage(window.start, window.end, new Date())
+  // One hourly stamp, so the ranking has no aggregate to name.
+  const pointSample = isPointSample(Date.parse(window.start), Date.parse(window.end))
 
   const pointsNeeded = Math.max(0, 3 - drawPointCount)
 
@@ -357,169 +330,28 @@ export default function ControlPanel({
           </div>
         </section>
 
-        {/* Step 2: Forecast window */}
+        {/* Step 2: Forecast window — one calendar, replacing the three
+            mutually exclusive modes and their four date/time pairs (#166) */}
         <section>
           <h2 className={`${TEXT.section} mb-1`}>
             2. Forecast Window
           </h2>
           <p className={`${TEXT.helper} mb-2.5`}>
-            Analyze conditions now, later, or for a window
+            Pick a day, or drag across days for a range.
           </p>
 
-          {/* a. Current Conditions — a point-in-time sample of the moment
-              Analyze is clicked. No inputs of its own. */}
-          <div className="mb-3">
-            <label className="flex items-center gap-2.5 cursor-pointer">
-              <input
-                type="radio"
-                name="forecast_mode"
-                checked={forecastMode === 'now'}
-                onChange={() => setForecastMode('now')}
-                className="accent-sky-500 h-3.5 w-3.5"
-              />
-              <span className={TEXT.control}>Current Conditions</span>
-            </label>
-          </div>
+          <ForecastCalendar selection={selection} onChange={setSelection} />
 
-          {/* b. Future Day/Time — a point sample of one chosen hour. The
-              picker stays mounted but disabled while another mode is
-              selected, so its value is preserved. */}
-          <div className="mb-3">
-            <label className="flex items-center gap-2.5 cursor-pointer mb-1.5">
-              <input
-                type="radio"
-                name="forecast_mode"
-                checked={forecastMode === 'at'}
-                onChange={() => setForecastMode('at')}
-                className="accent-sky-500 h-3.5 w-3.5"
-              />
-              <span className={TEXT.control}>Future Day/Time</span>
-            </label>
-            <div className={`flex gap-1 ${forecastMode !== 'at' ? 'opacity-40' : ''}`}>
-              <input
-                type="date"
-                aria-label="Forecast date"
-                value={atDatetime.split('T')[0] ?? ''}
-                min={minPickable}
-                max={maxPickable}
-                disabled={forecastMode !== 'at'}
-                onChange={(e) => {
-                  const d = e.target.value
-                  const t = atDatetime.split('T')[1] ?? '00:00'
-                  setAtDatetime(d ? `${d}T${t}` : '')
-                }}
-                className={`${FIELD} flex-1 min-w-0 px-2 py-1.5`}
-              />
-              <input
-                type="time"
-                aria-label="Forecast time"
-                value={atDatetime.split('T')[1] ?? '00:00'}
-                disabled={forecastMode !== 'at' || !atDatetime}
-                onChange={(e) => {
-                  const d = atDatetime.split('T')[0]
-                  if (d) setAtDatetime(`${d}T${e.target.value}`)
-                }}
-                className={`${FIELD} w-28 px-2 py-1.5 disabled:opacity-40`}
-              />
-            </div>
-          </div>
-
-          {/* c. Multi-Hour Window — the classic start–end forecast window.
-              Pickers disabled (values preserved) while another mode is on. */}
-          <div>
-            <label className="flex items-center gap-2.5 cursor-pointer mb-1.5">
-              <input
-                type="radio"
-                name="forecast_mode"
-                checked={forecastMode === 'window'}
-                onChange={() => setForecastMode('window')}
-                className="accent-sky-500 h-3.5 w-3.5"
-              />
-              <span className={TEXT.control}>Multi-Hour Window</span>
-            </label>
-            <div className={`space-y-2 ${forecastMode !== 'window' ? 'opacity-40' : ''}`}>
-              <div>
-                <label htmlFor="window-start-date" className={`${TEXT.subheading} block mb-1`}>Start</label>
-                <div className="flex gap-1">
-                  <input
-                    id="window-start-date"
-                    type="date"
-                    value={startDatetime.split('T')[0] ?? ''}
-                    min={minPickable}
-                    max={maxPickable}
-                    disabled={forecastMode !== 'window'}
-                    onChange={(e) => {
-                      const d = e.target.value
-                      const t = startDatetime.split('T')[1] ?? '00:00'
-                      setStartDatetime(d ? `${d}T${t}` : '')
-                    }}
-                    className={`${FIELD} flex-1 min-w-0 px-2 py-1.5`}
-                  />
-                  <input
-                    type="time"
-                    aria-label="Start time"
-                    value={startDatetime.split('T')[1] ?? '00:00'}
-                    disabled={forecastMode !== 'window' || !startDatetime}
-                    onChange={(e) => {
-                      const d = startDatetime.split('T')[0]
-                      if (d) setStartDatetime(`${d}T${e.target.value}`)
-                    }}
-                    className={`${FIELD} w-28 px-2 py-1.5 disabled:opacity-40`}
-                  />
-                </div>
-              </div>
-              <div>
-                <label htmlFor="window-end-date" className={`${TEXT.subheading} block mb-1`}>End</label>
-                <div className="flex gap-1">
-                  <input
-                    id="window-end-date"
-                    type="date"
-                    value={endDatetime.split('T')[0] ?? ''}
-                    min={startDatetime.split('T')[0] || minPickable}
-                    max={maxPickable}
-                    disabled={forecastMode !== 'window'}
-                    onChange={(e) => {
-                      const d = e.target.value
-                      const t = endDatetime.split('T')[1] ?? '00:00'
-                      setEndDatetime(d ? `${d}T${t}` : '')
-                    }}
-                    className={`${FIELD} flex-1 min-w-0 px-2 py-1.5`}
-                  />
-                  <input
-                    type="time"
-                    aria-label="End time"
-                    value={endDatetime.split('T')[1] ?? '00:00'}
-                    disabled={forecastMode !== 'window' || !endDatetime}
-                    onChange={(e) => {
-                      const d = endDatetime.split('T')[0]
-                      if (d) setEndDatetime(`${d}T${e.target.value}`)
-                    }}
-                    className={`${FIELD} w-28 px-2 py-1.5 disabled:opacity-40`}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {forecastMode === 'window' && windowWarning && (
+          {windowWarning && (
             <p className="mt-2 text-xs text-amber-400 bg-amber-950/40 border border-amber-800/60 rounded p-2">
-              {windowWarning === 'equal'
-                ? 'Start and end are the same. Use Current Conditions or Future Day/Time to analyze a single hour.'
-                : windowWarning === 'order'
-                ? `The window's end must be after its start. Adjust the dates to run an analysis.`
+              {windowWarning === 'order'
+                ? 'The narrowed hours end before they start. Adjust them to run an analysis.'
                 : windowWarning === 'past'
-                ? `This forecast window starts before the ${PAST_LIMIT_DAYS}-day history limit. Adjust the dates to run an analysis.`
-                : `This forecast window extends beyond the ${FUTURE_LIMIT_DAYS}-day forecast horizon. Adjust the dates to run an analysis.`}
+                ? `This window starts before the ${PAST_LIMIT_DAYS}-day history limit. Pick days inside the calendar's range to run an analysis.`
+                : `This window extends beyond the ${FUTURE_LIMIT_DAYS}-day forecast horizon. Pick days inside the calendar's range to run an analysis.`}
             </p>
           )}
-          {forecastMode === 'at' && momentWarning && (
-            <p className="mt-2 text-xs text-amber-400 bg-amber-950/40 border border-amber-800/60 rounded p-2">
-              {momentWarning === 'past'
-                ? `This time is before the ${PAST_LIMIT_DAYS}-day history limit. Pick a later time to run an analysis.`
-                : `This time is beyond the ${FUTURE_LIMIT_DAYS}-day forecast horizon. Pick an earlier time to run an analysis.`}
-            </p>
-          )}
-          {forecastMode !== 'now' && !windowWarning && !momentWarning && aqiCoverage !== 'full' && (
+          {!windowWarning && aqiCoverage !== 'full' && (
             <p className="mt-2 text-xs text-sky-300 bg-sky-950/40 border border-sky-800/60 rounded p-2">
               {aqiCoverage === 'partial'
                 ? `Air-quality (AQI) forecasts only extend ${AQI_LIMIT_DAYS} days out, so AQI may cover just the start of this window. Weather data covers all of it.`
@@ -576,7 +408,7 @@ export default function ControlPanel({
                           i > 0 ? 'border-l border-slate-600' : ''
                         } ${
                           isActive && sortDesc === dir.desc
-                            ? 'bg-sky-600 text-white'
+                            ? ACCENT_FILL
                             : 'bg-slate-900 text-slate-400 hover:text-slate-200'
                         }`}
                       >
@@ -589,10 +421,10 @@ export default function ControlPanel({
             })}
           </div>
           <p className={`${TEXT.helper} mt-2`}>
-            {forecastMode === 'now'
+            {selection.kind === 'now'
               ? 'Ranks by conditions at the current hour.'
-              : forecastMode === 'at'
-              ? 'Ranks by conditions at the chosen hour.'
+              : pointSample
+              ? 'Ranks by conditions at the selected hour.'
               : 'Precipitation ranks by window total; wind, temperature, and AQI by window average.'}
           </p>
         </section>
@@ -707,14 +539,8 @@ export default function ControlPanel({
           <p className={`${TEXT.helper} text-center`}>
             {areaTooLarge
               ? `Area too large. Draw a smaller polygon (max ${maxAreaKm2.toLocaleString()} km²).`
-              : !hasDates
-              ? forecastMode === 'at'
-                ? 'Pick a forecast time to continue.'
-                : 'Set a forecast window to continue.'
               : windowWarning
-              ? 'Adjust the forecast window dates to continue.'
-              : momentWarning
-              ? 'Adjust the forecast time to continue.'
+              ? 'Adjust the forecast window to continue.'
               : drawPointCount === 0
               ? 'Draw a search area, paste custom coordinates, or search for a place to continue.'
               : `Add ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon.`}

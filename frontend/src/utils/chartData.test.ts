@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { DestinationResult, HourlySeries } from '../types'
 import {
   alignRowToGrid,
+  axisTimeLabel,
   buildChartData,
   chartKey,
   computeYDomain,
@@ -201,5 +202,40 @@ describe('defaultChartRows', () => {
     const bare = { ...row('A', 1, {}), series: undefined }
     expect(defaultChartRows([bare], [])).toBeNull()
     expect(defaultChartRows([], [])).toBeNull()
+  })
+})
+
+// A calendar makes a 16-day range two clicks, so the long-span axis went from a
+// rare shape to an ordinary one (#166).
+describe('axisTimeLabel', () => {
+  const t = Date.parse('2026-07-21T15:00:00Z')
+  const HOURS = 3_600_000
+
+  it('names the weekday and the hour inside a two-day span', () => {
+    expect(axisTimeLabel(t, 24 * HOURS)).not.toMatch(/Jul/)
+    expect(axisTimeLabel(t, 24 * HOURS)).toMatch(/\d/)
+  })
+
+  it('swaps the weekday for the date once the span passes two days', () => {
+    expect(axisTimeLabel(t, 16 * 24 * HOURS)).toContain('Jul')
+    expect(axisTimeLabel(t, 72 * HOURS)).toContain('Jul')
+  })
+
+  // Recharts thins ticks by measuring the labels it is handed, so a date with no
+  // hour lets a dozen identical strings all "fit" and the axis repeats one date
+  // down its whole length.
+  it('keeps an hour on the long form so no two ticks read the same', () => {
+    const labels = [0, 6, 12].map((h) => axisTimeLabel(t + h * HOURS, 16 * 24 * HOURS))
+    expect(new Set(labels).size).toBe(3)
+  })
+
+  it('holds the weekday form exactly at the threshold', () => {
+    expect(axisTimeLabel(t, 48 * HOURS)).not.toMatch(/Jul/)
+  })
+
+  // A one-timestamp grid has no span, so it keeps the weekday-and-hour form —
+  // which is what a single moment wants to be read as anyway.
+  it('keeps the hour form for a point sample, which has no span', () => {
+    expect(axisTimeLabel(t, 0)).not.toMatch(/Jul/)
   })
 })

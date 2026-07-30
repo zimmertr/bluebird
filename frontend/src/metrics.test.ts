@@ -96,14 +96,13 @@ describe('windowAggregate', () => {
 })
 
 describe('rankedNoun', () => {
-  // The header carries its own mode prefix ("Current Conditions:"), so a point
-  // sample takes no qualifier here or the tense gets stated twice.
+  // The header carries its own prefix ("Current Conditions:"), so a point sample
+  // takes no qualifier here or the tense gets stated twice.
   it('qualifies a window ranking and leaves a point sample bare', () => {
-    expect(rankedNoun('precip_total_in', 'window')).toBe('Total Precipitation')
-    expect(rankedNoun('temp_avg_f', 'window')).toBe('Avg Temperature')
-    expect(rankedNoun('precip_total_in', 'now')).toBe('Precipitation')
-    expect(rankedNoun('precip_total_in', 'at')).toBe('Precipitation')
-    expect(rankedNoun('aqi_avg', 'now')).toBe('AQI')
+    expect(rankedNoun('precip_total_in', false)).toBe('Total Precipitation')
+    expect(rankedNoun('temp_avg_f', false)).toBe('Avg Temperature')
+    expect(rankedNoun('precip_total_in', true)).toBe('Precipitation')
+    expect(rankedNoun('aqi_avg', true)).toBe('AQI')
   })
 })
 

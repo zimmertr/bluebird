@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react'
 import {
-  AnalysisMode,
   AnalyzeRequest,
   AnalyzeResponse,
   DestinationResult,
@@ -19,6 +18,7 @@ import {
 } from '../utils/clientAnalyze'
 import { pinKey } from '../utils/customList'
 import { OpenMeteoUnreachable } from '../utils/openMeteo'
+import { SelectionKind } from '../utils/calendar'
 import { PresentationKnobs } from '../utils/present'
 
 export type Progress = {
@@ -51,14 +51,17 @@ export type Refusal = {
 // Composes PresentationKnobs rather than restating them, so the recorded set
 // and the compared set cannot drift apart.
 export type AnalyzedView = PresentationKnobs & {
-  // 'now'/'at' when the analysis was a point sample — drives the collapsed
-  // table columns, point wording, and hidden chart. A data knob: unlike sort
-  // and limit it is never re-derived, so it always reads from here.
-  mode: AnalysisMode
-  // The sampled moment (epoch ms): the click time for 'now', the chosen hour
-  // for 'at' — the "as of HH:MM" / "for <datetime>" caption. Meaningless (the
-  // click time) for window analyses, which never display it.
-  analyzedAt: number
+  // Which arm of the forecast selection this was: the current hour, or chosen
+  // days. A data knob — unlike sort and limit it is never re-derived, so it
+  // always reads from here — and it decides only wording, since 'now' is the one
+  // shape whose caption says when it was taken rather than what was asked for.
+  kind: SelectionKind
+  // The window as requested, epoch ms. Everything the display used to read off a
+  // mode name is derived from this instead: whether the analysis was a point
+  // sample (`isPointSample`, which counts hourly stamps rather than trusting a
+  // label), and the range the results header states. Recorded off the request
+  // like `customKeys` below, so it is path-independent.
+  window: { startMs: number; endMs: number }
   // The custom destinations this analysis covered — searched places and pasted
   // CSV rows, by pinKey. Recorded off the request rather than read back off the
   // results, which are cut to `limit` and so cannot answer "was this analyzed?"
@@ -124,7 +127,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
   // moment it resumes — the overlay renders a live countdown from this.
   const [paceEndMs, setPaceEndMs] = useState<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
-  const lastRequestRef = useRef<{ request: AnalyzeRequest; mode: AnalysisMode } | null>(null)
+  const lastRequestRef = useRef<{ request: AnalyzeRequest; kind: SelectionKind } | null>(null)
 
   // Abort the in-flight request. The fetch loops swallow AbortError so no
   // error banner shows — the user chose to stop.
@@ -135,7 +138,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
   // Re-run the most recent request (used by the "Try again" button on
   // transient errors; deterministic refusals get remedy actions instead).
   function retry() {
-    if (lastRequestRef.current) analyze(lastRequestRef.current.request, lastRequestRef.current.mode)
+    if (lastRequestRef.current) analyze(lastRequestRef.current.request, lastRequestRef.current.kind)
   }
 
   // Remedy: re-run the last request with the suggested elevation floor.
@@ -144,7 +147,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
     if (!last) return
     analyze(
       { ...last.request, min_elevation_ft: minElevationFt, top_by_elevation: false },
-      last.mode,
+      last.kind,
     )
   }
 
@@ -154,7 +157,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
   function retryTopByElevation() {
     const last = lastRequestRef.current
     if (!last) return
-    analyze({ ...last.request, top_by_elevation: true }, last.mode)
+    analyze({ ...last.request, top_by_elevation: true }, last.kind)
   }
 
   // Clear the current ranked results without fetching. Used by a pins-only
@@ -175,7 +178,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
   function commit(
     data: AnalyzeResponse,
     request: AnalyzeRequest,
-    mode: AnalysisMode,
+    kind: SelectionKind,
     fullField: DestinationResult[] | null,
   ) {
     setResponse(data)
@@ -188,10 +191,11 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
         min: request.min_elevation_ft ?? null,
         max: request.max_elevation_ft ?? null,
       },
-      mode,
-      // Point modes send the sampled moment as start_datetime (for 'now' it
-      // IS the click time), so it doubles as the caption.
-      analyzedAt: mode === 'window' ? Date.now() : Date.parse(request.start_datetime),
+      kind,
+      window: {
+        startMs: Date.parse(request.start_datetime),
+        endMs: Date.parse(request.end_datetime),
+      },
       customKeys: new Set(
         (request.custom_destinations ?? []).map((d) => pinKey(d.latitude, d.longitude)),
       ),
@@ -222,7 +226,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
   // its elevation, since a coordinate pair carries none (issue #207).
   async function analyzeViaClient(
     request: AnalyzeRequest,
-    mode: AnalysisMode,
+    kind: SelectionKind,
     signal: AbortSignal,
   ): Promise<void> {
     const { startMs, endMs } = resolveWindow(request.start_datetime, request.end_datetime)
@@ -312,7 +316,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
         truncated: data.truncated || discoveredTruncation.truncated,
       },
       request,
-      mode,
+      kind,
       fullField,
     )
   }
@@ -322,7 +326,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
   // browser cannot reach Open-Meteo directly (corporate proxies, outages).
   async function analyzeViaServer(
     request: AnalyzeRequest,
-    mode: AnalysisMode,
+    kind: SelectionKind,
     signal: AbortSignal,
   ): Promise<void> {
     const res = await fetch('/api/analyze/stream', {
@@ -385,7 +389,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
           // path cannot offer an exact re-rank later. Deliberate: growing the
           // response shape to serve a fallback the browser takes only when
           // Open-Meteo is unreachable is not worth the contract change (#177).
-          commit(event.data, request, mode, null)
+          commit(event.data, request, kind, null)
         }
         // Unknown types (keepalive) are ignored by construction.
       }
@@ -397,8 +401,8 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
   // election) and the table shows exactly the ranked rows. Repeats may be
   // served from short-lived caches; nothing is refetched behind the user's
   // back.
-  async function analyze(request: AnalyzeRequest, mode: AnalysisMode = 'window') {
-    lastRequestRef.current = { request, mode }
+  async function analyze(request: AnalyzeRequest, kind: SelectionKind = 'days') {
+    lastRequestRef.current = { request, kind }
 
     const controller = new AbortController()
     abortRef.current = controller
@@ -419,7 +423,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
 
     try {
       try {
-        await analyzeViaClient(request, mode, controller.signal)
+        await analyzeViaClient(request, kind, controller.signal)
         return
       } catch (e) {
         // ONLY an unreachable forecast API reroutes to the server, whose
@@ -438,7 +442,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
         setProgress(null)
         setPaceEndMs(null)
       }
-      await analyzeViaServer(request, mode, controller.signal)
+      await analyzeViaServer(request, kind, controller.signal)
     } catch (e) {
       // User-initiated cancel — not an error worth surfacing.
       if (e instanceof DOMException && e.name === 'AbortError') {

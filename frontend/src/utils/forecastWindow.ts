@@ -34,6 +34,37 @@ export interface ResolvedWindow {
   endMs: number
 }
 
+/**
+ * How many hourly stamps the analysis actually covered.
+ *
+ * This is the honest replacement for asking which "mode" an analysis was in.
+ * The results table collapses its avg/min/max triplets when they would be the
+ * same number three times, and what decides that is the number of hourly
+ * stamps the backend's inclusive `start <= ts <= end` filter matched — not the
+ * name of a picker. Two facts make the count non-obvious, and both are why this
+ * is a function rather than a subtraction at the call site:
+ *
+ * - Equal timestamps are a point sample. The backend (and `resolveWindow`
+ *   above) floors them to the hour and spans one minute, so the filter matches
+ *   exactly one stamp rather than none.
+ * - The filter is inclusive at both ends, so a 06:00-to-07:00 window matches
+ *   two stamps, and 06:00-to-06:59 matches one. A whole local day ends at 23:59
+ *   for that reason: midnight-to-midnight would match 25.
+ *
+ * Counted on UTC hour boundaries, which is where Open-Meteo's stamps land.
+ */
+export function hourlyStampCount(startMs: number, endMs: number): number {
+  if (startMs === endMs) return 1
+  const first = Math.ceil(startMs / HOUR_MS)
+  const last = Math.floor(endMs / HOUR_MS)
+  return Math.max(0, last - first + 1)
+}
+
+/** A window covering one hourly stamp, whose aggregates are all one value. */
+export function isPointSample(startMs: number, endMs: number): boolean {
+  return hourlyStampCount(startMs, endMs) === 1
+}
+
 export function resolveWindow(
   startIso: string,
   endIso: string,

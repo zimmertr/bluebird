@@ -1,4 +1,4 @@
-import { AnalysisMode, DestinationResult, SortBy } from '../types'
+import { DestinationResult, SortBy } from '../types'
 import { AGGREGATE, metricLabel } from '../metrics'
 import { METRIC_CONFIG } from './colors'
 
@@ -77,10 +77,10 @@ export function orderColumns<T extends { key: string }>(columns: T[], sortBy: So
   return [...lead, ...ranked, ...rest]
 }
 
-// A point-sample analysis ('now' or 'at') covers a single hour, so its
-// avg/min/max triplets are the same number three times — collapse each metric
-// group to one representative column and drop the window-total/aggregate
-// labels from the headers.
+// A point-sample analysis covers a single hourly stamp, so its avg/min/max
+// triplets are the same number three times — collapse each metric group to one
+// representative column and drop the window-total/aggregate labels from the
+// headers.
 const POINT_LABELS: Record<string, string> = {
   precip_avg_in_hr: metricLabel('precip', undefined, 'in/hr'),
   temp_avg_f: metricLabel('temp'),
@@ -108,7 +108,15 @@ export function pointModeColumns<T extends { key: string; label: string }>(colum
  * until the CSV export needed the same answer. A file whose columns disagreed
  * with the screen's would be a quiet bug rather than a visible one, so the two
  * read from one function instead of from two copies of one expression.
+ *
+ * `pointSample` is measured, not named. This used to take the analysis mode and
+ * collapse whenever it was not 'window', which worked only while two of three
+ * pickers existed to mean "one hour". A calendar has no such mode: one hour is a
+ * day narrowed to it (#166). So the caller counts the hourly stamps the window
+ * covered (`isPointSample` in forecastWindow.ts) and passes the answer, which is
+ * the honest question anyway — the columns collapse exactly when the aggregates
+ * would be one value three times.
  */
-export function displayedColumns(mode: AnalysisMode, sortBy: SortBy): ColDef[] {
-  return orderColumns(mode !== 'window' ? pointModeColumns(COLUMNS) : COLUMNS, sortBy)
+export function displayedColumns(pointSample: boolean, sortBy: SortBy): ColDef[] {
+  return orderColumns(pointSample ? pointModeColumns(COLUMNS) : COLUMNS, sortBy)
 }

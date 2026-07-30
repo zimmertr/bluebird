@@ -13,7 +13,7 @@ import { useFireProximity } from './hooks/useFireProximity'
 import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
-import { AnalysisMode, CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy } from './types'
+import { CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy } from './types'
 import { BUTTON_SECONDARY, LINK, PROSE, RADIUS, SURFACE_CARD, SURFACE_FLOATING, TEXT } from './styles'
 import { NOUN, familyOf, rankedNoun } from './metrics'
 import { METRIC_CONFIG } from './utils/colors'
@@ -23,15 +23,22 @@ import { buildCustomList, pendingDestinations, pinKey } from './utils/customList
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
 import { composeOverlay } from './utils/analyzeOverlay'
 import { Place, isPeakKind } from './utils/geocode'
+import { encodeState, decodeState, classifyWindow, clampLimit } from './utils/urlState'
 import {
   encodeState,
   decodeState,
   classifyWindow,
-  classifyMoment,
   clampLimit,
 } from './utils/urlState'
 import { UrlWriter, debounceUrlWrite, urlNeedsSync } from './utils/urlSync'
-import { DEFAULT_WINDOW_HOURS, nowLocal } from './utils/datetimeLocal'
+import {
+  DEFAULT_SELECTION,
+  ForecastSelection,
+  SelectionKind,
+  selectionLocalWindow,
+  windowCaption,
+} from './utils/calendar'
+import { isPointSample } from './utils/forecastWindow'
 import { PresentationKnobs, bandNarrows, commitNeeded, presentResults } from './utils/present'
 import { SortDir, SortKey, displayedColumns } from './utils/tableColumns'
 import { compareValues } from './utils/sortResults'
@@ -50,10 +57,14 @@ const LEGEND_WIDTH = 'w-40'
 // What the results header calls the analysis, before the ranking it lists.
 // This prefix is why rankedNoun() leaves a point sample unqualified: saying
 // "Current Conditions: Highest Current Precipitation" states the tense twice.
-const HEADER_PREFIX: Record<AnalysisMode, string> = {
-  now: 'Current Conditions',
-  at: 'Forecast',
-  window: 'Forecast Table',
+//
+// Three prefixes for two selection shapes, because one hour of a chosen day
+// reads differently from a span of them. The empty state borrows the range
+// wording: with no rows there is no analysis to characterize.
+const RANGE_PREFIX = 'Forecast Table'
+function headerPrefix(kind: SelectionKind, pointSample: boolean): string {
+  if (kind === 'now') return 'Current Conditions'
+  return pointSample ? 'Forecast' : RANGE_PREFIX
 }
 
 // Stands in for the analysis snapshot's covered set before the first analysis.
@@ -159,24 +170,14 @@ export default function App() {
   const [destinationType, setDestinationType] = useState<DiscoveryType>(
     () => restored?.destinationType ?? 'peak',
   )
-  const [startDatetime, setStartDatetime] = useState(() => restored?.startDatetime ?? nowLocal())
-  // End pre-fills three days out so a fresh session's first Analyze is a real
-  // weather window. start == end stays valid for users who set it deliberately
-  // ("the current forecast" — the backend analyzes the hour at hand), but as a
-  // default it produced a single-hour, all-zero table that read as broken.
-  const [endDatetime, setEndDatetime] = useState(
-    () => restored?.endDatetime ?? nowLocal(DEFAULT_WINDOW_HOURS),
+  // What Analyze asks about: the current hour, or days off the calendar (#166).
+  // One value where there used to be four — a mode plus three sets of
+  // timestamps, two of them always dormant. Defaults to the current hour: the
+  // first question most people arrive with is "where is it clear right now", and
+  // it needs no date input, so a fresh load can Analyze without touching Step 2.
+  const [selection, setSelection] = useState<ForecastSelection>(
+    () => restored?.selection ?? DEFAULT_SELECTION,
   )
-  // How Analyze picks its time: the start–end window above, "now" (the click
-  // time), or "at" — a single chosen hour. Every mode's inputs stay in state
-  // while another is selected, so switching back restores them. Defaults to
-  // "now": the first question most people arrive with is "where is it clear
-  // right now", and it needs no date input to answer, so a fresh load can
-  // Analyze without touching Step 2 at all.
-  const [forecastMode, setForecastMode] = useState<AnalysisMode>(() => restored?.mode ?? 'now')
-  // Future Day/Time pre-fills "tomorrow around this time" — a plausible first
-  // point-in-time question — and is only sent when that mode is selected.
-  const [atDatetime, setAtDatetime] = useState(() => restored?.atDatetime ?? nowLocal(24))
   // 200 rather than 100 because the pasted lists people bring are themselves
   // often 100 long (peakbagger exports, the examples/ CSVs). At 100 a list plus
   // anything else — one searched peak, a polygon — spills over the cut on its
@@ -302,14 +303,24 @@ export default function App() {
     if (searched.places.length > 0 || csvRows.length > 0) setShowResults(true)
   }, [searched.places, csvRows])
 
+  // The selection resolved to the datetime-local pair the rest of the app reads:
+  // the horizon and air-quality warnings, the staleness comparison below, and the
+  // ISO conversion in handleAnalyze. Recomputed per render rather than memoized,
+  // since for the current-hour selection it moves with the clock.
+  const panelWindow = selectionLocalWindow(selection, new Date())
+  const panelWindowMs = {
+    startMs: Date.parse(panelWindow.start),
+    endMs: Date.parse(panelWindow.end),
+  }
+
   // The knobs the displayed report is rendered under: markers, legend, results
   // header, and table column order all read from here.
   //
   // With a field held, the panel's ranking IS the displayed ranking — the rows
   // below are re-derived from it on every change, so reading the snapshot here
-  // would show a legend that disagreed with the table. Mode stays from the
-  // snapshot either way: it is a data knob, and a point sample cannot become a
-  // window without a new analysis. Without a field (the SSE fallback, or before
+  // would show a legend that disagreed with the table. The window stays
+  // from the snapshot either way: it is a data knob, and a point sample cannot
+  // become a range without a new analysis. Without a field (the SSE fallback, or before
   // the first analysis) this is the pre-#188 behavior unchanged.
   const liveKnobs: PresentationKnobs = useMemo(
     () => ({ sortBy, sortDesc, limit, band: { min: minElevationFt, max: maxElevationFt } }),
@@ -317,14 +328,42 @@ export default function App() {
   )
   const view =
     universe !== null && analyzed !== null
-      ? { sortBy, sortDesc, mode: analyzed.mode }
-      : analyzed ?? { sortBy, sortDesc, mode: forecastMode }
+      ? { sortBy, sortDesc, kind: analyzed.kind, window: analyzed.window }
+      : analyzed ?? {
+          sortBy,
+          sortDesc,
+          kind: selection.kind,
+          window: panelWindowMs,
+        }
+  // Whether the displayed report's aggregates are one value three times, which
+  // is what collapses the table's columns and drops the aggregate from the
+  // ranking's name. Counted off the analyzed window rather than read off a mode
+  // name, so "a day narrowed to one hour" is recognized as the point sample it
+  // is (#166).
+  const pointSample = isPointSample(view.window.startMs, view.window.endMs)
+  // The forecast window is a data knob: the browser holds no forecasts for days
+  // it never fetched, so a calendar change cannot re-present anything. Comparing
+  // it at all is new with the calendar, and is the reason to: picking days is a
+  // click now, so a report can go stale while the panel looks settled, where
+  // before it took typing two datetimes.
+  //
+  // The current hour is exempt, since its window moves with the clock and a cue
+  // that never cleared would ask for an Analyze whose answer is already on
+  // screen. Switching between the two arms still counts.
+  const windowChanged =
+    analyzed !== null &&
+    (analyzed.kind !== selection.kind ||
+      (selection.kind === 'days' &&
+        (analyzed.window.startMs !== panelWindowMs.startMs ||
+          analyzed.window.endMs !== panelWindowMs.endMs)))
   // A knob that has stopped being live, and why. Null while everything applies
   // instantly, which is the normal case: the cue exists so the controls never
   // feel dead, and showing it when they are in fact live would ask for an
   // Analyze that changes nothing.
   const commitReason =
-    !loading && response !== null ? commitNeeded(analyzed, liveKnobs, universe !== null) : null
+    !loading && response !== null
+      ? commitNeeded(analyzed, liveKnobs, universe !== null, windowChanged)
+      : null
   const preview = usePreview()
 
   // Elapsed-time counter for phases with no countable progress (the OSM search,
@@ -372,10 +411,7 @@ export default function App() {
     const qs = encodeState({
       polygon,
       destinationType,
-      startDatetime,
-      endDatetime,
-      mode: forecastMode,
-      atDatetime,
+      selection,
       sortBy,
       sortDesc,
       minElevationFt,
@@ -402,10 +438,7 @@ export default function App() {
   }, [
     polygon,
     destinationType,
-    startDatetime,
-    endDatetime,
-    forecastMode,
-    atDatetime,
+    selection,
     sortBy,
     sortDesc,
     minElevationFt,
@@ -422,15 +455,14 @@ export default function App() {
   // sync effect above must not flush, or the debounce collapses nothing.
   useEffect(() => () => writeUrl.flush(), [writeUrl])
 
-  // Warn when the selected mode's inputs fall outside Open-Meteo's servable
-  // range (or, for a window, have no duration). Blocks Analyze (in
-  // ControlPanel): Open-Meteo rejects out-of-range dates outright, so
-  // submitting would only produce an upstream error. Only the active mode is
-  // validated — the disabled pickers aren't what will be analyzed.
-  const windowStatus = classifyWindow(startDatetime, endDatetime, new Date())
-  const windowWarning = forecastMode !== 'window' || windowStatus === 'ok' ? null : windowStatus
-  const momentStatus = classifyMoment(atDatetime, new Date())
-  const momentWarning = forecastMode !== 'at' || momentStatus === 'ok' ? null : momentStatus
+  // Warn when the selection falls outside Open-Meteo's servable range, or its
+  // narrowed hours run backwards. Blocks Analyze (in ControlPanel): Open-Meteo
+  // rejects out-of-range dates outright, so submitting would only produce an
+  // upstream error. The calendar cannot pick an unservable day, so a horizon
+  // warning now means a shared or hand-edited link brought one in.
+  const windowStatus = classifyWindow(panelWindow.start, panelWindow.end, new Date())
+  const windowWarning =
+    selection.kind === 'now' || windowStatus === 'ok' ? null : windowStatus
 
   const handleDrawUpdate = useCallback((count: number, areaKm2: number | null) => {
     setDrawPointCount(count)
@@ -466,17 +498,14 @@ export default function App() {
   }
 
   async function handleAnalyze() {
-    // Point modes send start == end — the backend normalizes an equal window
-    // to the single hour containing that moment. 'now' samples the click
-    // time, 'at' the picked hour.
-    const mode = forecastMode
-    const start =
-      mode === 'now'
-        ? new Date().toISOString()
-        : mode === 'at'
-        ? new Date(atDatetime).toISOString()
-        : new Date(startDatetime).toISOString()
-    const end = mode === 'window' ? new Date(endDatetime).toISOString() : start
+    // The one conversion from a local selection to the UTC instants the API
+    // takes. Equal timestamps are how a point sample travels — the current hour,
+    // or a day narrowed to a single hour — and the backend normalizes them to
+    // the hour containing the moment.
+    const kind = selection.kind
+    const local = selectionLocalWindow(selection, new Date())
+    const start = new Date(local.start).toISOString()
+    const end = new Date(local.end).toISOString()
 
     const constraints = { min_elevation_ft: minElevationFt, max_elevation_ft: maxElevationFt }
 
@@ -557,7 +586,7 @@ export default function App() {
         sort_desc: sortDesc,
         custom_destinations: refreshEchoRows(universe, results, removedKeys),
         ...constraints,
-      }, mode)
+      }, kind)
     } else if (resolvedPolygon) {
       // Discovery — with the custom list riding along so the backend ranks the
       // polygon ∪ CSV union as one report.
@@ -571,7 +600,7 @@ export default function App() {
         sort_desc: sortDesc,
         ...(custom.length > 0 ? { custom_destinations: custom } : {}),
         ...constraints,
-      }, mode)
+      }, kind)
       // Remember these discovery inputs so the next compatible Analyze refreshes.
       discoveryRef.current = { base, searchedKeys }
     } else if (custom.length > 0) {
@@ -588,7 +617,7 @@ export default function App() {
         sort_desc: sortDesc,
         custom_destinations: custom,
         ...constraints,
-      }, mode)
+      }, kind)
     }
 
     // Nothing to rank (unreachable through the gate, which requires an input,
@@ -685,7 +714,10 @@ export default function App() {
     () => [...results].sort((a, b) => compareValues(a[detailSort.key], b[detailSort.key], detailSort.dir)),
     [results, detailSort],
   )
-  const tableColumns = useMemo(() => displayedColumns(view.mode, view.sortBy), [view.mode, view.sortBy])
+  const tableColumns = useMemo(
+    () => displayedColumns(pointSample, view.sortBy),
+    [pointSample, view.sortBy],
+  )
 
   // × on a table row. Removing a searched place also deregisters it — else the
   // next analysis would simply rediscover it from the searched list.
@@ -742,9 +774,9 @@ export default function App() {
   }
 
   // Comparison-chart selection (checkboxes in the table → lines in the chart).
-  // Every row shares the analysis's hourly grid. Point-sample analyses
-  // ('now'/'at') chart too: their single-instant grid renders as one dot per
-  // destination — still a cross-destination comparison, same default-select-all.
+  // Every row shares the analysis's hourly grid. A point-sample analysis charts
+  // too: its single-instant grid renders as one dot per destination — still a
+  // cross-destination comparison, same default-select-all.
   const chartTimes = response?.times ?? []
   const chartable = chartTimes.length > 0
   const chart = useChartSelection(
@@ -812,14 +844,8 @@ export default function App() {
           onCancelDrawing={handleCancelDrawing}
           destinationType={destinationType}
           setDestinationType={setDestinationType}
-          startDatetime={startDatetime}
-          setStartDatetime={setStartDatetime}
-          endDatetime={endDatetime}
-          setEndDatetime={setEndDatetime}
-          forecastMode={forecastMode}
-          setForecastMode={setForecastMode}
-          atDatetime={atDatetime}
-          setAtDatetime={setAtDatetime}
+          selection={selection}
+          setSelection={setSelection}
           limit={limit}
           setLimit={setLimit}
           customCsv={customCsv}
@@ -837,7 +863,6 @@ export default function App() {
           showWildfires={showWildfires}
           setShowWildfires={setShowWildfires}
           windowWarning={windowWarning}
-          momentWarning={momentWarning}
           hasPins={searched.places.length > 0}
           // A pins-only Analyze refresh keeps useAnalyze.loading false, so fold
           // in the pin-refresh flag to disable the button (and show "Analyzing…")
@@ -1107,26 +1132,21 @@ export default function App() {
             >
               <span className={TEXT.subheading}>
                 {results.length === 0
-                  ? HEADER_PREFIX.window
-                  : `${HEADER_PREFIX[view.mode]}: ${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, view.mode)}`}
-                {results.length > 0 && analyzed?.mode === 'now' && (
+                  ? RANGE_PREFIX
+                  : `${headerPrefix(view.kind, pointSample)}: ${
+                      view.sortDesc ? 'Highest' : 'Lowest'
+                    } ${rankedNoun(view.sortBy, pointSample)}`}
+                {/* Which window these rows describe. A multi-hour analysis used
+                    to say nothing at all here, so someone opening a shared link
+                    had no on-screen statement of the days they were reading. */}
+                {results.length > 0 && analyzed !== null && (
                   <span className="ml-1.5 font-normal text-slate-400">
-                    as of{' '}
-                    {new Date(analyzed.analyzedAt).toLocaleTimeString([], {
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    })}
-                  </span>
-                )}
-                {results.length > 0 && analyzed?.mode === 'at' && (
-                  <span className="ml-1.5 font-normal text-slate-400">
-                    for{' '}
-                    {new Date(analyzed.analyzedAt).toLocaleString([], {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    })}
+                    {windowCaption(
+                      analyzed.kind,
+                      analyzed.window.startMs,
+                      analyzed.window.endMs,
+                      pointSample,
+                    )}
                   </span>
                 )}
               </span>
@@ -1215,7 +1235,7 @@ export default function App() {
                   detailSortKey={detailSort.key}
                   detailSortDir={detailSort.dir}
                   onDetailSort={(key, dir) => setDetailSort({ key, dir })}
-                  mode={view.mode}
+                  pointSample={pointSample}
                   fireWarnings={fire.warnings}
                   pending={pending}
                   onRemove={handleRemoveResult}

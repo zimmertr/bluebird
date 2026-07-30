@@ -194,6 +194,54 @@ export const BUTTON_SECONDARY =
   'bg-slate-700 hover:bg-slate-600'
 
 /**
+ * The solid accent block: the chosen segment of the ranking direction toggle, the
+ * ends of the calendar's day selection, and the numbered steps in the welcome
+ * dialog.
+ *
+ * Three jobs, one recipe — the same way BUTTON_PRIMARY covers both Analyze and a
+ * dialog's dismiss button. What they share is not a meaning but a treatment: a
+ * small block filled with the app's one resting accent (see LINK_ACTION above),
+ * carrying text on top of it. All three had it spelled out at the call site, and
+ * white on sky-600 reads at 4.6:1, so this is also the contrast floor for
+ * anything wearing the accent as a fill — which is exactly why a call site must
+ * not be able to restate it a shade lighter.
+ */
+export const ACCENT_FILL = 'bg-sky-600 text-white'
+
+/**
+ * The calendar's day cells, by state.
+ *
+ * Five states on one 40px square, so they separate by fill and text color
+ * rather than by size, and every one of them lands on the slate-800 panel:
+ *
+ * - `idle` / `outside` are the same cell at two emphases. A day borrowed from
+ *   the adjacent month is still pickable, so it is content and holds the 4.5:1
+ *   floor (slate-400 is 5.7:1 here); dimming it to slate-500's 3.1:1 would put
+ *   a clickable date below AA, which is what #165 spent five PRs undoing.
+ * - `range` fills the days between the two ends. sky-950 is dark enough that
+ *   slate-200 stays at ~12:1 on it while the band still reads as one selection
+ *   rather than 5 separate buttons.
+ * - `selected` is the accent fill above: the two ends of a range, and a
+ *   single-day pick.
+ * - `disabled` is a day outside the servable band. It is the one role here
+ *   deliberately below 4.5:1 (slate-600, ~2.6:1): WCAG 1.4.3 exempts inactive
+ *   controls, and a disabled day that still read as text would invite the click
+ *   it cannot accept.
+ *
+ * `today` is a ring rather than a fill, so it can coexist with any of the above
+ * (today is frequently also selected). slate-400 clears the 3:1 asked of a UI
+ * boundary.
+ */
+export const DAY = {
+  idle: 'text-slate-200 hover:bg-slate-700',
+  outside: 'text-slate-400 hover:bg-slate-700',
+  range: 'bg-sky-950 text-slate-200 hover:bg-sky-900',
+  selected: ACCENT_FILL,
+  disabled: 'text-slate-600',
+  today: 'ring-1 ring-inset ring-slate-400',
+} as const
+
+/**
  * The shared surface under every text-entry control in the panel.
  *
  * The placeholder color lives here for the same reason every color above

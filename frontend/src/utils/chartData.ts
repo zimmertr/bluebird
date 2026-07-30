@@ -120,6 +120,30 @@ export function formatMetricValue(v: number, metric: ChartMetric): string {
   return v.toFixed(1)
 }
 
+// Above this span an axis tick names the date instead of the weekday. Two days
+// is where a weekday stops identifying a day on its own: a 16-day range repeats
+// every name, so "Mon 3 PM" appears twice with a week between them.
+const AXIS_DATE_SPAN_MS = 48 * 3_600_000
+
+/**
+ * An x-axis tick, labelled for the span it sits in. `spanMs` is the whole grid's
+ * extent, so every tick on one axis is formatted the same way.
+ *
+ * Both forms keep the hour. Dropping it on the long form reads as an improvement
+ * — past two days the ticks land hours apart within a single date — but Recharts
+ * thins ticks by measuring the labels it is given, so identical short strings all
+ * fit and the axis renders "Jul 30" eight times in a row. Keeping the hour makes
+ * every tick distinct and lets that thinning do its job.
+ *
+ * A calendar makes a 16-day range two clicks (#166), where it used to mean typing
+ * two datetimes, so the long-span case went from rare to ordinary.
+ */
+export function axisTimeLabel(t: number, spanMs: number): string {
+  return spanMs > AXIS_DATE_SPAN_MS
+    ? new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric' })
+    : new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric' })
+}
+
 export type ChartPoint = { t: number } & Record<string, number | null>
 
 // One object per timestamp — { t, [destKey]: value|null, … } — the shape

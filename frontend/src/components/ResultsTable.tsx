@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { AnalysisMode, DestinationResult, SortBy } from '../types'
+import { DestinationResult, SortBy } from '../types'
 import { cellStyle, METRIC_CONFIG } from '../utils/colors'
 import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
 import { SortDir, SortKey, displayedColumns } from '../utils/tableColumns'
@@ -77,10 +77,11 @@ interface Props {
   detailSortKey: SortKey
   detailSortDir: SortDir
   onDetailSort: (key: SortKey, dir: SortDir) => void
-  // From the analyzed snapshot, unlike sortBy/sortDesc: a point-sample analysis
-  // ('now'/'at') shows one column per metric instead of the avg/min/max
-  // triplets, and no knob can change that without a new analysis.
-  mode?: AnalysisMode
+  // Derived from the analyzed snapshot's window, unlike sortBy/sortDesc: an
+  // analysis covering one hourly stamp shows one column per metric instead of
+  // the avg/min/max triplets, and no knob can change that without a new
+  // analysis.
+  pointSample?: boolean
   fireWarnings: Map<string, FireWarning>
   // Custom destinations awaiting their first analysis — pasted CSV rows and
   // searched places alike — shown immediately as un-forecasted rows (name +
@@ -113,7 +114,7 @@ export default function ResultsTable({
   detailSortKey,
   detailSortDir,
   onDetailSort,
-  mode = 'window',
+  pointSample = false,
   fireWarnings,
   pending,
   onRemovePending,
@@ -129,7 +130,7 @@ export default function ResultsTable({
   // the numbers the ranking was built from are the first thing read. Keyed on
   // the analyzed snapshot, like the cell colors — panel knob changes don't
   // reshuffle the displayed report.
-  const orderedColumns = displayedColumns(mode, sortBy)
+  const orderedColumns = displayedColumns(pointSample, sortBy)
 
   // Shift-click range select: the checkbox last interacted with is the anchor;
   // a shift-held click extends (de)selection to every chartable row between.

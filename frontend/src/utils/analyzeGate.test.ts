@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { canAnalyze, AnalyzeGate } from './analyzeGate'
 
-// A fully-ready polygon analysis: dates set, three points drawn, no vetoes.
+// A fully-ready polygon analysis: three points drawn, no vetoes. There is no
+// "dates set" field to fill in — the calendar always holds a window (#166).
 const READY_POLYGON: AnalyzeGate = {
-  hasDates: true,
   hasWindowWarning: false,
   loading: false,
   areaTooLarge: false,
@@ -40,19 +40,15 @@ describe('canAnalyze — ranked inputs', () => {
 
 describe('canAnalyze — pins-only path', () => {
   // No polygon, no CSV — just a searched pin in the table. Analyze becomes
-  // "refetch the pinned forecasts for the current window".
+  // "refetch the pinned forecasts for the selected window".
   const PINS_ONLY: AnalyzeGate = {
     ...READY_POLYGON,
     polygonReady: false,
     hasPins: true,
   }
 
-  it('enables Analyze with pins alone once dates are set', () => {
+  it('enables Analyze with pins alone', () => {
     expect(canAnalyze(PINS_ONLY)).toBe(true)
-  })
-
-  it('still requires a forecast window', () => {
-    expect(canAnalyze({ ...PINS_ONLY, hasDates: false })).toBe(false)
   })
 
   it('pins do not override a window warning', () => {

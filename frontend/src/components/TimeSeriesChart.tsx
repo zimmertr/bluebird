@@ -14,6 +14,7 @@ import {
   CHART_METRICS,
   ChartMetric,
   alignRowToGrid,
+  axisTimeLabel,
   buildChartData,
   chartKey,
   computeYDomain,
@@ -51,10 +52,12 @@ export default function TimeSeriesChart({
   // Align each series onto the active grid by timestamp — a no-op for ranked
   // rows; a pinned row may have been fetched for a different window.
   const aligned = useMemo(() => rows.map((r) => alignRowToGrid(r, times)), [rows, times])
-  // A point-sample analysis ('now'/'at') has a one-timestamp grid: there are
-  // no segments to stroke, so each series must render as a dot or the chart
-  // would come up blank.
+  // A point-sample analysis has a one-timestamp grid: there are no segments to
+  // stroke, so each series must render as a dot or the chart would come up blank.
   const pointGrid = times.length === 1
+  // The grid's whole extent, which decides whether a tick names an hour or a
+  // day. Zero for a point sample, where the single tick is a date either way.
+  const spanMs = times.length > 1 ? times[times.length - 1] - times[0] : 0
   const data = buildChartData(times, aligned, metric)
   const [yMin, yMax] = computeYDomain(aligned, metric)
 
@@ -122,7 +125,7 @@ export default function TimeSeriesChart({
               height={X_AXIS_HEIGHT}
               stroke="#94a3b8"
               tick={{ fontSize: 10 }}
-              tickFormatter={(t: any) => fmtAxisTime(t)}
+              tickFormatter={(t: any) => axisTimeLabel(t, spanMs)}
             />
             <YAxis
               domain={[yMin, yMax]}
@@ -176,10 +179,6 @@ export default function TimeSeriesChart({
       </div>
     </div>
   )
-}
-
-function fmtAxisTime(t: number): string {
-  return new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric' })
 }
 
 function fmtTooltipTime(t: number): string {

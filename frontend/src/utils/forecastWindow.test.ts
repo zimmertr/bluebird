@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveWindow } from './forecastWindow'
+import { hourlyStampCount, isPointSample, resolveWindow } from './forecastWindow'
 
 const NOW = Date.parse('2026-07-21T12:00:00Z')
 const HOUR = 3_600_000
@@ -83,5 +83,54 @@ describe('resolveWindow parity with the hour filter', () => {
   it(`${HOUR} keeps epoch math honest`, () => {
     // UTC hours align with epoch-hour multiples; the floor relies on it.
     expect(Date.parse('2026-07-21T12:00:00Z') % HOUR).toBe(0)
+  })
+})
+
+// What replaced "which mode was this?" for the results table. The count is the
+// honest question: the aggregates collapse exactly when the window covered one
+// hourly stamp, whatever picked it.
+describe('hourlyStampCount', () => {
+  const at = (iso: string) => Date.parse(iso)
+
+  it('counts a point sample as one, before any normalization', () => {
+    const moment = at('2026-07-21T12:34:00Z')
+    expect(hourlyStampCount(moment, moment)).toBe(1)
+    expect(isPointSample(moment, moment)).toBe(true)
+  })
+
+  // The filter is inclusive at both ends, which is the whole reason a whole day
+  // ends at 23:59: midnight to midnight would count the boundary hour twice.
+  it('counts a whole local day as 24, and midnight-to-midnight as 25', () => {
+    expect(hourlyStampCount(at('2026-07-21T00:00:00Z'), at('2026-07-21T23:59:00Z'))).toBe(24)
+    expect(hourlyStampCount(at('2026-07-21T00:00:00Z'), at('2026-07-22T00:00:00Z'))).toBe(25)
+  })
+
+  it('counts an inclusive hour pair as two, and an hour minus a minute as one', () => {
+    expect(hourlyStampCount(at('2026-07-21T06:00:00Z'), at('2026-07-21T07:00:00Z'))).toBe(2)
+    expect(isPointSample(at('2026-07-21T06:00:00Z'), at('2026-07-21T07:00:00Z'))).toBe(false)
+    expect(hourlyStampCount(at('2026-07-21T06:00:00Z'), at('2026-07-21T06:59:00Z'))).toBe(1)
+    expect(isPointSample(at('2026-07-21T06:00:00Z'), at('2026-07-21T06:59:00Z'))).toBe(true)
+  })
+
+  // A local calendar day is not always 24 hours. Written with explicit offsets
+  // rather than a local-time constructor so the assertion means the same thing
+  // whatever zone the runner is in: these are the instants a Pacific browser
+  // sends for "March 8" and "November 1".
+  it('counts a spring-forward day as 23 hours and a fall-back day as 25', () => {
+    expect(hourlyStampCount(at('2026-03-08T00:00:00-08:00'), at('2026-03-08T23:59:00-07:00'))).toBe(
+      23,
+    )
+    expect(hourlyStampCount(at('2026-11-01T00:00:00-07:00'), at('2026-11-01T23:59:00-08:00'))).toBe(
+      25,
+    )
+  })
+
+  it('counts a 16-day range as sixteen days of hours', () => {
+    // 16 days inclusive of both ends: 16 x 24 stamps.
+    expect(hourlyStampCount(at('2026-07-01T00:00:00Z'), at('2026-07-16T23:59:00Z'))).toBe(16 * 24)
+  })
+
+  it('counts a window that spans no whole hour as none', () => {
+    expect(hourlyStampCount(at('2026-07-21T06:10:00Z'), at('2026-07-21T06:50:00Z'))).toBe(0)
   })
 })

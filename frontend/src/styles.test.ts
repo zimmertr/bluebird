@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ACCENT_FILL,
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
+  DAY,
   FIELD,
   LINK,
   LINK_ACTION,
@@ -155,6 +157,9 @@ describe('every component', () => {
   // of a shared recipe should fail here rather than ship a fourth look.
   it.each(Object.entries(sources))('%s restates no shared recipe', (_path, source) => {
     expect(source).not.toMatch(/bg-sky-600 hover:bg-sky-500/)
+    // The solid accent block: the chosen direction segment, the selected day, the
+    // welcome dialog's numbered steps. Three spellings of one treatment before.
+    expect(source).not.toMatch(/bg-sky-600 text-white/)
     expect(source).not.toMatch(/bg-slate-900 border border-slate-600/)
     expect(source).not.toMatch(/bg-slate-800(\/95)? border border-slate-600/)
     expect(source).not.toMatch(/hover:text-sky-400 underline/)
@@ -189,6 +194,41 @@ describe('control panel sizing', () => {
   it('routes every non-base size through the ramp', () => {
     expect(controlPanelSource).not.toMatch(/className="[^"]*\btext-(sm|base|lg|xl)\b/)
     expect(controlPanelSource).not.toMatch(/<h[123] className="/)
+  })
+})
+
+describe('the calendar day', () => {
+  // Five states on one 40px square, so they separate by fill and text color. The
+  // two that carry a clickable date hold the 4.5:1 floor on the slate-800 panel
+  // (slate-400 is 5.7:1 there, slate-200 far above it); an adjacent month's day
+  // is dimmer but still pickable, so it is content, not chrome.
+  it('keeps every pickable day legible on the panel', () => {
+    expect(DAY.idle).toContain('text-slate-200')
+    expect(DAY.outside).toContain('text-slate-400')
+    expect(DAY.range).toContain('text-slate-200')
+  })
+
+  // The one role here deliberately below 4.5:1. WCAG 1.4.3 exempts inactive
+  // controls, and a disabled day that read as text would invite the click it
+  // cannot accept.
+  it('sets a day outside the servable band apart as inactive', () => {
+    expect(DAY.disabled).toContain('text-slate-600')
+    expect(DAY.disabled).not.toContain('hover:')
+  })
+
+  // A ring rather than a fill, because today is frequently also selected and the
+  // two have to be able to coexist on one cell.
+  it('marks today without spending a fill on it', () => {
+    expect(DAY.today).toContain('ring')
+    expect(DAY.today).not.toMatch(/\bbg-/)
+  })
+
+  it('selects a day with the shared accent fill rather than its own', () => {
+    expect(DAY.selected).toBe(ACCENT_FILL)
+  })
+
+  it('gives the range fill and the selected ends different weight', () => {
+    expect(DAY.range).not.toBe(DAY.selected)
   })
 })
 
