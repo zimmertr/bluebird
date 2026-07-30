@@ -49,6 +49,11 @@ const HEADER_PREFIX: Record<AnalysisMode, string> = {
   window: 'Forecast Table',
 }
 
+// Stands in for the analysis snapshot's covered set before the first analysis.
+// A module constant rather than an inline `new Set()`, which would be a fresh
+// identity on every render and rebuild the pending list underneath the map.
+const NO_CUSTOM: ReadonlySet<string> = new Set()
+
 // Collapse/expand affordance for the bottom panels' header bars.
 function Chevron({ up }: { up: boolean }) {
   return (
@@ -150,7 +155,12 @@ export default function App() {
   // Future Day/Time pre-fills "tomorrow around this time" — a plausible first
   // point-in-time question — and is only sent when that mode is selected.
   const [atDatetime, setAtDatetime] = useState(() => restored?.atDatetime ?? nowLocal(24))
-  const [limit, setLimit] = useState(() => restored?.limit ?? 100)
+  // 200 rather than 100 because the pasted lists people bring are themselves
+  // often 100 long (peakbagger exports, the examples/ CSVs). At 100 a list plus
+  // anything else — one searched peak, a polygon — spills over the cut on its
+  // first analysis, which is what made #205 visible. Mirrored by DEFAULT_LIMIT
+  // in urlState.ts.
+  const [limit, setLimit] = useState(() => restored?.limit ?? 200)
   const [customCsv, setCustomCsv] = useState(() => restored?.customCsv ?? '')
   // Parsed once per edit and shared by the pending markers and the Analyze
   // request, so what the map shows and what gets ranked can't drift apart.
@@ -635,13 +645,18 @@ export default function App() {
     searched.removePlace(row.latitude, row.longitude)
   }
 
-  // Custom destinations absent from the displayed report — not yet analyzed,
-  // ranked below the cutoff, or awaiting a fresh run — drawn as neutral pending
+  // Custom destinations no analysis has covered yet — drawn as neutral pending
   // dots and un-forecasted rows. Pasted CSV rows count: a list should show up
   // the moment it's pasted, not only once an analysis returns.
+  //
+  // Measured against the analysis snapshot, never against `results`: those are
+  // the top-`limit` rows, so asking them turned every added destination below
+  // the cut back into an un-forecasted row (#205). Before the first analysis
+  // there is no snapshot, so everything named is pending, which is the point.
   const pending = useMemo(
-    () => pendingDestinations(csvRows, searched.places, results, removedKeys),
-    [csvRows, searched.places, results, removedKeys],
+    () =>
+      pendingDestinations(csvRows, searched.places, analyzed?.customKeys ?? NO_CUSTOM, removedKeys),
+    [csvRows, searched.places, analyzed, removedKeys],
   )
   const hasColoredMarkers = showResults && results.length > 0
   const showTable = showResults && (results.length > 0 || pending.length > 0)
