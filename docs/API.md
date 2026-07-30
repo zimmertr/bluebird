@@ -119,9 +119,9 @@ elevation are never filtered out.
 
 ## When a search finds too much
 
-Every candidate gets a real forecast, so analyses are capped (1,500
-destinations; `GET /api/capabilities` publishes the live number). An
-over-limit search refuses with a `400` that carries remedies, not just
+Every candidate gets a real forecast, so analyses are capped at a candidate
+count that `GET /api/capabilities` publishes. An over-limit search refuses
+with a `400` that carries remedies, not just
 words: `found`, `limit`, and — when one exists — a computed
 `suggested_min_elevation_ft` with `suggested_keeps`, the elevation floor
 that would bring the search under the cap. Prefer that filter: it keeps the
@@ -194,6 +194,13 @@ Air quality deserves a note. Its horizon is far shorter than the weather
 forecast, so `aqi_avg` and `aqi_max` come back `null` for hours beyond it. That
 is expected, not an error, and an air-quality outage never fails an analysis.
 
+Two things about the value itself, for anyone rendering it. It is sampled from
+a model grid measured in tens of kilometers, so nearby destinations often carry
+identical numbers and none of them is a reading at that summit. And `us_aqi` is
+the US EPA scale applied worldwide, not the index the surrounding country
+publishes. [DATA.md's air quality section](DATA.md#air-quality) has
+the reasoning, along with the equivalent caveats for the other providers.
+
 ## When something goes wrong
 
 | Status | Meaning |
@@ -208,6 +215,13 @@ is expected, not an error, and an air-quality outage never fails an analysis.
 
 A `422` carries Pydantic's per-field `detail` list. Every other error carries a
 single plain-language `detail` string, written to be shown to a person as-is.
+
+That table is exhaustive: nothing else is emitted deliberately, and in
+particular a slow upstream surfaces as `502` rather than `504`. So a `504` or a
+`524` reaching your client came from a proxy in front of the deployment, not
+from Bluebird, and means the analysis outran that proxy's patience. Retrying it
+identically will usually outrun it again; use `POST /api/analyze/stream`, whose
+progress and keepalive events hold the connection open, or narrow the search.
 
 On `POST /api/analyze/stream`, a `429` arrives as a plain HTTP response because
 rate limiting runs before the stream opens. A capacity problem discovered
@@ -241,5 +255,6 @@ The limits are sized so a person iterating on a map never meets them. Scripts
 should stay well under them anyway: keep polygons no larger than you need,
 prefer one wide window over many narrow ones, and cache results you intend to
 reuse. If you want to run something heavy, the whole stack is one container and
-runs locally in a single command, with every limit tunable or off via
-environment variables. See the [README](../README.md).
+runs locally in a single command (see the [README](../README.md)), with every
+limit tunable or off via environment variables
+([CONFIGURATION.md](CONFIGURATION.md)).
