@@ -6,6 +6,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Bluebird is a map-based weather window finder for hikers and mountaineers, live at `bluebirdforecast.com`. Users draw a polygon on a map, pick a destination type and forecast window, and get a ranked table of destinations sorted by precipitation. No API keys are required — all external APIs (Overpass/OSM, Open-Meteo, OpenFreeMap, and NIFC for the optional wildfire overlay) are free and unauthenticated.
 
+## Documentation
+
+Prose lives in `docs/`. The README is an index, not a manual: it carries the
+Summary, How It Works, Quick Start, the docs table, Support, and License, and
+nothing else. Anything longer than a paragraph belongs on a page below, with
+the README linking to it. It was split out of a 560-line README in #192
+(issue #113); do not let it grow back.
+
+| Page | What belongs there |
+|---|---|
+| [`docs/USAGE.md`](docs/USAGE.md) | The user-facing walkthrough: destinations, forecast windows, max results, Analyze, marker colors, the results table |
+| [`docs/LIMITS.md`](docs/LIMITS.md) | The four caps (polygon area, candidates, rows, request pacing), why each exists, and the `429`/`502`/`503` mapping |
+| [`docs/DATA.md`](docs/DATA.md) | Per-provider truth: what each source can and cannot tell you, its fair-use posture, and the data-quality caveats |
+| [`docs/API.md`](docs/API.md) | HTTP API prose for callers: endpoints, worked examples, error handling |
+| [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | The env-var table and log levels |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How the service is built, and the Kubernetes deployment |
+| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Hot-reload setup and the test/lint commands (the public copy of the section below; keep the two in sync) |
+| [`docs/TRAFFIC.md`](docs/TRAFFIC.md) | How requests reach the pod and what the pod calls out to: Cloudflare, rate limits, upstream budgets |
+| [`docs/CICD.md`](docs/CICD.md) | The pipeline from merge to production, with diagrams |
+| `docs/images/` | README assets only (`screenshot.jpg` is the front-page shot) |
+
+Two conventions hold across every page:
+
+- **Never restate a numeric limit that `GET /api/capabilities` publishes.** Describe the shape and the reasoning, and point at the endpoint for the value. Prose copies drift: the split found three that already had (polygon cap, max results, CAMS grid). This is the whole point of issue #113.
+- **A doc change ships in the PR that causes it.** Nothing here is CI-enforced, so these are the artifacts that rot silently.
+
 ## Development commands
 
 **Backend (FastAPI, Python 3.14):**
@@ -58,7 +84,7 @@ Two suites: the frontend's pure logic under Vitest (`frontend/src/utils/*.test.t
 - **Style through the design system, never ad hoc.** Every frontend type, color, radius, and surface decision composes the roles in `frontend/src/styles.ts` (`TEXT`, `PROSE`, `LINK`/`LINK_ACTION`, `RADIUS`, `SURFACE_*`, `BUTTON_*`, `FIELD`). If no role fits, add or derive one **there** — with its rationale in a comment and an assertion in `frontend/src/styles.test.ts` — rather than spelling one-off utilities at a call site; that drift is what #159–#165 spent five PRs unwinding. Colors must clear WCAG AA on the surface they actually land on (4.5:1 for text and placeholders, 3:1 for icons and UI boundaries; the measured slate-vs-background table lives in issue #165). Two Tailwind v4 facts shape this: competing color utilities resolve by stylesheet order, not class-list order (so a role's color cannot be overridden at a call site), and source files are scanned as raw text (so a class name quoted in any comment or test emits its CSS — `styles.test.ts` shows how to write around it).
 - **Keep the CI/CD diagram current.** Any change that alters the deploy flow — a workflow in this repo or `bluebird-helm`, an image/chart/tag convention, or the `Kubernetes-Manifests` wiring — updates [`docs/CICD.md`](docs/CICD.md) in the same PR. That diagram spans two sibling repos (`bluebird-helm` and `Kubernetes-Manifests`), so flow changes made there come back here too; nothing enforces this automatically.
 - **Regenerate the OpenAPI snapshot.** Any change to a route, a Pydantic model, a `Field(description=...)`, or a route decorator changes the API contract. Run `cd backend && python scripts/generate_openapi.py` and commit `backend/openapi.json`; `pr.yml` fails the PR otherwise. The snapshot exists so a contract change is visible in review instead of buried in Python.
-- **Update [`docs/API.md`](docs/API.md) in the same PR.** Prose API docs live there, never hand-copied endpoint listings. Nothing enforces this the way CI enforces the snapshot, so it is the artifact that silently rots, and the README delegates to it so a stale page is what a new caller reads first. Check the worked examples, not just the prose: grep the docs for the fields you changed. The same freshness rule covers the rest of the docs library. The README is only an index; the substance lives in [`docs/USAGE.md`](docs/USAGE.md), [`docs/LIMITS.md`](docs/LIMITS.md), [`docs/DATA.md`](docs/DATA.md), [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), and [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md), and a change to a cap, an env knob, a data source, or the user-visible flow updates the matching page in the same PR. None of these restate a numeric limit that `GET /api/capabilities` publishes; they describe shape and reasoning and point at the endpoint for values (issue #113).
+- **Update the affected page in [`docs/`](docs/) in the same PR.** The Documentation table above says which page owns which topic: a new cap goes to `LIMITS.md`, a new env knob to `CONFIGURATION.md`, a provider caveat to `DATA.md`, a flow change to `USAGE.md`, an endpoint change to `API.md`. Nothing enforces this the way CI enforces the OpenAPI snapshot, so these are the artifacts that silently rot, and the README delegates to them so a stale page is what a new reader hits first. Check the worked examples, not just the prose: grep the docs for the fields you changed.
 - **Keep the aggregation vectors in lockstep.** The browser reimplements the backend's weather/AQI aggregation (`frontend/src/utils/openMeteo.ts` ↔ `backend/app/services/weather.py`/`air_quality.py`), pinned by shared vectors. Any semantic change there: change the backend first, run `cd backend && python scripts/generate_weather_vectors.py`, `cp tests/data/weather_vectors.json ../frontend/src/utils/weather_vectors.json`, and mirror the change in the TypeScript port. Pytest fails on a stale backend copy, Vitest fails on a drifted port, and the `vectors` CI job fails if the two copies differ.
 
 ## Architecture
