@@ -1,20 +1,22 @@
 /**
  * Every third-party service Bluebird's data comes from, in one list.
  *
- * This was written out twice before the public privacy page existed: the
- * control panel's credit line and the privacy dialog's provider sentence,
- * with the README's table as a third prose copy. Two of those are
- * attributions the providers' licenses require, so a list that drifts is a
- * licensing problem rather than a cosmetic one, and adding a third surface
- * without collapsing them first would have made it four.
+ * This existed as three prose copies once — a panel credit line, the privacy
+ * dialog's provider sentence, the README's table — and a list that drifts is
+ * a licensing problem rather than a cosmetic one. Today it renders in exactly
+ * one component, DataSourceList, which both document pages share, and
+ * NOTICES.md at the repo root transcribes it with the fuller license detail
+ * this type does not carry. A change here updates NOTICES.md in the same PR.
  *
  * `href` is the attribution target rather than the marketing homepage, which
  * is why OpenStreetMap points at /copyright: that is the page its attribution
  * guidance asks credits to link to.
  *
- * NIFC keeps a second, separate credit on the map itself (App.tsx). That is
- * not a duplicate of this entry — CC BY 3.0 wants the credit wherever the
- * fire data is drawn, not only in a list of sources somewhere else.
+ * The credits the licenses place next to the data live outside this list:
+ * OpenStreetMap in the map's corner control (delivered by the tile server's
+ * TileJSON), Open-Meteo docked beside the results, and NIFC on the fire
+ * legend — CC BY 3.0 wants that credit wherever the fire data is drawn, not
+ * only in a list of sources somewhere else.
  */
 export interface DataSource {
   /** Display name, used verbatim wherever the source is credited. */

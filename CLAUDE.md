@@ -25,6 +25,7 @@ the README linking to it. It was split out of a 560-line README in #192
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Hot-reload setup and the test/lint commands (the public copy of the section below; keep the two in sync) |
 | [`docs/TRAFFIC.md`](docs/TRAFFIC.md) | How requests reach the pod and what the pod calls out to: Cloudflare, rate limits, upstream budgets |
 | [`docs/CICD.md`](docs/CICD.md) | The pipeline from merge to production, with diagrams |
+| [`NOTICES.md`](NOTICES.md) | Third-party attribution, at the repo root: the data-provider half transcribes `frontend/src/utils/dataSources.ts` (change one, change both in the same PR), plus bundled-software licenses |
 | `docs/images/` | README assets only (`screenshot.jpg` is the front-page shot) |
 
 Two conventions hold across every page:
