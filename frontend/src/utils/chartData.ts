@@ -203,4 +203,36 @@ export function computeYDomain(
   return [floor, max + (max - floor) * 0.05]
 }
 
+// Map a pixel Y within the plot area to a data value (top = yMax, bottom = yMin).
+export function pixelToValue(
+  y: number,
+  plotTop: number,
+  plotHeight: number,
+  yMin: number,
+  yMax: number,
+): number {
+  if (plotHeight <= 0) return yMax
+  const frac = Math.max(0, Math.min(1, (y - plotTop) / plotHeight))
+  return yMax - frac * (yMax - yMin)
+}
 
+// The key of the line closest (in value) to the cursor at a given time; nulls
+// are skipped. Null when no line has a value there. Drives both the popped line
+// and the bold tooltip entry from one computation.
+export function nearestKey(
+  valuesByKey: Record<string, number | null>,
+  cursorValue: number,
+): string | null {
+  let best: string | null = null
+  let bestDist = Infinity
+  for (const key of Object.keys(valuesByKey)) {
+    const v = valuesByKey[key]
+    if (v == null) continue
+    const d = Math.abs(v - cursorValue)
+    if (d < bestDist) {
+      bestDist = d
+      best = key
+    }
+  }
+  return best
+}
