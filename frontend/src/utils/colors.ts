@@ -1,12 +1,23 @@
 import { SortBy } from '../types'
 
-type MetricConfig = {
+/**
+ * A set of band boundaries and the colors they anchor.
+ *
+ * Split out of MetricConfig because a scale is no longer one-per-metric: the
+ * table colors each cell by its own number, and two of precipitation's columns
+ * are a rate where the third is a total (see PRECIP_RATE below). The legend
+ * fields stay on MetricConfig, which is about the *ranked* metric.
+ */
+export type ColorScale = {
   // Band boundaries — always one fewer than colors. Values at or below
   // thresholds[0] take colors[0]; each band blends toward the next anchor;
   // values past the last threshold extrapolate into the final color over one
   // more last-band width, then clamp.
   thresholds: number[]
   colors: string[]
+}
+
+type MetricConfig = ColorScale & {
   // Captions for the bands above, not a name for the metric — that comes from
   // metrics.ts, which knows the analysis mode these thresholds do not.
   legendLabels: string[]
@@ -53,6 +64,61 @@ export const METRIC_CONFIG: Record<SortBy, MetricConfig> = {
   },
 }
 
+/**
+ * Rainfall read as an intensity rather than as a total.
+ *
+ * The precipitation group is the one group whose columns do not share a unit:
+ * the total is inches over the whole window, and the other two are inches *per
+ * hour*. One set of numbers cannot mean both — 0.30" spread across three days
+ * is drizzle and 0.30 in/hr is a downpour — so scoring a rate cell on the
+ * window-total scale above would have said they were the same weather.
+ *
+ * The boundaries are the National Weather Service's rainfall-intensity classes:
+ * light below 0.10 in/hr, moderate to 0.30, heavy to 0.50, violent past it.
+ * Borrowed rather than invented, because a scale a reader can look up is worth
+ * more here than one tuned to this app's data.
+ *
+ * Shares the hues of every other scale, so green still means "nothing going on"
+ * across the whole table.
+ */
+const PRECIP_RATE: ColorScale = {
+  thresholds: [0.01, 0.10, 0.30, 0.50],
+  colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
+}
+
+/**
+ * Which scale scores a given column, derived from the ranking scales rather
+ * than restated: every colorable column is already named in exactly one
+ * `group`, and a second list would be a second answer.
+ */
+const COLUMN_SCALE: Record<string, ColorScale> = {
+  ...Object.fromEntries(
+    (Object.keys(METRIC_CONFIG) as SortBy[]).flatMap((key) =>
+      METRIC_CONFIG[key].group.map((column) => [column, METRIC_CONFIG[key] as ColorScale]),
+    ),
+  ),
+  precip_avg_in_hr: PRECIP_RATE,
+  precip_max_in_hr: PRECIP_RATE,
+}
+
+/**
+ * The scale a table cell in `key` is colored on, or null if that column carries
+ * no color.
+ *
+ * `pointSample` is the one case where a column's scale is not fixed. A
+ * point-sample analysis covers a single hourly stamp, so the per-hour columns
+ * hold that hour's whole total, the table collapses them into one column, and
+ * the marker beside the row is colored by the window total. Reading them on the
+ * rate scale there would color a cell one thing and its own marker another over
+ * the same number.
+ */
+export function scaleFor(key: string, pointSample: boolean): ColorScale | null {
+  if (pointSample && (key === 'precip_avg_in_hr' || key === 'precip_max_in_hr')) {
+    return METRIC_CONFIG.precip_total_in
+  }
+  return COLUMN_SCALE[key] ?? null
+}
+
 function hexToRgb(hex: string): [number, number, number] {
   return [
     parseInt(hex.slice(1, 3), 16),
@@ -73,8 +139,8 @@ function mix(
   return [lerp(ca[0], cb[0], f), lerp(ca[1], cb[1], f), lerp(ca[2], cb[2], f)]
 }
 
-function interpolateRgb(value: number, sortBy: SortBy): [number, number, number] {
-  const { thresholds, colors } = METRIC_CONFIG[sortBy]
+function interpolateRgb(value: number, scale: ColorScale): [number, number, number] {
+  const { thresholds, colors } = scale
   const anchors = colors.map(hexToRgb)
   if (value <= thresholds[0]) return [...anchors[0]] as [number, number, number]
   for (let i = 1; i < thresholds.length; i++) {
@@ -89,16 +155,28 @@ function interpolateRgb(value: number, sortBy: SortBy): [number, number, number]
   return mix(anchors[n - 1], anchors[n], Math.min(1, (value - thresholds[n - 1]) / lastWidth))
 }
 
+/** A marker is colored by the ranked value, which is what the legend explains. */
 export function markerColor(value: number, sortBy: SortBy): string {
-  const [r, g, b] = interpolateRgb(value, sortBy)
+  const [r, g, b] = interpolateRgb(value, METRIC_CONFIG[sortBy])
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
+/**
+ * A cell is colored by the number printed in it, on the scale that number is
+ * measured against — so the caller passes a scale rather than the ranking, and
+ * `scaleFor` is what turns a column into one.
+ *
+ * It used to take the ranking and color every cell in the ranked group by the
+ * *ranked* value, which painted a row one flat color: a destination with a
+ * 0.55 in/hr peak inside a 0.10" window showed both cells at the window's
+ * color, so the peak the reader was looking for was the one thing the color
+ * could not tell them.
+ */
 export function cellStyle(
   value: number,
-  sortBy: SortBy,
+  scale: ColorScale,
 ): { backgroundColor: string; color: string } {
-  const [r, g, b] = interpolateRgb(value, sortBy)
+  const [r, g, b] = interpolateRgb(value, scale)
   return {
     backgroundColor: `rgba(${r},${g},${b},0.2)`,
     color: `rgb(${r},${g},${b})`,

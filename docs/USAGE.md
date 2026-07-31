@@ -118,6 +118,18 @@ A single-hour analysis ("now", or a chosen moment) collapses each of those
 groups to one column, because over one hour the average, the minimum and the
 maximum are the same number three times.
 
+The columns belonging to whichever metric you ranked by are shaded, and **each
+cell is shaded by its own number** rather than by the ranking. So a destination
+with a low precipitation total and one violent hour inside it shows a green
+total beside a red peak, which is the spread those extra columns exist to show.
+
+The two per-hour precipitation columns are read on a rainfall-intensity scale
+rather than on the totals scale the markers and the map legend use, because
+they measure a different quantity: 0.30" spread over three days is drizzle and
+0.30 in/hr is a downpour. Their boundaries are the National Weather Service's
+intensity classes, at 0.01 / 0.10 / 0.30 / 0.50 in/hr. Every other group shares
+one unit across its columns, and so shares one scale.
+
 ### Downloading the Table
 
 **Download CSV**, in the table's header bar, saves what is currently on screen

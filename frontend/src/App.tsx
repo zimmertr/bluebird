@@ -51,13 +51,18 @@ import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
 
 // Both map legends, sized as one: they stack in a single column, so differing
 // widths would read as a ragged edge rather than as two boxes. The step is a
-// measured magic number, and with the legend titling only the bare metric
-// (≤ 85px at TEXT.overline) the governor is the wildfire credit line —
-// "Fire data: NIFC (CC BY 3.0)", 131px at TEXT.micro — then the widest AQI
-// band row at 113px. w-40 leaves 140px inside the p-2.5 padding, ~9px of
-// slack on macOS's SF, the widest face in the stack. Re-measure before adding
-// a longer line to either box, or it wraps.
-const LEGEND_WIDTH = 'w-40'
+// measured magic number, and the governor moved when the fire credit folded up
+// into its swatch row — "Active Wildfire (NIFC)" is one 12px TEXT.control line
+// where it used to be a short label above a 10px credit, and it is now wider
+// than anything the metric box holds (the bare metric title ≤ 85px at
+// TEXT.overline, the widest band row 113px).
+//
+// Measured 2026-07-31 in Chrome on macOS, the widest face in the stack: the
+// label is 122.1px unwrapped, plus the 12px swatch and its 6px gap, so the row
+// needs 140.1px. w-40 leaves exactly 140px inside the px-2.5 padding and wraps
+// by a tenth of a pixel, which is why this is the next step up: w-44 leaves
+// 154px, ~14px of slack. Re-measure before lengthening a line in either box.
+const LEGEND_WIDTH = 'w-44'
 
 // Stands in for the analysis snapshot's covered set before the first analysis.
 // A module constant rather than an inline `new Set()`, which would be a fresh
@@ -1006,28 +1011,38 @@ export default function App() {
           {(hasColoredMarkers || showWildfires) && (
             <div className="absolute bottom-8 left-2 top-16 z-10 flex flex-col justify-end gap-2 overflow-y-auto lg:top-auto lg:overflow-visible">
               {showWildfires && (
+                // CC BY 3.0 wants the credit wherever the fire data is drawn,
+                // and section 4(b) lets it be "implemented in any reasonable
+                // manner" — so it is the swatch's own label rather than a
+                // second line under it. "Fire data:" and "(CC BY 3.0)" are
+                // gone: the first restated what the swatch beside it already
+                // says, and the second was the license *name* as plain text,
+                // which satisfies nothing on its own. The license URI section
+                // 4(a) asks for now lives in DataSourceList, which both
+                // document pages render and the panel footer links.
+                //
+                // This is also how Open-Meteo is credited a few hundred pixels
+                // below (a bare "Open-Meteo.com"), so the app has one idea of
+                // what a beside-the-data credit looks like instead of two.
                 <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} px-2.5 py-2`}>
                   <div className="flex items-center gap-1.5">
                     <span
                       className={`inline-block w-3 h-3 ${RADIUS.control} border`}
                       style={{ backgroundColor: 'rgba(220,38,38,0.35)', borderColor: '#b91c1c' }}
                     />
-                    <span className={TEXT.control}>Active Wildfire</span>
+                    <span className={TEXT.control}>
+                      Active Wildfire (
+                      <a
+                        href="https://data-nifc.opendata.arcgis.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={LINK}
+                      >
+                        NIFC
+                      </a>
+                      )
+                    </span>
                   </div>
-                  {/* CC BY 3.0 requires a visible credit wherever the fire data
-                      is displayed, not just a source-code comment. */}
-                  <p className={`${TEXT.micro} mt-1`}>
-                    Fire data:{' '}
-                    <a
-                      href="https://data-nifc.opendata.arcgis.com/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={LINK}
-                    >
-                      NIFC
-                    </a>{' '}
-                    (CC BY 3.0)
-                  </p>
                 </div>
               )}
               {hasColoredMarkers && (
@@ -1197,17 +1212,22 @@ export default function App() {
                     was readable only by hovering the warning. It is now a notice
                     in the panel beside Analyze, where the panel's other bad news
                     already goes, carrying the whole sentence. */}
-                {/* The two asides, stacked narrow and inline wide. Right-aligned
-                    while stacked so they read as one column against the ragged
-                    left one, and never a shrinking member: an ellipsized
-                    attribution is not an attribution.
+                {/* The two asides, stacked narrow and inline wide. Centered on
+                    each other while stacked, not flushed right: they are a
+                    two-line block of their own rather than a column continuing
+                    the ragged left one, and the shorter line hanging off the
+                    longer one's left edge read as a mistake. The block as a
+                    whole still sits at the bar's right end, because the flex
+                    parent puts it there. Never a shrinking member either way:
+                    an ellipsized attribution is not an attribution.
 
                     The credit is CC-BY 4.0's, and it is required beside the data
                     rather than only in the document pages — the docked bar keeps
-                    it on screen whenever forecasts are. The licence asks for the
-                    creator and a link to them, and names no phrase, so the words
-                    "Weather data by" were 70px of a phone's width buying nothing
-                    the link itself does not already say.
+                    it on screen whenever forecasts are. Open-Meteo's licence
+                    page gives "Weather data by Open-Meteo.com" as an example
+                    rather than as required wording, so the bare link stands; the
+                    licence URI that CC BY 4.0 also asks for is carried by
+                    DataSourceList on both document pages.
 
                     It also survives on its own: the panel opens for
                     un-forecasted pending rows too, and a file of empty cells is
@@ -1216,7 +1236,7 @@ export default function App() {
                     Both roles carry a color, and they carry the same one. That
                     is deliberate rather than redundant: two colors here would be
                     resolved by stylesheet order, not by the order written. */}
-                <div className="flex shrink-0 flex-col items-end @3xl:flex-row @3xl:items-baseline @3xl:gap-3">
+                <div className="flex shrink-0 flex-col items-center @3xl:flex-row @3xl:items-baseline @3xl:gap-3">
                   {results.length > 0 && (
                     <button
                       onClick={handleDownloadCsv}
