@@ -30,6 +30,7 @@ import {
   classifyMoment,
   clampLimit,
 } from './utils/urlState'
+import { urlNeedsSync } from './utils/urlSync'
 import { DEFAULT_WINDOW_HOURS, nowLocal } from './utils/datetimeLocal'
 import { PresentationKnobs, bandNarrows, commitNeeded, presentResults } from './utils/present'
 import { SortDir, SortKey, displayedColumns } from './utils/tableColumns'
@@ -118,6 +119,11 @@ export default function App() {
   // where removed destinations may legitimately return.
   const [removedKeys, setRemovedKeys] = useState<Set<string>>(new Set())
   const removalScopeRef = useRef<string | null>(null)
+  // Timeout ID for the debounced URL sync, so pending writes can be flushed
+  // on cleanup. A trailing debounce (~400ms) collapses bursts of edits into
+  // one history write. The no-op guard (urlNeedsSync) skips replaceState
+  // entirely when the URL is already current.
+  const urlSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Live limits from /api/capabilities: the analysis cap gates the client-side
   // paths and the results knob's ceiling, so a server recalibration reaches
@@ -352,6 +358,12 @@ export default function App() {
   // the map commits polygon edits only at discrete events (point add, drag
   // end, insert, delete — never mid-drag), so this can't thrash replaceState
   // past Safari's rate limit.
+  //
+  // A trailing debounce (~400ms) collapses bursts of edits (e.g. per-keystroke
+  // customCsv changes) into a single write. The no-op guard skips replaceState
+  // entirely when the URL is already current. On cleanup (unmount or re-run),
+  // any pending write is flushed so the last state reaches the URL before the
+  // component exits.
   useEffect(() => {
     const qs = encodeState({
       polygon,
@@ -369,8 +381,32 @@ export default function App() {
       showWildfires,
       pins: searched.places,
     })
-    const url = qs ? `?${qs}` : window.location.pathname
-    window.history.replaceState(null, '', url)
+
+    // Skip replaceState when the URL hasn't actually changed
+    if (!urlNeedsSync(qs, window.location.pathname, window.location.search)) {
+      return
+    }
+
+    const urlToWrite = qs ? `?${qs}` : window.location.pathname
+
+    // Clear any pending timer and schedule the write with ~400ms debounce
+    if (urlSyncTimeoutRef.current !== null) {
+      clearTimeout(urlSyncTimeoutRef.current)
+    }
+    urlSyncTimeoutRef.current = setTimeout(() => {
+      window.history.replaceState(null, '', urlToWrite)
+      urlSyncTimeoutRef.current = null
+    }, 400)
+
+    return () => {
+      // On cleanup (component unmount or effect re-run), flush any pending
+      // write so the last state reaches the URL before exiting.
+      if (urlSyncTimeoutRef.current !== null) {
+        clearTimeout(urlSyncTimeoutRef.current)
+        window.history.replaceState(null, '', urlToWrite)
+        urlSyncTimeoutRef.current = null
+      }
+    }
   }, [
     polygon,
     destinationType,
