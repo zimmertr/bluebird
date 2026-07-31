@@ -45,7 +45,7 @@ function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; 
             onClick={onRemove}
             title="Remove from the results"
             aria-label={`Remove ${name}`}
-            className={`row-remove ${TAP.dense} hidden group-hover:inline-flex leading-none text-slate-400 hover:text-slate-200 cursor-pointer`}
+            className={`row-remove ${TAP.dense} hidden group-hover:inline leading-none text-slate-400 hover:text-slate-200 cursor-pointer`}
           >
             ×
           </button>

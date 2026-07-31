@@ -190,11 +190,15 @@ export const TAP = {
   /** Height alone, for anything that already lays its own content out: a native input, a two-line list item. */
   height: 'touch:min-h-11',
   /**
-   * The 24px AA floor, for controls inside the results grid. Deliberately not
-   * gated on the pointer: 24px costs nothing beside a 28px table row, and a
-   * 14px checkbox is a poor target for a mouse too.
+   * The 24px AA floor, for controls inside the results grid.
+   *
+   * Pointer-gated like the rest, though it was briefly not: 24px looked free
+   * beside a 28px row. It is not free on the one control that changes size.
+   * The remove × swaps in for the rank number on row hover, so a minimum width
+   * wider than the number makes every column shift right as the mouse crosses
+   * a row. A finger has no hover and pays nothing for it.
    */
-  dense: 'min-h-6 min-w-6 inline-flex items-center justify-center',
+  dense: 'touch:min-h-6 touch:min-w-6 touch:inline-flex touch:items-center touch:justify-center',
   /**
    * A full-width drag handle (the chart/table resizers). The AA floor rather
    * than the 44, because only the vertical axis is scarce here and a 44px bar

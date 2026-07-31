@@ -408,13 +408,13 @@ describe('tap targets', () => {
     expect(px(TAP.height, 'w')).toBeNull()
   })
 
-  // The grid's floor, and the only key that is not pointer-gated: 24px costs
-  // nothing beside a 28px table row, and a 14px checkbox is a poor target for
-  // a mouse too.
-  it('holds the minimum target inside the results grid, for every pointer', () => {
+  // The grid's floor. Pointer-gated like the rest: the remove × swaps in for
+  // the rank number on row hover, so a minimum width wider than the number it
+  // replaces would shift every column right as a mouse crosses a row.
+  it('holds the minimum target inside the results grid', () => {
     expect(px(TAP.dense, 'h')).toBe(24)
     expect(px(TAP.dense, 'w')).toBe(24)
-    expect(TAP.dense).not.toContain('touch:')
+    expect(TAP.dense).toContain('touch:')
   })
 
   // A drag handle is a strip: only the vertical axis is scarce, and 44px of
