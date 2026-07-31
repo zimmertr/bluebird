@@ -160,7 +160,7 @@ rather than expiring into nothing. A perimeter mapped an hour ago still answers
 a ten-mile proximity question correctly, so withholding it would trade a good
 answer for no answer.
 
-Hovering a fire dates the perimeter: **Perimeter revised** is when NIFC last
+Hovering a fire dates the perimeter: **Last updated** is when NIFC last
 surveyed that incident, which is a fact about the fire and not about Bluebird.
 It routinely runs days old on a fire that is burning right now, which is normal
 for a surveyed product and not a sign of stale data on this end. If you are

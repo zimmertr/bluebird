@@ -1,16 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { Place, parseCoordinates, searchPlaces } from '../utils/geocode'
-import { SURFACE_FLOATING, TEXT } from '../styles'
+import { ACCENT_RING, SURFACE_FLOATING, TEXT } from '../styles'
 
 interface Props {
   onSelect: (place: Place) => void
+  // The panel is pointing at this box: the reader is hovering "Search by Name",
+  // whose control lives out here on the map rather than in the section that
+  // names it. Purely a cue — nothing about the box's behavior changes.
+  pointed?: boolean
 }
 
 // Floating place search for the map. Fires on Enter rather than as-you-type —
 // Nominatim's usage policy forbids autocomplete — and coordinate pairs are
 // handled locally without ever reaching the geocoder. The × only clears the
 // text: searched places persist as pins, removed via their 📍 in the table.
-export default function SearchBox({ onSelect }: Props) {
+export default function SearchBox({ onSelect, pointed = false }: Props) {
   const [query, setQuery] = useState('')
   const [places, setPlaces] = useState<Place[] | null>(null)
   const [highlight, setHighlight] = useState(0)
@@ -104,7 +108,11 @@ export default function SearchBox({ onSelect }: Props) {
 
   return (
     <div ref={rootRef} className="relative">
-      <div className={`${SURFACE_FLOATING} flex items-center gap-2 px-2.5 py-2 transition-colors focus-within:border-sky-400`}>
+      <div
+        className={`${SURFACE_FLOATING} flex items-center gap-2 px-2.5 py-2 transition-all focus-within:border-sky-400 ${
+          pointed ? ACCENT_RING : ''
+        }`}
+      >
         <svg
           width="15"
           height="15"
@@ -127,7 +135,9 @@ export default function SearchBox({ onSelect }: Props) {
             setError(null)
           }}
           onKeyDown={onKeyDown}
-          placeholder="Find a peak, city, lake… (press Enter)"
+          // No placeholder: a magnifier in a field on a map is already a search
+          // box. The title and aria-label still carry what it accepts, for the
+          // hover and for a screen reader.
           title="Search by name (Mt Whitney) or coordinates (36.58, -118.29)"
           aria-label="Search for a place"
           autoComplete="off"

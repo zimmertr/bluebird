@@ -123,14 +123,13 @@ export function formatContainment(pct: number | null | undefined): string {
 }
 
 /**
- * Epoch-ms → localized "Perimeter revised: <date>, <time>", or null to omit it.
+ * Epoch-ms → localized "Last updated: <date>, <time>", or null to omit it.
  *
  * This is NIFC's own timestamp for when the incident's perimeter was last
  * redrawn: a fact about the fire, not about Bluebird. Measured across one
- * national snapshot it ranged from minutes to two weeks old, which is why it is
- * named precisely. Read as a bare "Updated" it invited the reading that
- * Bluebird's copy was two weeks stale, and it is now the only date in the
- * popup, so nothing else is there to correct the impression.
+ * national snapshot it ranged from minutes to two weeks old. It sits inside a
+ * popup titled with the incident and credited to NIFC, which is what makes
+ * "Last updated" read as the fire's date rather than the app's.
  *
  * Kept timezone-tolerant (falls back to a bare ISO date) so it never throws.
  */
@@ -139,9 +138,9 @@ export function formatRevised(ms: number | null | undefined): string | null {
   const d = new Date(ms)
   if (Number.isNaN(d.getTime())) return null
   try {
-    return `Perimeter revised: ${d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`
+    return `Last updated: ${d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`
   } catch {
-    return `Perimeter revised: ${d.toISOString().slice(0, 10)}`
+    return `Last updated: ${d.toISOString().slice(0, 10)}`
   }
 }
 

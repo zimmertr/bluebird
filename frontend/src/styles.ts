@@ -219,6 +219,21 @@ export const ACCENT_FILL = 'bg-sky-600 text-white'
 export const SEGMENT_IDLE = 'bg-slate-900 text-slate-400 hover:text-slate-200'
 
 /**
+ * A transient outline drawn around a control to point at it from somewhere
+ * else: hovering the panel's "Search by Name" rings the map's search box,
+ * which is the one control the panel names but does not contain.
+ *
+ * A ring rather than a border or a fill, for the same reason `DAY.today` is
+ * one: it layers onto a control that already has both without displacing it or
+ * restating its own treatment. sky-400 because pointing at something is the
+ * app acting on itself, which is what sky means at rest everywhere else (see
+ * LINK_ACTION) — and at 8.2:1 on the floating surface it clears the 3:1 asked
+ * of a UI boundary several times over, since it has to register in peripheral
+ * vision while the eye is still in the sidebar.
+ */
+export const ACCENT_RING = 'ring-2 ring-sky-400'
+
+/**
  * A bordered region grouping controls inside the panel: today, the calendar.
  *
  * Border only, no fill of its own, and the border is deliberately brighter than

@@ -61,6 +61,9 @@ interface Props {
   drawPointCount: number
   polygonAreaKm2: number | null
   onCancelDrawing: () => void
+  // Hovering the Search by Name section rings the map's search box, the one
+  // control this panel names but does not hold.
+  onPointAtSearch: (on: boolean) => void
   destinationType: DiscoveryType
   setDestinationType: (t: DiscoveryType) => void
   // What the analysis asks about: the current hour, or days off the calendar.
@@ -129,6 +132,7 @@ export default function ControlPanel({
   drawPointCount,
   polygonAreaKm2,
   onCancelDrawing,
+  onPointAtSearch,
   destinationType,
   setDestinationType,
   selection,
@@ -219,11 +223,19 @@ export default function ControlPanel({
             1. Destinations
           </h2>
 
-          {/* a. Search by name — the search box lives on the map itself */}
-          <div className="mb-3">
+          {/* a. Search by name — the only method whose control is not in this
+              panel; the search box floats on the map. Hovering the heading or
+              its line rings that box, so the reader is shown where it is
+              instead of told. Hover-only is fine here because it adds a cue to
+              copy that already stands on its own. */}
+          <div
+            className="mb-3"
+            onMouseEnter={() => onPointAtSearch(true)}
+            onMouseLeave={() => onPointAtSearch(false)}
+          >
             <h3 className={`${TEXT.subheading} mb-1`}>Search by Name</h3>
             <p className={TEXT.helper}>
-              Search for a destination by name
+              Search for a destination by name.
             </p>
           </div>
 
@@ -300,7 +312,7 @@ export default function ControlPanel({
           <div>
             <h3 className={`${TEXT.subheading} mb-1`}>Search by Coordinates</h3>
             <p className={`${TEXT.helper} mb-1.5`}>
-              Specify exact destinations using coordinate pairs
+              Specify exact destinations using coordinate pairs.
             </p>
             <textarea
               aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"

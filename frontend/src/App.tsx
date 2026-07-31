@@ -199,6 +199,9 @@ export default function App() {
   // The controls panel is docked on desktop and an off-canvas drawer on phones.
   // It starts open on both; a close button collapses it to widen the map.
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  // The panel's Search by Name section is hovered, so the map's search box —
+  // the control that section names but does not contain — wears a ring.
+  const [searchPointed, setSearchPointed] = useState(false)
   const isDesktop = useIsDesktop()
 
   function dismissWelcome() {
@@ -822,6 +825,7 @@ export default function App() {
           drawPointCount={drawPointCount}
           polygonAreaKm2={polygonAreaKm2}
           onCancelDrawing={handleCancelDrawing}
+          onPointAtSearch={setSearchPointed}
           destinationType={destinationType}
           setDestinationType={setDestinationType}
           selection={selection}
@@ -970,7 +974,7 @@ export default function App() {
                 Controls
               </button>
             )}
-            <SearchBox onSelect={handleSearchSelect} />
+            <SearchBox onSelect={handleSearchSelect} pointed={searchPointed} />
           </div>
           {/* Bottom-anchored legends. On mobile the top edge is clamped below
               the Controls/search cluster (top-16) and the stack scrolls if it
@@ -1053,11 +1057,13 @@ export default function App() {
                 <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
               </div>
             )}
-            {/* Untitled: the chart names itself with its own metric radios,
-                and the button's tooltip and label still say what it collapses. */}
             <div
-              className={`flex flex-shrink-0 items-center justify-end border-b border-slate-600 bg-slate-700 px-3 py-1 ${chartCollapsed ? 'border-t' : ''}`}
+              className={`flex flex-shrink-0 items-center justify-between border-b border-slate-600 bg-slate-700 px-3 py-1 ${chartCollapsed ? 'border-t' : ''}`}
             >
+              {/* Static, leftmost, and shown whether or not the panel is open:
+                  collapsed, this strip is the only thing naming what the
+                  chevron expands. Its twin titles the table bar below. */}
+              <span className={TEXT.subheading}>Forecast Chart</span>
               <button
                 onClick={() => setChartCollapsed((c) => !c)}
                 title={chartCollapsed ? 'Expand the chart' : 'Collapse the chart'}
@@ -1111,16 +1117,18 @@ export default function App() {
             <div
               className={`flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
             >
-              {/* The ranking and the window it covers, and nothing else. The
-                  bar used to lead with a name for the analysis ("Current
-                  Conditions:", "Forecast Table:") that changed with the
-                  selection shape, so the same report renamed itself when you
-                  moved the window. The caption beside it already says which
-                  shape it is. With no rows there is no ranking to state, and
-                  the bar carries its credit and controls regardless. */}
+              {/* The panel's name, then what is currently in it. The name is
+                  static: it used to be one of "Current Conditions:",
+                  "Forecast:" or "Forecast Table:" depending on the selection,
+                  so the same report renamed itself when you moved the window.
+                  Which selection it was is the caption's job, below. */}
               <span className={TEXT.subheading}>
-                {results.length > 0 &&
-                  `${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, pointSample)}`}
+                Forecast Table
+                {results.length > 0 && (
+                  <span className="ml-3">
+                    {`${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, pointSample)}`}
+                  </span>
+                )}
                 {/* Which window these rows describe. A multi-hour analysis used
                     to say nothing at all here, so someone opening a shared link
                     had no on-screen statement of the days they were reading. */}

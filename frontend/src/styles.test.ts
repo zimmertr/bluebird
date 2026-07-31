@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ACCENT_FILL,
+  ACCENT_RING,
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
   DAY,
@@ -266,6 +267,17 @@ describe('grouping and segmenting', () => {
   it('pairs the idle segment with the accent fill', () => {
     expect(SEGMENT_IDLE).toContain('text-slate-400')
     expect(SEGMENT_IDLE).not.toBe(ACCENT_FILL)
+  })
+
+  // Pointing at a control from across the screen is a ring, not a border or a
+  // fill: it has to layer onto something that already has both. DAY.today is
+  // the other one, and it wears slate because it labels a day rather than
+  // acting on it — this one wears the resting accent because it is the app
+  // answering a hover.
+  it('points with a ring in the resting accent', () => {
+    expect(ACCENT_RING).toContain('ring-sky-400')
+    expect(ACCENT_RING).not.toContain('border')
+    expect(DAY.today).toContain('ring-slate-400')
   })
 })
 

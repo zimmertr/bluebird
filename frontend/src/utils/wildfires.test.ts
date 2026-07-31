@@ -78,7 +78,7 @@ describe('formatRevised', () => {
     // and it is the only date in the popup, so nothing else is there to correct
     // a reader who reads it as ours. Avoid asserting a locale/timezone-specific
     // rendering, just the label.
-    expect(formatRevised(Date.UTC(2026, 6, 20))).toMatch(/^Perimeter revised: /)
+    expect(formatRevised(Date.UTC(2026, 6, 20))).toMatch(/^Last updated: /)
   })
 })
 
@@ -121,7 +121,7 @@ describe('wildfirePopupHtml', () => {
       { attr_IncidentName: 'Dollar Lake', attr_ModifiedOnDateTime_dt: Date.UTC(2026, 6, 17) },
       NIFC,
     )
-    expect(html).toContain('Perimeter revised:')
+    expect(html).toContain('Last updated:')
   })
 
   it('says nothing about the age of our own copy', () => {
@@ -139,7 +139,7 @@ describe('wildfirePopupHtml', () => {
 
   it('still renders a perimeter NIFC has never revised', () => {
     const html = wildfirePopupHtml({ attr_IncidentName: 'Fresh' }, NIFC)
-    expect(html).not.toContain('Perimeter revised')
+    expect(html).not.toContain('Last updated')
     expect(html).toContain('Fresh')
   })
 })
