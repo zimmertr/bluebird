@@ -391,28 +391,34 @@ describe('every role', () => {
 })
 
 describe('the accent', () => {
-  // #167. The fill answers to two WCAG rules at once and they pull opposite
-  // ways: 4.5:1 for the label on it (1.4.3), 3:1 for the fill against the panel
-  // behind it (1.4.11). A white label needs a fill no lighter than 0.183
-  // relative luminance and the 3:1 edge needs one no darker than 0.165, and no
-  // Tailwind sky step is in that window — which is why the polarity inverted
-  // rather than the shade moving down. Asserting the *shape* rather than the
-  // literal: what must not come back is a light-on-dark accent fill.
-  it('fills bright and labels dark, so both contrast rules clear at once', () => {
-    const [fill, label] = ACCENT.fill.split(' ')
+  // #167 is a *documented exception*, not a fix: white on sky-600 measures
+  // 4.02:1 where WCAG 1.4.3 asks 4.5:1, and the hovered sky-500 measures
+  // 2.71:1. Both are accepted deliberately — white-on-blue is the app's
+  // identity, and every alternative that clears AA changes how the primary
+  // action looks (see the derivation on ACCENT in styles.ts).
+  //
+  // The point of pinning the literals is that they are *load-bearing numbers*.
+  // The last time this recipe carried a contrast claim, the claim was wrong
+  // (the comment said 4.6:1) and a whole accessibility sweep believed it. Any
+  // change to the fill now fails here, which forces whoever makes it to
+  // re-measure and restate the exception rather than inherit it.
+  const ACCEPTED = { fill: 'bg-sky-600 text-white', ratio: 4.02 }
+  const ACCEPTED_HOVER = { hover: 'hover:bg-sky-500', ratio: 2.71 }
 
-    expect(fill).toMatch(/^bg-sky-[45]00$/)
-    expect(label).toMatch(/^text-slate-9\d0$/)
-    expect(ACCENT.fill).not.toContain('text-white')
+  it('carries the accepted fill, whose contrast is a recorded exception', () => {
+    expect(ACCENT.fill).toBe(ACCEPTED.fill)
+    expect(ACCEPTED.ratio).toBeLessThan(4.5)
   })
 
-  // The hover moves the same direction every other hover in the app moves. It
-  // is only safe to lighten *because* the label is dark; under the old polarity
-  // a hovered Analyze read worse than a resting one (2.7:1).
-  it('lightens on hover, which the dark label is what permits', () => {
+  // Recorded rather than asserted-away: the hover lightens, which costs
+  // contrast rather than saving it. It is kept because the app's one primary
+  // action should not be the only control that dims under the pointer.
+  it('hovers lighter, at a contrast cost taken knowingly', () => {
     const step = (c: string) => Number(c.match(/-(\d00)$/)?.[1])
 
+    expect(ACCENT.fillHover).toBe(ACCEPTED_HOVER.hover)
     expect(step(ACCENT.fillHover)).toBeLessThan(step(ACCENT.fill.split(' ')[0]))
+    expect(ACCEPTED_HOVER.ratio).toBeLessThan(ACCEPTED.ratio)
   })
 
   // The bug this whole issue is: the button spelled its own fill, so it and the

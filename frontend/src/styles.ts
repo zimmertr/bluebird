@@ -174,28 +174,40 @@ export const SURFACE_CARD =
  * enforceable is in `styles.test.ts`: **no component names a hue.** A component
  * says which job it is doing and the answer lives here.
  *
- * ## Why the fill is dark-on-bright rather than white-on-blue (#167)
+ * ## The fill's contrast is a known, deliberate AA exception (#167)
  *
- * The accent fill has two contrast obligations at once, and they pull opposite
- * ways. Its label is text, so WCAG 1.4.3 wants 4.5:1 against the fill. The fill
- * is also what says "this block is a control, and it is the selected one", so
- * 1.4.11 wants 3:1 against the surface behind it — the same 3:1 `SURFACE_GROUP`
- * below holds itself to.
+ * **White on sky-600 measures 4.02:1, against the 4.5:1 WCAG 1.4.3 asks of
+ * normal-size text.** Every site is 12-14px, so no large-text allowance applies.
+ * This is accepted rather than fixed, as a product call: white-on-blue is the
+ * app's identity, and none of the ways out preserve it.
  *
- * White labels cannot satisfy both. White at 4.5:1 needs a fill no lighter than
- * 0.183 relative luminance; a 3:1 edge on the slate-800 panel needs one no
- * darker than 0.165. sky-600 sits at 0.211 (white reads 4.02:1, which is the
- * bug) and sky-700 at 0.130 (white reads 5.85:1, but the fill drops to 2.50:1
- * on the panel and 2.37:1 on `DAY.range` — the two ends of a selected range
- * would sink into the band between them, which is the one thing that control
- * has to show). No Tailwind sky step lands in the window, and a custom shade
- * that did would sit on both floors with no headroom.
+ * Do not "fix" this by reaching for a darker sky step. The fill answers to two
+ * rules at once and they pull opposite ways: the label is text (1.4.3, 4.5:1
+ * against the fill), and the fill is also what says "this block is a control,
+ * and it is the selected one" (1.4.11, 3:1 against the surface behind it — the
+ * same 3:1 `SURFACE_GROUP` below holds itself to). Measured:
  *
- * Inverting the polarity clears both with room to spare: slate-950 on sky-500
- * is 7.4:1, and sky-500 is 5.4:1 on the panel and 5.1:1 on the range band. It
- * also lets the hover keep *lightening* (sky-400: 9.2:1 text, 6.5:1 edge),
- * which is the direction every other hover in the app moves. Darkening the fill
- * instead would have had to invert that language app-wide.
+ * - sky-600, today: white 4.02:1, fill 3.65:1 on the panel, 3.46:1 on `DAY.range`.
+ * - sky-700: white 5.85:1, but 2.50:1 on the panel and 2.37:1 on `DAY.range` —
+ *   the two ends of a selected range would sink into the band between them,
+ *   which is the one thing that control exists to show.
+ * - sky-800: white 7.52:1, 1.95:1 on the panel. Worse still.
+ *
+ * The window is empty, not merely unsearched: white at 4.5:1 needs a fill no
+ * lighter than 0.183 relative luminance, a 3:1 edge on the slate-800 panel needs
+ * one no darker than 0.165, and sky-600/sky-700 sit at 0.211/0.130. So a
+ * white-on-sky fill has to give up one of the two, and giving up the 1.4.11 edge
+ * costs a working control while giving up 0.48 of a text ratio costs margin on a
+ * label that is still legible. That is the trade being made here.
+ *
+ * Two exits exist and were both declined. Inverting the polarity (a dark label
+ * on sky-500) clears both rules with room to spare — 7.43:1 text, 5.40:1 edge —
+ * and was rejected on looks. A custom shade near oklch(0.56 0.145 242) also
+ * clears both (4.54:1 and 3.23:1) while staying white-on-blue, at the cost of a
+ * token off Tailwind's scale sitting near both floors.
+ *
+ * If this number is ever revisited, revisit it here. It is recorded in
+ * `styles.test.ts` so that changing the fill forces someone to restate it.
  */
 export const ACCENT = {
   /**
@@ -206,10 +218,19 @@ export const ACCENT = {
    *
    * The label color is not separable from the fill and must never be restated
    * at a call site — that is the whole failure this role was rewritten to end.
+   * See the exception recorded above before changing either half.
    */
-  fill: 'bg-sky-500 text-slate-950',
-  /** The hover step for a fill that is a button. Only `BUTTON_PRIMARY` has one. */
-  fillHover: 'hover:bg-sky-400',
+  fill: 'bg-sky-600 text-white',
+  /**
+   * The hover step for a fill that is a button. Only `BUTTON_PRIMARY` has one.
+   *
+   * It lightens, matching every other hover in the app, and that costs contrast
+   * rather than saving it: white on sky-500 is **2.71:1**, so a hovered label
+   * reads worse than the resting 4.02:1 rather than better. Both numbers are
+   * accepted together — darkening this one alone would make the app's one
+   * primary action the only control that dims under the pointer.
+   */
+  fillHover: 'hover:bg-sky-500',
   /** The accent as a bare graphic with nothing on it: the progress bar's fill. */
   mark: 'bg-sky-500',
   /**
@@ -423,12 +444,12 @@ export const SURFACE_GROUP = `border border-slate-500 ${RADIUS.surface}`
  *   with no air quality stays marked *inside* a selected range — which is
  *   exactly when that matters.
  * - `selected` is the accent fill: the two ends, and a single-day pick. This is
- *   the one place the ramp is lost, because the fill carries its own label
- *   color (see `ACCENT` above). Two cells out of a range, and the panel's
- *   air-quality warning covers the window as a whole. The end of a range has to
- *   stay findable against the band beside it, which is the 1.4.11 half of why
- *   the fill could not simply be darkened in #167: sky-500 is 5.1:1 on
- *   `range`, where sky-700 would have been 2.4:1.
+ *   the one place the ramp is lost, because white is what reads on sky-600. Two
+ *   cells out of a range, and the panel's air-quality warning covers the window
+ *   as a whole. The end of a range also has to stay findable against the band
+ *   beside it, and that is the 1.4.11 half of why the fill cannot simply be
+ *   darkened to fix its label contrast: sky-600 is 3.46:1 on `range`, where
+ *   sky-700 would be 2.37:1. See `ACCENT` above for the whole trade.
  *
  * `today` is a ring rather than a fill, so it can coexist with any of the above
  * (today is frequently also selected). slate-400 clears the 3:1 for a boundary.
