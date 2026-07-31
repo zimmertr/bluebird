@@ -1,11 +1,6 @@
 @import "tailwindcss";
-/* Tailwind v4 puts utilities in @layer utilities, and unlayered vendor CSS
-   outranks any layer — maplibre's `.maplibregl-map{position:relative}` would
-   beat `absolute inset-0` on the map container and collapse it to 0 height.
-   Importing it into layer(base) keeps it below utilities, matching the v3
-   source-order behavior. Don't import this CSS from TSX: that copy would be
-   unlayered and reintroduce the bug. */
-@import "maplibre-gl/dist/maplibre-gl.css" layer(base);
+/* No map styling here. This file is shared by every entry, including the three
+   text pages, so vendor CSS lives in map.css, imported only by MapView. */
 @config "../tailwind.config.js";
 
 /* Roomier tap targets belong to coarse pointers, not narrow windows. The
@@ -28,10 +23,6 @@ body,
   height: 100%;
   margin: 0;
   padding: 0;
-}
-
-.maplibregl-map {
-  font-family: inherit;
 }
 
 /* Indeterminate progress bar — used while a phase has no countable progress

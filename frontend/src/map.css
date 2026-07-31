@@ -1,0 +1,21 @@
+/* Everything maplibre, in one file imported only by MapView, so the text-page
+   entries (/privacy, /terms, the 404) never download map styling they cannot
+   use.
+
+   The layer(base) wrapping is load-bearing. Tailwind v4 puts utilities in
+   @layer utilities, and unlayered vendor CSS outranks any layer, so an
+   unlayered copy of this import lets `.maplibregl-map{position:relative}`
+   beat `absolute inset-0` on the map container and collapse the map to 0
+   height. That bug already happened once; import the vendor stylesheet only
+   through this file, never from TSX, and never without the layer.
+
+   The split itself is order-proof for the same reason: cascade layers are
+   global to the document and Tailwind's own layer statement fixes
+   base < utilities no matter which stylesheet the browser parses first. */
+@import "maplibre-gl/dist/maplibre-gl.css" layer(base);
+
+/* Unlayered on purpose: it must beat the vendor's own font stack, which now
+   sits in @layer base. */
+.maplibregl-map {
+  font-family: inherit;
+}

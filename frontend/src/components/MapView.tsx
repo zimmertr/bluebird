@@ -11,7 +11,11 @@ import type { FilterSpecification } from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.
 import type { FeatureCollection, Point } from 'geojson'
-// maplibre-gl.css is imported in index.css under layer(base) — see comment there
+// All maplibre CSS enters through map.css, which wraps the vendor stylesheet
+// in layer(base) — see the comment there before "simplifying" this to a direct
+// vendor import. Importing it here rather than in index.css is what keeps map
+// styling out of the text-page entries.
+import '../map.css'
 import { GeoPolygon, DestinationResult, SortBy } from '../types'
 import { resultsFeatureCollection } from '../utils/resultFeatures'
 import { resultPopupHtml } from '../utils/resultPopup'
