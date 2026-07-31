@@ -16,11 +16,8 @@ import {
   monthKey,
   monthLabel,
   orderDays,
-  selectionLocalWindow,
   weekdayInitials,
-  windowPhrase,
 } from '../utils/calendar'
-import { isPointSample } from '../utils/forecastWindow'
 import {
   ACCENT_FILL,
   BUTTON_SECONDARY,
@@ -177,9 +174,6 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
   }
 
   const hours = selection.kind === 'days' ? selection.hours : undefined
-  const local = selectionLocalWindow(selection, now)
-  const startMs = Date.parse(local.start)
-  const endMs = Date.parse(local.end)
 
   function setHours(next: { start: string; end: string } | undefined) {
     if (selection.kind !== 'days') return
@@ -314,40 +308,26 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
             </div>
           </div>
           {hours && (
-            <div className="mt-1.5 space-y-1.5">
-              <div className="flex items-center gap-2">
-                <input
-                  type="time"
-                  aria-label="Window start time"
-                  value={hours.start}
-                  onChange={(e) =>
-                    isTimeOfDay(e.target.value) && setHours({ ...hours, start: e.target.value })
-                  }
-                  className={`${FIELD} w-full px-2 py-1.5`}
-                />
-                <span className={`${TEXT.caption} flex-shrink-0`}>to</span>
-                <input
-                  type="time"
-                  aria-label="Window end time"
-                  value={hours.end}
-                  onChange={(e) =>
-                    isTimeOfDay(e.target.value) && setHours({ ...hours, end: e.target.value })
-                  }
-                  className={`${FIELD} w-full px-2 py-1.5`}
-                />
-              </div>
-              {/* Only across a range, and only as the window itself: the two
-                  inputs do not say which dates they attach to, and a range plus a
-                  pair of hours otherwise reads as "these hours on each day" — it
-                  is one continuous window, overnight hours included. Naming both
-                  endpoints is what makes that plain, so nothing has to explain
-                  it. One day needs no line at all; the fields and the highlighted
-                  cell already are the answer. */}
-              {selection.startDate !== selection.endDate && (
-                <p className={TEXT.helper}>
-                  {windowPhrase(startMs, endMs, isPointSample(startMs, endMs))}
-                </p>
-              )}
+            <div className="mt-1.5 flex items-center gap-2">
+              <input
+                type="time"
+                aria-label="Window start time"
+                value={hours.start}
+                onChange={(e) =>
+                  isTimeOfDay(e.target.value) && setHours({ ...hours, start: e.target.value })
+                }
+                className={`${FIELD} w-full px-2 py-1.5`}
+              />
+              <span className={`${TEXT.caption} flex-shrink-0`}>to</span>
+              <input
+                type="time"
+                aria-label="Window end time"
+                value={hours.end}
+                onChange={(e) =>
+                  isTimeOfDay(e.target.value) && setHours({ ...hours, end: e.target.value })
+                }
+                className={`${FIELD} w-full px-2 py-1.5`}
+              />
             </div>
           )}
         </div>
