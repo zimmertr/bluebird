@@ -63,7 +63,7 @@ How bright a day is says how much of it Bluebird can tell you about:
 | Dimmed | Weather only. Past the ~5-day air-quality horizon, so the AQI columns come back blank. Still analyzes fine. |
 | Greyed, not clickable | Outside what the weather service serves: about 90 days of history through 16 days of forecast, today included. |
 
-Hovering either dimmed step says why. Air quality runs shorter than weather because the underlying CAMS model only reaches about 5 days out; that horizon is not the only thing worth knowing about the column, so see [Air quality](DATA.md#air-quality) for how coarse the model grid is and which scale the number is on.
+Hovering either dimmed step says why, and selecting one past the air-quality horizon says so beside the calendar. Air quality runs shorter than weather because the underlying CAMS model only reaches about 5 days out; that horizon is not the only thing worth knowing about the column, so see [Air quality](DATA.md#air-quality) for how coarse the model grid is and which scale the number is on.
 
 Days are your local calendar days, converted to UTC for the API, and the far edge accounts for that: west of Greenwich the last local day's final hour falls on the next UTC date, so the calendar offers one day less there than it does in London. Selecting days in the past is fine and normal, and the calendar says so when you do: those hours are recorded conditions rather than a forecast, and a chart covering both marks where one becomes the other.
 

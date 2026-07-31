@@ -276,13 +276,6 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
         ))}
       </div>
 
-      {/* The legend for the brightness ramp, where the ramp is seen rather than
-          only on hover. Two dim steps, two sentences, in the order a reader meets
-          them going right and down the grid. */}
-      <p className={`${TEXT.helper} mt-1.5`}>
-        Dimmed: no air-quality forecast. Greyed: outside the servable range.
-      </p>
-
       {/* Said in words rather than tinted onto the cells, because brightness
           already means "how much data is there" here. A tint would be a second
           meaning on one channel, and the thing worth saying is not "these days
@@ -343,17 +336,18 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
                   className={`${FIELD} w-full px-2 py-1.5`}
                 />
               </div>
-              {/* Spelled out because a range plus a pair of hours reads as "these
-                  hours on each day", and it is not: it is one continuous window
-                  from the first day's start to the last day's end, which is the
-                  only shape the hourly filter can express. Per-day masking is
-                  its own feature. */}
-              <p className={TEXT.helper}>
-                Analyzing {windowPhrase(startMs, endMs, isPointSample(startMs, endMs))}
-                {selection.startDate !== selection.endDate &&
-                  ', as one continuous window rather than these hours on each day'}
-                .
-              </p>
+              {/* Only across a range, and only as the window itself: the two
+                  inputs do not say which dates they attach to, and a range plus a
+                  pair of hours otherwise reads as "these hours on each day" — it
+                  is one continuous window, overnight hours included. Naming both
+                  endpoints is what makes that plain, so nothing has to explain
+                  it. One day needs no line at all; the fields and the highlighted
+                  cell already are the answer. */}
+              {selection.startDate !== selection.endDate && (
+                <p className={TEXT.helper}>
+                  {windowPhrase(startMs, endMs, isPointSample(startMs, endMs))}
+                </p>
+              )}
             </div>
           )}
         </div>

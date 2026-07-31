@@ -341,12 +341,13 @@ export default function ControlPanel({
         {/* Step 2: Forecast window — one calendar, replacing the three
             mutually exclusive modes and their four date/time pairs (#166) */}
         <section>
-          <h2 className={`${TEXT.section} mb-1`}>
+          {/* No helper line under this heading, unlike the other three sections.
+              They each describe something a reader cannot see (which methods
+              combine, what a ranking metric does, what the options constrain).
+              Here the two controls are a button labelled Now and a calendar. */}
+          <h2 className={`${TEXT.section} mb-2.5`}>
             2. Forecast Window
           </h2>
-          <p className={`${TEXT.helper} mb-2.5`}>
-            Analyze the current hour, or pick days on the calendar.
-          </p>
 
           <ForecastCalendar selection={selection} onChange={setSelection} />
 
