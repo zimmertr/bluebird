@@ -1139,34 +1139,53 @@ export default function App() {
                 <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
               </div>
             )}
-            {/* Header. Two rows by construction, never three.
+            {/* Header. One line when the bar is wide, two when it is not, and
+                never three.
 
-                Everything used to sit on one flex line and wrap when it ran out
-                of room, which on a phone cost three lines: the title broke
-                mid-phrase because the credit and the download link were holding
-                ~250px of a ~390px bar, and the window caption took a line of its
-                own underneath. Chrome is not what this panel is for — every line
-                here is a line of ranking the user does not see — so the rows are
-                assigned rather than discovered.
+                Everything used to sit on one flex line and wrap where it ran
+                out, which on a 412px phone cost three lines and truncated the
+                title to "Forecast Table:…" — the ranking metric is the only
+                reason that line exists. Chrome is not what this panel is for:
+                every line here is a line of ranking nobody gets to read.
 
-                Row 1 is what these rows *are*, plus the control that hides them.
-                Row 2 is which window they cover, plus the two asides. Each row
-                is nowrap with one shrinking member, so neither can ever become
-                two: the title and the caption ellipsize instead. The caption is
-                the one that gives, because the window is also stated by the
-                calendar in the panel, while the ranking metric is stated nowhere
-                else on this surface. */}
+                So the bar is two columns that fold. Wide, they run inline and
+                the whole thing is one line. Narrow, each column stacks: what
+                these rows are over which window they cover, the download over
+                the credit, with the chevron beside both. Two lines, never more,
+                because each column has exactly one shrinking member.
+
+                A container query, not a viewport one. This bar's width is the
+                viewport minus the docked sidebar, so a `lg:` breakpoint would
+                fold it on a window that had not changed size and leave it
+                folded on one that had — which is the exact bug #159 removed
+                from the control panel. `@container` asks the bar about itself.
+                The step is measured: one line needs ~740px of content, so it
+                folds below the 768px `@3xl`. */}
             <div
-              className={`flex-shrink-0 flex flex-col px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
+              className={`@container flex-shrink-0 px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
             >
-              <div className="flex items-center gap-2">
-                <span className={`${TEXT.subheading} min-w-0 truncate`}>
-                  {results.length === 0
-                    ? RANGE_PREFIX
-                    : `${headerPrefix(view.kind, pointSample)}: ${
-                        view.sortDesc ? 'Highest' : 'Lowest'
-                      } ${rankedNoun(view.sortBy, pointSample)}`}
-                </span>
+              <div className="flex items-start gap-2 @3xl:items-baseline">
+                {/* What these rows are, and which window they cover. */}
+                <div className="flex min-w-0 flex-1 flex-col @3xl:flex-row @3xl:items-baseline @3xl:gap-2">
+                  <span className={`${TEXT.subheading} truncate`}>
+                    {results.length === 0
+                      ? RANGE_PREFIX
+                      : `${headerPrefix(view.kind, pointSample)}: ${
+                          view.sortDesc ? 'Highest' : 'Lowest'
+                        } ${rankedNoun(view.sortBy, pointSample)}`}
+                  </span>
+                  {/* A multi-hour analysis used to say nothing at all here, so
+                      someone opening a shared link had no on-screen statement of
+                      the days they were reading. Carries its own title so the
+                      full range survives the ellipsis a narrow bar puts on it,
+                      and is absent rather than empty when there is nothing to
+                      qualify — an empty row is still a row. */}
+                  {windowTitle !== null && (
+                    <span className={`${TEXT.caption} truncate`} title={windowTitle}>
+                      {windowTitle}
+                    </span>
+                  )}
+                </div>
                 {/* The fire check is best-effort, and every way it can fail used
                     to render as an all-clear: no ⚠️ on any row, and since #125 an
                     empty column in the download. For a safety warning that is the
@@ -1177,69 +1196,59 @@ export default function App() {
                     would resolve by stylesheet order rather than by intent. */}
                 {fire.status === 'unavailable' && results.length > 0 && (
                   <span
-                    className="shrink-0 text-xs text-amber-300"
+                    className="shrink-0 self-start text-xs text-amber-300"
                     title="The wildfire service could not be reached, so no destination has been checked for fire proximity. Rows are not flagged, and the downloaded CSV leaves the wildfire column out rather than reporting every row as clear."
                   >
                     Wildfire check unavailable
                   </span>
                 )}
+                {/* The two asides, stacked narrow and inline wide. Right-aligned
+                    while stacked so they read as one column against the ragged
+                    left one, and never a shrinking member: an ellipsized
+                    attribution is not an attribution.
+
+                    The credit is CC-BY 4.0's, and it is required beside the data
+                    rather than only in the document pages — the docked bar keeps
+                    it on screen whenever forecasts are. The licence asks for the
+                    creator and a link to them, and names no phrase, so the words
+                    "Weather data by" were 70px of a phone's width buying nothing
+                    the link itself does not already say.
+
+                    It also survives on its own: the panel opens for
+                    un-forecasted pending rows too, and a file of empty cells is
+                    not a report, so Download CSV is the conditional one.
+
+                    Both roles carry a color, and they carry the same one. That
+                    is deliberate rather than redundant: two colors here would be
+                    resolved by stylesheet order, not by the order written. */}
+                <div className="flex shrink-0 flex-col items-end @3xl:flex-row @3xl:items-baseline @3xl:gap-3">
+                  {results.length > 0 && (
+                    <button
+                      onClick={handleDownloadCsv}
+                      title="Download these results as a CSV file"
+                      aria-label="Download these results as a CSV file"
+                      className={`${TEXT.micro} ${LINK} cursor-pointer whitespace-nowrap`}
+                    >
+                      Download CSV
+                    </button>
+                  )}
+                  <a
+                    href="https://open-meteo.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`${TEXT.micro} ${LINK} whitespace-nowrap`}
+                  >
+                    Open-Meteo.com
+                  </a>
+                </div>
                 <button
                   onClick={() => setTableCollapsed((c) => !c)}
                   title={tableCollapsed ? 'Expand the table' : 'Collapse the table'}
                   aria-label={tableCollapsed ? 'Expand the forecast table' : 'Collapse the forecast table'}
-                  className={`${ICON_BUTTON} ml-auto shrink-0 px-1`}
+                  className={`${ICON_BUTTON} shrink-0 self-start px-1 @3xl:self-baseline`}
                 >
                   <Chevron up={tableCollapsed} />
                 </button>
-              </div>
-
-              <div className="flex items-baseline gap-2">
-                {/* Which window these rows describe. A multi-hour analysis used
-                    to say nothing at all here, so someone opening a shared link
-                    had no on-screen statement of the days they were reading.
-                    Carries its own title so the full range survives the
-                    ellipsis a narrow panel puts on it. */}
-                <span
-                  className={`${TEXT.caption} min-w-0 truncate`}
-                  title={windowTitle ?? undefined}
-                >
-                  {windowTitle}
-                </span>
-                {/* CC-BY 4.0 requires this credit beside the data itself, not
-                    just in the privacy modal; the docked header bar keeps it
-                    visible whenever forecasts are on screen. Never the member
-                    that shrinks — an ellipsized attribution is not one.
-
-                    Both roles carry a color, and they carry the same one. That
-                    is deliberate rather than redundant: two colors here would
-                    be resolved by stylesheet order, not by the order written. */}
-                <a
-                  href="https://open-meteo.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`${TEXT.micro} ${LINK} ml-auto shrink-0 whitespace-nowrap`}
-                >
-                  Weather data by Open-Meteo.com
-                </a>
-                {/* Sits after the credit rather than before it so the credit
-                    keeps the one ml-auto in this row: two of them would split
-                    the free space between the pair instead of pushing both
-                    right, and the credit has to survive on its own when there
-                    is nothing to download. Which is the other condition here —
-                    the panel also opens for un-forecasted pending rows, and a
-                    file of empty cells is not a report. Wearing the same two
-                    roles as the credit because it is the same kind of thing: a
-                    quiet aside on a row whose subject is the window. */}
-                {results.length > 0 && (
-                  <button
-                    onClick={handleDownloadCsv}
-                    title="Download these results as a CSV file"
-                    aria-label="Download these results as a CSV file"
-                    className={`${TEXT.micro} ${LINK} shrink-0 cursor-pointer whitespace-nowrap`}
-                  >
-                    Download CSV
-                  </button>
-                )}
               </div>
             </div>
             {/* Scrollable table. One container owns BOTH axes: if a nested
