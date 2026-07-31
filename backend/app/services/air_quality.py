@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 
 from app import ratelimit
-from app.services import cache
+from app.services import cache, http
 from app.services.errors import (
     UpstreamRateLimited,
     parse_rate_limit,
@@ -19,7 +19,7 @@ from app.services.openmeteo_weight import call_weight
 log = logging.getLogger(__name__)
 
 AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
-BATCH_SIZE = 50  # same conservative batching as the weather service
+BATCH_SIZE = 50  # same as the weather service; see the reasoning on its constant
 MAX_CONCURRENT_BATCHES = 4  # same in-flight gate as the weather service
 N_VARIABLES = 1  # us_aqi
 PROVIDER = "Open-Meteo (air quality)"
@@ -161,11 +161,10 @@ async def _fetch_chunk(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            log.trace("Open-Meteo air quality request params: %s", params)  # type: ignore[attr-defined]
-            resp = await client.get(AIR_QUALITY_URL, params=params)
-            resp.raise_for_status()
-            data = resp.json()
+        log.trace("Open-Meteo air quality request params: %s", params)  # type: ignore[attr-defined]
+        resp = await http.client().get(AIR_QUALITY_URL, params=params)
+        resp.raise_for_status()
+        data = resp.json()
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code == 429:
             # Raised (not degraded) so the caller can stop burning the AQI

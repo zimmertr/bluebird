@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 
 from app import ratelimit
-from app.services import cache
+from app.services import cache, http
 from app.services.errors import (
     UpstreamError,
     UpstreamRateLimited,
@@ -22,7 +22,20 @@ from app.services.openmeteo_weight import call_weight
 log = logging.getLogger(__name__)
 
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
-BATCH_SIZE = 50  # Open-Meteo handles up to ~100; 50 is conservative
+# Measured 2026-07-31 (issue #182), not guessed. Upstream accepts far more than
+# 50 per request, but raising this buys nothing and costs headroom:
+#   - Weight is per LOCATION, so the pacer caps locations/min identically at any
+#     batch size. A 1,500-destination analysis is budget-bound at ~3 min either
+#     way; only the request count changes.
+#   - Open-Meteo's nginx returns 414 above an 8,192-byte request URI. At 29
+#     bytes per location (7-decimal coordinates, the precision OSM hands back)
+#     250 locations already spends 7,485 of it, and `custom_destinations`
+#     coordinates are never rounded, so a caller's float repr can spend more.
+#   - A failed batch loses everything in it, and a big one has no sibling to
+#     hide its tail latency behind.
+# Re-measure if the URI cap moves or the pacer stops being the binding
+# constraint; switching these calls to POST would lift the 414 ceiling.
+BATCH_SIZE = 50
 # In-flight fairness cap per analysis, so one giant polygon doesn't hog every
 # slot. Rate protection is NOT this number's job: ratelimit.WEATHER_WEIGHT
 # paces the pod's spend in weighted calls per minute, the unit Open-Meteo
@@ -193,11 +206,10 @@ async def _fetch_chunk(
     data: Any = None
     for attempt in (0, 1):
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                log.trace("Open-Meteo request params: %s", params)  # type: ignore[attr-defined]
-                resp = await client.get(FORECAST_URL, params=params)
-                resp.raise_for_status()
-                data = resp.json()
+            log.trace("Open-Meteo request params: %s", params)  # type: ignore[attr-defined]
+            resp = await http.client().get(FORECAST_URL, params=params)
+            resp.raise_for_status()
+            data = resp.json()
             break
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code != 429:
