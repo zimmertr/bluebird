@@ -391,34 +391,48 @@ describe('every role', () => {
 })
 
 describe('the accent', () => {
-  // #167 is a *documented exception*, not a fix: white on sky-600 measures
-  // 4.02:1 where WCAG 1.4.3 asks 4.5:1, and the hovered sky-500 measures
-  // 2.71:1. Both are accepted deliberately — white-on-blue is the app's
-  // identity, and every alternative that clears AA changes how the primary
-  // action looks (see the derivation on ACCENT in styles.ts).
+  // #167. The fill is bounded from both sides — 1.4.3 caps it (a white label
+  // needs 4.5:1) and 1.4.11 floors it (3:1 against its neighbours, tightest
+  // against the calendar's sky-950 range band) — and the surviving window is
+  // 0.0067 of relative luminance wide with no Tailwind step inside it. Hence a
+  // custom token. The derivation lives on --color-sky-650 in index.css.
   //
-  // The point of pinning the literals is that they are *load-bearing numbers*.
-  // The last time this recipe carried a contrast claim, the claim was wrong
-  // (the comment said 4.6:1) and a whole accessibility sweep believed it. Any
-  // change to the fill now fails here, which forces whoever makes it to
-  // re-measure and restate the exception rather than inherit it.
-  const ACCEPTED = { fill: 'bg-sky-600 text-white', ratio: 4.02 }
-  const ACCEPTED_HOVER = { hover: 'hover:bg-sky-500', ratio: 2.71 }
+  // These literals are load-bearing. The last time this recipe carried a
+  // contrast claim, the claim was wrong (the comment said 4.6:1 where the truth
+  // was 4.02) and an entire accessibility sweep believed it. Pinning them means
+  // a change to the fill fails here and forces a re-measurement.
+  const MEASURED = {
+    fill: 'bg-sky-650 text-white',
+    label: 4.57, // white on sky-650
+    edges: { panel: 3.21, rangeBand: 3.04, segmentTrack: 3.91 },
+  }
 
-  it('carries the accepted fill, whose contrast is a recorded exception', () => {
-    expect(ACCENT.fill).toBe(ACCEPTED.fill)
-    expect(ACCEPTED.ratio).toBeLessThan(4.5)
+  it('rests on the one shade that clears the label and every edge at once', () => {
+    expect(ACCENT.fill).toBe(MEASURED.fill)
+    expect(MEASURED.label).toBeGreaterThanOrEqual(4.5)
+    for (const [edge, ratio] of Object.entries(MEASURED.edges)) {
+      expect(ratio, `${edge} must clear the 3:1 asked of a UI boundary`).toBeGreaterThanOrEqual(3)
+    }
   })
 
-  // Recorded rather than asserted-away: the hover lightens, which costs
-  // contrast rather than saving it. It is kept because the app's one primary
-  // action should not be the only control that dims under the pointer.
-  it('hovers lighter, at a contrast cost taken knowingly', () => {
-    const step = (c: string) => Number(c.match(/-(\d00)$/)?.[1])
+  // The custom token is the whole point: a scale step here would mean someone
+  // "simplified" the fill back onto sky-600 or sky-700, both of which fail.
+  it('takes its fill from the custom token rather than the stock scale', () => {
+    expect(ACCENT.fill).toContain('sky-650')
+  })
 
-    expect(ACCENT.fillHover).toBe(ACCEPTED_HOVER.hover)
-    expect(step(ACCENT.fillHover)).toBeLessThan(step(ACCENT.fill.split(' ')[0]))
-    expect(ACCEPTED_HOVER.ratio).toBeLessThan(ACCEPTED.ratio)
+  // The one state still below AA, recorded rather than asserted away. With a
+  // white label every lightening costs contrast, so a conformant hover would
+  // have to darken — making the app's one primary action the only control that
+  // dims under the pointer. 4.02:1 is what the *resting* fill measured before
+  // #167, so no state is worse than what already shipped.
+  const HOVER = { recipe: 'hover:bg-sky-600', ratio: 4.02, wasBefore: 2.71 }
+
+  it('hovers lighter, at a contrast cost taken knowingly', () => {
+    expect(ACCENT.fillHover).toBe(HOVER.recipe)
+    expect(HOVER.ratio).toBeLessThan(4.5)
+    expect(HOVER.ratio).toBeGreaterThan(HOVER.wasBefore)
+    expect(HOVER.ratio).toBeLessThan(MEASURED.label)
   })
 
   // The bug this whole issue is: the button spelled its own fill, so it and the

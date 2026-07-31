@@ -174,40 +174,34 @@ export const SURFACE_CARD =
  * enforceable is in `styles.test.ts`: **no component names a hue.** A component
  * says which job it is doing and the answer lives here.
  *
- * ## The fill's contrast is a known, deliberate AA exception (#167)
+ * ## The fill is a custom shade, and it has to be (#167)
  *
- * **White on sky-600 measures 4.02:1, against the 4.5:1 WCAG 1.4.3 asks of
- * normal-size text.** Every site is 12-14px, so no large-text allowance applies.
- * This is accepted rather than fixed, as a product call: white-on-blue is the
- * app's identity, and none of the ways out preserve it.
+ * White on sky-600 measured **4.02:1** against the 4.5:1 WCAG 1.4.3 asks of
+ * normal-size text, and every site is 12-14px so no large-text allowance
+ * applies. The fix is not a different step on Tailwind's scale, because there
+ * is no step that works: the fill answers to 1.4.3 for its label *and* 1.4.11
+ * for its own edge, those bound it from opposite sides, and the surviving
+ * window is 0.0067 of relative luminance wide with nothing in it. sky-700
+ * would fix the label and break the calendar, where the ends of a selected
+ * range would sink into the band between them.
  *
- * Do not "fix" this by reaching for a darker sky step. The fill answers to two
- * rules at once and they pull opposite ways: the label is text (1.4.3, 4.5:1
- * against the fill), and the fill is also what says "this block is a control,
- * and it is the selected one" (1.4.11, 3:1 against the surface behind it — the
- * same 3:1 `SURFACE_GROUP` below holds itself to). Measured:
+ * So the accent fill is `sky-650`, defined in `index.css` — the midpoint of
+ * that window, which is where the derivation lives. White reads 4.57:1 on it,
+ * and it holds 3.21:1 on the panel, 3.04:1 on `DAY.range` and 3.91:1 on the
+ * segment track. Resting states pass; the one that does not is the hover, for
+ * a reason recorded on `fillHover` below.
  *
- * - sky-600, today: white 4.02:1, fill 3.65:1 on the panel, 3.46:1 on `DAY.range`.
- * - sky-700: white 5.85:1, but 2.50:1 on the panel and 2.37:1 on `DAY.range` —
- *   the two ends of a selected range would sink into the band between them,
- *   which is the one thing that control exists to show.
- * - sky-800: white 7.52:1, 1.95:1 on the panel. Worse still.
+ * Two roads not taken, so they do not have to be rediscovered. Inverting the
+ * polarity — a dark label on a brighter fill — clears everything with far more
+ * room (7.43:1 text, 5.40:1 edge) and was rejected: white-on-blue is the app's
+ * identity. Accepting 4.02:1 as a documented exception was the other, and is
+ * what this replaced.
  *
- * The window is empty, not merely unsearched: white at 4.5:1 needs a fill no
- * lighter than 0.183 relative luminance, a 3:1 edge on the slate-800 panel needs
- * one no darker than 0.165, and sky-600/sky-700 sit at 0.211/0.130. So a
- * white-on-sky fill has to give up one of the two, and giving up the 1.4.11 edge
- * costs a working control while giving up 0.48 of a text ratio costs margin on a
- * label that is still legible. That is the trade being made here.
- *
- * Two exits exist and were both declined. Inverting the polarity (a dark label
- * on sky-500) clears both rules with room to spare — 7.43:1 text, 5.40:1 edge —
- * and was rejected on looks. A custom shade near oklch(0.56 0.145 242) also
- * clears both (4.54:1 and 3.23:1) while staying white-on-blue, at the cost of a
- * token off Tailwind's scale sitting near both floors.
- *
- * If this number is ever revisited, revisit it here. It is recorded in
- * `styles.test.ts` so that changing the fill forces someone to restate it.
+ * The margins here are ~1.5% on two of the four constraints. That thinness is
+ * the honest price of a white label on a blue fill, and it is why every number
+ * above is pinned in `styles.test.ts`: the last time this recipe carried a
+ * contrast claim in a comment the claim was simply wrong (it said 4.6:1), and
+ * an entire accessibility sweep believed it.
  */
 export const ACCENT = {
   /**
@@ -218,19 +212,25 @@ export const ACCENT = {
    *
    * The label color is not separable from the fill and must never be restated
    * at a call site — that is the whole failure this role was rewritten to end.
-   * See the exception recorded above before changing either half.
+   * The shade is the only one that clears both rules; see `--color-sky-650` in
+   * `index.css` for the derivation before changing either half.
    */
-  fill: 'bg-sky-600 text-white',
+  fill: 'bg-sky-650 text-white',
   /**
    * The hover step for a fill that is a button. Only `BUTTON_PRIMARY` has one.
    *
-   * It lightens, matching every other hover in the app, and that costs contrast
-   * rather than saving it: white on sky-500 is **2.71:1**, so a hovered label
-   * reads worse than the resting 4.02:1 rather than better. Both numbers are
-   * accepted together — darkening this one alone would make the app's one
-   * primary action the only control that dims under the pointer.
+   * Still lightens, matching every other hover in the app. That is the one
+   * state left below AA: white on sky-600 is **4.02:1** against 4.5. It cannot
+   * be fixed by lightening less, because with a white label *every* lightening
+   * costs contrast — a conformant hover would have to darken, making the app's
+   * one primary action the only control that dims under the pointer.
+   *
+   * Kept deliberately, and it is a strict improvement on what it replaced: the
+   * hover used to be sky-500 at 2.71:1. 4.02:1 is also exactly the ratio the
+   * *resting* fill carried before #167, so no state is worse than what the app
+   * already shipped, and the state you read while not touching it now passes.
    */
-  fillHover: 'hover:bg-sky-500',
+  fillHover: 'hover:bg-sky-600',
   /** The accent as a bare graphic with nothing on it: the progress bar's fill. */
   mark: 'bg-sky-500',
   /**
@@ -444,12 +444,13 @@ export const SURFACE_GROUP = `border border-slate-500 ${RADIUS.surface}`
  *   with no air quality stays marked *inside* a selected range — which is
  *   exactly when that matters.
  * - `selected` is the accent fill: the two ends, and a single-day pick. This is
- *   the one place the ramp is lost, because white is what reads on sky-600. Two
- *   cells out of a range, and the panel's air-quality warning covers the window
- *   as a whole. The end of a range also has to stay findable against the band
- *   beside it, and that is the 1.4.11 half of why the fill cannot simply be
- *   darkened to fix its label contrast: sky-600 is 3.46:1 on `range`, where
- *   sky-700 would be 2.37:1. See `ACCENT` above for the whole trade.
+ *   the one place the ramp is lost, because white is what reads on the accent.
+ *   Two cells out of a range, and the panel's air-quality warning covers the
+ *   window as a whole. **This cell is why the accent fill is a custom shade:**
+ *   the end of a range has to stay findable against `range` right beside it, so
+ *   sky-950 here is the tightest of the four edges the fill answers to and the
+ *   one that sets its dark limit (3.04:1, where sky-700 would be 2.37:1).
+ *   Changing `range` moves that limit — re-derive `--color-sky-650` if it does.
  *
  * `today` is a ring rather than a fill, so it can coexist with any of the above
  * (today is frequently also selected). slate-400 clears the 3:1 for a boundary.
