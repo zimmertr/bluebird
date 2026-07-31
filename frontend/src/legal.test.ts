@@ -1,4 +1,11 @@
 import { describe, expect, it } from 'vitest'
+// @ts-ignore - no types available in browser context
+import { readFileSync } from 'fs'
+// @ts-ignore - no types available in browser context
+import { dirname, join } from 'path'
+// @ts-ignore - no types available in browser context
+import { fileURLToPath } from 'url'
+
 // `?raw` gives us each file's text without executing it, so this stays a pure
 // node test with no DOM, matching vitest.config.ts. Same trick styles.test.ts
 // uses to lint components it cannot render.
@@ -11,7 +18,14 @@ import privacyPage from './components/PrivacyPage.tsx?raw'
 import safetyNotice from './components/SafetyNotice.tsx?raw'
 import termsPage from './components/TermsPage.tsx?raw'
 import welcomeModal from './components/WelcomeModal.tsx?raw'
+import mapView from './components/MapView.tsx?raw'
 import { SUPPORT_EMAIL } from './utils/contact'
+
+// CSS files: vitest stubs CSS imports to empty strings, so read them from the
+// filesystem using the same import.meta.url pattern vitest uses internally.
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const indexCss = readFileSync(join(__dirname, 'index.css'), 'utf-8')
+const mapCss = readFileSync(join(__dirname, 'map.css'), 'utf-8')
 
 // Comments are not copy, and this repo's comments legitimately use em dashes.
 // Only line comments that begin a line are stripped, so the `//` inside an
@@ -121,6 +135,26 @@ describe('the document pages', () => {
 describe('the provider credits', () => {
   it('stay off the panel footer, which offers only the document pages', () => {
     expect(controlPanel).not.toMatch(/dataSources|DATA_SOURCES/)
+  })
+})
+
+// The map CSS moved out of index.css into map.css, imported only by MapView,
+// so text pages don't download 70 KB of map styling they cannot use. Three
+// guards keep that split stable: index.css has no maplibre, map.css wraps it
+// in layer(base), and MapView imports map.css. A future PR that "simplifies"
+// any of these three triggers a test failure rather than silently breaking the
+// cascade-layer protection against the historical map-collapse bug.
+describe('the map CSS split', () => {
+  it('keeps maplibre out of the shared stylesheet', () => {
+    expect(indexCss).not.toMatch(/maplibre/)
+  })
+
+  it('wraps the maplibre import in layer(base)', () => {
+    expect(mapCss).toMatch(/layer\(base\)/)
+  })
+
+  it('is imported from MapView, not from TSX anywhere else', () => {
+    expect(mapView).toMatch(/import ['"]\.\.\/map\.css['"]/)
   })
 })
 
