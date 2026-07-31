@@ -133,7 +133,7 @@ export default function SearchBox({ onSelect }: Props) {
           autoComplete="off"
           spellCheck={false}
           enterKeyHint="search"
-          className={`${TEXT.control} ${TAP.height} w-36 sm:w-64 bg-transparent placeholder-slate-400 focus:outline-none`}
+          className={`${TEXT.control} w-36 sm:w-64 bg-transparent placeholder-slate-400 focus:outline-none`}
         />
         {loading ? (
           <div

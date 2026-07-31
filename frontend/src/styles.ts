@@ -157,9 +157,16 @@ export const RADIUS = {
  * SC 2.5.8 *Target Size (Minimum)* is the AA bar at 24x24 CSS px, with an
  * exception where spacing does the work. SC 2.5.5 *Target Size (Enhanced)* is
  * AAA at 44x44, which is also Apple's 44pt and the nearest web equivalent of
- * Material's 48dp. Bluebird takes the 44 everywhere a control stands on its
- * own, and holds the 24 floor inside the results grid, where 44px rows would
- * cut a phone's visible ranking from roughly 21 rows to 13.
+ * Material's 48dp. Bluebird takes the 44, and takes it where a control stands
+ * in its own space: the control panel, the calendar, the map chrome.
+ *
+ * It does **not** reach into the results panel — not the table's rows, not the
+ * two header bars, not the search field. Those are surfaces you read rather
+ * than operate, and every pixel a control takes there is a pixel of ranking or
+ * of map that a phone stops showing. A 44px table row costs about eight rows
+ * of a phone's ranking; a 44px chevron costs its bar permanently. The
+ * exception is deliberate and it is the whole reason the rule is written down
+ * here rather than inferred from whatever each component happened to do.
  *
  * Coarse pointers only, for the reason `touch` exists at all (index.css): the
  * panel is 320px wide at every breakpoint, so a viewport query re-spaces it on
@@ -176,35 +183,23 @@ export const RADIUS = {
  * size to land on the same number — which is how BUTTON_PRIMARY's `py-3` came
  * to be the only control in the app that actually met the target.
  *
- * The keys are layouts, not sizes. Four of them reach 44 by different routes
- * because four kinds of control lay their contents out differently, and one
- * display value would have been wrong for three of them.
+ * The keys are layouts, not sizes. Three reach 44 by different routes, because
+ * three kinds of control lay their contents out differently and one display
+ * value would have been wrong for two of them.
  */
 export const TAP = {
   /** A button: grow the box, keep its own label centered inside it. */
   action: 'touch:min-h-11 touch:min-w-11 flex items-center justify-center',
-  /** The same box for a control sitting inside a line of text, which must stay inline-level. */
-  inline: 'touch:min-h-11 touch:min-w-11 inline-flex items-center justify-center',
   /** A left-aligned strip — a label and its radio. Growing it is the point; centering it would move the label. */
   row: 'touch:min-h-11 flex items-center',
-  /** Height alone, for anything that already lays its own content out: a native input, a two-line list item. */
+  /** Height alone, for anything that already lays its own content out: a two-line list item. */
   height: 'touch:min-h-11',
-  /**
-   * The 24px AA floor, for controls inside the results grid.
-   *
-   * Pointer-gated like the rest, though it was briefly not: 24px looked free
-   * beside a 28px row. It is not free on the one control that changes size.
-   * The remove × swaps in for the rank number on row hover, so a minimum width
-   * wider than the number makes every column shift right as the mouse crosses
-   * a row. A finger has no hover and pays nothing for it.
-   */
-  dense: 'touch:min-h-6 touch:min-w-6 touch:inline-flex touch:items-center touch:justify-center',
   /**
    * A full-width drag handle (the chart/table resizers). The AA floor rather
    * than the 44, because only the vertical axis is scarce here and a 44px bar
-   * between two panels would cost more than the grab it buys. Pointer-gated
-   * unlike `dense`, because 8px to 24px is a visible change to the layout and
-   * a mouse can already hit an 8px strip that spans the window.
+   * between two panels would cost more than the grab it buys. It is also the
+   * only place a finger has no alternative at all: the panels have no other
+   * resize affordance, where a small chevron at least still collapses.
    */
   grip: 'touch:min-h-6',
 } as const
@@ -284,11 +279,18 @@ export const BUTTON_DANGER =
  * the search box's clear ×.
  *
  * All three were already the same two colors and differed only in whether they
- * carried a padding utility, which on a coarse pointer is the difference
- * between a 20px target and a 16px one. Neither is a target, hence the role.
+ * carried a padding utility, so the role settles that much.
+ *
+ * Deliberately **not** a tap target, and the one considered exception to the
+ * rule `TAP` states. All three sit inside a bar whose height is the bar's own
+ * — the floating search field, the chart header, the table header — so growing
+ * the button grows the bar, and these are bars whose whole job is to give
+ * their space to something else (the search you are typing, the table you are
+ * reading). A 44px chevron buys a better target for collapsing a panel at the
+ * cost of a permanently fatter panel, which is the wrong trade on the surface
+ * where vertical space is the scarce thing.
  */
-export const ICON_BUTTON =
-  `${TAP.action} text-slate-400 hover:text-white transition-colors`
+export const ICON_BUTTON = 'text-slate-400 hover:text-white transition-colors'
 
 /**
  * The solid accent block: the chosen segment of the ranking direction toggle, the

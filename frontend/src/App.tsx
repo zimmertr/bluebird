@@ -1131,20 +1131,32 @@ export default function App() {
               </div>
             )}
             {/* Header */}
+            {/* items-start, not items-center: the title below is two lines on a
+                narrow panel and the asides are one, so centering them would
+                float the credit and the chevron against nothing. */}
             <div
-              className={`flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
+              className={`flex-shrink-0 flex items-start justify-between gap-2 px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
             >
-              <span className={TEXT.subheading}>
-                {results.length === 0
-                  ? RANGE_PREFIX
-                  : `${headerPrefix(view.kind, pointSample)}: ${
-                      view.sortDesc ? 'Highest' : 'Lowest'
-                    } ${rankedNoun(view.sortBy, pointSample)}`}
+              {/* Two deliberate lines rather than one sentence that reflows.
+                  What it ranks by and which window it ranks over are two facts,
+                  and letting them wrap as prose broke them at whatever word the
+                  panel width landed on ("…for Fri, Jul" / "31, 2:00 PM…"). As
+                  blocks the break is always between the two facts, and a phone
+                  and a desktop disagree only about whether the second line is
+                  there at all. */}
+              <span className={`${TEXT.subheading} min-w-0`}>
+                <span className="block">
+                  {results.length === 0
+                    ? RANGE_PREFIX
+                    : `${headerPrefix(view.kind, pointSample)}: ${
+                        view.sortDesc ? 'Highest' : 'Lowest'
+                      } ${rankedNoun(view.sortBy, pointSample)}`}
+                </span>
                 {/* Which window these rows describe. A multi-hour analysis used
                     to say nothing at all here, so someone opening a shared link
                     had no on-screen statement of the days they were reading. */}
                 {results.length > 0 && analyzed !== null && (
-                  <span className="ml-1.5 font-normal text-slate-400">
+                  <span className="block font-normal text-slate-400">
                     {windowCaption(
                       analyzed.kind,
                       analyzed.window.startMs,
@@ -1198,7 +1210,7 @@ export default function App() {
                   onClick={handleDownloadCsv}
                   title="Download these results as a CSV file"
                   aria-label="Download these results as a CSV file"
-                  className={`${TEXT.micro} ${LINK} ${TAP.dense} mr-2 cursor-pointer`}
+                  className={`${TEXT.micro} ${LINK} mr-2 cursor-pointer whitespace-nowrap`}
                 >
                   Download CSV
                 </button>

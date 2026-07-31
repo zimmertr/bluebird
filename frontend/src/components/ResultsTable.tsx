@@ -7,7 +7,7 @@ import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
 import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
-import { CHOICE_INPUT, LINK_ACTION, TABLE, TAP, TEXT } from '../styles'
+import { CHOICE_INPUT, LINK_ACTION, TABLE, TEXT } from '../styles'
 import { RANKING_KEYS } from '../metrics'
 
 function windyUrl(lat: number, lon: number, layer: string): string {
@@ -45,7 +45,7 @@ function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; 
             onClick={onRemove}
             title="Remove from the results"
             aria-label={`Remove ${name}`}
-            className={`row-remove ${TAP.dense} hidden group-hover:inline leading-none text-slate-400 hover:text-slate-200 cursor-pointer`}
+            className={"row-remove hidden group-hover:inline leading-none text-slate-400 hover:text-slate-200 cursor-pointer"}
           >
             ×
           </button>
@@ -189,23 +189,19 @@ export default function ResultsTable({
   function renderChartToggle(row: DestinationResult) {
     if (!onToggleChart || !row.series) return null
     const on = isCharted?.(row) ?? false
-    // The label carries the target, not the input: a min-size on a checkbox
-    // draws a bigger checkbox, where what is wanted is a bigger place to hit.
     return (
-      <label className={TAP.dense}>
-        <input
-          type="checkbox"
-          checked={on}
-          onClick={(e) => {
-            shiftHeldRef.current = e.shiftKey
-          }}
-          onChange={() => handleChartToggle(row)}
-          title="Add to the comparison chart (shift-click to select a range)"
-          aria-label={`Chart ${row.name}`}
-          className={CHOICE_INPUT}
-          style={on && chartColor ? { accentColor: chartColor(row) } : undefined}
-        />
-      </label>
+      <input
+        type="checkbox"
+        checked={on}
+        onClick={(e) => {
+          shiftHeldRef.current = e.shiftKey
+        }}
+        onChange={() => handleChartToggle(row)}
+        title="Add to the comparison chart (shift-click to select a range)"
+        aria-label={`Chart ${row.name}`}
+        className={CHOICE_INPUT}
+        style={on && chartColor ? { accentColor: chartColor(row) } : undefined}
+      />
     )
   }
 
@@ -242,7 +238,7 @@ export default function ResultsTable({
                 onClick={() => onFocusResult?.(row)}
                 title="Center the map on this destination"
                 aria-label={`Center map on ${row.name}`}
-                className={`${LINK_ACTION} ${TAP.dense} cursor-pointer text-left`}
+                className={`${LINK_ACTION} cursor-pointer text-left`}
               >
                 {display}
               </button>
@@ -252,7 +248,7 @@ export default function ResultsTable({
                 rel="noopener noreferrer"
                 title="Open in Peakbagger / OpenStreetMap"
                 aria-label={`Open ${row.name} in an external map`}
-                className={`${TAP.dense} shrink-0 text-slate-500 hover:text-sky-400`}
+                className={"shrink-0 text-slate-500 hover:text-sky-400"}
               >
                 <ExternalLinkIcon />
               </a>
@@ -268,7 +264,7 @@ export default function ResultsTable({
               href={windyUrl(row.latitude, row.longitude, col.windyLayer)}
               target="_blank"
               rel="noopener noreferrer"
-              className={`${TAP.dense} hover:underline cursor-pointer`}
+              className={"hover:underline cursor-pointer"}
             >
               {display}
             </a>
@@ -296,21 +292,19 @@ export default function ResultsTable({
             {showChartCol && (
               <th className={`${TABLE.head} w-6`}>
                 {onChartRange && chartableRows.length > 0 && (
-                  <label className={TAP.dense}>
-                    <input
-                      type="checkbox"
-                      checked={headState === 'all'}
-                      ref={(el) => {
-                        // `indeterminate` is a DOM property, not an attribute, so
-                        // React can't set it via a prop — sync it on every render.
-                        if (el) el.indeterminate = headState === 'some'
-                      }}
-                      onChange={() => onChartRange(chartableRows, headState !== 'all')}
-                      title="Add or remove every destination on the comparison chart"
-                      aria-label="Chart all destinations"
-                      className={CHOICE_INPUT}
-                    />
-                  </label>
+                  <input
+                    type="checkbox"
+                    checked={headState === 'all'}
+                    ref={(el) => {
+                      // `indeterminate` is a DOM property, not an attribute, so
+                      // React can't set it via a prop — sync it on every render.
+                      if (el) el.indeterminate = headState === 'some'
+                    }}
+                    onChange={() => onChartRange(chartableRows, headState !== 'all')}
+                    title="Add or remove every destination on the comparison chart"
+                    aria-label="Chart all destinations"
+                    className={CHOICE_INPUT}
+                  />
                 )}
               </th>
             )}
@@ -363,7 +357,7 @@ export default function ResultsTable({
                           rel="noopener noreferrer"
                           title="Open in Peakbagger / OpenStreetMap"
                           aria-label={`Open ${d.name} in an external map`}
-                          className={`${TAP.dense} shrink-0 text-slate-500 hover:text-sky-400`}
+                          className={"shrink-0 text-slate-500 hover:text-sky-400"}
                         >
                           <ExternalLinkIcon />
                         </a>

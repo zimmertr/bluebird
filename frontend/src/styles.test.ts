@@ -308,7 +308,6 @@ describe('shared recipes', () => {
     ['BUTTON_PRIMARY', BUTTON_PRIMARY],
     ['BUTTON_SECONDARY', BUTTON_SECONDARY],
     ['BUTTON_DANGER', BUTTON_DANGER],
-    ['ICON_BUTTON', ICON_BUTTON],
     ['CHOICE_ROW', CHOICE_ROW],
     ['SEGMENT_ITEM', SEGMENT_ITEM],
     ['FIELD', FIELD],
@@ -391,7 +390,7 @@ describe('tap targets', () => {
     return step ? Number(step[1] ?? step[2]) * 4 : null
   }
 
-  it.each(['action', 'inline', 'row', 'height'] as const)(
+  it.each(['action', 'row', 'height'] as const)(
     'TAP.%s reaches the enhanced target',
     (key) => {
       expect(px(TAP[key], 'h')).toBe(44)
@@ -403,18 +402,18 @@ describe('tap targets', () => {
   // would set a floor under a strip that never needed it.
   it('widens only the controls that have no width to lean on', () => {
     expect(px(TAP.action, 'w')).toBe(44)
-    expect(px(TAP.inline, 'w')).toBe(44)
     expect(px(TAP.row, 'w')).toBeNull()
     expect(px(TAP.height, 'w')).toBeNull()
   })
 
-  // The grid's floor. Pointer-gated like the rest: the remove × swaps in for
-  // the rank number on row hover, so a minimum width wider than the number it
-  // replaces would shift every column right as a mouse crosses a row.
-  it('holds the minimum target inside the results grid', () => {
-    expect(px(TAP.dense, 'h')).toBe(24)
-    expect(px(TAP.dense, 'w')).toBe(24)
-    expect(TAP.dense).toContain('touch:')
+  // The results panel is read, not operated: its rows, its two header bars and
+  // the search field all keep their density, because every pixel a control
+  // takes there is a pixel of ranking or of map a phone stops showing. The
+  // exception is the point, so it is asserted rather than left to the absence
+  // of a class somewhere.
+  it('leaves the icon button out of the rule on purpose', () => {
+    expect(ICON_BUTTON).not.toContain('touch:')
+    expect(ICON_BUTTON).not.toMatch(/\bmin-[hw]-/)
   })
 
   // A drag handle is a strip: only the vertical axis is scarce, and 44px of
@@ -424,15 +423,14 @@ describe('tap targets', () => {
     expect(TAP.grip).toContain('touch:')
   })
 
-  // Four of the five reach 44 by different display values because four kinds
-  // of control lay their contents out differently. A single one would have
-  // been wrong for three of them, so the keys are layouts, not sizes.
+  // Three reach 44 by different display values because three kinds of control
+  // lay their contents out differently. A single one would have been wrong for
+  // two of them, so the keys are layouts, not sizes.
   it('gives each layout the display its contents need', () => {
     expect(TAP.action).toContain('flex items-center justify-center')
-    expect(TAP.inline).toContain('inline-flex')
     // Left-aligned: centering a row would move the label away from its radio.
     expect(TAP.row).not.toContain('justify-center')
-    // Bare, so it composes with a native input's own layout.
+    // Bare, so it composes with the element's own layout.
     expect(TAP.height.trim().split(/\s+/)).toHaveLength(1)
   })
 })
