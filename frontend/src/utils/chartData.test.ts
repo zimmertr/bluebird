@@ -10,8 +10,6 @@ import {
   defaultChartRows,
   formatMetricValue,
   metricForSort,
-  nearestKey,
-  pixelToValue,
   rowsBetween,
   selectionState,
   valueAt,
@@ -89,28 +87,7 @@ describe('computeYDomain', () => {
   })
 })
 
-describe('pixelToValue', () => {
-  it('maps the plot top to yMax and the bottom to yMin', () => {
-    expect(pixelToValue(0, 0, 100, 0, 10)).toBe(10)
-    expect(pixelToValue(100, 0, 100, 0, 10)).toBe(0)
-    expect(pixelToValue(50, 0, 100, 0, 10)).toBe(5)
-  })
 
-  it('clamps a cursor outside the plot area', () => {
-    expect(pixelToValue(-20, 0, 100, 0, 10)).toBe(10)
-    expect(pixelToValue(200, 0, 100, 0, 10)).toBe(0)
-  })
-})
-
-describe('nearestKey', () => {
-  it('picks the line closest in value, skipping nulls', () => {
-    expect(nearestKey({ a: 10, b: 2, c: null }, 3)).toBe('b')
-  })
-
-  it('is null when every line is null at that time', () => {
-    expect(nearestKey({ a: null, b: null }, 3)).toBeNull()
-  })
-})
 
 describe('formatMetricValue', () => {
   it('formats to each metric’s precision', () => {

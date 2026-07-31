@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo } from 'react'
 import {
   CartesianGrid,
   Line,
@@ -21,13 +21,8 @@ import {
   chartKey,
   computeYDomain,
   formatMetricValue,
-  nearestKey,
-  pixelToValue,
-  valueAt,
 } from '../utils/chartData'
 
-// Explicit geometry so the hover handler can invert pixels → data values: the
-// plotting band is the container minus these margins and the x-axis strip.
 const MARGIN = { top: 8, right: 16, bottom: 2, left: 8 }
 const X_AXIS_HEIGHT = 22
 const TOOLTIP_MAX = 8
@@ -47,10 +42,6 @@ export default function TimeSeriesChart({
   onMetricChange,
   colorFor,
 }: Props) {
-  const plotRef = useRef<HTMLDivElement>(null)
-  const [focusedKey, setFocusedKey] = useState<string | null>(null)
-  const [cursorValue, setCursorValue] = useState<number | null>(null)
-
   // Align each series onto the active grid by timestamp — a no-op for ranked
   // rows; a pinned row may have been fetched for a different window.
   const aligned = useMemo(() => rows.map((r) => alignRowToGrid(r, times)), [rows, times])
@@ -76,37 +67,6 @@ export default function TimeSeriesChart({
   const data = useMemo(() => buildChartData(times, aligned, metric), [times, aligned, metric])
   const [yMin, yMax] = useMemo(() => computeYDomain(aligned, metric), [aligned, metric])
 
-  // Render the focused line last (on top) with siblings dimmed. One nearest-line
-  // computation feeds both the line emphasis and the tooltip ordering.
-  const ordered = focusedKey
-    ? [
-        ...aligned.filter((r) => chartKey(r) !== focusedKey),
-        ...aligned.filter((r) => chartKey(r) === focusedKey),
-      ]
-    : aligned
-
-  function handleMove(state: any) {
-    const idx = state?.activeTooltipIndex
-    const py = typeof state?.chartY === 'number' ? state.chartY : state?.activeCoordinate?.y
-    const h = plotRef.current?.clientHeight ?? 0
-    const plotHeight = h - MARGIN.top - MARGIN.bottom - X_AXIS_HEIGHT
-    if (idx == null || typeof py !== 'number' || plotHeight <= 0) {
-      setFocusedKey(null)
-      setCursorValue(null)
-      return
-    }
-    const cv = pixelToValue(py, MARGIN.top, plotHeight, yMin, yMax)
-    const valuesByKey: Record<string, number | null> = {}
-    for (const row of aligned) valuesByKey[chartKey(row)] = valueAt(row, metric, idx)
-    setCursorValue(cv)
-    setFocusedKey(nearestKey(valuesByKey, cv))
-  }
-
-  function handleLeave() {
-    setFocusedKey(null)
-    setCursorValue(null)
-  }
-
   return (
     <div className="flex h-full flex-col">
       {/* Metric radios — one series at a time; default is the ranked metric. */}
@@ -128,9 +88,9 @@ export default function TimeSeriesChart({
         ))}
       </div>
 
-      <div ref={plotRef} className="min-h-0 flex-1">
+      <div className="min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={MARGIN} onMouseMove={handleMove} onMouseLeave={handleLeave}>
+          <LineChart data={data} margin={MARGIN}>
             <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
             <XAxis
               dataKey="t"
@@ -168,14 +128,11 @@ export default function TimeSeriesChart({
                   rows={aligned}
                   metric={metric}
                   colorFor={colorFor}
-                  focusedKey={focusedKey}
-                  cursorValue={cursorValue}
                 />
               )}
             />
-            {ordered.map((row) => {
+            {aligned.map((row) => {
               const key = chartKey(row)
-              const dimmed = focusedKey != null && focusedKey !== key
               return (
                 <Line
                   key={key}
@@ -183,20 +140,10 @@ export default function TimeSeriesChart({
                   dataKey={key}
                   name={row.name}
                   stroke={colorFor(row)}
-                  dot={
-                    pointGrid
-                      ? {
-                          r: focusedKey === key ? 4.5 : 3.5,
-                          strokeWidth: 0,
-                          fill: colorFor(row),
-                          fillOpacity: dimmed ? 0.25 : 1,
-                        }
-                      : false
-                  }
+                  dot={pointGrid ? { r: 3.5, strokeWidth: 0, fill: colorFor(row) } : false}
                   connectNulls={false}
                   isAnimationActive={false}
-                  strokeWidth={focusedKey === key ? 2.5 : 1.5}
-                  strokeOpacity={dimmed ? 0.25 : 1}
+                  strokeWidth={1.5}
                 />
               )
             })}
@@ -230,13 +177,18 @@ interface ChartTooltipProps {
   rows: DestinationResult[]
   metric: ChartMetric
   colorFor: (row: DestinationResult) => string
-  focusedKey: string | null
-  cursorValue: number | null
 }
 
-// Shared X-locked tooltip: all lines at the hovered instant, ordered by nearness
-// to the cursor (focused line bold and first), capped so a big overlay stays
-// readable.
+// Shared X-locked tooltip: every line's value at the hovered instant, highest
+// first, capped so a big overlay stays readable.
+//
+// It used to order by nearness to the cursor and bold the line under it, while the
+// chart thickened that line and dimmed the rest. Measured out (#166): under a
+// sustained mousemove stream that emphasis let only ~30 of ~500 events be
+// serviced in two seconds, with stalls up to 675ms, against ~166 events and a
+// 25ms worst frame without it — and no dataset size was found where it kept up,
+// down to three lines. Recharts still tracks the cursor for the tooltip itself,
+// which is the part that says what you are looking at.
 function ChartTooltip({
   active,
   payload,
@@ -244,8 +196,6 @@ function ChartTooltip({
   rows,
   metric,
   colorFor,
-  focusedKey,
-  cursorValue,
 }: ChartTooltipProps) {
   if (!active || !payload || payload.length === 0) return null
 
@@ -255,12 +205,7 @@ function ChartTooltip({
     const row = rows.find((r) => chartKey(r) === p.dataKey)
     if (row) items.push({ key: p.dataKey, value: p.value, row })
   }
-  items.sort((a, b) => {
-    if (a.key === focusedKey) return -1
-    if (b.key === focusedKey) return 1
-    if (cursorValue == null) return b.value - a.value
-    return Math.abs(a.value - cursorValue) - Math.abs(b.value - cursorValue)
-  })
+  items.sort((a, b) => b.value - a.value)
 
   const shown = items.slice(0, TOOLTIP_MAX)
   const rest = items.length - shown.length
@@ -271,12 +216,7 @@ function ChartTooltip({
         <div className={`${TEXT.micro} mb-1 font-mono`}>{fmtTooltipTime(label)}</div>
       )}
       {shown.map((it) => (
-        <div
-          key={it.key}
-          className={`flex items-center justify-between gap-3 ${
-            it.key === focusedKey ? 'font-semibold text-white' : ''
-          }`}
-        >
+        <div key={it.key} className="flex items-center justify-between gap-3">
           <span className="flex items-center gap-1.5">
             <span className={`h-2 w-2 ${RADIUS.control}`} style={{ backgroundColor: colorFor(it.row) }} />
             {it.row.name}
