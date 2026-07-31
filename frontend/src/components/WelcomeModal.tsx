@@ -1,6 +1,6 @@
 import { useDialog } from '../hooks/useDialog'
 import SafetyNotice from './SafetyNotice'
-import { BUTTON_PRIMARY, PROSE, RADIUS, SURFACE_CARD } from '../styles'
+import { ACCENT_FILL, BUTTON_PRIMARY, PROSE, RADIUS, SURFACE_CARD } from '../styles'
 
 interface Props {
   onDismiss: () => void
@@ -8,7 +8,7 @@ interface Props {
 
 const STEPS: [string, string][] = [
   ['Destinations', 'Choose where to search by drawing an area on the map, searching by name, or providing custom coordinates.'],
-  ['Forecast Window', 'Analyze conditions right now, at a specific day and time, or across a multi-hour window.'],
+  ['Forecast Window', 'Pick a day on the calendar, drag across days for a range, or analyze the current hour.'],
   ['Result Ranking', 'Choose how destinations should be ranked: driest conditions, lowest winds, ideal temperatures, or cleanest air.'],
   ['Options', 'Apply constraints and enable additional features like wildfire visibility.'],
   ['Analyze', 'Generate ranked results, explore them on the map, and compare forecast data across your selected destinations.'],
@@ -55,7 +55,7 @@ export default function WelcomeModal({ onDismiss }: Props) {
           <ol className="space-y-3 mb-5">
             {STEPS.map(([title, desc], i) => (
               <li key={i} className={`${PROSE.body} flex gap-3`}>
-                <span className={`flex-shrink-0 w-5 h-5 ${RADIUS.pill} bg-sky-600 text-white text-xs font-bold flex items-center justify-center mt-0.5`}>
+                <span className={`flex-shrink-0 w-5 h-5 ${RADIUS.pill} ${ACCENT_FILL} text-xs font-bold flex items-center justify-center mt-0.5`}>
                   {i + 1}
                 </span>
                 <p className="leading-snug">

@@ -3,8 +3,19 @@
 // These functions are intentionally pure (no React, no DOM) so they're trivial
 // to unit-test — App.tsx owns the thin glue that reads/writes location.
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
-import { AnalysisMode, GeoPolygon, DiscoveryType, SortBy } from '../types'
+import { GeoPolygon, DiscoveryType, SortBy } from '../types'
 import { RANKING_KEYS } from '../metrics'
+import {
+  DAY_END,
+  DAY_START,
+  ForecastSelection,
+  aqiHorizon,
+  bandEnd,
+  bandStart,
+  isDayKey,
+  isTimeOfDay,
+  orderDays,
+} from './calendar'
 import { Place } from './geocode'
 
 // Fields that fully describe an analysis. Results are deliberately excluded —
@@ -12,15 +23,11 @@ import { Place } from './geocode'
 export interface ShareableState {
   polygon: GeoPolygon | null
   destinationType: DiscoveryType
-  startDatetime: string // datetime-local, e.g. "2026-07-04T10:30"
-  endDatetime: string
-  // Forecast-time mode. 'window' analyzes start–end above; 'at' analyzes the
-  // single hour of atDatetime; 'now' samples the Analyze click time. Only the
-  // selected mode's inputs go in the URL: a shared "now" link deliberately
-  // omits timestamps so it re-samples at open time, and a window link omits
-  // the unused atDatetime (and vice versa).
-  mode: AnalysisMode
-  atDatetime: string // datetime-local, only meaningful when mode === 'at'
+  // What the analysis asks about: the current hour, or a day/day-range with an
+  // optional narrowing to a span of hours (#166). One value where there used to
+  // be four — a mode plus three parallel sets of timestamps, two of them always
+  // dormant — which is most of why the panel section shrank.
+  selection: ForecastSelection
   sortBy: SortBy
   sortDesc: boolean // false = lowest first (the historical behavior)
   minElevationFt: number | null
@@ -47,17 +54,7 @@ const LEGACY_SORT_MAP: Record<string, SortBy> = {
   aqi_max: 'aqi_avg',
 }
 
-// Open-Meteo's forecast endpoint serves roughly the last ~90 days of history
-// through ~16 days ahead. Outside that band a saved window returns no data.
-export const PAST_LIMIT_DAYS = 90
-export const FUTURE_LIMIT_DAYS = 16
-
-// The air-quality endpoint's CAMS model only publishes ~5 days of forecast —
-// well short of the 16-day weather horizon — so AQI needs its own warning.
-export const AQI_LIMIT_DAYS = 5
-
 const POLY_PRECISION = 5 // ~1 m; keeps the URL short without visible drift
-const MS_PER_DAY = 86_400_000
 
 // Control defaults — must mirror the initial useState values in App.tsx. Used to
 // decide whether the user has changed anything worth persisting to the URL.
@@ -173,11 +170,13 @@ function isValidDatetimeLocal(s: string): boolean {
  * the user hasn't provided anything worth persisting, so the address bar stays
  * clean on a pristine load.
  *
- * The forecast window is intentionally excluded from the "worth sharing" test:
- * both dates are pre-filled to "now", so treating a filled window as meaningful
- * would write timestamps into the URL (and rewrite them on every reload) before
- * the user has done anything. Once any other signal is present, the window
- * rides along and stays live.
+ * A day selection is user intent and counts as such: someone had to click a day
+ * to make one. That is the change the calendar brings to this gate, and it makes
+ * it simpler rather than more complicated. The old window was two pre-filled
+ * timestamps nobody had chosen, so a filled window could not be read as a
+ * signal — treating it as one would have written dates into the address bar,
+ * and rewritten them on every reload, before the user did anything at all. The
+ * calendar's default is the Now chip, which carries no dates to write.
  */
 export function encodeState(state: ShareableState): string {
   const hasPolygon = state.polygon !== null && (state.polygon.coordinates[0]?.length ?? 0) >= 3
@@ -190,7 +189,7 @@ export function encodeState(state: ShareableState): string {
     state.limit !== DEFAULT_LIMIT ||
     state.destinationType !== DEFAULT_TYPE ||
     state.showWildfires ||
-    state.mode !== 'now'
+    state.selection.kind !== 'now'
   if (!hasPolygon && !hasCustom && !hasConstraint && !hasPins && !nonDefaultControls)
     return ''
 
@@ -202,13 +201,23 @@ export function encodeState(state: ShareableState): string {
   // Always written, like type/sort/limit above, even at its default. Links used
   // to leave `mode` out for the then-default window mode and let the reader
   // infer it; that made every shared link hostage to the app's current default.
-  // Spelling it out costs one param and makes the link self-describing.
-  p.set('mode', state.mode)
-  if (state.mode === 'at') {
-    if (isValidDatetimeLocal(state.atDatetime)) p.set('at', state.atDatetime)
-  } else if (state.mode === 'window') {
-    if (isValidDatetimeLocal(state.startDatetime)) p.set('start', state.startDatetime)
-    if (isValidDatetimeLocal(state.endDatetime)) p.set('end', state.endDatetime)
+  // Spelling it out costs one param and makes the link self-describing — which
+  // is also why it survives the calendar even though `d1` alone would imply a
+  // day selection: a reader should not have to know that.
+  p.set('mode', state.selection.kind)
+  if (state.selection.kind === 'days') {
+    const { startDate, endDate, hours } = state.selection
+    p.set('d1', startDate)
+    // Omitted for a single day, so the common link stays as short as the shape
+    // it describes.
+    if (endDate !== startDate) p.set('d2', endDate)
+    // Written whenever the narrow-hours control is open, defaults included: the
+    // pair is the control's state, not only its effect, and a link that dropped
+    // 00:00/23:59 would reopen with the disclosure closed.
+    if (hours) {
+      p.set('h1', hours.start)
+      p.set('h2', hours.end)
+    }
   }
   if (state.minElevationFt !== null) p.set('minel', String(state.minElevationFt))
   if (state.maxElevationFt !== null) p.set('maxel', String(state.maxElevationFt))
@@ -222,6 +231,65 @@ export function encodeState(state: ShareableState): string {
   if (hasPins) p.set('pins', encodePins(state.pins))
 
   return p.toString()
+}
+
+/**
+ * Read the forecast selection out of a query string, translating the three
+ * pre-calendar shapes forward.
+ *
+ * The old readers are kept rather than replaced, the same way `custom` survives
+ * alongside `customz`: every link ever shared carries one of them, and a link
+ * that silently restored as the wrong window would be worse than one that
+ * failed. What each translates to:
+ *
+ * - `mode=now` is unchanged, and the only shape that already fit.
+ * - `mode=at&at=<moment>` becomes that single day narrowed to that one hour.
+ *   Equal hours are how a point sample travels: the backend floors them to the
+ *   hour containing the moment, which is exactly what `at` meant.
+ * - `mode=window&start&end` becomes the day range the window spanned, keeping
+ *   its times as the narrow-hours refinement rather than rounding them away. A
+ *   window that already ran midnight to 23:59 restores as plain whole days.
+ * - A bare `start`/`end` pair with no `mode` at all predates `mode` being
+ *   written; it read as a window then and still does. One timestamp alone
+ *   carries no span, so it restores as that whole day rather than a guess.
+ */
+function decodeSelection(params: URLSearchParams): ForecastSelection | undefined {
+  const mode = params.get('mode')
+  if (mode === 'now') return { kind: 'now' }
+
+  const d1 = params.get('d1')
+  if (d1 && isDayKey(d1)) {
+    const d2 = params.get('d2')
+    const days = orderDays(d1, d2 && isDayKey(d2) ? d2 : d1)
+    const h1 = params.get('h1')
+    const h2 = params.get('h2')
+    // Both or neither: one hour without the other describes no window, and
+    // filling the missing end from a default would invent a span.
+    const narrowed = h1 !== null && h2 !== null && isTimeOfDay(h1) && isTimeOfDay(h2)
+    return { kind: 'days', ...days, ...(narrowed ? { hours: { start: h1, end: h2 } } : {}) }
+  }
+
+  const at = params.get('at')
+  if (mode === 'at' && at && isValidDatetimeLocal(at)) {
+    const [date, time] = at.split('T')
+    return { kind: 'days', startDate: date, endDate: date, hours: { start: time, end: time } }
+  }
+
+  const start = params.get('start')
+  const end = params.get('end')
+  const from = start && isValidDatetimeLocal(start) ? start : null
+  const to = end && isValidDatetimeLocal(end) ? end : null
+  if (from === null && to === null) return undefined
+  const [startDate, startTime] = (from ?? (to as string)).split('T')
+  const [endDate, endTime] = (to ?? (from as string)).split('T')
+  const days = orderDays(startDate, endDate)
+  const wholeDays =
+    (from === null || to === null) || (startTime === DAY_START && endTime === DAY_END)
+  return {
+    kind: 'days',
+    ...days,
+    ...(wholeDays ? {} : { hours: { start: startTime, end: endTime } }),
+  }
 }
 
 /**
@@ -265,22 +333,8 @@ export function decodeState(search: string): Partial<ShareableState> | null {
     if (Number.isInteger(n) && n >= 1) out.limit = n
   }
 
-  const start = params.get('start')
-  if (start && isValidDatetimeLocal(start)) out.startDatetime = start
-  const end = params.get('end')
-  if (end && isValidDatetimeLocal(end)) out.endDatetime = end
-
-  const mode = params.get('mode')
-  if (mode === 'now' || mode === 'at' || mode === 'window') out.mode = mode
-  // Links minted while the multi-hour window was the default carry no `mode` at
-  // all — the bare start/end pair was the window. Now that "now" is the default,
-  // those links would silently restore as a current-conditions snapshot, so the
-  // dates themselves stand in for the missing mode. Keyed off the *parsed*
-  // dates above, not the raw params: a malformed date is dropped, and a dropped
-  // date must not imply a mode.
-  else if (out.startDatetime !== undefined || out.endDatetime !== undefined) out.mode = 'window'
-  const at = params.get('at')
-  if (at && isValidDatetimeLocal(at)) out.atDatetime = at
+  const selection = decodeSelection(params)
+  if (selection) out.selection = selection
 
   const minel = params.get('minel')
   if (minel !== null) {
@@ -325,80 +379,48 @@ export function decodeState(search: string): Partial<ShareableState> | null {
  * Classify a forecast window against Open-Meteo's servable range. `now` is
  * injected for deterministic testing. The whole window must fit inside the
  * servable band: Open-Meteo rejects requests whose dates fall outside it, so
- * even a partial overhang would fail upstream. Returns 'order' when the end
- * is before the start (the backend rejects this outright), 'equal' when the
- * window has zero length (the point-in-time modes own that case), 'past' when
- * the window starts before the history horizon, and 'future' when it ends
- * beyond the forecast horizon.
+ * even a partial overhang would fail upstream. Returns 'order' when the end is
+ * before the start, 'past' when the window starts before the history horizon,
+ * and 'future' when it ends beyond the forecast horizon.
+ *
+ * Bounded by whole days rather than by an instant `now + N * 24h`, because that
+ * is the granularity of everything it is standing in for: the API takes
+ * `start_date`/`end_date`, and the calendar offers whole days. Measuring from the
+ * instant made the last day of the band unusable — a window ending at its 23:59
+ * always overshot `now + 15 days` unless you happened to be looking at 23:59 —
+ * so the calendar's own far edge failed the check that is supposed to guard it.
+ *
+ * The calendar cannot produce an out-of-band day — those cells are drawn
+ * disabled — so the horizon cases now only reach a user through a shared or
+ * hand-edited link, which is precisely why they still have to be caught. 'order'
+ * is reachable directly: it is a narrow-hours pair set end-before-start on a
+ * single day.
+ *
+ * A zero-length window is no longer a status of its own. It used to be, because
+ * two of the three pickers owned zero-length analyses and the warning's job was
+ * to send the user to one of them. Under the calendar, equal narrow hours *are*
+ * the way to ask for a single hour, so flagging them would refuse the thing the
+ * control is for.
  */
 export function classifyWindow(
   startDatetime: string,
   endDatetime: string,
   now: Date,
-): 'ok' | 'order' | 'equal' | 'past' | 'future' {
+): 'ok' | 'order' | 'past' | 'future' {
   if (!isValidDatetimeLocal(startDatetime) || !isValidDatetimeLocal(endDatetime)) {
     return 'ok' // incomplete window — nothing to warn about yet
   }
   const start = new Date(startDatetime).getTime()
   const end = new Date(endDatetime).getTime()
-  const earliest = now.getTime() - PAST_LIMIT_DAYS * MS_PER_DAY
-  const latest = now.getTime() + FUTURE_LIMIT_DAYS * MS_PER_DAY
+  const earliest = Date.parse(`${bandStart(now)}T${DAY_START}`)
+  const latest = Date.parse(`${bandEnd(now)}T${DAY_END}`)
 
-  // A reversed or zero-length window is a user error, not a horizon problem —
-  // flag those first so the message is about the dates, not the servable
-  // range. Equal gets its own status (not 'order') so the warning can point
-  // at Current Conditions / Future Day/Time instead of "end must be after
-  // start", which would read as pedantry when the fix is a different mode.
+  // A reversed window is a user error, not a horizon problem — flag it first so
+  // the message is about the hours the user just set, not the servable range.
   if (end < start) return 'order'
-  if (end === start) return 'equal'
   if (start < earliest) return 'past'
   if (end > latest) return 'future'
   return 'ok'
-}
-
-/**
- * Classify a single point-in-time moment ("Future Day/Time") against the same
- * servable range — the point-mode counterpart of classifyWindow, with no
- * ordering concept. Permissive about the recent past on purpose: Open-Meteo
- * serves history, so "what was it like at 6am" works even though the UI
- * labels the mode Future.
- */
-export function classifyMoment(datetime: string, now: Date): 'ok' | 'past' | 'future' {
-  if (!isValidDatetimeLocal(datetime)) {
-    return 'ok' // nothing picked yet — nothing to warn about
-  }
-  const t = new Date(datetime).getTime()
-  if (t < now.getTime() - PAST_LIMIT_DAYS * MS_PER_DAY) return 'past'
-  if (t > now.getTime() + FUTURE_LIMIT_DAYS * MS_PER_DAY) return 'future'
-  return 'ok'
-}
-
-/**
- * Window for a searched point's pinned forecast, as ISO instants. Uses the
- * panel's window when it's complete, ordered, and inside the servable range —
- * keeping the pinned row comparable with an analysis run from the same knobs.
- * Otherwise (fresh session with End unset, or an unusable window) it falls
- * back to the next hour from `now`: "conditions right now".
- */
-export function resolveSearchWindow(
-  startDatetime: string,
-  endDatetime: string,
-  now: Date,
-): { start: string; end: string } {
-  if (isValidDatetimeLocal(startDatetime) && isValidDatetimeLocal(endDatetime)) {
-    const start = new Date(startDatetime)
-    const end = new Date(endDatetime)
-    // An equal window classifies as 'equal' (not 'ok') now that the point
-    // modes own zero-length analyses, so it falls through to the "conditions
-    // right now" default below — same hour the backend would have sampled.
-    if (start < end && classifyWindow(startDatetime, endDatetime, now) === 'ok') {
-      return { start: start.toISOString(), end: end.toISOString() }
-    }
-  }
-  return {
-    start: now.toISOString(),
-    end: new Date(now.getTime() + 3_600_000).toISOString(),
-  }
 }
 
 /**
@@ -406,6 +428,13 @@ export function resolveSearchWindow(
  * 'full' means AQI data should span the whole window, 'partial' means only its
  * start, 'none' means the window begins beyond the horizon entirely. Purely
  * informational — analysis still runs, with missing AQI rendered as "—".
+ *
+ * Whole days again, and for a second reason beyond matching the API: the backend
+ * clamps its own request to `min(end.date(), today + 5 days)`
+ * (`air_quality.py`), so coverage really does run to the end of the horizon day.
+ * Measuring from an instant called a window ending that evening 'partial' while
+ * the calendar drew the same day as fully covered, and one of the two had to be
+ * wrong.
  */
 export function classifyAqiCoverage(
   startDatetime: string,
@@ -417,7 +446,7 @@ export function classifyAqiCoverage(
   }
   const start = new Date(startDatetime).getTime()
   const end = new Date(endDatetime).getTime()
-  const horizon = now.getTime() + AQI_LIMIT_DAYS * MS_PER_DAY
+  const horizon = Date.parse(`${aqiHorizon(now)}T${DAY_END}`)
 
   if (start > horizon) return 'none'
   if (end > horizon) return 'partial'

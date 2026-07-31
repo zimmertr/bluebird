@@ -67,14 +67,22 @@ export function bandNarrows(analyzed: Band, panel: Band): boolean {
  *   fallback ("Weather service unreachable from this browser"), so this only
  *   has to name the consequence.
  * - `'elevation-widened'`: see `bandNarrows`.
+ * - `'window-changed'`: the forecast selection is not the one behind the rows.
+ *   Always a commit — the browser holds no forecasts for days it never fetched —
+ *   and worth naming since the calendar made changing it a click (#166), where
+ *   typing two datetimes was hard to do by accident. Reported ahead of the other
+ *   two: it names the knob the user just touched, which is the more useful
+ *   sentence even when a band was widened in the same breath.
  */
 export function commitNeeded(
   analyzed: PresentationKnobs | null,
   panel: PresentationKnobs,
   hasUniverse: boolean,
-): 'server-path' | 'elevation-widened' | null {
+  windowChanged: boolean,
+): 'server-path' | 'elevation-widened' | 'window-changed' | null {
   // Nothing on screen yet, so nothing to be out of date with.
   if (analyzed === null) return null
+  if (windowChanged) return 'window-changed'
   if (!hasUniverse) {
     const same =
       analyzed.sortBy === panel.sortBy &&

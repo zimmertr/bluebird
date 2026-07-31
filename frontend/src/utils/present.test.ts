@@ -81,43 +81,65 @@ describe('bandNarrows', () => {
 
 describe('commitNeeded', () => {
   it('is silent before the first analysis', () => {
-    expect(commitNeeded(null, KNOBS, true)).toBeNull()
+    expect(commitNeeded(null, KNOBS, true, false)).toBeNull()
   })
 
   it('is silent for sort, direction and limit changes over a held field', () => {
     const analyzed = { ...KNOBS }
-    expect(commitNeeded(analyzed, { ...KNOBS, sortBy: 'wind_avg_mph' }, true)).toBeNull()
-    expect(commitNeeded(analyzed, { ...KNOBS, sortDesc: true }, true)).toBeNull()
-    expect(commitNeeded(analyzed, { ...KNOBS, limit: 50 }, true)).toBeNull()
+    expect(commitNeeded(analyzed, { ...KNOBS, sortBy: 'wind_avg_mph' }, true, false)).toBeNull()
+    expect(commitNeeded(analyzed, { ...KNOBS, sortDesc: true }, true, false)).toBeNull()
+    expect(commitNeeded(analyzed, { ...KNOBS, limit: 50 }, true, false)).toBeNull()
   })
 
   it('is silent for an AQI ranking, which the eager AQI fetch already covers', () => {
-    expect(commitNeeded({ ...KNOBS }, { ...KNOBS, sortBy: 'aqi_avg' }, true)).toBeNull()
+    expect(commitNeeded({ ...KNOBS }, { ...KNOBS, sortBy: 'aqi_avg' }, true, false)).toBeNull()
   })
 
   it('asks for an Analyze when the elevation band widens', () => {
     const analyzed = { ...KNOBS, band: { min: 8000, max: null } }
-    expect(commitNeeded(analyzed, { ...analyzed, band: { min: 6000, max: null } }, true)).toBe(
+    expect(commitNeeded(analyzed, { ...analyzed, band: { min: 6000, max: null } }, true, false)).toBe(
       'elevation-widened',
     )
   })
 
   it('stays silent when the band narrows', () => {
     const analyzed = { ...KNOBS, band: { min: 8000, max: null } }
-    expect(commitNeeded(analyzed, { ...analyzed, band: { min: 9000, max: null } }, true)).toBeNull()
+    expect(commitNeeded(analyzed, { ...analyzed, band: { min: 9000, max: null } }, true, false)).toBeNull()
   })
 
   it('asks for an Analyze on any knob when no field is held', () => {
     const analyzed = { ...KNOBS }
-    expect(commitNeeded(analyzed, { ...KNOBS, sortBy: 'wind_avg_mph' }, false)).toBe('server-path')
-    expect(commitNeeded(analyzed, { ...KNOBS, limit: 50 }, false)).toBe('server-path')
-    expect(commitNeeded(analyzed, { ...KNOBS, band: { min: 9000, max: null } }, false)).toBe(
+    expect(commitNeeded(analyzed, { ...KNOBS, sortBy: 'wind_avg_mph' }, false, false)).toBe('server-path')
+    expect(commitNeeded(analyzed, { ...KNOBS, limit: 50 }, false, false)).toBe('server-path')
+    expect(commitNeeded(analyzed, { ...KNOBS, band: { min: 9000, max: null } }, false, false)).toBe(
       'server-path',
     )
   })
 
   it('stays silent with no field held while the knobs still match the report', () => {
-    expect(commitNeeded({ ...KNOBS }, { ...KNOBS }, false)).toBeNull()
+    expect(commitNeeded({ ...KNOBS }, { ...KNOBS }, false, false)).toBeNull()
+  })
+
+  // The forecast window is a data knob, so this one is not a comparison of held
+  // knobs at all: the caller decides, and the answer is always "commit". Worth a
+  // cue since the calendar made changing days a click rather than two typed
+  // datetimes (#166).
+  it('asks for an Analyze when the forecast window is not the one behind the rows', () => {
+    expect(commitNeeded({ ...KNOBS }, { ...KNOBS }, true, true)).toBe('window-changed')
+  })
+
+  // Named ahead of the other two: it is the knob the user just touched, which is
+  // the more useful sentence even when something else also went stale.
+  it('names the window over a widened band or the server path', () => {
+    const analyzed = { ...KNOBS, band: { min: 8000, max: null } }
+    expect(
+      commitNeeded(analyzed, { ...analyzed, band: { min: 6000, max: null } }, true, true),
+    ).toBe('window-changed')
+    expect(commitNeeded(analyzed, { ...KNOBS, limit: 50 }, false, true)).toBe('window-changed')
+  })
+
+  it('says nothing about a window before the first analysis', () => {
+    expect(commitNeeded(null, KNOBS, true, true)).toBeNull()
   })
 })
 

@@ -46,15 +46,28 @@ You do not need to supply an elevation, and there is nowhere in the format to pu
 
 ## Step 2: Forecast Window
 
-Three ways to pick the time being analyzed:
+A calendar, and a **Now** chip beside it.
 
-- **Current Conditions** (the default) samples the hour you click Analyze. It needs no date input, so a fresh load can Analyze immediately.
-- **Future Day/Time** samples a single chosen hour.
-- **Multi-Hour Window** takes a start and an end, and aggregates across it: precipitation ranks by window total, wind, temperature, and AQI by window average.
+- **Click a day** to analyze that whole day, midnight to 23:59 your local time. Precipitation ranks by the day's total; wind, temperature, and AQI by its average.
+- **Click a second day** to extend to a range, or **drag across days** to pick one in a single gesture. Dragging either end of an existing range adjusts that end, and clicking inside a range starts over from the day you clicked.
+- **Now** analyzes the hour you click Analyze. It is the default, so a fresh load can Analyze without touching this step at all.
+- **Hours** sits under the grid, set to **All Day**. Switch it to **Hourly** for part of a day rather than all of it: it opens on the current hour through the end of the day, and runs from the first time on your first day to the second time on your last, as one continuous window. Two equal hours analyze that single hour, which is the finest question you can ask.
 
-Open-Meteo provides hourly forecasts up to 16 days ahead and about 90 days of history, so the date pickers are constrained to that range and a window outside it disables Analyze with an explanation. Each mode keeps its own inputs while another is selected, so switching back restores them. Everything is entered in your local browser time and converted to UTC for the API.
+Narrowed hours apply to the selection as a whole, not to each day in it: 06:00 to 18:00 across five days is one continuous window from the first morning to the last evening, and the app says so under the control. Daylight hours on each of several days is a separate feature and is not built yet.
 
-Air quality (AQI) forecasts run shorter, because the underlying CAMS model only reaches about 5 days out. Windows past that still analyze fine. The AQI columns just show a blank for hours beyond the horizon, and the app notes this next to the date inputs. The horizon is not the only thing worth knowing about that column: see [Air quality](DATA.md#air-quality) for how coarse the model grid is and which scale the number is on.
+How bright a day is says how much of it Bluebird can tell you about:
+
+| Day | Meaning |
+| --- | --- |
+| Normal | Weather and air quality. |
+| Dimmed | Weather only. Past the ~5-day air-quality horizon, so the AQI columns come back blank. Still analyzes fine. |
+| Greyed, not clickable | Outside what the weather service serves: about 90 days of history through 16 days of forecast, today included. |
+
+Hovering either dimmed step says why, and selecting one past the air-quality horizon says so beside the calendar. Air quality runs shorter than weather because the underlying CAMS model only reaches about 5 days out; that horizon is not the only thing worth knowing about the column, so see [Air quality](DATA.md#air-quality) for how coarse the model grid is and which scale the number is on.
+
+Days are your local calendar days, converted to UTC for the API, and the far edge accounts for that: west of Greenwich the last local day's final hour falls on the next UTC date, so the calendar offers one day less there than it does in London. Selecting days in the past is fine and normal. Those hours are recorded conditions rather than a forecast, and a chart covering both marks where one becomes the other.
+
+The calendar is fully keyboard operable: arrow keys move by day, Page Up and Page Down by month, Enter or Space selects, and Escape abandons a half-made range.
 
 ## Step 3: Set Max Results
 
@@ -66,7 +79,7 @@ Destinations you name yourself are candidates like any other. A searched place a
 
 Click **Analyze**. Results appear in a sortable table below the map and as color-coded markers on the map itself.
 
-Once results are up, the knobs split in two. **Ranking, max results, and narrowing the elevation range apply instantly**, with no second click: the browser keeps the forecast for every destination it found, not just the ones that fit on screen, so it can re-rank and re-cut them for free. Changing the **destinations, the forecast window, or widening the elevation range** needs Analyze again, because those need forecasts the app does not have yet. That is also why the numbers are exact rather than approximate: a new ranking reconsiders every destination in your area, not just the rows currently listed.
+Once results are up, the knobs split in two. **Ranking, max results, and narrowing the elevation range apply instantly**, with no second click: the browser keeps the forecast for every destination it found, not just the ones that fit on screen, so it can re-rank and re-cut them for free. Changing the **destinations, the forecast window, or widening the elevation range** needs Analyze again, because those need forecasts the app does not have yet, and the panel says which one is waiting. That is also why the numbers are exact rather than approximate: a new ranking reconsiders every destination in your area, not just the rows currently listed.
 
 If the weather service cannot be reached from your browser, Bluebird says so and retries through its own server. That path only receives the rows it shows, so on it every knob goes back to needing Analyze, and the app says which one is waiting.
 

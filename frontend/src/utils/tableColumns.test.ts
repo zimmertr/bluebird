@@ -116,14 +116,15 @@ describe('pointModeColumns', () => {
 describe('displayedColumns', () => {
   it('is the point-sample collapse and the ranked-group lift, composed', () => {
     for (const m of METRICS) {
-      expect(displayedColumns('window', m)).toEqual(orderColumns(COLUMNS, m))
-      expect(displayedColumns('now', m)).toEqual(orderColumns(pointModeColumns(COLUMNS), m))
+      expect(displayedColumns(false, m)).toEqual(orderColumns(COLUMNS, m))
+      expect(displayedColumns(true, m)).toEqual(orderColumns(pointModeColumns(COLUMNS), m))
     }
   })
 
-  it('collapses both point modes and neither window one', () => {
-    expect(displayedColumns('now', 'precip_total_in')).toHaveLength(6)
-    expect(displayedColumns('at', 'precip_total_in')).toHaveLength(6)
-    expect(displayedColumns('window', 'precip_total_in')).toHaveLength(KEYS.length)
+  // Measured rather than named: the collapse is keyed on the window covering one
+  // hourly stamp, not on a mode, so "a day narrowed to one hour" collapses too.
+  it('collapses a point sample and nothing else', () => {
+    expect(displayedColumns(true, 'precip_total_in')).toHaveLength(6)
+    expect(displayedColumns(false, 'precip_total_in')).toHaveLength(KEYS.length)
   })
 })

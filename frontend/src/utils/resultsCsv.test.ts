@@ -41,7 +41,7 @@ function cells(line: string): string[] {
   return line.split(',')
 }
 
-const WINDOW_COLUMNS = displayedColumns('window', 'precip_total_in')
+const WINDOW_COLUMNS = displayedColumns(false, 'precip_total_in')
 
 describe('the file a spreadsheet opens', () => {
   it('leads with a byte-order mark so Excel reads the headers as UTF-8', () => {
@@ -104,7 +104,7 @@ describe('what the file carries', () => {
   // A point sample covers one hour, so its triplets collapse to one column per
   // metric. Header and body must collapse together or every cell shifts.
   it('follows a point sample down to one column per metric', () => {
-    const point = displayedColumns('now', 'precip_total_in')
+    const point = displayedColumns(true, 'precip_total_in')
     const csv = buildResultsCsv([row()], point, NO_FIRES)
     const [header, body] = lines(csv)
     expect(cells(header)).toHaveLength(point.length + 2)

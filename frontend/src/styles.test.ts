@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ACCENT_FILL,
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
+  DAY,
   FIELD,
+  SEGMENT_IDLE,
+  SURFACE_GROUP,
   LINK,
   LINK_ACTION,
   PROSE,
@@ -155,6 +159,11 @@ describe('every component', () => {
   // of a shared recipe should fail here rather than ship a fourth look.
   it.each(Object.entries(sources))('%s restates no shared recipe', (_path, source) => {
     expect(source).not.toMatch(/bg-sky-600 hover:bg-sky-500/)
+    // The solid accent block: the chosen direction segment, the selected day, the
+    // welcome dialog's numbered steps. Three spellings of one treatment before.
+    expect(source).not.toMatch(/bg-sky-600 text-white/)
+    // The idle half of a segmented choice, which two controls in the panel wear.
+    expect(source).not.toMatch(/bg-slate-900 text-slate-400/)
     expect(source).not.toMatch(/bg-slate-900 border border-slate-600/)
     expect(source).not.toMatch(/bg-slate-800(\/95)? border border-slate-600/)
     expect(source).not.toMatch(/hover:text-sky-400 underline/)
@@ -189,6 +198,74 @@ describe('control panel sizing', () => {
   it('routes every non-base size through the ramp', () => {
     expect(controlPanelSource).not.toMatch(/className="[^"]*\btext-(sm|base|lg|xl)\b/)
     expect(controlPanelSource).not.toMatch(/<h[123] className="/)
+  })
+})
+
+describe('the calendar day', () => {
+  // The first three roles are one ramp, and what it encodes is how much of a day
+  // the app can tell you about: weather and air quality, weather only, or nothing.
+  // It has to stay monotonic, because a reader is being asked to compare two cells
+  // by brightness alone.
+  it('ramps from full data to none, in that order', () => {
+    const step = (recipe: string) => Number(recipe.match(/text-slate-(\d+)/)![1])
+
+    expect(step(DAY.full)).toBeLessThan(step(DAY.partial))
+    expect(step(DAY.partial)).toBeLessThan(step(DAY.unservable))
+  })
+
+  // Both steps a user can click are content, so both hold the 4.5:1 floor on the
+  // slate-800 panel: slate-200 far above it, slate-400 at 5.7:1. Dimming the
+  // partial step to slate-500's 3.1:1 would put a live date below AA, which is
+  // what #165 spent five PRs undoing.
+  it('keeps every pickable day legible on the panel', () => {
+    expect(DAY.full).toContain('text-slate-200')
+    expect(DAY.partial).toContain('text-slate-400')
+  })
+
+  // The one role here deliberately below 4.5:1, and the only one with no hover:
+  // WCAG 1.4.3 exempts inactive controls, and a day that read as text would
+  // invite the click it cannot accept.
+  it('sets a day outside the servable band apart as inactive', () => {
+    expect(DAY.unservable).toContain('text-slate-600')
+    expect(DAY.unservable).not.toContain('hover:')
+  })
+
+  // The range is a fill and the ramp is a text color, which is what lets them
+  // compose: a day with no air quality stays dim inside a selected range. If the
+  // range fill ever sets a text color, it silently overrides that.
+  it('leaves the ramp visible through a selected range', () => {
+    expect(DAY.range).toMatch(/\bbg-/)
+    expect(DAY.range).not.toMatch(/\btext-/)
+  })
+
+  // A ring rather than a fill, because today is frequently also selected and the
+  // two have to be able to coexist on one cell.
+  it('marks today without spending a fill on it', () => {
+    expect(DAY.today).toContain('ring')
+    expect(DAY.today).not.toMatch(/\bbg-/)
+  })
+
+  it('selects a day with the shared accent fill rather than its own', () => {
+    expect(DAY.selected).toBe(ACCENT_FILL)
+  })
+})
+
+describe('grouping and segmenting', () => {
+  // The panel's section dividers are slate-700, 1.4:1 on the slate-800 panel.
+  // That is fine for a rule and useless for making a block of controls read as one
+  // object, which is this role's whole job, so it takes the step that clears the
+  // 3:1 asked of a boundary.
+  it('draws a group boundary bright enough to be one', () => {
+    expect(SURFACE_GROUP).toContain('border-slate-500')
+    expect(SURFACE_GROUP).toContain(RADIUS.surface)
+  })
+
+  // Two segmented controls in one panel: the ranking direction, and the
+  // calendar's hours. ACCENT_FILL is the chosen half, this is the other one, and
+  // naming the pair is what stops the second one being a lookalike that drifts.
+  it('pairs the idle segment with the accent fill', () => {
+    expect(SEGMENT_IDLE).toContain('text-slate-400')
+    expect(SEGMENT_IDLE).not.toBe(ACCENT_FILL)
   })
 })
 

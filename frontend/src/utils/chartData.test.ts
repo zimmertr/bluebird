@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { DestinationResult, HourlySeries } from '../types'
 import {
   alignRowToGrid,
+  axisTimeLabel,
+  nowWithinGrid,
+  tracksCursor,
   buildChartData,
   chartKey,
   computeYDomain,
@@ -201,5 +204,114 @@ describe('defaultChartRows', () => {
     const bare = { ...row('A', 1, {}), series: undefined }
     expect(defaultChartRows([bare], [])).toBeNull()
     expect(defaultChartRows([], [])).toBeNull()
+  })
+})
+
+// A calendar makes a 16-day range two clicks, so the long-span axis went from a
+// rare shape to an ordinary one (#166).
+describe('axisTimeLabel', () => {
+  const t = Date.parse('2026-07-21T15:00:00Z')
+  const HOURS = 3_600_000
+
+  it('names the weekday and the hour inside a two-day span', () => {
+    expect(axisTimeLabel(t, 24 * HOURS)).not.toMatch(/Jul/)
+    expect(axisTimeLabel(t, 24 * HOURS)).toMatch(/\d/)
+  })
+
+  it('swaps the weekday for the date once the span passes two days', () => {
+    expect(axisTimeLabel(t, 16 * 24 * HOURS)).toContain('Jul')
+    expect(axisTimeLabel(t, 72 * HOURS)).toContain('Jul')
+  })
+
+  // Recharts thins ticks by measuring the labels it is handed, so a date with no
+  // hour lets a dozen identical strings all "fit" and the axis repeats one date
+  // down its whole length.
+  it('keeps an hour on the long form so no two ticks read the same', () => {
+    const labels = [0, 6, 12].map((h) => axisTimeLabel(t + h * HOURS, 16 * 24 * HOURS))
+    expect(new Set(labels).size).toBe(3)
+  })
+
+  it('holds the weekday form exactly at the threshold', () => {
+    expect(axisTimeLabel(t, 48 * HOURS)).not.toMatch(/Jul/)
+  })
+
+  // A one-timestamp grid has no span, so it keeps the weekday-and-hour form —
+  // which is what a single moment wants to be read as anyway.
+  it('keeps the hour form for a point sample, which has no span', () => {
+    expect(axisTimeLabel(t, 0)).not.toMatch(/Jul/)
+  })
+})
+
+// The forecast endpoint serves history as well as forecast, so one window can
+// hold both kinds of number and the chart has to say where the seam is.
+describe('nowWithinGrid', () => {
+  const HOUR = 3_600_000
+  const t0 = Date.parse('2026-07-31T00:00:00Z')
+  const grid = [t0, t0 + HOUR, t0 + 2 * HOUR, t0 + 3 * HOUR]
+
+  it('reports the moment when the grid straddles it', () => {
+    expect(nowWithinGrid(grid, t0 + 2 * HOUR)).toBe(t0 + 2 * HOUR)
+  })
+
+  it('includes both ends, where the seam is still on the chart', () => {
+    expect(nowWithinGrid(grid, t0)).toBe(t0)
+    expect(nowWithinGrid(grid, t0 + 3 * HOUR)).toBe(t0 + 3 * HOUR)
+  })
+
+  it('reports nothing for a window wholly on one side', () => {
+    expect(nowWithinGrid(grid, t0 - HOUR)).toBeNull() // an all-forecast window
+    expect(nowWithinGrid(grid, t0 + 4 * HOUR)).toBeNull() // an all-history window
+  })
+
+  // A line through the single dot of a point sample marks nothing.
+  it('reports nothing for a one-stamp grid, or none at all', () => {
+    expect(nowWithinGrid([t0], t0)).toBeNull()
+    expect(nowWithinGrid([], t0)).toBeNull()
+  })
+})
+
+// The cap exists because hovering rebuilds every line's path from every point, so
+// the two variables multiply. Calibrated against the running app; the numbers
+// below are the maintainer's own verdicts at the boundary.
+describe('tracksCursor', () => {
+  it('follows the cursor through the sizes that read as smooth', () => {
+    expect(tracksCursor(624, 25)).toBe(true) // 15,600 points, satisfactory
+    expect(tracksCursor(840, 25)).toBe(true) // 21,000, satisfactory
+  })
+
+  // The cap sits between the last count that read as satisfactory and the first
+  // that read as degrading, so the degrading band is excluded rather than admitted.
+  it('stops at the first size that read as degrading', () => {
+    expect(tracksCursor(840, 25)).toBe(true) // 21,000, satisfactory
+    expect(tracksCursor(1056, 25)).toBe(false) // 26,400, starting to degrade
+    expect(tracksCursor(2208, 20)).toBe(false) // 44,160, the case needing a limit
+  })
+
+  // Shape independence, checked in the app at 19,200 points across three very
+  // different shapes: the product is the variable, not either term on its own.
+  it('judges by the product, not by lines or hours alone', () => {
+    expect(tracksCursor(192, 100)).toBe(true) // 100 lines, 8 days
+    expect(tracksCursor(384, 50)).toBe(true) // 50 lines, 16 days
+    expect(tracksCursor(960, 20)).toBe(true) // 20 lines, 40 days
+    // Many lines alone is fine, and many hours alone is fine; together they are not.
+    expect(tracksCursor(24, 200)).toBe(true)
+    expect(tracksCursor(2544, 5)).toBe(true)
+    expect(tracksCursor(2544, 100)).toBe(false)
+  })
+
+  // Both edges of the cap, so a change to it has to be deliberate.
+  it('admits exactly the budget and refuses one point past it', () => {
+    expect(tracksCursor(25_000, 1)).toBe(true)
+    expect(tracksCursor(25_001, 1)).toBe(false)
+  })
+
+  it('charges for hours rather than days, so a narrowed window buys back the emphasis', () => {
+    // 30 whole days at 40 lines is over; the same days narrowed to 12 hours is not.
+    expect(tracksCursor(30 * 24, 40)).toBe(false) // 28,800
+    expect(tracksCursor(30 * 12, 40)).toBe(true) // 14,400
+  })
+
+  it('is unbothered by an empty chart', () => {
+    expect(tracksCursor(0, 0)).toBe(true)
   })
 })

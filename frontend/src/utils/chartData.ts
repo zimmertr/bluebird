@@ -120,6 +120,83 @@ export function formatMetricValue(v: number, metric: ChartMetric): string {
   return v.toFixed(1)
 }
 
+// Above this span an axis tick names the date instead of the weekday. Two days
+// is where a weekday stops identifying a day on its own: a 16-day range repeats
+// every name, so "Mon 3 PM" appears twice with a week between them.
+const AXIS_DATE_SPAN_MS = 48 * 3_600_000
+
+/**
+ * An x-axis tick, labelled for the span it sits in. `spanMs` is the whole grid's
+ * extent, so every tick on one axis is formatted the same way.
+ *
+ * Both forms keep the hour. Dropping it on the long form reads as an improvement
+ * — past two days the ticks land hours apart within a single date — but Recharts
+ * thins ticks by measuring the labels it is given, so identical short strings all
+ * fit and the axis renders "Jul 30" eight times in a row. Keeping the hour makes
+ * every tick distinct and lets that thinning do its job.
+ *
+ * A calendar makes a 16-day range two clicks (#166), where it used to mean typing
+ * two datetimes, so the long-span case went from rare to ordinary.
+ */
+export function axisTimeLabel(t: number, spanMs: number): string {
+  return spanMs > AXIS_DATE_SPAN_MS
+    ? new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric' })
+    : new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric' })
+}
+
+/**
+ * Where "now" falls on the chart's grid, or null when it falls outside it.
+ *
+ * The forecast endpoint serves history as well as forecast, so a window can span
+ * the boundary and the chart is then plotting two different kinds of number:
+ * what happened on the left, what is expected on the right. Marking the seam is
+ * the only way that reads. Null for a grid entirely on one side, and for a
+ * one-stamp point sample, where a line through the single dot says nothing.
+ */
+export function nowWithinGrid(times: number[], nowMs: number): number | null {
+  if (times.length < 2) return null
+  return nowMs >= times[0] && nowMs <= times[times.length - 1] ? nowMs : null
+}
+
+// Points on screen — lines charted x hours in the window — above which the chart
+// stops following the cursor. Both variables matter and they multiply, because the
+// work is per line per point: hovering only changes stroke widths, opacities and
+// the tooltip's row order, but it does so through React state, so Recharts rebuilds
+// every line's `d` attribute from all of its points to repaint a cosmetic
+// difference.
+//
+// Calibrated by the maintainer against the running app, holding destinations at 25
+// and varying the window so the count moved along one axis:
+//
+//   15,600 points  satisfactory
+//   21,000         satisfactory
+//   26,400         starting to degrade
+//   44,160         (20 destinations x 92 days) the point needing a limit
+//
+// Shape independence checked separately: 19,200 points as 100 lines x 8 days, as
+// 50 x 16, and as 20 x 40 all read the same, so the product is the right variable
+// rather than either term alone. 25,000 is the cap: the last count that read as
+// satisfactory was 21,000 and the next one read as degrading, so the line goes
+// between them rather than above both.
+//
+// Re-derive by sweeping one axis again; a subjective read is the right instrument
+// here, since the failure is "the chart lags the pointer" rather than a number.
+const CURSOR_POINT_BUDGET = 25_000
+
+/**
+ * Should the chart follow the cursor — emphasizing the nearest line, dimming the
+ * others, and ordering the tooltip by nearness?
+ *
+ * Only while it is affordable. Counted on hours rather than days so a narrowed
+ * window is charged for what it actually draws, and on lines *charted* rather
+ * than destinations analyzed, so unchecking rows in the table brings the
+ * emphasis back. The tooltip itself is unaffected either way: Recharts tracks
+ * the cursor for that on its own.
+ */
+export function tracksCursor(timestampCount: number, lineCount: number): boolean {
+  return timestampCount * lineCount <= CURSOR_POINT_BUDGET
+}
+
 export type ChartPoint = { t: number } & Record<string, number | null>
 
 // One object per timestamp — { t, [destKey]: value|null, … } — the shape

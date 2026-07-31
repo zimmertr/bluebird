@@ -3,6 +3,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -14,12 +15,15 @@ import {
   CHART_METRICS,
   ChartMetric,
   alignRowToGrid,
+  axisTimeLabel,
+  nowWithinGrid,
   buildChartData,
   chartKey,
   computeYDomain,
   formatMetricValue,
   nearestKey,
   pixelToValue,
+  tracksCursor,
   valueAt,
 } from '../utils/chartData'
 
@@ -51,12 +55,32 @@ export default function TimeSeriesChart({
   // Align each series onto the active grid by timestamp — a no-op for ranked
   // rows; a pinned row may have been fetched for a different window.
   const aligned = useMemo(() => rows.map((r) => alignRowToGrid(r, times)), [rows, times])
-  // A point-sample analysis ('now'/'at') has a one-timestamp grid: there are
-  // no segments to stroke, so each series must render as a dot or the chart
-  // would come up blank.
+  // A point-sample analysis has a one-timestamp grid: there are no segments to
+  // stroke, so each series must render as a dot or the chart would come up blank.
   const pointGrid = times.length === 1
-  const data = buildChartData(times, aligned, metric)
-  const [yMin, yMax] = computeYDomain(aligned, metric)
+  // The grid's whole extent, which decides whether a tick names an hour or a
+  // day. Zero for a point sample, where the single tick is a date either way.
+  const spanMs = times.length > 1 ? times[times.length - 1] - times[0] : 0
+  // The seam between recorded and expected, when the window spans it. Read once
+  // per render rather than memoized: the grid is fixed for the analysis, so this
+  // only moves when the clock crosses an hour the chart is already drawing.
+  const nowMs = nowWithinGrid(times, Date.now())
+  // Whether hovering may emphasize the nearest line. Past the budget it may not:
+  // the re-render rebuilds every line's path from every point, and the chart ends
+  // up lagging seconds behind the pointer. It falls back to a plain shared
+  // tooltip, and comes back on as soon as fewer lines are charted. See tracksCursor.
+  const followCursor = tracksCursor(times.length, aligned.length)
+  // Memoized because hovering re-renders: handleMove below stores the cursor's
+  // value and the nearest line in state, so every mouse movement that changes
+  // either one lands here again. Neither of these depends on that state, and
+  // both are O(times x rows) — for 100 destinations over the full 106-day span
+  // that is ~254,000 object writes plus ~254,000 comparisons, re-done per
+  // mousemove. Measured before this memo: ~20ms of blocked main thread per
+  // hover against a 16.7ms frame budget, and a continuous mousemove stream
+  // queued faster than it could be serviced until the renderer stopped
+  // answering. Both keys are already stable — `aligned` is itself memoized.
+  const data = useMemo(() => buildChartData(times, aligned, metric), [times, aligned, metric])
+  const [yMin, yMax] = useMemo(() => computeYDomain(aligned, metric), [aligned, metric])
 
   // Render the focused line last (on top) with siblings dimmed. One nearest-line
   // computation feeds both the line emphasis and the tooltip ordering.
@@ -112,7 +136,12 @@ export default function TimeSeriesChart({
 
       <div ref={plotRef} className="min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={MARGIN} onMouseMove={handleMove} onMouseLeave={handleLeave}>
+          <LineChart
+            data={data}
+            margin={MARGIN}
+            onMouseMove={followCursor ? handleMove : undefined}
+            onMouseLeave={followCursor ? handleLeave : undefined}
+          >
             <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
             <XAxis
               dataKey="t"
@@ -122,7 +151,7 @@ export default function TimeSeriesChart({
               height={X_AXIS_HEIGHT}
               stroke="#94a3b8"
               tick={{ fontSize: 10 }}
-              tickFormatter={(t: any) => fmtAxisTime(t)}
+              tickFormatter={(t: any) => axisTimeLabel(t, spanMs)}
             />
             <YAxis
               domain={[yMin, yMax]}
@@ -131,6 +160,17 @@ export default function TimeSeriesChart({
               tick={{ fontSize: 10 }}
               tickFormatter={(v: any) => formatMetricValue(v, metric)}
             />
+            {/* Wears the axis's own color rather than a semantic one: it is
+                chrome marking where the x-axis changes meaning, not a warning.
+                Dashed so it cannot be mistaken for a series. */}
+            {nowMs !== null && (
+              <ReferenceLine
+                x={nowMs}
+                stroke="#94a3b8"
+                strokeDasharray="4 3"
+                label={{ value: 'Now', position: 'insideTopLeft', fill: '#94a3b8', fontSize: 10 }}
+              />
+            )}
             <Tooltip
               isAnimationActive={false}
               content={(props: any) => (
@@ -176,10 +216,6 @@ export default function TimeSeriesChart({
       </div>
     </div>
   )
-}
-
-function fmtAxisTime(t: number): string {
-  return new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric' })
 }
 
 function fmtTooltipTime(t: number): string {

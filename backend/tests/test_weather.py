@@ -544,3 +544,31 @@ async def test_the_response_carries_the_hourly_series_for_the_chart(monkeypatch)
     results = await fetch_weather_batch(_dests(1), START, END)
     assert results[0]["series"]["precip_in"] == [0.1, 0.0, 0.0]
     assert len(results[0]["series"]["times"]) == 3
+
+def _whole_day(day: str, count: int = 25):
+    """A day's hourly payload, plus the next day's midnight sample."""
+    times = [f"{day}T{h:02d}:00" for h in range(24)]
+    if count > 24:
+        times.append("2026-07-22T00:00")
+    n = len(times)
+    return _hourly(times, [0.1] * n, [50.0] * n, [5.0] * n)
+
+
+# What a calendar day means on the wire (#166). One click on a day sends
+# 00:00 → 23:59, and this is why: the hour filter is inclusive at BOTH ends, so
+# midnight-to-midnight would catch 25 samples and count the boundary hour twice
+# into precip_total_in. Untested until the calendar made whole days the common
+# case rather than something a user had to type.
+def test_metrics_counts_a_whole_day_as_24_hours():
+    day = datetime(2026, 7, 21, 0, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
+    end = datetime(2026, 7, 21, 23, 59)  # noqa: DTZ001 — same
+    m = _metrics(_whole_day("2026-07-21"), day, end)
+    assert m["precip_total_in"] == round(24 * 0.1, 4)
+    assert len(_series(_whole_day("2026-07-21"), day, end)["times"]) == 24
+
+
+def test_metrics_counts_midnight_to_midnight_as_25_hours():
+    day = datetime(2026, 7, 21, 0, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
+    next_midnight = datetime(2026, 7, 22, 0, 0)  # noqa: DTZ001 — same
+    m = _metrics(_whole_day("2026-07-21"), day, next_midnight)
+    assert m["precip_total_in"] == round(25 * 0.1, 4)

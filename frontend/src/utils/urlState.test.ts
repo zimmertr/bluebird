@@ -3,15 +3,17 @@ import {
   encodeState,
   decodeState,
   classifyWindow,
-  classifyMoment,
   classifyAqiCoverage,
   clampLimit,
-  resolveSearchWindow,
   ShareableState,
-  PAST_LIMIT_DAYS,
-  FUTURE_LIMIT_DAYS,
-  AQI_LIMIT_DAYS,
 } from './urlState'
+import {
+  AQI_LIMIT_DAYS,
+  FUTURE_LIMIT_DAYS,
+  ForecastSelection,
+  PAST_LIMIT_DAYS,
+  bandEnd,
+} from './calendar'
 import { GeoPolygon } from '../types'
 
 const polygon: GeoPolygon = {
@@ -26,13 +28,18 @@ const polygon: GeoPolygon = {
   ],
 }
 
+// A four-day range off the calendar, whole days. `days` is the shape every
+// selection but the Now chip takes.
+const DAYS: ForecastSelection = {
+  kind: 'days',
+  startDate: '2026-07-04',
+  endDate: '2026-07-07',
+}
+
 const base: ShareableState = {
   polygon,
   destinationType: 'peak',
-  startDatetime: '2026-07-04T06:00',
-  endDatetime: '2026-07-07T18:00',
-  mode: 'window',
-  atDatetime: '',
+  selection: DAYS,
   sortBy: 'precip_total_in',
   sortDesc: false,
   minElevationFt: null,
@@ -44,15 +51,12 @@ const base: ShareableState = {
 }
 
 // A truly untouched session: no polygon, no custom CSV, all controls at their
-// App defaults — including mode 'now'. The pre-filled window must not, on its
-// own, sync to the URL.
+// App defaults — including the Now chip, which is the one selection carrying no
+// dates to write.
 const pristine: ShareableState = {
   polygon: null,
   destinationType: 'peak',
-  startDatetime: '2026-07-04T06:00',
-  endDatetime: '2026-07-04T06:00',
-  mode: 'now',
-  atDatetime: '',
+  selection: { kind: 'now' },
   sortBy: 'precip_total_in',
   sortDesc: false,
   minElevationFt: null,
@@ -73,8 +77,7 @@ describe('encodeState / decodeState round-trip', () => {
     const out = roundTrip(base)
     expect(out).not.toBeNull()
     expect(out!.destinationType).toBe('peak')
-    expect(out!.startDatetime).toBe('2026-07-04T06:00')
-    expect(out!.endDatetime).toBe('2026-07-07T18:00')
+    expect(out!.selection).toEqual(DAYS)
     expect(out!.sortBy).toBe('precip_total_in')
     expect(out!.limit).toBe(10)
     // Polygon ring is rebuilt closed with the same vertices.
@@ -168,14 +171,19 @@ describe('encodeState gate — what triggers a URL update', () => {
     expect(encodeState(pristine)).toBe('')
   })
 
-  it('does not sync when only the pre-filled Start date is present', () => {
-    expect(encodeState({ ...pristine, startDatetime: '2030-01-01T00:00' })).toBe('')
-  })
-
-  it('does not sync for the pre-filled window alone — End is no longer a signal', () => {
-    // Both dates default to "now", so a filled window says nothing about user
-    // intent. It rides along once any other signal is present (see round-trips).
-    expect(encodeState({ ...pristine, endDatetime: '2026-07-07T18:00' })).toBe('')
+  // The gate got simpler with the calendar rather than harder. The old window
+  // was two timestamps pre-filled to "now", so a filled window could not be read
+  // as intent — treating it as one would have written dates into the address bar
+  // before the user did anything. A day, by contrast, is only ever there because
+  // someone clicked it.
+  it('syncs for a day selection alone — clicking a day is intent', () => {
+    expect(encodeState({ ...pristine, selection: DAYS })).not.toBe('')
+    expect(
+      encodeState({
+        ...pristine,
+        selection: { kind: 'days', startDate: '2026-07-04', endDate: '2026-07-04' },
+      }),
+    ).not.toBe('')
   })
 
   it('syncs when only an elevation constraint is set', () => {
@@ -190,7 +198,7 @@ describe('encodeState gate — what triggers a URL update', () => {
     expect(encodeState({ ...pristine, destinationType: 'trailhead' })).not.toBe('')
   })
 
-  it('syncs on a CSV alone — no polygon or mode required', () => {
+  it('syncs on a CSV alone — no polygon or selection required', () => {
     const qs = encodeState({ ...pristine, customCsv: '46.8529,-121.7604' })
     expect(qs).not.toBe('')
     expect(new URLSearchParams(qs).get('customz')).toBeTruthy()
@@ -410,6 +418,20 @@ describe('classifyWindow', () => {
     expect(classifyWindow(shift(-(PAST_LIMIT_DAYS + 5)), shift(-10), now)).toBe('past')
   })
 
+  // The regression this pair exists for: the band offers whole days, so a window
+  // ending at 23:59 on the last of them is exactly what the calendar produces.
+  // Measuring the horizon as an instant `now + 15 days` refused it — Analyze went
+  // dead on the last clickable column — so the bounds are day-granular now.
+  it('accepts a window ending at the last minute of the last servable day', () => {
+    // Read from the calendar's own far edge rather than computed here, so this
+    // pins the two agreeing: whatever the grid offers, the guard must accept.
+    expect(classifyWindow(iso(now), `${bandEnd(now)}T23:59`, now)).toBe('ok')
+  })
+
+  it('refuses a window reaching the day after the last servable one', () => {
+    expect(classifyWindow(iso(now), shift(FUTURE_LIMIT_DAYS + 1), now)).toBe('future')
+  })
+
   it('is future when the window starts beyond the forecast horizon', () => {
     expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 2), shift(FUTURE_LIMIT_DAYS + 5), now)).toBe(
       'future',
@@ -436,15 +458,17 @@ describe('classifyWindow', () => {
     expect(classifyWindow(shift(3), shift(1), now)).toBe('order')
   })
 
-  it('flags an equal start and end — the point modes own zero-length analyses', () => {
-    expect(classifyWindow(shift(1), shift(1), now)).toBe('equal')
+  // Equal ends used to be a status of their own, pointing the user at one of the
+  // two point-in-time pickers. Under the calendar, equal narrowed hours ARE how
+  // you ask for a single hour, so flagging them would refuse the thing the
+  // control exists for.
+  it('accepts an equal start and end — a single hour is a legitimate window', () => {
+    expect(classifyWindow(shift(1), shift(1), now)).toBe('ok')
   })
 
-  it('prefers the equal warning over a horizon warning when both apply', () => {
-    // Equal AND beyond the horizon: the actionable fix is switching modes
-    // (or adding duration), so 'equal' wins like 'order' does.
+  it('still flags an equal window that falls outside the horizon', () => {
     expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 5), shift(FUTURE_LIMIT_DAYS + 5), now)).toBe(
-      'equal',
+      'future',
     )
   })
 
@@ -479,6 +503,19 @@ describe('classifyAqiCoverage', () => {
     )
   })
 
+  // Day-granular for the same reason, and for one more: the backend clamps its own
+  // request to min(end.date(), today + 5 days), so coverage runs to the end of the
+  // horizon day. An instant-based bound called that evening 'partial' while the
+  // calendar drew the day as fully covered.
+  it('is full through the last minute of the horizon day', () => {
+    const h = new Date(now.getTime() + AQI_LIMIT_DAYS * 86_400_000)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const day = `${h.getFullYear()}-${pad(h.getMonth() + 1)}-${pad(h.getDate())}`
+
+    expect(classifyAqiCoverage(iso(now), `${day}T23:59`, now)).toBe('full')
+    expect(classifyAqiCoverage(iso(now), `${day}T23:59`, now)).not.toBe('partial')
+  })
+
   it('is full for past windows (the AQI archive covers them)', () => {
     expect(classifyAqiCoverage(shift(-10), shift(-8), now)).toBe('full')
   })
@@ -488,205 +525,186 @@ describe('classifyAqiCoverage', () => {
   })
 })
 
-describe('resolveSearchWindow', () => {
-  const now = new Date('2026-07-04T12:00')
-  const iso = (d: Date) => {
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-  }
-  const shift = (days: number) => iso(new Date(now.getTime() + days * 86_400_000))
-  const fallback = {
-    start: now.toISOString(),
-    end: new Date(now.getTime() + 3_600_000).toISOString(),
-  }
-
-  it('passes a usable panel window through as ISO instants', () => {
-    const start = shift(1)
-    const end = shift(4)
-    expect(resolveSearchWindow(start, end, now)).toEqual({
-      start: new Date(start).toISOString(),
-      end: new Date(end).toISOString(),
-    })
-  })
-
-  it('falls back to the next hour when End is unset (fresh session)', () => {
-    expect(resolveSearchWindow(shift(1), '', now)).toEqual(fallback)
-  })
-
-  it('falls back when the window is reversed', () => {
-    expect(resolveSearchWindow(shift(4), shift(1), now)).toEqual(fallback)
-  })
-
-  it('falls back on an equal window — zero-length belongs to the point modes', () => {
-    const t = shift(1)
-    expect(resolveSearchWindow(t, t, now)).toEqual(fallback)
-  })
-
-  it('falls back when the window is outside the servable range', () => {
-    expect(
-      resolveSearchWindow(shift(FUTURE_LIMIT_DAYS + 2), shift(FUTURE_LIMIT_DAYS + 5), now),
-    ).toEqual(fallback)
-  })
-
-  it('keeps a recent-past window — history is analyzable', () => {
-    const start = shift(-10)
-    const end = shift(-8)
-    expect(resolveSearchWindow(start, end, now)).toEqual({
-      start: new Date(start).toISOString(),
-      end: new Date(end).toISOString(),
-    })
-  })
-})
-
-describe('now mode (mode=now)', () => {
-  it('encodes mode=now and omits the window dates', () => {
-    const params = new URLSearchParams(encodeState({ ...base, mode: 'now' }))
+describe('the Now chip (mode=now)', () => {
+  it('encodes mode=now and no days at all', () => {
+    const params = new URLSearchParams(encodeState({ ...base, selection: { kind: 'now' } }))
     expect(params.get('mode')).toBe('now')
-    // A shared "now" link re-samples at open time — the author's window
-    // timestamps must not ride along.
-    expect(params.get('start')).toBeNull()
-    expect(params.get('end')).toBeNull()
-    expect(params.get('at')).toBeNull()
+    // A shared "now" link re-samples at open time, so it must carry no dates.
+    expect(params.get('d1')).toBeNull()
+    expect(params.get('d2')).toBeNull()
+    expect(params.get('h1')).toBeNull()
   })
 
   it('is the default, so it does not make a pristine session worth persisting', () => {
-    expect(encodeState({ ...pristine, mode: 'now' })).toBe('')
+    expect(encodeState({ ...pristine, selection: { kind: 'now' } })).toBe('')
   })
 
   it('decodes mode=now', () => {
-    expect(decodeState('mode=now')!.mode).toBe('now')
+    expect(decodeState('mode=now')!.selection).toEqual({ kind: 'now' })
   })
 
   it('ignores unknown mode values', () => {
-    expect(decodeState('mode=warp')?.mode).toBeUndefined()
+    expect(decodeState('mode=warp')?.selection).toBeUndefined()
   })
 
   it('round-trips', () => {
-    expect(roundTrip({ ...base, mode: 'now' })!.mode).toBe('now')
+    expect(roundTrip({ ...base, selection: { kind: 'now' } })!.selection).toEqual({ kind: 'now' })
   })
 })
 
-describe('window mode (mode=window)', () => {
-  it('spells the mode out rather than implying it from the dates', () => {
+describe('a day selection (mode=days)', () => {
+  it('spells the mode out even though d1 would imply it', () => {
     const params = new URLSearchParams(encodeState(base))
-    expect(params.get('mode')).toBe('window')
-    expect(params.get('start')).toBe('2026-07-04T06:00')
-    expect(params.get('end')).toBe('2026-07-07T18:00')
-    expect(params.get('at')).toBeNull()
+    expect(params.get('mode')).toBe('days')
+    expect(params.get('d1')).toBe('2026-07-04')
+    expect(params.get('d2')).toBe('2026-07-07')
   })
 
-  it('is worth persisting on its own, now that "now" is the default', () => {
-    expect(encodeState({ ...pristine, mode: 'window' })).not.toBe('')
+  it('omits d2 for a single day, keeping the common link short', () => {
+    const params = new URLSearchParams(
+      encodeState({
+        ...base,
+        selection: { kind: 'days', startDate: '2026-07-04', endDate: '2026-07-04' },
+      }),
+    )
+    expect(params.get('d1')).toBe('2026-07-04')
+    expect(params.get('d2')).toBeNull()
+    expect(decodeState(params.toString())!.selection).toEqual({
+      kind: 'days',
+      startDate: '2026-07-04',
+      endDate: '2026-07-04',
+    })
   })
 
-  it('decodes mode=window', () => {
-    expect(decodeState('mode=window')!.mode).toBe('window')
+  it('writes the narrowed hours whenever the control is open, defaults included', () => {
+    const narrowed: ForecastSelection = {
+      ...DAYS,
+      hours: { start: '06:00', end: '18:00' },
+    }
+    const params = new URLSearchParams(encodeState({ ...base, selection: narrowed }))
+    expect(params.get('h1')).toBe('06:00')
+    expect(params.get('h2')).toBe('18:00')
+    expect(roundTrip({ ...base, selection: narrowed })!.selection).toEqual(narrowed)
+
+    // The whole-day pair is the control's state, not only its effect: dropping it
+    // would reopen the link with the disclosure closed.
+    const wide: ForecastSelection = { ...DAYS, hours: { start: '00:00', end: '23:59' } }
+    expect(roundTrip({ ...base, selection: wide })!.selection).toEqual(wide)
   })
 
-  it('round-trips', () => {
-    const out = roundTrip(base)
-    expect(out!.mode).toBe('window')
-    expect(out!.startDatetime).toBe('2026-07-04T06:00')
-    expect(out!.endDatetime).toBe('2026-07-07T18:00')
+  it('round-trips a whole-day range with no hours', () => {
+    expect(roundTrip(base)!.selection).toEqual(DAYS)
   })
 
-  // Links shared before "now" became the default omitted `mode` entirely and
-  // encoded the window as a bare start/end pair. Falling through to the new
-  // default would turn someone's saved 3-day window into a single-hour
-  // snapshot, so the dates stand in for the missing mode.
-  it('infers window mode from a legacy link that carries dates but no mode', () => {
-    expect(decodeState('type=peak&sort=precip_total_in&limit=10&start=2026-07-04T06:00&end=2026-07-07T18:00')!.mode)
-      .toBe('window')
-    expect(decodeState('start=2026-07-04T06:00')!.mode).toBe('window')
-    expect(decodeState('end=2026-07-07T18:00')!.mode).toBe('window')
+  it('orders the days however the link carries them', () => {
+    expect(decodeState('mode=days&d1=2026-07-07&d2=2026-07-04')!.selection).toEqual(DAYS)
   })
 
-  it('does not infer window mode from a legacy link with no dates at all', () => {
-    expect(decodeState('type=peak&limit=10')?.mode).toBeUndefined()
+  it('drops an impossible day rather than restoring a broken selection', () => {
+    expect(decodeState('mode=days&d1=2026-02-30')?.selection).toBeUndefined()
+    expect(decodeState('mode=days&d1=tomorrow')?.selection).toBeUndefined()
   })
 
-  // The inference keys off the parsed dates, not the raw params, so a garbled
-  // date stays dropped instead of conjuring a mode out of nothing usable.
-  it('does not infer window mode from a malformed date', () => {
+  it('falls back to a single day when d2 is unusable', () => {
+    expect(decodeState('mode=days&d1=2026-07-04&d2=nonsense')!.selection).toEqual({
+      kind: 'days',
+      startDate: '2026-07-04',
+      endDate: '2026-07-04',
+    })
+  })
+
+  // Both or neither: one hour without the other describes no window, and
+  // inventing the missing end from a default would invent a span.
+  it('needs both hours to narrow, and rejects malformed ones', () => {
+    expect(decodeState('mode=days&d1=2026-07-04&h1=06:00')!.selection).toEqual({
+      kind: 'days',
+      startDate: '2026-07-04',
+      endDate: '2026-07-04',
+    })
+    expect(decodeState('mode=days&d1=2026-07-04&h1=06:00&h2=25:00')!.selection).toEqual({
+      kind: 'days',
+      startDate: '2026-07-04',
+      endDate: '2026-07-04',
+    })
+  })
+})
+
+// Every link ever shared carries one of the three pre-calendar shapes. The old
+// readers survive as a translation layer, the same way `custom` survives
+// alongside `customz`: a link that silently restored as the wrong window would be
+// worse than one that failed.
+describe('links minted before the calendar', () => {
+  it('translates a whole-day window into plain days', () => {
+    expect(
+      decodeState('mode=window&start=2026-07-04T00:00&end=2026-07-07T23:59')!.selection,
+    ).toEqual(DAYS)
+  })
+
+  it('keeps a legacy window\'s times as the narrow-hours refinement', () => {
+    expect(
+      decodeState('mode=window&start=2026-07-04T06:00&end=2026-07-07T18:00')!.selection,
+    ).toEqual({ ...DAYS, hours: { start: '06:00', end: '18:00' } })
+  })
+
+  it('translates a single moment into that day narrowed to that hour', () => {
+    // Equal hours are how a point sample travels: the backend floors them to the
+    // hour containing the moment, which is exactly what `at` meant.
+    expect(decodeState('mode=at&at=2026-07-06T15:00')!.selection).toEqual({
+      kind: 'days',
+      startDate: '2026-07-06',
+      endDate: '2026-07-06',
+      hours: { start: '15:00', end: '15:00' },
+    })
+  })
+
+  // Links shared before `mode` was written at all encoded the window as a bare
+  // start/end pair. Falling through to today's default would turn someone's saved
+  // three-day window into a snapshot of the moment they opened it.
+  it('reads a bare start/end pair as the days it spanned', () => {
+    expect(
+      decodeState(
+        'type=peak&sort=precip_total_in&limit=10&start=2026-07-04T00:00&end=2026-07-07T23:59',
+      )!.selection,
+    ).toEqual(DAYS)
+  })
+
+  it('reads one timestamp alone as that whole day, since it carries no span', () => {
+    expect(decodeState('start=2026-07-04T06:00')!.selection).toEqual({
+      kind: 'days',
+      startDate: '2026-07-04',
+      endDate: '2026-07-04',
+    })
+    expect(decodeState('end=2026-07-07T18:00')!.selection).toEqual({
+      kind: 'days',
+      startDate: '2026-07-07',
+      endDate: '2026-07-07',
+    })
+  })
+
+  it('infers nothing from a legacy link with no dates at all', () => {
+    expect(decodeState('type=peak&limit=10')?.selection).toBeUndefined()
+  })
+
+  // Keyed off the parsed dates, not the raw params, so a garbled date stays
+  // dropped instead of conjuring a selection out of nothing usable.
+  it('infers nothing from a malformed date', () => {
     expect(decodeState('start=yesterday')).toBeNull()
-    expect(decodeState('type=peak&end=teatime')?.mode).toBeUndefined()
+    expect(decodeState('type=peak&end=teatime')?.selection).toBeUndefined()
   })
 
-  // An explicit mode always wins: a "now" link that happens to carry stray
-  // dates (hand-edited, or a truncated paste) must stay a "now" link.
-  it('lets an explicit mode override the legacy date inference', () => {
-    expect(decodeState('mode=now&start=2026-07-04T06:00')!.mode).toBe('now')
-    expect(decodeState('mode=at&at=2026-07-06T15:00&end=2026-07-07T18:00')!.mode).toBe('at')
-  })
-})
-
-describe('at mode (mode=at)', () => {
-  const at = '2026-07-06T15:00'
-
-  it('encodes mode=at with the moment, omitting the window dates', () => {
-    const params = new URLSearchParams(encodeState({ ...base, mode: 'at', atDatetime: at }))
-    expect(params.get('mode')).toBe('at')
-    // Unlike "now", the chosen moment IS the analysis — it must ride along.
-    expect(params.get('at')).toBe(at)
-    expect(params.get('start')).toBeNull()
-    expect(params.get('end')).toBeNull()
+  // An explicit mode still wins: a "now" link that happens to carry stray dates
+  // (hand-edited, or a truncated paste) must stay a "now" link.
+  it('lets an explicit mode=now override any dates riding along', () => {
+    expect(decodeState('mode=now&start=2026-07-04T06:00')!.selection).toEqual({ kind: 'now' })
+    expect(decodeState('mode=now&d1=2026-07-04')!.selection).toEqual({ kind: 'now' })
   })
 
-  it('is worth persisting on its own', () => {
-    expect(encodeState({ ...pristine, mode: 'at', atDatetime: at })).not.toBe('')
-  })
-
-  it('decodes mode=at with its moment', () => {
-    const out = decodeState(`mode=at&at=${encodeURIComponent(at)}`)
-    expect(out!.mode).toBe('at')
-    expect(out!.atDatetime).toBe(at)
-  })
-
-  it('keeps the mode but drops a malformed moment', () => {
-    const out = decodeState('mode=at&at=teatime')
-    expect(out!.mode).toBe('at')
-    expect(out!.atDatetime).toBeUndefined()
-  })
-
-  it('round-trips', () => {
-    const out = roundTrip({ ...base, mode: 'at', atDatetime: at })
-    expect(out!.mode).toBe('at')
-    expect(out!.atDatetime).toBe(at)
-  })
-
-  it('omits an invalid moment from the encoded URL', () => {
-    const params = new URLSearchParams(encodeState({ ...base, mode: 'at', atDatetime: '' }))
-    expect(params.get('mode')).toBe('at')
-    expect(params.get('at')).toBeNull()
-  })
-})
-
-describe('classifyMoment', () => {
-  const now = new Date('2026-07-04T12:00')
-  const iso = (d: Date) => {
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-  }
-  const shift = (days: number) => iso(new Date(now.getTime() + days * 86_400_000))
-
-  it('is ok for a near-future moment', () => {
-    expect(classifyMoment(shift(1), now)).toBe('ok')
-  })
-
-  it('is ok for a recent-past moment — history is analyzable', () => {
-    expect(classifyMoment(shift(-10), now)).toBe('ok')
-  })
-
-  it('is past beyond the history horizon', () => {
-    expect(classifyMoment(shift(-(PAST_LIMIT_DAYS + 2)), now)).toBe('past')
-  })
-
-  it('is future beyond the forecast horizon', () => {
-    expect(classifyMoment(shift(FUTURE_LIMIT_DAYS + 2), now)).toBe('future')
-  })
-
-  it('is ok while nothing is picked', () => {
-    expect(classifyMoment('', now)).toBe('ok')
+  // The new params win over the old ones, so a link carrying both (a legacy link
+  // reshared through the app, then hand-edited back) restores what the app wrote.
+  it('prefers the calendar params when a link carries both shapes', () => {
+    expect(
+      decodeState('mode=days&d1=2026-07-04&d2=2026-07-07&at=2026-07-06T15:00')!.selection,
+    ).toEqual(DAYS)
   })
 })
 

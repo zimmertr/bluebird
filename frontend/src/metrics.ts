@@ -1,4 +1,4 @@
-import { AnalysisMode, SortBy } from './types'
+import { SortBy } from './types'
 
 /**
  * One vocabulary for the four things Bluebird measures.
@@ -140,13 +140,13 @@ export function windowAggregate(sortBy: SortBy): string {
  * a window, plain "Precipitation" for a single hour.
  *
  * The header composes this with the sort direction ("Highest …", "Lowest …")
- * and its own mode prefix, which is why a point sample takes no qualifier here
- * — the prefix already said "Current Conditions:", and "Current Conditions:
- * Highest Current Precipitation" says it twice.
+ * and its own prefix, which is why a point sample takes no qualifier here — the
+ * prefix already said "Current Conditions:", and "Current Conditions: Highest
+ * Current Precipitation" says it twice.
  */
-export function rankedNoun(sortBy: SortBy, mode: AnalysisMode): string {
+export function rankedNoun(sortBy: SortBy, pointSample: boolean): string {
   const noun = NOUN[familyOf(sortBy)]
-  return mode === 'window' ? `${windowAggregate(sortBy)} ${noun}` : noun
+  return pointSample ? noun : `${windowAggregate(sortBy)} ${noun}`
 }
 
 /**

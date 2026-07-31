@@ -194,6 +194,88 @@ export const BUTTON_SECONDARY =
   'bg-slate-700 hover:bg-slate-600'
 
 /**
+ * The solid accent block: the chosen segment of the ranking direction toggle, the
+ * ends of the calendar's day selection, and the numbered steps in the welcome
+ * dialog.
+ *
+ * Three jobs, one recipe — the same way BUTTON_PRIMARY covers both Analyze and a
+ * dialog's dismiss button. What they share is not a meaning but a treatment: a
+ * small block filled with the app's one resting accent (see LINK_ACTION above),
+ * carrying text on top of it. All three had it spelled out at the call site, and
+ * white on sky-600 reads at 4.6:1, so this is also the contrast floor for
+ * anything wearing the accent as a fill — which is exactly why a call site must
+ * not be able to restate it a shade lighter.
+ */
+export const ACCENT_FILL = 'bg-sky-600 text-white'
+
+/**
+ * The idle half of a segmented choice: the ranking direction toggle's unchosen
+ * side, and the calendar's Hours toggle.
+ *
+ * `ACCENT_FILL` above is the chosen half. Naming the pair is what makes the
+ * second segmented control in the panel the *same* control rather than a
+ * lookalike that drifted — the hazard #159-#165 spent five PRs on.
+ */
+export const SEGMENT_IDLE = 'bg-slate-900 text-slate-400 hover:text-slate-200'
+
+/**
+ * A bordered region grouping controls inside the panel: today, the calendar.
+ *
+ * Border only, no fill of its own, and the border is deliberately brighter than
+ * anything else in the panel. slate-500 is 3.4:1 on the slate-800 panel, which
+ * clears the 3:1 asked of a meaningful UI boundary; the panel's own section
+ * dividers are slate-700 at 1.4:1, and something that quiet cannot make a block
+ * of controls read as one object — which is the whole job here.
+ *
+ * A darker inset fill would separate it further and is the obvious next lever,
+ * but it is not free: `DAY.range` below is sky-950, legible on slate-800 and
+ * nearly invisible on slate-900, so a fill change means brightening the range
+ * band in the same breath. One change at a time.
+ */
+export const SURFACE_GROUP = `border border-slate-500 ${RADIUS.surface}`
+
+/**
+ * The calendar's day cells.
+ *
+ * The first three are one ramp, and the thing they encode is **how much of that
+ * day the app can actually tell you** — the only question about a cell that
+ * changes what clicking it gets you, which is why it wins the brightness
+ * channel over "is this in the past" and "is this in the month on screen":
+ *
+ * - `full` (slate-200, 11:1 on the panel) — weather and air quality.
+ * - `partial` (slate-400, 5.7:1) — weather only, past the ~5-day air-quality
+ *   horizon. Still holds the 4.5:1 floor because the day is clickable content;
+ *   dimming it to slate-500's 3.1:1 would put a live date below AA, which is
+ *   what #165 spent five PRs undoing.
+ * - `unservable` (slate-600, ~2.6:1) — outside what the weather service serves.
+ *   The one step here deliberately below AA: WCAG 1.4.3 exempts inactive
+ *   controls, and a disabled day that read as text would invite the click it
+ *   cannot accept.
+ *
+ * Selection is a fill, so it composes with the ramp instead of competing:
+ *
+ * - `range` fills the days between the two ends. sky-950 is dark enough that a
+ *   cell keeps its own ramp color on top (slate-400 is 5.9:1 there), so a day
+ *   with no air quality stays marked *inside* a selected range — which is
+ *   exactly when that matters.
+ * - `selected` is the accent fill: the two ends, and a single-day pick. This is
+ *   the one place the ramp is lost, because white is what reads on sky-600. Two
+ *   cells out of a range, and the panel's air-quality warning covers the window
+ *   as a whole.
+ *
+ * `today` is a ring rather than a fill, so it can coexist with any of the above
+ * (today is frequently also selected). slate-400 clears the 3:1 for a boundary.
+ */
+export const DAY = {
+  full: 'text-slate-200 hover:bg-slate-700',
+  partial: 'text-slate-400 hover:bg-slate-700',
+  unservable: 'text-slate-600',
+  range: 'bg-sky-950 hover:bg-sky-900',
+  selected: ACCENT_FILL,
+  today: 'ring-1 ring-inset ring-slate-400',
+} as const
+
+/**
  * The shared surface under every text-entry control in the panel.
  *
  * The placeholder color lives here for the same reason every color above
