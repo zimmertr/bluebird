@@ -1,37 +1,46 @@
 import { describe, it, expect } from 'vitest'
-import { wildfireQueryUrl, formatAcres, formatContainment, formatUpdated, wildfirePopupHtml, nifcFireUrl, readArcgisError, isRateLimited } from './wildfires'
+import {
+  wildfireQueryUrl,
+  formatAcres,
+  formatContainment,
+  formatRevised,
+  wildfirePopupHtml,
+  nifcFireUrl,
+  isRateLimited,
+  COARSE_TOLERANCE_DEG,
+} from './wildfires'
 
 // A representative fire-scoped NIFC link, reused by the popup tests.
 const NIFC = nifcFireUrl(-121.5, 39.5, 11)
 
 describe('wildfireQueryUrl', () => {
-  it('targets the NIFC WFIGS current-perimeters layer as geojson', () => {
-    const url = wildfireQueryUrl([-125, 31, -102, 49])
-    expect(url).toContain('WFIGS_Interagency_Perimeters_Current/FeatureServer/0/query')
-    expect(url).toContain('f=geojson')
+  it('targets Bluebird rather than NIFC', () => {
+    // The whole point of #203: a browser calling NIFC directly competes with
+    // every other consumer of the public dataset for a quota it cannot see.
+    const url = wildfireQueryUrl([-125, 31, -102, 49], 'coarse')
+    expect(url.startsWith('/api/wildfires?')).toBe(true)
+    expect(url).not.toContain('arcgis.com')
   })
 
-  it('encodes the viewport as an intersecting envelope in EPSG:4326', () => {
-    const url = new URL(wildfireQueryUrl([-125, 31, -102, 49]))
-    expect(url.searchParams.get('geometry')).toBe('-125,31,-102,49')
-    expect(url.searchParams.get('geometryType')).toBe('esriGeometryEnvelope')
-    expect(url.searchParams.get('inSR')).toBe('4326')
-    expect(url.searchParams.get('spatialRel')).toBe('esriSpatialRelIntersects')
+  it('encodes the viewport as west,south,east,north', () => {
+    const url = new URL(wildfireQueryUrl([-125, 31, -102, 49], 'coarse'), 'http://x')
+    expect(url.searchParams.get('bbox')).toBe('-125,31,-102,49')
   })
 
-  it('filters to wildfires, excluding prescribed burns', () => {
-    const url = new URL(wildfireQueryUrl([-125, 31, -102, 49]))
-    expect(url.searchParams.get('where')).toBe("attr_IncidentTypeCategory='WF'")
+  it('names the fidelity it needs', () => {
+    const coarse = new URL(wildfireQueryUrl([0, 0, 1, 1], 'coarse'), 'http://x')
+    const full = new URL(wildfireQueryUrl([0, 0, 1, 1], 'full'), 'http://x')
+    expect(coarse.searchParams.get('detail')).toBe('coarse')
+    expect(full.searchParams.get('detail')).toBe('full')
   })
+})
 
-  it('adds maxAllowableOffset only when a positive tolerance is given', () => {
-    expect(new URL(wildfireQueryUrl([0, 0, 1, 1], 0.01)).searchParams.get('maxAllowableOffset')).toBe(
-      '0.01',
-    )
-    expect(new URL(wildfireQueryUrl([0, 0, 1, 1])).searchParams.has('maxAllowableOffset')).toBe(false)
-    expect(new URL(wildfireQueryUrl([0, 0, 1, 1], 0)).searchParams.has('maxAllowableOffset')).toBe(
-      false,
-    )
+describe('COARSE_TOLERANCE_DEG', () => {
+  it('matches COARSE_OFFSET_DEG in backend/app/services/nifc.py', () => {
+    // A mirrored pair. If the backend simplifies more aggressively than this
+    // says, the map silently asks for the coarse copy at zooms where the
+    // simplification is visible.
+    expect(COARSE_TOLERANCE_DEG).toBe(0.0005)
   })
 })
 
@@ -59,14 +68,17 @@ describe('formatContainment', () => {
   })
 })
 
-describe('formatUpdated', () => {
+describe('formatRevised', () => {
   it('omits the line when no timestamp is present', () => {
-    expect(formatUpdated(null)).toBeNull()
-    expect(formatUpdated(undefined)).toBeNull()
+    expect(formatRevised(null)).toBeNull()
+    expect(formatRevised(undefined)).toBeNull()
   })
-  it('produces an "Updated …" line for a real timestamp', () => {
-    // Avoid asserting a locale/timezone-specific rendering — just the prefix.
-    expect(formatUpdated(Date.UTC(2026, 6, 20))).toMatch(/^Updated /)
+  it('names the fact it states, rather than a bare "Updated"', () => {
+    // This is NIFC's survey time for one fire, not the age of Bluebird's copy,
+    // and it is the only date in the popup, so nothing else is there to correct
+    // a reader who reads it as ours. Avoid asserting a locale/timezone-specific
+    // rendering, just the label.
+    expect(formatRevised(Date.UTC(2026, 6, 20))).toMatch(/^Perimeter revised: /)
   })
 })
 
@@ -103,48 +115,39 @@ describe('wildfirePopupHtml', () => {
     expect(html).toContain(`href="${NIFC}"`)
     expect(html).toContain('target="_blank"')
   })
-})
 
-// ArcGIS answers HTTP 200 with an {error} payload, so a rejected query used to
-// reach the app as "Unexpected NIFC response shape" — a message that says
-// nothing and points at our own parsing. The real one, observed live on
-// 2026-07-30, is a shared per-minute quota belonging to NIFC's organization.
-describe('readArcgisError', () => {
-  const quota = {
-    error: {
-      code: 429,
-      message: 'Unable to perform query. Too many requests.',
-      details: [
-        'API calls quota exceeded (62896 request units)! maximum allowed request units (57600) per Minute. Retry after 60 sec.',
-      ],
-    },
-  }
-
-  it('returns null for a normal FeatureCollection', () => {
-    expect(readArcgisError({ type: 'FeatureCollection', features: [] })).toBeNull()
-    expect(readArcgisError(null)).toBeNull()
-    expect(readArcgisError('nonsense')).toBeNull()
+  it('dates the perimeter, and says whose date it is', () => {
+    const html = wildfirePopupHtml(
+      { attr_IncidentName: 'Dollar Lake', attr_ModifiedOnDateTime_dt: Date.UTC(2026, 6, 17) },
+      NIFC,
+    )
+    expect(html).toContain('Perimeter revised:')
   })
 
-  it('reads the code and folds the details into the message', () => {
-    const read = readArcgisError(quota)
-    expect(read?.code).toBe(429)
-    expect(read?.message).toContain('Too many requests')
-    expect(read?.message).toContain('57600')
+  it('says nothing about the age of our own copy', () => {
+    // Deliberate: the server serves an aged snapshot rather than failing, so a
+    // visitor's answer no longer hinges on a fetch of their own, and a
+    // freshness line on every fire would be noise about an internal detail.
+    // `fetched_at` stays in the API response for programmatic callers.
+    const html = wildfirePopupHtml(
+      { attr_IncidentName: 'Dollar Lake', attr_ModifiedOnDateTime_dt: Date.UTC(2026, 6, 17) },
+      NIFC,
+    )
+    expect(html).not.toContain('Retrieved')
+    expect(html).not.toContain('Bluebird')
   })
 
-  it('survives an error object with nothing useful in it', () => {
-    expect(readArcgisError({ error: {} })).toEqual({
-      code: null,
-      message: 'ArcGIS reported an error with no message',
-    })
+  it('still renders a perimeter NIFC has never revised', () => {
+    const html = wildfirePopupHtml({ attr_IncidentName: 'Fresh' }, NIFC)
+    expect(html).not.toContain('Perimeter revised')
+    expect(html).toContain('Fresh')
   })
 })
 
-// Retrying a quota rejection spends units belonging to every other caller of
-// the same shared organization, and ArcGIS asks for 60 seconds anyway.
+// A 429 is this client outpacing its own address limit; a 503 is a server that
+// has never completed a fetch. Neither resolves inside a backoff a UI can hold.
 describe('isRateLimited', () => {
-  it('is true only for a failure flagged as a quota rejection', () => {
+  it('is true only for a failure flagged as one worth waiting out', () => {
     const err = new Error('quota') as Error & { rateLimited?: boolean }
     err.rateLimited = true
     expect(isRateLimited(err)).toBe(true)

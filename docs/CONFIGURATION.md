@@ -35,6 +35,10 @@ in detail in [`TRAFFIC.md`](TRAFFIC.md)):
 | `RATE_LIMIT_DESTINATIONS_BURST` | `10` | Destinations requests an idle client may send back-to-back. |
 | `RATE_LIMIT_GEOCODE_PER_MINUTE` | `30` | Sustained `GET /api/geocode` requests per client address per minute. `0` disables the limit. |
 | `RATE_LIMIT_GEOCODE_BURST` | `10` | Geocode requests an idle client may send back-to-back. |
+| `RATE_LIMIT_WILDFIRES_PER_MINUTE` | `90` | Sustained `GET /api/wildfires` requests per client address per minute. The loosest bucket: it answers from a snapshot the pod already holds and reaches no upstream, and the map overlay refetches on every pan. `0` disables the limit. |
+| `RATE_LIMIT_WILDFIRES_BURST` | `30` | Wildfire requests an idle client may send back-to-back. |
+| `WILDFIRE_CACHE_TTL_S` | `600` | How long a fetched national wildfire-perimeter snapshot counts as current. Past it the snapshot is still served, with a refresh running behind the request. |
+| `WILDFIRE_RETRY_AFTER_FAILURE_S` | `60` | How long a failed refresh suppresses the next attempt, so an upstream outage does not turn every request into its own retry. |
 | `UPSTREAM_CONCURRENCY_WEATHER` | `4` | In-flight Open-Meteo weather batches, totalled across every concurrent analysis in the instance. A fairness knob: the weighted budgets below are the actual rate protection. |
 | `UPSTREAM_CONCURRENCY_AQI` | `4` | Same cap for the air-quality API. |
 | `UPSTREAM_WEIGHT_PER_MINUTE_WEATHER` | `550` | Instance spend budget for the weather API in Open-Meteo's own unit (weighted calls: one location in a batch is one call). The full safe rate, given to **every** pod rather than divided by replica count: one analysis is served end to end by a single pod, so the budget must cover one request's whole fan-out. Batches pace instead of bursting. `0` disables pacing, which fails analyses rather than slowing them. |

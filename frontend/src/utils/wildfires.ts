@@ -1,31 +1,21 @@
-// Active US wildfire perimeters, fetched straight from the browser against
-// NIFC's WFIGS "Interagency Perimeters — Current" ArcGIS feature service. It's
-// free, keyless, and CORS-open (Access-Control-Allow-Origin: *), so — like the
-// app's other data sources — no backend proxy or API key is involved.
+// Active US wildfire perimeters, read from Bluebird's own `GET /api/wildfires`
+// rather than from NIFC directly.
 //
-// Coverage is US-only: this is the authoritative national wildfire perimeter
-// dataset (updated ~every 5 min, CC-BY 3.0). Outside the US a query simply
-// returns no features, which the map renders as an empty (invisible) overlay.
+// The browser used to query NIFC's ArcGIS feature service itself, which was
+// tempting because that service is free, keyless, and CORS-open. The catch is
+// that its quota belongs to NIFC's ArcGIS *organization* and is shared by every
+// consumer of the public WFIGS dataset, so it empties and refills on traffic
+// Bluebird has no part in. Fetches failed at random, which is what the
+// "Wildfire check unavailable" label was reporting (issue #203). The backend now
+// holds one national snapshot and serves it to everyone, so a refusal upstream
+// no longer reaches a visitor.
+//
+// Coverage is still US-only: this is the authoritative national perimeter
+// dataset (CC-BY 3.0), and outside the US an empty answer means "not covered",
+// not "nothing burning".
 import type { FeatureCollection } from 'geojson'
 
-// NIFC WFIGS Interagency Fire Perimeters, "Current" view, layer 0. The service
-// already scopes this layer to incidents not yet declared contained/controlled/
-// out, so no extra recency filter is needed here.
-const NIFC_QUERY_URL =
-  'https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/' +
-  'WFIGS_Interagency_Perimeters_Current/FeatureServer/0/query'
-
-// The `attr_` fields come from the joined IRWIN incident record; the `poly_`
-// fields describe the perimeter polygon itself. We request both names for the
-// values that live in either place and coalesce at render time.
-const OUT_FIELDS = [
-  'attr_IncidentName',
-  'poly_IncidentName',
-  'poly_GISAcres',
-  'attr_PercentContained',
-  'attr_ModifiedOnDateTime_dt',
-  'attr_FireDiscoveryDateTime',
-].join(',')
+const WILDFIRES_URL = '/api/wildfires'
 
 // NIFC's public "explore" map for this dataset. There's no per-incident detail
 // page keyed by any field this layer exposes, so a clicked fire instead deep-
@@ -45,8 +35,28 @@ export function nifcFireUrl(lng: number, lat: number, zoom: number): string {
 // [west, south, east, north] in EPSG:4326 — the map viewport we query within.
 export type BBox = [number, number, number, number]
 
+/**
+ * Geometry fidelity.
+ *
+ * `coarse` is simplified to ~56 m, which is finer than a screen pixel at any
+ * zoom that fits a whole fire and about a thirteenth of the bytes. `full` is the
+ * surveyed shape, for the proximity check, which measures distances rather than
+ * drawing them.
+ */
+export type FireDetail = 'coarse' | 'full'
+
+/**
+ * How coarse the server's `coarse` copy actually is, in degrees (~56 m).
+ *
+ * Mirrors `COARSE_OFFSET_DEG` in `backend/app/services/nifc.py`; keep the pair
+ * in sync. A caller needs the number to decide which copy to ask for: below
+ * this, simplification would be visible on screen, and above it the two copies
+ * are indistinguishable and the coarse one is a thirteenth of the bytes.
+ */
+export const COARSE_TOLERANCE_DEG = 0.0005
+
 // Raw ArcGIS geoJSON feature properties, keyed by the OSM-style field names
-// above. All optional: NIFC leaves plenty of fields null on fresh incidents.
+// NIFC uses. All optional: NIFC leaves plenty of fields null on fresh incidents.
 export interface WildfireProps {
   attr_IncidentName?: string | null
   poly_IncidentName?: string | null
@@ -56,89 +66,48 @@ export interface WildfireProps {
   attr_FireDiscoveryDateTime?: number | null
 }
 
-/**
- * Build the ArcGIS REST query URL for wildfire perimeters intersecting `bbox`.
- * `simplifyTol` (degrees) maps to maxAllowableOffset so zoomed-out queries return
- * generalized geometry instead of full-resolution perimeters — a big payload win
- * when the whole country is in view. Pure/deterministic so it's unit-testable.
- */
-export function wildfireQueryUrl(bbox: BBox, simplifyTol?: number): string {
-  const [w, s, e, n] = bbox
-  const params = new URLSearchParams({
-    where: "attr_IncidentTypeCategory='WF'", // wildfires only (exclude prescribed burns)
-    geometry: `${w},${s},${e},${n}`,
-    geometryType: 'esriGeometryEnvelope',
-    inSR: '4326',
-    spatialRel: 'esriSpatialRelIntersects',
-    outFields: OUT_FIELDS,
-    returnGeometry: 'true',
-    outSR: '4326',
-    geometryPrecision: '5', // ~1 m; trims coordinate noise from the payload
-    f: 'geojson',
-  })
-  if (simplifyTol && simplifyTol > 0) params.set('maxAllowableOffset', String(simplifyTol))
-  return `${NIFC_QUERY_URL}?${params.toString()}`
+/** Build the API URL for perimeters intersecting `bbox`. Pure, so it's testable. */
+export function wildfireQueryUrl(bbox: BBox, detail: FireDetail): string {
+  const params = new URLSearchParams({ bbox: bbox.join(','), detail })
+  return `${WILDFIRES_URL}?${params.toString()}`
 }
 
-/**
- * An error ArcGIS reported inside a 200 response, or `null` for a normal body.
- *
- * ArcGIS answers **HTTP 200 with an `{error}` payload** rather than the status
- * code you would expect, and the case that matters most is its per-minute quota:
- *
- *     {"error":{"code":429,"message":"Unable to perform query. Too many
- *      requests.","details":["API calls quota exceeded (62896 request units)!
- *      maximum allowed request units (57600) per Minute. Retry after 60 sec."]}}
- *
- * That quota belongs to NIFC's ArcGIS organization and is shared by every
- * consumer of this public service, so it can be exhausted by traffic that has
- * nothing to do with Bluebird. Reading the envelope is what turns "unexpected
- * response shape" — which says nothing and sent us hunting through our own code
- * — into a fact a console line can state. Pure, so it is testable without a
- * network.
- */
-export function readArcgisError(data: unknown): { code: number | null; message: string } | null {
-  const err = (data as { error?: { code?: unknown; message?: unknown; details?: unknown } })?.error
-  if (!err || typeof err !== 'object') return null
-  const code = typeof err.code === 'number' ? err.code : null
-  const detail = Array.isArray(err.details) ? err.details.filter((d) => typeof d === 'string') : []
-  const message = [typeof err.message === 'string' ? err.message : '', ...detail]
-    .filter(Boolean)
-    .join(' ')
-  return { code, message: message || 'ArcGIS reported an error with no message' }
-}
-
-/** Is this failure a quota/throttle rejection, i.e. one that retrying makes worse? */
+/** Is this failure one that retrying makes worse rather than better? */
 export function isRateLimited(err: unknown): boolean {
   return (err as { rateLimited?: boolean } | null)?.rateLimited === true
 }
 
 /**
- * Fetch active wildfire perimeters intersecting `bbox` as a GeoJSON
- * FeatureCollection. `signal` lets a stale in-flight request be aborted when the
- * user pans again. ArcGIS can return HTTP 200 with an `{error}` body, so the
- * shape is validated before it's handed to MapLibre.
+ * Fetch active wildfire perimeters intersecting `bbox`.
+ *
+ * `signal` lets a stale in-flight request be aborted when the user pans again.
+ * A 429 is this client outpacing its own address limit and a 503 is a server
+ * that has never managed a fetch from NIFC; both are marked `rateLimited`
+ * because in both cases the next thing to do is wait, not ask again.
  */
 export async function fetchWildfires(
   bbox: BBox,
-  simplifyTol: number | undefined,
+  detail: FireDetail,
   signal: AbortSignal,
 ): Promise<FeatureCollection> {
-  const res = await fetch(wildfireQueryUrl(bbox, simplifyTol), { signal })
-  if (!res.ok) throw new Error(`NIFC request failed: ${res.status}`)
-  const data = await res.json()
-  const reported = readArcgisError(data)
-  if (reported) {
-    const err = new Error(
-      `NIFC query rejected${reported.code === null ? '' : ` (${reported.code})`}: ${reported.message}`,
-    ) as Error & { rateLimited?: boolean }
-    // 429 is the documented one; 503 comes back the same way under load.
-    err.rateLimited = reported.code === 429 || reported.code === 503
+  const res = await fetch(wildfireQueryUrl(bbox, detail), { signal })
+  if (!res.ok) {
+    const err = new Error(`Wildfire request failed: ${res.status}`) as Error & {
+      rateLimited?: boolean
+    }
+    err.rateLimited = res.status === 429 || res.status === 503
     throw err
   }
+  const data = await res.json()
   if (!data || data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
-    throw new Error('Unexpected NIFC response shape')
+    throw new Error('Unexpected wildfire response shape')
   }
+  // The response also carries `fetched_at`, the age of the server's snapshot.
+  // Nothing in the browser reads it: the cache serves an aged snapshot rather
+  // than failing, so a visitor's answer no longer hinges on a fetch of their
+  // own, and a freshness line on every fire would be noise about an internal
+  // detail. It stays in the payload for API callers, who have no other way to
+  // know how current an answer is (see docs/API.md).
   return data as FeatureCollection
 }
 
@@ -153,32 +122,43 @@ export function formatContainment(pct: number | null | undefined): string {
   return `${Math.round(pct)}% contained`
 }
 
-// Epoch-ms → localized "Updated <date>, <time>" line, or null to omit it. Kept
-// timezone-tolerant (falls back to a bare ISO date) so it never throws.
-export function formatUpdated(ms: number | null | undefined): string | null {
+/**
+ * Epoch-ms → localized "Perimeter revised: <date>, <time>", or null to omit it.
+ *
+ * This is NIFC's own timestamp for when the incident's perimeter was last
+ * redrawn: a fact about the fire, not about Bluebird. Measured across one
+ * national snapshot it ranged from minutes to two weeks old, which is why it is
+ * named precisely. Read as a bare "Updated" it invited the reading that
+ * Bluebird's copy was two weeks stale, and it is now the only date in the
+ * popup, so nothing else is there to correct the impression.
+ *
+ * Kept timezone-tolerant (falls back to a bare ISO date) so it never throws.
+ */
+export function formatRevised(ms: number | null | undefined): string | null {
   if (ms == null || !Number.isFinite(ms)) return null
   const d = new Date(ms)
   if (Number.isNaN(d.getTime())) return null
   try {
-    return `Updated ${d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`
+    return `Perimeter revised: ${d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`
   } catch {
-    return `Updated ${d.toISOString().slice(0, 10)}`
+    return `Perimeter revised: ${d.toISOString().slice(0, 10)}`
   }
 }
 
 /**
- * Popup markup for a hovered/tapped wildfire perimeter. Inline styles mirror the
- * results-marker popup in MapView so the two read consistently. Takes the raw
- * ArcGIS properties bag and degrades one line at a time as fields go missing.
+ * Popup markup for a hovered/tapped wildfire perimeter.
+ *
+ * Inline styles mirror the results-marker popup in MapView so the two read
+ * consistently; this is markup handed to MapLibre's `setHTML`, which the
+ * stylesheet-scanned design system in styles.ts cannot reach.
  */
 export function wildfirePopupHtml(props: WildfireProps, nifcUrl: string): string {
-  const name =
-    (props.attr_IncidentName || props.poly_IncidentName || '').trim() || 'Unnamed fire'
-  const updated = formatUpdated(props.attr_ModifiedOnDateTime_dt)
+  const name = (props.attr_IncidentName || props.poly_IncidentName || '').trim() || 'Unnamed fire'
+  const revised = formatRevised(props.attr_ModifiedOnDateTime_dt)
   return `<div style="font-family:sans-serif;font-size:13px;line-height:1.5">
       <strong>🔥 ${escapeHtml(name)}</strong>
       <br>${formatAcres(props.poly_GISAcres)} · ${formatContainment(props.attr_PercentContained)}
-      ${updated ? `<br><span style="color:#94a3b8">${escapeHtml(updated)}</span>` : ''}
+      ${revised ? `<br><span style="color:#94a3b8">${escapeHtml(revised)}</span>` : ''}
       <br><a href="${nifcUrl}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">View on NIFC map ↗</a>
     </div>`
 }

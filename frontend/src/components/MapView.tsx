@@ -19,6 +19,7 @@ import { FireWarning, fireKey } from '../utils/fireProximity'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
 import {
+  COARSE_TOLERANCE_DEG,
   fetchWildfires,
   wildfirePopupHtml,
   nifcFireUrl,
@@ -968,12 +969,21 @@ const MapView = forwardRef<MapViewHandle, Props>(
         fireAbortRef.current = ac
         const b = map.getBounds()
         const bbox: BBox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]
-        // Simplify to ~2 screen-pixels of longitude so a country-wide view
-        // doesn't pull full-resolution perimeters for every active fire.
+        // The server's coarse copy is simplified to ~56 m. Ask for it whenever
+        // that is finer than two screen pixels of longitude, which is every
+        // view wide enough to show a whole fire, and take the full-resolution
+        // shapes only when zoomed close enough to see the difference. Same
+        // trade the old per-request maxAllowableOffset made, expressed as a
+        // choice between two cached copies so no zoom level costs an upstream
+        // query.
         const width = map.getCanvas().clientWidth || 1
         const tol = ((b.getEast() - b.getWest()) / width) * 2
         try {
-          const fc = await fetchWildfires(bbox, tol, ac.signal)
+          const fc = await fetchWildfires(
+            bbox,
+            tol > COARSE_TOLERANCE_DEG ? 'coarse' : 'full',
+            ac.signal,
+          )
           if (!disposed) setSource(map, 'wildfires', fc)
         } catch (err) {
           if ((err as Error).name !== 'AbortError') {

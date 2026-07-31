@@ -53,6 +53,8 @@ def test_limits_mirror_the_constants_the_validators_enforce():
             "destinations_burst": ratelimit.DESTINATIONS_LIMITER.burst,
             "geocode_per_minute": ratelimit.GEOCODE_LIMITER.per_minute,
             "geocode_burst": ratelimit.GEOCODE_LIMITER.burst,
+            "wildfires_per_minute": ratelimit.WILDFIRES_LIMITER.per_minute,
+            "wildfires_burst": ratelimit.WILDFIRES_LIMITER.burst,
         },
     }
 

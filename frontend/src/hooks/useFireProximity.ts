@@ -26,12 +26,17 @@ import {
  * Whether the lookup has an answer, and whether that answer can be trusted.
  *
  * This used to be a bare Map, and every way of failing produced the same empty
- * one: an aborted request, a network error, a truncated body, and ArcGIS's
- * habit of answering 200 with an `{error}` payload all landed in one silent
- * catch. So the feature's failure mode was indistinguishable from its all-clear
- * mode, which for a safety warning is the wrong way round. `ready` with an
- * empty map means the check ran and found nothing within the radius;
- * `unavailable` means it could not run and the caller must not imply otherwise.
+ * one: an aborted request, a network error, and a truncated body all landed in
+ * one silent catch. So the feature's failure mode was indistinguishable from
+ * its all-clear mode, which for a safety warning is the wrong way round.
+ * `ready` with an empty map means the check ran and found nothing within the
+ * radius; `unavailable` means it could not run and the caller must not imply
+ * otherwise.
+ *
+ * `unavailable` is now rare by construction. Perimeters come from Bluebird's
+ * own cache rather than from NIFC directly, and that cache serves its last good
+ * snapshot rather than expiring into nothing, so only a server that has never
+ * completed a fetch has no answer at all (issue #203).
  *
  * (The separate, documented ambiguity survives untouched: WFIGS is US-only, so
  * a `ready` empty map outside the US means "not covered", not "nothing
@@ -99,8 +104,9 @@ export function useFireProximity(field: DestinationResult[], analysisSeq = 0): F
 
     const attempt = async (n: number): Promise<void> => {
       try {
-        // No geometry simplification — it would perturb perimeter distances.
-        const fires = await fetchWildfires(bbox, undefined, ac.signal)
+        // Full resolution: this measures distances rather than drawing them,
+        // and the server's coarse copy exists for the map, not for this.
+        const fires = await fetchWildfires(bbox, 'full', ac.signal)
         if (cancelled) return
         const next = new Map<string, FireWarning>()
         for (const r of points) {
@@ -122,13 +128,11 @@ export function useFireProximity(field: DestinationResult[], analysisSeq = 0): F
           `[bluebird] wildfire proximity lookup failed (attempt ${n + 1} of ${ATTEMPTS})`,
           err,
         )
-        // Never retry into a quota wall. ArcGIS's own answer to an exhausted
-        // quota asks for a 60 second wait, which no backoff worth holding a UI
-        // for can honor, and the extra requests spend units that belong to
-        // every other caller of the same shared organization. Same doctrine as
-        // #180 on the Open-Meteo side: a hard limit stops honestly rather than
-        // retrying into the wall. Failing fast is affordable now precisely
-        // because failing is finally visible.
+        // Never retry into a wall. A 429 is this client outpacing its own
+        // address limit and a 503 is a server that has never managed a fetch
+        // from NIFC; neither resolves inside a backoff a UI can hold for. Same
+        // doctrine as #180 on the Open-Meteo side: a hard limit stops honestly
+        // rather than retrying into the wall.
         if (isRateLimited(err)) {
           setState({ status: 'unavailable', warnings: EMPTY })
           return

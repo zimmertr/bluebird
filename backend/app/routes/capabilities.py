@@ -73,6 +73,21 @@ class RateLimits(BaseModel):
             "before the per-minute pace applies."
         )
     )
+    wildfires_per_minute: int = Field(
+        description=(
+            "Sustained `GET /api/wildfires` requests per client address per "
+            "minute. The loosest bucket, because it answers from a snapshot "
+            "this instance already holds and reaches no upstream. 0 means the "
+            "limit is disabled."
+        )
+    )
+    wildfires_burst: int = Field(
+        description=(
+            "How many wildfire requests an idle client can send back-to-back "
+            "before the per-minute pace applies. Sized for a map pan, which "
+            "refetches on a 400 ms debounce."
+        )
+    )
 
 
 class Limits(BaseModel):
@@ -178,6 +193,8 @@ async def capabilities() -> CapabilitiesResponse:
                 destinations_burst=ratelimit.DESTINATIONS_LIMITER.burst,
                 geocode_per_minute=ratelimit.GEOCODE_LIMITER.per_minute,
                 geocode_burst=ratelimit.GEOCODE_LIMITER.burst,
+                wildfires_per_minute=ratelimit.WILDFIRES_LIMITER.per_minute,
+                wildfires_burst=ratelimit.WILDFIRES_LIMITER.burst,
             ),
         ),
         data_sources=[
@@ -200,6 +217,11 @@ async def capabilities() -> CapabilitiesResponse:
                 name="Nominatim",
                 url="https://nominatim.org",
                 provides="Place search behind GET /api/geocode",
+            ),
+            DataSource(
+                name="NIFC WFIGS",
+                url="https://data-nifc.opendata.arcgis.com",
+                provides="Active US wildfire perimeters behind GET /api/wildfires",
             ),
         ],
     )
