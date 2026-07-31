@@ -1,17 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import {
-  ACCENT_FILL,
+  ACCENT,
+  ACCENT_RING,
   BUTTON_DANGER,
+  BUTTON_FLOATING,
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
   CHOICE_INPUT,
   CHOICE_ROW,
   DAY,
   FIELD,
+  ICON_ACTION,
   ICON_BUTTON,
+  NOTICE,
   SEGMENT,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
+  SPINNER,
+  STATUS,
   SURFACE_GROUP,
   LINK,
   LINK_ACTION,
@@ -22,6 +28,7 @@ import {
   TAP,
   TEXT,
 } from './styles'
+import * as STYLES from './styles'
 // `?raw` gives us the file's text without executing it, so this stays a pure
 // node test with no DOM, matching vitest.config.ts. (The same trick does not
 // work on index.css: vitest stubs CSS imports to an empty string.)
@@ -165,16 +172,35 @@ describe('every component', () => {
   // The glob covers components added later, which is the point: a fourth copy
   // of a shared recipe should fail here rather than ship a fourth look.
   it.each(Object.entries(sources))('%s restates no shared recipe', (_path, source) => {
-    expect(source).not.toMatch(/bg-sky-600 hover:bg-sky-500/)
-    // The solid accent block: the chosen direction segment, the selected day, the
-    // welcome dialog's numbered steps. Three spellings of one treatment before.
-    expect(source).not.toMatch(/bg-sky-600 text-white/)
     // The idle half of a segmented choice, which two controls in the panel wear.
     expect(source).not.toMatch(/bg-slate-900 text-slate-400/)
     expect(source).not.toMatch(/bg-slate-900 border border-slate-600/)
     expect(source).not.toMatch(/bg-slate-800(\/95)? border border-slate-600/)
-    expect(source).not.toMatch(/hover:text-sky-400 underline/)
-    expect(source).not.toMatch(/text-sky-400 hover:text-sky-300/)
+  })
+
+  // The guardrail #167 exists to install. Every hue in the app carries meaning
+  // — the accent says "this acts", and green/amber/red say how an analysis is
+  // going — so every one of them is a decision the design system owes an answer
+  // to, and a component that answers for itself is how the app ended up with
+  // three ambers, four notice boxes in three shapes, and a primary button one
+  // shade off the blocks it was supposed to match.
+  //
+  // This is deliberately stricter than the recipe checks above: not "don't
+  // restate a known recipe" but "don't name a hue at all". Slate is exempt and
+  // stays compositional — it is the surface system, already covered by TEXT,
+  // SURFACE_* and FIELD, and banning it would be a different and much larger
+  // change than this one.
+  //
+  // Built from alternation rather than by quoting classes, so it forbids
+  // utilities nobody thought of, and so Tailwind's raw-text scan of this file
+  // finds no candidate to re-emit.
+  const HUE = new RegExp(
+    String.raw`(?:^|["'\s:])(?:bg|text|border|ring|divide|accent|caret|outline|decoration|shadow|from|via|to)-` +
+      String.raw`(?:sky|blue|cyan|indigo|violet|purple|fuchsia|pink|rose|red|orange|amber|yellow|lime|green|emerald|teal)-\d{2,3}`,
+  )
+
+  it.each(Object.entries(sources))('%s names no hue of its own', (_path, source) => {
+    expect(source.match(new RegExp(HUE, 'g'))).toBeNull()
   })
 
   // The rule #159 arrived at and #160 acts on: size tap targets across every
@@ -206,10 +232,19 @@ describe('control panel sizing', () => {
     )
   })
 
-  // Was three spellings of one box in this file alone. It is one recipe now,
-  // so what is left to check is that the panel reaches for it — and reaches
-  // for the row that wraps it, since that is what a finger actually lands on.
+  // The size used to live beside the tint at every call site, which is how the
+  // chart's metric radio ended up wearing the tint at the browser's default
+  // size. Both now come from ACCENT.input, which CHOICE_INPUT composes, so what
+  // is left to check is that no input re-sizes itself after taking it, and that
+  // the panel reaches for the row that wraps it, since that is what a finger
+  // actually lands on.
   it('builds every radio and checkbox from the shared recipe', () => {
+    expect(ACCENT.input).toMatch(/\bh-[\d.]+ w-[\d.]+/)
+    expect(CHOICE_INPUT).toContain(ACCENT.input)
+    for (const source of Object.values(sources)) {
+      expect(source).not.toMatch(/ACCENT\.input\}? [^`"']*\bh-[\d.]+/)
+    }
+
     const rows = controlPanelSource.match(/CHOICE_ROW/g) ?? []
     const boxes = controlPanelSource.match(/CHOICE_INPUT/g) ?? []
 
@@ -272,7 +307,7 @@ describe('the calendar day', () => {
   })
 
   it('selects a day with the shared accent fill rather than its own', () => {
-    expect(DAY.selected).toBe(ACCENT_FILL)
+    expect(DAY.selected).toBe(ACCENT.fill)
   })
 })
 
@@ -287,11 +322,52 @@ describe('grouping and segmenting', () => {
   })
 
   // Two segmented controls in one panel: the ranking direction, and the
-  // calendar's hours. ACCENT_FILL is the chosen half, this is the other one, and
+  // calendar's hours. ACCENT.fill is the chosen half, this is the other one, and
   // naming the pair is what stops the second one being a lookalike that drifts.
   it('pairs the idle segment with the accent fill', () => {
     expect(SEGMENT_IDLE).toContain('text-slate-400')
-    expect(SEGMENT_IDLE).not.toBe(ACCENT_FILL)
+    expect(SEGMENT_IDLE).not.toBe(ACCENT.fill)
+  })
+
+  // Pointing at a control from across the screen is a ring, not a border or a
+  // fill: it has to layer onto something that already has both. DAY.today is
+  // the other one, and it wears slate because it labels a day rather than
+  // acting on it — this one wears the resting accent because it is the app
+  // answering a hover.
+  it('points with a ring in the resting accent', () => {
+    expect(ACCENT_RING).toContain('ring-sky-400')
+    expect(ACCENT_RING).not.toContain('border')
+    expect(DAY.today).toContain('ring-slate-400')
+  })
+
+  // The ring is a box-shadow and fades; a radius does not. Bundling one in here
+  // squared the corners the instant the ring began fading, so the outline spent
+  // the transition as a rectangle standing off a rounded field. The element
+  // wearing this keeps its own radius at all times.
+  it('leaves the radius to whatever wears the ring', () => {
+    expect(ACCENT_RING).not.toContain(RADIUS.surface)
+    expect(ACCENT_RING).not.toMatch(/\brounded\b/)
+  })
+
+  // Three severities, one shape. The error box used to run a heavier fill and a
+  // brighter border than the two beside it in the same panel.
+  it('builds every notice on one shape and differs only in hue', () => {
+    const shape = (recipe: string) => recipe.replace(/-(amber|red|sky)-/g, '-*-')
+    expect(shape(NOTICE.error)).toBe(shape(NOTICE.warn))
+    expect(shape(NOTICE.info)).toBe(shape(NOTICE.warn))
+    expect(NOTICE.warn).toContain(RADIUS.control)
+  })
+
+  // A docked panel's name and the report inside it sat a few pixels apart in
+  // the same role, so they read as one run of text. They separate by weight and
+  // brightness at one size — not by the caps-and-tracking of `section`, which
+  // was tried on these bars and shouted.
+  it('separates a panel title from the subheadings it sits beside', () => {
+    expect(TEXT.panelTitle).not.toBe(TEXT.subheading)
+    expect(TEXT.panelTitle).toContain('font-bold')
+    expect(TEXT.subheading).toContain('font-semibold')
+    expect(TEXT.panelTitle).not.toContain('uppercase')
+    expect(sizes(TEXT.panelTitle)).toEqual(sizes(TEXT.subheading))
   })
 })
 
@@ -432,5 +508,142 @@ describe('tap targets', () => {
     expect(TAP.row).not.toContain('justify-center')
     // Bare, so it composes with the element's own layout.
     expect(TAP.height.trim().split(/\s+/)).toHaveLength(1)
+  })
+})
+
+describe('every role', () => {
+  // Flattened so a role added later is covered without being listed.
+  const recipes: [string, string][] = Object.entries(STYLES).flatMap(([name, value]) =>
+    typeof value === 'string'
+      ? [[name, value] as [string, string]]
+      : Object.entries(value as Record<string, string>).map(
+          ([k, v]) => [`${name}.${k}`, v] as [string, string],
+        ),
+  )
+
+  // The file warns about this in five places and it still nearly shipped: this
+  // very PR first built BUTTON_DANGER out of TEXT.control, which carries
+  // slate-200, so its red label would have raced a slate one and the winner
+  // would have been decided by Tailwind's stylesheet order rather than by
+  // intent. A comment cannot catch that. Variants are excluded because a
+  // `hover:` color does not compete with a resting one.
+  const RESTING_COLOR = new RegExp(
+    String.raw`(?:^|\s)text-(?:white|black|(?:slate|sky|blue|cyan|teal|emerald|green|lime|` +
+      String.raw`yellow|amber|orange|red|rose|pink|fuchsia|purple|violet|indigo)-\d{2,3})` +
+      String.raw`(?:\/\d+)?(?=\s|$)`,
+    'g',
+  )
+
+  it('never puts two competing text colors in one recipe', () => {
+    for (const [name, recipe] of recipes) {
+      const colors = recipe.match(RESTING_COLOR) ?? []
+      expect(colors.length, `${name} sets ${colors.length} text colors: ${colors.join(', ')}`)
+        .toBeLessThanOrEqual(1)
+    }
+  })
+
+  it('found the roles', () => {
+    expect(recipes.length).toBeGreaterThan(30)
+  })
+})
+
+describe('the accent', () => {
+  // #167. The fill is bounded from both sides — 1.4.3 caps it (a white label
+  // needs 4.5:1) and 1.4.11 floors it (3:1 against its neighbours, tightest
+  // against the calendar's sky-950 range band) — and the surviving window is
+  // 0.0067 of relative luminance wide with no Tailwind step inside it. Hence a
+  // custom token. The derivation lives on --color-sky-650 in index.css.
+  //
+  // These literals are load-bearing. The last time this recipe carried a
+  // contrast claim, the claim was wrong (the comment said 4.6:1 where the truth
+  // was 4.02) and an entire accessibility sweep believed it. Pinning them means
+  // a change to the fill fails here and forces a re-measurement.
+  const MEASURED = {
+    fill: 'bg-sky-650 text-white',
+    label: 4.57, // white on sky-650
+    edges: { panel: 3.21, rangeBand: 3.04, segmentTrack: 3.91 },
+  }
+
+  it('rests on the one shade that clears the label and every edge at once', () => {
+    expect(ACCENT.fill).toBe(MEASURED.fill)
+    expect(MEASURED.label).toBeGreaterThanOrEqual(4.5)
+    for (const [edge, ratio] of Object.entries(MEASURED.edges)) {
+      expect(ratio, `${edge} must clear the 3:1 asked of a UI boundary`).toBeGreaterThanOrEqual(3)
+    }
+  })
+
+  // The custom token is the whole point: a scale step here would mean someone
+  // "simplified" the fill back onto sky-600 or sky-700, both of which fail.
+  it('takes its fill from the custom token rather than the stock scale', () => {
+    expect(ACCENT.fill).toContain('sky-650')
+  })
+
+  // The one state still below AA, recorded rather than asserted away. With a
+  // white label every lightening costs contrast, so a conformant hover would
+  // have to darken — making the app's one primary action the only control that
+  // dims under the pointer. 4.02:1 is what the *resting* fill measured before
+  // #167, so no state is worse than what already shipped.
+  const HOVER = { recipe: 'hover:bg-sky-600', ratio: 4.02, wasBefore: 2.71 }
+
+  it('hovers lighter, at a contrast cost taken knowingly', () => {
+    expect(ACCENT.fillHover).toBe(HOVER.recipe)
+    expect(HOVER.ratio).toBeLessThan(4.5)
+    expect(HOVER.ratio).toBeGreaterThan(HOVER.wasBefore)
+    expect(HOVER.ratio).toBeLessThan(MEASURED.label)
+  })
+
+  // The bug this whole issue is: the button spelled its own fill, so it and the
+  // blocks it is meant to match could drift, and did.
+  it('gives the primary button the same fill as every other accent block', () => {
+    expect(BUTTON_PRIMARY).toContain(ACCENT.fill)
+    expect(BUTTON_PRIMARY).toContain(ACCENT.fillHover)
+    expect(DAY.selected).toBe(ACCENT.fill)
+  })
+
+  // Every other accent job routes through the same object, so there is one
+  // place to change if the accent hue ever moves.
+  it('sources every accent treatment from the one hue', () => {
+    for (const recipe of [ICON_ACTION, BUTTON_FLOATING, SPINNER]) {
+      expect(recipe).toMatch(/sky-/)
+    }
+    expect(ICON_ACTION).toContain(ACCENT.hoverText)
+    expect(BUTTON_FLOATING).toContain(ACCENT.edgeHover)
+    expect(BUTTON_FLOATING).toContain(SURFACE_FLOATING)
+  })
+})
+
+describe('status and notices', () => {
+  // STATUS colors, NOTICE boxes, and neither does the other's job. Two color
+  // utilities in one class list resolve by stylesheet order rather than by
+  // intent, so a box that set a color would fight the line inside it; a status
+  // that set a size would fight the box holding it.
+  it('splits color and box so the two compose without colliding', () => {
+    for (const tone of Object.values(STATUS)) {
+      expect(sizes(tone)).toHaveLength(0)
+      expect(tone.split(' ')).toHaveLength(1)
+    }
+    for (const box of Object.values(NOTICE)) {
+      expect(sizes(box)).toHaveLength(1)
+      expect(box).not.toMatch(/(^|\s)text-(?:slate|sky|amber|red|green)-/)
+    }
+  })
+
+  // The error box ran a heavier fill behind an opaque border while the other
+  // three shared one spelling, so the app shouted in a different shape than it
+  // warned in. One shape now, tone being the only thing that varies.
+  it('gives every notice tone the same box', () => {
+    const shape = (box: string) => box.replace(/(amber|red|sky)/g, 'TONE')
+
+    expect(new Set(Object.values(NOTICE).map(shape)).size).toBe(1)
+    expect(Object.values(NOTICE)).toHaveLength(3)
+  })
+
+  // The destructive retry had its entire recipe inline. It stays in the red
+  // family rather than going white so it reads as part of the notice holding
+  // it, not as a second primary action competing with Analyze.
+  it('keeps the destructive action inside the notice that holds it', () => {
+    expect(BUTTON_DANGER).toContain(RADIUS.control)
+    expect(BUTTON_DANGER).toMatch(/text-red-/)
+    expect(BUTTON_DANGER).not.toContain('text-white')
   })
 })

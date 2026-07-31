@@ -20,7 +20,7 @@ import {
   weekdayInitials,
 } from '../utils/calendar'
 import {
-  ACCENT_FILL,
+  ACCENT,
   BUTTON_SECONDARY,
   DAY,
   FIELD,
@@ -199,7 +199,7 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
         aria-pressed={selection.kind === 'now'}
         title="Analyze conditions at the current hour"
         className={`${TEXT.cta} ${TAP.action} mb-2.5 w-full py-2 ${RADIUS.control} transition-colors ${
-          selection.kind === 'now' ? ACCENT_FILL : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
+          selection.kind === 'now' ? ACCENT.fill : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
         }`}
       >
         Now
@@ -291,7 +291,7 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
                   aria-pressed={option.hourly === (hours !== undefined)}
                   onClick={() => setHours(option.hourly ? hours ?? defaultHours(now) : undefined)}
                   className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
-                    option.hourly === (hours !== undefined) ? ACCENT_FILL : SEGMENT_IDLE
+                    option.hourly === (hours !== undefined) ? ACCENT.fill : SEGMENT_IDLE
                   }`}
                 >
                   {option.label}

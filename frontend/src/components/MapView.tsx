@@ -25,6 +25,7 @@ import type { PendingDestination } from '../utils/customList'
 import {
   COARSE_TOLERANCE_DEG,
   fetchWildfires,
+  fireIdentity,
   wildfirePopupHtml,
   nifcFireUrl,
   type BBox,
@@ -100,6 +101,14 @@ const SEARCH_VIEW_MILES = 10
 // later panel drag isn't mistaken for it.
 const FIT_PADDING_PX = 60
 const REFIT_WINDOW_MS = 1_000
+
+// How long the wildfire popup survives the cursor leaving its perimeter, so
+// the cursor can cross the gap and land on the NIFC link inside it. The popup
+// opens flush against the hover point, so the gap is a few pixels and this is
+// mostly slack for a hand that overshoots. Long enough to be reachable without
+// hurrying, short enough that a popup left behind by a cursor moving on feels
+// dismissed rather than stuck.
+const FIRE_POPUP_GRACE_MS = 400
 
 function bboxAreaKm2(pts: [number, number][]): number | null {
   if (pts.length < 3) return null
@@ -298,6 +307,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
     const vertexPopupRef = useRef<maplibregl.Popup | null>(null)
     const draggingVertexRef = useRef<number | null>(null)
     const firePopupRef = useRef<maplibregl.Popup | null>(null)
+    // Which fire the open popup describes, so a mousemove within that same fire
+    // leaves it anchored where it is; and the pending close that gives the
+    // cursor time to travel from the perimeter onto the popup.
+    const hoveredFireRef = useRef<string | null>(null)
+    const fireCloseTimerRef = useRef<number | null>(null)
     // The single popup opened by focusResult (table-rank click), tracked so
     // repeated clicks replace it instead of stacking popups.
     const resultPopupRef = useRef<maplibregl.Popup | null>(null)
@@ -515,12 +529,43 @@ const MapView = forwardRef<MapViewHandle, Props>(
           return nifcFireUrl(e.lngLat.lng, e.lngLat.lat, Math.max(map.getZoom(), 10) + 1)
         }
 
-        // Hover (desktop) surfaces the fire's stats. The popup is updated in
-        // place as the cursor moves so it tracks smoothly across overlapping
-        // perimeters instead of flickering.
+        // Hover (desktop) surfaces the fire's stats. The popup carries a link
+        // to NIFC's map, so it has to be reachable, and two things used to stop
+        // that: it re-anchored on every mousemove, so moving toward it moved it
+        // (it opens above the cursor, and the cursor comes up from below); and
+        // leaving the perimeter removed it synchronously, which is exactly what
+        // reaching for it does. So it re-anchors only when the cursor crosses
+        // into a *different* fire — still tracking overlapping perimeters, the
+        // behavior the per-move update existed for — and a leave schedules the
+        // close instead of doing it, which a hover over the popup cancels.
+        function closeFirePopup() {
+          fireCloseTimerRef.current = null
+          hoveredFireRef.current = null
+          firePopupRef.current?.remove()
+          firePopupRef.current = null
+        }
+        function cancelFireClose() {
+          if (fireCloseTimerRef.current === null) return
+          clearTimeout(fireCloseTimerRef.current)
+          fireCloseTimerRef.current = null
+        }
+        function scheduleFireClose() {
+          cancelFireClose()
+          fireCloseTimerRef.current = window.setTimeout(closeFirePopup, FIRE_POPUP_GRACE_MS)
+        }
         function showFirePopup(e: maplibregl.MapLayerMouseEvent) {
           const props = e.features?.[0]?.properties
           if (!props) return
+          const key = fireIdentity(props as WildfireProps)
+          // Same fire, already open: leave it exactly where it is so it can be
+          // moved onto. A pending close means the cursor re-entered the
+          // perimeter without ever reaching the popup — call that a stay.
+          if (firePopupRef.current && key === hoveredFireRef.current) {
+            cancelFireClose()
+            return
+          }
+          cancelFireClose()
+          hoveredFireRef.current = key
           const html = wildfirePopupHtml(props as WildfireProps, fireLink(e))
           if (firePopupRef.current) {
             firePopupRef.current.setLngLat(e.lngLat).setHTML(html)
@@ -530,6 +575,16 @@ const MapView = forwardRef<MapViewHandle, Props>(
               .setHTML(html)
               .addTo(map)
           }
+          // MapLibre leaves the popup container pointer-events:none and its
+          // content auto, so the content element is the one that can be
+          // hovered. setHTML replaces that element's children, not the element,
+          // and addEventListener dedupes an identical listener — so re-arming
+          // on every open is a no-op after the first.
+          const content = firePopupRef.current
+            .getElement()
+            .querySelector('.maplibregl-popup-content')
+          content?.addEventListener('mouseenter', cancelFireClose)
+          content?.addEventListener('mouseleave', scheduleFireClose)
         }
         map.on('mouseenter', 'wildfire-fill', (e) => {
           map.getCanvas().style.cursor = 'pointer'
@@ -538,8 +593,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         map.on('mousemove', 'wildfire-fill', showFirePopup)
         map.on('mouseleave', 'wildfire-fill', () => {
           map.getCanvas().style.cursor = 'crosshair'
-          firePopupRef.current?.remove()
-          firePopupRef.current = null
+          scheduleFireClose()
         })
         // Clicking (or tapping) a fire opens NIFC's live map centered on that
         // fire in a new tab. 'wildfire-fill' is in the general click handler's
@@ -910,6 +964,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
         vertexPopupRef.current = null
         resizeObserver.disconnect()
         if (refitTimerRef.current) clearTimeout(refitTimerRef.current)
+        if (fireCloseTimerRef.current !== null) clearTimeout(fireCloseTimerRef.current)
+        firePopupRef.current = null
         map.remove()
         mapRef.current = null
       }
@@ -959,6 +1015,13 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
       if (!showWildfires) {
         setSource(map, 'wildfires', emptyFC)
+        // Turning the overlay off outranks a pending grace close: cancel it, or
+        // the timer fires later against a popup that is already gone.
+        if (fireCloseTimerRef.current !== null) {
+          clearTimeout(fireCloseTimerRef.current)
+          fireCloseTimerRef.current = null
+        }
+        hoveredFireRef.current = null
         firePopupRef.current?.remove()
         firePopupRef.current = null
         return

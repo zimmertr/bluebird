@@ -7,7 +7,7 @@ import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
 import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
-import { CHOICE_INPUT, LINK_ACTION, TABLE, TEXT } from '../styles'
+import { ACCENT, CHOICE_INPUT, ICON_ACTION, LINK_ACTION, TABLE, TEXT } from '../styles'
 import { RANKING_KEYS } from '../metrics'
 
 function windyUrl(lat: number, lon: number, layer: string): string {
@@ -248,7 +248,7 @@ export default function ResultsTable({
                 rel="noopener noreferrer"
                 title="Open in Peakbagger / OpenStreetMap"
                 aria-label={`Open ${row.name} in an external map`}
-                className={"shrink-0 text-slate-500 hover:text-sky-400"}
+                className={`shrink-0 ${ICON_ACTION}`}
               >
                 <ExternalLinkIcon />
               </a>
@@ -319,7 +319,7 @@ export default function ResultsTable({
               >
                 {col.label}
                 {detailSortKey === col.key && (
-                  <span className="ml-1 text-sky-400">{detailSortDir === 'asc' ? '↑' : '↓'}</span>
+                  <span className={`ml-1 ${ACCENT.text}`}>{detailSortDir === 'asc' ? '↑' : '↓'}</span>
                 )}
               </th>
             ))}
@@ -357,7 +357,7 @@ export default function ResultsTable({
                           rel="noopener noreferrer"
                           title="Open in Peakbagger / OpenStreetMap"
                           aria-label={`Open ${d.name} in an external map`}
-                          className={"shrink-0 text-slate-500 hover:text-sky-400"}
+                          className={`shrink-0 ${ICON_ACTION}`}
                         >
                           <ExternalLinkIcon />
                         </a>

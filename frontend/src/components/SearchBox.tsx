@@ -1,16 +1,30 @@
 import { useEffect, useRef, useState } from 'react'
 import { Place, parseCoordinates, searchPlaces } from '../utils/geocode'
-import { ICON_BUTTON, SURFACE_FLOATING, TAP, TEXT } from '../styles'
+import {
+  ACCENT,
+  ACCENT_RING,
+  ICON_BUTTON,
+  RADIUS,
+  SPINNER,
+  STATUS,
+  SURFACE_FLOATING,
+  TAP,
+  TEXT,
+} from '../styles'
 
 interface Props {
   onSelect: (place: Place) => void
+  // The panel is pointing at this box: the reader is hovering "Search by Name",
+  // whose control lives out here on the map rather than in the section that
+  // names it. Purely a cue — nothing about the box's behavior changes.
+  pointed?: boolean
 }
 
 // Floating place search for the map. Fires on Enter rather than as-you-type —
 // Nominatim's usage policy forbids autocomplete — and coordinate pairs are
 // handled locally without ever reaching the geocoder. The × only clears the
 // text: searched places persist as pins, removed via their 📍 in the table.
-export default function SearchBox({ onSelect }: Props) {
+export default function SearchBox({ onSelect, pointed = false }: Props) {
   const [query, setQuery] = useState('')
   const [places, setPlaces] = useState<Place[] | null>(null)
   const [highlight, setHighlight] = useState(0)
@@ -102,15 +116,23 @@ export default function SearchBox({ onSelect }: Props) {
     }
   }
 
+  // The ring rides the wrapper, not the field: the field wears
+  // SURFACE_FLOATING's shadow-lg, and the ring's glow is a shadow too. The
+  // wrapper's box is exactly the field's (the dropdown below it is absolute),
+  // so the outline lands where it looks like it should — and it holds the same
+  // radius at all times, because only the ring may fade (see ACCENT_RING).
   return (
-    <div ref={rootRef} className="relative">
+    <div
+      ref={rootRef}
+      className={`relative ${RADIUS.surface} transition-shadow ${pointed ? ACCENT_RING : ''}`}
+    >
       {/* The box takes the target, not the input inside it. These two float
           side by side over the map and are the same kind of object, so on a
           phone they are the same height: TAP.height here, TAP.action on the
           Controls button, both landing on 44. Sizing the input instead grew
           the box by its own padding and overshot. */}
       <div
-        className={`${SURFACE_FLOATING} ${TAP.height} flex items-center gap-2 px-2.5 py-2 transition-colors focus-within:border-sky-400`}
+        className={`${SURFACE_FLOATING} ${TAP.height} flex items-center gap-2 px-2.5 py-2 transition-colors ${ACCENT.edgeFocus}`}
       >
         <svg
           width="15"
@@ -134,7 +156,9 @@ export default function SearchBox({ onSelect }: Props) {
             setError(null)
           }}
           onKeyDown={onKeyDown}
-          placeholder="Find a peak, city, lake… (press Enter)"
+          // Says what the box is for and stops there: what it accepts and how
+          // to submit are the title's job, not a line of copy on the map.
+          placeholder="Search for a destination"
           title="Search by name (Mt Whitney) or coordinates (36.58, -118.29)"
           aria-label="Search for a place"
           autoComplete="off"
@@ -144,7 +168,7 @@ export default function SearchBox({ onSelect }: Props) {
         />
         {loading ? (
           <div
-            className="h-4 w-4 flex-shrink-0 animate-spin rounded-full border-2 border-slate-500 border-t-sky-400"
+            className={`h-4 w-4 flex-shrink-0 ${SPINNER}`}
             aria-label="Searching"
           />
         ) : query ? (
@@ -159,7 +183,7 @@ export default function SearchBox({ onSelect }: Props) {
       </div>
 
       {error && (
-        <div className={`${SURFACE_FLOATING} absolute left-0 top-full mt-1 w-full px-3 py-2 text-xs text-amber-300`}>
+        <div className={`${SURFACE_FLOATING} absolute left-0 top-full mt-1 w-full px-3 py-2 text-xs ${STATUS.warn}`}>
           {error}
         </div>
       )}

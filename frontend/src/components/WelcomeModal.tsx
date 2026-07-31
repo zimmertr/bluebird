@@ -1,6 +1,6 @@
 import { useDialog } from '../hooks/useDialog'
 import SafetyNotice from './SafetyNotice'
-import { ACCENT_FILL, BUTTON_PRIMARY, PROSE, RADIUS, SURFACE_CARD } from '../styles'
+import { ACCENT, BUTTON_PRIMARY, PROSE, RADIUS, SURFACE_CARD } from '../styles'
 
 interface Props {
   onDismiss: () => void
@@ -55,7 +55,7 @@ export default function WelcomeModal({ onDismiss }: Props) {
           <ol className="space-y-3 mb-5">
             {STEPS.map(([title, desc], i) => (
               <li key={i} className={`${PROSE.body} flex gap-3`}>
-                <span className={`flex-shrink-0 w-5 h-5 ${RADIUS.pill} ${ACCENT_FILL} text-xs font-bold flex items-center justify-center mt-0.5`}>
+                <span className={`flex-shrink-0 w-5 h-5 ${RADIUS.pill} ${ACCENT.fill} text-xs font-bold flex items-center justify-center mt-0.5`}>
                   {i + 1}
                 </span>
                 <p className="leading-snug">
