@@ -47,7 +47,7 @@ flowchart TD
     subgraph KM["GitHub: zimmertr/Kubernetes-Manifests"]
         kmCheck["pr.yml — Validate manifests<br/>required check: YAML parse<br/>+ kustomize build of affected apps"]
         kmImagePR["PR: chore/bluebird-image<br/>(self-merging)"]
-        kmStablePR["PR: chore/bluebird-stable-chart<br/>(self-merging only if<br/>the chart change is inert)"]
+        kmStablePR["PR: chore/bluebird-stable-chart<br/>(self-merging)"]
         kmPreviewPR["PR: chore/bluebird-preview-chart<br/>(self-merging)"]
         kmStable["public/bluebird<br/>kustomization.yml"]
         kmPreview["public/bluebird-pr<br/>applicationset.yml"]
@@ -85,7 +85,7 @@ flowchart TD
     kmCheck -.->|gates| kmStablePR
     kmCheck -.->|gates| kmPreviewPR
     kmImagePR -->|auto-merge once green| kmStable
-    kmStablePR -->|"auto-merge once green if inert,<br/>else wait for a human"| kmStable
+    kmStablePR -->|auto-merge once green| kmStable
     kmPreviewPR -->|auto-merge once green| kmPreview
 
     kmStable --> argocd
@@ -159,9 +159,9 @@ touching `charts/**`):
      Always **self-merging** — nothing it touches reaches prod.
    - stable: `chore/bluebird-stable-chart` sets `helmCharts[0].version:
      <chartver>` in `public/bluebird/kustomization.yml` (prod, triggers the
-     canary rollout). **Self-merging only when the chart change is provably
-     inert**, otherwise held for review — see [Gating the stable chart
-     bump](#gating-the-stable-chart-bump).
+     canary rollout). Also **self-merging**; what keeps a chart change from
+     quietly dropping a prod setting is the chart's own values schema, described
+     in [Keeping prod's values honest](#keeping-prods-values-honest).
 
    They are separate branches rather than one PR touching both files so a
    preview bump is never blocked behind a prod change, and either can be closed
@@ -187,18 +187,17 @@ through two blocking analyses, then promoted in a single cutover — described i
 ### Two independent knobs reach prod
 
 - **Image tag** — Path 1, a self-merging PR (`chore/bluebird-image`).
-- **Chart version (stable)** — Path 2 → Path 3, a **conditionally** self-merging
-  PR (`chore/bluebird-stable-chart`): it merges itself when the chart change is
-  inert, and waits for a human when it would change prod's rendered manifests.
+- **Chart version (stable)** — Path 2 → Path 3, a self-merging PR
+  (`chore/bluebird-stable-chart`); prod, and the one that triggers a canary.
 - **Chart version (preview)** — Path 2, a self-merging PR
   (`chore/bluebird-preview-chart`); ephemeral per-PR environments only, so it
   never touches prod.
 
 A routine code change ships via the image tag alone; the chart version only
 moves when the chart itself changes (or its default `appVersion` is bumped).
-So the only hop that ever waits on a human is a real chart change reaching
-prod, and it never blocks an app release: prod code ships on the image-tag PR
-regardless, which is what keeps the gate from becoming a rubber stamp.
+Review for a chart change happens in `bluebird-helm`, on the PR that writes the
+change, where the diff is the actual edit rather than a version string — the
+`Kubernetes-Manifests` bump is just the delivery of an already-reviewed chart.
 
 ### Writes into Kubernetes-Manifests
 
@@ -212,13 +211,12 @@ writes above go through a PR, and the thing they wait on is `pr.yml` /
 2. Renders every kustomization affected by the PR with `kustomize build
    --enable-helm` (nearest-ancestor mapping from changed files, skipping
    `deprecated/` and `*.disable*`). A chart version or image tag that doesn't
-   resolve fails the PR instead of failing an Argo CD sync.
-3. On PRs from the bot's `chore/bluebird-stable-chart` branch only, diffs the
-   rendered prod manifests against `origin/main` and fails unless they are
-   identical modulo the chart's two version labels — the review gate described
-   in [Gating the stable chart bump](#gating-the-stable-chart-bump).
+   resolve fails the PR instead of failing an Argo CD sync. Because
+   `--enable-helm` shells out to `helm template`, this step is also where the
+   chart's values schema is enforced — see [Keeping prod's values
+   honest](#keeping-prods-values-honest).
 
-Four constraints hold this together, and breaking any one of them silently
+Three constraints hold this together, and breaking any one of them silently
 strands the automation:
 
 - **Auto-merge needs something to wait on.** `gh pr merge --auto` is rejected on
@@ -229,14 +227,8 @@ strands the automation:
 - **Auto-merge is re-armed on every release**, on the update path as well as
   the create path, because GitHub disables it on any force-push to the head
   branch — and every one of these jobs force-pushes its fixed branch each
-  release. Arming is unconditional even for the stable chart PR; the *gate*
-  decides whether the merge completes, and on a failing required check GitHub
-  disarms auto-merge itself and notifies the arming account.
-- **The gate must stay a step inside `Validate manifests`**, not a separate
-  job or workflow with its own check name. A required check that only runs for
-  some PRs never reports on the rest, and GitHub holds those merges forever
-  waiting for it; folding the gate into the check that runs on every PR keeps
-  the required-check set constant.
+  release. On a failing required check GitHub disarms auto-merge itself and
+  notifies the arming account.
 - **"Require branches to be up to date" must stay off** (`strict: false`). These
   branches are cut fresh off `main` and force-pushed; nothing ever rebases them,
   so requiring an up-to-date branch would deadlock whichever PR merged second.
@@ -247,57 +239,65 @@ writes to the *same* file are safe: the image tag and the stable chart version
 both live in `public/bluebird/kustomization.yml` but on lines far enough apart
 that a three-way merge of the two branches never conflicts.
 
-### Gating the stable chart bump
+### Keeping prod's values honest
 
-The stable chart PR is the one automated write that can break prod in a way a
-plain render check won't catch: a chart change can need a matching edit to
-`public/bluebird/values.yml`, which the bot does not make — and helm silently
-ignores values the chart no longer reads, so the render can *succeed* while
-prod quietly reverts to chart defaults.
+`public/bluebird/values.yml` pins prod's settings by *name*. Helm ignores a
+value whose key the chart does not read, so if the chart renames or drops one,
+that file keeps asserting a setting prod has already lost, and every render
+still succeeds. That is the failure mode this hop has to catch, and nothing
+about the version string in `kustomization.yml` reveals it.
 
-The gate is a branch-guarded step at the end of `Validate manifests` — the
-same required check the armed auto-merge already waits on, which is what
-makes it work without any auto-merge bookkeeping. It fires only on PRs from
-`chore/bluebird-stable-chart` and:
+The chart answers it at its own boundary: `charts/bluebird/values.schema.json`
+sets `additionalProperties: false`, so an unrecognized key fails `helm template`
+outright:
 
-1. Renders `public/bluebird` twice with `kustomize build --enable-helm`: once
-   at the PR, once at `origin/main` via a git worktree. Main **is** the
-   deployed state, so the diff prices the PR's true net effect even when the
-   bump spans several chart releases.
-2. Strips the two labels the chart stamps from its own version
-   (`helm.sh/chart`, `app.kubernetes.io/version`) — deleted by yq *path*, not
-   line grep, so a version label that ever leaked into selectors would still
-   surface in the diff and hold the PR.
-3. Passes if the renders are identical, and the armed auto-merge completes on
-   its own. Otherwise it prints the rendered prod diff and fails the check,
-   which blocks the merge; GitHub disarms auto-merge itself and notifies the
-   arming account.
+```
+Error: values don't meet the specifications of the schema(s) in the following chart(s):
+bluebird-helm:
+- (root): Additional property revisionHistoryLimits is not allowed
+```
 
-Routine chart releases are `appVersion`-only and pass the gate:
-`bluebird.labels` — the only helper carrying `app.kubernetes.io/version` — is
-applied to *object* metadata, while the Rollout's pod template uses
-`bluebird.selectorLabels`, which omits it; and `bluebird.image` does default
-to `.Chart.AppVersion`, but KM's `images:` transformer pins an explicit
-`newTag` that wins. The whole rendered effect is the two stripped labels, so
-the gate passes, and — for the same reason — merging such a bump triggers no
-canary: the pod template is unchanged.
+`kustomize build --enable-helm` shells out to `helm template`, so the render
+step above turns that into a red required check, on every PR and every branch,
+not just the bot's. Argo CD renders the same way, so a values drift cannot reach
+a sync either. `bluebird-helm`'s own PR workflow renders a deliberately unknown
+key and **requires** the failure, so a schema that stops matching the templates
+fails there instead of silently ceasing to guard anything.
 
-**When a bump is held**, the failing step's log contains the rendered prod
-object diff — the actual review material, including the silent-values case
-(tuned settings visibly reverting to chart defaults). `enforce_admins` is on
-in Kubernetes-Manifests, so a failing required check blocks *any* merge of
-the held PR, admins included. That is deliberate: the intended path is a
-normal PR carrying the same version bump **plus** whatever `values.yml`
-change the new chart needs, atomically — something the bot PR could never do.
-Human branches skip the gate. Don't push fixes onto the bot branch; releases
-force-push over it. A held PR still collapses across releases (the branch is
-fixed and the PR refreshed in place); once a human PR lands the bump, the bot
-PR's diff goes empty and it can simply be closed.
+The chart's README values table is therefore the complete set of keys, and a
+chart PR that adds one adds it to the schema in the same change.
 
-Failure is safe by construction: an unrenderable chart fails the render,
-which fails the check, which holds the PR. There is no classifier, no GitHub
-API call, and no state in the gate — the verdict lives in the required check,
-so GitHub's own machinery does the holding.
+**What this replaced.** A render-diff step used to sit at the end of `Validate
+manifests`, holding any `chore/bluebird-stable-chart` PR whose rendered prod
+manifests moved. It asked the wrong question. An intended change to a chart
+default — a raised memory request, a new probe — is *supposed* to move the
+render, and `values.yml` pins almost nothing, so those changes tripped it while
+the silent-drop case it was written for could still slip past as a plausible
+diff. Worse, its only escape was the branch name: PR #494 was closed and #497
+reopened the byte-identical one-line diff from a branch called `chartbump`. And
+because the release branch is fixed and force-pushed, one held version blocked
+every later one — prod sat eight chart versions behind while the bot kept
+re-failing the same PR.
+
+Routine chart releases are `appVersion`-only and change nothing in prod's
+render: `bluebird.labels` — the only helper carrying
+`app.kubernetes.io/version` — is applied to *object* metadata, while the
+Rollout's pod template uses `bluebird.selectorLabels`, which omits it; and
+`bluebird.image` does default to `.Chart.AppVersion`, but KM's `images:`
+transformer pins an explicit `newTag` that wins. So merging such a bump triggers
+no canary: the pod template is unchanged.
+
+**When a chart change needs a matching `values.yml` edit**, make it in
+`Kubernetes-Manifests` directly, in its own PR — the schema failure names the
+key, and `enforce_admins` is on there, so the red required check blocks the bot
+PR until it lands. Don't push the fix onto the bot branch; releases force-push
+over it. The bot PR refreshes in place across releases, so once the values PR
+merges it simply goes green on the next run.
+
+Failure is safe by construction: an unrenderable chart, or one rejecting a value
+this repo still pins, fails the render, which fails the required check, which
+holds the PR. There is no classifier, no GitHub API call, and no state anywhere
+— the verdict is the check, so GitHub's own machinery does the holding.
 
 ## Inside the prod canary (Argo Rollouts)
 
@@ -642,16 +642,17 @@ sequenceDiagram
     HELM->>DH: helm push chart (new version)
     HELM->>KM: open/update preview + stable chart PRs
     KM->>KM: auto-merge preview PR (after Validate manifests)
-    KM->>KM: stable PR: rendered prod diff empty (labels aside) — gate passes, auto-merged
+    KM->>KM: auto-merge stable PR (after Validate manifests)
     KM->>ARGO: auto-sync
     ARGO->>ARGO: no canary — the chart change only moves object-metadata labels
 ```
 
-Had that chart release changed the rendered prod manifests instead, the gate
-would have failed `Validate manifests` and the stable PR would have held, prod
-keeping the older chart with the new image until a human shipped the bump (plus
-any needed `values.yml` edit) in a normal PR. See [Gating the stable chart
-bump](#gating-the-stable-chart-bump).
+An `appVersion`-only chart release lands with no canary because the pod template
+never changes. A chart release that *does* change prod's render — a new default,
+a new resource — lands the same way and rolls out as a canary; it was reviewed
+in `bluebird-helm`, and `Validate manifests` still has to render it against
+prod's `values.yml`. See [Keeping prod's values
+honest](#keeping-prods-values-honest).
 
 ## Conventions
 
