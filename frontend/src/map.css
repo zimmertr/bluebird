@@ -19,3 +19,22 @@
 .maplibregl-map {
   font-family: inherit;
 }
+
+/* Zoom and compass. The one set of controls the design system cannot reach:
+   maplibre injects this markup itself through `map.addControl`, so there is no
+   call site to hand a `TAP` role to, and the vendor ships them at 29px.
+
+   The media query is spelled out because it is the same one the `touch`
+   variant compiles to (index.css), and 2.75rem is what `min-h-11`/`min-w-11`
+   resolve to — the 44px the rest of the app takes on a coarse pointer. If that
+   number moves in styles.ts it has to move here too; nothing checks that.
+
+   Unlayered, like the rule above, so it beats the vendor's own sizing in
+   @layer base. Each glyph is a centered background image and re-centers
+   itself, so only the box needs saying. */
+@media (hover: none) {
+  .maplibregl-ctrl-group button {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}

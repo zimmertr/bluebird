@@ -9,9 +9,10 @@
    desktop window that had not changed size, while a 1180px tablet still got
    mouse-tight rows. Keying off (hover: none) asks the question we mean.
 
-   Reach for this only where a control has no siblings to stay in rhythm with
-   (today: the Analyze button). Padding one row of a group on touch alone is
-   what broke the panel's rhythm on phones — see ControlPanel's rank rows.
+   Every control in the app is sized through this variant now (#160), but only
+   through the `TAP` roles in styles.ts — never at a call site. Padding one row
+   of a group on touch alone is what broke the panel's rhythm on phones, and
+   `styles.test.ts` fails any component that spells a `touch:` utility itself.
 
    Load-bearing: delete this and Tailwind treats `touch:` as an unknown
    variant, silently emitting no CSS rather than failing the build. */
@@ -91,10 +92,13 @@ input[type="number"]::-webkit-inner-spin-button:hover {
 
 /* The per-row remove × swaps in for the rank number on row hover (see
    ResultsTable's RankRemoveCell). Touch devices have no hover, so they show
-   the number and the × side by side instead. */
+   the number and the × side by side instead.
+
+   inline-flex, not inline: the × wears `TAP.dense`, which centers a 24px box
+   around a glyph that would otherwise be a 10px target. */
 @media (hover: none) {
   .row-remove {
-    display: inline;
+    display: inline-flex;
     margin-left: 0.375rem;
   }
 }

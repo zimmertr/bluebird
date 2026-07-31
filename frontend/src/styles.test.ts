@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import {
   ACCENT_FILL,
+  BUTTON_DANGER,
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
+  CHOICE_INPUT,
+  CHOICE_ROW,
   DAY,
   FIELD,
+  ICON_BUTTON,
+  SEGMENT,
   SEGMENT_IDLE,
+  SEGMENT_ITEM,
   SURFACE_GROUP,
   LINK,
   LINK_ACTION,
@@ -13,6 +19,7 @@ import {
   RADIUS,
   SURFACE_CARD,
   SURFACE_FLOATING,
+  TAP,
   TEXT,
 } from './styles'
 // `?raw` gives us the file's text without executing it, so this stays a pure
@@ -169,6 +176,21 @@ describe('every component', () => {
     expect(source).not.toMatch(/hover:text-sky-400 underline/)
     expect(source).not.toMatch(/text-sky-400 hover:text-sky-300/)
   })
+
+  // The rule #159 arrived at and #160 acts on: size tap targets across every
+  // control at once, never one at a time. A component that reaches for the
+  // variant directly is doing the thing that broke the panel's rhythm, so the
+  // variant is spelled in exactly one file and this is what holds it there.
+  it.each(Object.entries(sources))('%s sizes no tap target of its own', (_path, source) => {
+    expect(source).not.toMatch(/\btouch:/)
+  })
+
+  // One accent, one size, one cursor for every radio and checkbox in the app —
+  // the panel's, the chart's, and the table's, which had drifted into three
+  // spellings of the same 14px box.
+  it.each(Object.entries(sources))('%s builds no checkbox of its own', (_path, source) => {
+    expect(source).not.toMatch(/accent-sky-500/)
+  })
 })
 
 // The panel is 320px wide at every breakpoint, so a width variant used for
@@ -184,11 +206,15 @@ describe('control panel sizing', () => {
     )
   })
 
-  it('gives every radio and checkbox the same size', () => {
-    const sizes = controlPanelSource.match(/accent-sky-500 h-[\d.]+ w-[\d.]+/g) ?? []
+  // Was three spellings of one box in this file alone. It is one recipe now,
+  // so what is left to check is that the panel reaches for it — and reaches
+  // for the row that wraps it, since that is what a finger actually lands on.
+  it('builds every radio and checkbox from the shared recipe', () => {
+    const rows = controlPanelSource.match(/CHOICE_ROW/g) ?? []
+    const boxes = controlPanelSource.match(/CHOICE_INPUT/g) ?? []
 
-    expect(sizes.length).toBeGreaterThan(1)
-    expect([...new Set(sizes)]).toHaveLength(1)
+    expect(rows.length).toBeGreaterThan(2)
+    expect(boxes.length).toBe(rows.length)
   })
 
   // Spelling type out per element is what let the panel drift into three
@@ -275,6 +301,38 @@ describe('shared recipes', () => {
     expect(FIELD).toContain(TEXT.control)
   })
 
+  // Every recipe a person can hit. Listed by name rather than derived from the
+  // module, because the interesting failure is a *new* recipe that forgot one,
+  // and a new recipe has to be added here to be covered — which is the prompt.
+  it.each([
+    ['BUTTON_PRIMARY', BUTTON_PRIMARY],
+    ['BUTTON_SECONDARY', BUTTON_SECONDARY],
+    ['BUTTON_DANGER', BUTTON_DANGER],
+    ['ICON_BUTTON', ICON_BUTTON],
+    ['CHOICE_ROW', CHOICE_ROW],
+    ['SEGMENT_ITEM', SEGMENT_ITEM],
+    ['FIELD', FIELD],
+    ['DAY.cell', DAY.cell],
+  ])('%s is a tap target on a coarse pointer', (_name, recipe) => {
+    expect(recipe).toContain('touch:')
+  })
+
+  // The segmented control had been built twice from scratch and matched only by
+  // luck. Its colors were already roles; its box was not, which is why the two
+  // copies could have carried different padding and nothing would have noticed.
+  it('builds a segmented control from one box and one pair of colors', () => {
+    expect(SEGMENT).toContain(RADIUS.control)
+    expect(SEGMENT_ITEM).not.toMatch(/(^|\s)(bg|text)-(sky|slate)-/)
+  })
+
+  // The radio and its label are one strip, and the strip is the target. Move
+  // the size onto the input and it draws a bigger checkbox rather than a
+  // bigger place to hit one.
+  it('puts the choice target on the row, not on the box', () => {
+    expect(CHOICE_ROW).toContain(TAP.row)
+    expect(CHOICE_INPUT).not.toContain('touch:')
+  })
+
   // Placeholders are content, held to the same 4.5:1 as the text typed over
   // them. slate-400 is 7.0:1 on the field surface; the slate-600 the call
   // sites had drifted into read at 2.4:1, and the color lives in the recipe
@@ -318,8 +376,63 @@ describe('shared recipes', () => {
   it('builds the secondary action from the ramp and the radius scale', () => {
     expect(BUTTON_SECONDARY).toContain(TEXT.control)
     expect(BUTTON_SECONDARY).toContain(RADIUS.control)
-    // Tap-target sizing is #160's job, deliberately across all controls at
-    // once rather than one at a time.
-    expect(BUTTON_SECONDARY).not.toContain('touch:')
+  })
+})
+
+// WCAG 2.2 gives two numbers: SC 2.5.8 (AA) wants 24x24 CSS px, SC 2.5.5 (AAA)
+// wants 44x44. The app takes the 44 wherever a control stands on its own and
+// holds the 24 floor inside the results grid, where 44px rows would cost more
+// ranking than the reach is worth. What these guard is that the two numbers
+// stay two numbers rather than becoming a spectrum.
+describe('tap targets', () => {
+  const px = (recipe: string, axis: 'h' | 'w') => {
+    const step = recipe.match(new RegExp(`min-${axis}-(\\d+)|(?<![-\\w])${axis}-(\\d+)`))
+
+    return step ? Number(step[1] ?? step[2]) * 4 : null
+  }
+
+  it.each(['action', 'inline', 'row', 'height'] as const)(
+    'TAP.%s reaches the enhanced target',
+    (key) => {
+      expect(px(TAP[key], 'h')).toBe(44)
+    },
+  )
+
+  // Height on every key, width only where the control has none of its own. A
+  // full-width row is already wider than any thumb; a bare `min-w` on one
+  // would set a floor under a strip that never needed it.
+  it('widens only the controls that have no width to lean on', () => {
+    expect(px(TAP.action, 'w')).toBe(44)
+    expect(px(TAP.inline, 'w')).toBe(44)
+    expect(px(TAP.row, 'w')).toBeNull()
+    expect(px(TAP.height, 'w')).toBeNull()
+  })
+
+  // The grid's floor, and the only key that is not pointer-gated: 24px costs
+  // nothing beside a 28px table row, and a 14px checkbox is a poor target for
+  // a mouse too.
+  it('holds the minimum target inside the results grid, for every pointer', () => {
+    expect(px(TAP.dense, 'h')).toBe(24)
+    expect(px(TAP.dense, 'w')).toBe(24)
+    expect(TAP.dense).not.toContain('touch:')
+  })
+
+  // A drag handle is a strip: only the vertical axis is scarce, and 44px of
+  // slate between the chart and the table would cost more than the grab.
+  it('takes the minimum, not the enhanced target, for a full-width handle', () => {
+    expect(px(TAP.grip, 'h')).toBe(24)
+    expect(TAP.grip).toContain('touch:')
+  })
+
+  // Four of the five reach 44 by different display values because four kinds
+  // of control lay their contents out differently. A single one would have
+  // been wrong for three of them, so the keys are layouts, not sizes.
+  it('gives each layout the display its contents need', () => {
+    expect(TAP.action).toContain('flex items-center justify-center')
+    expect(TAP.inline).toContain('inline-flex')
+    // Left-aligned: centering a row would move the label away from its radio.
+    expect(TAP.row).not.toContain('justify-center')
+    // Bare, so it composes with a native input's own layout.
+    expect(TAP.height.trim().split(/\s+/)).toHaveLength(1)
   })
 })

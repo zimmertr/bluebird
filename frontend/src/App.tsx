@@ -14,7 +14,17 @@ import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy } from './types'
-import { BUTTON_SECONDARY, LINK, PROSE, RADIUS, SURFACE_CARD, SURFACE_FLOATING, TEXT } from './styles'
+import {
+  BUTTON_SECONDARY,
+  ICON_BUTTON,
+  LINK,
+  PROSE,
+  RADIUS,
+  SURFACE_CARD,
+  SURFACE_FLOATING,
+  TAP,
+  TEXT,
+} from './styles'
 import { NOUN, familyOf, rankedNoun } from './metrics'
 import { METRIC_CONFIG } from './utils/colors'
 import { refreshEchoRows } from './utils/clientAnalyze'
@@ -828,7 +838,7 @@ export default function App() {
         <button
           onClick={() => setSidebarOpen(false)}
           aria-label="Close controls"
-          className={`absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center ${RADIUS.pill} bg-slate-700/80 text-slate-200 text-xl leading-none hover:bg-slate-600 active:bg-slate-600`}
+          className={`${TAP.action} absolute top-2 right-2 z-10 h-8 w-8 ${RADIUS.pill} bg-slate-700/80 text-slate-200 text-xl leading-none hover:bg-slate-600 active:bg-slate-600`}
         >
           ×
         </button>
@@ -974,7 +984,7 @@ export default function App() {
               <button
                 onClick={() => setSidebarOpen(true)}
                 aria-label="Open controls"
-                className={`${SURFACE_FLOATING} ${TEXT.cta} flex flex-shrink-0 items-center gap-2 px-3 py-2 text-white transition-colors hover:border-sky-400 hover:text-sky-400 active:bg-slate-700`}
+                className={`${SURFACE_FLOATING} ${TEXT.cta} ${TAP.action} flex-shrink-0 gap-2 px-3 py-2 text-white transition-colors hover:border-sky-400 hover:text-sky-400 active:bg-slate-700`}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="3" y1="6" x2="21" y2="6" />
@@ -1062,7 +1072,7 @@ export default function App() {
                     ),
                   )
                 }}
-                className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
+                className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
               >
                 <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
               </div>
@@ -1075,7 +1085,7 @@ export default function App() {
                 onClick={() => setChartCollapsed((c) => !c)}
                 title={chartCollapsed ? 'Expand the chart' : 'Collapse the chart'}
                 aria-label={chartCollapsed ? 'Expand the forecast chart' : 'Collapse the forecast chart'}
-                className="px-1 text-slate-400 hover:text-white"
+                className={`${ICON_BUTTON} px-1`}
               >
                 <Chevron up={chartCollapsed} />
               </button>
@@ -1115,7 +1125,7 @@ export default function App() {
                     }
                   })
                 }
-                className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
+                className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
               >
                 <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
               </div>
@@ -1188,7 +1198,7 @@ export default function App() {
                   onClick={handleDownloadCsv}
                   title="Download these results as a CSV file"
                   aria-label="Download these results as a CSV file"
-                  className={`${TEXT.micro} ${LINK} mr-2 cursor-pointer`}
+                  className={`${TEXT.micro} ${LINK} ${TAP.dense} mr-2 cursor-pointer`}
                 >
                   Download CSV
                 </button>
@@ -1197,7 +1207,7 @@ export default function App() {
                 onClick={() => setTableCollapsed((c) => !c)}
                 title={tableCollapsed ? 'Expand the table' : 'Collapse the table'}
                 aria-label={tableCollapsed ? 'Expand the forecast table' : 'Collapse the forecast table'}
-                className="px-1 text-slate-400 hover:text-white"
+                className={`${ICON_BUTTON} px-1`}
               >
                 <Chevron up={tableCollapsed} />
               </button>

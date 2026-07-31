@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Place, parseCoordinates, searchPlaces } from '../utils/geocode'
-import { SURFACE_FLOATING, TEXT } from '../styles'
+import { ICON_BUTTON, SURFACE_FLOATING, TAP, TEXT } from '../styles'
 
 interface Props {
   onSelect: (place: Place) => void
@@ -133,7 +133,7 @@ export default function SearchBox({ onSelect }: Props) {
           autoComplete="off"
           spellCheck={false}
           enterKeyHint="search"
-          className={`${TEXT.control} w-36 sm:w-64 bg-transparent placeholder-slate-400 focus:outline-none`}
+          className={`${TEXT.control} ${TAP.height} w-36 sm:w-64 bg-transparent placeholder-slate-400 focus:outline-none`}
         />
         {loading ? (
           <div
@@ -144,7 +144,7 @@ export default function SearchBox({ onSelect }: Props) {
           <button
             onClick={clear}
             aria-label="Clear search"
-            className="flex-shrink-0 text-slate-400 hover:text-white text-base leading-none"
+            className={`${ICON_BUTTON} flex-shrink-0 text-base leading-none`}
           >
             ×
           </button>
@@ -171,7 +171,7 @@ export default function SearchBox({ onSelect }: Props) {
               <button
                 onClick={() => pick(p)}
                 onMouseEnter={() => setHighlight(i)}
-                className={`w-full px-3 py-2 text-left transition-colors ${
+                className={`${TAP.height} w-full px-3 py-2 text-left transition-colors ${
                   i === highlight ? 'bg-slate-700/30' : ''
                 }`}
               >

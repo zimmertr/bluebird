@@ -25,8 +25,12 @@ import {
   DAY,
   FIELD,
   RADIUS,
+  SEGMENT,
+  SEGMENT_DIVIDER,
   SEGMENT_IDLE,
+  SEGMENT_ITEM,
   SURFACE_GROUP,
+  TAP,
   TEXT,
 } from '../styles'
 
@@ -34,13 +38,6 @@ interface Props {
   selection: ForecastSelection
   onChange: (selection: ForecastSelection) => void
 }
-
-// A cell is ~270px of card width over seven columns, so ~38 wide by 36 tall. A
-// step down from the 40px it started at, because the calendar reads as its own
-// object now and wants to sit inside the panel rather than fill it. Tap-target
-// sizing across the panel is #160's job rather than something to settle one
-// control at a time.
-const CELL = 'flex h-9 items-center justify-center'
 
 // What the Hours toggle opens on: this hour through the end of the day.
 //
@@ -201,7 +198,7 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
         onClick={() => onChange({ kind: 'now' })}
         aria-pressed={selection.kind === 'now'}
         title="Analyze conditions at the current hour"
-        className={`${TEXT.cta} mb-2.5 w-full py-2 ${RADIUS.control} transition-colors ${
+        className={`${TEXT.cta} ${TAP.action} mb-2.5 w-full py-2 ${RADIUS.control} transition-colors ${
           selection.kind === 'now' ? ACCENT_FILL : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
         }`}
       >
@@ -236,7 +233,7 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
       >
         <div role="row" className="grid grid-cols-7">
           {weekdays.map((initial, i) => (
-            <span key={i} role="columnheader" className={`${CELL} ${TEXT.micro}`}>
+            <span key={i} role="columnheader" className={`${DAY.cell} ${TEXT.micro}`}>
               {initial}
             </span>
           ))}
@@ -284,7 +281,7 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
         <div className="mt-2 border-t border-slate-700 pt-2">
           <div className="flex items-center justify-between gap-2">
             <span className={TEXT.subheading}>Hours</span>
-            <div className={`flex ${RADIUS.control} overflow-hidden border border-slate-600`}>
+            <div className={SEGMENT}>
               {[
                 { hourly: false, label: 'All Day' },
                 { hourly: true, label: 'Hourly' },
@@ -293,9 +290,9 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
                   key={option.label}
                   aria-pressed={option.hourly === (hours !== undefined)}
                   onClick={() => setHours(option.hourly ? hours ?? defaultHours(now) : undefined)}
-                  className={`px-2 py-0.5 text-xs transition-colors ${
-                    i > 0 ? 'border-l border-slate-600' : ''
-                  } ${option.hourly === (hours !== undefined) ? ACCENT_FILL : SEGMENT_IDLE}`}
+                  className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
+                    option.hourly === (hours !== undefined) ? ACCENT_FILL : SEGMENT_IDLE
+                  }`}
                 >
                   {option.label}
                 </button>
@@ -353,7 +350,10 @@ function MonthButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className={`${BUTTON_SECONDARY} px-2 py-0.5 leading-none disabled:cursor-not-allowed disabled:opacity-40`}
+      // No padding of its own any more. It had been squeezed to a 16px-tall
+      // sliver, which is smaller than anything else in the panel and is the
+      // secondary action doing something the role does not do.
+      className={`${BUTTON_SECONDARY} disabled:cursor-not-allowed disabled:opacity-40`}
     >
       <span aria-hidden="true">{glyph}</span>
     </button>
@@ -379,7 +379,7 @@ function Day({
   // columns aligned, but blank. It cannot mark itself by dimming, because dim
   // means "no air quality" here, and a bright unlabelled cell is a hole the eye
   // skips rather than a date it might try to click.
-  if (!cell.inMonth) return <span className={CELL} aria-hidden="true" />
+  if (!cell.inMonth) return <span className={DAY.cell} aria-hidden="true" />
 
   const isEnd = drawn !== null && (cell.date === drawn.startDate || cell.date === drawn.endDate)
   const inRange =
@@ -414,7 +414,7 @@ function Day({
       onPointerDown={onPress}
       onPointerEnter={onEnter}
       onClick={onActivate}
-      className={`${CELL} ${TEXT.control} transition-colors ${cell.today ? DAY.today : ''} ${
+      className={`${DAY.cell} ${TEXT.control} transition-colors ${cell.today ? DAY.today : ''} ${
         inert ? 'cursor-not-allowed' : 'cursor-pointer'
       } ${isEnd ? `${DAY.selected} ${RADIUS.control}` : inRange ? `${ramp} ${DAY.range}` : ramp}`}
     >

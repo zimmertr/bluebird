@@ -11,11 +11,17 @@ import ForecastCalendar from './ForecastCalendar'
 import { parseCustomCsv } from '../utils/customDestinations'
 import {
   ACCENT_FILL,
+  BUTTON_DANGER,
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
+  CHOICE_INPUT,
+  CHOICE_ROW,
   FIELD,
   LINK,
+  SEGMENT,
+  SEGMENT_DIVIDER,
   SEGMENT_IDLE,
+  SEGMENT_ITEM,
   TEXT,
 } from '../styles'
 import { AGGREGATE, NOUN, RANKING_KEYS, familyOf } from '../metrics'
@@ -282,10 +288,7 @@ export default function ControlPanel({
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2">
               <span className={TEXT.subheading}>Find:</span>
               {DESTINATION_TYPES.map(({ value, label, implemented }) => (
-                <label
-                  key={value}
-                  className={`flex items-center gap-1.5 ${implemented ? 'cursor-pointer' : 'opacity-40 cursor-not-allowed'}`}
-                >
+                <label key={value} className={CHOICE_ROW}>
                   <input
                     type="radio"
                     name="destination_type"
@@ -293,9 +296,9 @@ export default function ControlPanel({
                     checked={destinationType === value}
                     disabled={!implemented}
                     onChange={() => setDestinationType(value)}
-                    className="accent-sky-500 h-3.5 w-3.5"
+                    className={CHOICE_INPUT}
                   />
-                  <span className={TEXT.control}>{label}</span>
+                  <span>{label}</span>
                   {!implemented && <span className={TEXT.helper}>soon</span>}
                 </label>
               ))}
@@ -387,20 +390,18 @@ export default function ControlPanel({
                   key={metric.value}
                   className="flex items-center justify-between gap-2"
                 >
-                  <label className="flex items-center gap-2.5 cursor-pointer min-w-0">
+                  <label className={`${CHOICE_ROW} min-w-0`}>
                     <input
                       type="radio"
                       name="sort_metric"
                       checked={isActive}
                       onChange={() => setSortBy(metric.value)}
-                      className="accent-sky-500 h-3.5 w-3.5 flex-shrink-0"
+                      className={CHOICE_INPUT}
                     />
-                    <span className={`${TEXT.control} truncate`}>{metric.label}</span>
+                    <span className="truncate">{metric.label}</span>
                   </label>
                   <div
-                    className={`flex rounded border border-slate-600 overflow-hidden flex-shrink-0 ${
-                      isActive ? '' : 'opacity-50'
-                    }`}
+                    className={`${SEGMENT} flex-shrink-0 ${isActive ? '' : 'opacity-50'}`}
                   >
                     {[
                       { desc: false, label: 'Lowest' },
@@ -413,9 +414,7 @@ export default function ControlPanel({
                           setSortBy(metric.value)
                           setSortDesc(dir.desc)
                         }}
-                        className={`px-2 py-0.5 text-xs transition-colors ${
-                          i > 0 ? 'border-l border-slate-600' : ''
-                        } ${
+                        className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
                           isActive && sortDesc === dir.desc
                             ? ACCENT_FILL
                             : SEGMENT_IDLE
@@ -516,14 +515,14 @@ export default function ControlPanel({
 
             {/* Show wildfires — live NIFC perimeter overlay, off by default */}
             <div>
-              <label className="flex items-center gap-2.5 cursor-pointer">
+              <label className={CHOICE_ROW}>
                 <input
                   type="checkbox"
                   checked={showWildfires}
                   onChange={(e) => setShowWildfires(e.target.checked)}
-                  className="accent-sky-500 h-3.5 w-3.5"
+                  className={CHOICE_INPUT}
                 />
-                <span className={TEXT.control}>Show Wildfires</span>
+                <span>Show Wildfires</span>
               </label>
             </div>
           </div>
@@ -582,13 +581,7 @@ export default function ControlPanel({
         {error && !refusal && (
           <div className="text-xs text-red-400 bg-red-950/50 border border-red-800 rounded p-2 space-y-2">
             <p>{error}</p>
-            <button
-              onClick={onRetry}
-              disabled={loading}
-              className="w-full py-1.5 rounded font-medium text-red-200
-                bg-red-900/60 hover:bg-red-800 border border-red-700
-                disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
+            <button onClick={onRetry} disabled={loading} className={BUTTON_DANGER}>
               Try again
             </button>
           </div>
