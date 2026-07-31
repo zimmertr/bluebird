@@ -96,8 +96,8 @@ describe('windowAggregate', () => {
 })
 
 describe('rankedNoun', () => {
-  // The header carries its own prefix ("Current Conditions:"), so a point sample
-  // takes no qualifier here or the tense gets stated twice.
+  // The header's window caption fixes the tense ("as of 12:09 PM"), so a point
+  // sample takes no qualifier here or it gets stated twice.
   it('qualifies a window ranking and leaves a point sample bare', () => {
     expect(rankedNoun('precip_total_in', false)).toBe('Total Precipitation')
     expect(rankedNoun('temp_avg_f', false)).toBe('Avg Temperature')

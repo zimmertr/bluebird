@@ -140,9 +140,9 @@ export function windowAggregate(sortBy: SortBy): string {
  * a window, plain "Precipitation" for a single hour.
  *
  * The header composes this with the sort direction ("Highest …", "Lowest …")
- * and its own prefix, which is why a point sample takes no qualifier here — the
- * prefix already said "Current Conditions:", and "Current Conditions: Highest
- * Current Precipitation" says it twice.
+ * and the window caption that follows it, which is why a point sample takes no
+ * qualifier here: the caption already fixes the tense ("as of 12:09 PM"), and
+ * "Highest Current Precipitation as of 12:09 PM" says it twice.
  */
 export function rankedNoun(sortBy: SortBy, pointSample: boolean): string {
   const noun = NOUN[familyOf(sortBy)]

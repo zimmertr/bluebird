@@ -7,6 +7,7 @@ import {
   wildfirePopupHtml,
   nifcFireUrl,
   isRateLimited,
+  fireIdentity,
   COARSE_TOLERANCE_DEG,
 } from './wildfires'
 
@@ -78,7 +79,7 @@ describe('formatRevised', () => {
     // and it is the only date in the popup, so nothing else is there to correct
     // a reader who reads it as ours. Avoid asserting a locale/timezone-specific
     // rendering, just the label.
-    expect(formatRevised(Date.UTC(2026, 6, 20))).toMatch(/^Perimeter revised: /)
+    expect(formatRevised(Date.UTC(2026, 6, 20))).toMatch(/^Last updated: /)
   })
 })
 
@@ -121,7 +122,21 @@ describe('wildfirePopupHtml', () => {
       { attr_IncidentName: 'Dollar Lake', attr_ModifiedOnDateTime_dt: Date.UTC(2026, 6, 17) },
       NIFC,
     )
-    expect(html).toContain('Perimeter revised:')
+    expect(html).toContain('Last updated:')
+  })
+
+  // The date qualifies the facts above it rather than joining them, so it goes
+  // last and wears the footnote treatment. Asserted because the order is the
+  // whole point of putting it there.
+  it('sets the date last, and smaller and italic than the facts', () => {
+    const html = wildfirePopupHtml(
+      { attr_IncidentName: 'Dollar Lake', attr_ModifiedOnDateTime_dt: Date.UTC(2026, 6, 17) },
+      NIFC,
+    )
+    expect(html.indexOf('Last updated:')).toBeGreaterThan(html.indexOf('View on NIFC map'))
+    const line = html.slice(html.lastIndexOf('<span', html.indexOf('Last updated:')))
+    expect(line).toContain('font-style:italic')
+    expect(line).toContain('font-size:11px')
   })
 
   it('says nothing about the age of our own copy', () => {
@@ -139,8 +154,34 @@ describe('wildfirePopupHtml', () => {
 
   it('still renders a perimeter NIFC has never revised', () => {
     const html = wildfirePopupHtml({ attr_IncidentName: 'Fresh' }, NIFC)
-    expect(html).not.toContain('Perimeter revised')
+    expect(html).not.toContain('Last updated')
     expect(html).toContain('Fresh')
+  })
+})
+
+// Drives whether the hover popup stays anchored (same fire, so it can be moved
+// onto) or re-anchors (a different fire under the cursor).
+describe('fireIdentity', () => {
+  it('is stable across two hovers of the same fire', () => {
+    const fire = { attr_IncidentName: 'Dollar Lake', poly_GISAcres: 812, attr_ModifiedOnDateTime_dt: 1 }
+    expect(fireIdentity(fire)).toBe(fireIdentity({ ...fire }))
+  })
+
+  it('separates two fires that differ in any field it reads', () => {
+    const base = { attr_IncidentName: 'Dollar Lake', poly_GISAcres: 812, attr_ModifiedOnDateTime_dt: 1 }
+    expect(fireIdentity(base)).not.toBe(fireIdentity({ ...base, attr_IncidentName: 'Beehive' }))
+    expect(fireIdentity(base)).not.toBe(fireIdentity({ ...base, poly_GISAcres: 813 }))
+  })
+
+  // Unnamed perimeters are common in the feed. They must not all collapse onto
+  // one identity, or hovering across two of them would leave the popup pinned
+  // to the first while showing the second's numbers.
+  it('still separates unnamed fires by their other fields', () => {
+    expect(fireIdentity({ poly_GISAcres: 10 })).not.toBe(fireIdentity({ poly_GISAcres: 20 }))
+  })
+
+  it('falls back to the polygon name when the attribute name is missing', () => {
+    expect(fireIdentity({ poly_IncidentName: 'Beehive' })).toContain('Beehive')
   })
 })
 

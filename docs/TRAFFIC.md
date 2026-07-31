@@ -144,6 +144,17 @@ crowding one pool nobody involved could see, and losing at random. One pod-side
 snapshot serves everyone, so the cost upstream is now a fixed handful of
 requests per hour rather than a multiple of traffic.
 
+Both Open-Meteo paths on the server share one process-wide HTTP client
+(`services/http.py`), so the batches of an analysis ride a pooled keep-alive
+connection instead of handshaking one apiece. Measured 2026-07-31 over a
+residential link: 720 ms per request when each batch built its own client,
+178 ms once the connection is warm, so roughly 540 ms of TCP and TLS setup per
+batch. The saving lands once per wave of concurrent batches, not once per
+batch, and is smaller from the cluster than from a home connection. It changes
+nothing about what an analysis costs upstream: Open-Meteo meters locations,
+not connections. The browser path never had the problem, because `fetch`
+multiplexes over one HTTP/2 connection per origin already.
+
 ## Weighted-call accounting
 
 Open-Meteo does not bill HTTP requests. Per their published accounting

@@ -66,6 +66,26 @@ export interface WildfireProps {
   attr_FireDiscoveryDateTime?: number | null
 }
 
+/**
+ * Which incident a hovered perimeter is, for telling "the cursor moved inside
+ * the same fire" from "the cursor crossed into a different one".
+ *
+ * Identity, not display: it exists so the hover popup can stay anchored while
+ * you move toward it and still re-anchor when you cross into a neighbour.
+ * Composed of the fields NIFC actually populates rather than an object id,
+ * because the properties reaching this point come off a vector tile, where the
+ * feature id is not stable across tile boundaries — a fire spanning two tiles
+ * would otherwise read as two fires and the popup would jump mid-approach.
+ *
+ * Named apart from `fireKey` in fireProximity.ts, which keys a *destination* by
+ * coordinate. Two different questions, and one name for both invites using
+ * whichever is imported.
+ */
+export function fireIdentity(props: WildfireProps): string {
+  const name = (props.attr_IncidentName || props.poly_IncidentName || '').trim()
+  return `${name}|${props.poly_GISAcres ?? ''}|${props.attr_ModifiedOnDateTime_dt ?? ''}`
+}
+
 /** Build the API URL for perimeters intersecting `bbox`. Pure, so it's testable. */
 export function wildfireQueryUrl(bbox: BBox, detail: FireDetail): string {
   const params = new URLSearchParams({ bbox: bbox.join(','), detail })
@@ -123,14 +143,13 @@ export function formatContainment(pct: number | null | undefined): string {
 }
 
 /**
- * Epoch-ms → localized "Perimeter revised: <date>, <time>", or null to omit it.
+ * Epoch-ms → localized "Last updated: <date>, <time>", or null to omit it.
  *
  * This is NIFC's own timestamp for when the incident's perimeter was last
  * redrawn: a fact about the fire, not about Bluebird. Measured across one
- * national snapshot it ranged from minutes to two weeks old, which is why it is
- * named precisely. Read as a bare "Updated" it invited the reading that
- * Bluebird's copy was two weeks stale, and it is now the only date in the
- * popup, so nothing else is there to correct the impression.
+ * national snapshot it ranged from minutes to two weeks old. It sits inside a
+ * popup titled with the incident and credited to NIFC, which is what makes
+ * "Last updated" read as the fire's date rather than the app's.
  *
  * Kept timezone-tolerant (falls back to a bare ISO date) so it never throws.
  */
@@ -139,9 +158,9 @@ export function formatRevised(ms: number | null | undefined): string | null {
   const d = new Date(ms)
   if (Number.isNaN(d.getTime())) return null
   try {
-    return `Perimeter revised: ${d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`
+    return `Last updated: ${d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`
   } catch {
-    return `Perimeter revised: ${d.toISOString().slice(0, 10)}`
+    return `Last updated: ${d.toISOString().slice(0, 10)}`
   }
 }
 
@@ -151,6 +170,12 @@ export function formatRevised(ms: number | null | undefined): string | null {
  * Inline styles mirror the results-marker popup in MapView so the two read
  * consistently; this is markup handed to MapLibre's `setHTML`, which the
  * stylesheet-scanned design system in styles.ts cannot reach.
+ *
+ * Ordered by what the reader came for: which fire, how big and how contained,
+ * where to go for more. The date sits last, small and italic, because it
+ * qualifies everything above it rather than being another fact in the list —
+ * and because it is the one line that is about NIFC's survey rather than about
+ * the fire.
  */
 export function wildfirePopupHtml(props: WildfireProps, nifcUrl: string): string {
   const name = (props.attr_IncidentName || props.poly_IncidentName || '').trim() || 'Unnamed fire'
@@ -158,8 +183,8 @@ export function wildfirePopupHtml(props: WildfireProps, nifcUrl: string): string
   return `<div style="font-family:sans-serif;font-size:13px;line-height:1.5">
       <strong>🔥 ${escapeHtml(name)}</strong>
       <br>${formatAcres(props.poly_GISAcres)} · ${formatContainment(props.attr_PercentContained)}
-      ${revised ? `<br><span style="color:#94a3b8">${escapeHtml(revised)}</span>` : ''}
       <br><a href="${nifcUrl}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">View on NIFC map ↗</a>
+      ${revised ? `<br><span style="color:#94a3b8;font-size:11px;font-style:italic">${escapeHtml(revised)}</span>` : ''}
     </div>`
 }
 

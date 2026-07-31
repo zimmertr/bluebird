@@ -240,15 +240,6 @@ def _stub_openmeteo(monkeypatch, behaviors: list[Any]) -> list[dict[str, Any]]:
     calls: list[dict[str, Any]] = []
 
     class _Client:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *exc):
-            return False
-
         async def get(self, url, params=None):
             behavior = behaviors[len(calls)]
             calls.append(params or {})
@@ -261,7 +252,8 @@ def _stub_openmeteo(monkeypatch, behaviors: list[Any]) -> list[dict[str, Any]]:
                 return _FakeResponse(payload)
             return _FakeResponse(behavior)
 
-    monkeypatch.setattr(weather.httpx, "AsyncClient", _Client)
+    stub = _Client()
+    monkeypatch.setattr(weather.http, "client", lambda: stub)
     return calls
 
 
@@ -335,6 +327,25 @@ async def test_fetch_weather_batch_splits_into_batches_of_fifty(monkeypatch):
 
     assert len(calls) == 3
     assert [len(c["latitude"].split(",")) for c in calls] == [50, 50, 20]
+    assert len(results) == 120
+
+
+async def test_batches_share_one_client_instead_of_one_each(monkeypatch):
+    # The regression this pins: a client built inside the chunk loop discards
+    # httpx's connection pool every batch, so all thirty batches of a
+    # 1,500-destination analysis pay their own TLS handshake. Constructing an
+    # AsyncClient anywhere on this path is now the failure.
+    _stub_openmeteo(
+        monkeypatch, [_payload([0.1] * 50), _payload([0.2] * 50), _payload([0.3] * 20)]
+    )
+
+    def _forbidden(*args, **kwargs):
+        raise AssertionError("built a per-batch AsyncClient instead of reusing one")
+
+    monkeypatch.setattr(weather.httpx, "AsyncClient", _forbidden)
+
+    results = await fetch_weather_batch(_dests(120), START, END)
+
     assert len(results) == 120
 
 
