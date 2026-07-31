@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from app import models
 from app.models import (
     MAX_ANALYZE_PEAKS,
     MAX_POLYGON_AREA_KM2,
@@ -84,6 +85,41 @@ def test_polygon_over_limit_is_rejected():
         _valid_request(destination_type=DestinationType.peak, polygon=huge, custom_destinations=None)
     # Ring area is well over the ceiling, and the message names the max.
     assert bbox_area_km2(huge.coordinates[0]) > MAX_POLYGON_AREA_KM2
+    assert "too large" in str(exc.value)
+
+
+def test_polygon_area_cap_is_the_measured_ceiling():
+    # Spelled as a literal on purpose. Every other assertion about the cap
+    # compares something against the imported constant, which moves with it —
+    # so before this test, changing 100,000 to 90,000 passed the whole suite.
+    # The value is a measurement (see the dated note in models.py); re-measure
+    # before editing this number, and edit it here deliberately.
+    assert MAX_POLYGON_AREA_KM2 == 100_000
+
+
+def test_polygon_exactly_at_the_cap_is_accepted(monkeypatch):
+    # The comparison is `>`, not `>=`: an area landing exactly on the ceiling
+    # is inside it. The area is stubbed rather than drawn, because no ring's
+    # bbox math lands on exactly 100,000.0 km² reliably enough to pin a
+    # boundary — bbox_area_km2 has its own tests above.
+    monkeypatch.setattr(models, "bbox_area_km2", lambda ring: float(MAX_POLYGON_AREA_KM2))
+    at_cap = GeoPolygon(type="Polygon", coordinates=[[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]])
+    req = _valid_request(
+        destination_type=DestinationType.peak, polygon=at_cap, custom_destinations=None
+    )
+    assert req.polygon is not None
+
+
+def test_polygon_a_hair_over_the_cap_is_rejected(monkeypatch):
+    # The other side of the same boundary, so the pair pins `>` exactly.
+    monkeypatch.setattr(
+        models, "bbox_area_km2", lambda ring: float(MAX_POLYGON_AREA_KM2) + 0.5
+    )
+    over = GeoPolygon(type="Polygon", coordinates=[[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]])
+    with pytest.raises(ValidationError) as exc:
+        _valid_request(
+            destination_type=DestinationType.peak, polygon=over, custom_destinations=None
+        )
     assert "too large" in str(exc.value)
 
 

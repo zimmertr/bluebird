@@ -389,11 +389,22 @@ async def test_enrich_custom_queries_peaks_and_volcanoes_within_the_radius(monke
     _stub_overpass(monkeypatch, [], spy)
     await _enrich_custom([_row(47.123456, -121.654321)])
     [query] = spy
-    assert f"around:{osm.CUSTOM_MATCH_RADIUS_M:.0f}" in query
+    # The literal, not the interpolated constant. Written the old way this
+    # assertion moved with any edit to CUSTOM_MATCH_RADIUS_M, so it could not
+    # notice the radius changing at all.
+    assert "around:150" in query
     assert "47.123456,-121.654321" in query
     # Volcanoes are unioned in for the same reason discovery does it: OSM tags
     # Rainier and Baker as volcano rather than peak.
     assert "volcano" in query
+
+
+def test_custom_match_radius_is_the_measured_150_m():
+    # 150 m is a measurement, not a round number someone liked: 97/100 of the
+    # bundled Smoot list matched at it, 50 m lost four more, 300 m reached
+    # further for one. The note in osm.py says re-measure before changing —
+    # this is what makes that instruction enforceable.
+    assert osm.CUSTOM_MATCH_RADIUS_M == 150.0
 
 
 async def test_enrich_custom_splits_a_list_too_big_for_one_query(monkeypatch):

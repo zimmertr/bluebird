@@ -150,7 +150,19 @@ describe('nearestFire', () => {
   it('still returns a distant nearest fire (the caller applies the threshold)', () => {
     const near = nearestFire(30, -100, square)
     expect(near).not.toBeNull()
-    expect(near!.miles).toBeGreaterThan(FIRE_WARN_MILES)
+    // A literal, not FIRE_WARN_MILES. Compared against the constant this
+    // assertion moved with it and so could not notice the radius changing;
+    // all it needs to say is that a far fire is reported rather than dropped.
+    expect(near!.miles).toBeGreaterThan(100)
+  })
+})
+
+describe('FIRE_WARN_MILES', () => {
+  it('warns within ten miles of a perimeter', () => {
+    // Pinned to the literal because the radius is the product decision, and a
+    // safety-adjacent one: widening it floods every report with warnings,
+    // narrowing it drops real ones. Nothing else in either suite notices.
+    expect(FIRE_WARN_MILES).toBe(10)
   })
 })
 
