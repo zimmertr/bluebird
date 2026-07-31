@@ -1,12 +1,11 @@
 import { useMemo, useRef } from 'react'
 import { AnalysisMode, CustomDestination, DiscoveryType, SortBy } from '../types'
 import { Refusal } from '../hooks/useAnalyze'
-import { MAX_AREA_KM2 } from './MapView'
-
 // Above this drawn area, an informational note warns that dense regions can
-// exceed the destination limit and searches slow down. Advisory only — the
-// hard gate stays MAX_AREA_KM2 — sized to where Cascades-density terrain
-// starts brushing the analysis cap (~26,000 km² held 1,117 peaks).
+// exceed the destination limit and searches slow down. Advisory only: the hard
+// gate is the deployment's published polygon cap, which arrives as maxAreaKm2.
+// Sized to where Cascades-density terrain starts brushing the analysis cap
+// (~26,000 km² held 1,117 peaks).
 const AREA_NOTE_KM2 = 40_000
 import { parseCustomCsv } from '../utils/customDestinations'
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD, LINK, TEXT } from '../styles'
@@ -116,6 +115,9 @@ interface Props {
   // Live ceiling for the results knob, from /api/capabilities (falls back to
   // the compiled analysis cap).
   maxLimit: number
+  // Live polygon-area gate from /api/capabilities, same contract as maxLimit
+  // above: the deployment's number, with a compiled fallback behind it.
+  maxAreaKm2: number
   resultCount?: number
   totalQueried?: number
   // Pre-truncation count when the shown analysis was an elected top-N.
@@ -168,6 +170,7 @@ export default function ControlPanel({
   onRetryWithFloor,
   onRetryTopByElevation,
   maxLimit,
+  maxAreaKm2,
   resultCount,
   totalQueried,
   totalFound,
@@ -191,7 +194,7 @@ export default function ControlPanel({
   const hasDates =
     forecastMode === 'now' ||
     (forecastMode === 'at' ? atDatetime !== '' : startDatetime !== '' && endDatetime !== '')
-  const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > MAX_AREA_KM2
+  const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > maxAreaKm2
 
   const polygonReady = drawPointCount >= 3 && !areaTooLarge
   const analyzeEnabled = canAnalyze({
@@ -271,7 +274,7 @@ export default function ControlPanel({
                   {polygonAreaKm2 !== null && (
                     <p className={areaTooLarge ? 'text-red-400' : 'text-slate-400'}>
                       ~{Math.round(polygonAreaKm2).toLocaleString()} km²
-                      {areaTooLarge && ` (max ${MAX_AREA_KM2.toLocaleString()} km²)`}
+                      {areaTooLarge && ` (max ${maxAreaKm2.toLocaleString()} km²)`}
                     </p>
                   )}
                   {polygonAreaKm2 !== null &&
@@ -703,7 +706,7 @@ export default function ControlPanel({
         {!analyzeEnabled && !loading && (
           <p className={`${TEXT.helper} text-center`}>
             {areaTooLarge
-              ? `Area too large. Draw a smaller polygon (max ${MAX_AREA_KM2.toLocaleString()} km²).`
+              ? `Area too large. Draw a smaller polygon (max ${maxAreaKm2.toLocaleString()} km²).`
               : !hasDates
               ? forecastMode === 'at'
                 ? 'Pick a forecast time to continue.'
