@@ -7,7 +7,7 @@ import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
 import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
-import { LINK_ACTION, TEXT } from '../styles'
+import { ACCENT, ICON_ACTION, LINK_ACTION, TEXT } from '../styles'
 import { RANKING_KEYS } from '../metrics'
 
 function windyUrl(lat: number, lon: number, layer: string): string {
@@ -199,7 +199,7 @@ export default function ResultsTable({
         onChange={() => handleChartToggle(row)}
         title="Add to the comparison chart (shift-click to select a range)"
         aria-label={`Chart ${row.name}`}
-        className="h-3.5 w-3.5 cursor-pointer align-middle accent-sky-500"
+        className={`cursor-pointer align-middle ${ACCENT.input}`}
         style={on && chartColor ? { accentColor: chartColor(row) } : undefined}
       />
     )
@@ -248,7 +248,7 @@ export default function ResultsTable({
                 rel="noopener noreferrer"
                 title="Open in Peakbagger / OpenStreetMap"
                 aria-label={`Open ${row.name} in an external map`}
-                className="shrink-0 text-slate-500 hover:text-sky-400"
+                className={`shrink-0 ${ICON_ACTION}`}
               >
                 <ExternalLinkIcon />
               </a>
@@ -303,7 +303,7 @@ export default function ResultsTable({
                     onChange={() => onChartRange(chartableRows, headState !== 'all')}
                     title="Add or remove every destination on the comparison chart"
                     aria-label="Chart all destinations"
-                    className="h-3.5 w-3.5 cursor-pointer align-middle accent-sky-500"
+                    className={`cursor-pointer align-middle ${ACCENT.input}`}
                   />
                 )}
               </th>
@@ -319,7 +319,7 @@ export default function ResultsTable({
               >
                 {col.label}
                 {detailSortKey === col.key && (
-                  <span className="ml-1 text-sky-400">{detailSortDir === 'asc' ? '↑' : '↓'}</span>
+                  <span className={`ml-1 ${ACCENT.text}`}>{detailSortDir === 'asc' ? '↑' : '↓'}</span>
                 )}
               </th>
             ))}
@@ -357,7 +357,7 @@ export default function ResultsTable({
                           rel="noopener noreferrer"
                           title="Open in Peakbagger / OpenStreetMap"
                           aria-label={`Open ${d.name} in an external map`}
-                          className="shrink-0 text-slate-500 hover:text-sky-400"
+                          className={`shrink-0 ${ICON_ACTION}`}
                         >
                           <ExternalLinkIcon />
                         </a>

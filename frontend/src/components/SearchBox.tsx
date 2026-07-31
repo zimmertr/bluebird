@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Place, parseCoordinates, searchPlaces } from '../utils/geocode'
-import { SURFACE_FLOATING, TEXT } from '../styles'
+import { ACCENT, SPINNER, STATUS, SURFACE_FLOATING, TEXT } from '../styles'
 
 interface Props {
   onSelect: (place: Place) => void
@@ -104,7 +104,7 @@ export default function SearchBox({ onSelect }: Props) {
 
   return (
     <div ref={rootRef} className="relative">
-      <div className={`${SURFACE_FLOATING} flex items-center gap-2 px-2.5 py-2 transition-colors focus-within:border-sky-400`}>
+      <div className={`${SURFACE_FLOATING} flex items-center gap-2 px-2.5 py-2 transition-colors ${ACCENT.edgeFocus}`}>
         <svg
           width="15"
           height="15"
@@ -137,7 +137,7 @@ export default function SearchBox({ onSelect }: Props) {
         />
         {loading ? (
           <div
-            className="h-4 w-4 flex-shrink-0 animate-spin rounded-full border-2 border-slate-500 border-t-sky-400"
+            className={`h-4 w-4 flex-shrink-0 ${SPINNER}`}
             aria-label="Searching"
           />
         ) : query ? (
@@ -152,7 +152,7 @@ export default function SearchBox({ onSelect }: Props) {
       </div>
 
       {error && (
-        <div className={`${SURFACE_FLOATING} absolute left-0 top-full mt-1 w-full px-3 py-2 text-xs text-amber-300`}>
+        <div className={`${SURFACE_FLOATING} absolute left-0 top-full mt-1 w-full px-3 py-2 text-xs ${STATUS.warn}`}>
           {error}
         </div>
       )}

@@ -166,15 +166,82 @@ export const SURFACE_CARD =
   `bg-slate-800 border border-slate-600 ${RADIUS.surface} shadow-xl`
 
 /**
+ * The accent, named by the jobs it does, because it does six.
+ *
+ * Every one of these was spelled at a call site before, in fourteen places
+ * across five files, which is how the fill and the button that wears it came to
+ * disagree about their own contrast. The rule this section exists to make
+ * enforceable is in `styles.test.ts`: **no component names a hue.** A component
+ * says which job it is doing and the answer lives here.
+ *
+ * ## Why the fill is dark-on-bright rather than white-on-blue (#167)
+ *
+ * The accent fill has two contrast obligations at once, and they pull opposite
+ * ways. Its label is text, so WCAG 1.4.3 wants 4.5:1 against the fill. The fill
+ * is also what says "this block is a control, and it is the selected one", so
+ * 1.4.11 wants 3:1 against the surface behind it — the same 3:1 `SURFACE_GROUP`
+ * below holds itself to.
+ *
+ * White labels cannot satisfy both. White at 4.5:1 needs a fill no lighter than
+ * 0.183 relative luminance; a 3:1 edge on the slate-800 panel needs one no
+ * darker than 0.165. sky-600 sits at 0.211 (white reads 4.02:1, which is the
+ * bug) and sky-700 at 0.130 (white reads 5.85:1, but the fill drops to 2.50:1
+ * on the panel and 2.37:1 on `DAY.range` — the two ends of a selected range
+ * would sink into the band between them, which is the one thing that control
+ * has to show). No Tailwind sky step lands in the window, and a custom shade
+ * that did would sit on both floors with no headroom.
+ *
+ * Inverting the polarity clears both with room to spare: slate-950 on sky-500
+ * is 7.4:1, and sky-500 is 5.4:1 on the panel and 5.1:1 on the range band. It
+ * also lets the hover keep *lightening* (sky-400: 9.2:1 text, 6.5:1 edge),
+ * which is the direction every other hover in the app moves. Darkening the fill
+ * instead would have had to invert that language app-wide.
+ */
+export const ACCENT = {
+  /**
+   * A solid block filled with the accent, carrying a label: the chosen segment
+   * of the ranking toggle and the calendar's Hours toggle, the ends of a day
+   * selection, the Now button when it is the live arm, the numbered steps in
+   * the welcome dialog, and `BUTTON_PRIMARY` below.
+   *
+   * The label color is not separable from the fill and must never be restated
+   * at a call site — that is the whole failure this role was rewritten to end.
+   */
+  fill: 'bg-sky-500 text-slate-950',
+  /** The hover step for a fill that is a button. Only `BUTTON_PRIMARY` has one. */
+  fillHover: 'hover:bg-sky-400',
+  /** The accent as a bare graphic with nothing on it: the progress bar's fill. */
+  mark: 'bg-sky-500',
+  /**
+   * Native checkbox and radio tint, at the one size every one of them wears.
+   * Six inputs across three files had the tint, and five of the six the size;
+   * the chart's metric radio had drifted to the browser default.
+   */
+  input: 'accent-sky-500 h-3.5 w-3.5',
+  /** Resting accent text that is not a link: the table's detail-sort arrow. */
+  text: 'text-sky-400',
+  /** An icon or control reaching for the accent on hover. */
+  hoverText: 'hover:text-sky-400',
+  /** The accent on a boundary rather than a fill, in the two states that use it. */
+  edgeHover: 'hover:border-sky-400',
+  edgeFocus: 'focus-within:border-sky-400',
+} as const
+
+/**
  * The full-width primary action: Analyze, and the modals' dismiss buttons.
  *
  * It had been written out three times and had drifted into two radii, with the
  * coarse-pointer padding on only one of the three. Call sites append their own
  * disabled/layout classes; nothing here is a size or color they should restate.
+ *
+ * It composes `ACCENT.fill` rather than restating a fill of its own. Spelling it
+ * out separately is exactly how the button and the blocks it is supposed to
+ * match ended up one shade apart, and how #167's contrast bug outlived the
+ * sweep that was meant to catch it.
  */
 export const BUTTON_PRIMARY =
   `${TEXT.cta} w-full py-2.5 touch:py-3 ${RADIUS.surface} transition-colors ` +
-  'bg-sky-600 hover:bg-sky-500 text-white'
+  `${ACCENT.fill} ${ACCENT.fillHover}`
 
 /**
  * The secondary action standing next to something else: Clear under the
@@ -194,29 +261,126 @@ export const BUTTON_SECONDARY =
   'bg-slate-700 hover:bg-slate-600'
 
 /**
- * The solid accent block: the chosen segment of the ranking direction toggle, the
- * ends of the calendar's day selection, and the numbered steps in the welcome
- * dialog.
+ * The destructive retry inside an error notice: "Try again".
  *
- * Three jobs, one recipe — the same way BUTTON_PRIMARY covers both Analyze and a
- * dialog's dismiss button. What they share is not a meaning but a treatment: a
- * small block filled with the app's one resting accent (see LINK_ACTION above),
- * carrying text on top of it. All three had it spelled out at the call site, and
- * white on sky-600 reads at 4.6:1, so this is also the contrast floor for
- * anything wearing the accent as a fill — which is exactly why a call site must
- * not be able to restate it a shade lighter.
+ * The one button in the app that is neither the primary action nor a neutral
+ * secondary, and it had its whole recipe — fill, hover, border, weight, radius,
+ * padding, disabled treatment — inline at the call site. red-200 on the tinted
+ * fill reads 8.8:1, and it stays red-200 rather than white so the button reads
+ * as part of the notice holding it rather than as a second primary action.
+ *
+ * Sets the size bare rather than composing `TEXT.control`, which is the one
+ * place in this file that would be wrong: that role carries slate-200, and a
+ * second color utility here would race the red one by stylesheet order.
  */
-export const ACCENT_FILL = 'bg-sky-600 text-white'
+export const BUTTON_DANGER =
+  `text-xs w-full py-1.5 ${RADIUS.control} font-medium transition-colors ` +
+  'text-red-200 bg-red-900/60 hover:bg-red-800 border border-red-700'
+
+/**
+ * A button floating over the map rather than sitting in a panel: today, the
+ * one that reopens the collapsed controls.
+ *
+ * It is `SURFACE_FLOATING` that has become pressable, so it takes the surface
+ * whole and adds only what pressability needs — the accent on hover, and a
+ * pressed state. Layout (the icon row, its gap and padding) stays at the call
+ * site, the way `FIELD` leaves padding to the control that wears it.
+ */
+export const BUTTON_FLOATING =
+  `${SURFACE_FLOATING} ${TEXT.cta} text-white transition-colors ` +
+  `${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-slate-700`
+
+/**
+ * The preview-deployment banner, the one surface that is deliberately loud.
+ *
+ * It lived as a local constant inside its own component, which is the same
+ * bespoke-recipe problem as the accent had, just with only one call site to
+ * drift from. White on red-600 reads 4.76:1, so it clears AA as it stands.
+ */
+export const BANNER_PREVIEW =
+  'flex-shrink-0 bg-red-600 text-white text-center text-xs sm:text-sm ' +
+  'font-semibold py-1.5 px-4 z-30 shadow-md'
+
+/**
+ * An icon that acts on hover: the table's external-destination links.
+ *
+ * slate-500 is 3.1:1 on the panel, which is the floor for an icon rather than
+ * the 4.5:1 asked of text — these carry no label and are recognized by shape.
+ */
+export const ICON_ACTION = `text-slate-500 ${ACCENT.hoverText}`
+
+/** A bare icon button in a header: the chart and table collapse chevrons. */
+export const ICON_BUTTON = 'px-1 text-slate-400 hover:text-white'
+
+/**
+ * The indeterminate spinner: the search box while a lookup is in flight.
+ *
+ * Size stays at the call site; everything that makes it a spinner does not.
+ */
+export const SPINNER =
+  `animate-spin ${RADIUS.pill} border-2 border-slate-500 border-t-sky-400`
 
 /**
  * The idle half of a segmented choice: the ranking direction toggle's unchosen
  * side, and the calendar's Hours toggle.
  *
- * `ACCENT_FILL` above is the chosen half. Naming the pair is what makes the
+ * `ACCENT.fill` above is the chosen half. Naming the pair is what makes the
  * second segmented control in the panel the *same* control rather than a
  * lookalike that drifted — the hazard #159-#165 spent five PRs on.
  */
 export const SEGMENT_IDLE = 'bg-slate-900 text-slate-400 hover:text-slate-200'
+
+/**
+ * Status color, for the lines the type ramp deliberately does not cover.
+ *
+ * The ramp separates roles by size and weight; these separate by meaning, which
+ * is why the header above puts them outside it. What the ramp's absence did
+ * *not* license is nine call sites picking their own step: "warning" was
+ * amber-300, amber-400 and amber-300/90 in one file, and the two the panel
+ * shows next to each other were two different ambers.
+ *
+ * Every step here clears 4.5:1 on the slate-800 panel (8.3 to 10.5) and on the
+ * tinted `NOTICE` fills below, so a status line is legible wherever it lands.
+ *
+ * These set a color and no size, and `NOTICE` sets a size and no color, so the
+ * two compose without the collision the file keeps warning about: two color
+ * utilities in one class list resolve by stylesheet order, not by intent.
+ */
+export const STATUS = {
+  /** The polygon is closed, the thing you were building is ready. */
+  ok: 'text-green-400',
+  /** Survivable: the analysis can still run, but something is worth knowing. */
+  warn: 'text-amber-300',
+  /** Blocking: it did not work, or it will not run as asked. */
+  error: 'text-red-400',
+  /** Neither good nor bad, just a fact about the data you are about to get. */
+  info: 'text-sky-300',
+} as const
+
+/**
+ * The box a status line sits in when it is a block rather than a sentence: the
+ * forecast-window warning, the AQI-coverage note, the refusal remedies, and the
+ * error retry.
+ *
+ * Four boxes, and before this they were four recipes. Three had settled on a
+ * `-950/40` fill with a `-800/60` border and the fourth — the error, the one
+ * that matters most — ran a `/50` fill behind a fully opaque border, so the app
+ * shouted in a slightly different shape than it warned in. These are that
+ * majority spelling, and the error box joins it.
+ *
+ * The borders are ~1.5:1 on the panel and deliberately stay there. Unlike
+ * `SURFACE_GROUP`, which needs 3:1 because its border is the *only* thing
+ * grouping what it holds, here the tinted fill and the colored text already
+ * carry the meaning; the border is trim on a box that is not hard to find.
+ *
+ * Carries the size but no text color, so it composes with `STATUS` above. A box
+ * whose children color themselves individually wears this alone.
+ */
+export const NOTICE = {
+  warn: `text-xs bg-amber-950/40 border border-amber-800/60 ${RADIUS.control} p-2`,
+  error: `text-xs bg-red-950/40 border border-red-800/60 ${RADIUS.control} p-2`,
+  info: `text-xs bg-sky-950/40 border border-sky-800/60 ${RADIUS.control} p-2`,
+} as const
 
 /**
  * A bordered region grouping controls inside the panel: today, the calendar.
@@ -259,9 +423,12 @@ export const SURFACE_GROUP = `border border-slate-500 ${RADIUS.surface}`
  *   with no air quality stays marked *inside* a selected range — which is
  *   exactly when that matters.
  * - `selected` is the accent fill: the two ends, and a single-day pick. This is
- *   the one place the ramp is lost, because white is what reads on sky-600. Two
- *   cells out of a range, and the panel's air-quality warning covers the window
- *   as a whole.
+ *   the one place the ramp is lost, because the fill carries its own label
+ *   color (see `ACCENT` above). Two cells out of a range, and the panel's
+ *   air-quality warning covers the window as a whole. The end of a range has to
+ *   stay findable against the band beside it, which is the 1.4.11 half of why
+ *   the fill could not simply be darkened in #167: sky-500 is 5.1:1 on
+ *   `range`, where sky-700 would have been 2.4:1.
  *
  * `today` is a ring rather than a fill, so it can coexist with any of the above
  * (today is frequently also selected). slate-400 clears the 3:1 for a boundary.
@@ -271,7 +438,7 @@ export const DAY = {
   partial: 'text-slate-400 hover:bg-slate-700',
   unservable: 'text-slate-600',
   range: 'bg-sky-950 hover:bg-sky-900',
-  selected: ACCENT_FILL,
+  selected: ACCENT.fill,
   today: 'ring-1 ring-inset ring-slate-400',
 } as const
 

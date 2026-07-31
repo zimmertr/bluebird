@@ -10,7 +10,7 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult } from '../types'
-import { RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
+import { ACCENT, RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
 import {
   CHART_METRICS,
   ChartMetric,
@@ -127,7 +127,7 @@ export default function TimeSeriesChart({
               name="chart-metric"
               checked={metric === m.key}
               onChange={() => onMetricChange(m.key)}
-              className="accent-sky-500"
+              className={ACCENT.input}
             />
             {m.label}
           </label>

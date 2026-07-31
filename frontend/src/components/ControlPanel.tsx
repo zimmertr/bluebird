@@ -10,12 +10,15 @@ const AREA_NOTE_KM2 = 40_000
 import ForecastCalendar from './ForecastCalendar'
 import { parseCustomCsv } from '../utils/customDestinations'
 import {
-  ACCENT_FILL,
+  ACCENT,
+  BUTTON_DANGER,
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
   FIELD,
   LINK,
+  NOTICE,
   SEGMENT_IDLE,
+  STATUS,
   TEXT,
 } from '../styles'
 import { AGGREGATE, NOUN, RANKING_KEYS, familyOf } from '../metrics'
@@ -243,17 +246,17 @@ export default function ControlPanel({
               <div className="space-y-2">
                 <div className="text-xs text-slate-300 space-y-0.5">
                   {pointsNeeded > 0 ? (
-                    <p className="text-sky-300">
+                    <p className={STATUS.info}>
                       {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed,{' '}
                       {pointsNeeded} more needed. Click a point to remove it.
                     </p>
                   ) : (
-                    <p className="text-green-400 font-medium">
+                    <p className={`${STATUS.ok} font-medium`}>
                       {drawPointCount} points placed. Drag points to adjust, or click Analyze.
                     </p>
                   )}
                   {polygonAreaKm2 !== null && (
-                    <p className={areaTooLarge ? 'text-red-400' : 'text-slate-400'}>
+                    <p className={areaTooLarge ? STATUS.error : 'text-slate-400'}>
                       ~{Math.round(polygonAreaKm2).toLocaleString()} km²
                       {areaTooLarge && ` (max ${maxAreaKm2.toLocaleString()} km²)`}
                     </p>
@@ -261,7 +264,7 @@ export default function ControlPanel({
                   {polygonAreaKm2 !== null &&
                     polygonAreaKm2 > AREA_NOTE_KM2 &&
                     !areaTooLarge && (
-                      <p className="text-amber-300/90">
+                      <p className={STATUS.warn}>
                         Large area: dense regions this size can exceed the
                         destination limit, and searches take longer.
                       </p>
@@ -293,7 +296,7 @@ export default function ControlPanel({
                     checked={destinationType === value}
                     disabled={!implemented}
                     onChange={() => setDestinationType(value)}
-                    className="accent-sky-500 h-3.5 w-3.5"
+                    className={ACCENT.input}
                   />
                   <span className={TEXT.control}>{label}</span>
                   {!implemented && <span className={TEXT.helper}>soon</span>}
@@ -352,7 +355,7 @@ export default function ControlPanel({
           <ForecastCalendar selection={selection} onChange={setSelection} />
 
           {windowWarning && (
-            <p className="mt-2 text-xs text-amber-400 bg-amber-950/40 border border-amber-800/60 rounded p-2">
+            <p className={`mt-2 ${STATUS.warn} ${NOTICE.warn}`}>
               {windowWarning === 'order'
                 ? 'The narrowed hours end before they start. Adjust them to run an analysis.'
                 : windowWarning === 'past'
@@ -361,7 +364,7 @@ export default function ControlPanel({
             </p>
           )}
           {!windowWarning && aqiCoverage !== 'full' && (
-            <p className="mt-2 text-xs text-sky-300 bg-sky-950/40 border border-sky-800/60 rounded p-2">
+            <p className={`mt-2 ${STATUS.info} ${NOTICE.info}`}>
               {aqiCoverage === 'partial'
                 ? `Air-quality (AQI) forecasts only extend ${AQI_LIMIT_DAYS} days out, so AQI may cover just the start of this window. Weather data covers all of it.`
                 : `Air-quality (AQI) forecasts only extend ${AQI_LIMIT_DAYS} days out. AQI columns will be empty for this analysis. Weather data is unaffected.`}
@@ -393,7 +396,7 @@ export default function ControlPanel({
                       name="sort_metric"
                       checked={isActive}
                       onChange={() => setSortBy(metric.value)}
-                      className="accent-sky-500 h-3.5 w-3.5 flex-shrink-0"
+                      className={`${ACCENT.input} flex-shrink-0`}
                     />
                     <span className={`${TEXT.control} truncate`}>{metric.label}</span>
                   </label>
@@ -417,7 +420,7 @@ export default function ControlPanel({
                           i > 0 ? 'border-l border-slate-600' : ''
                         } ${
                           isActive && sortDesc === dir.desc
-                            ? ACCENT_FILL
+                            ? ACCENT.fill
                             : SEGMENT_IDLE
                         }`}
                       >
@@ -521,7 +524,7 @@ export default function ControlPanel({
                   type="checkbox"
                   checked={showWildfires}
                   onChange={(e) => setShowWildfires(e.target.checked)}
-                  className="accent-sky-500 h-3.5 w-3.5"
+                  className={ACCENT.input}
                 />
                 <span className={TEXT.control}>Show Wildfires</span>
               </label>
@@ -541,7 +544,7 @@ export default function ControlPanel({
         </button>
 
         {commitReason && !loading && (
-          <p className="text-xs text-amber-300 text-center">{COMMIT_CUE[commitReason]}</p>
+          <p className={`text-xs ${STATUS.warn} text-center`}>{COMMIT_CUE[commitReason]}</p>
         )}
 
         {!analyzeEnabled && !loading && (
@@ -557,8 +560,8 @@ export default function ControlPanel({
         )}
 
         {refusal && !loading && (
-          <div className="text-xs bg-amber-950/40 border border-amber-800/60 rounded p-2 space-y-2">
-            <p className="text-amber-300">{refusal.message}</p>
+          <div className={`${NOTICE.warn} space-y-2`}>
+            <p className={STATUS.warn}>{refusal.message}</p>
             {refusal.suggestedMinElevationFt !== null && (
               <button
                 onClick={() => onRetryWithFloor(refusal.suggestedMinElevationFt as number)}
@@ -580,14 +583,12 @@ export default function ControlPanel({
         )}
 
         {error && !refusal && (
-          <div className="text-xs text-red-400 bg-red-950/50 border border-red-800 rounded p-2 space-y-2">
+          <div className={`${STATUS.error} ${NOTICE.error} space-y-2`}>
             <p>{error}</p>
             <button
               onClick={onRetry}
               disabled={loading}
-              className="w-full py-1.5 rounded font-medium text-red-200
-                bg-red-900/60 hover:bg-red-800 border border-red-700
-                disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className={`${BUTTON_DANGER} disabled:opacity-40 disabled:cursor-not-allowed`}
             >
               Try again
             </button>
