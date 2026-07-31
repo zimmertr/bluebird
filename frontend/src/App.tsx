@@ -30,6 +30,7 @@ import {
   classifyMoment,
   clampLimit,
 } from './utils/urlState'
+import { UrlWriter, debounceUrlWrite, urlNeedsSync } from './utils/urlSync'
 import { DEFAULT_WINDOW_HOURS, nowLocal } from './utils/datetimeLocal'
 import { PresentationKnobs, bandNarrows, commitNeeded, presentResults } from './utils/present'
 import { SortDir, SortKey, displayedColumns } from './utils/tableColumns'
@@ -118,6 +119,15 @@ export default function App() {
   // where removed destinations may legitimately return.
   const [removedKeys, setRemovedKeys] = useState<Set<string>>(new Set())
   const removalScopeRef = useRef<string | null>(null)
+  // One debouncer for the whole component lifetime. It has to outlive the URL
+  // sync effect below: a timer owned by that effect would be torn down on every
+  // dependency change, which is every keystroke, so the burst it exists to
+  // collapse would write anyway.
+  const urlWriterRef = useRef<UrlWriter | null>(null)
+  if (urlWriterRef.current === null) {
+    urlWriterRef.current = debounceUrlWrite((url) => window.history.replaceState(null, '', url))
+  }
+  const writeUrl = urlWriterRef.current
 
   // Live limits from /api/capabilities: the analysis cap gates the client-side
   // paths and the results knob's ceiling, so a server recalibration reaches
@@ -352,6 +362,12 @@ export default function App() {
   // the map commits polygon edits only at discrete events (point add, drag
   // end, insert, delete — never mid-drag), so this can't thrash replaceState
   // past Safari's rate limit.
+  //
+  // A trailing debounce (~400ms) collapses bursts of edits (e.g. per-keystroke
+  // customCsv changes) into a single write. The no-op guard skips replaceState
+  // entirely when the URL is already current. On cleanup (unmount or re-run),
+  // any pending write is flushed so the last state reaches the URL before the
+  // component exits.
   useEffect(() => {
     const qs = encodeState({
       polygon,
@@ -369,8 +385,20 @@ export default function App() {
       showWildfires,
       pins: searched.places,
     })
-    const url = qs ? `?${qs}` : window.location.pathname
-    window.history.replaceState(null, '', url)
+
+    // Nothing to write, and just as importantly, drop anything already queued.
+    // An edit that lands back on the state the address bar already shows must
+    // not be followed a moment later by a write of a state it merely passed
+    // through on the way.
+    if (!urlNeedsSync(qs, window.location.pathname, window.location.search)) {
+      writeUrl.cancel()
+      return
+    }
+
+    writeUrl(qs ? `?${qs}` : window.location.pathname)
+    // No cleanup here on purpose: flushing once per effect run would write on
+    // every keystroke and collapse nothing, which is the trap debounceUrlWrite
+    // documents. Unmount is handled by its own effect below.
   }, [
     polygon,
     destinationType,
@@ -386,7 +414,13 @@ export default function App() {
     customCsv,
     showWildfires,
     searched.places,
+    writeUrl,
   ])
+
+  // Unmount is the one moment a queued write cannot wait out its delay, so it
+  // is the one moment worth flushing. Empty deps keep it to unmount only: the
+  // sync effect above must not flush, or the debounce collapses nothing.
+  useEffect(() => () => writeUrl.flush(), [writeUrl])
 
   // Warn when the selected mode's inputs fall outside Open-Meteo's servable
   // range (or, for a window, have no duration). Blocks Analyze (in
