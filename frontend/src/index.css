@@ -9,9 +9,10 @@
    desktop window that had not changed size, while a 1180px tablet still got
    mouse-tight rows. Keying off (hover: none) asks the question we mean.
 
-   Reach for this only where a control has no siblings to stay in rhythm with
-   (today: the Analyze button). Padding one row of a group on touch alone is
-   what broke the panel's rhythm on phones — see ControlPanel's rank rows.
+   Every control in the app is sized through this variant now (#160), but only
+   through the `TAP` roles in styles.ts — never at a call site. Padding one row
+   of a group on touch alone is what broke the panel's rhythm on phones, and
+   `styles.test.ts` fails any component that spells a `touch:` utility itself.
 
    Load-bearing: delete this and Tailwind treats `touch:` as an unknown
    variant, silently emitting no CSS rather than failing the build. */

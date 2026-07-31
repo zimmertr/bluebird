@@ -10,7 +10,7 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult } from '../types'
-import { ACCENT, RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
+import { CHOICE_INPUT, CHOICE_ROW, RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
 import {
   CHART_METRICS,
   ChartMetric,
@@ -118,16 +118,13 @@ export default function TimeSeriesChart({
       {/* Metric radios — one series at a time; default is the ranked metric. */}
       <div className="flex flex-shrink-0 flex-wrap items-center gap-x-4 gap-y-1 px-3 py-1">
         {CHART_METRICS.map((m) => (
-          <label
-            key={m.key}
-            className={`${TEXT.control} flex cursor-pointer items-center gap-1`}
-          >
+          <label key={m.key} className={CHOICE_ROW}>
             <input
               type="radio"
               name="chart-metric"
               checked={metric === m.key}
               onChange={() => onMetricChange(m.key)}
-              className={ACCENT.input}
+              className={CHOICE_INPUT}
             />
             {m.label}
           </label>

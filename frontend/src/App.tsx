@@ -24,6 +24,7 @@ import {
   RADIUS,
   SURFACE_CARD,
   SURFACE_FLOATING,
+  TAP,
   TEXT,
 } from './styles'
 import { NOUN, familyOf, rankedNoun } from './metrics'
@@ -671,6 +672,15 @@ export default function App() {
     [presented],
   )
 
+  // The window the displayed rows describe, or null when nothing is displayed.
+  // Lifted out of the header's JSX because the same string is both the line and
+  // its own tooltip: a narrow panel ellipsizes it, and a truncated date range
+  // that cannot be recovered is worse than no date range at all.
+  const windowTitle =
+    results.length > 0 && analyzed !== null
+      ? windowCaption(analyzed.kind, analyzed.window.startMs, analyzed.window.endMs, pointSample)
+      : null
+
   // The detail-column sort, held here rather than inside ResultsTable (#125).
   //
   // Clicking one of the four ranking columns re-cuts the whole field through
@@ -828,7 +838,7 @@ export default function App() {
         <button
           onClick={() => setSidebarOpen(false)}
           aria-label="Close controls"
-          className={`absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center ${RADIUS.pill} bg-slate-700/80 text-slate-200 text-xl leading-none hover:bg-slate-600 active:bg-slate-600`}
+          className={`${TAP.action} absolute top-2 right-2 z-10 h-8 w-8 ${RADIUS.pill} bg-slate-700/80 text-slate-200 text-xl leading-none hover:bg-slate-600 active:bg-slate-600`}
         >
           ×
         </button>
@@ -976,7 +986,7 @@ export default function App() {
               <button
                 onClick={() => setSidebarOpen(true)}
                 aria-label="Open controls"
-                className={`${BUTTON_FLOATING} flex flex-shrink-0 items-center gap-2 px-3 py-2`}
+                className={`${BUTTON_FLOATING} ${TAP.action} flex-shrink-0 gap-2 px-3 py-2`}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="3" y1="6" x2="21" y2="6" />
@@ -1064,7 +1074,7 @@ export default function App() {
                     ),
                   )
                 }}
-                className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
+                className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
               >
                 <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
               </div>
@@ -1120,92 +1130,121 @@ export default function App() {
                     }
                   })
                 }
-                className="flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group"
+                className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
               >
                 <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
               </div>
             )}
-            {/* Header */}
-            <div
-              className={`flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
-            >
-              {/* The panel's name, then what is currently in it. The name is
-                  static: it used to be one of "Current Conditions:",
-                  "Forecast:" or "Forecast Table:" depending on the selection,
-                  so the same report renamed itself when you moved the window.
-                  Which selection it was is the caption's job, below.
+            {/* Header. One line when the bar is wide, two when it is not, and
+                never three.
 
-                  Siblings, not nested: the title's weight and color would
-                  otherwise inherit into the ranking, which is the one thing
-                  giving it a different role from the title is meant to stop. */}
-              <span className="flex min-w-0 items-baseline gap-3">
-                <span className={`${TEXT.panelTitle} flex-shrink-0`}>Forecast Table</span>
-                {results.length > 0 && (
-                  <span className={`${TEXT.subheading} truncate`}>
-                    {`${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, pointSample)}`}
-                    {/* Which window these rows describe. A multi-hour analysis
-                        used to say nothing at all here, so someone opening a
-                        shared link had no on-screen statement of the days they
-                        were reading. */}
-                    {analyzed !== null && (
-                      <span className="ml-1.5 font-normal text-slate-400">
-                        {windowCaption(
-                          analyzed.kind,
-                          analyzed.window.startMs,
-                          analyzed.window.endMs,
-                          pointSample,
-                        )}
+                Everything used to sit on one flex line and wrap where it ran
+                out, which on a 412px phone cost three lines and truncated the
+                title to "Forecast Table:…" — the ranking metric is the only
+                reason that line exists. Chrome is not what this panel is for:
+                every line here is a line of ranking nobody gets to read.
+
+                So the bar is two columns that fold. Wide, they run inline and
+                the whole thing is one line. Narrow, each column stacks: what
+                these rows are over which window they cover, the download over
+                the credit, with the chevron beside both. Two lines, never more,
+                because each column has exactly one shrinking member.
+
+                A container query, not a viewport one. This bar's width is the
+                viewport minus the docked sidebar, so a `lg:` breakpoint would
+                fold it on a window that had not changed size and leave it
+                folded on one that had — which is the exact bug #159 removed
+                from the control panel. `@container` asks the bar about itself.
+                The step is measured: one line needs ~740px of content, so it
+                folds below the 768px `@3xl`. */}
+            <div
+              className={`@container flex-shrink-0 px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
+            >
+              <div className="flex items-start gap-2 @3xl:items-baseline">
+                {/* What these rows are, and which window they cover. */}
+                <div className="flex min-w-0 flex-1 flex-col @3xl:flex-row @3xl:items-baseline @3xl:gap-2">
+                  {/* The panel's name, then what is currently in it. The name is
+                      static: it used to be one of "Current Conditions:",
+                      "Forecast:" or "Forecast Table:" depending on the selection,
+                      so the same report renamed itself when you moved the window.
+                      Which selection it was is the caption's job, beside it.
+
+                      Siblings, not nested: the title's weight and color would
+                      otherwise inherit into the ranking, which is the one thing
+                      giving it a different role from the title is meant to stop. */}
+                  <span className="flex min-w-0 items-baseline gap-3">
+                    <span className={`${TEXT.panelTitle} flex-shrink-0`}>Forecast Table</span>
+                    {results.length > 0 && (
+                      <span className={`${TEXT.subheading} truncate`}>
+                        {`${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, pointSample)}`}
                       </span>
                     )}
                   </span>
-                )}
-              </span>
-              {/* A failed fire check used to post a bare amber label here whose
-                  actual explanation was a title attribute, so the consequence
-                  was readable only by hovering the warning. It is now a notice
-                  in the panel beside Analyze, where the panel's other bad news
-                  already goes, carrying the whole sentence. */}
-              {/* CC-BY 4.0 requires this credit beside the data itself, not
-                  just in the privacy modal; the docked header bar keeps it
-                  visible whenever forecasts are on screen. */}
-              <a
-                href="https://open-meteo.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                // Both roles carry a color, and they carry the same one. That
-                // is deliberate rather than redundant: two colors here would
-                // be resolved by stylesheet order, not by the order written.
-                className={`${TEXT.micro} ${LINK} ml-auto mr-2`}
-              >
-                Weather data by Open-Meteo.com
-              </a>
-              {/* Sits after the credit rather than before it so the credit
-                  keeps the one ml-auto in this bar: two of them would split the
-                  free space between the pair instead of pushing both right, and
-                  the credit has to survive on its own when there is nothing to
-                  download. Which is the other condition here — the panel also
-                  opens for un-forecasted pending rows, and a file of empty
-                  cells is not a report. Wearing the same two roles as the
-                  credit because it is the same kind of thing: a quiet aside in
-                  a bar whose subject is the title on its left. */}
-              {results.length > 0 && (
+                  {/* A multi-hour analysis used to say nothing at all here, so
+                      someone opening a shared link had no on-screen statement of
+                      the days they were reading. Carries its own title so the
+                      full range survives the ellipsis a narrow bar puts on it,
+                      and is absent rather than empty when there is nothing to
+                      qualify — an empty row is still a row. */}
+                  {windowTitle !== null && (
+                    <span className={`${TEXT.caption} truncate`} title={windowTitle}>
+                      {windowTitle}
+                    </span>
+                  )}
+                </div>
+                {/* A failed fire check used to post a bare amber label here whose
+                    actual explanation was a title attribute, so the consequence
+                    was readable only by hovering the warning. It is now a notice
+                    in the panel beside Analyze, where the panel's other bad news
+                    already goes, carrying the whole sentence. */}
+                {/* The two asides, stacked narrow and inline wide. Right-aligned
+                    while stacked so they read as one column against the ragged
+                    left one, and never a shrinking member: an ellipsized
+                    attribution is not an attribution.
+
+                    The credit is CC-BY 4.0's, and it is required beside the data
+                    rather than only in the document pages — the docked bar keeps
+                    it on screen whenever forecasts are. The licence asks for the
+                    creator and a link to them, and names no phrase, so the words
+                    "Weather data by" were 70px of a phone's width buying nothing
+                    the link itself does not already say.
+
+                    It also survives on its own: the panel opens for
+                    un-forecasted pending rows too, and a file of empty cells is
+                    not a report, so Download CSV is the conditional one.
+
+                    Both roles carry a color, and they carry the same one. That
+                    is deliberate rather than redundant: two colors here would be
+                    resolved by stylesheet order, not by the order written. */}
+                <div className="flex shrink-0 flex-col items-end @3xl:flex-row @3xl:items-baseline @3xl:gap-3">
+                  {results.length > 0 && (
+                    <button
+                      onClick={handleDownloadCsv}
+                      title="Download these results as a CSV file"
+                      aria-label="Download these results as a CSV file"
+                      className={`${TEXT.micro} ${LINK} cursor-pointer whitespace-nowrap`}
+                    >
+                      Download CSV
+                    </button>
+                  )}
+                  <a
+                    href="https://open-meteo.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`${TEXT.micro} ${LINK} whitespace-nowrap`}
+                  >
+                    Open-Meteo.com
+                  </a>
+                </div>
                 <button
-                  onClick={handleDownloadCsv}
-                  title="Download these results as a CSV file"
-                  aria-label="Download these results as a CSV file"
-                  className={`${TEXT.micro} ${LINK} mr-2 cursor-pointer`}
+                  onClick={() => setTableCollapsed((c) => !c)}
+                  title={tableCollapsed ? 'Expand the table' : 'Collapse the table'}
+                  aria-label={tableCollapsed ? 'Expand the forecast table' : 'Collapse the forecast table'}
+                  className={`${ICON_BUTTON} shrink-0 self-start px-1 @3xl:self-baseline`}
                 >
-                  Download CSV
+                  <Chevron up={tableCollapsed} />
                 </button>
-              )}
-              <button
-                onClick={() => setTableCollapsed((c) => !c)}
-                title={tableCollapsed ? 'Expand the table' : 'Collapse the table'}
-                aria-label={tableCollapsed ? 'Expand the forecast table' : 'Collapse the forecast table'}
-                className={ICON_BUTTON}
-              >
-                <Chevron up={tableCollapsed} />
-              </button>
+              </div>
             </div>
             {/* Scrollable table. One container owns BOTH axes: if a nested
                 element scrolled horizontally instead, its scrollbar would sit

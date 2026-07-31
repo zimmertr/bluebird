@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { Place, parseCoordinates, searchPlaces } from '../utils/geocode'
-import { ACCENT, ACCENT_RING, RADIUS, SPINNER, STATUS, SURFACE_FLOATING, TEXT } from '../styles'
+import {
+  ACCENT,
+  ACCENT_RING,
+  ICON_BUTTON,
+  RADIUS,
+  SPINNER,
+  STATUS,
+  SURFACE_FLOATING,
+  TAP,
+  TEXT,
+} from '../styles'
 
 interface Props {
   onSelect: (place: Place) => void
@@ -116,8 +126,13 @@ export default function SearchBox({ onSelect, pointed = false }: Props) {
       ref={rootRef}
       className={`relative ${RADIUS.surface} transition-shadow ${pointed ? ACCENT_RING : ''}`}
     >
+      {/* The box takes the target, not the input inside it. These two float
+          side by side over the map and are the same kind of object, so on a
+          phone they are the same height: TAP.height here, TAP.action on the
+          Controls button, both landing on 44. Sizing the input instead grew
+          the box by its own padding and overshot. */}
       <div
-        className={`${SURFACE_FLOATING} flex items-center gap-2 px-2.5 py-2 transition-colors ${ACCENT.edgeFocus}`}
+        className={`${SURFACE_FLOATING} ${TAP.height} flex items-center gap-2 px-2.5 py-2 transition-colors ${ACCENT.edgeFocus}`}
       >
         <svg
           width="15"
@@ -160,7 +175,7 @@ export default function SearchBox({ onSelect, pointed = false }: Props) {
           <button
             onClick={clear}
             aria-label="Clear search"
-            className="flex-shrink-0 text-slate-400 hover:text-white text-base leading-none"
+            className={`${ICON_BUTTON} flex-shrink-0 text-base leading-none`}
           >
             ×
           </button>
@@ -187,7 +202,7 @@ export default function SearchBox({ onSelect, pointed = false }: Props) {
               <button
                 onClick={() => pick(p)}
                 onMouseEnter={() => setHighlight(i)}
-                className={`w-full px-3 py-2 text-left transition-colors ${
+                className={`${TAP.height} w-full px-3 py-2 text-left transition-colors ${
                   i === highlight ? 'bg-slate-700/30' : ''
                 }`}
               >

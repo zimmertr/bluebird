@@ -7,7 +7,7 @@ import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
 import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
-import { ACCENT, ICON_ACTION, LINK_ACTION, TEXT } from '../styles'
+import { ACCENT, CHOICE_INPUT, ICON_ACTION, LINK_ACTION, TABLE, TEXT } from '../styles'
 import { RANKING_KEYS } from '../metrics'
 
 function windyUrl(lat: number, lon: number, layer: string): string {
@@ -37,7 +37,7 @@ function ExternalLinkIcon() {
 // both — the row-remove rule in index.css). `rank` is "—" for pending rows.
 function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; onRemove?: () => void }) {
   return (
-    <td className="px-2 py-1.5 tabular-nums whitespace-nowrap">
+    <td className={`${TABLE.cell} tabular-nums whitespace-nowrap`}>
       {onRemove ? (
         <>
           <span className="text-slate-400 group-hover:hidden">{rank}</span>
@@ -45,7 +45,7 @@ function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; 
             onClick={onRemove}
             title="Remove from the results"
             aria-label={`Remove ${name}`}
-            className="row-remove hidden group-hover:inline leading-none text-slate-400 hover:text-slate-200 cursor-pointer"
+            className={"row-remove hidden group-hover:inline leading-none text-slate-400 hover:text-slate-200 cursor-pointer"}
           >
             ×
           </button>
@@ -199,7 +199,7 @@ export default function ResultsTable({
         onChange={() => handleChartToggle(row)}
         title="Add to the comparison chart (shift-click to select a range)"
         aria-label={`Chart ${row.name}`}
-        className={`cursor-pointer align-middle ${ACCENT.input}`}
+        className={CHOICE_INPUT}
         style={on && chartColor ? { accentColor: chartColor(row) } : undefined}
       />
     )
@@ -215,7 +215,7 @@ export default function ResultsTable({
       const isColored = coloredGroup.has(col.key as string) && sortVal != null
       // Color comes from the table's own base, or inline from cellStyle for a
       // ranked column — an inline color beats the inherited one either way.
-      const cellClass = `px-2 py-1.5 whitespace-nowrap ${
+      const cellClass = `${TABLE.cell} whitespace-nowrap ${
         col.key === 'name' ? 'font-sans font-medium' : 'font-mono'
       }`
       const colorSty = isColored ? cellStyle(sortVal as number, sortBy) : undefined
@@ -264,7 +264,7 @@ export default function ResultsTable({
               href={windyUrl(row.latitude, row.longitude, col.windyLayer)}
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:underline cursor-pointer"
+              className={"hover:underline cursor-pointer"}
             >
               {display}
             </a>
@@ -290,7 +290,7 @@ export default function ResultsTable({
         <thead className="sticky top-0 bg-slate-700 z-10">
           <tr>
             {showChartCol && (
-              <th className="w-6 px-2 py-2">
+              <th className={`${TABLE.head} w-6`}>
                 {onChartRange && chartableRows.length > 0 && (
                   <input
                     type="checkbox"
@@ -303,19 +303,19 @@ export default function ResultsTable({
                     onChange={() => onChartRange(chartableRows, headState !== 'all')}
                     title="Add or remove every destination on the comparison chart"
                     aria-label="Chart all destinations"
-                    className={`cursor-pointer align-middle ${ACCENT.input}`}
+                    className={CHOICE_INPUT}
                   />
                 )}
               </th>
             )}
-            <th scope="col" className={`${TEXT.subheading} px-2 py-2 text-left w-6`}>#</th>
+            <th scope="col" className={`${TABLE.head} w-6`}>#</th>
             {orderedColumns.map((col) => (
               <th
                 key={col.key}
                 scope="col"
                 aria-sort={detailSortKey === col.key ? (detailSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                 onClick={() => handleSort(col.key)}
-                className={`${TEXT.subheading} px-2 py-2 text-left cursor-pointer whitespace-nowrap hover:text-white select-none`}
+                className={`${TABLE.head} cursor-pointer whitespace-nowrap hover:text-white select-none`}
               >
                 {col.label}
                 {detailSortKey === col.key && (
@@ -331,7 +331,7 @@ export default function ResultsTable({
               key={`pending-${d.latitude},${d.longitude}`}
               className="group border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors"
             >
-              {showChartCol && <td className="px-2 py-1.5" />}
+              {showChartCol && <td className={TABLE.cell} />}
               <RankRemoveCell
                 rank="—"
                 name={d.name}
@@ -342,7 +342,7 @@ export default function ResultsTable({
               {orderedColumns.map((col) => {
                 if (col.key === 'name') {
                   return (
-                    <td key={col.key} className="px-2 py-1.5 whitespace-nowrap font-sans font-medium">
+                    <td key={col.key} className={`${TABLE.cell} whitespace-nowrap font-sans font-medium`}>
                       <span className="flex items-center gap-1.5">
                         {d.name}
                         <a
@@ -367,13 +367,13 @@ export default function ResultsTable({
                 }
                 if (col.key === 'elevation_ft') {
                   return (
-                    <td key={col.key} className="px-2 py-1.5 whitespace-nowrap font-mono">
+                    <td key={col.key} className={`${TABLE.cell} whitespace-nowrap font-mono`}>
                       {d.elevation_ft != null ? d.elevation_ft.toLocaleString() : '—'}
                     </td>
                   )
                 }
                 return (
-                  <td key={col.key} className="px-2 py-1.5 whitespace-nowrap font-mono text-slate-400">
+                  <td key={col.key} className={`${TABLE.cell} whitespace-nowrap font-mono text-slate-400`}>
                     —
                   </td>
                 )
@@ -385,7 +385,7 @@ export default function ResultsTable({
               key={`${row.name}-${i}`}
               className="group border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors"
             >
-              {showChartCol && <td className="px-2 py-1.5">{renderChartToggle(row)}</td>}
+              {showChartCol && <td className={TABLE.cell}>{renderChartToggle(row)}</td>}
               <RankRemoveCell
                 rank={String(i + 1)}
                 name={row.name}

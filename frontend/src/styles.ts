@@ -168,6 +168,60 @@ export const RADIUS = {
 } as const
 
 /**
+ * How big a thing you can hit, sized for the pointer rather than the viewport.
+ *
+ * WCAG 2.2 asks for two different numbers and it matters which one this is.
+ * SC 2.5.8 *Target Size (Minimum)* is the AA bar at 24x24 CSS px, with an
+ * exception where spacing does the work. SC 2.5.5 *Target Size (Enhanced)* is
+ * AAA at 44x44, which is also Apple's 44pt and the nearest web equivalent of
+ * Material's 48dp. Bluebird takes the 44, and takes it where a control stands
+ * in its own space: the control panel, the calendar, the map chrome.
+ *
+ * It does **not** reach into the results panel — not the table's rows, not the
+ * two header bars, not the search field. Those are surfaces you read rather
+ * than operate, and every pixel a control takes there is a pixel of ranking or
+ * of map that a phone stops showing. A 44px table row costs about eight rows
+ * of a phone's ranking; a 44px chevron costs its bar permanently. The
+ * exception is deliberate and it is the whole reason the rule is written down
+ * here rather than inferred from whatever each component happened to do.
+ *
+ * Coarse pointers only, for the reason `touch` exists at all (index.css): the
+ * panel is 320px wide at every breakpoint, so a viewport query re-spaces it on
+ * a desktop window that never changed size. A mouse keeps today's density.
+ *
+ * The lesson of #159 was not "no touch sizing" — it was "not one control at a
+ * time". A coarse-pointer padding on the ranking rows and nothing else is what
+ * broke the panel's rhythm. So these compose into the shared recipes (BUTTON_*,
+ * FIELD, CHOICE_ROW, SEGMENT_ITEM, ICON_BUTTON, DAY.cell) and a component
+ * never writes one: `styles.test.ts` fails any source that spells a `touch:`
+ * utility of its own.
+ *
+ * `min-h` rather than padding, because padding has to be re-derived per font
+ * size to land on the same number — which is how BUTTON_PRIMARY's `py-3` came
+ * to be the only control in the app that actually met the target.
+ *
+ * The keys are layouts, not sizes. Three reach 44 by different routes, because
+ * three kinds of control lay their contents out differently and one display
+ * value would have been wrong for two of them.
+ */
+export const TAP = {
+  /** A button: grow the box, keep its own label centered inside it. */
+  action: 'touch:min-h-11 touch:min-w-11 flex items-center justify-center',
+  /** A left-aligned strip — a label and its radio. Growing it is the point; centering it would move the label. */
+  row: 'touch:min-h-11 flex items-center',
+  /** Height alone, for anything that already lays its own content out: a two-line list item. */
+  height: 'touch:min-h-11',
+  /**
+   * A full-width drag handle (the chart/table resizers). The AA floor rather
+   * than the 44, because only the vertical axis is scarce here and a 44px bar
+   * between two panels would cost more than the grab it buys. It is also the
+   * only place a finger has no alternative at all: the panels have no other
+   * resize affordance, where a small chevron at least still collapses.
+   */
+  grip: 'touch:min-h-6',
+} as const
+
+/**
  * Boxes that float over the map: the search field and its dropdown, the
  * Controls button, the legends, the chart tooltip.
  *
@@ -276,9 +330,19 @@ export const ACCENT = {
  * out separately is exactly how the button and the blocks it is supposed to
  * match ended up one shade apart, and how #167's contrast bug outlived the
  * sweep that was meant to catch it.
+ *
+ * Its own coarse-pointer padding is gone. It reached 44px by a number derived
+ * from this role's font size, so it was a target only as long as nobody
+ * restyled the label. `TAP.action` states the 44 directly, and states it the
+ * same way as every other control in the app (#160).
+ *
+ * The utility itself is deliberately not named above. v4 scans this file as
+ * raw text, so quoting a class we just deleted puts its CSS back in the
+ * bundle — the same trap the RADIUS comment warns about, and one this change
+ * fell into before the built stylesheet was read.
  */
 export const BUTTON_PRIMARY =
-  `${TEXT.cta} w-full py-2.5 touch:py-3 ${RADIUS.surface} transition-colors ` +
+  `${TEXT.cta} ${TAP.action} w-full py-2.5 ${RADIUS.surface} transition-colors ` +
   `${ACCENT.fill} ${ACCENT.fillHover}`
 
 /**
@@ -291,11 +355,12 @@ export const BUTTON_PRIMARY =
  * one on the overlay for the same kind of action. Buttons in this app are
  * fills and fields are bordered, so the fill stays and the border goes.
  *
- * Deliberately no coarse-pointer padding: sizing tap targets is #160's job,
- * and doing it one control at a time is what broke the panel's rhythm before.
+ * It carries `TAP.action` now, which is what #160 was waiting for: the whole
+ * point of deferring it was to size every control in one pass rather than
+ * leave a second one padded on its own.
  */
 export const BUTTON_SECONDARY =
-  `${TEXT.control} px-3 py-1.5 ${RADIUS.control} transition-colors ` +
+  `${TEXT.control} ${TAP.action} px-3 py-1.5 ${RADIUS.control} transition-colors ` +
   'bg-slate-700 hover:bg-slate-600'
 
 /**
@@ -312,8 +377,9 @@ export const BUTTON_SECONDARY =
  * second color utility here would race the red one by stylesheet order.
  */
 export const BUTTON_DANGER =
-  `text-xs w-full py-1.5 ${RADIUS.control} font-medium transition-colors ` +
-  'text-red-200 bg-red-900/60 hover:bg-red-800 border border-red-700'
+  `text-xs ${TAP.action} w-full py-1.5 ${RADIUS.control} font-medium transition-colors ` +
+  'text-red-200 bg-red-900/60 hover:bg-red-800 border border-red-700 ' +
+  'disabled:opacity-40 disabled:cursor-not-allowed'
 
 /**
  * A button floating over the map rather than sitting in a panel: today, the
@@ -348,7 +414,7 @@ export const BANNER_PREVIEW =
 export const ICON_ACTION = `text-slate-500 ${ACCENT.hoverText}`
 
 /** A bare icon button in a header: the chart and table collapse chevrons. */
-export const ICON_BUTTON = 'px-1 text-slate-400 hover:text-white'
+export const ICON_BUTTON = 'px-1 text-slate-400 hover:text-white transition-colors'
 
 /**
  * The indeterminate spinner: the search box while a lookup is in flight.
@@ -367,6 +433,46 @@ export const SPINNER =
  * lookalike that drifted — the hazard #159-#165 spent five PRs on.
  */
 export const SEGMENT_IDLE = 'bg-slate-900 text-slate-400 hover:text-slate-200'
+
+/**
+ * The geometry the two halves sit in, which had been spelled out twice.
+ *
+ * Naming the colors (above) and leaving the box at the call site is how the
+ * pair stayed a lookalike anyway: the ranking toggle and the calendar's Hours
+ * toggle each wrote their own border, radius, overflow and padding, and were
+ * byte-equivalent by luck rather than by construction. A segment is also the
+ * shortest control in the panel at 20px, so it is where the tap-target rule
+ * has the most to fix — and it can only be fixed once if the box is one thing.
+ *
+ * No color here: the halves are `ACCENT.fill` and `SEGMENT_IDLE`, so a color
+ * in this recipe would be a third one competing with them by stylesheet order.
+ */
+export const SEGMENT = `flex ${RADIUS.control} overflow-hidden border border-slate-600`
+export const SEGMENT_ITEM = `${TAP.action} px-2 py-0.5 text-xs transition-colors`
+/** Between two halves, never before the first. */
+export const SEGMENT_DIVIDER = 'border-l border-slate-600'
+
+/**
+ * A radio or checkbox and the words naming it, as one strip.
+ *
+ * The panel had four of these (destination type, the four ranking metrics,
+ * Show Wildfires, the chart's metric radios) at three different gaps, and the
+ * 14px box was the target in all four — the label beside it was clickable, but
+ * only as tall as its own text. `TAP.row` grows the strip instead, which is
+ * the affordance a full-width row already implied.
+ *
+ * The text role lives here rather than on an inner span, so a row cannot be
+ * built that reads at a different size than the others.
+ *
+ * The disabled look is the role's too, keyed off the control it wraps. A call
+ * site that spelled `cursor-not-allowed` beside this would be betting on which
+ * of two `cursor` utilities Tailwind emitted last, and class order is not what
+ * decides that. As a variant it sorts after the base rule and simply wins.
+ */
+export const CHOICE_ROW =
+  `${TEXT.control} ${TAP.row} gap-2.5 cursor-pointer ` +
+  'has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40'
+export const CHOICE_INPUT = `${ACCENT.input} flex-shrink-0 cursor-pointer align-middle`
 
 /**
  * Status color, for the lines the type ramp deliberately does not cover.
@@ -506,6 +612,15 @@ export const SURFACE_GROUP = `border border-slate-500 ${RADIUS.surface}`
  * (today is frequently also selected). slate-400 clears the 3:1 for a boundary.
  */
 export const DAY = {
+  /**
+   * The cell box itself. Seven columns inside a ~272px card is ~38px wide, and
+   * the drawer is 320px on every phone, so this is the one control in the app
+   * that cannot reach 44 on both axes — the width has nowhere to come from
+   * short of a wider panel, which would cost more than it buys. Height it can
+   * have, and a calendar's mis-taps are overwhelmingly vertical: the columns
+   * are a whole finger apart in meaning (a week) while the rows are a day.
+   */
+  cell: 'flex h-9 touch:h-11 items-center justify-center',
   full: 'text-slate-200 hover:bg-slate-700',
   partial: 'text-slate-400 hover:bg-slate-700',
   unservable: 'text-slate-600',
@@ -524,8 +639,25 @@ export const DAY = {
  *
  * Padding stays at the call site: a textarea and a one-line input want
  * different insets, and a second padding utility here would collide with
- * theirs rather than override it.
+ * theirs rather than override it. The tap target does *not* — `TAP.height` is
+ * a minimum, so it composes with either inset instead of fighting it, which is
+ * the whole reason the rule is written as a height and not as padding.
  */
 export const FIELD =
-  `${TEXT.control} bg-slate-900 border border-slate-600 ${RADIUS.control} ` +
+  `${TEXT.control} ${TAP.height} bg-slate-900 border border-slate-600 ${RADIUS.control} ` +
   'focus:outline-none focus:border-sky-500 placeholder-slate-400'
+
+/**
+ * The results grid's two cell insets, which had been spelled out ten times
+ * across one file.
+ *
+ * A row is 28px and stays 28px: this is the one surface that holds the 24px AA
+ * floor (`TAP.dense`) rather than the app's 44, because the ranking is the
+ * thing the phone is there to read and 44px rows would show 13 of them instead
+ * of 21. The controls living in a cell — the remove ×, the chart checkbox, the
+ * destination link — get the floor; the row keeps its density.
+ */
+export const TABLE = {
+  cell: 'px-2 py-1.5',
+  head: `${TEXT.subheading} px-2 py-2 text-left`,
+} as const

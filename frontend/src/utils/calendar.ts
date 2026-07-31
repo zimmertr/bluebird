@@ -422,7 +422,9 @@ export function windowPhrase(startMs: number, endMs: number, pointSample: boolea
  * A multi-hour analysis used to carry no caption at all, so someone opening a
  * shared link had nothing on screen telling them which days they were reading.
  * The click-time sample keeps its own wording: it says when it was taken, where
- * a chosen window says what was asked for.
+ * a chosen window simply names itself. The window carries no "for": it sits
+ * under the line it qualifies rather than after it, so the preposition had
+ * nothing to attach to and was costing a phone real width.
  */
 export function windowCaption(
   kind: SelectionKind,
@@ -431,7 +433,7 @@ export function windowCaption(
   pointSample: boolean,
 ): string {
   if (kind === 'now') return `as of ${clockTime(startMs)}`
-  return `for ${windowPhrase(startMs, endMs, pointSample)}`
+  return windowPhrase(startMs, endMs, pointSample)
 }
 
 /**

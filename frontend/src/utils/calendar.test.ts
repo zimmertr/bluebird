@@ -449,7 +449,7 @@ describe('saying what is selected', () => {
     )
     expect(
       windowCaption('days', localMs('2026-07-15T00:00'), localMs('2026-07-19T23:59'), false),
-    ).toBe('for Wed, Jul 15 to Sun, Jul 19')
+    ).toBe('Wed, Jul 15 to Sun, Jul 19')
   })
 
   it('recognizes a whole-day span by its edges', () => {
