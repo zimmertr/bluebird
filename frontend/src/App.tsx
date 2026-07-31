@@ -820,6 +820,7 @@ export default function App() {
           }}
           onRetryTopByElevation={retryTopByElevation}
           maxLimit={caps.maxLimit}
+          maxAreaKm2={caps.maxPolygonAreaKm2}
           totalFound={response?.total_found}
           truncated={response?.truncated}
           aqiAllNull={
