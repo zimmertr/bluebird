@@ -23,6 +23,7 @@ import {
   formatMetricValue,
   nearestKey,
   pixelToValue,
+  tracksCursor,
   valueAt,
 } from '../utils/chartData'
 
@@ -64,6 +65,11 @@ export default function TimeSeriesChart({
   // per render rather than memoized: the grid is fixed for the analysis, so this
   // only moves when the clock crosses an hour the chart is already drawing.
   const nowMs = nowWithinGrid(times, Date.now())
+  // Whether hovering may emphasize the nearest line. Past the budget it may not:
+  // the re-render rebuilds every line's path from every point, and the chart ends
+  // up lagging seconds behind the pointer. It falls back to a plain shared
+  // tooltip, and comes back on as soon as fewer lines are charted. See tracksCursor.
+  const followCursor = tracksCursor(times.length, aligned.length)
   // Memoized because hovering re-renders: handleMove below stores the cursor's
   // value and the nearest line in state, so every mouse movement that changes
   // either one lands here again. Neither of these depends on that state, and
@@ -130,7 +136,12 @@ export default function TimeSeriesChart({
 
       <div ref={plotRef} className="min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={MARGIN} onMouseMove={handleMove} onMouseLeave={handleLeave}>
+          <LineChart
+            data={data}
+            margin={MARGIN}
+            onMouseMove={followCursor ? handleMove : undefined}
+            onMouseLeave={followCursor ? handleLeave : undefined}
+          >
             <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
             <XAxis
               dataKey="t"

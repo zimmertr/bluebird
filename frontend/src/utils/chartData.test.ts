@@ -4,6 +4,7 @@ import {
   alignRowToGrid,
   axisTimeLabel,
   nowWithinGrid,
+  tracksCursor,
   buildChartData,
   chartKey,
   computeYDomain,
@@ -266,5 +267,53 @@ describe('nowWithinGrid', () => {
   it('reports nothing for a one-stamp grid, or none at all', () => {
     expect(nowWithinGrid([t0], t0)).toBeNull()
     expect(nowWithinGrid([], t0)).toBeNull()
+  })
+})
+
+// The cap exists because hovering rebuilds every line's path from every point, so
+// the two variables multiply. Calibrated against the running app; the numbers
+// below are the maintainer's own verdicts at the boundary.
+describe('tracksCursor', () => {
+  it('follows the cursor through the sizes that read as smooth', () => {
+    expect(tracksCursor(624, 25)).toBe(true) // 15,600 points, satisfactory
+    expect(tracksCursor(840, 25)).toBe(true) // 21,000, satisfactory
+  })
+
+  // 26,400 was read as "starting to degrade" and is still admitted: the cap was
+  // set above that band deliberately, trading a little smoothness at the top end
+  // for keeping the emphasis on more reports. Moving the cap to ~25,000 is the
+  // one-line change if that trade ever reads wrong.
+  it('admits the band that only starts to degrade, and stops past it', () => {
+    expect(tracksCursor(1056, 25)).toBe(true) // 26,400
+    expect(tracksCursor(1464, 25)).toBe(false) // 36,600
+    expect(tracksCursor(2208, 20)).toBe(false) // 44,160, the case needing a limit
+  })
+
+  // Shape independence, checked in the app at 19,200 points across three very
+  // different shapes: the product is the variable, not either term on its own.
+  it('judges by the product, not by lines or hours alone', () => {
+    expect(tracksCursor(192, 100)).toBe(true) // 100 lines, 8 days
+    expect(tracksCursor(384, 50)).toBe(true) // 50 lines, 16 days
+    expect(tracksCursor(960, 20)).toBe(true) // 20 lines, 40 days
+    // Many lines alone is fine, and many hours alone is fine; together they are not.
+    expect(tracksCursor(24, 200)).toBe(true)
+    expect(tracksCursor(2544, 5)).toBe(true)
+    expect(tracksCursor(2544, 100)).toBe(false)
+  })
+
+  // Both edges of the cap, so a change to it has to be deliberate.
+  it('admits exactly the budget and refuses one point past it', () => {
+    expect(tracksCursor(35_000, 1)).toBe(true)
+    expect(tracksCursor(35_001, 1)).toBe(false)
+  })
+
+  it('charges for hours rather than days, so a narrowed window buys back the emphasis', () => {
+    // 30 whole days at 50 lines is over; the same days narrowed to 12 hours is not.
+    expect(tracksCursor(30 * 24, 50)).toBe(false) // 36,000
+    expect(tracksCursor(30 * 12, 50)).toBe(true) // 18,000
+  })
+
+  it('is unbothered by an empty chart', () => {
+    expect(tracksCursor(0, 0)).toBe(true)
   })
 })
