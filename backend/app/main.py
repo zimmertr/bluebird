@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -17,6 +18,7 @@ from app.routes.destinations import router as destinations_router
 from app.routes.geocode import router as geocode_router
 from app.routes.notfound import router as notfound_router
 from app.routes.version import router as version_router
+from app.routes.wildfires import router as wildfires_router
 from app.version import get_version
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
@@ -121,6 +123,15 @@ _TAGS = [
         "name": "search",
         "description": "Look up a place by name, proxied to Nominatim.",
     },
+    {
+        "name": "wildfires",
+        "description": (
+            "Active US wildfire perimeters, cached from NIFC. Served from this "
+            "instance's snapshot rather than proxied per request, because the "
+            "upstream quota is NIFC's and shared with every other consumer of "
+            "the public dataset."
+        ),
+    },
 ]
 
 app = FastAPI(
@@ -150,6 +161,11 @@ app = FastAPI(
 # it work unchanged in local dev, a PR preview, and production. Pinning it to
 # the production URL would make a local /docs fire real requests at the live
 # site.
+
+# A national wildfire viewport is the largest body this API serves: ~1.3 MB of
+# perimeter geometry that compresses to ~350 KB. Everything else here is small
+# enough that the 1 KB floor skips it, so this costs nothing on the common path.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 app.add_middleware(
     CORSMiddleware,
@@ -192,6 +208,7 @@ app.include_router(config_router, prefix="/api")
 app.include_router(geocode_router, prefix="/api")
 app.include_router(version_router, prefix="/api")
 app.include_router(capabilities_router, prefix="/api")
+app.include_router(wildfires_router, prefix="/api")
 # Must stay last of the /api routers: it matches every path under the prefix, so
 # anything registered after it would be unreachable.
 app.include_router(notfound_router, prefix="/api")

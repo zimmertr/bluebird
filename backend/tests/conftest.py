@@ -16,7 +16,7 @@ import pytest
 # run like `pytest tests/test_osm.py` used to fail on the missing attribute.
 from app import main as _main  # noqa: F401
 from app import ratelimit
-from app.services import cache, osm
+from app.services import cache, nifc, osm
 
 
 @pytest.fixture(autouse=True)
@@ -24,6 +24,7 @@ def _rate_limiting_off(monkeypatch):
     monkeypatch.setattr(ratelimit, "ANALYZE_LIMITER", ratelimit.RateLimiter(0, 1))
     monkeypatch.setattr(ratelimit, "DESTINATIONS_LIMITER", ratelimit.RateLimiter(0, 1))
     monkeypatch.setattr(ratelimit, "GEOCODE_LIMITER", ratelimit.RateLimiter(0, 1))
+    monkeypatch.setattr(ratelimit, "WILDFIRES_LIMITER", ratelimit.RateLimiter(0, 1))
     monkeypatch.setattr(
         ratelimit,
         "NOMINATIM_GATE",
@@ -51,6 +52,20 @@ def _no_live_enrichment(monkeypatch):
         return [dict(d) for d in destinations]
 
     monkeypatch.setattr(osm, "enrich_custom", passthrough)
+
+
+@pytest.fixture(autouse=True)
+def _no_live_wildfires(monkeypatch):
+    """The wildfire cache reaches NIFC on its first miss, so it is neutered by
+    default: a route test that forgot to stub would otherwise make a live call
+    and pass or fail on the network. Failing the fetch leaves the route on its
+    never-fetched path, which is a deterministic 503. Tests that mean to
+    exercise it install their own cache (test_nifc.py)."""
+
+    async def refuse():
+        raise AssertionError("test reached NIFC; install a stub PerimeterCache")
+
+    monkeypatch.setattr(nifc, "PERIMETERS", nifc.PerimeterCache(fetch=refuse))
 
 
 @pytest.fixture(autouse=True)

@@ -9,7 +9,7 @@ When a full server-side analysis runs (an API caller, or that fallback), the bac
 3. Batches the matched destinations into Open-Meteo weather and air-quality requests, all fired concurrently with `asyncio.gather`.
 4. Sorts by the requested metric and returns the top N.
 
-Because the browser talks to Open-Meteo itself (as it already does to NIFC for the wildfire overlay), those services see each visitor's IP address and the coordinates being analyzed — the same information the server would otherwise send on the visitor's behalf.
+Because the browser talks to Open-Meteo itself, that service sees each visitor's IP address and the coordinates being analyzed — the same information the server would otherwise send on the visitor's behalf. Wildfire perimeters are the exception among the browser-side data sources: they are fetched by the server into a shared snapshot (`app/services/nifc.py`) and served from `GET /api/wildfires`, because NIFC's quota belongs to NIFC's ArcGIS organization and is shared with every other consumer of the public dataset, so per-visitor requests competed for a resource none of them could see. See [DATA.md](DATA.md#wildfires).
 
 The whole thing builds as a single multi-stage Docker image:
 

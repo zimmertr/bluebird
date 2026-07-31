@@ -7,7 +7,7 @@
 | [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly US AQI | Free (non-commercial) | None |
 | [OpenFreeMap](https://openfreemap.org) | Vector map tiles | Free | None |
 | [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
-| [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) | Active wildfire perimeters, United States only | Free | None |
+| [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) | Active wildfire perimeters, United States only | Free (quota shared across all consumers) | None |
 
 Every one of these is free, keyless, and paid for by somebody else. The table
 says what each one provides. It cannot say what the numbers coming back
@@ -135,42 +135,51 @@ of running in your browser the way the weather fetch does.
 ## Wildfires
 
 The optional perimeter overlay and the proximity warnings on result rows both
-come from NIFC's WFIGS service, fetched by your browser. The warnings run after
-every analysis whether or not the overlay is switched on, and measure to the
-fire perimeter rather than its centroid, because a large fire's centroid can
-sit many miles inside its own edge.
+come from NIFC's WFIGS service. The warnings run after every analysis whether or
+not the overlay is switched on, and measure to the fire perimeter rather than
+its centroid, because a large fire's centroid can sit many miles inside its own
+edge.
 
-The overlay and the warnings are two different queries, which is why you can
-sometimes see fire outlines on the map while no row is flagged. The overlay asks
-about the area you are looking at and accepts simplified outlines, so it is
-small and refetches as you pan. The warnings ask about the area your
-destinations occupy, padded by the warning radius, and take perimeters at full
-resolution because simplifying them would move the edge the distance is measured
-to. One is cheap and repeated; the other is larger and runs once per analysis.
+Both read from **Bluebird's copy of the dataset, not from NIFC directly**. The
+server holds one snapshot of every active perimeter in the country and refreshes
+it on a timer, so the number of requests reaching NIFC is a fixed handful per
+hour no matter how many people are looking at maps, and no visitor's warning
+depends on a request of their own succeeding.
+
+That indirection exists because of how the upstream quota works. NIFC meters a
+**per-minute request quota belonging to its own ArcGIS organization**, shared by
+every consumer of this public dataset, so it can be exhausted by traffic that
+has nothing to do with Bluebird. It rejects over-quota queries in an unusual
+way: HTTP 200, with the refusal in the response body, so nothing about the
+status code says anything went wrong. When each browser asked NIFC for itself,
+that made warnings appear and vanish between one analysis and the next, on a
+resource nobody involved could see or influence.
+
+Perimeters are served **past their refresh deadline** when NIFC is unreachable,
+rather than expiring into nothing. A perimeter mapped an hour ago still answers
+a ten-mile proximity question correctly, so withholding it would trade a good
+answer for no answer.
+
+Hovering a fire dates the perimeter: **Perimeter revised** is when NIFC last
+surveyed that incident, which is a fact about the fire and not about Bluebird.
+It routinely runs days old on a fire that is burning right now, which is normal
+for a surveyed product and not a sign of stale data on this end. If you are
+calling the API directly, the response also carries `fetched_at`, saying how
+current the copy itself is; see [API.md](API.md#wildfire-perimeters).
 
 WFIGS is the authoritative national dataset and it is **United States only**.
 Outside the US the query returns nothing, which draws as an empty overlay and
 warns on no rows, and that is indistinguishable from "nothing burning nearby."
 
-The service meters a **per-minute request quota belonging to NIFC's own ArcGIS
-organization**, shared by every consumer of this public dataset, so it can be
-exhausted by traffic that has nothing to do with Bluebird. It rejects over-quota
-queries in an unusual way: HTTP 200, with the refusal in the response body, so
-nothing about the status code says anything went wrong. That is what makes the
-warnings come and go over minutes while the overlay keeps drawing, and it is why
-Bluebird does not retry that particular failure. ArcGIS asks for a 60 second
-wait, which is longer than anyone will hold a results table for, and the extra
-attempts would spend units belonging to every other caller.
-
-Both features are best-effort, but a failed check is no longer silent. Other
-failures retry briefly, and if the check still cannot run, the results header
-says **Wildfire check unavailable** and a downloaded CSV omits its wildfire
-column rather than leaving it blank on every row. Running Analyze again asks
-afresh, which is the way to recover once the quota window has passed. A blank cell in that column
-means the check ran and found nothing within the radius; an absent column means
-no destination was checked at all. The distinction matters more in a file than
-on screen, because a file is read later, somewhere else, with nothing beside it
-to say the check never happened. Perimeters are a surveyed product with
-reporting lag, so read them as where a fire has been mapped, not where it is
-burning right now. For decisions about an active incident, use
+Both features remain best-effort, and a failed check is not silent. The results
+header says **Wildfire check unavailable** and a downloaded CSV omits its
+wildfire column rather than leaving it blank on every row. Reaching that state
+now requires a server that has never once completed a fetch since it started,
+rather than a single unlucky request. A blank cell in that column means the
+check ran and found nothing within the radius; an absent column means no
+destination was checked at all. The distinction matters more in a file than on
+screen, because a file is read later, somewhere else, with nothing beside it to
+say the check never happened. Perimeters are a surveyed product with reporting
+lag, so read them as where a fire has been mapped, not where it is burning right
+now. For decisions about an active incident, use
 [InciWeb](https://inciweb.wildfire.gov) and the responsible agency.

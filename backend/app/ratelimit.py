@@ -64,6 +64,14 @@ RATE_LIMIT_DESTINATIONS_PER_MINUTE = _env_int("RATE_LIMIT_DESTINATIONS_PER_MINUT
 RATE_LIMIT_DESTINATIONS_BURST = _env_int("RATE_LIMIT_DESTINATIONS_BURST", 10)
 RATE_LIMIT_GEOCODE_PER_MINUTE = _env_int("RATE_LIMIT_GEOCODE_PER_MINUTE", 30)
 RATE_LIMIT_GEOCODE_BURST = _env_int("RATE_LIMIT_GEOCODE_BURST", 10)
+# Wildfire perimeters are the loosest bucket because they are the cheapest
+# request the API serves: it answers from a national snapshot this pod already
+# holds and never touches NIFC on the request path. The overlay refetches on
+# every map pan (debounced 400 ms), so a user dragging across a state legitimately
+# spends a request per second, and throttling that would only make the map
+# stutter while saving nothing upstream (issue #203).
+RATE_LIMIT_WILDFIRES_PER_MINUTE = _env_int("RATE_LIMIT_WILDFIRES_PER_MINUTE", 90)
+RATE_LIMIT_WILDFIRES_BURST = _env_int("RATE_LIMIT_WILDFIRES_BURST", 30)
 
 # Pod-wide upstream caps. Weather/AQI count in-flight Open-Meteo batches
 # across every concurrent analysis; the Overpass value is applied PER MIRROR
@@ -448,6 +456,7 @@ DESTINATIONS_LIMITER = RateLimiter(
     RATE_LIMIT_DESTINATIONS_PER_MINUTE, RATE_LIMIT_DESTINATIONS_BURST
 )
 GEOCODE_LIMITER = RateLimiter(RATE_LIMIT_GEOCODE_PER_MINUTE, RATE_LIMIT_GEOCODE_BURST)
+WILDFIRES_LIMITER = RateLimiter(RATE_LIMIT_WILDFIRES_PER_MINUTE, RATE_LIMIT_WILDFIRES_BURST)
 
 WEATHER_BUDGET = UpstreamBudget("Open-Meteo (weather service)", UPSTREAM_CONCURRENCY_WEATHER)
 AQI_BUDGET = UpstreamBudget("Open-Meteo (air quality)", UPSTREAM_CONCURRENCY_AQI)
@@ -501,3 +510,8 @@ async def destinations_rate_limit(request: Request) -> None:
 async def geocode_rate_limit(request: Request) -> None:
     """Route dependency: the geocode bucket, independent of analyze."""
     _throttle(GEOCODE_LIMITER, request)
+
+
+async def wildfires_rate_limit(request: Request) -> None:
+    """Route dependency: the wildfire-overlay bucket, independent of analyze."""
+    _throttle(WILDFIRES_LIMITER, request)

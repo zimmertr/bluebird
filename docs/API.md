@@ -77,6 +77,7 @@ telling you.
 | `GET /api/capabilities` | Supported destination types, sort keys, and every limit enforced. |
 | `GET /api/version` | Which build is running: version, commit, build time. |
 | `GET /api/geocode` | Place lookup by name, proxied to Nominatim. |
+| `GET /api/wildfires` | Active US wildfire perimeters in a bounding box, cached from NIFC. |
 | `GET /api/config` | Deployment-specific UI settings. Internal to the web app. |
 | `GET /healthz` | Liveness probe. Answers `GET` and `HEAD`. |
 
@@ -93,6 +94,56 @@ free-tier quota instead of this deployment's (falling back to
 If you are building a client and want ranked forecasts in one call,
 `POST /api/analyze` remains the endpoint for that; if you want to do your own
 ranking or your own weather, this one saves you a scrape.
+
+### Wildfire perimeters
+
+`GET /api/wildfires` returns active US wildfire perimeters intersecting a
+bounding box, as GeoJSON that drops straight into a map library:
+
+```bash
+curl -s "https://bluebirdforecast.com/api/wildfires?bbox=-122.1,46.6,-121.4,47.0&detail=full"
+```
+
+```json
+{
+  "type": "FeatureCollection",
+  "fetched_at": 1785495937012,
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "attr_IncidentName": "Dollar Lake",
+        "poly_GISAcres": 1240.3,
+        "attr_PercentContained": 35,
+        "attr_ModifiedOnDateTime_dt": 1784926301250
+      },
+      "geometry": { "type": "Polygon", "coordinates": [[[-121.83, 46.79], "…"]] }
+    }
+  ]
+}
+```
+
+`bbox` is `west,south,east,north` in decimal degrees. `detail` picks the
+geometry fidelity: `coarse` (the default) simplifies perimeters to roughly 56
+metres, which is finer than a map pixel at any zoom that fits a whole fire and
+about a thirteenth of the bytes; `full` returns them as surveyed, for measuring
+distances rather than drawing shapes.
+
+Two timestamps appear and they answer different questions. `fetched_at` is when
+this instance last retrieved the dataset from NIFC. The per-feature
+`attr_ModifiedOnDateTime_dt` is when NIFC last revised that particular
+perimeter, which routinely runs days older and is a fact about the fire, not
+about this service.
+
+This endpoint exists because NIFC's quota belongs to NIFC's ArcGIS organization
+and is shared with every other consumer of the public dataset, so calling them
+per visitor competes with the rest of the internet for it. An instance holds one
+national snapshot and refreshes it on a timer, and serves it **past its refresh
+deadline** when NIFC is unreachable, on the grounds that a perimeter mapped an
+hour ago still answers a ten-mile proximity question. Read `fetched_at` if that
+matters to you. Only an instance that has never completed a fetch answers `503`.
+Coverage is the United States only, so an empty result elsewhere means "not
+covered", not "nothing burning". See [DATA.md](DATA.md#wildfires).
 
 ### Resolving your own coordinates
 

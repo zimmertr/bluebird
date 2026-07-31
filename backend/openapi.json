@@ -996,6 +996,16 @@
             "description": "Sustained `GET /api/geocode` requests per client address per minute. 0 means the limit is disabled.",
             "title": "Geocode Per Minute",
             "type": "integer"
+          },
+          "wildfires_burst": {
+            "description": "How many wildfire requests an idle client can send back-to-back before the per-minute pace applies. Sized for a map pan, which refetches on a 400 ms debounce.",
+            "title": "Wildfires Burst",
+            "type": "integer"
+          },
+          "wildfires_per_minute": {
+            "description": "Sustained `GET /api/wildfires` requests per client address per minute. The loosest bucket, because it answers from a snapshot this instance already holds and reaches no upstream. 0 means the limit is disabled.",
+            "title": "Wildfires Per Minute",
+            "type": "integer"
           }
         },
         "required": [
@@ -1004,7 +1014,9 @@
           "destinations_per_minute",
           "destinations_burst",
           "geocode_per_minute",
-          "geocode_burst"
+          "geocode_burst",
+          "wildfires_per_minute",
+          "wildfires_burst"
         ],
         "title": "RateLimits",
         "type": "object"
@@ -1098,6 +1110,38 @@
           "built_at"
         ],
         "title": "VersionResponse",
+        "type": "object"
+      },
+      "WildfireCollection": {
+        "description": "A GeoJSON FeatureCollection, plus when Bluebird last heard from NIFC.\n\nDeclared for the schema only: the handler returns pre-serialized text so a\nviewport is a filter and a join rather than a re-encode of every perimeter.",
+        "properties": {
+          "features": {
+            "description": "Active wildfire perimeters intersecting the requested bounding box, as NIFC's WFIGS layer returned them. Properties carry the incident name, acreage, containment percentage, and timestamps; `attr_` fields come from the joined IRWIN record and `poly_` fields from the perimeter polygon, so either may be null and callers should coalesce the pair.",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "fetched_at": {
+            "description": "When this instance last fetched perimeters from NIFC, in epoch milliseconds. A GeoJSON foreign member, which map libraries ignore. Perimeters are cached per instance and served past their refresh deadline when NIFC is unreachable, so this is the only honest statement of how current the shapes are. It is not when any individual fire was last surveyed: that is the per-feature `attr_ModifiedOnDateTime_dt`, which routinely runs days older.",
+            "title": "Fetched At",
+            "type": "integer"
+          },
+          "type": {
+            "const": "FeatureCollection",
+            "description": "Always `FeatureCollection`, so the body drops straight into a map library.",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "fetched_at",
+          "features"
+        ],
+        "title": "WildfireCollection",
         "type": "object"
       }
     }
@@ -1489,6 +1533,90 @@
         ]
       }
     },
+    "/api/wildfires": {
+      "get": {
+        "description": "Active wildfire perimeters from NIFC's WFIGS \"Interagency Perimeters \u2014 Current\" layer, intersecting `bbox`.\n\nThis exists because NIFC's ArcGIS quota belongs to *their* organization and is shared by every consumer of the public dataset, so a browser calling NIFC directly competes with the rest of the internet for it and loses at random. This instance fetches the national set on a timer and serves it to everyone, which reduces Bluebird's contribution to that quota to a fixed handful of requests per hour no matter how many people are looking at maps.\n\nCoverage is the United States only: NIFC does not publish perimeters elsewhere, so an empty result outside the US means \"not covered\", not \"nothing burning\".\n\nPerimeters are served past their refresh deadline when NIFC is unreachable, because a shape measured an hour ago still answers a 10-mile proximity question correctly. Read `fetched_at` to see how current the answer is. Only an instance that has never completed a fetch answers 503.",
+        "operationId": "wildfires_api_wildfires_get",
+        "parameters": [
+          {
+            "description": "Bounding box as `west,south,east,north` in decimal degrees (EPSG:4326). A perimeter is returned when its own bounding box overlaps this one.",
+            "in": "query",
+            "name": "bbox",
+            "required": true,
+            "schema": {
+              "description": "Bounding box as `west,south,east,north` in decimal degrees (EPSG:4326). A perimeter is returned when its own bounding box overlaps this one.",
+              "examples": [
+                "-121.9,46.7,-121.5,47.0"
+              ],
+              "title": "Bbox",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Geometry fidelity. `coarse` simplifies perimeters to roughly 56 metres, which is far finer than a map pixel at any zoom that shows a whole fire and about a thirteenth of the bytes. `full` returns them as surveyed, for callers measuring distances rather than drawing shapes.",
+            "in": "query",
+            "name": "detail",
+            "required": false,
+            "schema": {
+              "default": "coarse",
+              "description": "Geometry fidelity. `coarse` simplifies perimeters to roughly 56 metres, which is far finer than a map pixel at any zoom that shows a whole fire and about a thirteenth of the bytes. `full` returns them as surveyed, for callers measuring distances rather than drawing shapes.",
+              "enum": [
+                "coarse",
+                "full"
+              ],
+              "title": "Detail",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WildfireCollection"
+                }
+              }
+            },
+            "description": "Perimeters intersecting the box, with the fetch timestamp."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`bbox` was missing, malformed, or outside valid coordinate ranges."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This client is requesting faster than the per-address limit. `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This instance has never completed a fetch from NIFC, so it has nothing to serve, not even stale. Transient; `Retry-After` says when to retry."
+          }
+        },
+        "summary": "Active US wildfire perimeters in a bounding box",
+        "tags": [
+          "wildfires"
+        ]
+      }
+    },
     "/healthz": {
       "get": {
         "operationId": "healthz_healthz_get",
@@ -1527,6 +1655,10 @@
     {
       "description": "Look up a place by name, proxied to Nominatim.",
       "name": "search"
+    },
+    {
+      "description": "Active US wildfire perimeters, cached from NIFC. Served from this instance's snapshot rather than proxied per request, because the upstream quota is NIFC's and shared with every other consumer of the public dataset.",
+      "name": "wildfires"
     }
   ]
 }

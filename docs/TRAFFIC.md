@@ -117,7 +117,7 @@ you claim to be.
 | [Open-Meteo forecast](https://open-meteo.com) | **browser** (`openMeteo.ts`) for the web app; backend (`weather.py`) only for API callers and the browser's fallback | each visitor's own IP; cluster egress IP for the server path | **weighted calls** per IP: 600/min, 5,000/hr, 10,000/day (see accounting below), non-commercial | browser: a rolling ~550 weighted/min pacer on the visitor's own quota, a 15-min per-location result cache, one automatic minutely-429 resume, and abort-on-first-failure so nothing spends after the outcome is decided. Server path: `UPSTREAM_WEIGHT_PER_MINUTE_WEATHER=550` per pod — the full safe rate on **every** pod, not a per-replica share, because one analysis runs end to end on one pod and must cover its whole fan-out. The cluster can therefore exceed 550/min when several pods fetch at once; accepted, since this path is the exception and the per-minute pacer never bounded the hourly or daily quotas anyway (issue #65's shared store is the exact fix) + in-flight cap 4 + the same cache |
 | [Open-Meteo air quality](https://open-meteo.com/en/docs/air-quality-api) | same split, best-effort on both paths, fetched **lazily**: only for the displayed rows unless the ranking key is an AQI metric | same split | same accounting, metered separately | browser and server: same pacing shape (`UPSTREAM_WEIGHT_PER_MINUTE_AQI=550` per pod, undivided for the same reason), failures degrade to null, and the first 429 short-circuits the remaining AQI batches |
 | [Nominatim](https://operations.osmfoundation.org/policies/nominatim/) | backend (`geocode.py`) proxying the search box | cluster egress IP | absolute ~1 req/s per service, real User-Agent required | `NOMINATIM_MIN_INTERVAL_MS=3500` spacing per pod (~0.86/s aggregate at 3 replicas; the previous 2s ≈ 1.5/s quietly exceeded the policy) + per-client geocode bucket |
-| [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) (wildfire overlay) | **browser**, per viewport | each visitor's own IP | public ArcGIS service | none needed; load scales with visitors, not with us |
+| [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) (wildfire overlay and proximity warnings) | backend (`nifc.py`), 2 queries per refresh (full-resolution and simplified copies of the whole country), on demand and never when idle | cluster egress IP | per-minute request-unit quota belonging to **NIFC's** ArcGIS organization, shared with every other consumer of the public dataset | `WILDFIRE_CACHE_TTL_S=600` per pod, one refresh at a time, refreshed behind the request rather than in front of it, last good snapshot served on failure, `WILDFIRE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client wildfires bucket |
 
 Everything the browser fetches itself costs our egress IP nothing — that is
 [#170](https://github.com/zimmertr/bluebird/issues/170): the web app calls
@@ -134,6 +134,15 @@ vectors in `weather_vectors.json`, and when Open-Meteo is unreachable from a
 browser (corporate proxies), the SPA falls back to the server pipeline.
 Nominatim can never move client-side: its policy requires an identifying
 `User-Agent`, which browsers refuse to set.
+
+Wildfire perimeters went the other way, from the browser to the server
+([#203](https://github.com/zimmertr/bluebird/issues/203)). Moving a fetch
+client-side is only a win when the visitor gets their own quota, and NIFC's is
+its ArcGIS organization's, shared with every other consumer of the public
+dataset. Per-visitor requests were therefore not spreading load, they were
+crowding one pool nobody involved could see, and losing at random. One pod-side
+snapshot serves everyone, so the cost upstream is now a fixed handful of
+requests per hour rather than a multiple of traffic.
 
 ## Weighted-call accounting
 
