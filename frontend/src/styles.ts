@@ -69,16 +69,19 @@ export const TEXT = {
    * The name of a docked panel, on its own header bar: "Forecast Chart",
    * "Forecast Table".
    *
-   * The compact tier's twin of `section` above — same idiom, one size down and
-   * one step brighter for a bar rather than a sidebar. It exists because those
-   * two bars used `subheading`, which is also what the report's own ranking
-   * wears a few pixels to the right ("Highest Avg AQI"), so the panel's name
-   * and its current contents were the same text in the same weight and read as
-   * one run. Bolder alone would not have separated them at 12px; the caps and
-   * tracking do, and they say "this is a name" the way the sidebar's numbered
-   * headings already do.
+   * A weight and a brightness step above `subheading`, which is what the
+   * report's own ranking wears a few pixels to the right ("Highest Avg AQI") —
+   * the two used to be the same role, so a panel's name and its current
+   * contents were identical text and read as one run.
+   *
+   * Deliberately *not* the caps-and-tracking of `section` above, which was
+   * tried and reverted: that idiom belongs to the sidebar's numbered headings,
+   * and on a dense horizontal bar sitting inches from a data table it shouted.
+   * The separation here comes from weight plus the jump to slate-100, the
+   * brightest rung in the ramp, which is what a title can afford and a label
+   * beside it cannot.
    */
-  panelTitle: 'text-xs font-bold uppercase tracking-wider text-slate-200',
+  panelTitle: 'text-xs font-bold text-slate-100',
   /** Anything you read or type in a control: radio labels, inputs, pickers. */
   control: 'text-xs text-slate-200',
   /** Secondary text: the app tagline, a place's description, a dialog's note. */

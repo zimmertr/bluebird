@@ -300,11 +300,14 @@ describe('grouping and segmenting', () => {
   })
 
   // A docked panel's name and the report inside it sat a few pixels apart in
-  // the same role, so they read as one run of text. The name takes the
-  // sidebar's own heading idiom, one tier down.
+  // the same role, so they read as one run of text. They separate by weight and
+  // brightness at one size — not by the caps-and-tracking of `section`, which
+  // was tried on these bars and shouted.
   it('separates a panel title from the subheadings it sits beside', () => {
     expect(TEXT.panelTitle).not.toBe(TEXT.subheading)
-    expect(TEXT.panelTitle).toContain('uppercase')
+    expect(TEXT.panelTitle).toContain('font-bold')
+    expect(TEXT.subheading).toContain('font-semibold')
+    expect(TEXT.panelTitle).not.toContain('uppercase')
     expect(sizes(TEXT.panelTitle)).toEqual(sizes(TEXT.subheading))
   })
 })

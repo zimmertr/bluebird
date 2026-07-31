@@ -1124,8 +1124,9 @@ export default function App() {
                   so the same report renamed itself when you moved the window.
                   Which selection it was is the caption's job, below.
 
-                  Siblings, not nested: panelTitle's `uppercase` is inherited,
-                  so a ranking rendered inside it came out shouting too. */}
+                  Siblings, not nested: the title's weight and color would
+                  otherwise inherit into the ranking, which is the one thing
+                  giving it a different role from the title is meant to stop. */}
               <span className="flex min-w-0 items-baseline gap-3">
                 <span className={`${TEXT.panelTitle} flex-shrink-0`}>Forecast Table</span>
                 {results.length > 0 && (
