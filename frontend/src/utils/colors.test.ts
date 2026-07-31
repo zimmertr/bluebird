@@ -93,4 +93,29 @@ describe('METRIC_CONFIG', () => {
       expect(label).toContain('AQI')
     }
   })
+
+  it('pins every ramp to the boundaries it was tuned to', () => {
+    // Only the AQI row was spelled out above, so moving a weather threshold
+    // passed the whole suite. These are the switching points behind every
+    // marker color on the map; they are a judgement about conditions, not an
+    // implementation detail, so a change should be a deliberate edit here.
+    expect(METRIC_CONFIG.precip_total_in.thresholds).toEqual([0.01, 0.1, 0.25, 0.5])
+    expect(METRIC_CONFIG.wind_avg_mph.thresholds).toEqual([5, 15, 25, 35])
+    expect(METRIC_CONFIG.temp_avg_f.thresholds).toEqual([30, 45, 55, 65])
+  })
+
+  it('advertises the same boundaries in the legend that it switches on', () => {
+    // The captions spell the same numbers the ramp uses, so the two can drift:
+    // a threshold moved without its label ships a legend that lies about the
+    // colors beside it. Reading the numbers back out of the captions is what
+    // makes that unmissable.
+    for (const cfg of Object.values(METRIC_CONFIG)) {
+      const advertised = cfg.legendLabels.flatMap((label) =>
+        (label.match(/\d+(?:\.\d+)?/g) ?? []).map(Number),
+      )
+      // "≤ t0", then one pair per middle band, then "> tLast" — so each
+      // boundary is named exactly twice, in order.
+      expect(advertised).toEqual(cfg.thresholds.flatMap((t) => [t, t]))
+    }
+  })
 })
