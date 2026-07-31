@@ -23,7 +23,13 @@ import { buildCustomList, pendingDestinations, pinKey } from './utils/customList
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
 import { composeOverlay } from './utils/analyzeOverlay'
 import { Place, isPeakKind } from './utils/geocode'
-import { encodeState, decodeState, classifyWindow, classifyMoment } from './utils/urlState'
+import {
+  encodeState,
+  decodeState,
+  classifyWindow,
+  classifyMoment,
+  clampLimit,
+} from './utils/urlState'
 import { DEFAULT_WINDOW_HOURS, nowLocal } from './utils/datetimeLocal'
 import { PresentationKnobs, bandNarrows, commitNeeded, presentResults } from './utils/present'
 import { SortDir, SortKey, displayedColumns } from './utils/tableColumns'
@@ -113,6 +119,12 @@ export default function App() {
   const [removedKeys, setRemovedKeys] = useState<Set<string>>(new Set())
   const removalScopeRef = useRef<string | null>(null)
 
+  // Live limits from /api/capabilities: the analysis cap gates the client-side
+  // paths and the results knob's ceiling, so a server recalibration reaches
+  // the UI without a frontend release. Read before the state block below
+  // because the restored limit is clamped against it on the way in.
+  const caps = useCapabilities()
+
   // Restore any prior session encoded in the URL once, at mount. Feeding each
   // useState a lazy initializer avoids a redraw flash — the restored values are
   // the initial render, not a post-mount setState.
@@ -160,7 +172,14 @@ export default function App() {
   // anything else — one searched peak, a polygon — spills over the cut on its
   // first analysis, which is what made #205 visible. Mirrored by DEFAULT_LIMIT
   // in urlState.ts.
-  const [limit, setLimit] = useState(() => restored?.limit ?? 200)
+  const [limit, setLimit] = useState(() => clampLimit(restored?.limit ?? 200, caps.maxLimit))
+  // The initializer above clamps against the compiled fallback, because at
+  // first render that is all useCapabilities has. Re-clamp once the real
+  // ceiling lands so a deployment that publishes a lower one is honored on a
+  // restored link too. Only ever lowers, so it cannot fight the knob.
+  useEffect(() => {
+    setLimit((prev) => clampLimit(prev, caps.maxLimit))
+  }, [caps.maxLimit])
   const [customCsv, setCustomCsv] = useState(() => restored?.customCsv ?? '')
   // Parsed once per edit and shared by the pending markers and the Analyze
   // request, so what the map shows and what gets ranked can't drift apart.
@@ -219,10 +238,6 @@ export default function App() {
     document.addEventListener('pointercancel', onUp)
   }
 
-  // Live limits from /api/capabilities: the analysis cap gates the client-side
-  // paths and the results knob's ceiling, so a server recalibration reaches
-  // the UI without a frontend release.
-  const caps = useCapabilities()
   const {
     analyze,
     cancel,

@@ -14,6 +14,7 @@ import { AGGREGATE, NOUN, RANKING_KEYS, familyOf } from '../metrics'
 import { canAnalyze } from '../utils/analyzeGate'
 import {
   classifyAqiCoverage,
+  clampLimit,
   AQI_LIMIT_DAYS,
   PAST_LIMIT_DAYS,
   FUTURE_LIMIT_DAYS,
@@ -656,9 +657,7 @@ export default function ControlPanel({
                 min={1}
                 max={maxLimit}
                 value={limit}
-                onChange={(e) =>
-                  setLimit(Math.max(1, Math.min(maxLimit, parseInt(e.target.value) || 200)))
-                }
+                onChange={(e) => setLimit(clampLimit(parseInt(e.target.value) || 200, maxLimit))}
                 className={`${FIELD} w-24 px-2 py-1.5`}
               />
               {/* The knob reads like a cap on the work, and users have taken it

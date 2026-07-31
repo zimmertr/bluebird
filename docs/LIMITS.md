@@ -39,7 +39,9 @@ discovered one costs.
 
 **Rows returned.** The max-results knob trims the ranking after it is computed.
 It never reduces the upstream work, which is why raising it costs nothing and
-lowering it saves nothing.
+lowering it saves nothing. A shared link asking for more rows than the running
+service allows opens at the allowed number rather than having the request
+ignored, so the link still means what it says as far as the deployment permits.
 
 **Request pacing.** Analyze, discovery, and search hold separate per-address
 budgets, so a burst of map searches cannot starve somebody's analysis. Past one

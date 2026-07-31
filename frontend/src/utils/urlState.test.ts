@@ -5,6 +5,7 @@ import {
   classifyWindow,
   classifyMoment,
   classifyAqiCoverage,
+  clampLimit,
   resolveSearchWindow,
   ShareableState,
   PAST_LIMIT_DAYS,
@@ -321,11 +322,28 @@ describe('decodeState tolerance', () => {
     expect(decodeState('poly=-121.5,46.8;-121.4,46.2')).toBeNull()
   })
 
-  it('rejects an unknown destination type and out-of-range limit', () => {
-    const out = decodeState('type=volcano&limit=9999&sort=precip_total_in')
+  it('rejects an unknown destination type but keeps valid neighbors', () => {
+    const out = decodeState('type=volcano&limit=50&sort=precip_total_in')
     expect(out!.destinationType).toBeUndefined()
-    expect(out!.limit).toBeUndefined()
+    expect(out!.limit).toBe(50)
     expect(out!.sortBy).toBe('precip_total_in')
+  })
+
+  it('keeps a limit above any ceiling rather than dropping it (#191)', () => {
+    // The ceiling belongs to /api/capabilities, not to this parser. Dropping
+    // the value here is what made a shared link open at the default instead of
+    // at the maximum; the caller clamps with clampLimit.
+    expect(decodeState('limit=9999')!.limit).toBe(9999)
+    expect(decodeState('limit=1501')!.limit).toBe(1501)
+  })
+
+  it('still drops a limit that is not a whole number of rows', () => {
+    expect(decodeState('limit=0')).toBeNull()
+    expect(decodeState('limit=-5')).toBeNull()
+    expect(decodeState('limit=1.5')).toBeNull()
+    expect(decodeState('limit=abc')).toBeNull()
+    // A dropped limit must not take its valid neighbors with it.
+    expect(decodeState('limit=0&sort=wind_avg_mph')!.limit).toBeUndefined()
   })
 
   it('maps legacy aggregation sort keys to their metric', () => {
@@ -669,5 +687,28 @@ describe('classifyMoment', () => {
 
   it('is ok while nothing is picked', () => {
     expect(classifyMoment('', now)).toBe('ok')
+  })
+})
+
+describe('clampLimit', () => {
+  it('passes an in-range row count through untouched', () => {
+    expect(clampLimit(50, 1500)).toBe(50)
+    expect(clampLimit(1500, 1500)).toBe(1500)
+  })
+
+  it('lowers a row count to the ceiling instead of discarding it', () => {
+    expect(clampLimit(9999, 1500)).toBe(1500)
+    expect(clampLimit(1501, 1500)).toBe(1500)
+  })
+
+  it('honors a lower ceiling than the compiled fallback', () => {
+    // A self-hosted deployment publishing a smaller cap wins over the value
+    // baked into the bundle, which is the point of reading it from the API.
+    expect(clampLimit(9999, 500)).toBe(500)
+  })
+
+  it('raises a nonsensical row count to one row', () => {
+    expect(clampLimit(0, 1500)).toBe(1)
+    expect(clampLimit(-5, 1500)).toBe(1)
   })
 })
