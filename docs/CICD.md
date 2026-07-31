@@ -254,7 +254,7 @@ outright:
 ```
 Error: values don't meet the specifications of the schema(s) in the following chart(s):
 bluebird-helm:
-- (root): Additional property revisionHistoryLimits is not allowed
+- at '': additional properties 'revisionHistoryLimits' not allowed
 ```
 
 `kustomize build --enable-helm` shells out to `helm template`, so the render
