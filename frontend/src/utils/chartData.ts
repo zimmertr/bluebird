@@ -144,6 +144,20 @@ export function axisTimeLabel(t: number, spanMs: number): string {
     : new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric' })
 }
 
+/**
+ * Where "now" falls on the chart's grid, or null when it falls outside it.
+ *
+ * The forecast endpoint serves history as well as forecast, so a window can span
+ * the boundary and the chart is then plotting two different kinds of number:
+ * what happened on the left, what is expected on the right. Marking the seam is
+ * the only way that reads. Null for a grid entirely on one side, and for a
+ * one-stamp point sample, where a line through the single dot says nothing.
+ */
+export function nowWithinGrid(times: number[], nowMs: number): number | null {
+  if (times.length < 2) return null
+  return nowMs >= times[0] && nowMs <= times[times.length - 1] ? nowMs : null
+}
+
 export type ChartPoint = { t: number } & Record<string, number | null>
 
 // One object per timestamp — { t, [destKey]: value|null, … } — the shape

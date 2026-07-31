@@ -3,6 +3,7 @@ import { DestinationResult, HourlySeries } from '../types'
 import {
   alignRowToGrid,
   axisTimeLabel,
+  nowWithinGrid,
   buildChartData,
   chartKey,
   computeYDomain,
@@ -237,5 +238,33 @@ describe('axisTimeLabel', () => {
   // which is what a single moment wants to be read as anyway.
   it('keeps the hour form for a point sample, which has no span', () => {
     expect(axisTimeLabel(t, 0)).not.toMatch(/Jul/)
+  })
+})
+
+// The forecast endpoint serves history as well as forecast, so one window can
+// hold both kinds of number and the chart has to say where the seam is.
+describe('nowWithinGrid', () => {
+  const HOUR = 3_600_000
+  const t0 = Date.parse('2026-07-31T00:00:00Z')
+  const grid = [t0, t0 + HOUR, t0 + 2 * HOUR, t0 + 3 * HOUR]
+
+  it('reports the moment when the grid straddles it', () => {
+    expect(nowWithinGrid(grid, t0 + 2 * HOUR)).toBe(t0 + 2 * HOUR)
+  })
+
+  it('includes both ends, where the seam is still on the chart', () => {
+    expect(nowWithinGrid(grid, t0)).toBe(t0)
+    expect(nowWithinGrid(grid, t0 + 3 * HOUR)).toBe(t0 + 3 * HOUR)
+  })
+
+  it('reports nothing for a window wholly on one side', () => {
+    expect(nowWithinGrid(grid, t0 - HOUR)).toBeNull() // an all-forecast window
+    expect(nowWithinGrid(grid, t0 + 4 * HOUR)).toBeNull() // an all-history window
+  })
+
+  // A line through the single dot of a point sample marks nothing.
+  it('reports nothing for a one-stamp grid, or none at all', () => {
+    expect(nowWithinGrid([t0], t0)).toBeNull()
+    expect(nowWithinGrid([], t0)).toBeNull()
   })
 })

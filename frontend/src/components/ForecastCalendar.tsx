@@ -1,13 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import {
-  AQI_LIMIT_DAYS,
-  DAY_END,
-  DAY_START,
   DayCell,
-  FUTURE_LIMIT_DAYS,
   ForecastSelection,
-  PAST_LIMIT_DAYS,
   addDays,
   addMonths,
   applyDayClick,
@@ -22,23 +17,37 @@ import {
   monthLabel,
   orderDays,
   selectionLocalWindow,
-  selectionSummary,
   weekdayInitials,
   windowPhrase,
 } from '../utils/calendar'
 import { isPointSample } from '../utils/forecastWindow'
-import { ACCENT_FILL, BUTTON_SECONDARY, DAY, FIELD, RADIUS, TEXT } from '../styles'
+import {
+  ACCENT_FILL,
+  BUTTON_SECONDARY,
+  DAY,
+  FIELD,
+  RADIUS,
+  SEGMENT_IDLE,
+  SURFACE_GROUP,
+  TEXT,
+} from '../styles'
 
 interface Props {
   selection: ForecastSelection
   onChange: (selection: ForecastSelection) => void
 }
 
-// A cell is 288px of panel width over seven columns, so ~41px square. Sizing it
-// larger would need a wider panel than the 320px every breakpoint gives, and
-// tap-target sizing across the panel is #160's job rather than something to
-// settle one control at a time.
-const CELL = 'flex h-10 items-center justify-center'
+// A cell is ~270px of card width over seven columns, so ~38 wide by 36 tall. A
+// step down from the 40px it started at, because the calendar reads as its own
+// object now and wants to sit inside the panel rather than fill it. Tap-target
+// sizing across the panel is #160's job rather than something to settle one
+// control at a time.
+const CELL = 'flex h-9 items-center justify-center'
+
+// The default when the Hours toggle is switched to Hourly. Deliberately not
+// 00:00-23:59: a default equal to All Day makes the toggle look broken, and a
+// daylight window is the thing this app exists to find.
+const DEFAULT_HOURS = { start: '06:00', end: '18:00' }
 
 /** A drag in flight: where it started, what it pivots on, where it is now. */
 interface Drag {
@@ -88,7 +97,7 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
   // focus on mount would scroll the panel down to the calendar on every load.
   const keyboardNav = useRef(false)
 
-  const cells = useMemo(() => monthGrid(month, now), [month, now])
+  const weeks = useMemo(() => monthGrid(month, now), [month, now])
   const weekdays = useMemo(() => weekdayInitials(), [])
 
   // The range being drawn: the drag in flight if there is one, else what is
@@ -183,23 +192,23 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
 
   return (
     <div>
-      {/* The Now chip and what is currently selected, on one line above the
-          grid. Selecting a day clears the chip and vice versa: they are the two
-          arms of one value, so neither can be "also" true. */}
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <button
-          onClick={() => onChange({ kind: 'now' })}
-          aria-pressed={selection.kind === 'now'}
-          title="Analyze the current hour"
-          className={`${TEXT.control} flex-shrink-0 px-3 py-1 ${RADIUS.pill} transition-colors ${
-            selection.kind === 'now' ? ACCENT_FILL : 'bg-slate-700 hover:bg-slate-600'
-          }`}
-        >
-          Now
-        </button>
-        <span className={`${TEXT.control} truncate`}>{selectionSummary(selection)}</span>
-      </div>
+      {/* The landing state, and the way back to it. Its own full-width row above
+          the card rather than a chip tucked beside the grid: it is one of the two
+          arms of this control, not an accessory to the other one, and on a fresh
+          load its pressed state is the only thing saying what will be analyzed.
+          Selecting a day clears it and vice versa. */}
+      <button
+        onClick={() => onChange({ kind: 'now' })}
+        aria-pressed={selection.kind === 'now'}
+        title="Analyze conditions at the current hour"
+        className={`${TEXT.cta} mb-2.5 w-full py-2 ${RADIUS.control} transition-colors ${
+          selection.kind === 'now' ? ACCENT_FILL : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
+        }`}
+      >
+        Now
+      </button>
 
+      <div className={`${SURFACE_GROUP} p-2`}>
       {/* Month navigation, bounded by the servable band rather than open-ended:
           paging into a month with nothing pickable in it is a dead end. */}
       <div className="mb-1 flex items-center justify-between">
@@ -232,9 +241,9 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
             </span>
           ))}
         </div>
-        {[0, 7, 14, 21, 28, 35].map((offset) => (
-          <div key={offset} role="row" className="grid grid-cols-7">
-            {cells.slice(offset, offset + 7).map((cell) => (
+        {weeks.map((week) => (
+          <div key={week[0].date} role="row" className="grid grid-cols-7">
+            {week.map((cell) => (
               <Day
                 key={cell.date}
                 cell={cell}
@@ -242,7 +251,7 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
                 focused={cell.date === focused}
                 onPress={() => {
                   suppressClick.current = false
-                  if (cell.disabled) return
+                  if (!pickable(cell)) return
                   setDrag({
                     origin: cell.date,
                     pivot: dragAnchor(selection, cell.date),
@@ -250,14 +259,14 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
                   })
                 }}
                 onEnter={() => {
-                  if (drag !== null && !cell.disabled) setDrag({ ...drag, over: cell.date })
+                  if (drag !== null && pickable(cell)) setDrag({ ...drag, over: cell.date })
                 }}
                 onActivate={() => {
                   if (suppressClick.current) {
                     suppressClick.current = false
                     return
                   }
-                  if (cell.disabled) return
+                  if (!pickable(cell)) return
                   focusDay(cell.date)
                   commitClick(cell.date)
                 }}
@@ -267,23 +276,50 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
         ))}
       </div>
 
-      <p className={`${TEXT.helper} mt-1`}>
-        Selectable from {PAST_LIMIT_DAYS} days back to {FUTURE_LIMIT_DAYS} days ahead. A dot
-        marks days past the {AQI_LIMIT_DAYS}-day air-quality forecast.
+      {/* The legend for the brightness ramp, where the ramp is seen rather than
+          only on hover. Two dim steps, two sentences, in the order a reader meets
+          them going right and down the grid. */}
+      <p className={`${TEXT.helper} mt-1.5`}>
+        Dimmed: no air-quality forecast. Greyed: outside the servable range.
       </p>
 
+      {/* Said in words rather than tinted onto the cells, because brightness
+          already means "how much data is there" here. A tint would be a second
+          meaning on one channel, and the thing worth saying is not "these days
+          are different" but what you are actually looking at. */}
+      {selection.kind === 'days' && selection.startDate < today && (
+        <p className={`${TEXT.helper} mt-1.5`}>
+          This window reaches into the past: those hours are recorded conditions, not a
+          forecast.
+        </p>
+      )}
+
+      {/* Hours, always visible once there is a day to apply them to. This was a
+          collapsed disclosure and a reviewer got eight points into a review
+          without finding it, which is the whole reason it now wears the same
+          segmented look as the ranking direction toggle further down the panel. */}
       {selection.kind === 'days' && (
-        <div className="mt-2">
-          <button
-            onClick={() => setHours(hours ? undefined : { start: DAY_START, end: DAY_END })}
-            aria-expanded={hours !== undefined}
-            className={`${TEXT.subheading} flex cursor-pointer items-center gap-1.5`}
-          >
-            <span aria-hidden="true" className={TEXT.micro}>
-              {hours ? '▾' : '▸'}
-            </span>
-            Narrow hours
-          </button>
+        <div className="mt-2 border-t border-slate-700 pt-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className={TEXT.subheading}>Hours</span>
+            <div className={`flex ${RADIUS.control} overflow-hidden border border-slate-600`}>
+              {[
+                { hourly: false, label: 'All Day' },
+                { hourly: true, label: 'Hourly' },
+              ].map((option, i) => (
+                <button
+                  key={option.label}
+                  aria-pressed={option.hourly === (hours !== undefined)}
+                  onClick={() => setHours(option.hourly ? hours ?? DEFAULT_HOURS : undefined)}
+                  className={`px-2 py-0.5 text-xs transition-colors ${
+                    i > 0 ? 'border-l border-slate-600' : ''
+                  } ${option.hourly === (hours !== undefined) ? ACCENT_FILL : SEGMENT_IDLE}`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
           {hours && (
             <div className="mt-1.5 space-y-1.5">
               <div className="flex items-center gap-2">
@@ -322,8 +358,14 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
           )}
         </div>
       )}
+      </div>
     </div>
   )
+}
+
+/** A day the user can act on. Unservable days are drawn, focusable, and inert. */
+function pickable(cell: DayCell): boolean {
+  return cell.inMonth && cell.availability !== 'unservable'
 }
 
 function MonthButton({
@@ -364,20 +406,20 @@ function Day({
   onEnter: () => void
   onActivate: () => void
 }) {
+  // Borrowed from an adjacent month: drawn to keep the grid six rows tall and the
+  // columns aligned, but blank. It cannot mark itself by dimming, because dim
+  // means "no air quality" here, and a bright unlabelled cell is a hole the eye
+  // skips rather than a date it might try to click.
+  if (!cell.inMonth) return <span className={CELL} aria-hidden="true" />
+
   const isEnd = drawn !== null && (cell.date === drawn.startDate || cell.date === drawn.endDate)
   const inRange =
     drawn !== null && !isEnd && cell.date > drawn.startDate && cell.date < drawn.endDate
-  // Order matters: an end wears the selected fill even when it is also today or
-  // an adjacent month's day, because being selected is the stronger statement.
-  const state = cell.disabled
-    ? DAY.disabled
-    : isEnd
-    ? DAY.selected
-    : inRange
-    ? DAY.range
-    : cell.inMonth
-    ? DAY.idle
-    : DAY.outside
+  const inert = cell.availability === 'unservable'
+  // Availability owns the text color, selection owns the fill, so the two
+  // compose: a day with no air quality stays dim inside a selected range. The
+  // exception is an end, where white is what reads on the accent fill.
+  const ramp = inert ? DAY.unservable : cell.availability === 'partial' ? DAY.partial : DAY.full
 
   return (
     <button
@@ -386,25 +428,28 @@ function Day({
       // aria-disabled rather than the disabled attribute: an unpickable day must
       // still be reachable by arrow key, or focus skips holes and the grid stops
       // being navigable at the band's edges.
-      aria-disabled={cell.disabled || undefined}
+      aria-disabled={inert || undefined}
       aria-selected={isEnd || inRange}
       aria-label={cell.date}
+      // Only where the cell's own appearance raises the question. Every day
+      // already announces its date through aria-label, so a tooltip on all 42 of
+      // them would be noise rather than help.
+      title={
+        inert
+          ? 'Outside the range of history and forecast the weather service publishes.'
+          : cell.availability === 'partial'
+          ? 'Weather forecast available. Air quality reaches only about 5 days out, so those columns will be blank.'
+          : undefined
+      }
       tabIndex={focused ? 0 : -1}
       onPointerDown={onPress}
       onPointerEnter={onEnter}
       onClick={onActivate}
-      className={`${CELL} ${TEXT.control} flex-col gap-0.5 transition-colors ${
-        cell.today ? DAY.today : ''
-      } ${cell.disabled ? 'cursor-not-allowed' : 'cursor-pointer'} ${state} ${
-        isEnd ? RADIUS.control : ''
-      }`}
+      className={`${CELL} ${TEXT.control} transition-colors ${cell.today ? DAY.today : ''} ${
+        inert ? 'cursor-not-allowed' : 'cursor-pointer'
+      } ${isEnd ? `${DAY.selected} ${RADIUS.control}` : inRange ? `${ramp} ${DAY.range}` : ramp}`}
     >
-      <span className="leading-none">{cell.day}</span>
-      {/* Inherits the cell's own text color, so the mark stays legible against
-          the idle, range and selected fills without three spellings of it. */}
-      {cell.beyondAqi && !cell.disabled && (
-        <span aria-hidden="true" className={`h-1 w-1 ${RADIUS.pill} bg-current opacity-70`} />
-      )}
+      {cell.day}
     </button>
   )
 }

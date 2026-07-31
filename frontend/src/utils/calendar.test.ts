@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   AQI_LIMIT_DAYS,
   DEFAULT_SELECTION,
+  FUTURE_FORECAST_DAYS,
   FUTURE_LIMIT_DAYS,
   ForecastSelection,
   PAST_LIMIT_DAYS,
@@ -12,7 +13,6 @@ import {
   aqiHorizon,
   bandEnd,
   bandStart,
-  dayCount,
   dayDate,
   dayInMonth,
   dayKey,
@@ -27,7 +27,6 @@ import {
   monthLabel,
   orderDays,
   selectionLocalWindow,
-  selectionSummary,
   weekdayInitials,
   windowCaption,
   windowPhrase,
@@ -117,14 +116,6 @@ describe('day arithmetic', () => {
     expect(dayInMonth('2028-02', 31)).toBe('2028-02-29')
   })
 
-  it('counts calendar days inclusively, DST included', () => {
-    expect(dayCount('2026-07-15', '2026-07-15')).toBe(1)
-    expect(dayCount('2026-07-15', '2026-07-19')).toBe(5)
-    expect(dayCount('2026-03-06', '2026-03-10')).toBe(5) // spans the 23-hour day
-    expect(dayCount('2026-10-30', '2026-11-03')).toBe(5) // spans the 25-hour day
-    expect(dayCount('2026-12-30', '2027-01-02')).toBe(4)
-  })
-
   it('orders a pair of days', () => {
     expect(orderDays('2026-07-19', '2026-07-15')).toEqual({
       startDate: '2026-07-15',
@@ -138,11 +129,47 @@ describe('day arithmetic', () => {
 })
 
 describe('the servable band', () => {
-  it('runs from the history limit to the forecast horizon', () => {
+  it('runs back exactly the history limit', () => {
     expect(bandStart(NOW)).toBe('2026-04-16')
-    expect(bandEnd(NOW)).toBe('2026-07-31')
-    expect(dayCount(bandStart(NOW), dayKey(NOW))).toBe(PAST_LIMIT_DAYS + 1)
-    expect(dayCount(dayKey(NOW), bandEnd(NOW))).toBe(FUTURE_LIMIT_DAYS + 1)
+    expect(addDays(dayKey(NOW), -PAST_LIMIT_DAYS)).toBe(bandStart(NOW))
+  })
+
+  // The far edge is one day short of the nominal offset here, and that is the
+  // point: the request carries UTC dates, and 23:59 Pacific on the 30th is 06:59
+  // UTC on the 31st — one day past what the API accepts, so the whole batch 400s.
+  // In a zone at or east of Greenwich the same call returns today + 15, which is
+  // why this is walked rather than subtracted. (vitest.config.ts pins Pacific.)
+  it('stops at the last local day the API will serve the whole of', () => {
+    const nominal = addDays(dayKey(NOW), FUTURE_LIMIT_DAYS)
+
+    expect(nominal).toBe('2026-07-30')
+    expect(bandEnd(NOW)).toBe('2026-07-29')
+    // And the last minute it offers really does fall inside the API's UTC limit.
+    const limit = new Date(NOW.getTime() + FUTURE_LIMIT_DAYS * 86_400_000)
+    expect(new Date(`${bandEnd(NOW)}T23:59`).toISOString().slice(0, 10)).toBe(
+      limit.toISOString().slice(0, 10),
+    )
+  })
+
+  // The offset and the number people say are two different things, and conflating
+  // them is how the far edge came to be one day past what the API serves: 16 days
+  // of forecast counts today, so the last one is today + 15.
+  it('counts the forecast as one more day than it reaches forward', () => {
+    expect(FUTURE_FORECAST_DAYS).toBe(FUTURE_LIMIT_DAYS + 1)
+    expect(FUTURE_FORECAST_DAYS).toBe(16)
+  })
+
+  // Probed against the live forecast endpoint on 2026-07-31, which answered every
+  // out-of-range request with a 400 naming its own limits:
+  //
+  //   today - 93 -> 200 (24 values)     today - 94 -> 400
+  //   today + 15 -> 200 (24 values)     today + 16 -> 400
+  //
+  // So the far edge is exactly what the band now offers, and the near edge keeps
+  // three days of slack. Re-probe before moving either constant.
+  it('offers a far edge the weather service will actually serve', () => {
+    expect(FUTURE_LIMIT_DAYS).toBe(15)
+    expect(PAST_LIMIT_DAYS).toBeLessThan(93)
   })
 
   // Exactness at the edges was untested before the calendar, and the calendar is
@@ -156,21 +183,31 @@ describe('the servable band', () => {
 
   it('puts the air-quality horizon inside the weather one', () => {
     expect(aqiHorizon(NOW)).toBe('2026-07-20')
-    expect(dayCount(dayKey(NOW), aqiHorizon(NOW))).toBe(AQI_LIMIT_DAYS + 1)
+    expect(addDays(dayKey(NOW), AQI_LIMIT_DAYS)).toBe(aqiHorizon(NOW))
     expect(aqiHorizon(NOW) < bandEnd(NOW)).toBe(true)
   })
 })
 
 describe('monthGrid', () => {
-  const july = monthGrid('2026-07', NOW)
+  const weeks = monthGrid('2026-07', NOW)
+  const july = weeks.flat()
 
-  // Fixed at six weeks so the grid's height cannot change as months are paged:
-  // a row appearing would shift every control below it in a 320px panel.
-  it('is always six weeks, starting on the Sunday before the 1st', () => {
-    expect(july).toHaveLength(42)
+  // Only the weeks the month reaches into. Six fixed rows would hold the controls
+  // below steadier, but any month fitting in five weeks would draw a wholly empty
+  // row, and an empty row inside a bordered card reads as a failure to load.
+  it('spans only the weeks the month occupies, starting on a Sunday', () => {
+    expect(weeks).toHaveLength(5) // Jul 2026: Wed 1st, 31 days
+    expect(weeks.every((w) => w.length === 7)).toBe(true)
     expect(july[0].date).toBe('2026-06-28') // the Sunday before Wed Jul 1
     expect(dayDate(july[0].date).getDay()).toBe(0)
-    expect(july[41].date).toBe('2026-08-08')
+    expect(july[july.length - 1].date).toBe('2026-08-01')
+  })
+
+  it('takes a sixth week only when the month needs one', () => {
+    // Aug 2026 starts on a Saturday and runs 31 days, so it spills into a sixth.
+    expect(monthGrid('2026-08', NOW)).toHaveLength(6)
+    // Feb 2027 starts on a Monday with 28 days: four weeks and a day, so five.
+    expect(monthGrid('2027-02', NOW)).toHaveLength(5)
   })
 
   it('marks which cells belong to the month being drawn', () => {
@@ -183,26 +220,40 @@ describe('monthGrid', () => {
     expect(july.filter((c) => c.today).map((c) => c.date)).toEqual(['2026-07-15'])
   })
 
-  it('disables the days outside the band and nothing inside it', () => {
-    const disabled = july.filter((c) => c.disabled).map((c) => c.date)
-    // July 31 is the horizon itself, so the first refusal is August 1.
-    expect(disabled).toEqual([
-      '2026-08-01',
-      '2026-08-02',
-      '2026-08-03',
-      '2026-08-04',
-      '2026-08-05',
-      '2026-08-06',
-      '2026-08-07',
-      '2026-08-08',
-    ])
-    expect(july.find((c) => c.date === '2026-07-31')?.disabled).toBe(false)
+  // The ramp the grid draws as three brightness steps. Both boundaries are
+  // asserted exactly, because an off-by-one at either one either offers a day the
+  // API refuses or dims a day that has perfectly good data.
+  it('grades each day by how much of it the app can serve', () => {
+    const on = (date: string) => july.find((c) => c.date === date)?.availability
+
+    // The air-quality horizon itself still has air quality; the day after it does not.
+    expect(on(aqiHorizon(NOW))).toBe('full')
+    expect(on(addDays(aqiHorizon(NOW), 1))).toBe('partial')
+    // The far edge of the band is analyzable; the day after it is not.
+    expect(on(bandEnd(NOW))).toBe('partial')
+    expect(on(addDays(bandEnd(NOW), 1))).toBe('unservable')
+    // And a day in the middle, plus one in the recent past, are fully covered.
+    expect(on('2026-07-15')).toBe('full')
+    expect(on('2026-06-29')).toBe('full')
   })
 
-  it('marks the days past the air-quality horizon, and not the horizon itself', () => {
-    expect(july.find((c) => c.date === aqiHorizon(NOW))?.beyondAqi).toBe(false)
-    expect(july.find((c) => c.date === '2026-07-21')?.beyondAqi).toBe(true)
-    expect(july.find((c) => c.date === '2026-07-15')?.beyondAqi).toBe(false)
+  it('grades every cell, and only past the far edge as unservable', () => {
+    expect(july.filter((c) => c.availability === 'unservable').map((c) => c.date)).toEqual([
+      '2026-07-30',
+      '2026-07-31',
+      '2026-08-01',
+    ])
+    expect(july.filter((c) => c.availability === 'partial')).toHaveLength(9) // Jul 21-29
+    expect(july.filter((c) => c.availability === 'full')).toHaveLength(23)
+  })
+
+  // Read by the note saying a window is recorded rather than forecast. Today is
+  // not past: its hours straddle the boundary and it is the anchor the ring marks.
+  it('marks the days before today as past, and today as not', () => {
+    expect(july.find((c) => c.date === '2026-07-14')?.past).toBe(true)
+    expect(july.find((c) => c.date === '2026-07-15')?.past).toBe(false)
+    expect(july.find((c) => c.date === '2026-07-16')?.past).toBe(false)
+    expect(july.filter((c) => c.past)).toHaveLength(17) // Jun 28-30 + Jul 1-14
   })
 
   it('knows which months hold something pickable, to bound the navigation', () => {
@@ -366,16 +417,6 @@ describe('selectionLocalWindow', () => {
 })
 
 describe('saying what is selected', () => {
-  it('summarizes each shape for the row above the grid', () => {
-    expect(selectionSummary({ kind: 'now' })).toBe('The current hour')
-    expect(
-      selectionSummary({ kind: 'days', startDate: '2026-07-15', endDate: '2026-07-15' }),
-    ).toBe('Jul 15')
-    expect(
-      selectionSummary({ kind: 'days', startDate: '2026-07-15', endDate: '2026-07-19' }),
-    ).toBe('Jul 15 – Jul 19 · 5 days')
-  })
-
   const localMs = (s: string) => Date.parse(s)
 
   it('leaves the clock out of a whole-day window', () => {

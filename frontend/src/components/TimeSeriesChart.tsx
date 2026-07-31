@@ -3,6 +3,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -15,6 +16,7 @@ import {
   ChartMetric,
   alignRowToGrid,
   axisTimeLabel,
+  nowWithinGrid,
   buildChartData,
   chartKey,
   computeYDomain,
@@ -58,6 +60,10 @@ export default function TimeSeriesChart({
   // The grid's whole extent, which decides whether a tick names an hour or a
   // day. Zero for a point sample, where the single tick is a date either way.
   const spanMs = times.length > 1 ? times[times.length - 1] - times[0] : 0
+  // The seam between recorded and expected, when the window spans it. Read once
+  // per render rather than memoized: the grid is fixed for the analysis, so this
+  // only moves when the clock crosses an hour the chart is already drawing.
+  const nowMs = nowWithinGrid(times, Date.now())
   const data = buildChartData(times, aligned, metric)
   const [yMin, yMax] = computeYDomain(aligned, metric)
 
@@ -134,6 +140,17 @@ export default function TimeSeriesChart({
               tick={{ fontSize: 10 }}
               tickFormatter={(v: any) => formatMetricValue(v, metric)}
             />
+            {/* Wears the axis's own color rather than a semantic one: it is
+                chrome marking where the x-axis changes meaning, not a warning.
+                Dashed so it cannot be mistaken for a series. */}
+            {nowMs !== null && (
+              <ReferenceLine
+                x={nowMs}
+                stroke="#94a3b8"
+                strokeDasharray="4 3"
+                label={{ value: 'Now', position: 'insideTopLeft', fill: '#94a3b8', fontSize: 10 }}
+              />
+            )}
             <Tooltip
               isAnimationActive={false}
               content={(props: any) => (

@@ -6,12 +6,12 @@ import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from
 import { GeoPolygon, DiscoveryType, SortBy } from '../types'
 import { RANKING_KEYS } from '../metrics'
 import {
-  AQI_LIMIT_DAYS,
   DAY_END,
   DAY_START,
-  FUTURE_LIMIT_DAYS,
   ForecastSelection,
-  PAST_LIMIT_DAYS,
+  aqiHorizon,
+  bandEnd,
+  bandStart,
   isDayKey,
   isTimeOfDay,
   orderDays,
@@ -55,7 +55,6 @@ const LEGACY_SORT_MAP: Record<string, SortBy> = {
 }
 
 const POLY_PRECISION = 5 // ~1 m; keeps the URL short without visible drift
-const MS_PER_DAY = 86_400_000
 
 // Control defaults — must mirror the initial useState values in App.tsx. Used to
 // decide whether the user has changed anything worth persisting to the URL.
@@ -384,6 +383,13 @@ export function decodeState(search: string): Partial<ShareableState> | null {
  * before the start, 'past' when the window starts before the history horizon,
  * and 'future' when it ends beyond the forecast horizon.
  *
+ * Bounded by whole days rather than by an instant `now + N * 24h`, because that
+ * is the granularity of everything it is standing in for: the API takes
+ * `start_date`/`end_date`, and the calendar offers whole days. Measuring from the
+ * instant made the last day of the band unusable — a window ending at its 23:59
+ * always overshot `now + 15 days` unless you happened to be looking at 23:59 —
+ * so the calendar's own far edge failed the check that is supposed to guard it.
+ *
  * The calendar cannot produce an out-of-band day — those cells are drawn
  * disabled — so the horizon cases now only reach a user through a shared or
  * hand-edited link, which is precisely why they still have to be caught. 'order'
@@ -406,8 +412,8 @@ export function classifyWindow(
   }
   const start = new Date(startDatetime).getTime()
   const end = new Date(endDatetime).getTime()
-  const earliest = now.getTime() - PAST_LIMIT_DAYS * MS_PER_DAY
-  const latest = now.getTime() + FUTURE_LIMIT_DAYS * MS_PER_DAY
+  const earliest = Date.parse(`${bandStart(now)}T${DAY_START}`)
+  const latest = Date.parse(`${bandEnd(now)}T${DAY_END}`)
 
   // A reversed window is a user error, not a horizon problem — flag it first so
   // the message is about the hours the user just set, not the servable range.
@@ -422,6 +428,13 @@ export function classifyWindow(
  * 'full' means AQI data should span the whole window, 'partial' means only its
  * start, 'none' means the window begins beyond the horizon entirely. Purely
  * informational — analysis still runs, with missing AQI rendered as "—".
+ *
+ * Whole days again, and for a second reason beyond matching the API: the backend
+ * clamps its own request to `min(end.date(), today + 5 days)`
+ * (`air_quality.py`), so coverage really does run to the end of the horizon day.
+ * Measuring from an instant called a window ending that evening 'partial' while
+ * the calendar drew the same day as fully covered, and one of the two had to be
+ * wrong.
  */
 export function classifyAqiCoverage(
   startDatetime: string,
@@ -433,7 +446,7 @@ export function classifyAqiCoverage(
   }
   const start = new Date(startDatetime).getTime()
   const end = new Date(endDatetime).getTime()
-  const horizon = now.getTime() + AQI_LIMIT_DAYS * MS_PER_DAY
+  const horizon = Date.parse(`${aqiHorizon(now)}T${DAY_END}`)
 
   if (start > horizon) return 'none'
   if (end > horizon) return 'partial'

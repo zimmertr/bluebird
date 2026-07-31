@@ -12,6 +12,7 @@ import {
   FUTURE_LIMIT_DAYS,
   ForecastSelection,
   PAST_LIMIT_DAYS,
+  bandEnd,
 } from './calendar'
 import { GeoPolygon } from '../types'
 
@@ -417,6 +418,20 @@ describe('classifyWindow', () => {
     expect(classifyWindow(shift(-(PAST_LIMIT_DAYS + 5)), shift(-10), now)).toBe('past')
   })
 
+  // The regression this pair exists for: the band offers whole days, so a window
+  // ending at 23:59 on the last of them is exactly what the calendar produces.
+  // Measuring the horizon as an instant `now + 15 days` refused it — Analyze went
+  // dead on the last clickable column — so the bounds are day-granular now.
+  it('accepts a window ending at the last minute of the last servable day', () => {
+    // Read from the calendar's own far edge rather than computed here, so this
+    // pins the two agreeing: whatever the grid offers, the guard must accept.
+    expect(classifyWindow(iso(now), `${bandEnd(now)}T23:59`, now)).toBe('ok')
+  })
+
+  it('refuses a window reaching the day after the last servable one', () => {
+    expect(classifyWindow(iso(now), shift(FUTURE_LIMIT_DAYS + 1), now)).toBe('future')
+  })
+
   it('is future when the window starts beyond the forecast horizon', () => {
     expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 2), shift(FUTURE_LIMIT_DAYS + 5), now)).toBe(
       'future',
@@ -486,6 +501,19 @@ describe('classifyAqiCoverage', () => {
     expect(classifyAqiCoverage(shift(AQI_LIMIT_DAYS + 1), shift(AQI_LIMIT_DAYS + 3), now)).toBe(
       'none',
     )
+  })
+
+  // Day-granular for the same reason, and for one more: the backend clamps its own
+  // request to min(end.date(), today + 5 days), so coverage runs to the end of the
+  // horizon day. An instant-based bound called that evening 'partial' while the
+  // calendar drew the day as fully covered.
+  it('is full through the last minute of the horizon day', () => {
+    const h = new Date(now.getTime() + AQI_LIMIT_DAYS * 86_400_000)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const day = `${h.getFullYear()}-${pad(h.getMonth() + 1)}-${pad(h.getDate())}`
+
+    expect(classifyAqiCoverage(iso(now), `${day}T23:59`, now)).toBe('full')
+    expect(classifyAqiCoverage(iso(now), `${day}T23:59`, now)).not.toBe('partial')
   })
 
   it('is full for past windows (the AQI archive covers them)', () => {

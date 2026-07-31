@@ -9,13 +9,21 @@ import { Refusal } from '../hooks/useAnalyze'
 const AREA_NOTE_KM2 = 40_000
 import ForecastCalendar from './ForecastCalendar'
 import { parseCustomCsv } from '../utils/customDestinations'
-import { ACCENT_FILL, BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD, LINK, TEXT } from '../styles'
+import {
+  ACCENT_FILL,
+  BUTTON_PRIMARY,
+  BUTTON_SECONDARY,
+  FIELD,
+  LINK,
+  SEGMENT_IDLE,
+  TEXT,
+} from '../styles'
 import { AGGREGATE, NOUN, RANKING_KEYS, familyOf } from '../metrics'
 import { canAnalyze } from '../utils/analyzeGate'
 import { classifyAqiCoverage, clampLimit } from '../utils/urlState'
 import {
   AQI_LIMIT_DAYS,
-  FUTURE_LIMIT_DAYS,
+  FUTURE_FORECAST_DAYS,
   ForecastSelection,
   PAST_LIMIT_DAYS,
   selectionLocalWindow,
@@ -337,7 +345,7 @@ export default function ControlPanel({
             2. Forecast Window
           </h2>
           <p className={`${TEXT.helper} mb-2.5`}>
-            Pick a day, or drag across days for a range.
+            Analyze the current hour, or pick days on the calendar.
           </p>
 
           <ForecastCalendar selection={selection} onChange={setSelection} />
@@ -348,7 +356,7 @@ export default function ControlPanel({
                 ? 'The narrowed hours end before they start. Adjust them to run an analysis.'
                 : windowWarning === 'past'
                 ? `This window starts before the ${PAST_LIMIT_DAYS}-day history limit. Pick days inside the calendar's range to run an analysis.`
-                : `This window extends beyond the ${FUTURE_LIMIT_DAYS}-day forecast horizon. Pick days inside the calendar's range to run an analysis.`}
+                : `This window extends beyond the ${FUTURE_FORECAST_DAYS}-day forecast horizon. Pick days inside the calendar's range to run an analysis.`}
             </p>
           )}
           {!windowWarning && aqiCoverage !== 'full' && (
@@ -409,7 +417,7 @@ export default function ControlPanel({
                         } ${
                           isActive && sortDesc === dir.desc
                             ? ACCENT_FILL
-                            : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+                            : SEGMENT_IDLE
                         }`}
                       >
                         {dir.label}

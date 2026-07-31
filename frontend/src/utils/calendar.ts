@@ -18,16 +18,35 @@
 
 import { nowLocal } from './datetimeLocal'
 
-// Open-Meteo's forecast endpoint serves roughly the last ~90 days of history
-// through ~16 days ahead. Days outside that band are drawn but unpickable.
-// These live here rather than in urlState.ts because the calendar is what makes
-// them visible: they are the band, and urlState's warnings read them from here.
+// The servable band, as day offsets from today. These live here rather than in
+// urlState.ts because the calendar is what makes them visible: they are the
+// band, and urlState's warnings read them from here.
+//
+// Both edges are measured, not taken from the docs. Probed 2026-07-31 against
+// the forecast endpoint, which answered every out-of-range request with a 400
+// naming its own limits (`2026-04-29 to 2026-08-15`):
+//
+//   today - 93  ->  200, 24 hourly values     today - 94  ->  400
+//   today + 15  ->  200, 24 hourly values     today + 16  ->  400
+//
+// So the past edge is really 93 and 90 is conservative slack, while the FUTURE
+// edge is 15 and the 16 this used to hold was off by one: Open-Meteo advertises
+// "16 days" counting today. The old date inputs carried the same +16 as their
+// `max`, so the last day the picker offered was one the API refuses — a 400
+// nobody hit often because it took typing a date to reach. Re-probe before
+// changing either number.
 export const PAST_LIMIT_DAYS = 90
-export const FUTURE_LIMIT_DAYS = 16
+export const FUTURE_LIMIT_DAYS = 15
+
+// The same horizon as a human says it: 16 days of forecast, today included.
+// Derived rather than written down twice, because conflating the offset with the
+// count is exactly how the edge above came to be wrong. Copy uses this; date
+// arithmetic uses the offset.
+export const FUTURE_FORECAST_DAYS = FUTURE_LIMIT_DAYS + 1
 
 // The air-quality endpoint's CAMS model only publishes ~5 days of forecast —
-// well short of the 16-day weather horizon — so days past it are marked in the
-// grid and the panel's existing coverage warning explains the mark.
+// well short of the weather horizon — so days past it are still analyzable but
+// come back with no AQI. The calendar dims them (see `DayCell.availability`).
 export const AQI_LIMIT_DAYS = 5
 
 /** Whole-day bounds, in the `HH:MM` shape the narrow-hours inputs speak. */
@@ -70,8 +89,6 @@ export type SelectionKind = ForecastSelection['kind']
 
 /** The landing state: answerable with no input at all. */
 export const DEFAULT_SELECTION: ForecastSelection = { kind: 'now' }
-
-const DAY_MS = 86_400_000
 
 function pad(n: number): string {
   return String(n).padStart(2, '0')
@@ -137,30 +154,51 @@ export function addMonths(month: string, n: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`
 }
 
-/**
- * Calendar days from `start` to `end` inclusive.
- *
- * Measured on UTC-anchored midnights rather than local ones so the count is
- * exactly the number of dates on the calendar even across a DST transition,
- * where the local span is 23 or 25 hours.
- */
-export function dayCount(start: string, end: string): number {
-  const [y1, m1, d1] = start.split('-').map(Number)
-  const [y2, m2, d2] = end.split('-').map(Number)
-  return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / DAY_MS) + 1
-}
-
 /** The two ends of a day pair in calendar order. */
 export function orderDays(a: string, b: string): { startDate: string; endDate: string } {
   return a <= b ? { startDate: a, endDate: b } : { startDate: b, endDate: a }
 }
 
-/** The earliest and latest days Open-Meteo will serve, from `now`. */
+/**
+ * The earliest local day Open-Meteo will serve.
+ *
+ * No UTC correction needed here, unlike `bandEnd` below: the measured past edge
+ * is 93 days and this offers 90, so the day a local midnight can borrow from the
+ * previous UTC date is absorbed by that slack.
+ */
 export function bandStart(now: Date): string {
   return addDays(dayKey(now), -PAST_LIMIT_DAYS)
 }
+
+/** The UTC calendar date an instant falls on, which is what the API is asked for. */
+function utcDayKey(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10)
+}
+
+/**
+ * The latest local day Open-Meteo will serve *the whole of*.
+ *
+ * Walked back from the nominal edge rather than computed, because the window is
+ * local and the request is not. Every fetch sends `start_date`/`end_date` as UTC
+ * dates (`utcDate` in `openMeteo.ts`, `end_dt.date()` in `weather.py`), and the
+ * API's own far limit is a UTC date. West of Greenwich a local day's last minute
+ * therefore lands on the *next* UTC date: 23:59 Pacific on the 15th is 06:59 UTC
+ * on the 16th, one day past what the API will accept, and the request comes back
+ * a 400. East of Greenwich it does not. So the answer is genuinely
+ * zone-dependent — Pacific gets today + 14, London today + 15 — and offering a
+ * fixed 14 everywhere would cost the eastern half of the world a real day of
+ * forecast.
+ *
+ * The loop runs at most once for any real offset; it is a loop rather than a
+ * subtraction so a future zone with a stranger offset cannot slip past it.
+ */
 export function bandEnd(now: Date): string {
-  return addDays(dayKey(now), FUTURE_LIMIT_DAYS)
+  const utcLimit = utcDayKey(now.getTime() + FUTURE_LIMIT_DAYS * 86_400_000)
+  let day = addDays(dayKey(now), FUTURE_LIMIT_DAYS)
+  while (utcDayKey(Date.parse(`${day}T${DAY_END}`)) > utcLimit) {
+    day = addDays(day, -1)
+  }
+  return day
 }
 
 /** Is this day inside the servable band? String compare: keys sort as dates. */
@@ -173,54 +211,84 @@ export function aqiHorizon(now: Date): string {
   return addDays(dayKey(now), AQI_LIMIT_DAYS)
 }
 
+/**
+ * How much of a day the app can tell you about. One field rather than a pair of
+ * booleans because the three states are exclusive, and a cell that claimed to be
+ * both unservable and air-quality-limited would be a bug the types allowed.
+ */
+export type DayAvailability =
+  /** Weather and air quality. */
+  | 'full'
+  /** Weather only: past the air-quality horizon, still analyzable. */
+  | 'partial'
+  /** Outside the servable band, so unpickable. */
+  | 'unservable'
+
 /** One cell of the month grid. */
 export interface DayCell {
   /** `YYYY-MM-DD`. */
   date: string
   /** Day of month, as drawn. */
   day: number
-  /** False for the leading/trailing days borrowed from the adjacent months. */
+  /**
+   * False for the leading/trailing days borrowed from the adjacent months. Those
+   * are rendered blank: they cannot be dimmed to mark themselves, because dim is
+   * spoken for by `availability` below.
+   */
   inMonth: boolean
   today: boolean
-  /** Outside the servable band, so unpickable. */
-  disabled: boolean
-  /** Past the air-quality horizon: analyzable, but with no AQI. */
-  beyondAqi: boolean
+  /** Before today. Drives the "these are recorded conditions" note. */
+  past: boolean
+  availability: DayAvailability
 }
 
 /**
- * The six-week grid for a month, always 42 cells so the calendar's height
- * cannot change as the user pages through months — a grid that grew a row
- * would shift every control below it in a 320px panel.
+ * A month as the weeks it occupies, Sunday-first: 4 to 6 rows of 7 cells, where
+ * the cells outside the month are placeholders the grid draws blank.
+ *
+ * Only the weeks the month actually reaches into. A fixed six rows would be
+ * steadier — the controls below never shift as you page — but it renders a wholly
+ * empty row for any month that starts and ends inside five weeks, and an empty
+ * row in a bordered card reads as something failing to load. Better to move the
+ * controls a row's height than to draw a hole.
  *
  * Weeks start Sunday. The app is US-scoped in every other respect it can be
  * (imperial units, the EPA air-quality index, NIFC wildfire perimeters), so a
  * locale-derived first weekday would be the one place it was not.
  */
-export function monthGrid(month: string, now: Date): DayCell[] {
+export function monthGrid(month: string, now: Date): DayCell[][] {
   const first = dayDate(`${month}-01`)
+  const daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()
+  const weeks = Math.ceil((first.getDay() + daysInMonth) / 7)
   const gridStart = new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay())
   const today = dayKey(now)
   const horizon = aqiHorizon(now)
-  const cells: DayCell[] = []
-  for (let i = 0; i < 42; i++) {
-    const d = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i)
-    const key = dayKey(d)
-    cells.push({
-      date: key,
-      day: d.getDate(),
-      inMonth: monthKey(key) === month,
-      today: key === today,
-      disabled: !inBand(key, now),
-      beyondAqi: key > horizon,
-    })
-  }
-  return cells
+
+  return Array.from({ length: weeks }, (_, w) =>
+    Array.from({ length: 7 }, (_, d) => {
+      const date = new Date(
+        gridStart.getFullYear(),
+        gridStart.getMonth(),
+        gridStart.getDate() + w * 7 + d,
+      )
+      const key = dayKey(date)
+      return {
+        date: key,
+        day: date.getDate(),
+        inMonth: monthKey(key) === month,
+        today: key === today,
+        past: key < today,
+        availability: !inBand(key, now) ? 'unservable' : key > horizon ? 'partial' : 'full',
+      }
+    }),
+  )
 }
 
 /** Does this month hold any servable day? Bounds the month navigation. */
 export function monthHasBandDay(month: string, now: Date): boolean {
-  return monthGrid(month, now).some((c) => c.inMonth && !c.disabled)
+  return monthGrid(month, now)
+    .flat()
+    .some((c) => c.inMonth && c.availability !== 'unservable')
 }
 
 /**
@@ -320,20 +388,6 @@ export function selectionLocalWindow(
     start: `${selection.startDate}T${hours ? hours.start : DAY_START}`,
     end: `${selection.endDate}T${hours ? hours.end : DAY_END}`,
   }
-}
-
-/**
- * The selection in one line, for the row above the grid: "Aug 3", "Aug 3 – Aug
- * 7 · 5 days". Deliberately terse — the full window, hours included, is spelled
- * out under the narrow-hours control and again over the results.
- */
-export function selectionSummary(selection: ForecastSelection): string {
-  if (selection.kind === 'now') return 'The current hour'
-  const short = (key: string) =>
-    dayDate(key).toLocaleDateString([], { month: 'short', day: 'numeric' })
-  if (selection.startDate === selection.endDate) return short(selection.startDate)
-  const days = dayCount(selection.startDate, selection.endDate)
-  return `${short(selection.startDate)} – ${short(selection.endDate)} · ${days} days`
 }
 
 function clockTime(ms: number): string {
