@@ -24,12 +24,6 @@ import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/
 import { composeOverlay } from './utils/analyzeOverlay'
 import { Place, isPeakKind } from './utils/geocode'
 import { encodeState, decodeState, classifyWindow, clampLimit } from './utils/urlState'
-import {
-  encodeState,
-  decodeState,
-  classifyWindow,
-  clampLimit,
-} from './utils/urlState'
 import { UrlWriter, debounceUrlWrite, urlNeedsSync } from './utils/urlSync'
 import {
   DEFAULT_SELECTION,

@@ -64,8 +64,17 @@ export default function TimeSeriesChart({
   // per render rather than memoized: the grid is fixed for the analysis, so this
   // only moves when the clock crosses an hour the chart is already drawing.
   const nowMs = nowWithinGrid(times, Date.now())
-  const data = buildChartData(times, aligned, metric)
-  const [yMin, yMax] = computeYDomain(aligned, metric)
+  // Memoized because hovering re-renders: handleMove below stores the cursor's
+  // value and the nearest line in state, so every mouse movement that changes
+  // either one lands here again. Neither of these depends on that state, and
+  // both are O(times x rows) — for 100 destinations over the full 106-day span
+  // that is ~254,000 object writes plus ~254,000 comparisons, re-done per
+  // mousemove. Measured before this memo: ~20ms of blocked main thread per
+  // hover against a 16.7ms frame budget, and a continuous mousemove stream
+  // queued faster than it could be serviced until the renderer stopped
+  // answering. Both keys are already stable — `aligned` is itself memoized.
+  const data = useMemo(() => buildChartData(times, aligned, metric), [times, aligned, metric])
+  const [yMin, yMax] = useMemo(() => computeYDomain(aligned, metric), [aligned, metric])
 
   // Render the focused line last (on top) with siblings dimmed. One nearest-line
   // computation feeds both the line emphasis and the tooltip ordering.
