@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import {
+  DAY_END,
   DayCell,
   ForecastSelection,
   addDays,
@@ -41,10 +42,15 @@ interface Props {
 // control at a time.
 const CELL = 'flex h-9 items-center justify-center'
 
-// The default when the Hours toggle is switched to Hourly. Deliberately not
-// 00:00-23:59: a default equal to All Day makes the toggle look broken, and a
-// daylight window is the thing this app exists to find.
-const DEFAULT_HOURS = { start: '06:00', end: '18:00' }
+// What the Hours toggle opens on: this hour through the end of the day.
+//
+// Deliberately not 00:00-23:59, which is All Day and would make the toggle look
+// broken. The current hour rather than the exact minute because the hourly filter
+// is inclusive from whatever it is given, so 14:00 keeps the hour you are
+// standing in and 14:37 silently drops it.
+function defaultHours(now: Date): { start: string; end: string } {
+  return { start: `${String(now.getHours()).padStart(2, '0')}:00`, end: DAY_END }
+}
 
 /** A drag in flight: where it started, what it pivots on, where it is now. */
 interface Drag {
@@ -270,17 +276,6 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
         ))}
       </div>
 
-      {/* Said in words rather than tinted onto the cells, because brightness
-          already means "how much data is there" here. A tint would be a second
-          meaning on one channel, and the thing worth saying is not "these days
-          are different" but what you are actually looking at. */}
-      {selection.kind === 'days' && selection.startDate < today && (
-        <p className={`${TEXT.helper} mt-1.5`}>
-          This window reaches into the past: those hours are recorded conditions, not a
-          forecast.
-        </p>
-      )}
-
       {/* Hours, always visible once there is a day to apply them to. This was a
           collapsed disclosure and a reviewer got eight points into a review
           without finding it, which is the whole reason it now wears the same
@@ -297,7 +292,7 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
                 <button
                   key={option.label}
                   aria-pressed={option.hourly === (hours !== undefined)}
-                  onClick={() => setHours(option.hourly ? hours ?? DEFAULT_HOURS : undefined)}
+                  onClick={() => setHours(option.hourly ? hours ?? defaultHours(now) : undefined)}
                   className={`px-2 py-0.5 text-xs transition-colors ${
                     i > 0 ? 'border-l border-slate-600' : ''
                   } ${option.hourly === (hours !== undefined) ? ACCENT_FILL : SEGMENT_IDLE}`}
