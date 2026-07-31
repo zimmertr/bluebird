@@ -28,7 +28,6 @@ import { UrlWriter, debounceUrlWrite, urlNeedsSync } from './utils/urlSync'
 import {
   DEFAULT_SELECTION,
   ForecastSelection,
-  SelectionKind,
   selectionLocalWindow,
   windowCaption,
 } from './utils/calendar'
@@ -47,19 +46,6 @@ import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
 // slack on macOS's SF, the widest face in the stack. Re-measure before adding
 // a longer line to either box, or it wraps.
 const LEGEND_WIDTH = 'w-40'
-
-// What the results header calls the analysis, before the ranking it lists.
-// This prefix is why rankedNoun() leaves a point sample unqualified: saying
-// "Current Conditions: Highest Current Precipitation" states the tense twice.
-//
-// Three prefixes for two selection shapes, because one hour of a chosen day
-// reads differently from a span of them. The empty state borrows the range
-// wording: with no rows there is no analysis to characterize.
-const RANGE_PREFIX = 'Forecast Table'
-function headerPrefix(kind: SelectionKind, pointSample: boolean): string {
-  if (kind === 'now') return 'Current Conditions'
-  return pointSample ? 'Forecast' : RANGE_PREFIX
-}
 
 // Stands in for the analysis snapshot's covered set before the first analysis.
 // A module constant rather than an inline `new Set()`, which would be a fresh
@@ -1067,10 +1053,11 @@ export default function App() {
                 <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
               </div>
             )}
+            {/* Untitled: the chart names itself with its own metric radios,
+                and the button's tooltip and label still say what it collapses. */}
             <div
-              className={`flex flex-shrink-0 items-center justify-between border-b border-slate-600 bg-slate-700 px-3 py-1 ${chartCollapsed ? 'border-t' : ''}`}
+              className={`flex flex-shrink-0 items-center justify-end border-b border-slate-600 bg-slate-700 px-3 py-1 ${chartCollapsed ? 'border-t' : ''}`}
             >
-              <span className={TEXT.subheading}>Forecast Chart</span>
               <button
                 onClick={() => setChartCollapsed((c) => !c)}
                 title={chartCollapsed ? 'Expand the chart' : 'Collapse the chart'}
@@ -1124,12 +1111,16 @@ export default function App() {
             <div
               className={`flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
             >
+              {/* The ranking and the window it covers, and nothing else. The
+                  bar used to lead with a name for the analysis ("Current
+                  Conditions:", "Forecast Table:") that changed with the
+                  selection shape, so the same report renamed itself when you
+                  moved the window. The caption beside it already says which
+                  shape it is. With no rows there is no ranking to state, and
+                  the bar carries its credit and controls regardless. */}
               <span className={TEXT.subheading}>
-                {results.length === 0
-                  ? RANGE_PREFIX
-                  : `${headerPrefix(view.kind, pointSample)}: ${
-                      view.sortDesc ? 'Highest' : 'Lowest'
-                    } ${rankedNoun(view.sortBy, pointSample)}`}
+                {results.length > 0 &&
+                  `${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, pointSample)}`}
                 {/* Which window these rows describe. A multi-hour analysis used
                     to say nothing at all here, so someone opening a shared link
                     had no on-screen statement of the days they were reading. */}
