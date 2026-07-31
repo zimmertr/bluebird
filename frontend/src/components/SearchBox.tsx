@@ -104,7 +104,14 @@ export default function SearchBox({ onSelect }: Props) {
 
   return (
     <div ref={rootRef} className="relative">
-      <div className={`${SURFACE_FLOATING} flex items-center gap-2 px-2.5 py-2 transition-colors focus-within:border-sky-400`}>
+      {/* The box takes the target, not the input inside it. These two float
+          side by side over the map and are the same kind of object, so on a
+          phone they are the same height: TAP.height here, TAP.action on the
+          Controls button, both landing on 44. Sizing the input instead grew
+          the box by its own padding and overshot. */}
+      <div
+        className={`${SURFACE_FLOATING} ${TAP.height} flex items-center gap-2 px-2.5 py-2 transition-colors focus-within:border-sky-400`}
+      >
         <svg
           width="15"
           height="15"

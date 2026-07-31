@@ -681,6 +681,15 @@ export default function App() {
     [presented],
   )
 
+  // The window the displayed rows describe, or null when nothing is displayed.
+  // Lifted out of the header's JSX because the same string is both the line and
+  // its own tooltip: a narrow panel ellipsizes it, and a truncated date range
+  // that cannot be recovered is worse than no date range at all.
+  const windowTitle =
+    results.length > 0 && analyzed !== null
+      ? windowCaption(analyzed.kind, analyzed.window.startMs, analyzed.window.endMs, pointSample)
+      : null
+
   // The detail-column sort, held here rather than inside ResultsTable (#125).
   //
   // Clicking one of the four ranking columns re-cuts the whole field through
@@ -1130,99 +1139,108 @@ export default function App() {
                 <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
               </div>
             )}
-            {/* Header */}
-            {/* items-start, not items-center: the title below is two lines on a
-                narrow panel and the asides are one, so centering them would
-                float the credit and the chevron against nothing. */}
+            {/* Header. Two rows by construction, never three.
+
+                Everything used to sit on one flex line and wrap when it ran out
+                of room, which on a phone cost three lines: the title broke
+                mid-phrase because the credit and the download link were holding
+                ~250px of a ~390px bar, and the window caption took a line of its
+                own underneath. Chrome is not what this panel is for — every line
+                here is a line of ranking the user does not see — so the rows are
+                assigned rather than discovered.
+
+                Row 1 is what these rows *are*, plus the control that hides them.
+                Row 2 is which window they cover, plus the two asides. Each row
+                is nowrap with one shrinking member, so neither can ever become
+                two: the title and the caption ellipsize instead. The caption is
+                the one that gives, because the window is also stated by the
+                calendar in the panel, while the ranking metric is stated nowhere
+                else on this surface. */}
             <div
-              className={`flex-shrink-0 flex items-start justify-between gap-2 px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
+              className={`flex-shrink-0 flex flex-col px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
             >
-              {/* Two deliberate lines rather than one sentence that reflows.
-                  What it ranks by and which window it ranks over are two facts,
-                  and letting them wrap as prose broke them at whatever word the
-                  panel width landed on ("…for Fri, Jul" / "31, 2:00 PM…"). As
-                  blocks the break is always between the two facts, and a phone
-                  and a desktop disagree only about whether the second line is
-                  there at all. */}
-              <span className={`${TEXT.subheading} min-w-0`}>
-                <span className="block">
+              <div className="flex items-center gap-2">
+                <span className={`${TEXT.subheading} min-w-0 truncate`}>
                   {results.length === 0
                     ? RANGE_PREFIX
                     : `${headerPrefix(view.kind, pointSample)}: ${
                         view.sortDesc ? 'Highest' : 'Lowest'
                       } ${rankedNoun(view.sortBy, pointSample)}`}
                 </span>
-                {/* Which window these rows describe. A multi-hour analysis used
-                    to say nothing at all here, so someone opening a shared link
-                    had no on-screen statement of the days they were reading. */}
-                {results.length > 0 && analyzed !== null && (
-                  <span className="block font-normal text-slate-400">
-                    {windowCaption(
-                      analyzed.kind,
-                      analyzed.window.startMs,
-                      analyzed.window.endMs,
-                      pointSample,
-                    )}
+                {/* The fire check is best-effort, and every way it can fail used
+                    to render as an all-clear: no ⚠️ on any row, and since #125 an
+                    empty column in the download. For a safety warning that is the
+                    wrong way round, so a failed lookup says so. Status text sits
+                    outside the type ramp by styles.ts's own rule, wearing the
+                    base size and a semantic color; it cannot compose TEXT.micro
+                    because that role carries slate-300 and two color utilities
+                    would resolve by stylesheet order rather than by intent. */}
+                {fire.status === 'unavailable' && results.length > 0 && (
+                  <span
+                    className="shrink-0 text-xs text-amber-300"
+                    title="The wildfire service could not be reached, so no destination has been checked for fire proximity. Rows are not flagged, and the downloaded CSV leaves the wildfire column out rather than reporting every row as clear."
+                  >
+                    Wildfire check unavailable
                   </span>
                 )}
-              </span>
-              {/* The fire check is best-effort, and every way it can fail used
-                  to render as an all-clear: no ⚠️ on any row, and since #125 an
-                  empty column in the download. For a safety warning that is the
-                  wrong way round, so a failed lookup says so. Status text sits
-                  outside the type ramp by styles.ts's own rule, wearing the
-                  base size and a semantic color; it cannot compose TEXT.micro
-                  because that role carries slate-300 and two color utilities
-                  would resolve by stylesheet order rather than by intent. */}
-              {fire.status === 'unavailable' && results.length > 0 && (
-                <span
-                  className="ml-2 text-xs text-amber-300"
-                  title="The wildfire service could not be reached, so no destination has been checked for fire proximity. Rows are not flagged, and the downloaded CSV leaves the wildfire column out rather than reporting every row as clear."
-                >
-                  Wildfire check unavailable
-                </span>
-              )}
-              {/* CC-BY 4.0 requires this credit beside the data itself, not
-                  just in the privacy modal; the docked header bar keeps it
-                  visible whenever forecasts are on screen. */}
-              <a
-                href="https://open-meteo.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                // Both roles carry a color, and they carry the same one. That
-                // is deliberate rather than redundant: two colors here would
-                // be resolved by stylesheet order, not by the order written.
-                className={`${TEXT.micro} ${LINK} ml-auto mr-2`}
-              >
-                Weather data by Open-Meteo.com
-              </a>
-              {/* Sits after the credit rather than before it so the credit
-                  keeps the one ml-auto in this bar: two of them would split the
-                  free space between the pair instead of pushing both right, and
-                  the credit has to survive on its own when there is nothing to
-                  download. Which is the other condition here — the panel also
-                  opens for un-forecasted pending rows, and a file of empty
-                  cells is not a report. Wearing the same two roles as the
-                  credit because it is the same kind of thing: a quiet aside in
-                  a bar whose subject is the title on its left. */}
-              {results.length > 0 && (
                 <button
-                  onClick={handleDownloadCsv}
-                  title="Download these results as a CSV file"
-                  aria-label="Download these results as a CSV file"
-                  className={`${TEXT.micro} ${LINK} mr-2 cursor-pointer whitespace-nowrap`}
+                  onClick={() => setTableCollapsed((c) => !c)}
+                  title={tableCollapsed ? 'Expand the table' : 'Collapse the table'}
+                  aria-label={tableCollapsed ? 'Expand the forecast table' : 'Collapse the forecast table'}
+                  className={`${ICON_BUTTON} ml-auto shrink-0 px-1`}
                 >
-                  Download CSV
+                  <Chevron up={tableCollapsed} />
                 </button>
-              )}
-              <button
-                onClick={() => setTableCollapsed((c) => !c)}
-                title={tableCollapsed ? 'Expand the table' : 'Collapse the table'}
-                aria-label={tableCollapsed ? 'Expand the forecast table' : 'Collapse the forecast table'}
-                className={`${ICON_BUTTON} px-1`}
-              >
-                <Chevron up={tableCollapsed} />
-              </button>
+              </div>
+
+              <div className="flex items-baseline gap-2">
+                {/* Which window these rows describe. A multi-hour analysis used
+                    to say nothing at all here, so someone opening a shared link
+                    had no on-screen statement of the days they were reading.
+                    Carries its own title so the full range survives the
+                    ellipsis a narrow panel puts on it. */}
+                <span
+                  className={`${TEXT.caption} min-w-0 truncate`}
+                  title={windowTitle ?? undefined}
+                >
+                  {windowTitle}
+                </span>
+                {/* CC-BY 4.0 requires this credit beside the data itself, not
+                    just in the privacy modal; the docked header bar keeps it
+                    visible whenever forecasts are on screen. Never the member
+                    that shrinks — an ellipsized attribution is not one.
+
+                    Both roles carry a color, and they carry the same one. That
+                    is deliberate rather than redundant: two colors here would
+                    be resolved by stylesheet order, not by the order written. */}
+                <a
+                  href="https://open-meteo.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`${TEXT.micro} ${LINK} ml-auto shrink-0 whitespace-nowrap`}
+                >
+                  Weather data by Open-Meteo.com
+                </a>
+                {/* Sits after the credit rather than before it so the credit
+                    keeps the one ml-auto in this row: two of them would split
+                    the free space between the pair instead of pushing both
+                    right, and the credit has to survive on its own when there
+                    is nothing to download. Which is the other condition here —
+                    the panel also opens for un-forecasted pending rows, and a
+                    file of empty cells is not a report. Wearing the same two
+                    roles as the credit because it is the same kind of thing: a
+                    quiet aside on a row whose subject is the window. */}
+                {results.length > 0 && (
+                  <button
+                    onClick={handleDownloadCsv}
+                    title="Download these results as a CSV file"
+                    aria-label="Download these results as a CSV file"
+                    className={`${TEXT.micro} ${LINK} shrink-0 cursor-pointer whitespace-nowrap`}
+                  >
+                    Download CSV
+                  </button>
+                )}
+              </div>
             </div>
             {/* Scrollable table. One container owns BOTH axes: if a nested
                 element scrolled horizontally instead, its scrollbar would sit
