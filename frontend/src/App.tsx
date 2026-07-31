@@ -14,7 +14,18 @@ import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy } from './types'
-import { BUTTON_SECONDARY, LINK, PROSE, RADIUS, SURFACE_CARD, SURFACE_FLOATING, TEXT } from './styles'
+import {
+  ACCENT,
+  BUTTON_FLOATING,
+  BUTTON_SECONDARY,
+  ICON_BUTTON,
+  LINK,
+  PROSE,
+  RADIUS,
+  SURFACE_CARD,
+  SURFACE_FLOATING,
+  TEXT,
+} from './styles'
 import { NOUN, familyOf, rankedNoun } from './metrics'
 import { METRIC_CONFIG } from './utils/colors'
 import { refreshEchoRows } from './utils/clientAnalyze'
@@ -915,7 +926,7 @@ export default function App() {
                   <div className="mt-3">
                     <div className={`h-2 w-full ${RADIUS.pill} bg-slate-700 overflow-hidden`}>
                       <div
-                        className="h-full bg-sky-500 transition-all duration-300 ease-out"
+                        className={`h-full ${ACCENT.mark} transition-all duration-300 ease-out`}
                         style={{ width: `${overlay.progress.percent}%` }}
                       />
                     </div>
@@ -927,7 +938,7 @@ export default function App() {
                   // Search / analyzing phase — no countable progress; show activity.
                   <div className="mt-3">
                     <div className={`h-2 w-full ${RADIUS.pill} bg-slate-700 overflow-hidden`}>
-                      <div className={`h-full w-1/3 ${RADIUS.pill} bg-sky-500 animate-indeterminate`} />
+                      <div className={`h-full w-1/3 ${RADIUS.pill} ${ACCENT.mark} animate-indeterminate`} />
                     </div>
                     <p className="mt-1.5 text-xs text-slate-400 font-mono">
                       Elapsed {elapsed}s
@@ -965,7 +976,7 @@ export default function App() {
               <button
                 onClick={() => setSidebarOpen(true)}
                 aria-label="Open controls"
-                className={`${SURFACE_FLOATING} ${TEXT.cta} flex flex-shrink-0 items-center gap-2 px-3 py-2 text-white transition-colors hover:border-sky-400 hover:text-sky-400 active:bg-slate-700`}
+                className={`${BUTTON_FLOATING} flex flex-shrink-0 items-center gap-2 px-3 py-2`}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="3" y1="6" x2="21" y2="6" />
@@ -1069,7 +1080,7 @@ export default function App() {
                 onClick={() => setChartCollapsed((c) => !c)}
                 title={chartCollapsed ? 'Expand the chart' : 'Collapse the chart'}
                 aria-label={chartCollapsed ? 'Expand the forecast chart' : 'Collapse the forecast chart'}
-                className="px-1 text-slate-400 hover:text-white"
+                className={ICON_BUTTON}
               >
                 <Chevron up={chartCollapsed} />
               </button>
@@ -1191,7 +1202,7 @@ export default function App() {
                 onClick={() => setTableCollapsed((c) => !c)}
                 title={tableCollapsed ? 'Expand the table' : 'Collapse the table'}
                 aria-label={tableCollapsed ? 'Expand the forecast table' : 'Collapse the forecast table'}
-                className="px-1 text-slate-400 hover:text-white"
+                className={ICON_BUTTON}
               >
                 <Chevron up={tableCollapsed} />
               </button>

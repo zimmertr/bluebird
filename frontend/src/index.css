@@ -17,6 +17,33 @@
    variant, silently emitting no CSS rather than failing the build. */
 @custom-variant touch (@media (hover: none));
 
+/* The one color this app defines that Tailwind does not ship, and the only
+   shade the accent fill can legally be (#167).
+
+   A filled accent block owes two WCAG rules at once, and on this palette they
+   pull opposite ways. Its white label is text: 1.4.3 wants 4.5:1, which caps
+   the fill at 0.1833 relative luminance. The fill is also what marks a control
+   as selected: 1.4.11 wants 3:1 against what sits beside it, and the tightest
+   of those neighbours is the calendar's sky-950 range band, which floors the
+   fill at 0.1766. That leaves a window 0.0067 wide, and no Tailwind sky step
+   is inside it — sky-600 sits above at 0.211 (white reads 4.02:1) and sky-700
+   below at 0.130 (the fill drops to 2.37:1 on the range band, so the ends of a
+   selected range sink into it).
+
+   This value is the midpoint of that window, so the two binding constraints
+   fail at the same distance rather than one sitting on its floor. Measured:
+   white 4.57:1; 3.21:1 on the slate-800 panel, 3.04:1 on the range band,
+   3.91:1 on the slate-900 segment track.
+
+   Named 650 because that is where it falls: between sky-600 and sky-700, much
+   nearer 600. The margins on the label and the range band are ~1.5%, which is
+   the real cost of keeping a white label on a blue fill — so this is not a
+   value to nudge by eye. Re-derive the window before touching it, and note
+   that changing DAY.range moves the floor. */
+@theme {
+  --color-sky-650: oklch(0.5587 0.145 242.3);
+}
+
 html,
 body,
 #root {
