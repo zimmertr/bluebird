@@ -66,6 +66,26 @@ export interface WildfireProps {
   attr_FireDiscoveryDateTime?: number | null
 }
 
+/**
+ * Which incident a hovered perimeter is, for telling "the cursor moved inside
+ * the same fire" from "the cursor crossed into a different one".
+ *
+ * Identity, not display: it exists so the hover popup can stay anchored while
+ * you move toward it and still re-anchor when you cross into a neighbour.
+ * Composed of the fields NIFC actually populates rather than an object id,
+ * because the properties reaching this point come off a vector tile, where the
+ * feature id is not stable across tile boundaries — a fire spanning two tiles
+ * would otherwise read as two fires and the popup would jump mid-approach.
+ *
+ * Named apart from `fireKey` in fireProximity.ts, which keys a *destination* by
+ * coordinate. Two different questions, and one name for both invites using
+ * whichever is imported.
+ */
+export function fireIdentity(props: WildfireProps): string {
+  const name = (props.attr_IncidentName || props.poly_IncidentName || '').trim()
+  return `${name}|${props.poly_GISAcres ?? ''}|${props.attr_ModifiedOnDateTime_dt ?? ''}`
+}
+
 /** Build the API URL for perimeters intersecting `bbox`. Pure, so it's testable. */
 export function wildfireQueryUrl(bbox: BBox, detail: FireDetail): string {
   const params = new URLSearchParams({ bbox: bbox.join(','), detail })
@@ -150,6 +170,12 @@ export function formatRevised(ms: number | null | undefined): string | null {
  * Inline styles mirror the results-marker popup in MapView so the two read
  * consistently; this is markup handed to MapLibre's `setHTML`, which the
  * stylesheet-scanned design system in styles.ts cannot reach.
+ *
+ * Ordered by what the reader came for: which fire, how big and how contained,
+ * where to go for more. The date sits last, small and italic, because it
+ * qualifies everything above it rather than being another fact in the list —
+ * and because it is the one line that is about NIFC's survey rather than about
+ * the fire.
  */
 export function wildfirePopupHtml(props: WildfireProps, nifcUrl: string): string {
   const name = (props.attr_IncidentName || props.poly_IncidentName || '').trim() || 'Unnamed fire'
@@ -157,8 +183,8 @@ export function wildfirePopupHtml(props: WildfireProps, nifcUrl: string): string
   return `<div style="font-family:sans-serif;font-size:13px;line-height:1.5">
       <strong>🔥 ${escapeHtml(name)}</strong>
       <br>${formatAcres(props.poly_GISAcres)} · ${formatContainment(props.attr_PercentContained)}
-      ${revised ? `<br><span style="color:#94a3b8">${escapeHtml(revised)}</span>` : ''}
       <br><a href="${nifcUrl}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">View on NIFC map ↗</a>
+      ${revised ? `<br><span style="color:#94a3b8;font-size:11px;font-style:italic">${escapeHtml(revised)}</span>` : ''}
     </div>`
 }
 

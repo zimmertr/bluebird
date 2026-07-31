@@ -106,12 +106,14 @@ export default function SearchBox({ onSelect, pointed = false }: Props) {
     }
   }
 
+  // The ring rides the wrapper, not the field: the field wears
+  // SURFACE_FLOATING's shadow-lg, and the ring's glow is a shadow too. The
+  // wrapper's box is exactly the field's (the dropdown below it is absolute),
+  // so the outline lands where it looks like it should.
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className={`relative transition-shadow ${pointed ? ACCENT_RING : ''}`}>
       <div
-        className={`${SURFACE_FLOATING} flex items-center gap-2 px-2.5 py-2 transition-all focus-within:border-sky-400 ${
-          pointed ? ACCENT_RING : ''
-        }`}
+        className={`${SURFACE_FLOATING} flex items-center gap-2 px-2.5 py-2 transition-colors focus-within:border-sky-400`}
       >
         <svg
           width="15"
@@ -135,9 +137,9 @@ export default function SearchBox({ onSelect, pointed = false }: Props) {
             setError(null)
           }}
           onKeyDown={onKeyDown}
-          // No placeholder: a magnifier in a field on a map is already a search
-          // box. The title and aria-label still carry what it accepts, for the
-          // hover and for a screen reader.
+          // Says what the box is for and stops there: what it accepts and how
+          // to submit are the title's job, not a line of copy on the map.
+          placeholder="Search for a destination"
           title="Search by name (Mt Whitney) or coordinates (36.58, -118.29)"
           aria-label="Search for a place"
           autoComplete="off"

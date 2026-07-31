@@ -225,13 +225,25 @@ export const SEGMENT_IDLE = 'bg-slate-900 text-slate-400 hover:text-slate-200'
  *
  * A ring rather than a border or a fill, for the same reason `DAY.today` is
  * one: it layers onto a control that already has both without displacing it or
- * restating its own treatment. sky-400 because pointing at something is the
- * app acting on itself, which is what sky means at rest everywhere else (see
- * LINK_ACTION) — and at 8.2:1 on the floating surface it clears the 3:1 asked
- * of a UI boundary several times over, since it has to register in peripheral
- * vision while the eye is still in the sidebar.
+ * restating its own treatment.
+ *
+ * It stays in the accent rather than reaching for amber, which was the other
+ * candidate. Every hue in this app carries a meaning and amber's is "something
+ * is off" — the window warnings, the over-limit refusal, the failed wildfire
+ * check. A yellow ring would say the search box had a problem rather than that
+ * it is the thing being pointed at, and sky already means "the app acts here"
+ * (see LINK_ACTION). What it buys instead is weight: four pixels and a glow,
+ * because this has to register in peripheral vision two thirds of a screen
+ * away while the eye is still in the sidebar, and a hairline ring at that
+ * distance reads as an edge rather than as an answer.
+ *
+ * The glow is the whole shadow for whatever wears this, so a call site must
+ * apply it to an element that is not already carrying `SURFACE_FLOATING`'s
+ * shadow-lg — two shadow utilities on one element resolve by stylesheet order,
+ * not by intent.
  */
-export const ACCENT_RING = 'ring-2 ring-sky-400'
+export const ACCENT_RING =
+  `${RADIUS.surface} ring-4 ring-sky-400 shadow-[0_0_18px_rgba(56,189,248,0.65)]`
 
 /**
  * A bordered region grouping controls inside the panel: today, the calendar.
