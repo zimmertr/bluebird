@@ -15,6 +15,7 @@ import {
   BUTTON_SECONDARY,
   FIELD,
   LINK,
+  NOTICE,
   SEGMENT_IDLE,
   TEXT,
 } from '../styles'
@@ -28,7 +29,6 @@ import {
   PAST_LIMIT_DAYS,
   selectionLocalWindow,
 } from '../utils/calendar'
-import { isPointSample } from '../utils/forecastWindow'
 
 // The app's core question: "top N peaks by <metric>, lowest or highest".
 // Each metric ranks by one representative value — total precipitation,
@@ -62,6 +62,9 @@ interface Props {
   drawPointCount: number
   polygonAreaKm2: number | null
   onCancelDrawing: () => void
+  // Hovering the Search by Name section rings the map's search box, the one
+  // control this panel names but does not hold.
+  onPointAtSearch: (on: boolean) => void
   destinationType: DiscoveryType
   setDestinationType: (t: DiscoveryType) => void
   // What the analysis asks about: the current hour, or days off the calendar.
@@ -124,12 +127,16 @@ interface Props {
   // horizon: the best-effort fetch failed, and the dashes deserve one line
   // of explanation.
   aqiAllNull?: boolean
+  // The wildfire proximity lookup failed for the displayed report, so no row
+  // has been checked. A safety claim the UI must not make silently.
+  wildfireCheckFailed?: boolean
 }
 
 export default function ControlPanel({
   drawPointCount,
   polygonAreaKm2,
   onCancelDrawing,
+  onPointAtSearch,
   destinationType,
   setDestinationType,
   selection,
@@ -166,6 +173,7 @@ export default function ControlPanel({
   totalFound,
   truncated,
   aqiAllNull,
+  wildfireCheckFailed,
 }: Props) {
   // Parse the CSV once per change rather than twice on every render (this and the
   // "N destinations parsed" count below both used to call parseCustomCsv directly).
@@ -198,8 +206,6 @@ export default function ControlPanel({
   // current hour is always inside the ~5-day horizon.
   const aqiCoverage =
     selection.kind === 'now' ? 'full' : classifyAqiCoverage(window.start, window.end, new Date())
-  // One hourly stamp, so the ranking has no aggregate to name.
-  const pointSample = isPointSample(Date.parse(window.start), Date.parse(window.end))
 
   const pointsNeeded = Math.max(0, 3 - drawPointCount)
 
@@ -218,18 +224,23 @@ export default function ControlPanel({
         {/* Step 1: Destinations — one list, defined via any of three methods
             that union into a single ranked report */}
         <section>
-          <h2 className={`${TEXT.section} mb-1`}>
+          <h2 className={`${TEXT.section} mb-2.5`}>
             1. Destinations
           </h2>
-          <p className={`${TEXT.helper} mb-2.5`}>
-            Define a list of destinations to analyze using one or all of the following methods:
-          </p>
 
-          {/* a. Search by name — the search box lives on the map itself */}
-          <div className="mb-3">
+          {/* a. Search by name — the only method whose control is not in this
+              panel; the search box floats on the map. Hovering the heading or
+              its line rings that box, so the reader is shown where it is
+              instead of told. Hover-only is fine here because it adds a cue to
+              copy that already stands on its own. */}
+          <div
+            className="mb-3"
+            onMouseEnter={() => onPointAtSearch(true)}
+            onMouseLeave={() => onPointAtSearch(false)}
+          >
             <h3 className={`${TEXT.subheading} mb-1`}>Search by Name</h3>
             <p className={TEXT.helper}>
-              Search for a destination by name on the map.
+              Search for a destination by name.
             </p>
           </div>
 
@@ -305,12 +316,8 @@ export default function ControlPanel({
           {/* c. Search by coordinates */}
           <div>
             <h3 className={`${TEXT.subheading} mb-1`}>Search by Coordinates</h3>
-            <p className={TEXT.helper}>
-              Search for destinations with coordinate pairs.
-            </p>
             <p className={`${TEXT.helper} mb-1.5`}>
-              Format: <code className="text-slate-300">Lat,Lon</code> or{' '}
-              <code className="text-slate-300">Lat,Lon,Name</code>
+              Specify exact destinations using coordinate pairs.
             </p>
             <textarea
               aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"
@@ -326,7 +333,10 @@ export default function ControlPanel({
                   if (points.length > 0) onCsvPasted(points)
                 }
               }}
-              placeholder={`46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909\n48.1122,-121.1139,Glacier Peak`}
+              // The format states itself in the box rather than in a line above
+              // it. Written as a "#" comment because parseCustomCsv skips those,
+              // so it stays valid input if a paste ever lands beneath it.
+              placeholder={`# Lat,Lon or Lat,Lon,Name\n46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909`}
               rows={3}
               className={`${FIELD} w-full p-2 font-mono resize-y`}
             />
@@ -341,10 +351,6 @@ export default function ControlPanel({
         {/* Step 2: Forecast window — one calendar, replacing the three
             mutually exclusive modes and their four date/time pairs (#166) */}
         <section>
-          {/* No helper line under this heading, unlike the other three sections.
-              They each describe something a reader cannot see (which methods
-              combine, what a ranking metric does, what the options constrain).
-              Here the two controls are a button labelled Now and a calendar. */}
           <h2 className={`${TEXT.section} mb-2.5`}>
             2. Forecast Window
           </h2>
@@ -352,7 +358,7 @@ export default function ControlPanel({
           <ForecastCalendar selection={selection} onChange={setSelection} />
 
           {windowWarning && (
-            <p className="mt-2 text-xs text-amber-400 bg-amber-950/40 border border-amber-800/60 rounded p-2">
+            <p className={`${NOTICE.warn} mt-2 text-amber-400`}>
               {windowWarning === 'order'
                 ? 'The narrowed hours end before they start. Adjust them to run an analysis.'
                 : windowWarning === 'past'
@@ -361,7 +367,7 @@ export default function ControlPanel({
             </p>
           )}
           {!windowWarning && aqiCoverage !== 'full' && (
-            <p className="mt-2 text-xs text-sky-300 bg-sky-950/40 border border-sky-800/60 rounded p-2">
+            <p className={`${NOTICE.info} mt-2 text-sky-300`}>
               {aqiCoverage === 'partial'
                 ? `Air-quality (AQI) forecasts only extend ${AQI_LIMIT_DAYS} days out, so AQI may cover just the start of this window. Weather data covers all of it.`
                 : `Air-quality (AQI) forecasts only extend ${AQI_LIMIT_DAYS} days out. AQI columns will be empty for this analysis. Weather data is unaffected.`}
@@ -373,12 +379,9 @@ export default function ControlPanel({
             toggle stays clickable on inactive rows so any ranking is one click;
             selecting a metric via its radio keeps the current direction. */}
         <section>
-          <h2 className={`${TEXT.section} mb-1`}>
+          <h2 className={`${TEXT.section} mb-2.5`}>
             3. Result Ranking
           </h2>
-          <p className={`${TEXT.helper} mb-2.5`}>
-            Set the metric used to find the top destinations.
-          </p>
           <div className="space-y-1.5">
             {SORT_METRICS.map((metric) => {
               const isActive = sortBy === metric.value
@@ -429,23 +432,13 @@ export default function ControlPanel({
               )
             })}
           </div>
-          <p className={`${TEXT.helper} mt-2`}>
-            {selection.kind === 'now'
-              ? 'Ranks by conditions at the current hour.'
-              : pointSample
-              ? 'Ranks by conditions at the selected hour.'
-              : 'Precipitation ranks by window total; wind, temperature, and AQI by window average.'}
-          </p>
         </section>
 
         {/* Step 4: Additional options — result filters, count, and map overlays */}
         <section>
-          <h2 className={`${TEXT.section} mb-1`}>
+          <h2 className={`${TEXT.section} mb-2.5`}>
             4. Options
           </h2>
-          <p className={`${TEXT.helper} mb-2.5`}>
-            Apply constraints and enable extra features.
-          </p>
           <div className="space-y-4">
             {/* Elevation band — filters candidates server-side before the fetch */}
             <div>
@@ -557,7 +550,7 @@ export default function ControlPanel({
         )}
 
         {refusal && !loading && (
-          <div className="text-xs bg-amber-950/40 border border-amber-800/60 rounded p-2 space-y-2">
+          <div className={`${NOTICE.warn} space-y-2`}>
             <p className="text-amber-300">{refusal.message}</p>
             {refusal.suggestedMinElevationFt !== null && (
               <button
@@ -579,8 +572,19 @@ export default function ControlPanel({
           </div>
         )}
 
+        {/* Sits below a failed analysis and above the row count, because it
+            qualifies a report that did arrive rather than reporting that one
+            did not. Amber, not red: the forecasts are sound and only the fire
+            check is missing. */}
+        {wildfireCheckFailed && !loading && (
+          <p className={`${NOTICE.warn} text-amber-300`}>
+            NIFC could not be reached to provide wildfire data so no proximity information is
+            available.
+          </p>
+        )}
+
         {error && !refusal && (
-          <div className="text-xs text-red-400 bg-red-950/50 border border-red-800 rounded p-2 space-y-2">
+          <div className={`${NOTICE.error} text-red-400 space-y-2`}>
             <p>{error}</p>
             <button
               onClick={onRetry}

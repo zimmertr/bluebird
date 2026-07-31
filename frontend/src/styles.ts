@@ -63,8 +63,25 @@ export const TEXT = {
   cta: 'text-sm font-semibold',
   /** Panel identity in the header. Outside the body ramp on purpose. */
   appTitle: 'text-lg font-bold text-white leading-tight',
-  /** Named sub-blocks, the labels naming a field, and docked panel titles. */
+  /** Named sub-blocks and the labels naming a field. */
   subheading: 'text-xs font-semibold text-slate-200',
+  /**
+   * The name of a docked panel, on its own header bar: "Forecast Chart",
+   * "Forecast Table".
+   *
+   * A weight and a brightness step above `subheading`, which is what the
+   * report's own ranking wears a few pixels to the right ("Highest Avg AQI") —
+   * the two used to be the same role, so a panel's name and its current
+   * contents were identical text and read as one run.
+   *
+   * Deliberately *not* the caps-and-tracking of `section` above, which was
+   * tried and reverted: that idiom belongs to the sidebar's numbered headings,
+   * and on a dense horizontal bar sitting inches from a data table it shouted.
+   * The separation here comes from weight plus the jump to slate-100, the
+   * brightest rung in the ramp, which is what a title can afford and a label
+   * beside it cannot.
+   */
+  panelTitle: 'text-xs font-bold text-slate-100',
   /** Anything you read or type in a control: radio labels, inputs, pickers. */
   control: 'text-xs text-slate-200',
   /** Secondary text: the app tagline, a place's description, a dialog's note. */
@@ -217,6 +234,58 @@ export const ACCENT_FILL = 'bg-sky-600 text-white'
  * lookalike that drifted — the hazard #159-#165 spent five PRs on.
  */
 export const SEGMENT_IDLE = 'bg-slate-900 text-slate-400 hover:text-slate-200'
+
+/**
+ * A transient outline drawn around a control to point at it from somewhere
+ * else: hovering the panel's "Search by Name" rings the map's search box,
+ * which is the one control the panel names but does not contain.
+ *
+ * A ring rather than a border or a fill, for the same reason `DAY.today` is
+ * one: it layers onto a control that already has both without displacing it or
+ * restating its own treatment.
+ *
+ * It stays in the accent rather than reaching for amber, which was the other
+ * candidate. Every hue in this app carries a meaning and amber's is "something
+ * is off" — the window warnings, the over-limit refusal, the failed wildfire
+ * check. A yellow ring would say the search box had a problem rather than that
+ * it is the thing being pointed at, and sky already means "the app acts here"
+ * (see LINK_ACTION). What it buys instead is weight: four pixels and a glow,
+ * because this has to register in peripheral vision two thirds of a screen
+ * away while the eye is still in the sidebar, and a hairline ring at that
+ * distance reads as an edge rather than as an answer.
+ *
+ * The glow is the whole shadow for whatever wears this, so a call site must
+ * apply it to an element that is not already carrying `SURFACE_FLOATING`'s
+ * shadow-lg — two shadow utilities on one element resolve by stylesheet order,
+ * not by intent.
+ *
+ * Carries no radius, and that is load-bearing rather than an omission. A ring
+ * is a box-shadow, so it fades out under `transition-shadow` while a corner
+ * radius does not: bundling the radius in here meant that on un-hover the
+ * corners squared off instantly and the still-visible ring spent the fade as a
+ * rectangle standing off a rounded field. The element wearing this owns its
+ * radius permanently, and only the ring toggles.
+ */
+export const ACCENT_RING = 'ring-4 ring-sky-400 shadow-[0_0_18px_rgba(56,189,248,0.65)]'
+
+/**
+ * A boxed message inside the panel: the window warnings, the air-quality
+ * horizon note, the over-limit refusal, a failed analysis, a failed wildfire
+ * check.
+ *
+ * Three severities and one shape. They had been spelled out per call site and
+ * had already drifted — the error box ran a heavier fill and a brighter border
+ * than the two beside it, so the same panel showed two ideas of "boxed
+ * message" a few hundred pixels apart.
+ *
+ * Carries the size but no text color, so a box whose children color themselves
+ * (the refusal, whose message and buttons differ) wears this alone.
+ */
+export const NOTICE = {
+  warn: `text-xs bg-amber-950/40 border border-amber-800/60 ${RADIUS.control} p-2`,
+  error: `text-xs bg-red-950/40 border border-red-800/60 ${RADIUS.control} p-2`,
+  info: `text-xs bg-sky-950/40 border border-sky-800/60 ${RADIUS.control} p-2`,
+} as const
 
 /**
  * A bordered region grouping controls inside the panel: today, the calendar.

@@ -28,7 +28,6 @@ import { UrlWriter, debounceUrlWrite, urlNeedsSync } from './utils/urlSync'
 import {
   DEFAULT_SELECTION,
   ForecastSelection,
-  SelectionKind,
   selectionLocalWindow,
   windowCaption,
 } from './utils/calendar'
@@ -47,19 +46,6 @@ import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
 // slack on macOS's SF, the widest face in the stack. Re-measure before adding
 // a longer line to either box, or it wraps.
 const LEGEND_WIDTH = 'w-40'
-
-// What the results header calls the analysis, before the ranking it lists.
-// This prefix is why rankedNoun() leaves a point sample unqualified: saying
-// "Current Conditions: Highest Current Precipitation" states the tense twice.
-//
-// Three prefixes for two selection shapes, because one hour of a chosen day
-// reads differently from a span of them. The empty state borrows the range
-// wording: with no rows there is no analysis to characterize.
-const RANGE_PREFIX = 'Forecast Table'
-function headerPrefix(kind: SelectionKind, pointSample: boolean): string {
-  if (kind === 'now') return 'Current Conditions'
-  return pointSample ? 'Forecast' : RANGE_PREFIX
-}
 
 // Stands in for the analysis snapshot's covered set before the first analysis.
 // A module constant rather than an inline `new Set()`, which would be a fresh
@@ -213,6 +199,9 @@ export default function App() {
   // The controls panel is docked on desktop and an off-canvas drawer on phones.
   // It starts open on both; a close button collapses it to widen the map.
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  // The panel's Search by Name section is hovered, so the map's search box —
+  // the control that section names but does not contain — wears a ring.
+  const [searchPointed, setSearchPointed] = useState(false)
   const isDesktop = useIsDesktop()
 
   function dismissWelcome() {
@@ -836,6 +825,8 @@ export default function App() {
           drawPointCount={drawPointCount}
           polygonAreaKm2={polygonAreaKm2}
           onCancelDrawing={handleCancelDrawing}
+          onPointAtSearch={setSearchPointed}
+          wildfireCheckFailed={fire.status === 'unavailable' && results.length > 0}
           destinationType={destinationType}
           setDestinationType={setDestinationType}
           selection={selection}
@@ -984,7 +975,7 @@ export default function App() {
                 Controls
               </button>
             )}
-            <SearchBox onSelect={handleSearchSelect} />
+            <SearchBox onSelect={handleSearchSelect} pointed={searchPointed} />
           </div>
           {/* Bottom-anchored legends. On mobile the top edge is clamped below
               the Controls/search cluster (top-16) and the stack scrolls if it
@@ -1070,7 +1061,10 @@ export default function App() {
             <div
               className={`flex flex-shrink-0 items-center justify-between border-b border-slate-600 bg-slate-700 px-3 py-1 ${chartCollapsed ? 'border-t' : ''}`}
             >
-              <span className={TEXT.subheading}>Forecast Chart</span>
+              {/* Static, leftmost, and shown whether or not the panel is open:
+                  collapsed, this strip is the only thing naming what the
+                  chevron expands. Its twin titles the table bar below. */}
+              <span className={TEXT.panelTitle}>Forecast Chart</span>
               <button
                 onClick={() => setChartCollapsed((c) => !c)}
                 title={chartCollapsed ? 'Expand the chart' : 'Collapse the chart'}
@@ -1124,42 +1118,42 @@ export default function App() {
             <div
               className={`flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
             >
-              <span className={TEXT.subheading}>
-                {results.length === 0
-                  ? RANGE_PREFIX
-                  : `${headerPrefix(view.kind, pointSample)}: ${
-                      view.sortDesc ? 'Highest' : 'Lowest'
-                    } ${rankedNoun(view.sortBy, pointSample)}`}
-                {/* Which window these rows describe. A multi-hour analysis used
-                    to say nothing at all here, so someone opening a shared link
-                    had no on-screen statement of the days they were reading. */}
-                {results.length > 0 && analyzed !== null && (
-                  <span className="ml-1.5 font-normal text-slate-400">
-                    {windowCaption(
-                      analyzed.kind,
-                      analyzed.window.startMs,
-                      analyzed.window.endMs,
-                      pointSample,
+              {/* The panel's name, then what is currently in it. The name is
+                  static: it used to be one of "Current Conditions:",
+                  "Forecast:" or "Forecast Table:" depending on the selection,
+                  so the same report renamed itself when you moved the window.
+                  Which selection it was is the caption's job, below.
+
+                  Siblings, not nested: the title's weight and color would
+                  otherwise inherit into the ranking, which is the one thing
+                  giving it a different role from the title is meant to stop. */}
+              <span className="flex min-w-0 items-baseline gap-3">
+                <span className={`${TEXT.panelTitle} flex-shrink-0`}>Forecast Table</span>
+                {results.length > 0 && (
+                  <span className={`${TEXT.subheading} truncate`}>
+                    {`${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, pointSample)}`}
+                    {/* Which window these rows describe. A multi-hour analysis
+                        used to say nothing at all here, so someone opening a
+                        shared link had no on-screen statement of the days they
+                        were reading. */}
+                    {analyzed !== null && (
+                      <span className="ml-1.5 font-normal text-slate-400">
+                        {windowCaption(
+                          analyzed.kind,
+                          analyzed.window.startMs,
+                          analyzed.window.endMs,
+                          pointSample,
+                        )}
+                      </span>
                     )}
                   </span>
                 )}
               </span>
-              {/* The fire check is best-effort, and every way it can fail used
-                  to render as an all-clear: no ⚠️ on any row, and since #125 an
-                  empty column in the download. For a safety warning that is the
-                  wrong way round, so a failed lookup says so. Status text sits
-                  outside the type ramp by styles.ts's own rule, wearing the
-                  base size and a semantic color; it cannot compose TEXT.micro
-                  because that role carries slate-300 and two color utilities
-                  would resolve by stylesheet order rather than by intent. */}
-              {fire.status === 'unavailable' && results.length > 0 && (
-                <span
-                  className="ml-2 text-xs text-amber-300"
-                  title="The wildfire service could not be reached, so no destination has been checked for fire proximity. Rows are not flagged, and the downloaded CSV leaves the wildfire column out rather than reporting every row as clear."
-                >
-                  Wildfire check unavailable
-                </span>
-              )}
+              {/* A failed fire check used to post a bare amber label here whose
+                  actual explanation was a title attribute, so the consequence
+                  was readable only by hovering the warning. It is now a notice
+                  in the panel beside Analyze, where the panel's other bad news
+                  already goes, carrying the whole sentence. */}
               {/* CC-BY 4.0 requires this credit beside the data itself, not
                   just in the privacy modal; the docked header bar keeps it
                   visible whenever forecasts are on screen. */}

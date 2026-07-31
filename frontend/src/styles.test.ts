@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ACCENT_FILL,
+  ACCENT_RING,
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
   DAY,
@@ -9,6 +10,7 @@ import {
   SURFACE_GROUP,
   LINK,
   LINK_ACTION,
+  NOTICE,
   PROSE,
   RADIUS,
   SURFACE_CARD,
@@ -266,6 +268,47 @@ describe('grouping and segmenting', () => {
   it('pairs the idle segment with the accent fill', () => {
     expect(SEGMENT_IDLE).toContain('text-slate-400')
     expect(SEGMENT_IDLE).not.toBe(ACCENT_FILL)
+  })
+
+  // Pointing at a control from across the screen is a ring, not a border or a
+  // fill: it has to layer onto something that already has both. DAY.today is
+  // the other one, and it wears slate because it labels a day rather than
+  // acting on it — this one wears the resting accent because it is the app
+  // answering a hover.
+  it('points with a ring in the resting accent', () => {
+    expect(ACCENT_RING).toContain('ring-sky-400')
+    expect(ACCENT_RING).not.toContain('border')
+    expect(DAY.today).toContain('ring-slate-400')
+  })
+
+  // The ring is a box-shadow and fades; a radius does not. Bundling one in here
+  // squared the corners the instant the ring began fading, so the outline spent
+  // the transition as a rectangle standing off a rounded field. The element
+  // wearing this keeps its own radius at all times.
+  it('leaves the radius to whatever wears the ring', () => {
+    expect(ACCENT_RING).not.toContain(RADIUS.surface)
+    expect(ACCENT_RING).not.toMatch(/\brounded\b/)
+  })
+
+  // Three severities, one shape. The error box used to run a heavier fill and a
+  // brighter border than the two beside it in the same panel.
+  it('builds every notice on one shape and differs only in hue', () => {
+    const shape = (recipe: string) => recipe.replace(/-(amber|red|sky)-/g, '-*-')
+    expect(shape(NOTICE.error)).toBe(shape(NOTICE.warn))
+    expect(shape(NOTICE.info)).toBe(shape(NOTICE.warn))
+    expect(NOTICE.warn).toContain(RADIUS.control)
+  })
+
+  // A docked panel's name and the report inside it sat a few pixels apart in
+  // the same role, so they read as one run of text. They separate by weight and
+  // brightness at one size — not by the caps-and-tracking of `section`, which
+  // was tried on these bars and shouted.
+  it('separates a panel title from the subheadings it sits beside', () => {
+    expect(TEXT.panelTitle).not.toBe(TEXT.subheading)
+    expect(TEXT.panelTitle).toContain('font-bold')
+    expect(TEXT.subheading).toContain('font-semibold')
+    expect(TEXT.panelTitle).not.toContain('uppercase')
+    expect(sizes(TEXT.panelTitle)).toEqual(sizes(TEXT.subheading))
   })
 })
 
