@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Place, parseCoordinates, searchPlaces } from '../utils/geocode'
-import { ACCENT_RING, SURFACE_FLOATING, TEXT } from '../styles'
+import { ACCENT_RING, RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
 
 interface Props {
   onSelect: (place: Place) => void
@@ -109,9 +109,13 @@ export default function SearchBox({ onSelect, pointed = false }: Props) {
   // The ring rides the wrapper, not the field: the field wears
   // SURFACE_FLOATING's shadow-lg, and the ring's glow is a shadow too. The
   // wrapper's box is exactly the field's (the dropdown below it is absolute),
-  // so the outline lands where it looks like it should.
+  // so the outline lands where it looks like it should — and it holds the same
+  // radius at all times, because only the ring may fade (see ACCENT_RING).
   return (
-    <div ref={rootRef} className={`relative transition-shadow ${pointed ? ACCENT_RING : ''}`}>
+    <div
+      ref={rootRef}
+      className={`relative ${RADIUS.surface} transition-shadow ${pointed ? ACCENT_RING : ''}`}
+    >
       <div
         className={`${SURFACE_FLOATING} flex items-center gap-2 px-2.5 py-2 transition-colors focus-within:border-sky-400`}
       >

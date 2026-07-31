@@ -15,6 +15,7 @@ import {
   BUTTON_SECONDARY,
   FIELD,
   LINK,
+  NOTICE,
   SEGMENT_IDLE,
   TEXT,
 } from '../styles'
@@ -126,6 +127,9 @@ interface Props {
   // horizon: the best-effort fetch failed, and the dashes deserve one line
   // of explanation.
   aqiAllNull?: boolean
+  // The wildfire proximity lookup failed for the displayed report, so no row
+  // has been checked. A safety claim the UI must not make silently.
+  wildfireCheckFailed?: boolean
 }
 
 export default function ControlPanel({
@@ -169,6 +173,7 @@ export default function ControlPanel({
   totalFound,
   truncated,
   aqiAllNull,
+  wildfireCheckFailed,
 }: Props) {
   // Parse the CSV once per change rather than twice on every render (this and the
   // "N destinations parsed" count below both used to call parseCustomCsv directly).
@@ -353,7 +358,7 @@ export default function ControlPanel({
           <ForecastCalendar selection={selection} onChange={setSelection} />
 
           {windowWarning && (
-            <p className="mt-2 text-xs text-amber-400 bg-amber-950/40 border border-amber-800/60 rounded p-2">
+            <p className={`${NOTICE.warn} mt-2 text-amber-400`}>
               {windowWarning === 'order'
                 ? 'The narrowed hours end before they start. Adjust them to run an analysis.'
                 : windowWarning === 'past'
@@ -362,7 +367,7 @@ export default function ControlPanel({
             </p>
           )}
           {!windowWarning && aqiCoverage !== 'full' && (
-            <p className="mt-2 text-xs text-sky-300 bg-sky-950/40 border border-sky-800/60 rounded p-2">
+            <p className={`${NOTICE.info} mt-2 text-sky-300`}>
               {aqiCoverage === 'partial'
                 ? `Air-quality (AQI) forecasts only extend ${AQI_LIMIT_DAYS} days out, so AQI may cover just the start of this window. Weather data covers all of it.`
                 : `Air-quality (AQI) forecasts only extend ${AQI_LIMIT_DAYS} days out. AQI columns will be empty for this analysis. Weather data is unaffected.`}
@@ -545,7 +550,7 @@ export default function ControlPanel({
         )}
 
         {refusal && !loading && (
-          <div className="text-xs bg-amber-950/40 border border-amber-800/60 rounded p-2 space-y-2">
+          <div className={`${NOTICE.warn} space-y-2`}>
             <p className="text-amber-300">{refusal.message}</p>
             {refusal.suggestedMinElevationFt !== null && (
               <button
@@ -567,8 +572,20 @@ export default function ControlPanel({
           </div>
         )}
 
+        {/* Sits below a failed analysis and above the row count, because it
+            qualifies a report that did arrive rather than reporting that one
+            did not. Amber, not red: the forecasts are sound and only the fire
+            check is missing. */}
+        {wildfireCheckFailed && !loading && (
+          <p className={`${NOTICE.warn} text-amber-300`}>
+            The wildfire service could not be reached, so no destination has been checked for
+            fire proximity. Rows are not flagged, and the downloaded CSV leaves the wildfire
+            column out rather than reporting every row as clear.
+          </p>
+        )}
+
         {error && !refusal && (
-          <div className="text-xs text-red-400 bg-red-950/50 border border-red-800 rounded p-2 space-y-2">
+          <div className={`${NOTICE.error} text-red-400 space-y-2`}>
             <p>{error}</p>
             <button
               onClick={onRetry}

@@ -10,6 +10,7 @@ import {
   SURFACE_GROUP,
   LINK,
   LINK_ACTION,
+  NOTICE,
   PROSE,
   RADIUS,
   SURFACE_CARD,
@@ -278,6 +279,33 @@ describe('grouping and segmenting', () => {
     expect(ACCENT_RING).toContain('ring-sky-400')
     expect(ACCENT_RING).not.toContain('border')
     expect(DAY.today).toContain('ring-slate-400')
+  })
+
+  // The ring is a box-shadow and fades; a radius does not. Bundling one in here
+  // squared the corners the instant the ring began fading, so the outline spent
+  // the transition as a rectangle standing off a rounded field. The element
+  // wearing this keeps its own radius at all times.
+  it('leaves the radius to whatever wears the ring', () => {
+    expect(ACCENT_RING).not.toContain(RADIUS.surface)
+    expect(ACCENT_RING).not.toMatch(/\brounded\b/)
+  })
+
+  // Three severities, one shape. The error box used to run a heavier fill and a
+  // brighter border than the two beside it in the same panel.
+  it('builds every notice on one shape and differs only in hue', () => {
+    const shape = (recipe: string) => recipe.replace(/-(amber|red|sky)-/g, '-*-')
+    expect(shape(NOTICE.error)).toBe(shape(NOTICE.warn))
+    expect(shape(NOTICE.info)).toBe(shape(NOTICE.warn))
+    expect(NOTICE.warn).toContain(RADIUS.control)
+  })
+
+  // A docked panel's name and the report inside it sat a few pixels apart in
+  // the same role, so they read as one run of text. The name takes the
+  // sidebar's own heading idiom, one tier down.
+  it('separates a panel title from the subheadings it sits beside', () => {
+    expect(TEXT.panelTitle).not.toBe(TEXT.subheading)
+    expect(TEXT.panelTitle).toContain('uppercase')
+    expect(sizes(TEXT.panelTitle)).toEqual(sizes(TEXT.subheading))
   })
 })
 

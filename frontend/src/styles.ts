@@ -63,8 +63,22 @@ export const TEXT = {
   cta: 'text-sm font-semibold',
   /** Panel identity in the header. Outside the body ramp on purpose. */
   appTitle: 'text-lg font-bold text-white leading-tight',
-  /** Named sub-blocks, the labels naming a field, and docked panel titles. */
+  /** Named sub-blocks and the labels naming a field. */
   subheading: 'text-xs font-semibold text-slate-200',
+  /**
+   * The name of a docked panel, on its own header bar: "Forecast Chart",
+   * "Forecast Table".
+   *
+   * The compact tier's twin of `section` above — same idiom, one size down and
+   * one step brighter for a bar rather than a sidebar. It exists because those
+   * two bars used `subheading`, which is also what the report's own ranking
+   * wears a few pixels to the right ("Highest Avg AQI"), so the panel's name
+   * and its current contents were the same text in the same weight and read as
+   * one run. Bolder alone would not have separated them at 12px; the caps and
+   * tracking do, and they say "this is a name" the way the sidebar's numbered
+   * headings already do.
+   */
+  panelTitle: 'text-xs font-bold uppercase tracking-wider text-slate-200',
   /** Anything you read or type in a control: radio labels, inputs, pickers. */
   control: 'text-xs text-slate-200',
   /** Secondary text: the app tagline, a place's description, a dialog's note. */
@@ -241,9 +255,34 @@ export const SEGMENT_IDLE = 'bg-slate-900 text-slate-400 hover:text-slate-200'
  * apply it to an element that is not already carrying `SURFACE_FLOATING`'s
  * shadow-lg — two shadow utilities on one element resolve by stylesheet order,
  * not by intent.
+ *
+ * Carries no radius, and that is load-bearing rather than an omission. A ring
+ * is a box-shadow, so it fades out under `transition-shadow` while a corner
+ * radius does not: bundling the radius in here meant that on un-hover the
+ * corners squared off instantly and the still-visible ring spent the fade as a
+ * rectangle standing off a rounded field. The element wearing this owns its
+ * radius permanently, and only the ring toggles.
  */
-export const ACCENT_RING =
-  `${RADIUS.surface} ring-4 ring-sky-400 shadow-[0_0_18px_rgba(56,189,248,0.65)]`
+export const ACCENT_RING = 'ring-4 ring-sky-400 shadow-[0_0_18px_rgba(56,189,248,0.65)]'
+
+/**
+ * A boxed message inside the panel: the window warnings, the air-quality
+ * horizon note, the over-limit refusal, a failed analysis, a failed wildfire
+ * check.
+ *
+ * Three severities and one shape. They had been spelled out per call site and
+ * had already drifted — the error box ran a heavier fill and a brighter border
+ * than the two beside it, so the same panel showed two ideas of "boxed
+ * message" a few hundred pixels apart.
+ *
+ * Carries the size but no text color, so a box whose children color themselves
+ * (the refusal, whose message and buttons differ) wears this alone.
+ */
+export const NOTICE = {
+  warn: `text-xs bg-amber-950/40 border border-amber-800/60 ${RADIUS.control} p-2`,
+  error: `text-xs bg-red-950/40 border border-red-800/60 ${RADIUS.control} p-2`,
+  info: `text-xs bg-sky-950/40 border border-sky-800/60 ${RADIUS.control} p-2`,
+} as const
 
 /**
  * A bordered region grouping controls inside the panel: today, the calendar.
