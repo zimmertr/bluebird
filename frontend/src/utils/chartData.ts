@@ -175,12 +175,13 @@ export function nowWithinGrid(times: number[], nowMs: number): number | null {
 //
 // Shape independence checked separately: 19,200 points as 100 lines x 8 days, as
 // 50 x 16, and as 20 x 40 all read the same, so the product is the right variable
-// rather than either term alone. 35,000 is the cap chosen from that band —
-// comfortably inside the satisfactory range rather than at the edge of it.
+// rather than either term alone. 25,000 is the cap: the last count that read as
+// satisfactory was 21,000 and the next one read as degrading, so the line goes
+// between them rather than above both.
 //
 // Re-derive by sweeping one axis again; a subjective read is the right instrument
 // here, since the failure is "the chart lags the pointer" rather than a number.
-const CURSOR_POINT_BUDGET = 35_000
+const CURSOR_POINT_BUDGET = 25_000
 
 /**
  * Should the chart follow the cursor — emphasizing the nearest line, dimming the

@@ -279,13 +279,11 @@ describe('tracksCursor', () => {
     expect(tracksCursor(840, 25)).toBe(true) // 21,000, satisfactory
   })
 
-  // 26,400 was read as "starting to degrade" and is still admitted: the cap was
-  // set above that band deliberately, trading a little smoothness at the top end
-  // for keeping the emphasis on more reports. Moving the cap to ~25,000 is the
-  // one-line change if that trade ever reads wrong.
-  it('admits the band that only starts to degrade, and stops past it', () => {
-    expect(tracksCursor(1056, 25)).toBe(true) // 26,400
-    expect(tracksCursor(1464, 25)).toBe(false) // 36,600
+  // The cap sits between the last count that read as satisfactory and the first
+  // that read as degrading, so the degrading band is excluded rather than admitted.
+  it('stops at the first size that read as degrading', () => {
+    expect(tracksCursor(840, 25)).toBe(true) // 21,000, satisfactory
+    expect(tracksCursor(1056, 25)).toBe(false) // 26,400, starting to degrade
     expect(tracksCursor(2208, 20)).toBe(false) // 44,160, the case needing a limit
   })
 
@@ -303,14 +301,14 @@ describe('tracksCursor', () => {
 
   // Both edges of the cap, so a change to it has to be deliberate.
   it('admits exactly the budget and refuses one point past it', () => {
-    expect(tracksCursor(35_000, 1)).toBe(true)
-    expect(tracksCursor(35_001, 1)).toBe(false)
+    expect(tracksCursor(25_000, 1)).toBe(true)
+    expect(tracksCursor(25_001, 1)).toBe(false)
   })
 
   it('charges for hours rather than days, so a narrowed window buys back the emphasis', () => {
-    // 30 whole days at 50 lines is over; the same days narrowed to 12 hours is not.
-    expect(tracksCursor(30 * 24, 50)).toBe(false) // 36,000
-    expect(tracksCursor(30 * 12, 50)).toBe(true) // 18,000
+    // 30 whole days at 40 lines is over; the same days narrowed to 12 hours is not.
+    expect(tracksCursor(30 * 24, 40)).toBe(false) // 28,800
+    expect(tracksCursor(30 * 12, 40)).toBe(true) // 14,400
   })
 
   it('is unbothered by an empty chart', () => {
