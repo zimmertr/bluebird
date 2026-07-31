@@ -132,15 +132,6 @@ def _stub_openmeteo(monkeypatch, behaviors: list[Any]) -> list[dict[str, Any]]:
     calls: list[dict[str, Any]] = []
 
     class _Client:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *exc):
-            return False
-
         async def get(self, url, params=None):
             # Yield once so concurrent batches actually overlap. Without it a
             # batch runs start-to-finish before its siblings begin, and the
@@ -152,7 +143,8 @@ def _stub_openmeteo(monkeypatch, behaviors: list[Any]) -> list[dict[str, Any]]:
                 raise behavior
             return _FakeResponse(behavior)
 
-    monkeypatch.setattr(air_quality.httpx, "AsyncClient", _Client)
+    stub = _Client()
+    monkeypatch.setattr(air_quality.http, "client", lambda: stub)
     return calls
 
 

@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -19,6 +20,7 @@ from app.routes.geocode import router as geocode_router
 from app.routes.notfound import router as notfound_router
 from app.routes.version import router as version_router
 from app.routes.wildfires import router as wildfires_router
+from app.services import http as upstream_http
 from app.version import get_version
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
@@ -134,8 +136,18 @@ _TAGS = [
     },
 ]
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # The Open-Meteo client is built lazily on first use so it binds to this
+    # loop; all we owe it is a close, so the pod's keep-alive connections go
+    # away with the process rather than waiting on upstream's idle timeout.
+    yield
+    await upstream_http.aclose()
+
+
 app = FastAPI(
     title="Bluebird",
+    lifespan=lifespan,
     # The real release, baked into the image at build time. A hardcoded value
     # here silently rots: it read 0.1.0 for the whole 0.x series.
     version=get_version(),
