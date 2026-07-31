@@ -65,6 +65,16 @@ const DEFAULT_SORT: SortBy = 'precip_total_in'
 const DEFAULT_TYPE: DiscoveryType = 'peak'
 const DEFAULT_LIMIT = 200
 
+// Hold a row count inside what the running service will accept. The ceiling is
+// a deployment's answer, not this module's: /api/capabilities publishes it and
+// useCapabilities carries it, so decodeState below deliberately has no opinion
+// about how large a limit is too large (issue #191). Named rather than spelled
+// inline so the restore path, the knob, and the capabilities sync cannot drift
+// into three different ideas of the same clamp.
+export function clampLimit(value: number, maxLimit: number): number {
+  return Math.max(1, Math.min(maxLimit, value))
+}
+
 function round(n: number): number {
   const f = 10 ** POLY_PRECISION
   return Math.round(n * f) / f
@@ -244,10 +254,15 @@ export function decodeState(search: string): Partial<ShareableState> | null {
 
   if (params.get('desc') === '1') out.sortDesc = true
 
+  // Shape only, no ceiling: a link asking for more rows than this deployment
+  // allows gets clamped down by the caller, never discarded. Dropping it here
+  // is what made a shared `limit=500` open silently at the default instead of
+  // at the maximum (issue #191), and the 200 that used to live here was a copy
+  // of a cap that moved in #181.
   const limit = params.get('limit')
   if (limit !== null) {
     const n = Number(limit)
-    if (Number.isInteger(n) && n >= 1 && n <= 200) out.limit = n
+    if (Number.isInteger(n) && n >= 1) out.limit = n
   }
 
   const start = params.get('start')
