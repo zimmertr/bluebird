@@ -578,9 +578,8 @@ export default function ControlPanel({
             check is missing. */}
         {wildfireCheckFailed && !loading && (
           <p className={`${NOTICE.warn} text-amber-300`}>
-            The wildfire service could not be reached, so no destination has been checked for
-            fire proximity. Rows are not flagged, and the downloaded CSV leaves the wildfire
-            column out rather than reporting every row as clear.
+            NIFC could not be reached to provide wildfire data so no proximity information is
+            available.
           </p>
         )}
 
