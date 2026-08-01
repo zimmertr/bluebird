@@ -81,11 +81,13 @@ How bright a day is says how much of it Bluebird can tell you about:
 | --- | --- |
 | Normal | Weather and air quality. |
 | Dimmed | Weather only. Past the ~5-day air-quality horizon, so the AQI columns come back blank. Still analyzes fine. |
-| Greyed, not clickable | Outside what the weather service serves: about 90 days of history through 16 days of forecast, today included. |
+| Greyed, not clickable | Outside what the weather service serves. The near edge is where its archive runs out; the far edge is whichever comes first, the API's own limit or the reach of the forecast model you picked in Step 4. |
 
 Hovering either dimmed step says why, and selecting one past the air-quality horizon says so beside the calendar. Air quality runs shorter than weather because the underlying CAMS model only reaches about 5 days out; that horizon is not the only thing worth knowing about the column, so see [Air quality](DATA.md#air-quality) for how coarse the model grid is and which scale the number is on.
 
 Days are your local calendar days, converted to UTC for the API, and the far edge accounts for that: west of Greenwich the last local day's final hour falls on the next UTC date, so the calendar offers one day less there than it does in London. Selecting days in the past is fine and normal. Those hours are recorded conditions rather than a forecast, and a chart covering both marks where one becomes the other.
+
+**The forecast model moves this calendar.** Picking a short-range model in Step 4 greys out the days it cannot reach, and shortens a window you had already chosen, with a note saying it did. HRRR is the case that matters: it reaches about two days where the global models reach one to two weeks.
 
 The calendar is fully keyboard operable: arrow keys move by day, Page Up and Page Down by month, Enter or Space selects, and Escape abandons a half-made range.
 
@@ -95,7 +97,17 @@ The default is 200, chosen to sit above the 100-row lists people usually paste s
 
 Destinations you name yourself are candidates like any other. A searched place and every row of a pasted CSV are analyzed and then ranked against whatever the polygon found, so combining the two can push some of your own destinations below the cut, where they are simply not listed. Their forecasts were still fetched: raise max results and they appear, already filled in.
 
-## Step 4: Analyze
+## Step 4: Choose a Forecast Model
+
+The **Forecast model** dropdown in Options picks which weather model answers. It defaults to ECMWF.
+
+Models disagree, sometimes by more than the thing being measured: over three days at one Cascades summit, ECMWF and GFS both totalled 0.000 in of precipitation while ICON gave 0.004 in. None of them is lying, and there is no way to know in advance which was right, so this is a knob rather than a setting with a correct value. If a number matters to you, try it under two models.
+
+They also reach different distances ahead, which is why the calendar in Step 2 redraws when you change this. The one worth knowing by name is **NOAA HRRR**: a 3 km model, the most accurate of these in mountain terrain, reaching only about two days. It is what to ask about tomorrow morning and useless for next weekend. It is also the only regional one here, covering the continental US and neighbouring parts of Canada and Mexico; asking it about anywhere else stops the analysis and says so rather than returning a partial answer.
+
+Changing the model needs a new **Analyze**, like changing the polygon or the window: different models mean different forecasts, not a different view of the ones already fetched.
+
+## Step 5: Analyze
 
 Click **Analyze**. Results appear in a sortable table below the map and as color-coded markers on the map itself.
 

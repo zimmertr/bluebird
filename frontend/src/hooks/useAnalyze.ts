@@ -69,6 +69,11 @@ export type AnalyzedView = PresentationKnobs & {
   // the answer path-independent: the SSE fallback sends no universe, but the
   // browser still knows what it submitted.
   customKeys: ReadonlySet<string>
+  // The model that produced every number in the field. A data knob like the
+  // window, and recorded for the same reason: the panel's model can move
+  // afterwards, and when it does the held rows are not stale so much as
+  // answers to a different question.
+  forecastModel: string
 }
 
 // FastAPI validation errors (422) carry detail as an array of {msg, ...}
@@ -199,6 +204,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
       customKeys: new Set(
         (request.custom_destinations ?? []).map((d) => pinKey(d.latitude, d.longitude)),
       ),
+      forecastModel: request.forecast_model,
     })
     // A fresh report, which is not the same event as a fresh row array: live
     // knobs rebuild the rows constantly. Surfaces that reset per report (the

@@ -36,10 +36,19 @@ const DAYS: ForecastSelection = {
   endDate: '2026-07-07',
 }
 
+// The deployment default, which encodeState needs so it can tell a chosen
+// model from an inherited one. Any id would do; these tests are not about which.
+const DEFAULT_MODEL = 'ecmwf_ifs025'
+
+// A reach long enough that the API's hard date edge binds first, so the horizon
+// assertions below test that edge rather than a model's.
+const LONG_HOURS = 384
+
 const base: ShareableState = {
   polygon,
   destinationTypes: ['peak'],
   selection: DAYS,
+  forecastModel: DEFAULT_MODEL,
   sortBy: 'precip_total_in',
   sortDesc: false,
   minElevationFt: null,
@@ -60,6 +69,7 @@ const pristine: ShareableState = {
   // polygon to find nothing.
   destinationTypes: [],
   selection: { kind: 'now' },
+  forecastModel: DEFAULT_MODEL,
   sortBy: 'precip_total_in',
   sortDesc: false,
   minElevationFt: null,
@@ -73,7 +83,7 @@ const pristine: ShareableState = {
 
 // Round-trip helper: encode, then decode the resulting query string.
 function roundTrip(state: ShareableState) {
-  return decodeState(encodeState(state))
+  return decodeState(encodeState(state, DEFAULT_MODEL))
 }
 
 describe('encodeState / decodeState round-trip', () => {
@@ -115,7 +125,7 @@ describe('encodeState / decodeState round-trip', () => {
     expect(out!.sortBy).toBe('temp_avg_f')
     expect(out!.sortDesc).toBe(true)
     // Ascending is the default and stays out of the URL entirely.
-    expect(encodeState(base)).not.toContain('desc')
+    expect(encodeState(base, DEFAULT_MODEL)).not.toContain('desc')
     expect(roundTrip(base)!.sortDesc).toBeUndefined()
   })
 
@@ -123,7 +133,7 @@ describe('encodeState / decodeState round-trip', () => {
     const out = roundTrip({ ...base, showWildfires: true })
     expect(out!.showWildfires).toBe(true)
     // Off is the default and stays out of the URL entirely.
-    expect(encodeState(base)).not.toContain('fires')
+    expect(encodeState(base, DEFAULT_MODEL)).not.toContain('fires')
     expect(roundTrip(base)!.showWildfires).toBeUndefined()
   })
 
@@ -161,7 +171,7 @@ describe('encodeState / decodeState round-trip', () => {
 
   it('writes the CSV compressed under `customz`, well below its raw length', () => {
     const csv = Array.from({ length: 100 }, (_, i) => `47.${i}, -121.${i}, Peak ${i}`).join('\n')
-    const qs = encodeState({ ...base, polygon: null, customCsv: csv })
+    const qs = encodeState({ ...base, polygon: null, customCsv: csv }, DEFAULT_MODEL)
     const params = new URLSearchParams(qs)
     expect(params.get('custom')).toBeNull() // legacy raw key is not written
     const customz = params.get('customz')!
@@ -172,7 +182,7 @@ describe('encodeState / decodeState round-trip', () => {
 
 describe('encodeState gate — what triggers a URL update', () => {
   it('returns "" for a pristine session (nothing the user set)', () => {
-    expect(encodeState(pristine)).toBe('')
+    expect(encodeState(pristine, DEFAULT_MODEL)).toBe('')
   })
 
   // The gate got simpler with the calendar rather than harder. The old window
@@ -181,36 +191,36 @@ describe('encodeState gate — what triggers a URL update', () => {
   // before the user did anything. A day, by contrast, is only ever there because
   // someone clicked it.
   it('syncs for a day selection alone — clicking a day is intent', () => {
-    expect(encodeState({ ...pristine, selection: DAYS })).not.toBe('')
+    expect(encodeState({ ...pristine, selection: DAYS }, DEFAULT_MODEL)).not.toBe('')
     expect(
       encodeState({
         ...pristine,
         selection: { kind: 'days', startDate: '2026-07-04', endDate: '2026-07-04' },
-      }),
+      }, DEFAULT_MODEL),
     ).not.toBe('')
   })
 
   it('syncs when only an elevation constraint is set', () => {
-    expect(encodeState({ ...pristine, minElevationFt: 8000 })).not.toBe('')
-    expect(encodeState({ ...pristine, maxElevationFt: 12000 })).not.toBe('')
+    expect(encodeState({ ...pristine, minElevationFt: 8000 }, DEFAULT_MODEL)).not.toBe('')
+    expect(encodeState({ ...pristine, maxElevationFt: 12000 }, DEFAULT_MODEL)).not.toBe('')
   })
 
   it('syncs when a non-default sort, direction, limit, or type is chosen', () => {
-    expect(encodeState({ ...pristine, sortBy: 'wind_avg_mph' })).not.toBe('')
-    expect(encodeState({ ...pristine, sortDesc: true })).not.toBe('')
-    expect(encodeState({ ...pristine, limit: 25 })).not.toBe('')
-    expect(encodeState({ ...pristine, destinationTypes: ['trailhead'] })).not.toBe('')
+    expect(encodeState({ ...pristine, sortBy: 'wind_avg_mph' }, DEFAULT_MODEL)).not.toBe('')
+    expect(encodeState({ ...pristine, sortDesc: true }, DEFAULT_MODEL)).not.toBe('')
+    expect(encodeState({ ...pristine, limit: 25 }, DEFAULT_MODEL)).not.toBe('')
+    expect(encodeState({ ...pristine, destinationTypes: ['trailhead'] }, DEFAULT_MODEL)).not.toBe('')
   })
 
   it('syncs on a CSV alone — no polygon or selection required', () => {
-    const qs = encodeState({ ...pristine, customCsv: '46.8529,-121.7604' })
+    const qs = encodeState({ ...pristine, customCsv: '46.8529,-121.7604' }, DEFAULT_MODEL)
     expect(qs).not.toBe('')
     expect(new URLSearchParams(qs).get('customz')).toBeTruthy()
   })
 
   it('syncs when the wildfire overlay is enabled', () => {
-    expect(encodeState({ ...pristine, showWildfires: true })).not.toBe('')
-    expect(new URLSearchParams(encodeState({ ...pristine, showWildfires: true })).get('fires')).toBe(
+    expect(encodeState({ ...pristine, showWildfires: true }, DEFAULT_MODEL)).not.toBe('')
+    expect(new URLSearchParams(encodeState({ ...pristine, showWildfires: true }, DEFAULT_MODEL)).get('fires')).toBe(
       '1',
     )
   })
@@ -219,13 +229,13 @@ describe('encodeState gate — what triggers a URL update', () => {
 describe('encodeState', () => {
 
   it('omits elevation params when unset', () => {
-    const qs = encodeState(base)
+    const qs = encodeState(base, DEFAULT_MODEL)
     expect(qs).not.toContain('minel')
     expect(qs).not.toContain('maxel')
   })
 
   it('persists the CSV even when a polygon is present — inputs are additive', () => {
-    const params = new URLSearchParams(encodeState({ ...base, customCsv: '46.8,-121.7' }))
+    const params = new URLSearchParams(encodeState({ ...base, customCsv: '46.8,-121.7' }, DEFAULT_MODEL))
     expect(params.get('customz')).toBeTruthy()
     expect(params.get('poly')).toBeTruthy()
     expect(params.get('type')).toBe('peak')
@@ -245,13 +255,13 @@ describe('encodeState', () => {
           ],
         ],
       },
-    })
+    }, DEFAULT_MODEL)
     const poly = new URLSearchParams(qs).get('poly')!
     expect(poly.startsWith('-121.76042,46.85289')).toBe(true)
   })
 
   it('drops the closing vertex from the encoded polygon', () => {
-    const poly = new URLSearchParams(encodeState(base)).get('poly')!
+    const poly = new URLSearchParams(encodeState(base, DEFAULT_MODEL)).get('poly')!
     // 3 unique vertices → 3 encoded pairs, not 4.
     expect(poly.split(';')).toHaveLength(3)
   })
@@ -300,7 +310,7 @@ describe('pins in the URL', () => {
   })
 
   it('a lone pin is worth persisting (encodeState not empty)', () => {
-    const qs = encodeState({ ...pristine, pins: [coord] })
+    const qs = encodeState({ ...pristine, pins: [coord] }, DEFAULT_MODEL)
     expect(qs).not.toBe('')
     expect(new URLSearchParams(qs).get('pins')).toBeTruthy()
   })
@@ -387,7 +397,7 @@ describe('decodeState tolerance', () => {
 
   it('restores the CSV from a legacy type=custom&customz= link', () => {
     const csv = '46.8529,-121.7604,Mount Rainier'
-    const qs = encodeState({ ...base, polygon: null, customCsv: csv })
+    const qs = encodeState({ ...base, polygon: null, customCsv: csv }, DEFAULT_MODEL)
     const customz = new URLSearchParams(qs).get('customz')!
     const out = decodeState(`type=custom&customz=${customz}`)
     expect(out!.customCsv).toBe(csv)
@@ -404,22 +414,29 @@ describe('classifyWindow', () => {
   const shift = (days: number) => iso(new Date(now.getTime() + days * 86_400_000))
 
   it('is ok for a near-future window', () => {
-    expect(classifyWindow(shift(1), shift(4), now)).toBe('ok')
+    expect(classifyWindow(shift(1), shift(4), now, LONG_HOURS)).toBe('ok')
   })
 
   it('is ok for a recent-past window still within the history horizon', () => {
-    expect(classifyWindow(shift(-10), shift(-8), now)).toBe('ok')
+    expect(classifyWindow(shift(-10), shift(-8), now, LONG_HOURS)).toBe('ok')
   })
 
   it('is past when the window ends before the history horizon', () => {
-    expect(classifyWindow(shift(-(PAST_LIMIT_DAYS + 5)), shift(-(PAST_LIMIT_DAYS + 2)), now)).toBe(
-      'past',
-    )
+    expect(
+      classifyWindow(
+        shift(-(PAST_LIMIT_DAYS + 5)),
+        shift(-(PAST_LIMIT_DAYS + 2)),
+        now,
+        LONG_HOURS,
+      ),
+    ).toBe('past')
   })
 
   it('is past when the window merely starts before the history horizon', () => {
     // Open-Meteo rejects out-of-range start dates, so a partial overhang fails too.
-    expect(classifyWindow(shift(-(PAST_LIMIT_DAYS + 5)), shift(-10), now)).toBe('past')
+    expect(classifyWindow(shift(-(PAST_LIMIT_DAYS + 5)), shift(-10), now, LONG_HOURS)).toBe(
+      'past',
+    )
   })
 
   // The regression this pair exists for: the band offers whole days, so a window
@@ -429,15 +446,15 @@ describe('classifyWindow', () => {
   it('accepts a window ending at the last minute of the last servable day', () => {
     // Read from the calendar's own far edge rather than computed here, so this
     // pins the two agreeing: whatever the grid offers, the guard must accept.
-    expect(classifyWindow(iso(now), `${bandEnd(now)}T23:59`, now)).toBe('ok')
+    expect(classifyWindow(iso(now), `${bandEnd(now, LONG_HOURS)}T23:59`, now, LONG_HOURS)).toBe('ok')
   })
 
   it('refuses a window reaching the day after the last servable one', () => {
-    expect(classifyWindow(iso(now), shift(FUTURE_LIMIT_DAYS + 1), now)).toBe('future')
+    expect(classifyWindow(iso(now), shift(FUTURE_LIMIT_DAYS + 1), now, LONG_HOURS)).toBe('future')
   })
 
   it('is future when the window starts beyond the forecast horizon', () => {
-    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 2), shift(FUTURE_LIMIT_DAYS + 5), now)).toBe(
+    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 2), shift(FUTURE_LIMIT_DAYS + 5), now, LONG_HOURS)).toBe(
       'future',
     )
   })
@@ -445,21 +462,21 @@ describe('classifyWindow', () => {
   it('is future when the window merely ends beyond the forecast horizon', () => {
     // Starts within the horizon but ends past it — Open-Meteo would 400 the
     // request, so this must warn rather than pass as ok.
-    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS - 1), shift(FUTURE_LIMIT_DAYS + 5), now)).toBe(
+    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS - 1), shift(FUTURE_LIMIT_DAYS + 5), now, LONG_HOURS)).toBe(
       'future',
     )
   })
 
   it('is future for an absurdly long window (start now, end next year)', () => {
-    expect(classifyWindow(shift(0), shift(365), now)).toBe('future')
+    expect(classifyWindow(shift(0), shift(365), now, LONG_HOURS)).toBe('future')
   })
 
   it('is ok when the window is incomplete', () => {
-    expect(classifyWindow('', '', now)).toBe('ok')
+    expect(classifyWindow('', '', now, LONG_HOURS)).toBe('ok')
   })
 
   it('is order when the end is before the start', () => {
-    expect(classifyWindow(shift(3), shift(1), now)).toBe('order')
+    expect(classifyWindow(shift(3), shift(1), now, LONG_HOURS)).toBe('order')
   })
 
   // Equal ends used to be a status of their own, pointing the user at one of the
@@ -467,11 +484,11 @@ describe('classifyWindow', () => {
   // you ask for a single hour, so flagging them would refuse the thing the
   // control exists for.
   it('accepts an equal start and end — a single hour is a legitimate window', () => {
-    expect(classifyWindow(shift(1), shift(1), now)).toBe('ok')
+    expect(classifyWindow(shift(1), shift(1), now, LONG_HOURS)).toBe('ok')
   })
 
   it('still flags an equal window that falls outside the horizon', () => {
-    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 5), shift(FUTURE_LIMIT_DAYS + 5), now)).toBe(
+    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 5), shift(FUTURE_LIMIT_DAYS + 5), now, LONG_HOURS)).toBe(
       'future',
     )
   })
@@ -479,7 +496,7 @@ describe('classifyWindow', () => {
   it('prefers the order warning over a horizon warning when both apply', () => {
     // End far in the future but before the start — ordering is the actionable
     // problem, so it wins over the "future" classification.
-    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 10), shift(FUTURE_LIMIT_DAYS + 5), now)).toBe(
+    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 10), shift(FUTURE_LIMIT_DAYS + 5), now, LONG_HOURS)).toBe(
       'order',
     )
   })
@@ -531,7 +548,7 @@ describe('classifyAqiCoverage', () => {
 
 describe('the Now chip (mode=now)', () => {
   it('encodes mode=now and no days at all', () => {
-    const params = new URLSearchParams(encodeState({ ...base, selection: { kind: 'now' } }))
+    const params = new URLSearchParams(encodeState({ ...base, selection: { kind: 'now' } }, DEFAULT_MODEL))
     expect(params.get('mode')).toBe('now')
     // A shared "now" link re-samples at open time, so it must carry no dates.
     expect(params.get('d1')).toBeNull()
@@ -540,7 +557,7 @@ describe('the Now chip (mode=now)', () => {
   })
 
   it('is the default, so it does not make a pristine session worth persisting', () => {
-    expect(encodeState({ ...pristine, selection: { kind: 'now' } })).toBe('')
+    expect(encodeState({ ...pristine, selection: { kind: 'now' } }, DEFAULT_MODEL)).toBe('')
   })
 
   it('decodes mode=now', () => {
@@ -558,7 +575,7 @@ describe('the Now chip (mode=now)', () => {
 
 describe('a day selection (mode=days)', () => {
   it('spells the mode out even though d1 would imply it', () => {
-    const params = new URLSearchParams(encodeState(base))
+    const params = new URLSearchParams(encodeState(base, DEFAULT_MODEL))
     expect(params.get('mode')).toBe('days')
     expect(params.get('d1')).toBe('2026-07-04')
     expect(params.get('d2')).toBe('2026-07-07')
@@ -569,7 +586,7 @@ describe('a day selection (mode=days)', () => {
       encodeState({
         ...base,
         selection: { kind: 'days', startDate: '2026-07-04', endDate: '2026-07-04' },
-      }),
+      }, DEFAULT_MODEL),
     )
     expect(params.get('d1')).toBe('2026-07-04')
     expect(params.get('d2')).toBeNull()
@@ -585,7 +602,7 @@ describe('a day selection (mode=days)', () => {
       ...DAYS,
       hours: { start: '06:00', end: '18:00' },
     }
-    const params = new URLSearchParams(encodeState({ ...base, selection: narrowed }))
+    const params = new URLSearchParams(encodeState({ ...base, selection: narrowed }, DEFAULT_MODEL))
     expect(params.get('h1')).toBe('06:00')
     expect(params.get('h2')).toBe('18:00')
     expect(roundTrip({ ...base, selection: narrowed })!.selection).toEqual(narrowed)
@@ -737,13 +754,13 @@ describe('clampLimit', () => {
 
 describe('several destination types in one link', () => {
   it('round-trips a set, comma-joined and readable', () => {
-    const qs = encodeState({ ...base, destinationTypes: ['peak', 'lake'] })
+    const qs = encodeState({ ...base, destinationTypes: ['peak', 'lake'] }, DEFAULT_MODEL)
     expect(qs).toContain('type=peak%2Clake')
     expect(decodeState(qs)!.destinationTypes).toEqual(['peak', 'lake'])
   })
 
   it('drops the param entirely when nothing is checked', () => {
-    expect(encodeState({ ...base, destinationTypes: [] })).not.toContain('type=')
+    expect(encodeState({ ...base, destinationTypes: [] }, DEFAULT_MODEL)).not.toContain('type=')
   })
 
   it('keeps the types it recognizes and ignores the rest', () => {
@@ -761,17 +778,67 @@ describe('several destination types in one link', () => {
 
 describe('unnamed peaks in a link', () => {
   it('is absent by default, so it never makes a pristine session worth sharing', () => {
-    expect(encodeState(pristine)).toBe('')
-    expect(encodeState(base)).not.toContain('unnamed=')
+    expect(encodeState(pristine, DEFAULT_MODEL)).toBe('')
+    expect(encodeState(base, DEFAULT_MODEL)).not.toContain('unnamed=')
   })
 
   it('round-trips when switched on', () => {
-    const qs = encodeState({ ...base, includeUnnamedPeaks: true })
+    const qs = encodeState({ ...base, includeUnnamedPeaks: true }, DEFAULT_MODEL)
     expect(qs).toContain('unnamed=1')
     expect(decodeState(qs)!.includeUnnamedPeaks).toBe(true)
   })
 
   it('alone is enough to make a session worth persisting', () => {
-    expect(encodeState({ ...pristine, includeUnnamedPeaks: true })).not.toBe('')
+    expect(encodeState({ ...pristine, includeUnnamedPeaks: true }, DEFAULT_MODEL)).not.toBe('')
+  })
+})
+
+describe('the forecast model in a link', () => {
+  it('round-trips a chosen model', () => {
+    const restored = roundTrip({ ...base, forecastModel: 'gfs_hrrr' })
+    expect(restored?.forecastModel).toBe('gfs_hrrr')
+  })
+
+  // Written even at the default, like `mode` and `sort`. A link that left the
+  // model to the reader's default would show different numbers the moment that
+  // default moved, and the numbers are what was shared.
+  it('writes the model even when it is the default', () => {
+    expect(encodeState(base, DEFAULT_MODEL)).toContain(`model=${DEFAULT_MODEL}`)
+  })
+
+  // Every link shared before the picker existed carries no `model=`. Leaving
+  // the field absent is what lets the caller apply its own default rather than
+  // this module inventing one.
+  it('leaves the model absent when a link does not name one', () => {
+    expect(decodeState('?sort=precip_total_in&limit=10')?.forecastModel).toBeUndefined()
+  })
+
+  // Choosing a model is a real edit, so it alone deserves a URL. Without this
+  // the one state that differs from the default would share as the default.
+  it('gives an otherwise pristine session a URL once the model is chosen', () => {
+    expect(encodeState(pristine, DEFAULT_MODEL)).toBe('')
+    expect(encodeState({ ...pristine, forecastModel: 'gfs_hrrr' }, DEFAULT_MODEL)).toContain(
+      'model=gfs_hrrr',
+    )
+  })
+
+  // Shape only: the accepted set is the deployment's, from /api/capabilities,
+  // and this module cannot see it. A garbled value is dropped so the caller
+  // falls back rather than requesting nonsense.
+  it('drops a value that could not be a model id', () => {
+    expect(decodeState('?model=not a model')?.forecastModel).toBeUndefined()
+    expect(decodeState('?model=gfs_hrrr')?.forecastModel).toBe('gfs_hrrr')
+  })
+
+  // The band the warnings read is the model's, so the same window is fine
+  // under a global model and beyond the horizon under HRRR. If these two
+  // disagreed, the calendar would draw a day as unpickable while the warning
+  // called the window servable.
+  it('classifies the same window against the model actually chosen', () => {
+    const now = new Date(2026, 6, 15, 12, 0)
+    const start = '2026-07-20T00:00'
+    const end = '2026-07-20T23:59'
+    expect(classifyWindow(start, end, now, LONG_HOURS)).toBe('ok')
+    expect(classifyWindow(start, end, now, 42)).toBe('future')
   })
 })

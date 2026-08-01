@@ -61,6 +61,7 @@ is and whether waiting helps:
 
 | Status | What happened |
 |---|---|
+| `400` | The request is runnable in shape but not as asked. Past the candidate cap it carries the remedies above; naming a regional forecast model for somewhere outside its grid is the other case, and there the fix is a different model rather than a smaller area. |
 | `429` | Either you are asking faster than your per-address budget, or the weather service rate-limited this deployment mid-analysis. `Retry-After` is honest in both cases. |
 | `502` | An upstream failed outright. Every Overpass mirror was unreachable, or the weather service did not answer. Transient, worth retrying. |
 | `503` | This instance stayed at capacity long enough that it shed the request instead of queueing it forever. From `GET /api/wildfires` it means something narrower: this instance has never once fetched perimeters successfully, so it has nothing to serve, not even stale. Transient either way, and carries `Retry-After`. |

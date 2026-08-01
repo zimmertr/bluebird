@@ -106,7 +106,9 @@ def _stub_discovery(monkeypatch, count: int):
 
 
 def _stub_weather(monkeypatch):
-    async def fake_weather(destinations, start, end, on_progress=None, on_pace=None):
+    async def fake_weather(
+        destinations, start, end, on_progress=None, on_pace=None, model=None
+    ):
         return _wx(len(destinations))
 
     monkeypatch.setattr(weather, "fetch_weather_batch", fake_weather)

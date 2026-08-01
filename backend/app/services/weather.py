@@ -9,11 +9,14 @@ from typing import Any
 import httpx
 
 from app import ratelimit
+from app.models import DEFAULT_FORECAST_MODEL, MODEL_INFO, ForecastModel
 from app.services import cache, http
 from app.services.errors import (
+    ModelCoverageError,
     UpstreamError,
     UpstreamRateLimited,
     classify_http_error,
+    is_out_of_domain,
     parse_rate_limit,
     rate_limit_message,
 )
@@ -59,6 +62,7 @@ async def fetch_weather_batch(
     end_dt: datetime,
     on_progress: ProgressCallback | None = None,
     on_pace: PaceCallback | None = None,
+    model: ForecastModel = DEFAULT_FORECAST_MODEL,
 ) -> list[dict[str, Any] | None]:
     if not destinations:
         return []
@@ -78,6 +82,7 @@ async def fetch_weather_batch(
             dest["longitude"],
             start_dt.isoformat(),
             end_dt.isoformat(),
+            model.value,
         )
         hit = cache.FORECAST_CACHE.get(key)
         if hit is None:
@@ -112,7 +117,7 @@ async def fetch_weather_batch(
     sem = asyncio.Semaphore(MAX_CONCURRENT_BATCHES)
     tasks = [
         asyncio.create_task(
-            _fetch_chunk_indexed(i, chunk, start_dt, end_dt, sem, on_pace)
+            _fetch_chunk_indexed(i, chunk, start_dt, end_dt, sem, on_pace, model)
         )
         for i, chunk in enumerate(chunks)
     ]
@@ -139,6 +144,7 @@ async def fetch_weather_batch(
             dest["longitude"],
             start_dt.isoformat(),
             end_dt.isoformat(),
+            model.value,
         )
         cache.FORECAST_CACHE.put(key, cache.NO_DATA if result is None else result)
     for i, result in zip(miss_indices, fetched):
@@ -153,6 +159,7 @@ async def _fetch_chunk_indexed(
     end_dt: datetime,
     sem: asyncio.Semaphore,
     on_pace: PaceCallback | None = None,
+    model: ForecastModel = DEFAULT_FORECAST_MODEL,
 ) -> tuple[int, list[dict[str, Any] | None]]:
     # Per-analysis fairness slot first, then the pod's weighted spend, then a
     # pod-wide in-flight slot. The weight acquire happens BEFORE the in-flight
@@ -169,27 +176,44 @@ async def _fetch_chunk_indexed(
                 await on_pace(int(estimate) + 1)
         await ratelimit.WEATHER_WEIGHT.acquire(weight)
         async with ratelimit.WEATHER_BUDGET.slot():
-            return index, await _fetch_chunk(destinations, start_dt, end_dt)
+            return index, await _fetch_chunk(destinations, start_dt, end_dt, model)
+
+
+def _coverage_message(model: ForecastModel) -> str:
+    """Why a regional model refused, and the one thing that fixes it."""
+    return (
+        f"{MODEL_INFO[model].label} does not cover part of this area. It is a "
+        "regional model, run over the continental US and neighbouring parts of "
+        "Canada and Mexico only. Choose a global forecast model, or move the "
+        "search area inside its coverage."
+    )
 
 
 async def _fetch_chunk(
     destinations: list[dict[str, Any]],
     start_dt: datetime,
     end_dt: datetime,
+    model: ForecastModel = DEFAULT_FORECAST_MODEL,
 ) -> list[dict[str, Any] | None]:
     lats = ",".join(str(d["latitude"]) for d in destinations)
     lons = ",".join(str(d["longitude"]) for d in destinations)
 
     log.info(
-        "Open-Meteo batch: %d location(s), %s → %s",
+        "Open-Meteo batch: %d location(s), %s → %s, model %s",
         len(destinations),
         start_dt.date().isoformat(),
         end_dt.date().isoformat(),
+        model.value,
     )
 
     params = {
         "latitude": lats,
         "longitude": lons,
+        # Always named, never omitted. Sending no `models=` takes Open-Meteo's
+        # `best_match` blend, which picks per location and never reports what
+        # it picked — so two adjacent peaks in one response could come from two
+        # different models with nothing saying so.
+        "models": model.value,
         "hourly": "precipitation,temperature_2m,wind_speed_10m",
         "temperature_unit": "fahrenheit",
         "wind_speed_unit": "mph",
@@ -212,6 +236,17 @@ async def _fetch_chunk(
             data = resp.json()
             break
         except httpx.HTTPStatusError as exc:
+            if is_out_of_domain(exc):
+                # One location outside a regional model's grid 400s the whole
+                # batch, so this says nothing about which of the 50 it was.
+                # Naming them would take bisecting the batch — more upstream
+                # spend to refine an answer the user acts on the same way.
+                log.warning(
+                    "Open-Meteo: %s does not cover part of this batch", model.value
+                )
+                raise ModelCoverageError(
+                    model.value, _coverage_message(model)
+                ) from exc
             if exc.response.status_code != 429:
                 log.warning("Open-Meteo request failed: %s", exc)
                 raise UpstreamError(classify_http_error(exc, PROVIDER)) from exc

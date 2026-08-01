@@ -3,11 +3,14 @@ from pydantic import BaseModel, Field
 
 from app import ratelimit
 from app.models import (
+    DEFAULT_FORECAST_MODEL,
     FUTURE_LIMIT_SLACK_DAYS,
     MAX_ANALYZE_PEAKS,
     MAX_LIMIT,
     MAX_POLYGON_AREA_KM2,
     MIN_LIMIT,
+    MODEL_INFO,
+    PAST_DATA_DAYS,
     PAST_LIMIT_SLACK_DAYS,
     DestinationType,
     SortBy,
@@ -90,6 +93,35 @@ class RateLimits(BaseModel):
     )
 
 
+class ForecastModelInfo(BaseModel):
+    """One selectable weather model, and how far it reaches."""
+
+    id: str = Field(description="Value to send as `forecast_model`.")
+    label: str = Field(description="Human-readable name, as the picker shows it.")
+    forecast_hours: int = Field(
+        description=(
+            "How many hours ahead of now this model still has data for, as a "
+            "floor. Distinct from `limits.max_future_days`, which is the hard "
+            "edge the API refuses past: within that edge, a model simply stops, "
+            "returning nulls for hours beyond its own reach rather than an "
+            "error. A model's usable lead shrinks as its last run ages and "
+            "jumps back when the next lands, so this sits under the trough "
+            "rather than on any single reading."
+        )
+    )
+    regional: bool = Field(
+        description=(
+            "True for a model run over part of the world rather than all of "
+            "it. A request naming one is rejected with 400 if any destination "
+            "falls outside its grid — including destinations the caller never "
+            "sees, since discovery happens server-side."
+        )
+    )
+    default: bool = Field(
+        description="True for the model used when `forecast_model` is omitted."
+    )
+
+
 class Limits(BaseModel):
     """Hard bounds every request is validated against."""
 
@@ -122,6 +154,15 @@ class Limits(BaseModel):
             "roughly 16 days; this bound carries the same slack."
         )
     )
+    past_data_days: int = Field(
+        description=(
+            "How far back the weather API still holds data, as opposed to how "
+            "far back it accepts a date. Past this, a request succeeds and "
+            "returns an hourly array of nulls, so a window reaching further "
+            "yields rows with no numbers rather than an error. Always well "
+            "inside `max_past_days`, which is the accept bound."
+        )
+    )
     aqi_forecast_days: int = Field(
         description=(
             "How far ahead air quality is available. The underlying CAMS model "
@@ -152,6 +193,13 @@ class CapabilitiesResponse(BaseModel):
     sort_keys: list[str] = Field(
         description="Accepted values for `sort_by`, usable with `sort_desc`."
     )
+    forecast_models: list[ForecastModelInfo] = Field(
+        description=(
+            "Accepted values for `forecast_model`, longest reach first. Models "
+            "disagree with each other, so which one answered is part of what a "
+            "number means."
+        )
+    )
     limits: Limits
     data_sources: list[DataSource]
 
@@ -176,6 +224,21 @@ async def capabilities() -> CapabilitiesResponse:
     return CapabilitiesResponse(
         destination_types=types,
         sort_keys=[s.value for s in SortBy],
+        # Longest reach first, so a picker rendering them in order puts the
+        # models that can answer the most questions at the top and HRRR, which
+        # answers about two days, at the bottom.
+        forecast_models=[
+            ForecastModelInfo(
+                id=model.value,
+                label=info.label,
+                forecast_hours=info.forecast_hours,
+                regional=info.regional,
+                default=model is DEFAULT_FORECAST_MODEL,
+            )
+            for model, info in sorted(
+                MODEL_INFO.items(), key=lambda kv: (-kv[1].forecast_hours, kv[0].value)
+            )
+        ],
         limits=Limits(
             max_polygon_area_km2=MAX_POLYGON_AREA_KM2,
             max_destinations=MAX_ANALYZE_PEAKS,
@@ -183,6 +246,7 @@ async def capabilities() -> CapabilitiesResponse:
             max_limit=MAX_LIMIT,
             max_past_days=PAST_LIMIT_SLACK_DAYS,
             max_future_days=FUTURE_LIMIT_SLACK_DAYS,
+            past_data_days=PAST_DATA_DAYS,
             aqi_forecast_days=AQI_FORECAST_DAYS,
             # Read from the live limiter instances, not the env constants, so
             # what this publishes is what enforcement actually counts.

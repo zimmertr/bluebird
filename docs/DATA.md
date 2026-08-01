@@ -18,9 +18,9 @@ requires are collected in [NOTICES.md](../NOTICES.md).
 
 ## A forecast is not a measurement
 
-Nothing in the results table was observed. Open-Meteo serves the output of
-whichever national weather model covers a location best, and those models re-run
-on their own schedules, ranging from hourly to a few times a day. The value
+Nothing in the results table was observed. Open-Meteo serves the output of a
+national weather model, and those models re-run on their own schedules, ranging
+from hourly to a few times a day. The value
 against a given hour was therefore computed some time before you asked for it,
 and the same hour can read differently tomorrow. Bluebird caches each location
 briefly on top of that, a far smaller effect than the model cadence but not
@@ -92,10 +92,47 @@ Bluebird's own [PolyForm Noncommercial license](../LICENSE) lines up with that
 tier deliberately. A commercial deployment would need an arrangement with
 Open-Meteo as well as one here.
 
-History reaches back only as far as the forecast endpoint's own archive.
+History reaches back only as far as the forecast endpoint's own archive, and
+that archive is shorter than the range of dates the endpoint will accept. Past
+roughly two months a request still succeeds and comes back with no numbers in
+it, so Bluebird's calendar stops well before the date the API stops accepting.
 Going further would mean the separate
 [Open-Meteo Historical API](https://open-meteo.com/en/docs/historical-weather-api),
 which is not wired up.
+
+## Choosing a model
+
+Bluebird names a weather model on every request rather than taking Open-Meteo's
+`best_match` blend, and the panel lets you change it. Two reasons.
+
+**Models disagree.** Over three days at one Cascades summit, ECMWF and GFS both
+totalled 0.000 in of precipitation while ICON gave 0.004 in. The blend picks per
+location and never reports its pick, so two adjacent peaks in one ranking could
+have come from two different models with nothing on screen saying so. Naming one
+model is what makes a row reproducible and a shared link mean what it meant when
+it was shared.
+
+**Models reach different distances.** This is the part that changes the app's
+behavior rather than only its numbers, so the calendar reads it: choosing a model
+redraws the servable band, and a window already chosen is shortened to fit with
+a note saying so. Two edges bound the far end and only one of them moves. The
+API refuses a date past roughly 16 days whatever you ask for; inside that, each
+model simply stops, returning nothing for the hours past its own reach.
+`GET /api/capabilities` publishes how far each model reaches, which is where the
+calendar gets the number rather than compiling its own.
+
+The short-range outlier is **HRRR**, which reaches about two days where the
+global models reach one to two weeks. That is the trade it exists for: it is a
+3 km model and the most accurate of these in mountain terrain, so it is the one
+to ask about tomorrow morning and useless for next weekend.
+
+HRRR is also the only **regional** model here. It is run over the continental US
+and neighbouring parts of Canada and Mexico, and Open-Meteo refuses any point
+outside that grid — a refusal that takes the whole batch with it, so a single
+destination outside coverage fails the analysis rather than quietly dropping one
+row. Bluebird does not ship a copy of HRRR's domain to check against, because
+the grid is not a lat/lon rectangle and any copy would drift; Open-Meteo is the
+authority, and its refusal is reported as one, naming the model and the fix.
 
 ## Air quality
 

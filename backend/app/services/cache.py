@@ -140,10 +140,25 @@ def forecast_key(
     longitude: Any,
     start_iso: str,
     end_iso: str,
+    model: str = "",
 ) -> tuple:
     """Cache key for one location's windowed result from one Open-Meteo
-    service (``service`` distinguishes weather from air quality)."""
-    return (CACHE_VERSION, service, str(latitude), str(longitude), start_iso, end_iso)
+    service (``service`` distinguishes weather from air quality).
+
+    ``model`` is the weather model that answered. It must be part of the key
+    or two models would share one entry and the second one asked for would be
+    served the first one's numbers — the whole point of choosing a model being
+    that they disagree. Empty for air quality, which has only one model.
+    """
+    return (
+        CACHE_VERSION,
+        service,
+        str(latitude),
+        str(longitude),
+        start_iso,
+        end_iso,
+        model,
+    )
 
 
 # A cached "no data for this window" is a real answer, distinct from a miss.

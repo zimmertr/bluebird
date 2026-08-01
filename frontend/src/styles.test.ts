@@ -11,12 +11,14 @@ import {
   CHOICE_ROW,
   DAY,
   FIELD,
+  ICON_ADORNMENT,
   ICON_ACTION,
   ICON_BUTTON,
   NOTICE,
   SEGMENT,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
+  SELECT,
   SPINNER,
   STATUS,
   RECESSED_EDGE,
@@ -429,6 +431,7 @@ describe('shared recipes', () => {
     ['CHOICE_ROW', CHOICE_ROW],
     ['SEGMENT_ITEM', SEGMENT_ITEM],
     ['FIELD', FIELD],
+    ['SELECT', SELECT],
     ['DAY.cell', DAY.cell],
   ])('%s is a tap target on a coarse pointer', (_name, recipe) => {
     expect(recipe).toContain('touch:')
@@ -456,6 +459,28 @@ describe('shared recipes', () => {
   // because a call site cannot override it anyway.
   it('keeps every field placeholder legible', () => {
     expect(FIELD).toContain('placeholder-slate-400')
+  })
+
+  // A dropdown is a field with two additions, not a second field. Built from
+  // FIELD so the two cannot drift into different surfaces, borders or focus
+  // rings the way the segmented control's two hand-built copies once could.
+  it('builds the dropdown out of the field rather than beside it', () => {
+    expect(SELECT).toContain(FIELD)
+  })
+
+  // The native control paints its own chrome from the SYSTEM palette, so on a
+  // light-mode OS it renders dark-on-light inside a dark panel. Suppressing it
+  // is what makes the arrow ours, and reserving the arrow's room is what stops
+  // a long model name running underneath it.
+  it('suppresses the platform chrome and keeps room for the arrow it replaces', () => {
+    expect(SELECT).toContain('appearance-none')
+    expect(SELECT).toContain('pr-8')
+  })
+
+  // The arrow sits over the control it decorates. Without this the one place a
+  // user aims for is the one place that does not open the dropdown.
+  it('lets clicks through the glyph drawn over a control', () => {
+    expect(ICON_ADORNMENT).toContain('pointer-events-none')
   })
 
   // Every floating box on the map is one surface: the search field and its

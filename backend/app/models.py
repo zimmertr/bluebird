@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Literal
+from typing import Literal, NamedTuple
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -34,6 +34,24 @@ MAX_ANALYZE_PEAKS = 1_500
 PAST_LIMIT_SLACK_DAYS = 95
 FUTURE_LIMIT_SLACK_DAYS = 17
 
+# How far back the forecast endpoint still holds *data*, as opposed to how far
+# back it accepts a date. The two are not the same and the difference was a
+# live bug: the endpoint answers 200 for any start within ~93 days, but past
+# roughly two months it answers with an hourly array of nulls, so the calendar
+# offered ~30 days that could only ever come back empty.
+#
+# Probed 2026-08-01 at 47.42648,-120.85892, bisecting the last day back that
+# returns any non-null hour, per model:
+#
+#   jma 69   metno 65   knmi 65   best_match 64   gfs 64   ukmo 64
+#   gem 63   ecmwf 62   meteofrance 60   hrrr 58   icon 58
+#
+# Every model is fully populated through 56 days back and ragged at 58, so this
+# is one floor for all of them rather than an eleventh column in the table
+# below: the spread is two weeks of jitter around a single ~2-month retention,
+# not a per-model property worth modelling. Re-probe before raising it.
+PAST_DATA_DAYS = 55
+
 # Rows returned per analysis. Named rather than inline so the validator and
 # GET /api/capabilities cannot drift apart. The ceiling equals the analysis
 # cap on purpose: `limit` trims the response, never the upstream work, and a
@@ -61,6 +79,96 @@ class ForecastMode(str, Enum):
     current = "current"
     at = "at"
     window = "window"
+
+
+class ForecastModel(str, Enum):
+    """The weather model Open-Meteo is asked for, as its own `models=` value.
+
+    Sending no `models=` at all takes Open-Meteo's `best_match` blend, which is
+    what Bluebird shipped before this enum existed and is kept here as an
+    explicit choice rather than an absence. `ecmwf_aifs025` is deliberately
+    absent: probed 2026-08-01 at three points on three continents, it returned
+    an hourly array of nothing but nulls at every one, so offering it would only
+    ever produce an empty analysis.
+    """
+
+    ecmwf_ifs025 = "ecmwf_ifs025"
+    gfs_seamless = "gfs_seamless"
+    gfs_hrrr = "gfs_hrrr"
+    icon_seamless = "icon_seamless"
+    ukmo_seamless = "ukmo_seamless"
+    meteofrance_seamless = "meteofrance_seamless"
+    jma_seamless = "jma_seamless"
+    gem_seamless = "gem_seamless"
+    knmi_seamless = "knmi_seamless"
+    metno_seamless = "metno_seamless"
+    best_match = "best_match"
+
+
+# ECMWF rather than the `best_match` blend Bluebird used to send. `best_match`
+# is a per-location choice Open-Meteo makes and never reports, so two adjacent
+# peaks could be answered by two different models and nothing said so; naming
+# one model is what makes a number reproducible. This changes the numbers for
+# every existing shared link, which is a release note, not a migration: a link
+# carries no `model=` and therefore inherits this default.
+DEFAULT_FORECAST_MODEL = ForecastModel.ecmwf_ifs025
+
+
+class ModelInfo(NamedTuple):
+    """One model as the picker and the calendar need it."""
+
+    label: str
+    forecast_hours: int
+    # HRRR is the only model here that is not global, and its domain is a
+    # Lambert conformal grid no lat/lon box describes: Banff, Edmonton and
+    # Monterrey answer, while Alaska, Hawaii, Puerto Rico, Newfoundland and
+    # northern BC do not. Bluebird therefore ships no domain of its own and
+    # lets Open-Meteo be the authority (see `analyze.py`); this flag exists so
+    # the picker can say the model is regional before a request is spent.
+    regional: bool = False
+
+
+# How many hours ahead of *now* each model still has data for, as a floor.
+#
+# Two separate edges bound the far end of a window and only one of them is per
+# model. Open-Meteo refuses an `end_date` past ~16 days with a 400 whatever the
+# model; that hard edge is `FUTURE_LIMIT_SLACK_DAYS` here and `FUTURE_LIMIT_DAYS`
+# in `calendar.ts`. Inside it, each model simply stops: the array comes back the
+# requested length with nulls past the model's own reach. This table is that
+# softer, per-model edge.
+#
+# The numbers are floors, not measurements. A model's usable lead shrinks by the
+# hour as its last run ages and jumps back up when the next one lands, so the
+# published value has to sit under the trough rather than on any single reading.
+# Probed 2026-08-01 at 47.42648,-120.85892 with `forecast_days=16`, counting
+# non-null hours; each floor drops the measurement to the run cycle below it:
+#
+#   model                  measured   floor
+#   best_match / gfs       384        384   (bounded by the request, not the model)
+#   ecmwf_ifs025           349, 342   336
+#   knmi / metno           349        336
+#   jma_seamless           253        240
+#   gem_seamless           241        216
+#   icon_seamless          181        168
+#   ukmo_seamless          157        144
+#   meteofrance_seamless   103         72
+#   gfs_hrrr                49,  42    42
+#
+# Being wrong high costs a calendar day that answers with nothing; being wrong
+# low costs a day of real forecast. Re-probe before moving any of them.
+MODEL_INFO: dict[ForecastModel, ModelInfo] = {
+    ForecastModel.ecmwf_ifs025: ModelInfo("ECMWF IFS", 336),
+    ForecastModel.gfs_seamless: ModelInfo("NOAA GFS", 384),
+    ForecastModel.gfs_hrrr: ModelInfo("NOAA HRRR", 42, regional=True),
+    ForecastModel.icon_seamless: ModelInfo("DWD ICON", 168),
+    ForecastModel.ukmo_seamless: ModelInfo("UK Met Office", 144),
+    ForecastModel.meteofrance_seamless: ModelInfo("Météo-France ARPEGE", 72),
+    ForecastModel.jma_seamless: ModelInfo("JMA GSM", 240),
+    ForecastModel.gem_seamless: ModelInfo("ECCC GEM", 216),
+    ForecastModel.knmi_seamless: ModelInfo("KNMI HARMONIE", 336),
+    ForecastModel.metno_seamless: ModelInfo("MET Norway", 336),
+    ForecastModel.best_match: ModelInfo("Best match (blended)", 384),
+}
 
 
 class SortBy(str, Enum):
@@ -219,6 +327,23 @@ class AnalyzeRequest(BaseModel):
                 "list."
             )
         return v
+    forecast_model: ForecastModel = Field(
+        default=DEFAULT_FORECAST_MODEL,
+        description=(
+            "Which weather model answers. Models disagree, sometimes by more "
+            "than the thing being measured: at one Cascades summit over three "
+            "days, ECMWF and GFS both totalled 0.000 in of precipitation while "
+            "ICON gave 0.004 in.\n\n"
+            "Each model also reaches a different distance ahead, so this bounds "
+            "`end_datetime` as well: hours past the chosen model's horizon come "
+            "back null rather than failing, and `GET /api/capabilities` "
+            "publishes how far each one reaches. `gfs_hrrr` is the short-range "
+            "outlier — roughly two days, against two weeks for the global "
+            "models — and is also the only regional one, covering the "
+            "continental US with parts of Canada and Mexico and refusing any "
+            "point outside that grid."
+        ),
+    )
     forecast_mode: ForecastMode | None = Field(
         default=None,
         description=(

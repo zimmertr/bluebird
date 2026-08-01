@@ -366,6 +366,7 @@ describe('analysisNoun', () => {
 
 const REQUEST: AnalyzeRequest = {
   destination_types: [],
+  forecast_model: 'ecmwf_ifs025',
   start_datetime: '2026-07-21T00:00:00Z',
   end_datetime: '2026-07-21T02:00:00Z',
   limit: 2,

@@ -412,6 +412,7 @@ export async function runClientAnalysis(
     const wxList = await fetchWeather(coords, startMs, endMs, {
       signal: internal.signal,
       onPace,
+      model: request.forecast_model,
       onProgress: (processed, total) =>
         onProgress?.(
           processed,

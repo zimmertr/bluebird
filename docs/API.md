@@ -59,13 +59,48 @@ which timestamps the request needs:
 
 Sending a timestamp a mode does not use is a `422` rather than something the
 server quietly ignores. `at` works for past hours too, not just future ones,
-since the weather API serves roughly 90 days of history.
+though the archive behind it is shorter than the range of dates the request
+validator accepts — see `limits.past_data_days` below.
 
 Omitting `forecast_mode` still works and is inferred: both timestamps mean
 `window`, neither means `current`. Sending exactly one without a mode is
 refused, because it reads equally as `at` or as a `window` missing its end, and
 guessing would turn a fat-fingered window into a one-hour sample without
 telling you.
+
+## Choosing a forecast model
+
+`forecast_model` names which weather model answers. It defaults to ECMWF and
+never sends Open-Meteo's `best_match` blend, which picks per location and does
+not report its pick.
+
+```jsonc
+{ "forecast_model": "gfs_hrrr",
+  "forecast_mode": "window",
+  "start_datetime": "2026-08-01T14:00:00Z",
+  "end_datetime":   "2026-08-02T02:00:00Z" }
+```
+
+Two things follow from the choice, and `GET /api/capabilities` publishes both
+under `forecast_models` rather than leaving you to hardcode them.
+
+**Each model reaches a different distance.** `forecast_hours` says how far. It
+is separate from `limits.max_future_days`, which is the hard edge the request
+validator refuses past: inside that edge a model does not fail, it just returns
+`null` for hours beyond its own reach, so a window reaching too far yields rows
+with fewer hours behind them rather than an error.
+
+**One model is regional.** `regional: true` marks it — today only `gfs_hrrr`,
+run over the continental US and neighbouring parts of Canada and Mexico. A
+request naming it is refused with `400` if *any* destination falls outside that
+grid, including destinations you never named, since discovery happens
+server-side. The message names the model; it cannot name the destination,
+because the upstream refuses the whole batch without saying which location it
+objected to. Switching to a global model is the fix.
+
+An unsupported id is a `422`, never a silent fall back to the default: answering
+with a model other than the one asked for is exactly what naming a model is
+meant to prevent.
 
 ## The endpoints
 
@@ -304,10 +339,18 @@ curl -s https://bluebirdforecast.com/api/capabilities | jq
 It reports the searchable destination types (narrower than the enum in the
 schema, since not every modelled type is discoverable yet), the sort keys, the
 maximum polygon area, the cap on destinations per analysis, the accepted `limit`
-range, how far forward and back a window may reach, and (under `limits.rate`)
-the per-address request pacing behind `429` responses. Those values are read
-from the same constants the validators and limiters enforce, so they cannot
-drift.
+range, how far forward and back a window may reach, the selectable forecast
+models with each one's reach (under `forecast_models`), and (under
+`limits.rate`) the per-address request pacing behind `429` responses. Those
+values are read from the same constants the validators and limiters enforce, so
+they cannot drift.
+
+Two of the window limits look redundant and are not. `limits.max_past_days` is
+how far back a request is *accepted*; `limits.past_data_days` is how far back
+the weather API still *holds data*. Past the latter a request succeeds and comes
+back with nothing in it, so the second number is the one worth building a date
+picker against. The far end has the same split, between `limits.max_future_days`
+and each model's `forecast_hours`.
 
 Air quality deserves a note. Its horizon is far shorter than the weather
 forecast, so `aqi_avg` and `aqi_max` come back `null` for hours beyond it. That
@@ -324,7 +367,7 @@ the reasoning, along with the equivalent caveats for the other providers.
 
 | Status | Meaning |
 | --- | --- |
-| `400` | The request parsed but does not describe a runnable analysis. Inverted window, undiscoverable destination type, missing `custom_destinations`, or too many candidates — the over-limit case carries the structured remedy fields described above. |
+| `400` | The request parsed but does not describe a runnable analysis. Inverted window, undiscoverable destination type, missing `custom_destinations`, a regional `forecast_model` asked about somewhere outside its grid, or too many candidates — the over-limit case carries the structured remedy fields described above. |
 | `404` | No such endpoint. The body names the path and points at `/docs`. |
 | `405` | Right path, wrong method. The `Allow` header lists what the path accepts. |
 | `422` | Request validation failed. Polygon too large, `limit` out of range, or a window outside the servable horizon. |

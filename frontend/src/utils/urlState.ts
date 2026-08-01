@@ -31,6 +31,11 @@ export interface ShareableState {
   // be four — a mode plus three parallel sets of timestamps, two of them always
   // dormant — which is most of why the panel section shrank.
   selection: ForecastSelection
+  // Which weather model answered. Part of the shared state because it is part
+  // of what the numbers mean: the same window over the same peaks gives
+  // different answers under different models, so a link that dropped it would
+  // reopen showing something other than what was shared.
+  forecastModel: string
   sortBy: SortBy
   sortDesc: boolean // false = lowest first (the historical behavior)
   minElevationFt: number | null
@@ -184,7 +189,12 @@ function isValidDatetimeLocal(s: string): boolean {
  * and rewritten them on every reload, before the user did anything at all. The
  * calendar's default is the Now chip, which carries no dates to write.
  */
-export function encodeState(state: ShareableState): string {
+// `defaultForecastModel` is passed in rather than named here because the
+// default is the deployment's, published by /api/capabilities. Compiling a copy
+// into this module would be the mirrored-constant problem issue #152 exists to
+// stop, and it is only needed to answer one question: has the user moved off
+// the default, and does this state therefore deserve a URL at all.
+export function encodeState(state: ShareableState, defaultForecastModel: string): string {
   const hasPolygon = state.polygon !== null && (state.polygon.coordinates[0]?.length ?? 0) >= 3
   const hasCustom = state.customCsv.trim() !== ''
   const hasConstraint = state.minElevationFt !== null || state.maxElevationFt !== null
@@ -196,7 +206,8 @@ export function encodeState(state: ShareableState): string {
     state.destinationTypes.length !== DEFAULT_TYPES.length ||
     state.includeUnnamedPeaks ||
     state.showWildfires ||
-    state.selection.kind !== 'now'
+    state.selection.kind !== 'now' ||
+    state.forecastModel !== defaultForecastModel
   if (!hasPolygon && !hasCustom && !hasConstraint && !hasPins && !nonDefaultControls)
     return ''
 
@@ -208,6 +219,12 @@ export function encodeState(state: ShareableState): string {
   p.set('sort', state.sortBy)
   if (state.sortDesc) p.set('desc', '1')
   p.set('limit', String(state.limit))
+  // Always written once the link exists at all, for the same reason `mode` is:
+  // the model is part of what the numbers mean, so a link that left it to the
+  // reader's default would show something other than what was shared the moment
+  // that default moved. The id is Open-Meteo's own (`ecmwf_ifs025`,
+  // `gfs_hrrr`), which keeps the param as hand-editable as the rest.
+  p.set('model', state.forecastModel)
   // Always written, like type/sort/limit above, even at its default. Links used
   // to leave `mode` out for the then-default window mode and let the reader
   // infer it; that made every shared link hostage to the app's current default.
@@ -352,6 +369,16 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   const selection = decodeSelection(params)
   if (selection) out.selection = selection
 
+  // Shape only, no membership check: the accepted set is the deployment's, from
+  // /api/capabilities, and this module has no access to it. A link naming a
+  // model this deployment does not offer is settled by the caller, which has
+  // the list. Absent is the interesting case and it means one thing — every
+  // link shared before the picker existed was computed under Open-Meteo's
+  // `best_match` blend, and inherits the current default instead, which is a
+  // release note rather than a migration.
+  const model = params.get('model')
+  if (model && /^[a-z0-9_]+$/.test(model)) out.forecastModel = model
+
   const minel = params.get('minel')
   if (minel !== null) {
     const n = Number(minel)
@@ -423,6 +450,7 @@ export function classifyWindow(
   startDatetime: string,
   endDatetime: string,
   now: Date,
+  forecastHours: number,
 ): 'ok' | 'order' | 'past' | 'future' {
   if (!isValidDatetimeLocal(startDatetime) || !isValidDatetimeLocal(endDatetime)) {
     return 'ok' // incomplete window — nothing to warn about yet
@@ -430,7 +458,11 @@ export function classifyWindow(
   const start = new Date(startDatetime).getTime()
   const end = new Date(endDatetime).getTime()
   const earliest = Date.parse(`${bandStart(now)}T${DAY_START}`)
-  const latest = Date.parse(`${bandEnd(now)}T${DAY_END}`)
+  // Reads the same band the calendar draws, so a window the grid shows as
+  // unpickable and a window this calls 'future' can never be different sets —
+  // which is why the model's reach has to reach this function rather than only
+  // the grid.
+  const latest = Date.parse(`${bandEnd(now, forecastHours)}T${DAY_END}`)
 
   // A reversed window is a user error, not a horizon problem — flag it first so
   // the message is about the hours the user just set, not the servable range.

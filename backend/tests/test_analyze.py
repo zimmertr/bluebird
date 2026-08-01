@@ -17,6 +17,7 @@ from app.routes.analyze import (
     _sse,
     _summarize_request,
 )
+from app.services.errors import ModelCoverageError
 from fastapi.testclient import TestClient
 
 client = TestClient(app)
@@ -167,7 +168,9 @@ def _window():
 def stub_upstreams(monkeypatch):
     """Weather returns precip = destination latitude; AQI degrades to None."""
 
-    async def fake_wx(destinations, start, end, on_progress=None, on_pace=None):
+    async def fake_wx(
+        destinations, start, end, on_progress=None, on_pace=None, model=None
+    ):
         return [_wx(d["latitude"]) for d in destinations]
 
     async def fake_aqi(destinations, start, end):
@@ -645,3 +648,54 @@ def test_assemble_prefers_per_destination_type():
     dests = [_dest("pk", 1.0), {**_dest("cu", 2.0), "type": "custom"}]
     results, _ = _assemble(dests, [_wx(0.1), _wx(0.2)], [None, None], "peak")
     assert [(r.name, r.type) for r in results] == [("pk", "peak"), ("cu", "custom")]
+
+
+def test_analyze_maps_a_model_coverage_refusal_to_400_not_502(monkeypatch):
+    """A regional model asked about somewhere it does not model.
+
+    502 would say the upstream failed. It did not: Open-Meteo answered
+    correctly and quickly, and the request is what needs changing. The message
+    has to name the model, because a batch 400s if a single one of its 50
+    locations is outside the grid and nothing identifies which.
+    """
+
+    async def refuse(*args, **kwargs):
+        raise ModelCoverageError("gfs_hrrr", "NOAA HRRR does not cover part of this area.")
+
+    async def fake_aqi(destinations, start, end):
+        return [None] * len(destinations)
+
+    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", refuse)
+    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+
+    start, end = _window()
+    resp = client.post(
+        "/api/analyze",
+        json={
+            "destination_types": [],
+            "start_datetime": start,
+            "end_datetime": end,
+            "forecast_model": "gfs_hrrr",
+            "custom_destinations": [{"name": "a", "latitude": 46.5, "longitude": 8.0}],
+        },
+    )
+    assert resp.status_code == 400
+    assert "NOAA HRRR" in resp.json()["detail"]
+
+
+def test_analyze_rejects_a_model_this_deployment_does_not_serve():
+    resp = client.post(
+        "/api/analyze",
+        json={
+            "destination_types": [],
+            "start_datetime": _window()[0],
+            "end_datetime": _window()[1],
+            "forecast_model": "ecmwf_aifs025",
+            "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 0.0}],
+        },
+    )
+    # 422 rather than a silent fall back to the default: probed 2026-08-01,
+    # aifs returns nothing but nulls everywhere, and quietly answering with a
+    # different model than the one asked for is the failure this whole feature
+    # exists to end.
+    assert resp.status_code == 422

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   OpenMeteoHttpError,
+  OpenMeteoModelCoverage,
   OpenMeteoRateLimited,
   OpenMeteoUnreachable,
   aqiMetrics,
@@ -113,13 +114,17 @@ afterEach(() => {
   resetOpenMeteoState()
 })
 
+// Every fetch names a model now; these tests are not about which one, so they
+// all use the default. `models=` reaching the wire is asserted on its own below.
+const MODEL = 'ecmwf_ifs025'
+
 describe('fetchWeather', () => {
   it('normalizes the single-location object payload to one result', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(hourlyPayload())))
     const out = await fetchWeather(
       [{ latitude: 47.5, longitude: -121.9 }],
       WINDOW.startMs,
-      WINDOW.endMs,
+      WINDOW.endMs, { model: MODEL },
     )
     expect(out).toHaveLength(1)
     expect(out[0]?.precip_total_in).toBe(0.3)
@@ -130,8 +135,8 @@ describe('fetchWeather', () => {
     const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
     vi.stubGlobal('fetch', fetchSpy)
     const coords = [{ latitude: 47.5, longitude: -121.9 }]
-    await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs)
-    const again = await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs)
+    await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { model: MODEL })
+    const again = await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { model: MODEL })
     expect(fetchSpy).toHaveBeenCalledTimes(1)
     expect(again[0]?.precip_total_in).toBe(0.3)
   })
@@ -145,7 +150,7 @@ describe('fetchWeather', () => {
       vi.fn(async () => ({ ok: false, status: 429, json: async () => ({}) })),
     )
     await expect(
-      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs),
+      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { model: MODEL }),
     ).rejects.toBeInstanceOf(OpenMeteoRateLimited)
   })
 
@@ -159,7 +164,7 @@ describe('fetchWeather', () => {
       })),
     )
     await expect(
-      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs),
+      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { model: MODEL }),
     ).rejects.toMatchObject({ scope: 'hourly' })
   })
 
@@ -182,7 +187,7 @@ describe('fetchWeather', () => {
       vi.fn(async () => ({ ok: false, status: 429, json: async () => ({ error: true, reason }) })),
     )
     await expect(
-      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs),
+      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { model: MODEL }),
     ).rejects.toMatchObject({
       message: `You have reached your ${scope} Open-Meteo forecast quota. ${advice}`,
     })
@@ -204,7 +209,7 @@ describe('fetchWeather', () => {
       const pending = fetchWeather(
         [{ latitude: 0, longitude: 0 }],
         WINDOW.startMs,
-        WINDOW.endMs,
+        WINDOW.endMs, { model: MODEL },
       )
       await vi.advanceTimersByTimeAsync(1_100)
       const out = await pending
@@ -223,7 +228,7 @@ describe('fetchWeather', () => {
       vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) })),
     )
     await expect(
-      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs),
+      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { model: MODEL }),
     ).rejects.toBeInstanceOf(OpenMeteoHttpError)
   })
 
@@ -238,7 +243,7 @@ describe('fetchWeather', () => {
       }),
     )
     await expect(
-      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs),
+      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { model: MODEL }),
     ).rejects.toBeInstanceOf(OpenMeteoUnreachable)
   })
 
@@ -250,7 +255,7 @@ describe('fetchWeather', () => {
       }),
     )
     await expect(
-      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs),
+      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { model: MODEL }),
     ).rejects.toMatchObject({ name: 'AbortError' })
   })
 
@@ -260,7 +265,7 @@ describe('fetchWeather', () => {
       vi.fn(async () => jsonResponse([hourlyPayload(), hourlyPayload()])),
     )
     await expect(
-      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs),
+      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { model: MODEL }),
     ).rejects.toBeInstanceOf(OpenMeteoUnreachable)
   })
 
@@ -278,6 +283,7 @@ describe('fetchWeather', () => {
     )
     const seen: Array<[number, number]> = []
     await fetchWeather(dests, WINDOW.startMs, WINDOW.endMs, {
+      model: MODEL,
       onProgress: (processed, total) => seen.push([processed, total]),
     })
     // Two chunks (50 + 10) completing in either order: the processed counter
@@ -286,6 +292,70 @@ describe('fetchWeather', () => {
     expect(seen.every(([, total]) => total === 60)).toBe(true)
     expect(seen[0][0]).toBeLessThan(seen[1][0])
     expect(seen[1][0]).toBe(60)
+  })
+})
+
+// The browser path is the one most analyses take, so the model reaching the
+// wire matters here as much as it does on the server.
+describe('the forecast model on the browser path', () => {
+  const coords = [{ latitude: 47.5, longitude: -121.9 }]
+
+  it('names the model on every request', async () => {
+    const fetchSpy = vi.fn(async (_url: string) => jsonResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { model: 'gfs_hrrr' })
+
+    const url = new URL(fetchSpy.mock.calls[0][0])
+    expect(url.searchParams.get('models')).toBe('gfs_hrrr')
+  })
+
+  it('does not let two models share one cache entry', async () => {
+    const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { model: 'ecmwf_ifs025' })
+    await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { model: 'gfs_seamless' })
+    await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { model: 'ecmwf_ifs025' })
+
+    // Two fetches, not three: the second model missed, the repeat of the first
+    // still hit.
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+
+  // Measured 2026-08-01: a batch 400s if a SINGLE one of its 50 locations is
+  // outside a regional model's grid. Its own class because the remedy is
+  // unlike every other failure here — not a wait, not a smaller area, but a
+  // different model — and because it must never trigger the server fallback,
+  // which reaches the same upstream and fails identically.
+  it('classifies a regional model refusing a location as its own failure', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 400,
+        clone: () => ({
+          json: async () => ({ error: true, reason: 'No data is available for this location' }),
+        }),
+        json: async () => ({ error: true, reason: 'No data is available for this location' }),
+      })),
+    )
+    await expect(
+      fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { model: 'gfs_hrrr' }),
+    ).rejects.toBeInstanceOf(OpenMeteoModelCoverage)
+  })
+
+  it('leaves an ordinary 400 as an ordinary HTTP error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 400,
+        clone: () => ({ json: async () => ({ reason: 'Invalid date' }) }),
+        json: async () => ({ reason: 'Invalid date' }),
+      })),
+    )
+    await expect(
+      fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { model: 'gfs_hrrr' }),
+    ).rejects.toBeInstanceOf(OpenMeteoHttpError)
   })
 })
 
