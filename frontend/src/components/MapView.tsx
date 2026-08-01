@@ -35,7 +35,7 @@ import {
 } from '../utils/basemapPoi'
 import { POI_ACTION_ATTR, poiPopupHtml } from '../utils/poiPopup'
 import { Ring, widestPole } from '../utils/polylabel'
-import { popupMaxHeight, popupWidth } from '../utils/popupChrome'
+import { popupWidth } from '../utils/popupChrome'
 import {
   COARSE_TOLERANCE_DEG,
   fetchWildfires,
@@ -564,21 +564,6 @@ function popupOptions(map: maplibregl.Map) {
   return { maxWidth: popupWidth(map.getCanvas().clientWidth) }
 }
 
-/**
- * Bound a popup to the map it opened on.
- *
- * Height has to be applied after `addTo`, because MapLibre has no option for
- * it and builds the content element itself. Without this a ranked result — a
- * name, a rule and eight rows — runs off a map that the chart and table have
- * squeezed to a couple of hundred pixels.
- */
-function constrainPopup(map: maplibregl.Map, popup: maplibregl.Popup) {
-  const content = popup.getElement()?.querySelector<HTMLElement>('.maplibregl-popup-content')
-  if (!content) return
-  content.style.maxHeight = popupMaxHeight(map.getCanvas().clientHeight)
-  content.style.overflowY = 'auto'
-}
-
 const MapView = forwardRef<MapViewHandle, Props>(
   (
     {
@@ -779,7 +764,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
             }),
           )
           .addTo(map)
-        constrainPopup(map, resultPopupRef.current)
       },
     }))
 
@@ -1318,7 +1302,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
               }),
             )
             .addTo(map)
-          constrainPopup(map, resultPopup)
         }
         const showPointer = () => {
           map.getCanvas().style.cursor = 'pointer'
@@ -1344,7 +1327,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
           const popup = new maplibregl.Popup({ ...popupOptions(map), closeOnClick: false })
             .setLngLat([poi.lon, poi.lat])
             .addTo(map)
-          constrainPopup(map, popup)
           if (!pinned) poiPopupRef.current = popup
           trackPopup(popup)
 

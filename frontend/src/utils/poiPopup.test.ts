@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { POI_ACTION_ATTR, poiPopupHtml } from './poiPopup'
-import { POPUP_MAX_WIDTH_PX, popupMaxHeight, popupWidth } from './popupChrome'
+import { POPUP_MAX_WIDTH_PX, popupWidth } from './popupChrome'
 
 const RAINIER = { name: 'Mount Rainier', kind: 'volcano', lat: 46.8529, lon: -121.7604, elevationFt: 14410 }
 
@@ -84,11 +84,5 @@ describe('sizing a popup to the map it opens on', () => {
 
   it('never collapses to unreadable, however narrow the canvas', () => {
     expect(Number(popupWidth(0).replace('px', ''))).toBeGreaterThanOrEqual(180)
-  })
-
-  it('never covers more than half the map', () => {
-    for (const h of [200, 400, 900]) {
-      expect(Number(popupMaxHeight(h).replace('px', ''))).toBeLessThanOrEqual(Math.max(120, h / 2))
-    }
   })
 })

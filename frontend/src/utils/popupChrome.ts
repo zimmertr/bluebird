@@ -57,7 +57,7 @@ export function coordinateRow(latitude: number, longitude: number): string {
 }
 
 /**
- * How wide a popup may get, and how tall.
+ * How wide a popup may get.
  *
  * Width is still set by the coordinate row — the longest line either popup can
  * hold and the one that must not wrap — but the data sets at 12px now rather
@@ -66,11 +66,14 @@ export function coordinateRow(latitude: number, longitude: number): string {
  * so the text needs ~224px inside the card's padding and the lane kept clear
  * for the close button.
  *
- * Both are ceilings rather than sizes, because on a phone the map is the
+ * It is a ceiling rather than a size, because on a phone the map is the
  * constraint and not the content: a 300px card on a 320px map is the whole
- * map, and with the chart and table open the map can be under 200px tall. So a
- * popup measures itself against the canvas it opens on and takes whichever is
- * smaller.
+ * map. So a popup measures itself against the canvas it opens on and takes
+ * whichever is smaller.
+ *
+ * Height is deliberately unbounded. A tall card on a short map is easier to
+ * live with than one that has to be scrolled inside a popup on a map that
+ * itself scrolls.
  */
 export const POPUP_MAX_WIDTH_PX = 280
 
@@ -85,16 +88,6 @@ export const POPUP_MAX_WIDTH_PX = 280
 export function popupWidth(canvasWidthPx: number): string {
   const share = Math.round(canvasWidthPx * 0.8)
   return Math.max(180, Math.min(POPUP_MAX_WIDTH_PX, share)) + 'px'
-}
-
-/**
- * Half the map, so a popup can never bury what it points at. Past that it
- * scrolls: every figure stays reachable, which dropping rows could not promise
- * — a reader sorting by air quality wants the AQI lines most, and no priority
- * order is right for everyone.
- */
-export function popupMaxHeight(canvasHeightPx: number): string {
-  return Math.max(120, Math.round(canvasHeightPx / 2)) + 'px'
 }
 
 /** The link-out glyph, sitting to the right of a popup's title. */
