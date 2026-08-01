@@ -57,7 +57,7 @@ const CAPTION = 'text-xs text-slate-400'
 
 /** The compact tier: panel, table, map chrome, chart. */
 export const TEXT = {
-  /** Numbered section headings: "1. Destinations", "3. Result Ranking". */
+  /** Numbered section headings: "1. Destinations", "3. Ranking". */
   section: 'text-sm font-bold uppercase tracking-wider text-slate-400',
   /** The single call to action, deliberately a step up from the panel body. */
   cta: 'text-sm font-semibold',

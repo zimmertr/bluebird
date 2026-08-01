@@ -481,12 +481,64 @@ export default function ControlPanel({
 
         </section>
 
-        {/* Step 2: Forecast window — one calendar, replacing the three
-            mutually exclusive modes and their four date/time pairs (#166) */}
+        {/* Step 2: which model answers, and over which hours. One calendar,
+            replacing the three mutually exclusive modes and their four
+            date/time pairs (#166); the model above it bounds how far the
+            calendar reaches. */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
-            2. Forecast Window
+            2. Forecast
           </h2>
+
+          {/* Above the calendar rather than in Options, because it bounds the
+              calendar: the grid below redraws when this changes, and a control
+              whose effect is the next control down belongs beside it. A data
+              knob either way — sort, limit and a narrowing elevation band
+              re-present held rows, while a different model is different
+              numbers. Ordered longest-reach-first by the server. */}
+          <div className="mb-3">
+            <label htmlFor="forecast-model" className={`${TEXT.subheading} block mb-1`}>
+              Model
+            </label>
+            <div className="relative">
+              <select
+                id="forecast-model"
+                value={forecastModel}
+                onChange={(e) => setForecastModel(e.target.value)}
+                className={`${SELECT} w-full px-2 py-1.5`}
+              >
+                {/* A model named by a link but not offered here still has to
+                    appear, or the control would silently show a different
+                    model than the one about to be requested. */}
+                {!forecastModels.some((m) => m.id === forecastModel) && (
+                  <option value={forecastModel}>{forecastModel}</option>
+                )}
+                {forecastModels.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+              <svg
+                className={`${ICON_ADORNMENT} h-4 w-4`}
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+            {modelClamped && (
+              <p className={`mt-2 ${STATUS.warn} ${NOTICE.warn}`}>
+                {modelLabel} does not forecast that far ahead. The window was
+                shortened to what it covers.
+              </p>
+            )}
+          </div>
 
           <ForecastCalendar
             selection={selection}
@@ -522,7 +574,7 @@ export default function ControlPanel({
             selecting a metric via its radio keeps the current direction. */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
-            3. Result Ranking
+            3. Ranking
           </h2>
           <div className="space-y-1.5">
             {SORT_METRICS.map((metric) => {
@@ -578,55 +630,6 @@ export default function ControlPanel({
             4. Options
           </h2>
           <div className="space-y-4">
-            {/* Forecast model. A data knob, and the only one here: sort, limit
-                and a narrowed elevation band re-present held rows, while a
-                different model is different numbers and needs a new fetch.
-                Ordered longest-reach-first by the server, so the models that
-                can answer the most questions sit at the top. */}
-            <div>
-              <label htmlFor="forecast-model" className={`${TEXT.subheading} block mb-1`}>
-                Forecast model
-              </label>
-              <div className="relative">
-                <select
-                  id="forecast-model"
-                  value={forecastModel}
-                  onChange={(e) => setForecastModel(e.target.value)}
-                  className={`${SELECT} w-full px-2 py-1.5`}
-                >
-                  {/* A model named by a link but not offered here still has to
-                      appear, or the control would silently show a different
-                      model than the one about to be requested. */}
-                  {!forecastModels.some((m) => m.id === forecastModel) && (
-                    <option value={forecastModel}>{forecastModel}</option>
-                  )}
-                  {forecastModels.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-                <svg
-                  className={`${ICON_ADORNMENT} h-4 w-4`}
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </div>
-              {modelClamped && (
-                <p className={`mt-2 ${STATUS.warn} ${NOTICE.warn}`}>
-                  {modelLabel} does not forecast that far ahead. The window was
-                  shortened to what it covers.
-                </p>
-              )}
-            </div>
-
             {/* Elevation band — filters candidates server-side before the fetch */}
             <div>
               <label className={`${TEXT.subheading} block mb-1`}>Elevation range (ft)</label>

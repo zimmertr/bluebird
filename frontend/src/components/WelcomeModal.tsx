@@ -8,8 +8,8 @@ interface Props {
 
 const STEPS: [string, string][] = [
   ['Destinations', 'Choose what destinations to analyze by clicking on the map, searching by name, drawing a polygon, or providing custom coordinates.'],
-  ['Forecast Window', 'Pick a day on the calendar, drag across days for a range, or analyze the current hour.'],
-  ['Result Ranking', 'Choose how destinations should be ranked: driest conditions, lowest winds, ideal temperatures, or cleanest air.'],
+  ['Forecast', 'Choose a weather model, then pick a day on the calendar, drag across days for a range, or analyze the current hour.'],
+  ['Ranking', 'Choose how destinations should be ranked: driest conditions, lowest winds, ideal temperatures, or cleanest air.'],
   ['Options', 'Apply constraints and enable additional features like wildfire visibility.'],
   ['Analyze', 'Generate ranked results, explore them on the map, and compare forecast data across your selected destinations.'],
   ['Repeat', 'Adjust your search area, forecast window, ranking, or options at any time to find a better window.'],

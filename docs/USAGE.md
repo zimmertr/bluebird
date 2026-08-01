@@ -64,7 +64,21 @@ The format is `Lat,Lon` or `Lat,Lon,Name`, one per line; without a name the coor
 
 You do not need to supply an elevation, and there is nowhere in the format to put one. Each pasted coordinate is matched to the nearest mapped peak and shows that peak's elevation once you analyze, the same figure a polygon search shows for it. A point with no mapped peak beside it stays blank, and a blank elevation is never filtered out by the elevation range, so those rows always ride along. The ready-made lists in [`examples/`](../examples/) are formatted this way.
 
-## Step 2: Forecast Window
+## Step 2: Forecast
+
+Which model answers, and over which hours.
+
+### Model
+
+Which weather model answers. Defaults to ECMWF.
+
+Models disagree, sometimes by more than the thing being measured: over three days at one Cascades summit, ECMWF and GFS both totalled 0.000 in of precipitation while ICON gave 0.004 in. None of them is lying, and there is no way to know in advance which was right, so this is a knob rather than a setting with a correct value. If a number matters to you, try it under two models.
+
+They also reach different distances ahead, which is why the calendar below redraws when you change this. The one worth knowing by name is **NOAA HRRR**: a 3 km model, the most accurate of these in mountain terrain, reaching only about two days. It is what to ask about tomorrow morning and useless for next weekend. It is also the only regional one here, covering the continental US and neighbouring parts of Canada and Mexico; asking it about anywhere else stops the analysis and says so rather than returning a partial answer.
+
+Changing the model needs a new **Analyze**, like changing the polygon or the window: different models mean different forecasts, not a different view of the ones already fetched.
+
+### Forecast window
 
 A calendar, and a **Now** chip beside it.
 
@@ -87,7 +101,7 @@ Hovering either dimmed step says why, and selecting one past the air-quality hor
 
 Days are your local calendar days, converted to UTC for the API, and the far edge accounts for that: west of Greenwich the last local day's final hour falls on the next UTC date, so the calendar offers one day less there than it does in London. Selecting days in the past is fine and normal. Those hours are recorded conditions rather than a forecast, and a chart covering both marks where one becomes the other.
 
-**The forecast model moves this calendar.** Picking a short-range model in Step 4 greys out the days it cannot reach, and shortens a window you had already chosen, with a note saying it did. HRRR is the case that matters: it reaches about two days where the global models reach one to two weeks.
+**The forecast model moves this calendar.** Picking a short-range model above greys out the days it cannot reach, and shortens a window you had already chosen, with a note saying it did. HRRR is the case that matters: it reaches about two days where the global models reach one to two weeks.
 
 The calendar is fully keyboard operable: arrow keys move by day, Page Up and Page Down by month, Enter or Space selects, and Escape abandons a half-made range.
 
@@ -97,17 +111,7 @@ The default is 200, chosen to sit above the 100-row lists people usually paste s
 
 Destinations you name yourself are candidates like any other. A searched place and every row of a pasted CSV are analyzed and then ranked against whatever the polygon found, so combining the two can push some of your own destinations below the cut, where they are simply not listed. Their forecasts were still fetched: raise max results and they appear, already filled in.
 
-## Step 4: Choose a Forecast Model
-
-The **Forecast model** dropdown in Options picks which weather model answers. It defaults to ECMWF.
-
-Models disagree, sometimes by more than the thing being measured: over three days at one Cascades summit, ECMWF and GFS both totalled 0.000 in of precipitation while ICON gave 0.004 in. None of them is lying, and there is no way to know in advance which was right, so this is a knob rather than a setting with a correct value. If a number matters to you, try it under two models.
-
-They also reach different distances ahead, which is why the calendar in Step 2 redraws when you change this. The one worth knowing by name is **NOAA HRRR**: a 3 km model, the most accurate of these in mountain terrain, reaching only about two days. It is what to ask about tomorrow morning and useless for next weekend. It is also the only regional one here, covering the continental US and neighbouring parts of Canada and Mexico; asking it about anywhere else stops the analysis and says so rather than returning a partial answer.
-
-Changing the model needs a new **Analyze**, like changing the polygon or the window: different models mean different forecasts, not a different view of the ones already fetched.
-
-## Step 5: Analyze
+## Step 4: Analyze
 
 Click **Analyze**. Results appear in a sortable table below the map and as color-coded markers on the map itself.
 
@@ -131,9 +135,9 @@ Click a marker for a popup with rank, precipitation, wind, temperature, and AQI.
 
 Every row carries a **Type** — Peak, Lake, Trailhead, or Custom for one you supplied — because a single polygon can now look for several kinds at once. It travels into the downloaded CSV too, lower-case there, so a file you re-import reads the same value the API uses.
 
-Click any column header to sort by it, ascending or descending. By default the table follows the **Result Ranking** selection, for example lowest total precipitation for driest-first.
+Click any column header to sort by it, ascending or descending. By default the table follows the **Ranking** selection, for example lowest total precipitation for driest-first.
 
-The four columns that are also ranking options (Precipitation · Total, Wind · Avg, Temperature · Avg, AQI · Avg) *are* that selection: clicking one re-ranks every destination in your area and re-picks the top N, and the Result Ranking control moves to match. So clicking **Wind** gives you the least windy destinations in the area, not the driest ones reordered by wind. The remaining columns are detail rather than ranking, and reorder the rows currently listed.
+The four columns that are also ranking options (Precipitation · Total, Wind · Avg, Temperature · Avg, AQI · Avg) *are* that selection: clicking one re-ranks every destination in your area and re-picks the top N, and the Ranking control moves to match. So clicking **Wind** gives you the least windy destinations in the area, not the driest ones reordered by wind. The remaining columns are detail rather than ranking, and reorder the rows currently listed.
 
 Hovering a row reveals a × at its end (always visible on touch screens) that removes the destination from the report — the rows below renumber, and it stays gone as you re-rank, raise the max results, or narrow the elevation range. Changing the destinations, the window, or widening the elevation range starts a fresh report where it may return.
 
