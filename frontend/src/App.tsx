@@ -157,8 +157,14 @@ export default function App() {
   )
 
   const [polygon, setPolygon] = useState<GeoPolygon | null>(() => restored?.polygon ?? null)
-  // The polygon is always editable on the map — no draw/ready mode split. A
-  // restored polygon seeds the count so Analyze unlocks before the map loads
+  // Draw mode (#118). The map used to be permanently in it, which is why a
+  // pan could move a vertex and why a click could only ever mean "polygon
+  // corner". Every session — including one restored from a link with a ring
+  // already in it — starts out of it: the common case is looking at the map,
+  // not editing it, and leaving the gesture free is what lets a basemap peak
+  // be clickable at all (#119).
+  const [drawing, setDrawing] = useState(false)
+  // A restored polygon seeds the count so Analyze unlocks before the map loads
   // (MapView re-emits the authoritative count+area once its points hydrate).
   const [drawPointCount, setDrawPointCount] = useState(
     () => Math.max(0, (restored?.polygon?.coordinates[0]?.length ?? 1) - 1),
@@ -281,11 +287,13 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  function handleSearchSelect(place: Place) {
-    mapRef.current?.flyToPlace(place)
+  // Registering a destination the user named, however they named it: by
+  // searching, or by clicking a labeled peak or lake on the basemap (#119).
+  // Both land in the same list, so both go through here.
+  const registerPlace = useCallback((place: Place) => {
     searched.addPlace(place)
-    // Re-searching a previously ×-removed spot is an explicit re-request —
-    // drop the stale removal so the place isn't filtered out of its next report.
+    // Re-naming a previously ×-removed spot is an explicit re-request — drop
+    // the stale removal so the place isn't filtered out of its next report.
     setRemovedKeys((prev) => {
       const key = pinKey(place.lat, place.lon)
       if (!prev.has(key)) return prev
@@ -293,7 +301,27 @@ export default function App() {
       next.delete(key)
       return next
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function handleSearchSelect(place: Place) {
+    mapRef.current?.flyToPlace(place)
+    registerPlace(place)
   }
+
+  // A clicked basemap feature registers without a camera move: you are already
+  // looking straight at it, and flying to it would answer a question nobody
+  // asked.
+  const handleAddPoi = useCallback(
+    (place: Place) => {
+      registerPlace(place)
+    },
+    [registerPlace],
+  )
+  const handleRemovePoi = useCallback((latitude: number, longitude: number) => {
+    searched.removePlace(latitude, longitude)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Naming a destination — by search or by pasting CSV — opens the results
   // panel immediately: it appears as an un-forecasted row, so there's feedback
@@ -471,8 +499,29 @@ export default function App() {
 
   function handleCancelDrawing() {
     mapRef.current?.cancelDrawing()
+    setDrawing(false)
     // cancelDrawing fires onDrawUpdate(0, null) to reset counts
   }
+
+  // Enter and Escape both leave draw mode. Neither discards anything: every
+  // edit is already committed to the polygon (and to the URL) as it happens,
+  // so there is no pending state for a cancel to roll back — Clear is the
+  // control that throws a ring away. Escape is here because it is what a hand
+  // reaches for to get out of a mode, not because it means something different
+  // from Done.
+  useEffect(() => {
+    if (!drawing) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Enter' && e.key !== 'Escape') return
+      // Not while the user is in the CSV box or a number field, where Enter
+      // and Escape belong to the control they are typing into.
+      const el = document.activeElement
+      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return
+      setDrawing(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [drawing])
 
 
   // The user-authored discovery inputs as a stable string. Everything that
@@ -498,6 +547,11 @@ export default function App() {
   }
 
   async function handleAnalyze() {
+    // Analyzing is the end of drawing. Leaving the mode on would put the map
+    // back in the state #118 describes — reading a result and panning around
+    // it while every click still adds a vertex.
+    setDrawing(false)
+
     // The one conversion from a local selection to the UTC instants the API
     // takes. Equal timestamps are how a point sample travels — the current hour,
     // or a day narrowed to a single hour — and the backend normalizes them to
@@ -848,6 +902,9 @@ export default function App() {
           ×
         </button>
         <ControlPanel
+          drawing={drawing}
+          onStartDrawing={() => setDrawing(true)}
+          onFinishDrawing={() => setDrawing(false)}
           drawPointCount={drawPointCount}
           polygonAreaKm2={polygonAreaKm2}
           onCancelDrawing={handleCancelDrawing}
@@ -971,6 +1028,7 @@ export default function App() {
           )}
           <MapView
             ref={mapRef}
+            drawing={drawing}
             polygon={polygon}
             restoredCustomPoints={restoredCustomPoints}
             onPolygonChange={setPolygon}
@@ -980,6 +1038,9 @@ export default function App() {
             fireWarnings={fire.warnings}
             showWildfires={showWildfires}
             pending={pending}
+            searchedPlaces={searched.places}
+            onAddPoi={handleAddPoi}
+            onRemovePoi={handleRemovePoi}
             minElevationFt={minElevationFt}
             maxElevationFt={maxElevationFt}
           />

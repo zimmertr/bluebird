@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ACCENT,
   ACCENT_RING,
+  BUTTON_ACCENT,
   BUTTON_DANGER,
   BUTTON_FLOATING,
   BUTTON_PRIMARY,
@@ -383,6 +384,7 @@ describe('shared recipes', () => {
   it.each([
     ['BUTTON_PRIMARY', BUTTON_PRIMARY],
     ['BUTTON_SECONDARY', BUTTON_SECONDARY],
+    ['BUTTON_ACCENT', BUTTON_ACCENT],
     ['BUTTON_DANGER', BUTTON_DANGER],
     ['CHOICE_ROW', CHOICE_ROW],
     ['SEGMENT_ITEM', SEGMENT_ITEM],
@@ -598,6 +600,24 @@ describe('the accent', () => {
     expect(BUTTON_PRIMARY).toContain(ACCENT.fill)
     expect(BUTTON_PRIMARY).toContain(ACCENT.fillHover)
     expect(DAY.selected).toBe(ACCENT.fill)
+  })
+
+  // The inline accent button is the second consumer of that fill, and the
+  // reason it exists is that it must sit beside BUTTON_SECONDARY: same box,
+  // different standing. Both halves are asserted, because a box that drifted
+  // would put two buttons of different heights in one row, and a fill spelled
+  // out here would be the exact drift #167 unwound.
+  it('gives the inline accent button the primary fill on the secondary box', () => {
+    expect(BUTTON_ACCENT).toContain(ACCENT.fill)
+    expect(BUTTON_ACCENT).toContain(ACCENT.fillHover)
+    for (const box of ['px-3', 'py-1.5', RADIUS.control, TAP.action]) {
+      expect(BUTTON_ACCENT).toContain(box)
+      expect(BUTTON_SECONDARY).toContain(box)
+    }
+    // Composing TEXT.control would race the fill's own label color by
+    // stylesheet order — the trap BUTTON_DANGER documents.
+    expect(BUTTON_ACCENT).not.toContain(TEXT.control)
+    expect(sizes(BUTTON_ACCENT)).toEqual(sizes(TEXT.control))
   })
 
   // Every other accent job routes through the same object, so there is one

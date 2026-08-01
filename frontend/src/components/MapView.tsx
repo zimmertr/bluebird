@@ -10,7 +10,8 @@ maplibregl.setWorkerUrl(maplibreWorkerUrl)
 import type { FilterSpecification } from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.
-import type { FeatureCollection, Point } from 'geojson'
+import type { FeatureCollection, Point, Position } from 'geojson'
+import type { MapGeoJSONFeature, SymbolLayerSpecification } from 'maplibre-gl'
 // All maplibre CSS enters through map.css, which wraps the vendor stylesheet
 // in layer(base) — see the comment there before "simplifying" this to a direct
 // vendor import. Importing it here rather than in index.css is what keeps map
@@ -22,6 +23,18 @@ import { resultPopupHtml } from '../utils/resultPopup'
 import { FireWarning, fireKey } from '../utils/fireProximity'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
+import { addVertex } from '../utils/polygonEdit'
+import {
+  BasemapPoi,
+  LAKE_CLASS,
+  LAKE_LAYERS,
+  POI_LAYERS,
+  poiFromFeature,
+  poiToPlace,
+  samePoi,
+} from '../utils/basemapPoi'
+import { POI_ACTION_ATTR, poiPopupHtml } from '../utils/poiPopup'
+import { Ring, widestPole } from '../utils/polylabel'
 import {
   COARSE_TOLERANCE_DEG,
   fetchWildfires,
@@ -41,6 +54,15 @@ export interface MapViewHandle {
 }
 
 interface Props {
+  // Is the map in draw mode? The polygon used to be permanently editable, so
+  // every click anywhere added a vertex and there was no gesture left over for
+  // anything else — you could not pan near a handle without grabbing it, and a
+  // click on a labeled peak could only ever mean "corner of a polygon" (#118).
+  // Drawing is now something you enter and leave: while it is on, clicks build
+  // the ring and the handles are live; while it is off, the ring is drawn but
+  // has no handles to catch a pan, and clicks belong to the basemap features
+  // sitting under them (#119).
+  drawing: boolean
   polygon: GeoPolygon | null // initial ring (e.g. restored from the URL)
   // Custom CSV destinations restored from the URL, parsed once at mount. Like
   // a restored polygon they suppress geolocation and are framed on load, so a
@@ -59,6 +81,13 @@ interface Props {
   // below the cutoff. Drawn as neutral blue dots so a point the user named
   // never vanishes. Analyzed ones arrive inside `results`.
   pending: PendingDestination[]
+  // Every place the session has registered by name or by clicking the basemap.
+  // The POI popup reads it to know whether the feature under the cursor is
+  // already a destination, so clicking a peak twice offers the way back out
+  // rather than adding it again.
+  searchedPlaces: Place[]
+  onAddPoi: (place: Place) => void
+  onRemovePoi: (latitude: number, longitude: number) => void
   minElevationFt: number | null
   maxElevationFt: number | null
 }
@@ -122,6 +151,105 @@ function bboxAreaKm2(pts: [number, number][]): number | null {
 
 const STYLE = 'https://tiles.openfreemap.org/styles/liberty'
 const DRAW_COLOR = '#38bdf8'
+
+/**
+ * The zoom the clickable basemap destinations start at.
+ *
+ * Not a coverage promise, because it cannot be: OpenMapTiles decides per
+ * feature which zoom a label survives to, and it is far from uniform. Measured
+ * on one tile column in the Alpine Lakes: Kachess and Cle Elum label from z10,
+ * the alpine lakes not until z14, and z12–13 carry no `water_name` layer at
+ * all. So this is a floor beneath the data rather than a lever on it, and
+ * raising it to where any one lake appears would hide the lakes that appear
+ * sooner.
+ */
+const POI_MINZOOM = 9
+
+/**
+ * The label treatment every clickable basemap destination wears.
+ *
+ * Composed by both `ofm-peaks` and `ofm-lakes` rather than spelled twice: a
+ * lake and a peak are the same kind of thing to this app, one click away from
+ * being the same kind of row, so they get one look. Peaks add an elevation
+ * line and a prominence sort key on top of this; lakes add nothing.
+ *
+ * `icon-allow-overlap` keeps every marker on screen even where labels collide,
+ * and `text-optional` then drops only the text, so a crowded ridge still shows
+ * you where its summits are.
+ */
+function poiLabelLayout(icon: string): SymbolLayerSpecification['layout'] {
+  return {
+    'icon-image': icon,
+    'icon-allow-overlap': true,
+    'text-optional': true,
+    'text-font': ['Noto Sans Regular'],
+    'text-size': 11,
+    'text-anchor': 'top',
+    'text-offset': [0, 0.7],
+    'text-max-width': 8,
+  }
+}
+
+const POI_LABEL_PAINT: SymbolLayerSpecification['paint'] = {
+  'text-color': '#5c4530',
+  'text-halo-color': '#f8f4ef',
+  'text-halo-width': 1.4,
+}
+
+// The style's one water fill. Read for lake geometry on a click, not drawn by
+// us, so a style that renamed it would cost the pole rather than the feature —
+// see lakeAnchor's fallback.
+const WATER_FILL_LAYER = 'water'
+
+// A rendered feature's polygons, each as its own ring list (outer first, holes
+// after) so `widestPole` can pole them separately. Anything that is not an
+// area contributes nothing.
+function polygonsOf(features: MapGeoJSONFeature[]): Ring[][] {
+  const out: Ring[][] = []
+  for (const f of features) {
+    const g = f.geometry
+    const toRings = (poly: Position[][]) => poly.map((r) => r.map((p) => [p[0], p[1]] as [number, number]))
+    if (g.type === 'Polygon') out.push(toRings(g.coordinates))
+    else if (g.type === 'MultiPolygon') for (const poly of g.coordinates) out.push(toRings(poly))
+  }
+  return out
+}
+
+/**
+ * Where a clicked lake becomes a coordinate.
+ *
+ * A peak is a point and answers for itself. A lake does not: OpenMapTiles
+ * labels a compact lake at a point and a long one along a line, so the label
+ * geometry is either an arbitrary anchor or no single place at all. Both
+ * resolve to the lake's pole of inaccessibility instead — the interior point
+ * furthest from any shore, which is where you would point if asked for the
+ * middle of the water, and which a centroid gets wrong on any bent lake.
+ *
+ * Only what is currently drawn is considered, and a lake wider than the
+ * viewport arrives as pieces, so this centers on the part you can see. That is
+ * both the cheap answer and the one a visitor means; for a forecast it makes
+ * no difference at all, since a weather grid cell is kilometers across.
+ */
+function lakeAnchor(
+  map: maplibregl.Map,
+  point: maplibregl.Point,
+  fallback: [number, number],
+): [number, number] {
+  if (!map.getLayer(WATER_FILL_LAYER)) return fallback
+  const hit = map.queryRenderedFeatures(point, { layers: [WATER_FILL_LAYER] })[0]
+  if (!hit) return fallback
+  // `water` carries an id, so every drawn piece of one lake can be collected
+  // and poled together rather than centering on whichever tile was clicked.
+  const id = hit.properties?.id
+  const pieces =
+    id == null
+      ? [hit]
+      : map.queryRenderedFeatures({
+          layers: [WATER_FILL_LAYER],
+          filter: ['==', ['get', 'id'], id],
+        })
+  return widestPole(polygonsOf(pieces)) ?? fallback
+}
 
 function makeDrawData(pts: [number, number][]): object {
   const features: object[] = []
@@ -220,54 +348,123 @@ function enhanceBasemap(map: maplibregl.Map) {
       type: 'symbol',
       source: 'openmaptiles',
       'source-layer': 'mountain_peak',
-      minzoom: 9,
+      minzoom: POI_MINZOOM,
       layout: {
-        'icon-image': 'mountain_11',
-        'icon-allow-overlap': true,
-        'text-optional': true,
+        ...poiLabelLayout('mountain_11'),
         'text-field': [
           'case',
           ['has', 'ele_ft'],
           ['concat', ['get', 'name'], '\n', ['to-string', ['get', 'ele_ft']], ' ft'],
           ['get', 'name'],
         ],
-        'text-font': ['Noto Sans Regular'],
-        'text-size': 11,
-        'text-anchor': 'top',
-        'text-offset': [0, 0.7],
-        'text-max-width': 8,
         'symbol-sort-key': ['coalesce', ['get', 'rank'], 10],
       },
-      paint: {
-        'text-color': '#5c4530',
-        'text-halo-color': '#f8f4ef',
-        'text-halo-width': 1.4,
-      },
+      paint: POI_LABEL_PAINT,
     },
     firstSymbolId,
   )
 
-  // Lakes: the label layer already exists but is faint, and small alpine lakes
-  // are only sparsely named in the tiles (the app's Overpass query is the
-  // reliable path for those). Enlarge and halo the labels that do resolve.
-  if (map.getLayer('water_name_point_label')) {
-    map.setLayoutProperty('water_name_point_label', 'text-size', [
-      'interpolate',
-      ['linear'],
-      ['zoom'],
-      0,
-      11,
-      10,
-      15,
-    ])
-    map.setPaintProperty('water_name_point_label', 'text-halo-color', '#eaf1ff')
-    map.setPaintProperty('water_name_point_label', 'text-halo-width', 1.2)
+  // Lakes: our own layer, wearing the peaks' treatment — same icon slot, same
+  // type, same halo, same floor — so the two kinds of destination read as one
+  // family rather than as a mountain and a piece of the basemap. The only
+  // difference is the missing elevation line, and that is a data fact rather
+  // than a style choice: `water_name` carries exactly two non-name fields,
+  // `class` and `intermittent`, so there is no lake elevation to print.
+  //
+  // Line geometries are deliberately included. OpenMapTiles gives a compact
+  // lake a point to label and a long one a line to bend text along, so a
+  // point-only filter would have dropped exactly the lakes people recognize:
+  // Lake Washington is a line. `symbol-placement` defaults to `point`, which
+  // puts one upright label at the geometry's center, so both kinds get the
+  // same label instead of a curved one and an upright one.
+  const lakeLabel: SymbolLayerSpecification['layout'] = {
+    ...poiLabelLayout('water_11'),
+    'text-field': ['get', 'name'],
+  }
+  map.addLayer(
+    {
+      id: 'ofm-lakes',
+      type: 'symbol',
+      source: 'openmaptiles',
+      'source-layer': 'water_name',
+      minzoom: POI_MINZOOM,
+      filter: [
+        'all',
+        ['==', ['get', 'class'], LAKE_CLASS],
+        ['match', ['geometry-type'], ['Point', 'MultiPoint'], true, false],
+      ],
+      layout: lakeLabel,
+      paint: POI_LABEL_PAINT,
+    },
+    firstSymbolId,
+  )
+
+  // The long lakes, which arrive as a line to bend text along rather than a
+  // point to anchor it to — Lake Washington is one, and around Seattle every
+  // lake label is. A point-placed symbol draws nothing at all on a line
+  // geometry (measured), so they need `line-center`, which puts one symbol at
+  // the middle of the line.
+  //
+  // Three overrides then make a line-placed label look like a peak, and all
+  // three were measured rather than assumed:
+  //
+  // - The rotation alignments. A line-placed label follows the line's angle by
+  //   default, so the icon would tilt and the name run diagonally down the
+  //   lake. Pinning both to the viewport gives the upright icon-over-name a
+  //   peak gets, which is the whole reason for drawing these ourselves rather
+  //   than leaving the style's curved italic label in place.
+  // - The anchor. Line placement refuses a `top` anchor outright — not a
+  //   fallback, no text at all, just the icon — so it has to be `center`.
+  // - The offset, which then has to be restated for that anchor. `top` puts
+  //   the text's upper edge 0.7em below the point; `center` puts its middle
+  //   there, and the text is one line tall, so the same gap is 0.7 + 0.5 =
+  //   1.2em. Identical spacing to a peak, arrived at from the other side.
+  map.addLayer(
+    {
+      id: 'ofm-lakes-line',
+      type: 'symbol',
+      source: 'openmaptiles',
+      'source-layer': 'water_name',
+      minzoom: POI_MINZOOM,
+      filter: [
+        'all',
+        ['==', ['get', 'class'], LAKE_CLASS],
+        ['match', ['geometry-type'], ['LineString', 'MultiLineString'], true, false],
+      ],
+      layout: {
+        ...lakeLabel,
+        'symbol-placement': 'line-center',
+        'text-rotation-alignment': 'viewport',
+        'icon-rotation-alignment': 'viewport',
+        'text-anchor': 'center',
+        'text-offset': [0, 1.2],
+      },
+      paint: POI_LABEL_PAINT,
+    },
+    firstSymbolId,
+  )
+
+  // The style keeps the water we do NOT draw — oceans, bays, straits, which
+  // orient a coastal polygon — but loses `lake` from both of its water label
+  // layers, so nothing can label a lake a second time. Relying on collision to
+  // hide one of a duplicate pair would work today only because our layers are
+  // inserted ahead of the style's symbols, which is insertion order doing a
+  // job no one stated.
+  for (const id of ['water_name_point_label', 'water_name_line_label']) {
+    if (!map.getLayer(id)) continue
+    // Composed onto whatever the style already filters on rather than
+    // replacing it, so a style update that narrows that layer is not silently
+    // undone here.
+    const existing = map.getFilter(id) as FilterSpecification | undefined
+    const notOurs: FilterSpecification = ['!=', ['get', 'class'], LAKE_CLASS]
+    map.setFilter(id, existing ? (['all', existing, notOurs] as FilterSpecification) : notOurs)
   }
 }
 
 const MapView = forwardRef<MapViewHandle, Props>(
   (
     {
+      drawing,
       polygon,
       restoredCustomPoints,
       onPolygonChange,
@@ -277,6 +474,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
       fireWarnings,
       showWildfires,
       pending,
+      searchedPlaces,
+      onAddPoi,
+      onRemovePoi,
       minElevationFt,
       maxElevationFt,
     },
@@ -320,10 +520,28 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // in the load effect and would otherwise close over an empty map. focusResult
     // reads the live prop directly (its imperative handle re-runs every render).
     const fireWarningsRef = useRef(fireWarnings)
+    // The same once-registered-handler problem for draw mode and the POI
+    // popup: the click handlers below are installed on map load and would
+    // otherwise close over the first render's values forever.
+    const drawingRef = useRef(drawing)
+    const searchedPlacesRef = useRef(searchedPlaces)
+    const onAddPoiRef = useRef(onAddPoi)
+    const onRemovePoiRef = useRef(onRemovePoi)
+    // The single open basemap-POI popup, so a second click replaces it.
+    const poiPopupRef = useRef<maplibregl.Popup | null>(null)
     // Flipped once the load handler has added every source/layer. A ref wouldn't
     // re-run the wildfire effect, so this is state — it lets a restored `fires=1`
     // link turn the overlay on as soon as the map is ready.
     const [mapReady, setMapReady] = useState(false)
+
+    // The cursor the map falls back to with nothing interactive under the
+    // pointer. A crosshair means the next click places a point, so it belongs
+    // to draw mode alone; outside it the default hand says the map is
+    // something you move rather than something you mark.
+    function restCursor() {
+      const map = mapRef.current
+      if (map) map.getCanvas().style.cursor = drawingRef.current ? 'crosshair' : ''
+    }
 
     useImperativeHandle(ref, () => ({
       // Snapshot the current ring as a GeoPolygon. The points stay editable —
@@ -494,14 +712,15 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
         enhanceBasemap(map)
 
-        // The polygon is always editable — clicks add points, vertices drag,
-        // midpoints insert. A restored polygon hydrates the same points array
-        // so a shared link is immediately adjustable too.
+        // A restored polygon hydrates the same points array the draw handlers
+        // edit, so a shared link is adjustable the moment Edit polygon is
+        // pressed. It arrives with drawing off: a link opens on a finished
+        // area, not mid-gesture.
         if (restoredPolygon) {
           ptsRef.current = ringToPts(restoredPolygon)
           onDrawUpdate(ptsRef.current.length, bboxAreaKm2(ptsRef.current))
         }
-        map.getCanvas().style.cursor = 'crosshair'
+        restCursor()
 
         // ── Wildfire overlay (NIFC) ────────────────────────────────────
         // Added before draw/results so the red perimeters sit beneath the
@@ -592,7 +811,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         })
         map.on('mousemove', 'wildfire-fill', showFirePopup)
         map.on('mouseleave', 'wildfire-fill', () => {
-          map.getCanvas().style.cursor = 'crosshair'
+          restCursor()
           scheduleFireClose()
         })
         // Clicking (or tapping) a fire opens NIFC's live map centered on that
@@ -624,12 +843,22 @@ const MapView = forwardRef<MapViewHandle, Props>(
           source: 'draw',
           paint: { 'line-color': DRAW_COLOR, 'line-width': 2 },
         })
-        // Midpoints render below vertices so vertices are always on top
+        // Midpoints render below vertices so vertices are always on top.
+        //
+        // Both handle layers are hidden outside draw mode, and hiding them is
+        // what makes the mode real rather than cosmetic: MapLibre resolves
+        // layer-scoped events through queryRenderedFeatures, which skips
+        // invisible layers, so a hidden handle fires no mousedown and cannot be
+        // dragged. That is the accidental-vertex-move half of #118 — a 6 px hit
+        // target beside a finger reaching for the map — closed at the source
+        // instead of guarded at each of the four handlers.
+        const handleVisibility = { visibility: drawingRef.current ? 'visible' : 'none' } as const
         map.addLayer({
           id: 'draw-midpoints',
           type: 'circle',
           source: 'draw',
           filter: ['==', ['get', 'kind'], 'midpoint'],
+          layout: handleVisibility,
           paint: {
             'circle-radius': 5,
             'circle-color': '#fff',
@@ -643,6 +872,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           type: 'circle',
           source: 'draw',
           filter: ['==', ['get', 'kind'], 'vertex'],
+          layout: handleVisibility,
           paint: {
             'circle-radius': 6,
             'circle-color': DRAW_COLOR,
@@ -779,7 +1009,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           function onUp() {
             draggingVertexRef.current = null
             map.dragPan.enable()
-            map.getCanvas().style.cursor = 'crosshair'
+            restCursor()
             commitRing()
             document.removeEventListener('mousemove', onMouseMove)
             document.removeEventListener('mouseup', onUp)
@@ -840,7 +1070,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           map.getCanvas().style.cursor = 'grab'
         })
         map.on('mouseleave', 'draw-vertices', () => {
-          if (draggingVertexRef.current === null) map.getCanvas().style.cursor = 'crosshair'
+          if (draggingVertexRef.current === null) restCursor()
         })
 
         // ── Midpoint: mousedown / touchstart inserts vertex then drags ─
@@ -868,7 +1098,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           map.getCanvas().style.cursor = 'grab'
         })
         map.on('mouseleave', 'draw-midpoints', () => {
-          if (draggingVertexRef.current === null) map.getCanvas().style.cursor = 'crosshair'
+          if (draggingVertexRef.current === null) restCursor()
         })
 
         // ── Results & searched destinations: popup + cursor ────────────
@@ -916,7 +1146,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           map.getCanvas().style.cursor = 'pointer'
         }
         const showCrosshair = () => {
-          map.getCanvas().style.cursor = 'crosshair'
+          restCursor()
         }
         for (const layer of ['results-circles']) {
           map.on('click', layer, openResultPopup)
@@ -924,8 +1154,96 @@ const MapView = forwardRef<MapViewHandle, Props>(
           map.on('mouseleave', layer, showCrosshair)
         }
 
+        // ── Basemap POIs: click a labeled peak or lake to add it ────────
+        // The map already draws these features from the OpenMapTiles source,
+        // so the click costs no lookup — the name and elevation are in the
+        // feature's own properties. Adding one registers it exactly as a
+        // search by name does, which is why this needs no pipeline of its
+        // own: it lands in the same list, the same URL param, and the same
+        // `custom_destinations` on the next Analyze.
+        function openPoiPopup(poi: BasemapPoi) {
+          poiPopupRef.current?.remove()
+          const popup = new maplibregl.Popup({ maxWidth: '240px' })
+            .setLngLat([poi.lon, poi.lat])
+            .addTo(map)
+          poiPopupRef.current = popup
+
+          // Which registered place this POI is, or null. Held in the closure
+          // rather than re-read from searchedPlacesRef after each click: that
+          // ref only catches up on React's next render, and the button has to
+          // flip on the click that caused it.
+          let registered = searchedPlacesRef.current.find((p) => samePoi(poi, p)) ?? null
+
+          function render() {
+            popup.setHTML(poiPopupHtml(poi, registered !== null))
+            // setHTML replaces the content element's children, so the button is
+            // a new node every time and its listener has to be re-armed. The
+            // timeout lets MapLibre attach the markup first, matching the
+            // vertex popup above.
+            setTimeout(() => {
+              popup
+                .getElement()
+                ?.querySelector<HTMLButtonElement>(`[${POI_ACTION_ATTR}]`)
+                ?.addEventListener('click', () => {
+                  if (registered) {
+                    onRemovePoiRef.current(registered.lat, registered.lon)
+                    registered = null
+                  } else {
+                    const place = poiToPlace(poi)
+                    onAddPoiRef.current(place)
+                    registered = place
+                  }
+                  render()
+                })
+            }, 0)
+          }
+          render()
+        }
+
+        for (const layer of POI_LAYERS) {
+          map.on('click', layer, (e) => {
+            // While drawing, these features are scenery: the click belongs to
+            // the ring. They are deliberately absent from the blocked list
+            // below for the same reason, so a polygon corner can land on a
+            // peak label.
+            if (drawingRef.current) return
+            // A basemap peak that has since been analyzed has a result marker
+            // sitting on top of it, and both layers answer the same click —
+            // which stacked two popups on one summit. The marker wins: it is
+            // the newer, more specific thing, and its popup carries the
+            // forecast this one could only offer to fetch. A fire perimeter
+            // wins for the same reason, having already opened a tab.
+            const claimed = map.queryRenderedFeatures(e.point, {
+              layers: ['results-circles', 'wildfire-fill'],
+            })
+            if (claimed.length > 0) return
+            const f = e.features?.[0]
+            if (!f?.properties) return
+            // A peak labels its own summit. A lake's label geometry is a tile
+            // artifact — a point for a compact one, a line for a long one — so
+            // it is resolved against the water itself; the click point is the
+            // fallback, and it is on the lake because that is what was clicked.
+            const clicked: [number, number] = [e.lngLat.lng, e.lngLat.lat]
+            const anchor =
+              (LAKE_LAYERS as readonly string[]).includes(layer)
+                ? lakeAnchor(map, e.point, clicked)
+                : f.geometry.type === 'Point'
+                  ? ((f.geometry as Point).coordinates as [number, number])
+                  : clicked
+            const poi = poiFromFeature(layer, f.properties, anchor)
+            if (poi) openPoiPopup(poi)
+          })
+          map.on('mouseenter', layer, () => {
+            if (!drawingRef.current) showPointer()
+          })
+          map.on('mouseleave', layer, showCrosshair)
+        }
+
         // ── General click → add new polygon point ──────────────────────
+        // Draw mode only. Outside it a click is a pan, a POI, or a marker —
+        // never a new vertex, which is what frees the gesture for #119.
         map.on('click', (e) => {
+          if (!drawingRef.current) return
           const blocked = map.queryRenderedFeatures(e.point, {
             layers: [
               'results-circles',
@@ -937,7 +1255,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           if (blocked.length > 0) return
 
           const pt: [number, number] = [e.lngLat.lng, e.lngLat.lat]
-          ptsRef.current = [...ptsRef.current, pt]
+          ptsRef.current = addVertex(ptsRef.current, pt)
           setSource(map, 'draw', makeDrawData(ptsRef.current))
           commitRing()
         })
@@ -962,6 +1280,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       return () => {
         loadedRef.current = false
         vertexPopupRef.current = null
+        poiPopupRef.current = null
         resizeObserver.disconnect()
         if (refitTimerRef.current) clearTimeout(refitTimerRef.current)
         if (fireCloseTimerRef.current !== null) clearTimeout(fireCloseTimerRef.current)
@@ -986,6 +1305,32 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       fireWarningsRef.current = fireWarnings
     }, [fireWarnings])
+
+    // Same contract for the POI handler's inputs, which are likewise read by
+    // listeners registered once on map load.
+    useEffect(() => {
+      searchedPlacesRef.current = searchedPlaces
+      onAddPoiRef.current = onAddPoi
+      onRemovePoiRef.current = onRemovePoi
+    }, [searchedPlaces, onAddPoi, onRemovePoi])
+
+    // Draw mode: show or hide the editing handles, and move the cursor with
+    // them. Leaving draw mode also drops any open vertex-delete popup, which
+    // offers an edit the map no longer accepts.
+    useEffect(() => {
+      drawingRef.current = drawing
+      restCursor()
+      const map = mapRef.current
+      if (!map || !mapReady) return
+      for (const id of ['draw-vertices', 'draw-midpoints']) {
+        map.setLayoutProperty(id, 'visibility', drawing ? 'visible' : 'none')
+      }
+      if (!drawing) {
+        vertexPopupRef.current?.remove()
+        vertexPopupRef.current = null
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [drawing, mapReady])
 
     // Neutral blue dot per custom destination not yet in the displayed analysis.
     useEffect(() => {

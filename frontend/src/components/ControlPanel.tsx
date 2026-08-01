@@ -11,6 +11,7 @@ import ForecastCalendar from './ForecastCalendar'
 import { parseCustomCsv } from '../utils/customDestinations'
 import {
   ACCENT,
+  BUTTON_ACCENT,
   BUTTON_DANGER,
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
@@ -87,6 +88,12 @@ const DESTINATION_TYPES: { value: DiscoveryType; label: string; implemented: boo
 ]
 
 interface Props {
+  // Is the map in draw mode? Drawing is entered and left explicitly (#118) so
+  // that outside it a click on the map belongs to whatever is under it — a
+  // basemap peak, a result marker, or the pan itself.
+  drawing: boolean
+  onStartDrawing: () => void
+  onFinishDrawing: () => void
   drawPointCount: number
   polygonAreaKm2: number | null
   onCancelDrawing: () => void
@@ -161,6 +168,9 @@ interface Props {
 }
 
 export default function ControlPanel({
+  drawing,
+  onStartDrawing,
+  onFinishDrawing,
   drawPointCount,
   polygonAreaKm2,
   onCancelDrawing,
@@ -281,41 +291,61 @@ export default function ControlPanel({
               Search for destinations by drawing a polygon.
             </p>
             {drawPointCount > 0 && (
-              <div className="space-y-2">
-                <div className="text-xs text-slate-300 space-y-0.5">
-                  {pointsNeeded > 0 ? (
-                    <p className={STATUS.info}>
-                      {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed,{' '}
-                      {pointsNeeded} more needed. Click a point to remove it.
-                    </p>
-                  ) : (
-                    <p className={`${STATUS.ok} font-medium`}>
-                      {drawPointCount} points placed. Drag points to adjust, or click Analyze.
+              <div className="text-xs text-slate-300 space-y-0.5 mb-2">
+                {/* Only while drawing does the status name a gesture: outside
+                    the mode the handles are gone and none of them apply. */}
+                {drawing && pointsNeeded > 0 ? (
+                  <p className={STATUS.info}>
+                    {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed,{' '}
+                    {pointsNeeded} more needed. Click a point to remove it.
+                  </p>
+                ) : drawing ? (
+                  <p className={`${STATUS.ok} font-medium`}>
+                    {drawPointCount} points placed. Drag points to adjust, or press Done.
+                  </p>
+                ) : (
+                  <p className={pointsNeeded > 0 ? STATUS.info : `${STATUS.ok} font-medium`}>
+                    {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed
+                    {pointsNeeded > 0 && `, ${pointsNeeded} more needed`}
+                  </p>
+                )}
+                {polygonAreaKm2 !== null && (
+                  <p className={areaTooLarge ? STATUS.error : 'text-slate-400'}>
+                    ~{Math.round(polygonAreaKm2).toLocaleString()} km²
+                    {areaTooLarge && ` (max ${maxAreaKm2.toLocaleString()} km²)`}
+                  </p>
+                )}
+                {polygonAreaKm2 !== null &&
+                  polygonAreaKm2 > AREA_NOTE_KM2 &&
+                  !areaTooLarge && (
+                    <p className={STATUS.warn}>
+                      Large area: dense regions this size can exceed the
+                      destination limit, and searches take longer.
                     </p>
                   )}
-                  {polygonAreaKm2 !== null && (
-                    <p className={areaTooLarge ? STATUS.error : 'text-slate-400'}>
-                      ~{Math.round(polygonAreaKm2).toLocaleString()} km²
-                      {areaTooLarge && ` (max ${maxAreaKm2.toLocaleString()} km²)`}
-                    </p>
-                  )}
-                  {polygonAreaKm2 !== null &&
-                    polygonAreaKm2 > AREA_NOTE_KM2 &&
-                    !areaTooLarge && (
-                      <p className={STATUS.warn}>
-                        Large area: dense regions this size can exceed the
-                        destination limit, and searches take longer.
-                      </p>
-                    )}
-                </div>
-                <button
-                  onClick={onCancelDrawing}
-                  className={BUTTON_SECONDARY}
-                >
-                  Clear
-                </button>
               </div>
             )}
+            {/* The one control that switches the map between placing points
+                and everything else. Drawing has to be left before a click on
+                the map can mean anything but "another vertex", so this button
+                is the whole of #118 in the panel: Draw/Edit to enter, Done to
+                leave (Enter and Escape do the same on the map). */}
+            <div className="flex flex-wrap gap-2">
+              {drawing ? (
+                <button onClick={onFinishDrawing} className={BUTTON_ACCENT}>
+                  Done
+                </button>
+              ) : (
+                <button onClick={onStartDrawing} className={BUTTON_SECONDARY}>
+                  {drawPointCount > 0 ? 'Edit Polygon' : 'Draw Polygon'}
+                </button>
+              )}
+              {drawPointCount > 0 && (
+                <button onClick={onCancelDrawing} className={BUTTON_SECONDARY}>
+                  Clear
+                </button>
+              )}
+            </div>
             {/* Panel-wide label convention, first established here: something
                 you pick is text-xs/slate-200, something that names a field is
                 text-xs/slate-400. Hierarchy is the section heading's job — a

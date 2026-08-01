@@ -288,7 +288,8 @@ export const ACCENT = {
    */
   fill: 'bg-sky-650 text-white',
   /**
-   * The hover step for a fill that is a button. Only `BUTTON_PRIMARY` has one.
+   * The hover step for a fill that is a button: `BUTTON_PRIMARY` and the
+   * inline `BUTTON_ACCENT`.
    *
    * Still lightens, matching every other hover in the app. That is the one
    * state left below AA: white on sky-600 is **4.02:1** against 4.5. It cannot
@@ -362,6 +363,26 @@ export const BUTTON_PRIMARY =
 export const BUTTON_SECONDARY =
   `${TEXT.control} ${TAP.action} px-3 py-1.5 ${RADIUS.control} transition-colors ` +
   'bg-slate-700 hover:bg-slate-600'
+
+/**
+ * The leading action of an inline pair: Done, with Clear beside it, ending the
+ * map's draw mode (#118).
+ *
+ * `BUTTON_PRIMARY` is the panel's one full-width call to action and cannot be
+ * this — a `w-full` button cannot stand next to anything — but a Done that
+ * looked exactly like the Clear beside it would leave the pair with no order,
+ * and Clear is the destructive one. So: `BUTTON_SECONDARY`'s box, because the
+ * two sit side by side and must read as one pair, wearing the accent fill that
+ * marks the primary action everywhere else.
+ *
+ * The size is set bare rather than by composing `TEXT.control`, for the reason
+ * spelled out on `BUTTON_DANGER` below: that role carries slate-200, which
+ * would race `ACCENT.fill`'s white by stylesheet order and could not be
+ * overridden here.
+ */
+export const BUTTON_ACCENT =
+  `text-xs ${TAP.action} px-3 py-1.5 ${RADIUS.control} transition-colors ` +
+  `${ACCENT.fill} ${ACCENT.fillHover}`
 
 /**
  * The destructive retry inside an error notice: "Try again".
