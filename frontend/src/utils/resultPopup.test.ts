@@ -69,9 +69,12 @@ describe('resultPopupHtml layout', () => {
     const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
     const lines = html.match(/<div>[^]*?<\/div>/g) ?? []
 
-    // Elevation, precipitation, wind, temperature, air quality twice,
-    // coordinates. The title row is a styled div, so it is not in this match.
-    expect(lines).toHaveLength(7)
+    // Elevation, precipitation, wind, temperature, air quality twice. The
+    // title row is a styled div, so it is not in this match, and neither is
+    // the coordinate pair — it carries a nowrap of its own now, asserted just
+    // below, because a latitude and a longitude are one value in two halves
+    // and breaking between them leaves a bare negative number on its own line.
+    expect(lines).toHaveLength(6)
     // Matched whole rather than by stripping the tags out and counting colons,
     // which is the same regex shape as a naive sanitizer and reads to CodeQL as
     // one. It is also the better assertion: a label carries no colon of its own
@@ -88,7 +91,7 @@ describe('resultPopupHtml layout', () => {
   it('omits both air-quality lines together when there is no reading', () => {
     const html = resultPopupHtml({ ...base, aqiAvg: null, aqiMax: null, warning: null })
 
-    expect(html.match(/<div>[^]*?<\/div>/g) ?? []).toHaveLength(5)
+    expect(html.match(/<div>[^]*?<\/div>/g) ?? []).toHaveLength(4)
   })
 
   // The label/value split is carried by a face change rather than by weight,
@@ -106,6 +109,17 @@ describe('resultPopupHtml layout', () => {
     }
     expect(html).toContain('Elevation: <span')
     expect(html).toContain('mph</span>')
+  })
+
+  // The one row that must never break, and the rule that separates the title
+  // from what describes it. Both are shared with the popup a clicked basemap
+  // feature opens, which is the point of pulling them into popupChrome: a
+  // destination you clicked and the same one analyzed are one object at two
+  // stages and had drifted into two kinds of card.
+  it('keeps the coordinate pair on one line, under a rule', () => {
+    const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
+    expect(html).toMatch(/<div style="white-space:nowrap[^"]*">Coordinates: /)
+    expect(html).toContain('<hr')
   })
 })
 

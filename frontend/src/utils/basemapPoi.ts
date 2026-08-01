@@ -119,19 +119,31 @@ export function poiFromFeature(
   props: Record<string, unknown>,
   coordinates: [number, number],
 ): BasemapPoi | null {
-  const name = nameOf(props)
-  if (name === '') return null
   const [lon, lat] = coordinates
   if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null
 
   const rawClass = typeof props.class === 'string' ? props.class : ''
+  const elevationFt = elevationFtOf(props)
+  // An unnamed summit is still a summit, and the map already draws it — as a
+  // bare elevation, since that is all OSM knows about it. Refusing the click
+  // made the glow a promise the map did not keep: hovering the panel lit every
+  // peak, and half of them then did nothing.
+  //
+  // "Peak 5961" is what climbers call these, and it is the elevation already
+  // on screen, so the destination is named after the thing that was clicked.
+  // Unpunctuated deliberately: it is an identifier here, not a measurement, and
+  // "Peak 5,961" reads like a truncated sentence.
+  const name =
+    nameOf(props) ||
+    (layerId === 'ofm-peaks' && elevationFt !== undefined ? `Peak ${elevationFt}` : '')
+  if (name === '') return null
 
   if (layerId === 'ofm-peaks') {
     // Every named feature in `mountain_peak` is somewhere a forecast makes
     // sense — saddles and ridges as much as summits — so the class is carried
     // through rather than filtered on. Falling back to "peak" keeps the
     // Peakbagger link working for a tile that omitted the class.
-    return { name, kind: rawClass || 'peak', lat, lon, elevationFt: elevationFtOf(props) }
+    return { name, kind: rawClass || 'peak', lat, lon, elevationFt }
   }
 
   if (isLakeLayer(layerId)) {

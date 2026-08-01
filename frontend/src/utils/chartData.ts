@@ -84,11 +84,18 @@ export function alignRowToGrid(row: DestinationResult, times: number[]): Destina
 // row removals must never clobber deliberate unchecks.
 export function defaultChartRows(
   results: DestinationResult[],
-  selectedKeys: string[],
+  everCharted: ReadonlySet<string>,
 ): DestinationResult[] | null {
-  const present = new Set(results.map(chartKey))
-  if (selectedKeys.some((k) => present.has(k))) return null
-  const rows = results.filter((r) => r.series)
+  // Every chartable row this report has never charted before. It used to be
+  // "chart everything, but only when nothing selected is still on screen",
+  // which meant a report that ADDED rows to an existing one left the new ones
+  // unchecked — tick Lakes alongside Peaks, re-analyze, and every lake arrived
+  // off the chart because the peaks were still on it.
+  //
+  // Keyed on ever-charted rather than currently-selected so the fix does not
+  // cost the other half: a box you deliberately unticked is a row that HAS
+  // been charted, so it stays off, and re-analyzing never re-checks it.
+  const rows = results.filter((r) => r.series && !everCharted.has(chartKey(r)))
   return rows.length > 0 ? rows : null
 }
 

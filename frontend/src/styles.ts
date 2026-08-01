@@ -446,6 +446,28 @@ export const SPINNER =
   `animate-spin ${RADIUS.pill} border-2 border-slate-500 border-t-sky-400`
 
 /**
+ * The recessed surface, and the boundary that closes it.
+ *
+ * One look for everything the panel sinks *into* rather than raises off it:
+ * every text input (`FIELD`), the idle half of a segmented control, and the
+ * calendar's day grid. The three were already the same fill by coincidence and
+ * differed only in their border, which is exactly the drift that makes a panel
+ * look assembled from parts — so they are one recipe now and cannot separate.
+ *
+ * The edge is slate-500 rather than the slate-600 the inputs used to carry,
+ * because a component boundary owes 3:1 on **both** sides it separates
+ * (WCAG 1.4.11) and slate-600 clears neither: 1.94:1 against the slate-800
+ * panel outside and 2.36:1 against the slate-900 fill inside. slate-500 reads
+ * 3.07:1 and 3.74:1. The fill step alone is 1.22:1, nowhere near enough to
+ * carry the boundary by itself, so this is the line doing the work.
+ *
+ * Binding them therefore raised the inputs to spec rather than lowering the
+ * calendar to match them.
+ */
+export const RECESSED_FILL = 'bg-slate-900'
+export const RECESSED_EDGE = 'border border-slate-500'
+
+/**
  * The idle half of a segmented choice: the ranking direction toggle's unchosen
  * side, and the calendar's Hours toggle.
  *
@@ -453,7 +475,7 @@ export const SPINNER =
  * second segmented control in the panel the *same* control rather than a
  * lookalike that drifted — the hazard #159-#165 spent five PRs on.
  */
-export const SEGMENT_IDLE = 'bg-slate-900 text-slate-400 hover:text-slate-200'
+export const SEGMENT_IDLE = `${RECESSED_FILL} text-slate-400 hover:text-slate-200`
 
 /**
  * The geometry the two halves sit in, which had been spelled out twice.
@@ -468,10 +490,10 @@ export const SEGMENT_IDLE = 'bg-slate-900 text-slate-400 hover:text-slate-200'
  * No color here: the halves are `ACCENT.fill` and `SEGMENT_IDLE`, so a color
  * in this recipe would be a third one competing with them by stylesheet order.
  */
-export const SEGMENT = `flex ${RADIUS.control} overflow-hidden border border-slate-600`
+export const SEGMENT = `flex ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 export const SEGMENT_ITEM = `${TAP.action} px-2 py-0.5 text-xs transition-colors`
 /** Between two halves, never before the first. */
-export const SEGMENT_DIVIDER = 'border-l border-slate-600'
+export const SEGMENT_DIVIDER = 'border-l border-slate-500'
 
 /**
  * A radio or checkbox and the words naming it, as one strip.
@@ -581,6 +603,32 @@ export const NOTICE = {
 } as const
 
 /**
+ * The two weights of rule in the control panel.
+ *
+ * `PANEL_EDGE` closes the panel: the line under the app title and the one over
+ * the Analyze button. Those two are structural — they separate the scrolling
+ * body from the fixed chrome above and below it — so they are the heavier of
+ * the pair.
+ *
+ * `PANEL_RULE` separates one numbered step from the next *inside* that body. It
+ * has to be lighter, or the panel reads as five stacked cards rather than one
+ * list, and it has to exist, or the steps run together at a glance.
+ *
+ * The weights are relative and that is the whole point: the edges moved up a
+ * step (slate-700 → slate-600, 1.4:1 → 1.94:1 on the panel) when the inner rule
+ * arrived, so the inner one could take the step the edges vacated and still be
+ * the quieter line. Changing either without the other collapses the distinction
+ * they exist to make.
+ *
+ * The inner one is spelled as a `divide-*` utility because that is how it is
+ * drawn — one rule between every pair of steps, from the stack itself rather
+ * than from each section, so a section added later cannot forget its line or
+ * draw a second one.
+ */
+export const PANEL_EDGE = 'border-slate-600'
+export const PANEL_RULE = 'divide-slate-700'
+
+/**
  * A bordered region grouping controls inside the panel: today, the calendar.
  *
  * The border is deliberately brighter than anything else in the panel.
@@ -608,7 +656,7 @@ export const NOTICE = {
  * re-derivation. The coupling the old comment feared only bites if the range
  * band changes; darkening what sits *under* it does not.
  */
-export const SURFACE_GROUP = `bg-slate-900 border border-slate-500 ${RADIUS.surface}`
+export const SURFACE_GROUP = `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.surface}`
 
 /**
  * The calendar's day cells.
@@ -679,7 +727,7 @@ export const DAY = {
  * the whole reason the rule is written as a height and not as padding.
  */
 export const FIELD =
-  `${TEXT.control} ${TAP.height} bg-slate-900 border border-slate-600 ${RADIUS.control} ` +
+  `${TEXT.control} ${TAP.height} ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} ` +
   'focus:outline-none focus:border-sky-500 placeholder-slate-400'
 
 /**

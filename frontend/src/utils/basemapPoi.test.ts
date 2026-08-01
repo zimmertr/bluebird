@@ -64,7 +64,31 @@ describe('poiFromFeature', () => {
     expect(poiFromFeature('ofm-peaks', { name: '  ', name_en: 'Denali' }, RAINIER)?.name).toBe('Denali')
   })
 
-  it('refuses an unlabeled feature, a bad coordinate, and a layer that is not a destination', () => {
+  // The map draws these as a bare elevation, because that is all OSM knows.
+  // Refusing the click made the hover glow a promise the map did not keep: it
+  // lit every peak, and half of them then did nothing.
+  it('names an unnamed summit after the elevation it is drawn with', () => {
+    expect(poiFromFeature('ofm-peaks', { class: 'peak', ele_ft: 5961 }, RAINIER)).toEqual({
+      name: 'Peak 5961',
+      kind: 'peak',
+      lat: 46.8529,
+      lon: -121.7604,
+      elevationFt: 5961,
+    })
+  })
+
+  // Unpunctuated on purpose: an identifier, not a measurement.
+  it('leaves that name unpunctuated even in the thousands', () => {
+    expect(poiFromFeature('ofm-peaks', { ele_ft: 12345 }, RAINIER)?.name).toBe('Peak 12345')
+  })
+
+  // A lake with no name has nothing to fall back on — its elevation is not in
+  // the tiles either — so it stays unclickable.
+  it('does not invent a name for an unnamed lake', () => {
+    expect(poiFromFeature('ofm-lakes', { class: LAKE_CLASS }, RAINIER)).toBeNull()
+  })
+
+  it('refuses an unnamed summit with no elevation, a bad coordinate, and a foreign layer', () => {
     expect(poiFromFeature('ofm-peaks', { class: 'peak' }, RAINIER)).toBeNull()
     expect(poiFromFeature('ofm-peaks', { name: 'A' }, [NaN, 46.8])).toBeNull()
     expect(poiFromFeature('ofm-trails', { name: 'Wonderland Trail' }, RAINIER)).toBeNull()

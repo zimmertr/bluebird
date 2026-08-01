@@ -20,6 +20,8 @@ import {
   FIELD,
   LINK,
   NOTICE,
+  PANEL_EDGE,
+  PANEL_RULE,
   SEGMENT,
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
@@ -261,7 +263,7 @@ export default function ControlPanel({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="border-b border-slate-700 flex">
+      <div className={`border-b ${PANEL_EDGE} flex`}>
         <img src="/icon.png" alt="" className="w-20 object-cover flex-shrink-0" />
         <div className="px-3 py-4 flex flex-col justify-center">
           <h1 className={TEXT.appTitle}>Bluebird Forecast</h1>
@@ -269,7 +271,15 @@ export default function ControlPanel({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+      <div
+        // One rule between steps, drawn by the stack rather than by each
+        // section, so a section added later cannot forget its line or draw a
+        // second one. The two spacing utilities are a matched pair and have to
+        // stay equal: `space-y` is the gap ABOVE each rule (margin sits outside
+        // the border) and `pt` the gap below it, so the line lands centred in
+        // the gutter between two steps rather than tucked under the one above.
+        className={`flex-1 overflow-y-auto px-4 py-4 space-y-8 divide-y ${PANEL_RULE} [&>*+*]:pt-8`}
+      >
         {/* Step 1: Destinations — one list, defined via any of three methods
             that union into a single ranked report */}
         <section>
@@ -293,7 +303,20 @@ export default function ControlPanel({
             </p>
           </div>
 
-          {/* b. Search by polygon */}
+          {/* b. Search by click — the second method whose control is not in
+              this panel. Hovering it lights every clickable feature on the
+              map, the same trick the Search by Name section uses to point at
+              the search box: the reader is shown where it is instead of told. */}
+          <div
+            className="mb-3"
+            onMouseEnter={() => onPointAtMapPois(true)}
+            onMouseLeave={() => onPointAtMapPois(false)}
+          >
+            <h3 className={`${TEXT.subheading} mb-1`}>Search by Click</h3>
+            <p className={TEXT.helper}>Select a destination from the map.</p>
+          </div>
+
+          {/* c. Search by polygon */}
           <div className="mb-3">
             <h3 className={`${TEXT.subheading} mb-1`}>Search by Polygon</h3>
             <p className={`${TEXT.helper} mb-1.5`}>
@@ -386,11 +409,11 @@ export default function ControlPanel({
             </div>
           </div>
 
-          {/* c. Specify by coordinates. "Specify" rather than "Search"
-              because nothing is being looked for: the two methods above go and
-              find destinations, these last two name them outright. */}
-          <div className="mb-3">
-            <h3 className={`${TEXT.subheading} mb-1`}>Specify by Coordinates</h3>
+          {/* d. Search by coordinates. Last because it is the one method with
+              no map gesture at all — the three above are things you do to the
+              map, and this is a list you bring to it. */}
+          <div>
+            <h3 className={`${TEXT.subheading} mb-1`}>Search by Coordinates</h3>
             <p className={`${TEXT.helper} mb-1.5`}>
               Specify exact destinations using coordinate pairs.
             </p>
@@ -422,17 +445,6 @@ export default function ControlPanel({
             )}
           </div>
 
-          {/* d. Specify by click — the second method whose control is not in
-              this panel. Hovering it lights every clickable feature on the
-              map, the same trick the Search by Name section uses to point at
-              the search box: the reader is shown where it is instead of told. */}
-          <div
-            onMouseEnter={() => onPointAtMapPois(true)}
-            onMouseLeave={() => onPointAtMapPois(false)}
-          >
-            <h3 className={`${TEXT.subheading} mb-1`}>Specify by Click</h3>
-            <p className={TEXT.helper}>Select a destination from the map.</p>
-          </div>
         </section>
 
         {/* Step 2: Forecast window — one calendar, replacing the three
@@ -612,7 +624,7 @@ export default function ControlPanel({
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-4 border-t border-slate-700 space-y-3">
+      <div className={`px-4 py-4 border-t ${PANEL_EDGE} space-y-3`}>
         <button
           onClick={onAnalyze}
           disabled={!analyzeEnabled}

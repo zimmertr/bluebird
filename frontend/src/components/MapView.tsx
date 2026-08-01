@@ -35,6 +35,7 @@ import {
 } from '../utils/basemapPoi'
 import { POI_ACTION_ATTR, poiPopupHtml } from '../utils/poiPopup'
 import { Ring, widestPole } from '../utils/polylabel'
+import { POPUP_WIDTH } from '../utils/popupChrome'
 import {
   COARSE_TOLERANCE_DEG,
   fetchWildfires,
@@ -540,6 +541,23 @@ function enhanceBasemap(map: maplibregl.Map) {
   }
 }
 
+/**
+ * Whether a click should keep the popups already open.
+ *
+ * One popup at a time is the right default — you are usually looking at one
+ * destination — but comparing two is a real thing to want, and the map's own
+ * `closeOnClick` plus a single ref made that impossible. Shift is the pinning
+ * modifier here for the same reason it is in a file list: it means "and this
+ * one too" everywhere else the user has met it.
+ *
+ * Popups opened while pinning stop being tracked in the single-popup ref, so
+ * they survive until their own close button. That is deliberate: something the
+ * user deliberately kept should not vanish because they clicked elsewhere.
+ */
+function isPinning(e: { originalEvent?: MouseEvent | { shiftKey?: boolean } }): boolean {
+  return Boolean((e.originalEvent as { shiftKey?: boolean } | undefined)?.shiftKey)
+}
+
 const MapView = forwardRef<MapViewHandle, Props>(
   (
     {
@@ -681,7 +699,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         const center: [number, number] = [result.longitude, result.latitude]
         map.flyTo({ center, zoom: Math.max(map.getZoom(), 10), duration: 800 })
         resultPopupRef.current?.remove()
-        resultPopupRef.current = new maplibregl.Popup({ maxWidth: '240px' })
+        resultPopupRef.current = new maplibregl.Popup({ maxWidth: POPUP_WIDTH })
           .setLngLat(center)
           .setHTML(
             resultPopupHtml({
@@ -1200,8 +1218,16 @@ const MapView = forwardRef<MapViewHandle, Props>(
           // popup is ever open. Marker→marker already dismisses via the map's
           // closeOnClick, but a table-name click (focusResult) fires no map click,
           // so without a shared ref the marker popup would linger beside it.
-          resultPopupRef.current?.remove()
-          resultPopupRef.current = new maplibregl.Popup({ maxWidth: '240px' })
+          const pinned = isPinning(e)
+          if (!pinned) resultPopupRef.current?.remove()
+          const resultPopup = new maplibregl.Popup({
+            maxWidth: POPUP_WIDTH,
+            // A pinned popup must survive the next map click, which is exactly
+            // what closeOnClick would undo.
+            closeOnClick: !pinned,
+          })
+          if (!pinned) resultPopupRef.current = resultPopup
+          resultPopup
             .setLngLat(anchor)
             .setHTML(
               resultPopupHtml({
@@ -1241,12 +1267,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // search by name does, which is why this needs no pipeline of its
         // own: it lands in the same list, the same URL param, and the same
         // `custom_destinations` on the next Analyze.
-        function openPoiPopup(poi: BasemapPoi) {
-          poiPopupRef.current?.remove()
-          const popup = new maplibregl.Popup({ maxWidth: '240px' })
+        function openPoiPopup(poi: BasemapPoi, pinned: boolean) {
+          if (!pinned) poiPopupRef.current?.remove()
+          const popup = new maplibregl.Popup({ maxWidth: POPUP_WIDTH, closeOnClick: !pinned })
             .setLngLat([poi.lon, poi.lat])
             .addTo(map)
-          poiPopupRef.current = popup
+          if (!pinned) poiPopupRef.current = popup
 
           // Which registered place this POI is, or null. Held in the closure
           // rather than re-read from searchedPlacesRef after each click: that
@@ -1311,7 +1337,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
                   ? ((f.geometry as Point).coordinates as [number, number])
                   : clicked
             const poi = poiFromFeature(layer, f.properties, anchor)
-            if (poi) openPoiPopup(poi)
+            if (poi) openPoiPopup(poi, isPinning(e))
           })
           map.on('mouseenter', layer, () => {
             if (!drawingRef.current) showPointer()

@@ -19,6 +19,8 @@ import {
   SEGMENT_ITEM,
   SPINNER,
   STATUS,
+  RECESSED_EDGE,
+  RECESSED_FILL,
   SURFACE_GROUP,
   LINK,
   LINK_ACTION,
@@ -175,7 +177,7 @@ describe('every component', () => {
   it.each(Object.entries(sources))('%s restates no shared recipe', (_path, source) => {
     // The idle half of a segmented choice, which two controls in the panel wear.
     expect(source).not.toMatch(/bg-slate-900 text-slate-400/)
-    expect(source).not.toMatch(/bg-slate-900 border border-slate-600/)
+    expect(source).not.toMatch(/bg-slate-900 border border-slate-500/)
     expect(source).not.toMatch(/bg-slate-800(\/95)? border border-slate-600/)
   })
 
@@ -320,6 +322,31 @@ describe('grouping and segmenting', () => {
   it('draws a group boundary bright enough to be one', () => {
     expect(SURFACE_GROUP).toContain('border-slate-500')
     expect(SURFACE_GROUP).toContain(RADIUS.surface)
+  })
+
+  // Every surface the panel sinks into is one recipe, so an input, the idle
+  // half of a segmented control and the calendar cannot drift into three
+  // near-identical looks the way they had.
+  it('builds every recessed surface from the one fill and the one edge', () => {
+    for (const recipe of [FIELD, SURFACE_GROUP]) {
+      expect(recipe).toContain(RECESSED_FILL)
+      expect(recipe).toContain(RECESSED_EDGE)
+    }
+    expect(SEGMENT_IDLE).toContain(RECESSED_FILL)
+    expect(SEGMENT).toContain(RECESSED_EDGE)
+  })
+
+  // The edge separates two surfaces and owes 3:1 against BOTH (WCAG 1.4.11).
+  // slate-600, which the inputs used to carry, reads 1.94:1 against the
+  // slate-800 panel and 2.36:1 against the slate-900 fill; slate-500 reads
+  // 3.07 and 3.74. The fill step alone is 1.22:1 and cannot carry it. Binding
+  // the three therefore raised the inputs to spec rather than lowering the
+  // calendar to meet them — pinned so a later 'tidy-up' has to re-measure.
+  it('keeps that edge on the step that clears both sides', () => {
+    const MEASURED = { panel: 3.07, fill: 3.74, wasBefore: { panel: 1.94, fill: 2.36 } }
+    expect(RECESSED_EDGE).toContain('slate-500')
+    expect(Math.min(MEASURED.panel, MEASURED.fill)).toBeGreaterThanOrEqual(3)
+    expect(Math.max(MEASURED.wasBefore.panel, MEASURED.wasBefore.fill)).toBeLessThan(3)
   })
 
   // The group recesses as well as bordering. It has to sit *under* the range

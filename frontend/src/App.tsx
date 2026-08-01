@@ -906,9 +906,25 @@ export default function App() {
         <button
           onClick={() => setSidebarOpen(false)}
           aria-label="Close controls"
-          className={`${TAP.action} absolute top-2 right-2 z-10 h-8 w-8 ${RADIUS.pill} bg-slate-700/80 text-slate-200 text-xl leading-none hover:bg-slate-600 active:bg-slate-600`}
+          // A drawn cross rather than the "×" character. That glyph is
+          // centred on the font's own maths, not the button's, so it sat
+          // visibly high in the circle however the line-height was nudged —
+          // and it moves again with any font change. Two lines in a square
+          // viewBox are centred by construction, and flex centres the box.
+          className={`${TAP.action} absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center ${RADIUS.pill} bg-slate-700/80 text-slate-200 transition-colors hover:bg-slate-600 active:bg-slate-600`}
         >
-          ×
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            className="h-4 w-4"
+            aria-hidden="true"
+          >
+            <line x1="6" y1="6" x2="18" y2="18" />
+            <line x1="18" y1="6" x2="6" y2="18" />
+          </svg>
         </button>
         <ControlPanel
           drawing={drawing}

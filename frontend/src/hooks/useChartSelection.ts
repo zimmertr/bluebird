@@ -34,10 +34,10 @@ export function useChartSelection(
   // happen then.
   //  - A searched place charts itself on its FIRST appearance — colorByKey is
   //    the "ever charted" memory, so a deliberate uncheck isn't repeated.
-  //  - When no selected key exists in the report (first analysis, or a new
-  //    report that replaced every charted row — stale selections must not
-  //    block the default), chart every row: the chart mirrors the whole table
-  //    by default, and unchecking is how the user prunes it.
+  //  - Every row the chart has never held charts itself, so the chart mirrors
+  //    the table by default and a report that adds rows brings them in
+  //    checked. Unchecking is how the user prunes it, and an unchecked row
+  //    has been charted, so it is never re-checked.
   const selectedKeysRef = useRef<string[]>([])
   selectedKeysRef.current = selectedKeys
   const colorByKeyRef = useRef<Record<string, string>>({})
@@ -53,7 +53,10 @@ export function useChartSelection(
     )
     if (debut.length > 0) setRange(debut, true)
 
-    const defaults = defaultChartRows(results, selectedKeysRef.current)
+    // colorByKey is the 'ever charted' memory — a key lands in it on its
+    // first chart and stays after an uncheck, which is exactly the record
+    // this needs.
+    const defaults = defaultChartRows(results, new Set(Object.keys(colorByKeyRef.current)))
     if (defaults) setRange(defaults, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results])

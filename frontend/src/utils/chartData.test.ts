@@ -182,28 +182,37 @@ describe('defaultChartRows', () => {
   const a = row('A', 1, {})
   const b = row('B', 2, {})
   const c = row('C', 3, {})
+  const none: ReadonlySet<string> = new Set()
 
-  it('selects every chartable row when nothing is charted yet', () => {
-    expect(defaultChartRows([a, b, c], [])?.map((r) => r.name)).toEqual(['A', 'B', 'C'])
+  it('selects every chartable row when nothing has been charted yet', () => {
+    expect(defaultChartRows([a, b, c], none)?.map((r) => r.name)).toEqual(['A', 'B', 'C'])
   })
 
   it('excludes rows without series data', () => {
     const bare = { ...row('D', 4, {}), series: undefined }
-    expect(defaultChartRows([a, bare, c], [])?.map((r) => r.name)).toEqual(['A', 'C'])
+    expect(defaultChartRows([a, bare, c], none)?.map((r) => r.name)).toEqual(['A', 'C'])
   })
 
-  it('defers to a surviving selection so unchecks are never clobbered', () => {
-    expect(defaultChartRows([a, b, c], [chartKey(b)])).toBeNull()
+  // The bug this rule replaced: ticking Lakes alongside Peaks and re-analyzing
+  // left every new lake off the chart, because a peak was still on it.
+  it('charts rows the report just gained, even while others are charted', () => {
+    expect(defaultChartRows([a, b, c], new Set([chartKey(b)]))?.map((r) => r.name)).toEqual([
+      'A',
+      'C',
+    ])
   })
 
-  it('re-defaults when every previously charted key left the report', () => {
-    expect(defaultChartRows([a, b], ['gone,0'])?.map((r) => r.name)).toEqual(['A', 'B'])
+  // The other half, which the old rule got right and this must not lose: a box
+  // you unticked names a row that HAS been charted, so it stays off.
+  it('leaves a deliberately unchecked row alone', () => {
+    const everCharted = new Set([chartKey(a), chartKey(b), chartKey(c)])
+    expect(defaultChartRows([a, b, c], everCharted)).toBeNull()
   })
 
   it('is null when no row can chart', () => {
     const bare = { ...row('A', 1, {}), series: undefined }
-    expect(defaultChartRows([bare], [])).toBeNull()
-    expect(defaultChartRows([], [])).toBeNull()
+    expect(defaultChartRows([bare], none)).toBeNull()
+    expect(defaultChartRows([], none)).toBeNull()
   })
 })
 

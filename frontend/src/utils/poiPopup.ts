@@ -1,15 +1,16 @@
-import { BasemapPoi } from './basemapPoi'
+import { BasemapPoi, LAKE_CLASS } from './basemapPoi'
+import { destinationUrl } from './destinationUrl'
+import { isPeakKind } from './geocode'
+import { coordinateRow, escapeHtml, popupShell, row } from './popupChrome'
 
-// The popup a clicked basemap peak or lake opens (#119). Kept in utils beside
-// resultPopupHtml and wildfirePopupHtml for the same reason: this markup is
-// handed to MapLibre's setHTML, so the design system in styles.ts cannot reach
-// it, and keeping it out of the component is what makes it unit-testable
-// without pulling maplibre-gl into a node test.
+// The popup a clicked basemap peak or lake opens (#119).
 //
-// It deliberately shows no forecast. Nothing has been fetched for this point
-// yet — that is what adding it and running Analyze is for — and a popup that
-// looked like a result popup with empty metrics would read as a failed lookup
-// rather than an un-run one.
+// It wears the same chrome a ranked result does — title, link out, rule, rows —
+// because a destination you clicked and the same destination once analyzed are
+// one object at two stages, and they were reading as two kinds of card. What it
+// does not show is a forecast: nothing has been fetched for this point yet,
+// that is what adding it and running Analyze is for, and a result popup with
+// empty metrics would read as a failed lookup rather than an un-run one.
 
 // The attribute the map handler looks for to wire the button back to React.
 // One attribute for both states, with the action in its value, so the handler
@@ -21,6 +22,24 @@ const BUTTON_BASE =
   'border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-family:sans-serif;font-weight:600;margin-top:6px'
 
 /**
+ * Where a clicked feature links out to.
+ *
+ * A tile carries no OSM id, so this cannot deep-link to the object the way an
+ * analyzed row does. `destinationUrl` already handles that: a peak goes to
+ * Peakbagger's coordinate search either way, and everything else falls back to
+ * an OSM pin at the point — which is exactly what a custom row gets, and for
+ * the same reason.
+ */
+function poiUrl(poi: BasemapPoi): string {
+  return destinationUrl({
+    type: isPeakKind(poi.kind) ? 'peak' : poi.kind === LAKE_CLASS ? 'lake' : 'custom',
+    latitude: poi.lat,
+    longitude: poi.lon,
+    osm_id: null,
+  })
+}
+
+/**
  * @param added Whether this POI is already a destination, which flips the
  * button from adding to removing. Clicking a peak you have already added is a
  * question about that peak, and the honest answer to it is the way back out.
@@ -30,20 +49,17 @@ export function poiPopupHtml(poi: BasemapPoi, added: boolean): string {
     ? `<button ${POI_ACTION_ATTR}="remove" style="${BUTTON_BASE};background:#334155;color:#e2e8f0">Remove from analysis</button>`
     : `<button ${POI_ACTION_ATTR}="add" style="${BUTTON_BASE};background:#0284c7;color:#fff">Add to analysis</button>`
 
-  // Name and kind are OSM's, so they are third-party text on their way to
-  // setHTML — escaped exactly like the incident name in the wildfire popup.
-  return `<div style="font-family:sans-serif;font-size:13px;line-height:1.5">
-    <div><strong>${escapeHtml(poi.name)}</strong></div>
-    <div style="color:#475569;font-size:11px;text-transform:capitalize">${escapeHtml(poi.kind)}</div>
-    ${poi.elevationFt !== undefined ? `<div>Elevation: ${poi.elevationFt.toLocaleString()} ft</div>` : ''}
-    ${action}
-  </div>`
-}
+  // The kind used to have a line of its own under the title. It said "Peak"
+  // beneath the name of a peak, which the icon on the map had already said and
+  // the name usually says again.
+  const body = [
+    poi.elevationFt !== undefined
+      ? row('Elevation', `${poi.elevationFt.toLocaleString()} ft`)
+      : '',
+    coordinateRow(poi.lat, poi.lon),
+    action,
+  ].join('\n    ')
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+  // The name is OSM's, so it is third-party text on its way to setHTML.
+  return popupShell(escapeHtml(poi.name), poiUrl(poi), body)
 }

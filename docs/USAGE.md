@@ -10,7 +10,23 @@ One analysis ranks a single set of destinations, which you define using one or a
 
 The search box at the top-left of the map recenters on any named place (a peak, city, lake, river, or trailhead) or on an exact coordinate pair. Type a name like `Mt Whitney` or `Mt Whitney, ca`, or coordinates like `36.57862, -118.29107` (parentheses and space-separated forms work too), then press Enter. Point features get a roughly 10 mile view; larger features like cities, parks, and rivers are framed whole. A searched place registers as a destination (a neutral blue dot until analyzed) and competes in the same ranking as everything else on the next Analyze. Search is powered by [Nominatim](https://nominatim.org), so it works for anything OSM knows about, including places Bluebird can't analyze yet.
 
-### b. Search by Polygon
+### b. Search by Click
+
+The control for this one is the map itself, which is why the panel section carries no widget. Hover it and every clickable feature on the map lights up, the way hovering **Search by Name** rings the search box. Whenever you are not drawing, the peaks and lakes labeled on the map are clickable. Click one for a popup with its name, and its elevation where there is one, then press **Add to analysis**. Clicking it again offers **Remove from analysis**.
+
+An added feature behaves exactly like a place searched by name: a neutral blue dot until analyzed, saved in the URL, and ranked against everything else on the next Analyze. Its elevation and its link to Peakbagger or OpenStreetMap are filled in during that analysis, by matching the point to the nearest mapped feature the way a pasted coordinate is.
+
+Three things are worth knowing about what you can click:
+
+- **Lakes show no elevation.** Peaks do, because the map data carries one for a summit and none for a water body. Analyzing the lake fills it in.
+- **Unnamed summits are clickable too.** OSM knows plenty of peaks only by their height, and the map draws those as a bare elevation. Clicking one adds it as `Peak 5961`, after the number you clicked on.
+- **Shift-click keeps a popup open** instead of replacing it, so two destinations can be compared side by side. A popup opened that way stays until you close it.
+- **A clicked lake becomes the middle of the water**, not the spot you clicked and not the middle of its bounding box, which on a bent lake would land on the far shore. The point chosen is the one furthest from any shoreline.
+- **A crowded label may show only its icon.** Where names would overlap, the map keeps the marker and drops the text, so a ridge of summits or a lake beside a city still shows you what is there. The icon is clickable either way.
+
+Trailheads are not clickable: the basemap does not carry them, so a polygon is still how you find them.
+
+### c. Search by Polygon
 
 Press **Draw Polygon** to start. While drawing, each click on the map drops a point and the polygon previews live as you add them.
 
@@ -33,7 +49,7 @@ The checkboxes under the buttons control what discovery looks for inside your po
 
 Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. The other three methods below still work on their own, so an analysis of pasted coordinates or clicked destinations needs no polygon and no ticks at all.
 
-### c. Specify by Coordinates
+### d. Search by Coordinates
 
 Paste a CSV of your own coordinates to add them to the analysis — alongside whatever the polygon finds, or entirely on their own (no polygon needed):
 
@@ -47,20 +63,6 @@ Paste a CSV of your own coordinates to add them to the analysis — alongside wh
 The format is `Lat,Lon` or `Lat,Lon,Name`, one per line; without a name the coordinates are used. Custom rows compete in the same ranked table as discovered destinations, and a custom row that duplicates a discovered one (same name or same coordinates) replaces it.
 
 You do not need to supply an elevation, and there is nowhere in the format to put one. Each pasted coordinate is matched to the nearest mapped peak and shows that peak's elevation once you analyze, the same figure a polygon search shows for it. A point with no mapped peak beside it stays blank, and a blank elevation is never filtered out by the elevation range, so those rows always ride along. The ready-made lists in [`examples/`](../examples/) are formatted this way.
-
-### d. Specify by Click
-
-The control for this one is the map itself, which is why the panel section carries no widget. Hover it and every clickable feature on the map lights up, the way hovering **Search by Name** rings the search box. Whenever you are not drawing, the peaks and lakes labeled on the map are clickable. Click one for a popup with its name, and its elevation where there is one, then press **Add to analysis**. Clicking it again offers **Remove from analysis**.
-
-An added feature behaves exactly like a place searched by name: a neutral blue dot until analyzed, saved in the URL, and ranked against everything else on the next Analyze. Its elevation and its link to Peakbagger or OpenStreetMap are filled in during that analysis, by matching the point to the nearest mapped feature the way a pasted coordinate is.
-
-Three things are worth knowing about what you can click:
-
-- **Lakes show no elevation.** Peaks do, because the map data carries one for a summit and none for a water body. Analyzing the lake fills it in.
-- **A clicked lake becomes the middle of the water**, not the spot you clicked and not the middle of its bounding box, which on a bent lake would land on the far shore. The point chosen is the one furthest from any shoreline.
-- **A crowded label may show only its icon.** Where names would overlap, the map keeps the marker and drops the text, so a ridge of summits or a lake beside a city still shows you what is there. The icon is clickable either way.
-
-Trailheads are not clickable: the basemap does not carry them, so a polygon is still how you find them.
 
 ## Step 2: Forecast Window
 
@@ -114,6 +116,8 @@ Marker colors follow total precipitation:
 Click a marker for a popup with rank, precipitation, wind, temperature, and AQI. Click a destination name in the table to open Windy centered on that spot with the rain overlay. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300).
 
 ## Results Table
+
+Every row carries a **Type** — Peak, Lake, Trailhead, or Custom for one you supplied — because a single polygon can now look for several kinds at once. It travels into the downloaded CSV too, lower-case there, so a file you re-import reads the same value the API uses.
 
 Click any column header to sort by it, ascending or descending. By default the table follows the **Result Ranking** selection, for example lowest total precipitation for driest-first.
 
