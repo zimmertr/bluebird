@@ -712,7 +712,14 @@ export default function App() {
   useEffect(() => {
     for (const p of searched.places) {
       identityMapRef.current.set(pinKey(p.lat, p.lon), {
-        type: isPeakKind(p.kind) ? 'peak' : 'custom',
+        // The geocoder's own word for the thing, so the table's Type column
+        // says what a place actually is — a searched city reads "City" rather
+        // than "Custom", which is a statement about how it got here rather
+        // than about what it is. Peaks normalize (OSM says "volcano" for
+        // several) because the Peakbagger link keys on that one value;
+        // everything else is carried through. "custom" stays the fallback for
+        // a pasted coordinate, which genuinely has no kind.
+        type: isPeakKind(p.kind) ? 'peak' : p.kind || 'custom',
         osm_id: p.osmId ?? null,
       })
     }
@@ -1045,7 +1052,13 @@ export default function App() {
                 )}
                 <button
                   onClick={cancel}
-                  className={`${BUTTON_SECONDARY} mt-4`}
+                  // `w-fit mx-auto` rather than leaning on the card's text
+                  // alignment: TAP.action makes every button a flex container,
+                  // which is block-level and fills its parent, so the label
+                  // centres inside a full-width box and the box itself has no
+                  // alignment left to inherit. Shrinking it to its content is
+                  // what gives `mx-auto` something to centre.
+                  className={`${BUTTON_SECONDARY} mt-4 w-fit mx-auto`}
                 >
                   Cancel
                 </button>

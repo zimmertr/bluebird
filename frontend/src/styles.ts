@@ -614,19 +614,19 @@ export const NOTICE = {
  * has to be lighter, or the panel reads as five stacked cards rather than one
  * list, and it has to exist, or the steps run together at a glance.
  *
- * The weights are relative and that is the whole point: the edges moved up a
- * step (slate-700 → slate-600, 1.4:1 → 1.94:1 on the panel) when the inner rule
- * arrived, so the inner one could take the step the edges vacated and still be
- * the quieter line. Changing either without the other collapses the distinction
- * they exist to make.
+ * The weights are relative and that is the whole point: the edges moved up two
+ * steps (slate-700 → slate-500, 1.4:1 → 3.07:1 on the panel) so the inner rule
+ * could take slate-600 at 1.94:1 — quiet next to the edges, but actually
+ * visible, which slate-700 at 1.4:1 was not. Changing either without the other
+ * collapses the distinction they exist to make.
  *
  * The inner one is spelled as a `divide-*` utility because that is how it is
  * drawn — one rule between every pair of steps, from the stack itself rather
  * than from each section, so a section added later cannot forget its line or
  * draw a second one.
  */
-export const PANEL_EDGE = 'border-slate-600'
-export const PANEL_RULE = 'divide-slate-700'
+export const PANEL_EDGE = 'border-slate-500'
+export const PANEL_RULE = 'divide-slate-600'
 
 /**
  * A bordered region grouping controls inside the panel: today, the calendar.

@@ -278,7 +278,7 @@ export default function ControlPanel({
         // stay equal: `space-y` is the gap ABOVE each rule (margin sits outside
         // the border) and `pt` the gap below it, so the line lands centred in
         // the gutter between two steps rather than tucked under the one above.
-        className={`flex-1 overflow-y-auto px-4 py-4 space-y-8 divide-y ${PANEL_RULE} [&>*+*]:pt-8`}
+        className={`flex-1 overflow-y-auto px-4 py-4 space-y-5 divide-y ${PANEL_RULE} [&>*+*]:pt-5`}
       >
         {/* Step 1: Destinations — one list, defined via any of three methods
             that union into a single ranked report */}

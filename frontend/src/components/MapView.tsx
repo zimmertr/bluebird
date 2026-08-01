@@ -732,6 +732,13 @@ const MapView = forwardRef<MapViewHandle, Props>(
         zoom: 7,
       })
       mapRef.current = map
+      // Shift is the pinning modifier for popups (isPinning below), and
+      // MapLibre spends shift on box zoom by default — it starts a drag-zoom on
+      // shift+mousedown and swallows the click that would have opened one. Box
+      // zoom has no affordance and no discoverability; the scroll wheel, the
+      // +/- buttons and a pinch all do the same job, so the modifier is better
+      // spent on something the panel actually tells you about.
+      map.boxZoom.disable()
       map.addControl(new maplibregl.NavigationControl(), 'top-right')
       map.addControl(new maplibregl.ScaleControl(), 'bottom-right')
 
