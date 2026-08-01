@@ -25,13 +25,13 @@ import {
   pixelToValue,
   tracksCursor,
   valueAt,
+  tooltipCapacity,
 } from '../utils/chartData'
 
 // Explicit geometry so the hover handler can invert pixels → data values: the
 // plotting band is the container minus these margins and the x-axis strip.
 const MARGIN = { top: 8, right: 16, bottom: 2, left: 8 }
 const X_AXIS_HEIGHT = 22
-const TOOLTIP_MAX = 8
 
 interface Props {
   times: number[]
@@ -178,6 +178,10 @@ export default function TimeSeriesChart({
                   colorFor={colorFor}
                   focusedKey={focusedKey}
                   cursorValue={cursorValue}
+                  // Read at render rather than observed: this component
+                  // re-renders on every hover move, which is the only time
+                  // the value is used.
+                  maxRows={tooltipCapacity(plotRef.current?.clientHeight ?? 0)}
                 />
               )}
             />
@@ -240,6 +244,9 @@ interface ChartTooltipProps {
   colorFor: (row: DestinationResult) => string
   focusedKey: string | null
   cursorValue: number | null
+  // How many series the card has room to list, from the plot area's current
+  // height rather than a constant — see tooltipCapacity.
+  maxRows: number
 }
 
 // Shared X-locked tooltip: all lines at the hovered instant, ordered by nearness
@@ -254,6 +261,7 @@ function ChartTooltip({
   colorFor,
   focusedKey,
   cursorValue,
+  maxRows,
 }: ChartTooltipProps) {
   if (!active || !payload || payload.length === 0) return null
 
@@ -270,7 +278,7 @@ function ChartTooltip({
     return Math.abs(a.value - cursorValue) - Math.abs(b.value - cursorValue)
   })
 
-  const shown = items.slice(0, TOOLTIP_MAX)
+  const shown = items.slice(0, maxRows)
   const rest = items.length - shown.length
 
   return (

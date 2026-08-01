@@ -16,6 +16,11 @@ import {
   rowsBetween,
   selectionState,
   valueAt,
+  TOOLTIP_CHROME_PX,
+  TOOLTIP_MAX_ROWS,
+  TOOLTIP_MIN_ROWS,
+  TOOLTIP_ROW_PX,
+  tooltipCapacity,
 } from './chartData'
 
 function row(name: string, lat: number, series: Partial<HourlySeries>): DestinationResult {
@@ -322,5 +327,39 @@ describe('tracksCursor', () => {
 
   it('is unbothered by an empty chart', () => {
     expect(tracksCursor(0, 0)).toBe(true)
+  })
+})
+
+// The hover card is drawn inside the plotting area, so a fixed eight rows
+// overhung the results table once the chart panel was dragged toward its floor.
+describe('tooltipCapacity', () => {
+  it('lists the full set when the chart is tall', () => {
+    expect(tooltipCapacity(600)).toBe(TOOLTIP_MAX_ROWS)
+  })
+
+  it('never lists more than is readable, however tall the chart', () => {
+    expect(tooltipCapacity(5000)).toBe(TOOLTIP_MAX_ROWS)
+  })
+
+  it('sheds rows as the chart shrinks', () => {
+    const tall = tooltipCapacity(400)
+    const short = tooltipCapacity(160)
+    expect(short).toBeLessThan(tall)
+  })
+
+  it('always leaves at least one row, so the card still says something', () => {
+    expect(tooltipCapacity(0)).toBe(TOOLTIP_MIN_ROWS)
+    expect(tooltipCapacity(-50)).toBe(TOOLTIP_MIN_ROWS)
+  })
+
+  // The property that matters: the card it describes fits the space given.
+  it('never asks for more height than the plot area has', () => {
+    for (const px of [80, 120, 160, 240, 320, 480]) {
+      const rows = tooltipCapacity(px)
+      const cardPx = rows * TOOLTIP_ROW_PX + TOOLTIP_CHROME_PX
+      // One row is the floor and may legitimately overhang a very short panel;
+      // above that the card must fit.
+      if (rows > TOOLTIP_MIN_ROWS) expect(cardPx).toBeLessThanOrEqual(px)
+    }
   })
 })

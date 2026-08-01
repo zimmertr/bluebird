@@ -621,16 +621,16 @@ export const NOTICE = {
  * - **The weight.** slate-700 is 1.4:1 on the slate-800 panel, which is not a
  *   line anyone can see. The edges moved up two steps to slate-500 (3.07:1) so
  *   this could take slate-600 (1.94:1) — quiet beside them, but present.
- * - **The gap.** 32px on both sides. It was 20 and read as hugging the control
- *   above, then briefly lopsided at 32/16 to compensate, which only moved the
- *   imbalance to the other side. Equal and generous is what actually reads as
- *   a gutter between two steps.
+ * - **The gap.** 16px on both sides, and equal is the part that matters. It
+ *   was 20 and read as hugging the control above; 32/16 only moved the
+ *   imbalance to the other side; 32/32 was balanced but left the panel mostly
+ *   air. Symmetry does the separating, not size.
  * - **Where it is drawn.** From the stack, so a section added later cannot
  *   forget its line or draw a second one.
  */
 export const PANEL_EDGE = 'border-slate-500'
 export const PANEL_RULE =
-  '[&>*+*]:mt-8 [&>*+*]:border-t [&>*+*]:border-slate-600 [&>*+*]:pt-8'
+  '[&>*+*]:mt-4 [&>*+*]:border-t [&>*+*]:border-slate-600 [&>*+*]:pt-4'
 
 /**
  * A bordered region grouping controls inside the panel: today, the calendar.
