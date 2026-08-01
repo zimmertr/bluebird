@@ -945,7 +945,12 @@ export default function App() {
         </button>
         <ControlPanel
           drawing={drawing}
-          onStartDrawing={() => setDrawing(true)}
+          onStartDrawing={() => {
+            setDrawing(true)
+            // Editing a shape that has scrolled off screen is the one thing
+            // the draw/idle split made easy to do by accident.
+            mapRef.current?.framePolygon()
+          }}
           onFinishDrawing={() => setDrawing(false)}
           drawPointCount={drawPointCount}
           polygonAreaKm2={polygonAreaKm2}

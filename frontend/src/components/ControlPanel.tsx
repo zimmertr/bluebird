@@ -627,9 +627,6 @@ export default function ControlPanel({
                 />
                 <span>Include Unnamed Peaks</span>
               </label>
-              <p className={`${TEXT.helper} mt-1`}>
-                Named for their height. Many more destinations, so searches take longer.
-              </p>
             </div>
 
             {/* Show wildfires — live NIFC perimeter overlay, off by default */}

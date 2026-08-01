@@ -47,6 +47,7 @@ import {
 } from '../utils/wildfires'
 
 export interface MapViewHandle {
+  framePolygon: () => void
   finishDrawing: () => GeoPolygon | null
   cancelDrawing: () => void
   flyToPlace: (place: Place) => void
@@ -665,6 +666,22 @@ const MapView = forwardRef<MapViewHandle, Props>(
     }
 
     useImperativeHandle(ref, () => ({
+      // Bring the drawn ring back into view. Editing a polygon you cannot see
+      // is the one gesture the draw/idle split made possible: you finish, pan
+      // away to read the results, and then press Edit Polygon with the shape
+      // off screen. Only ever pulls the camera *to* the user's own polygon,
+      // and does nothing when there is no ring to frame.
+      framePolygon() {
+        const map = mapRef.current
+        const pts = ptsRef.current
+        if (!map || !loadedRef.current || pts.length < 3) return
+        const bounds = pts.reduce(
+          (b, p) => b.extend(p),
+          new maplibregl.LngLatBounds(pts[0], pts[0]),
+        )
+        cameraCommittedRef.current = true
+        map.fitBounds(bounds, { padding: FIT_PADDING_PX, duration: 600 })
+      },
       // Snapshot the current ring as a GeoPolygon. The points stay editable —
       // the user iterates by dragging vertices and clicking Analyze again.
       finishDrawing() {
@@ -1250,11 +1267,13 @@ const MapView = forwardRef<MapViewHandle, Props>(
           // so without a shared ref the marker popup would linger beside it.
           const pinned = isPinning(e)
           if (!pinned) closeAllPopups()
+          // Never closeOnClick: it is fixed at construction, so an
+          // already-open popup could not be told to survive the click that
+          // pins a second one — the first shift-click always lost the card it
+          // was meant to keep. Dismissal is ours now (closeAllPopups).
           const resultPopup = new maplibregl.Popup({
             maxWidth: POPUP_WIDTH,
-            // A pinned popup must survive the next map click, which is exactly
-            // what closeOnClick would undo.
-            closeOnClick: !pinned,
+            closeOnClick: false,
           })
           if (!pinned) resultPopupRef.current = resultPopup
           trackPopup(resultPopup)
@@ -1300,7 +1319,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // `custom_destinations` on the next Analyze.
         function openPoiPopup(poi: BasemapPoi, pinned: boolean) {
           if (!pinned) closeAllPopups()
-          const popup = new maplibregl.Popup({ maxWidth: POPUP_WIDTH, closeOnClick: !pinned })
+          const popup = new maplibregl.Popup({ maxWidth: POPUP_WIDTH, closeOnClick: false })
             .setLngLat([poi.lon, poi.lat])
             .addTo(map)
           if (!pinned) poiPopupRef.current = popup
@@ -1381,6 +1400,17 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // Draw mode only. Outside it a click is a pan, a POI, or a marker —
         // never a new vertex, which is what frees the gesture for #119.
         map.on('click', (e) => {
+          // Clicking the map itself dismisses every popup, the same way
+          // clicking another destination does. Skipped while pinning, and
+          // skipped when the click landed on something that opens a popup of
+          // its own — those handlers do their own clearing, and this would
+          // otherwise close the card they just opened.
+          if (!isPinning(e)) {
+            const onPopupLayer = map.queryRenderedFeatures(e.point, {
+              layers: [...POI_LAYERS, 'results-circles'].filter((id) => map.getLayer(id)),
+            })
+            if (onPopupLayer.length === 0) closeAllPopups()
+          }
           if (!drawingRef.current) return
           const blocked = map.queryRenderedFeatures(e.point, {
             layers: [

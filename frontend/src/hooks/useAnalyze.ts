@@ -244,6 +244,10 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
         body: JSON.stringify({
           polygon: request.polygon,
           destination_types: request.destination_types,
+          // The client path is the normal one — the SSE route below is only
+          // reached when Open-Meteo is unreachable from the browser — so a
+          // discovery knob missing here is a knob that does nothing at all.
+          include_unnamed_peaks: request.include_unnamed_peaks ?? false,
           min_elevation_ft: request.min_elevation_ft,
           max_elevation_ft: request.max_elevation_ft,
           top_by_elevation: request.top_by_elevation ?? false,
