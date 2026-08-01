@@ -192,6 +192,19 @@ class AnalyzeRequest(BaseModel):
         ),
     )
 
+    include_unnamed_peaks: bool = Field(
+        default=False,
+        description=(
+            "Also discover summits OSM knows only by their height, named after "
+            "it (`Peak 5961`). Off by default because it is not a small "
+            "addition: measured over one 8x10 km box in the Alpine Lakes, 7 "
+            "peaks are named and 13 are not, so this roughly triples the "
+            "candidate count — every candidate being a weighted upstream call "
+            "and a step closer to the analysis ceiling. Ignored unless `peak` "
+            "is among `destination_types`."
+        ),
+    )
+
     @field_validator("destination_types")
     @classmethod
     def validate_destination_types(cls, v: list[DestinationType]) -> list[DestinationType]:
@@ -622,6 +635,19 @@ class DestinationsRequest(BaseModel):
             "Empty means a resolve-only request: discovery is skipped and only "
             "`custom_destinations` come back. `custom` is not a discoverable "
             "type and is rejected here."
+        ),
+    )
+
+    include_unnamed_peaks: bool = Field(
+        default=False,
+        description=(
+            "Also discover summits OSM knows only by their height, named after "
+            "it (`Peak 5961`). Off by default because it is not a small "
+            "addition: measured over one 8x10 km box in the Alpine Lakes, 7 "
+            "peaks are named and 13 are not, so this roughly triples the "
+            "candidate count — every candidate being a weighted upstream call "
+            "and a step closer to the analysis ceiling. Ignored unless `peak` "
+            "is among `destination_types`."
         ),
     )
 

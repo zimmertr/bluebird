@@ -507,7 +507,10 @@ async def analyze_stream(request: AnalyzeRequest):
                 async def run_osm():
                     try:
                         return await osm.query_osm(
-                            request.polygon, request.destination_types, on_status
+                            request.polygon,
+                            request.destination_types,
+                            on_status,
+                            include_unnamed_peaks=request.include_unnamed_peaks,
                         )
                     finally:
                         await osm_queue.put(_STREAM_DONE)
@@ -787,7 +790,11 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
                 detail="polygon is required when destination_types is non-empty",
             )
         try:
-            destinations = await osm.query_osm(request.polygon, request.destination_types)
+            destinations = await osm.query_osm(
+                request.polygon,
+                request.destination_types,
+                include_unnamed_peaks=request.include_unnamed_peaks,
+            )
         except NotImplementedError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except ratelimit.BudgetExhausted as e:

@@ -111,6 +111,18 @@ _CLAUSES: dict[DestinationType, tuple[str, ...]] = {
     ),
 }
 
+# The same summits without the name filter, for callers that opt in. Kept apart
+# from the clauses above rather than folded into them because this is a
+# different question with a different cost: measured over one 8x10 km box in
+# the Alpine Lakes, 7 peaks are named and 13 are not, so asking for both roughly
+# triples the candidate count — and every candidate is a weighted Open-Meteo
+# call and a step closer to the analysis cap. `["ele"]` is required because an
+# unnamed summit with no elevation has nothing to call itself.
+_UNNAMED_PEAK_CLAUSES: tuple[str, ...] = (
+    'node["natural"="peak"]["ele"](poly:"{poly}");',
+    'node["natural"="volcano"]["ele"](poly:"{poly}");',
+)
+
 # `out center` for every query, where peaks alone used to use bare `out`. It is
 # the same output for a node — Overpass only adds a center to ways and
 # relations — so one form serves a union that may contain all three.
@@ -123,7 +135,9 @@ out center;
 """
 
 
-def _build_query(types: Sequence[DestinationType], poly_str: str) -> str:
+def _build_query(
+    types: Sequence[DestinationType], poly_str: str, include_unnamed_peaks: bool = False
+) -> str:
     """One Overpass document covering every requested type."""
     clauses = [
         "  " + clause.format(poly=poly_str)
@@ -132,6 +146,8 @@ def _build_query(types: Sequence[DestinationType], poly_str: str) -> str:
         for t in sorted(types, key=lambda t: t.value)
         for clause in _CLAUSES[t]
     ]
+    if include_unnamed_peaks and DestinationType.peak in types:
+        clauses += ["  " + c.format(poly=poly_str) for c in _UNNAMED_PEAK_CLAUSES]
     return _QUERY.format(clauses="\n".join(clauses))
 
 
@@ -186,6 +202,7 @@ async def query_osm(
     polygon: GeoPolygon,
     destination_types: Sequence[DestinationType],
     on_status: StatusCallback | None = None,
+    include_unnamed_peaks: bool = False,
 ) -> list[dict[str, Any]]:
     """Return every named destination of the given types inside the polygon.
 
@@ -217,6 +234,10 @@ async def query_osm(
     # mutate one in place would silently corrupt every response served from
     # this entry for the rest of its TTL.
     type_key = ",".join(t.value for t in types)
+    # Part of the key, not a filter on the result: the two questions return
+    # different sets, so they cannot share a cache entry.
+    if include_unnamed_peaks:
+        type_key += "+unnamed"
     cache_key = cache.discovery_key(polygon.coordinates[0], type_key)
     cached = cache.DISCOVERY_CACHE.get(cache_key)
     if cached is not None:
@@ -228,7 +249,7 @@ async def query_osm(
         return copy.deepcopy(cached)
 
     poly_str = _polygon_to_overpass(polygon)
-    query = _build_query(types, poly_str)
+    query = _build_query(types, poly_str, include_unnamed_peaks)
 
     log.info("Querying OSM Overpass for types=%s", type_key)
     log.trace("Overpass query:\n%s", query)  # type: ignore[attr-defined]
@@ -238,11 +259,33 @@ async def query_osm(
 
     results: list[dict[str, Any]] = []
     seen_names: set[str] = set()
+    seen_generated: set[Any] = set()
 
     for element in data.get("elements", []):
         tags = element.get("tags", {})
+        elevation_ft = _ele_ft(tags)
         name = tags.get("name")
-        if not name or name in seen_names:
+        generated = False
+        if not name:
+            # An unnamed summit is named for the height it is drawn with, the
+            # same way the map labels it and the same string the browser builds
+            # for a clicked one (basemapPoi.ts) — so a peak added both ways is
+            # one destination rather than two spellings of it.
+            if not include_unnamed_peaks or elevation_ft is None:
+                continue
+            if _classify(tags) != DestinationType.peak.value:
+                continue
+            name = f"Peak {round(elevation_ft)}"
+            generated = True
+        # Name is the identity rule for mapped features, and it has to stay
+        # that way: OSM carries duplicate nodes for the same summit. It cannot
+        # apply to a generated name, though — every unnamed 5,961 ft peak in a
+        # range would collapse into one row — so those dedup by OSM id, which
+        # is the only identity they actually have.
+        if generated:
+            if element["id"] in seen_generated:
+                continue
+        elif name in seen_names:
             continue
 
         if element["type"] == "node":
@@ -256,9 +299,10 @@ async def query_osm(
         if lat is None or lon is None:
             continue
 
-        elevation_ft = _ele_ft(tags)
-
-        seen_names.add(name)
+        if generated:
+            seen_generated.add(element["id"])
+        else:
+            seen_names.add(name)
         results.append(
             {
                 "name": name,

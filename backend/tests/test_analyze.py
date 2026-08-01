@@ -285,7 +285,7 @@ def test_analyze_elevation_band_can_empty_results(stub_upstreams):
 def test_analyze_over_peak_cap_is_400(monkeypatch, stub_upstreams):
     from app.models import MAX_ANALYZE_PEAKS
 
-    async def flood(polygon, destination_types, on_status=None):
+    async def flood(polygon, destination_types, on_status=None, **_):
         return [
             {"name": f"p{i}", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None, "osm_id": None}
             for i in range(MAX_ANALYZE_PEAKS + 1)
@@ -342,7 +342,7 @@ def test_analyze_stream_custom_happy_path_emits_result(stub_upstreams):
 
 
 def test_analyze_stream_polygon_searches_then_announces_count(monkeypatch, stub_upstreams):
-    async def two_peaks(polygon, destination_types, on_status=None):
+    async def two_peaks(polygon, destination_types, on_status=None, **_):
         return [
             {"name": "a", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None, "osm_id": "node/1", "type": "peak"},
             {"name": "b", "latitude": 2.0, "longitude": 3.0, "elevation_ft": None, "osm_id": "node/2", "type": "peak"},
@@ -373,7 +373,7 @@ def test_analyze_stream_polygon_searches_then_announces_count(monkeypatch, stub_
 def test_analyze_stream_mirror_failover_rides_the_detail_field(monkeypatch, stub_upstreams):
     # osm.query_osm narrates failover via on_status; the stream must surface it
     # as `detail` on a status event whose `message` stays the stable heading.
-    async def failing_over(polygon, destination_types, on_status=None):
+    async def failing_over(polygon, destination_types, on_status=None, **_):
         if on_status is not None:
             await on_status("Trying backup map server 2 of 3…")
         return [
@@ -415,7 +415,7 @@ def _union_body(start, end, custom):
 
 
 def test_analyze_union_ranks_polygon_and_custom_together(monkeypatch, stub_upstreams):
-    async def two_peaks(polygon, destination_types, on_status=None):
+    async def two_peaks(polygon, destination_types, on_status=None, **_):
         return [
             {"name": "pk_a", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None, "osm_id": "node/1", "type": "peak"},
             {"name": "pk_b", "latitude": 3.0, "longitude": 4.0, "elevation_ft": None, "osm_id": "node/2", "type": "peak"},
@@ -439,7 +439,7 @@ def test_analyze_union_ranks_polygon_and_custom_together(monkeypatch, stub_upstr
 
 
 def test_analyze_union_dedup_by_name_custom_wins(monkeypatch, stub_upstreams):
-    async def one_peak(polygon, destination_types, on_status=None):
+    async def one_peak(polygon, destination_types, on_status=None, **_):
         return [{"name": "Shared", "latitude": 1.0, "longitude": 2.0, "elevation_ft": 5000, "osm_id": "node/1", "type": "peak"}]
 
     monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)
@@ -454,7 +454,7 @@ def test_analyze_union_dedup_by_name_custom_wins(monkeypatch, stub_upstreams):
 
 
 def test_analyze_union_dedup_by_coord_custom_wins(monkeypatch, stub_upstreams):
-    async def one_peak(polygon, destination_types, on_status=None):
+    async def one_peak(polygon, destination_types, on_status=None, **_):
         return [{"name": "Discovered", "latitude": 46.852890, "longitude": -121.760410, "elevation_ft": None, "osm_id": "node/1", "type": "peak"}]
 
     monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)
@@ -470,7 +470,7 @@ def test_analyze_union_dedup_by_coord_custom_wins(monkeypatch, stub_upstreams):
 
 
 def test_analyze_union_with_empty_discovery_still_analyzes_custom(monkeypatch, stub_upstreams):
-    async def nothing(polygon, destination_types, on_status=None):
+    async def nothing(polygon, destination_types, on_status=None, **_):
         return []
 
     monkeypatch.setattr(analyze_mod.osm, "query_osm", nothing)
@@ -484,7 +484,7 @@ def test_analyze_union_with_empty_discovery_still_analyzes_custom(monkeypatch, s
 
 
 def test_analyze_stream_union_with_empty_discovery_still_analyzes_custom(monkeypatch, stub_upstreams):
-    async def nothing(polygon, destination_types, on_status=None):
+    async def nothing(polygon, destination_types, on_status=None, **_):
         return []
 
     monkeypatch.setattr(analyze_mod.osm, "query_osm", nothing)
@@ -499,7 +499,7 @@ def test_analyze_stream_union_with_empty_discovery_still_analyzes_custom(monkeyp
 
 
 def test_analyze_stream_union_emits_search_then_mixed_result(monkeypatch, stub_upstreams):
-    async def one_peak(polygon, destination_types, on_status=None):
+    async def one_peak(polygon, destination_types, on_status=None, **_):
         return [{"name": "pk", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None, "osm_id": "node/1", "type": "peak"}]
 
     monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)
@@ -519,7 +519,7 @@ def test_analyze_stream_union_emits_search_then_mixed_result(monkeypatch, stub_u
 def test_analyze_union_counts_toward_cap(monkeypatch, stub_upstreams):
     from app.models import MAX_ANALYZE_PEAKS
 
-    async def near_cap(polygon, destination_types, on_status=None):
+    async def near_cap(polygon, destination_types, on_status=None, **_):
         # Distinct coords/names — collisions with the custom rows would dedup
         # away before the cap.
         return [
@@ -541,7 +541,7 @@ def test_analyze_union_counts_toward_cap(monkeypatch, stub_upstreams):
 
 
 def test_analyze_union_elevation_filter_applies_to_custom_rows(monkeypatch, stub_upstreams):
-    async def one_peak(polygon, destination_types, on_status=None):
+    async def one_peak(polygon, destination_types, on_status=None, **_):
         return [{"name": "pk", "latitude": 1.0, "longitude": 2.0, "elevation_ft": 9000, "osm_id": "node/1", "type": "peak"}]
 
     monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)

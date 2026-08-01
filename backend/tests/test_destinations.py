@@ -33,7 +33,7 @@ def _peak(name: str, elevation_ft: float | None = None) -> dict:
 
 
 def _stub_osm(monkeypatch, result):
-    async def fake(polygon, destination_types, on_status=None):
+    async def fake(polygon, destination_types, on_status=None, **_):
         if isinstance(result, Exception):
             raise result
         return result

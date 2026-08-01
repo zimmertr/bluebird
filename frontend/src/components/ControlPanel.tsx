@@ -134,6 +134,11 @@ interface Props {
   setMaxElevationFt: (v: number | null) => void
   showWildfires: boolean
   setShowWildfires: (v: boolean) => void
+  // Summits OSM knows only by their height, discovered as `Peak 5961`.
+  // A polygon knob rather than a map one, and off by default, because it
+  // roughly triples the candidate count.
+  includeUnnamedPeaks: boolean
+  setIncludeUnnamedPeaks: (v: boolean) => void
   // The selection is unservable, or its narrowed hours run backwards. A horizon
   // case only arrives through a shared link: the calendar draws those days
   // disabled.
@@ -205,6 +210,8 @@ export default function ControlPanel({
   setMaxElevationFt,
   showWildfires,
   setShowWildfires,
+  includeUnnamedPeaks,
+  setIncludeUnnamedPeaks,
   windowWarning,
   commitReason,
   hasPins,
@@ -278,7 +285,7 @@ export default function ControlPanel({
         // stay equal: `space-y` is the gap ABOVE each rule (margin sits outside
         // the border) and `pt` the gap below it, so the line lands centred in
         // the gutter between two steps rather than tucked under the one above.
-        className={`flex-1 overflow-y-auto px-4 py-4 space-y-5 divide-y ${PANEL_RULE} [&>*+*]:pt-5`}
+        className={`flex-1 overflow-y-auto px-4 py-4 ${PANEL_RULE}`}
       >
         {/* Step 1: Destinations — one list, defined via any of three methods
             that union into a single ranked report */}
@@ -604,6 +611,24 @@ export default function ControlPanel({
                   second line, which is why the count itself is not named here. */}
               <p className={`${TEXT.helper} mt-1`}>
                 Number of results shown. All points are analyzed.
+              </p>
+            </div>
+
+            {/* Unnamed peaks — a polygon-discovery knob, so it sits with the
+                other things that change what an analysis costs rather than
+                with the map overlay below it. */}
+            <div>
+              <label className={CHOICE_ROW}>
+                <input
+                  type="checkbox"
+                  checked={includeUnnamedPeaks}
+                  onChange={(e) => setIncludeUnnamedPeaks(e.target.checked)}
+                  className={CHOICE_INPUT}
+                />
+                <span>Include Unnamed Peaks</span>
+              </label>
+              <p className={`${TEXT.helper} mt-1`}>
+                Named for their height. Many more destinations, so searches take longer.
               </p>
             </div>
 

@@ -152,6 +152,12 @@
             ],
             "description": "Which of the three forecast modes this request is. `current` needs no timestamps and analyzes the hour at hand. `at` takes `start_datetime` alone and samples that single hour, past or future. `window` takes both and analyzes the span.\n\nOmitting it is supported for compatibility and inferred from what you send: both timestamps means `window`, neither means `current`. Sending only `start_datetime` without a mode is rejected, because it could equally mean `at` or a `window` missing its end."
           },
+          "include_unnamed_peaks": {
+            "default": false,
+            "description": "Also discover summits OSM knows only by their height, named after it (`Peak 5961`). Off by default because it is not a small addition: measured over one 8x10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so this roughly triples the candidate count \u2014 every candidate being a weighted upstream call and a step closer to the analysis ceiling. Ignored unless `peak` is among `destination_types`.",
+            "title": "Include Unnamed Peaks",
+            "type": "boolean"
+          },
           "limit": {
             "default": 10,
             "description": "How many ranked rows to return. Discovery is never sampled, so this trims the response, not the work: every candidate is forecast and ranked before the cut.",
@@ -586,6 +592,12 @@
             },
             "title": "Destination Types",
             "type": "array"
+          },
+          "include_unnamed_peaks": {
+            "default": false,
+            "description": "Also discover summits OSM knows only by their height, named after it (`Peak 5961`). Off by default because it is not a small addition: measured over one 8x10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so this roughly triples the candidate count \u2014 every candidate being a weighted upstream call and a step closer to the analysis ceiling. Ignored unless `peak` is among `destination_types`.",
+            "title": "Include Unnamed Peaks",
+            "type": "boolean"
           },
           "max_elevation_ft": {
             "anyOf": [

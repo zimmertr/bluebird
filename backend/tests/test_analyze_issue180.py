@@ -99,7 +99,7 @@ def _wx(n: int) -> list[dict]:
 def _stub_discovery(monkeypatch, count: int):
     dests = _dests([1000.0 + i for i in range(count)])
 
-    async def fake_query(polygon, destination_types, on_status=None):
+    async def fake_query(polygon, destination_types, on_status=None, **_):
         return list(dests)
 
     monkeypatch.setattr(osm, "query_osm", fake_query)

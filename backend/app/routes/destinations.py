@@ -126,7 +126,11 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse:
         )
     else:
         try:
-            found = await osm.query_osm(request.polygon, request.destination_types)
+            found = await osm.query_osm(
+                request.polygon,
+                request.destination_types,
+                include_unnamed_peaks=request.include_unnamed_peaks,
+            )
         except NotImplementedError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except ratelimit.BudgetExhausted as e:

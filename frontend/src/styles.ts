@@ -606,27 +606,32 @@ export const NOTICE = {
  * The two weights of rule in the control panel.
  *
  * `PANEL_EDGE` closes the panel: the line under the app title and the one over
- * the Analyze button. Those two are structural — they separate the scrolling
- * body from the fixed chrome above and below it — so they are the heavier of
- * the pair.
+ * the Analyze button. Those are structural — they separate the scrolling body
+ * from the fixed chrome above and below it — so they are the heavier pair.
  *
- * `PANEL_RULE` separates one numbered step from the next *inside* that body. It
- * has to be lighter, or the panel reads as five stacked cards rather than one
- * list, and it has to exist, or the steps run together at a glance.
+ * `PANEL_RULE` separates one numbered step from the next *inside* that body,
+ * and is the whole recipe rather than a colour, because Tailwind scans source
+ * as raw text: a variant assembled from a template at a call site is a class
+ * name that never appears anywhere, so no CSS is generated for it. Spelling it
+ * out here is what makes it exist, and it keeps the decision in the design
+ * system where the rest of the panel's chrome lives.
  *
- * The weights are relative and that is the whole point: the edges moved up two
- * steps (slate-700 → slate-500, 1.4:1 → 3.07:1 on the panel) so the inner rule
- * could take slate-600 at 1.94:1 — quiet next to the edges, but actually
- * visible, which slate-700 at 1.4:1 was not. Changing either without the other
- * collapses the distinction they exist to make.
+ * Three things it settles:
  *
- * The inner one is spelled as a `divide-*` utility because that is how it is
- * drawn — one rule between every pair of steps, from the stack itself rather
- * than from each section, so a section added later cannot forget its line or
- * draw a second one.
+ * - **The weight.** slate-700 is 1.4:1 on the slate-800 panel, which is not a
+ *   line anyone can see. The edges moved up two steps to slate-500 (3.07:1) so
+ *   this could take slate-600 (1.94:1) — quiet beside them, but present.
+ * - **The gap, which is deliberately lopsided.** 32px above the rule and 16px
+ *   below. Even gaps made every rule look like it was hugging the control
+ *   above it, because a section *ends* with a control's own box (a textarea, a
+ *   bordered calendar) and *begins* with a heading that carries its own space
+ *   underneath. The rule belongs to the section it introduces.
+ * - **Where it is drawn.** From the stack, so a section added later cannot
+ *   forget its line or draw a second one.
  */
 export const PANEL_EDGE = 'border-slate-500'
-export const PANEL_RULE = 'divide-slate-600'
+export const PANEL_RULE =
+  '[&>*+*]:mt-8 [&>*+*]:border-t [&>*+*]:border-slate-600 [&>*+*]:pt-4'
 
 /**
  * A bordered region grouping controls inside the panel: today, the calendar.

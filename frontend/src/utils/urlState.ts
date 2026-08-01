@@ -25,6 +25,7 @@ export interface ShareableState {
   // A set, not a value: the polygon can look for several kinds at once, and
   // an empty set means it looks for nothing.
   destinationTypes: DiscoveryType[]
+  includeUnnamedPeaks: boolean
   // What the analysis asks about: the current hour, or a day/day-range with an
   // optional narrowing to a span of hours (#166). One value where there used to
   // be four — a mode plus three parallel sets of timestamps, two of them always
@@ -193,6 +194,7 @@ export function encodeState(state: ShareableState): string {
     state.sortDesc ||
     state.limit !== DEFAULT_LIMIT ||
     state.destinationTypes.length !== DEFAULT_TYPES.length ||
+    state.includeUnnamedPeaks ||
     state.showWildfires ||
     state.selection.kind !== 'now'
   if (!hasPolygon && !hasCustom && !hasConstraint && !hasPins && !nonDefaultControls)
@@ -236,6 +238,7 @@ export function encodeState(state: ShareableState): string {
   // decode can tell it apart from legacy raw `custom=` links (see decodeState).
   if (hasCustom) p.set('customz', compressToEncodedURIComponent(state.customCsv))
   if (state.showWildfires) p.set('fires', '1')
+  if (state.includeUnnamedPeaks) p.set('unnamed', '1')
   if (hasPins) p.set('pins', encodePins(state.pins))
 
   return p.toString()
@@ -378,6 +381,7 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   }
 
   if (params.get('fires') === '1') out.showWildfires = true
+  if (params.get('unnamed') === '1') out.includeUnnamedPeaks = true
 
   const pins = params.get('pins')
   if (pins) {

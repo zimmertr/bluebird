@@ -627,6 +627,29 @@ const MapView = forwardRef<MapViewHandle, Props>(
     const onRemovePoiRef = useRef(onRemovePoi)
     // The single open basemap-POI popup, so a second click replaces it.
     const poiPopupRef = useRef<maplibregl.Popup | null>(null)
+    // Every popup currently on the map, pinned ones included. `closeOnClick`
+    // and the single refs above cannot reach a pinned popup by design — that
+    // is what pinning means — so an unmodified click needs its own way to
+    // clear the board. Without this, once you shift-clicked anything the only
+    // way back to a clean map was closing each card by hand.
+    const openPopupsRef = useRef<maplibregl.Popup[]>([])
+
+    // Called before every popup that is not itself pinned.
+    function closeAllPopups() {
+      for (const popup of openPopupsRef.current) popup.remove()
+      openPopupsRef.current = []
+      resultPopupRef.current = null
+      poiPopupRef.current = null
+    }
+
+    function trackPopup(popup: maplibregl.Popup) {
+      openPopupsRef.current.push(popup)
+      // MapLibre fires this for its own close button and for closeOnClick, so
+      // the list drains itself rather than growing for the session.
+      popup.on('close', () => {
+        openPopupsRef.current = openPopupsRef.current.filter((p) => p !== popup)
+      })
+    }
     // Flipped once the load handler has added every source/layer. A ref wouldn't
     // re-run the wildfire effect, so this is state — it lets a restored `fires=1`
     // link turn the overlay on as soon as the map is ready.
@@ -698,7 +721,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         cameraCommittedRef.current = true
         const center: [number, number] = [result.longitude, result.latitude]
         map.flyTo({ center, zoom: Math.max(map.getZoom(), 10), duration: 800 })
-        resultPopupRef.current?.remove()
+        closeAllPopups()
         resultPopupRef.current = new maplibregl.Popup({ maxWidth: POPUP_WIDTH })
           .setLngLat(center)
           .setHTML(
@@ -1226,7 +1249,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           // closeOnClick, but a table-name click (focusResult) fires no map click,
           // so without a shared ref the marker popup would linger beside it.
           const pinned = isPinning(e)
-          if (!pinned) resultPopupRef.current?.remove()
+          if (!pinned) closeAllPopups()
           const resultPopup = new maplibregl.Popup({
             maxWidth: POPUP_WIDTH,
             // A pinned popup must survive the next map click, which is exactly
@@ -1234,6 +1257,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
             closeOnClick: !pinned,
           })
           if (!pinned) resultPopupRef.current = resultPopup
+          trackPopup(resultPopup)
           resultPopup
             .setLngLat(anchor)
             .setHTML(
@@ -1275,11 +1299,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // own: it lands in the same list, the same URL param, and the same
         // `custom_destinations` on the next Analyze.
         function openPoiPopup(poi: BasemapPoi, pinned: boolean) {
-          if (!pinned) poiPopupRef.current?.remove()
+          if (!pinned) closeAllPopups()
           const popup = new maplibregl.Popup({ maxWidth: POPUP_WIDTH, closeOnClick: !pinned })
             .setLngLat([poi.lon, poi.lat])
             .addTo(map)
           if (!pinned) poiPopupRef.current = popup
+          trackPopup(popup)
 
           // Which registered place this POI is, or null. Held in the closure
           // rather than re-read from searchedPlacesRef after each click: that

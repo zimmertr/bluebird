@@ -47,6 +47,7 @@ const base: ShareableState = {
   limit: 10,
   customCsv: '',
   showWildfires: false,
+  includeUnnamedPeaks: false,
   pins: [],
 }
 
@@ -66,6 +67,7 @@ const pristine: ShareableState = {
   limit: 200,
   customCsv: '',
   showWildfires: false,
+  includeUnnamedPeaks: false,
   pins: [],
 }
 
@@ -754,5 +756,22 @@ describe('several destination types in one link', () => {
 
   it('leaves the field unset when no name is recognized, rather than guessing', () => {
     expect(decodeState('type=custom&limit=50')!.destinationTypes).toBeUndefined()
+  })
+})
+
+describe('unnamed peaks in a link', () => {
+  it('is absent by default, so it never makes a pristine session worth sharing', () => {
+    expect(encodeState(pristine)).toBe('')
+    expect(encodeState(base)).not.toContain('unnamed=')
+  })
+
+  it('round-trips when switched on', () => {
+    const qs = encodeState({ ...base, includeUnnamedPeaks: true })
+    expect(qs).toContain('unnamed=1')
+    expect(decodeState(qs)!.includeUnnamedPeaks).toBe(true)
+  })
+
+  it('alone is enough to make a session worth persisting', () => {
+    expect(encodeState({ ...pristine, includeUnnamedPeaks: true })).not.toBe('')
   })
 })

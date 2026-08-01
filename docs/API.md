@@ -91,6 +91,12 @@ ignored. An empty set discovers nothing, which is how a request analyzes only
 its `custom_destinations`; `custom` is not a discoverable type and is rejected
 inside the list.
 
+`include_unnamed_peaks` widens the peak search to summits tagged with an
+elevation but no name, returned as `Peak 5961`. It defaults to false and is
+ignored unless `peak` is among the types: measured over one 8x10 km box, it
+roughly triples the candidate count, and every candidate is a weighted upstream
+call and a step closer to the analysis ceiling.
+
 `POST /api/destinations` takes a `polygon`, a set of `destination_types`, and
 the optional elevation band, and returns every named candidate inside — the same
 never-sampled discovery an analysis starts with, under the same candidate

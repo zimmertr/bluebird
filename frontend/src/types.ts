@@ -38,6 +38,9 @@ export interface AnalyzeRequest {
   // query. Empty means discover nothing and analyze only
   // `custom_destinations`.
   destination_types: DiscoveryType[]
+  // Also discover summits OSM knows only by their height. Off by
+  // default: it roughly triples the candidate count.
+  include_unnamed_peaks?: boolean
   start_datetime: string
   end_datetime: string
   limit: number

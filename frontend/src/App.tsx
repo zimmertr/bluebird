@@ -214,6 +214,12 @@ export default function App() {
   // URL so a shared link reproduces it. Defaults off; toggling queries NIFC for
   // the current viewport.
   const [showWildfires, setShowWildfires] = useState(() => restored?.showWildfires ?? false)
+  // Summits OSM knows only by their height. Off by default: measured over one
+  // 8x10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so
+  // this roughly triples what an analysis costs and how often it refuses.
+  const [includeUnnamedPeaks, setIncludeUnnamedPeaks] = useState(
+    () => restored?.includeUnnamedPeaks ?? false,
+  )
   const [showResults, setShowResults] = useState(false)
   const [tableHeight, setTableHeight] = useState(280)
   const [chartHeight, setChartHeight] = useState(288)
@@ -446,6 +452,7 @@ export default function App() {
     const qs = encodeState({
       polygon,
       destinationTypes,
+      includeUnnamedPeaks,
       selection,
       sortBy,
       sortDesc,
@@ -473,6 +480,7 @@ export default function App() {
   }, [
     polygon,
     destinationTypes,
+    includeUnnamedPeaks,
     selection,
     sortBy,
     sortDesc,
@@ -549,6 +557,7 @@ export default function App() {
       // Sorted so checking peaks then lakes and lakes then peaks are the
       // same discovery, matching the order-independent cache key upstream.
       types: [...destinationTypes].sort(),
+      unnamed: includeUnnamedPeaks,
       csv: csvRows,
       minEl: minElevationFt,
       maxEl: maxElevationFt,
@@ -656,6 +665,7 @@ export default function App() {
       await analyze({
         polygon: resolvedPolygon,
         destination_types: destinationTypes,
+        include_unnamed_peaks: includeUnnamedPeaks,
         start_datetime: start,
         end_datetime: end,
         limit,
@@ -963,6 +973,8 @@ export default function App() {
           setMaxElevationFt={setMaxElevationFt}
           showWildfires={showWildfires}
           setShowWildfires={setShowWildfires}
+          includeUnnamedPeaks={includeUnnamedPeaks}
+          setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}
           windowWarning={windowWarning}
           hasPins={searched.places.length > 0}
           // A pins-only Analyze refresh keeps useAnalyze.loading false, so fold

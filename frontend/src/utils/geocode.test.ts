@@ -222,3 +222,34 @@ describe('isPeakKind', () => {
     expect(isPeakKind('')).toBe(false)
   })
 })
+
+// The Type column made this visible: Nominatim types a town as the OSM tag on
+// its boundary relation, so Issaquah arrived as "Administrative".
+describe('what a searched place is called', () => {
+  const row = (over: Record<string, unknown>) =>
+    placeFromNominatimRow({
+      name: 'X',
+      display_name: 'X, Somewhere',
+      lat: '47.5',
+      lon: '-122.0',
+      ...over,
+    } as Parameters<typeof placeFromNominatimRow>[0])
+
+  it('prefers the place kind over the bureaucratic one', () => {
+    expect(row({ type: 'administrative', addresstype: 'city' }).kind).toBe('city')
+    expect(row({ type: 'boundary', addresstype: 'town' }).kind).toBe('town')
+  })
+
+  it('leaves a real feature type alone', () => {
+    expect(row({ type: 'peak', addresstype: 'peak' }).kind).toBe('peak')
+    expect(row({ type: 'water', addresstype: 'water' }).kind).toBe('water')
+  })
+
+  it('keeps the raw type when there is nothing better to fall back to', () => {
+    expect(row({ type: 'administrative' }).kind).toBe('administrative')
+  })
+
+  it('still humanizes underscores', () => {
+    expect(row({ type: 'nature_reserve' }).kind).toBe('nature reserve')
+  })
+})
