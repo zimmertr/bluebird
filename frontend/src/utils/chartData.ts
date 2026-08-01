@@ -84,11 +84,18 @@ export function alignRowToGrid(row: DestinationResult, times: number[]): Destina
 // row removals must never clobber deliberate unchecks.
 export function defaultChartRows(
   results: DestinationResult[],
-  selectedKeys: string[],
+  everCharted: ReadonlySet<string>,
 ): DestinationResult[] | null {
-  const present = new Set(results.map(chartKey))
-  if (selectedKeys.some((k) => present.has(k))) return null
-  const rows = results.filter((r) => r.series)
+  // Every chartable row this report has never charted before. It used to be
+  // "chart everything, but only when nothing selected is still on screen",
+  // which meant a report that ADDED rows to an existing one left the new ones
+  // unchecked — tick Lakes alongside Peaks, re-analyze, and every lake arrived
+  // off the chart because the peaks were still on it.
+  //
+  // Keyed on ever-charted rather than currently-selected so the fix does not
+  // cost the other half: a box you deliberately unticked is a row that HAS
+  // been charted, so it stays off, and re-analyzing never re-checks it.
+  const rows = results.filter((r) => r.series && !everCharted.has(chartKey(r)))
   return rows.length > 0 ? rows : null
 }
 
@@ -274,4 +281,30 @@ export function nearestKey(
     }
   }
   return best
+}
+
+
+// ── Tooltip capacity ───────────────────────────────────────────────────────
+// The hover card is drawn inside the plotting area, so how many series it can
+// list is bounded by that area's height rather than by a constant. At the
+// chart panel's floor an eight-row card is taller than the chart itself and
+// hangs over the results table below it.
+//
+// The two measurements are of the rendered card: a row is the 12px control
+// step on its default line box, and the chrome is the card's vertical padding
+// plus the timestamp line above the rows and the "+N more" line below them.
+// Both are deliberately slight over-estimates, so the cap errs toward one row
+// fewer rather than one row of overhang.
+export const TOOLTIP_ROW_PX = 18
+export const TOOLTIP_CHROME_PX = 46
+
+// Eight is where the card stops being scannable, so height can only ever
+// lower it. One is the floor: a tooltip listing nothing is worse than a
+// tooltip that overhangs, and "+N more" still says what is missing.
+export const TOOLTIP_MAX_ROWS = 8
+export const TOOLTIP_MIN_ROWS = 1
+
+export function tooltipCapacity(plotHeightPx: number): number {
+  const fits = Math.floor((plotHeightPx - TOOLTIP_CHROME_PX) / TOOLTIP_ROW_PX)
+  return Math.max(TOOLTIP_MIN_ROWS, Math.min(TOOLTIP_MAX_ROWS, fits))
 }

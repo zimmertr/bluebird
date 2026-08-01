@@ -16,7 +16,7 @@ _POLYGON = {
 
 
 def _payload(**overrides) -> dict:
-    return {"polygon": _POLYGON, "destination_type": "peak", **overrides}
+    return {"polygon": _POLYGON, "destination_types": ["peak"], **overrides}
 
 
 def _peak(name: str, elevation_ft: float | None = None) -> dict:
@@ -26,11 +26,14 @@ def _peak(name: str, elevation_ft: float | None = None) -> dict:
         "longitude": 0.05,
         "elevation_ft": elevation_ft,
         "osm_id": f"node/{abs(hash(name)) % 10_000}",
+        # Discovery classifies every element from its own tags, so a stub of
+        # it has to carry a type too or it stops representing the real thing.
+        "type": "peak",
     }
 
 
 def _stub_osm(monkeypatch, result):
-    async def fake(polygon, destination_type, on_status=None):
+    async def fake(polygon, destination_types, on_status=None, **_):
         if isinstance(result, Exception):
             raise result
         return result
@@ -38,7 +41,7 @@ def _stub_osm(monkeypatch, result):
     monkeypatch.setattr(osm_mod, "query_osm", fake)
 
 
-def test_returns_discovered_rows_tagged_with_the_request_type(monkeypatch):
+def test_returns_discovered_rows_tagged_with_their_own_type(monkeypatch):
     _stub_osm(monkeypatch, [_peak("Alpha", 5000.0), _peak("Beta")])
     resp = client.post("/api/destinations", json=_payload())
     assert resp.status_code == 200
@@ -60,11 +63,11 @@ def test_elevation_band_filters_but_unknowns_pass(monkeypatch):
     assert [d["name"] for d in resp.json()["destinations"]] == ["Mid", "Unknown"]
 
 
-def test_custom_type_without_a_list_is_a_400(monkeypatch):
+def test_no_types_and_no_list_is_a_400(monkeypatch):
     _stub_osm(monkeypatch, [])
-    resp = client.post("/api/destinations", json=_payload(destination_type="custom"))
+    resp = client.post("/api/destinations", json=_payload(destination_types=[]))
     assert resp.status_code == 400
-    assert "nothing to discover" in resp.json()["detail"]
+    assert "Nothing to do" in resp.json()["detail"]
 
 
 def test_over_cap_refuses_with_the_analyze_wording(monkeypatch):
@@ -89,7 +92,7 @@ def test_missing_polygon_is_a_400_naming_both_ways_to_ask():
     # Optional since custom lists became resolvable here (#207), so a bare
     # request is now a route-level refusal rather than a schema violation —
     # the same 400 POST /api/analyze gives for the same omission.
-    resp = client.post("/api/destinations", json={"destination_type": "peak"})
+    resp = client.post("/api/destinations", json={"destination_types": ["peak"]})
     assert resp.status_code == 400
     detail = resp.json()["detail"]
     assert "polygon is required" in detail
@@ -158,7 +161,7 @@ def test_custom_only_request_resolves_without_discovering(monkeypatch):
     resp = client.post(
         "/api/destinations",
         json={
-            "destination_type": "custom",
+            "destination_types": [],
             "custom_destinations": [_custom("McClellan Butte", 47.406905, -121.622215)],
         },
     )
@@ -174,7 +177,7 @@ def test_unresolvable_custom_row_comes_back_with_a_null_elevation(monkeypatch):
     resp = client.post(
         "/api/destinations",
         json={
-            "destination_type": "custom",
+            "destination_types": [],
             "custom_destinations": [_custom("Chimney Rock", 47.507122, -121.290115)],
         },
     )
@@ -208,7 +211,7 @@ def test_resolved_elevation_lets_the_band_filter_custom_rows(monkeypatch):
     resp = client.post(
         "/api/destinations",
         json={
-            "destination_type": "custom",
+            "destination_types": [],
             "custom_destinations": [
                 _custom("High", 47.0, -121.0),
                 _custom("Low", 47.1, -121.1),
@@ -225,7 +228,7 @@ def test_a_row_that_stays_unknown_still_passes_the_band(monkeypatch):
     resp = client.post(
         "/api/destinations",
         json={
-            "destination_type": "custom",
+            "destination_types": [],
             "custom_destinations": [
                 _custom("Known", 47.0, -121.0),
                 _custom("Unresolved", 47.1, -121.1),
@@ -242,7 +245,7 @@ def test_caller_supplied_elevation_is_never_overwritten(monkeypatch):
     resp = client.post(
         "/api/destinations",
         json={
-            "destination_type": "custom",
+            "destination_types": [],
             "custom_destinations": [_custom("Mine", 47.0, -121.0, elevation_ft=1234.0)],
         },
     )
@@ -254,7 +257,7 @@ def test_an_oversized_custom_list_is_rejected_at_the_door():
     resp = client.post(
         "/api/destinations",
         json={
-            "destination_type": "custom",
+            "destination_types": [],
             "custom_destinations": [
                 _custom(f"P{i}", 47.0, -121.0) for i in range(MAX_ANALYZE_PEAKS + 1)
             ],

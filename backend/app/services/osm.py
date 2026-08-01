@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import logging
 import math
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -81,39 +81,91 @@ OVERPASS_MIRRORS = [
 ]
 HEADERS = {"User-Agent": "Bluebird/1.0 (bluebirdforecast.com; personal weather tool)"}
 
-# Overpass QL templates per destination type.
-# Peaks query uses nodes only — the vast majority of OSM peaks are nodes,
-# and node-only queries are significantly faster on the public API.
-# natural=volcano is unioned in because OSM tags volcanic summits as volcano
-# INSTEAD of peak — without it, Baker, Rainier, Glacier Peak, Adams, and
-# St. Helens are all invisible to a Cascades polygon search.
-_QUERIES: dict[DestinationType, str] = {
-    DestinationType.peak: """\
-[out:json][timeout:60];
-(
-  node["natural"="peak"]["name"](poly:"{poly}");
-  node["natural"="volcano"]["name"](poly:"{poly}");
-);
-out;
-""",
-    DestinationType.trailhead: """\
-[out:json][timeout:60];
-(
-  node["highway"="trailhead"]["name"](poly:"{poly}");
-  way["highway"="trailhead"]["name"](poly:"{poly}");
-);
-out center;
-""",
-    DestinationType.lake: """\
-[out:json][timeout:60];
-(
-  node["natural"="water"]["water"="lake"]["name"](poly:"{poly}");
-  way["natural"="water"]["water"="lake"]["name"](poly:"{poly}");
-  relation["natural"="water"]["water"="lake"]["name"](poly:"{poly}");
-);
-out center;
-""",
+# The Overpass clauses each destination type contributes, as *fragments*
+# rather than whole queries, because an analysis can now ask for several types
+# at once and the union has to be one request.
+#
+# That is the whole reason for the shape: Overpass is a donated public API and
+# the query is the slowest step of an analysis, so three checked boxes must
+# cost one request rather than three. Overpass unions natively — `( … );` — so
+# combining types is concatenating their clauses.
+#
+# Peaks are nodes only: the vast majority of OSM peaks are nodes, and node-only
+# clauses are significantly faster on the public API. natural=volcano is in
+# because OSM tags volcanic summits as volcano INSTEAD of peak — without it,
+# Baker, Rainier, Glacier Peak, Adams and St. Helens are all invisible to a
+# Cascades search.
+_CLAUSES: dict[DestinationType, tuple[str, ...]] = {
+    DestinationType.peak: (
+        'node["natural"="peak"]["name"](poly:"{poly}");',
+        'node["natural"="volcano"]["name"](poly:"{poly}");',
+    ),
+    DestinationType.trailhead: (
+        'node["highway"="trailhead"]["name"](poly:"{poly}");',
+        'way["highway"="trailhead"]["name"](poly:"{poly}");',
+    ),
+    DestinationType.lake: (
+        'node["natural"="water"]["water"="lake"]["name"](poly:"{poly}");',
+        'way["natural"="water"]["water"="lake"]["name"](poly:"{poly}");',
+        'relation["natural"="water"]["water"="lake"]["name"](poly:"{poly}");',
+    ),
 }
+
+# The same summits without the name filter, for callers that opt in. Kept apart
+# from the clauses above rather than folded into them because this is a
+# different question with a different cost: measured over one 8x10 km box in
+# the Alpine Lakes, 7 peaks are named and 13 are not, so asking for both roughly
+# triples the candidate count — and every candidate is a weighted Open-Meteo
+# call and a step closer to the analysis cap. `["ele"]` is required because an
+# unnamed summit with no elevation has nothing to call itself.
+_UNNAMED_PEAK_CLAUSES: tuple[str, ...] = (
+    'node["natural"="peak"]["ele"](poly:"{poly}");',
+    'node["natural"="volcano"]["ele"](poly:"{poly}");',
+)
+
+# `out center` for every query, where peaks alone used to use bare `out`. It is
+# the same output for a node — Overpass only adds a center to ways and
+# relations — so one form serves a union that may contain all three.
+_QUERY = """\
+[out:json][timeout:60];
+(
+{clauses}
+);
+out center;
+"""
+
+
+def _build_query(
+    types: Sequence[DestinationType], poly_str: str, include_unnamed_peaks: bool = False
+) -> str:
+    """One Overpass document covering every requested type."""
+    clauses = [
+        "  " + clause.format(poly=poly_str)
+        # Sorted so the same set of types always produces the same query text,
+        # which is what lets the cache key below be order-independent.
+        for t in sorted(types, key=lambda t: t.value)
+        for clause in _CLAUSES[t]
+    ]
+    if include_unnamed_peaks and DestinationType.peak in types:
+        clauses += ["  " + c.format(poly=poly_str) for c in _UNNAMED_PEAK_CLAUSES]
+    return _QUERY.format(clauses="\n".join(clauses))
+
+
+# Which type a returned element actually is. A single-type query could assume
+# the answer from the request; a union cannot, and the row's type decides its
+# badge and whether it links to Peakbagger. Read from the same tags the
+# clauses above match on, so the two cannot disagree.
+def _classify(tags: dict[str, Any]) -> str:
+    natural = tags.get("natural")
+    if natural in ("peak", "volcano"):
+        return DestinationType.peak.value
+    if tags.get("highway") == "trailhead":
+        return DestinationType.trailhead.value
+    if natural == "water" and tags.get("water") == "lake":
+        return DestinationType.lake.value
+    # Unreachable for anything the clauses asked for, but a tagging change
+    # upstream should degrade to an unbadged row rather than raise.
+    return DestinationType.custom.value
 
 # Public because GET /api/capabilities publishes it: DestinationType carries
 # every type the API models, but only these are actually discoverable via
@@ -148,19 +200,30 @@ def _ele_ft(tags: dict[str, Any]) -> float | None:
 
 async def query_osm(
     polygon: GeoPolygon,
-    destination_type: DestinationType,
+    destination_types: Sequence[DestinationType],
     on_status: StatusCallback | None = None,
+    include_unnamed_peaks: bool = False,
 ) -> list[dict[str, Any]]:
-    """Return every named destination of the given type inside the polygon.
+    """Return every named destination of the given types inside the polygon.
+
+    One Overpass request however many types are asked for, and every row comes
+    back tagged with the type it actually is rather than the type that was
+    requested.
 
     Deliberately uncapped: the ranking is only exact if every candidate gets a
     forecast, so the analysis-size ceiling lives in the route (loud refusal),
     not here (silent truncation).
     """
-    if destination_type not in IMPLEMENTED_TYPES:
-        raise NotImplementedError(
-            f"Destination type '{destination_type.value}' is not yet implemented."
-        )
+    # Order never changes the answer, so it must not change the cache key
+    # either — a peaks+lakes analysis and a lakes+peaks one are one query.
+    types = sorted(set(destination_types), key=lambda t: t.value)
+    if not types:
+        return []
+    for t in types:
+        if t not in IMPLEMENTED_TYPES:
+            raise NotImplementedError(
+                f"Destination type '{t.value}' is not yet implemented."
+            )
 
     # Discovery is cached post-parse for ~10 minutes: the browser flow calls
     # /api/destinations and its server fallback re-runs the identical query
@@ -170,22 +233,25 @@ async def query_osm(
     # list copy would share the destination dicts, and the first caller to
     # mutate one in place would silently corrupt every response served from
     # this entry for the rest of its TTL.
-    cache_key = cache.discovery_key(
-        polygon.coordinates[0], destination_type.value
-    )
+    type_key = ",".join(t.value for t in types)
+    # Part of the key, not a filter on the result: the two questions return
+    # different sets, so they cannot share a cache entry.
+    if include_unnamed_peaks:
+        type_key += "+unnamed"
+    cache_key = cache.discovery_key(polygon.coordinates[0], type_key)
     cached = cache.DISCOVERY_CACHE.get(cache_key)
     if cached is not None:
         log.info(
-            "OSM discovery served from cache: %d destination(s) for type=%s",
+            "OSM discovery served from cache: %d destination(s) for types=%s",
             len(cached),
-            destination_type.value,
+            type_key,
         )
         return copy.deepcopy(cached)
 
     poly_str = _polygon_to_overpass(polygon)
-    query = _QUERIES[destination_type].format(poly=poly_str)
+    query = _build_query(types, poly_str, include_unnamed_peaks)
 
-    log.info("Querying OSM Overpass for type=%s", destination_type.value)
+    log.info("Querying OSM Overpass for types=%s", type_key)
     log.trace("Overpass query:\n%s", query)  # type: ignore[attr-defined]
     # Budgets are per mirror and acquired per attempt inside the failover
     # chain, so a failover releases mirror A before it queues on mirror B.
@@ -193,11 +259,33 @@ async def query_osm(
 
     results: list[dict[str, Any]] = []
     seen_names: set[str] = set()
+    seen_generated: set[Any] = set()
 
     for element in data.get("elements", []):
         tags = element.get("tags", {})
+        elevation_ft = _ele_ft(tags)
         name = tags.get("name")
-        if not name or name in seen_names:
+        generated = False
+        if not name:
+            # An unnamed summit is named for the height it is drawn with, the
+            # same way the map labels it and the same string the browser builds
+            # for a clicked one (basemapPoi.ts) — so a peak added both ways is
+            # one destination rather than two spellings of it.
+            if not include_unnamed_peaks or elevation_ft is None:
+                continue
+            if _classify(tags) != DestinationType.peak.value:
+                continue
+            name = f"Peak {round(elevation_ft)}"
+            generated = True
+        # Name is the identity rule for mapped features, and it has to stay
+        # that way: OSM carries duplicate nodes for the same summit. It cannot
+        # apply to a generated name, though — every unnamed 5,961 ft peak in a
+        # range would collapse into one row — so those dedup by OSM id, which
+        # is the only identity they actually have.
+        if generated:
+            if element["id"] in seen_generated:
+                continue
+        elif name in seen_names:
             continue
 
         if element["type"] == "node":
@@ -211,12 +299,17 @@ async def query_osm(
         if lat is None or lon is None:
             continue
 
-        elevation_ft = _ele_ft(tags)
-
-        seen_names.add(name)
+        if generated:
+            seen_generated.add(element["id"])
+        else:
+            seen_names.add(name)
         results.append(
             {
                 "name": name,
+                # Carried per row rather than applied by the caller: a union
+                # response holds several types at once, and this is what the
+                # row's badge and its Peakbagger link are chosen from.
+                "type": _classify(tags),
                 "latitude": lat,
                 "longitude": lon,
                 "elevation_ft": elevation_ft,

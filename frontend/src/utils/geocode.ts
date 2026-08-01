@@ -112,6 +112,9 @@ interface NominatimRow {
   name?: string
   display_name: string
   type?: string
+  // Nominatim's own answer to "what kind of place", which is the useful
+  // one for anywhere administered rather than mapped as a feature.
+  addresstype?: string
   osm_type?: string // "node" | "way" | "relation"
   osm_id?: number
   lat: string
@@ -128,13 +131,32 @@ function elevationFtFromEle(ele: string | undefined): number | undefined {
   return Number.isFinite(meters) ? Math.round(meters * 3.28084) : undefined
 }
 
+/**
+ * What to call the thing a search found.
+ *
+ * Nominatim's `type` is the OSM tag value, which is the right word for a peak
+ * or a lake and a bureaucratic one for anywhere people live: a town is a
+ * `boundary`/`administrative` relation, so Issaquah came back as
+ * "Administrative" once the results table started showing a Type column.
+ * `addresstype` is the same row's answer to "what kind of place is this", and
+ * for those rows it says "city". Preferred only where `type` is the unhelpful
+ * one, so a peak stays a peak.
+ */
+const BUREAUCRATIC = new Set(['administrative', 'boundary'])
+
+function kindOf(row: NominatimRow): string {
+  const raw = (row.type ?? '').trim()
+  const better = BUREAUCRATIC.has(raw) ? (row.addresstype ?? '').trim() : ''
+  return (better || raw).replace(/_/g, ' ')
+}
+
 // Exported for tests — the [S,N,W,E]→[W,S,E,N] bbox reorder is easy to get wrong.
 export function placeFromNominatimRow(row: NominatimRow): Place {
   const bb = row.boundingbox
   return {
     label: row.name || row.display_name.split(',')[0].trim(),
     description: row.display_name,
-    kind: (row.type ?? '').replace(/_/g, ' '),
+    kind: kindOf(row),
     lat: parseFloat(row.lat),
     lon: parseFloat(row.lon),
     bbox: bb

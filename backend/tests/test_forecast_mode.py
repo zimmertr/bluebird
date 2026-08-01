@@ -13,7 +13,7 @@ def _now() -> datetime:
 
 def _request(**overrides) -> AnalyzeRequest:
     base = {
-        "destination_type": "custom",
+        "destination_types": [],
         "custom_destinations": [{"name": "X", "latitude": 47.0, "longitude": -121.0}],
     }
     base.update(overrides)

@@ -172,18 +172,53 @@ class AnalyzeRequest(BaseModel):
     polygon: GeoPolygon | None = Field(
         default=None,
         description=(
-            "Search area for destination discovery. Required unless "
-            "`destination_type` is `custom`, in which case discovery is skipped "
-            "entirely and only `custom_destinations` are analyzed."
+            "Search area for destination discovery. Required whenever "
+            "`destination_types` is non-empty; with no types requested "
+            "discovery is skipped entirely and only `custom_destinations` are "
+            "analyzed."
         ),
     )
-    destination_type: DestinationType = Field(
+    destination_types: list[DestinationType] = Field(
+        default_factory=list,
         description=(
-            "What to discover inside the polygon. `GET /api/capabilities` lists "
-            "the types this deployment actually supports, which is narrower "
-            "than this enum."
-        )
+            "What to discover inside the polygon, as a set — several types are "
+            "found in one Overpass query rather than one request each, so "
+            "asking for peaks and lakes together costs what peaks alone would. "
+            "Order is irrelevant and duplicates are ignored.\n\n"
+            "Empty means discover nothing, which is how a request analyzes "
+            "only its `custom_destinations`. `custom` is not a discoverable "
+            "type and is rejected here. `GET /api/capabilities` lists the "
+            "types this deployment actually supports."
+        ),
     )
+
+    include_unnamed_peaks: bool = Field(
+        default=False,
+        description=(
+            "Also discover summits OSM knows only by their height, named after "
+            "it (`Peak 5961`). Off by default because it is not a small "
+            "addition: measured over one 8x10 km box in the Alpine Lakes, 7 "
+            "peaks are named and 13 are not, so this roughly triples the "
+            "candidate count — every candidate being a weighted upstream call "
+            "and a step closer to the analysis ceiling. Ignored unless `peak` "
+            "is among `destination_types`."
+        ),
+    )
+
+    @field_validator("destination_types")
+    @classmethod
+    def validate_destination_types(cls, v: list[DestinationType]) -> list[DestinationType]:
+        # `custom` names rows the caller supplies, not something to go and
+        # find. It used to be the sentinel for "skip discovery"; an empty list
+        # says that directly, so the sentinel would now be a second way to
+        # spell the same thing.
+        if DestinationType.custom in v:
+            raise ValueError(
+                "'custom' is not a discoverable type. Send custom_destinations "
+                "with an empty destination_types to analyze a caller-supplied "
+                "list."
+            )
+        return v
     forecast_mode: ForecastMode | None = Field(
         default=None,
         description=(
@@ -283,7 +318,7 @@ class AnalyzeRequest(BaseModel):
                             ]
                         ],
                     },
-                    "destination_type": "peak",
+                    "destination_types": ["peak"],
                     "forecast_mode": "current",
                     "limit": 5,
                     "sort_by": "precip_total_in",
@@ -591,13 +626,41 @@ class DestinationsRequest(BaseModel):
             "resolve a caller's list alongside a discovery."
         ),
     )
-    destination_type: DestinationType = Field(
+    destination_types: list[DestinationType] = Field(
+        default_factory=list,
         description=(
-            "What to discover inside the polygon. Send `custom` for a "
-            "resolve-only request: discovery is skipped and only "
-            "`custom_destinations` come back."
-        )
+            "What to discover inside the polygon, as a set — several types "
+            "come back from one Overpass query, each row tagged with the type "
+            "it actually is. Order is irrelevant and duplicates are ignored.\n\n"
+            "Empty means a resolve-only request: discovery is skipped and only "
+            "`custom_destinations` come back. `custom` is not a discoverable "
+            "type and is rejected here."
+        ),
     )
+
+    include_unnamed_peaks: bool = Field(
+        default=False,
+        description=(
+            "Also discover summits OSM knows only by their height, named after "
+            "it (`Peak 5961`). Off by default because it is not a small "
+            "addition: measured over one 8x10 km box in the Alpine Lakes, 7 "
+            "peaks are named and 13 are not, so this roughly triples the "
+            "candidate count — every candidate being a weighted upstream call "
+            "and a step closer to the analysis ceiling. Ignored unless `peak` "
+            "is among `destination_types`."
+        ),
+    )
+
+    @field_validator("destination_types")
+    @classmethod
+    def validate_destination_types(cls, v: list[DestinationType]) -> list[DestinationType]:
+        if DestinationType.custom in v:
+            raise ValueError(
+                "'custom' is not a discoverable type. Send custom_destinations "
+                "with an empty destination_types to resolve a caller-supplied "
+                "list."
+            )
+        return v
     custom_destinations: list[CustomDestination] | None = Field(
         default=None,
         description=(

@@ -11,6 +11,7 @@ import ForecastCalendar from './ForecastCalendar'
 import { parseCustomCsv } from '../utils/customDestinations'
 import {
   ACCENT,
+  BUTTON_ACCENT,
   BUTTON_DANGER,
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
@@ -19,6 +20,8 @@ import {
   FIELD,
   LINK,
   NOTICE,
+  PANEL_EDGE,
+  PANEL_RULE,
   SEGMENT,
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
@@ -75,6 +78,8 @@ function blockerText(blocker: AnalyzeBlocker, maxAreaKm2: number, pointsNeeded: 
       return 'Provide at least one destination to analyze.'
     case 'polygon':
       return `Add ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon.`
+    case 'types':
+      return 'Pick what the polygon should find, or add a destination another way.'
   }
 }
 
@@ -87,14 +92,26 @@ const DESTINATION_TYPES: { value: DiscoveryType; label: string; implemented: boo
 ]
 
 interface Props {
+  // Is the map in draw mode? Drawing is entered and left explicitly (#118) so
+  // that outside it a click on the map belongs to whatever is under it — a
+  // basemap peak, a result marker, or the pan itself.
+  drawing: boolean
+  onStartDrawing: () => void
+  onFinishDrawing: () => void
   drawPointCount: number
   polygonAreaKm2: number | null
   onCancelDrawing: () => void
   // Hovering the Search by Name section rings the map's search box, the one
   // control this panel names but does not hold.
   onPointAtSearch: (on: boolean) => void
-  destinationType: DiscoveryType
-  setDestinationType: (t: DiscoveryType) => void
+  // The same idea for the map's clickable peaks and lakes: hovering the
+  // "Specify by Click" section makes them glow, so a method with no control
+  // in this panel still has somewhere to point.
+  onPointAtMapPois: (on: boolean) => void
+  // A set: one polygon can look for several kinds at once, and none checked
+  // means the polygon discovers nothing.
+  destinationTypes: DiscoveryType[]
+  setDestinationTypes: (t: DiscoveryType[]) => void
   // What the analysis asks about: the current hour, or days off the calendar.
   // One value rather than a mode plus three sets of timestamps (#166), so there
   // is no dormant state to preserve across a switch.
@@ -117,6 +134,11 @@ interface Props {
   setMaxElevationFt: (v: number | null) => void
   showWildfires: boolean
   setShowWildfires: (v: boolean) => void
+  // Summits OSM knows only by their height, discovered as `Peak 5961`.
+  // A polygon knob rather than a map one, and off by default, because it
+  // roughly triples the candidate count.
+  includeUnnamedPeaks: boolean
+  setIncludeUnnamedPeaks: (v: boolean) => void
   // The selection is unservable, or its narrowed hours run backwards. A horizon
   // case only arrives through a shared link: the calendar draws those days
   // disabled.
@@ -161,12 +183,16 @@ interface Props {
 }
 
 export default function ControlPanel({
+  drawing,
+  onStartDrawing,
+  onFinishDrawing,
   drawPointCount,
   polygonAreaKm2,
   onCancelDrawing,
   onPointAtSearch,
-  destinationType,
-  setDestinationType,
+  onPointAtMapPois,
+  destinationTypes,
+  setDestinationTypes,
   selection,
   setSelection,
   limit,
@@ -184,6 +210,8 @@ export default function ControlPanel({
   setMaxElevationFt,
   showWildfires,
   setShowWildfires,
+  includeUnnamedPeaks,
+  setIncludeUnnamedPeaks,
   windowWarning,
   commitReason,
   hasPins,
@@ -216,7 +244,7 @@ export default function ControlPanel({
   const csvPasteRef = useRef(false)
   const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > maxAreaKm2
 
-  const polygonReady = drawPointCount >= 3 && !areaTooLarge
+  const polygonReady = drawPointCount >= 3 && !areaTooLarge && destinationTypes.length > 0
   const gate = {
     hasWindowWarning: windowWarning !== null,
     loading,
@@ -242,7 +270,7 @@ export default function ControlPanel({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="border-b border-slate-700 flex">
+      <div className={`border-b ${PANEL_EDGE} flex`}>
         <img src="/icon.png" alt="" className="w-20 object-cover flex-shrink-0" />
         <div className="px-3 py-4 flex flex-col justify-center">
           <h1 className={TEXT.appTitle}>Bluebird Forecast</h1>
@@ -250,7 +278,15 @@ export default function ControlPanel({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+      <div
+        // One rule between steps, drawn by the stack rather than by each
+        // section, so a section added later cannot forget its line or draw a
+        // second one. The two spacing utilities are a matched pair and have to
+        // stay equal: `space-y` is the gap ABOVE each rule (margin sits outside
+        // the border) and `pt` the gap below it, so the line lands centred in
+        // the gutter between two steps rather than tucked under the one above.
+        className={`flex-1 overflow-y-auto px-4 py-4 ${PANEL_RULE}`}
+      >
         {/* Step 1: Destinations — one list, defined via any of three methods
             that union into a single ranked report */}
         <section>
@@ -274,63 +310,103 @@ export default function ControlPanel({
             </p>
           </div>
 
-          {/* b. Search by polygon */}
+          {/* b. Search by click — the second method whose control is not in
+              this panel. Hovering it lights every clickable feature on the
+              map, the same trick the Search by Name section uses to point at
+              the search box: the reader is shown where it is instead of told. */}
+          <div
+            className="mb-3"
+            onMouseEnter={() => onPointAtMapPois(true)}
+            onMouseLeave={() => onPointAtMapPois(false)}
+          >
+            <h3 className={`${TEXT.subheading} mb-1`}>Search by Click</h3>
+            <p className={TEXT.helper}>Select a destination from the map.</p>
+          </div>
+
+          {/* c. Search by polygon */}
           <div className="mb-3">
             <h3 className={`${TEXT.subheading} mb-1`}>Search by Polygon</h3>
             <p className={`${TEXT.helper} mb-1.5`}>
               Search for destinations by drawing a polygon.
             </p>
             {drawPointCount > 0 && (
-              <div className="space-y-2">
-                <div className="text-xs text-slate-300 space-y-0.5">
-                  {pointsNeeded > 0 ? (
-                    <p className={STATUS.info}>
-                      {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed,{' '}
-                      {pointsNeeded} more needed. Click a point to remove it.
-                    </p>
-                  ) : (
-                    <p className={`${STATUS.ok} font-medium`}>
-                      {drawPointCount} points placed. Drag points to adjust, or click Analyze.
+              <div className="text-xs text-slate-300 space-y-0.5 mb-2">
+                {/* Only while drawing does the status name a gesture: outside
+                    the mode the handles are gone and none of them apply. */}
+                {drawing && pointsNeeded > 0 ? (
+                  <p className={STATUS.info}>
+                    {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed,{' '}
+                    {pointsNeeded} more needed. Click a point to remove it.
+                  </p>
+                ) : drawing ? (
+                  <p className={`${STATUS.ok} font-medium`}>
+                    {drawPointCount} points placed. Drag points to adjust, or press Done.
+                  </p>
+                ) : (
+                  <p className={pointsNeeded > 0 ? STATUS.info : `${STATUS.ok} font-medium`}>
+                    {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed
+                    {pointsNeeded > 0 && `, ${pointsNeeded} more needed`}
+                  </p>
+                )}
+                {polygonAreaKm2 !== null && (
+                  <p className={areaTooLarge ? STATUS.error : 'text-slate-400'}>
+                    ~{Math.round(polygonAreaKm2).toLocaleString()} km²
+                    {areaTooLarge && ` (max ${maxAreaKm2.toLocaleString()} km²)`}
+                  </p>
+                )}
+                {polygonAreaKm2 !== null &&
+                  polygonAreaKm2 > AREA_NOTE_KM2 &&
+                  !areaTooLarge && (
+                    <p className={STATUS.warn}>
+                      Large area: dense regions this size can exceed the
+                      destination limit, and searches take longer.
                     </p>
                   )}
-                  {polygonAreaKm2 !== null && (
-                    <p className={areaTooLarge ? STATUS.error : 'text-slate-400'}>
-                      ~{Math.round(polygonAreaKm2).toLocaleString()} km²
-                      {areaTooLarge && ` (max ${maxAreaKm2.toLocaleString()} km²)`}
-                    </p>
-                  )}
-                  {polygonAreaKm2 !== null &&
-                    polygonAreaKm2 > AREA_NOTE_KM2 &&
-                    !areaTooLarge && (
-                      <p className={STATUS.warn}>
-                        Large area: dense regions this size can exceed the
-                        destination limit, and searches take longer.
-                      </p>
-                    )}
-                </div>
-                <button
-                  onClick={onCancelDrawing}
-                  className={BUTTON_SECONDARY}
-                >
-                  Clear
-                </button>
               </div>
             )}
-            {/* Panel-wide label convention, first established here: something
-                you pick is text-xs/slate-200, something that names a field is
-                text-xs/slate-400. Hierarchy is the section heading's job — a
-                bolder choice label just competes with it. */}
+            {/* The one control that switches the map between placing points
+                and everything else. Drawing has to be left before a click on
+                the map can mean anything but "another vertex", so this button
+                is the whole of #118 in the panel: Draw/Edit to enter, Done to
+                leave (Enter and Escape do the same on the map). */}
+            <div className="flex flex-wrap gap-2">
+              {drawing ? (
+                <button onClick={onFinishDrawing} className={BUTTON_ACCENT}>
+                  Done
+                </button>
+              ) : (
+                <button onClick={onStartDrawing} className={BUTTON_SECONDARY}>
+                  {drawPointCount > 0 ? 'Edit Polygon' : 'Draw Polygon'}
+                </button>
+              )}
+              {drawPointCount > 0 && (
+                <button onClick={onCancelDrawing} className={BUTTON_SECONDARY}>
+                  Clear
+                </button>
+              )}
+            </div>
+            {/* Checkboxes, not radios: one polygon can look for several kinds
+                at once, and they all come back from a single Overpass query,
+                so asking for peaks and lakes together costs what peaks alone
+                would. The "Find:" label that used to lead this row is gone —
+                three checkboxes under a heading called "Search by Polygon"
+                are not ambiguous about what they do. */}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2">
-              <span className={TEXT.subheading}>Find:</span>
               {DESTINATION_TYPES.map(({ value, label, implemented }) => (
                 <label key={value} className={CHOICE_ROW}>
                   <input
-                    type="radio"
-                    name="destination_type"
+                    type="checkbox"
+                    name="destination_types"
                     value={value}
-                    checked={destinationType === value}
+                    checked={destinationTypes.includes(value)}
                     disabled={!implemented}
-                    onChange={() => setDestinationType(value)}
+                    onChange={(e) =>
+                      setDestinationTypes(
+                        e.target.checked
+                          ? [...destinationTypes, value]
+                          : destinationTypes.filter((t) => t !== value),
+                      )
+                    }
                     className={CHOICE_INPUT}
                   />
                   <span>{label}</span>
@@ -340,7 +416,9 @@ export default function ControlPanel({
             </div>
           </div>
 
-          {/* c. Search by coordinates */}
+          {/* d. Search by coordinates. Last because it is the one method with
+              no map gesture at all — the three above are things you do to the
+              map, and this is a list you bring to it. */}
           <div>
             <h3 className={`${TEXT.subheading} mb-1`}>Search by Coordinates</h3>
             <p className={`${TEXT.helper} mb-1.5`}>
@@ -373,6 +451,7 @@ export default function ControlPanel({
               </p>
             )}
           </div>
+
         </section>
 
         {/* Step 2: Forecast window — one calendar, replacing the three
@@ -535,6 +614,21 @@ export default function ControlPanel({
               </p>
             </div>
 
+            {/* Unnamed peaks — a polygon-discovery knob, so it sits with the
+                other things that change what an analysis costs rather than
+                with the map overlay below it. */}
+            <div>
+              <label className={CHOICE_ROW}>
+                <input
+                  type="checkbox"
+                  checked={includeUnnamedPeaks}
+                  onChange={(e) => setIncludeUnnamedPeaks(e.target.checked)}
+                  className={CHOICE_INPUT}
+                />
+                <span>Include Unnamed Peaks in Search Results</span>
+              </label>
+            </div>
+
             {/* Show wildfires — live NIFC perimeter overlay, off by default */}
             <div>
               <label className={CHOICE_ROW}>
@@ -552,7 +646,7 @@ export default function ControlPanel({
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-4 border-t border-slate-700 space-y-3">
+      <div className={`px-4 py-4 border-t ${PANEL_EDGE} space-y-3`}>
         <button
           onClick={onAnalyze}
           disabled={!analyzeEnabled}

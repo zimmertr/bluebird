@@ -69,6 +69,19 @@ const LEGEND_WIDTH = 'w-44'
 // identity on every render and rebuild the pending list underneath the map.
 const NO_CUSTOM: ReadonlySet<string> = new Set()
 
+// Opening heights for the two docked panels, and where a double-click on a
+// resizer puts them back. A drag is easy to overshoot and there was no way
+// back short of dragging until it looked right again.
+const DEFAULT_CHART_HEIGHT = 288
+const DEFAULT_TABLE_HEIGHT = 280
+
+// How close two presses must be to count as a double-click. The browser's own
+// dblclick never arrives on these grips: the resize begins on pointerdown and
+// preventDefault plus the drag overlay stop the pair of clicks ever resolving,
+// so the gesture is recognised here instead. 350ms is a shade over the usual
+// system threshold, which is the right way to miss.
+const DOUBLE_PRESS_MS = 350
+
 // Collapse/expand affordance for the bottom panels' header bars.
 function Chevron({ up }: { up: boolean }) {
   return (
@@ -157,15 +170,25 @@ export default function App() {
   )
 
   const [polygon, setPolygon] = useState<GeoPolygon | null>(() => restored?.polygon ?? null)
-  // The polygon is always editable on the map — no draw/ready mode split. A
-  // restored polygon seeds the count so Analyze unlocks before the map loads
+  // Draw mode (#118). The map used to be permanently in it, which is why a
+  // pan could move a vertex and why a click could only ever mean "polygon
+  // corner". Every session — including one restored from a link with a ring
+  // already in it — starts out of it: the common case is looking at the map,
+  // not editing it, and leaving the gesture free is what lets a basemap peak
+  // be clickable at all (#119).
+  const [drawing, setDrawing] = useState(false)
+  // A restored polygon seeds the count so Analyze unlocks before the map loads
   // (MapView re-emits the authoritative count+area once its points hydrate).
   const [drawPointCount, setDrawPointCount] = useState(
     () => Math.max(0, (restored?.polygon?.coordinates[0]?.length ?? 1) - 1),
   )
   const [polygonAreaKm2, setPolygonAreaKm2] = useState<number | null>(null)
-  const [destinationType, setDestinationType] = useState<DiscoveryType>(
-    () => restored?.destinationType ?? 'peak',
+  // Which kinds the polygon looks for, as a set — several are found in one
+  // Overpass query. Nothing is checked by default: discovery is the input
+  // that needs a polygon and costs an upstream query, so a fresh session
+  // asks for none of it until the user says so.
+  const [destinationTypes, setDestinationTypes] = useState<DiscoveryType[]>(
+    () => restored?.destinationTypes ?? [],
   )
   // What Analyze asks about: the current hour, or days off the calendar (#166).
   // One value where there used to be four — a mode plus three sets of
@@ -204,14 +227,33 @@ export default function App() {
   // URL so a shared link reproduces it. Defaults off; toggling queries NIFC for
   // the current viewport.
   const [showWildfires, setShowWildfires] = useState(() => restored?.showWildfires ?? false)
+  // Summits OSM knows only by their height. Off by default: measured over one
+  // 8x10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so
+  // this roughly triples what an analysis costs and how often it refuses.
+  const [includeUnnamedPeaks, setIncludeUnnamedPeaks] = useState(
+    () => restored?.includeUnnamedPeaks ?? false,
+  )
   const [showResults, setShowResults] = useState(false)
-  const [tableHeight, setTableHeight] = useState(280)
-  const [chartHeight, setChartHeight] = useState(288)
+  // The heights both panels open at, and the ones a double-click on either
+  // resizer restores. Named rather than inline because a reset that hard-coded
+  // its own numbers would be a second opinion about what "default" means.
+  const [tableHeight, setTableHeight] = useState(DEFAULT_TABLE_HEIGHT)
+  const [chartHeight, setChartHeight] = useState(DEFAULT_CHART_HEIGHT)
   // Chevron-collapsed panels: the header bar stays docked at the bottom (the
   // panel never unmounts); expanding restores the previous height.
   const [chartCollapsed, setChartCollapsed] = useState(false)
   const [tableCollapsed, setTableCollapsed] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  // When each grip was last pressed, keyed by which one. A double press resets
+  // that grip's own panel — the chart resizer restores the chart, the table
+  // resizer the table — rather than both, since a drag only ever moved one.
+  const lastGripPressRef = useRef<Record<string, number>>({})
+
+  function isDoublePress(grip: string, at: number): boolean {
+    const previous = lastGripPressRef.current[grip] ?? 0
+    lastGripPressRef.current[grip] = at
+    return at - previous < DOUBLE_PRESS_MS
+  }
   const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('bluebird_welcomed'))
   // The controls panel is docked on desktop and an off-canvas drawer on phones.
   // It starts open on both; a close button collapses it to widen the map.
@@ -219,6 +261,9 @@ export default function App() {
   // The panel's Search by Name section is hovered, so the map's search box —
   // the control that section names but does not contain — wears a ring.
   const [searchPointed, setSearchPointed] = useState(false)
+  // Hovering the "Specify by Click" section glows every clickable feature on
+  // the map, the same way hovering "Search by Name" rings the search box.
+  const [poisPointed, setPoisPointed] = useState(false)
   const isDesktop = useIsDesktop()
 
   function dismissWelcome() {
@@ -281,11 +326,13 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  function handleSearchSelect(place: Place) {
-    mapRef.current?.flyToPlace(place)
+  // Registering a destination the user named, however they named it: by
+  // searching, or by clicking a labeled peak or lake on the basemap (#119).
+  // Both land in the same list, so both go through here.
+  const registerPlace = useCallback((place: Place) => {
     searched.addPlace(place)
-    // Re-searching a previously ×-removed spot is an explicit re-request —
-    // drop the stale removal so the place isn't filtered out of its next report.
+    // Re-naming a previously ×-removed spot is an explicit re-request — drop
+    // the stale removal so the place isn't filtered out of its next report.
     setRemovedKeys((prev) => {
       const key = pinKey(place.lat, place.lon)
       if (!prev.has(key)) return prev
@@ -293,7 +340,27 @@ export default function App() {
       next.delete(key)
       return next
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function handleSearchSelect(place: Place) {
+    mapRef.current?.flyToPlace(place)
+    registerPlace(place)
   }
+
+  // A clicked basemap feature registers without a camera move: you are already
+  // looking straight at it, and flying to it would answer a question nobody
+  // asked.
+  const handleAddPoi = useCallback(
+    (place: Place) => {
+      registerPlace(place)
+    },
+    [registerPlace],
+  )
+  const handleRemovePoi = useCallback((latitude: number, longitude: number) => {
+    searched.removePlace(latitude, longitude)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Naming a destination — by search or by pasting CSV — opens the results
   // panel immediately: it appears as an un-forecasted row, so there's feedback
@@ -410,7 +477,8 @@ export default function App() {
   useEffect(() => {
     const qs = encodeState({
       polygon,
-      destinationType,
+      destinationTypes,
+      includeUnnamedPeaks,
       selection,
       sortBy,
       sortDesc,
@@ -437,7 +505,8 @@ export default function App() {
     // documents. Unmount is handled by its own effect below.
   }, [
     polygon,
-    destinationType,
+    destinationTypes,
+    includeUnnamedPeaks,
     selection,
     sortBy,
     sortDesc,
@@ -471,8 +540,29 @@ export default function App() {
 
   function handleCancelDrawing() {
     mapRef.current?.cancelDrawing()
+    setDrawing(false)
     // cancelDrawing fires onDrawUpdate(0, null) to reset counts
   }
+
+  // Enter and Escape both leave draw mode. Neither discards anything: every
+  // edit is already committed to the polygon (and to the URL) as it happens,
+  // so there is no pending state for a cancel to roll back — Clear is the
+  // control that throws a ring away. Escape is here because it is what a hand
+  // reaches for to get out of a mode, not because it means something different
+  // from Done.
+  useEffect(() => {
+    if (!drawing) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Enter' && e.key !== 'Escape') return
+      // Not while the user is in the CSV box or a number field, where Enter
+      // and Escape belong to the control they are typing into.
+      const el = document.activeElement
+      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return
+      setDrawing(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [drawing])
 
 
   // The user-authored discovery inputs as a stable string. Everything that
@@ -490,7 +580,10 @@ export default function App() {
   function discoveryBase(poly: GeoPolygon | null, csvRows: CustomDestination[]): string {
     return JSON.stringify({
       ring: poly?.coordinates[0] ?? null,
-      type: destinationType,
+      // Sorted so checking peaks then lakes and lakes then peaks are the
+      // same discovery, matching the order-independent cache key upstream.
+      types: [...destinationTypes].sort(),
+      unnamed: includeUnnamedPeaks,
       csv: csvRows,
       minEl: minElevationFt,
       maxEl: maxElevationFt,
@@ -498,6 +591,11 @@ export default function App() {
   }
 
   async function handleAnalyze() {
+    // Analyzing is the end of drawing. Leaving the mode on would put the map
+    // back in the state #118 describes — reading a result and panning around
+    // it while every click still adds a vertex.
+    setDrawing(false)
+
     // The one conversion from a local selection to the UTC instants the API
     // takes. Equal timestamps are how a point sample travels — the current hour,
     // or a day narrowed to a single hour — and the backend normalizes them to
@@ -533,7 +631,7 @@ export default function App() {
     // destinations this report never ranked.
     const removalScope = JSON.stringify({
       ring: resolvedPolygon?.coordinates[0] ?? null,
-      type: destinationType,
+      types: [...destinationTypes].sort(),
       csv: customCsv.trim(),
     })
     const widened =
@@ -578,7 +676,7 @@ export default function App() {
       // reads as an addition (fresh run), not a refresh that would skip it.
       discoveryRef.current = { base, searchedKeys }
       await analyze({
-        destination_type: 'custom',
+        destination_types: [],
         start_datetime: start,
         end_datetime: end,
         limit,
@@ -592,7 +690,8 @@ export default function App() {
       // polygon ∪ CSV union as one report.
       await analyze({
         polygon: resolvedPolygon,
-        destination_type: destinationType,
+        destination_types: destinationTypes,
+        include_unnamed_peaks: includeUnnamedPeaks,
         start_datetime: start,
         end_datetime: end,
         limit,
@@ -609,7 +708,7 @@ export default function App() {
       // can't mistake these rows for that polygon's discovered set.
       discoveryRef.current = null
       await analyze({
-        destination_type: 'custom',
+        destination_types: [],
         start_datetime: start,
         end_datetime: end,
         limit,
@@ -649,7 +748,14 @@ export default function App() {
   useEffect(() => {
     for (const p of searched.places) {
       identityMapRef.current.set(pinKey(p.lat, p.lon), {
-        type: isPeakKind(p.kind) ? 'peak' : 'custom',
+        // The geocoder's own word for the thing, so the table's Type column
+        // says what a place actually is — a searched city reads "City" rather
+        // than "Custom", which is a statement about how it got here rather
+        // than about what it is. Peaks normalize (OSM says "volcano" for
+        // several) because the Peakbagger link keys on that one value;
+        // everything else is carried through. "custom" stays the fallback for
+        // a pasted coordinate, which genuinely has no kind.
+        type: isPeakKind(p.kind) ? 'peak' : p.kind || 'custom',
         osm_id: p.osmId ?? null,
       })
     }
@@ -843,18 +949,48 @@ export default function App() {
         <button
           onClick={() => setSidebarOpen(false)}
           aria-label="Close controls"
-          className={`${TAP.action} absolute top-2 right-2 z-10 h-8 w-8 ${RADIUS.pill} bg-slate-700/80 text-slate-200 text-xl leading-none hover:bg-slate-600 active:bg-slate-600`}
+          // A drawn cross rather than the "×" character. That glyph is
+          // centred on the font's own maths, not the button's, so it sat
+          // visibly high in the circle however the line-height was nudged —
+          // and it moves again with any font change. Two lines in a square
+          // viewBox are centred by construction, and flex centres the box.
+          className={`${TAP.action} absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center ${RADIUS.pill} bg-slate-700/80 text-slate-200 transition-colors hover:bg-slate-600 active:bg-slate-600`}
         >
-          ×
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            className="h-4 w-4"
+            aria-hidden="true"
+          >
+            <line x1="6" y1="6" x2="18" y2="18" />
+            <line x1="18" y1="6" x2="6" y2="18" />
+          </svg>
         </button>
         <ControlPanel
+          drawing={drawing}
+          onStartDrawing={() => {
+            setDrawing(true)
+            // Editing a shape that has scrolled off screen is the one thing
+            // the draw/idle split made easy to do by accident.
+            mapRef.current?.framePolygon()
+            // On a phone the panel is an off-canvas drawer covering the map,
+            // so entering draw mode behind it leaves nothing to draw on. On
+            // desktop it is docked beside the map and closing it would be
+            // taking away the Done button you are about to need.
+            if (!isDesktop) setSidebarOpen(false)
+          }}
+          onFinishDrawing={() => setDrawing(false)}
           drawPointCount={drawPointCount}
           polygonAreaKm2={polygonAreaKm2}
           onCancelDrawing={handleCancelDrawing}
           onPointAtSearch={setSearchPointed}
           wildfireCheckFailed={fire.status === 'unavailable' && results.length > 0}
-          destinationType={destinationType}
-          setDestinationType={setDestinationType}
+          onPointAtMapPois={setPoisPointed}
+          destinationTypes={destinationTypes}
+          setDestinationTypes={setDestinationTypes}
           selection={selection}
           setSelection={setSelection}
           limit={limit}
@@ -873,6 +1009,8 @@ export default function App() {
           setMaxElevationFt={setMaxElevationFt}
           showWildfires={showWildfires}
           setShowWildfires={setShowWildfires}
+          includeUnnamedPeaks={includeUnnamedPeaks}
+          setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}
           windowWarning={windowWarning}
           hasPins={searched.places.length > 0}
           // A pins-only Analyze refresh keeps useAnalyze.loading false, so fold
@@ -962,7 +1100,13 @@ export default function App() {
                 )}
                 <button
                   onClick={cancel}
-                  className={`${BUTTON_SECONDARY} mt-4`}
+                  // `w-fit mx-auto` rather than leaning on the card's text
+                  // alignment: TAP.action makes every button a flex container,
+                  // which is block-level and fills its parent, so the label
+                  // centres inside a full-width box and the box itself has no
+                  // alignment left to inherit. Shrinking it to its content is
+                  // what gives `mx-auto` something to centre.
+                  className={`${BUTTON_SECONDARY} mt-4 w-fit mx-auto`}
                 >
                   Cancel
                 </button>
@@ -971,6 +1115,8 @@ export default function App() {
           )}
           <MapView
             ref={mapRef}
+            drawing={drawing}
+            pointedPois={poisPointed}
             polygon={polygon}
             restoredCustomPoints={restoredCustomPoints}
             onPolygonChange={setPolygon}
@@ -980,6 +1126,9 @@ export default function App() {
             fireWarnings={fire.warnings}
             showWildfires={showWildfires}
             pending={pending}
+            searchedPlaces={searched.places}
+            onAddPoi={handleAddPoi}
+            onRemovePoi={handleRemovePoi}
             minElevationFt={minElevationFt}
             maxElevationFt={maxElevationFt}
           />
@@ -1079,6 +1228,19 @@ export default function App() {
                  touch-none so a finger resizes it on mobile too. */
               <div
                 onPointerDown={(e) => {
+                  if (isDoublePress('chart', e.timeStamp)) {
+                    // Pin the table to the height it is actually rendered at
+                    // before restoring the chart. Both panels are *desired*
+                    // heights that a shared resolver reconciles, and the table
+                    // grip's drag trades height between the two — so without
+                    // this, restoring one hands the other whatever it was
+                    // holding and the sibling visibly jumps. Pinned, the
+                    // difference comes off the map instead, which is where
+                    // this panel's height came from in the first place.
+                    setTableHeight(tablePanelPx)
+                    setChartHeight(DEFAULT_CHART_HEIGHT)
+                    return
+                  }
                   // Pin the table's desired height to its applied value first, so a
                   // stale (larger) desired height can't soak up space freed by
                   // shrinking the chart — that space belongs to the map here.
@@ -1089,6 +1251,7 @@ export default function App() {
                     ),
                   )
                 }}
+                title="Drag to resize, double-click to reset"
                 className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
               >
                 <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
@@ -1134,7 +1297,15 @@ export default function App() {
                  untouched. With no chart it steals from the map like the chart
                  handle. Pointer events + touch-none for mobile. */
               <div
-                onPointerDown={(e) =>
+                onPointerDown={(e) => {
+                  if (isDoublePress('table', e.timeStamp)) {
+                    // Same reasoning as the chart grip above, mirrored: pin the
+                    // chart where it is drawn so restoring the table cannot
+                    // move it.
+                    setChartHeight(chartPanelPx)
+                    setTableHeight(DEFAULT_TABLE_HEIGHT)
+                    return
+                  }
                   beginResize(e, (up) => {
                     if (chartExpanded) {
                       const next = splitChartTable(chartPanelPx, tablePanelPx, up)
@@ -1144,7 +1315,8 @@ export default function App() {
                       setTableHeight(clampPanelHeight(tablePanelPx, up, bannerPx, window.innerHeight))
                     }
                   })
-                }
+                }}
+                title="Drag to resize, double-click to reset"
                 className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
               >
                 <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />

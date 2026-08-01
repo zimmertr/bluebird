@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import math
+from collections.abc import Sequence
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -207,15 +208,28 @@ _NOUNS = {
 }
 
 
-def _noun(dest_type: DestinationType) -> str:
-    return _NOUNS.get(dest_type, "destination")
+def _noun(types: Sequence[DestinationType], *, has_custom: bool = False) -> str:
+    """What to call the things a refusal is counting.
+
+    A request can now discover several types at once and union a caller's list
+    on top, so the message has to name the *set*, not a type. It only reaches
+    for a specific noun when the set genuinely holds one kind — "1,842 peaks"
+    is better than "1,842 destinations" when peaks is all there is — and
+    otherwise merges to the general one rather than listing types, because a
+    refusal is read for its remedy and "1,842 peaks, lakes and trailheads"
+    buries that behind an inventory.
+    """
+    kinds = set(types)
+    if has_custom or len(kinds) != 1:
+        return "destination"
+    return _NOUNS.get(next(iter(kinds)), "destination")
 
 
 def _summarize_request(request: AnalyzeRequest) -> str:
     """One-line summary of an analyze request for the logs: type, window, rank
     config, elevation band, and polygon size (or custom-destination count)."""
     parts = [
-        f"type={request.destination_type.value}",
+        f"types={','.join(t.value for t in request.destination_types) or 'none'}",
         f"start={request.start_datetime:%Y-%m-%dT%H:%M}",
         f"end={request.end_datetime:%Y-%m-%dT%H:%M}",
         f"sort={request.sort_by.value}",
@@ -226,9 +240,9 @@ def _summarize_request(request: AnalyzeRequest) -> str:
         parts.append(f"min_elev_ft={request.min_elevation_ft:.0f}")
     if request.max_elevation_ft is not None:
         parts.append(f"max_elev_ft={request.max_elevation_ft:.0f}")
-    if request.destination_type == DestinationType.custom or request.custom_destinations:
+    if request.custom_destinations:
         parts.append(f"custom={len(request.custom_destinations or [])}")
-    if request.destination_type != DestinationType.custom and request.polygon is not None:
+    if request.destination_types and request.polygon is not None:
         ring = request.polygon.coordinates[0]
         parts.append(f"polygon={max(0, len(ring) - 1)}pts")
         parts.append(f"area={bbox_area_km2(ring):,.0f}km2")
@@ -464,16 +478,16 @@ async def analyze_stream(request: AnalyzeRequest):
 
             # A union (polygon + custom list) is a mixed set, so its messages
             # say "destinations" rather than any one type's noun.
-            noun = "destination" if request.custom_destinations else _noun(request.destination_type)
+            noun = _noun(request.destination_types, has_custom=bool(request.custom_destinations))
 
-            if request.destination_type == DestinationType.custom:
+            if not request.destination_types:
                 if not request.custom_destinations:
-                    yield _sse("error", message="custom_destinations is required for custom type")
+                    yield _sse("error", message="Nothing to analyze: send destination_types with a polygon, custom_destinations, or both.")
                     return
                 destinations = await _resolve_custom(request.custom_destinations)
             else:
                 if not request.polygon:
-                    yield _sse("error", message="polygon is required for non-custom destination types")
+                    yield _sse("error", message="polygon is required when destination_types is non-empty")
                     return
                 yield _sse("status", message="Searching for Destinations…")
 
@@ -493,7 +507,10 @@ async def analyze_stream(request: AnalyzeRequest):
                 async def run_osm():
                     try:
                         return await osm.query_osm(
-                            request.polygon, request.destination_type, on_status
+                            request.polygon,
+                            request.destination_types,
+                            on_status,
+                            include_unnamed_peaks=request.include_unnamed_peaks,
                         )
                     finally:
                         await osm_queue.put(_STREAM_DONE)
@@ -549,7 +566,7 @@ async def analyze_stream(request: AnalyzeRequest):
                     body = _refusal_body(
                         len(destinations),
                         noun,
-                        has_polygon=request.destination_type != DestinationType.custom,
+                        has_polygon=bool(request.destination_types),
                         has_custom=bool(request.custom_destinations),
                         suggestion=suggestion,
                     )
@@ -655,7 +672,7 @@ async def analyze_stream(request: AnalyzeRequest):
                         task.cancel()
 
             results, times = _assemble(
-                destinations, wx_list, aqi_list, request.destination_type.value
+                destinations, wx_list, aqi_list, DestinationType.custom.value
             )
             results.sort(key=_sort_key(request.sort_by.value, request.sort_desc))
             results = results[: request.limit]
@@ -756,21 +773,28 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         )
 
     # Resolve destinations
-    if request.destination_type == DestinationType.custom:
+    if not request.destination_types:
         if not request.custom_destinations:
             raise HTTPException(
                 status_code=400,
-                detail="custom_destinations is required when destination_type is 'custom'",
+                detail=(
+                    "Nothing to analyze: send destination_types with a polygon, "
+                    "custom_destinations, or both."
+                ),
             )
         destinations = await _resolve_custom(request.custom_destinations)
     else:
         if not request.polygon:
             raise HTTPException(
                 status_code=400,
-                detail="polygon is required for non-custom destination types",
+                detail="polygon is required when destination_types is non-empty",
             )
         try:
-            destinations = await osm.query_osm(request.polygon, request.destination_type)
+            destinations = await osm.query_osm(
+                request.polygon,
+                request.destination_types,
+                include_unnamed_peaks=request.include_unnamed_peaks,
+            )
         except NotImplementedError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except ratelimit.BudgetExhausted as e:
@@ -802,7 +826,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     total_found: int | None = None
     truncated = False
     if len(destinations) > MAX_ANALYZE_PEAKS:
-        noun = "destination" if request.custom_destinations else _noun(request.destination_type)
+        noun = _noun(request.destination_types, has_custom=bool(request.custom_destinations))
         if request.top_by_elevation:
             total_found = len(destinations)
             destinations = _truncate_top_elevation(destinations, MAX_ANALYZE_PEAKS)
@@ -814,7 +838,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
                 content=_refusal_body(
                     len(destinations),
                     noun,
-                    has_polygon=request.destination_type != DestinationType.custom,
+                    has_polygon=bool(request.destination_types),
                     has_custom=bool(request.custom_destinations),
                     suggestion=suggestion,
                 ),
@@ -868,7 +892,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     aqi_list = await aqi_task if aqi_task is not None else [None] * len(destinations)
 
     results, times = _assemble(
-        destinations, wx_list, aqi_list, request.destination_type.value
+        destinations, wx_list, aqi_list, DestinationType.custom.value
     )
     sort_field = request.sort_by.value
     results.sort(key=_sort_key(sort_field, request.sort_desc))

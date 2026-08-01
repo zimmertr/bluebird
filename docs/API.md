@@ -25,7 +25,7 @@ curl -s https://bluebirdforecast.com/api/analyze \
         [-122.03, 47.53], [-122.03, 47.44]
       ]]
     },
-    "destination_type": "peak",
+    "destination_types": ["peak"],
     "forecast_mode": "current",
     "limit": 3
   }' | jq '.results[] | {name, precip_total_in, wind_avg_mph}'
@@ -83,8 +83,22 @@ telling you.
 
 ### Discovery without forecasts
 
-`POST /api/destinations` takes a `polygon`, a `destination_type`, and the
-optional elevation band, and returns every named candidate inside — the same
+`destination_types` is a set, not a value. Ask for several and they come back
+from **one** Overpass query rather than one per type, so peaks and lakes
+together cost what peaks alone would, and every row is tagged with the type it
+actually is rather than the type you asked for. Order and duplicates are
+ignored. An empty set discovers nothing, which is how a request analyzes only
+its `custom_destinations`; `custom` is not a discoverable type and is rejected
+inside the list.
+
+`include_unnamed_peaks` widens the peak search to summits tagged with an
+elevation but no name, returned as `Peak 5961`. It defaults to false and is
+ignored unless `peak` is among the types: measured over one 8x10 km box, it
+roughly triples the candidate count, and every candidate is a weighted upstream
+call and a step closer to the analysis ceiling.
+
+`POST /api/destinations` takes a `polygon`, a set of `destination_types`, and
+the optional elevation band, and returns every named candidate inside — the same
 never-sampled discovery an analysis starts with, under the same candidate
 ceiling (with its own, cheaper rate-limit bucket), just without the weather. It exists so a
 client can attach forecasts itself: the bundled web app calls it and then
@@ -150,12 +164,12 @@ covered", not "nothing burning". See [DATA.md](DATA.md#wildfires).
 The same endpoint also answers a second question: what does OpenStreetMap know
 about coordinates you already have? Send `custom_destinations` and each one is
 matched to the nearest peak, filling in the `elevation_ft` and `osm_id` a bare
-coordinate pair cannot carry. Send them without a polygon (with
-`destination_type: "custom"`) to resolve and discover nothing:
+coordinate pair cannot carry. Send them without a polygon (leaving
+`destination_types` empty) to resolve and discover nothing:
 
 ```json
 {
-  "destination_type": "custom",
+  "destination_types": [],
   "custom_destinations": [
     { "name": "McClellan Butte", "latitude": 47.406905, "longitude": -121.622215 }
   ]
@@ -202,7 +216,7 @@ You do not need a polygon. Send coordinates directly and skip discovery:
 
 ```json
 {
-  "destination_type": "custom",
+  "destination_types": [],
   "forecast_mode": "current",
   "custom_destinations": [
     { "name": "Mt Rainier", "latitude": 46.8529, "longitude": -121.7604, "elevation_ft": 14411 },

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ACCENT,
   ACCENT_RING,
+  BUTTON_ACCENT,
   BUTTON_DANGER,
   BUTTON_FLOATING,
   BUTTON_PRIMARY,
@@ -18,6 +19,8 @@ import {
   SEGMENT_ITEM,
   SPINNER,
   STATUS,
+  RECESSED_EDGE,
+  RECESSED_FILL,
   SURFACE_GROUP,
   LINK,
   LINK_ACTION,
@@ -174,7 +177,7 @@ describe('every component', () => {
   it.each(Object.entries(sources))('%s restates no shared recipe', (_path, source) => {
     // The idle half of a segmented choice, which two controls in the panel wear.
     expect(source).not.toMatch(/bg-slate-900 text-slate-400/)
-    expect(source).not.toMatch(/bg-slate-900 border border-slate-600/)
+    expect(source).not.toMatch(/bg-slate-900 border border-slate-500/)
     expect(source).not.toMatch(/bg-slate-800(\/95)? border border-slate-600/)
   })
 
@@ -321,6 +324,44 @@ describe('grouping and segmenting', () => {
     expect(SURFACE_GROUP).toContain(RADIUS.surface)
   })
 
+  // Every surface the panel sinks into is one recipe, so an input, the idle
+  // half of a segmented control and the calendar cannot drift into three
+  // near-identical looks the way they had.
+  it('builds every recessed surface from the one fill and the one edge', () => {
+    for (const recipe of [FIELD, SURFACE_GROUP]) {
+      expect(recipe).toContain(RECESSED_FILL)
+      expect(recipe).toContain(RECESSED_EDGE)
+    }
+    expect(SEGMENT_IDLE).toContain(RECESSED_FILL)
+    expect(SEGMENT).toContain(RECESSED_EDGE)
+  })
+
+  // The edge separates two surfaces and owes 3:1 against BOTH (WCAG 1.4.11).
+  // slate-600, which the inputs used to carry, reads 1.94:1 against the
+  // slate-800 panel and 2.36:1 against the slate-900 fill; slate-500 reads
+  // 3.07 and 3.74. The fill step alone is 1.22:1 and cannot carry it. Binding
+  // the three therefore raised the inputs to spec rather than lowering the
+  // calendar to meet them — pinned so a later 'tidy-up' has to re-measure.
+  it('keeps that edge on the step that clears both sides', () => {
+    const MEASURED = { panel: 3.07, fill: 3.74, wasBefore: { panel: 1.94, fill: 2.36 } }
+    expect(RECESSED_EDGE).toContain('slate-500')
+    expect(Math.min(MEASURED.panel, MEASURED.fill)).toBeGreaterThanOrEqual(3)
+    expect(Math.max(MEASURED.wasBefore.panel, MEASURED.wasBefore.fill)).toBeLessThan(3)
+  })
+
+  // The group recesses as well as bordering. It has to sit *under* the range
+  // band without being the range band: if the two ever met on one step the
+  // calendar would lose the only thing marking a selected span, and if the
+  // group went lighter than the panel it would read as raised rather than
+  // inset. Derived from the ramp rather than by naming a step, so a future
+  // palette move that collapsed them fails here.
+  it('recesses the group below the panel without colliding with the range band', () => {
+    const step = (c: string) => Number(c.match(/-(\d+)$/)![1])
+    const fill = SURFACE_GROUP.match(/bg-(slate-\d+)/)![1]
+    expect(step(fill)).toBeGreaterThan(800) // darker than the slate-800 panel
+    expect(fill).not.toBe(DAY.range.match(/bg-([a-z]+-\d+)/)![1])
+  })
+
   // Two segmented controls in one panel: the ranking direction, and the
   // calendar's hours. ACCENT.fill is the chosen half, this is the other one, and
   // naming the pair is what stops the second one being a lookalike that drifts.
@@ -383,6 +424,7 @@ describe('shared recipes', () => {
   it.each([
     ['BUTTON_PRIMARY', BUTTON_PRIMARY],
     ['BUTTON_SECONDARY', BUTTON_SECONDARY],
+    ['BUTTON_ACCENT', BUTTON_ACCENT],
     ['BUTTON_DANGER', BUTTON_DANGER],
     ['CHOICE_ROW', CHOICE_ROW],
     ['SEGMENT_ITEM', SEGMENT_ITEM],
@@ -598,6 +640,24 @@ describe('the accent', () => {
     expect(BUTTON_PRIMARY).toContain(ACCENT.fill)
     expect(BUTTON_PRIMARY).toContain(ACCENT.fillHover)
     expect(DAY.selected).toBe(ACCENT.fill)
+  })
+
+  // The inline accent button is the second consumer of that fill, and the
+  // reason it exists is that it must sit beside BUTTON_SECONDARY: same box,
+  // different standing. Both halves are asserted, because a box that drifted
+  // would put two buttons of different heights in one row, and a fill spelled
+  // out here would be the exact drift #167 unwound.
+  it('gives the inline accent button the primary fill on the secondary box', () => {
+    expect(BUTTON_ACCENT).toContain(ACCENT.fill)
+    expect(BUTTON_ACCENT).toContain(ACCENT.fillHover)
+    for (const box of ['px-3', 'py-1.5', RADIUS.control, TAP.action]) {
+      expect(BUTTON_ACCENT).toContain(box)
+      expect(BUTTON_SECONDARY).toContain(box)
+    }
+    // Composing TEXT.control would race the fill's own label color by
+    // stylesheet order — the trap BUTTON_DANGER documents.
+    expect(BUTTON_ACCENT).not.toContain(TEXT.control)
+    expect(sizes(BUTTON_ACCENT)).toEqual(sizes(TEXT.control))
   })
 
   // Every other accent job routes through the same object, so there is one

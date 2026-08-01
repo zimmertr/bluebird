@@ -16,6 +16,11 @@ import {
   rowsBetween,
   selectionState,
   valueAt,
+  TOOLTIP_CHROME_PX,
+  TOOLTIP_MAX_ROWS,
+  TOOLTIP_MIN_ROWS,
+  TOOLTIP_ROW_PX,
+  tooltipCapacity,
 } from './chartData'
 
 function row(name: string, lat: number, series: Partial<HourlySeries>): DestinationResult {
@@ -182,28 +187,37 @@ describe('defaultChartRows', () => {
   const a = row('A', 1, {})
   const b = row('B', 2, {})
   const c = row('C', 3, {})
+  const none: ReadonlySet<string> = new Set()
 
-  it('selects every chartable row when nothing is charted yet', () => {
-    expect(defaultChartRows([a, b, c], [])?.map((r) => r.name)).toEqual(['A', 'B', 'C'])
+  it('selects every chartable row when nothing has been charted yet', () => {
+    expect(defaultChartRows([a, b, c], none)?.map((r) => r.name)).toEqual(['A', 'B', 'C'])
   })
 
   it('excludes rows without series data', () => {
     const bare = { ...row('D', 4, {}), series: undefined }
-    expect(defaultChartRows([a, bare, c], [])?.map((r) => r.name)).toEqual(['A', 'C'])
+    expect(defaultChartRows([a, bare, c], none)?.map((r) => r.name)).toEqual(['A', 'C'])
   })
 
-  it('defers to a surviving selection so unchecks are never clobbered', () => {
-    expect(defaultChartRows([a, b, c], [chartKey(b)])).toBeNull()
+  // The bug this rule replaced: ticking Lakes alongside Peaks and re-analyzing
+  // left every new lake off the chart, because a peak was still on it.
+  it('charts rows the report just gained, even while others are charted', () => {
+    expect(defaultChartRows([a, b, c], new Set([chartKey(b)]))?.map((r) => r.name)).toEqual([
+      'A',
+      'C',
+    ])
   })
 
-  it('re-defaults when every previously charted key left the report', () => {
-    expect(defaultChartRows([a, b], ['gone,0'])?.map((r) => r.name)).toEqual(['A', 'B'])
+  // The other half, which the old rule got right and this must not lose: a box
+  // you unticked names a row that HAS been charted, so it stays off.
+  it('leaves a deliberately unchecked row alone', () => {
+    const everCharted = new Set([chartKey(a), chartKey(b), chartKey(c)])
+    expect(defaultChartRows([a, b, c], everCharted)).toBeNull()
   })
 
   it('is null when no row can chart', () => {
     const bare = { ...row('A', 1, {}), series: undefined }
-    expect(defaultChartRows([bare], [])).toBeNull()
-    expect(defaultChartRows([], [])).toBeNull()
+    expect(defaultChartRows([bare], none)).toBeNull()
+    expect(defaultChartRows([], none)).toBeNull()
   })
 })
 
@@ -313,5 +327,39 @@ describe('tracksCursor', () => {
 
   it('is unbothered by an empty chart', () => {
     expect(tracksCursor(0, 0)).toBe(true)
+  })
+})
+
+// The hover card is drawn inside the plotting area, so a fixed eight rows
+// overhung the results table once the chart panel was dragged toward its floor.
+describe('tooltipCapacity', () => {
+  it('lists the full set when the chart is tall', () => {
+    expect(tooltipCapacity(600)).toBe(TOOLTIP_MAX_ROWS)
+  })
+
+  it('never lists more than is readable, however tall the chart', () => {
+    expect(tooltipCapacity(5000)).toBe(TOOLTIP_MAX_ROWS)
+  })
+
+  it('sheds rows as the chart shrinks', () => {
+    const tall = tooltipCapacity(400)
+    const short = tooltipCapacity(160)
+    expect(short).toBeLessThan(tall)
+  })
+
+  it('always leaves at least one row, so the card still says something', () => {
+    expect(tooltipCapacity(0)).toBe(TOOLTIP_MIN_ROWS)
+    expect(tooltipCapacity(-50)).toBe(TOOLTIP_MIN_ROWS)
+  })
+
+  // The property that matters: the card it describes fits the space given.
+  it('never asks for more height than the plot area has', () => {
+    for (const px of [80, 120, 160, 240, 320, 480]) {
+      const rows = tooltipCapacity(px)
+      const cardPx = rows * TOOLTIP_ROW_PX + TOOLTIP_CHROME_PX
+      // One row is the floor and may legitimately overhang a very short panel;
+      // above that the card must fit.
+      if (rows > TOOLTIP_MIN_ROWS) expect(cardPx).toBeLessThanOrEqual(px)
+    }
   })
 })

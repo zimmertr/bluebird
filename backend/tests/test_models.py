@@ -25,7 +25,7 @@ def _now() -> datetime:
 def _valid_request(**overrides):
     """A minimal, in-range custom-destination request; override any field."""
     base = {
-        "destination_type": DestinationType.custom,
+        "destination_types": [],
         "start_datetime": _now(),
         "end_datetime": _now() + timedelta(days=1),
         "custom_destinations": [{"name": "X", "latitude": 47.0, "longitude": -121.0}],
@@ -75,14 +75,14 @@ def test_limit_rejects_out_of_range(limit):
 
 def test_polygon_within_limit_is_accepted():
     small = GeoPolygon(type="Polygon", coordinates=[[[0, 0], [0.1, 0], [0.1, 0.1], [0, 0.1], [0, 0]]])
-    req = _valid_request(destination_type=DestinationType.peak, polygon=small, custom_destinations=None)
+    req = _valid_request(destination_types=[DestinationType.peak], polygon=small, custom_destinations=None)
     assert req.polygon is not None
 
 
 def test_polygon_over_limit_is_rejected():
     huge = GeoPolygon(type="Polygon", coordinates=[[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]])
     with pytest.raises(ValidationError) as exc:
-        _valid_request(destination_type=DestinationType.peak, polygon=huge, custom_destinations=None)
+        _valid_request(destination_types=[DestinationType.peak], polygon=huge, custom_destinations=None)
     # Ring area is well over the ceiling, and the message names the max.
     assert bbox_area_km2(huge.coordinates[0]) > MAX_POLYGON_AREA_KM2
     assert "too large" in str(exc.value)
@@ -105,7 +105,7 @@ def test_polygon_exactly_at_the_cap_is_accepted(monkeypatch):
     monkeypatch.setattr(models, "bbox_area_km2", lambda ring: float(MAX_POLYGON_AREA_KM2))
     at_cap = GeoPolygon(type="Polygon", coordinates=[[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]])
     req = _valid_request(
-        destination_type=DestinationType.peak, polygon=at_cap, custom_destinations=None
+        destination_types=[DestinationType.peak], polygon=at_cap, custom_destinations=None
     )
     assert req.polygon is not None
 
@@ -118,7 +118,7 @@ def test_polygon_a_hair_over_the_cap_is_rejected(monkeypatch):
     over = GeoPolygon(type="Polygon", coordinates=[[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]])
     with pytest.raises(ValidationError) as exc:
         _valid_request(
-            destination_type=DestinationType.peak, polygon=over, custom_destinations=None
+            destination_types=[DestinationType.peak], polygon=over, custom_destinations=None
         )
     assert "too large" in str(exc.value)
 

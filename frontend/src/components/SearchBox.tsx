@@ -156,10 +156,11 @@ export default function SearchBox({ onSelect, pointed = false }: Props) {
             setError(null)
           }}
           onKeyDown={onKeyDown}
-          // Says what the box is for and stops there: what it accepts and how
-          // to submit are the title's job, not a line of copy on the map.
+          // Says what the box is for and stops there. There is no `title`
+          // spelling out that it takes a name or a coordinate pair: a search
+          // box taking a name is the least surprising thing on the page, and a
+          // hover tooltip is invisible on touch anyway.
           placeholder="Search for a destination"
-          title="Search by name (Mt Whitney) or coordinates (36.58, -118.29)"
           aria-label="Search for a place"
           autoComplete="off"
           spellCheck={false}

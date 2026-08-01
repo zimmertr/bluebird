@@ -87,7 +87,7 @@ describe('resolveCustomOnly', () => {
     }))
     await resolveCustomOnly(ROWS)
     const body = sentBody(spy)
-    expect(body.destination_type).toBe('custom')
+    expect(body.destination_types).toEqual([])
     expect(body.custom_destinations).toHaveLength(1)
     // The band and the cap stay client-side on this path, so sending them
     // would hand the server a say it is not being asked for.
@@ -349,13 +349,13 @@ describe('truncateTopElevation', () => {
 describe('analysisNoun', () => {
   const base = { start_datetime: '', end_datetime: '', limit: 10 }
   it('uses the discovery noun for pure polygon runs', () => {
-    expect(analysisNoun({ ...base, destination_type: 'peak' } as AnalyzeRequest)).toBe('peak')
+    expect(analysisNoun({ ...base, destination_types: ['peak'] } as AnalyzeRequest)).toBe('peak')
   })
   it('a union is a mixed set of destinations', () => {
     expect(
       analysisNoun({
         ...base,
-        destination_type: 'peak',
+        destination_types: ['peak'],
         custom_destinations: [{ name: 'X', latitude: 0, longitude: 0 }],
       } as AnalyzeRequest),
     ).toBe('destination')
@@ -365,7 +365,7 @@ describe('analysisNoun', () => {
 // ── runClientAnalysis end-to-end (fetch mocked) ────────────────────────────
 
 const REQUEST: AnalyzeRequest = {
-  destination_type: 'custom',
+  destination_types: [],
   start_datetime: '2026-07-21T00:00:00Z',
   end_datetime: '2026-07-21T02:00:00Z',
   limit: 2,

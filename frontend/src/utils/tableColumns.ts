@@ -27,7 +27,7 @@ export type SortKey = ColDef['key']
 export type SortDir = 'asc' | 'desc'
 
 // Identity columns that always lead the table, ahead of any metric group.
-const LEAD_KEYS = new Set(['name', 'elevation_ft'])
+const LEAD_KEYS = new Set(['name', 'type', 'elevation_ft'])
 
 /**
  * Every column a window-mode analysis can show, in canonical order.
@@ -43,6 +43,18 @@ const LEAD_KEYS = new Set(['name', 'elevation_ft'])
  */
 export const COLUMNS: ColDef[] = [
   { key: 'name', label: 'Name' },
+  // What a row *is*, which stopped being obvious the moment one polygon
+  // could return peaks and lakes together. It leads with the identity
+  // columns rather than sitting among the metrics, because it describes the
+  // destination rather than its weather, and it is the same word the popups
+  // and the OSM query use. Title-cased for display; the CSV keeps the raw
+  // value, which is what an API caller and a re-import both expect.
+  {
+    key: 'type',
+    label: 'Type',
+    format: (v) => (typeof v === 'string' && v ? v[0].toUpperCase() + v.slice(1) : '—'),
+    csv: (v) => (typeof v === 'string' ? v : ''),
+  },
   {
     key: 'elevation_ft',
     label: 'Elevation (ft)',

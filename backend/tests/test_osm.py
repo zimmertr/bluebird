@@ -36,7 +36,7 @@ async def test_query_osm_parses_dedups_and_skips(monkeypatch):
         return canned
 
     monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
-    results = await osm.query_osm(POLY, DestinationType.peak)
+    results = await osm.query_osm(POLY, [DestinationType.peak])
 
     names = [r["name"] for r in results]
     assert names == ["Peak A", "Lake B"]
@@ -52,7 +52,7 @@ async def test_query_osm_converts_elevation_meters_to_feet(monkeypatch):
         return canned
 
     monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
-    results = await osm.query_osm(POLY, DestinationType.peak)
+    results = await osm.query_osm(POLY, [DestinationType.peak])
     # 1000 m * 3.28084 ft/m, rounded to whole feet.
     assert results[0]["elevation_ft"] == 3281.0
 
@@ -64,7 +64,7 @@ async def test_query_osm_bad_elevation_tag_is_ignored(monkeypatch):
         return canned
 
     monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
-    results = await osm.query_osm(POLY, DestinationType.peak)
+    results = await osm.query_osm(POLY, [DestinationType.peak])
     assert results[0]["elevation_ft"] is None
 
 
@@ -78,14 +78,91 @@ async def test_query_osm_peak_query_includes_volcanoes(monkeypatch):
         return {"elements": []}
 
     monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
-    await osm.query_osm(POLY, DestinationType.peak)
+    await osm.query_osm(POLY, [DestinationType.peak])
     assert 'node["natural"="peak"]["name"]' in captured["query"]
     assert 'node["natural"="volcano"]["name"]' in captured["query"]
 
 
 async def test_query_osm_unimplemented_type_raises():
     with pytest.raises(NotImplementedError):
-        await osm.query_osm(POLY, DestinationType.custom)
+        await osm.query_osm(POLY, [DestinationType.custom])
+
+
+# ── Several types at once ──────────────────────────────────────────────────
+# Overpass is donated and this query is the slowest step of an analysis, so
+# the point of asking for a set is that it stays ONE request.
+
+
+async def test_several_types_are_one_query_not_one_each(monkeypatch):
+    calls = []
+
+    async def fake_post(query, on_status=None):
+        calls.append(query)
+        return {"elements": []}
+
+    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    await osm.query_osm(POLY, [DestinationType.peak, DestinationType.lake])
+
+    assert len(calls) == 1
+    query = calls[0]
+    assert 'node["natural"="peak"]["name"]' in query
+    assert 'node["natural"="volcano"]["name"]' in query
+    assert 'relation["natural"="water"]["water"="lake"]["name"]' in query
+    # Trailheads were not asked for and must not ride along.
+    assert "trailhead" not in query
+
+
+async def test_rows_are_classified_by_their_own_tags(monkeypatch):
+    # The reason a union needs classification at all: with one type the route
+    # could assume the answer, and with three it cannot. A row's type picks its
+    # badge and whether it links to Peakbagger.
+    canned = {
+        "elements": [
+            {"type": "node", "id": 1, "lat": 1.0, "lon": 1.0, "tags": {"name": "A", "natural": "peak"}},
+            {"type": "node", "id": 2, "lat": 2.0, "lon": 2.0, "tags": {"name": "B", "natural": "volcano"}},
+            {"type": "way", "id": 3, "center": {"lat": 3.0, "lon": 3.0},
+             "tags": {"name": "C", "natural": "water", "water": "lake"}},
+            {"type": "node", "id": 4, "lat": 4.0, "lon": 4.0, "tags": {"name": "D", "highway": "trailhead"}},
+        ]
+    }
+
+    async def fake_post(query, on_status=None):
+        return canned
+
+    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    results = await osm.query_osm(
+        POLY, [DestinationType.peak, DestinationType.lake, DestinationType.trailhead]
+    )
+
+    assert [r["type"] for r in results] == ["peak", "peak", "lake", "trailhead"]
+
+
+async def test_type_order_does_not_change_the_query_or_the_cache_key(monkeypatch):
+    # Order carries no meaning, so it must not produce a second query text or
+    # a second cache entry for the same question.
+    queries = []
+
+    async def fake_post(query, on_status=None):
+        queries.append(query)
+        return {"elements": []}
+
+    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    await osm.query_osm(POLY, [DestinationType.lake, DestinationType.peak])
+    # A second ask in the other order is served from the first one's cache.
+    await osm.query_osm(POLY, [DestinationType.peak, DestinationType.lake])
+    assert len(queries) == 1
+
+    # Duplicates are likewise not a different question.
+    await osm.query_osm(POLY, [DestinationType.peak, DestinationType.peak, DestinationType.lake])
+    assert len(queries) == 1
+
+
+async def test_no_types_asks_nothing(monkeypatch):
+    async def fake_post(query, on_status=None):
+        raise AssertionError("no types requested, so Overpass must not be called")
+
+    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    assert await osm.query_osm(POLY, []) == []
 
 
 # ── _post_with_fallback (the 3-mirror failover chain) ──────────────────────
@@ -424,3 +501,84 @@ async def test_enrich_custom_skips_the_lookup_when_nothing_is_missing(monkeypatc
     rows = await _enrich_custom([_row(47.0, -121.0, elevation_ft=100.0)])
     assert spy == []
     assert rows[0]["elevation_ft"] == 100.0
+
+
+# ── Unnamed summits (opt-in) ───────────────────────────────────────────────
+# OSM knows plenty of peaks only by their height. Including them roughly
+# triples the candidate count, which is why it is a flag and not the default.
+
+
+def _unnamed(id_: int, ele: str, lat: float = 47.5):
+    return {
+        "type": "node",
+        "id": id_,
+        "lat": lat,
+        "lon": -121.5,
+        "tags": {"natural": "peak", "ele": ele},
+    }
+
+
+async def test_unnamed_peaks_are_skipped_unless_asked_for(monkeypatch):
+    async def fake_post(query, on_status=None):
+        assert '["ele"]' not in query
+        return {"elements": [_unnamed(1, "1000")]}
+
+    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    assert await osm.query_osm(POLY, [DestinationType.peak]) == []
+
+
+async def test_unnamed_peaks_are_named_for_their_height(monkeypatch):
+    async def fake_post(query, on_status=None):
+        assert '["ele"]' in query
+        return {"elements": [_unnamed(1, "1817.2")]}
+
+    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    rows = await osm.query_osm(POLY, [DestinationType.peak], include_unnamed_peaks=True)
+
+    # 1817.2 m is 5,962 ft. Unpunctuated: an identifier, not a measurement, and
+    # the same string the browser builds for a clicked one.
+    assert [r["name"] for r in rows] == ["Peak 5962"]
+    assert rows[0]["type"] == "peak"
+
+
+async def test_two_unnamed_peaks_at_one_height_are_two_destinations(monkeypatch):
+    # Name is the identity rule for mapped features and cannot be for generated
+    # ones: every unnamed 5,961 ft summit in a range would collapse into one.
+    async def fake_post(query, on_status=None):
+        return {"elements": [_unnamed(1, "1000", 47.5), _unnamed(2, "1000", 47.6)]}
+
+    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    rows = await osm.query_osm(POLY, [DestinationType.peak], include_unnamed_peaks=True)
+
+    assert len(rows) == 2
+    assert {r["osm_id"] for r in rows} == {"node/1", "node/2"}
+
+
+async def test_an_unnamed_peak_with_no_height_has_nothing_to_be_called(monkeypatch):
+    async def fake_post(query, on_status=None):
+        return {"elements": [{"type": "node", "id": 9, "lat": 47.5, "lon": -121.5, "tags": {"natural": "peak"}}]}
+
+    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    assert await osm.query_osm(POLY, [DestinationType.peak], include_unnamed_peaks=True) == []
+
+
+async def test_the_two_questions_do_not_share_a_cache_entry(monkeypatch):
+    queries = []
+
+    async def fake_post(query, on_status=None):
+        queries.append(query)
+        return {"elements": []}
+
+    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    await osm.query_osm(POLY, [DestinationType.peak])
+    await osm.query_osm(POLY, [DestinationType.peak], include_unnamed_peaks=True)
+    assert len(queries) == 2
+
+
+async def test_the_flag_is_ignored_when_peaks_were_not_asked_for(monkeypatch):
+    async def fake_post(query, on_status=None):
+        assert "natural" not in query or '"peak"' not in query
+        return {"elements": []}
+
+    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    await osm.query_osm(POLY, [DestinationType.lake], include_unnamed_peaks=True)

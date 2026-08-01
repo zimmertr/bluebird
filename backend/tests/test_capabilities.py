@@ -85,7 +85,7 @@ def test_sort_keys_match_the_accepted_enum():
 def _request(**overrides) -> AnalyzeRequest:
     now = datetime.now(timezone.utc)
     base = {
-        "destination_type": DestinationType.custom,
+        "destination_types": [],
         "start_datetime": now,
         "end_datetime": now + timedelta(days=1),
         "custom_destinations": [{"name": "X", "latitude": 47.0, "longitude": -121.0}],

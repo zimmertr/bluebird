@@ -152,3 +152,34 @@ describe('analyzeBlockers', () => {
     }
   })
 })
+
+// Checkboxes made "what the polygon looks for" a set that can be empty, so a
+// finished polygon is no longer proof of an input (#119 follow-on).
+describe('a polygon with nothing checked', () => {
+  const drawn = {
+    hasWindowWarning: false,
+    loading: false,
+    areaTooLarge: false,
+    polygonReady: false, // three points, but no types checked
+    hasCustom: false,
+    hasPins: false,
+    drawPointCount: 4,
+  }
+
+  it('does not enable Analyze on its own', () => {
+    expect(canAnalyze(drawn)).toBe(false)
+  })
+
+  it('says the polygon has nothing to look for, not that it is unfinished', () => {
+    expect(analyzeBlockers(drawn)).toEqual(['types'])
+  })
+
+  it('stops being a blocker as soon as another input exists', () => {
+    expect(analyzeBlockers({ ...drawn, hasCustom: true })).toEqual([])
+    expect(analyzeBlockers({ ...drawn, hasPins: true })).toEqual([])
+  })
+
+  it('still reports an unfinished polygon as unfinished', () => {
+    expect(analyzeBlockers({ ...drawn, drawPointCount: 2 })).toEqual(['polygon'])
+  })
+})

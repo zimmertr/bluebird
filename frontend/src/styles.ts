@@ -288,7 +288,8 @@ export const ACCENT = {
    */
   fill: 'bg-sky-650 text-white',
   /**
-   * The hover step for a fill that is a button. Only `BUTTON_PRIMARY` has one.
+   * The hover step for a fill that is a button: `BUTTON_PRIMARY` and the
+   * inline `BUTTON_ACCENT`.
    *
    * Still lightens, matching every other hover in the app. That is the one
    * state left below AA: white on sky-600 is **4.02:1** against 4.5. It cannot
@@ -364,6 +365,26 @@ export const BUTTON_SECONDARY =
   'bg-slate-700 hover:bg-slate-600'
 
 /**
+ * The leading action of an inline pair: Done, with Clear beside it, ending the
+ * map's draw mode (#118).
+ *
+ * `BUTTON_PRIMARY` is the panel's one full-width call to action and cannot be
+ * this — a `w-full` button cannot stand next to anything — but a Done that
+ * looked exactly like the Clear beside it would leave the pair with no order,
+ * and Clear is the destructive one. So: `BUTTON_SECONDARY`'s box, because the
+ * two sit side by side and must read as one pair, wearing the accent fill that
+ * marks the primary action everywhere else.
+ *
+ * The size is set bare rather than by composing `TEXT.control`, for the reason
+ * spelled out on `BUTTON_DANGER` below: that role carries slate-200, which
+ * would race `ACCENT.fill`'s white by stylesheet order and could not be
+ * overridden here.
+ */
+export const BUTTON_ACCENT =
+  `text-xs ${TAP.action} px-3 py-1.5 ${RADIUS.control} transition-colors ` +
+  `${ACCENT.fill} ${ACCENT.fillHover}`
+
+/**
  * The destructive retry inside an error notice: "Try again".
  *
  * The one button in the app that is neither the primary action nor a neutral
@@ -425,6 +446,28 @@ export const SPINNER =
   `animate-spin ${RADIUS.pill} border-2 border-slate-500 border-t-sky-400`
 
 /**
+ * The recessed surface, and the boundary that closes it.
+ *
+ * One look for everything the panel sinks *into* rather than raises off it:
+ * every text input (`FIELD`), the idle half of a segmented control, and the
+ * calendar's day grid. The three were already the same fill by coincidence and
+ * differed only in their border, which is exactly the drift that makes a panel
+ * look assembled from parts — so they are one recipe now and cannot separate.
+ *
+ * The edge is slate-500 rather than the slate-600 the inputs used to carry,
+ * because a component boundary owes 3:1 on **both** sides it separates
+ * (WCAG 1.4.11) and slate-600 clears neither: 1.94:1 against the slate-800
+ * panel outside and 2.36:1 against the slate-900 fill inside. slate-500 reads
+ * 3.07:1 and 3.74:1. The fill step alone is 1.22:1, nowhere near enough to
+ * carry the boundary by itself, so this is the line doing the work.
+ *
+ * Binding them therefore raised the inputs to spec rather than lowering the
+ * calendar to match them.
+ */
+export const RECESSED_FILL = 'bg-slate-900'
+export const RECESSED_EDGE = 'border border-slate-500'
+
+/**
  * The idle half of a segmented choice: the ranking direction toggle's unchosen
  * side, and the calendar's Hours toggle.
  *
@@ -432,7 +475,7 @@ export const SPINNER =
  * second segmented control in the panel the *same* control rather than a
  * lookalike that drifted — the hazard #159-#165 spent five PRs on.
  */
-export const SEGMENT_IDLE = 'bg-slate-900 text-slate-400 hover:text-slate-200'
+export const SEGMENT_IDLE = `${RECESSED_FILL} text-slate-400 hover:text-slate-200`
 
 /**
  * The geometry the two halves sit in, which had been spelled out twice.
@@ -447,10 +490,10 @@ export const SEGMENT_IDLE = 'bg-slate-900 text-slate-400 hover:text-slate-200'
  * No color here: the halves are `ACCENT.fill` and `SEGMENT_IDLE`, so a color
  * in this recipe would be a third one competing with them by stylesheet order.
  */
-export const SEGMENT = `flex ${RADIUS.control} overflow-hidden border border-slate-600`
+export const SEGMENT = `flex ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 export const SEGMENT_ITEM = `${TAP.action} px-2 py-0.5 text-xs transition-colors`
 /** Between two halves, never before the first. */
-export const SEGMENT_DIVIDER = 'border-l border-slate-600'
+export const SEGMENT_DIVIDER = 'border-l border-slate-500'
 
 /**
  * A radio or checkbox and the words naming it, as one strip.
@@ -560,20 +603,67 @@ export const NOTICE = {
 } as const
 
 /**
+ * The two weights of rule in the control panel.
+ *
+ * `PANEL_EDGE` closes the panel: the line under the app title and the one over
+ * the Analyze button. Those are structural — they separate the scrolling body
+ * from the fixed chrome above and below it — so they are the heavier pair.
+ *
+ * `PANEL_RULE` separates one numbered step from the next *inside* that body,
+ * and is the whole recipe rather than a colour, because Tailwind scans source
+ * as raw text: a variant assembled from a template at a call site is a class
+ * name that never appears anywhere, so no CSS is generated for it. Spelling it
+ * out here is what makes it exist, and it keeps the decision in the design
+ * system where the rest of the panel's chrome lives.
+ *
+ * Three things it settles:
+ *
+ * - **The weight.** slate-700 is 1.4:1 on the slate-800 panel, which is not a
+ *   line anyone can see, and slate-600 at 1.94:1 read heavy once the gutters
+ *   tightened. Half-opacity slate-600 lands between the two steps — a value
+ *   the scale does not offer — which is the quietest this can be while still
+ *   being a line. The panel's structural edges stay two steps above it at
+ *   slate-500 (3.07:1), which is what keeps the two weights distinct.
+ * - **The gap.** 16px on both sides, and equal is the part that matters. It
+ *   was 20 and read as hugging the control above; 32/16 only moved the
+ *   imbalance to the other side; 32/32 was balanced but left the panel mostly
+ *   air. Symmetry does the separating, not size.
+ * - **Where it is drawn.** From the stack, so a section added later cannot
+ *   forget its line or draw a second one.
+ */
+export const PANEL_EDGE = 'border-slate-500'
+export const PANEL_RULE =
+  '[&>*+*]:mt-4 [&>*+*]:border-t [&>*+*]:border-slate-600/50 [&>*+*]:pt-4'
+
+/**
  * A bordered region grouping controls inside the panel: today, the calendar.
  *
- * Border only, no fill of its own, and the border is deliberately brighter than
- * anything else in the panel. slate-500 is 3.4:1 on the slate-800 panel, which
- * clears the 3:1 asked of a meaningful UI boundary; the panel's own section
- * dividers are slate-700 at 1.4:1, and something that quiet cannot make a block
- * of controls read as one object — which is the whole job here.
+ * The border is deliberately brighter than anything else in the panel.
+ * slate-500 clears the 3:1 asked of a meaningful UI boundary; the panel's own
+ * section dividers are slate-700 at 1.4:1, and something that quiet cannot
+ * make a block of controls read as one object — which is the whole job here.
  *
- * A darker inset fill would separate it further and is the obvious next lever,
- * but it is not free: `DAY.range` below is sky-950, legible on slate-800 and
- * nearly invisible on slate-900, so a fill change means brightening the range
- * band in the same breath. One change at a time.
+ * It now also carries a recessed fill, which this comment used to warn against
+ * on the grounds that `DAY.range` is sky-950, "legible on slate-800 and nearly
+ * invisible on slate-900". Measured against the Tailwind v4 palette the app
+ * actually ships, that is backwards. sky-950 sits at L 29.3%, within a point
+ * and a half of slate-800's 27.9% — which is why the range band reads by hue
+ * rather than by lightness today, at 1.05:1 — while slate-900's 20.8% puts
+ * real lightness between them. Every ratio in the calendar improves or holds:
+ *
+ * | on slate-800 → slate-900 | | |
+ * | --- | --- | --- |
+ * | day text (slate-200) | 11.90 | 14.49 |
+ * | dimmed day + today ring (slate-400) | 5.58 | 6.79 |
+ * | this border (slate-500) | 3.07 | 3.74 |
+ * | range band (sky-950) | 1.05 | 1.28 |
+ *
+ * Crucially `DAY.range` itself does **not** move, so the selected end still
+ * reads against it at the pinned 3.04:1 and `--color-sky-650` needs no
+ * re-derivation. The coupling the old comment feared only bites if the range
+ * band changes; darkening what sits *under* it does not.
  */
-export const SURFACE_GROUP = `border border-slate-500 ${RADIUS.surface}`
+export const SURFACE_GROUP = `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.surface}`
 
 /**
  * The calendar's day cells.
@@ -644,7 +734,7 @@ export const DAY = {
  * the whole reason the rule is written as a height and not as padding.
  */
 export const FIELD =
-  `${TEXT.control} ${TAP.height} bg-slate-900 border border-slate-600 ${RADIUS.control} ` +
+  `${TEXT.control} ${TAP.height} ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} ` +
   'focus:outline-none focus:border-sky-500 placeholder-slate-400'
 
 /**

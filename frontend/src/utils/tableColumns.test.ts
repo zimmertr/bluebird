@@ -15,14 +15,18 @@ const METRICS: SortBy[] = ['precip_total_in', 'wind_avg_mph', 'temp_avg_f', 'aqi
 
 describe('COLUMNS', () => {
   it('leads with the identity columns and names every one of them', () => {
-    expect(KEYS.slice(0, 2)).toEqual(['name', 'elevation_ft'])
+    expect(KEYS.slice(0, 3)).toEqual(['name', 'type', 'elevation_ft'])
     for (const col of COLUMNS) expect(col.label).not.toBe('')
   })
 
-  // Only where a display formatter would be unparseable: the grouped elevation
-  // is the case, and adding another means a file cell changed shape.
+  // Only where a display formatter would be unparseable or would editorialize.
+  // Elevation is the first case — a grouped number puts a comma inside a
+  // comma-separated cell. Type is the second and a different one: the file
+  // keeps OSM's own word, lower-case, because a caller re-importing it wants
+  // the value the API uses rather than the one the table title-cases for
+  // reading. Adding a third means a file cell changed shape.
   it('overrides the display formatter for exactly the columns that need it', () => {
-    expect(COLUMNS.filter((c) => c.csv).map((c) => c.key)).toEqual(['elevation_ft'])
+    expect(COLUMNS.filter((c) => c.csv).map((c) => c.key)).toEqual(['type', 'elevation_ft'])
   })
 })
 
@@ -34,6 +38,7 @@ describe('orderColumns', () => {
   it('moves the AQI pair right after the identity columns when ranking by AQI', () => {
     expect(keys('aqi_avg')).toEqual([
       'name',
+      'type',
       'elevation_ft',
       'aqi_avg',
       'aqi_max',
@@ -52,6 +57,7 @@ describe('orderColumns', () => {
   it('moves the temperature trio up, other groups keeping their relative order', () => {
     expect(keys('temp_avg_f')).toEqual([
       'name',
+      'type',
       'elevation_ft',
       'temp_min_f',
       'temp_max_f',
@@ -69,7 +75,7 @@ describe('orderColumns', () => {
 
   it('always leads with the identity columns, for every metric', () => {
     for (const m of METRICS) {
-      expect(keys(m).slice(0, 2)).toEqual(['name', 'elevation_ft'])
+      expect(keys(m).slice(0, 3)).toEqual(['name', 'type', 'elevation_ft'])
       expect(keys(m)).toHaveLength(KEYS.length)
     }
   })
@@ -79,6 +85,7 @@ describe('pointModeColumns', () => {
   it('collapses each metric group to its single representative column', () => {
     expect(pointModeColumns(COLUMNS).map((c) => c.key)).toEqual([
       'name',
+      'type',
       'elevation_ft',
       'precip_avg_in_hr',
       'temp_avg_f',
@@ -102,6 +109,7 @@ describe('pointModeColumns', () => {
   it('composes with orderColumns — the ranked metric still leads', () => {
     expect(orderColumns(pointModeColumns(COLUMNS), 'aqi_avg').map((c) => c.key)).toEqual([
       'name',
+      'type',
       'elevation_ft',
       'aqi_avg',
       'precip_avg_in_hr',
@@ -124,7 +132,7 @@ describe('displayedColumns', () => {
   // Measured rather than named: the collapse is keyed on the window covering one
   // hourly stamp, not on a mode, so "a day narrowed to one hour" collapses too.
   it('collapses a point sample and nothing else', () => {
-    expect(displayedColumns(true, 'precip_total_in')).toHaveLength(6)
+    expect(displayedColumns(true, 'precip_total_in')).toHaveLength(7)
     expect(displayedColumns(false, 'precip_total_in')).toHaveLength(KEYS.length)
   })
 })

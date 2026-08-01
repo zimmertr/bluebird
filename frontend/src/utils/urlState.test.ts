@@ -38,7 +38,7 @@ const DAYS: ForecastSelection = {
 
 const base: ShareableState = {
   polygon,
-  destinationType: 'peak',
+  destinationTypes: ['peak'],
   selection: DAYS,
   sortBy: 'precip_total_in',
   sortDesc: false,
@@ -47,6 +47,7 @@ const base: ShareableState = {
   limit: 10,
   customCsv: '',
   showWildfires: false,
+  includeUnnamedPeaks: false,
   pins: [],
 }
 
@@ -55,7 +56,9 @@ const base: ShareableState = {
 // dates to write.
 const pristine: ShareableState = {
   polygon: null,
-  destinationType: 'peak',
+  // Nothing checked is the default now, so a pristine session asks the
+  // polygon to find nothing.
+  destinationTypes: [],
   selection: { kind: 'now' },
   sortBy: 'precip_total_in',
   sortDesc: false,
@@ -64,6 +67,7 @@ const pristine: ShareableState = {
   limit: 200,
   customCsv: '',
   showWildfires: false,
+  includeUnnamedPeaks: false,
   pins: [],
 }
 
@@ -76,7 +80,7 @@ describe('encodeState / decodeState round-trip', () => {
   it('restores a peak analysis with a polygon', () => {
     const out = roundTrip(base)
     expect(out).not.toBeNull()
-    expect(out!.destinationType).toBe('peak')
+    expect(out!.destinationTypes).toEqual(['peak'])
     expect(out!.selection).toEqual(DAYS)
     expect(out!.sortBy).toBe('precip_total_in')
     expect(out!.limit).toBe(10)
@@ -138,7 +142,7 @@ describe('encodeState / decodeState round-trip', () => {
     const csv = '46.8529,-121.7604,Mount Rainier'
     const out = roundTrip({ ...base, customCsv: csv })
     expect(out!.customCsv).toBe(csv)
-    expect(out!.destinationType).toBe('peak')
+    expect(out!.destinationTypes).toEqual(['peak'])
     expect(out!.polygon!.coordinates[0]).toHaveLength(4)
   })
 
@@ -195,7 +199,7 @@ describe('encodeState gate — what triggers a URL update', () => {
     expect(encodeState({ ...pristine, sortBy: 'wind_avg_mph' })).not.toBe('')
     expect(encodeState({ ...pristine, sortDesc: true })).not.toBe('')
     expect(encodeState({ ...pristine, limit: 25 })).not.toBe('')
-    expect(encodeState({ ...pristine, destinationType: 'trailhead' })).not.toBe('')
+    expect(encodeState({ ...pristine, destinationTypes: ['trailhead'] })).not.toBe('')
   })
 
   it('syncs on a CSV alone — no polygon or selection required', () => {
@@ -323,7 +327,7 @@ describe('decodeState tolerance', () => {
   it('drops an invalid polygon but keeps valid fields', () => {
     const out = decodeState('type=peak&poly=notcoords')
     expect(out!.polygon).toBeUndefined()
-    expect(out!.destinationType).toBe('peak')
+    expect(out!.destinationTypes).toEqual(['peak'])
   })
 
   it('drops a polygon with fewer than 3 vertices', () => {
@@ -332,7 +336,7 @@ describe('decodeState tolerance', () => {
 
   it('rejects an unknown destination type but keeps valid neighbors', () => {
     const out = decodeState('type=volcano&limit=50&sort=precip_total_in')
-    expect(out!.destinationType).toBeUndefined()
+    expect(out!.destinationTypes).toBeUndefined()
     expect(out!.limit).toBe(50)
     expect(out!.sortBy).toBe('precip_total_in')
   })
@@ -378,7 +382,7 @@ describe('decodeState tolerance', () => {
     const out = decodeState('type=custom&custom=' + encodeURIComponent(raw))
     expect(out!.customCsv).toBe(raw)
     // type=custom predates additive CSV — the picker falls back to its default.
-    expect(out!.destinationType).toBeUndefined()
+    expect(out!.destinationTypes).toBeUndefined()
   })
 
   it('restores the CSV from a legacy type=custom&customz= link', () => {
@@ -387,7 +391,7 @@ describe('decodeState tolerance', () => {
     const customz = new URLSearchParams(qs).get('customz')!
     const out = decodeState(`type=custom&customz=${customz}`)
     expect(out!.customCsv).toBe(csv)
-    expect(out!.destinationType).toBeUndefined()
+    expect(out!.destinationTypes).toBeUndefined()
   })
 })
 
@@ -728,5 +732,46 @@ describe('clampLimit', () => {
   it('raises a nonsensical row count to one row', () => {
     expect(clampLimit(0, 1500)).toBe(1)
     expect(clampLimit(-5, 1500)).toBe(1)
+  })
+})
+
+describe('several destination types in one link', () => {
+  it('round-trips a set, comma-joined and readable', () => {
+    const qs = encodeState({ ...base, destinationTypes: ['peak', 'lake'] })
+    expect(qs).toContain('type=peak%2Clake')
+    expect(decodeState(qs)!.destinationTypes).toEqual(['peak', 'lake'])
+  })
+
+  it('drops the param entirely when nothing is checked', () => {
+    expect(encodeState({ ...base, destinationTypes: [] })).not.toContain('type=')
+  })
+
+  it('keeps the types it recognizes and ignores the rest', () => {
+    expect(decodeState('type=peak,volcano,lake')!.destinationTypes).toEqual(['peak', 'lake'])
+  })
+
+  it('collapses duplicates, since a set has no repeats', () => {
+    expect(decodeState('type=lake,lake,peak')!.destinationTypes).toEqual(['lake', 'peak'])
+  })
+
+  it('leaves the field unset when no name is recognized, rather than guessing', () => {
+    expect(decodeState('type=custom&limit=50')!.destinationTypes).toBeUndefined()
+  })
+})
+
+describe('unnamed peaks in a link', () => {
+  it('is absent by default, so it never makes a pristine session worth sharing', () => {
+    expect(encodeState(pristine)).toBe('')
+    expect(encodeState(base)).not.toContain('unnamed=')
+  })
+
+  it('round-trips when switched on', () => {
+    const qs = encodeState({ ...base, includeUnnamedPeaks: true })
+    expect(qs).toContain('unnamed=1')
+    expect(decodeState(qs)!.includeUnnamedPeaks).toBe(true)
+  })
+
+  it('alone is enough to make a session worth persisting', () => {
+    expect(encodeState({ ...pristine, includeUnnamedPeaks: true })).not.toBe('')
   })
 })

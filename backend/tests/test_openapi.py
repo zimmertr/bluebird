@@ -95,7 +95,7 @@ def test_request_and_response_fields_carry_descriptions(schema):
 
 def test_analyze_request_carries_a_worked_example(schema):
     examples = schema["components"]["schemas"]["AnalyzeRequest"].get("examples")
-    assert examples and examples[0]["destination_type"] == "peak"
+    assert examples and examples[0]["destination_types"] == ["peak"]
 
 
 def test_redoc_is_gone_and_docs_is_served(schema):

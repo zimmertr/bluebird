@@ -7,7 +7,7 @@ interface Props {
 }
 
 const STEPS: [string, string][] = [
-  ['Destinations', 'Choose where to search by drawing an area on the map, searching by name, or providing custom coordinates.'],
+  ['Destinations', 'Choose what destinations to analyze by clicking on the map, searching by name, drawing a polygon, or providing custom coordinates.'],
   ['Forecast Window', 'Pick a day on the calendar, drag across days for a range, or analyze the current hour.'],
   ['Result Ranking', 'Choose how destinations should be ranked: driest conditions, lowest winds, ideal temperatures, or cleanest air.'],
   ['Options', 'Apply constraints and enable additional features like wildfire visibility.'],
