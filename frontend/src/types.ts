@@ -34,7 +34,10 @@ export interface CustomDestination {
 
 export interface AnalyzeRequest {
   polygon?: GeoPolygon
-  destination_type: DestinationType
+  // A set, not a value: several types are discovered in one Overpass
+  // query. Empty means discover nothing and analyze only
+  // `custom_destinations`.
+  destination_types: DiscoveryType[]
   start_datetime: string
   end_datetime: string
   limit: number

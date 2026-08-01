@@ -99,7 +99,7 @@ def _wx(n: int) -> list[dict]:
 def _stub_discovery(monkeypatch, count: int):
     dests = _dests([1000.0 + i for i in range(count)])
 
-    async def fake_query(polygon, destination_type, on_status=None):
+    async def fake_query(polygon, destination_types, on_status=None):
         return list(dests)
 
     monkeypatch.setattr(osm, "query_osm", fake_query)
@@ -124,7 +124,7 @@ def test_over_cap_refusal_carries_remedy_fields(monkeypatch):
     _stub_discovery(monkeypatch, 1_501)
     resp = client.post(
         "/api/analyze",
-        json={"destination_type": "peak", "polygon": _POLY, **_window()},
+        json={"destination_types": ["peak"], "polygon": _POLY, **_window()},
     )
     assert resp.status_code == 400
     body = resp.json()
@@ -139,7 +139,7 @@ def test_destinations_refusal_matches(monkeypatch):
     _stub_discovery(monkeypatch, 1_501)
     resp = client.post(
         "/api/destinations",
-        json={"destination_type": "peak", "polygon": _POLY},
+        json={"destination_types": ["peak"], "polygon": _POLY},
     )
     assert resp.status_code == 400
     assert resp.json()["found"] == 1_501
@@ -152,7 +152,7 @@ def test_elected_truncation_analyzes_the_top_and_says_so(monkeypatch):
     resp = client.post(
         "/api/analyze",
         json={
-            "destination_type": "peak",
+            "destination_types": ["peak"],
             "polygon": _POLY,
             "top_by_elevation": True,
             "limit": 5,
@@ -173,7 +173,7 @@ def test_destinations_elected_truncation(monkeypatch):
     _stub_discovery(monkeypatch, 1_501)
     resp = client.post(
         "/api/destinations",
-        json={"destination_type": "peak", "polygon": _POLY, "top_by_elevation": True},
+        json={"destination_types": ["peak"], "polygon": _POLY, "top_by_elevation": True},
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -189,7 +189,7 @@ def test_lazy_aqi_fetches_only_displayed_rows(monkeypatch):
     _stub_aqi(monkeypatch, calls)
     resp = client.post(
         "/api/analyze",
-        json={"destination_type": "peak", "polygon": _POLY, "limit": 5, **_window()},
+        json={"destination_types": ["peak"], "polygon": _POLY, "limit": 5, **_window()},
     )
     assert resp.status_code == 200
     # AQI is display data here (default precip sort): fetched once, for
@@ -205,7 +205,7 @@ def test_aqi_sort_fetches_every_candidate(monkeypatch):
     resp = client.post(
         "/api/analyze",
         json={
-            "destination_type": "peak",
+            "destination_types": ["peak"],
             "polygon": _POLY,
             "limit": 5,
             "sort_by": "aqi_avg",

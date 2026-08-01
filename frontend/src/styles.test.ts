@@ -322,6 +322,19 @@ describe('grouping and segmenting', () => {
     expect(SURFACE_GROUP).toContain(RADIUS.surface)
   })
 
+  // The group recesses as well as bordering. It has to sit *under* the range
+  // band without being the range band: if the two ever met on one step the
+  // calendar would lose the only thing marking a selected span, and if the
+  // group went lighter than the panel it would read as raised rather than
+  // inset. Derived from the ramp rather than by naming a step, so a future
+  // palette move that collapsed them fails here.
+  it('recesses the group below the panel without colliding with the range band', () => {
+    const step = (c: string) => Number(c.match(/-(\d+)$/)![1])
+    const fill = SURFACE_GROUP.match(/bg-(slate-\d+)/)![1]
+    expect(step(fill)).toBeGreaterThan(800) // darker than the slate-800 panel
+    expect(fill).not.toBe(DAY.range.match(/bg-([a-z]+-\d+)/)![1])
+  })
+
   // Two segmented controls in one panel: the ranking direction, and the
   // calendar's hours. ACCENT.fill is the chosen half, this is the other one, and
   // naming the pair is what stops the second one being a lookalike that drifts.

@@ -369,7 +369,7 @@ the path, so there is nothing legitimate to flake and nothing to retry.
 
 **Step 2 — `api-test`, the functional gate.** Same provider, a single POST to
 the canary's `/api/analyze` with a fixed body: a known-good polygon (Tiger
-Mountain, Issaquah WA), `destination_type: peak`, `forecast_mode: current`,
+Mountain, Issaquah WA), `destination_types: [peak]`, `forecast_mode: current`,
 `limit: 3`. One condition covers the whole chain — `len(result.results) >= 1` is
 satisfiable only if Overpass discovered candidates, the ranking produced rows,
 and Open-Meteo attached a forecast to them. `count: 1`, `failureLimit: 0`, 120 s

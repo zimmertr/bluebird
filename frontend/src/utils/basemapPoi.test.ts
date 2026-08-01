@@ -130,6 +130,25 @@ describe('the layers this module reads', () => {
     expect(mapViewSource).toContain("'icon-rotation-alignment': 'viewport'")
   })
 
+  // Hovering the panel's "Specify by Click" section lights every feature a
+  // click could add. Each label's halo is generated from that label's own spec,
+  // so the two cannot come to light different features — which would be worse
+  // than no glow at all.
+  it('give every clickable label a halo built from its own spec', () => {
+    expect(mapViewSource).toContain('glowTwin(layer)')
+    // Derived from the layer it belongs to, never re-declared per layer.
+    expect(mapViewSource.match(/id: `\$\{layer\.id\}-glow`/g) ?? []).toHaveLength(1)
+    for (const key of ['filter: layer.filter', 'minzoom: layer.minzoom']) {
+      expect(mapViewSource).toContain(key)
+    }
+  })
+
+  // A halo that took part in collision would make hovering the panel *remove*
+  // the labels it is pointing at.
+  it('keep the halo out of label collision entirely', () => {
+    expect(mapViewSource).toContain("'icon-ignore-placement': true")
+  })
+
   // Line placement will not honour the shared `top` anchor, so the line layer
   // restates the anchor and its offset. The two spellings have to describe the
   // same gap or a long lake's name would sit at a different height from every

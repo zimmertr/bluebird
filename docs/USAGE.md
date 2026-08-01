@@ -23,7 +23,7 @@ Press **Draw Polygon** to start. While drawing, each click on the map drops a po
 
 Outside draw mode the polygon stays on the map but has no handles, so panning and zooming around your results can't nudge a corner, and a click belongs to whatever sits under it.
 
-The **Find** picker controls what discovery looks for inside your polygon:
+The checkboxes under the buttons control what discovery looks for inside your polygon. Tick as many as you like: they are found in a single query, so peaks and lakes together cost what peaks alone would, and each result is labelled with what it actually is.
 
 | Type | OSM Query | Status |
 |---|---|---|
@@ -31,7 +31,9 @@ The **Find** picker controls what discovery looks for inside your polygon:
 | Lakes | `natural=water` + `water=lake` (named nodes/ways/relations) | Implemented |
 | Trailheads | `highway=trailhead` (named nodes/ways) | Implemented |
 
-### c. Search by Coordinates
+Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. The other three methods below still work on their own, so an analysis of pasted coordinates or clicked destinations needs no polygon and no ticks at all.
+
+### c. Specify by Coordinates
 
 Paste a CSV of your own coordinates to add them to the analysis — alongside whatever the polygon finds, or entirely on their own (no polygon needed):
 
@@ -46,9 +48,9 @@ The format is `Lat,Lon` or `Lat,Lon,Name`, one per line; without a name the coor
 
 You do not need to supply an elevation, and there is nowhere in the format to put one. Each pasted coordinate is matched to the nearest mapped peak and shows that peak's elevation once you analyze, the same figure a polygon search shows for it. A point with no mapped peak beside it stays blank, and a blank elevation is never filtered out by the elevation range, so those rows always ride along. The ready-made lists in [`examples/`](../examples/) are formatted this way.
 
-### Clicking the map
+### d. Specify by Click
 
-There is no fourth control in the panel for this one, because it is on the map. Whenever you are not drawing, the peaks and lakes labeled on the map are clickable. Click one for a popup with its name, and its elevation where there is one, then press **Add to analysis**. Clicking it again offers **Remove from analysis**.
+The control for this one is the map itself, which is why the panel section carries no widget. Hover it and every clickable feature on the map lights up, the way hovering **Search by Name** rings the search box. Whenever you are not drawing, the peaks and lakes labeled on the map are clickable. Click one for a popup with its name, and its elevation where there is one, then press **Add to analysis**. Clicking it again offers **Remove from analysis**.
 
 An added feature behaves exactly like a place searched by name: a neutral blue dot until analyzed, saved in the URL, and ranked against everything else on the next Analyze. Its elevation and its link to Peakbagger or OpenStreetMap are filled in during that analysis, by matching the point to the nearest mapped feature the way a pasted coordinate is.
 

@@ -145,7 +145,7 @@ class CapabilitiesResponse(BaseModel):
     destination_types: list[str] = Field(
         description=(
             "Destination types this deployment can actually analyze. Narrower "
-            "than the `destination_type` enum, which also models types that are "
+            "than the `DestinationType` enum, which also models types that are "
             "not yet discoverable."
         )
     )

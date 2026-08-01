@@ -46,7 +46,7 @@ router = APIRouter()
         "It also *resolves* `custom_destinations`, matching each caller-"
         "supplied coordinate to the nearest OSM peak to fill in the elevation "
         "and OSM id that a bare coordinate pair cannot carry. Send a custom "
-        "list alone (with `destination_type: custom`) to resolve without "
+        "list alone (with an empty `destination_types`) to resolve without "
         "discovering anything, or alongside a polygon to get both in one "
         "call.\n\n"
         "This exists so a browser client can fetch forecasts itself, "
@@ -61,8 +61,8 @@ router = APIRouter()
             "model": AnalysisRefusal,
             "description": (
                 "The request parsed but describes nothing to do: neither a "
-                "polygon nor a custom list was sent, the destination type is "
-                "`custom` with no list to resolve, the type is not yet "
+                "polygon nor a custom list was sent, no types were requested and "
+                "there is no list to resolve, a requested type is not yet "
                 "implemented, or the polygon contains more candidates than "
                 "the analysis ceiling. Over-cap refusals carry the structured "
                 "remedy fields; send `top_by_elevation: true` to elect an "
@@ -91,7 +91,9 @@ router = APIRouter()
     },
 )
 async def destinations(request: DestinationsRequest) -> DestinationsResponse:
-    parts = [f"type={request.destination_type.value}"]
+    parts = [
+        f"types={','.join(t.value for t in request.destination_types) or 'none'}"
+    ]
     if request.polygon is not None:
         ring = request.polygon.coordinates[0]
         parts.append(f"polygon={max(0, len(ring) - 1)}pts")
@@ -100,16 +102,16 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse:
         parts.append(f"custom={len(request.custom_destinations)}")
     log.info("Destinations request: %s", " ".join(parts))
 
-    if request.destination_type == DestinationType.custom:
-        # Discovery is skipped entirely for the custom type, exactly as on
-        # POST /api/analyze. Without a list there is genuinely nothing to do.
+    if not request.destination_types:
+        # No types requested means discovery is skipped entirely, exactly as
+        # on POST /api/analyze. Without a list there is genuinely nothing to do.
         if not request.custom_destinations:
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    "Custom destinations are supplied by the caller, so there is "
-                    "nothing to discover. Send custom_destinations to resolve a "
-                    "list, or pick a discoverable type from GET /api/capabilities."
+                    "Nothing to do: no destination_types to discover and no "
+                    "custom_destinations to resolve. Pick types from "
+                    "GET /api/capabilities, or send a custom list."
                 ),
             )
         found: list[dict] = []
@@ -117,14 +119,14 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse:
         raise HTTPException(
             status_code=400,
             detail=(
-                "polygon is required for non-custom destination types. Send a "
-                "polygon to discover, or custom_destinations with "
-                "destination_type 'custom' to resolve a list."
+                "polygon is required when destination_types is non-empty. Send "
+                "a polygon to discover, or custom_destinations alone to "
+                "resolve a list."
             ),
         )
     else:
         try:
-            found = await osm.query_osm(request.polygon, request.destination_type)
+            found = await osm.query_osm(request.polygon, request.destination_types)
         except NotImplementedError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except ratelimit.BudgetExhausted as e:
@@ -158,10 +160,9 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse:
             # A union is a mixed set, so its refusal says "destinations" and
             # advises only the remedies actually in play — the same rule the
             # analyze routes apply.
-            noun = (
-                "destination"
-                if request.custom_destinations
-                else _noun(request.destination_type)
+            noun = _noun(
+                request.destination_types,
+                has_custom=bool(request.custom_destinations),
             )
             return JSONResponse(
                 status_code=400,
@@ -177,9 +178,10 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse:
     rows = [
         DiscoveredDestination(
             name=d["name"],
-            # A union response tags every row by true source; discovered rows
-            # fall back to the request type, exactly as in _assemble.
-            type=d.get("type", request.destination_type.value),
+            # Every row carries its own type — discovery classifies each
+            # element from its tags, custom rows are tagged "custom" — so
+            # there is no request-level type left to fall back to.
+            type=d.get("type", DestinationType.custom.value),
             latitude=d["latitude"],
             longitude=d["longitude"],
             elevation_ft=d.get("elevation_ft"),

@@ -583,18 +583,32 @@ export const NOTICE = {
 /**
  * A bordered region grouping controls inside the panel: today, the calendar.
  *
- * Border only, no fill of its own, and the border is deliberately brighter than
- * anything else in the panel. slate-500 is 3.4:1 on the slate-800 panel, which
- * clears the 3:1 asked of a meaningful UI boundary; the panel's own section
- * dividers are slate-700 at 1.4:1, and something that quiet cannot make a block
- * of controls read as one object — which is the whole job here.
+ * The border is deliberately brighter than anything else in the panel.
+ * slate-500 clears the 3:1 asked of a meaningful UI boundary; the panel's own
+ * section dividers are slate-700 at 1.4:1, and something that quiet cannot
+ * make a block of controls read as one object — which is the whole job here.
  *
- * A darker inset fill would separate it further and is the obvious next lever,
- * but it is not free: `DAY.range` below is sky-950, legible on slate-800 and
- * nearly invisible on slate-900, so a fill change means brightening the range
- * band in the same breath. One change at a time.
+ * It now also carries a recessed fill, which this comment used to warn against
+ * on the grounds that `DAY.range` is sky-950, "legible on slate-800 and nearly
+ * invisible on slate-900". Measured against the Tailwind v4 palette the app
+ * actually ships, that is backwards. sky-950 sits at L 29.3%, within a point
+ * and a half of slate-800's 27.9% — which is why the range band reads by hue
+ * rather than by lightness today, at 1.05:1 — while slate-900's 20.8% puts
+ * real lightness between them. Every ratio in the calendar improves or holds:
+ *
+ * | on slate-800 → slate-900 | | |
+ * | --- | --- | --- |
+ * | day text (slate-200) | 11.90 | 14.49 |
+ * | dimmed day + today ring (slate-400) | 5.58 | 6.79 |
+ * | this border (slate-500) | 3.07 | 3.74 |
+ * | range band (sky-950) | 1.05 | 1.28 |
+ *
+ * Crucially `DAY.range` itself does **not** move, so the selected end still
+ * reads against it at the pinned 3.04:1 and `--color-sky-650` needs no
+ * re-derivation. The coupling the old comment feared only bites if the range
+ * band changes; darkening what sits *under* it does not.
  */
-export const SURFACE_GROUP = `border border-slate-500 ${RADIUS.surface}`
+export const SURFACE_GROUP = `bg-slate-900 border border-slate-500 ${RADIUS.surface}`
 
 /**
  * The calendar's day cells.

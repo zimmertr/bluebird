@@ -22,7 +22,9 @@ import { Place } from './geocode'
 // they're re-fetched fresh so a shared link never replays stale forecasts.
 export interface ShareableState {
   polygon: GeoPolygon | null
-  destinationType: DiscoveryType
+  // A set, not a value: the polygon can look for several kinds at once, and
+  // an empty set means it looks for nothing.
+  destinationTypes: DiscoveryType[]
   // What the analysis asks about: the current hour, or a day/day-range with an
   // optional narrowing to a span of hours (#166). One value where there used to
   // be four — a mode plus three parallel sets of timestamps, two of them always
@@ -59,7 +61,10 @@ const POLY_PRECISION = 5 // ~1 m; keeps the URL short without visible drift
 // Control defaults — must mirror the initial useState values in App.tsx. Used to
 // decide whether the user has changed anything worth persisting to the URL.
 const DEFAULT_SORT: SortBy = 'precip_total_in'
-const DEFAULT_TYPE: DiscoveryType = 'peak'
+// Nothing is checked by default. Discovery is the expensive input and the
+// one that needs a polygon, so a fresh session asks for none of it until the
+// user says otherwise.
+const DEFAULT_TYPES: DiscoveryType[] = []
 const DEFAULT_LIMIT = 200
 
 // Hold a row count inside what the running service will accept. The ceiling is
@@ -187,14 +192,17 @@ export function encodeState(state: ShareableState): string {
     state.sortBy !== DEFAULT_SORT ||
     state.sortDesc ||
     state.limit !== DEFAULT_LIMIT ||
-    state.destinationType !== DEFAULT_TYPE ||
+    state.destinationTypes.length !== DEFAULT_TYPES.length ||
     state.showWildfires ||
     state.selection.kind !== 'now'
   if (!hasPolygon && !hasCustom && !hasConstraint && !hasPins && !nonDefaultControls)
     return ''
 
   const p = new URLSearchParams()
-  p.set('type', state.destinationType)
+  // Comma-joined and left unencoded: the param stays something you can read
+  // and edit in the address bar, which is the convention every readable
+  // field here follows.
+  if (state.destinationTypes.length > 0) p.set('type', state.destinationTypes.join(','))
   p.set('sort', state.sortBy)
   if (state.sortDesc) p.set('desc', '1')
   p.set('limit', String(state.limit))
@@ -308,12 +316,17 @@ export function decodeState(search: string): Partial<ShareableState> | null {
 
   const out: Partial<ShareableState> = {}
 
-  // Legacy links from when Custom (CSV) was a mode carry type=custom; the CSV
-  // itself restores below via customz/custom, and the type picker just falls
-  // back to its default.
+  // `type=peak,lake`. Unknown names are dropped rather than failing the whole
+  // link — an old `type=custom` link, or a type a future deployment stopped
+  // publishing, restores as "no types checked" and the rest of the link still
+  // works.
   const type = params.get('type')
-  if (type && DISCOVERY_TYPES.includes(type as DiscoveryType)) {
-    out.destinationType = type as DiscoveryType
+  if (type) {
+    const types = type
+      .split(',')
+      .map((t) => t.trim())
+      .filter((t): t is DiscoveryType => DISCOVERY_TYPES.includes(t as DiscoveryType))
+    if (types.length > 0) out.destinationTypes = [...new Set(types)]
   }
 
   const sort = params.get('sort')

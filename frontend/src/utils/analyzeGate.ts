@@ -22,6 +22,10 @@ export interface AnalyzeGate {
   hasWindowWarning: boolean
   loading: boolean
   areaTooLarge: boolean
+  // A polygon that is drawn, inside the area cap, AND has at least one type
+  // checked. Without a type it discovers nothing, so it is not an input:
+  // letting it enable Analyze would send a request the server answers with
+  // "nothing to analyze".
   polygonReady: boolean
   hasCustom: boolean
   hasPins: boolean
@@ -58,7 +62,7 @@ export function canAnalyze(g: AnalyzeGate): boolean {
  * produce, because "unreachable" is a claim about a caller and this function
  * should not depend on one.
  */
-export type AnalyzeBlocker = 'area' | 'window' | 'destinations' | 'polygon'
+export type AnalyzeBlocker = 'area' | 'window' | 'destinations' | 'polygon' | 'types'
 
 export function analyzeBlockers(g: AnalyzeGate & { drawPointCount: number }): AnalyzeBlocker[] {
   // Mid-analysis the button is disabled because it is busy, which the button
@@ -69,6 +73,10 @@ export function analyzeBlockers(g: AnalyzeGate & { drawPointCount: number }): An
   if (g.hasWindowWarning) blockers.push('window')
   if (!g.polygonReady && !g.hasCustom && !g.hasPins) {
     if (g.drawPointCount > 0 && g.drawPointCount < 3) blockers.push('polygon')
+    // A finished polygon with nothing checked is not an unfinished polygon
+    // and not a missing destination — it is a search with nothing to look
+    // for, and only one of the three lines can act on that.
+    else if (g.drawPointCount >= 3 && !g.areaTooLarge) blockers.push('types')
     else if (!g.areaTooLarge) blockers.push('destinations')
   }
   return blockers

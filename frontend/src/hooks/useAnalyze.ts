@@ -243,7 +243,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           polygon: request.polygon,
-          destination_type: request.destination_type,
+          destination_types: request.destination_types,
           min_elevation_ft: request.min_elevation_ft,
           max_elevation_ft: request.max_elevation_ft,
           top_by_elevation: request.top_by_elevation ?? false,

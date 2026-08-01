@@ -76,6 +76,8 @@ function blockerText(blocker: AnalyzeBlocker, maxAreaKm2: number, pointsNeeded: 
       return 'Provide at least one destination to analyze.'
     case 'polygon':
       return `Add ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon.`
+    case 'types':
+      return 'Pick what the polygon should find, or add a destination another way.'
   }
 }
 
@@ -100,8 +102,14 @@ interface Props {
   // Hovering the Search by Name section rings the map's search box, the one
   // control this panel names but does not hold.
   onPointAtSearch: (on: boolean) => void
-  destinationType: DiscoveryType
-  setDestinationType: (t: DiscoveryType) => void
+  // The same idea for the map's clickable peaks and lakes: hovering the
+  // "Specify by Click" section makes them glow, so a method with no control
+  // in this panel still has somewhere to point.
+  onPointAtMapPois: (on: boolean) => void
+  // A set: one polygon can look for several kinds at once, and none checked
+  // means the polygon discovers nothing.
+  destinationTypes: DiscoveryType[]
+  setDestinationTypes: (t: DiscoveryType[]) => void
   // What the analysis asks about: the current hour, or days off the calendar.
   // One value rather than a mode plus three sets of timestamps (#166), so there
   // is no dormant state to preserve across a switch.
@@ -175,8 +183,9 @@ export default function ControlPanel({
   polygonAreaKm2,
   onCancelDrawing,
   onPointAtSearch,
-  destinationType,
-  setDestinationType,
+  onPointAtMapPois,
+  destinationTypes,
+  setDestinationTypes,
   selection,
   setSelection,
   limit,
@@ -226,7 +235,7 @@ export default function ControlPanel({
   const csvPasteRef = useRef(false)
   const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > maxAreaKm2
 
-  const polygonReady = drawPointCount >= 3 && !areaTooLarge
+  const polygonReady = drawPointCount >= 3 && !areaTooLarge && destinationTypes.length > 0
   const gate = {
     hasWindowWarning: windowWarning !== null,
     loading,
@@ -346,21 +355,28 @@ export default function ControlPanel({
                 </button>
               )}
             </div>
-            {/* Panel-wide label convention, first established here: something
-                you pick is text-xs/slate-200, something that names a field is
-                text-xs/slate-400. Hierarchy is the section heading's job — a
-                bolder choice label just competes with it. */}
+            {/* Checkboxes, not radios: one polygon can look for several kinds
+                at once, and they all come back from a single Overpass query,
+                so asking for peaks and lakes together costs what peaks alone
+                would. The "Find:" label that used to lead this row is gone —
+                three checkboxes under a heading called "Search by Polygon"
+                are not ambiguous about what they do. */}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2">
-              <span className={TEXT.subheading}>Find:</span>
               {DESTINATION_TYPES.map(({ value, label, implemented }) => (
                 <label key={value} className={CHOICE_ROW}>
                   <input
-                    type="radio"
-                    name="destination_type"
+                    type="checkbox"
+                    name="destination_types"
                     value={value}
-                    checked={destinationType === value}
+                    checked={destinationTypes.includes(value)}
                     disabled={!implemented}
-                    onChange={() => setDestinationType(value)}
+                    onChange={(e) =>
+                      setDestinationTypes(
+                        e.target.checked
+                          ? [...destinationTypes, value]
+                          : destinationTypes.filter((t) => t !== value),
+                      )
+                    }
                     className={CHOICE_INPUT}
                   />
                   <span>{label}</span>
@@ -370,9 +386,11 @@ export default function ControlPanel({
             </div>
           </div>
 
-          {/* c. Search by coordinates */}
-          <div>
-            <h3 className={`${TEXT.subheading} mb-1`}>Search by Coordinates</h3>
+          {/* c. Specify by coordinates. "Specify" rather than "Search"
+              because nothing is being looked for: the two methods above go and
+              find destinations, these last two name them outright. */}
+          <div className="mb-3">
+            <h3 className={`${TEXT.subheading} mb-1`}>Specify by Coordinates</h3>
             <p className={`${TEXT.helper} mb-1.5`}>
               Specify exact destinations using coordinate pairs.
             </p>
@@ -402,6 +420,18 @@ export default function ControlPanel({
                 {parsedCustom.length} destination{parsedCustom.length !== 1 ? 's' : ''} parsed
               </p>
             )}
+          </div>
+
+          {/* d. Specify by click — the second method whose control is not in
+              this panel. Hovering it lights every clickable feature on the
+              map, the same trick the Search by Name section uses to point at
+              the search box: the reader is shown where it is instead of told. */}
+          <div
+            onMouseEnter={() => onPointAtMapPois(true)}
+            onMouseLeave={() => onPointAtMapPois(false)}
+          >
+            <h3 className={`${TEXT.subheading} mb-1`}>Specify by Click</h3>
+            <p className={TEXT.helper}>Select a destination from the map.</p>
           </div>
         </section>
 

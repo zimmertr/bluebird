@@ -43,10 +43,13 @@ const NOUNS: Record<string, string> = {
 }
 
 export function analysisNoun(request: AnalyzeRequest): string {
-  // A union (polygon + custom list) is a mixed set, so its messages say
-  // "destinations" rather than any one type's noun — same rule as the routes.
-  if (request.custom_destinations?.length) return 'destination'
-  return NOUNS[request.destination_type] ?? 'destination'
+  // Port of _noun: a specific noun only when the set holds exactly one
+  // kind, because "1,842 peaks" beats "1,842 destinations"; anything mixed
+  // merges rather than listing types, since a refusal is read for its
+  // remedy and an inventory buries that.
+  const kinds = new Set(request.destination_types)
+  if (request.custom_destinations?.length || kinds.size !== 1) return 'destination'
+  return NOUNS[[...kinds][0]] ?? 'destination'
 }
 
 // Port of _cap_detail: the over-cap refusal, advising only the remedies
@@ -196,7 +199,7 @@ export async function resolveCustomOnly(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        destination_type: 'custom',
+        destination_types: [],
         custom_destinations: custom,
       }),
       signal,
@@ -357,7 +360,7 @@ export async function runClientAnalysis(
         capDetail(
           candidates.length,
           noun,
-          request.destination_type !== 'custom',
+          request.destination_types.length > 0,
           Boolean(request.custom_destinations?.length),
           suggestion,
           cap,

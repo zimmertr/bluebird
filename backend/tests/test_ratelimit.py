@@ -54,7 +54,7 @@ def _analyze_payload(inverted: bool = True) -> dict:
     # An inverted window fails with 400 inside the handler, past the rate-limit
     # dependency but before any upstream call — the cheapest real request.
     return {
-        "destination_type": "peak",
+        "destination_types": ["peak"],
         "polygon": {
             "type": "Polygon",
             "coordinates": [[[0, 0], [0.1, 0], [0.1, 0.1], [0, 0.1], [0, 0]]],

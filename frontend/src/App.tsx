@@ -170,8 +170,12 @@ export default function App() {
     () => Math.max(0, (restored?.polygon?.coordinates[0]?.length ?? 1) - 1),
   )
   const [polygonAreaKm2, setPolygonAreaKm2] = useState<number | null>(null)
-  const [destinationType, setDestinationType] = useState<DiscoveryType>(
-    () => restored?.destinationType ?? 'peak',
+  // Which kinds the polygon looks for, as a set — several are found in one
+  // Overpass query. Nothing is checked by default: discovery is the input
+  // that needs a polygon and costs an upstream query, so a fresh session
+  // asks for none of it until the user says so.
+  const [destinationTypes, setDestinationTypes] = useState<DiscoveryType[]>(
+    () => restored?.destinationTypes ?? [],
   )
   // What Analyze asks about: the current hour, or days off the calendar (#166).
   // One value where there used to be four — a mode plus three sets of
@@ -225,6 +229,9 @@ export default function App() {
   // The panel's Search by Name section is hovered, so the map's search box —
   // the control that section names but does not contain — wears a ring.
   const [searchPointed, setSearchPointed] = useState(false)
+  // Hovering the "Specify by Click" section glows every clickable feature on
+  // the map, the same way hovering "Search by Name" rings the search box.
+  const [poisPointed, setPoisPointed] = useState(false)
   const isDesktop = useIsDesktop()
 
   function dismissWelcome() {
@@ -438,7 +445,7 @@ export default function App() {
   useEffect(() => {
     const qs = encodeState({
       polygon,
-      destinationType,
+      destinationTypes,
       selection,
       sortBy,
       sortDesc,
@@ -465,7 +472,7 @@ export default function App() {
     // documents. Unmount is handled by its own effect below.
   }, [
     polygon,
-    destinationType,
+    destinationTypes,
     selection,
     sortBy,
     sortDesc,
@@ -539,7 +546,9 @@ export default function App() {
   function discoveryBase(poly: GeoPolygon | null, csvRows: CustomDestination[]): string {
     return JSON.stringify({
       ring: poly?.coordinates[0] ?? null,
-      type: destinationType,
+      // Sorted so checking peaks then lakes and lakes then peaks are the
+      // same discovery, matching the order-independent cache key upstream.
+      types: [...destinationTypes].sort(),
       csv: csvRows,
       minEl: minElevationFt,
       maxEl: maxElevationFt,
@@ -587,7 +596,7 @@ export default function App() {
     // destinations this report never ranked.
     const removalScope = JSON.stringify({
       ring: resolvedPolygon?.coordinates[0] ?? null,
-      type: destinationType,
+      types: [...destinationTypes].sort(),
       csv: customCsv.trim(),
     })
     const widened =
@@ -632,7 +641,7 @@ export default function App() {
       // reads as an addition (fresh run), not a refresh that would skip it.
       discoveryRef.current = { base, searchedKeys }
       await analyze({
-        destination_type: 'custom',
+        destination_types: [],
         start_datetime: start,
         end_datetime: end,
         limit,
@@ -646,7 +655,7 @@ export default function App() {
       // polygon ∪ CSV union as one report.
       await analyze({
         polygon: resolvedPolygon,
-        destination_type: destinationType,
+        destination_types: destinationTypes,
         start_datetime: start,
         end_datetime: end,
         limit,
@@ -663,7 +672,7 @@ export default function App() {
       // can't mistake these rows for that polygon's discovered set.
       discoveryRef.current = null
       await analyze({
-        destination_type: 'custom',
+        destination_types: [],
         start_datetime: start,
         end_datetime: end,
         limit,
@@ -910,8 +919,9 @@ export default function App() {
           onCancelDrawing={handleCancelDrawing}
           onPointAtSearch={setSearchPointed}
           wildfireCheckFailed={fire.status === 'unavailable' && results.length > 0}
-          destinationType={destinationType}
-          setDestinationType={setDestinationType}
+          onPointAtMapPois={setPoisPointed}
+          destinationTypes={destinationTypes}
+          setDestinationTypes={setDestinationTypes}
           selection={selection}
           setSelection={setSelection}
           limit={limit}
@@ -1029,6 +1039,7 @@ export default function App() {
           <MapView
             ref={mapRef}
             drawing={drawing}
+            pointedPois={poisPointed}
             polygon={polygon}
             restoredCustomPoints={restoredCustomPoints}
             onPolygonChange={setPolygon}

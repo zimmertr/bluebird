@@ -63,6 +63,10 @@ interface Props {
   // has no handles to catch a pan, and clicks belong to the basemap features
   // sitting under them (#119).
   drawing: boolean
+  // The panel's "Specify by Click" section is hovered: light every feature a
+  // click could add, so a destination method with no control in the panel
+  // still has somewhere to point. Mirrors the ring the search box gets.
+  pointedPois: boolean
   polygon: GeoPolygon | null // initial ring (e.g. restored from the URL)
   // Custom CSV destinations restored from the URL, parsed once at mount. Like
   // a restored polygon they suppress geolocation and are framed on load, so a
@@ -201,6 +205,35 @@ const POI_LABEL_PAINT: SymbolLayerSpecification['paint'] = {
 // see lakeAnchor's fallback.
 const WATER_FILL_LAYER = 'water'
 
+// The halo drawn under every clickable feature while the panel's "Specify by
+// Click" section is hovered — the map's answer to the ring that section's
+// neighbour puts around the search box.
+//
+// Generated rather than shipped, because the basemap sprite carries no SDF
+// icons at all (checked: zero of them), so `icon-color` and `icon-halo-color`
+// cannot tint `mountain_11` or `water_11`, and there is nothing in it shaped
+// like a glow. A radial gradient on a canvas is a few lines, needs no asset
+// pipeline, and lets the accent live in one place.
+const POI_GLOW_IMAGE = 'ofm-poi-glow'
+const POI_GLOW_PX = 48
+
+function makeGlowImage(): ImageData | null {
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = POI_GLOW_PX
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  const r = POI_GLOW_PX / 2
+  const gradient = ctx.createRadialGradient(r, r, 0, r, r, r)
+  // Opaque enough at the core to read over a dark lake, gone by the rim so it
+  // reads as a glow rather than a disc with an edge.
+  gradient.addColorStop(0, 'rgba(56, 189, 248, 0.85)')
+  gradient.addColorStop(0.5, 'rgba(56, 189, 248, 0.35)')
+  gradient.addColorStop(1, 'rgba(56, 189, 248, 0)')
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, POI_GLOW_PX, POI_GLOW_PX)
+  return ctx.getImageData(0, 0, POI_GLOW_PX, POI_GLOW_PX)
+}
+
 // A rendered feature's polygons, each as its own ring list (outer first, holes
 // after) so `widestPole` can pole them separately. Anything that is not an
 // area contributes nothing.
@@ -314,10 +347,51 @@ function setSource(map: maplibregl.Map, id: string, data: object) {
 // all (the `mountain_peak` layer exists in the tiles but no style layer paints
 // it), trails only appear at z14+, and lake labels are faint. Patch the loaded
 // style to surface them. All three read from the existing `openmaptiles` source.
+/**
+ * The hidden halo layer belonging to a clickable label.
+ *
+ * Built from the label's own spec rather than written out three times, so a
+ * POI layer cannot gain a filter, a floor or a placement that its glow does
+ * not: the two would then light different features, which is worse than no
+ * glow at all. It carries no text — the glow is a marker, and repeating the
+ * name under the real one would just look like a rendering fault.
+ *
+ * `icon-ignore-placement` keeps it out of collision entirely. A halo that
+ * displaced labels would make hovering the panel *remove* the names it is
+ * trying to point at.
+ */
+function glowTwin(layer: maplibregl.SymbolLayerSpecification): maplibregl.SymbolLayerSpecification {
+  const placement = layer.layout?.['symbol-placement']
+  return {
+    id: `${layer.id}-glow`,
+    type: 'symbol',
+    source: layer.source,
+    'source-layer': layer['source-layer'],
+    minzoom: layer.minzoom,
+    // Spread rather than assigned: the peaks layer matches everything in its
+    // source-layer and so carries no filter, and MapLibre rejects an explicit
+    // `filter: undefined` rather than treating it as absent.
+    ...(layer.filter ? { filter: layer.filter } : {}),
+    layout: {
+      'icon-image': POI_GLOW_IMAGE,
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      'icon-rotation-alignment': 'viewport',
+      ...(placement ? { 'symbol-placement': placement } : {}),
+      visibility: 'none',
+    },
+  }
+}
+
 function enhanceBasemap(map: maplibregl.Map) {
   // Slot our additions just beneath the style's first text layer so labels
   // (including the ones we add) stay on top of lines and fills.
   const firstSymbolId = map.getStyle().layers?.find((l) => l.type === 'symbol')?.id
+
+  // Registered before any layer names it; MapLibre draws nothing for an
+  // unknown icon and only warns.
+  const glow = makeGlowImage()
+  if (glow && !map.hasImage(POI_GLOW_IMAGE)) map.addImage(POI_GLOW_IMAGE, glow)
 
   // Trails: OSM class=path/track. Liberty only draws these from z14, too late
   // for orienting while drawing a polygon — show them from z11 in a trail hue.
@@ -342,7 +416,17 @@ function enhanceBasemap(map: maplibregl.Map) {
   // Peaks: icon + name + elevation (feet). Sorted by OSM prominence rank so the
   // notable summits win label collisions. icon-allow-overlap keeps every marker
   // visible while text-optional drops just the label when space is tight.
-  map.addLayer(
+  // Shared by both lake layers, which differ only in the geometry they match
+  // and how a label is placed on it.
+  const lakeLabel: SymbolLayerSpecification['layout'] = {
+    ...poiLabelLayout('water_11'),
+    'text-field': ['get', 'name'],
+  }
+
+  // Every clickable destination the basemap offers, declared rather than added
+  // one call at a time, so each can be given a matching glow below without the
+  // two lists drifting.
+  const poiLayers: SymbolLayerSpecification[] = [
     {
       id: 'ofm-peaks',
       type: 'symbol',
@@ -361,10 +445,7 @@ function enhanceBasemap(map: maplibregl.Map) {
       },
       paint: POI_LABEL_PAINT,
     },
-    firstSymbolId,
-  )
-
-  // Lakes: our own layer, wearing the peaks' treatment — same icon slot, same
+    // Lakes: our own layer, wearing the peaks' treatment — same icon slot, same
   // type, same halo, same floor — so the two kinds of destination read as one
   // family rather than as a mountain and a piece of the basemap. The only
   // difference is the missing elevation line, and that is a data fact rather
@@ -377,11 +458,6 @@ function enhanceBasemap(map: maplibregl.Map) {
   // Lake Washington is a line. `symbol-placement` defaults to `point`, which
   // puts one upright label at the geometry's center, so both kinds get the
   // same label instead of a curved one and an upright one.
-  const lakeLabel: SymbolLayerSpecification['layout'] = {
-    ...poiLabelLayout('water_11'),
-    'text-field': ['get', 'name'],
-  }
-  map.addLayer(
     {
       id: 'ofm-lakes',
       type: 'symbol',
@@ -396,10 +472,7 @@ function enhanceBasemap(map: maplibregl.Map) {
       layout: lakeLabel,
       paint: POI_LABEL_PAINT,
     },
-    firstSymbolId,
-  )
-
-  // The long lakes, which arrive as a line to bend text along rather than a
+    // The long lakes, which arrive as a line to bend text along rather than a
   // point to anchor it to — Lake Washington is one, and around Seattle every
   // lake label is. A point-placed symbol draws nothing at all on a line
   // geometry (measured), so they need `line-center`, which puts one symbol at
@@ -419,7 +492,6 @@ function enhanceBasemap(map: maplibregl.Map) {
   //   the text's upper edge 0.7em below the point; `center` puts its middle
   //   there, and the text is one line tall, so the same gap is 0.7 + 0.5 =
   //   1.2em. Identical spacing to a peak, arrived at from the other side.
-  map.addLayer(
     {
       id: 'ofm-lakes-line',
       type: 'symbol',
@@ -441,8 +513,15 @@ function enhanceBasemap(map: maplibregl.Map) {
       },
       paint: POI_LABEL_PAINT,
     },
-    firstSymbolId,
-  )
+  ]
+
+  // Each label goes on with its halo underneath it: the glow is added first so
+  // it lands below, and both use the same `before` so the pair stays together
+  // beneath the style's own symbols.
+  for (const layer of poiLayers) {
+    map.addLayer(glowTwin(layer), firstSymbolId)
+    map.addLayer(layer, firstSymbolId)
+  }
 
   // The style keeps the water we do NOT draw — oceans, bays, straits, which
   // orient a coastal polygon — but loses `lake` from both of its water label
@@ -465,6 +544,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
   (
     {
       drawing,
+      pointedPois,
       polygon,
       restoredCustomPoints,
       onPolygonChange,
@@ -1314,6 +1394,18 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onRemovePoiRef.current = onRemovePoi
     }, [searchedPlaces, onAddPoi, onRemovePoi])
 
+    // Light every clickable basemap feature while the panel points at them.
+    useEffect(() => {
+      const map = mapRef.current
+      if (!map || !mapReady) return
+      for (const id of POI_LAYERS) {
+        const glow = `${id}-glow`
+        if (map.getLayer(glow)) {
+          map.setLayoutProperty(glow, 'visibility', pointedPois ? 'visible' : 'none')
+        }
+      }
+    }, [pointedPois, mapReady])
+
     // Draw mode: show or hide the editing handles, and move the cursor with
     // them. Leaving draw mode also drops any open vertex-delete popup, which
     // offers an edit the map no longer accepts.
@@ -1346,7 +1438,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       const map = mapRef.current
       if (!map || !mapReady || !map.getLayer('ofm-peaks')) return
-      map.setFilter('ofm-peaks', peakElevationFilter(minElevationFt, maxElevationFt))
+      const band = peakElevationFilter(minElevationFt, maxElevationFt)
+      // The halo follows the band too, or hovering the panel would light
+      // summits the band has already taken off the map.
+      for (const id of ['ofm-peaks', 'ofm-peaks-glow']) {
+        if (map.getLayer(id)) map.setFilter(id, band)
+      }
     }, [minElevationFt, maxElevationFt, mapReady])
 
     // Toggle the NIFC wildfire overlay. On: fetch perimeters for the current
