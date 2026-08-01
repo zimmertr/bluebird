@@ -136,6 +136,47 @@ describe('the provider credits', () => {
   it('stay off the panel footer, which offers only the document pages', () => {
     expect(controlPanel).not.toMatch(/dataSources|DATA_SOURCES/)
   })
+
+  // CC BY 3.0 asks for this one wherever the fire data is drawn, which is the
+  // map rather than a document page. Section 4(b) lets the credit be
+  // "implemented in any reasonable manner", so it folded into the swatch's own
+  // label; what has to survive a rewrite is that the link is on the map at all
+  // and that it names NIFC.
+  it('keep NIFC on the map beside the fire overlay', () => {
+    expect(app).toMatch(/Active Wildfire/)
+    expect(app).toMatch(/https:\/\/data-nifc\.opendata\.arcgis\.com/)
+  })
+
+  // Open-Meteo's licence page gives "Weather data by Open-Meteo.com" as an
+  // example rather than as required wording, so the bare link stands; what it
+  // does require is that the link be beside the data, which is the docked
+  // results bar.
+  it('keep Open-Meteo beside the forecasts', () => {
+    expect(app).toMatch(/https:\/\/open-meteo\.com/)
+  })
+})
+
+// The other half of both CC BY licenses. 4.0 section 3(a)(1)(C) wants the
+// license indicated and its URI included; 3.0 section 4(a) wants a copy of or
+// the URI for the license with every copy, flatly, with none of 4(b)'s
+// latitude. Printing the license *name* satisfies neither, and that is all the
+// app did — only NOTICES.md carried the URIs, and a repo file is never served
+// to a visitor. 4.0 section 3(a)(2) permits satisfying it "by providing a URI
+// or hyperlink to a resource that includes the required information", so
+// DataSourceList is that resource: both document pages render it, and the panel
+// footer offers both from every screen.
+describe('the data licenses', () => {
+  it('are reachable from inside the app, not only from NOTICES.md', () => {
+    expect(dataSourceList).toMatch(/href={source\.licenseHref}/)
+  })
+
+  // A URI inlined on a page would pass the assertion above while drifting from
+  // the list every other surface reads.
+  it('stay in the shared list rather than spelled at a call site', () => {
+    for (const source of [privacyPage, termsPage]) {
+      expect(copy(source)).not.toMatch(/creativecommons\.org|opendatacommons\.org/)
+    }
+  })
 })
 
 // The map CSS moved out of index.css into map.css, imported only by MapView,

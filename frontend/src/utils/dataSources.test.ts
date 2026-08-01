@@ -39,6 +39,28 @@ describe('data sources', () => {
     expect(byName.NIFC?.license).toBe('CC BY 3.0')
   })
 
+  // A named license needs somewhere to be read. Both CC BY versions here ask
+  // for the license text or its URI alongside the data, and this list is the
+  // only place in the shipped app that can carry it — NOTICES.md is a repo file
+  // no visitor is ever served. A name without a URI is exactly the state that
+  // failed that, so a new licensed source arrives with one or fails here.
+  it('links every license it names', () => {
+    const licensed = DATA_SOURCES.filter((s) => s.license)
+
+    expect(licensed.length).toBeGreaterThan(0)
+    for (const source of licensed) {
+      expect(source.licenseHref, `${source.name} names a license with no URI`).toMatch(
+        /^https:\/\//,
+      )
+    }
+  })
+
+  it('leaves the URI off a source that names no license', () => {
+    for (const source of DATA_SOURCES) {
+      if (!source.license) expect(source.licenseHref).toBeUndefined()
+    }
+  })
+
   // House style for anything a user reads. Checked here because legal.test.ts
   // lints component source, and this copy is data those components interpolate
   // at runtime; it never appears in their source text.

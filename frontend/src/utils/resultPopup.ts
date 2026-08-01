@@ -4,12 +4,40 @@ import { destinationUrl } from './destinationUrl'
 import { FireWarning, fireWarningText } from './fireProximity'
 
 // The popup reads as prose rather than as table headers, so it lowercases the
-// aggregate and skips metrics.ts's separator: this markup already spends "·"
-// separating two stats on one line, and that character can't mean two things
-// inside the same line.
+// aggregate and skips metrics.ts's separator.
 const TOTAL = AGGREGATE.total.toLowerCase()
 const AVERAGE = AGGREGATE.average.toLowerCase()
 const MAXIMUM = AGGREGATE.maximum.toLowerCase()
+
+/**
+ * The face a value is set in, so the label and the number separate at a glance
+ * rather than on a re-read.
+ *
+ * Weight is not available for this: the popup's one <strong> is its title, and
+ * a second bold would stop the title being the emphasis. A face change carries
+ * the same separation without spending any. Monospace specifically, because
+ * that is what the results table already does — every metric cell is mono there
+ * and only the name is sans — so the same numbers look the same in both places,
+ * and a column of them lines up on the decimal.
+ *
+ * The stack is spelled out rather than left to a bare `monospace` keyword
+ * because this markup is handed to MapLibre's setHTML, which the
+ * stylesheet-scanned design system in styles.ts cannot reach.
+ */
+const VALUE_FACE = 'font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace'
+
+/**
+ * One "label: value" line.
+ *
+ * Every stat gets its own. Wind and temperature used to share a line separated
+ * by a "·" — the only line carrying two metrics, and the only one long enough
+ * to wrap, so on a narrow map it broke at whatever character reached the edge
+ * and the second label landed mid-line under the first one's number. The
+ * remaining "·" between the two air-quality figures went the same way.
+ */
+function row(label: string, value: string): string {
+  return `<div>${label}: <span style="${VALUE_FACE}">${value}</span></div>`
+}
 
 // Popup body shared by a marker click and a table-rank click (focusResult), so
 // the two never drift. Values arrive raw; all formatting — and the coordinate
@@ -52,14 +80,20 @@ export function resultPopupHtml(d: {
   const fire = d.warning
     ? `<div style="color:#f59e0b;font-weight:600;margin-top:2px">⚠️ ${escapeHtml(fireWarningText(d.warning))}</div>`
     : ''
+  // The name is OSM's, which makes it third-party text on its way to setHTML
+  // exactly like the incident name below it. It had gone unescaped since the
+  // popup was written, so the escaping is not new policy here, just applied to
+  // the one string in this file that was missing it.
   return `<div style="font-family:sans-serif;font-size:13px;line-height:1.5">
-    <div style="display:flex;align-items:center;gap:6px"><strong>${d.rank ? `#${d.rank} ` : ''}${d.name}</strong>${linkIcon}</div>
+    <div style="display:flex;align-items:center;gap:6px"><strong>${d.rank ? `#${escapeHtml(String(d.rank))} ` : ''}${escapeHtml(d.name)}</strong>${linkIcon}</div>
     ${fire}
-    ${d.elevationFt != null ? `<div>Elevation: ${Number(d.elevationFt).toLocaleString()} ft</div>` : ''}
-    <div>${NOUN.precip} ${TOTAL}: ${Number(d.precipTotalIn).toFixed(3)}"</div>
-    <div>${NOUN.wind} ${AVERAGE}: ${Number(d.windAvgMph).toFixed(1)} mph · ${NOUN.temp} ${AVERAGE}: ${Number(d.tempAvgF).toFixed(1)}°F</div>
-    ${d.aqiAvg != null ? `<div>${NOUN.aqi} ${AVERAGE}: ${d.aqiAvg} · ${MAXIMUM}: ${d.aqiMax}</div>` : ''}
-    <div>Coordinates: ${Number(d.latitude).toFixed(5)}, ${Number(d.longitude).toFixed(5)}</div>
+    ${d.elevationFt != null ? row('Elevation', `${Number(d.elevationFt).toLocaleString()} ft`) : ''}
+    ${row(`${NOUN.precip} ${TOTAL}`, `${Number(d.precipTotalIn).toFixed(3)}"`)}
+    ${row(`${NOUN.wind} ${AVERAGE}`, `${Number(d.windAvgMph).toFixed(1)} mph`)}
+    ${row(`${NOUN.temp} ${AVERAGE}`, `${Number(d.tempAvgF).toFixed(1)}°F`)}
+    ${d.aqiAvg != null ? row(`${NOUN.aqi} ${AVERAGE}`, String(d.aqiAvg)) : ''}
+    ${d.aqiAvg != null ? row(`${NOUN.aqi} ${MAXIMUM}`, String(d.aqiMax)) : ''}
+    ${row('Coordinates', `${Number(d.latitude).toFixed(5)}, ${Number(d.longitude).toFixed(5)}`)}
   </div>`
 }
 

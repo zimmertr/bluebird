@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { DestinationResult, SortBy } from '../types'
-import { cellStyle, METRIC_CONFIG } from '../utils/colors'
+import { cellStyle, scaleFor, METRIC_CONFIG } from '../utils/colors'
 import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
 import { SortDir, SortKey, displayedColumns } from '../utils/tableColumns'
 import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
@@ -211,14 +211,19 @@ export default function ResultsTable({
     return orderedColumns.map((col) => {
       const raw = row[col.key]
       const display = col.format ? col.format(raw) : String(raw ?? '—')
-      const sortVal = row[sortBy]
-      const isColored = coloredGroup.has(col.key as string) && sortVal != null
+      // Each colored cell scores the number printed in it, against the scale
+      // its own column is measured on. It used to score the *ranked* value
+      // instead, so the whole group came out one flat color and the spread the
+      // extra columns exist to show was the one thing the color could not say.
+      const scale = coloredGroup.has(col.key as string)
+        ? scaleFor(col.key as string, pointSample)
+        : null
       // Color comes from the table's own base, or inline from cellStyle for a
       // ranked column — an inline color beats the inherited one either way.
       const cellClass = `${TABLE.cell} whitespace-nowrap ${
         col.key === 'name' ? 'font-sans font-medium' : 'font-mono'
       }`
-      const colorSty = isColored ? cellStyle(sortVal as number, sortBy) : undefined
+      const colorSty = scale && raw != null ? cellStyle(raw as number, scale) : undefined
 
       if (col.key === 'name') {
         const warning = fireWarnings.get(fireKey(row.latitude, row.longitude))

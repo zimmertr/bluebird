@@ -491,12 +491,24 @@ async function classify429(res: Response): Promise<OpenMeteoRateLimited> {
   // tolerant costs nothing and minimal fetch stubs in tests omit them.
   const header = res.headers?.get?.('Retry-After')
   if (header && Number.isFinite(Number(header))) retryAfterS = Math.max(1, Math.ceil(Number(header)))
+  // Whose quota it is, named. These fetches leave the reader's own browser
+  // against the reader's own address, so "your quota" is literally true and is
+  // the fact that makes the wait make sense; "the weather service has used up
+  // its quota" described an outage the reader could only wait out, and invited
+  // the reading that Bluebird was down. Naming Open-Meteo matters for the same
+  // reason: it is the credit already docked beside the results, so the sentence
+  // lands on something the reader can see rather than on an anonymous service.
+  //
+  // The advice to analyze a smaller area is gone. It is true of the minutely
+  // bucket, which the pacer already absorbs without ever reaching this message;
+  // against an exhausted daily quota a smaller area is still refused, so it
+  // read as a remedy and was not one.
   const message =
     scope === 'hourly'
-      ? 'The weather service has used up its hourly request quota for your connection. Try again after the top of the hour, or analyze a smaller area.'
+      ? 'You have reached your hourly Open-Meteo forecast quota. Please try again after the top of the hour.'
       : scope === 'daily' || scope === 'monthly'
-      ? `The weather service has used up its ${scope} request quota for your connection. Try again later, or analyze a smaller area.`
-      : 'The weather service is rate-limiting requests from your connection. Bluebird pauses and resumes automatically; if this keeps failing, wait a minute and try again.'
+      ? `You have reached your ${scope} Open-Meteo forecast quota. Please try again later.`
+      : 'Open-Meteo is rate-limiting your connection. Bluebird pauses and resumes automatically; if this keeps failing, wait a minute and try again.'
   return new OpenMeteoRateLimited(message, scope, retryAfterS)
 }
 

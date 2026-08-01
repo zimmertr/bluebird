@@ -27,7 +27,7 @@ import {
   TEXT,
 } from '../styles'
 import { AGGREGATE, NOUN, RANKING_KEYS, familyOf } from '../metrics'
-import { canAnalyze } from '../utils/analyzeGate'
+import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analyzeGate'
 import { classifyAqiCoverage, clampLimit } from '../utils/urlState'
 import {
   AQI_LIMIT_DAYS,
@@ -55,6 +55,27 @@ const COMMIT_CUE: Record<'server-path' | 'elevation-widened' | 'window-changed',
   // The overlay already announced the fallback itself ("Weather service
   // unreachable from this browser"), so this only has to name the consequence.
   'server-path': 'Press Analyze to apply. The server analysis returns only the rows shown.',
+}
+
+// What each Analyze blocker reads as. A function rather than a record because
+// two of the four quote a number the panel holds, and the area cap in
+// particular is published by /api/capabilities rather than written here.
+//
+// The destinations line names no method. It used to list all three ("Draw a
+// search area, paste custom coordinates, or search for a place"), which is the
+// panel's own table of contents read back to someone who is looking straight at
+// it; what they are missing is a destination, not a menu.
+function blockerText(blocker: AnalyzeBlocker, maxAreaKm2: number, pointsNeeded: number): string {
+  switch (blocker) {
+    case 'area':
+      return `Area too large. Draw a smaller polygon (max ${maxAreaKm2.toLocaleString()} km²).`
+    case 'window':
+      return 'Adjust the forecast window to continue.'
+    case 'destinations':
+      return 'Provide at least one destination to analyze.'
+    case 'polygon':
+      return `Add ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon.`
+  }
 }
 
 // What polygon discovery finds. Custom (CSV) is no longer a mode here — the
@@ -196,14 +217,16 @@ export default function ControlPanel({
   const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > maxAreaKm2
 
   const polygonReady = drawPointCount >= 3 && !areaTooLarge
-  const analyzeEnabled = canAnalyze({
+  const gate = {
     hasWindowWarning: windowWarning !== null,
     loading,
     areaTooLarge,
     polygonReady,
     hasCustom,
     hasPins,
-  })
+  }
+  const analyzeEnabled = canAnalyze(gate)
+  const blockers = analyzeBlockers({ ...gate, drawPointCount })
 
   // The selection as the datetime pair the warnings read. The calendar marks
   // days past the air-quality horizon in the grid; this is the sentence that
@@ -370,11 +393,16 @@ export default function ControlPanel({
                 : `This window extends beyond the ${FUTURE_FORECAST_DAYS}-day forecast horizon. Pick days inside the calendar's range to run an analysis.`}
             </p>
           )}
+          {/* One sentence for both the partial and the fully-past-horizon case.
+              They used to be two, each spelling out which columns would be
+              empty and reassuring the reader that weather was unaffected — but
+              the calendar above already dims the days past the horizon, so the
+              only thing left to say is where that edge is. `aqiCoverage` still
+              distinguishes the two states; the footer's "air quality
+              unavailable" line reads it. */}
           {!windowWarning && aqiCoverage !== 'full' && (
             <p className={`mt-2 ${STATUS.info} ${NOTICE.info}`}>
-              {aqiCoverage === 'partial'
-                ? `Air-quality (AQI) forecasts only extend ${AQI_LIMIT_DAYS} days out, so AQI may cover just the start of this window. Weather data covers all of it.`
-                : `Air-quality (AQI) forecasts only extend ${AQI_LIMIT_DAYS} days out. AQI columns will be empty for this analysis. Weather data is unaffected.`}
+              {NOUN.aqi} forecasts only extend {AQI_LIMIT_DAYS} days.
             </p>
           )}
         </section>
@@ -537,17 +565,17 @@ export default function ControlPanel({
           <p className={`text-xs ${STATUS.warn} text-center`}>{COMMIT_CUE[commitReason]}</p>
         )}
 
-        {!analyzeEnabled && !loading && (
-          <p className={`${TEXT.helper} text-center`}>
-            {areaTooLarge
-              ? `Area too large. Draw a smaller polygon (max ${maxAreaKm2.toLocaleString()} km²).`
-              : windowWarning
-              ? 'Adjust the forecast window to continue.'
-              : drawPointCount === 0
-              ? 'Draw a search area, paste custom coordinates, or search for a place to continue.'
-              : `Add ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon.`}
+        {/* Every reason Analyze is disabled, one box each, rather than the
+            first reason as italic subtext. Two changes in one: the reasons
+            stack (a chain showed one, so fixing it revealed a second that had
+            been true all along), and each wears the same amber box the panel's
+            other bad news does, because "the app will not do the thing you
+            asked" is a warning and was being typeset as a footnote. */}
+        {blockers.map((blocker) => (
+          <p key={blocker} className={`${STATUS.warn} ${NOTICE.warn}`}>
+            {blockerText(blocker, maxAreaKm2, pointsNeeded)}
           </p>
-        )}
+        ))}
 
         {refusal && !loading && (
           <div className={`${NOTICE.warn} space-y-2`}>

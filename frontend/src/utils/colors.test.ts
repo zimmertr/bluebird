@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { markerColor, cellStyle, METRIC_CONFIG } from './colors'
+import { markerColor, cellStyle, scaleFor, METRIC_CONFIG } from './colors'
+import { COLUMNS } from './tableColumns'
 
 // Anchor hexes, lowest (green) → highest. Weather scales top out at red; the
 // AQI scale continues through the EPA Very Unhealthy / Hazardous bands.
@@ -57,10 +58,99 @@ describe('markerColor', () => {
 describe('cellStyle', () => {
   it('returns a translucent background and solid text of the same hue', () => {
     // Green anchor #22c55e === rgb(34, 197, 94).
-    expect(cellStyle(0, 'precip_total_in')).toEqual({
+    expect(cellStyle(0, METRIC_CONFIG.precip_total_in)).toEqual({
       backgroundColor: 'rgba(34,197,94,0.2)',
       color: 'rgb(34,197,94)',
     })
+  })
+
+  // The regression this signature exists to make impossible: the table used to
+  // color every cell in the ranked group by the *ranked* value, so a row came
+  // out one flat color and the detail columns' own numbers said nothing. Two
+  // numbers on one scale must produce two colors.
+  it('colors two different numbers on one scale differently', () => {
+    const light = cellStyle(0.02, METRIC_CONFIG.precip_total_in)
+    const heavy = cellStyle(0.6, METRIC_CONFIG.precip_total_in)
+
+    expect(light.color).not.toBe(heavy.color)
+  })
+})
+
+describe('scaleFor', () => {
+  // Every column the table can color has to resolve to a scale, or the cell
+  // silently falls back to the table's base color and the reader reads a
+  // missing signal as a benign one. Derived from the ranking groups rather
+  // than a list here, so a column added to a group is covered on arrival.
+  it('resolves every column named in a ranked group', () => {
+    const grouped = Object.values(METRIC_CONFIG).flatMap((cfg) => cfg.group)
+
+    expect(grouped.length).toBeGreaterThan(0)
+    for (const key of grouped) {
+      expect(scaleFor(key, false), `${key} has no scale`).not.toBeNull()
+      expect(scaleFor(key, true), `${key} has no point-sample scale`).not.toBeNull()
+    }
+  })
+
+  it('leaves the identity columns uncolored', () => {
+    expect(scaleFor('name', false)).toBeNull()
+    expect(scaleFor('elevation_ft', false)).toBeNull()
+  })
+
+  // The reason a second precipitation scale exists. Inches over a window and
+  // inches per hour are different quantities, and 0.30 of one is drizzle where
+  // 0.30 of the other is a downpour, so they cannot share a set of boundaries.
+  it('scores the per-hour precipitation columns on rainfall intensity', () => {
+    expect(scaleFor('precip_avg_in_hr', false)?.thresholds).toEqual([0.01, 0.1, 0.3, 0.5])
+    expect(scaleFor('precip_max_in_hr', false)?.thresholds).toEqual([0.01, 0.1, 0.3, 0.5])
+    // The window total keeps its own, which is what the map legend advertises.
+    expect(scaleFor('precip_total_in', false)?.thresholds).toEqual([0.01, 0.1, 0.25, 0.5])
+  })
+
+  // Boundaries the National Weather Service publishes, not ones tuned here, so
+  // a reader can look up what a color means. The pinning is the point: these
+  // are a judgement about weather, like the ramps above, and moving one should
+  // be a deliberate edit rather than a side effect.
+  it('gives the rate scale the same hues and band count as the total scale', () => {
+    const rate = scaleFor('precip_avg_in_hr', false)
+
+    expect(rate?.colors).toEqual(METRIC_CONFIG.precip_total_in.colors)
+    expect(rate?.thresholds).toHaveLength(rate!.colors.length - 1)
+  })
+
+  // A point sample covers one hourly stamp, so "per hour" and "over the
+  // window" are the same number, the table collapses them into one column, and
+  // the marker beside the row is colored by the window total. Reading the cell
+  // on the rate scale there would color a cell one thing and its own marker
+  // another over an identical value.
+  it('reads a point sample on the window-total scale', () => {
+    expect(scaleFor('precip_avg_in_hr', true)).toBe(METRIC_CONFIG.precip_total_in)
+    expect(scaleFor('precip_max_in_hr', true)).toBe(METRIC_CONFIG.precip_total_in)
+  })
+
+  it('leaves the other metrics on one scale per family either way', () => {
+    for (const key of ['wind_min_mph', 'wind_max_mph', 'wind_avg_mph']) {
+      expect(scaleFor(key, false)).toBe(METRIC_CONFIG.wind_avg_mph)
+      expect(scaleFor(key, true)).toBe(METRIC_CONFIG.wind_avg_mph)
+    }
+    for (const key of ['temp_min_f', 'temp_max_f', 'temp_avg_f']) {
+      expect(scaleFor(key, false)).toBe(METRIC_CONFIG.temp_avg_f)
+    }
+    for (const key of ['aqi_avg', 'aqi_max']) {
+      expect(scaleFor(key, false)).toBe(METRIC_CONFIG.aqi_avg)
+    }
+  })
+
+  // The groups above are strings; COLUMNS is what the table actually renders.
+  // A column renamed on one side and not the other would leave a real cell
+  // resolving to null while every assertion here still passed.
+  it('names only columns the table has', () => {
+    const columns = new Set<string>(COLUMNS.map((c) => c.key as string))
+
+    for (const cfg of Object.values(METRIC_CONFIG)) {
+      for (const key of cfg.group) {
+        expect(columns.has(key), `${key} is in a group but not in COLUMNS`).toBe(true)
+      }
+    }
   })
 })
 
