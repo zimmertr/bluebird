@@ -75,13 +75,12 @@ const NO_CUSTOM: ReadonlySet<string> = new Set()
 const DEFAULT_CHART_HEIGHT = 288
 const DEFAULT_TABLE_HEIGHT = 280
 
-function resetPanelHeights(
-  setChart: (n: number) => void,
-  setTable: (n: number) => void,
-) {
-  setChart(DEFAULT_CHART_HEIGHT)
-  setTable(DEFAULT_TABLE_HEIGHT)
-}
+// How close two presses must be to count as a double-click. The browser's own
+// dblclick never arrives on these grips: the resize begins on pointerdown and
+// preventDefault plus the drag overlay stop the pair of clicks ever resolving,
+// so the gesture is recognised here instead. 350ms is a shade over the usual
+// system threshold, which is the right way to miss.
+const DOUBLE_PRESS_MS = 350
 
 // Collapse/expand affordance for the bottom panels' header bars.
 function Chevron({ up }: { up: boolean }) {
@@ -245,6 +244,16 @@ export default function App() {
   const [chartCollapsed, setChartCollapsed] = useState(false)
   const [tableCollapsed, setTableCollapsed] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  // When each grip was last pressed, keyed by which one. A double press resets
+  // that grip's own panel — the chart resizer restores the chart, the table
+  // resizer the table — rather than both, since a drag only ever moved one.
+  const lastGripPressRef = useRef<Record<string, number>>({})
+
+  function isDoublePress(grip: string, at: number): boolean {
+    const previous = lastGripPressRef.current[grip] ?? 0
+    lastGripPressRef.current[grip] = at
+    return at - previous < DOUBLE_PRESS_MS
+  }
   const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('bluebird_welcomed'))
   // The controls panel is docked on desktop and an off-canvas drawer on phones.
   // It starts open on both; a close button collapses it to widen the map.
@@ -1214,6 +1223,10 @@ export default function App() {
                  touch-none so a finger resizes it on mobile too. */
               <div
                 onPointerDown={(e) => {
+                  if (isDoublePress('chart', e.timeStamp)) {
+                    setChartHeight(DEFAULT_CHART_HEIGHT)
+                    return
+                  }
                   // Pin the table's desired height to its applied value first, so a
                   // stale (larger) desired height can't soak up space freed by
                   // shrinking the chart — that space belongs to the map here.
@@ -1224,7 +1237,6 @@ export default function App() {
                     ),
                   )
                 }}
-                onDoubleClick={() => resetPanelHeights(setChartHeight, setTableHeight)}
                 title="Drag to resize, double-click to reset"
                 className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
               >
@@ -1271,7 +1283,11 @@ export default function App() {
                  untouched. With no chart it steals from the map like the chart
                  handle. Pointer events + touch-none for mobile. */
               <div
-                onPointerDown={(e) =>
+                onPointerDown={(e) => {
+                  if (isDoublePress('table', e.timeStamp)) {
+                    setTableHeight(DEFAULT_TABLE_HEIGHT)
+                    return
+                  }
                   beginResize(e, (up) => {
                     if (chartExpanded) {
                       const next = splitChartTable(chartPanelPx, tablePanelPx, up)
@@ -1281,8 +1297,7 @@ export default function App() {
                       setTableHeight(clampPanelHeight(tablePanelPx, up, bannerPx, window.innerHeight))
                     }
                   })
-                }
-                onDoubleClick={() => resetPanelHeights(setChartHeight, setTableHeight)}
+                }}
                 title="Drag to resize, double-click to reset"
                 className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
               >
