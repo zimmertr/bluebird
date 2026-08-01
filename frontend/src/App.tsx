@@ -1224,6 +1224,15 @@ export default function App() {
               <div
                 onPointerDown={(e) => {
                   if (isDoublePress('chart', e.timeStamp)) {
+                    // Pin the table to the height it is actually rendered at
+                    // before restoring the chart. Both panels are *desired*
+                    // heights that a shared resolver reconciles, and the table
+                    // grip's drag trades height between the two — so without
+                    // this, restoring one hands the other whatever it was
+                    // holding and the sibling visibly jumps. Pinned, the
+                    // difference comes off the map instead, which is where
+                    // this panel's height came from in the first place.
+                    setTableHeight(tablePanelPx)
                     setChartHeight(DEFAULT_CHART_HEIGHT)
                     return
                   }
@@ -1285,6 +1294,10 @@ export default function App() {
               <div
                 onPointerDown={(e) => {
                   if (isDoublePress('table', e.timeStamp)) {
+                    // Same reasoning as the chart grip above, mirrored: pin the
+                    // chart where it is drawn so restoring the table cannot
+                    // move it.
+                    setChartHeight(chartPanelPx)
                     setTableHeight(DEFAULT_TABLE_HEIGHT)
                     return
                   }
