@@ -64,7 +64,27 @@ The format is `Lat,Lon` or `Lat,Lon,Name`, one per line; without a name the coor
 
 You do not need to supply an elevation, and there is nowhere in the format to put one. Each pasted coordinate is matched to the nearest mapped peak and shows that peak's elevation once you analyze, the same figure a polygon search shows for it. A point with no mapped peak beside it stays blank, and a blank elevation is never filtered out by the elevation range, so those rows always ride along. The ready-made lists in [`examples/`](../examples/) are formatted this way.
 
-## Step 2: Forecast Window
+## Step 2: Forecast
+
+Which model answers, and over which hours.
+
+### Model
+
+Which weather model answers. The list is ordered best first for mountain terrain, so the default, **NOAA GFS**, is the top entry.
+
+That default is a blend rather than plain GFS: it is HRRR's 3 km grid for the first two days and GFS's coarser grid out to sixteen. High resolution when the resolution matters, reach when it does not.
+
+Models disagree, sometimes by more than the thing being measured: over three days at one Cascades summit, ECMWF and GFS both totalled 0.000 in of precipitation while ICON gave 0.004 in. None of them is lying, and there is no way to know in advance which was right, so this is a knob rather than a setting with a correct value. If a number matters to you, try it under two models.
+
+They also reach different distances ahead, which is why the calendar below redraws when you change this. Three are worth knowing by name:
+
+- **ECCC GEM** is Canada's, and second in the list because over the North Cascades it is arguably the sharpest thing here: 2.5 km for two days and 10 km out to three and a half, finer than the default through exactly the window that decides a trip. It stops at about nine days.
+- **ECMWF IFS** has the best medium-range record of any of these. It is the one to ask which weekend, though at roughly 25 km it cannot see an individual valley.
+- **NOAA HRRR** reaches only about two days, and the default already contains it for that stretch, so pick it when you specifically want a number that is purely HRRR. It is also the only regional model here, covering the continental US and neighbouring parts of Canada and Mexico; asking it about anywhere else stops the analysis and says so rather than returning a partial answer.
+
+Changing the model needs a new **Analyze**, like changing the polygon or the window: different models mean different forecasts, not a different view of the ones already fetched.
+
+### Forecast window
 
 A calendar, and a **Now** chip beside it.
 
@@ -81,11 +101,13 @@ How bright a day is says how much of it Bluebird can tell you about:
 | --- | --- |
 | Normal | Weather and air quality. |
 | Dimmed | Weather only. Past the ~5-day air-quality horizon, so the AQI columns come back blank. Still analyzes fine. |
-| Greyed, not clickable | Outside what the weather service serves: about 90 days of history through 16 days of forecast, today included. |
+| Greyed, not clickable | Outside what the weather service serves. The near edge is where its archive runs out; the far edge is whichever comes first, the API's own limit or the reach of the forecast model you picked in Step 4. |
 
 Hovering either dimmed step says why, and selecting one past the air-quality horizon says so beside the calendar. Air quality runs shorter than weather because the underlying CAMS model only reaches about 5 days out; that horizon is not the only thing worth knowing about the column, so see [Air quality](DATA.md#air-quality) for how coarse the model grid is and which scale the number is on.
 
 Days are your local calendar days, converted to UTC for the API, and the far edge accounts for that: west of Greenwich the last local day's final hour falls on the next UTC date, so the calendar offers one day less there than it does in London. Selecting days in the past is fine and normal. Those hours are recorded conditions rather than a forecast, and a chart covering both marks where one becomes the other.
+
+**The forecast model moves this calendar.** Picking a short-range model above greys out the days it cannot reach, and shortens a window you had already chosen, with a note saying it did. HRRR is the case that matters: it reaches about two days where the global models reach one to two weeks.
 
 The calendar is fully keyboard operable: arrow keys move by day, Page Up and Page Down by month, Enter or Space selects, and Escape abandons a half-made range.
 
@@ -119,9 +141,9 @@ Click a marker for a popup with rank, precipitation, wind, temperature, and AQI.
 
 Every row carries a **Type** — Peak, Lake, Trailhead, or Custom for one you supplied — because a single polygon can now look for several kinds at once. It travels into the downloaded CSV too, lower-case there, so a file you re-import reads the same value the API uses.
 
-Click any column header to sort by it, ascending or descending. By default the table follows the **Result Ranking** selection, for example lowest total precipitation for driest-first.
+Click any column header to sort by it, ascending or descending. By default the table follows the **Ranking** selection, for example lowest total precipitation for driest-first.
 
-The four columns that are also ranking options (Precipitation · Total, Wind · Avg, Temperature · Avg, AQI · Avg) *are* that selection: clicking one re-ranks every destination in your area and re-picks the top N, and the Result Ranking control moves to match. So clicking **Wind** gives you the least windy destinations in the area, not the driest ones reordered by wind. The remaining columns are detail rather than ranking, and reorder the rows currently listed.
+The four columns that are also ranking options (Precipitation · Total, Wind · Avg, Temperature · Avg, AQI · Avg) *are* that selection: clicking one re-ranks every destination in your area and re-picks the top N, and the Ranking control moves to match. So clicking **Wind** gives you the least windy destinations in the area, not the driest ones reordered by wind. The remaining columns are detail rather than ranking, and reorder the rows currently listed.
 
 Hovering a row reveals a × at its end (always visible on touch screens) that removes the destination from the report — the rows below renumber, and it stays gone as you re-rank, raise the max results, or narrow the elevation range. Changing the destinations, the window, or widening the elevation range starts a fresh report where it may return.
 

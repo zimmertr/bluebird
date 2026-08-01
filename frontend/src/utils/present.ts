@@ -73,15 +73,23 @@ export function bandNarrows(analyzed: Band, panel: Band): boolean {
  *   typing two datetimes was hard to do by accident. Reported ahead of the other
  *   two: it names the knob the user just touched, which is the more useful
  *   sentence even when a band was widened in the same breath.
+ * - `'model-changed'`: a different weather model is behind the panel than behind
+ *   the rows. Always a commit, and for a stronger reason than the window: the
+ *   held field is not merely missing rows, every number in it came from a model
+ *   the panel no longer names. Reported first, because a model change can clamp
+ *   the window as a side effect (`clampSelection`) and would otherwise report
+ *   itself as the window change it caused.
  */
 export function commitNeeded(
   analyzed: PresentationKnobs | null,
   panel: PresentationKnobs,
   hasUniverse: boolean,
   windowChanged: boolean,
-): 'server-path' | 'elevation-widened' | 'window-changed' | null {
+  modelChanged: boolean,
+): 'server-path' | 'elevation-widened' | 'window-changed' | 'model-changed' | null {
   // Nothing on screen yet, so nothing to be out of date with.
   if (analyzed === null) return null
+  if (modelChanged) return 'model-changed'
   if (windowChanged) return 'window-changed'
   if (!hasUniverse) {
     const same =

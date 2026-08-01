@@ -7,8 +7,9 @@ from typing import Any
 import httpx
 import pytest
 from app import ratelimit
+from app.models import DEFAULT_FORECAST_MODEL, ForecastModel
 from app.services import weather
-from app.services.errors import UpstreamError, UpstreamRateLimited
+from app.services.errors import ModelCoverageError, UpstreamError, UpstreamRateLimited
 from app.services.weather import (
     _metrics,
     _naive,
@@ -583,3 +584,95 @@ def test_metrics_counts_midnight_to_midnight_as_25_hours():
     next_midnight = datetime(2026, 7, 22, 0, 0)  # noqa: DTZ001 — same
     m = _metrics(_whole_day("2026-07-21"), day, next_midnight)
     assert m["precip_total_in"] == round(25 * 0.1, 4)
+
+
+# ── forecast model ─────────────────────────────────────────────────────────
+
+
+def _out_of_domain() -> httpx.HTTPStatusError:
+    """How Open-Meteo refuses a point outside a regional model's grid.
+
+    Measured 2026-08-01: `models=gfs_hrrr` at 46.5,8.0 answers exactly this.
+    """
+    request = httpx.Request("GET", weather.FORECAST_URL)
+    response = httpx.Response(
+        400,
+        request=request,
+        json={"error": True, "reason": "No data is available for this location"},
+    )
+    return httpx.HTTPStatusError("400", request=request, response=response)
+
+
+async def test_the_chosen_model_reaches_the_wire(monkeypatch):
+    # `models=` is always sent, never omitted. Omitting it takes Open-Meteo's
+    # `best_match` blend, which picks per location and never reports its pick,
+    # so two peaks in one response could come from two models unannounced.
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_hrrr)
+
+    assert calls[0]["models"] == "gfs_hrrr"
+
+
+async def test_every_request_names_a_model_even_at_the_default(monkeypatch):
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    await fetch_weather_batch(_dests(1), START, END)
+
+    assert calls[0]["models"] == DEFAULT_FORECAST_MODEL.value
+
+
+async def test_two_models_do_not_share_one_cache_entry(monkeypatch):
+    # The bug this prevents is silent: models disagree, so a shared entry would
+    # serve the second model asked for the first one's numbers, which is exactly
+    # the thing choosing a model is supposed to make impossible.
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1]), _payload([0.9])])
+    first = await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.ecmwf_ifs025)
+    second = await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_seamless)
+
+    assert len(calls) == 2
+    assert first[0]["precip_total_in"] == 0.1
+    assert second[0]["precip_total_in"] == 0.9
+
+
+async def test_the_same_model_twice_still_serves_from_cache(monkeypatch):
+    # The other half of the pair above: adding the model to the key must not
+    # cost the repeat-analysis hit the cache exists for.
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_seamless)
+    await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_seamless)
+
+    assert len(calls) == 1
+
+
+async def test_a_point_outside_a_regional_model_raises_model_coverage(monkeypatch):
+    _stub_openmeteo(monkeypatch, [_out_of_domain()])
+    with pytest.raises(ModelCoverageError) as exc:
+        await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_hrrr)
+
+    assert exc.value.model == "gfs_hrrr"
+    # The message names the model and the one thing that fixes it. Not a wait,
+    # not a smaller area: a different model.
+    assert "NOAA HRRR" in exc.value.message
+    assert "global" in exc.value.message
+
+
+async def test_a_coverage_refusal_is_not_reported_as_a_generic_upstream_failure(monkeypatch):
+    # It subclasses UpstreamError so existing handlers still catch it, but the
+    # route maps it to 400 rather than 502 — the upstream is healthy and
+    # answered correctly, and only the caller can fix the request.
+    _stub_openmeteo(monkeypatch, [_out_of_domain()])
+    with pytest.raises(UpstreamError) as exc:
+        await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_hrrr)
+
+    assert isinstance(exc.value, ModelCoverageError)
+
+
+async def test_an_ordinary_400_stays_an_ordinary_upstream_error(monkeypatch):
+    # Only the "no data for this location" body means coverage. A 400 for any
+    # other reason must not be blamed on the model.
+    request = httpx.Request("GET", weather.FORECAST_URL)
+    response = httpx.Response(400, request=request, json={"reason": "Invalid date"})
+    _stub_openmeteo(monkeypatch, [httpx.HTTPStatusError("400", request=request, response=response)])
+    with pytest.raises(UpstreamError) as exc:
+        await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_hrrr)
+
+    assert not isinstance(exc.value, ModelCoverageError)

@@ -7,7 +7,7 @@ import TimeSeriesChart from './components/TimeSeriesChart'
 import WelcomeModal from './components/WelcomeModal'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
-import { useCapabilities } from './hooks/useCapabilities'
+import { modelForecastHours, useCapabilities } from './hooks/useCapabilities'
 import { useChartSelection } from './hooks/useChartSelection'
 import { useFireProximity } from './hooks/useFireProximity'
 import { useSearchedPlaces } from './hooks/useSearchedPlaces'
@@ -40,6 +40,7 @@ import { UrlWriter, debounceUrlWrite, urlNeedsSync } from './utils/urlSync'
 import {
   DEFAULT_SELECTION,
   ForecastSelection,
+  clampSelection,
   selectionLocalWindow,
   windowCaption,
 } from './utils/calendar'
@@ -211,6 +212,53 @@ export default function App() {
   useEffect(() => {
     setLimit((prev) => clampLimit(prev, caps.maxLimit))
   }, [caps.maxLimit])
+  // Which model answers. Restored from the link when one names a model, else
+  // the deployment's default. Old links carry no `model=` and inherit it, which
+  // can change their numbers: they were computed under Open-Meteo's
+  // `best_match` blend. That is a release note rather than something to migrate
+  // around — the blend never reported which model it picked, so there is no
+  // honest way to reproduce those numbers. The named default is the closest
+  // thing to a continuation: `best_match` resolved to GFS at Rainier.
+  const [forecastModel, setForecastModel] = useState(
+    () => restored?.forecastModel ?? caps.defaultForecastModel,
+  )
+  // Same shape as the limit re-clamp above: the initializer runs against the
+  // compiled fallback, so adopt the real default once capabilities land — but
+  // only when the link named nothing and the user has not chosen, or this would
+  // overwrite a deliberate pick a moment after it was made.
+  const untouchedModelRef = useRef(restored?.forecastModel === undefined)
+  useEffect(() => {
+    if (!untouchedModelRef.current) return
+    setForecastModel(caps.defaultForecastModel)
+  }, [caps.defaultForecastModel])
+  // The last model change trimmed the forecast window to fit the new model's
+  // reach. Held rather than derived because a clamp leaves no trace: afterwards
+  // the selection simply is inside the band, and nothing distinguishes a window
+  // that was shortened from one that always fitted.
+  const [modelClamped, setModelClamped] = useState(false)
+  const forecastHours = modelForecastHours(caps.forecastModels, forecastModel)
+
+  // Every model change reconsiders the window, because the far edge moves with
+  // it — by twelve days between ECMWF and HRRR. Clamping rather than refusing:
+  // the alternative rejects the model over a window chosen before the user knew
+  // the model bounded it, and leaves them to guess by how much to shorten it.
+  function changeForecastModel(id: string) {
+    untouchedModelRef.current = false
+    const hours = modelForecastHours(caps.forecastModels, id)
+    const clamped = clampSelection(selection, new Date(), hours)
+    if (clamped) setSelection(clamped)
+    setModelClamped(clamped !== null)
+    setForecastModel(id)
+  }
+
+  // Any deliberate move of the window retires the clamp notice: it describes
+  // one past edit, and leaving it up would attribute the user's own choice to
+  // the model picker.
+  function changeSelection(next: ForecastSelection) {
+    setModelClamped(false)
+    setSelection(next)
+  }
+
   const [customCsv, setCustomCsv] = useState(() => restored?.customCsv ?? '')
   // Parsed once per edit and shared by the pending markers and the Analyze
   // request, so what the map shows and what gets ranked can't drift apart.
@@ -427,9 +475,13 @@ export default function App() {
   // instantly, which is the normal case: the cue exists so the controls never
   // feel dead, and showing it when they are in fact live would ask for an
   // Analyze that changes nothing.
+  // A model change is a data knob for a stronger reason than the window: the
+  // held rows are not missing days, every number in them came from a model the
+  // panel no longer names.
+  const modelChanged = analyzed !== null && analyzed.forecastModel !== forecastModel
   const commitReason =
     !loading && response !== null
-      ? commitNeeded(analyzed, liveKnobs, universe !== null, windowChanged)
+      ? commitNeeded(analyzed, liveKnobs, universe !== null, windowChanged, modelChanged)
       : null
   const preview = usePreview()
 
@@ -480,6 +532,7 @@ export default function App() {
       destinationTypes,
       includeUnnamedPeaks,
       selection,
+      forecastModel,
       sortBy,
       sortDesc,
       minElevationFt,
@@ -488,7 +541,7 @@ export default function App() {
       customCsv,
       showWildfires,
       pins: searched.places,
-    })
+    }, caps.defaultForecastModel)
 
     // Nothing to write, and just as importantly, drop anything already queued.
     // An edit that lands back on the state the address bar already shows must
@@ -529,7 +582,12 @@ export default function App() {
   // rejects out-of-range dates outright, so submitting would only produce an
   // upstream error. The calendar cannot pick an unservable day, so a horizon
   // warning now means a shared or hand-edited link brought one in.
-  const windowStatus = classifyWindow(panelWindow.start, panelWindow.end, new Date())
+  const windowStatus = classifyWindow(
+    panelWindow.start,
+    panelWindow.end,
+    new Date(),
+    forecastHours,
+  )
   const windowWarning =
     selection.kind === 'now' || windowStatus === 'ok' ? null : windowStatus
 
@@ -679,6 +737,7 @@ export default function App() {
         destination_types: [],
         start_datetime: start,
         end_datetime: end,
+        forecast_model: forecastModel,
         limit,
         sort_by: sortBy,
         sort_desc: sortDesc,
@@ -694,6 +753,7 @@ export default function App() {
         include_unnamed_peaks: includeUnnamedPeaks,
         start_datetime: start,
         end_datetime: end,
+        forecast_model: forecastModel,
         limit,
         sort_by: sortBy,
         sort_desc: sortDesc,
@@ -711,6 +771,7 @@ export default function App() {
         destination_types: [],
         start_datetime: start,
         end_datetime: end,
+        forecast_model: forecastModel,
         limit,
         sort_by: sortBy,
         sort_desc: sortDesc,
@@ -992,7 +1053,7 @@ export default function App() {
           destinationTypes={destinationTypes}
           setDestinationTypes={setDestinationTypes}
           selection={selection}
-          setSelection={setSelection}
+          setSelection={changeSelection}
           limit={limit}
           setLimit={setLimit}
           customCsv={customCsv}
@@ -1027,6 +1088,10 @@ export default function App() {
             retryWithFloor(ft)
           }}
           onRetryTopByElevation={retryTopByElevation}
+          forecastModel={forecastModel}
+          setForecastModel={changeForecastModel}
+          forecastModels={caps.forecastModels}
+          modelClamped={modelClamped}
           maxLimit={caps.maxLimit}
           maxAreaKm2={caps.maxPolygonAreaKm2}
           totalFound={response?.total_found}

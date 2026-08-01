@@ -6,14 +6,18 @@ import pytest
 from app import ratelimit
 from app.main import app
 from app.models import (
+    DEFAULT_FORECAST_MODEL,
     FUTURE_LIMIT_SLACK_DAYS,
     MAX_ANALYZE_PEAKS,
     MAX_LIMIT,
     MAX_POLYGON_AREA_KM2,
     MIN_LIMIT,
+    MODEL_INFO,
+    PAST_DATA_DAYS,
     PAST_LIMIT_SLACK_DAYS,
     AnalyzeRequest,
     DestinationType,
+    ForecastModel,
     SortBy,
 )
 from app.services.air_quality import MAX_FORECAST_DAYS
@@ -42,6 +46,7 @@ def test_limits_mirror_the_constants_the_validators_enforce():
         "max_limit": MAX_LIMIT,
         "max_past_days": PAST_LIMIT_SLACK_DAYS,
         "max_future_days": FUTURE_LIMIT_SLACK_DAYS,
+        "past_data_days": PAST_DATA_DAYS,
         "aqi_forecast_days": MAX_FORECAST_DAYS,
         # Rate limits come from the live limiter instances (patched off in
         # conftest), not env constants — value plumbing is asserted with real
@@ -124,3 +129,71 @@ def test_capabilities_is_documented_and_tagged():
     operation = app.openapi()["paths"]["/api/capabilities"]["get"]
     assert operation["tags"] == ["metadata"]
     assert operation["summary"]
+
+
+# ── forecast models ────────────────────────────────────────────────────────
+
+
+def test_capabilities_publishes_every_selectable_model_with_its_reach():
+    # Same contract as the limits above: a client picks a model from here rather
+    # than hardcoding Open-Meteo's ids, and reads how far each reaches rather
+    # than compiling its own calendar band.
+    published = _capabilities()["forecast_models"]
+    assert {m["id"] for m in published} == {m.value for m in ForecastModel}
+    for entry in published:
+        info = MODEL_INFO[ForecastModel(entry["id"])]
+        assert entry["label"] == info.label
+        assert entry["forecast_hours"] == info.forecast_hours
+        assert entry["regional"] == info.regional
+
+
+def test_capabilities_flags_exactly_one_default_and_it_is_the_request_default():
+    published = _capabilities()["forecast_models"]
+    defaults = [m["id"] for m in published if m["default"]]
+    assert defaults == [DEFAULT_FORECAST_MODEL.value]
+    # And a request that names no model really does land on it, or the picker
+    # would open on one model while the analysis ran another.
+    assert AnalyzeRequest(destination_types=[]).forecast_model is DEFAULT_FORECAST_MODEL
+
+
+def test_capabilities_publishes_models_in_the_declared_ranking_not_a_sort():
+    # The order is editorial — a ranking for mountain terrain — so it must
+    # survive to the client exactly as declared. Asserting it is not a sort on
+    # reach is the guard that matters: reach is the field someone would reach
+    # for, and it would invert the list, putting the coarsest global models
+    # above a 2.5 km one.
+    published = [m["id"] for m in _capabilities()["forecast_models"]]
+    assert published == [m.value for m in MODEL_INFO]
+    hours = [m["forecast_hours"] for m in _capabilities()["forecast_models"]]
+    assert hours != sorted(hours, reverse=True)
+    assert published[0] == DEFAULT_FORECAST_MODEL.value
+
+
+def test_capabilities_omits_the_models_that_cannot_be_recommended():
+    # best_match never reports which model it picked, which is the whole reason
+    # this feature exists. ecmwf_aifs025 serves nulls everywhere. knmi_seamless
+    # and metno_seamless are byte-identical to each other over North America and
+    # match no ECMWF or GEM product, so neither can be placed in a list that
+    # claims to be ranked.
+    published = {m["id"] for m in _capabilities()["forecast_models"]}
+    assert published.isdisjoint(
+        {"best_match", "ecmwf_aifs025", "metno_seamless", "knmi_seamless"}
+    )
+
+
+def test_hrrr_is_the_only_regional_model_and_the_short_range_one():
+    regional = [m for m in _capabilities()["forecast_models"] if m["regional"]]
+    assert [m["id"] for m in regional] == [ForecastModel.gfs_hrrr.value]
+    # Measured 2026-08-01: HRRR reached 42 usable hours where every global model
+    # reached at least 72. The gap is the whole reason the calendar band moves.
+    assert regional[0]["forecast_hours"] == 42
+    others = [m["forecast_hours"] for m in _capabilities()["forecast_models"] if not m["regional"]]
+    assert min(others) > regional[0]["forecast_hours"]
+
+
+def test_past_data_days_sits_well_inside_the_date_the_api_merely_accepts():
+    # The distinction the ~30-day empty-history bug turned on: the API accepts a
+    # date for ~93 days, but past ~58 every model answers with nulls.
+    limits = _capabilities()["limits"]
+    assert limits["past_data_days"] < limits["max_past_days"]
+    assert limits["past_data_days"] == 55

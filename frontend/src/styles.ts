@@ -57,7 +57,7 @@ const CAPTION = 'text-xs text-slate-400'
 
 /** The compact tier: panel, table, map chrome, chart. */
 export const TEXT = {
-  /** Numbered section headings: "1. Destinations", "3. Result Ranking". */
+  /** Numbered section headings: "1. Destinations", "3. Ranking". */
   section: 'text-sm font-bold uppercase tracking-wider text-slate-400',
   /** The single call to action, deliberately a step up from the panel body. */
   cta: 'text-sm font-semibold',
@@ -438,6 +438,17 @@ export const ICON_ACTION = `text-slate-500 ${ACCENT.hoverText}`
 export const ICON_BUTTON = 'px-1 text-slate-400 hover:text-white transition-colors'
 
 /**
+ * A glyph drawn inside a field rather than beside it: the `SELECT` arrow.
+ *
+ * `pointer-events-none` is the load-bearing part — the arrow overlays the
+ * control it decorates, and without it the one place a user aims for is the one
+ * place that does not open the dropdown. slate-400 is 7.0:1 on the recessed
+ * fill, well past the 3:1 a UI glyph owes.
+ */
+export const ICON_ADORNMENT =
+  'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400'
+
+/**
  * The indeterminate spinner: the search box while a lookup is in flight.
  *
  * Size stays at the call site; everything that makes it a spinner does not.
@@ -736,6 +747,29 @@ export const DAY = {
 export const FIELD =
   `${TEXT.control} ${TAP.height} ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} ` +
   'focus:outline-none focus:border-sky-500 placeholder-slate-400'
+
+/**
+ * The same recessed surface for a native `<select>`.
+ *
+ * Composed from `FIELD` rather than written afresh so a dropdown and a text
+ * input cannot drift apart, plus the two things a select needs that an input
+ * does not:
+ *
+ * - `appearance-none`, because the platform control paints its own chrome from
+ *   the *system* palette, not ours: on a light-mode OS the popup and its arrow
+ *   render dark-on-light inside a dark panel. Suppressing it costs the arrow,
+ *   which the call site draws back as an inline SVG in `ICON_ADORNMENT` — one
+ *   glyph we control on every platform, rather than one we control on none.
+ * - `pr-8`, reserving the room that arrow sits in. It belongs here and not at
+ *   the call site because it is not decoration: without it a long option label
+ *   runs underneath the arrow.
+ *
+ * `<option>` elements are deliberately left alone. Their rendering is the
+ * platform's — several browsers ignore author styles on them outright — so
+ * styling them would produce a control that matched the design system on some
+ * machines and not others, which is worse than one that consistently does not.
+ */
+export const SELECT = `${FIELD} appearance-none pr-8`
 
 /**
  * The results grid's two cell insets, which had been spelled out ten times

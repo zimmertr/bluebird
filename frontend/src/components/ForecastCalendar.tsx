@@ -37,6 +37,11 @@ import {
 interface Props {
   selection: ForecastSelection
   onChange: (selection: ForecastSelection) => void
+  // How far ahead the selected model still has data, from /api/capabilities.
+  // The far edge of this grid is the model's, not the app's: HRRR reaches about
+  // two days where ECMWF reaches fourteen, so the same calendar draws twelve
+  // more disabled days for one than for the other.
+  forecastHours: number
 }
 
 // What the Hours toggle opens on: this hour through the end of the day.
@@ -71,7 +76,7 @@ interface Drag {
  * it started from. That is also why the grid does not set `touch-none`, which
  * would have stopped the control panel itself from scrolling on a phone.
  */
-export default function ForecastCalendar({ selection, onChange }: Props) {
+export default function ForecastCalendar({ selection, onChange, forecastHours }: Props) {
   // Captured once: a grid that recomputed against a moving `now` would redraw
   // every render, and nothing here changes meaning within a session.
   const now = useMemo(() => new Date(), [])
@@ -97,7 +102,10 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
   // focus on mount would scroll the panel down to the calendar on every load.
   const keyboardNav = useRef(false)
 
-  const weeks = useMemo(() => monthGrid(month, now), [month, now])
+  const weeks = useMemo(
+    () => monthGrid(month, now, forecastHours),
+    [month, now, forecastHours],
+  )
   const weekdays = useMemo(() => weekdayInitials(), [])
 
   // The range being drawn: the drag in flight if there is one, else what is
@@ -212,14 +220,14 @@ export default function ForecastCalendar({ selection, onChange }: Props) {
         <MonthButton
           label="Previous month"
           glyph="‹"
-          disabled={!monthHasBandDay(prevMonth, now)}
+          disabled={!monthHasBandDay(prevMonth, now, forecastHours)}
           onClick={() => setMonth(prevMonth)}
         />
         <span className={TEXT.subheading}>{monthLabel(month)}</span>
         <MonthButton
           label="Next month"
           glyph="›"
-          disabled={!monthHasBandDay(nextMonth, now)}
+          disabled={!monthHasBandDay(nextMonth, now, forecastHours)}
           onClick={() => setMonth(nextMonth)}
         />
       </div>

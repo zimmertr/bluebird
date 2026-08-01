@@ -20,7 +20,7 @@ from app.models import (
     bbox_area_km2,
 )
 from app.services import air_quality, osm, weather
-from app.services.errors import UpstreamError, UpstreamRateLimited
+from app.services.errors import ModelCoverageError, UpstreamError, UpstreamRateLimited
 
 
 def _filter_elevation(destinations, min_ft, max_ft):
@@ -621,6 +621,7 @@ async def analyze_stream(request: AnalyzeRequest):
                         request.end_datetime,
                         on_progress,
                         on_pace,
+                        request.forecast_model,
                     )
                 finally:
                     await progress_queue.put(_STREAM_DONE)
@@ -861,7 +862,10 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     )
     try:
         wx_list = await weather.fetch_weather_batch(
-            destinations, request.start_datetime, request.end_datetime
+            destinations,
+            request.start_datetime,
+            request.end_datetime,
+            model=request.forecast_model,
         )
     except ratelimit.BudgetExhausted as e:
         if aqi_task is not None:
@@ -879,6 +883,14 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
             detail=e.message,
             headers={"Retry-After": str(e.retry_after_s)},
         )
+    except ModelCoverageError as e:
+        # 400, not the 502 its UpstreamError base would otherwise give: the
+        # upstream is healthy and answered correctly. The request asked a
+        # regional model about somewhere it does not model, and only the
+        # caller can fix that.
+        if aqi_task is not None:
+            aqi_task.cancel()
+        raise HTTPException(status_code=400, detail=e.message)
     except UpstreamError as e:
         if aqi_task is not None:
             aqi_task.cancel()

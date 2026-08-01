@@ -43,6 +43,41 @@ class UpstreamRateLimited(UpstreamError):
         self.retry_after_s = retry_after_s
 
 
+class ModelCoverageError(UpstreamError):
+    """The requested weather model does not cover somewhere in the batch.
+
+    Only regional models can raise this, and in practice only HRRR. Kept apart
+    from a generic :class:`UpstreamError` because it is the one upstream 400
+    the user can actually fix, and the fix is naming a different model rather
+    than waiting or drawing smaller.
+    """
+
+    def __init__(self, model: str, message: str):
+        super().__init__(message)
+        self.model = model
+
+
+# How Open-Meteo refuses a point outside a regional model's grid. Measured
+# 2026-08-01: `models=gfs_hrrr` at 46.5,8.0 answers HTTP 400 with
+# {"error": true, "reason": "No data is available for this location"} — and a
+# batch answers the same way if a *single* one of its locations is outside,
+# taking the other 49 down with it, which is why this is worth recognising
+# rather than reporting as a generic bad request.
+_NO_DATA_REASON = re.compile(r"no data is available for this location", re.IGNORECASE)
+
+
+def is_out_of_domain(exc: httpx.HTTPStatusError) -> bool:
+    """Is this 400 a regional model refusing a location outside its grid?"""
+    if exc.response.status_code != 400:
+        return False
+    try:
+        body = exc.response.json()
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return False
+    reason = body.get("reason", "") if isinstance(body, dict) else ""
+    return bool(_NO_DATA_REASON.search(reason or ""))
+
+
 class PartialResultError(RuntimeError):
     """An upstream returned HTTP 200 but only part of the requested data.
 

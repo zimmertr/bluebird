@@ -152,6 +152,11 @@
             ],
             "description": "Which of the three forecast modes this request is. `current` needs no timestamps and analyzes the hour at hand. `at` takes `start_datetime` alone and samples that single hour, past or future. `window` takes both and analyzes the span.\n\nOmitting it is supported for compatibility and inferred from what you send: both timestamps means `window`, neither means `current`. Sending only `start_datetime` without a mode is rejected, because it could equally mean `at` or a `window` missing its end."
           },
+          "forecast_model": {
+            "$ref": "#/components/schemas/ForecastModel",
+            "default": "gfs_seamless",
+            "description": "Which weather model answers. Models disagree, sometimes by more than the thing being measured: at one Cascades summit over three days, ECMWF and GFS both totalled 0.000 in of precipitation while ICON gave 0.004 in.\n\nEach model also reaches a different distance ahead, so this bounds `end_datetime` as well: hours past the chosen model's horizon come back null rather than failing, and `GET /api/capabilities` publishes how far each one reaches. `gfs_hrrr` is the short-range outlier \u2014 roughly two days, against two weeks for the global models \u2014 and is also the only regional one, covering the continental US with parts of Canada and Mexico and refusing any point outside that grid."
+          },
           "include_unnamed_peaks": {
             "default": false,
             "description": "Also discover summits OSM knows only by their height, named after it (`Peak 5961`). Off by default because it is not a small addition: measured over one 8x10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so this roughly triples the candidate count \u2014 every candidate being a weighted upstream call and a step closer to the analysis ceiling. Ignored unless `peak` is among `destination_types`.",
@@ -314,6 +319,14 @@
             "title": "Destination Types",
             "type": "array"
           },
+          "forecast_models": {
+            "description": "Accepted values for `forecast_model`, best first. Models disagree with each other, so which one answered is part of what a number means.\n\nThe order is this deployment's editorial ranking for mountain terrain, not a sort on any field below \u2014 grid spacing over complex terrain is weighted above forecast length, so it is roughly the reverse of ordering by `forecast_hours`. Render it as given.",
+            "items": {
+              "$ref": "#/components/schemas/ForecastModelInfo"
+            },
+            "title": "Forecast Models",
+            "type": "array"
+          },
           "limits": {
             "$ref": "#/components/schemas/Limits"
           },
@@ -329,6 +342,7 @@
         "required": [
           "destination_types",
           "sort_keys",
+          "forecast_models",
           "limits",
           "data_sources"
         ],
@@ -767,6 +781,60 @@
         "title": "ForecastMode",
         "type": "string"
       },
+      "ForecastModel": {
+        "description": "The weather model Open-Meteo is asked for, as its own `models=` value.\n\nDeclared best-first for this app's terrain (see `MODEL_INFO`), and that\norder is the contract: `/api/capabilities` publishes it as declared and the\npicker renders it as published.\n\nFour ids Open-Meteo serves are deliberately absent, each for its own\nreason (all probed 2026-08-01):\n\n- `best_match` is its blend, which picks per location and never reports its\n  pick \u2014 the whole reason this enum exists.\n- `ecmwf_aifs025` returned an hourly array of nothing but nulls at three\n  points on three continents.\n- `metno_seamless` and `knmi_seamless` are byte-identical to each other\n  everywhere in North America (Rainier, Whitney and Denali, all three\n  variables), so offering both offered one dataset twice \u2014 and the survivor\n  matched no `ecmwf_*` or `gem_*` product either, while KNMI's own\n  `knmi_harmonie_arome_europe` refuses coordinates outside Europe. Neither\n  is offered: this list is ranked best-first, and a model whose North\n  American provenance cannot be established has no defensible place in it.",
+        "enum": [
+          "gfs_seamless",
+          "gem_seamless",
+          "ecmwf_ifs025",
+          "gfs_hrrr",
+          "ukmo_seamless",
+          "icon_seamless",
+          "jma_seamless",
+          "meteofrance_seamless"
+        ],
+        "title": "ForecastModel",
+        "type": "string"
+      },
+      "ForecastModelInfo": {
+        "description": "One selectable weather model, and how far it reaches.",
+        "properties": {
+          "default": {
+            "description": "True for the model used when `forecast_model` is omitted.",
+            "title": "Default",
+            "type": "boolean"
+          },
+          "forecast_hours": {
+            "description": "How many hours ahead of now this model still has data for, as a floor. Distinct from `limits.max_future_days`, which is the hard edge the API refuses past: within that edge, a model simply stops, returning nulls for hours beyond its own reach rather than an error. A model's usable lead shrinks as its last run ages and jumps back when the next lands, so this sits under the trough rather than on any single reading.",
+            "title": "Forecast Hours",
+            "type": "integer"
+          },
+          "id": {
+            "description": "Value to send as `forecast_model`.",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "description": "Human-readable name, as the picker shows it.",
+            "title": "Label",
+            "type": "string"
+          },
+          "regional": {
+            "description": "True for a model run over part of the world rather than all of it. A request naming one is rejected with 400 if any destination falls outside its grid \u2014 including destinations the caller never sees, since discovery happens server-side.",
+            "title": "Regional",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "forecast_hours",
+          "regional",
+          "default"
+        ],
+        "title": "ForecastModelInfo",
+        "type": "object"
+      },
       "GeoPolygon": {
         "description": "A GeoJSON Polygon bounding the search area.",
         "properties": {
@@ -921,6 +989,11 @@
             "title": "Min Limit",
             "type": "integer"
           },
+          "past_data_days": {
+            "description": "How far back the weather API still holds data, as opposed to how far back it accepts a date. Past this, a request succeeds and returns an hourly array of nulls, so a window reaching further yields rows with no numbers rather than an error. Always well inside `max_past_days`, which is the accept bound.",
+            "title": "Past Data Days",
+            "type": "integer"
+          },
           "rate": {
             "$ref": "#/components/schemas/RateLimits",
             "description": "Per-client request pacing. Unlike the bounds above, exceeding these is not a request error: the same request succeeds once `Retry-After` has elapsed."
@@ -933,6 +1006,7 @@
           "max_limit",
           "max_past_days",
           "max_future_days",
+          "past_data_days",
           "aqi_forecast_days",
           "rate"
         ],

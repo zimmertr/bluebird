@@ -18,6 +18,7 @@ import {
   CHOICE_INPUT,
   CHOICE_ROW,
   FIELD,
+  ICON_ADORNMENT,
   LINK,
   NOTICE,
   PANEL_EDGE,
@@ -26,6 +27,7 @@ import {
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
+  SELECT,
   STATUS,
   TEXT,
 } from '../styles'
@@ -34,11 +36,11 @@ import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analy
 import { classifyAqiCoverage, clampLimit } from '../utils/urlState'
 import {
   AQI_LIMIT_DAYS,
-  FUTURE_FORECAST_DAYS,
   ForecastSelection,
   PAST_LIMIT_DAYS,
   selectionLocalWindow,
 } from '../utils/calendar'
+import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabilities'
 
 // The app's core question: "top N peaks by <metric>, lowest or highest".
 // Each metric ranks by one representative value — total precipitation,
@@ -52,9 +54,13 @@ const SORT_METRICS: { value: SortBy; label: string }[] = RANKING_KEYS.map((value
 // Why a knob stopped applying live. Each case leads with the action, because
 // that is what the reader wants first; the sentence after it is the reason the
 // controls went quiet, which is the thing this cue exists to not leave unsaid.
-const COMMIT_CUE: Record<'server-path' | 'elevation-widened' | 'window-changed', string> = {
+const COMMIT_CUE: Record<
+  'server-path' | 'elevation-widened' | 'window-changed' | 'model-changed',
+  string
+> = {
   'elevation-widened': 'Press Analyze to apply. A wider elevation range needs a new search.',
   'window-changed': 'Press Analyze to apply. A different forecast window needs new forecasts.',
+  'model-changed': 'Press Analyze to apply. A different model gives different forecasts.',
   // The overlay already announced the fallback itself ("Weather service
   // unreachable from this browser"), so this only has to name the consequence.
   'server-path': 'Press Analyze to apply. The server analysis returns only the rows shown.',
@@ -139,6 +145,17 @@ interface Props {
   // roughly triples the candidate count.
   includeUnnamedPeaks: boolean
   setIncludeUnnamedPeaks: (v: boolean) => void
+  // Which weather model answers, and the set this deployment offers, from
+  // /api/capabilities. A data knob: models disagree, so changing one needs new
+  // forecasts rather than a re-presentation of held ones.
+  forecastModel: string
+  setForecastModel: (id: string) => void
+  forecastModels: readonly ForecastModelOption[]
+  // The last model change moved the far edge in under the chosen window and
+  // trimmed it. Worth saying out loud: the calendar redrawing is visible, but a
+  // selection quietly losing days is the kind of thing a reader discovers in
+  // the results instead.
+  modelClamped: boolean
   // The selection is unservable, or its narrowed hours run backwards. A horizon
   // case only arrives through a shared link: the calendar draws those days
   // disabled.
@@ -147,7 +164,7 @@ interface Props {
   // limit and elevation-narrowing normally re-present the held field with no
   // Analyze at all (#188), so this cue is the exception rather than the rule
   // and has to say which exception it is.
-  commitReason?: 'server-path' | 'elevation-widened' | 'window-changed' | null
+  commitReason?: 'server-path' | 'elevation-widened' | 'window-changed' | 'model-changed' | null
   // At least one place has been searched by name. Searched places are a ranked
   // input like the CSV, so one alone enables Analyze with no polygon drawn.
   hasPins: boolean
@@ -212,6 +229,10 @@ export default function ControlPanel({
   setShowWildfires,
   includeUnnamedPeaks,
   setIncludeUnnamedPeaks,
+  forecastModel,
+  setForecastModel,
+  forecastModels,
+  modelClamped,
   windowWarning,
   commitReason,
   hasPins,
@@ -233,6 +254,12 @@ export default function ControlPanel({
 }: Props) {
   // Parse the CSV once per change rather than twice on every render (this and the
   // "N destinations parsed" count below both used to call parseCustomCsv directly).
+  // Falls back to the id so a link naming a model this deployment stopped
+  // publishing still reads as something rather than as an empty gap in a
+  // sentence.
+  const modelLabel =
+    forecastModels.find((m) => m.id === forecastModel)?.label ?? forecastModel
+  const forecastHours = modelForecastHours(forecastModels, forecastModel)
   const parsedCustom = useMemo(() => parseCustomCsv(customCsv), [customCsv])
   const hasCustom = parsedCustom.length > 0
   // True between a paste into the CSV box and the change event it produces —
@@ -454,14 +481,70 @@ export default function ControlPanel({
 
         </section>
 
-        {/* Step 2: Forecast window — one calendar, replacing the three
-            mutually exclusive modes and their four date/time pairs (#166) */}
+        {/* Step 2: which model answers, and over which hours. One calendar,
+            replacing the three mutually exclusive modes and their four
+            date/time pairs (#166); the model above it bounds how far the
+            calendar reaches. */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
-            2. Forecast Window
+            2. Forecast
           </h2>
 
-          <ForecastCalendar selection={selection} onChange={setSelection} />
+          {/* Above the calendar rather than in Options, because it bounds the
+              calendar: the grid below redraws when this changes, and a control
+              whose effect is the next control down belongs beside it. A data
+              knob either way — sort, limit and a narrowing elevation band
+              re-present held rows, while a different model is different
+              numbers. Ordered longest-reach-first by the server. */}
+          <div className="mb-3">
+            <label htmlFor="forecast-model" className={`${TEXT.subheading} block mb-1`}>
+              Model
+            </label>
+            <div className="relative">
+              <select
+                id="forecast-model"
+                value={forecastModel}
+                onChange={(e) => setForecastModel(e.target.value)}
+                className={`${SELECT} w-full px-2 py-1.5`}
+              >
+                {/* A model named by a link but not offered here still has to
+                    appear, or the control would silently show a different
+                    model than the one about to be requested. */}
+                {!forecastModels.some((m) => m.id === forecastModel) && (
+                  <option value={forecastModel}>{forecastModel}</option>
+                )}
+                {forecastModels.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+              <svg
+                className={`${ICON_ADORNMENT} h-4 w-4`}
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+            {modelClamped && (
+              <p className={`mt-2 ${STATUS.warn} ${NOTICE.warn}`}>
+                {modelLabel} does not forecast that far ahead. The window was
+                shortened to what it covers.
+              </p>
+            )}
+          </div>
+
+          <ForecastCalendar
+            selection={selection}
+            onChange={setSelection}
+            forecastHours={forecastHours}
+          />
 
           {windowWarning && (
             <p className={`mt-2 ${STATUS.warn} ${NOTICE.warn}`}>
@@ -469,7 +552,7 @@ export default function ControlPanel({
                 ? 'The narrowed hours end before they start. Adjust them to run an analysis.'
                 : windowWarning === 'past'
                 ? `This window starts before the ${PAST_LIMIT_DAYS}-day history limit. Pick days inside the calendar's range to run an analysis.`
-                : `This window extends beyond the ${FUTURE_FORECAST_DAYS}-day forecast horizon. Pick days inside the calendar's range to run an analysis.`}
+                : `This window extends beyond what ${modelLabel} forecasts. Pick days inside the calendar's range to run an analysis.`}
             </p>
           )}
           {/* One sentence for both the partial and the fully-past-horizon case.
@@ -491,7 +574,7 @@ export default function ControlPanel({
             selecting a metric via its radio keeps the current direction. */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
-            3. Result Ranking
+            3. Ranking
           </h2>
           <div className="space-y-1.5">
             {SORT_METRICS.map((metric) => {
@@ -625,7 +708,7 @@ export default function ControlPanel({
                   onChange={(e) => setIncludeUnnamedPeaks(e.target.checked)}
                   className={CHOICE_INPUT}
                 />
-                <span>Include Unnamed Peaks in Search Results</span>
+                <span>Include Unnamed Peaks in Polygon Results</span>
               </label>
             </div>
 

@@ -42,6 +42,16 @@ export class OpenMeteoRateLimited extends Error {
   }
 }
 
+// Thrown when a regional model is asked about a location outside its grid.
+// Its own class rather than an OpenMeteoHttpError because the status alone
+// does not identify it and the remedy is unlike any other failure here: not
+// waiting, not a smaller area, but a different model. Measured 2026-08-01,
+// `models=gfs_hrrr` at 46.5,8.0 answers HTTP 400 with
+// {"error": true, "reason": "No data is available for this location"} — and a
+// batch answers the same way if a SINGLE one of its 50 locations is outside,
+// so this never identifies which destination was the problem.
+export class OpenMeteoModelCoverage extends Error {}
+
 // Any other HTTP status: reachable, failed. The server shares the same
 // upstream, so a fallback would fail identically — surface it instead.
 export class OpenMeteoHttpError extends Error {
@@ -145,13 +155,17 @@ const NO_DATA = 'NO_DATA'
 type CacheEntry = { expires: number; value: WeatherResult | AqiResult | typeof NO_DATA }
 const forecastCache = new Map<string, CacheEntry>()
 
+// `model` is part of the key for the same reason the coordinates are: two
+// models answering the same question disagree, which is the whole point of
+// being able to choose one. Empty for air quality, which has a single model.
 function cacheKey(
   service: 'weather' | 'aqi',
   c: Coordinate,
   startMs: number,
   endMs: number,
+  model = '',
 ): string {
-  return `${service}|${c.latitude}|${c.longitude}|${startMs}|${endMs}`
+  return `${service}|${c.latitude}|${c.longitude}|${startMs}|${endMs}|${model}`
 }
 
 function cacheGet(key: string): CacheEntry['value'] | undefined {
@@ -512,6 +526,21 @@ async function classify429(res: Response): Promise<OpenMeteoRateLimited> {
   return new OpenMeteoRateLimited(message, scope, retryAfterS)
 }
 
+// Does this 400 body say a regional model has nothing here? Best-effort by
+// construction: an unreadable or unexpected body falls through to the generic
+// HTTP error rather than throwing from inside error handling.
+async function isOutOfDomain(res: Response): Promise<boolean> {
+  try {
+    const body = (await res.clone().json()) as { reason?: unknown }
+    return (
+      typeof body?.reason === 'string' &&
+      /no data is available for this location/i.test(body.reason)
+    )
+  } catch {
+    return false
+  }
+}
+
 async function getJson(
   url: string,
   params: Record<string, string>,
@@ -530,6 +559,18 @@ async function getJson(
   try {
     const res = await fetch(`${url}?${qs}`, { signal })
     if (res.status === 429) throw await classify429(res)
+    if (res.status === 400 && (await isOutOfDomain(res))) {
+      // Names the remedy, not the model: the batch 400s on one bad location
+      // out of fifty and never says which, and the picker is on screen anyway.
+      // Surfaced rather than rerouted — the reroute is for OpenMeteoUnreachable
+      // alone, and the server reaches the same upstream and would 400 alike.
+      throw new OpenMeteoModelCoverage(
+        'That forecast model does not cover part of this area. It is a regional ' +
+          'model, run over the continental US and neighbouring parts of Canada ' +
+          'and Mexico only. Choose a global forecast model, or move the search ' +
+          'area inside its coverage.',
+      )
+    }
     if (!res.ok) {
       throw new OpenMeteoHttpError(
         res.status >= 500
@@ -542,6 +583,7 @@ async function getJson(
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') throw e
     if (e instanceof OpenMeteoRateLimited || e instanceof OpenMeteoHttpError) throw e
+    if (e instanceof OpenMeteoModelCoverage) throw e
     if (e instanceof OpenMeteoUnreachable) throw e
     throw new OpenMeteoUnreachable(
       `Open-Meteo request failed: ${e instanceof Error ? e.message : String(e)}`,
@@ -566,6 +608,11 @@ export interface FetchWeatherOptions {
   onProgress?: (processed: number, total: number) => void
   // The pacer or a minutely resume is about to sleep this many seconds.
   onPace?: (seconds: number) => void
+  // Which model answers. Named on every request rather than defaulted here:
+  // omitting `models=` takes Open-Meteo's `best_match` blend, which chooses per
+  // location and never reports its choice, so two adjacent peaks in one
+  // response could come from two different models with nothing saying so.
+  model: string
 }
 
 // getJson plus one automatic resume for a minutely 429: that quota refills
@@ -595,14 +642,14 @@ export async function fetchWeather(
   destinations: readonly Coordinate[],
   startMs: number,
   endMs: number,
-  { signal, onProgress, onPace }: FetchWeatherOptions = {},
+  { signal, onProgress, onPace, model }: FetchWeatherOptions,
 ): Promise<WeatherResult[]> {
   if (destinations.length === 0) return []
 
   const results: WeatherResult[] = new Array(destinations.length).fill(null)
   const missIdx: number[] = []
   destinations.forEach((c, i) => {
-    const hit = cacheGet(cacheKey('weather', c, startMs, endMs))
+    const hit = cacheGet(cacheKey('weather', c, startMs, endMs, model))
     if (hit === undefined) missIdx.push(i)
     else results[i] = hit === NO_DATA ? null : (hit as WeatherResult)
   })
@@ -623,6 +670,7 @@ export async function fetchWeather(
       FORECAST_URL,
       {
         ...coordParams(chunk),
+        models: model,
         hourly: 'precipitation,temperature_2m,wind_speed_10m',
         temperature_unit: 'fahrenheit',
         wind_speed_unit: 'mph',
@@ -653,7 +701,7 @@ export async function fetchWeather(
   const perChunk = await pooled(tasks, MAX_CONCURRENT_BATCHES, signal)
   const fetched = perChunk.flat()
   fetched.forEach((r, j) => {
-    cachePut(cacheKey('weather', misses[j], startMs, endMs), r ?? NO_DATA)
+    cachePut(cacheKey('weather', misses[j], startMs, endMs, model), r ?? NO_DATA)
   })
   missIdx.forEach((i, j) => {
     results[i] = fetched[j]

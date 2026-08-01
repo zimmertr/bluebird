@@ -29,20 +29,32 @@ import { nowLocal } from './datetimeLocal'
 //   today - 93  ->  200, 24 hourly values     today - 94  ->  400
 //   today + 15  ->  200, 24 hourly values     today + 16  ->  400
 //
-// So the past edge is really 93 and 90 is conservative slack, while the FUTURE
-// edge is 15 and the 16 this used to hold was off by one: Open-Meteo advertises
-// "16 days" counting today. The old date inputs carried the same +16 as their
-// `max`, so the last day the picker offered was one the API refuses — a 400
-// nobody hit often because it took typing a date to reach. Re-probe before
-// changing either number.
-export const PAST_LIMIT_DAYS = 90
+// The FUTURE edge is 15 and the 16 this used to hold was off by one: Open-Meteo
+// advertises "16 days" counting today. The old date inputs carried the same +16
+// as their `max`, so the last day the picker offered was one the API refuses —
+// a 400 nobody hit often because it took typing a date to reach.
+//
+// Note what that 400 does and does not prove. It is the edge past which the API
+// refuses a DATE, which is not the edge past which it has DATA — see
+// PAST_LIMIT_DAYS below, and each model's published `forecast_hours` for the
+// same distinction at the far end. Re-probe before changing it.
 export const FUTURE_LIMIT_DAYS = 15
 
-// The same horizon as a human says it: 16 days of forecast, today included.
-// Derived rather than written down twice, because conflating the offset with the
-// count is exactly how the edge above came to be wrong. Copy uses this; date
-// arithmetic uses the offset.
-export const FUTURE_FORECAST_DAYS = FUTURE_LIMIT_DAYS + 1
+// How far back the API still holds data, as opposed to how far back it accepts
+// a date. This used to be one number (90, slack under the measured 93) on the
+// assumption that a request the API accepts is a request it can answer. It is
+// not: past roughly two months every model returns 200 with an hourly array of
+// nothing but nulls, so the calendar offered ~30 days of history that could
+// only ever come back empty, under every model alike.
+//
+// Probed 2026-08-01 at 47.42648,-120.85892, bisecting the last day back with
+// any non-null hour: jma 69, gfs/ukmo 64, gem 63, ecmwf 62,
+// meteofrance 60, hrrr/icon 58. Every model is fully populated
+// through 56 and ragged at 58, so this is one floor for all of them rather
+// than a per-model number: the spread is jitter around a single ~2-month
+// retention. `PAST_DATA_DAYS` in `backend/app/models.py` is the same measurement
+// and `/api/capabilities` publishes it. Re-probe before raising it.
+export const PAST_LIMIT_DAYS = 55
 
 // The air-quality endpoint's CAMS model only publishes ~5 days of forecast —
 // well short of the weather horizon — so days past it are still analyzable but
@@ -162,9 +174,10 @@ export function orderDays(a: string, b: string): { startDate: string; endDate: s
 /**
  * The earliest local day Open-Meteo will serve.
  *
- * No UTC correction needed here, unlike `bandEnd` below: the measured past edge
- * is 93 days and this offers 90, so the day a local midnight can borrow from the
- * previous UTC date is absorbed by that slack.
+ * No UTC correction needed here, unlike `bandEnd` below: the retention edge is
+ * ragged over a day or two anyway (see `PAST_LIMIT_DAYS`), so the day a local
+ * midnight can borrow from the previous UTC date is well inside the margin this
+ * number already carries.
  */
 export function bandStart(now: Date): string {
   return addDays(dayKey(now), -PAST_LIMIT_DAYS)
@@ -176,34 +189,57 @@ function utcDayKey(ms: number): string {
 }
 
 /**
- * The latest local day Open-Meteo will serve *the whole of*.
+ * The instant the selected model's data runs out.
  *
- * Walked back from the nominal edge rather than computed, because the window is
- * local and the request is not. Every fetch sends `start_date`/`end_date` as UTC
- * dates (`utcDate` in `openMeteo.ts`, `end_dt.date()` in `weather.py`), and the
- * API's own far limit is a UTC date. West of Greenwich a local day's last minute
- * therefore lands on the *next* UTC date: 23:59 Pacific on the 15th is 06:59 UTC
- * on the 16th, one day past what the API will accept, and the request comes back
- * a 400. East of Greenwich it does not. So the answer is genuinely
- * zone-dependent — Pacific gets today + 14, London today + 15 — and offering a
- * fixed 14 everywhere would cost the eastern half of the world a real day of
- * forecast.
- *
- * The loop runs at most once for any real offset; it is a loop rather than a
- * subtraction so a future zone with a stranger offset cannot slip past it.
+ * Deliberately an instant and not a day. A model's reach is set by when its
+ * last run started, so it lands mid-afternoon as readily as at midnight, and a
+ * whole-day answer would have to round — in whichever direction, wrongly. HRRR
+ * is the case that proves it: rounded down to whole servable days it offers
+ * *today only* anywhere west of Greenwich, which for a model whose entire
+ * purpose is tomorrow morning in the mountains is the same as not offering it.
  */
-export function bandEnd(now: Date): string {
+function modelEnd(now: Date, forecastHours: number): number {
+  return now.getTime() + forecastHours * 3_600_000
+}
+
+/**
+ * The latest local day Open-Meteo will serve any of, for this model.
+ *
+ * Two different edges bound this and only one is per model.
+ *
+ * The HARD edge is the API's: it refuses an `end_date` past ~16 days with a
+ * 400, whatever model was asked for. That one is walked back rather than
+ * computed, because the window is local and the request is not. Every fetch
+ * sends `start_date`/`end_date` as UTC dates (`utcDate` in `openMeteo.ts`,
+ * `end_dt.date()` in `weather.py`), and the API's own far limit is a UTC date.
+ * West of Greenwich a local day's last minute therefore lands on the *next* UTC
+ * date: 23:59 Pacific on the 15th is 06:59 UTC on the 16th, one day past what
+ * the API will accept, and the request comes back a 400. East of Greenwich it
+ * does not. So the answer is genuinely zone-dependent — Pacific gets today + 14,
+ * London today + 15 — and offering a fixed 14 everywhere would cost the eastern
+ * half of the world a real day of forecast. The loop runs at most once for any
+ * real offset; it is a loop rather than a subtraction so a future zone with a
+ * stranger offset cannot slip past it.
+ *
+ * The SOFT edge is the model's, and it is soft in the literal sense: asking
+ * past it is not an error. The array comes back the length you asked for with
+ * nulls where the model stopped. So the last day worth offering is the one the
+ * model's reach lands *in*, partial or not — `monthGrid` marks it — rather than
+ * the last one it covers end to end.
+ */
+export function bandEnd(now: Date, forecastHours: number): string {
   const utcLimit = utcDayKey(now.getTime() + FUTURE_LIMIT_DAYS * 86_400_000)
-  let day = addDays(dayKey(now), FUTURE_LIMIT_DAYS)
-  while (utcDayKey(Date.parse(`${day}T${DAY_END}`)) > utcLimit) {
-    day = addDays(day, -1)
+  let hard = addDays(dayKey(now), FUTURE_LIMIT_DAYS)
+  while (utcDayKey(Date.parse(`${hard}T${DAY_END}`)) > utcLimit) {
+    hard = addDays(hard, -1)
   }
-  return day
+  const soft = dayKey(new Date(modelEnd(now, forecastHours)))
+  return soft < hard ? soft : hard
 }
 
 /** Is this day inside the servable band? String compare: keys sort as dates. */
-export function inBand(key: string, now: Date): boolean {
-  return key >= bandStart(now) && key <= bandEnd(now)
+export function inBand(key: string, now: Date, forecastHours: number): boolean {
+  return key >= bandStart(now) && key <= bandEnd(now, forecastHours)
 }
 
 /** The last day the air-quality model reaches. Days past it are marked. */
@@ -217,9 +253,14 @@ export function aqiHorizon(now: Date): string {
  * both unservable and air-quality-limited would be a bug the types allowed.
  */
 export type DayAvailability =
-  /** Weather and air quality. */
+  /** Every hour, both weather and air quality. */
   | 'full'
-  /** Weather only: past the air-quality horizon, still analyzable. */
+  /**
+   * Some of it. Two things land here and they mean the same thing to a reader,
+   * which is why they share a state rather than splitting the channel: a day
+   * past the air-quality horizon (weather only), and the day the chosen model's
+   * reach runs out partway through (fewer hours than a whole day).
+   */
   | 'partial'
   /** Outside the servable band, so unpickable. */
   | 'unservable'
@@ -256,13 +297,14 @@ export interface DayCell {
  * (imperial units, the EPA air-quality index, NIFC wildfire perimeters), so a
  * locale-derived first weekday would be the one place it was not.
  */
-export function monthGrid(month: string, now: Date): DayCell[][] {
+export function monthGrid(month: string, now: Date, forecastHours: number): DayCell[][] {
   const first = dayDate(`${month}-01`)
   const daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()
   const weeks = Math.ceil((first.getDay() + daysInMonth) / 7)
   const gridStart = new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay())
   const today = dayKey(now)
   const horizon = aqiHorizon(now)
+  const modelLimit = modelEnd(now, forecastHours)
 
   return Array.from({ length: weeks }, (_, w) =>
     Array.from({ length: 7 }, (_, d) => {
@@ -272,21 +314,31 @@ export function monthGrid(month: string, now: Date): DayCell[][] {
         gridStart.getDate() + w * 7 + d,
       )
       const key = dayKey(date)
+      // A day the model only reaches partway into is `partial` for the same
+      // reason a day past the air-quality horizon is: the app can serve some of
+      // it. Measured against the day's last minute, so the boundary day counts
+      // as partial rather than full — which is the honest answer and also the
+      // conservative one.
+      const modelCovers = Date.parse(`${key}T${DAY_END}`) <= modelLimit
       return {
         date: key,
         day: date.getDate(),
         inMonth: monthKey(key) === month,
         today: key === today,
         past: key < today,
-        availability: !inBand(key, now) ? 'unservable' : key > horizon ? 'partial' : 'full',
+        availability: !inBand(key, now, forecastHours)
+          ? 'unservable'
+          : key > horizon || !modelCovers
+            ? 'partial'
+            : 'full',
       }
     }),
   )
 }
 
 /** Does this month hold any servable day? Bounds the month navigation. */
-export function monthHasBandDay(month: string, now: Date): boolean {
-  return monthGrid(month, now)
+export function monthHasBandDay(month: string, now: Date, forecastHours: number): boolean {
+  return monthGrid(month, now, forecastHours)
     .flat()
     .some((c) => c.inMonth && c.availability !== 'unservable')
 }
@@ -364,6 +416,41 @@ export function applyDayClick(
     return { selection: withHours(orderDays(anchor, day), current), anchor: null }
   }
   return { selection: withHours({ startDate: day, endDate: day }, current), anchor: day }
+}
+
+/**
+ * A selection refitted to a band that moved underneath it, or null if it still
+ * fits.
+ *
+ * Changing the forecast model moves the far edge, sometimes by twelve days:
+ * a window picked under ECMWF is mostly outside HRRR's. Clamping rather than
+ * refusing is the call the maintainer made, and it is the right one — the
+ * alternative is a picker that rejects your model because of a window you chose
+ * before you knew the model mattered, leaving you to fix the window first and
+ * guess by how much.
+ *
+ * Both ends are clamped independently, which also settles the case where the
+ * whole range sits past the new edge: both land on it, and a range that has
+ * lost every day it named collapses to the last day still available rather than
+ * to nothing. Returning null for "unchanged" is what lets the caller warn only
+ * when something actually moved — an equality check on the result would fire on
+ * every model change.
+ *
+ * `now` needs no clamp: it is the current hour, which every model reaches.
+ */
+export function clampSelection(
+  selection: ForecastSelection,
+  now: Date,
+  forecastHours: number,
+): ForecastSelection | null {
+  if (selection.kind === 'now') return null
+  const first = bandStart(now)
+  const last = bandEnd(now, forecastHours)
+  const clamp = (day: string): string => (day < first ? first : day > last ? last : day)
+  const startDate = clamp(selection.startDate)
+  const endDate = clamp(selection.endDate)
+  if (startDate === selection.startDate && endDate === selection.endDate) return null
+  return { ...selection, startDate, endDate }
 }
 
 /**

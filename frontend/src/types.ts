@@ -43,6 +43,12 @@ export interface AnalyzeRequest {
   include_unnamed_peaks?: boolean
   start_datetime: string
   end_datetime: string
+  // Which weather model answers. Required rather than optional: omitting it
+  // would leave the browser path sending no `models=` and taking Open-Meteo's
+  // unreported per-location blend, while the server path applied its own
+  // default, so the two paths would disagree about what a number means.
+  // `GET /api/capabilities` lists the accepted ids.
+  forecast_model: string
   limit: number
   sort_by?: SortBy
   sort_desc?: boolean
