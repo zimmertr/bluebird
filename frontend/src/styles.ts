@@ -619,8 +619,11 @@ export const NOTICE = {
  * Three things it settles:
  *
  * - **The weight.** slate-700 is 1.4:1 on the slate-800 panel, which is not a
- *   line anyone can see. The edges moved up two steps to slate-500 (3.07:1) so
- *   this could take slate-600 (1.94:1) — quiet beside them, but present.
+ *   line anyone can see, and slate-600 at 1.94:1 read heavy once the gutters
+ *   tightened. Half-opacity slate-600 lands between the two steps — a value
+ *   the scale does not offer — which is the quietest this can be while still
+ *   being a line. The panel's structural edges stay two steps above it at
+ *   slate-500 (3.07:1), which is what keeps the two weights distinct.
  * - **The gap.** 16px on both sides, and equal is the part that matters. It
  *   was 20 and read as hugging the control above; 32/16 only moved the
  *   imbalance to the other side; 32/32 was balanced but left the panel mostly
@@ -630,7 +633,7 @@ export const NOTICE = {
  */
 export const PANEL_EDGE = 'border-slate-500'
 export const PANEL_RULE =
-  '[&>*+*]:mt-4 [&>*+*]:border-t [&>*+*]:border-slate-600 [&>*+*]:pt-4'
+  '[&>*+*]:mt-4 [&>*+*]:border-t [&>*+*]:border-slate-600/50 [&>*+*]:pt-4'
 
 /**
  * A bordered region grouping controls inside the panel: today, the calendar.

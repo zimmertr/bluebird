@@ -69,6 +69,20 @@ const LEGEND_WIDTH = 'w-44'
 // identity on every render and rebuild the pending list underneath the map.
 const NO_CUSTOM: ReadonlySet<string> = new Set()
 
+// Opening heights for the two docked panels, and where a double-click on a
+// resizer puts them back. A drag is easy to overshoot and there was no way
+// back short of dragging until it looked right again.
+const DEFAULT_CHART_HEIGHT = 288
+const DEFAULT_TABLE_HEIGHT = 280
+
+function resetPanelHeights(
+  setChart: (n: number) => void,
+  setTable: (n: number) => void,
+) {
+  setChart(DEFAULT_CHART_HEIGHT)
+  setTable(DEFAULT_TABLE_HEIGHT)
+}
+
 // Collapse/expand affordance for the bottom panels' header bars.
 function Chevron({ up }: { up: boolean }) {
   return (
@@ -221,8 +235,11 @@ export default function App() {
     () => restored?.includeUnnamedPeaks ?? false,
   )
   const [showResults, setShowResults] = useState(false)
-  const [tableHeight, setTableHeight] = useState(280)
-  const [chartHeight, setChartHeight] = useState(288)
+  // The heights both panels open at, and the ones a double-click on either
+  // resizer restores. Named rather than inline because a reset that hard-coded
+  // its own numbers would be a second opinion about what "default" means.
+  const [tableHeight, setTableHeight] = useState(DEFAULT_TABLE_HEIGHT)
+  const [chartHeight, setChartHeight] = useState(DEFAULT_CHART_HEIGHT)
   // Chevron-collapsed panels: the header bar stays docked at the bottom (the
   // panel never unmounts); expanding restores the previous height.
   const [chartCollapsed, setChartCollapsed] = useState(false)
@@ -1207,6 +1224,8 @@ export default function App() {
                     ),
                   )
                 }}
+                onDoubleClick={() => resetPanelHeights(setChartHeight, setTableHeight)}
+                title="Drag to resize, double-click to reset"
                 className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
               >
                 <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
@@ -1263,6 +1282,8 @@ export default function App() {
                     }
                   })
                 }
+                onDoubleClick={() => resetPanelHeights(setChartHeight, setTableHeight)}
+                title="Drag to resize, double-click to reset"
                 className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
               >
                 <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />

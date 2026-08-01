@@ -625,7 +625,7 @@ export default function ControlPanel({
                   onChange={(e) => setIncludeUnnamedPeaks(e.target.checked)}
                   className={CHOICE_INPUT}
                 />
-                <span>Include Unnamed Peaks</span>
+                <span>Include Unnamed Peaks in Search Results</span>
               </label>
             </div>
 
