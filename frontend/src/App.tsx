@@ -214,10 +214,11 @@ export default function App() {
   }, [caps.maxLimit])
   // Which model answers. Restored from the link when one names a model, else
   // the deployment's default. Old links carry no `model=` and inherit it, which
-  // silently changes their numbers: they were computed under Open-Meteo's
-  // `best_match` blend, and the default is now ECMWF. That is a release note
-  // rather than something to migrate around — the blend never reported which
-  // model it picked, so there is no honest way to reproduce those numbers.
+  // can change their numbers: they were computed under Open-Meteo's
+  // `best_match` blend. That is a release note rather than something to migrate
+  // around — the blend never reported which model it picked, so there is no
+  // honest way to reproduce those numbers. The named default is the closest
+  // thing to a continuation: `best_match` resolved to GFS at Rainier.
   const [forecastModel, setForecastModel] = useState(
     () => restored?.forecastModel ?? caps.defaultForecastModel,
   )

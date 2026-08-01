@@ -36,8 +36,8 @@ import { nowLocal } from './datetimeLocal'
 //
 // Note what that 400 does and does not prove. It is the edge past which the API
 // refuses a DATE, which is not the edge past which it has DATA — see
-// PAST_DATA_DAYS below, and `MODEL_HOURS` for the same distinction at the far
-// end. Re-probe before changing it.
+// PAST_LIMIT_DAYS below, and each model's published `forecast_hours` for the
+// same distinction at the far end. Re-probe before changing it.
 export const FUTURE_LIMIT_DAYS = 15
 
 // How far back the API still holds data, as opposed to how far back it accepts
@@ -45,11 +45,11 @@ export const FUTURE_LIMIT_DAYS = 15
 // assumption that a request the API accepts is a request it can answer. It is
 // not: past roughly two months every model returns 200 with an hourly array of
 // nothing but nulls, so the calendar offered ~30 days of history that could
-// only ever come back empty, under `best_match` as much as anything else.
+// only ever come back empty, under every model alike.
 //
 // Probed 2026-08-01 at 47.42648,-120.85892, bisecting the last day back with
-// any non-null hour: jma 69, metno/knmi 65, best_match/gfs/ukmo 64, gem 63,
-// ecmwf 62, meteofrance 60, hrrr/icon 58. Every model is fully populated
+// any non-null hour: jma 69, gfs/ukmo 64, gem 63, ecmwf 62,
+// meteofrance 60, hrrr/icon 58. Every model is fully populated
 // through 56 and ragged at 58, so this is one floor for all of them rather
 // than a per-model number: the spread is jitter around a single ~2-month
 // retention. `PAST_DATA_DAYS` in `backend/app/models.py` is the same measurement

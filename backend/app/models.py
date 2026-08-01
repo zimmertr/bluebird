@@ -43,8 +43,8 @@ FUTURE_LIMIT_SLACK_DAYS = 17
 # Probed 2026-08-01 at 47.42648,-120.85892, bisecting the last day back that
 # returns any non-null hour, per model:
 #
-#   jma 69   knmi 65   gfs 64   ukmo 64   gem 63
-#   ecmwf 62   meteofrance 60   hrrr 58   icon 58
+#   jma 69   gfs 64   ukmo 64   gem 63   ecmwf 62
+#   meteofrance 60   hrrr 58   icon 58
 #
 # Every model is fully populated through 56 days back and ragged at 58, so this
 # is one floor for all of them rather than another column in the table
@@ -88,13 +88,20 @@ class ForecastModel(str, Enum):
     order is the contract: `/api/capabilities` publishes it as declared and the
     picker renders it as published.
 
-    Three ids Open-Meteo serves are deliberately absent. `best_match` is its
-    blend, which picks per location and never reports its pick — the whole
-    reason this enum exists. `ecmwf_aifs025` returned an hourly array of
-    nothing but nulls at three points on three continents (probed 2026-08-01).
-    `metno_seamless` is byte-identical to `knmi_seamless` everywhere in North
-    America — same three peaks, all three variables — so offering both was
-    offering one dataset twice.
+    Four ids Open-Meteo serves are deliberately absent, each for its own
+    reason (all probed 2026-08-01):
+
+    - `best_match` is its blend, which picks per location and never reports its
+      pick — the whole reason this enum exists.
+    - `ecmwf_aifs025` returned an hourly array of nothing but nulls at three
+      points on three continents.
+    - `metno_seamless` and `knmi_seamless` are byte-identical to each other
+      everywhere in North America (Rainier, Whitney and Denali, all three
+      variables), so offering both offered one dataset twice — and the survivor
+      matched no `ecmwf_*` or `gem_*` product either, while KNMI's own
+      `knmi_harmonie_arome_europe` refuses coordinates outside Europe. Neither
+      is offered: this list is ranked best-first, and a model whose North
+      American provenance cannot be established has no defensible place in it.
     """
 
     gfs_seamless = "gfs_seamless"
@@ -104,7 +111,6 @@ class ForecastModel(str, Enum):
     ukmo_seamless = "ukmo_seamless"
     icon_seamless = "icon_seamless"
     jma_seamless = "jma_seamless"
-    knmi_seamless = "knmi_seamless"
     meteofrance_seamless = "meteofrance_seamless"
 
 
@@ -169,11 +175,7 @@ class ModelInfo(NamedTuple):
 #               place as the dissenter in issue #230 — it read 0.004 in where
 #               ECMWF and GFS both read 0.000.
 #   7 JMA       ~20 km, tuned for the western Pacific. Harmless, no edge here.
-#   8 KNMI      HARMONIE is a North Sea model; over North America this serves
-#               some fallback I could not identify against any ECMWF or GEM
-#               product. Ranked low for exactly that reason: unexplained
-#               provenance is not something to recommend for a summit day.
-#   9 ARPEGE    A stretched grid, finest over France and deliberately coarsest
+#   8 ARPEGE    A stretched grid, finest over France and deliberately coarsest
 #               on the far side of the world. Worst resolution here and the
 #               shortest reach of any global model on the list.
 #
@@ -186,7 +188,6 @@ class ModelInfo(NamedTuple):
 #   model                  measured   floor
 #   gfs_seamless           384        384   (bounded by the request, not the model)
 #   ecmwf_ifs025           349, 342   336
-#   knmi_seamless          349        336
 #   jma_seamless           253        240
 #   gem_seamless           241        216
 #   icon_seamless          181        168
@@ -204,7 +205,6 @@ MODEL_INFO: dict[ForecastModel, ModelInfo] = {
     ForecastModel.ukmo_seamless: ModelInfo("UK Met Office", 144),
     ForecastModel.icon_seamless: ModelInfo("DWD ICON", 168),
     ForecastModel.jma_seamless: ModelInfo("JMA GSM", 240),
-    ForecastModel.knmi_seamless: ModelInfo("KNMI", 336),
     ForecastModel.meteofrance_seamless: ModelInfo("Meteo-France ARPEGE", 72),
 }
 

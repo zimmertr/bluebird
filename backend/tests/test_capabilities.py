@@ -171,11 +171,14 @@ def test_capabilities_publishes_models_in_the_declared_ranking_not_a_sort():
 
 def test_capabilities_omits_the_models_that_cannot_be_recommended():
     # best_match never reports which model it picked, which is the whole reason
-    # this feature exists; ecmwf_aifs025 serves nulls everywhere; and
-    # metno_seamless was byte-identical to knmi_seamless across three peaks and
-    # all three variables, so offering both was offering one dataset twice.
+    # this feature exists. ecmwf_aifs025 serves nulls everywhere. knmi_seamless
+    # and metno_seamless are byte-identical to each other over North America and
+    # match no ECMWF or GEM product, so neither can be placed in a list that
+    # claims to be ranked.
     published = {m["id"] for m in _capabilities()["forecast_models"]}
-    assert published.isdisjoint({"best_match", "ecmwf_aifs025", "metno_seamless"})
+    assert published.isdisjoint(
+        {"best_match", "ecmwf_aifs025", "metno_seamless", "knmi_seamless"}
+    )
 
 
 def test_hrrr_is_the_only_regional_model_and_the_short_range_one():

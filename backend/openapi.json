@@ -782,7 +782,7 @@
         "type": "string"
       },
       "ForecastModel": {
-        "description": "The weather model Open-Meteo is asked for, as its own `models=` value.\n\nDeclared best-first for this app's terrain (see `MODEL_INFO`), and that\norder is the contract: `/api/capabilities` publishes it as declared and the\npicker renders it as published.\n\nThree ids Open-Meteo serves are deliberately absent. `best_match` is its\nblend, which picks per location and never reports its pick \u2014 the whole\nreason this enum exists. `ecmwf_aifs025` returned an hourly array of\nnothing but nulls at three points on three continents (probed 2026-08-01).\n`metno_seamless` is byte-identical to `knmi_seamless` everywhere in North\nAmerica \u2014 same three peaks, all three variables \u2014 so offering both was\noffering one dataset twice.",
+        "description": "The weather model Open-Meteo is asked for, as its own `models=` value.\n\nDeclared best-first for this app's terrain (see `MODEL_INFO`), and that\norder is the contract: `/api/capabilities` publishes it as declared and the\npicker renders it as published.\n\nFour ids Open-Meteo serves are deliberately absent, each for its own\nreason (all probed 2026-08-01):\n\n- `best_match` is its blend, which picks per location and never reports its\n  pick \u2014 the whole reason this enum exists.\n- `ecmwf_aifs025` returned an hourly array of nothing but nulls at three\n  points on three continents.\n- `metno_seamless` and `knmi_seamless` are byte-identical to each other\n  everywhere in North America (Rainier, Whitney and Denali, all three\n  variables), so offering both offered one dataset twice \u2014 and the survivor\n  matched no `ecmwf_*` or `gem_*` product either, while KNMI's own\n  `knmi_harmonie_arome_europe` refuses coordinates outside Europe. Neither\n  is offered: this list is ranked best-first, and a model whose North\n  American provenance cannot be established has no defensible place in it.",
         "enum": [
           "gfs_seamless",
           "gem_seamless",
@@ -791,7 +791,6 @@
           "ukmo_seamless",
           "icon_seamless",
           "jma_seamless",
-          "knmi_seamless",
           "meteofrance_seamless"
         ],
         "title": "ForecastModel",

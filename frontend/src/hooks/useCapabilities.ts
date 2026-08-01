@@ -35,7 +35,7 @@ export interface Capabilities {
 const FALLBACK_POLYGON_AREA_KM2 = 100_000
 
 // Fallback for the model picker. One entry, not a compiled copy of the server's
-// nine: this stands in only for the moment before /api/capabilities answers,
+// list: this stands in only for the moment before /api/capabilities answers,
 // and a stale list of models would be worse than a short one — picking a model
 // this deployment has since dropped fails the analysis, where picking the
 // default cannot. The hours are GFS's floor from backend/app/models.py.
