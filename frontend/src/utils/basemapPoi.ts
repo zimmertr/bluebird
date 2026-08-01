@@ -51,7 +51,14 @@ function isLakeLayer(layerId: string): boolean {
  */
 export const LAKE_CLASS = 'lake'
 
-const METERS_PER_FOOT = 0.3048
+// The server's own metres→feet factor (`_ele_ft` in osm.py), used here rather
+// than its reciprocal so both sides round identically. This matters more than
+// it looks: an unnamed summit is NAMED from its elevation, so a one-foot
+// disagreement makes `Peak 5961` and `Peak 5962` two destinations for one
+// mountain — and neither dedup rule catches it, since the backend merges a
+// custom row into a discovered one by exact name or 5-decimal coordinate, and
+// a clicked coordinate is tile-snapped by up to ~20 m.
+const FEET_PER_METER = 3.28084
 
 /**
  * How close two POIs must be to count as the same one.
@@ -97,10 +104,14 @@ function nameOf(props: Record<string, unknown>): string {
 // where OSM tagged an elevation at all. Prefer the feet the tile computed;
 // convert from meters when it is the only one present.
 function elevationFtOf(props: Record<string, unknown>): number | undefined {
+  // `ele` first, deliberately. The tile also carries a precomputed `ele_ft`,
+  // but that is OpenMapTiles' own rounding of the same metres and lands a foot
+  // away from the server's often enough to matter — see FEET_PER_METER above.
+  // Converting from the shared source is what keeps the two names identical.
+  const m = Number(props.ele)
+  if (Number.isFinite(m)) return Math.round(m * FEET_PER_METER)
   const ft = Number(props.ele_ft)
   if (Number.isFinite(ft)) return Math.round(ft)
-  const m = Number(props.ele)
-  if (Number.isFinite(m)) return Math.round(m / METERS_PER_FOOT)
   return undefined
 }
 

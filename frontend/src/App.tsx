@@ -976,6 +976,11 @@ export default function App() {
             // Editing a shape that has scrolled off screen is the one thing
             // the draw/idle split made easy to do by accident.
             mapRef.current?.framePolygon()
+            // On a phone the panel is an off-canvas drawer covering the map,
+            // so entering draw mode behind it leaves nothing to draw on. On
+            // desktop it is docked beside the map and closing it would be
+            // taking away the Done button you are about to need.
+            if (!isDesktop) setSidebarOpen(false)
           }}
           onFinishDrawing={() => setDrawing(false)}
           drawPointCount={drawPointCount}

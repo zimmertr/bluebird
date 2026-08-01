@@ -8,7 +8,10 @@ import mapViewSource from '../components/MapView.tsx?raw'
 const RAINIER: [number, number] = [-121.7604, 46.8529]
 
 describe('poiFromFeature', () => {
-  it('reads a peak’s name and the feet the tile already carries', () => {
+  // The tile carries 14410 in its own precomputed feet and 4392 metres; the
+  // metres win, and 4392 x 3.28084 rounds to 14409. That one-foot gap is the
+  // whole reason this prefers metres — see FEET_PER_METER.
+  it('reads a peak’s name and converts its elevation from metres', () => {
     expect(
       poiFromFeature('ofm-peaks', { name: 'Mount Rainier', class: 'volcano', ele: 4392, ele_ft: 14410 }, RAINIER),
     ).toEqual({
@@ -16,13 +19,25 @@ describe('poiFromFeature', () => {
       kind: 'volcano',
       lat: 46.8529,
       lon: -121.7604,
-      elevationFt: 14410,
+      elevationFt: 14409,
     })
   })
 
-  it('converts from meters when the tile carries no feet', () => {
+  it('converts from meters, the way the server does', () => {
     const poi = poiFromFeature('ofm-peaks', { name: 'Glacier Peak', ele: 3213 }, RAINIER)
     expect(poi?.elevationFt).toBe(10541)
+  })
+
+  // The tile's own precomputed feet is a second rounding of the same metres and
+  // lands a foot away often enough to matter — an unnamed summit is NAMED from
+  // this number, so a disagreement is two destinations for one mountain.
+  it('ignores the tile precomputed feet when metres are available', () => {
+    const poi = poiFromFeature('ofm-peaks', { name: 'X', ele: 3213, ele_ft: 99999 }, RAINIER)
+    expect(poi?.elevationFt).toBe(10541)
+  })
+
+  it('falls back to the precomputed feet when there are no metres', () => {
+    expect(poiFromFeature('ofm-peaks', { name: 'X', ele_ft: 9000 }, RAINIER)?.elevationFt).toBe(9000)
   })
 
   it('leaves elevation absent when OSM never tagged one', () => {
