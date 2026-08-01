@@ -10,9 +10,12 @@ import mapViewSource from '../components/MapView.tsx?raw'
 describe('parseCapabilities', () => {
   const body = {
     limits: { max_destinations: 900, max_limit: 800, max_polygon_area_km2: 70_000 },
+    // Deliberately NOT in reach order: the server ranks these for mountain
+    // terrain, and a client that re-sorted would undo the ranking.
     forecast_models: [
-      { id: 'gfs_seamless', label: 'NOAA GFS', forecast_hours: 384, regional: false },
-      { id: 'ecmwf_ifs025', label: 'ECMWF IFS', forecast_hours: 336, regional: false, default: true },
+      { id: 'gfs_seamless', label: 'NOAA GFS', forecast_hours: 384, regional: false, default: true },
+      { id: 'gem_seamless', label: 'ECCC GEM', forecast_hours: 216, regional: false },
+      { id: 'ecmwf_ifs025', label: 'ECMWF IFS', forecast_hours: 336, regional: false },
       { id: 'gfs_hrrr', label: 'NOAA HRRR', forecast_hours: 42, regional: true },
     ],
   }
@@ -24,10 +27,11 @@ describe('parseCapabilities', () => {
       maxPolygonAreaKm2: 70_000,
       forecastModels: [
         { id: 'gfs_seamless', label: 'NOAA GFS', forecastHours: 384, regional: false },
+        { id: 'gem_seamless', label: 'ECCC GEM', forecastHours: 216, regional: false },
         { id: 'ecmwf_ifs025', label: 'ECMWF IFS', forecastHours: 336, regional: false },
         { id: 'gfs_hrrr', label: 'NOAA HRRR', forecastHours: 42, regional: true },
       ],
-      defaultForecastModel: 'ecmwf_ifs025',
+      defaultForecastModel: 'gfs_seamless',
     })
   })
 
@@ -62,6 +66,17 @@ describe('parseCapabilities', () => {
   // pick some reach for it. The shortest on offer, not the longest: a day drawn
   // as available and returned empty is worse than one drawn as unavailable that
   // would have worked.
+  // The server's ranking is not a sort on anything the client can see, so the
+  // client must not impose one of its own.
+  it('preserves the published order rather than re-sorting', () => {
+    expect(parseCapabilities(body).forecastModels.map((m) => m.id)).toEqual([
+      'gfs_seamless',
+      'gem_seamless',
+      'ecmwf_ifs025',
+      'gfs_hrrr',
+    ])
+  })
+
   it('assumes the shortest reach for a model it does not recognize', () => {
     const models = parseCapabilities(body).forecastModels
     expect(modelForecastHours(models, 'ecmwf_ifs025')).toBe(336)

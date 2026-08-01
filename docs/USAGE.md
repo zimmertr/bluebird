@@ -70,11 +70,17 @@ Which model answers, and over which hours.
 
 ### Model
 
-Which weather model answers. Defaults to ECMWF.
+Which weather model answers. The list is ordered best first for mountain terrain, so the default, **NOAA GFS**, is the top entry.
+
+That default is a blend rather than plain GFS: it is HRRR's 3 km grid for the first two days and GFS's coarser grid out to sixteen. High resolution when the resolution matters, reach when it does not.
 
 Models disagree, sometimes by more than the thing being measured: over three days at one Cascades summit, ECMWF and GFS both totalled 0.000 in of precipitation while ICON gave 0.004 in. None of them is lying, and there is no way to know in advance which was right, so this is a knob rather than a setting with a correct value. If a number matters to you, try it under two models.
 
-They also reach different distances ahead, which is why the calendar below redraws when you change this. The one worth knowing by name is **NOAA HRRR**: a 3 km model, the most accurate of these in mountain terrain, reaching only about two days. It is what to ask about tomorrow morning and useless for next weekend. It is also the only regional one here, covering the continental US and neighbouring parts of Canada and Mexico; asking it about anywhere else stops the analysis and says so rather than returning a partial answer.
+They also reach different distances ahead, which is why the calendar below redraws when you change this. Three are worth knowing by name:
+
+- **ECCC GEM** is Canada's, and second in the list because over the North Cascades it is arguably the sharpest thing here: 2.5 km for two days and 10 km out to three and a half, finer than the default through exactly the window that decides a trip. It stops at about nine days.
+- **ECMWF IFS** has the best medium-range record of any of these. It is the one to ask which weekend, though at roughly 25 km it cannot see an individual valley.
+- **NOAA HRRR** reaches only about two days, and the default already contains it for that stretch, so pick it when you specifically want a number that is purely HRRR. It is also the only regional model here, covering the continental US and neighbouring parts of Canada and Mexico; asking it about anywhere else stops the analysis and says so rather than returning a partial answer.
 
 Changing the model needs a new **Analyze**, like changing the polygon or the window: different models mean different forecasts, not a different view of the ones already fetched.
 

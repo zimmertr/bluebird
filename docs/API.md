@@ -70,9 +70,9 @@ telling you.
 
 ## Choosing a forecast model
 
-`forecast_model` names which weather model answers. It defaults to ECMWF and
-never sends Open-Meteo's `best_match` blend, which picks per location and does
-not report its pick.
+`forecast_model` names which weather model answers. It defaults to
+`gfs_seamless` and never sends Open-Meteo's `best_match` blend, which picks per
+location and does not report its pick.
 
 ```jsonc
 { "forecast_model": "gfs_hrrr",
@@ -81,8 +81,12 @@ not report its pick.
   "end_datetime":   "2026-08-02T02:00:00Z" }
 ```
 
-Two things follow from the choice, and `GET /api/capabilities` publishes both
-under `forecast_models` rather than leaving you to hardcode them.
+`forecast_models` in `GET /api/capabilities` is the list, **best first**. That
+order is this deployment's editorial ranking for mountain terrain, not a sort on
+any field in the response — it weights grid spacing over forecast length, so it
+is roughly the reverse of ordering by `forecast_hours`. Render it as given.
+
+Two more things follow from the choice, and the same endpoint publishes both.
 
 **Each model reaches a different distance.** `forecast_hours` says how far. It
 is separate from `limits.max_future_days`, which is the hard edge the request

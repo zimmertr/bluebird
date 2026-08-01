@@ -121,12 +121,20 @@ model simply stops, returning nothing for the hours past its own reach.
 `GET /api/capabilities` publishes how far each model reaches, which is where the
 calendar gets the number rather than compiling its own.
 
-The short-range outlier is **HRRR**, which reaches about two days where the
-global models reach one to two weeks. That is the trade it exists for: it is a
-3 km model and the most accurate of these in mountain terrain, so it is the one
-to ask about tomorrow morning and useless for next weekend.
+The list is ordered best first, and the order is an editorial judgement about
+mountain terrain rather than a sort on anything: grid spacing over the Cascades
+is weighted above forecast length, so it runs roughly opposite to ordering by
+reach. Two models are seamless blends and that is why they lead it. The default,
+**NOAA GFS**, is HRRR's 3 km grid to about hour 45 and GFS's out to sixteen
+days. **ECCC GEM** is HRDPS at 2.5 km to about hour 45, RDPS at 10 km to hour
+81, then GEM global — finer than the default through the first three days, at
+the cost of stopping around nine.
 
-HRRR is also the only **regional** model here. It is run over the continental US
+The short-range outlier is **HRRR** itself, which reaches about two days. The
+default already contains it for that stretch, so choosing it directly is for
+when a number needs to be purely HRRR rather than a blend.
+
+HRRR is the only **regional** model here. It is run over the continental US
 and neighbouring parts of Canada and Mexico, and Open-Meteo refuses any point
 outside that grid — a refusal that takes the whole batch with it, so a single
 destination outside coverage fails the analysis rather than quietly dropping one

@@ -20,7 +20,7 @@ export interface Capabilities {
   maxDestinations: number
   maxLimit: number
   maxPolygonAreaKm2: number
-  /** Longest reach first, as the server orders them. */
+  /** Best first, in the order the server ranked them. Render as given. */
   forecastModels: readonly ForecastModelOption[]
   defaultForecastModel: string
 }
@@ -35,14 +35,14 @@ export interface Capabilities {
 const FALLBACK_POLYGON_AREA_KM2 = 100_000
 
 // Fallback for the model picker. One entry, not a compiled copy of the server's
-// eleven: this stands in only for the moment before /api/capabilities answers,
+// nine: this stands in only for the moment before /api/capabilities answers,
 // and a stale list of models would be worse than a short one — picking a model
 // this deployment has since dropped fails the analysis, where picking the
-// default cannot. The hours are ECMWF's floor from backend/app/models.py.
+// default cannot. The hours are GFS's floor from backend/app/models.py.
 export const FALLBACK_FORECAST_MODEL: ForecastModelOption = {
-  id: 'ecmwf_ifs025',
-  label: 'ECMWF IFS',
-  forecastHours: 336,
+  id: 'gfs_seamless',
+  label: 'NOAA GFS',
+  forecastHours: 384,
   regional: false,
 }
 
@@ -55,8 +55,10 @@ const FALLBACK: Capabilities = {
 }
 
 /**
- * The models a body advertises, dropping any entry missing the two fields that
- * make one usable. A deployment running an older build publishes no
+ * The models a body advertises, in the order given, dropping any entry missing
+ * the two fields that make one usable. Order is preserved deliberately: the
+ * server ranks them for mountain terrain and that ranking is not derivable
+ * from any field here. A deployment running an older build publishes no
  * `forecast_models` at all, which has to leave the picker on its fallback
  * rather than empty: an empty dropdown is a dead control, and the default model
  * works whether or not the server described it.

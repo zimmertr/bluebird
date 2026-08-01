@@ -156,9 +156,26 @@ def test_capabilities_flags_exactly_one_default_and_it_is_the_request_default():
     assert AnalyzeRequest(destination_types=[]).forecast_model is DEFAULT_FORECAST_MODEL
 
 
-def test_capabilities_orders_models_by_reach_so_the_picker_can_render_in_order():
+def test_capabilities_publishes_models_in_the_declared_ranking_not_a_sort():
+    # The order is editorial — a ranking for mountain terrain — so it must
+    # survive to the client exactly as declared. Asserting it is not a sort on
+    # reach is the guard that matters: reach is the field someone would reach
+    # for, and it would invert the list, putting the coarsest global models
+    # above a 2.5 km one.
+    published = [m["id"] for m in _capabilities()["forecast_models"]]
+    assert published == [m.value for m in MODEL_INFO]
     hours = [m["forecast_hours"] for m in _capabilities()["forecast_models"]]
-    assert hours == sorted(hours, reverse=True)
+    assert hours != sorted(hours, reverse=True)
+    assert published[0] == DEFAULT_FORECAST_MODEL.value
+
+
+def test_capabilities_omits_the_models_that_cannot_be_recommended():
+    # best_match never reports which model it picked, which is the whole reason
+    # this feature exists; ecmwf_aifs025 serves nulls everywhere; and
+    # metno_seamless was byte-identical to knmi_seamless across three peaks and
+    # all three variables, so offering both was offering one dataset twice.
+    published = {m["id"] for m in _capabilities()["forecast_models"]}
+    assert published.isdisjoint({"best_match", "ecmwf_aifs025", "metno_seamless"})
 
 
 def test_hrrr_is_the_only_regional_model_and_the_short_range_one():

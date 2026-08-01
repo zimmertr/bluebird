@@ -43,11 +43,11 @@ FUTURE_LIMIT_SLACK_DAYS = 17
 # Probed 2026-08-01 at 47.42648,-120.85892, bisecting the last day back that
 # returns any non-null hour, per model:
 #
-#   jma 69   metno 65   knmi 65   best_match 64   gfs 64   ukmo 64
-#   gem 63   ecmwf 62   meteofrance 60   hrrr 58   icon 58
+#   jma 69   knmi 65   gfs 64   ukmo 64   gem 63
+#   ecmwf 62   meteofrance 60   hrrr 58   icon 58
 #
 # Every model is fully populated through 56 days back and ragged at 58, so this
-# is one floor for all of them rather than an eleventh column in the table
+# is one floor for all of them rather than another column in the table
 # below: the spread is two weeks of jitter around a single ~2-month retention,
 # not a per-model property worth modelling. Re-probe before raising it.
 PAST_DATA_DAYS = 55
@@ -84,34 +84,46 @@ class ForecastMode(str, Enum):
 class ForecastModel(str, Enum):
     """The weather model Open-Meteo is asked for, as its own `models=` value.
 
-    Sending no `models=` at all takes Open-Meteo's `best_match` blend, which is
-    what Bluebird shipped before this enum existed and is kept here as an
-    explicit choice rather than an absence. `ecmwf_aifs025` is deliberately
-    absent: probed 2026-08-01 at three points on three continents, it returned
-    an hourly array of nothing but nulls at every one, so offering it would only
-    ever produce an empty analysis.
+    Declared best-first for this app's terrain (see `MODEL_INFO`), and that
+    order is the contract: `/api/capabilities` publishes it as declared and the
+    picker renders it as published.
+
+    Three ids Open-Meteo serves are deliberately absent. `best_match` is its
+    blend, which picks per location and never reports its pick — the whole
+    reason this enum exists. `ecmwf_aifs025` returned an hourly array of
+    nothing but nulls at three points on three continents (probed 2026-08-01).
+    `metno_seamless` is byte-identical to `knmi_seamless` everywhere in North
+    America — same three peaks, all three variables — so offering both was
+    offering one dataset twice.
     """
 
-    ecmwf_ifs025 = "ecmwf_ifs025"
     gfs_seamless = "gfs_seamless"
-    gfs_hrrr = "gfs_hrrr"
-    icon_seamless = "icon_seamless"
-    ukmo_seamless = "ukmo_seamless"
-    meteofrance_seamless = "meteofrance_seamless"
-    jma_seamless = "jma_seamless"
     gem_seamless = "gem_seamless"
+    ecmwf_ifs025 = "ecmwf_ifs025"
+    gfs_hrrr = "gfs_hrrr"
+    ukmo_seamless = "ukmo_seamless"
+    icon_seamless = "icon_seamless"
+    jma_seamless = "jma_seamless"
     knmi_seamless = "knmi_seamless"
-    metno_seamless = "metno_seamless"
-    best_match = "best_match"
+    meteofrance_seamless = "meteofrance_seamless"
 
 
-# ECMWF rather than the `best_match` blend Bluebird used to send. `best_match`
-# is a per-location choice Open-Meteo makes and never reports, so two adjacent
-# peaks could be answered by two different models and nothing said so; naming
-# one model is what makes a number reproducible. This changes the numbers for
-# every existing shared link, which is a release note, not a migration: a link
-# carries no `model=` and therefore inherits this default.
-DEFAULT_FORECAST_MODEL = ForecastModel.ecmwf_ifs025
+# The seamless GFS, not raw HRRR and not ECMWF.
+#
+# Measured 2026-08-01 at Mount Rainier: `gfs_seamless` is byte-identical to
+# `gfs_hrrr` for hours 0-45 and to `gfs_global` from hour 49, so it is HRRR's
+# 3 km convection-allowing grid where HRRR exists and GFS's 16 days after it.
+# That is strictly more useful here than either half alone, and unlike raw HRRR
+# it has no coverage cliff: outside the HRRR grid it simply serves GFS, where
+# `gfs_hrrr` would refuse the whole batch.
+#
+# It replaces the `best_match` blend Bluebird used to send, which chose per
+# location and never said what it chose, so two adjacent peaks could be
+# answered by two different models with nothing recording it. Naming one model
+# is what makes a row reproducible and a shared link mean what it meant when it
+# was shared. A link carrying no `model=` inherits this, which is a release
+# note rather than a migration: `best_match` cannot be reproduced.
+DEFAULT_FORECAST_MODEL = ForecastModel.gfs_seamless
 
 
 class ModelInfo(NamedTuple):
@@ -128,25 +140,53 @@ class ModelInfo(NamedTuple):
     regional: bool = False
 
 
-# How many hours ahead of *now* each model still has data for, as a floor.
+# How many hours ahead of *now* each model still has data for, as a floor, and
+# the order the picker offers them in.
 #
-# Two separate edges bound the far end of a window and only one of them is per
-# model. Open-Meteo refuses an `end_date` past ~16 days with a 400 whatever the
-# model; that hard edge is `FUTURE_LIMIT_SLACK_DAYS` here and `FUTURE_LIMIT_DAYS`
-# in `calendar.ts`. Inside it, each model simply stops: the array comes back the
-# requested length with nulls past the model's own reach. This table is that
-# softer, per-model edge.
+# THE ORDER IS EDITORIAL, not derived. It ranks these models for the terrain
+# this app is built for — Pacific Northwest alpine — and dict order is the
+# contract: `/api/capabilities` publishes as declared rather than sorting, so
+# changing this list changes the picker. Reach is deliberately NOT the sort key;
+# grid spacing over the Cascades matters more than a fourteenth day does.
 #
-# The numbers are floors, not measurements. A model's usable lead shrinks by the
+# The ranking, and why, measured 2026-08-01 at Rainier/Baker/Whitney:
+#
+#   1 GFS       HRRR 3 km to h45, then GFS 25 km to 16 d. Best all-rounder and
+#               the default: high resolution when it matters, reach when it
+#               does not, and no coverage cliff.
+#   2 GEM       HRDPS 2.5 km to h45, RDPS 10 km to h81, then GEM 15 km. FINER
+#               than GFS short-range and far finer at days 2-3.5, which over the
+#               North Cascades is the window that decides a trip. Second only
+#               because it stops at ~9 days. At Whitney HRDPS drops out and it
+#               starts at RDPS, so the edge is genuinely a northern one.
+#   3 ECMWF     Best global medium-range skill by reputation. The right answer
+#               for "which weekend", but ~25 km cannot see a valley.
+#   4 HRRR      The best-understood mountain physics here, and largely redundant
+#               now: GFS above already serves it for the first two days. Kept
+#               for callers who need to know the number is purely HRRR.
+#   5 UKMO      Finest global grid on the list (~10 km). Short reach for it.
+#   6 ICON      ~13 km global; its European nests do not reach us. Earned its
+#               place as the dissenter in issue #230 — it read 0.004 in where
+#               ECMWF and GFS both read 0.000.
+#   7 JMA       ~20 km, tuned for the western Pacific. Harmless, no edge here.
+#   8 KNMI      HARMONIE is a North Sea model; over North America this serves
+#               some fallback I could not identify against any ECMWF or GEM
+#               product. Ranked low for exactly that reason: unexplained
+#               provenance is not something to recommend for a summit day.
+#   9 ARPEGE    A stretched grid, finest over France and deliberately coarsest
+#               on the far side of the world. Worst resolution here and the
+#               shortest reach of any global model on the list.
+#
+# The HOURS are floors, not measurements. A model's usable lead shrinks by the
 # hour as its last run ages and jumps back up when the next one lands, so the
 # published value has to sit under the trough rather than on any single reading.
-# Probed 2026-08-01 at 47.42648,-120.85892 with `forecast_days=16`, counting
-# non-null hours; each floor drops the measurement to the run cycle below it:
+# Probed at 47.42648,-120.85892 with `forecast_days=16`, counting non-null
+# hours; each floor drops the measurement to the run cycle below it:
 #
 #   model                  measured   floor
-#   best_match / gfs       384        384   (bounded by the request, not the model)
+#   gfs_seamless           384        384   (bounded by the request, not the model)
 #   ecmwf_ifs025           349, 342   336
-#   knmi / metno           349        336
+#   knmi_seamless          349        336
 #   jma_seamless           253        240
 #   gem_seamless           241        216
 #   icon_seamless          181        168
@@ -157,17 +197,15 @@ class ModelInfo(NamedTuple):
 # Being wrong high costs a calendar day that answers with nothing; being wrong
 # low costs a day of real forecast. Re-probe before moving any of them.
 MODEL_INFO: dict[ForecastModel, ModelInfo] = {
-    ForecastModel.ecmwf_ifs025: ModelInfo("ECMWF IFS", 336),
     ForecastModel.gfs_seamless: ModelInfo("NOAA GFS", 384),
-    ForecastModel.gfs_hrrr: ModelInfo("NOAA HRRR", 42, regional=True),
-    ForecastModel.icon_seamless: ModelInfo("DWD ICON", 168),
-    ForecastModel.ukmo_seamless: ModelInfo("UK Met Office", 144),
-    ForecastModel.meteofrance_seamless: ModelInfo("Météo-France ARPEGE", 72),
-    ForecastModel.jma_seamless: ModelInfo("JMA GSM", 240),
     ForecastModel.gem_seamless: ModelInfo("ECCC GEM", 216),
-    ForecastModel.knmi_seamless: ModelInfo("KNMI HARMONIE", 336),
-    ForecastModel.metno_seamless: ModelInfo("MET Norway", 336),
-    ForecastModel.best_match: ModelInfo("Best match (blended)", 384),
+    ForecastModel.ecmwf_ifs025: ModelInfo("ECMWF IFS", 336),
+    ForecastModel.gfs_hrrr: ModelInfo("NOAA HRRR", 42, regional=True),
+    ForecastModel.ukmo_seamless: ModelInfo("UK Met Office", 144),
+    ForecastModel.icon_seamless: ModelInfo("DWD ICON", 168),
+    ForecastModel.jma_seamless: ModelInfo("JMA GSM", 240),
+    ForecastModel.knmi_seamless: ModelInfo("KNMI", 336),
+    ForecastModel.meteofrance_seamless: ModelInfo("Meteo-France ARPEGE", 72),
 }
 
 

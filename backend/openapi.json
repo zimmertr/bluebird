@@ -154,7 +154,7 @@
           },
           "forecast_model": {
             "$ref": "#/components/schemas/ForecastModel",
-            "default": "ecmwf_ifs025",
+            "default": "gfs_seamless",
             "description": "Which weather model answers. Models disagree, sometimes by more than the thing being measured: at one Cascades summit over three days, ECMWF and GFS both totalled 0.000 in of precipitation while ICON gave 0.004 in.\n\nEach model also reaches a different distance ahead, so this bounds `end_datetime` as well: hours past the chosen model's horizon come back null rather than failing, and `GET /api/capabilities` publishes how far each one reaches. `gfs_hrrr` is the short-range outlier \u2014 roughly two days, against two weeks for the global models \u2014 and is also the only regional one, covering the continental US with parts of Canada and Mexico and refusing any point outside that grid."
           },
           "include_unnamed_peaks": {
@@ -320,7 +320,7 @@
             "type": "array"
           },
           "forecast_models": {
-            "description": "Accepted values for `forecast_model`, longest reach first. Models disagree with each other, so which one answered is part of what a number means.",
+            "description": "Accepted values for `forecast_model`, best first. Models disagree with each other, so which one answered is part of what a number means.\n\nThe order is this deployment's editorial ranking for mountain terrain, not a sort on any field below \u2014 grid spacing over complex terrain is weighted above forecast length, so it is roughly the reverse of ordering by `forecast_hours`. Render it as given.",
             "items": {
               "$ref": "#/components/schemas/ForecastModelInfo"
             },
@@ -782,19 +782,17 @@
         "type": "string"
       },
       "ForecastModel": {
-        "description": "The weather model Open-Meteo is asked for, as its own `models=` value.\n\nSending no `models=` at all takes Open-Meteo's `best_match` blend, which is\nwhat Bluebird shipped before this enum existed and is kept here as an\nexplicit choice rather than an absence. `ecmwf_aifs025` is deliberately\nabsent: probed 2026-08-01 at three points on three continents, it returned\nan hourly array of nothing but nulls at every one, so offering it would only\never produce an empty analysis.",
+        "description": "The weather model Open-Meteo is asked for, as its own `models=` value.\n\nDeclared best-first for this app's terrain (see `MODEL_INFO`), and that\norder is the contract: `/api/capabilities` publishes it as declared and the\npicker renders it as published.\n\nThree ids Open-Meteo serves are deliberately absent. `best_match` is its\nblend, which picks per location and never reports its pick \u2014 the whole\nreason this enum exists. `ecmwf_aifs025` returned an hourly array of\nnothing but nulls at three points on three continents (probed 2026-08-01).\n`metno_seamless` is byte-identical to `knmi_seamless` everywhere in North\nAmerica \u2014 same three peaks, all three variables \u2014 so offering both was\noffering one dataset twice.",
         "enum": [
-          "ecmwf_ifs025",
           "gfs_seamless",
-          "gfs_hrrr",
-          "icon_seamless",
-          "ukmo_seamless",
-          "meteofrance_seamless",
-          "jma_seamless",
           "gem_seamless",
+          "ecmwf_ifs025",
+          "gfs_hrrr",
+          "ukmo_seamless",
+          "icon_seamless",
+          "jma_seamless",
           "knmi_seamless",
-          "metno_seamless",
-          "best_match"
+          "meteofrance_seamless"
         ],
         "title": "ForecastModel",
         "type": "string"

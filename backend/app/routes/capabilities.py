@@ -195,9 +195,13 @@ class CapabilitiesResponse(BaseModel):
     )
     forecast_models: list[ForecastModelInfo] = Field(
         description=(
-            "Accepted values for `forecast_model`, longest reach first. Models "
-            "disagree with each other, so which one answered is part of what a "
-            "number means."
+            "Accepted values for `forecast_model`, best first. Models disagree "
+            "with each other, so which one answered is part of what a number "
+            "means.\n\n"
+            "The order is this deployment's editorial ranking for mountain "
+            "terrain, not a sort on any field below — grid spacing over complex "
+            "terrain is weighted above forecast length, so it is roughly the "
+            "reverse of ordering by `forecast_hours`. Render it as given."
         )
     )
     limits: Limits
@@ -224,9 +228,10 @@ async def capabilities() -> CapabilitiesResponse:
     return CapabilitiesResponse(
         destination_types=types,
         sort_keys=[s.value for s in SortBy],
-        # Longest reach first, so a picker rendering them in order puts the
-        # models that can answer the most questions at the top and HRRR, which
-        # answers about two days, at the bottom.
+        # As declared in MODEL_INFO, not sorted. That order is an editorial
+        # ranking for this app's terrain and cannot be derived from any field
+        # here — reach in particular would invert it, putting the coarsest
+        # global models above a 2.5 km one.
         forecast_models=[
             ForecastModelInfo(
                 id=model.value,
@@ -235,9 +240,7 @@ async def capabilities() -> CapabilitiesResponse:
                 regional=info.regional,
                 default=model is DEFAULT_FORECAST_MODEL,
             )
-            for model, info in sorted(
-                MODEL_INFO.items(), key=lambda kv: (-kv[1].forecast_hours, kv[0].value)
-            )
+            for model, info in MODEL_INFO.items()
         ],
         limits=Limits(
             max_polygon_area_km2=MAX_POLYGON_AREA_KM2,
