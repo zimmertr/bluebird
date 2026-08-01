@@ -72,12 +72,15 @@ describe('resultPopupHtml layout', () => {
     // Elevation, precipitation, wind, temperature, air quality twice,
     // coordinates. The title row is a styled div, so it is not in this match.
     expect(lines).toHaveLength(7)
+    // Matched whole rather than by stripping the tags out and counting colons,
+    // which is the same regex shape as a naive sanitizer and reads to CodeQL as
+    // one. It is also the better assertion: a label carries no colon of its own
+    // and neither does a value, so "one label, one value" is the structure
+    // itself, not a property counted off the flattened text.
     for (const line of lines) {
-      // Colons in the inline style attribute are not label separators; the
-      // rendered text is what a second stat on the line would show up in.
-      const text = line.replace(/<[^>]*>/g, '')
-
-      expect(text.match(/:/g), `two stats on one line: ${text}`).toHaveLength(1)
+      expect(line, 'not a single label/value pair').toMatch(
+        /^<div>[^<>:]+: <span style="[^"]*">[^<>]*<\/span><\/div>$/,
+      )
     }
     expect(html).not.toContain('·')
   })
