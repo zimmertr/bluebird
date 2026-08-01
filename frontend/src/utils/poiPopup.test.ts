@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { POI_ACTION_ATTR, poiPopupHtml } from './poiPopup'
+import { POPUP_MAX_WIDTH_PX, popupMaxHeight, popupWidth } from './popupChrome'
 
 const RAINIER = { name: 'Mount Rainier', kind: 'volcano', lat: 46.8529, lon: -121.7604, elevationFt: 14410 }
 
@@ -62,5 +63,32 @@ describe('poiPopupHtml', () => {
     )
     expect(html).not.toContain('<img')
     expect(html).toContain('&lt;img')
+  })
+})
+
+// A phone's map is the constraint, not the content: a 300px card on a 320px
+// map is the whole map, and with the chart and table open the map can be a
+// couple of hundred pixels tall.
+describe('sizing a popup to the map it opens on', () => {
+  it('takes the ceiling on a desktop-sized canvas', () => {
+    expect(popupWidth(1200)).toBe(`${POPUP_MAX_WIDTH_PX}px`)
+  })
+
+  // The bug this exists for: subtracting a fixed margin from a phone-width map
+  // still left the ceiling winning, so the card was 88% of the map.
+  it('leaves a real band of map either side on a phone', () => {
+    const px = Number(popupWidth(320).replace('px', ''))
+    expect(px).toBeLessThan(POPUP_MAX_WIDTH_PX)
+    expect(320 - px).toBeGreaterThanOrEqual(48)
+  })
+
+  it('never collapses to unreadable, however narrow the canvas', () => {
+    expect(Number(popupWidth(0).replace('px', ''))).toBeGreaterThanOrEqual(180)
+  })
+
+  it('never covers more than half the map', () => {
+    for (const h of [200, 400, 900]) {
+      expect(Number(popupMaxHeight(h).replace('px', ''))).toBeLessThanOrEqual(Math.max(120, h / 2))
+    }
   })
 })

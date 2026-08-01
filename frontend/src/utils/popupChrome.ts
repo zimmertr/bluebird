@@ -48,7 +48,7 @@ export function row(label: string, value: string): string {
  * them leaves a bare negative number on its own line looking like a third
  * figure. It stays at the popup's own size — a row that shrank to fit would be
  * the only line in the card set differently, which reads as an afterthought —
- * so the room comes from POPUP_WIDTH instead.
+ * so the room comes from the width ceiling below instead.
  */
 export function coordinateRow(latitude: number, longitude: number): string {
   return `<div style="white-space:nowrap">Coordinates: <span style="${VALUE_FACE}">${Number(
@@ -57,15 +57,45 @@ export function coordinateRow(latitude: number, longitude: number): string {
 }
 
 /**
- * How wide a popup may get.
+ * How wide a popup may get, and how tall.
  *
- * Set by the coordinate row, which is the longest line either popup can hold
- * and the one line that must not wrap: at the popup's 13px, "Coordinates: "
- * runs about 82px and a five-decimal pair in the monospace face about 156px,
- * so the text alone needs ~240px before the card's own padding and the space
- * kept clear for the close button.
+ * Width is still set by the coordinate row — the longest line either popup can
+ * hold and the one that must not wrap — but the data sets at 12px now rather
+ * than 13, which buys back most of the room it was costing: "Coordinates: "
+ * runs about 80px and a five-decimal pair in the monospace face about 144px,
+ * so the text needs ~224px inside the card's padding and the lane kept clear
+ * for the close button.
+ *
+ * Both are ceilings rather than sizes, because on a phone the map is the
+ * constraint and not the content: a 300px card on a 320px map is the whole
+ * map, and with the chart and table open the map can be under 200px tall. So a
+ * popup measures itself against the canvas it opens on and takes whichever is
+ * smaller.
  */
-export const POPUP_WIDTH = '300px'
+export const POPUP_MAX_WIDTH_PX = 280
+
+/**
+ * A share of the canvas rather than a fixed inset, which is the difference
+ * between a card that fits and one that merely does not overflow: subtracting
+ * a margin from a 320px phone map still left the 280px ceiling winning, so the
+ * popup was 88% of the map and the complaint stood. Four fifths leaves a real
+ * band of map either side at every width, and on anything desktop-sized the
+ * ceiling takes over long before the fraction matters.
+ */
+export function popupWidth(canvasWidthPx: number): string {
+  const share = Math.round(canvasWidthPx * 0.8)
+  return Math.max(180, Math.min(POPUP_MAX_WIDTH_PX, share)) + 'px'
+}
+
+/**
+ * Half the map, so a popup can never bury what it points at. Past that it
+ * scrolls: every figure stays reachable, which dropping rows could not promise
+ * — a reader sorting by air quality wants the AQI lines most, and no priority
+ * order is right for everyone.
+ */
+export function popupMaxHeight(canvasHeightPx: number): string {
+  return Math.max(120, Math.round(canvasHeightPx / 2)) + 'px'
+}
 
 /** The link-out glyph, sitting to the right of a popup's title. */
 export function linkIcon(url: string): string {
@@ -87,10 +117,14 @@ export function linkIcon(url: string): string {
  * rather than inferred from weight alone.
  */
 export function popupShell(title: string, url: string, body: string): string {
-  return `<div style="font-family:sans-serif;font-size:13px;line-height:1.5">
-    <div style="display:flex;align-items:center;gap:6px"><strong>${title}</strong>${linkIcon(url)}</div>
+  // The name stays at the reading size and everything under it steps down one.
+  // Setting both the same made the details compete with the thing they
+  // describe, and the step also narrows the widest row, which is what lets the
+  // card itself be narrower.
+  return `<div style="font-family:sans-serif;line-height:1.5">
+    <div style="display:flex;align-items:center;gap:6px;font-size:13px"><strong>${title}</strong>${linkIcon(url)}</div>
     <hr style="border:none;border-top:1px solid #cbd5e1;margin:5px 0" />
-    ${body}
+    <div style="font-size:12px">${body}</div>
   </div>`
 }
 

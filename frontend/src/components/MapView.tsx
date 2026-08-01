@@ -35,7 +35,7 @@ import {
 } from '../utils/basemapPoi'
 import { POI_ACTION_ATTR, poiPopupHtml } from '../utils/poiPopup'
 import { Ring, widestPole } from '../utils/polylabel'
-import { POPUP_WIDTH } from '../utils/popupChrome'
+import { popupMaxHeight, popupWidth } from '../utils/popupChrome'
 import {
   COARSE_TOLERANCE_DEG,
   fetchWildfires,
@@ -559,6 +559,26 @@ function isPinning(e: { originalEvent?: MouseEvent | { shiftKey?: boolean } }): 
   return Boolean((e.originalEvent as { shiftKey?: boolean } | undefined)?.shiftKey)
 }
 
+/** The width option a popup opening on this map should take. */
+function popupOptions(map: maplibregl.Map) {
+  return { maxWidth: popupWidth(map.getCanvas().clientWidth) }
+}
+
+/**
+ * Bound a popup to the map it opened on.
+ *
+ * Height has to be applied after `addTo`, because MapLibre has no option for
+ * it and builds the content element itself. Without this a ranked result — a
+ * name, a rule and eight rows — runs off a map that the chart and table have
+ * squeezed to a couple of hundred pixels.
+ */
+function constrainPopup(map: maplibregl.Map, popup: maplibregl.Popup) {
+  const content = popup.getElement()?.querySelector<HTMLElement>('.maplibregl-popup-content')
+  if (!content) return
+  content.style.maxHeight = popupMaxHeight(map.getCanvas().clientHeight)
+  content.style.overflowY = 'auto'
+}
+
 const MapView = forwardRef<MapViewHandle, Props>(
   (
     {
@@ -739,7 +759,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         const center: [number, number] = [result.longitude, result.latitude]
         map.flyTo({ center, zoom: Math.max(map.getZoom(), 10), duration: 800 })
         closeAllPopups()
-        resultPopupRef.current = new maplibregl.Popup({ maxWidth: POPUP_WIDTH })
+        resultPopupRef.current = new maplibregl.Popup(popupOptions(map))
           .setLngLat(center)
           .setHTML(
             resultPopupHtml({
@@ -759,6 +779,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
             }),
           )
           .addTo(map)
+        constrainPopup(map, resultPopupRef.current)
       },
     }))
 
@@ -1272,7 +1293,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           // pins a second one — the first shift-click always lost the card it
           // was meant to keep. Dismissal is ours now (closeAllPopups).
           const resultPopup = new maplibregl.Popup({
-            maxWidth: POPUP_WIDTH,
+            ...popupOptions(map),
             closeOnClick: false,
           })
           if (!pinned) resultPopupRef.current = resultPopup
@@ -1297,6 +1318,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
               }),
             )
             .addTo(map)
+          constrainPopup(map, resultPopup)
         }
         const showPointer = () => {
           map.getCanvas().style.cursor = 'pointer'
@@ -1319,9 +1341,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // `custom_destinations` on the next Analyze.
         function openPoiPopup(poi: BasemapPoi, pinned: boolean) {
           if (!pinned) closeAllPopups()
-          const popup = new maplibregl.Popup({ maxWidth: POPUP_WIDTH, closeOnClick: false })
+          const popup = new maplibregl.Popup({ ...popupOptions(map), closeOnClick: false })
             .setLngLat([poi.lon, poi.lat])
             .addTo(map)
+          constrainPopup(map, popup)
           if (!pinned) poiPopupRef.current = popup
           trackPopup(popup)
 
