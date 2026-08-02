@@ -234,8 +234,8 @@ MODEL_INFO: dict[ForecastModel, ModelInfo] = {
     ForecastModel.gem_seamless: ModelInfo(
         "ECCC GEM",
         216,
-        "The most detail over Canada and the northern US, finer than the"
-        " default. Blends in the HRDPS and RDPS models.",
+        "The most detail over Canada and the northern US, and coarse"
+        " elsewhere. Blends in the HRDPS and RDPS models.",
         2.5,
     ),
     ForecastModel.ecmwf_ifs025: ModelInfo(

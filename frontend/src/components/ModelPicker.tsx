@@ -47,14 +47,24 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
 
   const selected = selectedIndex >= 0 ? models[selectedIndex] : null
 
-  function place() {
+  // Two passes, both before paint so neither is visible. The first asks for as
+  // much room as the viewport can give, which lets the list lay out at its
+  // natural height; the second measures that height and re-places knowing it.
+  // Without the measurement the placement cannot tell "taller than the gap" from
+  // "taller than the screen", and every list would scroll in the gap.
+  function place(desiredHeight = Infinity) {
     const trigger = triggerRef.current
     if (!trigger) return
     setBox(
       popoverBox(
         trigger.getBoundingClientRect(),
         { width: window.innerWidth, height: window.innerHeight },
-        { preferredWidth: PREFERRED_WIDTH_PX, gap: GAP_PX, margin: VIEWPORT_MARGIN_PX },
+        {
+          preferredWidth: PREFERRED_WIDTH_PX,
+          gap: GAP_PX,
+          margin: VIEWPORT_MARGIN_PX,
+          desiredHeight,
+        },
       ),
     )
   }
@@ -82,12 +92,21 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
+  // The measuring pass. `scrollHeight` rather than the bounding box, since the
+  // first pass may already have capped the box at the viewport.
+  useLayoutEffect(() => {
+    if (!open) return
+    const popover = popoverRef.current
+    if (popover) place(popover.scrollHeight)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, models])
+
   // The trigger moves whenever the panel scrolls or the window resizes, and a
   // fixed-position child does not follow it. Capture phase because the scroll
   // that matters is the sidebar's own, which does not bubble to window.
   useEffect(() => {
     if (!open) return
-    const reposition = () => place()
+    const reposition = () => place(popoverRef.current?.scrollHeight ?? Infinity)
     window.addEventListener('resize', reposition)
     window.addEventListener('scroll', reposition, true)
     return () => {
@@ -181,7 +200,7 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
               left: box.left,
               width: box.width,
               maxHeight: box.maxHeight,
-              ...(box.placement === 'below' ? { top: box.top } : { bottom: box.bottom }),
+              ...box.offset,
             }}
             className={`${SURFACE_CARD} z-30 flex flex-col`}
           >

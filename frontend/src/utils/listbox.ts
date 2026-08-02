@@ -16,18 +16,30 @@ export interface Rect {
   height: number
 }
 
-/**
- * A fixed-position box. Anchored by `top` when it opens downward and by
- * `bottom` when it opens upward, so the upward case does not need to know its
- * own height before it has been laid out.
- */
+/** A fixed-position box, ready to render. */
 export interface PopoverBox {
   left: number
   width: number
   maxHeight: number
-  placement: 'below' | 'above'
-  top?: number
-  bottom?: number
+  /**
+   * `below` and `above` sit clear of the trigger. `shifted` means the panel is
+   * taller than either side alone and overlaps the trigger to use the whole
+   * viewport, which is the difference between a scrollbar and no scrollbar.
+   */
+  placement: 'below' | 'above' | 'shifted'
+  /**
+   * The anchored edge, ready to spread straight into a style object. One key,
+   * never both, and which one is this function's business rather than the
+   * caller's — an upward panel anchors by `bottom` so it needs no height, and
+   * the other two anchor by `top`.
+   *
+   * A caller that re-derived this from `placement` got it wrong the first time
+   * it was tried: a ternary on `below` sent `shifted` down the `bottom` branch,
+   * which set `bottom: undefined`, and a fixed element with neither edge
+   * anchored silently falls back to its static position at the end of the body.
+   * Handing over the finished pair makes that unspellable.
+   */
+  offset: { top: number } | { bottom: number }
 }
 
 export interface PopoverOptions {
@@ -37,6 +49,12 @@ export interface PopoverOptions {
   gap: number
   /** Between the panel and the edge of the viewport. */
   margin: number
+  /**
+   * How tall the content wants to be, measured. `Infinity` asks for as much
+   * room as the viewport can give, which is what the first pass does before
+   * anything has been laid out to measure.
+   */
+  desiredHeight: number
 }
 
 function clamp(value: number, low: number, high: number): number {
@@ -56,36 +74,58 @@ function clamp(value: number, low: number, high: number): number {
  * can spill over the map. It is never *narrower* than the trigger, which would
  * read as a different control rather than as that one opening.
  *
- * Opens downward unless there is more room above, so a trigger low on a short
- * screen flips instead of squeezing into forty pixels. `maxHeight` is whatever
- * the chosen side actually has, so the panel scrolls internally rather than
- * running off screen.
+ * Opens downward when the content fits there, flips above when it fits there
+ * instead, and otherwise stops trying to sit clear of the trigger at all.
+ *
+ * That last case is the one worth explaining. Preferring the roomier side and
+ * scrolling inside it is the obvious rule and it is wrong on an ordinary
+ * laptop: a control halfway down the window has perhaps 490px above it and
+ * 330px below, so a 520px list scrolls even though the window is 875px tall
+ * and could show the whole thing twice over. A dropdown does not actually have
+ * to clear its trigger. When neither side fits it overlaps instead, taking the
+ * full viewport, and a scrollbar then means the content genuinely does not fit
+ * on the screen rather than that it did not fit in the gap.
  */
 export function popoverBox(
   trigger: Rect,
   viewport: { width: number; height: number },
-  { preferredWidth, gap, margin }: PopoverOptions,
+  { preferredWidth, gap, margin, desiredHeight }: PopoverOptions,
 ): PopoverBox {
   const width = clamp(preferredWidth, trigger.width, viewport.width - margin * 2)
   const left = clamp(trigger.left, margin, viewport.width - width - margin)
 
-  const below = viewport.height - (trigger.top + trigger.height) - gap - margin
-  const above = trigger.top - gap - margin
-  if (below >= above) {
+  const below = Math.max(viewport.height - (trigger.top + trigger.height) - gap - margin, 0)
+  const above = Math.max(trigger.top - gap - margin, 0)
+  const whole = Math.max(viewport.height - margin * 2, 0)
+
+  if (desiredHeight <= below) {
     return {
       left,
       width,
-      maxHeight: Math.max(below, 0),
+      maxHeight: below,
       placement: 'below',
-      top: trigger.top + trigger.height + gap,
+      offset: { top: trigger.top + trigger.height + gap },
     }
   }
+  if (desiredHeight <= above) {
+    return {
+      left,
+      width,
+      maxHeight: above,
+      placement: 'above',
+      offset: { bottom: viewport.height - trigger.top + gap },
+    }
+  }
+  // Anchored to the trigger's own top where the viewport allows it, then pushed
+  // up only as far as it must be to fit. Keeping it near the trigger is what
+  // stops the panel from appearing to belong to something else on the page.
+  const height = Math.min(desiredHeight, whole)
   return {
     left,
     width,
-    maxHeight: Math.max(above, 0),
-    placement: 'above',
-    bottom: viewport.height - trigger.top + gap,
+    maxHeight: whole,
+    placement: 'shifted',
+    offset: { top: clamp(trigger.top, margin, viewport.height - margin - height) },
   }
 }
 
