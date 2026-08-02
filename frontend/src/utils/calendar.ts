@@ -453,6 +453,42 @@ export function clampSelection(
   return { ...selection, startDate, endDate }
 }
 
+/** A day selection on its own, which is what a mode switch has to remember. */
+export type DaysSelection = Extract<ForecastSelection, { kind: 'days' }>
+
+/**
+ * Picking an arm of the control directly, rather than by acting inside one.
+ *
+ * The two arms are not symmetric. Now is a constant, so switching to it is
+ * total. Days names a range, and pressing it says only *that* you want days —
+ * so this has to produce one. It restores the last range the user had, because
+ * the round trip Days → Now → Days is a comparison people actually make and
+ * losing the range to it is the whole cost of the trip. Only when there is no
+ * such range does it fall back to today, which is the shortest thing to fix by
+ * hand if it guessed wrong.
+ *
+ * A remembered range is run back through `clampSelection`, because the band may
+ * have moved under it while Now was live: a range picked under ECMWF is mostly
+ * outside HRRR's reach, and restoring it unclamped would put the selection
+ * somewhere the grid draws as unpickable.
+ *
+ * Switching to the arm already live returns the selection untouched, so the
+ * pressed half of the segment is inert rather than a way to lose your range.
+ */
+export function applyModeSwitch(
+  kind: SelectionKind,
+  current: ForecastSelection,
+  remembered: DaysSelection | null,
+  now: Date,
+  forecastHours: number,
+): ForecastSelection {
+  if (kind === current.kind) return current
+  if (kind === 'now') return { kind: 'now' }
+  const today = dayKey(now)
+  const next: ForecastSelection = remembered ?? { kind: 'days', startDate: today, endDate: today }
+  return clampSelection(next, now, forecastHours) ?? next
+}
+
 /**
  * The window a selection asks about, as the `datetime-local` strings the rest
  * of the app already speaks (`urlState`'s horizon and air-quality warnings, and

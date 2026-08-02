@@ -3,11 +3,14 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import {
   DAY_END,
   DayCell,
+  DaysSelection,
   ForecastSelection,
+  SelectionKind,
   addDays,
   addMonths,
   applyDayClick,
   applyDayDrag,
+  applyModeSwitch,
   dayInMonth,
   dayKey,
   dragAnchor,
@@ -30,7 +33,6 @@ import {
   SEGMENT_IDLE,
   SEGMENT_ITEM,
   SURFACE_GROUP,
-  TAP,
   TEXT,
 } from '../styles'
 
@@ -98,6 +100,12 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
     selection.kind === 'days' ? selection.startDate : today,
   )
   const gridRef = useRef<HTMLDivElement>(null)
+  // The range to come back to when Days is pressed again. A ref rather than
+  // state: nothing renders from it, and making it state would re-render the
+  // panel on every day click to store what that click already displayed.
+  const lastDays = useRef<DaysSelection | null>(
+    selection.kind === 'days' ? selection : null,
+  )
   // Focus follows the arrow keys, but only once one has been pressed: stealing
   // focus on mount would scroll the panel down to the calendar on every load.
   const keyboardNav = useRef(false)
@@ -122,10 +130,28 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
       ? { startDate: selection.startDate, endDate: selection.endDate }
       : null
 
+  useEffect(() => {
+    if (selection.kind === 'days') lastDays.current = selection
+  }, [selection])
+
   function commitClick(day: string) {
     const next = applyDayClick(selection, anchor, day)
     setAnchor(next.anchor)
     onChange(next.selection)
+  }
+
+  function switchMode(kind: SelectionKind) {
+    const next = applyModeSwitch(kind, selection, lastDays.current, now, forecastHours)
+    if (next === selection) return
+    // A half-made range does not survive leaving the arm it was being made in.
+    setAnchor(null)
+    if (next.kind === 'days') {
+      // Restoring a range in another month has to page there, or pressing Days
+      // shows an empty grid and the selection looks lost.
+      setMonth(monthKey(next.startDate))
+      setFocused(next.startDate)
+    }
+    onChange(next)
   }
 
   // Released anywhere, not just over the grid: a drag that ends off the calendar
@@ -196,24 +222,42 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
   const nextMonth = addMonths(month, 1)
 
   return (
-    <div>
-      {/* The landing state, and the way back to it. Its own full-width row above
-          the card rather than a chip tucked beside the grid: it is one of the two
-          arms of this control, not an accessory to the other one, and on a fresh
-          load its pressed state is the only thing saying what will be analyzed.
-          Selecting a day clears it and vice versa. */}
-      <button
-        onClick={() => onChange({ kind: 'now' })}
-        aria-pressed={selection.kind === 'now'}
-        title="Analyze conditions at the current hour"
-        className={`${TEXT.cta} ${TAP.action} mb-2.5 w-full py-2 ${RADIUS.control} transition-colors ${
-          selection.kind === 'now' ? ACCENT.fill : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
-        }`}
-      >
-        Now
-      </button>
+    <div className={`${SURFACE_GROUP} p-2`}>
+      {/* Both arms of the control, named, in the shape this panel already uses
+          for a choice between two things — the same one the Hours row below the
+          grid and the ranking direction toggle wear.
 
-      <div className={`${SURFACE_GROUP} p-2`}>
+          Neither arm is an action, which is why neither is a button. A filled
+          full-width bar here would carry the shape, weight and hue of Analyze
+          further down the same panel, and only one of those two spends upstream
+          quota; a secondary-button look would say the same thing more quietly.
+          What is actually being expressed is which arm is live.
+
+          The grid stays live under either arm, so clicking a day is still the
+          one-click way into Days. This pair names the choice and is the way
+          back, not a gate to open first. */}
+      <div className="mb-2 flex items-center justify-between gap-2 border-b border-slate-700 pb-2">
+        <span className={TEXT.subheading}>When</span>
+        <div className={SEGMENT}>
+          {[
+            { kind: 'now' as const, label: 'Now', hint: 'Analyze conditions at the current hour' },
+            { kind: 'days' as const, label: 'Days', hint: 'Analyze a day or a range of days' },
+          ].map((option, i) => (
+            <button
+              key={option.kind}
+              aria-pressed={selection.kind === option.kind}
+              title={option.hint}
+              onClick={() => switchMode(option.kind)}
+              className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
+                selection.kind === option.kind ? ACCENT.fill : SEGMENT_IDLE
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Month navigation, bounded by the servable band rather than open-ended:
           paging into a month with nothing pickable in it is a dead end. */}
       <div className="mb-1 flex items-center justify-between">
@@ -332,7 +376,6 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
           )}
         </div>
       )}
-      </div>
     </div>
   )
 }

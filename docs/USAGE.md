@@ -86,11 +86,12 @@ Changing the model needs a new **Analyze**, like changing the polygon or the win
 
 ### Forecast window
 
-A calendar, and a **Now** chip beside it.
+A calendar, with a **When** toggle above the grid reading **Now** or **Days**.
 
-- **Click a day** to analyze that whole day, midnight to 23:59 your local time. Precipitation ranks by the day's total; wind, temperature, and AQI by its average.
-- **Click a second day** to extend to a range, or **drag across days** to pick one in a single gesture. Dragging either end of an existing range adjusts that end, and clicking inside a range starts over from the day you clicked.
 - **Now** analyzes the hour you click Analyze. It is the default, so a fresh load can Analyze without touching this step at all.
+- **Click a day** to analyze that whole day, midnight to 23:59 your local time; that also moves the toggle to **Days**. Precipitation ranks by the day's total; wind, temperature, and AQI by its average.
+- **Click a second day** to extend to a range, or **drag across days** to pick one in a single gesture. Dragging either end of an existing range adjusts that end, and clicking inside a range starts over from the day you clicked.
+- **Days** on the toggle brings back the last range you had, so switching to Now to compare and back does not cost you the range. With no range yet it picks today.
 - **Hours** sits under the grid, set to **All Day**. Switch it to **Hourly** for part of a day rather than all of it: it opens on the current hour through the end of the day, and runs from the first time on your first day to the second time on your last, as one continuous window. Two equal hours analyze that single hour, which is the finest question you can ask.
 
 Narrowed hours apply to the selection as a whole, not to each day in it: 06:00 to 18:00 across five days is one continuous window from the first morning to the last evening, and the app says so under the control. Daylight hours on each of several days is a separate feature and is not built yet.
