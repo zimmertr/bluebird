@@ -6,13 +6,18 @@ interface Props {
   onDismiss: () => void
 }
 
+// The numbered sections of the panel, in the order they appear there, plus the
+// two steps that have no section because they are the button and what you do
+// after it. A reader arrives here and then looks at the panel, so a step that
+// does not match a heading sends them hunting.
 const STEPS: [string, string][] = [
   ['Destinations', 'Choose what destinations to analyze by clicking on the map, searching by name, drawing a polygon, or providing custom coordinates.'],
   ['Forecast', 'Choose a weather model, then pick a day on the calendar, drag across days for a range, or analyze the current hour.'],
   ['Ranking', 'Choose how destinations should be ranked: driest conditions, lowest winds, ideal temperatures, or cleanest air.'],
-  ['Options', 'Apply constraints and enable additional features like wildfire visibility.'],
+  ['Filters', 'Set the conditions you would actually go out in, by elevation, precipitation, wind, temperature, or air quality. Destinations outside them drop out of the results.'],
+  ['Options', 'Choose how many results to show, and enable additional features like wildfire visibility.'],
   ['Analyze', 'Generate ranked results, explore them on the map, and compare forecast data across your selected destinations.'],
-  ['Repeat', 'Adjust your search area, forecast window, ranking, or options at any time to find a better window.'],
+  ['Repeat', 'Adjust your search area, forecast window, ranking, or filters at any time to find a better window.'],
 ]
 
 export default function WelcomeModal({ onDismiss }: Props) {
