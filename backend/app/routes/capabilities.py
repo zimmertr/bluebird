@@ -100,10 +100,14 @@ class ForecastModelInfo(BaseModel):
     label: str = Field(description="Human-readable name, as the picker shows it.")
     summary: str = Field(
         description=(
-            "One line on when to choose this model, written for someone "
-            "planning a trip rather than for a meteorologist. Grid figures "
-            "describe the variant this app requests, which for most entries "
-            "blends a fine regional grid into a coarse global one."
+            "Why to choose this model, written for someone planning a trip "
+            "rather than for a meteorologist: what it is best at, then what "
+            "it blends in. Most entries fold a fine regional grid into a "
+            "coarse global one for roughly two days, which is why "
+            "`finest_grid_km` and `forecast_hours` do not describe the same "
+            "moment. The blend clause names only what is added, never the "
+            "headline model, since several labels are named after one of "
+            "their own parts. No model here blends across agencies."
         )
     )
     finest_grid_km: float = Field(
@@ -112,17 +116,6 @@ class ForecastModelInfo(BaseModel):
             "the `*_seamless` blends that is their regional component, not "
             "their global one, so it describes the model at its best rather "
             "than everywhere: where the fine grid lands is in `summary`."
-        )
-    )
-    components: list[str] = Field(
-        description=(
-            "What the model is made of, finest component first. Most entries "
-            "stitch one agency's regional and global models into a single "
-            "series: a fine grid for roughly two days, then a coarse one. That "
-            "is why `finest_grid_km` and `forecast_hours` do not describe the "
-            "same moment. A single entry means a single model, so the length "
-            "of this list is what says whether anything is blended at all. No "
-            "model here blends across agencies."
         )
     )
     forecast_hours: int = Field(
@@ -265,7 +258,6 @@ async def capabilities() -> CapabilitiesResponse:
                 label=info.label,
                 summary=info.summary,
                 finest_grid_km=info.finest_grid_km,
-                components=list(info.components),
                 forecast_hours=info.forecast_hours,
                 regional=info.regional,
                 default=model is DEFAULT_FORECAST_MODEL,

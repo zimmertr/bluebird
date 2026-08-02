@@ -145,7 +145,6 @@ def test_capabilities_publishes_every_selectable_model_with_its_reach():
         assert entry["label"] == info.label
         assert entry["summary"] == info.summary
         assert entry["finest_grid_km"] == info.finest_grid_km
-        assert entry["components"] == list(info.components)
         assert entry["forecast_hours"] == info.forecast_hours
         assert entry["regional"] == info.regional
 
@@ -157,35 +156,42 @@ def test_every_model_carries_a_summary_the_picker_can_show():
         summary = entry["summary"]
         assert summary.strip(), entry["id"]
         assert summary.endswith("."), entry["id"]
-        # Bound so the line does not wrap in the picker. It is a proxy for a
-        # pixel constraint nothing here can see, and a loose one: the widest
-        # that fits measured 343px at 59 characters, while the longest one now
-        # runs 62 characters at 334px, because character count does not predict
-        # width. Clearing this does not prove a line fits; only looking does.
-        assert len(summary) <= 65, (entry["id"], len(summary))
+        # Bound so the text stays inside the two lines the picker gives it.
+        # The real constraint is pixels, which nothing here can see: a line is
+        # 354px at italic 12px, so two are 708px, and the longest of these
+        # measures 512px at 108 characters. Character count does not predict
+        # width, so this is a proxy with slack rather than a fitting. Clearing
+        # it does not prove the text fits; only looking does.
+        assert len(summary) <= 115, (entry["id"], len(summary))
 
 
-def test_every_model_names_what_it_is_made_of():
-    # Never empty, including for the two that blend nothing: the picker prints
-    # one chip per entry, and the count is what tells a reader whether anything
-    # is blended, so a bare list would silently mean "single model".
-    for entry in _capabilities()["forecast_models"]:
-        components = entry["components"]
-        assert components, entry["id"]
-        assert all(c.strip() for c in components), entry["id"]
-        # Three chips is the widest measured row (191px against 354px of panel).
-        assert len(components) <= 3, (entry["id"], components)
-
-
-def test_the_default_names_hrrr_as_its_own_first_stage():
+def test_the_two_noaa_entries_each_point_at_the_other():
     # The one relationship between two entries in this list, and the reason the
     # separate HRRR row is not a second opinion: NOAA GFS *is* HRRR for its
-    # first ~45 hours (measured, see the comment on DEFAULT_FORECAST_MODEL).
-    # If the blend line ever stops saying so, the list goes back to implying
-    # eight independent choices.
+    # first ~45 hours (measured, see the comment on DEFAULT_FORECAST_MODEL) and
+    # then keeps going. Both summaries have to say so, or a reader picking HRRR
+    # has no way to learn that the default already contains it — which is the
+    # question this menu exists to answer.
     published = {m["id"]: m for m in _capabilities()["forecast_models"]}
-    assert "HRRR" in published[DEFAULT_FORECAST_MODEL.value]["components"]
-    assert published[ForecastModel.gfs_hrrr.value]["components"] == ["HRRR"]
+    assert "HRRR" in published[DEFAULT_FORECAST_MODEL.value]["summary"]
+    assert "NOAA GFS" in published[ForecastModel.gfs_hrrr.value]["summary"]
+
+
+def test_a_blend_clause_never_names_the_model_it_belongs_to():
+    # Three labels here are named after one of their own components (NOAA GFS is
+    # HRRR plus GFS, JMA GSM is MSM plus GSM, Meteo-France ARPEGE is AROME plus
+    # ARPEGE), so a clause listing every part reads as circular. The clause names
+    # only what is folded in.
+    for entry in _capabilities()["forecast_models"]:
+        _, _, blended = entry["summary"].partition("Blends in")
+        if not blended:
+            continue
+        # Whole tokens, not substrings: DWD ICON legitimately folds in ICON-D2
+        # and ICON-EU, which are distinct models sharing a family prefix rather
+        # than the headline model named twice.
+        named = {word.strip(".,").casefold() for word in blended.split()}
+        headline = entry["label"].split()[-1].casefold()
+        assert headline not in named, (entry["id"], blended)
 
 
 def test_capabilities_flags_exactly_one_default_and_it_is_the_request_default():

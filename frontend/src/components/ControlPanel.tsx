@@ -516,7 +516,6 @@ export default function ControlPanel({
                           label: forecastModel,
                           summary: '',
                           finestGridKm: 0,
-                          components: [],
                           forecastHours: 0,
                           regional: false,
                         },

@@ -3,7 +3,6 @@ import {
   ACCENT,
   ACCENT_RING,
   BADGE_ACCENT,
-  CHIP,
   BUTTON_ACCENT,
   BUTTON_DANGER,
   BUTTON_FLOATING,
@@ -447,19 +446,6 @@ describe('shared recipes', () => {
     expect(BADGE_ACCENT).not.toContain(ACCENT.text)
     expect(BADGE_ACCENT).not.toContain('touch:')
     expect(BADGE_ACCENT).toContain(RADIUS.pill)
-  })
-
-  // Two badges that must not converge. One marks a row out from its siblings
-  // and has to win the eye; the other describes the row it sits in and appears
-  // several at a time, so it takes the recessed pair the panel already uses for
-  // a container. Give both the fill and the list of chips shouts eight times a
-  // screen while marking nothing.
-  it('keeps the marking badge and the describing chip apart', () => {
-    expect(BADGE_ACCENT).toContain(ACCENT.fill)
-    expect(CHIP).not.toContain(ACCENT.fill)
-    expect(CHIP).toContain(RECESSED_FILL)
-    expect(CHIP).toContain(RECESSED_EDGE)
-    expect(CHIP).toContain(RADIUS.pill)
   })
 
   // The segmented control had been built twice from scratch and matched only by

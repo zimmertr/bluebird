@@ -86,25 +86,23 @@ order is this deployment's editorial ranking for mountain terrain, not a sort on
 any field in the response — it weights grid spacing over forecast length, so it
 is roughly the reverse of ordering by `forecast_hours`. Render it as given.
 
-Four more things follow from the choice, and the same endpoint publishes all of
+Three more things follow from the choice, and the same endpoint publishes all of
 them.
 
-**Each model carries a one-line `summary`** saying when to reach for it, written
-for someone planning a trip rather than for a meteorologist. Its grid figures
-describe the variant this service requests, not the headline national model:
-most entries are Open-Meteo `*_seamless` blends, which fold a fine regional grid
-into a coarse global one, and `ecmwf_ifs025` is the 0.25° open-data feed rather
-than ECMWF's 9 km HRES. Quoting the national model instead inverts the ranking,
-because ECCC GEM reads as a 15 km global model unless you count the 2.5 km grid
-that is the reason to pick it here.
+**Each model carries a `summary`** saying why to reach for it, written for
+someone planning a trip rather than for a meteorologist: what it is best at,
+then what it blends in. Six of the eight fold a fine regional grid into a coarse
+global one for roughly two days, which is why `finest_grid_km` and
+`forecast_hours` do not describe the same moment. Nothing here blends across
+agencies, and the blend clause names only what is *added*, never the headline
+model, since three of these labels are named after one of their own parts (NOAA
+GFS is HRRR plus GFS, JMA GSM is MSM plus GSM, Meteo-France ARPEGE is AROME plus
+ARPEGE).
 
-**Most models are blends, and `components` names the parts.** Six of the eight
-stitch one agency's regional and global models into a single series: a fine grid
-for roughly two days, then a coarse one. That is why `finest_grid_km` and
-`forecast_hours` do not describe the same moment, and it is what makes
-`gfs_hrrr` legible, since `gfs_seamless` lists HRRR as its own first component.
-A single entry means a single model, so the length of the list is what says
-whether anything is blended at all. Nothing here blends across agencies.
+Grid figures describe the variant this service requests, not the headline
+national model: `ecmwf_ifs025` is the 0.25° open-data feed rather than ECMWF's
+9 km HRES, and ECCC GEM reads as a 15 km global model unless you count the
+2.5 km grid that is the reason to pick it here.
 
 **Each model reaches a different distance.** `forecast_hours` says how far. It
 is separate from `limits.max_future_days`, which is the hard edge the request

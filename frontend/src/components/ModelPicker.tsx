@@ -2,10 +2,10 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { PopoverBox, nextActiveIndex, popoverBox } from '../utils/listbox'
 import { gridLabel, reachLabel, type ForecastModelOption } from '../hooks/useCapabilities'
-import { BADGE_ACCENT, CHIP, ICON_ADORNMENT, SELECT, SURFACE_CARD, TEXT } from '../styles'
+import { BADGE_ACCENT, ICON_ADORNMENT, SELECT, SURFACE_CARD, TEXT } from '../styles'
 
-// Wide enough for a summary to sit on two lines rather than four, measured
-// against the longest of them. The sidebar is ~285px, so this only works
+// Wide enough for a summary to sit on two lines rather than three, measured
+// against the longest of them (512px, so it uses 72% of the 708px two lines buy). The sidebar is ~285px, so this only works
 // because the panel floats clear of it and over the map.
 const PREFERRED_WIDTH_PX = 380
 const GAP_PX = 4
@@ -220,28 +220,10 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
                         rather than prose, which is what keeps the reach honest:
                         it is `forecast_hours` rendered, so it cannot drift from
                         what the calendar will actually offer. */}
-                    <span className="flex flex-shrink-0 flex-col items-end gap-1">
-                      <span className={`${TEXT.micro} tabular-nums`}>
-                        {gridLabel(model.finestGridKm)}
-                        {model.finestGridKm > 0 && model.forecastHours > 0 && ' · '}
-                        {reachLabel(model.forecastHours)}
-                      </span>
-                      {/* One chip per part, under the figures they qualify.
-                          The count is the message: one chip is a single model,
-                          three is a grid that degrades twice. That is what says
-                          the fine figure above is a stage rather than a
-                          property, which the two figures side by side cannot —
-                          2.5 km and 9 days are both true of GEM and never at
-                          the same moment. */}
-                      {model.components.length > 0 && (
-                        <span className="flex flex-wrap justify-end gap-1">
-                          {model.components.map((part) => (
-                            <span key={part} className={CHIP}>
-                              {part}
-                            </span>
-                          ))}
-                        </span>
-                      )}
+                    <span className={`${TEXT.micro} flex-shrink-0 tabular-nums`}>
+                      {gridLabel(model.finestGridKm)}
+                      {model.finestGridKm > 0 && model.forecastHours > 0 && ' · '}
+                      {reachLabel(model.forecastHours)}
                     </span>
                   </div>
                   {model.summary !== '' && (
