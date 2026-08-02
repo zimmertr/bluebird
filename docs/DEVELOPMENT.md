@@ -20,6 +20,14 @@ npm run dev
 
 The Vite dev server comes up on `http://localhost:5173` and proxies `/api` requests to the backend on `:8000`.
 
+To run the whole stack the way it ships instead, build the image and bring it up
+detached:
+
+```bash
+docker compose up --build -d
+docker compose logs -f
+```
+
 ## Tests and Checks
 
 CI runs all of these on every PR, so run the ones your change touches first:
