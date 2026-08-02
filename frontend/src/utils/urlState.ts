@@ -5,6 +5,7 @@
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
 import { GeoPolygon, DiscoveryType, SortBy } from '../types'
 import { RANKING_KEYS } from '../metrics'
+import { Constraints, NO_CONSTRAINTS, hasConstraints } from './clientAnalyze'
 import {
   DAY_END,
   DAY_START,
@@ -40,6 +41,10 @@ export interface ShareableState {
   sortDesc: boolean // false = lowest first (the historical behavior)
   minElevationFt: number | null
   maxElevationFt: number | null
+  // The forecast bounds, as one value rather than eight fields, because every
+  // surface that touches them treats them as a set (present.ts filters by the
+  // whole shape, the panel clears the whole shape).
+  constraints: Constraints
   limit: number
   customCsv: string
   showWildfires: boolean // live NIFC map overlay; not part of the analysis request
@@ -61,6 +66,23 @@ const LEGACY_SORT_MAP: Record<string, SortBy> = {
   temp_max_f: 'temp_avg_f',
   aqi_max: 'aqi_avg',
 }
+
+// The forecast bounds' query params, spelled out rather than abbreviated the
+// way `minel`/`maxel` were: eight terse keys would be eight guesses in the
+// address bar, and readability is what the URL convention buys (#210). The
+// param name reads as the control's label, not as the result field it compares
+// — `maxaqi` is the AQI ceiling, and which aggregate it reads is the app's
+// answer, not something a link should have to encode.
+const CONSTRAINT_PARAMS = [
+  ['minprecip', 'minPrecipTotalIn'],
+  ['maxprecip', 'maxPrecipTotalIn'],
+  ['mintemp', 'minTempF'],
+  ['maxtemp', 'maxTempF'],
+  ['minwind', 'minWindMph'],
+  ['maxwind', 'maxWindMph'],
+  ['minaqi', 'minAqi'],
+  ['maxaqi', 'maxAqi'],
+] as const satisfies readonly (readonly [string, keyof Constraints])[]
 
 const POLY_PRECISION = 5 // ~1 m; keeps the URL short without visible drift
 
@@ -197,7 +219,10 @@ function isValidDatetimeLocal(s: string): boolean {
 export function encodeState(state: ShareableState, defaultForecastModel: string): string {
   const hasPolygon = state.polygon !== null && (state.polygon.coordinates[0]?.length ?? 0) >= 3
   const hasCustom = state.customCsv.trim() !== ''
-  const hasConstraint = state.minElevationFt !== null || state.maxElevationFt !== null
+  const hasConstraint =
+    state.minElevationFt !== null ||
+    state.maxElevationFt !== null ||
+    hasConstraints(state.constraints)
   const hasPins = state.pins.length > 0
   const nonDefaultControls =
     state.sortBy !== DEFAULT_SORT ||
@@ -248,6 +273,10 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
   }
   if (state.minElevationFt !== null) p.set('minel', String(state.minElevationFt))
   if (state.maxElevationFt !== null) p.set('maxel', String(state.maxElevationFt))
+  for (const [param, key] of CONSTRAINT_PARAMS) {
+    const value = state.constraints[key]
+    if (value !== null) p.set(param, String(value))
+  }
   if (hasPolygon && state.polygon) p.set('poly', encodePolygon(state.polygon))
   // A 100-row CSV is ~13 KB raw; compressing keeps the shared link ~1-2 KB (and off
   // Firefox's address-bar / ingress limits). Only this field is opaque — every other
@@ -389,6 +418,18 @@ export function decodeState(search: string): Partial<ShareableState> | null {
     const n = Number(maxel)
     if (Number.isFinite(n)) out.maxElevationFt = n
   }
+
+  // Written only when at least one bound survived, so a link carrying none
+  // leaves `constraints` undefined and App keeps its own default rather than
+  // being handed an all-null object that means the same thing.
+  const constraints = { ...NO_CONSTRAINTS }
+  for (const [param, key] of CONSTRAINT_PARAMS) {
+    const raw = params.get(param)
+    if (raw === null) continue
+    const n = Number(raw)
+    if (Number.isFinite(n)) constraints[key] = n
+  }
+  if (hasConstraints(constraints)) out.constraints = constraints
 
   const poly = params.get('poly')
   if (poly) {

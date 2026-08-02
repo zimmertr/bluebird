@@ -30,7 +30,12 @@ import {
 } from './styles'
 import { NOUN, familyOf, rankedNoun } from './metrics'
 import { METRIC_CONFIG } from './utils/colors'
-import { refreshEchoRows } from './utils/clientAnalyze'
+import {
+  Constraints,
+  NO_CONSTRAINTS,
+  constraintFields,
+  refreshEchoRows,
+} from './utils/clientAnalyze'
 import { parseCustomCsv } from './utils/customDestinations'
 import { buildCustomList, pendingDestinations, pinKey } from './utils/customList'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
@@ -46,7 +51,7 @@ import {
   windowCaption,
 } from './utils/calendar'
 import { isPointSample } from './utils/forecastWindow'
-import { PresentationKnobs, bandNarrows, commitNeeded, presentResults } from './utils/present'
+import { PresentationKnobs, commitNeeded, presentResults } from './utils/present'
 import { SortDir, SortKey, displayedColumns } from './utils/tableColumns'
 import { compareValues } from './utils/sortResults'
 import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
@@ -272,6 +277,13 @@ export default function App() {
   const [maxElevationFt, setMaxElevationFt] = useState<number | null>(
     () => restored?.maxElevationFt ?? null,
   )
+  // The forecast bounds (#115). Unlike the elevation band above, these cannot
+  // gate a fetch — nothing knows a destination's precipitation before it has
+  // been fetched — so they are pure presentation and every one of them applies
+  // live, loosening as well as tightening.
+  const [constraints, setConstraints] = useState<Constraints>(
+    () => restored?.constraints ?? NO_CONSTRAINTS,
+  )
   // A live map overlay, not part of the analyze request, but persisted to the
   // URL so a shared link reproduces it. Defaults off; toggling queries NIFC for
   // the current viewport.
@@ -439,8 +451,14 @@ export default function App() {
   // become a range without a new analysis. Without a field (the SSE fallback, or before
   // the first analysis) this is the pre-#188 behavior unchanged.
   const liveKnobs: PresentationKnobs = useMemo(
-    () => ({ sortBy, sortDesc, limit, band: { min: minElevationFt, max: maxElevationFt } }),
-    [sortBy, sortDesc, limit, minElevationFt, maxElevationFt],
+    () => ({
+      sortBy,
+      sortDesc,
+      limit,
+      band: { min: minElevationFt, max: maxElevationFt },
+      constraints,
+    }),
+    [sortBy, sortDesc, limit, minElevationFt, maxElevationFt, constraints],
   )
   const view =
     universe !== null && analyzed !== null
@@ -538,6 +556,7 @@ export default function App() {
       sortDesc,
       minElevationFt,
       maxElevationFt,
+      constraints,
       limit,
       customCsv,
       showWildfires,
@@ -566,6 +585,7 @@ export default function App() {
     sortDesc,
     minElevationFt,
     maxElevationFt,
+    constraints,
     limit,
     customCsv,
     showWildfires,
@@ -664,7 +684,16 @@ export default function App() {
     const start = new Date(local.start).toISOString()
     const end = new Date(local.end).toISOString()
 
-    const constraints = { min_elevation_ft: minElevationFt, max_elevation_ft: maxElevationFt }
+    // Every bound the request carries. The elevation band gates discovery, so
+    // the server has always needed it; the forecast bounds ride along for the
+    // SSE fallback, which sends back only trimmed rows and so has to do the
+    // filtering itself. On the normal path the browser holds the field and
+    // applies them live, and these fields go unused.
+    const bounds = {
+      min_elevation_ft: minElevationFt,
+      max_elevation_ft: maxElevationFt,
+      ...constraintFields(constraints),
+    }
 
     // Resolve the ranked inputs first. The custom side of the analysis is the
     // pasted CSV ∪ the searched places — with a *complete* polygon (>= 3
@@ -680,22 +709,19 @@ export default function App() {
     // Reset the removal set only when the user changed a discovery input —
     // searched places are deliberately absent (their list shrinks on removal).
     //
-    // The elevation band is compared by DIRECTION rather than by equality. It
-    // used to sit in the hash, which was harmless while every band change
-    // forced an analysis; now that narrowing is live, a user who narrows and
-    // then changes the forecast window would arrive here with a band that
-    // differs from the last analysis and lose their × removals for a reason
-    // nothing on screen explains. A narrowing keeps them (the same field, fewer
-    // rows); only a widening starts a fresh report, since it readmits
-    // destinations this report never ranked.
+    // The elevation band used to be in here as a special case: a widening threw
+    // the removals away, on the grounds that readmitting destinations this
+    // report never ranked starts a fresh report. That stopped being true when
+    // widening became incremental. The held field is no longer rebuilt, it is
+    // extended, so the rows a user struck out are the same rows they struck
+    // out, and losing them to a band nudge was an unexplained edit of their
+    // work. Only a genuine change of what gets discovered clears them now.
     const removalScope = JSON.stringify({
       ring: resolvedPolygon?.coordinates[0] ?? null,
       types: [...destinationTypes].sort(),
       csv: customCsv.trim(),
     })
-    const widened =
-      analyzed !== null && !bandNarrows(analyzed.band, { min: minElevationFt, max: maxElevationFt })
-    if (removalScopeRef.current !== removalScope || widened) {
+    if (removalScopeRef.current !== removalScope) {
       removalScopeRef.current = removalScope
       setRemovedKeys(new Set())
     }
@@ -743,7 +769,7 @@ export default function App() {
         sort_by: sortBy,
         sort_desc: sortDesc,
         custom_destinations: refreshEchoRows(universe, results, removedKeys),
-        ...constraints,
+        ...bounds,
       }, kind)
     } else if (resolvedPolygon) {
       // Discovery — with the custom list riding along so the backend ranks the
@@ -759,7 +785,7 @@ export default function App() {
         sort_by: sortBy,
         sort_desc: sortDesc,
         ...(custom.length > 0 ? { custom_destinations: custom } : {}),
-        ...constraints,
+        ...bounds,
       }, kind)
       // Remember these discovery inputs so the next compatible Analyze refreshes.
       discoveryRef.current = { base, searchedKeys }
@@ -777,7 +803,7 @@ export default function App() {
         sort_by: sortBy,
         sort_desc: sortDesc,
         custom_destinations: custom,
-        ...constraints,
+        ...bounds,
       }, kind)
     }
 
@@ -1071,6 +1097,13 @@ export default function App() {
           setMinElevationFt={setMinElevationFt}
           maxElevationFt={maxElevationFt}
           setMaxElevationFt={setMaxElevationFt}
+          constraints={constraints}
+          setConstraints={setConstraints}
+          onClearFilters={() => {
+            setMinElevationFt(null)
+            setMaxElevationFt(null)
+            setConstraints(NO_CONSTRAINTS)
+          }}
           showWildfires={showWildfires}
           setShowWildfires={setShowWildfires}
           includeUnnamedPeaks={includeUnnamedPeaks}
@@ -1117,6 +1150,7 @@ export default function App() {
           // fetched: narrowing the band live has to move the "of M" or the
           // count describes a field the table no longer shows.
           totalQueried={response ? presented.eligible : undefined}
+          excluded={presented.excluded}
         />
       </aside>
 
@@ -1552,7 +1586,14 @@ export default function App() {
 
         {showResults && response && results.length === 0 && !loading && (
           <div className={`${PROSE.body} flex-shrink-0 border-t border-slate-600 bg-slate-800 px-4 py-3`}>
-            {removedKeys.size > 0
+            {/* Three ways to end up with an empty table, and they call for
+                three different next moves. A bound that rejected everything is
+                the newest and the most easily mistaken for a failed analysis:
+                the destinations are there, the filters simply admitted none of
+                them, and nothing else on screen would say so. */}
+            {presented.excluded > 0 && presented.eligible === 0
+              ? `No destinations match these filters. ${presented.excluded.toLocaleString()} were analyzed.`
+              : removedKeys.size > 0
               ? 'All rows have been removed from this analysis. Add destinations or adjust the inputs, then Analyze again.'
               : 'No destinations found. Try a larger polygon or different time window.'}
           </div>

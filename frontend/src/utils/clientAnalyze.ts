@@ -103,6 +103,125 @@ export function filterElevation<T extends { elevation_ft: number | null }>(
   })
 }
 
+/**
+ * The forecast bounds an analysis is narrowed by, mirroring the eight optional
+ * fields on `AnalyzeRequest`.
+ *
+ * Elevation is deliberately NOT in here. It is known before any forecast
+ * exists, so it gates what gets fetched and widening it needs a new analysis
+ * (`Band` and `bandNarrows` in present.ts). Nothing in this shape can gate a
+ * fetch — a destination's precipitation is unknowable until it has been
+ * fetched — which is exactly what makes every one of these live.
+ */
+export interface Constraints {
+  minPrecipTotalIn: number | null
+  maxPrecipTotalIn: number | null
+  minTempF: number | null
+  maxTempF: number | null
+  minWindMph: number | null
+  maxWindMph: number | null
+  minAqi: number | null
+  maxAqi: number | null
+}
+
+export const NO_CONSTRAINTS: Constraints = {
+  minPrecipTotalIn: null,
+  maxPrecipTotalIn: null,
+  minTempF: null,
+  maxTempF: null,
+  minWindMph: null,
+  maxWindMph: null,
+  minAqi: null,
+  maxAqi: null,
+}
+
+// Which result field each bound compares — the port of _LOWER_BOUNDS and
+// _UPPER_BOUNDS in analyze.py, and the whole of the design.
+//
+// A ceiling reads the window's worst hour and a floor its best, so a bound is
+// a promise about every hour rather than about an average that can hide a bad
+// afternoon: a 20 mph ceiling admits no destination that gusts to 45 at noon.
+// Precipitation and AQI have no minimum aggregate to read — a per-hour
+// precipitation floor would be 0.000 almost everywhere — so both of their
+// bounds compare one field, and the panel labels those two rows with the table
+// column they compare so the screen says which.
+const LOWER_BOUNDS = [
+  ['minPrecipTotalIn', 'precip_total_in'],
+  ['minTempF', 'temp_min_f'],
+  ['minWindMph', 'wind_min_mph'],
+  ['minAqi', 'aqi_max'],
+] as const satisfies readonly (readonly [keyof Constraints, keyof DestinationResult])[]
+
+const UPPER_BOUNDS = [
+  ['maxPrecipTotalIn', 'precip_total_in'],
+  ['maxTempF', 'temp_max_f'],
+  ['maxWindMph', 'wind_max_mph'],
+  ['maxAqi', 'aqi_max'],
+] as const satisfies readonly (readonly [keyof Constraints, keyof DestinationResult])[]
+
+/** Is any bound set? Decides whether the count line mentions matching at all. */
+export function hasConstraints(c: Constraints): boolean {
+  return Object.values(c).some((v) => v !== null)
+}
+
+/** The bounds a request carries, as the panel and `present.ts` name them. */
+export function constraintsFromRequest(request: AnalyzeRequest): Constraints {
+  return {
+    minPrecipTotalIn: request.min_precip_total_in ?? null,
+    maxPrecipTotalIn: request.max_precip_total_in ?? null,
+    minTempF: request.min_temp_f ?? null,
+    maxTempF: request.max_temp_f ?? null,
+    minWindMph: request.min_wind_mph ?? null,
+    maxWindMph: request.max_wind_mph ?? null,
+    minAqi: request.min_aqi ?? null,
+    maxAqi: request.max_aqi ?? null,
+  }
+}
+
+/** The bounds as the wire fields `AnalyzeRequest` names them. */
+export function constraintFields(c: Constraints) {
+  return {
+    min_precip_total_in: c.minPrecipTotalIn,
+    max_precip_total_in: c.maxPrecipTotalIn,
+    min_temp_f: c.minTempF,
+    max_temp_f: c.maxTempF,
+    min_wind_mph: c.minWindMph,
+    max_wind_mph: c.maxWindMph,
+    min_aqi: c.minAqi,
+    max_aqi: c.maxAqi,
+  }
+}
+
+/**
+ * Port of _filter_constraints: drop rows outside the forecast bounds.
+ *
+ * A null value passes every bound. Only AQI can be null here, and a missing
+ * AQI means the window outran the ~5-day air-quality horizon or a best-effort
+ * fetch failed. Neither is evidence that the air is bad, and dropping those
+ * rows would quietly empty every long-window analysis that set a ceiling — the
+ * same call `filterElevation` makes for an untagged summit and `rankComparator`
+ * makes for a nullable ranking key.
+ */
+export function filterConstraints(
+  rows: readonly DestinationResult[],
+  c: Constraints,
+): readonly DestinationResult[] {
+  const lower = LOWER_BOUNDS.filter(([k]) => c[k] !== null)
+  const upper = UPPER_BOUNDS.filter(([k]) => c[k] !== null)
+  if (lower.length === 0 && upper.length === 0) return rows
+  return rows.filter((r) => {
+    for (const [k, field] of lower) {
+      const v = r[field] as number | null
+      if (v != null && v < (c[k] as number)) return false
+    }
+    for (const [k, field] of upper) {
+      const v = r[field] as number | null
+      if (v != null && v > (c[k] as number)) return false
+    }
+    return true
+  })
+}
+
 // Port of _suggest_elevation_floor: a minimum elevation that would bring the
 // candidate count under `cap`, or null when none can (unknown elevations
 // always pass elevation filters, so too many unknowns make a floor useless).
@@ -308,6 +427,18 @@ export interface ClientAnalysisCallbacks {
   // The live analysis cap from /api/capabilities; the compiled constant is
   // the fallback so a failed capabilities fetch never blocks analyzing.
   maxDestinations?: number
+  // Forecasts the browser already holds, to be reused for any candidate that
+  // appears in both. Widening the elevation band is the case this exists for:
+  // it readmits destinations this report never fetched, but it does not
+  // invalidate the ones already in hand, and re-fetching those spent the
+  // visitor's Open-Meteo quota to learn what was already on screen.
+  //
+  // The CALLER owns the question of whether reuse is legal — identical window
+  // and model, and recent enough — because it is the only layer that knows
+  // when the held rows were fetched (`FORECAST_REUSE_MS` in useAnalyze.ts).
+  // Passing rows from a different window here would silently mix two
+  // forecasts into one report.
+  reuse?: { rows: readonly DestinationResult[]; times: readonly number[] } | null
 }
 
 export interface ClientAnalysis {
@@ -339,10 +470,10 @@ export async function runClientAnalysis(
   destinations: readonly DiscoveredDestination[],
   startMs: number,
   endMs: number,
-  { signal, onProgress, onPace, nowMs, maxDestinations }: ClientAnalysisCallbacks = {},
+  { signal, onProgress, onPace, nowMs, maxDestinations, reuse }: ClientAnalysisCallbacks = {},
 ): Promise<ClientAnalysis> {
   if (destinations.length === 0) {
-    return { response: { results: [], total_queried: 0 }, universe: [] }
+    return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [] }
   }
   const cap = maxDestinations ?? MAX_ANALYZE_DESTINATIONS
   const noun = analysisNoun(request)
@@ -372,7 +503,34 @@ export async function runClientAnalysis(
     }
   }
 
-  const coords: Coordinate[] = candidates.map((d) => ({
+  // Split the field into what is already forecast and what still has to be
+  // fetched. With no reusable rows this is the whole list and the analysis runs
+  // exactly as it always has.
+  //
+  // A reused row keeps its forecast but takes its identity from the fresh
+  // candidate: discovery may have learned an elevation since (a pasted
+  // coordinate resolved against OSM), and the forecast is the expensive half,
+  // not the name.
+  const heldRows = new Map<string, DestinationResult>()
+  for (const r of reuse?.rows ?? []) heldRows.set(pinKey(r.latitude, r.longitude), r)
+  const reused: DestinationResult[] = []
+  const unforecast: DiscoveredDestination[] = []
+  for (const d of candidates) {
+    const hit = heldRows.get(pinKey(d.latitude, d.longitude))
+    if (hit) {
+      reused.push({
+        ...hit,
+        name: d.name,
+        type: d.type,
+        elevation_ft: d.elevation_ft,
+        osm_id: d.osm_id,
+      })
+    } else {
+      unforecast.push(d)
+    }
+  }
+
+  const coords: Coordinate[] = unforecast.map((d) => ({
     latitude: d.latitude,
     longitude: d.longitude,
   }))
@@ -401,29 +559,43 @@ export async function runClientAnalysis(
     //
     // The server path stays lazy (#181). There the budget is the pod's, shared
     // across visitors, so the same arithmetic comes out the other way.
-    const aqiPending = fetchAqi(coords, startMs, endMs, {
-      signal: internal.signal,
-      nowMs,
-    })
-      // fetchAqi only ever throws AbortError, which is what a weather failure
-      // (or Cancel) triggers below. Swallow it here so it cannot surface as an
-      // unhandled rejection once the caller has already taken the real error.
-      .catch((): AqiResult[] => new Array(candidates.length).fill(null))
-    const wxList = await fetchWeather(coords, startMs, endMs, {
-      signal: internal.signal,
-      onPace,
-      model: request.forecast_model,
-      onProgress: (processed, total) =>
-        onProgress?.(
-          processed,
-          total,
-          // Byte-identical to the SSE progress copy, so both paths read alike.
-          `Retrieving forecasts: ${processed} of ${total} ${noun}s…`,
-        ),
-    })
-    const aqiList = await aqiPending
+    // Nothing new to forecast: every candidate came out of the held field, so
+    // the analysis is a re-rank and costs no upstream call at all.
+    let fetched: DestinationResult[] = []
+    let times: number[] = []
+    if (coords.length > 0) {
+      const aqiPending = fetchAqi(coords, startMs, endMs, {
+        signal: internal.signal,
+        nowMs,
+      })
+        // fetchAqi only ever throws AbortError, which is what a weather failure
+        // (or Cancel) triggers below. Swallow it here so it cannot surface as an
+        // unhandled rejection once the caller has already taken the real error.
+        .catch((): AqiResult[] => new Array(coords.length).fill(null))
+      const wxList = await fetchWeather(coords, startMs, endMs, {
+        signal: internal.signal,
+        onPace,
+        model: request.forecast_model,
+        onProgress: (processed, total) =>
+          onProgress?.(
+            processed,
+            total,
+            // Byte-identical to the SSE progress copy, so both paths read alike.
+            `Retrieving forecasts: ${processed} of ${total} ${noun}s…`,
+          ),
+      })
+      const aqiList = await aqiPending
+      const assembled = assemble(unforecast, wxList, aqiList)
+      fetched = assembled.results
+      times = assembled.times
+    }
 
-    const { results, times } = assemble(candidates, wxList, aqiList)
+    // The hourly grid is a property of the window, not of a fetch, and reuse is
+    // only ever legal within one window. So the held grid stands in when this
+    // analysis fetched nothing, and the two are the same grid either way.
+    if (times.length === 0) times = [...(reuse?.times ?? [])]
+
+    const results = [...reused, ...fetched]
     results.sort(rankComparator(sortBy, request.sort_desc ?? false))
     const top = results.slice(0, request.limit)
 
@@ -431,6 +603,11 @@ export async function runClientAnalysis(
       response: {
         results: top,
         total_queried: candidates.length,
+        // Nothing is filtered here. On this path the browser holds the whole
+        // field and applies the forecast bounds live in present.ts, which is
+        // what makes them a knob rather than another Analyze; these two counts
+        // can only differ on the server path, where the field never arrives.
+        total_matched: candidates.length,
         times,
         total_found: totalFound,
         truncated,

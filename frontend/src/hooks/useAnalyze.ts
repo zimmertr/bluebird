@@ -13,6 +13,7 @@ import { resolveWindow } from '../utils/forecastWindow'
 import {
   AnalysisRefusalError,
   MAX_ANALYZE_DESTINATIONS,
+  constraintsFromRequest,
   resolveCustomOnly,
   runClientAnalysis,
 } from '../utils/clientAnalyze'
@@ -26,6 +27,12 @@ export type Progress = {
   total: number
   percent: number
 }
+
+// How long a held forecast may stand in for a fresh one. Mirrors the per-
+// location forecast TTL in backend/app/services/cache.py: past it the server
+// would refetch rather than serve its copy, so reusing here would hand the
+// visitor numbers their own pod has already retired.
+const FORECAST_REUSE_MS = 15 * 60 * 1000
 
 // An over-limit refusal, normalized from whichever path produced it (the
 // server's structured 400, the stream's error event, or the client-only
@@ -133,6 +140,24 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
   const [paceEndMs, setPaceEndMs] = useState<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const lastRequestRef = useRef<{ request: AnalyzeRequest; kind: SelectionKind } | null>(null)
+  // The forecasts the last browser analysis fetched, kept so the next one only
+  // pays for what it does not already have. Widening the elevation band is the
+  // case this exists for: it readmits destinations this report never fetched
+  // without invalidating the ones in hand, and before this it re-bought every
+  // forecast on screen to add a few. It helps any re-analysis at the same
+  // window and model — a pasted destination, a toggled unnamed-peaks — since
+  // reuse is decided per destination rather than per reason.
+  //
+  // Null on the server path by construction: that path is handed trimmed rows
+  // and no field, so there is nothing to reuse and nothing to reuse it for.
+  const heldForecastsRef = useRef<{
+    rows: DestinationResult[]
+    times: number[]
+    startMs: number
+    endMs: number
+    model: string
+    fetchedAtMs: number
+  } | null>(null)
 
   // Abort the in-flight request. The fetch loops swallow AbortError so no
   // error banner shows — the user chose to stop.
@@ -175,6 +200,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
     setError(null)
     setRefusal(null)
     lastRequestRef.current = null
+    heldForecastsRef.current = null
   }
 
   // `universe` is required rather than defaulted: a path that cannot supply the
@@ -196,6 +222,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
         min: request.min_elevation_ft ?? null,
         max: request.max_elevation_ft ?? null,
       },
+      constraints: constraintsFromRequest(request),
       kind,
       window: {
         startMs: Date.parse(request.start_datetime),
@@ -236,6 +263,24 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
     signal: AbortSignal,
   ): Promise<void> {
     const { startMs, endMs } = resolveWindow(request.start_datetime, request.end_datetime)
+
+    // Reuse is legal only where a held forecast answers the same question:
+    // the same resolved window (which is why this compares the RESOLVED pair —
+    // "now" floors to its containing hour, so two analyses in one hour ask the
+    // same thing) and the same model, recently enough that the numbers are not
+    // ones the server's own cache would already have refetched.
+    //
+    // The clock runs from the FIRST fetch, not the last, so a field cannot be
+    // kept alive indefinitely by re-analyzing every fourteen minutes.
+    const held = heldForecastsRef.current
+    const reuse =
+      held !== null &&
+      held.startMs === startMs &&
+      held.endMs === endMs &&
+      held.model === request.forecast_model &&
+      Date.now() - held.fetchedAtMs < FORECAST_REUSE_MS
+        ? held
+        : null
 
     let candidates: DiscoveredDestination[]
     let discoveredTruncation: { totalFound: number | null; truncated: boolean } = {
@@ -304,6 +349,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
       {
         signal,
         maxDestinations,
+        reuse: reuse && { rows: reuse.rows, times: reuse.times },
         onPace: handlePace,
         onProgress: (processed, total, message) => {
           setPaceEndMs(null)
@@ -316,6 +362,15 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
         },
       },
     )
+    heldForecastsRef.current = {
+      rows: fullField,
+      times: data.times ?? [],
+      startMs,
+      endMs,
+      model: request.forecast_model,
+      fetchedAtMs: reuse?.fetchedAtMs ?? Date.now(),
+    }
+
     // Server-side truncation happened at discovery; client-side (custom/union
     // overflow) inside runClientAnalysis. Either way the caption fields win
     // over per-path nulls.
@@ -339,6 +394,11 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
     kind: SelectionKind,
     signal: AbortSignal,
   ): Promise<void> {
+    // This path commits no field, so anything held is about to describe a
+    // report the browser can no longer re-derive. Dropped rather than kept, or
+    // a later client analysis would reuse forecasts from a report whose own
+    // rows were never held.
+    heldForecastsRef.current = null
     const res = await fetch('/api/analyze/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -15,6 +15,7 @@ import {
   bandEnd,
 } from './calendar'
 import { GeoPolygon } from '../types'
+import { NO_CONSTRAINTS } from './clientAnalyze'
 
 const polygon: GeoPolygon = {
   type: 'Polygon',
@@ -53,6 +54,7 @@ const base: ShareableState = {
   sortDesc: false,
   minElevationFt: null,
   maxElevationFt: null,
+  constraints: NO_CONSTRAINTS,
   limit: 10,
   customCsv: '',
   showWildfires: false,
@@ -74,6 +76,7 @@ const pristine: ShareableState = {
   sortDesc: false,
   minElevationFt: null,
   maxElevationFt: null,
+  constraints: NO_CONSTRAINTS,
   limit: 200,
   customCsv: '',
   showWildfires: false,
@@ -232,6 +235,49 @@ describe('encodeState', () => {
     const qs = encodeState(base, DEFAULT_MODEL)
     expect(qs).not.toContain('minel')
     expect(qs).not.toContain('maxel')
+  })
+
+  it('omits every forecast bound when unset', () => {
+    const qs = encodeState(base, DEFAULT_MODEL)
+    for (const param of ['minprecip', 'maxprecip', 'mintemp', 'maxtemp', 'minwind', 'maxwind', 'minaqi', 'maxaqi']) {
+      expect(qs).not.toContain(param)
+    }
+  })
+
+  it('round-trips every forecast bound, readably', () => {
+    const constraints = {
+      minPrecipTotalIn: 0.05,
+      maxPrecipTotalIn: 0.1,
+      minTempF: 20,
+      maxTempF: 80,
+      minWindMph: 1,
+      maxWindMph: 20,
+      minAqi: 10,
+      maxAqi: 100,
+    }
+    const qs = encodeState({ ...base, constraints }, DEFAULT_MODEL)
+    // Plain numbers under names you can guess, which is the whole convention:
+    // a bound should be as editable in the address bar as it is in the panel.
+    expect(new URLSearchParams(qs).get('maxaqi')).toBe('100')
+    expect(new URLSearchParams(qs).get('maxprecip')).toBe('0.1')
+    expect(decodeState(`?${qs}`)?.constraints).toEqual(constraints)
+  })
+
+  it('leaves a bound out of the decode when the link carries none', () => {
+    // Undefined rather than an all-null object, so App keeps its own state
+    // instead of being handed a value that says the same thing.
+    expect(decodeState('?sort=precip_total_in')?.constraints).toBeUndefined()
+  })
+
+  it('earns a URL for a state whose only change is a bound', () => {
+    // A filtered view is a shareable view, exactly as an elevation band is.
+    expect(
+      encodeState({ ...pristine, constraints: { ...NO_CONSTRAINTS, maxAqi: 100 } }, DEFAULT_MODEL),
+    ).not.toBe('')
+  })
+
+  it('drops a bound that is not a number rather than taking NaN', () => {
+    expect(decodeState('?maxaqi=smoky')?.constraints).toBeUndefined()
   })
 
   it('persists the CSV even when a polygon is present — inputs are additive', () => {

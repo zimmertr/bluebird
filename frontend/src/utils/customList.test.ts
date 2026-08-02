@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { buildCustomList, pendingDestinations, pinKey } from './customList'
 import { CustomDestination, DestinationResult } from '../types'
 import { Place } from './geocode'
+import { NO_CONSTRAINTS } from './clientAnalyze'
 import { presentResults } from './present'
 
 const csv: CustomDestination[] = [
@@ -209,6 +210,7 @@ describe('a field larger than the limit', () => {
     sortDesc: false,
     limit: 100,
     band: { min: null, max: null },
+    constraints: NO_CONSTRAINTS,
   }
 
   it('shows exactly the limit, all of them forecasted', () => {

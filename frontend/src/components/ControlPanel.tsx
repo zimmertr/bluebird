@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { Fragment, useMemo, useRef } from 'react'
 import { CustomDestination, DiscoveryType, SortBy } from '../types'
 import { Refusal } from '../hooks/useAnalyze'
 // Above this drawn area, an informational note warns that dense regions can
@@ -30,7 +30,8 @@ import {
   STATUS,
   TEXT,
 } from '../styles'
-import { AGGREGATE, NOUN, RANKING_KEYS, familyOf } from '../metrics'
+import { AGGREGATE, NOUN, RANKING_KEYS, familyOf, metricLabel } from '../metrics'
+import { Constraints, hasConstraints } from '../utils/clientAnalyze'
 import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analyzeGate'
 import { classifyAqiCoverage, clampLimit } from '../utils/urlState'
 import {
@@ -137,6 +138,12 @@ interface Props {
   setMinElevationFt: (v: number | null) => void
   maxElevationFt: number | null
   setMaxElevationFt: (v: number | null) => void
+  constraints: Constraints
+  setConstraints: (c: Constraints) => void
+  // Clears the whole grid, elevation included. Elevation is the one row whose
+  // clearing widens rather than narrows, so this can leave the report needing
+  // an Analyze — which the commit cue above the button then says.
+  onClearFilters: () => void
   showWildfires: boolean
   setShowWildfires: (v: boolean) => void
   // Summits OSM knows only by their height, discovered as `Peak 5961`.
@@ -190,6 +197,10 @@ interface Props {
   maxAreaKm2: number
   resultCount?: number
   totalQueried?: number
+  // How many the analysis found but the forecast bounds rejected. Zero when
+  // nothing is bounded, which is what keeps the count line unchanged for a
+  // report that set none.
+  excluded: number
   // Pre-truncation count when the shown analysis was an elected top-N.
   totalFound?: number | null
   truncated?: boolean
@@ -228,6 +239,9 @@ export default function ControlPanel({
   setMinElevationFt,
   maxElevationFt,
   setMaxElevationFt,
+  constraints,
+  setConstraints,
+  onClearFilters,
   showWildfires,
   setShowWildfires,
   includeUnnamedPeaks,
@@ -251,6 +265,7 @@ export default function ControlPanel({
   maxAreaKm2,
   resultCount,
   totalQueried,
+  excluded,
   totalFound,
   truncated,
   aqiAllNull,
@@ -297,6 +312,65 @@ export default function ControlPanel({
     selection.kind === 'now' ? 'full' : classifyAqiCoverage(window.start, window.end, new Date())
 
   const pointsNeeded = Math.max(0, 3 - drawPointCount)
+
+  // The filter grid, one row per bounded thing.
+  //
+  // Each label is composed from `metrics.ts`, and the two rows whose bounds
+  // both read a single result field wear that field's own table-column name.
+  // That is the only thing on screen saying which value a bound compares, and
+  // it costs no prose: precipitation is bounded on the window total, air
+  // quality on its worst hour, while temperature and wind bound the band
+  // itself and so read bare. Elevation carries no aggregate at all.
+  //
+  // Elevation is deliberately first and deliberately not set apart. It is the
+  // one row that gates the fetch rather than the display, so loosening it
+  // needs an Analyze while the other four never do — but that difference has a
+  // cue of its own above the button, and a rule drawn here would claim a
+  // distinction the user cannot act on.
+  const bound = (key: keyof Constraints) =>
+    [
+      constraints[key],
+      (v: number | null) => setConstraints({ ...constraints, [key]: v }),
+    ] as const
+  const filterRows = [
+    {
+      id: 'elevation',
+      label: 'Elevation (ft)',
+      step: 100,
+      lower: [minElevationFt, setMinElevationFt] as const,
+      upper: [maxElevationFt, setMaxElevationFt] as const,
+    },
+    {
+      id: 'precipitation',
+      label: metricLabel('precip', AGGREGATE.total),
+      step: 0.01,
+      lower: bound('minPrecipTotalIn'),
+      upper: bound('maxPrecipTotalIn'),
+    },
+    {
+      id: 'wind',
+      label: metricLabel('wind'),
+      step: 1,
+      lower: bound('minWindMph'),
+      upper: bound('maxWindMph'),
+    },
+    {
+      id: 'temperature',
+      label: metricLabel('temp'),
+      step: 1,
+      lower: bound('minTempF'),
+      upper: bound('maxTempF'),
+    },
+    {
+      id: 'air-quality',
+      label: metricLabel('aqi', AGGREGATE.maximum),
+      step: 1,
+      lower: bound('minAqi'),
+      upper: bound('maxAqi'),
+    },
+  ]
+  const filtersActive =
+    minElevationFt !== null || maxElevationFt !== null || hasConstraints(constraints)
 
   return (
     <div className="flex flex-col h-full">
@@ -619,56 +693,63 @@ export default function ControlPanel({
           </div>
         </section>
 
-        {/* Step 4: Additional options — result filters, count, and map overlays */}
+        {/* Step 4: what to keep. One grid, two columns of bounds, one row per
+            thing that can be bounded — the same order as the Ranking section
+            above, so the two scan alike. */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
-            4. Options
+            4. Filters
+          </h2>
+          {/* "At least" and "At most" rather than the short forms: the headers
+              name a RELATION, and borrowing the aggregates' names for them
+              would claim each cell bounds the column of that name — which is
+              true for temperature and wind, false for the two rows whose label
+              carries its own aggregate, and meaningless for elevation. */}
+          <div className="grid grid-cols-[minmax(0,1fr)_4.75rem_4.75rem] items-center gap-x-2 gap-y-2">
+            <span />
+            <span className={`${TEXT.caption} text-center`}>At least</span>
+            <span className={`${TEXT.caption} text-center`}>At most</span>
+            {filterRows.map((row) => (
+              <Fragment key={row.id}>
+                <label htmlFor={`${row.id}-lower`} className={TEXT.control}>
+                  {row.label}
+                </label>
+                {(['lower', 'upper'] as const).map((edge) => (
+                  <input
+                    key={edge}
+                    id={`${row.id}-${edge}`}
+                    type="number"
+                    step={row.step}
+                    value={row[edge][0] ?? ''}
+                    onChange={(e) =>
+                      row[edge][1](e.target.value === '' ? null : Number(e.target.value))
+                    }
+                    className={`${FIELD} w-full px-2 py-1.5`}
+                  />
+                ))}
+              </Fragment>
+            ))}
+          </div>
+          {/* Every filter here lets an unknown value through: many OSM features
+              carry no elevation, and air quality is only forecast about five
+              days out. Dropping those rows would read as an answer when it is
+              an absence of one. */}
+          <p className={`${TEXT.helper} mt-2`}>
+            Destinations with unknown values are included.
+          </p>
+          {filtersActive && (
+            <button onClick={onClearFilters} className={`${BUTTON_SECONDARY} mt-2`}>
+              Clear filters
+            </button>
+          )}
+        </section>
+
+        {/* Step 5: Additional options — result count and map overlays */}
+        <section>
+          <h2 className={`${TEXT.section} mb-2.5`}>
+            5. Options
           </h2>
           <div className="space-y-4">
-            {/* Elevation band — filters candidates server-side before the fetch */}
-            <div>
-              <label className={`${TEXT.subheading} block mb-1`}>Elevation range (ft)</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  placeholder={AGGREGATE.minimum}
-                  value={minElevationFt ?? ''}
-                  min={0}
-                  max={30000}
-                  onChange={(e) =>
-                    setMinElevationFt(e.target.value === '' ? null : Number(e.target.value))
-                  }
-                  className={`${FIELD} w-full px-2 py-1.5`}
-                />
-                <span className={`${TEXT.caption} flex-shrink-0`}>–</span>
-                <input
-                  type="number"
-                  placeholder={AGGREGATE.maximum}
-                  value={maxElevationFt ?? ''}
-                  min={0}
-                  max={30000}
-                  onChange={(e) =>
-                    setMaxElevationFt(e.target.value === '' ? null : Number(e.target.value))
-                  }
-                  className={`${FIELD} w-full px-2 py-1.5`}
-                />
-              </div>
-              {/* Many OSM features carry no elevation tag; silently dropping
-                  them would be surprising, so the filter lets them through —
-                  say so where the band is set. */}
-              <p className={`${TEXT.helper} mt-1`}>
-                Destinations with unknown elevation are included.
-              </p>
-              {(minElevationFt !== null || maxElevationFt !== null) && (
-                <button
-                  onClick={() => { setMinElevationFt(null); setMaxElevationFt(null) }}
-                  className={`${BUTTON_SECONDARY} mt-2`}
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-
             {/* Result-count cap. The ceiling is the live analysis cap from
                 /api/capabilities: `limit` trims what is shown, never what is
                 analyzed, so there is no cheaper number to protect. */}
@@ -794,11 +875,24 @@ export default function ControlPanel({
 
         {resultCount !== undefined && !loading && !error && !refusal && (
           <div className="text-xs text-slate-400 text-center space-y-0.5">
+            {/* Three numbers can be true at once — shown, matching, analyzed —
+                and one sentence carrying all of them wraps the sidebar. So
+                filtering takes the sentence when it is doing anything, and an
+                elected top-N cut drops to its own line beneath. A report with
+                no bound set reads exactly as it always has. */}
             <p>
-              {truncated && totalFound != null
-                ? `Showing ${resultCount} of the ${totalQueried} highest destinations (${totalFound.toLocaleString()} found)`
+              {excluded > 0
+                ? `Showing ${resultCount} of ${totalQueried} matching destinations (${(
+                    (totalQueried ?? 0) + excluded
+                  ).toLocaleString()} analyzed)`
                 : `Showing ${resultCount} of ${totalQueried} destinations`}
             </p>
+            {truncated && totalFound != null && (
+              <p>
+                {totalQueried?.toLocaleString()} highest analyzed of{' '}
+                {totalFound.toLocaleString()} found
+              </p>
+            )}
             {aqiAllNull && aqiCoverage !== 'none' && (
               <p>Air quality data unavailable for this forecast window.</p>
             )}

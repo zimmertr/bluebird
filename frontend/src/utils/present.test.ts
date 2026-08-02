@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { AnalyzeResponse, DestinationResult } from '../types'
 import { pinKey } from './customList'
+import { Constraints, NO_CONSTRAINTS } from './clientAnalyze'
 import { PresentationKnobs, bandNarrows, commitNeeded, presentResults } from './present'
 
 // Rows differing only in the fields under test, so an assertion on names reads
@@ -42,12 +43,17 @@ const KNOBS: PresentationKnobs = {
   sortDesc: false,
   limit: 10,
   band: { min: null, max: null },
+  constraints: NO_CONSTRAINTS,
 }
 
 const NONE = new Set<string>()
 
-function response(results: DestinationResult[], totalQueried: number): AnalyzeResponse {
-  return { results, total_queried: totalQueried }
+function response(
+  results: DestinationResult[],
+  totalQueried: number,
+  totalMatched: number = totalQueried,
+): AnalyzeResponse {
+  return { results, total_queried: totalQueried, total_matched: totalMatched }
 }
 
 // ── bandNarrows ────────────────────────────────────────────────────────────
@@ -107,6 +113,22 @@ describe('commitNeeded', () => {
     expect(commitNeeded(analyzed, { ...KNOBS, sortBy: 'wind_avg_mph' }, true, false, false)).toBeNull()
     expect(commitNeeded(analyzed, { ...KNOBS, sortDesc: true }, true, false, false)).toBeNull()
     expect(commitNeeded(analyzed, { ...KNOBS, limit: 50 }, true, false, false)).toBeNull()
+  })
+
+  it('is silent for a forecast bound over a held field', () => {
+    // The asymmetry with the elevation band: a bound can only re-read rows the
+    // browser already has, so loosening one is as live as tightening it.
+    const analyzed = { ...KNOBS }
+    const loosened = { ...KNOBS, constraints: { ...NO_CONSTRAINTS, maxAqi: 200 } }
+    expect(commitNeeded(analyzed, loosened, true, false, false)).toBeNull()
+  })
+
+  it('commits a forecast bound on the server path, where there is no field', () => {
+    const analyzed = { ...KNOBS }
+    const bounded = { ...KNOBS, constraints: { ...NO_CONSTRAINTS, maxAqi: 100 } }
+    expect(commitNeeded(analyzed, bounded, false, false, false)).toBe('server-path')
+    // ...and stays silent when the bounds are the ones behind the rows.
+    expect(commitNeeded(analyzed, { ...KNOBS }, false, false, false)).toBeNull()
   })
 
   it('is silent for an AQI ranking, which the eager AQI fetch already covers', () => {
@@ -234,6 +256,76 @@ describe('presentResults', () => {
     expect(presentResults(universe, null, narrowed, removed).eligible).toBe(3)
   })
 
+
+  describe('forecast bounds', () => {
+    const bounded = (over: Partial<Constraints>) => ({
+      ...KNOBS,
+      constraints: { ...NO_CONSTRAINTS, ...over },
+    })
+
+    it('narrows the field live, with no second Analyze', () => {
+      const { rows } = presentResults(universe, null, bounded({ maxPrecipTotalIn: 0.4 }), NONE)
+      expect(rows.map((r) => r.name)).toEqual(['Dry', 'Untagged'])
+    })
+
+    it('runs before the limit cut, so the cut is of the matching field', () => {
+      // Filtering after the cut would answer with one row: the two driest are
+      // 'Dry' (0.1) and 'Untagged' (0.3), and the bound then rejects 'Dry'.
+      // "The two driest with at least 0.3 in" has to answer with two.
+      const knobs = { ...bounded({ minPrecipTotalIn: 0.3 }), limit: 2 }
+      const { rows } = presentResults(universe, null, knobs, NONE)
+      expect(rows.map((r) => r.name)).toEqual(['Untagged', 'Mid'])
+    })
+
+    it('runs after the band, and reports each count separately', () => {
+      const knobs = {
+        ...bounded({ maxPrecipTotalIn: 0.4 }),
+        band: { min: 8000, max: null },
+      }
+      // The band admits Wet, Mid and Untagged (unknown elevation passes); the
+      // bound then rejects Wet and Mid.
+      const { rows, eligible, excluded } = presentResults(universe, null, knobs, NONE)
+      expect(rows.map((r) => r.name)).toEqual(['Untagged'])
+      expect(eligible).toBe(1)
+      expect(excluded).toBe(2)
+    })
+
+    it('counts nothing excluded when nothing is bounded', () => {
+      const { eligible, excluded } = presentResults(universe, null, KNOBS, NONE)
+      expect(eligible).toBe(4)
+      expect(excluded).toBe(0)
+    })
+
+    it('can empty the table while the field behind it is untouched', () => {
+      // The state the empty-state copy exists for: destinations were analyzed,
+      // and the bounds admitted none of them.
+      const { rows, eligible, excluded } = presentResults(
+        universe,
+        null,
+        bounded({ maxPrecipTotalIn: 0 }),
+        NONE,
+      )
+      expect(rows).toEqual([])
+      expect(eligible).toBe(0)
+      expect(excluded).toBe(4)
+    })
+
+    it('excludes before removals, so the two counts stay independent', () => {
+      const removed = new Set([pinKey(2, -121.9)]) // 'Dry'
+      const { rows, eligible, excluded } = presentResults(
+        universe,
+        null,
+        bounded({ maxPrecipTotalIn: 0.4 }),
+        removed,
+      )
+      expect(rows.map((r) => r.name)).toEqual(['Untagged'])
+      // Still 2 of 4: a row the user struck out was still one the bounds
+      // admitted, exactly as `eligible` has always ignored removals.
+      expect(eligible).toBe(2)
+      expect(excluded).toBe(2)
+    })
+  })
+
   describe('with no held field (the server SSE path)', () => {
     // Deliberately in an order no ranking would produce, to prove nothing here
     // re-sorts them: the server already ranked and cut, and re-sorting its rows
@@ -261,8 +353,18 @@ describe('presentResults', () => {
       expect(presentResults(null, response(trimmed, 851), KNOBS, NONE).eligible).toBe(851)
     })
 
+    it('reads the matched count off the wire, since the field never arrives', () => {
+      const { eligible, excluded } = presentResults(null, response(trimmed, 851, 40), KNOBS, NONE)
+      expect(eligible).toBe(40)
+      expect(excluded).toBe(811)
+    })
+
     it('survives having no response at all', () => {
-      expect(presentResults(null, null, KNOBS, NONE)).toEqual({ rows: [], eligible: 0 })
+      expect(presentResults(null, null, KNOBS, NONE)).toEqual({
+        rows: [],
+        eligible: 0,
+        excluded: 0,
+      })
     })
   })
 
