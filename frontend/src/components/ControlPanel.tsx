@@ -341,6 +341,13 @@ export default function ControlPanel({
   // needs an Analyze while the other four never do — but that difference has a
   // cue of its own above the button, and a rule drawn here would claim a
   // distinction the user cannot act on.
+  // What each box actually compares, in words, because the grid cannot show it.
+  // A floor reads the window's best hour and a ceiling its worst, which is the
+  // whole design and also the thing that looks like a bug the first time a wind
+  // floor of 15 empties the table: nowhere is continuously windy, so "the
+  // calmest hour is at least 15" is a question with almost no answers. The
+  // mapping is fixed for the life of the app, so it is stated rather than
+  // computed.
   const bound = (key: keyof Constraints) =>
     [
       constraints[key],
@@ -349,6 +356,7 @@ export default function ControlPanel({
   const filterRows = [
     {
       id: 'elevation',
+      hint: ['The elevation must be at least this.', 'The elevation must be at most this.'] as const,
       label: 'Elevation (ft)',
       step: 100,
       lower: [minElevationFt, setMinElevationFt] as const,
@@ -356,6 +364,7 @@ export default function ControlPanel({
     },
     {
       id: 'precipitation',
+      hint: ['The total over the window must be at least this.', 'The total over the window must be at most this.'] as const,
       label: metricLabel('precip'),
       step: 0.01,
       lower: bound('minPrecipTotalIn'),
@@ -363,6 +372,7 @@ export default function ControlPanel({
     },
     {
       id: 'wind',
+      hint: ['The calmest hour must be at least this.', 'The gustiest hour must be at most this.'] as const,
       label: metricLabel('wind'),
       step: 1,
       lower: bound('minWindMph'),
@@ -370,6 +380,7 @@ export default function ControlPanel({
     },
     {
       id: 'temperature',
+      hint: ['The coldest hour must be at least this.', 'The hottest hour must be at most this.'] as const,
       label: metricLabel('temp'),
       step: 1,
       lower: bound('minTempF'),
@@ -377,6 +388,7 @@ export default function ControlPanel({
     },
     {
       id: 'air-quality',
+      hint: ['The worst hour must be at least this.', 'The worst hour must be at most this.'] as const,
       label: metricLabel('aqi'),
       step: 1,
       lower: bound('minAqi'),
@@ -726,14 +738,15 @@ export default function ControlPanel({
                 <label htmlFor={`${row.id}-lower`} className={TEXT.control}>
                   {row.label}
                 </label>
-                {EDGES.map(([edge, placeholder]) => (
+                {EDGES.map(([edge, placeholder], i) => (
                   <input
                     key={edge}
                     id={`${row.id}-${edge}`}
                     type="number"
                     step={row.step}
                     placeholder={placeholder}
-                    aria-label={`${row.label} ${placeholder}`}
+                    title={row.hint[i]}
+                    aria-label={`${row.label} ${placeholder}. ${row.hint[i]}`}
                     value={row[edge][0] ?? ''}
                     onChange={(e) =>
                       row[edge][1](e.target.value === '' ? null : Number(e.target.value))
