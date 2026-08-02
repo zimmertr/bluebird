@@ -586,9 +586,15 @@ export default function ControlPanel({
               knob either way — sort, limit and a narrowing elevation band
               re-present held rows, while a different model is different
               numbers. Ordered longest-reach-first by the server. */}
-          <div className="mb-3">
-            <span className={`${TEXT.subheading} block mb-1`}>Model</span>
-            <div className="relative">
+          <div className="mb-3 flex items-center gap-2">
+            {/* Label beside its control, like every other row in the panel.
+                The trigger is a button carrying its own aria-label, not an
+                input, so this is a span with nothing to point `htmlFor` at.
+                A narrow trigger costs the list nothing: popoverBox never
+                renders the panel narrower than its trigger and widens it to
+                380px regardless. */}
+            <span className={`${TEXT.control} flex-1`}>Model</span>
+            <div className="relative w-32">
               {/* A model named by a link but not offered here still has to
                   appear, or the control would silently show a different model
                   than the one about to be requested. */}
@@ -613,13 +619,13 @@ export default function ControlPanel({
                 onChange={setForecastModel}
               />
             </div>
-            {modelClamped && (
-              <p className={`mt-2 ${STATUS.warn} ${NOTICE.warn}`}>
-                {modelLabel} does not forecast that far ahead. The window was
-                shortened to what it covers.
-              </p>
-            )}
           </div>
+          {modelClamped && (
+            <p className={`mb-3 ${STATUS.warn} ${NOTICE.warn}`}>
+              {modelLabel} does not forecast that far ahead. The window was
+              shortened to what it covers.
+            </p>
+          )}
 
           <ForecastCalendar
             selection={selection}
@@ -760,15 +766,18 @@ export default function ControlPanel({
             {/* Result-count cap. The ceiling is the live analysis cap from
                 /api/capabilities: `limit` trims what is shown, never what is
                 analyzed, so there is no cheaper number to protect. */}
-            <div>
-              <label className={`${TEXT.subheading} block mb-1`}>{AGGREGATE.maximum} results</label>
+            <div className="flex items-center gap-2">
+              <label htmlFor="max-results" className={`${TEXT.control} flex-1`}>
+                {AGGREGATE.maximum} results
+              </label>
               <input
+                id="max-results"
                 type="number"
                 min={1}
                 max={maxLimit}
                 value={limit}
                 onChange={(e) => setLimit(clampLimit(parseInt(e.target.value) || 200, maxLimit))}
-                className={`${FIELD_NUMERIC} w-24 px-2 py-1.5`}
+                className={`${FIELD_NUMERIC} w-32 px-2 py-1.5 text-center`}
               />
             </div>
 

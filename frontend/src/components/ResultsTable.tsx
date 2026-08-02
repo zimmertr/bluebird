@@ -61,10 +61,6 @@ interface Props {
   // Already in display order: App applies the detail-column sort below before
   // handing these over, so the rows arrive as they are drawn.
   results: DestinationResult[]
-  // Why the table has no rows, when it has none. Rendered as a row rather than
-  // in place of the table, so the columns and the count above them stay put and
-  // the reader can see that a report exists and simply admits nothing.
-  emptyReason?: string | null
   // The ranking the displayed rows are already in. Live on the client path,
   // where the panel re-derives the rows from the held field on every change.
   sortBy: SortBy
@@ -112,7 +108,6 @@ interface Props {
 
 export default function ResultsTable({
   results,
-  emptyReason,
   sortBy,
   sortDesc,
   onRank,
@@ -404,16 +399,6 @@ export default function ResultsTable({
               {rowCells(row)}
             </tr>
           ))}
-          {emptyReason && results.length === 0 && pending?.length !== undefined && pending.length === 0 && (
-            <tr className="border-t border-slate-700/50">
-              <td
-                colSpan={orderedColumns.length + (showChartCol ? 2 : 1)}
-                className={`${TABLE.cell} ${TEXT.caption} text-center`}
-              >
-                {emptyReason}
-              </td>
-            </tr>
-          )}
         </tbody>
       </table>
     </div>

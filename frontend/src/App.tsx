@@ -950,12 +950,14 @@ export default function App() {
   const rowCount = useMemo(() => {
     if (response === null) return null
     const shown = `${results.length.toLocaleString()} of ${presented.eligible.toLocaleString()}`
+    // Comma-joined rather than parenthesized: the bar already wraps the whole
+    // thing in parentheses, and a nested pair reads as a typo.
     if (presented.excluded > 0) {
       const analyzed = (presented.eligible + presented.excluded).toLocaleString()
-      return `${shown} matching (${analyzed} analyzed)`
+      return `${shown} matching, ${analyzed} analyzed`
     }
     if (response.truncated && response.total_found != null) {
-      return `${shown} (of ${response.total_found.toLocaleString()} found)`
+      return `${shown}, ${response.total_found.toLocaleString()} found`
     }
     return shown
   }, [response, results.length, presented.eligible, presented.excluded])
@@ -1503,21 +1505,23 @@ export default function App() {
                       Siblings, not nested: the title's weight and color would
                       otherwise inherit into the ranking, which is the one thing
                       giving it a different role from the title is meant to stop. */}
-                  <span className="flex min-w-0 items-baseline gap-3">
+                  {/* One phrase, not three chips. The title, what the rows are
+                      ranked by, and how many of them there are read as a
+                      sentence: "Forecast Table - Lowest Total Precipitation
+                      (100 of 100)". Three spans alternating bold, normal, bold
+                      made the eye stop twice on the way across.
+                      The count rides inside it rather than beside it — it
+                      qualifies the ranking, since both describe the same rows.
+                      Never a shrinking member on its own: an ellipsized number
+                      is a wrong number, so the ranking truncates around it. */}
+                  <span className="flex min-w-0 items-baseline gap-1.5">
                     <span className={`${TEXT.panelTitle} flex-shrink-0`}>Forecast Table</span>
-                    {/* How much of the field is on screen, beside the field it
-                        describes. This lived under the Analyze button until the
-                        forecast bounds gave it a third number and wrapped that
-                        column to two lines — and a count of table rows was
-                        never a property of the request anyway. Never a
-                        shrinking member: an ellipsized number is a wrong
-                        number. */}
                     {rowCount !== null && (
-                      <span className={`${TEXT.caption} flex-shrink-0`}>{rowCount}</span>
-                    )}
-                    {results.length > 0 && (
-                      <span className={`${TEXT.subheading} truncate`}>
-                        {`${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, pointSample)}`}
+                      <span className={`${TEXT.subheading} min-w-0 truncate`}>
+                        {`- ${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(
+                          view.sortBy,
+                          pointSample,
+                        )} (${rowCount})`}
                       </span>
                     )}
                   </span>
@@ -1599,11 +1603,21 @@ export default function App() {
                 visible (macOS overlay scrollbars hide the sideways hint).
                 The panel has a drag-resized height on every breakpoint now, so
                 the body just fills it (flex-1) and scrolls a long ranking. */}
+            {/* Outside the scroller on purpose. As a cell spanning every column
+                it centred on the TABLE's width, which is far wider than the
+                panel whenever the columns overflow — so the one sentence
+                explaining an empty report sat off the right edge, reachable
+                only by scrolling sideways past columns of nothing. Out here it
+                centres on what is visible and wraps to the panel. */}
+            {!tableCollapsed && emptyReason !== null && (
+              <p className={`${TEXT.caption} flex-shrink-0 px-4 py-3 text-center`}>
+                {emptyReason}
+              </p>
+            )}
             {!tableCollapsed && (
               <div className="overflow-auto min-h-0 results-scrollbars flex-1">
                 <ResultsTable
                   results={tableRows}
-                  emptyReason={emptyReason}
                   sortBy={view.sortBy}
                   sortDesc={view.sortDesc}
                   // A header click on a ranking metric IS the panel knob, so
