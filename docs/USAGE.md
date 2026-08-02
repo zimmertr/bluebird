@@ -70,7 +70,7 @@ Which model answers, and over which hours.
 
 ### Model
 
-Which weather model answers. Opening the picker shows all eight together, because choosing well here means reading them against each other rather than one at a time. Each carries its finest grid and how far it forecasts, right-aligned so the whole list can be compared by scanning one edge, and a line saying when to reach for it. The list is ordered best first for mountain terrain, so the default, **NOAA GFS**, is the top entry and is marked **Recommended**.
+Which weather model answers. Opening the picker shows all eight together, because choosing well here means reading them against each other rather than one at a time. Each carries its resolution and its range in a right-aligned column, so the whole list can be compared by scanning one edge, and two sentences saying what it is best at and what it blends in. The list is ordered best first for mountain terrain, so the default, **NOAA GFS**, is the top entry and is marked **Recommended**.
 
 Each entry's second sentence says what it blends in. Six of the eight use one agency's fine regional grid for roughly the first two days and its coarse global one after that, which is why the grid figure and the reach are never both true at the same moment. None of them blends across agencies. This is also where **NOAA HRRR** says it is already inside **NOAA GFS**, which reaches further, so picking it separately gets you the same numbers with an earlier stop.
 

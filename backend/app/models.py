@@ -263,8 +263,8 @@ MODEL_INFO: dict[ForecastModel, ModelInfo] = {
     ForecastModel.icon_seamless: ModelInfo(
         "DWD ICON",
         168,
-        "The most detail over the Alps, and coarse elsewhere. Blends in"
-        " the ICON-D2 and ICON-EU models.",
+        "The most detail over Germany and the Alps, and coarse"
+        " elsewhere. Blends in the ICON-D2 and ICON-EU models.",
         2,
     ),
     ForecastModel.jma_seamless: ModelInfo(

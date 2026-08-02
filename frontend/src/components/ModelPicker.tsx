@@ -4,9 +4,9 @@ import { PopoverBox, nextActiveIndex, popoverBox } from '../utils/listbox'
 import { gridLabel, reachLabel, type ForecastModelOption } from '../hooks/useCapabilities'
 import { BADGE_ACCENT, ICON_ADORNMENT, SELECT, SURFACE_CARD, TEXT } from '../styles'
 
-// Wide enough for a summary to sit on two lines rather than three, measured
-// against the longest of them (512px, so it uses 72% of the 708px two lines buy). The sidebar is ~285px, so this only works
-// because the panel floats clear of it and over the map.
+// Wide enough for a summary to sit on two lines rather than three: the longest
+// measures 512px, so it uses 72% of the 708px two lines buy. The sidebar is
+// ~285px, so this only works because the panel floats clear of it, over the map.
 const PREFERRED_WIDTH_PX = 380
 const GAP_PX = 4
 const VIEWPORT_MARGIN_PX = 8
@@ -41,6 +41,9 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
   const [active, setActive] = useState(Math.max(selectedIndex, 0))
   const triggerRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  // The popover is more than the listbox now — it has a header bar above it,
+  // and a press there must not read as a press outside.
+  const popoverRef = useRef<HTMLDivElement>(null)
 
   const selected = selectedIndex >= 0 ? models[selectedIndex] : null
 
@@ -100,7 +103,7 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
     if (!open) return
     function onPointerDown(e: PointerEvent) {
       const target = e.target as Node
-      if (listRef.current?.contains(target) || triggerRef.current?.contains(target)) return
+      if (popoverRef.current?.contains(target) || triggerRef.current?.contains(target)) return
       close(false)
     }
     document.addEventListener('pointerdown', onPointerDown)
@@ -172,12 +175,7 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
         box &&
         createPortal(
           <div
-            ref={listRef}
-            role="listbox"
-            aria-label="Forecast model"
-            aria-activedescendant={`model-option-${active}`}
-            tabIndex={-1}
-            onKeyDown={onListKeyDown}
+            ref={popoverRef}
             style={{
               position: 'fixed',
               left: box.left,
@@ -185,8 +183,35 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
               maxHeight: box.maxHeight,
               ...(box.placement === 'below' ? { top: box.top } : { bottom: box.bottom }),
             }}
-            className={`${SURFACE_CARD} z-30 overflow-y-auto p-1 focus:outline-none`}
+            className={`${SURFACE_CARD} z-30 flex flex-col`}
           >
+            {/* Names the right-hand column once instead of eight times. The
+                figures are two bare numbers otherwise, and "3 km" beside a
+                model called NOAA GFS invites reading it as GFS's own grid
+                rather than the finest the blend reaches — which is what each
+                row's "Blends in…" clause is there to correct.
+
+                Outside the listbox, and hidden from assistive tech, because a
+                `role="listbox"` may only contain options: a header row inside
+                it would be announced as a ninth entry that cannot be chosen.
+                Sighted readers get the column names, and a screen reader gets
+                each figure in the option's own text. */}
+            <div
+              aria-hidden="true"
+              className={`${TEXT.overline} flex items-baseline justify-between gap-2 border-b border-slate-700 px-3 py-1.5`}
+            >
+              <span>Model</span>
+              <span>Resolution · Range</span>
+            </div>
+            <div
+              ref={listRef}
+              role="listbox"
+              aria-label="Forecast model"
+              aria-activedescendant={`model-option-${active}`}
+              tabIndex={-1}
+              onKeyDown={onListKeyDown}
+              className="min-h-0 flex-1 overflow-y-auto p-1 focus:outline-none"
+            >
             {models.map((model, i) => {
               const isSelected = model.id === value
               return (
@@ -232,6 +257,7 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
                 </div>
               )
             })}
+            </div>
           </div>,
           document.body,
         )}
