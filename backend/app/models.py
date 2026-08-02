@@ -155,23 +155,23 @@ class ModelInfo(NamedTuple):
     # be: 3 km describes NOAA GFS over North America and 13 km describes it
     # over Nepal, so the number alone would mislead half the world.
     finest_grid_km: float
-    # What this model is made of, when it is made of more than one thing.
+    # What this model is made of, named part by part.
     #
     # Six of the eight are Open-Meteo `*_seamless` products, which stitch one
     # agency's own regional and global models into a single series: a fine grid
     # for roughly two days, then a coarse one. Nothing here blends across
     # agencies (`best_match` is that, and is deliberately absent above).
     #
-    # Worth publishing rather than leaving implicit for two reasons. It says the
-    # fine grid is a *stage*, which `finest_grid_km` and `forecast_hours` cannot
-    # express side by side — 2.5 km and 9 days are both true of GEM and never
-    # true at the same moment. And it is what makes `gfs_hrrr` legible: NOAA GFS
-    # names HRRR as its own first stage, so the separate HRRR entry is the same
-    # data with an earlier stop, not a second opinion.
+    # A list rather than a sentence, because the length carries the meaning: one
+    # entry is a single model, three is a grid that degrades twice. The picker
+    # prints them as chips, so a reader learns the shape of the whole list
+    # without reading any of it.
     #
-    # Non-blends say so rather than staying blank. A missing line is invisible,
-    # and "this one does not blend" is the thing a reader is here to learn.
-    blend: str
+    # It also says the fine grid is a *stage*, which `finest_grid_km` and
+    # `forecast_hours` cannot express side by side: 2.5 km and 9 days are both
+    # true of GEM and never true at the same moment. And it is what makes
+    # `gfs_hrrr` legible, since NOAA GFS names HRRR as its own first component.
+    components: tuple[str, ...]
     # HRRR is the only model here that is not global, and its domain is a
     # Lambert conformal grid no lat/lon box describes: Banff, Edmonton and
     # Monterrey answer, while Alaska, Hawaii, Puerto Rico, Newfoundland and
@@ -236,59 +236,59 @@ MODEL_INFO: dict[ForecastModel, ModelInfo] = {
     ForecastModel.gfs_seamless: ModelInfo(
         "NOAA GFS",
         384,
-        "The all-round default. Finest detail over North America.",
+        "The longest reach, with fine detail across the US.",
         3,
-        "Blends HRRR 3 km, then GFS 13 km",
+        ("HRRR", "GFS"),
     ),
     ForecastModel.gem_seamless: ModelInfo(
         "ECCC GEM",
         216,
-        "The most detail available over Canada and the northern US.",
+        "The most detail over Canada and the northern US.",
         2.5,
-        "Blends HRDPS 2.5 km, RDPS 10 km, then Global 15 km",
+        ("HRDPS", "RDPS", "GEM Global"),
     ),
     ForecastModel.ecmwf_ifs025: ModelInfo(
         "ECMWF IFS",
         336,
-        "Most dependable several days out. Too coarse for valleys.",
+        "Most reliable several days out. Too coarse for terrain detail.",
         25,
-        "One grid worldwide, no blend",
+        ("IFS",),
     ),
     ForecastModel.gfs_hrrr: ModelInfo(
         "NOAA HRRR",
         42,
-        "The most detail over the US, for today and tomorrow only.",
+        "The most detail over the US for the next 48 hours.",
         3,
-        "One grid, US only, no blend",
+        ("HRRR",),
         regional=True,
     ),
     ForecastModel.ukmo_seamless: ModelInfo(
         "UK Met Office",
         144,
-        "Detail over the UK and Ireland. Often favored for storms.",
+        "The most detail over the UK and Ireland.",
         2,
-        "Blends UKV 2 km, then Global 10 km",
+        ("UKV", "UM Global"),
     ),
     ForecastModel.icon_seamless: ModelInfo(
         "DWD ICON",
         168,
-        "Detail over the Alps. Often favored for wind.",
+        "The most detail over the Alps.",
         2,
-        "Blends ICON-D2 2 km, ICON-EU 7 km, then Global 11 km",
+        ("ICON-D2", "ICON-EU", "ICON Global"),
     ),
     ForecastModel.jma_seamless: ModelInfo(
         "JMA GSM",
         240,
-        "Detail over Japan and Korea, and reliable in the Pacific.",
+        "The most detail over Japan and Korea.",
         5,
-        "Blends MSM 5 km, then GSM 55 km",
+        ("MSM", "GSM"),
     ),
     ForecastModel.meteofrance_seamless: ModelInfo(
         "Meteo-France ARPEGE",
         72,
-        "The most detail over France and western Europe.",
+        "The most detail over France.",
         2.5,
-        "Blends AROME 2.5 km, then ARPEGE 11 km",
+        ("AROME", "ARPEGE"),
     ),
 }
 

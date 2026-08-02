@@ -145,7 +145,7 @@ def test_capabilities_publishes_every_selectable_model_with_its_reach():
         assert entry["label"] == info.label
         assert entry["summary"] == info.summary
         assert entry["finest_grid_km"] == info.finest_grid_km
-        assert entry["blend"] == info.blend
+        assert entry["components"] == list(info.components)
         assert entry["forecast_hours"] == info.forecast_hours
         assert entry["regional"] == info.regional
 
@@ -153,32 +153,28 @@ def test_capabilities_publishes_every_selectable_model_with_its_reach():
 def test_every_model_carries_a_summary_the_picker_can_show():
     # These render as the line under each model name, so a blank one is a row
     # that says nothing about a choice the reader has to make.
-    #
-    # The length bound is there to keep each one on a single line. The real
-    # constraint is pixels, which nothing here can see: measured in the picker,
-    # a line has 354px at italic 12px, the widest that fits is 59 characters at
-    # 343px, and the two that had to be rewritten were 61 and 62 characters at
-    # 358 and 359px. So this is a proxy — close, because these are ordinary
-    # prose in one font, and wrong for a line of unusually wide characters.
-    # A summary that clears it and still wraps is a visual check, not a bug in
-    # the bound.
     for entry in _capabilities()["forecast_models"]:
         summary = entry["summary"]
         assert summary.strip(), entry["id"]
         assert summary.endswith("."), entry["id"]
-        assert len(summary) <= 59, (entry["id"], len(summary))
+        # Bound so the line does not wrap in the picker. It is a proxy for a
+        # pixel constraint nothing here can see, and a loose one: the widest
+        # that fits measured 343px at 59 characters, while the longest one now
+        # runs 62 characters at 334px, because character count does not predict
+        # width. Clearing this does not prove a line fits; only looking does.
+        assert len(summary) <= 65, (entry["id"], len(summary))
 
 
-def test_every_model_says_what_it_is_made_of():
-    # Never blank, including for the two that blend nothing: the picker prints
-    # this as its own line, and an absent line teaches a reader nothing. Same
-    # single-line bound as the summary above, and no trailing period, because
-    # this is a label rather than a sentence.
+def test_every_model_names_what_it_is_made_of():
+    # Never empty, including for the two that blend nothing: the picker prints
+    # one chip per entry, and the count is what tells a reader whether anything
+    # is blended, so a bare list would silently mean "single model".
     for entry in _capabilities()["forecast_models"]:
-        blend = entry["blend"]
-        assert blend.strip(), entry["id"]
-        assert not blend.endswith("."), entry["id"]
-        assert len(blend) <= 59, (entry["id"], len(blend))
+        components = entry["components"]
+        assert components, entry["id"]
+        assert all(c.strip() for c in components), entry["id"]
+        # Three chips is the widest measured row (191px against 354px of panel).
+        assert len(components) <= 3, (entry["id"], components)
 
 
 def test_the_default_names_hrrr_as_its_own_first_stage():
@@ -188,8 +184,8 @@ def test_the_default_names_hrrr_as_its_own_first_stage():
     # If the blend line ever stops saying so, the list goes back to implying
     # eight independent choices.
     published = {m["id"]: m for m in _capabilities()["forecast_models"]}
-    assert "HRRR" in published[DEFAULT_FORECAST_MODEL.value]["blend"]
-    assert "no blend" in published[ForecastModel.gfs_hrrr.value]["blend"]
+    assert "HRRR" in published[DEFAULT_FORECAST_MODEL.value]["components"]
+    assert published[ForecastModel.gfs_hrrr.value]["components"] == ["HRRR"]
 
 
 def test_capabilities_flags_exactly_one_default_and_it_is_the_request_default():

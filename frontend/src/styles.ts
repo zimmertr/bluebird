@@ -410,6 +410,7 @@ export const BADGE_ACCENT =
   `text-[10px] font-semibold uppercase tracking-wider ` +
   `${ACCENT.fill} ${RADIUS.pill} px-1.5 py-0.5`
 
+
 /**
  * The destructive retry inside an error notice: "Try again".
  *
@@ -503,6 +504,24 @@ export const SPINNER =
  */
 export const RECESSED_FILL = 'bg-slate-900'
 export const RECESSED_EDGE = 'border border-slate-500'
+
+/**
+ * A neutral tag: one named part of a thing, listed beside its siblings. Today
+ * the component models a forecast model is built from.
+ *
+ * The recessed pair rather than a fill, which is what separates it from
+ * `BADGE_ACCENT` above. That one marks a row out from the others and has to
+ * win the eye; these describe the row they sit in and appear several at a time,
+ * so a row of accent fills would shout eight times per screen and mark nothing.
+ * Recessed also matches how the panel already draws a container rather than a
+ * highlight.
+ *
+ * Sized like the figures it sits under rather than like body text: it is data,
+ * and the eye should be able to skip the whole column.
+ */
+export const CHIP =
+  `text-[10px] text-slate-300 ${RECESSED_FILL} ${RECESSED_EDGE} ` +
+  `${RADIUS.pill} px-1.5 py-px`
 
 /**
  * The idle half of a segmented choice: the ranking direction toggle's unchosen

@@ -98,13 +98,13 @@ than ECMWF's 9 km HRES. Quoting the national model instead inverts the ranking,
 because ECCC GEM reads as a 15 km global model unless you count the 2.5 km grid
 that is the reason to pick it here.
 
-**Most models are blends, and `blend` says so.** Six of the eight stitch one
-agency's regional and global models into a single series: a fine grid for
-roughly two days, then a coarse one. That is why `finest_grid_km` and
+**Most models are blends, and `components` names the parts.** Six of the eight
+stitch one agency's regional and global models into a single series: a fine grid
+for roughly two days, then a coarse one. That is why `finest_grid_km` and
 `forecast_hours` do not describe the same moment, and it is what makes
-`gfs_hrrr` legible, since `gfs_seamless` names HRRR as its own first stage.
-Nothing here blends across agencies. Entries that blend nothing say so rather
-than sending an empty string.
+`gfs_hrrr` legible, since `gfs_seamless` lists HRRR as its own first component.
+A single entry means a single model, so the length of the list is what says
+whether anything is blended at all. Nothing here blends across agencies.
 
 **Each model reaches a different distance.** `forecast_hours` says how far. It
 is separate from `limits.max_future_days`, which is the hard edge the request

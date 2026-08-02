@@ -114,14 +114,15 @@ class ForecastModelInfo(BaseModel):
             "than everywhere: where the fine grid lands is in `summary`."
         )
     )
-    blend: str = Field(
+    components: list[str] = Field(
         description=(
-            "What the model is made of, in one line. Most entries stitch one "
-            "agency's regional and global models into a single series: a fine "
-            "grid for roughly two days, then a coarse one. That is why "
-            "`finest_grid_km` and `forecast_hours` do not describe the same "
-            "moment. Entries that blend nothing say so rather than sending an "
-            "empty string. No model here blends across agencies."
+            "What the model is made of, finest component first. Most entries "
+            "stitch one agency's regional and global models into a single "
+            "series: a fine grid for roughly two days, then a coarse one. That "
+            "is why `finest_grid_km` and `forecast_hours` do not describe the "
+            "same moment. A single entry means a single model, so the length "
+            "of this list is what says whether anything is blended at all. No "
+            "model here blends across agencies."
         )
     )
     forecast_hours: int = Field(
@@ -264,7 +265,7 @@ async def capabilities() -> CapabilitiesResponse:
                 label=info.label,
                 summary=info.summary,
                 finest_grid_km=info.finest_grid_km,
-                blend=info.blend,
+                components=list(info.components),
                 forecast_hours=info.forecast_hours,
                 regional=info.regional,
                 default=model is DEFAULT_FORECAST_MODEL,

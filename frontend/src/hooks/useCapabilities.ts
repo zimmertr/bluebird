@@ -22,11 +22,12 @@ export interface ForecastModelOption {
    */
   finestGridKm: number
   /**
-   * What the model is made of, in one line. Most stitch a fine regional grid
-   * into a coarse global one, which is why the grid figure and the reach do
-   * not describe the same moment. Empty only when the server did not send one.
+   * What the model is made of, finest part first, printed as one chip each.
+   * Most stitch a fine regional grid into a coarse global one, which is why the
+   * grid figure and the reach do not describe the same moment. A single entry
+   * means a single model, so the length is what says whether it blends at all.
    */
-  blend: string
+  components: readonly string[]
   /** Hours ahead of now this model still has data for. Bounds the calendar. */
   forecastHours: number
   /** Run over part of the world, so some destinations are outside it. */
@@ -61,7 +62,7 @@ export const FALLBACK_FORECAST_MODEL: ForecastModelOption = {
   label: 'NOAA GFS',
   summary: 'The all-round default. Finest detail over North America.',
   finestGridKm: 3,
-  blend: 'Blends HRRR 3 km, then GFS 13 km',
+  components: ['HRRR', 'GFS'],
   forecastHours: 384,
   regional: false,
 }
@@ -106,7 +107,11 @@ function parseModels(body: unknown): Pick<
       label: typeof e.label === 'string' ? e.label : e.id,
       summary: typeof e.summary === 'string' ? e.summary : '',
       finestGridKm: typeof e.finest_grid_km === 'number' ? e.finest_grid_km : 0,
-      blend: typeof e.blend === 'string' ? e.blend : '',
+      // Strings only, so a malformed entry drops its chips rather than
+      // rendering `[object Object]` in the picker.
+      components: Array.isArray(e.components)
+        ? e.components.filter((c): c is string => typeof c === 'string')
+        : [],
       forecastHours: e.forecast_hours,
       regional: e.regional === true,
     })

@@ -799,10 +799,13 @@
       "ForecastModelInfo": {
         "description": "One selectable weather model, and how far it reaches.",
         "properties": {
-          "blend": {
-            "description": "What the model is made of, in one line. Most entries stitch one agency's regional and global models into a single series: a fine grid for roughly two days, then a coarse one. That is why `finest_grid_km` and `forecast_hours` do not describe the same moment. Entries that blend nothing say so rather than sending an empty string. No model here blends across agencies.",
-            "title": "Blend",
-            "type": "string"
+          "components": {
+            "description": "What the model is made of, finest component first. Most entries stitch one agency's regional and global models into a single series: a fine grid for roughly two days, then a coarse one. That is why `finest_grid_km` and `forecast_hours` do not describe the same moment. A single entry means a single model, so the length of this list is what says whether anything is blended at all. No model here blends across agencies.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Components",
+            "type": "array"
           },
           "default": {
             "description": "True for the model used when `forecast_model` is omitted.",
@@ -845,7 +848,7 @@
           "label",
           "summary",
           "finest_grid_km",
-          "blend",
+          "components",
           "forecast_hours",
           "regional",
           "default"
