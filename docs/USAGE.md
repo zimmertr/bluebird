@@ -120,7 +120,7 @@ The calendar is fully keyboard operable: arrow keys move by day, Page Up and Pag
 
 ## Step 3: Filters
 
-Ranking puts the best destinations first. Filters say which ones you would consider at all. The section is one grid: a row per thing you can bound, and a Min and a Max column. Leave a box empty and that side is unbounded.
+Ranking puts the best destinations first. Filters say which ones you would consider at all. The section is one grid: a row per thing you can bound, and a Min and a Max box on each row. Leave a box empty and that side is unbounded.
 
 | Row | Min | Max |
 |---|---|---|
@@ -136,11 +136,11 @@ The wording of that table is the point. **A ceiling is a promise about every hou
 
 Four of these five rows apply the instant you type in them, in both directions, because the browser already holds a forecast for every destination it found. **Elevation is the exception**: it decides what gets fetched in the first place, so narrowing it is instant while widening it needs Analyze again, and the panel says so. **Clear filters** empties the whole grid, elevation included.
 
-Everything on screen follows a filter change at once: the table, the map markers, the forecast chart, and the count. When a filter is hiding something, the count under the Analyze button says so: *Showing 12 of 34 matching destinations (91 analyzed)*. If nothing matches, the table says that too, rather than looking like a search that found nothing.
+Everything on screen follows a filter change at once: the table, the map markers, the forecast chart, and the row count in the Forecast Table's header, which reads *12 of 34 matching (91 analyzed)* whenever a filter is hiding something. If nothing matches, the table stays where it is and says so in place of its rows, rather than disappearing as though the search had failed.
 
 ## Step 4: Set Max Results
 
-The default is 200, chosen to sit above the 100-row lists people usually paste so a first analysis does not open with half of one cut off; the ceiling is whatever the running service reports as its analysis cap. Weather is fetched for *every* named destination in the polygon (after the optional elevation filter), and the top N by the selected ranking come back. There is no sampling, so the winners really are the extremes of the area. Raising this number therefore costs nothing upstream: it widens the view onto work already done. Past the cap on candidates the app asks you to draw a smaller polygon or narrow the elevation range rather than silently truncating. See [Limits](LIMITS.md) for why the caps exist and where to read their current values.
+The default is 200, chosen to sit above the 100-row lists people usually paste so a first analysis does not open with half of one cut off; the ceiling is whatever the running service reports as its analysis cap. The Forecast Table's header says how many rows you are seeing out of how many there are. Weather is fetched for *every* named destination in the polygon (after the optional elevation filter), and the top N by the selected ranking come back. There is no sampling, so the winners really are the extremes of the area. Raising this number therefore costs nothing upstream: it widens the view onto work already done. Past the cap on candidates the app asks you to draw a smaller polygon or narrow the elevation range rather than silently truncating. See [Limits](LIMITS.md) for why the caps exist and where to read their current values.
 
 Destinations you name yourself are candidates like any other. A searched place and every row of a pasted CSV are analyzed and then ranked against whatever the polygon found, so combining the two can push some of your own destinations below the cut, where they are simply not listed. Their forecasts were still fetched: raise max results and they appear, already filled in.
 

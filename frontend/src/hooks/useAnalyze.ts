@@ -20,7 +20,7 @@ import {
 import { pinKey } from '../utils/customList'
 import { OpenMeteoUnreachable } from '../utils/openMeteo'
 import { SelectionKind } from '../utils/calendar'
-import { PresentationKnobs } from '../utils/present'
+import { AnalyzedSnapshot } from '../utils/present'
 
 export type Progress = {
   processed: number
@@ -57,7 +57,7 @@ export type Refusal = {
 // re-derive from, it stays the display source as it always was.
 // Composes PresentationKnobs rather than restating them, so the recorded set
 // and the compared set cannot drift apart.
-export type AnalyzedView = PresentationKnobs & {
+export type AnalyzedView = AnalyzedSnapshot & {
   // Which arm of the forecast selection this was: the current hour, or chosen
   // days. A data knob — unlike sort and limit it is never re-derived, so it
   // always reads from here — and it decides only wording, since 'now' is the one
@@ -223,6 +223,12 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
         max: request.max_elevation_ft ?? null,
       },
       constraints: constraintsFromRequest(request),
+      // Did the elevation band actually gate what came back? Only polygon
+      // discovery reads it; a custom list is resolved coordinate by coordinate
+      // and keeps every row whatever the band says. So a custom-only report can
+      // answer a wider band from what it already holds, and asking it to
+      // re-analyze would be asking for rows it never lost.
+      bandGated: request.polygon != null && request.destination_types.length > 0,
       kind,
       window: {
         startMs: Date.parse(request.start_datetime),

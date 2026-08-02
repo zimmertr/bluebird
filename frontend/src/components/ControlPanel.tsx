@@ -90,6 +90,18 @@ function blockerText(blocker: AnalyzeBlocker, maxAreaKm2: number, pointsNeeded: 
   }
 }
 
+// The two cells of a filter row, and what an empty one says it is for.
+//
+// The bounds label themselves rather than sitting under a heading row: that row
+// cost a line of vertical space and pushed the first control twice as far below
+// the section heading as every other section's, and the elevation band already
+// used this idiom before the grid existed. A filled cell drops its placeholder,
+// by which point its position has said the same thing four rows running.
+const EDGES = [
+  ['lower', AGGREGATE.minimum],
+  ['upper', AGGREGATE.maximum],
+] as const
+
 // What polygon discovery finds. Custom (CSV) is no longer a mode here — the
 // always-visible Custom Destinations section below adds to any of these.
 const DESTINATION_TYPES: { value: DiscoveryType; label: string; implemented: boolean }[] = [
@@ -196,15 +208,9 @@ interface Props {
   // Live polygon-area gate from /api/capabilities, same contract as maxLimit
   // above: the deployment's number, with a compiled fallback behind it.
   maxAreaKm2: number
+  // Whether a report is on screen at all — the counts themselves moved to the
+  // table's own header bar.
   resultCount?: number
-  totalQueried?: number
-  // How many the analysis found but the forecast bounds rejected. Zero when
-  // nothing is bounded, which is what keeps the count line unchanged for a
-  // report that set none.
-  excluded: number
-  // Pre-truncation count when the shown analysis was an elected top-N.
-  totalFound?: number | null
-  truncated?: boolean
   // Every displayed row has null AQI although the window is inside the AQI
   // horizon: the best-effort fetch failed, and the dashes deserve one line
   // of explanation.
@@ -265,10 +271,6 @@ export default function ControlPanel({
   maxLimit,
   maxAreaKm2,
   resultCount,
-  totalQueried,
-  excluded,
-  totalFound,
-  truncated,
   aqiAllNull,
   wildfireCheckFailed,
 }: Props) {
@@ -711,38 +713,36 @@ export default function ControlPanel({
             4. Filters
           </h2>
           <div className="grid grid-cols-[minmax(0,1fr)_3.75rem_3.75rem] items-center gap-x-2 gap-y-2">
-            <span />
-            <span className={`${TEXT.caption} text-center`}>{AGGREGATE.minimum}</span>
-            <span className={`${TEXT.caption} text-center`}>{AGGREGATE.maximum}</span>
             {filterRows.map((row) => (
               <Fragment key={row.id}>
                 <label htmlFor={`${row.id}-lower`} className={TEXT.control}>
                   {row.label}
                 </label>
-                {(['lower', 'upper'] as const).map((edge) => (
+                {EDGES.map(([edge, placeholder]) => (
                   <input
                     key={edge}
                     id={`${row.id}-${edge}`}
                     type="number"
                     step={row.step}
+                    placeholder={placeholder}
+                    aria-label={`${row.label} ${placeholder}`}
                     value={row[edge][0] ?? ''}
                     onChange={(e) =>
                       row[edge][1](e.target.value === '' ? null : Number(e.target.value))
                     }
-                    className={`${FIELD_NUMERIC} w-full px-2 py-1.5`}
+                    className={`${FIELD_NUMERIC} w-full px-2 py-1.5 text-center`}
                   />
                 ))}
               </Fragment>
             ))}
           </div>
-          {/* The two things that can be unknown, named rather than generalized:
-              every other metric here is present on any row that got a forecast
-              at all, and "unknown values" left a reader wondering which. Many
-              OSM features carry no elevation, and air quality is only forecast
-              about five days out — dropping either would read as an answer
-              when it is an absence of one. */}
+          {/* Two values can be missing — an OSM feature with no elevation, and
+              air quality past its ~5-day horizon — and neither absence is
+              evidence of bad conditions, so neither is filtered out. Named
+              generically because naming both took two lines to say what the
+              dash in the table already shows. */}
           <p className={`${TEXT.helper} mt-2`}>
-            Destinations with an unknown elevation or {NOUN.aqi} are included.
+            Destinations with unknown values are included.
           </p>
           {filtersActive && (
             <button onClick={onClearFilters} className={`${BUTTON_SECONDARY} mt-2`}>
@@ -770,14 +770,6 @@ export default function ControlPanel({
                 onChange={(e) => setLimit(clampLimit(parseInt(e.target.value) || 200, maxLimit))}
                 className={`${FIELD_NUMERIC} w-24 px-2 py-1.5`}
               />
-              {/* The knob reads like a cap on the work, and users have taken it
-                  for one (#205): a list longer than this looks half-fetched.
-                  The API description and the comment above say it the same way.
-                  Keep it under ~50 characters or the sidebar wraps it to a
-                  second line, which is why the count itself is not named here. */}
-              <p className={`${TEXT.helper} mt-1`}>
-                Number of results shown. All points are analyzed.
-              </p>
             </div>
 
             {/* Unnamed peaks — a polygon-discovery knob, so it sits with the
@@ -880,31 +872,17 @@ export default function ControlPanel({
           </div>
         )}
 
-        {resultCount !== undefined && !loading && !error && !refusal && (
-          <div className="text-xs text-slate-400 text-center space-y-0.5">
-            {/* Three numbers can be true at once — shown, matching, analyzed —
-                and one sentence carrying all of them wraps the sidebar. So
-                filtering takes the sentence when it is doing anything, and an
-                elected top-N cut drops to its own line beneath. A report with
-                no bound set reads exactly as it always has. */}
-            <p>
-              {excluded > 0
-                ? `Showing ${resultCount} of ${totalQueried} matching destinations (${(
-                    (totalQueried ?? 0) + excluded
-                  ).toLocaleString()} analyzed)`
-                : `Showing ${resultCount} of ${totalQueried} destinations`}
+        {/* The row count used to sit here, and moved to the table's own header
+            bar: it describes the table, the sidebar is where you build a
+            request, and three numbers wrapped this column to two lines. What
+            stays is the one line that qualifies the ANALYSIS rather than the
+            view of it. */}
+        {resultCount !== undefined && !loading && !error && !refusal &&
+          aqiAllNull && aqiCoverage !== 'none' && (
+            <p className="text-xs text-slate-400 text-center">
+              Air quality data unavailable for this forecast window.
             </p>
-            {truncated && totalFound != null && (
-              <p>
-                {totalQueried?.toLocaleString()} highest analyzed of{' '}
-                {totalFound.toLocaleString()} found
-              </p>
-            )}
-            {aqiAllNull && aqiCoverage !== 'none' && (
-              <p>Air quality data unavailable for this forecast window.</p>
-            )}
-          </div>
-        )}
+          )}
 
         {/* Two labels, two pages, and each label goes where it says. The
             privacy copy used to open a dialog here, which meant it had no URL

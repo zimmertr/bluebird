@@ -942,8 +942,47 @@ export default function App() {
       pendingDestinations(csvRows, searched.places, analyzed?.customKeys ?? NO_CUSTOM, removedKeys),
     [csvRows, searched.places, analyzed, removedKeys],
   )
+  // The table bar's row count: shown, of what the knobs admit, and — only when
+  // a forecast bound is hiding some — of what was analyzed. An elected top-N
+  // cut appends what it left out, since "of 1,500" would otherwise read as the
+  // whole area. Null before a report exists, so the bar carries no count for
+  // the pending-rows-only case.
+  const rowCount = useMemo(() => {
+    if (response === null) return null
+    const shown = `${results.length.toLocaleString()} of ${presented.eligible.toLocaleString()}`
+    if (presented.excluded > 0) {
+      const analyzed = (presented.eligible + presented.excluded).toLocaleString()
+      return `${shown} matching (${analyzed} analyzed)`
+    }
+    if (response.truncated && response.total_found != null) {
+      return `${shown} (of ${response.total_found.toLocaleString()} found)`
+    }
+    return shown
+  }, [response, results.length, presented.eligible, presented.excluded])
+
+  // Why the table is empty, when it is. Three ways to get here and three
+  // different next moves, and the newest one is the most easily mistaken for a
+  // failed analysis: the destinations were found and forecast, the filters
+  // simply admit none of them.
+  const emptyReason = useMemo(() => {
+    if (response === null || results.length > 0) return null
+    if (presented.excluded > 0 && presented.eligible === 0) {
+      return `No destinations match these filters. ${(
+        presented.eligible + presented.excluded
+      ).toLocaleString()} were analyzed.`
+    }
+    if (removedKeys.size > 0) {
+      return 'All rows have been removed from this analysis. Add destinations or adjust the inputs, then Analyze again.'
+    }
+    return 'No destinations found. Try a larger polygon or different time window.'
+  }, [response, results.length, presented.eligible, presented.excluded, removedKeys])
+
   const hasColoredMarkers = showResults && results.length > 0
-  const showTable = showResults && (results.length > 0 || pending.length > 0)
+  // A report stays on screen even when the knobs admit none of it. Collapsing
+  // the panels would answer "why is nothing listed?" by removing the place the
+  // answer goes, and the table's own empty row says which of the three reasons
+  // it is.
+  const showTable = showResults && (response !== null || pending.length > 0)
 
   // Flags destinations within 10 mi of an active US wildfire; independent of the
   // map overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
@@ -987,7 +1026,10 @@ export default function App() {
     view.sortBy,
     searched.places.map((p) => pinKey(p.lat, p.lon)),
   )
-  const chartShown = chartable && chart.selectedRows.length > 0
+  // Shown whenever the analysis produced an hourly grid, including when nothing
+  // is currently plotted on it: an empty chart beside an empty table reads as a
+  // report with no matches, where a disappearing one reads as a broken app.
+  const chartShown = chartable
 
   // Space below the map that a resize must leave alone: the preview banner (when
   // present) sits above the map, so the map + chart + table share the rest.
@@ -1131,8 +1173,6 @@ export default function App() {
           modelClamped={modelClamped}
           maxLimit={caps.maxLimit}
           maxAreaKm2={caps.maxPolygonAreaKm2}
-          totalFound={response?.total_found}
-          truncated={response?.truncated}
           aqiAllNull={
             response !== null &&
             results.length > 0 &&
@@ -1149,8 +1189,6 @@ export default function App() {
           // What the current elevation band admits, not what the analysis
           // fetched: narrowing the band live has to move the "of M" or the
           // count describes a field the table no longer shows.
-          totalQueried={response ? presented.eligible : undefined}
-          excluded={presented.excluded}
         />
       </aside>
 
@@ -1445,8 +1483,11 @@ export default function App() {
                 fold it on a window that had not changed size and leave it
                 folded on one that had — which is the exact bug #159 removed
                 from the control panel. `@container` asks the bar about itself.
-                The step is measured: one line needs ~740px of content, so it
-                folds below the 768px `@3xl`. */}
+                The step is measured, and re-measured whenever a member is
+                added: one line needs ~800px since the row count joined it, so
+                between the 768px `@3xl` fold and 800px the ranking ellipsizes
+                rather than the bar folding — which is what its `truncate` is
+                for, and better than folding a bar that nearly fits. */}
             <div
               className={`@container flex-shrink-0 px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
             >
@@ -1464,6 +1505,16 @@ export default function App() {
                       giving it a different role from the title is meant to stop. */}
                   <span className="flex min-w-0 items-baseline gap-3">
                     <span className={`${TEXT.panelTitle} flex-shrink-0`}>Forecast Table</span>
+                    {/* How much of the field is on screen, beside the field it
+                        describes. This lived under the Analyze button until the
+                        forecast bounds gave it a third number and wrapped that
+                        column to two lines — and a count of table rows was
+                        never a property of the request anyway. Never a
+                        shrinking member: an ellipsized number is a wrong
+                        number. */}
+                    {rowCount !== null && (
+                      <span className={`${TEXT.caption} flex-shrink-0`}>{rowCount}</span>
+                    )}
                     {results.length > 0 && (
                       <span className={`${TEXT.subheading} truncate`}>
                         {`${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, pointSample)}`}
@@ -1552,6 +1603,7 @@ export default function App() {
               <div className="overflow-auto min-h-0 results-scrollbars flex-1">
                 <ResultsTable
                   results={tableRows}
+                  emptyReason={emptyReason}
                   sortBy={view.sortBy}
                   sortDesc={view.sortDesc}
                   // A header click on a ranking metric IS the panel knob, so
@@ -1584,20 +1636,6 @@ export default function App() {
           </div>
         )}
 
-        {showResults && response && results.length === 0 && !loading && (
-          <div className={`${PROSE.body} flex-shrink-0 border-t border-slate-600 bg-slate-800 px-4 py-3`}>
-            {/* Three ways to end up with an empty table, and they call for
-                three different next moves. A bound that rejected everything is
-                the newest and the most easily mistaken for a failed analysis:
-                the destinations are there, the filters simply admitted none of
-                them, and nothing else on screen would say so. */}
-            {presented.excluded > 0 && presented.eligible === 0
-              ? `No destinations match these filters. ${presented.excluded.toLocaleString()} were analyzed.`
-              : removedKeys.size > 0
-              ? 'All rows have been removed from this analysis. Add destinations or adjust the inputs, then Analyze again.'
-              : 'No destinations found. Try a larger polygon or different time window.'}
-          </div>
-        )}
       </div>
       </div>
     </div>

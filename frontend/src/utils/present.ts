@@ -43,6 +43,21 @@ export interface PresentationKnobs {
 }
 
 /**
+ * The knobs an analysis was run under, plus the one fact about it that decides
+ * whether a wider band can be answered from what came back.
+ *
+ * Elevation gates DISCOVERY, and only polygon discovery: a custom list is
+ * resolved coordinate by coordinate and the band never touches it, so a
+ * custom-only report holds every row it ever had and a widen re-presents it
+ * for free. Without this the cue fired on exactly the reports that did not
+ * need it, asking for an Analyze whose answer was already on screen — the same
+ * false alarm `rankingStale` used to raise for sort.
+ */
+export interface AnalyzedSnapshot extends PresentationKnobs {
+  bandGated: boolean
+}
+
+/**
  * Is `panel` a subset of `analyzed` — i.e. would every destination inside the
  * panel's band already be inside the analyzed one?
  *
@@ -73,7 +88,8 @@ export function bandNarrows(analyzed: Band, panel: Band): boolean {
  *   knob commits, as it did before #188. The overlay has already explained the
  *   fallback ("Weather service unreachable from this browser"), so this only
  *   has to name the consequence.
- * - `'elevation-widened'`: see `bandNarrows`.
+ * - `'elevation-widened'`: see `bandNarrows`, and `bandGated` for the reports
+ *   this cannot apply to.
  * - `'window-changed'`: the forecast selection is not the one behind the rows.
  *   Always a commit — the browser holds no forecasts for days it never fetched —
  *   and worth naming since the calendar made changing it a click (#166), where
@@ -88,7 +104,7 @@ export function bandNarrows(analyzed: Band, panel: Band): boolean {
  *   itself as the window change it caused.
  */
 export function commitNeeded(
-  analyzed: PresentationKnobs | null,
+  analyzed: AnalyzedSnapshot | null,
   panel: PresentationKnobs,
   hasUniverse: boolean,
   windowChanged: boolean,
@@ -110,6 +126,7 @@ export function commitNeeded(
       )
     return same ? null : 'server-path'
   }
+  if (!analyzed.bandGated) return null
   return bandNarrows(analyzed.band, panel.band) ? null : 'elevation-widened'
 }
 
