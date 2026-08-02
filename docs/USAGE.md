@@ -10,9 +10,9 @@ One analysis ranks a single set of destinations, which you define using one or a
 
 The search box at the top-left of the map recenters on any named place (a peak, city, lake, river, or trailhead) or on an exact coordinate pair. Type a name like `Mt Whitney` or `Mt Whitney, ca`, or coordinates like `36.57862, -118.29107` (parentheses and space-separated forms work too), then press Enter. Point features get a roughly 10 mile view; larger features like cities, parks, and rivers are framed whole. A searched place registers as a destination (a neutral blue dot until analyzed) and competes in the same ranking as everything else on the next Analyze. Search is powered by [Nominatim](https://nominatim.org), so it works for anything OSM knows about, including places Bluebird can't analyze yet.
 
-### b. Search by Click
+### b. Search by Point
 
-The control for this one is the map itself, which is why the panel section carries no widget. Hover it and every clickable feature on the map lights up, the way hovering **Search by Name** rings the search box. Whenever you are not drawing, the peaks and lakes labeled on the map are clickable. Click one for a popup with its name, and its elevation where there is one, then press **Add to analysis**. Clicking it again offers **Remove from analysis**.
+The control for this one is the map itself, which is why the panel section carries no widget. Hover it and every selectable feature on the map lights up, the way hovering **Search by Name** rings the search box. Whenever you are not drawing, the peaks and lakes labeled on the map can be picked. Tap or click one for a popup with its name, and its elevation where there is one, then press **Add to analysis**. Picking it again offers **Remove from analysis**.
 
 An added feature behaves exactly like a place searched by name: a neutral blue dot until analyzed, saved in the URL, and ranked against everything else on the next Analyze. Its elevation and its link to Peakbagger or OpenStreetMap are filled in during that analysis, by matching the point to the nearest mapped feature the way a pasted coordinate is.
 
@@ -86,13 +86,15 @@ Changing the model needs a new **Analyze**, like changing the polygon or the win
 
 ### Forecast window
 
-A calendar, with a **When** toggle above the grid reading **Now** or **Days**.
+A calendar, with a **When** toggle above the grid reading **Current** or **Dates**.
 
-- **Now** analyzes the hour you click Analyze. It is the default, so a fresh load can Analyze without touching this step at all.
-- **Click a day** to analyze that whole day, midnight to 23:59 your local time; that also moves the toggle to **Days**. Precipitation ranks by the day's total; wind, temperature, and AQI by its average.
-- **Click a second day** to extend to a range, or **drag across days** to pick one in a single gesture. Dragging either end of an existing range adjusts that end, and clicking inside a range starts over from the day you clicked.
-- **Days** on the toggle brings back the last range you had, so switching to Now to compare and back does not cost you the range. With no range yet it picks today.
-- **Hours** sits under the grid, set to **All Day**. Switch it to **Hourly** for part of a day rather than all of it: it opens on the current hour through the end of the day, and runs from the first time on your first day to the second time on your last, as one continuous window. Two equal hours analyze that single hour, which is the finest question you can ask.
+- **Current** analyzes the hour you press Analyze. It is the default, so a fresh load can Analyze without touching this step at all.
+- **Pick a day** to analyze that whole day, midnight to 23:59 your local time; that also moves the toggle to **Dates**. Precipitation ranks by the day's total; wind, temperature, and AQI by its average.
+- **Pick a second day** to extend to a range, or **drag across days** to choose one in a single gesture. Dragging either end of an existing range adjusts that end, and picking a day inside a range starts over from that day.
+- **Dates** on the toggle brings back the last range you had, so switching to Current to compare and back does not cost you the range. With no range yet it picks today.
+- **Hours** appears under **When**, set to **All Day**. Switch it to **Hourly** for part of a day rather than all of it: it opens on the current hour through the end of the day, and runs from the first time on your first day to the second time on your last, as one continuous window. Two equal hours analyze that single hour, which is the finest question you can ask.
+
+Both rows sit above the grid, so the two decisions the window needs are together and neither is below the fold on a short screen. Days in the past are ordinary here: the calendar reaches 55 days back against about 15 forward, which is why the toggle says Dates rather than anything that implies the future.
 
 Narrowed hours apply to the selection as a whole, not to each day in it: 06:00 to 18:00 across five days is one continuous window from the first morning to the last evening, and the app says so under the control. Daylight hours on each of several days is a separate feature and is not built yet.
 

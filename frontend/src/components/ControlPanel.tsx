@@ -346,7 +346,7 @@ export default function ControlPanel({
             onMouseEnter={() => onPointAtMapPois(true)}
             onMouseLeave={() => onPointAtMapPois(false)}
           >
-            <h3 className={`${TEXT.subheading} mb-1`}>Search by Click</h3>
+            <h3 className={`${TEXT.subheading} mb-1`}>Search by Point</h3>
             <p className={TEXT.helper}>Select a destination from the map.</p>
           </div>
 

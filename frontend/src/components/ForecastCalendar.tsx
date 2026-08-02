@@ -224,8 +224,8 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
   return (
     <div className={`${SURFACE_GROUP} p-2`}>
       {/* Both arms of the control, named, in the shape this panel already uses
-          for a choice between two things — the same one the Hours row below the
-          grid and the ranking direction toggle wear.
+          for a choice between two things — the same one the Hours row beneath it
+          and the ranking direction toggle wear.
 
           Neither arm is an action, which is why neither is a button. A filled
           full-width bar here would carry the shape, weight and hue of Analyze
@@ -234,14 +234,22 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
           What is actually being expressed is which arm is live.
 
           The grid stays live under either arm, so clicking a day is still the
-          one-click way into Days. This pair names the choice and is the way
+          one-click way into Dates. This pair names the choice and is the way
           back, not a gate to open first. */}
-      <div className="mb-2 flex items-center justify-between gap-2 border-b border-slate-700 pb-2">
+      <div className="flex items-center justify-between gap-2">
         <span className={TEXT.subheading}>When</span>
         <div className={SEGMENT}>
           {[
-            { kind: 'now' as const, label: 'Now', hint: 'Analyze conditions at the current hour' },
-            { kind: 'days' as const, label: 'Days', hint: 'Analyze a day or a range of days' },
+            {
+              kind: 'now' as const,
+              label: 'Current',
+              hint: 'Analyze conditions at the current hour',
+            },
+            // "Dates" rather than "Days" or "Range": this arm is silent about
+            // count and about tense, and it has to be. It holds a single day as
+            // readily as several, and 55 of the 71 days it can reach are behind
+            // today, so anything future-facing would mislabel most of the grid.
+            { kind: 'days' as const, label: 'Dates', hint: 'Analyze a day or a range of days' },
           ].map((option, i) => (
             <button
               key={option.kind}
@@ -258,9 +266,64 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
         </div>
       </div>
 
+      {/* Hours, stacked directly under the arm switch rather than under the
+          grid. Both rows are the same label-plus-segment shape, so the two
+          decisions the window needs — which arm, and how much of a day — read
+          as one block above the thing they qualify. Under the grid it sat six
+          rows down, which put it below the fold on a laptop; a reviewer once
+          got eight points into a review without finding it at all, back when it
+          was a collapsed disclosure. */}
+      {selection.kind === 'days' && (
+        <div className="mt-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className={TEXT.subheading}>Hours</span>
+            <div className={SEGMENT}>
+              {[
+                { hourly: false, label: 'All Day' },
+                { hourly: true, label: 'Hourly' },
+              ].map((option, i) => (
+                <button
+                  key={option.label}
+                  aria-pressed={option.hourly === (hours !== undefined)}
+                  onClick={() => setHours(option.hourly ? hours ?? defaultHours(now) : undefined)}
+                  className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
+                    option.hourly === (hours !== undefined) ? ACCENT.fill : SEGMENT_IDLE
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {hours && (
+            <div className="mt-1.5 flex items-center gap-2">
+              <input
+                type="time"
+                aria-label="Window start time"
+                value={hours.start}
+                onChange={(e) =>
+                  isTimeOfDay(e.target.value) && setHours({ ...hours, start: e.target.value })
+                }
+                className={`${FIELD} w-full px-2 py-1.5`}
+              />
+              <span className={`${TEXT.caption} flex-shrink-0`}>to</span>
+              <input
+                type="time"
+                aria-label="Window end time"
+                value={hours.end}
+                onChange={(e) =>
+                  isTimeOfDay(e.target.value) && setHours({ ...hours, end: e.target.value })
+                }
+                className={`${FIELD} w-full px-2 py-1.5`}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Month navigation, bounded by the servable band rather than open-ended:
           paging into a month with nothing pickable in it is a dead end. */}
-      <div className="mb-1 flex items-center justify-between">
+      <div className="mb-1 mt-2 flex items-center justify-between border-t border-slate-700 pt-2">
         <MonthButton
           label="Previous month"
           glyph="‹"
@@ -325,57 +388,6 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
         ))}
       </div>
 
-      {/* Hours, always visible once there is a day to apply them to. This was a
-          collapsed disclosure and a reviewer got eight points into a review
-          without finding it, which is the whole reason it now wears the same
-          segmented look as the ranking direction toggle further down the panel. */}
-      {selection.kind === 'days' && (
-        <div className="mt-2 border-t border-slate-700 pt-2">
-          <div className="flex items-center justify-between gap-2">
-            <span className={TEXT.subheading}>Hours</span>
-            <div className={SEGMENT}>
-              {[
-                { hourly: false, label: 'All Day' },
-                { hourly: true, label: 'Hourly' },
-              ].map((option, i) => (
-                <button
-                  key={option.label}
-                  aria-pressed={option.hourly === (hours !== undefined)}
-                  onClick={() => setHours(option.hourly ? hours ?? defaultHours(now) : undefined)}
-                  className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
-                    option.hourly === (hours !== undefined) ? ACCENT.fill : SEGMENT_IDLE
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {hours && (
-            <div className="mt-1.5 flex items-center gap-2">
-              <input
-                type="time"
-                aria-label="Window start time"
-                value={hours.start}
-                onChange={(e) =>
-                  isTimeOfDay(e.target.value) && setHours({ ...hours, start: e.target.value })
-                }
-                className={`${FIELD} w-full px-2 py-1.5`}
-              />
-              <span className={`${TEXT.caption} flex-shrink-0`}>to</span>
-              <input
-                type="time"
-                aria-label="Window end time"
-                value={hours.end}
-                onChange={(e) =>
-                  isTimeOfDay(e.target.value) && setHours({ ...hours, end: e.target.value })
-                }
-                className={`${FIELD} w-full px-2 py-1.5`}
-              />
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }
