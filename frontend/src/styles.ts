@@ -100,27 +100,16 @@ export const TEXT = {
  * A step up from the compact tier, for surfaces wide enough to hold a
  * paragraph. `note` is deliberately the compact tier's `caption` — the rung
  * where the two densities meet.
- *
- * Every step here is one size smaller below `sm`, because "wide enough to hold
- * a paragraph" is not true of a phone. The welcome dialog is the case that
- * forced it: at the desktop step its six numbered items overran a phone screen
- * by a little, and the whole dialog earned a scrollbar to recover a few dozen
- * pixels. Shrinking a step is the cheaper answer than scrolling copy someone is
- * reading for the first time. The scroll is still there underneath as the last
- * resort, for a short landscape window that no type size would save.
- *
- * `note` does not step, because it already sits on the smallest rung in the
- * app, and `strong` never sets a size at all.
  */
 export const PROSE = {
   /** The dialog's name. */
-  title: 'text-lg sm:text-xl font-bold text-white leading-tight',
+  title: 'text-xl font-bold text-white leading-tight',
   /** The line under it saying what the dialog is for. */
-  subtitle: 'text-xs sm:text-sm text-slate-400',
+  subtitle: 'text-sm text-slate-400',
   /** A heading inside the body copy. */
-  heading: 'text-xs sm:text-sm font-semibold text-white',
+  heading: 'text-sm font-semibold text-white',
   /** Body copy. */
-  body: 'text-xs sm:text-sm text-slate-300',
+  body: 'text-sm text-slate-300',
   /**
    * Inline emphasis — the lead-in naming what a sentence is about. The one
    * role that sets no size: it modifies whatever it sits inside.
