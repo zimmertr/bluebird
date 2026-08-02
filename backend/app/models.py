@@ -516,6 +516,81 @@ class AnalyzeRequest(BaseModel):
     max_elevation_ft: float | None = Field(
         default=None, description="Drop candidates above this elevation."
     )
+    # Forecast bounds, applied after aggregation and BEFORE the ranking and the
+    # `limit` cut, so "the top N matching destinations" is literally true rather
+    # than "whichever of the top N happened to match".
+    #
+    # Elevation above is a different animal and reads differently on purpose: it
+    # is known before any forecast exists, so it gates the weather fetch and a
+    # constrained analysis costs fewer upstream calls. Nothing here can do that —
+    # a destination's precipitation is not knowable until it has been fetched —
+    # so these only ever shrink the answer, never the work.
+    #
+    # Which value each bound compares is the whole of the design. A ceiling
+    # compares the window's WORST hour and a floor its best, so a bound is a
+    # promise about every hour in the window: `max_wind_mph = 20` admits no
+    # destination that gusts to 45 at noon, which is the only reading a
+    # mountaineer can plan against. Precipitation and AQI have no minimum
+    # aggregate to bound (a per-hour precipitation floor would be 0.000 almost
+    # everywhere), so their two bounds both compare one named field, and that
+    # field is named in the description a caller reads.
+    min_precip_total_in: float | None = Field(
+        default=None,
+        ge=0,
+        description="Drop rows whose `precip_total_in` is below this.",
+    )
+    max_precip_total_in: float | None = Field(
+        default=None,
+        ge=0,
+        description="Drop rows whose `precip_total_in` is above this.",
+    )
+    min_temp_f: float | None = Field(
+        default=None,
+        description=(
+            "Drop rows whose `temp_min_f` is below this, i.e. keep only "
+            "destinations that stay at or above it for the whole window. Not "
+            "bounded below: a floor of -40 is a real request."
+        ),
+    )
+    max_temp_f: float | None = Field(
+        default=None,
+        description=(
+            "Drop rows whose `temp_max_f` is above this, i.e. keep only "
+            "destinations that stay at or below it for the whole window."
+        ),
+    )
+    min_wind_mph: float | None = Field(
+        default=None,
+        ge=0,
+        description="Drop rows whose `wind_min_mph` is below this.",
+    )
+    max_wind_mph: float | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Drop rows whose `wind_max_mph` is above this, i.e. keep only "
+            "destinations that never exceed it during the window."
+        ),
+    )
+    min_aqi: float | None = Field(
+        default=None,
+        ge=0,
+        description="Drop rows whose `aqi_max` is below this.",
+    )
+    max_aqi: float | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Drop rows whose `aqi_max` is above this. A row with a null "
+            "`aqi_max` passes either bound rather than being dropped: air "
+            "quality is only forecast about five days out and the fetch is "
+            "best-effort, so a missing number is an absence of evidence, not "
+            "evidence of bad air. Setting either bound also makes the analysis "
+            "fetch air quality for every candidate instead of only the "
+            "returned rows, since a bound cannot be applied to a value that "
+            "was never fetched."
+        ),
+    )
     custom_destinations: list[CustomDestination] | None = Field(
         default=None,
         description=(
@@ -806,6 +881,17 @@ class AnalyzeResponse(BaseModel):
             "How many candidates were forecast and ranked before `limit` cut "
             "the list. Compare against `len(results)` to see how much of the "
             "ranking is not being shown."
+        )
+    )
+    total_matched: int = Field(
+        description=(
+            "How many of those candidates satisfied the request's forecast "
+            "bounds, before `limit` cut the list. Equal to `total_queried` "
+            "when no bound was set, so a client can always say \"N of M "
+            "matching\" without knowing whether the caller filtered. It is a "
+            "separate number because a bound drops rows the caller paid to "
+            "fetch, and `total_queried` keeps meaning what it always has: how "
+            "much was analyzed."
         )
     )
     error: str | None = Field(

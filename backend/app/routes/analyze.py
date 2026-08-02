@@ -43,6 +43,75 @@ def _filter_elevation(destinations, min_ft, max_ft):
     return [d for d in destinations if keep(d)]
 
 
+# Which result field each forecast bound compares.
+#
+# A ceiling reads the window's worst hour and a floor its best, so a bound is a
+# promise about every hour rather than about an average that can hide a bad
+# afternoon: max_wind_mph=20 admits no destination that gusts to 45 at noon.
+# Precipitation and AQI have no minimum aggregate to read — a per-hour
+# precipitation floor would be 0.000 almost everywhere — so both of their
+# bounds compare a single field, the window total and the worst hour.
+_LOWER_BOUNDS = (
+    ("min_precip_total_in", "precip_total_in"),
+    ("min_temp_f", "temp_min_f"),
+    ("min_wind_mph", "wind_min_mph"),
+    ("min_aqi", "aqi_max"),
+)
+_UPPER_BOUNDS = (
+    ("max_precip_total_in", "precip_total_in"),
+    ("max_temp_f", "temp_max_f"),
+    ("max_wind_mph", "wind_max_mph"),
+    ("max_aqi", "aqi_max"),
+)
+
+
+def _aqi_bounded(request: AnalyzeRequest) -> bool:
+    """Does this request bound AQI, and therefore need it for every candidate?
+
+    Lazy AQI (fetched only for the rows about to be returned) is the whole
+    reason this question is asked separately from the ranking's. A bound
+    applied to a value that was never fetched would drop nothing at all, since
+    nulls pass — the filter would silently do nothing on exactly the requests
+    that asked for it.
+    """
+    return request.min_aqi is not None or request.max_aqi is not None
+
+
+def _filter_constraints(
+    results: list[DestinationResult], request: AnalyzeRequest
+) -> list[DestinationResult]:
+    """Drop rows outside the request's forecast bounds.
+
+    Runs after aggregation and before the ranking, so `limit` cuts a field
+    that already matches: "the ten driest destinations that stay under 20 mph",
+    never "whichever of the ten driest happened to be calm".
+
+    A null value passes every bound. Only AQI can be null here, and a missing
+    AQI means the window outran the ~5-day air-quality horizon or a best-effort
+    fetch failed. Neither is evidence that the air is bad, and dropping those
+    rows would quietly empty every long-window analysis that set an AQI
+    ceiling. It is the same call `_filter_elevation` makes for an untagged
+    summit and `_sort_key` makes for a nullable ranking key.
+    """
+    lower = [(f, v) for attr, f in _LOWER_BOUNDS if (v := getattr(request, attr)) is not None]
+    upper = [(f, v) for attr, f in _UPPER_BOUNDS if (v := getattr(request, attr)) is not None]
+    if not lower and not upper:
+        return results
+
+    def keep(r: DestinationResult) -> bool:
+        for field, bound in lower:
+            value = getattr(r, field)
+            if value is not None and value < bound:
+                return False
+        for field, bound in upper:
+            value = getattr(r, field)
+            if value is not None and value > bound:
+                return False
+        return True
+
+    return [r for r in results if keep(r)]
+
+
 def _custom_dicts(custom_destinations) -> list[dict]:
     """The request's custom destinations in the same dict shape discovery
     produces. Each carries its own "type" so a mixed (union) response can tag
@@ -240,6 +309,13 @@ def _summarize_request(request: AnalyzeRequest) -> str:
         parts.append(f"min_elev_ft={request.min_elevation_ft:.0f}")
     if request.max_elevation_ft is not None:
         parts.append(f"max_elev_ft={request.max_elevation_ft:.0f}")
+    # Bounds are logged by their request field name so a log line and a curl
+    # of the same analysis read the same, and an empty-looking result can be
+    # traced to the bound that emptied it.
+    for attr, _ in (*_LOWER_BOUNDS, *_UPPER_BOUNDS):
+        value = getattr(request, attr)
+        if value is not None:
+            parts.append(f"{attr}={value:g}")
     if request.custom_destinations:
         parts.append(f"custom={len(request.custom_destinations or [])}")
     if request.destination_types and request.polygon is not None:
@@ -545,14 +621,14 @@ async def analyze_stream(request: AnalyzeRequest):
                     )
 
                 if not destinations:
-                    yield _sse("result", data=AnalyzeResponse(results=[], total_queried=0).model_dump())
+                    yield _sse("result", data=AnalyzeResponse(results=[], total_queried=0, total_matched=0).model_dump())
                     return
 
             destinations = _filter_elevation(
                 destinations, request.min_elevation_ft, request.max_elevation_ft
             )
             if not destinations:
-                yield _sse("result", data=AnalyzeResponse(results=[], total_queried=0).model_dump())
+                yield _sse("result", data=AnalyzeResponse(results=[], total_queried=0, total_matched=0).model_dump())
                 return
             total_found: int | None = None
             truncated = False
@@ -626,19 +702,21 @@ async def analyze_stream(request: AnalyzeRequest):
                 finally:
                     await progress_queue.put(_STREAM_DONE)
 
-            # Air quality is fetched for every candidate ONLY when it is the
-            # ranking key (the order cannot be known without it). Otherwise it
-            # is display data for the returned rows alone and is attached
-            # after the cut — for a 908-peak default-sort analysis that is the
+            # Air quality is fetched for every candidate ONLY when the answer
+            # depends on it before the cut: it is the ranking key (the order
+            # cannot be known without it), or a bound filters on it (a bound on
+            # an unfetched value drops nothing, since nulls pass). Otherwise it
+            # is display data for the returned rows alone and is attached after
+            # the cut — for a 908-peak default-sort analysis that is the
             # difference between ~1,800 and ~1,000 weighted calls.
-            aqi_sort = request.sort_by.value.startswith("aqi")
+            aqi_eager = request.sort_by.value.startswith("aqi") or _aqi_bounded(request)
             aqi_task = (
                 asyncio.create_task(
                     air_quality.fetch_aqi_batch(
                         destinations, request.start_datetime, request.end_datetime
                     )
                 )
-                if aqi_sort
+                if aqi_eager
                 else None
             )
             fetch_task = asyncio.create_task(run_fetch())
@@ -675,9 +753,11 @@ async def analyze_stream(request: AnalyzeRequest):
             results, times = _assemble(
                 destinations, wx_list, aqi_list, DestinationType.custom.value
             )
+            results = _filter_constraints(results, request)
+            total_matched = len(results)
             results.sort(key=_sort_key(request.sort_by.value, request.sort_desc))
             results = results[: request.limit]
-            if not aqi_sort:
+            if not aqi_eager:
                 await _attach_aqi(
                     results, times, request.start_datetime, request.end_datetime
                 )
@@ -687,6 +767,7 @@ async def analyze_stream(request: AnalyzeRequest):
                 data=AnalyzeResponse(
                     results=results,
                     total_queried=total_queried,
+                    total_matched=total_matched,
                     times=times,
                     total_found=total_found,
                     truncated=truncated,
@@ -823,7 +904,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     )
     if not destinations:
         log.info("No destinations to analyze (none found, or none within the elevation band)")
-        return AnalyzeResponse(results=[], total_queried=0)
+        return AnalyzeResponse(results=[], total_queried=0, total_matched=0)
     total_found: int | None = None
     truncated = False
     if len(destinations) > MAX_ANALYZE_PEAKS:
@@ -848,16 +929,17 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     total_queried = len(destinations)
     log.info("Fetching weather for %d destination(s)", total_queried)
 
-    # AQI for every candidate only when it is the ranking key; otherwise it is
-    # attached to just the returned rows after the cut (see _attach_aqi).
-    aqi_sort = request.sort_by.value.startswith("aqi")
+    # AQI for every candidate only when the answer depends on it before the cut:
+    # it is the ranking key, or a bound filters on it. Otherwise it is attached
+    # to just the returned rows after the cut (see _attach_aqi).
+    aqi_eager = request.sort_by.value.startswith("aqi") or _aqi_bounded(request)
     aqi_task = (
         asyncio.create_task(
             air_quality.fetch_aqi_batch(
                 destinations, request.start_datetime, request.end_datetime
             )
         )
-        if aqi_sort
+        if aqi_eager
         else None
     )
     try:
@@ -906,10 +988,12 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     results, times = _assemble(
         destinations, wx_list, aqi_list, DestinationType.custom.value
     )
+    results = _filter_constraints(results, request)
+    total_matched = len(results)
     sort_field = request.sort_by.value
     results.sort(key=_sort_key(sort_field, request.sort_desc))
     results = results[: request.limit]
-    if not aqi_sort:
+    if not aqi_eager:
         await _attach_aqi(results, times, request.start_datetime, request.end_datetime)
 
     def _fmt(r: DestinationResult) -> str:
@@ -917,16 +1001,20 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         return f"{v:.3f}" if v is not None else "—"
 
     log.info(
-        "Returning %d result(s) sorted by %s %s (best: %s, worst: %s)",
+        "Returning %d result(s) sorted by %s %s (best: %s, worst: %s)%s",
         len(results),
         sort_field,
         "desc" if request.sort_desc else "asc",
         _fmt(results[0]) if results else "—",
         _fmt(results[-1]) if results else "—",
+        f" ({total_matched} of {total_queried} matched)"
+        if total_matched != total_queried
+        else "",
     )
     return AnalyzeResponse(
         results=results,
         total_queried=total_queried,
+        total_matched=total_matched,
         times=times,
         total_found=total_found,
         truncated=truncated,
