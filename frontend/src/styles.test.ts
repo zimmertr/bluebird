@@ -173,6 +173,15 @@ describe('every component', () => {
   // its own at the same step. What no component may do is dim one below AA
   // again. Written so no banned class appears verbatim: v4 scans this file as
   // raw text and would emit its CSS.
+  // A call site that re-widths a segment breaks the alignment the role exists
+  // to hold, and it cannot even be relied on to win: two width utilities resolve
+  // by stylesheet order rather than by class order. Matched only where a width
+  // rides along in the same class list as the role.
+  it.each(Object.entries(sources))('%s re-widths no segment', (_path, source) => {
+    const rides = source.match(/\$\{SEGMENT\}[^`]*/g) ?? []
+    expect(rides.filter((r) => /(^|\s)w-\S+/.test(r))).toEqual([])
+  })
+
   it.each(Object.entries(sources))('%s dims no placeholder below AA', (_path, source) => {
     expect(source).not.toMatch(/placeholder[:-](?:text-)?slate-[56]00/)
   })
@@ -471,6 +480,17 @@ describe('shared recipes', () => {
   it('builds a segmented control from one box and one pair of colors', () => {
     expect(SEGMENT).toContain(RADIUS.control)
     expect(SEGMENT_ITEM).not.toMatch(/(^|\s)(bg|text)-(sky|slate)-/)
+  })
+
+  // Sized to their text, the panel's segments did not line up: Current/Dates
+  // measured 111px against Lowest/Highest at 119px, with halves of 59/50 and
+  // 56/61, and stacked in one card that read as three controls that failed to
+  // agree. The box carries a width and the halves split it, so a segment added
+  // later is the same size as the others without anyone remembering to make it
+  // so — which is the whole difference between a role and a convention.
+  it('gives every segment one width and every half an equal share of it', () => {
+    expect(SEGMENT).toMatch(/(^|\s)w-\S+/)
+    expect(SEGMENT_ITEM).toMatch(/(^|\s)flex-1(\s|$)/)
   })
 
   // The radio and its label are one strip, and the strip is the target. Move
