@@ -277,9 +277,9 @@ export const SURFACE_CARD =
 export const ACCENT = {
   /**
    * A solid block filled with the accent, carrying a label: the chosen segment
-   * of the ranking toggle and the calendar's Hours toggle, the ends of a day
-   * selection, the Now button when it is the live arm, the numbered steps in
-   * the welcome dialog, and `BUTTON_PRIMARY` below.
+   * of the ranking toggle, the When and Hours toggles, the ends of a day
+   * selection, the numbered steps in the welcome dialog, and `BUTTON_PRIMARY`
+   * below.
    *
    * The label color is not separable from the fill and must never be restated
    * at a call site — that is the whole failure this role was rewritten to end.
@@ -564,7 +564,34 @@ export const SEGMENT_IDLE = `${RECESSED_FILL} text-slate-400 hover:text-slate-20
  * to line up. 144px is the measured floor plus slack — the widest label here is
  * "Highest" at 61px of content, so a 72px half leaves 11px.
  */
-export const SEGMENT = `flex w-36 ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
+/**
+ * The width every stacked panel control shares.
+ *
+ * The panel is a column of label-plus-control rows, so the controls line up on
+ * both edges or the column looks ragged. They already shared a right edge; this
+ * is the left one. The segmented control set it — two halves need room for
+ * "All Day" and "Hourly" side by side — and everything beside it follows rather
+ * than each row picking its own.
+ *
+ * The filters grid derives from it rather than repeating it: two boxes plus
+ * their `gap-x-2` (0.5rem) must total this, which is why each is `4.25rem`.
+ */
+export const CONTROL_W = 'w-36'
+
+export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
+
+/**
+ * The forecast-bounds grid: a label taking the free space, then a lower and an
+ * upper box.
+ *
+ * The two boxes plus the gap between them come to exactly `CONTROL_W`, so the
+ * grid lines up with the model picker and the segmented controls on BOTH edges
+ * rather than only on the right. That arithmetic is the whole reason the boxes
+ * are `4.25rem` and not a round number, so `styles.test.ts` checks it instead of
+ * trusting this sentence: change `CONTROL_W` and the sum has to be redone.
+ */
+export const BOUNDS_GRID =
+  'grid grid-cols-[minmax(0,1fr)_4.25rem_4.25rem] items-center gap-x-2 gap-y-2'
 export const SEGMENT_ITEM = `${TAP.action} flex-1 px-2 py-0.5 text-xs transition-colors`
 /** Between two halves, never before the first. */
 export const SEGMENT_DIVIDER = 'border-l border-slate-500'
@@ -810,6 +837,28 @@ export const DAY = {
 export const FIELD =
   `${TEXT.control} ${TAP.height} ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} ` +
   'focus:outline-none focus:border-sky-500 placeholder-slate-400'
+
+/**
+ * A numeric field with the browser's spinner arrows suppressed.
+ *
+ * The arrows cost roughly 16px of every field's inner width and buy a pair of
+ * 8px tap targets nobody aims at: a phone shows a number pad, a mouse has the
+ * arrow keys, and the value is typed either way. That trade is invisible on one
+ * wide field and decisive in the filters grid (#115), where ten of them sit
+ * two-to-a-row beside a label. Reclaiming the arrows is what lets a row read
+ * "Precipitation (in)" on one line instead of wrapping to two.
+ *
+ * Every numeric input in the app composes this, including the wide ones that
+ * did not need it. The grid made the difference visible: two number fields in
+ * one panel wearing different chrome reads as an oversight, not as a decision
+ * about column widths.
+ *
+ * Both spellings are needed: `appearance: textfield` is what Firefox reads, and
+ * the two pseudo-elements are what WebKit and Blink read.
+ */
+export const FIELD_NUMERIC =
+  `${FIELD} [appearance:textfield] ` +
+  '[&::-webkit-outer-spin-button]:[appearance:none] [&::-webkit-inner-spin-button]:[appearance:none]'
 
 /**
  * The same recessed surface for a native `<select>`.

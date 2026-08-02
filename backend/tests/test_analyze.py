@@ -10,6 +10,7 @@ from app.routes import analyze as analyze_mod
 from app.routes.analyze import (
     _aligned_aqi,
     _assemble,
+    _filter_constraints,
     _filter_elevation,
     _merge_custom,
     _noun,
@@ -55,12 +56,23 @@ def test_filter_elevation_band_keeps_unknown_and_in_range():
 # ── _sort_key ──────────────────────────────────────────────────────────────
 
 
-def _result(name, precip=0.0, aqi=None):
+def _result(
+    name,
+    precip=0.0,
+    aqi=None,
+    *,
+    temp_min=0.0,
+    temp_max=0.0,
+    temp_avg=0.0,
+    wind_min=0.0,
+    wind_max=0.0,
+    wind_avg=0.0,
+):
     return DestinationResult(
         name=name, type="peak", latitude=1.0, longitude=2.0,
         precip_total_in=precip, precip_avg_in_hr=0.0, precip_max_in_hr=0.0,
-        temp_min_f=0.0, temp_max_f=0.0, temp_avg_f=0.0,
-        wind_min_mph=0.0, wind_max_mph=0.0, wind_avg_mph=0.0,
+        temp_min_f=temp_min, temp_max_f=temp_max, temp_avg_f=temp_avg,
+        wind_min_mph=wind_min, wind_max_mph=wind_max, wind_avg_mph=wind_avg,
         aqi_avg=aqi, aqi_max=aqi,
     )
 
@@ -87,6 +99,99 @@ def test_sort_key_none_sorts_last_descending():
     rows = [_result("none", aqi=None), _result("low", aqi=50), _result("high", aqi=100)]
     rows.sort(key=_sort_key("aqi_avg", descending=True))
     assert [r.name for r in rows] == ["high", "low", "none"]
+
+
+# ── _filter_constraints ────────────────────────────────────────────────────
+
+
+def _bounded(**bounds) -> AnalyzeRequest:
+    """An otherwise-minimal request carrying only the bounds under test."""
+    return AnalyzeRequest(
+        destination_types=[],
+        start_datetime=datetime.now(timezone.utc),
+        end_datetime=datetime.now(timezone.utc) + timedelta(days=1),
+        custom_destinations=[{"name": "A", "latitude": 1.0, "longitude": 2.0}],
+        **bounds,
+    )
+
+
+def test_filter_constraints_no_bounds_returns_all():
+    rows = [_result("a", 1.0), _result("b", 2.0)]
+    assert _filter_constraints(rows, _bounded()) == rows
+
+
+def test_filter_constraints_precip_bounds_compare_the_window_total():
+    rows = [_result("dry", 0.0), _result("damp", 0.1), _result("wet", 1.0)]
+    kept = _filter_constraints(rows, _bounded(max_precip_total_in=0.5))
+    assert [r.name for r in kept] == ["dry", "damp"]
+    kept = _filter_constraints(rows, _bounded(min_precip_total_in=0.05))
+    assert [r.name for r in kept] == ["damp", "wet"]
+
+
+def test_filter_constraints_temp_ceiling_reads_the_hottest_hour():
+    # The whole point of the bound: an average inside the ceiling is not
+    # enough when the afternoon runs past it.
+    rows = [
+        _result("mild", temp_min=50.0, temp_max=70.0, temp_avg=60.0),
+        _result("spiky", temp_min=40.0, temp_max=95.0, temp_avg=60.0),
+    ]
+    kept = _filter_constraints(rows, _bounded(max_temp_f=80.0))
+    assert [r.name for r in kept] == ["mild"]
+
+
+def test_filter_constraints_temp_floor_reads_the_coldest_hour():
+    rows = [
+        _result("mild", temp_min=50.0, temp_max=70.0, temp_avg=60.0),
+        _result("frosty", temp_min=15.0, temp_max=80.0, temp_avg=60.0),
+    ]
+    kept = _filter_constraints(rows, _bounded(min_temp_f=20.0))
+    assert [r.name for r in kept] == ["mild"]
+
+
+def test_filter_constraints_wind_ceiling_reads_the_gustiest_hour():
+    rows = [
+        _result("calm", wind_min=2.0, wind_max=12.0, wind_avg=6.0),
+        _result("gusty", wind_min=1.0, wind_max=45.0, wind_avg=6.0),
+    ]
+    kept = _filter_constraints(rows, _bounded(max_wind_mph=20.0))
+    assert [r.name for r in kept] == ["calm"]
+
+
+def test_filter_constraints_aqi_bounds_compare_the_worst_hour():
+    rows = [_result("clean", aqi=30), _result("smoky", aqi=140)]
+    assert [r.name for r in _filter_constraints(rows, _bounded(max_aqi=100))] == ["clean"]
+    assert [r.name for r in _filter_constraints(rows, _bounded(min_aqi=100))] == ["smoky"]
+
+
+def test_filter_constraints_null_aqi_passes_either_bound():
+    # A window past the ~5-day air-quality horizon has no AQI at all, and an
+    # absent number is not evidence of bad air. Dropping these would empty
+    # every long-window analysis that set a ceiling.
+    rows = [_result("unknown", aqi=None), _result("smoky", aqi=140)]
+    assert [r.name for r in _filter_constraints(rows, _bounded(max_aqi=100))] == ["unknown"]
+    assert [r.name for r in _filter_constraints(rows, _bounded(min_aqi=100))] == ["unknown", "smoky"]
+
+
+def test_filter_constraints_combine_as_and():
+    rows = [
+        _result("keeper", 0.0, 40, temp_max=70.0, wind_max=10.0),
+        _result("too_wet", 2.0, 40, temp_max=70.0, wind_max=10.0),
+        _result("too_hot", 0.0, 40, temp_max=99.0, wind_max=10.0),
+        _result("too_windy", 0.0, 40, temp_max=70.0, wind_max=50.0),
+        _result("too_smoky", 0.0, 180, temp_max=70.0, wind_max=10.0),
+    ]
+    kept = _filter_constraints(
+        rows,
+        _bounded(max_precip_total_in=0.5, max_temp_f=80.0, max_wind_mph=20.0, max_aqi=100),
+    )
+    assert [r.name for r in kept] == ["keeper"]
+
+
+def test_filter_constraints_inverted_range_keeps_nothing():
+    # No cross-field validation, matching the elevation band: an impossible
+    # request answers honestly with an empty field rather than a 422.
+    rows = [_result("a", temp_min=50.0, temp_max=70.0)]
+    assert _filter_constraints(rows, _bounded(min_temp_f=90.0, max_temp_f=10.0)) == []
 
 
 # ── small helpers ──────────────────────────────────────────────────────────
@@ -202,6 +307,84 @@ def test_analyze_custom_ranks_and_limits(stub_upstreams):
     assert [r["name"] for r in data["results"]] == ["a", "b"]
 
 
+def _five_dests():
+    # Stubbed weather sets precip == latitude, so these are precip 1..5.
+    return [
+        {"name": n, "latitude": float(i), "longitude": 0.0}
+        for i, n in enumerate(["a", "b", "c", "d", "e"], start=1)
+    ]
+
+
+def test_analyze_bounds_run_before_the_limit_cut(stub_upstreams):
+    # The reason bounds are applied server-side at all: asking for the two
+    # driest destinations under 3 in must answer with two rows, not with
+    # "whichever of the two driest happened to be under 3".
+    start, end = _window()
+    resp = client.post("/api/analyze", json={
+        "destination_types": [], "start_datetime": start, "end_datetime": end,
+        "sort_by": "precip_total_in", "sort_desc": True, "limit": 2,
+        "max_precip_total_in": 3.0,
+        "custom_destinations": _five_dests(),
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [r["name"] for r in data["results"]] == ["c", "b"]
+    assert data["total_queried"] == 5
+    assert data["total_matched"] == 3
+
+
+def test_analyze_total_matched_equals_total_queried_without_bounds(stub_upstreams):
+    # So a client can render "N of M matching" unconditionally, without
+    # knowing whether the caller filtered.
+    start, end = _window()
+    resp = client.post("/api/analyze", json={
+        "destination_types": [], "start_datetime": start, "end_datetime": end,
+        "custom_destinations": _five_dests(),
+    })
+    data = resp.json()
+    assert data["total_matched"] == data["total_queried"] == 5
+
+
+def test_analyze_aqi_bound_fetches_air_quality_for_every_candidate(monkeypatch):
+    # Lazy AQI fetches only the rows about to be returned. A bound on a value
+    # that was never fetched would drop nothing, since nulls pass, so a bound
+    # has to promote the fetch the way an AQI ranking does. The batch sizes
+    # are the observable difference.
+    batches: list[int] = []
+
+    async def fake_wx(destinations, start, end, on_progress=None, on_pace=None, model=None):
+        return [_wx(d["latitude"]) for d in destinations]
+
+    async def fake_aqi(destinations, start, end):
+        batches.append(len(destinations))
+        return [
+            {"aqi_avg": int(d["latitude"] * 40), "aqi_max": int(d["latitude"] * 40), "series": None}
+            for d in destinations
+        ]
+
+    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fake_wx)
+    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+
+    start, end = _window()
+    body = {
+        "destination_types": [], "start_datetime": start, "end_datetime": end,
+        "limit": 2, "custom_destinations": _five_dests(),
+    }
+    resp = client.post("/api/analyze", json={**body, "max_aqi": 100})
+    assert resp.status_code == 200
+    data = resp.json()
+    # AQI == latitude * 40, so only a (40) and b (80) clear a ceiling of 100.
+    assert data["total_matched"] == 2
+    assert batches == [5]
+
+    batches.clear()
+    resp = client.post("/api/analyze", json=body)
+    assert resp.status_code == 200
+    # Unbounded and not ranked by AQI, the fetch stays lazy: the two rows
+    # being returned, not all five candidates.
+    assert batches == [2]
+
+
 def test_analyze_start_after_end_is_400(stub_upstreams):
     now = datetime.now(timezone.utc)
     body = {
@@ -278,6 +461,7 @@ def test_analyze_elevation_band_can_empty_results(stub_upstreams):
     assert resp.json() == {
         "results": [],
         "total_queried": 0,
+        "total_matched": 0,
         "error": None,
         "times": [],
         "total_found": None,

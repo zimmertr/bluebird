@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { AnalyzeResponse, DestinationResult } from '../types'
 import { pinKey } from './customList'
-import { PresentationKnobs, bandNarrows, commitNeeded, presentResults } from './present'
+import { Constraints, NO_CONSTRAINTS } from './clientAnalyze'
+import {
+  AnalyzedSnapshot,
+  PresentationKnobs,
+  bandNarrows,
+  commitNeeded,
+  presentResults,
+} from './present'
 
 // Rows differing only in the fields under test, so an assertion on names reads
 // as an assertion on ordering and membership.
@@ -42,12 +49,21 @@ const KNOBS: PresentationKnobs = {
   sortDesc: false,
   limit: 10,
   band: { min: null, max: null },
+  constraints: NO_CONSTRAINTS,
 }
+
+// What an analysis records about itself. Band-gated by default because that is
+// the polygon case, where a widen genuinely has rows nobody fetched.
+const ANALYZED: AnalyzedSnapshot = { ...KNOBS, bandGated: true }
 
 const NONE = new Set<string>()
 
-function response(results: DestinationResult[], totalQueried: number): AnalyzeResponse {
-  return { results, total_queried: totalQueried }
+function response(
+  results: DestinationResult[],
+  totalQueried: number,
+  totalMatched: number = totalQueried,
+): AnalyzeResponse {
+  return { results, total_queried: totalQueried, total_matched: totalMatched }
 }
 
 // ── bandNarrows ────────────────────────────────────────────────────────────
@@ -88,45 +104,72 @@ describe('commitNeeded', () => {
   // held field is not missing rows, every number in it came from a model the
   // panel no longer names.
   it('asks for an Analyze when the model changes', () => {
-    expect(commitNeeded({ ...KNOBS }, { ...KNOBS }, true, false, true)).toBe('model-changed')
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, true, false, true)).toBe('model-changed')
   })
 
   // Changing the model can clamp the window as a side effect, so both flags
   // arrive together. Reporting the window would name the consequence and leave
   // the cause unsaid.
   it('names the model rather than the window it clamped', () => {
-    expect(commitNeeded({ ...KNOBS }, { ...KNOBS }, true, true, true)).toBe('model-changed')
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, true, true, true)).toBe('model-changed')
   })
 
   it('still names the window when only the window moved', () => {
-    expect(commitNeeded({ ...KNOBS }, { ...KNOBS }, true, true, false)).toBe('window-changed')
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, true, true, false)).toBe('window-changed')
   })
 
   it('is silent for sort, direction and limit changes over a held field', () => {
-    const analyzed = { ...KNOBS }
+    const analyzed = { ...ANALYZED }
     expect(commitNeeded(analyzed, { ...KNOBS, sortBy: 'wind_avg_mph' }, true, false, false)).toBeNull()
     expect(commitNeeded(analyzed, { ...KNOBS, sortDesc: true }, true, false, false)).toBeNull()
     expect(commitNeeded(analyzed, { ...KNOBS, limit: 50 }, true, false, false)).toBeNull()
   })
 
+  it('is silent for a forecast bound over a held field', () => {
+    // The asymmetry with the elevation band: a bound can only re-read rows the
+    // browser already has, so loosening one is as live as tightening it.
+    const analyzed = { ...ANALYZED }
+    const loosened = { ...KNOBS, constraints: { ...NO_CONSTRAINTS, maxAqi: 200 } }
+    expect(commitNeeded(analyzed, loosened, true, false, false)).toBeNull()
+  })
+
+  it('commits a forecast bound on the server path, where there is no field', () => {
+    const analyzed = { ...ANALYZED }
+    const bounded = { ...KNOBS, constraints: { ...NO_CONSTRAINTS, maxAqi: 100 } }
+    expect(commitNeeded(analyzed, bounded, false, false, false)).toBe('server-path')
+    // ...and stays silent when the bounds are the ones behind the rows.
+    expect(commitNeeded(analyzed, { ...KNOBS }, false, false, false)).toBeNull()
+  })
+
   it('is silent for an AQI ranking, which the eager AQI fetch already covers', () => {
-    expect(commitNeeded({ ...KNOBS }, { ...KNOBS, sortBy: 'aqi_avg' }, true, false, false)).toBeNull()
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS, sortBy: 'aqi_avg' }, true, false, false)).toBeNull()
   })
 
   it('asks for an Analyze when the elevation band widens', () => {
-    const analyzed = { ...KNOBS, band: { min: 8000, max: null } }
+    const analyzed = { ...ANALYZED, band: { min: 8000, max: null } }
     expect(commitNeeded(analyzed, { ...analyzed, band: { min: 6000, max: null } }, true, false, false)).toBe(
       'elevation-widened',
     )
   })
 
+  it('stays silent on a widened band the report was never gated by', () => {
+    // A custom list is resolved coordinate by coordinate; the band never
+    // touched it, so every row is still held and a widen is pure
+    // re-presentation. Cueing here asked for an Analyze whose answer was
+    // already on screen.
+    const analyzed = { ...ANALYZED, bandGated: false, band: { min: 8000, max: null } }
+    expect(
+      commitNeeded(analyzed, { ...analyzed, band: { min: null, max: null } }, true, false, false),
+    ).toBeNull()
+  })
+
   it('stays silent when the band narrows', () => {
-    const analyzed = { ...KNOBS, band: { min: 8000, max: null } }
+    const analyzed = { ...ANALYZED, band: { min: 8000, max: null } }
     expect(commitNeeded(analyzed, { ...analyzed, band: { min: 9000, max: null } }, true, false, false)).toBeNull()
   })
 
   it('asks for an Analyze on any knob when no field is held', () => {
-    const analyzed = { ...KNOBS }
+    const analyzed = { ...ANALYZED }
     expect(commitNeeded(analyzed, { ...KNOBS, sortBy: 'wind_avg_mph' }, false, false, false)).toBe('server-path')
     expect(commitNeeded(analyzed, { ...KNOBS, limit: 50 }, false, false, false)).toBe('server-path')
     expect(commitNeeded(analyzed, { ...KNOBS, band: { min: 9000, max: null } }, false, false, false)).toBe(
@@ -135,7 +178,7 @@ describe('commitNeeded', () => {
   })
 
   it('stays silent with no field held while the knobs still match the report', () => {
-    expect(commitNeeded({ ...KNOBS }, { ...KNOBS }, false, false, false)).toBeNull()
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, false, false, false)).toBeNull()
   })
 
   // The forecast window is a data knob, so this one is not a comparison of held
@@ -143,13 +186,13 @@ describe('commitNeeded', () => {
   // cue since the calendar made changing days a click rather than two typed
   // datetimes (#166).
   it('asks for an Analyze when the forecast window is not the one behind the rows', () => {
-    expect(commitNeeded({ ...KNOBS }, { ...KNOBS }, true, true, false)).toBe('window-changed')
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, true, true, false)).toBe('window-changed')
   })
 
   // Named ahead of the other two: it is the knob the user just touched, which is
   // the more useful sentence even when something else also went stale.
   it('names the window over a widened band or the server path', () => {
-    const analyzed = { ...KNOBS, band: { min: 8000, max: null } }
+    const analyzed = { ...ANALYZED, band: { min: 8000, max: null } }
     expect(
       commitNeeded(analyzed, { ...analyzed, band: { min: 6000, max: null } }, true, true, false),
     ).toBe('window-changed')
@@ -234,6 +277,76 @@ describe('presentResults', () => {
     expect(presentResults(universe, null, narrowed, removed).eligible).toBe(3)
   })
 
+
+  describe('forecast bounds', () => {
+    const bounded = (over: Partial<Constraints>) => ({
+      ...KNOBS,
+      constraints: { ...NO_CONSTRAINTS, ...over },
+    })
+
+    it('narrows the field live, with no second Analyze', () => {
+      const { rows } = presentResults(universe, null, bounded({ maxPrecipTotalIn: 0.4 }), NONE)
+      expect(rows.map((r) => r.name)).toEqual(['Dry', 'Untagged'])
+    })
+
+    it('runs before the limit cut, so the cut is of the matching field', () => {
+      // Filtering after the cut would answer with one row: the two driest are
+      // 'Dry' (0.1) and 'Untagged' (0.3), and the bound then rejects 'Dry'.
+      // "The two driest with at least 0.3 in" has to answer with two.
+      const knobs = { ...bounded({ minPrecipTotalIn: 0.3 }), limit: 2 }
+      const { rows } = presentResults(universe, null, knobs, NONE)
+      expect(rows.map((r) => r.name)).toEqual(['Untagged', 'Mid'])
+    })
+
+    it('runs after the band, and reports each count separately', () => {
+      const knobs = {
+        ...bounded({ maxPrecipTotalIn: 0.4 }),
+        band: { min: 8000, max: null },
+      }
+      // The band admits Wet, Mid and Untagged (unknown elevation passes); the
+      // bound then rejects Wet and Mid.
+      const { rows, eligible, excluded } = presentResults(universe, null, knobs, NONE)
+      expect(rows.map((r) => r.name)).toEqual(['Untagged'])
+      expect(eligible).toBe(1)
+      expect(excluded).toBe(2)
+    })
+
+    it('counts nothing excluded when nothing is bounded', () => {
+      const { eligible, excluded } = presentResults(universe, null, KNOBS, NONE)
+      expect(eligible).toBe(4)
+      expect(excluded).toBe(0)
+    })
+
+    it('can empty the table while the field behind it is untouched', () => {
+      // The state the empty-state copy exists for: destinations were analyzed,
+      // and the bounds admitted none of them.
+      const { rows, eligible, excluded } = presentResults(
+        universe,
+        null,
+        bounded({ maxPrecipTotalIn: 0 }),
+        NONE,
+      )
+      expect(rows).toEqual([])
+      expect(eligible).toBe(0)
+      expect(excluded).toBe(4)
+    })
+
+    it('excludes before removals, so the two counts stay independent', () => {
+      const removed = new Set([pinKey(2, -121.9)]) // 'Dry'
+      const { rows, eligible, excluded } = presentResults(
+        universe,
+        null,
+        bounded({ maxPrecipTotalIn: 0.4 }),
+        removed,
+      )
+      expect(rows.map((r) => r.name)).toEqual(['Untagged'])
+      // Still 2 of 4: a row the user struck out was still one the bounds
+      // admitted, exactly as `eligible` has always ignored removals.
+      expect(eligible).toBe(2)
+      expect(excluded).toBe(2)
+    })
+  })
+
   describe('with no held field (the server SSE path)', () => {
     // Deliberately in an order no ranking would produce, to prove nothing here
     // re-sorts them: the server already ranked and cut, and re-sorting its rows
@@ -261,8 +374,18 @@ describe('presentResults', () => {
       expect(presentResults(null, response(trimmed, 851), KNOBS, NONE).eligible).toBe(851)
     })
 
+    it('reads the matched count off the wire, since the field never arrives', () => {
+      const { eligible, excluded } = presentResults(null, response(trimmed, 851, 40), KNOBS, NONE)
+      expect(eligible).toBe(40)
+      expect(excluded).toBe(811)
+    })
+
     it('survives having no response at all', () => {
-      expect(presentResults(null, null, KNOBS, NONE)).toEqual({ rows: [], eligible: 0 })
+      expect(presentResults(null, null, KNOBS, NONE)).toEqual({
+        rows: [],
+        eligible: 0,
+        excluded: 0,
+      })
     })
   })
 

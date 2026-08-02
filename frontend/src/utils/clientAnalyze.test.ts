@@ -1,14 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AnalyzeRequest, DestinationResult, DiscoveredDestination } from '../types'
 import {
+  Constraints,
   MAX_ANALYZE_DESTINATIONS,
+  NO_CONSTRAINTS,
   alignAqi,
   analysisNoun,
   assemble,
   canonicalTimes,
   capDetail,
+  constraintFields,
+  constraintsFromRequest,
   customRows,
+  filterConstraints,
   filterElevation,
+  hasConstraints,
   rankComparator,
   refreshEchoRows,
   resolveCustomOnly,
@@ -362,6 +368,153 @@ describe('analysisNoun', () => {
   })
 })
 
+// ── filterConstraints: the port of _filter_constraints ─────────────────────
+
+function bounded(over: Partial<Constraints>): Constraints {
+  return { ...NO_CONSTRAINTS, ...over }
+}
+
+function boundRow(name: string, over: Partial<DestinationResult>): DestinationResult {
+  return {
+    name,
+    type: 'peak',
+    latitude: 1,
+    longitude: 2,
+    elevation_ft: null,
+    osm_id: null,
+    precip_total_in: 0,
+    precip_avg_in_hr: 0,
+    precip_max_in_hr: 0,
+    temp_min_f: 0,
+    temp_max_f: 0,
+    temp_avg_f: 0,
+    wind_min_mph: 0,
+    wind_max_mph: 0,
+    wind_avg_mph: 0,
+    aqi_avg: null,
+    aqi_max: null,
+    ...over,
+  }
+}
+
+describe('filterConstraints', () => {
+  it('returns the rows untouched when nothing is bounded', () => {
+    const rows = [boundRow('a', {}), boundRow('b', {})]
+    expect(filterConstraints(rows, NO_CONSTRAINTS)).toBe(rows)
+  })
+
+  it('bounds precipitation on the window total, in both directions', () => {
+    const rows = [
+      boundRow('dry', { precip_total_in: 0 }),
+      boundRow('damp', { precip_total_in: 0.1 }),
+      boundRow('wet', { precip_total_in: 1 }),
+    ]
+    expect(
+      filterConstraints(rows, bounded({ maxPrecipTotalIn: 0.5 })).map((r) => r.name),
+    ).toEqual(['dry', 'damp'])
+    expect(
+      filterConstraints(rows, bounded({ minPrecipTotalIn: 0.05 })).map((r) => r.name),
+    ).toEqual(['damp', 'wet'])
+  })
+
+  it('reads the hottest hour for a ceiling, not the average', () => {
+    // The whole point of the bound. Both rows average 60°F; only one of them
+    // is somewhere you would actually go under an 80°F ceiling.
+    const rows = [
+      boundRow('mild', { temp_min_f: 50, temp_max_f: 70, temp_avg_f: 60 }),
+      boundRow('spiky', { temp_min_f: 40, temp_max_f: 95, temp_avg_f: 60 }),
+    ]
+    expect(filterConstraints(rows, bounded({ maxTempF: 80 })).map((r) => r.name)).toEqual([
+      'mild',
+    ])
+  })
+
+  it('reads the coldest hour for a floor', () => {
+    const rows = [
+      boundRow('mild', { temp_min_f: 50, temp_max_f: 70 }),
+      boundRow('frosty', { temp_min_f: 15, temp_max_f: 80 }),
+    ]
+    expect(filterConstraints(rows, bounded({ minTempF: 20 })).map((r) => r.name)).toEqual([
+      'mild',
+    ])
+  })
+
+  it('reads the gustiest hour for a wind ceiling', () => {
+    const rows = [
+      boundRow('calm', { wind_min_mph: 2, wind_max_mph: 12, wind_avg_mph: 6 }),
+      boundRow('gusty', { wind_min_mph: 1, wind_max_mph: 45, wind_avg_mph: 6 }),
+    ]
+    expect(filterConstraints(rows, bounded({ maxWindMph: 20 })).map((r) => r.name)).toEqual([
+      'calm',
+    ])
+  })
+
+  it('bounds air quality on its worst hour', () => {
+    const rows = [
+      boundRow('clean', { aqi_avg: 20, aqi_max: 30 }),
+      boundRow('smoky', { aqi_avg: 60, aqi_max: 140 }),
+    ]
+    expect(filterConstraints(rows, bounded({ maxAqi: 100 })).map((r) => r.name)).toEqual([
+      'clean',
+    ])
+    expect(filterConstraints(rows, bounded({ minAqi: 100 })).map((r) => r.name)).toEqual([
+      'smoky',
+    ])
+  })
+
+  it('lets a null air quality through either bound', () => {
+    // Past the ~5-day horizon there is no air quality at all, and an absent
+    // number is not evidence of bad air. Dropping these rows would empty a
+    // long-window analysis the moment a ceiling was set.
+    const rows = [
+      boundRow('unknown', { aqi_avg: null, aqi_max: null }),
+      boundRow('smoky', { aqi_avg: 60, aqi_max: 140 }),
+    ]
+    expect(filterConstraints(rows, bounded({ maxAqi: 100 })).map((r) => r.name)).toEqual([
+      'unknown',
+    ])
+    expect(filterConstraints(rows, bounded({ minAqi: 100 })).map((r) => r.name)).toEqual([
+      'unknown',
+      'smoky',
+    ])
+  })
+
+  it('combines every bound as an AND', () => {
+    const rows = [
+      boundRow('keeper', { precip_total_in: 0, temp_max_f: 70, wind_max_mph: 10, aqi_max: 40 }),
+      boundRow('wet', { precip_total_in: 2, temp_max_f: 70, wind_max_mph: 10, aqi_max: 40 }),
+      boundRow('hot', { precip_total_in: 0, temp_max_f: 99, wind_max_mph: 10, aqi_max: 40 }),
+      boundRow('windy', { precip_total_in: 0, temp_max_f: 70, wind_max_mph: 50, aqi_max: 40 }),
+      boundRow('smoky', { precip_total_in: 0, temp_max_f: 70, wind_max_mph: 10, aqi_max: 180 }),
+    ]
+    const kept = filterConstraints(
+      rows,
+      bounded({ maxPrecipTotalIn: 0.5, maxTempF: 80, maxWindMph: 20, maxAqi: 100 }),
+    )
+    expect(kept.map((r) => r.name)).toEqual(['keeper'])
+  })
+
+  it('keeps nothing when a range is inverted', () => {
+    // No cross-field validation, matching the elevation band: an impossible
+    // request answers honestly rather than being rejected.
+    const rows = [boundRow('a', { temp_min_f: 50, temp_max_f: 70 })]
+    expect(filterConstraints(rows, bounded({ minTempF: 90, maxTempF: 10 }))).toEqual([])
+  })
+})
+
+describe('constraint round trips', () => {
+  it('carries every bound out to the wire fields and back', () => {
+    const c = bounded({ maxPrecipTotalIn: 0.1, minTempF: 20, maxWindMph: 20, maxAqi: 100 })
+    expect(constraintsFromRequest({ ...REQUEST, ...constraintFields(c) })).toEqual(c)
+  })
+
+  it('reads an unbounded request as no bounds at all', () => {
+    expect(constraintsFromRequest(REQUEST)).toEqual(NO_CONSTRAINTS)
+    expect(hasConstraints(NO_CONSTRAINTS)).toBe(false)
+    expect(hasConstraints(bounded({ maxAqi: 100 }))).toBe(true)
+  })
+})
+
 // ── runClientAnalysis end-to-end (fetch mocked) ────────────────────────────
 
 const REQUEST: AnalyzeRequest = {
@@ -560,9 +713,83 @@ describe('runClientAnalysis', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
+
+  it('reuses a held forecast instead of buying it again', async () => {
+    // Widening the elevation band is what this exists for: the field grows by
+    // a few destinations, and before this every forecast already on screen was
+    // re-bought to add them.
+    stubOpenMeteo(THREE_PRECIPS)
+    const startMs = Date.parse('2026-07-21T00:00:00Z')
+    const endMs = Date.parse('2026-07-21T02:00:00Z')
+    const first = await runClientAnalysis(REQUEST, customRows(THREE), startMs, endMs, {
+      nowMs: startMs,
+    })
+
+    // A fourth destination joins the same three. Only it is fetched, and the
+    // caches are cleared first so a hit here can only come from `reuse`.
+    resetOpenMeteoState()
+    const asked: number[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const count = new URL(url).searchParams.get('latitude')!.split(',').length
+        const isWeather = new URL(url).hostname === 'api.open-meteo.com'
+        if (isWeather) asked.push(count)
+        return {
+          ok: true,
+          status: 200,
+          json: async () =>
+            isWeather
+              ? weatherBody([0.05])
+              : Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })),
+        }
+      }),
+    )
+    const widened = [...THREE, { name: 'New', latitude: 4, longitude: 4 }]
+    const out = await runClientAnalysis(
+      { ...REQUEST, limit: 10 },
+      customRows(widened),
+      startMs,
+      endMs,
+      { nowMs: startMs, reuse: { rows: first.universe, times: first.response.times ?? [] } },
+    )
+    expect(asked).toEqual([1])
+    expect(out.response.total_queried).toBe(4)
+    // 'New' at 0.05 doubled is 0.1, so it ranks ahead of Dry's 0.2.
+    expect(out.universe.map((r) => r.name)).toEqual(['New', 'Dry', 'Mid', 'Wet'])
+    expect(out.universe[1].precip_total_in).toBeCloseTo(0.2, 5)
+  })
+
+  it('takes identity from the fresh candidate and the forecast from the held row', async () => {
+    // Discovery may have learned an elevation since (a pasted coordinate
+    // resolved against OSM). The forecast is the expensive half, not the name.
+    stubOpenMeteo(THREE_PRECIPS)
+    const startMs = Date.parse('2026-07-21T00:00:00Z')
+    const endMs = Date.parse('2026-07-21T02:00:00Z')
+    const first = await runClientAnalysis(REQUEST, customRows(THREE), startMs, endMs, {
+      nowMs: startMs,
+    })
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    const relabeled = customRows(THREE).map((d) => ({ ...d, elevation_ft: 5165 }))
+    const out = await runClientAnalysis({ ...REQUEST, limit: 10 }, relabeled, startMs, endMs, {
+      nowMs: startMs,
+      reuse: { rows: first.universe, times: first.response.times ?? [] },
+    })
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(out.universe.every((r) => r.elevation_ft === 5165)).toBe(true)
+    expect(out.universe.map((r) => r.name)).toEqual(['Dry', 'Mid', 'Wet'])
+    // Nothing was fetched, so the hourly grid can only come from the held one —
+    // and it is the same grid, because reuse is legal only within one window.
+    expect(out.response.times).toEqual(first.response.times)
+  })
+
   it('returns the empty result shape for zero candidates', async () => {
     const out = await runClientAnalysis(REQUEST, [], 0, 1)
-    expect(out).toEqual({ response: { results: [], total_queried: 0 }, universe: [] })
+    expect(out).toEqual({
+      response: { results: [], total_queried: 0, total_matched: 0 },
+      universe: [],
+    })
   })
 })
 

@@ -13,7 +13,7 @@
 // of M" count cannot drift from each other.
 
 import { AnalyzeResponse, DestinationResult, SortBy } from '../types'
-import { filterElevation, rankComparator } from './clientAnalyze'
+import { Constraints, filterConstraints, filterElevation, rankComparator } from './clientAnalyze'
 import { pinKey } from './customList'
 
 /** An elevation band. `null` on either end means unbounded, as in the API. */
@@ -33,6 +33,28 @@ export interface PresentationKnobs {
   sortDesc: boolean
   limit: number
   band: Band
+  /**
+   * The forecast bounds. Unlike the band, these have no narrowing predicate and
+   * need none: elevation gates the fetch, so widening it asks for destinations
+   * the browser never fetched, while a precipitation ceiling can only ever
+   * re-read rows already in hand. Loosening one is as live as tightening it.
+   */
+  constraints: Constraints
+}
+
+/**
+ * The knobs an analysis was run under, plus the one fact about it that decides
+ * whether a wider band can be answered from what came back.
+ *
+ * Elevation gates DISCOVERY, and only polygon discovery: a custom list is
+ * resolved coordinate by coordinate and the band never touches it, so a
+ * custom-only report holds every row it ever had and a widen re-presents it
+ * for free. Without this the cue fired on exactly the reports that did not
+ * need it, asking for an Analyze whose answer was already on screen — the same
+ * false alarm `rankingStale` used to raise for sort.
+ */
+export interface AnalyzedSnapshot extends PresentationKnobs {
+  bandGated: boolean
 }
 
 /**
@@ -66,7 +88,8 @@ export function bandNarrows(analyzed: Band, panel: Band): boolean {
  *   knob commits, as it did before #188. The overlay has already explained the
  *   fallback ("Weather service unreachable from this browser"), so this only
  *   has to name the consequence.
- * - `'elevation-widened'`: see `bandNarrows`.
+ * - `'elevation-widened'`: see `bandNarrows`, and `bandGated` for the reports
+ *   this cannot apply to.
  * - `'window-changed'`: the forecast selection is not the one behind the rows.
  *   Always a commit — the browser holds no forecasts for days it never fetched —
  *   and worth naming since the calendar made changing it a click (#166), where
@@ -81,7 +104,7 @@ export function bandNarrows(analyzed: Band, panel: Band): boolean {
  *   itself as the window change it caused.
  */
 export function commitNeeded(
-  analyzed: PresentationKnobs | null,
+  analyzed: AnalyzedSnapshot | null,
   panel: PresentationKnobs,
   hasUniverse: boolean,
   windowChanged: boolean,
@@ -97,9 +120,13 @@ export function commitNeeded(
       analyzed.sortDesc === panel.sortDesc &&
       analyzed.limit === panel.limit &&
       analyzed.band.min === panel.band.min &&
-      analyzed.band.max === panel.band.max
+      analyzed.band.max === panel.band.max &&
+      (Object.keys(panel.constraints) as (keyof Constraints)[]).every(
+        (k) => analyzed.constraints[k] === panel.constraints[k],
+      )
     return same ? null : 'server-path'
   }
+  if (!analyzed.bandGated) return null
   return bandNarrows(analyzed.band, panel.band) ? null : 'elevation-widened'
 }
 
@@ -107,10 +134,10 @@ export interface Presentation {
   /** The rows to display, in display order. */
   rows: DestinationResult[]
   /**
-   * How many destinations could appear in the table under the current band,
-   * before the `limit` cut and before removals. This is the "of M" in "showing
-   * N of M destinations". Removals are excluded to match `total_queried`, which
-   * has never counted them either.
+   * How many destinations could appear in the table under the current band and
+   * forecast bounds, before the `limit` cut and before removals. This is the
+   * "of M" in "showing N of M destinations". Removals are excluded to match
+   * `total_queried`, which has never counted them either.
    *
    * Counted from the held field rather than taken from `total_queried`, because
    * narrowing the band live has to move it or the count describes a field the
@@ -119,16 +146,30 @@ export interface Presentation {
    * forecast can never be one of the N.
    */
   eligible: number
+  /**
+   * How many destinations the band admitted but the forecast bounds rejected.
+   *
+   * Reported separately rather than folded into `eligible` because they answer
+   * different questions: `eligible` is how many rows the table could show, and
+   * this is how much of the analysis is being hidden by a knob the user set. A
+   * bound that quietly empties a report is the failure mode worth naming, so
+   * the footer says "of 91 analyzed" exactly when this is non-zero.
+   */
+  excluded: number
 }
 
 /**
  * Derive the displayed rows from the held field and the live knobs.
  *
  * Order matters. The band filter runs first because it decides which
- * destinations are candidates at all, and `eligible` is read between it and
- * the removals so the count describes the area rather than the user's edits.
- * The `limit` cut runs last, after removals, so removing a row promotes the
- * next one in rather than leaving a gap.
+ * destinations are candidates at all, then the forecast bounds, and `eligible`
+ * is read between those and the removals so the count describes the area
+ * rather than the user's edits. The `limit` cut runs last, after removals, so
+ * removing a row promotes the next one in rather than leaving a gap — and,
+ * because both filters precede it, "the ten driest destinations that stay
+ * under 20 mph" is literally what comes back rather than "whichever of the ten
+ * driest happened to be calm". That ordering is the same one analyze.py uses,
+ * for the same reason.
  *
  * With no universe (the SSE fallback) there is nothing to re-derive: the
  * server already ranked and cut, so its rows pass through with only removals
@@ -146,12 +187,26 @@ export function presentResults(
     rows.filter((r) => !removedKeys.has(pinKey(r.latitude, r.longitude)))
 
   if (universe === null) {
-    // No field to re-derive from, so the count has to come off the wire.
-    return { rows: kept(response?.results ?? []), eligible: response?.total_queried ?? 0 }
+    // No field to re-derive from, so both counts have to come off the wire.
+    // The server applied the bounds itself there, which is why it reports the
+    // matched count separately: the rows it sends are already past the cut and
+    // cannot be counted back into a field.
+    const queried = response?.total_queried ?? 0
+    const matched = response?.total_matched ?? queried
+    return {
+      rows: kept(response?.results ?? []),
+      eligible: matched,
+      excluded: Math.max(0, queried - matched),
+    }
   }
 
   const inBand = filterElevation(universe, knobs.band.min, knobs.band.max)
-  const rows = kept(inBand)
+  const matching = filterConstraints(inBand, knobs.constraints)
+  const rows = kept(matching)
   rows.sort(rankComparator(knobs.sortBy, knobs.sortDesc))
-  return { rows: rows.slice(0, knobs.limit), eligible: inBand.length }
+  return {
+    rows: rows.slice(0, knobs.limit),
+    eligible: matching.length,
+    excluded: inBand.length - matching.length,
+  }
 }

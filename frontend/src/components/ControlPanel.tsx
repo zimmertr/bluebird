@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { Fragment, useMemo, useRef } from 'react'
 import { CustomDestination, DiscoveryType, SortBy } from '../types'
 import { Refusal } from '../hooks/useAnalyze'
 // Above this drawn area, an informational note warns that dense regions can
@@ -17,8 +17,11 @@ import {
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
   CHOICE_INPUT,
+  BOUNDS_GRID,
   CHOICE_ROW,
+  CONTROL_W,
   FIELD,
+  FIELD_NUMERIC,
   LINK,
   NOTICE,
   PANEL_EDGE,
@@ -30,9 +33,10 @@ import {
   STATUS,
   TEXT,
 } from '../styles'
-import { AGGREGATE, NOUN, RANKING_KEYS, familyOf } from '../metrics'
+import { AGGREGATE, NOUN, RANKING_KEYS, familyOf, metricLabel } from '../metrics'
+import { Constraints, hasConstraints } from '../utils/clientAnalyze'
 import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analyzeGate'
-import { classifyAqiCoverage, clampLimit } from '../utils/urlState'
+import { DEFAULT_LIMIT, classifyAqiCoverage, clampLimit } from '../utils/urlState'
 import {
   AQI_LIMIT_DAYS,
   ForecastSelection,
@@ -88,6 +92,18 @@ function blockerText(blocker: AnalyzeBlocker, maxAreaKm2: number, pointsNeeded: 
   }
 }
 
+// The two cells of a filter row, and what an empty one says it is for.
+//
+// The bounds label themselves rather than sitting under a heading row: that row
+// cost a line of vertical space and pushed the first control twice as far below
+// the section heading as every other section's, and the elevation band already
+// used this idiom before the grid existed. A filled cell drops its placeholder,
+// by which point its position has said the same thing four rows running.
+const EDGES = [
+  ['lower', AGGREGATE.minimum],
+  ['upper', AGGREGATE.maximum],
+] as const
+
 // What polygon discovery finds. Custom (CSV) is no longer a mode here — the
 // always-visible Custom Destinations section below adds to any of these.
 const DESTINATION_TYPES: { value: DiscoveryType; label: string; implemented: boolean }[] = [
@@ -137,6 +153,12 @@ interface Props {
   setMinElevationFt: (v: number | null) => void
   maxElevationFt: number | null
   setMaxElevationFt: (v: number | null) => void
+  constraints: Constraints
+  setConstraints: (c: Constraints) => void
+  // Clears the whole grid, elevation included. Elevation is the one row whose
+  // clearing widens rather than narrows, so this can leave the report needing
+  // an Analyze — which the commit cue above the button then says.
+  onClearFilters: () => void
   showWildfires: boolean
   setShowWildfires: (v: boolean) => void
   // Summits OSM knows only by their height, discovered as `Peak 5961`.
@@ -188,11 +210,9 @@ interface Props {
   // Live polygon-area gate from /api/capabilities, same contract as maxLimit
   // above: the deployment's number, with a compiled fallback behind it.
   maxAreaKm2: number
+  // Whether a report is on screen at all — the counts themselves moved to the
+  // table's own header bar.
   resultCount?: number
-  totalQueried?: number
-  // Pre-truncation count when the shown analysis was an elected top-N.
-  totalFound?: number | null
-  truncated?: boolean
   // Every displayed row has null AQI although the window is inside the AQI
   // horizon: the best-effort fetch failed, and the dashes deserve one line
   // of explanation.
@@ -228,6 +248,9 @@ export default function ControlPanel({
   setMinElevationFt,
   maxElevationFt,
   setMaxElevationFt,
+  constraints,
+  setConstraints,
+  onClearFilters,
   showWildfires,
   setShowWildfires,
   includeUnnamedPeaks,
@@ -250,9 +273,6 @@ export default function ControlPanel({
   maxLimit,
   maxAreaKm2,
   resultCount,
-  totalQueried,
-  totalFound,
-  truncated,
   aqiAllNull,
   wildfireCheckFailed,
 }: Props) {
@@ -297,6 +317,86 @@ export default function ControlPanel({
     selection.kind === 'now' ? 'full' : classifyAqiCoverage(window.start, window.end, new Date())
 
   const pointsNeeded = Math.max(0, 3 - drawPointCount)
+
+  // The filter grid, one row per bounded thing.
+  //
+  // The columns are headed with the two aggregate names from `metrics.ts`,
+  // because for most of this grid that is literally what they are: the
+  // elevation, wind and temperature rows bound each row's own extremes, so a
+  // ceiling of 20 on the wind row holds the table's gustiest-hour column at or
+  // below 20. Two cells stretch that reading, deliberately. Precipitation is
+  // bounded on the window TOTAL in both columns, because a per-hour floor
+  // would be 0.000 almost everywhere and the noun already means the total in
+  // the Ranking section above. And the air-quality floor reads the worst hour
+  // too, there being no other aggregate to read. The cells anyone actually
+  // reaches for — a temperature band, a wind ceiling, an air-quality ceiling —
+  // land exactly on the column they name.
+  //
+  // Labels stay bare for the same reason. An aggregate in the label would
+  // collide with the column headings rather than clarify them, and it wrapped
+  // the longest row onto two lines.
+  //
+  // Elevation is deliberately first and deliberately not set apart. It is the
+  // one row that gates the fetch rather than the display, so loosening it
+  // needs an Analyze while the other four never do — but that difference has a
+  // cue of its own above the button, and a rule drawn here would claim a
+  // distinction the user cannot act on.
+  // What each box actually compares, in words, because the grid cannot show it.
+  // A floor reads the window's best hour and a ceiling its worst, which is the
+  // whole design and also the thing that looks like a bug the first time a wind
+  // floor of 15 empties the table: nowhere is continuously windy, so "the
+  // calmest hour is at least 15" is a question with almost no answers. The
+  // mapping is fixed for the life of the app, so it is stated rather than
+  // computed.
+  const bound = (key: keyof Constraints) =>
+    [
+      constraints[key],
+      (v: number | null) => setConstraints({ ...constraints, [key]: v }),
+    ] as const
+  const filterRows = [
+    {
+      id: 'elevation',
+      hint: ['The elevation must be at least this.', 'The elevation must be at most this.'] as const,
+      label: 'Elevation (ft)',
+      step: 100,
+      lower: [minElevationFt, setMinElevationFt] as const,
+      upper: [maxElevationFt, setMaxElevationFt] as const,
+    },
+    {
+      id: 'precipitation',
+      hint: ['The total over the window must be at least this.', 'The total over the window must be at most this.'] as const,
+      label: metricLabel('precip'),
+      step: 0.01,
+      lower: bound('minPrecipTotalIn'),
+      upper: bound('maxPrecipTotalIn'),
+    },
+    {
+      id: 'wind',
+      hint: ['The calmest hour must be at least this.', 'The gustiest hour must be at most this.'] as const,
+      label: metricLabel('wind'),
+      step: 1,
+      lower: bound('minWindMph'),
+      upper: bound('maxWindMph'),
+    },
+    {
+      id: 'temperature',
+      hint: ['The coldest hour must be at least this.', 'The hottest hour must be at most this.'] as const,
+      label: metricLabel('temp'),
+      step: 1,
+      lower: bound('minTempF'),
+      upper: bound('maxTempF'),
+    },
+    {
+      id: 'air-quality',
+      hint: ['The worst hour must be at least this.', 'The worst hour must be at most this.'] as const,
+      label: metricLabel('aqi'),
+      step: 1,
+      lower: bound('minAqi'),
+      upper: bound('maxAqi'),
+    },
+  ]
+  const filtersActive =
+    minElevationFt !== null || maxElevationFt !== null || hasConstraints(constraints)
 
   return (
     <div className="flex flex-col h-full">
@@ -500,9 +600,15 @@ export default function ControlPanel({
               knob either way — sort, limit and a narrowing elevation band
               re-present held rows, while a different model is different
               numbers. Ordered longest-reach-first by the server. */}
-          <div className="mb-3">
-            <span className={`${TEXT.subheading} block mb-1`}>Model</span>
-            <div className="relative">
+          <div className="mb-3 flex items-center gap-2">
+            {/* Label beside its control, like every other row in the panel.
+                The trigger is a button carrying its own aria-label, not an
+                input, so this is a span with nothing to point `htmlFor` at.
+                A narrow trigger costs the list nothing: popoverBox never
+                renders the panel narrower than its trigger and widens it to
+                380px regardless. */}
+            <span className={`${TEXT.control} flex-1`}>Model</span>
+            <div className={`relative ${CONTROL_W}`}>
               {/* A model named by a link but not offered here still has to
                   appear, or the control would silently show a different model
                   than the one about to be requested. */}
@@ -527,13 +633,13 @@ export default function ControlPanel({
                 onChange={setForecastModel}
               />
             </div>
-            {modelClamped && (
-              <p className={`mt-2 ${STATUS.warn} ${NOTICE.warn}`}>
-                {modelLabel} does not forecast that far ahead. The window was
-                shortened to what it covers.
-              </p>
-            )}
           </div>
+          {modelClamped && (
+            <p className={`mb-3 ${STATUS.warn} ${NOTICE.warn}`}>
+              {modelLabel} does not forecast that far ahead. The window was
+              shortened to what it covers.
+            </p>
+          )}
 
           <ForecastCalendar
             selection={selection}
@@ -564,7 +670,7 @@ export default function ControlPanel({
           )}
         </section>
 
-        {/* Step 4: Rank by — metric radio + Lowest/Highest toggle per row. The
+        {/* Step 3: Rank by — metric radio + Lowest/Highest toggle per row. The
             toggle stays clickable on inactive rows so any ranking is one click;
             selecting a metric via its radio keeps the current direction. */}
         <section>
@@ -619,77 +725,83 @@ export default function ControlPanel({
           </div>
         </section>
 
-        {/* Step 4: Additional options — result filters, count, and map overlays */}
+        {/* Step 4: what to keep. One grid, two columns of bounds, one row per
+            thing that can be bounded — the same order as the Ranking section
+            above, so the two scan alike. */}
+        <section>
+          <h2 className={`${TEXT.section} mb-1`}>
+            4. Filters
+          </h2>
+                    <div className={BOUNDS_GRID}>
+            {filterRows.map((row) => (
+              <Fragment key={row.id}>
+                <label htmlFor={`${row.id}-lower`} className={TEXT.control}>
+                  {row.label}
+                </label>
+                {EDGES.map(([edge, placeholder], i) => (
+                  <input
+                    key={edge}
+                    id={`${row.id}-${edge}`}
+                    type="number"
+                    step={row.step}
+                    placeholder={placeholder}
+                    title={row.hint[i]}
+                    aria-label={`${row.label} ${placeholder}. ${row.hint[i]}`}
+                    value={row[edge][0] ?? ''}
+                    onChange={(e) =>
+                      row[edge][1](e.target.value === '' ? null : Number(e.target.value))
+                    }
+                    className={`${FIELD_NUMERIC} w-full px-2 py-1.5 text-center`}
+                  />
+                ))}
+              </Fragment>
+            ))}
+          </div>
+          {/* Two values can be missing — an OSM feature with no elevation, and
+              air quality past its ~5-day horizon — and neither absence is
+              evidence of bad conditions, so neither is filtered out. Named
+              generically because naming both took two lines to say what the
+              dash in the table already shows. */}
+          <p className={`${TEXT.helper} mt-2`}>
+            Destinations with unknown values are included.
+          </p>
+          {filtersActive && (
+            <button onClick={onClearFilters} className={`${BUTTON_SECONDARY} mt-2`}>
+              Clear filters
+            </button>
+          )}
+        </section>
+
+        {/* Step 5: Additional options — result count and map overlays */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
-            4. Options
+            5. Options
           </h2>
           <div className="space-y-4">
-            {/* Elevation band — filters candidates server-side before the fetch */}
-            <div>
-              <label className={`${TEXT.subheading} block mb-1`}>Elevation range (ft)</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  placeholder={AGGREGATE.minimum}
-                  value={minElevationFt ?? ''}
-                  min={0}
-                  max={30000}
-                  onChange={(e) =>
-                    setMinElevationFt(e.target.value === '' ? null : Number(e.target.value))
-                  }
-                  className={`${FIELD} w-full px-2 py-1.5`}
-                />
-                <span className={`${TEXT.caption} flex-shrink-0`}>–</span>
-                <input
-                  type="number"
-                  placeholder={AGGREGATE.maximum}
-                  value={maxElevationFt ?? ''}
-                  min={0}
-                  max={30000}
-                  onChange={(e) =>
-                    setMaxElevationFt(e.target.value === '' ? null : Number(e.target.value))
-                  }
-                  className={`${FIELD} w-full px-2 py-1.5`}
-                />
-              </div>
-              {/* Many OSM features carry no elevation tag; silently dropping
-                  them would be surprising, so the filter lets them through —
-                  say so where the band is set. */}
-              <p className={`${TEXT.helper} mt-1`}>
-                Destinations with unknown elevation are included.
-              </p>
-              {(minElevationFt !== null || maxElevationFt !== null) && (
-                <button
-                  onClick={() => { setMinElevationFt(null); setMaxElevationFt(null) }}
-                  className={`${BUTTON_SECONDARY} mt-2`}
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-
             {/* Result-count cap. The ceiling is the live analysis cap from
                 /api/capabilities: `limit` trims what is shown, never what is
                 analyzed, so there is no cheaper number to protect. */}
-            <div>
-              <label className={`${TEXT.subheading} block mb-1`}>{AGGREGATE.maximum} results</label>
+            <div className="flex items-center gap-2">
+              <label htmlFor="max-results" className={`${TEXT.control} flex-1`}>
+                {AGGREGATE.maximum} results
+              </label>
+              {/* The default rides as a placeholder, like the filter boxes
+                  above, so changing it is one keystroke rather than a select-
+                  and-erase. Empty means the DEFAULT here, not "no cap" as it
+                  does for a filter: this knob always has a value, and the row
+                  count in the table's header says what it is doing. */}
               <input
+                id="max-results"
                 type="number"
                 min={1}
                 max={maxLimit}
-                value={limit}
-                onChange={(e) => setLimit(clampLimit(parseInt(e.target.value) || 200, maxLimit))}
-                className={`${FIELD} w-24 px-2 py-1.5`}
+                placeholder={String(DEFAULT_LIMIT)}
+                value={limit === DEFAULT_LIMIT ? '' : limit}
+                onChange={(e) =>
+                  setLimit(clampLimit(parseInt(e.target.value) || DEFAULT_LIMIT, maxLimit))
+                }
+                className={`${FIELD_NUMERIC} ${CONTROL_W} px-2 py-1.5 text-center`}
               />
-              {/* The knob reads like a cap on the work, and users have taken it
-                  for one (#205): a list longer than this looks half-fetched.
-                  The API description and the comment above say it the same way.
-                  Keep it under ~50 characters or the sidebar wraps it to a
-                  second line, which is why the count itself is not named here. */}
-              <p className={`${TEXT.helper} mt-1`}>
-                Number of results shown. All points are analyzed.
-              </p>
             </div>
 
             {/* Unnamed peaks — a polygon-discovery knob, so it sits with the
@@ -792,18 +904,17 @@ export default function ControlPanel({
           </div>
         )}
 
-        {resultCount !== undefined && !loading && !error && !refusal && (
-          <div className="text-xs text-slate-400 text-center space-y-0.5">
-            <p>
-              {truncated && totalFound != null
-                ? `Showing ${resultCount} of the ${totalQueried} highest destinations (${totalFound.toLocaleString()} found)`
-                : `Showing ${resultCount} of ${totalQueried} destinations`}
+        {/* The row count used to sit here, and moved to the table's own header
+            bar: it describes the table, the sidebar is where you build a
+            request, and three numbers wrapped this column to two lines. What
+            stays is the one line that qualifies the ANALYSIS rather than the
+            view of it. */}
+        {resultCount !== undefined && !loading && !error && !refusal &&
+          aqiAllNull && aqiCoverage !== 'none' && (
+            <p className="text-xs text-slate-400 text-center">
+              Air quality data unavailable for this forecast window.
             </p>
-            {aqiAllNull && aqiCoverage !== 'none' && (
-              <p>Air quality data unavailable for this forecast window.</p>
-            )}
-          </div>
-        )}
+          )}
 
         {/* Two labels, two pages, and each label goes where it says. The
             privacy copy used to open a dialog here, which meant it had no URL

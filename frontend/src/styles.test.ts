@@ -12,7 +12,10 @@ import {
   CHOICE_INPUT,
   CHOICE_ROW,
   DAY,
+  BOUNDS_GRID,
+  CONTROL_W,
   FIELD,
+  FIELD_NUMERIC,
   ICON_ADORNMENT,
   ICON_ACTION,
   ICON_BUTTON,
@@ -523,6 +526,54 @@ describe('shared recipes', () => {
   it('suppresses the platform chrome and keeps room for the arrow it replaces', () => {
     expect(SELECT).toContain('appearance-none')
     expect(SELECT).toContain('pr-8')
+  })
+
+  // The panel's controls share a left edge as well as a right one. The segment
+  // is where the width comes from, so it composes the token rather than
+  // spelling a width that the model picker and Max Results would then have to
+  // match by hand.
+  it('builds the segmented control on the shared control width', () => {
+    expect(SEGMENT).toContain(CONTROL_W)
+  })
+
+  // The bounds grid cannot compose CONTROL_W — it needs the width split across
+  // two boxes and a gap — so it is the one place the number is re-derived, and
+  // the derivation is checked rather than commented. Tailwind's scale is
+  // quarter-rem per step, which is what makes both sides comparable.
+  it('splits the shared control width across the two bounds boxes', () => {
+    const steps = (utility: string) => Number(utility.match(/-(\d+)$/)![1]) / 4
+    const boxes = [...BOUNDS_GRID.matchAll(/_(\d+(?:\.\d+)?)rem/g)].map((m) => Number(m[1]))
+    const gap = steps(BOUNDS_GRID.match(/gap-x-\d+/)![0])
+
+    expect(boxes).toHaveLength(2)
+    expect(boxes[0] + boxes[1] + gap).toBeCloseTo(steps(CONTROL_W))
+  })
+
+  // Every stacked control in the panel composes CONTROL_W, so none of them may
+  // spell a width in the range one would plausibly pick for itself. Scoped to
+  // ControlPanel because that is where the column of label-plus-control rows
+  // lives; the map legend's measured w-44 and the app icon's w-20 are not part
+  // of it. Written so no banned class appears verbatim: v4 scans this file as
+  // raw text and would emit its CSS.
+  it('lets no panel control pick its own width', () => {
+    const controlSized = new RegExp(`\\bw-(2[4-9]|3\\d|4[0-8])\\b`)
+    expect(controlPanelSource.match(controlSized)).toBeNull()
+  })
+
+  // A numeric field is a field with the spinner arrows taken off, not a second
+  // field, for the same reason the dropdown is built from FIELD.
+  it('builds the numeric field out of the field rather than beside it', () => {
+    expect(FIELD_NUMERIC).toContain(FIELD)
+  })
+
+  // Three rules, none redundant: Firefox reads the appearance property, WebKit
+  // and Blink read the two pseudo-elements. Dropping any one leaves the arrows
+  // on somewhere, and the filters grid (#115) budgets its column widths on
+  // their absence — a row that regains them wraps its label onto two lines.
+  it('suppresses the spinner arrows in every engine that draws them', () => {
+    expect(FIELD_NUMERIC).toContain('[appearance:textfield]')
+    expect(FIELD_NUMERIC).toContain('outer-spin-button')
+    expect(FIELD_NUMERIC).toContain('inner-spin-button')
   })
 
   // The arrow sits over the control it decorates. Without this the one place a

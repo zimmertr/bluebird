@@ -169,6 +169,19 @@
             "title": "Limit",
             "type": "integer"
           },
+          "max_aqi": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop rows whose `aqi_max` is above this. A row with a null `aqi_max` passes either bound rather than being dropped: air quality is only forecast about five days out and the fetch is best-effort, so a missing number is an absence of evidence, not evidence of bad air. Setting either bound also makes the analysis fetch air quality for every candidate instead of only the returned rows, since a bound cannot be applied to a value that was never fetched.",
+            "title": "Max Aqi"
+          },
           "max_elevation_ft": {
             "anyOf": [
               {
@@ -181,6 +194,57 @@
             "description": "Drop candidates above this elevation.",
             "title": "Max Elevation Ft"
           },
+          "max_precip_total_in": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop rows whose `precip_total_in` is above this.",
+            "title": "Max Precip Total In"
+          },
+          "max_temp_f": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop rows whose `temp_max_f` is above this, i.e. keep only destinations that stay at or below it for the whole window.",
+            "title": "Max Temp F"
+          },
+          "max_wind_mph": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop rows whose `wind_max_mph` is above this, i.e. keep only destinations that never exceed it during the window.",
+            "title": "Max Wind Mph"
+          },
+          "min_aqi": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop rows whose `aqi_max` is below this.",
+            "title": "Min Aqi"
+          },
           "min_elevation_ft": {
             "anyOf": [
               {
@@ -192,6 +256,44 @@
             ],
             "description": "Drop candidates below this elevation. Candidates with an unknown elevation always pass through rather than being silently dropped.",
             "title": "Min Elevation Ft"
+          },
+          "min_precip_total_in": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop rows whose `precip_total_in` is below this.",
+            "title": "Min Precip Total In"
+          },
+          "min_temp_f": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop rows whose `temp_min_f` is below this, i.e. keep only destinations that stay at or above it for the whole window. Not bounded below: a floor of -40 is a real request.",
+            "title": "Min Temp F"
+          },
+          "min_wind_mph": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop rows whose `wind_min_mph` is below this.",
+            "title": "Min Wind Mph"
           },
           "polygon": {
             "anyOf": [
@@ -282,6 +384,11 @@
             "description": "Pre-truncation candidate count when `truncated` is true; null otherwise. Lets a client caption an elected top-N honestly (\"top 1,500 of 2,340\").",
             "title": "Total Found"
           },
+          "total_matched": {
+            "description": "How many of those candidates satisfied the request's forecast bounds, before `limit` cut the list. Equal to `total_queried` when no bound was set, so a client can always say \"N of M matching\" without knowing whether the caller filtered. It is a separate number because a bound drops rows the caller paid to fetch, and `total_queried` keeps meaning what it always has: how much was analyzed.",
+            "title": "Total Matched",
+            "type": "integer"
+          },
           "total_queried": {
             "description": "How many candidates were forecast and ranked before `limit` cut the list. Compare against `len(results)` to see how much of the ranking is not being shown.",
             "title": "Total Queried",
@@ -296,7 +403,8 @@
         },
         "required": [
           "results",
-          "total_queried"
+          "total_queried",
+          "total_matched"
         ],
         "title": "AnalyzeResponse",
         "type": "object"

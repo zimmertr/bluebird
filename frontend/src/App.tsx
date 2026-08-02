@@ -30,13 +30,24 @@ import {
 } from './styles'
 import { NOUN, familyOf, rankedNoun } from './metrics'
 import { METRIC_CONFIG } from './utils/colors'
-import { refreshEchoRows } from './utils/clientAnalyze'
+import {
+  Constraints,
+  NO_CONSTRAINTS,
+  constraintFields,
+  refreshEchoRows,
+} from './utils/clientAnalyze'
 import { parseCustomCsv } from './utils/customDestinations'
 import { buildCustomList, pendingDestinations, pinKey } from './utils/customList'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
 import { composeOverlay } from './utils/analyzeOverlay'
 import { Place, isPeakKind } from './utils/geocode'
-import { encodeState, decodeState, classifyWindow, clampLimit } from './utils/urlState'
+import {
+  DEFAULT_LIMIT,
+  encodeState,
+  decodeState,
+  classifyWindow,
+  clampLimit,
+} from './utils/urlState'
 import { UrlWriter, debounceUrlWrite, urlNeedsSync } from './utils/urlSync'
 import {
   DEFAULT_SELECTION,
@@ -46,7 +57,7 @@ import {
   windowCaption,
 } from './utils/calendar'
 import { isPointSample } from './utils/forecastWindow'
-import { PresentationKnobs, bandNarrows, commitNeeded, presentResults } from './utils/present'
+import { PresentationKnobs, commitNeeded, presentResults } from './utils/present'
 import { SortDir, SortKey, displayedColumns } from './utils/tableColumns'
 import { compareValues } from './utils/sortResults'
 import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
@@ -203,9 +214,10 @@ export default function App() {
   // 200 rather than 100 because the pasted lists people bring are themselves
   // often 100 long (peakbagger exports, the examples/ CSVs). At 100 a list plus
   // anything else — one searched peak, a polygon — spills over the cut on its
-  // first analysis, which is what made #205 visible. Mirrored by DEFAULT_LIMIT
-  // in urlState.ts.
-  const [limit, setLimit] = useState(() => clampLimit(restored?.limit ?? 200, caps.maxLimit))
+  // first analysis, which is what made #205 visible.
+  const [limit, setLimit] = useState(() =>
+    clampLimit(restored?.limit ?? DEFAULT_LIMIT, caps.maxLimit),
+  )
   // The initializer above clamps against the compiled fallback, because at
   // first render that is all useCapabilities has. Re-clamp once the real
   // ceiling lands so a deployment that publishes a lower one is honored on a
@@ -271,6 +283,13 @@ export default function App() {
   )
   const [maxElevationFt, setMaxElevationFt] = useState<number | null>(
     () => restored?.maxElevationFt ?? null,
+  )
+  // The forecast bounds (#115). Unlike the elevation band above, these cannot
+  // gate a fetch — nothing knows a destination's precipitation before it has
+  // been fetched — so they are pure presentation and every one of them applies
+  // live, loosening as well as tightening.
+  const [constraints, setConstraints] = useState<Constraints>(
+    () => restored?.constraints ?? NO_CONSTRAINTS,
   )
   // A live map overlay, not part of the analyze request, but persisted to the
   // URL so a shared link reproduces it. Defaults off; toggling queries NIFC for
@@ -439,8 +458,14 @@ export default function App() {
   // become a range without a new analysis. Without a field (the SSE fallback, or before
   // the first analysis) this is the pre-#188 behavior unchanged.
   const liveKnobs: PresentationKnobs = useMemo(
-    () => ({ sortBy, sortDesc, limit, band: { min: minElevationFt, max: maxElevationFt } }),
-    [sortBy, sortDesc, limit, minElevationFt, maxElevationFt],
+    () => ({
+      sortBy,
+      sortDesc,
+      limit,
+      band: { min: minElevationFt, max: maxElevationFt },
+      constraints,
+    }),
+    [sortBy, sortDesc, limit, minElevationFt, maxElevationFt, constraints],
   )
   const view =
     universe !== null && analyzed !== null
@@ -538,6 +563,7 @@ export default function App() {
       sortDesc,
       minElevationFt,
       maxElevationFt,
+      constraints,
       limit,
       customCsv,
       showWildfires,
@@ -566,6 +592,7 @@ export default function App() {
     sortDesc,
     minElevationFt,
     maxElevationFt,
+    constraints,
     limit,
     customCsv,
     showWildfires,
@@ -664,7 +691,16 @@ export default function App() {
     const start = new Date(local.start).toISOString()
     const end = new Date(local.end).toISOString()
 
-    const constraints = { min_elevation_ft: minElevationFt, max_elevation_ft: maxElevationFt }
+    // Every bound the request carries. The elevation band gates discovery, so
+    // the server has always needed it; the forecast bounds ride along for the
+    // SSE fallback, which sends back only trimmed rows and so has to do the
+    // filtering itself. On the normal path the browser holds the field and
+    // applies them live, and these fields go unused.
+    const bounds = {
+      min_elevation_ft: minElevationFt,
+      max_elevation_ft: maxElevationFt,
+      ...constraintFields(constraints),
+    }
 
     // Resolve the ranked inputs first. The custom side of the analysis is the
     // pasted CSV ∪ the searched places — with a *complete* polygon (>= 3
@@ -680,22 +716,19 @@ export default function App() {
     // Reset the removal set only when the user changed a discovery input —
     // searched places are deliberately absent (their list shrinks on removal).
     //
-    // The elevation band is compared by DIRECTION rather than by equality. It
-    // used to sit in the hash, which was harmless while every band change
-    // forced an analysis; now that narrowing is live, a user who narrows and
-    // then changes the forecast window would arrive here with a band that
-    // differs from the last analysis and lose their × removals for a reason
-    // nothing on screen explains. A narrowing keeps them (the same field, fewer
-    // rows); only a widening starts a fresh report, since it readmits
-    // destinations this report never ranked.
+    // The elevation band used to be in here as a special case: a widening threw
+    // the removals away, on the grounds that readmitting destinations this
+    // report never ranked starts a fresh report. That stopped being true when
+    // widening became incremental. The held field is no longer rebuilt, it is
+    // extended, so the rows a user struck out are the same rows they struck
+    // out, and losing them to a band nudge was an unexplained edit of their
+    // work. Only a genuine change of what gets discovered clears them now.
     const removalScope = JSON.stringify({
       ring: resolvedPolygon?.coordinates[0] ?? null,
       types: [...destinationTypes].sort(),
       csv: customCsv.trim(),
     })
-    const widened =
-      analyzed !== null && !bandNarrows(analyzed.band, { min: minElevationFt, max: maxElevationFt })
-    if (removalScopeRef.current !== removalScope || widened) {
+    if (removalScopeRef.current !== removalScope) {
       removalScopeRef.current = removalScope
       setRemovedKeys(new Set())
     }
@@ -743,7 +776,7 @@ export default function App() {
         sort_by: sortBy,
         sort_desc: sortDesc,
         custom_destinations: refreshEchoRows(universe, results, removedKeys),
-        ...constraints,
+        ...bounds,
       }, kind)
     } else if (resolvedPolygon) {
       // Discovery — with the custom list riding along so the backend ranks the
@@ -759,7 +792,7 @@ export default function App() {
         sort_by: sortBy,
         sort_desc: sortDesc,
         ...(custom.length > 0 ? { custom_destinations: custom } : {}),
-        ...constraints,
+        ...bounds,
       }, kind)
       // Remember these discovery inputs so the next compatible Analyze refreshes.
       discoveryRef.current = { base, searchedKeys }
@@ -777,7 +810,7 @@ export default function App() {
         sort_by: sortBy,
         sort_desc: sortDesc,
         custom_destinations: custom,
-        ...constraints,
+        ...bounds,
       }, kind)
     }
 
@@ -916,8 +949,49 @@ export default function App() {
       pendingDestinations(csvRows, searched.places, analyzed?.customKeys ?? NO_CUSTOM, removedKeys),
     [csvRows, searched.places, analyzed, removedKeys],
   )
+  // The table bar's row count: shown, of what the knobs admit, and — only when
+  // a forecast bound is hiding some — of what was analyzed. An elected top-N
+  // cut appends what it left out, since "of 1,500" would otherwise read as the
+  // whole area. Null before a report exists, so the bar carries no count for
+  // the pending-rows-only case.
+  const rowCount = useMemo(() => {
+    if (response === null) return null
+    const shown = `${results.length.toLocaleString()} of ${presented.eligible.toLocaleString()}`
+    // Comma-joined rather than parenthesized: the bar already wraps the whole
+    // thing in parentheses, and a nested pair reads as a typo.
+    if (presented.excluded > 0) {
+      const analyzed = (presented.eligible + presented.excluded).toLocaleString()
+      return `${shown} matching, ${analyzed} analyzed`
+    }
+    if (response.truncated && response.total_found != null) {
+      return `${shown}, ${response.total_found.toLocaleString()} found`
+    }
+    return shown
+  }, [response, results.length, presented.eligible, presented.excluded])
+
+  // Why the table is empty, when it is. Three ways to get here and three
+  // different next moves, and the newest one is the most easily mistaken for a
+  // failed analysis: the destinations were found and forecast, the filters
+  // simply admit none of them.
+  const emptyReason = useMemo(() => {
+    if (response === null || results.length > 0) return null
+    if (presented.excluded > 0 && presented.eligible === 0) {
+      return `No destinations match these filters. ${(
+        presented.eligible + presented.excluded
+      ).toLocaleString()} were analyzed.`
+    }
+    if (removedKeys.size > 0) {
+      return 'All rows have been removed from this analysis. Add destinations or adjust the inputs, then Analyze again.'
+    }
+    return 'No destinations found. Try a larger polygon or different time window.'
+  }, [response, results.length, presented.eligible, presented.excluded, removedKeys])
+
   const hasColoredMarkers = showResults && results.length > 0
-  const showTable = showResults && (results.length > 0 || pending.length > 0)
+  // A report stays on screen even when the knobs admit none of it. Collapsing
+  // the panels would answer "why is nothing listed?" by removing the place the
+  // answer goes, and the table's own empty row says which of the three reasons
+  // it is.
+  const showTable = showResults && (response !== null || pending.length > 0)
 
   // Flags destinations within 10 mi of an active US wildfire; independent of the
   // map overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
@@ -961,7 +1035,10 @@ export default function App() {
     view.sortBy,
     searched.places.map((p) => pinKey(p.lat, p.lon)),
   )
-  const chartShown = chartable && chart.selectedRows.length > 0
+  // Shown whenever the analysis produced an hourly grid, including when nothing
+  // is currently plotted on it: an empty chart beside an empty table reads as a
+  // report with no matches, where a disappearing one reads as a broken app.
+  const chartShown = chartable
 
   // Space below the map that a resize must leave alone: the preview banner (when
   // present) sits above the map, so the map + chart + table share the rest.
@@ -1071,6 +1148,13 @@ export default function App() {
           setMinElevationFt={setMinElevationFt}
           maxElevationFt={maxElevationFt}
           setMaxElevationFt={setMaxElevationFt}
+          constraints={constraints}
+          setConstraints={setConstraints}
+          onClearFilters={() => {
+            setMinElevationFt(null)
+            setMaxElevationFt(null)
+            setConstraints(NO_CONSTRAINTS)
+          }}
           showWildfires={showWildfires}
           setShowWildfires={setShowWildfires}
           includeUnnamedPeaks={includeUnnamedPeaks}
@@ -1098,8 +1182,6 @@ export default function App() {
           modelClamped={modelClamped}
           maxLimit={caps.maxLimit}
           maxAreaKm2={caps.maxPolygonAreaKm2}
-          totalFound={response?.total_found}
-          truncated={response?.truncated}
           aqiAllNull={
             response !== null &&
             results.length > 0 &&
@@ -1116,7 +1198,6 @@ export default function App() {
           // What the current elevation band admits, not what the analysis
           // fetched: narrowing the band live has to move the "of M" or the
           // count describes a field the table no longer shows.
-          totalQueried={response ? presented.eligible : undefined}
         />
       </aside>
 
@@ -1411,8 +1492,11 @@ export default function App() {
                 fold it on a window that had not changed size and leave it
                 folded on one that had — which is the exact bug #159 removed
                 from the control panel. `@container` asks the bar about itself.
-                The step is measured: one line needs ~740px of content, so it
-                folds below the 768px `@3xl`. */}
+                The step is measured, and re-measured whenever a member is
+                added: one line needs ~800px since the row count joined it, so
+                between the 768px `@3xl` fold and 800px the ranking ellipsizes
+                rather than the bar folding — which is what its `truncate` is
+                for, and better than folding a bar that nearly fits. */}
             <div
               className={`@container flex-shrink-0 px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
             >
@@ -1428,11 +1512,23 @@ export default function App() {
                       Siblings, not nested: the title's weight and color would
                       otherwise inherit into the ranking, which is the one thing
                       giving it a different role from the title is meant to stop. */}
-                  <span className="flex min-w-0 items-baseline gap-3">
+                  {/* One phrase, not three chips. The title, what the rows are
+                      ranked by, and how many of them there are read as a
+                      sentence: "Forecast Table - Lowest Total Precipitation
+                      (100 of 100)". Three spans alternating bold, normal, bold
+                      made the eye stop twice on the way across.
+                      The count rides inside it rather than beside it — it
+                      qualifies the ranking, since both describe the same rows.
+                      Never a shrinking member on its own: an ellipsized number
+                      is a wrong number, so the ranking truncates around it. */}
+                  <span className="flex min-w-0 items-baseline gap-1.5">
                     <span className={`${TEXT.panelTitle} flex-shrink-0`}>Forecast Table</span>
-                    {results.length > 0 && (
-                      <span className={`${TEXT.subheading} truncate`}>
-                        {`${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, pointSample)}`}
+                    {rowCount !== null && (
+                      <span className={`${TEXT.subheading} min-w-0 truncate`}>
+                        {`- ${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(
+                          view.sortBy,
+                          pointSample,
+                        )} (${rowCount})`}
                       </span>
                     )}
                   </span>
@@ -1515,8 +1611,12 @@ export default function App() {
                 The panel has a drag-resized height on every breakpoint now, so
                 the body just fills it (flex-1) and scrolls a long ranking. */}
             {!tableCollapsed && (
-              <div className="overflow-auto min-h-0 results-scrollbars flex-1">
+              // `@container` so the empty-state row inside the table can size
+              // itself to what is VISIBLE rather than to the table, which is
+              // far wider whenever the columns overflow. See ResultsTable.
+              <div className="@container overflow-auto min-h-0 results-scrollbars flex-1">
                 <ResultsTable
+                  emptyReason={emptyReason}
                   results={tableRows}
                   sortBy={view.sortBy}
                   sortDesc={view.sortDesc}
@@ -1550,13 +1650,6 @@ export default function App() {
           </div>
         )}
 
-        {showResults && response && results.length === 0 && !loading && (
-          <div className={`${PROSE.body} flex-shrink-0 border-t border-slate-600 bg-slate-800 px-4 py-3`}>
-            {removedKeys.size > 0
-              ? 'All rows have been removed from this analysis. Add destinations or adjust the inputs, then Analyze again.'
-              : 'No destinations found. Try a larger polygon or different time window.'}
-          </div>
-        )}
       </div>
       </div>
     </div>

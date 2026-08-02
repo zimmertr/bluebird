@@ -108,7 +108,7 @@ How bright a day is says how much of it Bluebird can tell you about:
 | --- | --- |
 | Normal | Weather and air quality. |
 | Dimmed | Weather only. Past the ~5-day air-quality horizon, so the AQI columns come back blank. Still analyzes fine. |
-| Greyed, not clickable | Outside what the weather service serves. The near edge is where its archive runs out; the far edge is whichever comes first, the API's own limit or the reach of the forecast model you picked in Step 4. |
+| Greyed, not clickable | Outside what the weather service serves. The near edge is where its archive runs out; the far edge is whichever comes first, the API's own limit or the reach of the forecast model you picked in Step 2. |
 
 Hovering either dimmed step says why, and selecting one past the air-quality horizon says so beside the calendar. Air quality runs shorter than weather because the underlying CAMS model only reaches about 5 days out; that horizon is not the only thing worth knowing about the column, so see [Air quality](DATA.md#air-quality) for how coarse the model grid is and which scale the number is on.
 
@@ -118,17 +118,37 @@ Days are your local calendar days, converted to UTC for the API, and the far edg
 
 The calendar is fully keyboard operable: arrow keys move by day, Page Up and Page Down by month, Enter or Space selects, and Escape abandons a half-made range.
 
-## Step 3: Set Max Results
+## Step 3: Filters
 
-The default is 200, chosen to sit above the 100-row lists people usually paste so a first analysis does not open with half of one cut off; the ceiling is whatever the running service reports as its analysis cap. Weather is fetched for *every* named destination in the polygon (after the optional elevation filter), and the top N by the selected ranking come back. There is no sampling, so the winners really are the extremes of the area. Raising this number therefore costs nothing upstream: it widens the view onto work already done. Past the cap on candidates the app asks you to draw a smaller polygon or narrow the elevation range rather than silently truncating. See [Limits](LIMITS.md) for why the caps exist and where to read their current values.
+Ranking puts the best destinations first. Filters say which ones you would consider at all. The section is one grid: a row per thing you can bound, and a Min and a Max box on each row. Leave a box empty and that side is unbounded.
+
+| Row | Min | Max |
+|---|---|---|
+| Elevation (ft) | no lower than | no higher than |
+| Precipitation (in) | total over the window is at least | total over the window is at most |
+| Wind (mph) | never drops below | never exceeds |
+| Temperature (°F) | never drops below | never exceeds |
+| AQI | its worst hour is at least | its worst hour is at most |
+
+Each box carries that sentence as a tooltip, because the grid itself cannot show which of a destination's hours it reads. The wording of that table is the point. **A ceiling is a promise about every hour**, not about an average: a 20 mph wind ceiling excludes a destination that gusts to 45 at noon even if it averages 8, because an average that hides a bad afternoon is not something you can plan around. A floor is the mirror of that and is worth understanding before you reach for one: a 15 mph wind floor asks for somewhere whose *calmest* hour still blows 15, which almost nowhere satisfies, so it empties the table rather than finding you windy places. For elevation, wind and temperature the two columns are exactly the Min and Max columns of the results table. Precipitation is the exception, bounded on its window total in both columns, because a per-hour minimum would read 0.000 almost everywhere and the total is what "Precipitation" means in the Ranking section too.
+
+**Destinations with an unknown elevation or AQI are included.** Those are the two values that can be missing: many mapped features carry no elevation, and air quality is only forecast about five days out, so a longer window has none at all. A missing number is not evidence of bad conditions, and dropping those rows would quietly empty a report that had simply asked about next week. They ride along, and the table shows a dash where the number would be.
+
+Four of these five rows apply the instant you type in them, in both directions, because the browser already holds a forecast for every destination it found. **Elevation is the exception**: it decides what gets fetched in the first place, so narrowing it is instant while widening it needs Analyze again, and the panel says so. **Clear filters** empties the whole grid, elevation included.
+
+Everything on screen follows a filter change at once: the table, the map markers, the forecast chart, and the row count in the Forecast Table's header, which reads *12 of 34 matching (91 analyzed)* whenever a filter is hiding something. If nothing matches, the table stays where it is and says so in place of its rows, rather than disappearing as though the search had failed.
+
+## Step 4: Set Max Results
+
+The default is 200, chosen to sit above the 100-row lists people usually paste so a first analysis does not open with half of one cut off; the ceiling is whatever the running service reports as its analysis cap. The Forecast Table's header says how many rows you are seeing out of how many there are. Weather is fetched for *every* named destination in the polygon (after the optional elevation filter), and the top N by the selected ranking come back. There is no sampling, so the winners really are the extremes of the area. Raising this number therefore costs nothing upstream: it widens the view onto work already done. Past the cap on candidates the app asks you to draw a smaller polygon or narrow the elevation range rather than silently truncating. See [Limits](LIMITS.md) for why the caps exist and where to read their current values.
 
 Destinations you name yourself are candidates like any other. A searched place and every row of a pasted CSV are analyzed and then ranked against whatever the polygon found, so combining the two can push some of your own destinations below the cut, where they are simply not listed. Their forecasts were still fetched: raise max results and they appear, already filled in.
 
-## Step 4: Analyze
+## Step 5: Analyze
 
 Click **Analyze**. Results appear in a sortable table below the map and as color-coded markers on the map itself.
 
-Once results are up, the knobs split in two. **Ranking, max results, and narrowing the elevation range apply instantly**, with no second click: the browser keeps the forecast for every destination it found, not just the ones that fit on screen, so it can re-rank and re-cut them for free. Changing the **destinations, the forecast window, or widening the elevation range** needs Analyze again, because those need forecasts the app does not have yet, and the panel says which one is waiting. That is also why the numbers are exact rather than approximate: a new ranking reconsiders every destination in your area, not just the rows currently listed.
+Once results are up, the knobs split in two. **Ranking, max results, every forecast filter, and narrowing the elevation range apply instantly**, with no second click: the browser keeps the forecast for every destination it found, not just the ones that fit on screen, so it can re-rank, re-filter and re-cut them for free. Changing the **destinations, the forecast window, the model, or widening the elevation range** needs Analyze again, because those need forecasts the app does not have yet, and the panel says which one is waiting. That is also why the numbers are exact rather than approximate: a new ranking reconsiders every destination in your area, not just the rows currently listed.
 
 If the weather service cannot be reached from your browser, Bluebird says so and retries through its own server. That path only receives the rows it shows, so on it every knob goes back to needing Analyze, and the app says which one is waiting.
 
@@ -152,7 +172,7 @@ Click any column header to sort by it, ascending or descending. By default the t
 
 The four columns that are also ranking options (Precipitation · Total, Wind · Avg, Temperature · Avg, AQI · Avg) *are* that selection: clicking one re-ranks every destination in your area and re-picks the top N, and the Ranking control moves to match. So clicking **Wind** gives you the least windy destinations in the area, not the driest ones reordered by wind. The remaining columns are detail rather than ranking, and reorder the rows currently listed.
 
-Hovering a row reveals a × at its end (always visible on touch screens) that removes the destination from the report — the rows below renumber, and it stays gone as you re-rank, raise the max results, or narrow the elevation range. Changing the destinations, the window, or widening the elevation range starts a fresh report where it may return.
+Hovering a row reveals a × at its end (always visible on touch screens) that removes the destination from the report — the rows below renumber, and it stays gone as you re-rank, raise the max results, or change any filter, elevation included. Only changing the destinations themselves starts a fresh report where it may return.
 
 | Column | Description |
 |---|---|

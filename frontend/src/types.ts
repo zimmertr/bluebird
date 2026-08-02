@@ -56,6 +56,23 @@ export interface AnalyzeRequest {
   // Elevation band, filtered server-side before the weather fetch
   min_elevation_ft?: number | null
   max_elevation_ft?: number | null
+  // Forecast bounds, applied after aggregation and before the ranking and the
+  // limit cut. A ceiling compares the window's worst hour and a floor its best,
+  // so a bound holds for every hour rather than for an average; precipitation
+  // and AQI have no minimum aggregate, so both of their bounds compare
+  // precip_total_in and aqi_max respectively. Null AQI passes either bound.
+  //
+  // Sent only on the SSE fallback path. The browser path holds the whole field
+  // and applies these live through utils/present.ts, which is what makes them
+  // knobs rather than another Analyze.
+  min_precip_total_in?: number | null
+  max_precip_total_in?: number | null
+  min_temp_f?: number | null
+  max_temp_f?: number | null
+  min_wind_mph?: number | null
+  max_wind_mph?: number | null
+  min_aqi?: number | null
+  max_aqi?: number | null
   // Explicit opt-in: an over-limit candidate set keeps its highest-elevation
   // rows up to the analysis cap instead of refusing. The response then says
   // truncated: true with the pre-cut count in total_found — never silent.
@@ -104,6 +121,10 @@ export interface DestinationResult {
 export interface AnalyzeResponse {
   results: DestinationResult[]
   total_queried: number
+  // How many of those candidates satisfied the request's forecast bounds,
+  // before the limit cut. Equal to total_queried when no bound was set, so the
+  // footer can say "N of M matching" without knowing whether anything filtered.
+  total_matched: number
   error?: string
   // Shared hourly grid for every row's `series`, epoch milliseconds (UTC),
   // rendered in the viewer's local time.
