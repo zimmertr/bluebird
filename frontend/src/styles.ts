@@ -500,9 +500,16 @@ export const SEGMENT_IDLE = `${RECESSED_FILL} text-slate-400 hover:text-slate-20
  *
  * No color here: the halves are `ACCENT.fill` and `SEGMENT_IDLE`, so a color
  * in this recipe would be a third one competing with them by stylesheet order.
+ *
+ * The width is fixed and the halves split it, so every segment in the panel is
+ * the same size and every half within one is too. Sized to text, they were not:
+ * Current/Dates measured 111px against Lowest/Highest at 119px, with halves of
+ * 59/50 and 56/61. Stacked in one card that reads as three controls that failed
+ * to line up. 144px is the measured floor plus slack — the widest label here is
+ * "Highest" at 61px of content, so a 72px half leaves 11px.
  */
-export const SEGMENT = `flex ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
-export const SEGMENT_ITEM = `${TAP.action} px-2 py-0.5 text-xs transition-colors`
+export const SEGMENT = `flex w-36 ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
+export const SEGMENT_ITEM = `${TAP.action} flex-1 px-2 py-0.5 text-xs transition-colors`
 /** Between two halves, never before the first. */
 export const SEGMENT_DIVIDER = 'border-l border-slate-500'
 

@@ -143,8 +143,21 @@ def test_capabilities_publishes_every_selectable_model_with_its_reach():
     for entry in published:
         info = MODEL_INFO[ForecastModel(entry["id"])]
         assert entry["label"] == info.label
+        assert entry["summary"] == info.summary
         assert entry["forecast_hours"] == info.forecast_hours
         assert entry["regional"] == info.regional
+
+
+def test_every_model_carries_a_summary_the_picker_can_show():
+    # These render as the line under each model name, so a blank one is a row
+    # that says nothing about a choice the reader has to make. The length bound
+    # is the panel column: measured, 80 characters wraps to two lines there and
+    # anything longer takes three.
+    for entry in _capabilities()["forecast_models"]:
+        summary = entry["summary"]
+        assert summary.strip(), entry["id"]
+        assert summary.endswith("."), entry["id"]
+        assert len(summary) <= 80, (entry["id"], len(summary))
 
 
 def test_capabilities_flags_exactly_one_default_and_it_is_the_request_default():

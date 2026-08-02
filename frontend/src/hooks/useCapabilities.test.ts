@@ -13,7 +13,16 @@ describe('parseCapabilities', () => {
     // Deliberately NOT in reach order: the server ranks these for mountain
     // terrain, and a client that re-sorted would undo the ranking.
     forecast_models: [
-      { id: 'gfs_seamless', label: 'NOAA GFS', forecast_hours: 384, regional: false, default: true },
+      {
+        id: 'gfs_seamless',
+        label: 'NOAA GFS',
+        summary: 'Sharp over North America at 3 km.',
+        forecast_hours: 384,
+        regional: false,
+        default: true,
+      },
+      // No `summary`: a deployment on an older build publishes none, and the
+      // row has to render as a plain name rather than as a gap.
       { id: 'gem_seamless', label: 'ECCC GEM', forecast_hours: 216, regional: false },
       { id: 'ecmwf_ifs025', label: 'ECMWF IFS', forecast_hours: 336, regional: false },
       { id: 'gfs_hrrr', label: 'NOAA HRRR', forecast_hours: 42, regional: true },
@@ -26,10 +35,16 @@ describe('parseCapabilities', () => {
       maxLimit: 800,
       maxPolygonAreaKm2: 70_000,
       forecastModels: [
-        { id: 'gfs_seamless', label: 'NOAA GFS', forecastHours: 384, regional: false },
-        { id: 'gem_seamless', label: 'ECCC GEM', forecastHours: 216, regional: false },
-        { id: 'ecmwf_ifs025', label: 'ECMWF IFS', forecastHours: 336, regional: false },
-        { id: 'gfs_hrrr', label: 'NOAA HRRR', forecastHours: 42, regional: true },
+        {
+          id: 'gfs_seamless',
+          label: 'NOAA GFS',
+          summary: 'Sharp over North America at 3 km.',
+          forecastHours: 384,
+          regional: false,
+        },
+        { id: 'gem_seamless', label: 'ECCC GEM', summary: '', forecastHours: 216, regional: false },
+        { id: 'ecmwf_ifs025', label: 'ECMWF IFS', summary: '', forecastHours: 336, regional: false },
+        { id: 'gfs_hrrr', label: 'NOAA HRRR', summary: '', forecastHours: 42, regional: true },
       ],
       defaultForecastModel: 'gfs_seamless',
     })

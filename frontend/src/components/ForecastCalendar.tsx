@@ -233,9 +233,10 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
           quota; a secondary-button look would say the same thing more quietly.
           What is actually being expressed is which arm is live.
 
-          The grid stays live under either arm, so clicking a day is still the
-          one-click way into Dates. This pair names the choice and is the way
-          back, not a gate to open first. */}
+          The grid appears only under Dates, the way the hour fields appear only
+          under Hourly. Each control reveals the next thing its answer makes
+          relevant, and Current has no next thing: it takes no input at all, so
+          a calendar under it would be 250px of card that does nothing. */}
       <div className="flex items-center justify-between gap-2">
         <span className={TEXT.subheading}>When</span>
         <div className={SEGMENT}>
@@ -321,6 +322,8 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
         </div>
       )}
 
+      {selection.kind === 'days' && (
+        <>
       {/* Month navigation, bounded by the servable band rather than open-ended:
           paging into a month with nothing pickable in it is a dead end. */}
       <div className="mb-1 mt-2 flex items-center justify-between border-t border-slate-700 pt-2">
@@ -387,7 +390,8 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
           </div>
         ))}
       </div>
-
+        </>
+      )}
     </div>
   )
 }

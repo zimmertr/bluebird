@@ -18,7 +18,6 @@ import {
   CHOICE_INPUT,
   CHOICE_ROW,
   FIELD,
-  ICON_ADORNMENT,
   LINK,
   NOTICE,
   PANEL_EDGE,
@@ -27,7 +26,6 @@ import {
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
-  SELECT,
   STATUS,
   TEXT,
 } from '../styles'
@@ -151,6 +149,10 @@ interface Props {
   forecastModel: string
   setForecastModel: (id: string) => void
   forecastModels: readonly ForecastModelOption[]
+  // Which of them the server would use if asked for none. Marked in the list so
+  // a reader who has wandered off it can find the way back; the ordering alone
+  // cannot say it, since best-first and default-first need not agree.
+  defaultForecastModel: string
   // The last model change moved the far edge in under the chosen window and
   // trimmed it. Worth saying out loud: the calendar redrawing is visible, but a
   // selection quietly losing days is the kind of thing a reader discovers in
@@ -232,6 +234,7 @@ export default function ControlPanel({
   forecastModel,
   setForecastModel,
   forecastModels,
+  defaultForecastModel,
   modelClamped,
   windowWarning,
   commitReason,
@@ -497,40 +500,43 @@ export default function ControlPanel({
               re-present held rows, while a different model is different
               numbers. Ordered longest-reach-first by the server. */}
           <div className="mb-3">
-            <label htmlFor="forecast-model" className={`${TEXT.subheading} block mb-1`}>
-              Model
-            </label>
-            <div className="relative">
-              <select
-                id="forecast-model"
-                value={forecastModel}
-                onChange={(e) => setForecastModel(e.target.value)}
-                className={`${SELECT} w-full px-2 py-1.5`}
-              >
-                {/* A model named by a link but not offered here still has to
-                    appear, or the control would silently show a different
-                    model than the one about to be requested. */}
-                {!forecastModels.some((m) => m.id === forecastModel) && (
-                  <option value={forecastModel}>{forecastModel}</option>
-                )}
-                {forecastModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-              <svg
-                className={`${ICON_ADORNMENT} h-4 w-4`}
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
-                  clipRule="evenodd"
+            <span className={`${TEXT.subheading} block mb-1`}>Model</span>
+            {/* A list rather than a dropdown, because choosing well here means
+                reading the eight summaries against each other, and a native
+                select can only show one at a time. Its own options cannot carry
+                the summaries either: measured, the shortest of them needs 303px
+                of label where the control has 245px, so every entry would
+                truncate. Tooltips are worse still — macOS draws the option list
+                as an OS menu that renders no `title`, and a phone has no hover
+                at all.
+
+                Same radio rows as the ranking metrics below, so this is the
+                panel's existing vocabulary rather than a control of its own. */}
+            <div role="radiogroup" aria-label="Forecast model" className="space-y-0.5">
+              {/* A model named by a link but not offered here still has to
+                  appear, or the control would silently show a different model
+                  than the one about to be requested. */}
+              {!forecastModels.some((m) => m.id === forecastModel) && (
+                <ModelChoice
+                  id={forecastModel}
+                  label={forecastModel}
+                  summary=""
+                  recommended={false}
+                  checked
+                  onChoose={setForecastModel}
                 />
-              </svg>
+              )}
+              {forecastModels.map((m) => (
+                <ModelChoice
+                  key={m.id}
+                  id={m.id}
+                  label={m.label}
+                  summary={m.summary}
+                  recommended={m.id === defaultForecastModel}
+                  checked={m.id === forecastModel}
+                  onChoose={setForecastModel}
+                />
+              ))}
             </div>
             {modelClamped && (
               <p className={`mt-2 ${STATUS.warn} ${NOTICE.warn}`}>
@@ -826,5 +832,53 @@ export default function ControlPanel({
         </p>
       </div>
     </div>
+  )
+}
+
+/**
+ * One model in the picker: the name, whether it is the one you get by default,
+ * and the line saying when to reach for it.
+ *
+ * The summary is optional rather than required, because it arrives from
+ * `/api/capabilities` and a deployment on an older build publishes none. A row
+ * without one is a plain name, which is what the picker was before, rather than
+ * a row with a hole in it.
+ */
+function ModelChoice({
+  id,
+  label,
+  summary,
+  recommended,
+  checked,
+  onChoose,
+}: {
+  id: string
+  label: string
+  summary: string
+  recommended: boolean
+  checked: boolean
+  onChoose: (id: string) => void
+}) {
+  return (
+    <label className={CHOICE_ROW}>
+      <input
+        type="radio"
+        name="forecast_model"
+        checked={checked}
+        onChange={() => onChoose(id)}
+        className={CHOICE_INPUT}
+      />
+      <span className="min-w-0">
+        <span className="flex items-baseline gap-1.5">
+          <span className="truncate">{label}</span>
+          {recommended && (
+            <span className={`${TEXT.overline} ${ACCENT.text} flex-shrink-0`}>
+              Recommended
+            </span>
+          )}
+        </span>
+        {summary !== '' && <span className={`${TEXT.helper} block`}>{summary}</span>}
+      </span>
+    </label>
   )
 }

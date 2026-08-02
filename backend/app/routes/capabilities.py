@@ -98,6 +98,14 @@ class ForecastModelInfo(BaseModel):
 
     id: str = Field(description="Value to send as `forecast_model`.")
     label: str = Field(description="Human-readable name, as the picker shows it.")
+    summary: str = Field(
+        description=(
+            "One line on when to choose this model, written for someone "
+            "planning a trip rather than for a meteorologist. Grid figures "
+            "describe the variant this app requests, which for most entries "
+            "blends a fine regional grid into a coarse global one."
+        )
+    )
     forecast_hours: int = Field(
         description=(
             "How many hours ahead of now this model still has data for, as a "
@@ -236,6 +244,7 @@ async def capabilities() -> CapabilitiesResponse:
             ForecastModelInfo(
                 id=model.value,
                 label=info.label,
+                summary=info.summary,
                 forecast_hours=info.forecast_hours,
                 regional=info.regional,
                 default=model is DEFAULT_FORECAST_MODEL,

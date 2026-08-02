@@ -137,6 +137,18 @@ class ModelInfo(NamedTuple):
 
     label: str
     forecast_hours: int
+    # One line answering "why would I pick this one", for a hiker rather than a
+    # meteorologist. It lives here rather than in the browser because the picker
+    # gets its whole vocabulary from `/api/capabilities`: a model added to the
+    # enum would otherwise appear with a blank line beside it.
+    #
+    # Grid figures are Open-Meteo's own, for the variant this app requests
+    # (`*_seamless` blends a fine regional grid into a coarse global one, and
+    # `ecmwf_ifs025` is the 0.25 deg open-data feed, not ECMWF's 9 km HRES).
+    # Quoting the headline national model instead is the common mistake and it
+    # inverts the ranking: GEM reads as a 15 km global model unless you count
+    # the 2.5 km HRDPS that is the actual reason to pick it here.
+    summary: str
     # HRRR is the only model here that is not global, and its domain is a
     # Lambert conformal grid no lat/lon box describes: Banff, Edmonton and
     # Monterrey answer, while Alaska, Hawaii, Puerto Rico, Newfoundland and
@@ -198,14 +210,35 @@ class ModelInfo(NamedTuple):
 # Being wrong high costs a calendar day that answers with nothing; being wrong
 # low costs a day of real forecast. Re-probe before moving any of them.
 MODEL_INFO: dict[ForecastModel, ModelInfo] = {
-    ForecastModel.gfs_seamless: ModelInfo("NOAA GFS", 384),
-    ForecastModel.gem_seamless: ModelInfo("ECCC GEM", 216),
-    ForecastModel.ecmwf_ifs025: ModelInfo("ECMWF IFS", 336),
-    ForecastModel.gfs_hrrr: ModelInfo("NOAA HRRR", 42, regional=True),
-    ForecastModel.ukmo_seamless: ModelInfo("UK Met Office", 144),
-    ForecastModel.icon_seamless: ModelInfo("DWD ICON", 168),
-    ForecastModel.jma_seamless: ModelInfo("JMA GSM", 240),
-    ForecastModel.meteofrance_seamless: ModelInfo("Meteo-France ARPEGE", 72),
+    ForecastModel.gfs_seamless: ModelInfo(
+        "NOAA GFS", 384, "Sharp over North America at 3 km, and reaches furthest ahead."
+    ),
+    ForecastModel.gem_seamless: ModelInfo(
+        "ECCC GEM", 216, "The sharpest look at Canada and the northern US, at 2.5 km."
+    ),
+    ForecastModel.ecmwf_ifs025: ModelInfo(
+        "ECMWF IFS", 336, "Coarse at 25 km, but the steadiest for planning days ahead."
+    ),
+    ForecastModel.gfs_hrrr: ModelInfo(
+        "NOAA HRRR",
+        42,
+        "The most detailed US forecast at 3 km, for today and tomorrow.",
+        regional=True,
+    ),
+    ForecastModel.ukmo_seamless: ModelInfo(
+        "UK Met Office", 144, "2 km over the UK and Ireland. Often favored for storms."
+    ),
+    ForecastModel.icon_seamless: ModelInfo(
+        "DWD ICON", 168, "2 km across the Alps. Often favored for wind."
+    ),
+    ForecastModel.jma_seamless: ModelInfo(
+        "JMA GSM", 240, "5 km over Japan and Korea, and across the Pacific."
+    ),
+    ForecastModel.meteofrance_seamless: ModelInfo(
+        "Meteo-France ARPEGE",
+        72,
+        "2.5 km over France, the sharpest option in western Europe.",
+    ),
 }
 
 

@@ -823,11 +823,17 @@
             "description": "True for a model run over part of the world rather than all of it. A request naming one is rejected with 400 if any destination falls outside its grid \u2014 including destinations the caller never sees, since discovery happens server-side.",
             "title": "Regional",
             "type": "boolean"
+          },
+          "summary": {
+            "description": "One line on when to choose this model, written for someone planning a trip rather than for a meteorologist. Grid figures describe the variant this app requests, which for most entries blends a fine regional grid into a coarse global one.",
+            "title": "Summary",
+            "type": "string"
           }
         },
         "required": [
           "id",
           "label",
+          "summary",
           "forecast_hours",
           "regional",
           "default"

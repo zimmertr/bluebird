@@ -1091,6 +1091,7 @@ export default function App() {
           forecastModel={forecastModel}
           setForecastModel={changeForecastModel}
           forecastModels={caps.forecastModels}
+          defaultForecastModel={caps.defaultForecastModel}
           modelClamped={modelClamped}
           maxLimit={caps.maxLimit}
           maxAreaKm2={caps.maxPolygonAreaKm2}

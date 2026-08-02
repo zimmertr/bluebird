@@ -70,7 +70,7 @@ Which model answers, and over which hours.
 
 ### Model
 
-Which weather model answers. The list is ordered best first for mountain terrain, so the default, **NOAA GFS**, is the top entry.
+Which weather model answers. All eight are listed together, each with one line on when to reach for it, because choosing well here means reading them against each other rather than one at a time. The list is ordered best first for mountain terrain, so the default, **NOAA GFS**, is the top entry and is marked **Recommended**.
 
 That default is a blend rather than plain GFS: it is HRRR's 3 km grid for the first two days and GFS's coarser grid out to sixteen. High resolution when the resolution matters, reach when it does not.
 

@@ -10,6 +10,12 @@ import { MAX_ANALYZE_DESTINATIONS } from '../utils/clientAnalyze'
 export interface ForecastModelOption {
   id: string
   label: string
+  /**
+   * One line on when to pick this model. Empty when the server did not send
+   * one, which the picker renders as no line rather than as a gap — a
+   * deployment on an older build should look plainer, not broken.
+   */
+  summary: string
   /** Hours ahead of now this model still has data for. Bounds the calendar. */
   forecastHours: number
   /** Run over part of the world, so some destinations are outside it. */
@@ -42,6 +48,7 @@ const FALLBACK_POLYGON_AREA_KM2 = 100_000
 export const FALLBACK_FORECAST_MODEL: ForecastModelOption = {
   id: 'gfs_seamless',
   label: 'NOAA GFS',
+  summary: 'Sharp over North America at 3 km, and reaches furthest ahead.',
   forecastHours: 384,
   regional: false,
 }
@@ -84,6 +91,7 @@ function parseModels(body: unknown): Pick<
     models.push({
       id: e.id,
       label: typeof e.label === 'string' ? e.label : e.id,
+      summary: typeof e.summary === 'string' ? e.summary : '',
       forecastHours: e.forecast_hours,
       regional: e.regional === true,
     })
