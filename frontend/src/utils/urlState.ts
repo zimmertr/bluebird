@@ -212,7 +212,8 @@ function isValidDatetimeLocal(s: string): boolean {
  * timestamps nobody had chosen, so a filled window could not be read as a
  * signal — treating it as one would have written dates into the address bar,
  * and rewritten them on every reload, before the user did anything at all. The
- * calendar's default is the Now chip, which carries no dates to write.
+ * calendar's default is the When toggle's Current arm, which carries no dates
+ * to write.
  */
 // `defaultForecastModel` is passed in rather than named here because the
 // default is the deployment's, published by /api/capabilities. Compiling a copy

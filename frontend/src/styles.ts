@@ -277,9 +277,9 @@ export const SURFACE_CARD =
 export const ACCENT = {
   /**
    * A solid block filled with the accent, carrying a label: the chosen segment
-   * of the ranking toggle and the calendar's Hours toggle, the ends of a day
-   * selection, the Now button when it is the live arm, the numbered steps in
-   * the welcome dialog, and `BUTTON_PRIMARY` below.
+   * of the ranking toggle, the When and Hours toggles, the ends of a day
+   * selection, the numbered steps in the welcome dialog, and `BUTTON_PRIMARY`
+   * below.
    *
    * The label color is not separable from the fill and must never be restated
    * at a call site — that is the whole failure this role was rewritten to end.

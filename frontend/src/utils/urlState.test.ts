@@ -30,7 +30,7 @@ const polygon: GeoPolygon = {
 }
 
 // A four-day range off the calendar, whole days. `days` is the shape every
-// selection but the Now chip takes.
+// selection but the When toggle's Current arm takes.
 const DAYS: ForecastSelection = {
   kind: 'days',
   startDate: '2026-07-04',
@@ -63,8 +63,8 @@ const base: ShareableState = {
 }
 
 // A truly untouched session: no polygon, no custom CSV, all controls at their
-// App defaults — including the Now chip, which is the one selection carrying no
-// dates to write.
+// App defaults — including the When toggle's Current arm, which is the one
+// selection carrying no dates to write.
 const pristine: ShareableState = {
   polygon: null,
   // Nothing checked is the default now, so a pristine session asks the
@@ -592,7 +592,7 @@ describe('classifyAqiCoverage', () => {
   })
 })
 
-describe('the Now chip (mode=now)', () => {
+describe('the Current arm (mode=now)', () => {
   it('encodes mode=now and no days at all', () => {
     const params = new URLSearchParams(encodeState({ ...base, selection: { kind: 'now' } }, DEFAULT_MODEL))
     expect(params.get('mode')).toBe('now')
