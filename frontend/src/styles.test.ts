@@ -12,6 +12,8 @@ import {
   CHOICE_INPUT,
   CHOICE_ROW,
   DAY,
+  BOUNDS_GRID,
+  CONTROL_W,
   FIELD,
   FIELD_NUMERIC,
   ICON_ADORNMENT,
@@ -524,6 +526,38 @@ describe('shared recipes', () => {
   it('suppresses the platform chrome and keeps room for the arrow it replaces', () => {
     expect(SELECT).toContain('appearance-none')
     expect(SELECT).toContain('pr-8')
+  })
+
+  // The panel's controls share a left edge as well as a right one. The segment
+  // is where the width comes from, so it composes the token rather than
+  // spelling a width that the model picker and Max Results would then have to
+  // match by hand.
+  it('builds the segmented control on the shared control width', () => {
+    expect(SEGMENT).toContain(CONTROL_W)
+  })
+
+  // The bounds grid cannot compose CONTROL_W — it needs the width split across
+  // two boxes and a gap — so it is the one place the number is re-derived, and
+  // the derivation is checked rather than commented. Tailwind's scale is
+  // quarter-rem per step, which is what makes both sides comparable.
+  it('splits the shared control width across the two bounds boxes', () => {
+    const steps = (utility: string) => Number(utility.match(/-(\d+)$/)![1]) / 4
+    const boxes = [...BOUNDS_GRID.matchAll(/_(\d+(?:\.\d+)?)rem/g)].map((m) => Number(m[1]))
+    const gap = steps(BOUNDS_GRID.match(/gap-x-\d+/)![0])
+
+    expect(boxes).toHaveLength(2)
+    expect(boxes[0] + boxes[1] + gap).toBeCloseTo(steps(CONTROL_W))
+  })
+
+  // Every stacked control in the panel composes CONTROL_W, so none of them may
+  // spell a width in the range one would plausibly pick for itself. Scoped to
+  // ControlPanel because that is where the column of label-plus-control rows
+  // lives; the map legend's measured w-44 and the app icon's w-20 are not part
+  // of it. Written so no banned class appears verbatim: v4 scans this file as
+  // raw text and would emit its CSS.
+  it('lets no panel control pick its own width', () => {
+    const controlSized = new RegExp(`\\bw-(2[4-9]|3\\d|4[0-8])\\b`)
+    expect(controlPanelSource.match(controlSized)).toBeNull()
   })
 
   // A numeric field is a field with the spinner arrows taken off, not a second

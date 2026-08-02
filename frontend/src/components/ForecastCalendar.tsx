@@ -221,16 +221,21 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
   const prevMonth = addMonths(month, -1)
   const nextMonth = addMonths(month, 1)
 
-  // The recessed well is the container for what Dates reveals: the Hours row,
-  // the hour fields and the grid. Under Current there is none of that, so the
-  // well framed a single segmented control and read as an empty card waiting
-  // for something. Bare, that row sits on the panel's own surface and lines up
-  // with the Model row above it, which is what it is: one more label-plus-
-  // control row until it has children to hold.
+  // The arm switch sits OUTSIDE the well, and the well holds only what Dates
+  // reveals. Two reasons, and the second is why it is worth the extra element.
+  //
+  // A control must not move when you operate it. With the switch inside,
+  // choosing Dates drew a border around the thing under the cursor and inset it
+  // by the well's padding, so the button you had just pressed shifted while you
+  // were still looking at it.
+  //
+  // And a well around a lone segmented control is an empty card waiting for
+  // something. Out here the row is what it looks like: one more
+  // label-plus-control row, lining up with Model above it.
   const revealsGrid = selection.kind === 'days'
 
   return (
-    <div className={revealsGrid ? `${SURFACE_GROUP} p-2` : undefined}>
+    <>
       {/* Both arms of the control, named, in the shape this panel already uses
           for a choice between two things — the same one the Hours row beneath it
           and the ranking direction toggle wear.
@@ -282,8 +287,8 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
           rows down, which put it below the fold on a laptop; a reviewer once
           got eight points into a review without finding it at all, back when it
           was a collapsed disclosure. */}
-      {selection.kind === 'days' && (
-        <div className="mt-2">
+      {revealsGrid && (
+        <div className={`${SURFACE_GROUP} mt-2 p-2`}>
           <div className="flex items-center justify-between gap-2">
             <span className={TEXT.subheading}>Hours</span>
             <div className={SEGMENT}>
@@ -327,11 +332,7 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
               />
             </div>
           )}
-        </div>
-      )}
 
-      {selection.kind === 'days' && (
-        <>
       {/* Month navigation, bounded by the servable band rather than open-ended:
           paging into a month with nothing pickable in it is a dead end. */}
       <div className="mb-1 mt-2 flex items-center justify-between border-t border-slate-700 pt-2">
@@ -398,9 +399,9 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
           </div>
         ))}
       </div>
-        </>
+        </div>
       )}
-    </div>
+    </>
   )
 }
 

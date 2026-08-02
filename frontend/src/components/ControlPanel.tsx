@@ -17,7 +17,9 @@ import {
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
   CHOICE_INPUT,
+  BOUNDS_GRID,
   CHOICE_ROW,
+  CONTROL_W,
   FIELD,
   FIELD_NUMERIC,
   LINK,
@@ -594,7 +596,7 @@ export default function ControlPanel({
                 renders the panel narrower than its trigger and widens it to
                 380px regardless. */}
             <span className={`${TEXT.control} flex-1`}>Model</span>
-            <div className="relative w-32">
+            <div className={`relative ${CONTROL_W}`}>
               {/* A model named by a link but not offered here still has to
                   appear, or the control would silently show a different model
                   than the one about to be requested. */}
@@ -718,7 +720,7 @@ export default function ControlPanel({
           <h2 className={`${TEXT.section} mb-1`}>
             4. Filters
           </h2>
-          <div className="grid grid-cols-[minmax(0,1fr)_3.75rem_3.75rem] items-center gap-x-2 gap-y-2">
+                    <div className={BOUNDS_GRID}>
             {filterRows.map((row) => (
               <Fragment key={row.id}>
                 <label htmlFor={`${row.id}-lower`} className={TEXT.control}>
@@ -785,7 +787,7 @@ export default function ControlPanel({
                 onChange={(e) =>
                   setLimit(clampLimit(parseInt(e.target.value) || DEFAULT_LIMIT, maxLimit))
                 }
-                className={`${FIELD_NUMERIC} w-32 px-2 py-1.5 text-center`}
+                className={`${FIELD_NUMERIC} ${CONTROL_W} px-2 py-1.5 text-center`}
               />
             </div>
 
