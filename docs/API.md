@@ -291,6 +291,70 @@ part in a `min_elevation_ft` / `max_elevation_ft` filter. Send it and your
 value stands, untouched. Rows whose elevation is still unknown after all that
 are never filtered out.
 
+## Asking for only what you would actually go to
+
+Ranking orders every candidate; it never removes one. To say "and nothing
+wetter than this", set bounds. Each is optional, each is a number or omitted,
+and they combine as an AND:
+
+| Field pair | Keeps a destination when |
+| --- | --- |
+| `min_precip_total_in` / `max_precip_total_in` | its `precip_total_in` is inside the range |
+| `min_temp_f` / `max_temp_f` | its `temp_min_f` is at or above the floor **and** its `temp_max_f` at or below the ceiling |
+| `min_wind_mph` / `max_wind_mph` | its `wind_min_mph` is at or above the floor **and** its `wind_max_mph` at or below the ceiling |
+| `min_aqi` / `max_aqi` | its `aqi_max` is inside the range |
+
+```bash
+curl -s https://bluebirdforecast.com/api/analyze \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "destination_types": [],
+    "forecast_mode": "window",
+    "start_datetime": "2026-08-01T14:00:00Z",
+    "end_datetime":   "2026-08-02T02:00:00Z",
+    "max_precip_total_in": 0.1,
+    "max_wind_mph": 20,
+    "max_aqi": 100,
+    "limit": 5,
+    "custom_destinations": [
+      { "name": "Mt Rainier", "latitude": 46.8529, "longitude": -121.7604 },
+      { "name": "Mt Adams",   "latitude": 46.2024, "longitude": -121.4909 }
+    ]
+  }' | jq '{total_queried, total_matched, kept: [.results[].name]}'
+```
+
+Four things are worth knowing before relying on them.
+
+**A ceiling reads the worst hour, a floor the best.** `max_wind_mph: 20` does
+not mean "averages under 20", it means "never exceeds 20", so a destination
+that gusts to 45 at noon is gone. That is the only reading you can plan
+against. Precipitation and air quality have no minimum aggregate to read, so
+both of their bounds compare one field: the window total, and the worst hour.
+
+**They run before the ranking and before `limit`.** So `limit: 10` with a wind
+ceiling returns the ten driest destinations that stay calm, not whichever of
+the ten driest happened to be calm.
+
+**A null passes every bound.** Only `aqi_max` can be null, and it is null
+whenever the window outruns the roughly five-day air-quality horizon or the
+best-effort fetch failed. An absent number is not evidence of bad air, so those
+rows are kept, exactly as an untagged summit survives an elevation band.
+
+**An AQI bound costs more than the others.** Air quality is normally fetched
+only for the rows being returned. Bounding it forces the fetch for every
+candidate, since a bound cannot be applied to a value that was never fetched.
+
+`total_matched` in the response is how many candidates satisfied the bounds
+before `limit` cut the list; `total_queried` stays what it always was, how many
+were analyzed. With no bound set they are equal, so a client can report "N of M
+matching" without knowing whether anything filtered.
+
+These are not the same kind of thing as `min_elevation_ft` /
+`max_elevation_ft`. Elevation is known before any forecast exists, so it is
+applied at discovery and a constrained analysis genuinely costs fewer upstream
+calls. Nothing here can do that: a destination's precipitation is unknowable
+until it has been fetched, so these shrink the answer, never the work.
+
 ## When a search finds too much
 
 Every candidate gets a real forecast, so analyses are capped at a candidate
@@ -327,7 +391,7 @@ data: {"type": "status", "message": "Searching for Destinations…", "detail": "
 
 data: {"type": "progress", "processed": 50, "total": 120, "percent": 41}
 
-data: {"type": "result", "data": {"results": [...], "total_queried": 120}}
+data: {"type": "result", "data": {"results": [...], "total_queried": 120, "total_matched": 120}}
 ```
 
 A `status` event may carry an optional `detail` line alongside `message`: a

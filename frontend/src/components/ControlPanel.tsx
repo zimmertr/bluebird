@@ -638,7 +638,7 @@ export default function ControlPanel({
           )}
         </section>
 
-        {/* Step 4: Rank by — metric radio + Lowest/Highest toggle per row. The
+        {/* Step 3: Rank by — metric radio + Lowest/Highest toggle per row. The
             toggle stays clickable on inactive rows so any ranking is one click;
             selecting a metric via its radio keeps the current direction. */}
         <section>
