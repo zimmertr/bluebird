@@ -106,6 +106,14 @@ class ForecastModelInfo(BaseModel):
             "blends a fine regional grid into a coarse global one."
         )
     )
+    finest_grid_km: float = Field(
+        description=(
+            "The finest grid this model offers anywhere, in kilometres. For "
+            "the `*_seamless` blends that is their regional component, not "
+            "their global one, so it describes the model at its best rather "
+            "than everywhere: where the fine grid lands is in `summary`."
+        )
+    )
     forecast_hours: int = Field(
         description=(
             "How many hours ahead of now this model still has data for, as a "
@@ -245,6 +253,7 @@ async def capabilities() -> CapabilitiesResponse:
                 id=model.value,
                 label=info.label,
                 summary=info.summary,
+                finest_grid_km=info.finest_grid_km,
                 forecast_hours=info.forecast_hours,
                 regional=info.regional,
                 default=model is DEFAULT_FORECAST_MODEL,

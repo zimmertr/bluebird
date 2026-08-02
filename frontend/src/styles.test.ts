@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ACCENT,
   ACCENT_RING,
+  BADGE_ACCENT,
   BUTTON_ACCENT,
   BUTTON_DANGER,
   BUTTON_FLOATING,
@@ -435,6 +436,16 @@ describe('shared recipes', () => {
     ['DAY.cell', DAY.cell],
   ])('%s is a tap target on a coarse pointer', (_name, recipe) => {
     expect(recipe).toContain('touch:')
+  })
+
+  // A badge is not a button. It takes the accent fill so it survives a reader
+  // who skims eight rows of prose without reading any of them, and it must not
+  // take the tap target that would make an unpressable word look pressable.
+  it('marks a row with a fill rather than with more accent text', () => {
+    expect(BADGE_ACCENT).toContain(ACCENT.fill)
+    expect(BADGE_ACCENT).not.toContain(ACCENT.text)
+    expect(BADGE_ACCENT).not.toContain('touch:')
+    expect(BADGE_ACCENT).toContain(RADIUS.pill)
   })
 
   // The segmented control had been built twice from scratch and matched only by

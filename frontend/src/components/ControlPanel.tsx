@@ -511,7 +511,14 @@ export default function ControlPanel({
                   forecastModels.some((m) => m.id === forecastModel)
                     ? forecastModels
                     : [
-                        { id: forecastModel, label: forecastModel, summary: '', forecastHours: 0, regional: false },
+                        {
+                          id: forecastModel,
+                          label: forecastModel,
+                          summary: '',
+                          finestGridKm: 0,
+                          forecastHours: 0,
+                          regional: false,
+                        },
                         ...forecastModels,
                       ]
                 }

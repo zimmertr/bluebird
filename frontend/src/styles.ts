@@ -385,6 +385,32 @@ export const BUTTON_ACCENT =
   `${ACCENT.fill} ${ACCENT.fillHover}`
 
 /**
+ * A word marking the row it sits in, not a control: "Recommended" on the
+ * default forecast model.
+ *
+ * Filled rather than tinted, which is the whole reason it exists. Accent *text*
+ * is the app's quiet accent — the table's sort arrow, a link on hover — and in
+ * a list of eight rows that are all mostly text it reads as more text. A badge
+ * has to survive not being read, so it takes the fill.
+ *
+ * `TAP.action` is deliberately absent: this is the one accent-filled thing in
+ * the app you cannot press, and growing it to 44px would make it look like the
+ * one thing in its row that you can.
+ *
+ * `ACCENT.fill`'s white on `--color-sky-650` measures 4.57:1, so the label
+ * clears AA at this size without the fill needing a shade of its own.
+ *
+ * The type is spelled out rather than composed from `TEXT.overline`, for the
+ * same reason `BUTTON_ACCENT` above spells its size: that role carries
+ * slate-300, which would race `ACCENT.fill`'s white by stylesheet order rather
+ * than by class order, so the winner would not be decidable from this line.
+ * `styles.test.ts` caught exactly that when this was written the short way.
+ */
+export const BADGE_ACCENT =
+  `text-[10px] font-semibold uppercase tracking-wider ` +
+  `${ACCENT.fill} ${RADIUS.pill} px-1.5 py-0.5`
+
+/**
  * The destructive retry inside an error notice: "Try again".
  *
  * The one button in the app that is neither the primary action nor a neutral

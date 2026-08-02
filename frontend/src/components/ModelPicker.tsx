@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { PopoverBox, nextActiveIndex, popoverBox } from '../utils/listbox'
-import type { ForecastModelOption } from '../hooks/useCapabilities'
-import { ACCENT, ICON_ADORNMENT, SELECT, SURFACE_CARD, TEXT } from '../styles'
+import { gridLabel, reachLabel, type ForecastModelOption } from '../hooks/useCapabilities'
+import { BADGE_ACCENT, ICON_ADORNMENT, SELECT, SURFACE_CARD, TEXT } from '../styles'
 
 // Wide enough for a summary to sit on two lines rather than four, measured
 // against the longest of them. The sidebar is ~285px, so this only works
@@ -202,16 +202,29 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
                     i === active ? 'bg-slate-700' : ''
                   }`}
                 >
-                  <div className="flex items-baseline gap-1.5">
-                    {/* Two roles that differ only in weight, so the chosen row
-                        reads as chosen without a second color competing with
-                        the active highlight behind it. */}
-                    <span className={isSelected ? TEXT.subheading : TEXT.control}>
-                      {model.label}
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="flex items-baseline gap-1.5">
+                      {/* Two roles that differ only in weight, so the chosen row
+                          reads as chosen without a second color competing with
+                          the active highlight behind it. */}
+                      <span className={isSelected ? TEXT.subheading : TEXT.control}>
+                        {model.label}
+                      </span>
+                      {model.id === defaultId && (
+                        <span className={BADGE_ACCENT}>Recommended</span>
+                      )}
                     </span>
-                    {model.id === defaultId && (
-                      <span className={`${TEXT.overline} ${ACCENT.text}`}>Recommended</span>
-                    )}
+                    {/* The two numbers, right-aligned into a column of their
+                        own so eight rows can be compared by scanning one edge
+                        rather than by reading eight sentences. Both are data
+                        rather than prose, which is what keeps the reach honest:
+                        it is `forecast_hours` rendered, so it cannot drift from
+                        what the calendar will actually offer. */}
+                    <span className={`${TEXT.micro} flex-shrink-0 tabular-nums`}>
+                      {gridLabel(model.finestGridKm)}
+                      {model.finestGridKm > 0 && model.forecastHours > 0 && ' · '}
+                      {reachLabel(model.forecastHours)}
+                    </span>
                   </div>
                   {model.summary !== '' && (
                     <p className={TEXT.helper}>{model.summary}</p>

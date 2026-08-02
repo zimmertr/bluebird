@@ -70,7 +70,9 @@ Which model answers, and over which hours.
 
 ### Model
 
-Which weather model answers. Opening the picker shows all eight together, each with one line on when to reach for it, because choosing well here means reading them against each other rather than one at a time. The list is ordered best first for mountain terrain, so the default, **NOAA GFS**, is the top entry and is marked **Recommended**.
+Which weather model answers. Opening the picker shows all eight together, because choosing well here means reading them against each other rather than one at a time. Each carries its finest grid and how far it forecasts, right-aligned so the whole list can be compared by scanning one edge, and a line saying when to reach for it. The list is ordered best first for mountain terrain, so the default, **NOAA GFS**, is the top entry and is marked **Recommended**.
+
+The grid figure is the finest that model offers **anywhere**, which for most of them is a regional component rather than a worldwide one: NOAA GFS is 3 km over North America and roughly 13 km over Nepal. That is what each summary names, so read the two together. The reach is the model's own, and it is the same number that bounds the calendar below.
 
 That default is a blend rather than plain GFS: it is HRRR's 3 km grid for the first two days and GFS's coarser grid out to sixteen. High resolution when the resolution matters, reach when it does not.
 

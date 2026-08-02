@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { FALLBACK_FORECAST_MODEL, modelForecastHours, parseCapabilities } from './useCapabilities'
+import {
+  FALLBACK_FORECAST_MODEL,
+  gridLabel,
+  modelForecastHours,
+  parseCapabilities,
+  reachLabel,
+} from './useCapabilities'
 // `?raw` gives us each file's text without executing it, the same drift-guard
 // idiom metrics.test.ts uses. These assert a cap has one source rather than a
 // copy per surface, which is what issue #152 was open about.
@@ -17,6 +23,7 @@ describe('parseCapabilities', () => {
         id: 'gfs_seamless',
         label: 'NOAA GFS',
         summary: 'Sharp over North America at 3 km.',
+        finest_grid_km: 3,
         forecast_hours: 384,
         regional: false,
         default: true,
@@ -39,12 +46,34 @@ describe('parseCapabilities', () => {
           id: 'gfs_seamless',
           label: 'NOAA GFS',
           summary: 'Sharp over North America at 3 km.',
+          finestGridKm: 3,
           forecastHours: 384,
           regional: false,
         },
-        { id: 'gem_seamless', label: 'ECCC GEM', summary: '', forecastHours: 216, regional: false },
-        { id: 'ecmwf_ifs025', label: 'ECMWF IFS', summary: '', forecastHours: 336, regional: false },
-        { id: 'gfs_hrrr', label: 'NOAA HRRR', summary: '', forecastHours: 42, regional: true },
+        {
+          id: 'gem_seamless',
+          label: 'ECCC GEM',
+          summary: '',
+          finestGridKm: 0,
+          forecastHours: 216,
+          regional: false,
+        },
+        {
+          id: 'ecmwf_ifs025',
+          label: 'ECMWF IFS',
+          summary: '',
+          finestGridKm: 0,
+          forecastHours: 336,
+          regional: false,
+        },
+        {
+          id: 'gfs_hrrr',
+          label: 'NOAA HRRR',
+          summary: '',
+          finestGridKm: 0,
+          forecastHours: 42,
+          regional: true,
+        },
       ],
       defaultForecastModel: 'gfs_seamless',
     })
@@ -137,5 +166,39 @@ describe('the polygon-area cap has one source', () => {
         'MAX_AREA_KM2',
       )
     }
+  })
+})
+
+describe('the two figures the picker prints beside a model', () => {
+  it('prints a grid in km, keeping a fractional one', () => {
+    expect(gridLabel(3)).toBe('3 km')
+    expect(gridLabel(2.5)).toBe('2.5 km')
+    expect(gridLabel(25)).toBe('25 km')
+  })
+
+  // A deployment that publishes no figure gets no figure, not "0 km".
+  it('prints nothing for a grid it was not told', () => {
+    expect(gridLabel(0)).toBe('')
+  })
+
+  it('prints reach in whole days', () => {
+    expect(reachLabel(384)).toBe('16 days')
+    expect(reachLabel(336)).toBe('14 days')
+    expect(reachLabel(72)).toBe('3 days')
+  })
+
+  // HRRR is 42 hours, which is the only entry that does not divide evenly and
+  // the only one where rounding is a judgement rather than arithmetic.
+  it('rounds a part-day reach rather than truncating it', () => {
+    expect(reachLabel(42)).toBe('2 days')
+  })
+
+  it('never rounds a real reach down to nothing, and singularizes one day', () => {
+    expect(reachLabel(6)).toBe('1 day')
+    expect(reachLabel(24)).toBe('1 day')
+  })
+
+  it('prints nothing for a reach it was not told', () => {
+    expect(reachLabel(0)).toBe('')
   })
 })
