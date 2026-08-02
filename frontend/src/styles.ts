@@ -812,6 +812,28 @@ export const FIELD =
   'focus:outline-none focus:border-sky-500 placeholder-slate-400'
 
 /**
+ * A numeric field with the browser's spinner arrows suppressed.
+ *
+ * The arrows cost roughly 16px of every field's inner width and buy a pair of
+ * 8px tap targets nobody aims at: a phone shows a number pad, a mouse has the
+ * arrow keys, and the value is typed either way. That trade is invisible on one
+ * wide field and decisive in the filters grid (#115), where ten of them sit
+ * two-to-a-row beside a label. Reclaiming the arrows is what lets a row read
+ * "Precipitation (in)" on one line instead of wrapping to two.
+ *
+ * Every numeric input in the app composes this, including the wide ones that
+ * did not need it. The grid made the difference visible: two number fields in
+ * one panel wearing different chrome reads as an oversight, not as a decision
+ * about column widths.
+ *
+ * Both spellings are needed: `appearance: textfield` is what Firefox reads, and
+ * the two pseudo-elements are what WebKit and Blink read.
+ */
+export const FIELD_NUMERIC =
+  `${FIELD} [appearance:textfield] ` +
+  '[&::-webkit-outer-spin-button]:[appearance:none] [&::-webkit-inner-spin-button]:[appearance:none]'
+
+/**
  * The same recessed surface for a native `<select>`.
  *
  * Composed from `FIELD` rather than written afresh so a dropdown and a text

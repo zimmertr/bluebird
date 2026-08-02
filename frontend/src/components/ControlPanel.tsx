@@ -19,6 +19,7 @@ import {
   CHOICE_INPUT,
   CHOICE_ROW,
   FIELD,
+  FIELD_NUMERIC,
   LINK,
   NOTICE,
   PANEL_EDGE,
@@ -315,12 +316,21 @@ export default function ControlPanel({
 
   // The filter grid, one row per bounded thing.
   //
-  // Each label is composed from `metrics.ts`, and the two rows whose bounds
-  // both read a single result field wear that field's own table-column name.
-  // That is the only thing on screen saying which value a bound compares, and
-  // it costs no prose: precipitation is bounded on the window total, air
-  // quality on its worst hour, while temperature and wind bound the band
-  // itself and so read bare. Elevation carries no aggregate at all.
+  // The columns are headed with the two aggregate names from `metrics.ts`,
+  // because for most of this grid that is literally what they are: the
+  // elevation, wind and temperature rows bound each row's own extremes, so a
+  // ceiling of 20 on the wind row holds the table's gustiest-hour column at or
+  // below 20. Two cells stretch that reading, deliberately. Precipitation is
+  // bounded on the window TOTAL in both columns, because a per-hour floor
+  // would be 0.000 almost everywhere and the noun already means the total in
+  // the Ranking section above. And the air-quality floor reads the worst hour
+  // too, there being no other aggregate to read. The cells anyone actually
+  // reaches for — a temperature band, a wind ceiling, an air-quality ceiling —
+  // land exactly on the column they name.
+  //
+  // Labels stay bare for the same reason. An aggregate in the label would
+  // collide with the column headings rather than clarify them, and it wrapped
+  // the longest row onto two lines.
   //
   // Elevation is deliberately first and deliberately not set apart. It is the
   // one row that gates the fetch rather than the display, so loosening it
@@ -342,7 +352,7 @@ export default function ControlPanel({
     },
     {
       id: 'precipitation',
-      label: metricLabel('precip', AGGREGATE.total),
+      label: metricLabel('precip'),
       step: 0.01,
       lower: bound('minPrecipTotalIn'),
       upper: bound('maxPrecipTotalIn'),
@@ -363,7 +373,7 @@ export default function ControlPanel({
     },
     {
       id: 'air-quality',
-      label: metricLabel('aqi', AGGREGATE.maximum),
+      label: metricLabel('aqi'),
       step: 1,
       lower: bound('minAqi'),
       upper: bound('maxAqi'),
@@ -697,18 +707,13 @@ export default function ControlPanel({
             thing that can be bounded — the same order as the Ranking section
             above, so the two scan alike. */}
         <section>
-          <h2 className={`${TEXT.section} mb-2.5`}>
+          <h2 className={`${TEXT.section} mb-1`}>
             4. Filters
           </h2>
-          {/* "At least" and "At most" rather than the short forms: the headers
-              name a RELATION, and borrowing the aggregates' names for them
-              would claim each cell bounds the column of that name — which is
-              true for temperature and wind, false for the two rows whose label
-              carries its own aggregate, and meaningless for elevation. */}
-          <div className="grid grid-cols-[minmax(0,1fr)_4.75rem_4.75rem] items-center gap-x-2 gap-y-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_3.75rem_3.75rem] items-center gap-x-2 gap-y-2">
             <span />
-            <span className={`${TEXT.caption} text-center`}>At least</span>
-            <span className={`${TEXT.caption} text-center`}>At most</span>
+            <span className={`${TEXT.caption} text-center`}>{AGGREGATE.minimum}</span>
+            <span className={`${TEXT.caption} text-center`}>{AGGREGATE.maximum}</span>
             {filterRows.map((row) => (
               <Fragment key={row.id}>
                 <label htmlFor={`${row.id}-lower`} className={TEXT.control}>
@@ -724,18 +729,20 @@ export default function ControlPanel({
                     onChange={(e) =>
                       row[edge][1](e.target.value === '' ? null : Number(e.target.value))
                     }
-                    className={`${FIELD} w-full px-2 py-1.5`}
+                    className={`${FIELD_NUMERIC} w-full px-2 py-1.5`}
                   />
                 ))}
               </Fragment>
             ))}
           </div>
-          {/* Every filter here lets an unknown value through: many OSM features
-              carry no elevation, and air quality is only forecast about five
-              days out. Dropping those rows would read as an answer when it is
-              an absence of one. */}
+          {/* The two things that can be unknown, named rather than generalized:
+              every other metric here is present on any row that got a forecast
+              at all, and "unknown values" left a reader wondering which. Many
+              OSM features carry no elevation, and air quality is only forecast
+              about five days out — dropping either would read as an answer
+              when it is an absence of one. */}
           <p className={`${TEXT.helper} mt-2`}>
-            Destinations with unknown values are included.
+            Destinations with an unknown elevation or {NOUN.aqi} are included.
           </p>
           {filtersActive && (
             <button onClick={onClearFilters} className={`${BUTTON_SECONDARY} mt-2`}>
@@ -761,7 +768,7 @@ export default function ControlPanel({
                 max={maxLimit}
                 value={limit}
                 onChange={(e) => setLimit(clampLimit(parseInt(e.target.value) || 200, maxLimit))}
-                className={`${FIELD} w-24 px-2 py-1.5`}
+                className={`${FIELD_NUMERIC} w-24 px-2 py-1.5`}
               />
               {/* The knob reads like a cap on the work, and users have taken it
                   for one (#205): a list longer than this looks half-fetched.

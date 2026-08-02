@@ -13,6 +13,7 @@ import {
   CHOICE_ROW,
   DAY,
   FIELD,
+  FIELD_NUMERIC,
   ICON_ADORNMENT,
   ICON_ACTION,
   ICON_BUTTON,
@@ -523,6 +524,22 @@ describe('shared recipes', () => {
   it('suppresses the platform chrome and keeps room for the arrow it replaces', () => {
     expect(SELECT).toContain('appearance-none')
     expect(SELECT).toContain('pr-8')
+  })
+
+  // A numeric field is a field with the spinner arrows taken off, not a second
+  // field, for the same reason the dropdown is built from FIELD.
+  it('builds the numeric field out of the field rather than beside it', () => {
+    expect(FIELD_NUMERIC).toContain(FIELD)
+  })
+
+  // Three rules, none redundant: Firefox reads the appearance property, WebKit
+  // and Blink read the two pseudo-elements. Dropping any one leaves the arrows
+  // on somewhere, and the filters grid (#115) budgets its column widths on
+  // their absence — a row that regains them wraps its label onto two lines.
+  it('suppresses the spinner arrows in every engine that draws them', () => {
+    expect(FIELD_NUMERIC).toContain('[appearance:textfield]')
+    expect(FIELD_NUMERIC).toContain('outer-spin-button')
+    expect(FIELD_NUMERIC).toContain('inner-spin-button')
   })
 
   // The arrow sits over the control it decorates. Without this the one place a

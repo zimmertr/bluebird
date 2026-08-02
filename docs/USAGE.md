@@ -120,23 +120,23 @@ The calendar is fully keyboard operable: arrow keys move by day, Page Up and Pag
 
 ## Step 3: Filters
 
-Ranking puts the best destinations first. Filters say which ones you would consider at all. The section is one grid: a row per thing you can bound, and two columns, **At least** and **At most**. Leave a box empty and that side is unbounded.
+Ranking puts the best destinations first. Filters say which ones you would consider at all. The section is one grid: a row per thing you can bound, and a Min and a Max column. Leave a box empty and that side is unbounded.
 
-| Row | At least | At most |
+| Row | Min | Max |
 |---|---|---|
 | Elevation (ft) | no lower than | no higher than |
-| Precipitation · Total (in) | total over the window is at least | total over the window is at most |
+| Precipitation (in) | total over the window is at least | total over the window is at most |
 | Wind (mph) | never drops below | never exceeds |
 | Temperature (°F) | never drops below | never exceeds |
-| AQI · Max | its worst hour is at least | its worst hour is at most |
+| AQI | its worst hour is at least | its worst hour is at most |
 
-The wording of that table is the point. **A ceiling is a promise about every hour**, not about an average: a 20 mph wind ceiling excludes a destination that gusts to 45 at noon even if it averages 8, because an average that hides a bad afternoon is not something you can plan around. Two rows carry a `·` in their label, and those are the two whose bounds read one number rather than a range: precipitation has no meaningful floor per hour, so it is bounded on the window total, and air quality is bounded on its worst hour.
+The wording of that table is the point. **A ceiling is a promise about every hour**, not about an average: a 20 mph wind ceiling excludes a destination that gusts to 45 at noon even if it averages 8, because an average that hides a bad afternoon is not something you can plan around. For elevation, wind and temperature the two columns are exactly the Min and Max columns of the results table. Precipitation is the exception, bounded on its window total in both columns, because a per-hour minimum would read 0.000 almost everywhere and the total is what "Precipitation" means in the Ranking section too.
 
-**Destinations with unknown values are included.** Many mapped features carry no elevation, and air quality is only forecast about five days out, so a longer window has none at all. A missing number is not evidence of bad conditions, and dropping those rows would quietly empty a report that had simply asked about next week. They ride along, and the table shows a dash where the number would be.
+**Destinations with an unknown elevation or AQI are included.** Those are the two values that can be missing: many mapped features carry no elevation, and air quality is only forecast about five days out, so a longer window has none at all. A missing number is not evidence of bad conditions, and dropping those rows would quietly empty a report that had simply asked about next week. They ride along, and the table shows a dash where the number would be.
 
 Four of these five rows apply the instant you type in them, in both directions, because the browser already holds a forecast for every destination it found. **Elevation is the exception**: it decides what gets fetched in the first place, so narrowing it is instant while widening it needs Analyze again, and the panel says so. **Clear filters** empties the whole grid, elevation included.
 
-When a filter is hiding something, the count under the Analyze button says so: *Showing 12 of 34 matching destinations (91 analyzed)*. If nothing matches, the table says that too, rather than looking like a search that found nothing.
+Everything on screen follows a filter change at once: the table, the map markers, the forecast chart, and the count. When a filter is hiding something, the count under the Analyze button says so: *Showing 12 of 34 matching destinations (91 analyzed)*. If nothing matches, the table says that too, rather than looking like a search that found nothing.
 
 ## Step 4: Set Max Results
 
