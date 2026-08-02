@@ -3,6 +3,7 @@ import {
   ACCENT,
   ACCENT_RING,
   BADGE_ACCENT,
+  LAYER,
   BUTTON_ACCENT,
   BUTTON_DANGER,
   BUTTON_FLOATING,
@@ -44,7 +45,12 @@ import appSource from './App.tsx?raw'
 // The arbitrary branch cannot carry a trailing \b: `text-[10px]` ends in `]`, a
 // non-word character, so a boundary there would require the *next* character to
 // be a word one — which it never is, mid-class-list.
-const SIZE = /\btext-(?:xs|sm|base|lg|xl|2xl|3xl)\b|\btext-\[[^\]]+\]/g
+// Unprefixed sizes only. A breakpoint-prefixed one (`sm:text-sm`) is the same
+// role at a different width rather than a second size competing with the first,
+// so the one-size rule below has to look past it.
+const SIZE = /(?<![\w:-])text-(?:xs|sm|base|lg|xl|2xl|3xl)\b|(?<![\w:-])text-\[[^\]]+\]/g
+const RESPONSIVE_SIZE = /\bsm:text-(xs|sm|base|lg|xl|2xl|3xl)\b/g
+const RAMP = ['xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl']
 
 function sizes(classes: string): string[] {
   return classes.match(SIZE) ?? []
@@ -130,7 +136,24 @@ describe('the reading tier', () => {
   // tagline wears since the two roles merged in #165. If this drifts, the
   // tiers have stopped rhyming and the tagline needs a role of its own again.
   it('keeps the dialog subtitle one size up from the caption step', () => {
-    expect(PROSE.subtitle.replace('text-sm', 'text-xs')).toBe(TEXT.caption)
+    expect(PROSE.subtitle.replace('text-xs sm:text-sm', 'text-xs')).toBe(TEXT.caption)
+  })
+
+  // A phone is not "wide enough to hold a paragraph", which is what this tier
+  // is for, so every step that sets a size drops one rung below `sm`. The
+  // welcome dialog overran a phone screen by a little and earned a scrollbar
+  // over copy someone is reading for the first time.
+  it('steps down on a narrow screen rather than scrolling', () => {
+    for (const [role, classes] of Object.entries(PROSE)) {
+      const base = sizes(classes)[0]
+      const wide = classes.match(RESPONSIVE_SIZE)?.[0]
+      if (base === undefined) continue // `strong` sets no size at all
+      if (classes === TEXT.caption) continue // `note` is already the last rung
+      expect(wide, `${role} must carry a wider step`).toBeDefined()
+      const small = RAMP.indexOf(base.replace('text-', ''))
+      const large = RAMP.indexOf(wide!.replace('sm:text-', ''))
+      expect(small, `${role} must be smaller below sm`).toBeLessThan(large)
+    }
   })
 })
 
@@ -446,6 +469,21 @@ describe('shared recipes', () => {
     expect(BADGE_ACCENT).not.toContain(ACCENT.text)
     expect(BADGE_ACCENT).not.toContain('touch:')
     expect(BADGE_ACCENT).toContain(RADIUS.pill)
+  })
+
+  // The model picker opened behind the drawer that contains it, because the two
+  // z values were chosen in different files and never compared. This asserts the
+  // stack reads in the order the names claim, so the next layer has to say where
+  // it belongs rather than pick a number.
+  it('orders the stacking layers the way their names read', () => {
+    const depth = (v: string) => Number(v.replace(/^z-\[?|\]$/g, ''))
+    const stack = [LAYER.base, LAYER.overlay, LAYER.scrim, LAYER.drawer, LAYER.popover, LAYER.modal]
+    const depths = stack.map(depth)
+    expect(depths).toEqual([...depths].sort((a, b) => a - b))
+    expect(new Set(depths).size).toBe(depths.length)
+    // The two that caused the bug, stated outright rather than left to the sort.
+    expect(depth(LAYER.popover)).toBeGreaterThan(depth(LAYER.drawer))
+    expect(depth(LAYER.modal)).toBeGreaterThan(depth(LAYER.popover))
   })
 
   // The segmented control had been built twice from scratch and matched only by

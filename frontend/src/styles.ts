@@ -100,16 +100,27 @@ export const TEXT = {
  * A step up from the compact tier, for surfaces wide enough to hold a
  * paragraph. `note` is deliberately the compact tier's `caption` — the rung
  * where the two densities meet.
+ *
+ * Every step here is one size smaller below `sm`, because "wide enough to hold
+ * a paragraph" is not true of a phone. The welcome dialog is the case that
+ * forced it: at the desktop step its six numbered items overran a phone screen
+ * by a little, and the whole dialog earned a scrollbar to recover a few dozen
+ * pixels. Shrinking a step is the cheaper answer than scrolling copy someone is
+ * reading for the first time. The scroll is still there underneath as the last
+ * resort, for a short landscape window that no type size would save.
+ *
+ * `note` does not step, because it already sits on the smallest rung in the
+ * app, and `strong` never sets a size at all.
  */
 export const PROSE = {
   /** The dialog's name. */
-  title: 'text-xl font-bold text-white leading-tight',
+  title: 'text-lg sm:text-xl font-bold text-white leading-tight',
   /** The line under it saying what the dialog is for. */
-  subtitle: 'text-sm text-slate-400',
+  subtitle: 'text-xs sm:text-sm text-slate-400',
   /** A heading inside the body copy. */
-  heading: 'text-sm font-semibold text-white',
+  heading: 'text-xs sm:text-sm font-semibold text-white',
   /** Body copy. */
-  body: 'text-sm text-slate-300',
+  body: 'text-xs sm:text-sm text-slate-300',
   /**
    * Inline emphasis — the lead-in naming what a sentence is about. The one
    * role that sets no size: it modifies whatever it sits inside.
@@ -451,7 +462,7 @@ export const BUTTON_FLOATING =
  */
 export const BANNER_PREVIEW =
   'flex-shrink-0 bg-red-600 text-white text-center text-xs sm:text-sm ' +
-  'font-semibold py-1.5 px-4 z-30 shadow-md'
+  'font-semibold py-1.5 px-4 shadow-md'
 
 /**
  * An icon that acts on hover: the table's external-destination links.
@@ -482,6 +493,35 @@ export const ICON_ADORNMENT =
  */
 export const SPINNER =
   `animate-spin ${RADIUS.pill} border-2 border-slate-500 border-t-sky-400`
+
+/**
+ * What sits in front of what.
+ *
+ * Six values across three files, each picked in isolation, which is how the
+ * model picker ended up *behind* the mobile drawer that contains it: the drawer
+ * took z-40 and the popover z-30, so on a narrow window the list opened
+ * invisibly behind the panel, and closing the panel to see it unmounted the
+ * picker along with it. Naming the order is what makes that a compile-time
+ * question rather than a discovery.
+ *
+ * Read top to bottom as the stack. The one rule that is not obvious: a popover
+ * belongs *above* the drawer, because it is opened from inside it, and below a
+ * dialog, because a dialog is modal and a popover is not.
+ */
+export const LAYER = {
+  /** Map chrome, the sticky table header, the docked panels. */
+  base: 'z-10',
+  /** The analysis overlay, over the map while a run is in flight. */
+  overlay: 'z-20',
+  /** The scrim behind the mobile drawer, and the preview banner. */
+  scrim: 'z-30',
+  /** The mobile drawer itself. */
+  drawer: 'z-40',
+  /** Anything opened from inside the drawer, which must clear it. */
+  popover: 'z-50',
+  /** Modal dialogs, and the shield that swallows pointer events mid-drag. */
+  modal: 'z-[60]',
+} as const
 
 /**
  * The recessed surface, and the boundary that closes it.

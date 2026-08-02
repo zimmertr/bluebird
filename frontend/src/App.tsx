@@ -19,6 +19,7 @@ import {
   BUTTON_FLOATING,
   BUTTON_SECONDARY,
   ICON_BUTTON,
+  LAYER,
   LINK,
   PROSE,
   RADIUS,
@@ -986,13 +987,15 @@ export default function App() {
       {preview.enabled && <PreviewBanner pr={preview.pr} commit={preview.commit} />}
       <div className="flex flex-1 overflow-hidden min-h-0 relative">
       {showWelcome && <WelcomeModal onDismiss={dismissWelcome} />}
-      {isDragging && <div className="fixed inset-0 z-50 cursor-ns-resize touch-none" />}
+      {isDragging && (
+        <div className={`fixed inset-0 ${LAYER.modal} cursor-ns-resize touch-none`} />
+      )}
 
       {/* Mobile: dim backdrop behind the open drawer */}
       {sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
-          className="lg:hidden absolute inset-0 z-30 bg-black/50"
+          className={`lg:hidden absolute inset-0 ${LAYER.scrim} bg-black/50`}
         />
       )}
 
@@ -1000,7 +1003,7 @@ export default function App() {
           When closed it stays absolute + translated off-screen so it leaves the
           layout and the map fills the full width on every breakpoint. */}
       <aside
-        className={`absolute inset-y-0 left-0 z-40 w-[85vw] max-w-xs transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r border-slate-700 ${
+        className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[85vw] max-w-xs transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r border-slate-700 ${
           sidebarOpen
             ? 'translate-x-0 lg:static lg:z-10 lg:w-80 lg:max-w-none lg:transition-none'
             : '-translate-x-full'

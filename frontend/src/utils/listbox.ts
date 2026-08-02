@@ -94,8 +94,18 @@ export function popoverBox(
   const width = clamp(preferredWidth, trigger.width, viewport.width - margin * 2)
   const left = clamp(trigger.left, margin, viewport.width - width - margin)
 
-  const below = Math.max(viewport.height - (trigger.top + trigger.height) - gap - margin, 0)
-  const above = Math.max(trigger.top - gap - margin, 0)
+  // The trigger's own edges, clipped into the viewport before anything is
+  // measured from them. It can genuinely be off screen: the control panel is a
+  // scrolling column, so a short window puts the model row below the fold while
+  // its popover is still open. Measuring from the raw rect then invents room
+  // that is not there — a trigger at y=526 in a 339px window reports 514px
+  // "above" it — and the `above` branch turns that into a negative `bottom`,
+  // which pushes the panel *down* past the bottom edge instead of up.
+  const triggerTop = clamp(trigger.top, 0, viewport.height)
+  const triggerBottom = clamp(trigger.top + trigger.height, 0, viewport.height)
+
+  const below = Math.max(viewport.height - triggerBottom - gap - margin, 0)
+  const above = Math.max(triggerTop - gap - margin, 0)
   const whole = Math.max(viewport.height - margin * 2, 0)
 
   if (desiredHeight <= below) {
@@ -104,7 +114,7 @@ export function popoverBox(
       width,
       maxHeight: below,
       placement: 'below',
-      offset: { top: trigger.top + trigger.height + gap },
+      offset: { top: triggerBottom + gap },
     }
   }
   if (desiredHeight <= above) {
@@ -113,7 +123,7 @@ export function popoverBox(
       width,
       maxHeight: above,
       placement: 'above',
-      offset: { bottom: viewport.height - trigger.top + gap },
+      offset: { bottom: viewport.height - triggerTop + gap },
     }
   }
   // Anchored to the trigger's own top where the viewport allows it, then pushed
@@ -125,7 +135,7 @@ export function popoverBox(
     width,
     maxHeight: whole,
     placement: 'shifted',
-    offset: { top: clamp(trigger.top, margin, viewport.height - margin - height) },
+    offset: { top: clamp(triggerTop, margin, viewport.height - margin - height) },
   }
 }
 

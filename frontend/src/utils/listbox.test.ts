@@ -119,6 +119,47 @@ describe('popoverBox', () => {
     expect(box.left).toBe(8)
   })
 
+  // The bug this clipping exists for. The control panel is a scrolling column,
+  // so a short window leaves the trigger below the fold while its popover is
+  // open. Measured from the raw rect, a trigger at 526 in a 339px window claims
+  // 514px above it, and the `above` branch turns that into `bottom: -183`,
+  // which pushes the panel down past the bottom edge rather than up.
+  it('invents no room above a trigger that has scrolled off screen', () => {
+    const short = { width: 1100, height: 339 }
+    const offScreen = { ...TRIGGER, top: 526 }
+    const box = popoverBox(offScreen, short, opts(495))
+    expect(box.placement).toBe('shifted')
+    expect(box.offset).toEqual({ top: 8 })
+    expect(box.maxHeight).toBe(339 - 16)
+  })
+
+  it('invents no room below a trigger scrolled off the top', () => {
+    const box = popoverBox({ ...TRIGGER, top: -400 }, VIEWPORT, opts(200))
+    expect(box.placement).toBe('below')
+    expect(box.offset).toEqual({ top: 4 })
+    expect(box.maxHeight).toBe(900 - 0 - 4 - 8)
+  })
+
+  // Whatever the trigger does, the panel stays on screen. Asserted over the
+  // whole space rather than case by case, because every failure so far has been
+  // a geometry nobody thought to write a case for.
+  it('always lands inside the viewport', () => {
+    for (const height of [100, 495, 520, 900, Infinity]) {
+      for (const top of [-500, -40, 0, 200, 526, 899, 1400]) {
+        const vp = { width: 1100, height: 339 }
+        const box = popoverBox({ ...TRIGGER, top }, vp, opts(height))
+        const where = `top=${top} h=${height}`
+        if ('top' in box.offset) {
+          expect(box.offset.top, where).toBeGreaterThanOrEqual(0)
+          expect(box.offset.top + box.maxHeight, where).toBeLessThanOrEqual(vp.height)
+        } else {
+          expect(box.offset.bottom, where).toBeGreaterThanOrEqual(0)
+          expect(box.offset.bottom + box.maxHeight, where).toBeLessThanOrEqual(vp.height)
+        }
+      }
+    }
+  })
+
   it('never reports negative room', () => {
     const squeezed = { ...TRIGGER, top: 899 }
     expect(popoverBox(squeezed, VIEWPORT, opts(0)).maxHeight).toBeGreaterThanOrEqual(0)

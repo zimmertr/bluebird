@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { PopoverBox, nextActiveIndex, popoverBox } from '../utils/listbox'
 import { gridLabel, reachLabel, type ForecastModelOption } from '../hooks/useCapabilities'
-import { BADGE_ACCENT, ICON_ADORNMENT, SELECT, SURFACE_CARD, TEXT } from '../styles'
+import { BADGE_ACCENT, ICON_ADORNMENT, LAYER, SELECT, SURFACE_CARD, TEXT } from '../styles'
 
 // Wide enough for a summary to sit on two lines rather than three: the longest
 // measures 512px, so it uses 72% of the 708px two lines buy. The sidebar is
@@ -202,7 +202,7 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
               maxHeight: box.maxHeight,
               ...box.offset,
             }}
-            className={`${SURFACE_CARD} z-30 flex flex-col`}
+            className={`${SURFACE_CARD} ${LAYER.popover} flex flex-col`}
           >
             {/* Names the right-hand column once instead of eight times. The
                 figures are two bare numbers otherwise, and "3 km" beside a
