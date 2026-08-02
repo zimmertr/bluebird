@@ -8,6 +8,7 @@ import { Refusal } from '../hooks/useAnalyze'
 // (~26,000 km² held 1,117 peaks).
 const AREA_NOTE_KM2 = 40_000
 import ForecastCalendar from './ForecastCalendar'
+import ModelPicker from './ModelPicker'
 import { parseCustomCsv } from '../utils/customDestinations'
 import {
   ACCENT,
@@ -501,42 +502,23 @@ export default function ControlPanel({
               numbers. Ordered longest-reach-first by the server. */}
           <div className="mb-3">
             <span className={`${TEXT.subheading} block mb-1`}>Model</span>
-            {/* A list rather than a dropdown, because choosing well here means
-                reading the eight summaries against each other, and a native
-                select can only show one at a time. Its own options cannot carry
-                the summaries either: measured, the shortest of them needs 303px
-                of label where the control has 245px, so every entry would
-                truncate. Tooltips are worse still — macOS draws the option list
-                as an OS menu that renders no `title`, and a phone has no hover
-                at all.
-
-                Same radio rows as the ranking metrics below, so this is the
-                panel's existing vocabulary rather than a control of its own. */}
-            <div role="radiogroup" aria-label="Forecast model" className="space-y-0.5">
+            <div className="relative">
               {/* A model named by a link but not offered here still has to
                   appear, or the control would silently show a different model
                   than the one about to be requested. */}
-              {!forecastModels.some((m) => m.id === forecastModel) && (
-                <ModelChoice
-                  id={forecastModel}
-                  label={forecastModel}
-                  summary=""
-                  recommended={false}
-                  checked
-                  onChoose={setForecastModel}
-                />
-              )}
-              {forecastModels.map((m) => (
-                <ModelChoice
-                  key={m.id}
-                  id={m.id}
-                  label={m.label}
-                  summary={m.summary}
-                  recommended={m.id === defaultForecastModel}
-                  checked={m.id === forecastModel}
-                  onChoose={setForecastModel}
-                />
-              ))}
+              <ModelPicker
+                models={
+                  forecastModels.some((m) => m.id === forecastModel)
+                    ? forecastModels
+                    : [
+                        { id: forecastModel, label: forecastModel, summary: '', forecastHours: 0, regional: false },
+                        ...forecastModels,
+                      ]
+                }
+                value={forecastModel}
+                defaultId={defaultForecastModel}
+                onChange={setForecastModel}
+              />
             </div>
             {modelClamped && (
               <p className={`mt-2 ${STATUS.warn} ${NOTICE.warn}`}>
@@ -835,50 +817,3 @@ export default function ControlPanel({
   )
 }
 
-/**
- * One model in the picker: the name, whether it is the one you get by default,
- * and the line saying when to reach for it.
- *
- * The summary is optional rather than required, because it arrives from
- * `/api/capabilities` and a deployment on an older build publishes none. A row
- * without one is a plain name, which is what the picker was before, rather than
- * a row with a hole in it.
- */
-function ModelChoice({
-  id,
-  label,
-  summary,
-  recommended,
-  checked,
-  onChoose,
-}: {
-  id: string
-  label: string
-  summary: string
-  recommended: boolean
-  checked: boolean
-  onChoose: (id: string) => void
-}) {
-  return (
-    <label className={CHOICE_ROW}>
-      <input
-        type="radio"
-        name="forecast_model"
-        checked={checked}
-        onChange={() => onChoose(id)}
-        className={CHOICE_INPUT}
-      />
-      <span className="min-w-0">
-        <span className="flex items-baseline gap-1.5">
-          <span className="truncate">{label}</span>
-          {recommended && (
-            <span className={`${TEXT.overline} ${ACCENT.text} flex-shrink-0`}>
-              Recommended
-            </span>
-          )}
-        </span>
-        {summary !== '' && <span className={`${TEXT.helper} block`}>{summary}</span>}
-      </span>
-    </label>
-  )
-}

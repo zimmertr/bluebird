@@ -1,0 +1,227 @@
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { PopoverBox, nextActiveIndex, popoverBox } from '../utils/listbox'
+import type { ForecastModelOption } from '../hooks/useCapabilities'
+import { ACCENT, ICON_ADORNMENT, SELECT, SURFACE_CARD, TEXT } from '../styles'
+
+// Wide enough for a summary to sit on two lines rather than four, measured
+// against the longest of them. The sidebar is ~285px, so this only works
+// because the panel floats clear of it and over the map.
+const PREFERRED_WIDTH_PX = 380
+const GAP_PX = 4
+const VIEWPORT_MARGIN_PX = 8
+
+interface Props {
+  models: readonly ForecastModelOption[]
+  value: string
+  /** The model a request with no `forecast_model` lands on. Marked in the list. */
+  defaultId: string
+  onChange: (id: string) => void
+}
+
+/**
+ * The forecast model, as a button that opens a list of all of them.
+ *
+ * A native `<select>` cannot do this job. Choosing well here means reading eight
+ * summaries against each other, and a select shows one at a time; its options
+ * cannot carry the summaries either, since the shortest needs 303px of label
+ * where the control has 245px, so every entry would truncate. `title` on an
+ * option is not a way out: macOS draws the list as an OS menu that renders no
+ * tooltip, and a phone has no hover at all.
+ *
+ * So this is the WAI-ARIA listbox pattern, hand-rolled, which is the price of
+ * the requirement. The panel is portalled to `document.body` and positioned
+ * fixed, because the control panel is an `overflow-y-auto` column that would
+ * otherwise clip it at the scroll boundary.
+ */
+export default function ModelPicker({ models, value, defaultId, onChange }: Props) {
+  const [open, setOpen] = useState(false)
+  const [box, setBox] = useState<PopoverBox | null>(null)
+  const selectedIndex = models.findIndex((m) => m.id === value)
+  const [active, setActive] = useState(Math.max(selectedIndex, 0))
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  const selected = selectedIndex >= 0 ? models[selectedIndex] : null
+
+  function place() {
+    const trigger = triggerRef.current
+    if (!trigger) return
+    setBox(
+      popoverBox(
+        trigger.getBoundingClientRect(),
+        { width: window.innerWidth, height: window.innerHeight },
+        { preferredWidth: PREFERRED_WIDTH_PX, gap: GAP_PX, margin: VIEWPORT_MARGIN_PX },
+      ),
+    )
+  }
+
+  function openList() {
+    setActive(Math.max(selectedIndex, 0))
+    place()
+    setOpen(true)
+  }
+
+  function close(refocus: boolean) {
+    setOpen(false)
+    if (refocus) triggerRef.current?.focus()
+  }
+
+  function choose(index: number) {
+    const model = models[index]
+    if (model) onChange(model.id)
+    close(true)
+  }
+
+  // Before paint, so the panel never renders at a stale position for a frame.
+  useLayoutEffect(() => {
+    if (open) place()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  // The trigger moves whenever the panel scrolls or the window resizes, and a
+  // fixed-position child does not follow it. Capture phase because the scroll
+  // that matters is the sidebar's own, which does not bubble to window.
+  useEffect(() => {
+    if (!open) return
+    const reposition = () => place()
+    window.addEventListener('resize', reposition)
+    window.addEventListener('scroll', reposition, true)
+    return () => {
+      window.removeEventListener('resize', reposition)
+      window.removeEventListener('scroll', reposition, true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  // Pointerdown rather than click: a click that lands on something which
+  // unmounts under it never reaches document, and the list would stay open.
+  useEffect(() => {
+    if (!open) return
+    function onPointerDown(e: PointerEvent) {
+      const target = e.target as Node
+      if (listRef.current?.contains(target) || triggerRef.current?.contains(target)) return
+      close(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  // Focus the list itself rather than an option, so `aria-activedescendant`
+  // carries the position and the arrow keys stay on one element.
+  useEffect(() => {
+    if (open) listRef.current?.focus()
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    listRef.current
+      ?.querySelector(`[data-index="${active}"]`)
+      ?.scrollIntoView({ block: 'nearest' })
+  }, [open, active])
+
+  function onListKeyDown(e: React.KeyboardEvent) {
+    const moved = nextActiveIndex(active, e.key, models.length)
+    if (moved !== null) {
+      e.preventDefault()
+      setActive(moved)
+      return
+    }
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      choose(active)
+    } else if (e.key === 'Escape' || e.key === 'Tab') {
+      e.preventDefault()
+      close(true)
+    }
+  }
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`Forecast model: ${selected?.label ?? value}`}
+        onClick={() => (open ? close(true) : openList())}
+        onKeyDown={(e) => {
+          if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+            e.preventDefault()
+            openList()
+          }
+        }}
+        className={`${SELECT} w-full px-2 py-1.5 text-left`}
+      >
+        {selected?.label ?? value}
+      </button>
+      <svg
+        className={`${ICON_ADORNMENT} h-4 w-4`}
+        viewBox="0 0 20 20"
+        fill="currentColor"
+        aria-hidden="true"
+      >
+        <path
+          fillRule="evenodd"
+          d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
+          clipRule="evenodd"
+        />
+      </svg>
+      {open &&
+        box &&
+        createPortal(
+          <div
+            ref={listRef}
+            role="listbox"
+            aria-label="Forecast model"
+            aria-activedescendant={`model-option-${active}`}
+            tabIndex={-1}
+            onKeyDown={onListKeyDown}
+            style={{
+              position: 'fixed',
+              left: box.left,
+              width: box.width,
+              maxHeight: box.maxHeight,
+              ...(box.placement === 'below' ? { top: box.top } : { bottom: box.bottom }),
+            }}
+            className={`${SURFACE_CARD} z-30 overflow-y-auto p-1 focus:outline-none`}
+          >
+            {models.map((model, i) => {
+              const isSelected = model.id === value
+              return (
+                <div
+                  key={model.id}
+                  id={`model-option-${i}`}
+                  data-index={i}
+                  role="option"
+                  aria-selected={isSelected}
+                  onPointerEnter={() => setActive(i)}
+                  onClick={() => choose(i)}
+                  className={`cursor-pointer rounded px-2 py-1.5 ${
+                    i === active ? 'bg-slate-700' : ''
+                  }`}
+                >
+                  <div className="flex items-baseline gap-1.5">
+                    {/* Two roles that differ only in weight, so the chosen row
+                        reads as chosen without a second color competing with
+                        the active highlight behind it. */}
+                    <span className={isSelected ? TEXT.subheading : TEXT.control}>
+                      {model.label}
+                    </span>
+                    {model.id === defaultId && (
+                      <span className={`${TEXT.overline} ${ACCENT.text}`}>Recommended</span>
+                    )}
+                  </div>
+                  {model.summary !== '' && (
+                    <p className={TEXT.helper}>{model.summary}</p>
+                  )}
+                </div>
+              )
+            })}
+          </div>,
+          document.body,
+        )}
+    </>
+  )
+}
