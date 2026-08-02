@@ -229,6 +229,13 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
                   {model.summary !== '' && (
                     <p className={TEXT.helper}>{model.summary}</p>
                   )}
+                  {/* What it is made of, in the same quiet register as the two
+                      figures above it, because both are facts about the model
+                      rather than advice about the trip. Printed for the models
+                      that blend nothing too: a reader learns nothing from a
+                      line that is not there, and "NOAA GFS blends HRRR" is
+                      exactly what makes the separate HRRR row legible. */}
+                  {model.blend !== '' && <p className={TEXT.micro}>{model.blend}</p>}
                 </div>
               )
             })}

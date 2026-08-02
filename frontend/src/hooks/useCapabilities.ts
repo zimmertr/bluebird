@@ -21,6 +21,12 @@ export interface ForecastModelOption {
    * Zero when the server did not send one, which the row renders as nothing.
    */
   finestGridKm: number
+  /**
+   * What the model is made of, in one line. Most stitch a fine regional grid
+   * into a coarse global one, which is why the grid figure and the reach do
+   * not describe the same moment. Empty only when the server did not send one.
+   */
+  blend: string
   /** Hours ahead of now this model still has data for. Bounds the calendar. */
   forecastHours: number
   /** Run over part of the world, so some destinations are outside it. */
@@ -55,6 +61,7 @@ export const FALLBACK_FORECAST_MODEL: ForecastModelOption = {
   label: 'NOAA GFS',
   summary: 'The all-round default. Finest detail over North America.',
   finestGridKm: 3,
+  blend: 'Blends HRRR 3 km, then GFS 13 km',
   forecastHours: 384,
   regional: false,
 }
@@ -99,6 +106,7 @@ function parseModels(body: unknown): Pick<
       label: typeof e.label === 'string' ? e.label : e.id,
       summary: typeof e.summary === 'string' ? e.summary : '',
       finestGridKm: typeof e.finest_grid_km === 'number' ? e.finest_grid_km : 0,
+      blend: typeof e.blend === 'string' ? e.blend : '',
       forecastHours: e.forecast_hours,
       regional: e.regional === true,
     })

@@ -72,6 +72,8 @@ Which model answers, and over which hours.
 
 Which weather model answers. Opening the picker shows all eight together, because choosing well here means reading them against each other rather than one at a time. Each carries its finest grid and how far it forecasts, right-aligned so the whole list can be compared by scanning one edge, and a line saying when to reach for it. The list is ordered best first for mountain terrain, so the default, **NOAA GFS**, is the top entry and is marked **Recommended**.
 
+Each entry also says what it is made of. Six of the eight are blends: they use one agency's fine regional grid for roughly the first two days and its coarse global one after that, which is why the grid figure and the reach are never both true at the same moment. None of them blends across agencies. The two that blend nothing say so, and this is where **NOAA GFS** names **NOAA HRRR** as its own first stage, so picking HRRR separately gets you the same numbers with an earlier stop.
+
 The grid figure is the finest that model offers **anywhere**, which for most of them is a regional component rather than a worldwide one: NOAA GFS is 3 km over North America and roughly 13 km over Nepal. That is what each summary names, so read the two together. The reach is the model's own, and it is the same number that bounds the calendar below.
 
 That default is a blend rather than plain GFS: it is HRRR's 3 km grid for the first two days and GFS's coarser grid out to sixteen. High resolution when the resolution matters, reach when it does not.

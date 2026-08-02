@@ -144,6 +144,8 @@ def test_capabilities_publishes_every_selectable_model_with_its_reach():
         info = MODEL_INFO[ForecastModel(entry["id"])]
         assert entry["label"] == info.label
         assert entry["summary"] == info.summary
+        assert entry["finest_grid_km"] == info.finest_grid_km
+        assert entry["blend"] == info.blend
         assert entry["forecast_hours"] == info.forecast_hours
         assert entry["regional"] == info.regional
 
@@ -165,6 +167,29 @@ def test_every_model_carries_a_summary_the_picker_can_show():
         assert summary.strip(), entry["id"]
         assert summary.endswith("."), entry["id"]
         assert len(summary) <= 59, (entry["id"], len(summary))
+
+
+def test_every_model_says_what_it_is_made_of():
+    # Never blank, including for the two that blend nothing: the picker prints
+    # this as its own line, and an absent line teaches a reader nothing. Same
+    # single-line bound as the summary above, and no trailing period, because
+    # this is a label rather than a sentence.
+    for entry in _capabilities()["forecast_models"]:
+        blend = entry["blend"]
+        assert blend.strip(), entry["id"]
+        assert not blend.endswith("."), entry["id"]
+        assert len(blend) <= 59, (entry["id"], len(blend))
+
+
+def test_the_default_names_hrrr_as_its_own_first_stage():
+    # The one relationship between two entries in this list, and the reason the
+    # separate HRRR row is not a second opinion: NOAA GFS *is* HRRR for its
+    # first ~45 hours (measured, see the comment on DEFAULT_FORECAST_MODEL).
+    # If the blend line ever stops saying so, the list goes back to implying
+    # eight independent choices.
+    published = {m["id"]: m for m in _capabilities()["forecast_models"]}
+    assert "HRRR" in published[DEFAULT_FORECAST_MODEL.value]["blend"]
+    assert "no blend" in published[ForecastModel.gfs_hrrr.value]["blend"]
 
 
 def test_capabilities_flags_exactly_one_default_and_it_is_the_request_default():

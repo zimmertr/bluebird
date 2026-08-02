@@ -86,7 +86,7 @@ order is this deployment's editorial ranking for mountain terrain, not a sort on
 any field in the response — it weights grid spacing over forecast length, so it
 is roughly the reverse of ordering by `forecast_hours`. Render it as given.
 
-Three more things follow from the choice, and the same endpoint publishes all of
+Four more things follow from the choice, and the same endpoint publishes all of
 them.
 
 **Each model carries a one-line `summary`** saying when to reach for it, written
@@ -97,6 +97,14 @@ into a coarse global one, and `ecmwf_ifs025` is the 0.25° open-data feed rather
 than ECMWF's 9 km HRES. Quoting the national model instead inverts the ranking,
 because ECCC GEM reads as a 15 km global model unless you count the 2.5 km grid
 that is the reason to pick it here.
+
+**Most models are blends, and `blend` says so.** Six of the eight stitch one
+agency's regional and global models into a single series: a fine grid for
+roughly two days, then a coarse one. That is why `finest_grid_km` and
+`forecast_hours` do not describe the same moment, and it is what makes
+`gfs_hrrr` legible, since `gfs_seamless` names HRRR as its own first stage.
+Nothing here blends across agencies. Entries that blend nothing say so rather
+than sending an empty string.
 
 **Each model reaches a different distance.** `forecast_hours` says how far. It
 is separate from `limits.max_future_days`, which is the hard edge the request
