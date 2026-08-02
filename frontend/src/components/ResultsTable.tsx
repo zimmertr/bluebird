@@ -61,6 +61,10 @@ interface Props {
   // Already in display order: App applies the detail-column sort below before
   // handing these over, so the rows arrive as they are drawn.
   results: DestinationResult[]
+  // Why the table has no rows, when it has none. Rendered as a row under the
+  // headers rather than above the table, so an empty report still reads as a
+  // table that found nothing rather than as a notice with a table beneath it.
+  emptyReason?: string | null
   // The ranking the displayed rows are already in. Live on the client path,
   // where the panel re-derives the rows from the held field on every change.
   sortBy: SortBy
@@ -108,6 +112,7 @@ interface Props {
 
 export default function ResultsTable({
   results,
+  emptyReason,
   sortBy,
   sortDesc,
   onRank,
@@ -399,6 +404,22 @@ export default function ResultsTable({
               {rowCells(row)}
             </tr>
           ))}
+          {emptyReason && results.length === 0 && (pending?.length ?? 0) === 0 && (
+            <tr>
+              {/* The cell spans the table, which is wider than the panel once
+                  the columns overflow, so centring inside it would push the
+                  sentence off the right edge behind a sideways scroll through
+                  columns of nothing. The inner block is pinned to the scroll
+                  container's left edge and sized to its VISIBLE width in
+                  container units, so it stays centred on what the reader can
+                  see at any scroll offset. */}
+              <td colSpan={orderedColumns.length + (showChartCol ? 2 : 1)} className="p-0">
+                <div className={`sticky left-0 w-[100cqi] px-4 py-3 text-center ${TEXT.helper}`}>
+                  {emptyReason}
+                </div>
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>

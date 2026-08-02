@@ -41,7 +41,13 @@ import { buildCustomList, pendingDestinations, pinKey } from './utils/customList
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
 import { composeOverlay } from './utils/analyzeOverlay'
 import { Place, isPeakKind } from './utils/geocode'
-import { encodeState, decodeState, classifyWindow, clampLimit } from './utils/urlState'
+import {
+  DEFAULT_LIMIT,
+  encodeState,
+  decodeState,
+  classifyWindow,
+  clampLimit,
+} from './utils/urlState'
 import { UrlWriter, debounceUrlWrite, urlNeedsSync } from './utils/urlSync'
 import {
   DEFAULT_SELECTION,
@@ -208,9 +214,10 @@ export default function App() {
   // 200 rather than 100 because the pasted lists people bring are themselves
   // often 100 long (peakbagger exports, the examples/ CSVs). At 100 a list plus
   // anything else — one searched peak, a polygon — spills over the cut on its
-  // first analysis, which is what made #205 visible. Mirrored by DEFAULT_LIMIT
-  // in urlState.ts.
-  const [limit, setLimit] = useState(() => clampLimit(restored?.limit ?? 200, caps.maxLimit))
+  // first analysis, which is what made #205 visible.
+  const [limit, setLimit] = useState(() =>
+    clampLimit(restored?.limit ?? DEFAULT_LIMIT, caps.maxLimit),
+  )
   // The initializer above clamps against the compiled fallback, because at
   // first render that is all useCapabilities has. Re-clamp once the real
   // ceiling lands so a deployment that publishes a lower one is honored on a
@@ -1603,20 +1610,13 @@ export default function App() {
                 visible (macOS overlay scrollbars hide the sideways hint).
                 The panel has a drag-resized height on every breakpoint now, so
                 the body just fills it (flex-1) and scrolls a long ranking. */}
-            {/* Outside the scroller on purpose. As a cell spanning every column
-                it centred on the TABLE's width, which is far wider than the
-                panel whenever the columns overflow — so the one sentence
-                explaining an empty report sat off the right edge, reachable
-                only by scrolling sideways past columns of nothing. Out here it
-                centres on what is visible and wraps to the panel. */}
-            {!tableCollapsed && emptyReason !== null && (
-              <p className={`${TEXT.caption} flex-shrink-0 px-4 py-3 text-center`}>
-                {emptyReason}
-              </p>
-            )}
             {!tableCollapsed && (
-              <div className="overflow-auto min-h-0 results-scrollbars flex-1">
+              // `@container` so the empty-state row inside the table can size
+              // itself to what is VISIBLE rather than to the table, which is
+              // far wider whenever the columns overflow. See ResultsTable.
+              <div className="@container overflow-auto min-h-0 results-scrollbars flex-1">
                 <ResultsTable
+                  emptyReason={emptyReason}
                   results={tableRows}
                   sortBy={view.sortBy}
                   sortDesc={view.sortDesc}

@@ -93,7 +93,10 @@ const DEFAULT_SORT: SortBy = 'precip_total_in'
 // one that needs a polygon, so a fresh session asks for none of it until the
 // user says otherwise.
 const DEFAULT_TYPES: DiscoveryType[] = []
-const DEFAULT_LIMIT = 200
+// Exported because the panel now shows it as a PLACEHOLDER rather than a
+// value, so three files needed the same number and two of them were spelling
+// it themselves.
+export const DEFAULT_LIMIT = 200
 
 // Hold a row count inside what the running service will accept. The ceiling is
 // a deployment's answer, not this module's: /api/capabilities publishes it and

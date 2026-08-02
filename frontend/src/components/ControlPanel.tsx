@@ -34,7 +34,7 @@ import {
 import { AGGREGATE, NOUN, RANKING_KEYS, familyOf, metricLabel } from '../metrics'
 import { Constraints, hasConstraints } from '../utils/clientAnalyze'
 import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analyzeGate'
-import { classifyAqiCoverage, clampLimit } from '../utils/urlState'
+import { DEFAULT_LIMIT, classifyAqiCoverage, clampLimit } from '../utils/urlState'
 import {
   AQI_LIMIT_DAYS,
   ForecastSelection,
@@ -770,13 +770,21 @@ export default function ControlPanel({
               <label htmlFor="max-results" className={`${TEXT.control} flex-1`}>
                 {AGGREGATE.maximum} results
               </label>
+              {/* The default rides as a placeholder, like the filter boxes
+                  above, so changing it is one keystroke rather than a select-
+                  and-erase. Empty means the DEFAULT here, not "no cap" as it
+                  does for a filter: this knob always has a value, and the row
+                  count in the table's header says what it is doing. */}
               <input
                 id="max-results"
                 type="number"
                 min={1}
                 max={maxLimit}
-                value={limit}
-                onChange={(e) => setLimit(clampLimit(parseInt(e.target.value) || 200, maxLimit))}
+                placeholder={String(DEFAULT_LIMIT)}
+                value={limit === DEFAULT_LIMIT ? '' : limit}
+                onChange={(e) =>
+                  setLimit(clampLimit(parseInt(e.target.value) || DEFAULT_LIMIT, maxLimit))
+                }
                 className={`${FIELD_NUMERIC} w-32 px-2 py-1.5 text-center`}
               />
             </div>

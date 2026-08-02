@@ -221,8 +221,16 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
   const prevMonth = addMonths(month, -1)
   const nextMonth = addMonths(month, 1)
 
+  // The recessed well is the container for what Dates reveals: the Hours row,
+  // the hour fields and the grid. Under Current there is none of that, so the
+  // well framed a single segmented control and read as an empty card waiting
+  // for something. Bare, that row sits on the panel's own surface and lines up
+  // with the Model row above it, which is what it is: one more label-plus-
+  // control row until it has children to hold.
+  const revealsGrid = selection.kind === 'days'
+
   return (
-    <div className={`${SURFACE_GROUP} p-2`}>
+    <div className={revealsGrid ? `${SURFACE_GROUP} p-2` : undefined}>
       {/* Both arms of the control, named, in the shape this panel already uses
           for a choice between two things — the same one the Hours row beneath it
           and the ranking direction toggle wear.
