@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   ACCENT,
   ACCENT_RING,
+  BADGE_ACCENT,
+  LAYER,
   BUTTON_ACCENT,
   BUTTON_DANGER,
   BUTTON_FLOATING,
@@ -131,6 +133,7 @@ describe('the reading tier', () => {
   it('keeps the dialog subtitle one size up from the caption step', () => {
     expect(PROSE.subtitle.replace('text-sm', 'text-xs')).toBe(TEXT.caption)
   })
+
 })
 
 // Every text-bearing source in the app, so a component added later is covered
@@ -170,6 +173,15 @@ describe('every component', () => {
   // its own at the same step. What no component may do is dim one below AA
   // again. Written so no banned class appears verbatim: v4 scans this file as
   // raw text and would emit its CSS.
+  // A call site that re-widths a segment breaks the alignment the role exists
+  // to hold, and it cannot even be relied on to win: two width utilities resolve
+  // by stylesheet order rather than by class order. Matched only where a width
+  // rides along in the same class list as the role.
+  it.each(Object.entries(sources))('%s re-widths no segment', (_path, source) => {
+    const rides = source.match(/\$\{SEGMENT\}[^`]*/g) ?? []
+    expect(rides.filter((r) => /(^|\s)w-\S+/.test(r))).toEqual([])
+  })
+
   it.each(Object.entries(sources))('%s dims no placeholder below AA', (_path, source) => {
     expect(source).not.toMatch(/placeholder[:-](?:text-)?slate-[56]00/)
   })
@@ -437,12 +449,48 @@ describe('shared recipes', () => {
     expect(recipe).toContain('touch:')
   })
 
+  // A badge is not a button. It takes the accent fill so it survives a reader
+  // who skims eight rows of prose without reading any of them, and it must not
+  // take the tap target that would make an unpressable word look pressable.
+  it('marks a row with a fill rather than with more accent text', () => {
+    expect(BADGE_ACCENT).toContain(ACCENT.fill)
+    expect(BADGE_ACCENT).not.toContain(ACCENT.text)
+    expect(BADGE_ACCENT).not.toContain('touch:')
+    expect(BADGE_ACCENT).toContain(RADIUS.pill)
+  })
+
+  // The model picker opened behind the drawer that contains it, because the two
+  // z values were chosen in different files and never compared. This asserts the
+  // stack reads in the order the names claim, so the next layer has to say where
+  // it belongs rather than pick a number.
+  it('orders the stacking layers the way their names read', () => {
+    const depth = (v: string) => Number(v.replace(/^z-\[?|\]$/g, ''))
+    const stack = [LAYER.base, LAYER.overlay, LAYER.scrim, LAYER.drawer, LAYER.popover, LAYER.modal]
+    const depths = stack.map(depth)
+    expect(depths).toEqual([...depths].sort((a, b) => a - b))
+    expect(new Set(depths).size).toBe(depths.length)
+    // The two that caused the bug, stated outright rather than left to the sort.
+    expect(depth(LAYER.popover)).toBeGreaterThan(depth(LAYER.drawer))
+    expect(depth(LAYER.modal)).toBeGreaterThan(depth(LAYER.popover))
+  })
+
   // The segmented control had been built twice from scratch and matched only by
   // luck. Its colors were already roles; its box was not, which is why the two
   // copies could have carried different padding and nothing would have noticed.
   it('builds a segmented control from one box and one pair of colors', () => {
     expect(SEGMENT).toContain(RADIUS.control)
     expect(SEGMENT_ITEM).not.toMatch(/(^|\s)(bg|text)-(sky|slate)-/)
+  })
+
+  // Sized to their text, the panel's segments did not line up: Current/Dates
+  // measured 111px against Lowest/Highest at 119px, with halves of 59/50 and
+  // 56/61, and stacked in one card that read as three controls that failed to
+  // agree. The box carries a width and the halves split it, so a segment added
+  // later is the same size as the others without anyone remembering to make it
+  // so — which is the whole difference between a role and a convention.
+  it('gives every segment one width and every half an equal share of it', () => {
+    expect(SEGMENT).toMatch(/(^|\s)w-\S+/)
+    expect(SEGMENT_ITEM).toMatch(/(^|\s)flex-1(\s|$)/)
   })
 
   // The radio and its label are one strip, and the strip is the target. Move

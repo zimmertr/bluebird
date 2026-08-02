@@ -385,6 +385,33 @@ export const BUTTON_ACCENT =
   `${ACCENT.fill} ${ACCENT.fillHover}`
 
 /**
+ * A word marking the row it sits in, not a control: "Recommended" on the
+ * default forecast model.
+ *
+ * Filled rather than tinted, which is the whole reason it exists. Accent *text*
+ * is the app's quiet accent — the table's sort arrow, a link on hover — and in
+ * a list of eight rows that are all mostly text it reads as more text. A badge
+ * has to survive not being read, so it takes the fill.
+ *
+ * `TAP.action` is deliberately absent: this is the one accent-filled thing in
+ * the app you cannot press, and growing it to 44px would make it look like the
+ * one thing in its row that you can.
+ *
+ * `ACCENT.fill`'s white on `--color-sky-650` measures 4.57:1, so the label
+ * clears AA at this size without the fill needing a shade of its own.
+ *
+ * The type is spelled out rather than composed from `TEXT.overline`, for the
+ * same reason `BUTTON_ACCENT` above spells its size: that role carries
+ * slate-300, which would race `ACCENT.fill`'s white by stylesheet order rather
+ * than by class order, so the winner would not be decidable from this line.
+ * `styles.test.ts` caught exactly that when this was written the short way.
+ */
+export const BADGE_ACCENT =
+  `text-[10px] font-semibold uppercase tracking-wider ` +
+  `${ACCENT.fill} ${RADIUS.pill} px-1.5 py-0.5`
+
+
+/**
  * The destructive retry inside an error notice: "Try again".
  *
  * The one button in the app that is neither the primary action nor a neutral
@@ -424,7 +451,7 @@ export const BUTTON_FLOATING =
  */
 export const BANNER_PREVIEW =
   'flex-shrink-0 bg-red-600 text-white text-center text-xs sm:text-sm ' +
-  'font-semibold py-1.5 px-4 z-30 shadow-md'
+  'font-semibold py-1.5 px-4 shadow-md'
 
 /**
  * An icon that acts on hover: the table's external-destination links.
@@ -455,6 +482,35 @@ export const ICON_ADORNMENT =
  */
 export const SPINNER =
   `animate-spin ${RADIUS.pill} border-2 border-slate-500 border-t-sky-400`
+
+/**
+ * What sits in front of what.
+ *
+ * Six values across three files, each picked in isolation, which is how the
+ * model picker ended up *behind* the mobile drawer that contains it: the drawer
+ * took z-40 and the popover z-30, so on a narrow window the list opened
+ * invisibly behind the panel, and closing the panel to see it unmounted the
+ * picker along with it. Naming the order is what makes that a compile-time
+ * question rather than a discovery.
+ *
+ * Read top to bottom as the stack. The one rule that is not obvious: a popover
+ * belongs *above* the drawer, because it is opened from inside it, and below a
+ * dialog, because a dialog is modal and a popover is not.
+ */
+export const LAYER = {
+  /** Map chrome, the sticky table header, the docked panels. */
+  base: 'z-10',
+  /** The analysis overlay, over the map while a run is in flight. */
+  overlay: 'z-20',
+  /** The scrim behind the mobile drawer, and the preview banner. */
+  scrim: 'z-30',
+  /** The mobile drawer itself. */
+  drawer: 'z-40',
+  /** Anything opened from inside the drawer, which must clear it. */
+  popover: 'z-50',
+  /** Modal dialogs, and the shield that swallows pointer events mid-drag. */
+  modal: 'z-[60]',
+} as const
 
 /**
  * The recessed surface, and the boundary that closes it.
@@ -500,9 +556,16 @@ export const SEGMENT_IDLE = `${RECESSED_FILL} text-slate-400 hover:text-slate-20
  *
  * No color here: the halves are `ACCENT.fill` and `SEGMENT_IDLE`, so a color
  * in this recipe would be a third one competing with them by stylesheet order.
+ *
+ * The width is fixed and the halves split it, so every segment in the panel is
+ * the same size and every half within one is too. Sized to text, they were not:
+ * Current/Dates measured 111px against Lowest/Highest at 119px, with halves of
+ * 59/50 and 56/61. Stacked in one card that reads as three controls that failed
+ * to line up. 144px is the measured floor plus slack — the widest label here is
+ * "Highest" at 61px of content, so a 72px half leaves 11px.
  */
-export const SEGMENT = `flex ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
-export const SEGMENT_ITEM = `${TAP.action} px-2 py-0.5 text-xs transition-colors`
+export const SEGMENT = `flex w-36 ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
+export const SEGMENT_ITEM = `${TAP.action} flex-1 px-2 py-0.5 text-xs transition-colors`
 /** Between two halves, never before the first. */
 export const SEGMENT_DIVIDER = 'border-l border-slate-500'
 

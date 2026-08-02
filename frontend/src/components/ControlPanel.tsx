@@ -8,6 +8,7 @@ import { Refusal } from '../hooks/useAnalyze'
 // (~26,000 km² held 1,117 peaks).
 const AREA_NOTE_KM2 = 40_000
 import ForecastCalendar from './ForecastCalendar'
+import ModelPicker from './ModelPicker'
 import { parseCustomCsv } from '../utils/customDestinations'
 import {
   ACCENT,
@@ -18,7 +19,6 @@ import {
   CHOICE_INPUT,
   CHOICE_ROW,
   FIELD,
-  ICON_ADORNMENT,
   LINK,
   NOTICE,
   PANEL_EDGE,
@@ -27,7 +27,6 @@ import {
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
-  SELECT,
   STATUS,
   TEXT,
 } from '../styles'
@@ -151,6 +150,10 @@ interface Props {
   forecastModel: string
   setForecastModel: (id: string) => void
   forecastModels: readonly ForecastModelOption[]
+  // Which of them the server would use if asked for none. Marked in the list so
+  // a reader who has wandered off it can find the way back; the ordering alone
+  // cannot say it, since best-first and default-first need not agree.
+  defaultForecastModel: string
   // The last model change moved the far edge in under the chosen window and
   // trimmed it. Worth saying out loud: the calendar redrawing is visible, but a
   // selection quietly losing days is the kind of thing a reader discovers in
@@ -232,6 +235,7 @@ export default function ControlPanel({
   forecastModel,
   setForecastModel,
   forecastModels,
+  defaultForecastModel,
   modelClamped,
   windowWarning,
   commitReason,
@@ -346,7 +350,7 @@ export default function ControlPanel({
             onMouseEnter={() => onPointAtMapPois(true)}
             onMouseLeave={() => onPointAtMapPois(false)}
           >
-            <h3 className={`${TEXT.subheading} mb-1`}>Search by Click</h3>
+            <h3 className={`${TEXT.subheading} mb-1`}>Search by Point</h3>
             <p className={TEXT.helper}>Select a destination from the map.</p>
           </div>
 
@@ -497,40 +501,31 @@ export default function ControlPanel({
               re-present held rows, while a different model is different
               numbers. Ordered longest-reach-first by the server. */}
           <div className="mb-3">
-            <label htmlFor="forecast-model" className={`${TEXT.subheading} block mb-1`}>
-              Model
-            </label>
+            <span className={`${TEXT.subheading} block mb-1`}>Model</span>
             <div className="relative">
-              <select
-                id="forecast-model"
+              {/* A model named by a link but not offered here still has to
+                  appear, or the control would silently show a different model
+                  than the one about to be requested. */}
+              <ModelPicker
+                models={
+                  forecastModels.some((m) => m.id === forecastModel)
+                    ? forecastModels
+                    : [
+                        {
+                          id: forecastModel,
+                          label: forecastModel,
+                          summary: '',
+                          finestGridKm: 0,
+                          forecastHours: 0,
+                          regional: false,
+                        },
+                        ...forecastModels,
+                      ]
+                }
                 value={forecastModel}
-                onChange={(e) => setForecastModel(e.target.value)}
-                className={`${SELECT} w-full px-2 py-1.5`}
-              >
-                {/* A model named by a link but not offered here still has to
-                    appear, or the control would silently show a different
-                    model than the one about to be requested. */}
-                {!forecastModels.some((m) => m.id === forecastModel) && (
-                  <option value={forecastModel}>{forecastModel}</option>
-                )}
-                {forecastModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-              <svg
-                className={`${ICON_ADORNMENT} h-4 w-4`}
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
-                  clipRule="evenodd"
-                />
-              </svg>
+                defaultId={defaultForecastModel}
+                onChange={setForecastModel}
+              />
             </div>
             {modelClamped && (
               <p className={`mt-2 ${STATUS.warn} ${NOTICE.warn}`}>
@@ -828,3 +823,4 @@ export default function ControlPanel({
     </div>
   )
 }
+

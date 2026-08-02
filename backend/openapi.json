@@ -804,6 +804,11 @@
             "title": "Default",
             "type": "boolean"
           },
+          "finest_grid_km": {
+            "description": "The finest grid this model offers anywhere, in kilometres. For the `*_seamless` blends that is their regional component, not their global one, so it describes the model at its best rather than everywhere: where the fine grid lands is in `summary`.",
+            "title": "Finest Grid Km",
+            "type": "number"
+          },
           "forecast_hours": {
             "description": "How many hours ahead of now this model still has data for, as a floor. Distinct from `limits.max_future_days`, which is the hard edge the API refuses past: within that edge, a model simply stops, returning nulls for hours beyond its own reach rather than an error. A model's usable lead shrinks as its last run ages and jumps back when the next lands, so this sits under the trough rather than on any single reading.",
             "title": "Forecast Hours",
@@ -823,11 +828,18 @@
             "description": "True for a model run over part of the world rather than all of it. A request naming one is rejected with 400 if any destination falls outside its grid \u2014 including destinations the caller never sees, since discovery happens server-side.",
             "title": "Regional",
             "type": "boolean"
+          },
+          "summary": {
+            "description": "Why to choose this model, written for someone planning a trip rather than for a meteorologist: what it is best at, then what it blends in. Most entries fold a fine regional grid into a coarse global one for roughly two days, which is why `finest_grid_km` and `forecast_hours` do not describe the same moment. The blend clause names only what is added, never the headline model, since several labels are named after one of their own parts. No model here blends across agencies.",
+            "title": "Summary",
+            "type": "string"
           }
         },
         "required": [
           "id",
           "label",
+          "summary",
+          "finest_grid_km",
           "forecast_hours",
           "regional",
           "default"

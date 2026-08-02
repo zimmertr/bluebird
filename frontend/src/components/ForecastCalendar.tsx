@@ -3,11 +3,14 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import {
   DAY_END,
   DayCell,
+  DaysSelection,
   ForecastSelection,
+  SelectionKind,
   addDays,
   addMonths,
   applyDayClick,
   applyDayDrag,
+  applyModeSwitch,
   dayInMonth,
   dayKey,
   dragAnchor,
@@ -30,7 +33,6 @@ import {
   SEGMENT_IDLE,
   SEGMENT_ITEM,
   SURFACE_GROUP,
-  TAP,
   TEXT,
 } from '../styles'
 
@@ -98,6 +100,12 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
     selection.kind === 'days' ? selection.startDate : today,
   )
   const gridRef = useRef<HTMLDivElement>(null)
+  // The range to come back to when Days is pressed again. A ref rather than
+  // state: nothing renders from it, and making it state would re-render the
+  // panel on every day click to store what that click already displayed.
+  const lastDays = useRef<DaysSelection | null>(
+    selection.kind === 'days' ? selection : null,
+  )
   // Focus follows the arrow keys, but only once one has been pressed: stealing
   // focus on mount would scroll the panel down to the calendar on every load.
   const keyboardNav = useRef(false)
@@ -122,10 +130,28 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
       ? { startDate: selection.startDate, endDate: selection.endDate }
       : null
 
+  useEffect(() => {
+    if (selection.kind === 'days') lastDays.current = selection
+  }, [selection])
+
   function commitClick(day: string) {
     const next = applyDayClick(selection, anchor, day)
     setAnchor(next.anchor)
     onChange(next.selection)
+  }
+
+  function switchMode(kind: SelectionKind) {
+    const next = applyModeSwitch(kind, selection, lastDays.current, now, forecastHours)
+    if (next === selection) return
+    // A half-made range does not survive leaving the arm it was being made in.
+    setAnchor(null)
+    if (next.kind === 'days') {
+      // Restoring a range in another month has to page there, or pressing Days
+      // shows an empty grid and the selection looks lost.
+      setMonth(monthKey(next.startDate))
+      setFocused(next.startDate)
+    }
+    onChange(next)
   }
 
   // Released anywhere, not just over the grid: a drag that ends off the calendar
@@ -196,27 +222,111 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
   const nextMonth = addMonths(month, 1)
 
   return (
-    <div>
-      {/* The landing state, and the way back to it. Its own full-width row above
-          the card rather than a chip tucked beside the grid: it is one of the two
-          arms of this control, not an accessory to the other one, and on a fresh
-          load its pressed state is the only thing saying what will be analyzed.
-          Selecting a day clears it and vice versa. */}
-      <button
-        onClick={() => onChange({ kind: 'now' })}
-        aria-pressed={selection.kind === 'now'}
-        title="Analyze conditions at the current hour"
-        className={`${TEXT.cta} ${TAP.action} mb-2.5 w-full py-2 ${RADIUS.control} transition-colors ${
-          selection.kind === 'now' ? ACCENT.fill : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
-        }`}
-      >
-        Now
-      </button>
+    <div className={`${SURFACE_GROUP} p-2`}>
+      {/* Both arms of the control, named, in the shape this panel already uses
+          for a choice between two things — the same one the Hours row beneath it
+          and the ranking direction toggle wear.
 
-      <div className={`${SURFACE_GROUP} p-2`}>
+          Neither arm is an action, which is why neither is a button. A filled
+          full-width bar here would carry the shape, weight and hue of Analyze
+          further down the same panel, and only one of those two spends upstream
+          quota; a secondary-button look would say the same thing more quietly.
+          What is actually being expressed is which arm is live.
+
+          The grid appears only under Dates, the way the hour fields appear only
+          under Hourly. Each control reveals the next thing its answer makes
+          relevant, and Current has no next thing: it takes no input at all, so
+          a calendar under it would be 250px of card that does nothing. */}
+      <div className="flex items-center justify-between gap-2">
+        <span className={TEXT.subheading}>When</span>
+        <div className={SEGMENT}>
+          {[
+            {
+              kind: 'now' as const,
+              label: 'Current',
+              hint: 'Analyze conditions at the current hour',
+            },
+            // "Dates" rather than "Days" or "Range": this arm is silent about
+            // count and about tense, and it has to be. It holds a single day as
+            // readily as several, and 55 of the 71 days it can reach are behind
+            // today, so anything future-facing would mislabel most of the grid.
+            { kind: 'days' as const, label: 'Dates', hint: 'Analyze a day or a range of days' },
+          ].map((option, i) => (
+            <button
+              key={option.kind}
+              aria-pressed={selection.kind === option.kind}
+              title={option.hint}
+              onClick={() => switchMode(option.kind)}
+              className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
+                selection.kind === option.kind ? ACCENT.fill : SEGMENT_IDLE
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Hours, stacked directly under the arm switch rather than under the
+          grid. Both rows are the same label-plus-segment shape, so the two
+          decisions the window needs — which arm, and how much of a day — read
+          as one block above the thing they qualify. Under the grid it sat six
+          rows down, which put it below the fold on a laptop; a reviewer once
+          got eight points into a review without finding it at all, back when it
+          was a collapsed disclosure. */}
+      {selection.kind === 'days' && (
+        <div className="mt-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className={TEXT.subheading}>Hours</span>
+            <div className={SEGMENT}>
+              {[
+                { hourly: false, label: 'All Day' },
+                { hourly: true, label: 'Hourly' },
+              ].map((option, i) => (
+                <button
+                  key={option.label}
+                  aria-pressed={option.hourly === (hours !== undefined)}
+                  onClick={() => setHours(option.hourly ? hours ?? defaultHours(now) : undefined)}
+                  className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
+                    option.hourly === (hours !== undefined) ? ACCENT.fill : SEGMENT_IDLE
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {hours && (
+            <div className="mt-1.5 flex items-center gap-2">
+              <input
+                type="time"
+                aria-label="Window start time"
+                value={hours.start}
+                onChange={(e) =>
+                  isTimeOfDay(e.target.value) && setHours({ ...hours, start: e.target.value })
+                }
+                className={`${FIELD} w-full px-2 py-1.5`}
+              />
+              <span className={`${TEXT.caption} flex-shrink-0`}>to</span>
+              <input
+                type="time"
+                aria-label="Window end time"
+                value={hours.end}
+                onChange={(e) =>
+                  isTimeOfDay(e.target.value) && setHours({ ...hours, end: e.target.value })
+                }
+                className={`${FIELD} w-full px-2 py-1.5`}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {selection.kind === 'days' && (
+        <>
       {/* Month navigation, bounded by the servable band rather than open-ended:
           paging into a month with nothing pickable in it is a dead end. */}
-      <div className="mb-1 flex items-center justify-between">
+      <div className="mb-1 mt-2 flex items-center justify-between border-t border-slate-700 pt-2">
         <MonthButton
           label="Previous month"
           glyph="‹"
@@ -280,59 +390,8 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
           </div>
         ))}
       </div>
-
-      {/* Hours, always visible once there is a day to apply them to. This was a
-          collapsed disclosure and a reviewer got eight points into a review
-          without finding it, which is the whole reason it now wears the same
-          segmented look as the ranking direction toggle further down the panel. */}
-      {selection.kind === 'days' && (
-        <div className="mt-2 border-t border-slate-700 pt-2">
-          <div className="flex items-center justify-between gap-2">
-            <span className={TEXT.subheading}>Hours</span>
-            <div className={SEGMENT}>
-              {[
-                { hourly: false, label: 'All Day' },
-                { hourly: true, label: 'Hourly' },
-              ].map((option, i) => (
-                <button
-                  key={option.label}
-                  aria-pressed={option.hourly === (hours !== undefined)}
-                  onClick={() => setHours(option.hourly ? hours ?? defaultHours(now) : undefined)}
-                  className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
-                    option.hourly === (hours !== undefined) ? ACCENT.fill : SEGMENT_IDLE
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {hours && (
-            <div className="mt-1.5 flex items-center gap-2">
-              <input
-                type="time"
-                aria-label="Window start time"
-                value={hours.start}
-                onChange={(e) =>
-                  isTimeOfDay(e.target.value) && setHours({ ...hours, start: e.target.value })
-                }
-                className={`${FIELD} w-full px-2 py-1.5`}
-              />
-              <span className={`${TEXT.caption} flex-shrink-0`}>to</span>
-              <input
-                type="time"
-                aria-label="Window end time"
-                value={hours.end}
-                onChange={(e) =>
-                  isTimeOfDay(e.target.value) && setHours({ ...hours, end: e.target.value })
-                }
-                className={`${FIELD} w-full px-2 py-1.5`}
-              />
-            </div>
-          )}
-        </div>
+        </>
       )}
-      </div>
     </div>
   )
 }

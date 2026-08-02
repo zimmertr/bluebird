@@ -1,6 +1,6 @@
 import { useDialog } from '../hooks/useDialog'
 import SafetyNotice from './SafetyNotice'
-import { ACCENT, BUTTON_PRIMARY, PROSE, RADIUS, SURFACE_CARD } from '../styles'
+import { ACCENT, BUTTON_PRIMARY, LAYER, PROSE, RADIUS, SURFACE_CARD } from '../styles'
 
 interface Props {
   onDismiss: () => void
@@ -18,7 +18,7 @@ const STEPS: [string, string][] = [
 export default function WelcomeModal({ onDismiss }: Props) {
   const panelRef = useDialog(onDismiss)
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className={`fixed inset-0 ${LAYER.modal} flex items-center justify-center bg-black/60 backdrop-blur-sm p-4`}>
       <div
         ref={panelRef}
         role="dialog"

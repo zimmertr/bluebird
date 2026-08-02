@@ -10,6 +10,17 @@ import { MAX_ANALYZE_DESTINATIONS } from '../utils/clientAnalyze'
 export interface ForecastModelOption {
   id: string
   label: string
+  /**
+   * One line on when to pick this model. Empty when the server did not send
+   * one, which the picker renders as no line rather than as a gap — a
+   * deployment on an older build should look plainer, not broken.
+   */
+  summary: string
+  /**
+   * The finest grid this model offers anywhere, in km. Shown beside the name.
+   * Zero when the server did not send one, which the row renders as nothing.
+   */
+  finestGridKm: number
   /** Hours ahead of now this model still has data for. Bounds the calendar. */
   forecastHours: number
   /** Run over part of the world, so some destinations are outside it. */
@@ -42,6 +53,10 @@ const FALLBACK_POLYGON_AREA_KM2 = 100_000
 export const FALLBACK_FORECAST_MODEL: ForecastModelOption = {
   id: 'gfs_seamless',
   label: 'NOAA GFS',
+  summary:
+    'The longest reach, and fine detail across the US. Works anywhere.' +
+    ' Blends in the HRRR model.',
+  finestGridKm: 3,
   forecastHours: 384,
   regional: false,
 }
@@ -84,6 +99,8 @@ function parseModels(body: unknown): Pick<
     models.push({
       id: e.id,
       label: typeof e.label === 'string' ? e.label : e.id,
+      summary: typeof e.summary === 'string' ? e.summary : '',
+      finestGridKm: typeof e.finest_grid_km === 'number' ? e.finest_grid_km : 0,
       forecastHours: e.forecast_hours,
       regional: e.regional === true,
     })
@@ -118,6 +135,31 @@ export function modelForecastHours(
     (min, m) => Math.min(min, m.forecastHours),
     FALLBACK_FORECAST_MODEL.forecastHours,
   )
+}
+
+/**
+ * The finest grid a model offers, as the picker prints it. Empty for a
+ * deployment that publishes none, so the row simply omits it.
+ */
+export function gridLabel(km: number): string {
+  return km > 0 ? `${km} km` : ''
+}
+
+/**
+ * How far ahead a model reaches, as the picker prints it.
+ *
+ * Rendered from `forecast_hours` rather than written into the summary prose,
+ * which is the point: this is the same number that bounds the calendar, so the
+ * picker cannot promise a reach the grid below then refuses to offer.
+ *
+ * Rounded to whole days because that is the unit a trip is planned in, and the
+ * underlying figure is a floor under a value that moves with every model run —
+ * printing "1.75 days" would spend precision the number does not have.
+ */
+export function reachLabel(hours: number): string {
+  if (hours <= 0) return ''
+  const days = Math.max(Math.round(hours / 24), 1)
+  return `${days} day${days === 1 ? '' : 's'}`
 }
 
 /**

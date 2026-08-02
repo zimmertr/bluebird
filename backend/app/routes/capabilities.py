@@ -98,6 +98,26 @@ class ForecastModelInfo(BaseModel):
 
     id: str = Field(description="Value to send as `forecast_model`.")
     label: str = Field(description="Human-readable name, as the picker shows it.")
+    summary: str = Field(
+        description=(
+            "Why to choose this model, written for someone planning a trip "
+            "rather than for a meteorologist: what it is best at, then what "
+            "it blends in. Most entries fold a fine regional grid into a "
+            "coarse global one for roughly two days, which is why "
+            "`finest_grid_km` and `forecast_hours` do not describe the same "
+            "moment. The blend clause names only what is added, never the "
+            "headline model, since several labels are named after one of "
+            "their own parts. No model here blends across agencies."
+        )
+    )
+    finest_grid_km: float = Field(
+        description=(
+            "The finest grid this model offers anywhere, in kilometres. For "
+            "the `*_seamless` blends that is their regional component, not "
+            "their global one, so it describes the model at its best rather "
+            "than everywhere: where the fine grid lands is in `summary`."
+        )
+    )
     forecast_hours: int = Field(
         description=(
             "How many hours ahead of now this model still has data for, as a "
@@ -236,6 +256,8 @@ async def capabilities() -> CapabilitiesResponse:
             ForecastModelInfo(
                 id=model.value,
                 label=info.label,
+                summary=info.summary,
+                finest_grid_km=info.finest_grid_km,
                 forecast_hours=info.forecast_hours,
                 regional=info.regional,
                 default=model is DEFAULT_FORECAST_MODEL,

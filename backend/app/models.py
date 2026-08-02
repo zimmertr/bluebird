@@ -137,6 +137,32 @@ class ModelInfo(NamedTuple):
 
     label: str
     forecast_hours: int
+    # Why you would pick this one, for someone planning a trip rather than a
+    # meteorologist. Two sentences: what it is best at, then what it blends in.
+    #
+    # The blend clause names only what is folded *into* the headline model, never
+    # the headline model itself. Three of the labels here are named after one of
+    # their own components — NOAA GFS is HRRR plus GFS, JMA GSM is MSM plus GSM,
+    # Meteo-France ARPEGE is AROME plus ARPEGE — so listing every part makes the
+    # sentence read as circular.
+    #
+    # It lives here rather than in the browser because the picker gets its whole
+    # vocabulary from `/api/capabilities`: a model added to the enum would
+    # otherwise appear with a blank line beside it.
+    #
+    # Grid figures are Open-Meteo's own, for the variant this app requests
+    # (`*_seamless` blends a fine regional grid into a coarse global one, and
+    # `ecmwf_ifs025` is the 0.25 deg open-data feed, not ECMWF's 9 km HRES).
+    # Quoting the headline national model instead is the common mistake and it
+    # inverts the ranking: GEM reads as a 15 km global model unless you count
+    # the 2.5 km HRDPS that is the actual reason to pick it here.
+    summary: str
+    # The finest grid this model offers *anywhere*, in km, which for the
+    # `*_seamless` blends is their regional component rather than their global
+    # one. Where that grid actually lands is the summary's job, and it has to
+    # be: 3 km describes NOAA GFS over North America and 13 km describes it
+    # over Nepal, so the number alone would mislead half the world.
+    finest_grid_km: float
     # HRRR is the only model here that is not global, and its domain is a
     # Lambert conformal grid no lat/lon box describes: Banff, Edmonton and
     # Monterrey answer, while Alaska, Hawaii, Puerto Rico, Newfoundland and
@@ -198,14 +224,63 @@ class ModelInfo(NamedTuple):
 # Being wrong high costs a calendar day that answers with nothing; being wrong
 # low costs a day of real forecast. Re-probe before moving any of them.
 MODEL_INFO: dict[ForecastModel, ModelInfo] = {
-    ForecastModel.gfs_seamless: ModelInfo("NOAA GFS", 384),
-    ForecastModel.gem_seamless: ModelInfo("ECCC GEM", 216),
-    ForecastModel.ecmwf_ifs025: ModelInfo("ECMWF IFS", 336),
-    ForecastModel.gfs_hrrr: ModelInfo("NOAA HRRR", 42, regional=True),
-    ForecastModel.ukmo_seamless: ModelInfo("UK Met Office", 144),
-    ForecastModel.icon_seamless: ModelInfo("DWD ICON", 168),
-    ForecastModel.jma_seamless: ModelInfo("JMA GSM", 240),
-    ForecastModel.meteofrance_seamless: ModelInfo("Meteo-France ARPEGE", 72),
+    ForecastModel.gfs_seamless: ModelInfo(
+        "NOAA GFS",
+        384,
+        "The longest reach, and fine detail across the US. Works anywhere."
+        " Blends in the HRRR model.",
+        3,
+    ),
+    ForecastModel.gem_seamless: ModelInfo(
+        "ECCC GEM",
+        216,
+        "The most detail over Canada and the northern US, and coarse"
+        " elsewhere. Blends in the HRDPS and RDPS models.",
+        2.5,
+    ),
+    ForecastModel.ecmwf_ifs025: ModelInfo(
+        "ECMWF IFS",
+        336,
+        "The most reliable for choosing which weekend to go. Too coarse"
+        " to tell one valley from the next.",
+        25,
+    ),
+    ForecastModel.gfs_hrrr: ModelInfo(
+        "NOAA HRRR",
+        42,
+        "The most detail over the US for the next 48 hours. Already"
+        " inside NOAA GFS, which reaches further.",
+        3,
+        regional=True,
+    ),
+    ForecastModel.ukmo_seamless: ModelInfo(
+        "UK Met Office",
+        144,
+        "The most detail over the UK and Ireland, and coarse elsewhere."
+        " Blends in the UKV model.",
+        2,
+    ),
+    ForecastModel.icon_seamless: ModelInfo(
+        "DWD ICON",
+        168,
+        "The most detail over Germany and the Alps, and coarse"
+        " elsewhere. Blends in the ICON-D2 and ICON-EU models.",
+        2,
+    ),
+    ForecastModel.jma_seamless: ModelInfo(
+        "JMA GSM",
+        240,
+        "The most detail over Japan and Korea, and coarse elsewhere."
+        " Blends in the MSM model.",
+        5,
+    ),
+    ForecastModel.meteofrance_seamless: ModelInfo(
+        "Meteo-France ARPEGE",
+        72,
+        "The most detail over France, and coarse elsewhere. Blends in"
+        " the AROME model.",
+        2.5,
+    ),
 }
 
 

@@ -22,6 +22,7 @@ import { resultsFeatureCollection } from '../utils/resultFeatures'
 import { resultPopupHtml } from '../utils/resultPopup'
 import { FireWarning, fireKey } from '../utils/fireProximity'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
+import { pointsWithinView } from '../utils/mapFraming'
 import type { PendingDestination } from '../utils/customList'
 import { addVertex } from '../utils/polygonEdit'
 import {
@@ -676,16 +677,33 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // away to read the results, and then press Edit Polygon with the shape
       // off screen. Only ever pulls the camera *to* the user's own polygon,
       // and does nothing when there is no ring to frame.
+      //
+      // Two bounds on the move, both there to keep it from reading as a yank.
+      // A ring already on screen is left alone entirely: the camera the user
+      // parked at answers the question better than any recomputed one, and a
+      // jolt that bought nothing is the most jarring kind. And the move never
+      // tightens — `maxZoom` at the current zoom still lets a fit pull back for
+      // a ring too big to show, while a pan to one merely off screen holds the
+      // scale the user was reading at. The zoom change is the disorienting
+      // part, not the pan.
       framePolygon() {
         const map = mapRef.current
         const pts = ptsRef.current
         if (!map || !loadedRef.current || pts.length < 3) return
+        const canvas = map.getCanvas()
+        const framed = pointsWithinView(
+          pts.map((p) => map.project(p)),
+          canvas.clientWidth,
+          canvas.clientHeight,
+          FIT_PADDING_PX,
+        )
+        if (framed) return
         const bounds = pts.reduce(
           (b, p) => b.extend(p),
           new maplibregl.LngLatBounds(pts[0], pts[0]),
         )
         cameraCommittedRef.current = true
-        map.fitBounds(bounds, { padding: FIT_PADDING_PX, duration: 600 })
+        map.fitBounds(bounds, { padding: FIT_PADDING_PX, duration: 600, maxZoom: map.getZoom() })
       },
       // Snapshot the current ring as a GeoPolygon. The points stay editable —
       // the user iterates by dragging vertices and clicking Analyze again.

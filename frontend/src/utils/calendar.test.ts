@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   AQI_LIMIT_DAYS,
   DEFAULT_SELECTION,
+  DaysSelection,
   FUTURE_LIMIT_DAYS,
   ForecastSelection,
   PAST_LIMIT_DAYS,
@@ -9,6 +10,7 @@ import {
   addMonths,
   applyDayClick,
   applyDayDrag,
+  applyModeSwitch,
   aqiHorizon,
   bandEnd,
   bandStart,
@@ -292,6 +294,63 @@ describe('clampSelection', () => {
   // The current hour is the one selection every model reaches.
   it('never clamps the current-hour selection', () => {
     expect(clampSelection(DEFAULT_SELECTION, NOW, HRRR_HOURS)).toBeNull()
+  })
+})
+
+describe('applyModeSwitch', () => {
+  const days = (startDate: string, endDate: string): DaysSelection => ({
+    kind: 'days',
+    startDate,
+    endDate,
+  })
+
+  it('leaves the arm already live untouched', () => {
+    const sel = days('2026-07-15', '2026-07-16')
+    expect(applyModeSwitch('days', sel, null, NOW, LONG_HOURS)).toBe(sel)
+    expect(applyModeSwitch('now', DEFAULT_SELECTION, null, NOW, LONG_HOURS)).toBe(
+      DEFAULT_SELECTION,
+    )
+  })
+
+  it('switches to the current hour from any range', () => {
+    expect(
+      applyModeSwitch('now', days('2026-07-15', '2026-07-16'), null, NOW, LONG_HOURS),
+    ).toEqual({ kind: 'now' })
+  })
+
+  // The round trip Days → Now → Days is a comparison people make, and losing
+  // the range to it was the whole cost of making it.
+  it('restores the range the user last had', () => {
+    const remembered = days('2026-07-20', '2026-07-23')
+    expect(applyModeSwitch('days', DEFAULT_SELECTION, remembered, NOW, LONG_HOURS)).toEqual(
+      remembered,
+    )
+  })
+
+  it('carries narrowed hours back with the range', () => {
+    const remembered: DaysSelection = {
+      kind: 'days',
+      startDate: '2026-07-20',
+      endDate: '2026-07-23',
+      hours: { start: '06:00', end: '18:00' },
+    }
+    const next = applyModeSwitch('days', DEFAULT_SELECTION, remembered, NOW, LONG_HOURS)
+    expect(next.kind === 'days' && next.hours).toEqual({ start: '06:00', end: '18:00' })
+  })
+
+  it('falls back to today when there is no range to restore', () => {
+    expect(applyModeSwitch('days', DEFAULT_SELECTION, null, NOW, LONG_HOURS)).toEqual(
+      days('2026-07-15', '2026-07-15'),
+    )
+  })
+
+  // The model can change while Now is the live arm, so the remembered range
+  // may name days the band no longer covers. Restoring it unclamped would put
+  // the selection where the grid draws unpickable cells.
+  it('clamps a restored range into a band that moved under it', () => {
+    expect(
+      applyModeSwitch('days', DEFAULT_SELECTION, days('2026-07-20', '2026-07-28'), NOW, HRRR_HOURS),
+    ).toEqual(days('2026-07-17', '2026-07-17'))
   })
 })
 
