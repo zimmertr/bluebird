@@ -22,7 +22,7 @@ the README linking to it. It was split out of a 560-line README in #192
 | [`docs/API.md`](docs/API.md) | HTTP API prose for callers: endpoints, worked examples, error handling |
 | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | The env-var table and log levels |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How the service is built, and the Kubernetes deployment |
-| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Hot-reload setup and the test/lint commands (the public copy of the section below; keep the two in sync) |
+| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Hot-reload setup and the test/lint commands. The only copy: the Development commands section below points here rather than restating them |
 | [`docs/TRAFFIC.md`](docs/TRAFFIC.md) | How requests reach the pod and what the pod calls out to: Cloudflare, rate limits, upstream budgets |
 | [`docs/CICD.md`](docs/CICD.md) | The pipeline from merge to production, with diagrams |
 | [`NOTICES.md`](NOTICES.md) | Third-party attribution, at the repo root: the data-provider half transcribes `frontend/src/utils/dataSources.ts` (change one, change both in the same PR), plus bundled-software licenses |
@@ -35,47 +35,12 @@ Two conventions hold across every page:
 
 ## Development commands
 
-**Backend (FastAPI, Python 3.14):**
-```bash
-cd backend
-pip install -r requirements.txt
-LOG_LEVEL=TRACE uvicorn app.main:app --reload --port 8000
-```
-
-**Frontend (React + Vite, TypeScript):**
-```bash
-cd frontend
-npm install
-npm run dev   # starts on :5173, proxies /api → :8000
-```
-
-**Type check frontend:**
-```bash
-cd frontend && npx tsc --noEmit
-```
-
-**Frontend unit tests (Vitest) — run in Docker, not on the local machine:**
-```bash
-docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine \
-  sh -c "npm ci && npm test"
-```
-
-**Backend unit tests (pytest) — run in Docker, not on the local machine:**
-```bash
-docker run --rm -v "$PWD/backend":/app -w /app python:3.14-slim \
-  sh -c "pip install -r requirements-dev.txt && pytest"
-```
-
-**Lint backend:**
-```bash
-pip install ruff && ruff check backend/
-```
-
-**Full stack via Docker:**
-```bash
-docker compose up --build -d
-docker compose logs -f
-```
+The dev servers, the typecheck, both test invocations, and the lint command live in
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md). Two things that page does not say, and
+that a standard invocation would get wrong: **both test suites run inside Docker,
+never on the local machine**, and `ruff check backend/` runs **from the repo root**
+(running it inside `backend/` reorders imports differently, because isort then treats
+`app` as third-party).
 
 Two suites: the frontend's pure logic under Vitest (`frontend/src/utils/*.test.ts`, e.g. URL state serialization in `urlState.ts` and marker colors in `colors.ts`), and the backend under pytest (`backend/tests/`, covering weather/AQI aggregation, request validation, ranking/elevation filtering, upstream-error mapping, and the routes with the external APIs stubbed). CI validates via TypeScript typecheck, the Vitest unit tests, pytest, Python ruff lint, and a full Docker build followed by a Trivy vulnerability scan of the built image.
 
@@ -117,7 +82,6 @@ The FastAPI backend handles `POST /api/analyze`, which:
 - `app/version.py` — build identity read from `APP_VERSION`/`APP_COMMIT`/`APP_BUILT_AT`, baked by the Dockerfile; `"dev"` everywhere else
 - `app/models.py` — Pydantic request/response models, polygon area validation, and the limit constants `/api/capabilities` publishes
 - `app/ratelimit.py` — per-client token buckets (429 + Retry-After, enforced as route dependencies on analyze/geocode) and pod-wide upstream budgets/gates (queue then shed 503; best-effort AQI degrades to null instead). In-memory per pod by design (~replicas × the configured ceiling); env knobs documented in the `docs/CONFIGURATION.md` table and published by `/api/capabilities` under `limits.rate`. Traffic/limits changes update [`docs/TRAFFIC.md`](docs/TRAFFIC.md) and [`docs/LIMITS.md`](docs/LIMITS.md) in the same PR
-- `app/routes/analyze.py` — single route handler
 - `app/routes/version.py`, `app/routes/capabilities.py` — build identity and the machine-readable limits/feature contract
 - `app/routes/wildfires.py` — `GET /api/wildfires`: the snapshot filtered to a bbox, at the fidelity the caller names, with `fetched_at` as a GeoJSON foreign member rather than a response header, so it survives being saved to a file (the SPA ignores it; it exists for API callers, who have no other way to know how current an answer is). Returns a raw `Response` so the stored feature text passes through unre-encoded; `response_model` still documents the shape. Its own rate bucket, the loosest of the four, because a pan costs no upstream call
 - `app/routes/destinations.py` — `POST /api/destinations`: discovery without forecasts, **and** resolution of `custom_destinations` against OSM (the SPA's only per-analysis server call, now on the custom-only path too; shares the analyze rate-limit bucket). At least one of `polygon` or `custom_destinations` is required; a union comes back merged, custom rows winning by name or 5-decimal coordinate
@@ -134,9 +98,6 @@ The FastAPI backend handles `POST /api/analyze`, which:
 - `app/ratelimit.py` — per-client token buckets (analyze / destinations / geocode), pod-wide in-flight budgets, and the `WeightedBudget` pacers
 
 **Frontend layout:**
-- `src/App.tsx` — root component
-- `src/components/MapView.tsx` — MapLibre GL map, polygon drawing with native pointer events
-- `src/components/ControlPanel.tsx` — sidebar controls
 - `src/components/ForecastCalendar.tsx` — the whole forecast window in one card: a **When** segment picking Current or Dates, an **Hours** segment under it, and the month grid below both. The two segments sit above the grid rather than around it, so the two decisions the window needs read as one block and neither lands below the fold; the grid and the Hours row appear only under Dates, the way the hour fields appear only under Hourly, because Current takes no input at all. "Dates" names the second arm rather than Days or Range because it must be silent about count *and* tense: 55 of the 71 days it reaches are behind today (#234). Holds no date logic of its own (see `utils/calendar.ts`); a mouse drags a range, a finger taps twice, and the selection commits on pointerup so a drag never re-renders the panel per pointermove. Cell brightness is one channel carrying one meaning — **how much of that day the app can serve** (`DayAvailability`) — which is why an adjacent month's days are drawn blank rather than dimmed
 - `src/components/SearchBox.tsx` — floating map search (Nominatim place lookup + local coordinate parsing; Enter-to-search only, per Nominatim's no-autocomplete policy)
 - `src/components/ResultsTable.tsx` — sortable results table, and *only* the rendering of one: it receives its rows already in display order. A header click on one of the four `RANKING_KEYS` re-ranks the **whole field** through the panel knob (so it means the same thing as the ranking picker); the detail columns reorder the rows on screen, as they always have, but that order is `App.tsx` state (`detailSort`) so the CSV export can leave in it
@@ -148,31 +109,18 @@ The FastAPI backend handles `POST /api/analyze`, which:
 - `src/utils/resultsCsv.ts` — the displayed report as a file (`buildResultsCsv`, `csvFilename`). Pure and DOM-free so it is testable under the node-env Vitest; the Blob and anchor live in `App.tsx`. Takes rows already in display order and columns already resolved — it re-derives nothing, because a second answer to "what is on screen" is the bug `present.ts` exists to prevent. A `null` fire map **drops the wildfire column** instead of writing it blank: on screen an empty flag column self-corrects when the ⚠️ arrives a moment later, but a file is read detached from the app, where a column of blanks asserts that every row was checked and cleared
 - `src/utils/forecastWindow.ts` — window normalization twin of `models.py` (point sample → floored hour + 1 min; horizon checks), plus `hourlyStampCount`/`isPointSample`: how many hourly stamps the inclusive filter matched, which is what decides the collapsed table columns instead of a mode name
 - `src/utils/calendar.ts` — the forecast window as a calendar (#166): the servable band, the `ForecastSelection` type (`now` | `days` with optional narrowed `hours`), month-grid generation, the click/drag reducers, and the conversion to the `datetime-local` pair everything downstream reads. All of it pure, because Vitest has no DOM and a `ForecastCalendar.test.tsx` would be silently uncollected — the component is wiring only. **The band's far edge is the nearer of two limits, and only one of them is per model.** The hard one is the API's: `FUTURE_LIMIT_DAYS` is 15 (Open-Meteo's "16 days" counts today) and `bandEnd` walks back a further day wherever a local 23:59 lands on the next UTC date, because the request carries UTC dates. The soft one is the selected model's, carried in **hours** rather than days and passed in from `/api/capabilities`. Hours because a model's reach is set by when its last run started, so it lands mid-afternoon as readily as at midnight — rounded down to whole covered days, HRRR's 42 h would offer *today only* anywhere west of Greenwich, which for a short-range mountain model is the same as not offering it. A day the reach lands partway into draws `partial`, the state `DayAvailability` already uses for "we can serve some of this day". `clampSelection` is what a model change does to a window that no longer fits: both ends clamp independently, and it returns `null` for "unchanged" so the panel warns only when something actually moved. `urlState`'s `classifyWindow`/`classifyAqiCoverage` read the same band so the grid and the warnings cannot disagree
-- `src/types.ts` — TypeScript types mirroring backend Pydantic models
 - `src/components/ModelPicker.tsx` — the forecast model as a button opening a listbox of all of them, portalled to `document.body` and positioned fixed. A native `<select>` cannot do this job: choosing well means reading eight summaries against each other, a select shows one at a time, and its options cannot carry them (the shortest needs 303px of label where the control has 245px). `title` on an option is no way out either — macOS draws the list as an OS menu that renders no tooltip, and a phone has no hover. Fixed rather than absolute because `ControlPanel` is an `overflow-y-auto` column that would clip a child at the scroll boundary
 - `src/utils/listbox.ts` — the two things that popover has to get right and a `<select>` got right for free: where the panel lands (`popoverBox`) and where the arrow keys go (`nextActiveIndex`). Pure, because Vitest has no DOM and anything left in the component is untestable by construction. `popoverBox` clips the trigger's rect into the viewport before measuring from it — the panel is a scrolling column, so a short window puts the trigger below the fold and a raw rect invents room that is not there — and when the content fits neither side it overlaps the trigger to use the whole viewport, so a scrollbar means the screen is too short rather than the gap being too small. It returns the finished `offset` (`{top}` or `{bottom}`) rather than letting the caller re-derive it, which is a bug it already shipped once
 - `src/utils/mapFraming.ts` — `pointsWithinView`, the predicate behind Edit Polygon not moving the camera when the ring is already on screen. Screen pixels rather than `map.getBounds()`, which returns a superset of the viewport once the map is rotated or pitched
 - `src/styles.ts` — the type ramp plus the surface/button/field roles, and `LAYER`, which names the stacking order; components compose these instead of picking sizes, colors and z-indexes at the call site (`src/styles.test.ts` enforces it). `LAYER` exists because the model picker shipped *behind* the mobile drawer that contains it, the two values having been chosen in different files and never compared
 - `src/metrics.ts` — the one vocabulary for the four metrics: nouns (spelled out), units, aggregates (their short forms: `Avg`/`Min`/`Max`), and the composers behind the results header and table headers; the map legend titles itself with the bare noun and leaves the hour/window framing to those surfaces. **A surface never spells a metric's name itself** — `src/metrics.test.ts` reads the consuming files as text and fails on a literal `Precip`/`Temp`/`Avg`
-- `src/utils/colors.ts` — marker/cell color thresholds per sortable metric (precip, wind, temp, AQI)
 - `src/utils/geocode.ts` — coordinate parsing, Nominatim client, and bounds math: search-view bounds for the search box plus the multi-point fit that frames pasted/restored CSV lists
 - `src/utils/wildfires.ts` — `GET /api/wildfires` client + popup formatting for the wildfire overlay (US-only, best-effort). It does **not** call NIFC: since #203 both fire fetches go through the pod's snapshot, because NIFC's quota is its ArcGIS org's and shared with every consumer of the public dataset, so per-visitor requests crowded one invisible pool and lost at random. The caller names the fidelity it needs (`coarse` for drawing, `full` for measuring); `COARSE_TOLERANCE_DEG` mirrors `COARSE_OFFSET_DEG` in `nifc.py`. The popup's one dated line is `attr_ModifiedOnDateTime_dt`, when NIFC last revised *that perimeter* (measured range across one national snapshot: minutes to two weeks). It reads "Perimeter revised:" rather than a bare "Updated" because it is the *only* date shown, so nothing else is there to correct a reader who takes it for the age of our copy. The response's `fetched_at` is deliberately **not** surfaced in the UI: the cache serves an aged snapshot rather than failing, so a visitor's answer never hinges on a fetch of their own, and a freshness line on every fire would be noise about an internal detail. It stays in the payload for API callers, who have no other way to know how current an answer is
 - `src/utils/fireProximity.ts` — pure point-to-perimeter distance math flagging results within 10 mi of an active fire, plus `pointsKey` (the order-independent identity of a destination *set*); driven by `src/hooks/useFireProximity.ts`, which fetches NIFC once per analysis around the whole analyzed field, not the displayed rows — those are re-derived on every live knob change, and keying off them would mean a NIFC query per twiddle (independent of the overlay toggle). The hook keys its effect on `pointsKey`, not the array reference, or a re-rank aborts the request in flight and refetches the same question. It returns a **status** (`idle`/`loading`/`ready`/`unavailable`) beside the warnings, retries a failed lookup, and logs the caught error: every failure mode used to collapse into one empty map, so the feature's failure was indistinguishable from its all-clear. `ready` + empty means checked and nothing near; `unavailable` means the caller must not imply either. Since #203 `unavailable` is rare by construction: the field is measured against the pod's snapshot, which is served past its refresh deadline rather than expiring into nothing, so only a pod that has never once fetched has no answer
 
 ## CI/CD pipeline
 
-See [`docs/CICD.md`](docs/CICD.md) for the full end-to-end flow with diagrams (bluebird → bluebird-helm → Kubernetes-Manifests → Argo CD / Argo Rollouts, plus Docker Hub, Artifact Hub, and the PR preview environments). The summary below covers this repo's workflows.
-
-**PR checks** (`pr.yml`): runs on all non-main branches and PRs → TypeScript typecheck + Vitest, ruff lint, pytest (backend tests), hadolint, Docker build (no push) + Trivy image scan (sticky PR comment; fails only on *fixable* Critical/High vulns).
-
-**Scheduled image scan** (`image-scan.yml`): weekly Trivy scan of the latest released `zimmertr/bluebird` image → SARIF to the GitHub Security tab; the job goes red (→ failure email) only on fixable Critical/High vulns. Remediation: merge the open Dependabot base-image PR to cut a patch release on a fresh base.
-
-**Release** (`release.yml`): triggers on merge to `main` → GitVersion calculates SemVer from conventional commits → builds and pushes a multi-arch `zimmertr/bluebird:<semver>` (amd64 + arm64, with SBOM/provenance attestations) to Docker Hub → creates GitHub release → updates `kustomization.yml` in the `zimmertr/Kubernetes-Manifests` repo, which ArgoCD auto-syncs.
-
-**GitVersion** (`GitVersion.yml`): Mainline mode. Commit prefix mapping:
-- `feat!` / `BREAKING CHANGE:` → major bump
-- `feat:` → minor bump
-- `fix`, `perf`, `refactor`, `chore`, `docs`, `style`, `test`, `ci` → patch bump
+[`docs/CICD.md`](docs/CICD.md) is the whole flow with diagrams (bluebird → bluebird-helm → Kubernetes-Manifests → Argo CD / Argo Rollouts, plus Docker Hub, Artifact Hub, and the PR preview environments), and it owns the per-workflow summaries and the GitVersion prefix → bump table. The one thing to carry into every change here: **a squash-merge to `main` releases**, and the PR title is the conventional commit that decides the bump.
 
 ## Kubernetes deployment
 
@@ -180,6 +128,4 @@ Manifests live in a separate repo (`zimmertr/Kubernetes-Manifests`) under `publi
 
 ## Adding a new destination type
 
-1. Add the type to `DestinationType` enum in `backend/app/models.py`
-2. Add its Overpass QL clauses to `_CLAUSES` in `backend/app/services/osm.py` (clause *fragments*, not a whole query — they are unioned with whatever else was asked for), teach `_classify` to recognize the tags they match on, and add the type to `IMPLEMENTED_TYPES` (which `GET /api/capabilities` publishes, so no further change is needed to advertise it)
-3. Add the corresponding checkbox in the frontend `ControlPanel.tsx` and to `DISCOVERY_TYPES` in `urlState.ts`, which decides what a `type=` link may name
+The end-to-end checklist is the `add-destination-type` skill (`.claude/skills/add-destination-type/SKILL.md`).
