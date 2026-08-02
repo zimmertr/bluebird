@@ -48,7 +48,7 @@ const FALLBACK_POLYGON_AREA_KM2 = 100_000
 export const FALLBACK_FORECAST_MODEL: ForecastModelOption = {
   id: 'gfs_seamless',
   label: 'NOAA GFS',
-  summary: 'Sharp over North America at 3 km, and reaches furthest ahead.',
+  summary: 'Sharp over North America at 3 km, and the longest reach.',
   forecastHours: 384,
   regional: false,
 }

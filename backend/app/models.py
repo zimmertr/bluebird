@@ -211,7 +211,7 @@ class ModelInfo(NamedTuple):
 # low costs a day of real forecast. Re-probe before moving any of them.
 MODEL_INFO: dict[ForecastModel, ModelInfo] = {
     ForecastModel.gfs_seamless: ModelInfo(
-        "NOAA GFS", 384, "Sharp over North America at 3 km, and reaches furthest ahead."
+        "NOAA GFS", 384, "Sharp over North America at 3 km, and the longest reach."
     ),
     ForecastModel.gem_seamless: ModelInfo(
         "ECCC GEM", 216, "The sharpest look at Canada and the northern US, at 2.5 km."
@@ -222,7 +222,7 @@ MODEL_INFO: dict[ForecastModel, ModelInfo] = {
     ForecastModel.gfs_hrrr: ModelInfo(
         "NOAA HRRR",
         42,
-        "The most detailed US forecast at 3 km, for today and tomorrow.",
+        "Most detailed over the US at 3 km, for today and tomorrow.",
         regional=True,
     ),
     ForecastModel.ukmo_seamless: ModelInfo(
