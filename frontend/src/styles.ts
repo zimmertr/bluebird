@@ -65,23 +65,6 @@ export const TEXT = {
   appTitle: 'text-lg font-bold text-white leading-tight',
   /** Named sub-blocks and the labels naming a field. */
   subheading: 'text-xs font-semibold text-slate-200',
-  /**
-   * The name of a docked panel, on its own header bar: "Forecast Chart",
-   * "Forecast Table".
-   *
-   * A weight and a brightness step above `subheading`, which is what the
-   * report's own ranking wears a few pixels to the right ("Highest Avg AQI") —
-   * the two used to be the same role, so a panel's name and its current
-   * contents were identical text and read as one run.
-   *
-   * Deliberately *not* the caps-and-tracking of `section` above, which was
-   * tried and reverted: that idiom belongs to the sidebar's numbered headings,
-   * and on a dense horizontal bar sitting inches from a data table it shouted.
-   * The separation here comes from weight plus the jump to slate-100, the
-   * brightest rung in the ramp, which is what a title can afford and a label
-   * beside it cannot.
-   */
-  panelTitle: 'text-xs font-bold text-slate-100',
   /** Anything you read or type in a control: radio labels, inputs, pickers. */
   control: 'text-xs text-slate-200',
   /** Secondary text: the app tagline, a place's description, a dialog's note. */
@@ -757,6 +740,28 @@ export const PANEL_RULE =
   '[&>*+*]:mt-4 [&>*+*]:border-t [&>*+*]:border-slate-600/50 [&>*+*]:pt-4'
 
 /**
+ * Step number badge in the welcome modal.
+ *
+ * The badge wears the accent fill with white text; the size and weight are
+ * fixed here so every step reads the same. Layout (the flex row, centering,
+ * margin) stays at the call site. Derived from `ACCENT.fill` rather than
+ * restated so the color cannot drift.
+ */
+export const BADGE_STEP = `${ACCENT.fill} text-xs font-bold`
+
+/**
+ * The unboxed status line.
+ *
+ * Boxed messages (`NOTICE.*`) get their size from the role's own text-xs. Unboxed
+ * status lines that sit alone need their own size, and compose with `STATUS.*`
+ * for color. This lives at text-xs so both paths size to the same step.
+ *
+ * Example use: the "model-changed" cue telling the user that the forecast window
+ * was shortened by a model change.
+ */
+export const CUE = 'text-xs text-center'
+
+/**
  * A bordered region grouping controls inside the panel: today, the calendar.
  *
  * The border is deliberately brighter than anything else in the panel.
@@ -799,7 +804,7 @@ export const SURFACE_GROUP = `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.surface
  *   horizon. Still holds the 4.5:1 floor because the day is clickable content;
  *   dimming it to slate-500's 3.1:1 would put a live date below AA, which is
  *   what #165 spent five PRs undoing.
- * - `unservable` (slate-600, ~2.6:1) — outside what the weather service serves.
+ * - `unservable` (slate-600, ~2.6:1) — outside what Open-Meteo serves.
  *   The one step here deliberately below AA: WCAG 1.4.3 exempts inactive
  *   controls, and a disabled day that read as text would invite the click it
  *   cannot accept.
@@ -841,6 +846,19 @@ export const DAY = {
   selected: ACCENT.fill,
   today: 'ring-1 ring-inset ring-slate-400',
 } as const
+
+/**
+ * A heading styled as an action: button-like appearance on a label.
+ *
+ * The color stays `LINK_ACTION` (sky-400) rather than the heading's default
+ * (slate-200), because this is a control. Two color utilities in one class list
+ * resolve by stylesheet order rather than by intent, so the color cannot be
+ * overridden at a call site. The weight is bold to mark it as an action despite
+ * the small size.
+ *
+ * Example use: "Rank by", "Filter by" section headers that also open pickers.
+ */
+export const HEADING_ACTION = `text-xs font-semibold ${LINK_ACTION} ${FOCUS_RING}`
 
 /**
  * The shared surface under every text-entry control in the panel.

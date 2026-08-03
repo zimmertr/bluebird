@@ -23,6 +23,8 @@ import colorsSource from './utils/colors.ts?raw'
 import resultPopupSource from './utils/resultPopup.ts?raw'
 import resultsCsvSource from './utils/resultsCsv.ts?raw'
 import tableColumnsSource from './utils/tableColumns.ts?raw'
+import openMeteoSource from './utils/openMeteo.ts?raw'
+import presentSource from './utils/present.ts?raw'
 
 const SORTS: SortBy[] = ['precip_total_in', 'wind_avg_mph', 'temp_avg_f', 'aqi_avg']
 
@@ -183,4 +185,34 @@ describe('no surface writes its own metric name', () => {
       })
     }
   }
+})
+
+describe('copy lints', () => {
+  // L3: No "the weather service" in frontend sources. Use "Open-Meteo" or
+  // restructure to avoid the phrase.
+  it('keeps "the weather service" phrase out of frontend', () => {
+    expect(openMeteoSource.match(/\bthe weather service\b/i)).toBeNull()
+    expect(presentSource.match(/\bthe weather service\b/i)).toBeNull()
+  })
+
+  // L4: No raw interpolation after "failed" in error messages. Pattern
+  // /failed: \$\{/ catches string templates that insert values without context.
+  it('wraps all error details in sentences', () => {
+    expect(openMeteoSource).not.toMatch(/failed:\s*\$\{/)
+    expect(presentSource).not.toMatch(/failed:\s*\$\{/)
+  })
+
+  // L5: No "analyze a smaller area" or "draw a smaller area" in frontend
+  // user strings. The defect-2 remedy has been replaced.
+  it('removes the defect-2 remedy phrases from frontend', () => {
+    expect(openMeteoSource).not.toMatch(/(?:analyze|draw) a smaller area/i)
+    expect(presentSource).not.toMatch(/(?:analyze|draw) a smaller area/i)
+  })
+
+  // L7: No "Please try again" or "Try again shortly" in user-facing strings.
+  // Use the standing tail instead: "Try again later."
+  it('replaces generic retry prompts with the standing tail', () => {
+    expect(openMeteoSource).not.toMatch(/Please try again|Try again shortly/i)
+    expect(presentSource).not.toMatch(/Please try again|Try again shortly/i)
+  })
 })

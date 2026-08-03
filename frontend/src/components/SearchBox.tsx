@@ -3,10 +3,11 @@ import { Place, parseCoordinates, searchPlaces } from '../utils/geocode'
 import {
   ACCENT,
   ACCENT_RING,
+  ICON_ACTION,
   ICON_BUTTON,
+  NOTICE,
   RADIUS,
   SPINNER,
-  STATUS,
   SURFACE_FLOATING,
   TAP,
   TEXT,
@@ -149,7 +150,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           fill="none"
           stroke="currentColor"
           strokeWidth="2"
-          className="flex-shrink-0 text-slate-400"
+          className={`flex-shrink-0 ${ICON_ACTION}`}
         >
           <circle cx="11" cy="11" r="7" />
           <line x1="21" y1="21" x2="16.5" y2="16.5" />
@@ -184,15 +185,18 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           <button
             onClick={clear}
             aria-label="Clear search"
-            className={`${ICON_BUTTON} flex-shrink-0 text-base leading-none`}
+            className={`${ICON_BUTTON} flex-shrink-0`}
           >
-            ×
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         ) : null}
       </div>
 
       {error && (
-        <div className={`${SURFACE_FLOATING} absolute left-0 top-full mt-1 w-full px-3 py-2 text-xs ${STATUS.warn}`}>
+        <div className={`${NOTICE.warn} absolute left-0 top-full mt-1 w-full`}>
           {error}
         </div>
       )}

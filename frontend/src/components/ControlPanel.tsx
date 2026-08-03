@@ -20,11 +20,11 @@ import {
   BOUNDS_GRID,
   CHOICE_ROW,
   CONTROL_W,
+  CUE,
   FIELD,
   FIELD_NUMERIC,
-  FOCUS_RING,
+  HEADING_ACTION,
   LINK,
-  LINK_ACTION,
   NOTICE,
   PANEL_EDGE,
   PANEL_RULE,
@@ -444,7 +444,7 @@ export default function ControlPanel({
                 }}
                 onMouseEnter={() => onPointAtSearch(true)}
                 onMouseLeave={() => onPointAtSearch(false)}
-                className={`text-xs font-semibold ${LINK_ACTION} ${FOCUS_RING} transition-colors`}
+                className={`${HEADING_ACTION} transition-colors`}
               >
                 Search by name
               </button>
@@ -462,7 +462,7 @@ export default function ControlPanel({
                 }}
                 onMouseEnter={() => onPointAtMapPois(true)}
                 onMouseLeave={() => onPointAtMapPois(false)}
-                className={`text-xs font-semibold ${LINK_ACTION} ${FOCUS_RING} transition-colors`}
+                className={`${HEADING_ACTION} transition-colors`}
               >
                 Search by point
               </button>
@@ -473,7 +473,7 @@ export default function ControlPanel({
           <div className="mb-3">
             <h3 className={`${TEXT.subheading} mb-1`}>Search by polygon</h3>
             {drawPointCount > 0 && (
-              <div className="text-xs text-slate-300 space-y-0.5 mb-2">
+              <div className={`${TEXT.caption} space-y-0.5 mb-2`}>
                 {/* Only while drawing does the status name a gesture: outside
                     the mode the handles are gone and none of them apply. */}
                 {drawing && pointsNeeded > 0 ? (
@@ -491,7 +491,7 @@ export default function ControlPanel({
                   </p>
                 )}
                 {polygonAreaKm2 !== null && (
-                  <p className={areaTooLarge ? STATUS.error : 'text-slate-400'}>
+                  <p className={areaTooLarge ? STATUS.error : TEXT.caption}>
                     ~{Math.round(polygonAreaKm2).toLocaleString()} km²
                     {areaTooLarge && ` (max ${maxAreaKm2.toLocaleString()} km²)`}
                   </p>
@@ -842,7 +842,7 @@ export default function ControlPanel({
         </button>
 
         {commitReason && !loading && (
-          <p className={`text-xs ${STATUS.warn} text-center`}>{COMMIT_CUE[commitReason]}</p>
+          <p className={`${CUE} ${STATUS.warn}`}>{COMMIT_CUE[commitReason]}</p>
         )}
 
         {/* Every reason Analyze is disabled, in one box. The reasons stack
@@ -909,7 +909,7 @@ export default function ControlPanel({
             view of it. */}
         {resultCount !== undefined && !loading && !error && !refusal &&
           aqiAllNull && aqiCoverage !== 'none' && (
-            <p className="text-xs text-slate-400 text-center">
+            <p className={`${CUE} ${TEXT.caption}`}>
               Air quality data is unavailable for this window.
             </p>
           )}

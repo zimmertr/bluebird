@@ -1203,7 +1203,7 @@ export default function App() {
           // visibly high in the circle however the line-height was nudged —
           // and it moves again with any font change. Two lines in a square
           // viewBox are centred by construction, and flex centres the box.
-          className={`${TAP.action} absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center ${RADIUS.pill} bg-slate-700/80 text-slate-200 transition-colors hover:bg-slate-600 active:bg-slate-600`}
+          className={`${TAP.action} absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center ${TEXT.control} ${RADIUS.pill} bg-slate-700/80 transition-colors hover:bg-slate-600 active:bg-slate-600`}
         >
           <svg
             viewBox="0 0 24 24"
@@ -1347,7 +1347,7 @@ export default function App() {
                         style={{ width: `${overlay.progress.percent}%` }}
                       />
                     </div>
-                    <p className="mt-1.5 text-xs text-slate-400 font-mono">
+                    <p className={`mt-1.5 ${TEXT.caption} font-mono`}>
                       {overlay.progress.percent}%
                     </p>
                   </div>
@@ -1357,7 +1357,7 @@ export default function App() {
                     <div className={`h-2 w-full ${RADIUS.pill} bg-slate-700 overflow-hidden`}>
                       <div className={`h-full w-1/3 ${RADIUS.pill} ${ACCENT.mark} animate-indeterminate`} />
                     </div>
-                    <p className="mt-1.5 text-xs text-slate-400 font-mono">
+                    <p className={`mt-1.5 ${TEXT.caption} font-mono`}>
                       Elapsed {elapsed}s
                     </p>
                   </div>
@@ -1468,7 +1468,7 @@ export default function App() {
                   </p>
                   {METRIC_CONFIG[view.sortBy].colors.map((color, i) => (
                     <div key={i} className="flex items-center gap-1.5 py-0.5">
-                      <span style={{ color }} className="text-sm leading-none">●</span>
+                      <span style={{ backgroundColor: color }} className={`flex-shrink-0 h-2.5 w-2.5 ${RADIUS.pill}`} aria-hidden="true" />
                       <span className={`${TEXT.control} font-mono`}>
                         {METRIC_CONFIG[view.sortBy].legendLabels[i]}
                       </span>
@@ -1572,7 +1572,7 @@ export default function App() {
                         setSidebarOpen(true)
                         document.querySelector('[data-filter-section]')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
                       }}
-                      className={`${BUTTON_SECONDARY} text-xs`}
+                      className={BUTTON_SECONDARY}
                     >
                       Filters
                     </button>

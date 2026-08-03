@@ -2,7 +2,7 @@ import { ReactNode } from 'react'
 import { LINK, PROSE, RADIUS, SURFACE_CARD } from '../styles'
 
 interface Props {
-  title: string
+  heading: string
   subtitle: string
   children: ReactNode
 }
@@ -13,16 +13,16 @@ interface Props {
 // drift into two ideas of what a section looks like.
 export function Section({
   id,
-  title,
+  heading,
   children,
 }: {
   id: string
-  title: string
+  heading: string
   children: ReactNode
 }) {
   return (
     <section id={id} className="mt-6 pt-6 border-t border-slate-700">
-      <h2 className={`${PROSE.heading} mb-3`}>{title}</h2>
+      <h2 className={`${PROSE.heading} mb-3`}>{heading}</h2>
       {children}
     </section>
   )
@@ -36,7 +36,7 @@ export function Section({
 // Deliberately no router and no shared state with App.tsx: these are separate
 // Vite entries, so importing anything from the map's tree would pull maplibre
 // into a bundle that renders text.
-export default function PageShell({ title, subtitle, children }: Props) {
+export default function PageShell({ heading, subtitle, children }: Props) {
   return (
     <div className="min-h-dvh bg-slate-900 px-4 py-10">
       <div className="mx-auto w-full max-w-2xl">
@@ -49,7 +49,7 @@ export default function PageShell({ title, subtitle, children }: Props) {
             />
           </a>
           <div>
-            <h1 className={PROSE.title}>{title}</h1>
+            <h1 className={PROSE.title}>{heading}</h1>
             <p className={PROSE.subtitle}>{subtitle}</p>
           </div>
         </div>

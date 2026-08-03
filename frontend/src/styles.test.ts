@@ -3,6 +3,7 @@ import {
   ACCENT,
   ACCENT_RING,
   BADGE_ACCENT,
+  BADGE_STEP,
   LAYER,
   BUTTON_ACCENT,
   BUTTON_DANGER,
@@ -11,12 +12,14 @@ import {
   BUTTON_SECONDARY,
   CHOICE_INPUT,
   CHOICE_ROW,
+  CUE,
   DAY,
   BOUNDS_GRID,
   CONTROL_W,
   FIELD,
   FIELD_NUMERIC,
   FOCUS_RING,
+  HEADING_ACTION,
   ICON,
   ICON_ADORNMENT,
   ICON_ACTION,
@@ -160,8 +163,16 @@ describe('every component', () => {
   // Arbitrary sizes are how a 10px and an 11px treatment ended up inside the
   // same 160px legend box. The ramp owns the two steps Tailwind has no name
   // for; nothing else may invent one.
+  // L1: No component sets a text size of its own.
   it.each(Object.entries(sources))('%s invents no size of its own', (_path, source) => {
+    expect(source).not.toMatch(/\btext-(?:xs|sm|base|lg|xl|2xl|3xl)\b/)
     expect(source).not.toMatch(/text-\[/)
+  })
+
+  // L2: No component sets a slate text color of its own. Slate is the surface
+  // system, already covered by TEXT, SURFACE_* and FIELD roles.
+  it.each(Object.entries(sources))('%s sets no slate text color of its own', (_path, source) => {
+    expect(source).not.toMatch(/\btext-slate-\d+/)
   })
 
   // Derived from the scale rather than blocking a list of names, so a utility
@@ -239,9 +250,16 @@ describe('every component', () => {
   it.each(Object.entries(sources))('%s builds no checkbox of its own', (_path, source) => {
     expect(source).not.toMatch(/accent-sky-500/)
   })
+
+  // L6: No title= attributes on JSX elements. Knowledge belongs in labels,
+  // captions, empty states, or docs — not in tooltips. Rename any title props
+  // to heading to avoid false positives on document.title assignments.
+  it.each(Object.entries(sources))('%s adds no HTML tooltips', (_path, source) => {
+    expect(source).not.toMatch(/\btitle=/)
+  })
 })
 
-// The panel is 320px wide at every breakpoint, so a width variant used for
+// The panel is a near-constant width on every breakpoint, so a width variant used for
 // padding re-spaced its rows on desktop windows that had not changed size,
 // while leaving large tablets with mouse-tight rows. Nothing catches a relapse
 // at build time: `lg:py-*` reads as ordinary responsive code.
@@ -418,17 +436,6 @@ describe('grouping and segmenting', () => {
     expect(NOTICE.warn).toContain(RADIUS.control)
   })
 
-  // A docked panel's name and the report inside it sat a few pixels apart in
-  // the same role, so they read as one run of text. They separate by weight and
-  // brightness at one size — not by the caps-and-tracking of `section`, which
-  // was tried on these bars and shouted.
-  it('separates a panel title from the subheadings it sits beside', () => {
-    expect(TEXT.panelTitle).not.toBe(TEXT.subheading)
-    expect(TEXT.panelTitle).toContain('font-bold')
-    expect(TEXT.subheading).toContain('font-semibold')
-    expect(TEXT.panelTitle).not.toContain('uppercase')
-    expect(sizes(TEXT.panelTitle)).toEqual(sizes(TEXT.subheading))
-  })
 })
 
 describe('shared recipes', () => {
@@ -462,6 +469,14 @@ describe('shared recipes', () => {
     expect(BADGE_ACCENT).not.toContain(ACCENT.text)
     expect(BADGE_ACCENT).not.toContain('touch:')
     expect(BADGE_ACCENT).toContain(RADIUS.pill)
+  })
+
+  // Step number badge in the welcome modal: takes the accent fill for visibility
+  // and fixed size/weight so every step reads the same.
+  it('sizes step badges consistently with fixed type and fill', () => {
+    expect(BADGE_STEP).toContain(ACCENT.fill)
+    expect(BADGE_STEP).toContain('text-xs')
+    expect(BADGE_STEP).toContain('font-bold')
   })
 
   // The model picker opened behind the drawer that contains it, because the two
@@ -593,6 +608,23 @@ describe('shared recipes', () => {
   it('gives choice rows the focus ring through the has-[:focus-visible] variant', () => {
     const rowRing = FOCUS_RING.replace(/focus-visible:/g, 'has-[:focus-visible]:')
     expect(CHOICE_ROW).toContain(rowRing)
+  })
+
+  // Unboxed status lines that stand alone need their own size. Boxed notices
+  // (`NOTICE.*`) set size on the box. Both end up at text-xs, so the two paths
+  // compose to the same step.
+  it('sizes the unboxed status line the same as boxed notices', () => {
+    expect(CUE).toContain('text-xs')
+    expect(sizes(NOTICE.warn)).toContain('text-xs')
+  })
+
+  // A heading that opens a picker, with the accent color because it is a
+  // control. The color is baked in rather than composed to prevent stylesheet-
+  // order race with a heading's default slate color.
+  it('marks an actionable heading with the accent color and focus ring', () => {
+    expect(HEADING_ACTION).toContain('text-sky-400')
+    expect(HEADING_ACTION).toContain(FOCUS_RING)
+    expect(HEADING_ACTION).toContain('font-semibold')
   })
 
   // Three rules, none redundant: Firefox reads the appearance property, WebKit

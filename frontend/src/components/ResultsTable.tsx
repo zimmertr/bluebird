@@ -41,17 +41,20 @@ function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; 
     <td className={`${TABLE.cell} tabular-nums whitespace-nowrap`}>
       {onRemove ? (
         <>
-          <span className="text-slate-400 group-hover:hidden">{rank}</span>
+          <span className={`${TEXT.caption} group-hover:hidden`}>{rank}</span>
           <button
             onClick={onRemove}
             aria-label={`Remove ${name}`}
-            className={"row-remove hidden group-hover:inline leading-none text-slate-400 hover:text-slate-200 cursor-pointer"}
+            className={`row-remove hidden group-hover:inline leading-none ${ICON_ACTION} cursor-pointer`}
           >
-            ×
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         </>
       ) : (
-        <span className="text-slate-400">{rank}</span>
+        <span className={TEXT.caption}>{rank}</span>
       )}
     </td>
   )
@@ -385,7 +388,7 @@ export default function ResultsTable({
                   )
                 }
                 return (
-                  <td key={col.key} className={`${TABLE.cell} whitespace-nowrap font-mono text-slate-400`}>
+                  <td key={col.key} className={`${TABLE.cell} whitespace-nowrap font-mono ${TEXT.caption}`}>
                     —
                   </td>
                 )

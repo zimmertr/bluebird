@@ -513,16 +513,16 @@ async function classify429(res: Response): Promise<OpenMeteoRateLimited> {
   if (header && Number.isFinite(Number(header))) retryAfterS = Math.max(1, Math.ceil(Number(header)))
   // Whose quota it is, named. These fetches leave the reader's own browser
   // against the reader's own address, so "your quota" is literally true and is
-  // the fact that makes the wait make sense; "the weather service has used up
+  // the fact that makes the wait make sense; "Open-Meteo has used up
   // its quota" described an outage the reader could only wait out, and invited
   // the reading that Bluebird was down. Naming Open-Meteo matters for the same
   // reason: it is the credit already docked beside the results, so the sentence
   // lands on something the reader can see rather than on an anonymous service.
   //
-  // The advice to analyze a smaller area is gone. It is true of the minutely
-  // bucket, which the pacer already absorbs without ever reaching this message;
-  // against an exhausted daily quota a smaller area is still refused, so it
-  // read as a remedy and was not one.
+  // The smaller-area advice is gone. It was true of the minutely bucket,
+  // which the pacer already absorbs without reaching this message; against an
+  // exhausted daily quota narrowing the search still fails, so it read as a
+  // remedy and was not one.
   const message =
     scope === 'hourly' || scope === 'daily' || scope === 'monthly'
       ? 'Open-Meteo quota reached. Try again later.'

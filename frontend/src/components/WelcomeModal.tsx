@@ -1,23 +1,20 @@
 import { useDialog } from '../hooks/useDialog'
 import SafetyNotice from './SafetyNotice'
-import { ACCENT, BUTTON_PRIMARY, LAYER, PROSE, RADIUS, SURFACE_CARD } from '../styles'
+import { BADGE_STEP, BUTTON_PRIMARY, LAYER, PROSE, RADIUS, SURFACE_CARD } from '../styles'
 
 interface Props {
   onDismiss: () => void
 }
 
-// The numbered sections of the panel, in the order they appear there, plus the
-// two steps that have no section because they are the button and what you do
-// after it. A reader arrives here and then looks at the panel, so a step that
-// does not match a heading sends them hunting.
+// Five steps matching the panel's four sections plus the Analyze button and what
+// comes after. A reader arrives here and then looks at the panel, so each step
+// that matches a panel section naming makes following the walkthrough clear.
 const STEPS: [string, string][] = [
-  ['Destinations', 'Choose what destinations to analyze by clicking on the map, searching by name, drawing a polygon, or providing custom coordinates.'],
-  ['Forecast', 'Choose a weather model, then pick a day on the calendar, drag across days for a range, or analyze the current hour.'],
-  ['Ranking', 'Choose how destinations should be ranked: driest conditions, lowest winds, ideal temperatures, or cleanest air.'],
-  ['Filters', 'Set the conditions you would actually go out in, by elevation, precipitation, wind, temperature, or air quality. Destinations outside them drop out of the results.'],
-  ['Options', 'Choose how many results to show, and enable additional features like wildfire visibility.'],
-  ['Analyze', 'Generate ranked results, explore them on the map, and compare forecast data across your selected destinations.'],
-  ['Repeat', 'Adjust your search area, forecast window, ranking, or filters at any time to find a better window.'],
+  ['Destinations', 'Search by name, draw a polygon, click the map, or paste coordinates. Each method finds what you want in its own way; they all work together.'],
+  ['Forecast', 'Pick a weather model, then choose a day and time window. The calendar updates as the model changes, since different models reach different distances ahead.'],
+  ['Results', 'Rank by precipitation, wind, temperature, or air quality. Filter by elevation or those same metrics. Choose how many destinations to list, and pick which forecast values and which detail to show.'],
+  ['Analyze', 'Generate ranked results, see them on the map as color-coded markers, and inspect forecasts across your destinations.'],
+  ['Repeat', 'Adjust any control to refine your window. Changing destinations, the forecast window, or the model needs a new Analyze; everything else updates live.'],
 ]
 
 export default function WelcomeModal({ onDismiss }: Props) {
@@ -42,16 +39,10 @@ export default function WelcomeModal({ onDismiss }: Props) {
         </div>
 
         <div className="px-6 py-4">
-          <p className={`${PROSE.body} mb-3`}>
+          <p className={`${PROSE.body} mb-4`}>
             It's Friday evening. Rain is moving in from the west, smoke is drifting from the east,
             and strong winds are building to the south. You want to get outside this weekend, but
             where should you go?
-          </p>
-          <p className={`${PROSE.body} mb-4`}>
-            Bluebird helps you find out. Draw a search area and discover the best peaks, trails,
-            lakes, and other destinations for your next adventure. Bluebird analyzes upcoming
-            weather and ranks destinations by precipitation, wind, temperature, and air quality so
-            you can quickly find the best objective.
           </p>
 
           <h2 className={`${PROSE.heading} mb-3`}>How it works</h2>
@@ -60,7 +51,7 @@ export default function WelcomeModal({ onDismiss }: Props) {
           <ol className="space-y-3 mb-5">
             {STEPS.map(([title, desc], i) => (
               <li key={i} className={`${PROSE.body} flex gap-3`}>
-                <span className={`flex-shrink-0 w-5 h-5 ${RADIUS.pill} ${ACCENT.fill} text-xs font-bold flex items-center justify-center mt-0.5`}>
+                <span className={`flex-shrink-0 w-5 h-5 ${RADIUS.pill} ${BADGE_STEP} flex items-center justify-center mt-0.5`}>
                   {i + 1}
                 </span>
                 <p className="leading-snug">
@@ -86,7 +77,7 @@ export default function WelcomeModal({ onDismiss }: Props) {
             onClick={onDismiss}
             className={BUTTON_PRIMARY}
           >
-            Search Now
+            Search now
           </button>
         </div>
       </div>
