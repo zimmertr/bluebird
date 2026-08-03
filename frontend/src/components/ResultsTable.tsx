@@ -43,7 +43,6 @@ function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; 
           <span className="text-slate-400 group-hover:hidden">{rank}</span>
           <button
             onClick={onRemove}
-            title="Remove from the results"
             aria-label={`Remove ${name}`}
             className={"row-remove hidden group-hover:inline leading-none text-slate-400 hover:text-slate-200 cursor-pointer"}
           >
@@ -202,7 +201,6 @@ export default function ResultsTable({
           shiftHeldRef.current = e.shiftKey
         }}
         onChange={() => handleChartToggle(row)}
-        title="Add to the comparison chart (shift-click to select a range)"
         aria-label={`Chart ${row.name}`}
         className={CHOICE_INPUT}
         style={on && chartColor ? { accentColor: chartColor(row) } : undefined}
@@ -237,7 +235,6 @@ export default function ResultsTable({
             <span className="flex items-center gap-1.5">
               {warning && (
                 <span
-                  title={fireWarningText(warning)}
                   aria-label={fireWarningText(warning)}
                   className="cursor-help"
                 >
@@ -246,7 +243,6 @@ export default function ResultsTable({
               )}
               <button
                 onClick={() => onFocusResult?.(row)}
-                title="Center the map on this destination"
                 aria-label={`Center map on ${row.name}`}
                 className={`${LINK_ACTION} cursor-pointer text-left`}
               >
@@ -256,7 +252,6 @@ export default function ResultsTable({
                 href={destinationUrl(row)}
                 target="_blank"
                 rel="noopener noreferrer"
-                title="Open in Peakbagger / OpenStreetMap"
                 aria-label={`Open ${row.name} in an external map`}
                 className={`shrink-0 ${ICON_ACTION}`}
               >
@@ -311,7 +306,6 @@ export default function ResultsTable({
                       if (el) el.indeterminate = headState === 'some'
                     }}
                     onChange={() => onChartRange(chartableRows, headState !== 'all')}
-                    title="Add or remove every destination on the comparison chart"
                     aria-label="Chart all destinations"
                     className={CHOICE_INPUT}
                   />
@@ -365,7 +359,6 @@ export default function ResultsTable({
                           } as DestinationResult)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          title="Open in Peakbagger / OpenStreetMap"
                           aria-label={`Open ${d.name} in an external map`}
                           className={`shrink-0 ${ICON_ACTION}`}
                         >

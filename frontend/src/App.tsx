@@ -1401,7 +1401,6 @@ export default function App() {
                     ),
                   )
                 }}
-                title="Drag to resize, double-click to reset"
                 className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
               >
                 <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
@@ -1416,7 +1415,6 @@ export default function App() {
               <span className={TEXT.panelTitle}>Forecast Chart</span>
               <button
                 onClick={() => setChartCollapsed((c) => !c)}
-                title={chartCollapsed ? 'Expand the chart' : 'Collapse the chart'}
                 aria-label={chartCollapsed ? 'Expand the forecast chart' : 'Collapse the forecast chart'}
                 className={ICON_BUTTON}
               >
@@ -1466,7 +1464,6 @@ export default function App() {
                     }
                   })
                 }}
-                title="Drag to resize, double-click to reset"
                 className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
               >
                 <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
@@ -1539,7 +1536,7 @@ export default function App() {
                       and is absent rather than empty when there is nothing to
                       qualify — an empty row is still a row. */}
                   {windowTitle !== null && (
-                    <span className={`${TEXT.caption} truncate`} title={windowTitle}>
+                    <span className={`${TEXT.caption} truncate`}>
                       {windowTitle}
                     </span>
                   )}
@@ -1577,7 +1574,6 @@ export default function App() {
                   {results.length > 0 && (
                     <button
                       onClick={handleDownloadCsv}
-                      title="Download these results as a CSV file"
                       aria-label="Download these results as a CSV file"
                       className={`${TEXT.micro} ${LINK} cursor-pointer whitespace-nowrap`}
                     >
@@ -1595,7 +1591,6 @@ export default function App() {
                 </div>
                 <button
                   onClick={() => setTableCollapsed((c) => !c)}
-                  title={tableCollapsed ? 'Expand the table' : 'Collapse the table'}
                   aria-label={tableCollapsed ? 'Expand the forecast table' : 'Collapse the forecast table'}
                   className={`${ICON_BUTTON} shrink-0 self-start px-1 @3xl:self-baseline`}
                 >

@@ -268,7 +268,6 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
             <button
               key={option.kind}
               aria-pressed={selection.kind === option.kind}
-              title={option.hint}
               onClick={() => switchMode(option.kind)}
               className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
                 selection.kind === option.kind ? ACCENT.fill : SEGMENT_IDLE
@@ -476,16 +475,6 @@ function Day({
       aria-disabled={inert || undefined}
       aria-selected={isEnd || inRange}
       aria-label={cell.date}
-      // Only where the cell's own appearance raises the question. Every day
-      // already announces its date through aria-label, so a tooltip on all 42 of
-      // them would be noise rather than help.
-      title={
-        inert
-          ? 'Outside the range of history and forecast the weather service publishes.'
-          : cell.availability === 'partial'
-          ? 'Weather forecast available. Air quality reaches only about 5 days out, so those columns will be blank.'
-          : undefined
-      }
       tabIndex={focused ? 0 : -1}
       onPointerDown={onPress}
       onPointerEnter={onEnter}
