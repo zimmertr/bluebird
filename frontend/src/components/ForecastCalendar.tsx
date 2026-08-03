@@ -293,7 +293,7 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
             <span className={TEXT.subheading}>Hours</span>
             <div className={SEGMENT}>
               {[
-                { hourly: false, label: 'All Day' },
+                { hourly: false, label: 'All day' },
                 { hourly: true, label: 'Hourly' },
               ].map((option, i) => (
                 <button

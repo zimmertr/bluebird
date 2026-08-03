@@ -33,7 +33,7 @@ import {
   STATUS,
   TEXT,
 } from '../styles'
-import { AGGREGATE, NOUN, RANKING_KEYS, familyOf, metricLabel } from '../metrics'
+import { AGGREGATE, NOUN, RANKING_KEYS, familyOf, metricLabel, windowAggregate } from '../metrics'
 import { Constraints, hasConstraints } from '../utils/clientAnalyze'
 import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analyzeGate'
 import { DEFAULT_LIMIT, classifyAqiCoverage, clampLimit } from '../utils/urlState'
@@ -51,7 +51,7 @@ import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabi
 // visible (and click-sortable) in the results table.
 const SORT_METRICS: { value: SortBy; label: string }[] = RANKING_KEYS.map((value) => ({
   value,
-  label: NOUN[familyOf(value)],
+  label: metricLabel(familyOf(value), windowAggregate(value), ''),
 }))
 
 // Why a knob stopped applying live. Each case names the reason the
@@ -417,48 +417,36 @@ export default function ControlPanel({
         // the gutter between two steps rather than tucked under the one above.
         className={`flex-1 overflow-y-auto px-4 py-4 ${PANEL_RULE}`}
       >
-        {/* Step 1: Destinations — one list, defined via any of three methods
+        {/* Destinations — one list, defined via any of three methods
             that union into a single ranked report */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
-            1. Destinations
+            Destinations
           </h2>
 
           {/* a. Search by name — the only method whose control is not in this
-              panel; the search box floats on the map. Hovering the heading or
-              its line rings that box, so the reader is shown where it is
-              instead of told. Hover-only is fine here because it adds a cue to
-              copy that already stands on its own. */}
+              panel; the search box floats on the map. */}
           <div
             className="mb-3"
             onMouseEnter={() => onPointAtSearch(true)}
             onMouseLeave={() => onPointAtSearch(false)}
           >
-            <h3 className={`${TEXT.subheading} mb-1`}>Search by Name</h3>
-            <p className={TEXT.helper}>
-              Search for a destination by name.
-            </p>
+            <h3 className={`${TEXT.subheading} mb-1`}>Search by name</h3>
           </div>
 
           {/* b. Search by click — the second method whose control is not in
-              this panel. Hovering it lights every clickable feature on the
-              map, the same trick the Search by Name section uses to point at
-              the search box: the reader is shown where it is instead of told. */}
+              this panel. */}
           <div
             className="mb-3"
             onMouseEnter={() => onPointAtMapPois(true)}
             onMouseLeave={() => onPointAtMapPois(false)}
           >
-            <h3 className={`${TEXT.subheading} mb-1`}>Search by Point</h3>
-            <p className={TEXT.helper}>Select a destination from the map.</p>
+            <h3 className={`${TEXT.subheading} mb-1`}>Search by point</h3>
           </div>
 
           {/* c. Search by polygon */}
           <div className="mb-3">
-            <h3 className={`${TEXT.subheading} mb-1`}>Search by Polygon</h3>
-            <p className={`${TEXT.helper} mb-1.5`}>
-              Search for destinations by drawing a polygon.
-            </p>
+            <h3 className={`${TEXT.subheading} mb-1`}>Search by polygon</h3>
             {drawPointCount > 0 && (
               <div className="text-xs text-slate-300 space-y-0.5 mb-2">
                 {/* Only while drawing does the status name a gesture: outside
@@ -504,7 +492,7 @@ export default function ControlPanel({
                 </button>
               ) : (
                 <button onClick={onStartDrawing} className={BUTTON_SECONDARY}>
-                  {drawPointCount > 0 ? 'Edit Polygon' : 'Draw Polygon'}
+                  {drawPointCount > 0 ? 'Edit polygon' : 'Draw polygon'}
                 </button>
               )}
               {drawPointCount > 0 && (
@@ -542,16 +530,26 @@ export default function ControlPanel({
                 </label>
               ))}
             </div>
+
+            {/* Unnamed peaks — moved here from Options (#238) */}
+            <div className="mt-2">
+              <label className={CHOICE_ROW}>
+                <input
+                  type="checkbox"
+                  checked={includeUnnamedPeaks}
+                  onChange={(e) => setIncludeUnnamedPeaks(e.target.checked)}
+                  className={CHOICE_INPUT}
+                />
+                <span>Include unnamed peaks</span>
+              </label>
+            </div>
           </div>
 
           {/* d. Search by coordinates. Last because it is the one method with
               no map gesture at all — the three above are things you do to the
               map, and this is a list you bring to it. */}
           <div>
-            <h3 className={`${TEXT.subheading} mb-1`}>Search by Coordinates</h3>
-            <p className={`${TEXT.helper} mb-1.5`}>
-              Specify exact destinations using coordinate pairs.
-            </p>
+            <h3 className={`${TEXT.subheading} mb-1`}>Search by coordinates</h3>
             <textarea
               aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"
               value={customCsv}
@@ -582,13 +580,13 @@ export default function ControlPanel({
 
         </section>
 
-        {/* Step 2: which model answers, and over which hours. One calendar,
+        {/* which model answers, and over which hours. One calendar,
             replacing the three mutually exclusive modes and their four
             date/time pairs (#166); the model above it bounds how far the
             calendar reaches. */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
-            2. Forecast
+            Forecast
           </h2>
 
           {/* Above the calendar rather than in Options, because it bounds the
@@ -666,14 +664,17 @@ export default function ControlPanel({
           )}
         </section>
 
-        {/* Step 3: Rank by — metric radio + Lowest/Highest toggle per row. The
-            toggle stays clickable on inactive rows so any ranking is one click;
-            selecting a metric via its radio keeps the current direction. */}
+        {/* Results — combines ranking and filtering */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
-            3. Ranking
+            Results
           </h2>
-          <div className="space-y-1.5">
+
+          {/* Rank by — metric radio + Lowest/Highest toggle per row. The
+              toggle stays clickable on inactive rows so any ranking is one click;
+              selecting a metric via its radio keeps the current direction. */}
+          <div className={`${TEXT.subheading} mb-2`}>Rank by</div>
+          <div className="space-y-1.5 mb-4">
             {SORT_METRICS.map((metric) => {
               const isActive = sortBy === metric.value
               return (
@@ -719,16 +720,10 @@ export default function ControlPanel({
               )
             })}
           </div>
-        </section>
 
-        {/* Step 4: what to keep. One grid, two columns of bounds, one row per
-            thing that can be bounded — the same order as the Ranking section
-            above, so the two scan alike. */}
-        <section>
-          <h2 className={`${TEXT.section} mb-1`}>
-            4. Filters
-          </h2>
-                    <div className={BOUNDS_GRID}>
+          {/* Filter by — bounds grid and controls */}
+          <div className={`${TEXT.subheading} mb-2`}>Filter by</div>
+          <div className={BOUNDS_GRID}>
             {filterRows.map((row) => (
               <Fragment key={row.id}>
                 <label htmlFor={`${row.id}-lower`} className={TEXT.control}>
@@ -741,7 +736,6 @@ export default function ControlPanel({
                     type="number"
                     step={row.step}
                     placeholder={placeholder}
-                    title={row.hint[i]}
                     aria-label={`${row.label} ${placeholder}. ${row.hint[i]}`}
                     value={row[edge][0] ?? ''}
                     onChange={(e) =>
@@ -762,72 +756,53 @@ export default function ControlPanel({
             Destinations with unknown values are included.
           </p>
           {filtersActive && (
-            <button onClick={onClearFilters} className={`${BUTTON_SECONDARY} mt-2`}>
+            <button onClick={onClearFilters} className={`${BUTTON_SECONDARY} mt-2 mb-4`}>
               Clear filters
             </button>
           )}
+
+          {/* Result-count cap. The ceiling is the live analysis cap from
+              /api/capabilities: `limit` trims what is shown, never what is
+              analyzed, so there is no cheaper number to protect. */}
+          <div className="flex items-center gap-2">
+            <label htmlFor="max-results" className={`${TEXT.control} flex-1`}>
+              {AGGREGATE.maximum} results
+            </label>
+            {/* The default rides as a placeholder, like the filter boxes
+                above, so changing it is one keystroke rather than a select-
+                and-erase. Empty means the DEFAULT here, not "no cap" as it
+                does for a filter: this knob always has a value, and the row
+                count in the table's header says what it is doing. */}
+            <input
+              id="max-results"
+              type="number"
+              min={1}
+              max={maxLimit}
+              placeholder={String(DEFAULT_LIMIT)}
+              value={limit === DEFAULT_LIMIT ? '' : limit}
+              onChange={(e) =>
+                setLimit(clampLimit(parseInt(e.target.value) || DEFAULT_LIMIT, maxLimit))
+              }
+              className={`${FIELD_NUMERIC} ${CONTROL_W} px-2 py-1.5 text-center`}
+            />
+          </div>
         </section>
 
-        {/* Step 5: Additional options — result count and map overlays */}
+        {/* Map — map overlay options */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
-            5. Options
+            Map
           </h2>
-          <div className="space-y-4">
-            {/* Result-count cap. The ceiling is the live analysis cap from
-                /api/capabilities: `limit` trims what is shown, never what is
-                analyzed, so there is no cheaper number to protect. */}
-            <div className="flex items-center gap-2">
-              <label htmlFor="max-results" className={`${TEXT.control} flex-1`}>
-                {AGGREGATE.maximum} results
-              </label>
-              {/* The default rides as a placeholder, like the filter boxes
-                  above, so changing it is one keystroke rather than a select-
-                  and-erase. Empty means the DEFAULT here, not "no cap" as it
-                  does for a filter: this knob always has a value, and the row
-                  count in the table's header says what it is doing. */}
-              <input
-                id="max-results"
-                type="number"
-                min={1}
-                max={maxLimit}
-                placeholder={String(DEFAULT_LIMIT)}
-                value={limit === DEFAULT_LIMIT ? '' : limit}
-                onChange={(e) =>
-                  setLimit(clampLimit(parseInt(e.target.value) || DEFAULT_LIMIT, maxLimit))
-                }
-                className={`${FIELD_NUMERIC} ${CONTROL_W} px-2 py-1.5 text-center`}
-              />
-            </div>
-
-            {/* Unnamed peaks — a polygon-discovery knob, so it sits with the
-                other things that change what an analysis costs rather than
-                with the map overlay below it. */}
-            <div>
-              <label className={CHOICE_ROW}>
-                <input
-                  type="checkbox"
-                  checked={includeUnnamedPeaks}
-                  onChange={(e) => setIncludeUnnamedPeaks(e.target.checked)}
-                  className={CHOICE_INPUT}
-                />
-                <span>Include Unnamed Peaks in Polygon Results</span>
-              </label>
-            </div>
-
-            {/* Show wildfires — live NIFC perimeter overlay, off by default */}
-            <div>
-              <label className={CHOICE_ROW}>
-                <input
-                  type="checkbox"
-                  checked={showWildfires}
-                  onChange={(e) => setShowWildfires(e.target.checked)}
-                  className={CHOICE_INPUT}
-                />
-                <span>Show Wildfires</span>
-              </label>
-            </div>
-          </div>
+          {/* Show wildfires — live NIFC perimeter overlay, off by default */}
+          <label className={CHOICE_ROW}>
+            <input
+              type="checkbox"
+              checked={showWildfires}
+              onChange={(e) => setShowWildfires(e.target.checked)}
+              className={CHOICE_INPUT}
+            />
+            <span>Show wildfires</span>
+          </label>
         </section>
       </div>
 
