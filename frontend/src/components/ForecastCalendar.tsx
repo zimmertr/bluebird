@@ -8,6 +8,7 @@ import {
   SelectionKind,
   addDays,
   addMonths,
+  addOneHour,
   applyDayClick,
   applyDayDrag,
   applyModeSwitch,
@@ -20,6 +21,7 @@ import {
   monthKey,
   monthLabel,
   orderDays,
+  subtractOneHour,
   weekdayInitials,
 } from '../utils/calendar'
 import {
@@ -314,9 +316,19 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
                 type="time"
                 aria-label="Window start time"
                 value={hours.start}
-                onChange={(e) =>
-                  isTimeOfDay(e.target.value) && setHours({ ...hours, start: e.target.value })
-                }
+                onChange={(e) => {
+                  if (!isTimeOfDay(e.target.value)) return
+                  // On a single day, clamp the end time if start moves past it.
+                  // This prevents overnight spans (18:00-06:00) from being entered
+                  // on a single day, where they are invalid.
+                  const isSingleDay =
+                    selection.kind === 'days' && selection.startDate === selection.endDate
+                  const newEnd =
+                    isSingleDay && e.target.value >= hours.end
+                      ? addOneHour(e.target.value)
+                      : hours.end
+                  setHours({ ...hours, start: e.target.value, end: newEnd })
+                }}
                 className={`${FIELD} w-full px-2 py-1.5`}
               />
               <span className={`${TEXT.caption} flex-shrink-0`}>to</span>
@@ -324,9 +336,18 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
                 type="time"
                 aria-label="Window end time"
                 value={hours.end}
-                onChange={(e) =>
-                  isTimeOfDay(e.target.value) && setHours({ ...hours, end: e.target.value })
-                }
+                onChange={(e) => {
+                  if (!isTimeOfDay(e.target.value)) return
+                  // On a single day, clamp the start time if end moves before it.
+                  // This prevents overnight spans from being entered on a single day.
+                  const isSingleDay =
+                    selection.kind === 'days' && selection.startDate === selection.endDate
+                  const newStart =
+                    isSingleDay && e.target.value <= hours.start
+                      ? subtractOneHour(e.target.value)
+                      : hours.start
+                  setHours({ ...hours, start: newStart, end: e.target.value })
+                }}
                 className={`${FIELD} w-full px-2 py-1.5`}
               />
             </div>

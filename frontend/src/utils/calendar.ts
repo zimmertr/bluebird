@@ -129,6 +129,30 @@ export function isTimeOfDay(value: string): boolean {
 }
 
 /**
+ * Add one hour to a time in `HH:MM` format, clamping at DAY_END (23:59).
+ * 22:00 -> 23:00, 23:00 -> 23:59, 23:59 -> 23:59.
+ */
+export function addOneHour(time: string): string {
+  const [hStr, mStr] = time.split(':')
+  const h = parseInt(hStr, 10)
+  const m = parseInt(mStr, 10)
+  if (h >= 23) return DAY_END
+  return `${pad(h + 1)}:${pad(m)}`
+}
+
+/**
+ * Subtract one hour from a time in `HH:MM` format, clamping at DAY_START (00:00).
+ * 01:00 -> 00:00, 00:30 -> 00:00, 00:00 -> 00:00.
+ */
+export function subtractOneHour(time: string): string {
+  const [hStr, mStr] = time.split(':')
+  const h = parseInt(hStr, 10)
+  const m = parseInt(mStr, 10)
+  if (h <= 0) return DAY_START
+  return `${pad(h - 1)}:${pad(m)}`
+}
+
+/**
  * Shift a day by whole days, through the Date constructor's field overflow so a
  * DST transition cannot move the result off the intended calendar day.
  */
@@ -379,7 +403,13 @@ function withHours(
   days: { startDate: string; endDate: string },
   current: ForecastSelection,
 ): ForecastSelection {
-  const hours = current.kind === 'days' ? current.hours : undefined
+  let hours = current.kind === 'days' ? current.hours : undefined
+  // When the new span is a single day AND the hours are reversed,
+  // drop the hours entirely. An overnight span (18:00 to 06:00) is
+  // valid on a multi-day range but impossible on a single day.
+  if (hours && days.startDate === days.endDate && hours.end <= hours.start) {
+    hours = undefined
+  }
   return { kind: 'days', ...days, ...(hours ? { hours } : {}) }
 }
 
