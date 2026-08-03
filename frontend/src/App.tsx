@@ -1080,9 +1080,9 @@ export default function App() {
           When closed it stays absolute + translated off-screen so it leaves the
           layout and the map fills the full width on every breakpoint. */}
       <aside
-        className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[85vw] max-w-xs transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r border-slate-700 ${
+        className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[calc(100vw-2rem)] max-w-90 transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r border-slate-700 ${
           sidebarOpen
-            ? 'translate-x-0 lg:static lg:z-10 lg:w-80 lg:max-w-none lg:transition-none'
+            ? 'translate-x-0 lg:static lg:z-10 lg:w-90 lg:max-w-none lg:transition-none'
             : '-translate-x-full'
         }`}
       >

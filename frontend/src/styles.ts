@@ -186,8 +186,10 @@ export const RADIUS = {
  * here rather than inferred from whatever each component happened to do.
  *
  * Coarse pointers only, for the reason `touch` exists at all (index.css): the
- * panel is 320px wide at every breakpoint, so a viewport query re-spaces it on
- * a desktop window that never changed size. A mouse keeps today's density.
+ * panel is a near-constant width on every breakpoint (360px docked on desktop,
+ * 100vw − 2rem capped at 360 as the phone drawer), so a viewport query would
+ * re-space it on a desktop window that never changed size. A mouse keeps
+ * today's density.
  *
  * The lesson of #159 was not "no touch sizing" — it was "not one control at a
  * time". A coarse-pointer padding on the ranking rows and nothing else is what
@@ -321,6 +323,16 @@ export const ACCENT = {
 } as const
 
 /**
+ * The visible keyboard-focus indicator for interactive controls.
+ *
+ * Fires only on focus-visible, not on pointer focus, so mouse users see no
+ * change while keyboard users get a clear outline. The outline is 2px with a
+ * 2px offset, and uses sky-400 which comfortably clears the 3:1 boundary
+ * contrast on the slate-800 panel.
+ */
+export const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400'
+
+/**
  * The full-width primary action: Analyze, and the modals' dismiss buttons.
  *
  * It had been written out three times and had drifted into two radii, with the
@@ -344,7 +356,7 @@ export const ACCENT = {
  */
 export const BUTTON_PRIMARY =
   `${TEXT.cta} ${TAP.action} w-full py-2.5 ${RADIUS.surface} transition-colors ` +
-  `${ACCENT.fill} ${ACCENT.fillHover}`
+  `${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING}`
 
 /**
  * The secondary action standing next to something else: Clear under the
@@ -362,7 +374,7 @@ export const BUTTON_PRIMARY =
  */
 export const BUTTON_SECONDARY =
   `${TEXT.control} ${TAP.action} px-3 py-1.5 ${RADIUS.control} transition-colors ` +
-  'bg-slate-700 hover:bg-slate-600'
+  `bg-slate-700 hover:bg-slate-600 ${FOCUS_RING}`
 
 /**
  * The leading action of an inline pair: Done, with Clear beside it, ending the
@@ -382,7 +394,7 @@ export const BUTTON_SECONDARY =
  */
 export const BUTTON_ACCENT =
   `text-xs ${TAP.action} px-3 py-1.5 ${RADIUS.control} transition-colors ` +
-  `${ACCENT.fill} ${ACCENT.fillHover}`
+  `${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING}`
 
 /**
  * A word marking the row it sits in, not a control: "Recommended" on the
@@ -426,8 +438,8 @@ export const BADGE_ACCENT =
  */
 export const BUTTON_DANGER =
   `text-xs ${TAP.action} w-full py-1.5 ${RADIUS.control} font-medium transition-colors ` +
-  'text-red-200 bg-red-900/60 hover:bg-red-800 border border-red-700 ' +
-  'disabled:opacity-40 disabled:cursor-not-allowed'
+  `text-red-200 bg-red-900/60 hover:bg-red-800 border border-red-700 ` +
+  `disabled:opacity-40 disabled:cursor-not-allowed ${FOCUS_RING}`
 
 /**
  * A button floating over the map rather than sitting in a panel: today, the
@@ -440,7 +452,7 @@ export const BUTTON_DANGER =
  */
 export const BUTTON_FLOATING =
   `${SURFACE_FLOATING} ${TEXT.cta} text-white transition-colors ` +
-  `${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-slate-700`
+  `${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-slate-700 ${FOCUS_RING}`
 
 /**
  * The preview-deployment banner, the one surface that is deliberately loud.
@@ -462,7 +474,7 @@ export const BANNER_PREVIEW =
 export const ICON_ACTION = `text-slate-500 ${ACCENT.hoverText}`
 
 /** A bare icon button in a header: the chart and table collapse chevrons. */
-export const ICON_BUTTON = 'px-1 text-slate-400 hover:text-white transition-colors'
+export const ICON_BUTTON = `px-1 text-slate-400 hover:text-white transition-colors ${FOCUS_RING}`
 
 /**
  * A glyph drawn inside a field rather than beside it: the `SELECT` arrow.
@@ -592,7 +604,7 @@ export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RE
  */
 export const BOUNDS_GRID =
   'grid grid-cols-[minmax(0,1fr)_4.25rem_4.25rem] items-center gap-x-2 gap-y-2'
-export const SEGMENT_ITEM = `${TAP.action} flex-1 px-2 py-0.5 text-xs transition-colors`
+export const SEGMENT_ITEM = `${TAP.action} flex-1 px-2 py-0.5 text-xs transition-colors ${FOCUS_RING}`
 /** Between two halves, never before the first. */
 export const SEGMENT_DIVIDER = 'border-l border-slate-500'
 
@@ -615,7 +627,8 @@ export const SEGMENT_DIVIDER = 'border-l border-slate-500'
  */
 export const CHOICE_ROW =
   `${TEXT.control} ${TAP.row} gap-2.5 cursor-pointer ` +
-  'has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40'
+  `has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40 ` +
+  `has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-sky-400`
 export const CHOICE_INPUT = `${ACCENT.input} flex-shrink-0 cursor-pointer align-middle`
 
 /**
@@ -804,12 +817,14 @@ export const SURFACE_GROUP = `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.surface
  */
 export const DAY = {
   /**
-   * The cell box itself. Seven columns inside a ~272px card is ~38px wide, and
-   * the drawer is 320px on every phone, so this is the one control in the app
-   * that cannot reach 44 on both axes — the width has nowhere to come from
-   * short of a wider panel, which would cost more than it buys. Height it can
-   * have, and a calendar's mis-taps are overwhelmingly vertical: the columns
-   * are a whole finger apart in meaning (a week) while the rows are a day.
+   * The cell box itself. Seven columns split the calendar card, and the card's
+   * width is the drawer's minus the gutters: at the 360px panel (#238) a phone
+   * drawer is 100vw − 2rem, so a 375px phone yields ~295px of card and ~42px
+   * cells — closer to the 44px target than the old 320px drawer's ~38px, but
+   * still the one control in the app that cannot promise 44 on both axes,
+   * because the width is the phone's to give. Height it can have, and a
+   * calendar's mis-taps are overwhelmingly vertical: the columns are a whole
+   * finger apart in meaning (a week) while the rows are a day.
    */
   cell: 'flex h-9 touch:h-11 items-center justify-center',
   full: 'text-slate-200 hover:bg-slate-700',

@@ -16,6 +16,7 @@ import {
   CONTROL_W,
   FIELD,
   FIELD_NUMERIC,
+  FOCUS_RING,
   ICON_ADORNMENT,
   ICON_ACTION,
   ICON_BUTTON,
@@ -564,6 +565,33 @@ describe('shared recipes', () => {
   // field, for the same reason the dropdown is built from FIELD.
   it('builds the numeric field out of the field rather than beside it', () => {
     expect(FIELD_NUMERIC).toContain(FIELD)
+  })
+
+  // Every control that can be focused by keyboard should show a visible focus
+  // ring. FOCUS_RING fires on focus-visible, not on pointer focus, so mouse
+  // users see no change while keyboard users get a clear outline.
+  it.each([
+    ['BUTTON_PRIMARY', BUTTON_PRIMARY],
+    ['BUTTON_SECONDARY', BUTTON_SECONDARY],
+    ['BUTTON_ACCENT', BUTTON_ACCENT],
+    ['BUTTON_DANGER', BUTTON_DANGER],
+    ['BUTTON_FLOATING', BUTTON_FLOATING],
+    ['SEGMENT_ITEM', SEGMENT_ITEM],
+    ['ICON_BUTTON', ICON_BUTTON],
+  ])('%s composes the keyboard focus ring', (_name, recipe) => {
+    expect(recipe).toContain(FOCUS_RING)
+  })
+
+  // CHOICE_ROW wraps a native checkbox/radio, so focus lands on the input
+  // rather than on the row itself: it carries FOCUS_RING's exact recipe under
+  // the has-[:focus-visible] variant, lighting the whole strip when its input
+  // has keyboard focus. Derived from FOCUS_RING rather than restated, so the
+  // two cannot drift apart — change the ring and this fails until the row's
+  // hand-spelled copy follows (a variant cannot be composed at runtime because
+  // Tailwind only generates CSS for class names it can read in the source).
+  it('gives choice rows the focus ring through the has-[:focus-visible] variant', () => {
+    const rowRing = FOCUS_RING.replace(/focus-visible:/g, 'has-[:focus-visible]:')
+    expect(CHOICE_ROW).toContain(rowRing)
   })
 
   // Three rules, none redundant: Firefox reads the appearance property, WebKit
