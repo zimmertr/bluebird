@@ -498,7 +498,7 @@ async def test_hourly_rate_limit_stops_immediately(monkeypatch):
     assert len(calls) == 1
     assert slept == []
     assert exc.value.scope == "hourly"
-    assert "hourly" in exc.value.message
+    assert "quota reached" in exc.value.message
 
 
 async def test_a_non_429_status_error_is_an_upstream_error(monkeypatch):
@@ -649,10 +649,9 @@ async def test_a_point_outside_a_regional_model_raises_model_coverage(monkeypatc
         await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_hrrr)
 
     assert exc.value.model == "gfs_hrrr"
-    # The message names the model and the one thing that fixes it. Not a wait,
-    # not a smaller area: a different model.
+    # The message names the model and states it does not cover the area.
     assert "NOAA HRRR" in exc.value.message
-    assert "global" in exc.value.message
+    assert "does not cover" in exc.value.message
 
 
 async def test_a_coverage_refusal_is_not_reported_as_a_generic_upstream_failure(monkeypatch):

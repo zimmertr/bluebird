@@ -171,7 +171,7 @@ export function placeFromNominatimRow(row: NominatimRow): Place {
 export async function searchPlaces(query: string, limit = 5): Promise<Place[]> {
   const url = `/api/geocode?limit=${limit}&q=${encodeURIComponent(query)}`
   const res = await fetch(url, { headers: { Accept: 'application/json' } })
-  if (!res.ok) throw new Error(`Geocode returned ${res.status}`)
+  if (!res.ok) throw new Error('Place search unavailable. Try again later.')
   const rows: NominatimRow[] = await res.json()
   return rows.map(placeFromNominatimRow)
 }

@@ -129,40 +129,24 @@ def parse_rate_limit(exc: httpx.HTTPStatusError) -> tuple[str | None, int]:
 def rate_limit_message(provider: str, scope: str | None) -> str:
     """The user-facing sentence for an upstream 429, by quota scope."""
     if scope == "hourly":
-        return (
-            f"{provider} has used up its hourly request quota. Try again "
-            "after the top of the hour, or analyze a smaller area."
-        )
+        return f"{provider} quota reached. Try again later."
     if scope in ("daily", "monthly"):
-        return (
-            f"{provider} has used up its {scope} request quota. Try again "
-            "later today or tomorrow, or analyze a smaller area."
-        )
-    return (
-        f"{provider} is rate-limiting requests. Wait about a minute before "
-        "trying again, or draw a smaller area to request less data."
-    )
+        return f"{provider} quota reached. Try again later."
+    return f"{provider} is rate-limiting. Try again later."
 
 
 def classify_http_error(exc: Exception, provider: str) -> str:
     """Translate an httpx/network exception into an actionable message.
 
     ``provider`` is a human-readable name for the upstream service, e.g.
-    ``"Open-Meteo (weather service)"``. The returned string names the provider,
+    ``"Open-Meteo"``. The returned string names the provider,
     the likely cause, and a suggested next step where one exists.
     """
     if isinstance(exc, PartialResultError):
-        return (
-            f"{provider} could only return part of the results. The search area "
-            "is too demanding for its servers right now. Try again shortly, or "
-            "draw a smaller search area."
-        )
+        return f"{provider} partial results. Try again later."
 
     if isinstance(exc, httpx.TimeoutException):
-        return (
-            f"{provider} took too long to respond. It may be under heavy load. "
-            "Wait a moment and try again, or draw a smaller search area."
-        )
+        return f"{provider} took too long. Try again later."
 
     if isinstance(exc, httpx.HTTPStatusError):
         code = exc.response.status_code
@@ -170,24 +154,16 @@ def classify_http_error(exc: Exception, provider: str) -> str:
             scope, _ = parse_rate_limit(exc)
             return rate_limit_message(provider, scope)
         if code in (401, 403):
-            return (
-                f"{provider} rejected the request (HTTP {code}: authentication or "
-                "authorization error). This is a server-side configuration issue."
-            )
+            return f"{provider} rejected the request. Try again later."
         if 500 <= code < 600:
-            return (
-                f"{provider} is having server trouble (HTTP {code}). This is on their "
-                "end. Please try again shortly."
-            )
-        return f"{provider} returned an unexpected response (HTTP {code})."
+            return f"{provider} failed (HTTP {code}). Try again later."
+        return f"{provider} error (HTTP {code}). Try again later."
 
     if isinstance(exc, httpx.ConnectError):
-        return (
-            f"Couldn't connect to {provider}. Check your internet connection and "
-            "try again."
-        )
+        return f"Cannot reach {provider}. Try again later."
 
     if isinstance(exc, httpx.RequestError):
-        return f"A network error occurred while contacting {provider}. Please try again."
+        return f"{provider} request failed. Try again later."
 
-    return f"{provider} request failed unexpectedly: {exc}"
+    # Log the exception at error level instead of interpolating into user text
+    return f"{provider} request failed. Try again later."

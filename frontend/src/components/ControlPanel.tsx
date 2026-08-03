@@ -54,19 +54,18 @@ const SORT_METRICS: { value: SortBy; label: string }[] = RANKING_KEYS.map((value
   label: NOUN[familyOf(value)],
 }))
 
-// Why a knob stopped applying live. Each case leads with the action, because
-// that is what the reader wants first; the sentence after it is the reason the
+// Why a knob stopped applying live. Each case names the reason the
 // controls went quiet, which is the thing this cue exists to not leave unsaid.
 const COMMIT_CUE: Record<
   'server-path' | 'elevation-widened' | 'window-changed' | 'model-changed',
   string
 > = {
-  'elevation-widened': 'Press Analyze to apply. A wider elevation range needs a new search.',
-  'window-changed': 'Press Analyze to apply. A different forecast window needs new forecasts.',
-  'model-changed': 'Press Analyze to apply. A different model gives different forecasts.',
-  // The overlay already announced the fallback itself ("Weather service
-  // unreachable from this browser"), so this only has to name the consequence.
-  'server-path': 'Press Analyze to apply. The server analysis returns only the rows shown.',
+  'elevation-widened': 'A wider elevation range requires a new search.',
+  'window-changed': 'A new forecast window requires a new analysis.',
+  'model-changed': 'A new forecast model requires a new analysis.',
+  // The overlay already announced the fallback itself ("Open-Meteo is unreachable
+  // from this browser"), so this only has to name the consequence.
+  'server-path': 'The server analysis returns only the rows shown.',
 }
 
 // What each Analyze blocker reads as. A function rather than a record because
@@ -80,15 +79,15 @@ const COMMIT_CUE: Record<
 function blockerText(blocker: AnalyzeBlocker, maxAreaKm2: number, pointsNeeded: number): string {
   switch (blocker) {
     case 'area':
-      return `Area too large. Draw a smaller polygon (max ${maxAreaKm2.toLocaleString()} km²).`
+      return `Polygon is too large. Maximum is ${maxAreaKm2.toLocaleString()} km².`
     case 'window':
       return 'Adjust the forecast window to continue.'
     case 'destinations':
-      return 'Provide at least one destination to analyze.'
+      return 'Add a destination to analyze.'
     case 'polygon':
       return `Add ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon.`
     case 'types':
-      return 'Pick what the polygon should find, or add a destination another way.'
+      return 'Pick what the polygon search should discover.'
   }
 }
 
@@ -466,12 +465,11 @@ export default function ControlPanel({
                     the mode the handles are gone and none of them apply. */}
                 {drawing && pointsNeeded > 0 ? (
                   <p className={STATUS.info}>
-                    {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed,{' '}
-                    {pointsNeeded} more needed. Click a point to remove it.
+                    {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed.
                   </p>
                 ) : drawing ? (
                   <p className={`${STATUS.ok} font-medium`}>
-                    {drawPointCount} points placed. Drag points to adjust, or press Done.
+                    {drawPointCount} points placed. Press Done when ready.
                   </p>
                 ) : (
                   <p className={pointsNeeded > 0 ? STATUS.info : `${STATUS.ok} font-medium`}>
@@ -489,8 +487,7 @@ export default function ControlPanel({
                   polygonAreaKm2 > AREA_NOTE_KM2 &&
                   !areaTooLarge && (
                     <p className={STATUS.warn}>
-                      Large area: dense regions this size can exceed the
-                      destination limit, and searches take longer.
+                      Large polygon areas may be slow and hit limits.
                     </p>
                   )}
               </div>
@@ -636,8 +633,7 @@ export default function ControlPanel({
           </div>
           {modelClamped && (
             <p className={`mb-3 ${STATUS.warn} ${NOTICE.warn}`}>
-              {modelLabel} does not forecast that far ahead. The window was
-              shortened to what it covers.
+              {modelLabel} shortened the window.
             </p>
           )}
 
@@ -650,10 +646,10 @@ export default function ControlPanel({
           {windowWarning && (
             <p className={`mt-2 ${STATUS.warn} ${NOTICE.warn}`}>
               {windowWarning === 'order'
-                ? 'The narrowed hours end before they start. Adjust them to run an analysis.'
+                ? 'The narrowed hours end before they start.'
                 : windowWarning === 'past'
-                ? `This window starts before the ${PAST_LIMIT_DAYS}-day history limit. Pick days inside the calendar's range to run an analysis.`
-                : `This window extends beyond what ${modelLabel} forecasts. Pick days inside the calendar's range to run an analysis.`}
+                ? `Forecast range starts before the ${PAST_LIMIT_DAYS}-day limit.`
+                : `${modelLabel} does not reach that far.`}
             </p>
           )}
           {/* One sentence for both the partial and the fully-past-horizon case.
@@ -890,8 +886,7 @@ export default function ControlPanel({
             check is missing. */}
         {wildfireCheckFailed && !loading && (
           <p className={`${STATUS.warn} ${NOTICE.warn}`}>
-            NIFC could not be reached to provide wildfire data so no proximity information is
-            available.
+            NIFC is unreachable. Wildfire data unavailable.
           </p>
         )}
 
@@ -912,7 +907,7 @@ export default function ControlPanel({
         {resultCount !== undefined && !loading && !error && !refusal &&
           aqiAllNull && aqiCoverage !== 'none' && (
             <p className="text-xs text-slate-400 text-center">
-              Air quality data unavailable for this forecast window.
+              Air quality data is unavailable for this window.
             </p>
           )}
 

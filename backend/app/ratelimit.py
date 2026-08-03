@@ -280,10 +280,7 @@ class BudgetExhausted(Exception):
     def __init__(self, provider: str, retry_after_s: int = SHED_RETRY_AFTER_S):
         self.provider = provider
         self.retry_after_s = retry_after_s
-        self.message = (
-            "Bluebird is at capacity right now, with too many requests "
-            "already in flight. Try again in a few seconds."
-        )
+        self.message = "Bluebird is at capacity. Try again later."
         super().__init__(self.message)
 
 
@@ -458,10 +455,10 @@ DESTINATIONS_LIMITER = RateLimiter(
 GEOCODE_LIMITER = RateLimiter(RATE_LIMIT_GEOCODE_PER_MINUTE, RATE_LIMIT_GEOCODE_BURST)
 WILDFIRES_LIMITER = RateLimiter(RATE_LIMIT_WILDFIRES_PER_MINUTE, RATE_LIMIT_WILDFIRES_BURST)
 
-WEATHER_BUDGET = UpstreamBudget("Open-Meteo (weather service)", UPSTREAM_CONCURRENCY_WEATHER)
+WEATHER_BUDGET = UpstreamBudget("Open-Meteo", UPSTREAM_CONCURRENCY_WEATHER)
 AQI_BUDGET = UpstreamBudget("Open-Meteo (air quality)", UPSTREAM_CONCURRENCY_AQI)
 WEATHER_WEIGHT = WeightedBudget(
-    "Open-Meteo (weather service)", UPSTREAM_WEIGHT_PER_MINUTE_WEATHER
+    "Open-Meteo", UPSTREAM_WEIGHT_PER_MINUTE_WEATHER
 )
 AQI_WEIGHT = WeightedBudget("Open-Meteo (air quality)", UPSTREAM_WEIGHT_PER_MINUTE_AQI)
 # Overpass budgets are per mirror and live in osm.py's OVERPASS_MIRRORS table,
@@ -484,10 +481,9 @@ def _throttle(limiter: RateLimiter, request: Request) -> None:
         key,
         seconds,
     )
-    plural = "s" if seconds != 1 else ""
     raise HTTPException(
         status_code=429,
-        detail=f"Too many requests from your address. Try again in about {seconds} second{plural}.",
+        detail="Too many requests. Try again later.",
         headers={"Retry-After": str(seconds)},
     )
 

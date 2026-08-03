@@ -45,7 +45,7 @@ BATCH_SIZE = 50
 # actually meters (see services.openmeteo_weight).
 MAX_CONCURRENT_BATCHES = 4
 N_VARIABLES = 3  # precipitation, temperature_2m, wind_speed_10m
-PROVIDER = "Open-Meteo (weather service)"
+PROVIDER = "Open-Meteo"
 
 # Called as each batch completes: (processed_destinations, total_destinations,
 # batches_done, total_batches). Lets the SSE route emit incremental progress.
@@ -180,13 +180,8 @@ async def _fetch_chunk_indexed(
 
 
 def _coverage_message(model: ForecastModel) -> str:
-    """Why a regional model refused, and the one thing that fixes it."""
-    return (
-        f"{MODEL_INFO[model].label} does not cover part of this area. It is a "
-        "regional model, run over the continental US and neighbouring parts of "
-        "Canada and Mexico only. Choose a global forecast model, or move the "
-        "search area inside its coverage."
-    )
+    """Why a regional model refused."""
+    return f"{MODEL_INFO[model].label} does not cover this area."
 
 
 async def _fetch_chunk(

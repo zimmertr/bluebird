@@ -380,7 +380,7 @@ export default function App() {
     statusDetail,
     progress,
     paceEndMs,
-  } = useAnalyze(caps.maxDestinations)
+  } = useAnalyze(caps.maxDestinations, caps.forecastModels)
 
   // Places searched by name — the third destination input. Searching registers
   // the place (map dot + URL persistence); its forecast joins the next Analyze,
@@ -983,7 +983,7 @@ export default function App() {
     if (removedKeys.size > 0) {
       return 'All rows have been removed from this analysis. Add destinations or adjust the inputs, then Analyze again.'
     }
-    return 'No destinations found. Try a larger polygon or different time window.'
+    return 'No destinations found. Try a larger area.'
   }, [response, results.length, presented.eligible, presented.excluded, removedKeys])
 
   const hasColoredMarkers = showResults && results.length > 0

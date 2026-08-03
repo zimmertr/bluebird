@@ -207,9 +207,12 @@ def _cap_detail(
     has_polygon: bool,
     has_custom: bool,
     suggestion: tuple[int, int] | None = None,
+    has_unnamed_peaks: bool = False,
 ) -> str:
     """The over-cap refusal, advising only the remedies actually in play."""
-    if has_polygon and has_custom:
+    if has_polygon and has_unnamed_peaks:
+        advice = "Draw a smaller polygon, narrow the elevation range, or turn off unnamed peaks."
+    elif has_polygon and has_custom:
         advice = "Draw a smaller polygon, narrow the elevation range, or trim the custom list."
     elif has_polygon:
         advice = "Draw a smaller polygon or narrow the elevation range."
@@ -235,6 +238,7 @@ def _refusal_body(
     has_polygon: bool,
     has_custom: bool,
     suggestion: tuple[int, int] | None,
+    has_unnamed_peaks: bool = False,
 ) -> dict:
     """The structured 400 body (`AnalysisRefusal`) for an over-cap refusal."""
     body = AnalysisRefusal(
@@ -244,6 +248,7 @@ def _refusal_body(
             has_polygon=has_polygon,
             has_custom=has_custom,
             suggestion=suggestion,
+            has_unnamed_peaks=has_unnamed_peaks,
         ),
         found=count,
         limit=MAX_ANALYZE_PEAKS,
@@ -605,9 +610,9 @@ async def analyze_stream(request: AnalyzeRequest):
                 except UpstreamError as e:
                     yield _sse("error", message=e.message)
                     return
-                except Exception as e:
-                    log.exception("OSM query failed")
-                    yield _sse("error", message=f"Destination search failed unexpectedly: {e}")
+                except Exception:
+                    log.exception("Destination search failed")
+                    yield _sse("error", message="Destination search failed. Try again later.")
                     return
                 finally:
                     if not osm_task.done():
@@ -645,6 +650,7 @@ async def analyze_stream(request: AnalyzeRequest):
                         has_polygon=bool(request.destination_types),
                         has_custom=bool(request.custom_destinations),
                         suggestion=suggestion,
+                        has_unnamed_peaks=bool(request.include_unnamed_peaks),
                     )
                     # The error event carries the same structured remedy
                     # fields the HTTP 400 does, message first so a plain
@@ -685,7 +691,7 @@ async def analyze_stream(request: AnalyzeRequest):
                     _sse(
                         "status",
                         message="Retrieving Forecasts…",
-                        detail=f"Weather service quota: resuming in about {seconds}s",
+                        detail=f"Open-Meteo quota: resuming in about {seconds}s",
                     )
                 )
 
@@ -739,9 +745,9 @@ async def analyze_stream(request: AnalyzeRequest):
             except UpstreamError as e:
                 yield _sse("error", message=e.message)
                 return
-            except Exception as e:
+            except Exception:
                 log.exception("Weather fetch failed")
-                yield _sse("error", message=f"Weather lookup failed unexpectedly: {e}")
+                yield _sse("error", message="Weather lookup failed. Try again later.")
                 return
             finally:
                 # If the client disconnected (generator torn down) before the
@@ -774,9 +780,9 @@ async def analyze_stream(request: AnalyzeRequest):
                 ).model_dump(),
             )
 
-        except Exception as e:
+        except Exception:
             log.exception("Unexpected error in analyze_stream")
-            yield _sse("error", message=f"Unexpected error: {e}")
+            yield _sse("error", message="Something went wrong. Try again later.")
 
     return StreamingResponse(
         _with_keepalive(generate()),
@@ -887,9 +893,10 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
             )
         except UpstreamError as e:
             raise HTTPException(status_code=502, detail=e.message)
-        except Exception as e:  # noqa: BLE001 — any OSM failure maps to a 502
+        except Exception:
+            log.exception("Destination search failed")
             raise HTTPException(
-                status_code=502, detail=f"OSM query failed: {e}"
+                status_code=502, detail="Destination search failed. Try again later."
             )
 
         # The user's own list rides along with whatever discovery found — the
@@ -923,6 +930,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
                     has_polygon=bool(request.destination_types),
                     has_custom=bool(request.custom_destinations),
                     suggestion=suggestion,
+                    has_unnamed_peaks=bool(request.include_unnamed_peaks),
                 ),
             )
 
@@ -977,11 +985,12 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         if aqi_task is not None:
             aqi_task.cancel()
         raise HTTPException(status_code=502, detail=e.message)
-    except Exception as e:  # noqa: BLE001 — any weather failure maps to a 502
+    except Exception:
         if aqi_task is not None:
             aqi_task.cancel()
+        log.exception("Weather lookup failed")
         raise HTTPException(
-            status_code=502, detail=f"Weather API request failed: {e}"
+            status_code=502, detail="Weather lookup failed. Try again later."
         )
     aqi_list = await aqi_task if aqi_task is not None else [None] * len(destinations)
 

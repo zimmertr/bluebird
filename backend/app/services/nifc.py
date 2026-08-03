@@ -242,19 +242,15 @@ def _raise_for_arcgis_error(body: Any) -> None:
     if not isinstance(error, dict):
         return
     code = error.get("code") if isinstance(error.get("code"), int) else None
-    details = [d for d in (error.get("details") or []) if isinstance(d, str)]
-    message = " ".join(
-        part for part in ([error.get("message")] if isinstance(error.get("message"), str) else []) + details
-    )
     # 503 arrives in the same envelope when the service is merely overloaded.
     if code in (429, 503):
         raise UpstreamRateLimited(
             PROVIDER,
             "minutely",
             60,
-            f"{PROVIDER} is rate-limiting requests: {message}",
+            "Wildfire data is rate-limited. Try again later.",
         )
-    raise UpstreamError(f"{PROVIDER} rejected the query ({code}): {message}")
+    raise UpstreamError("Wildfire data was rejected. Try again later.")
 
 
 async def _fetch_layer(client: httpx.AsyncClient, simplify_deg: float | None) -> tuple[Fire, ...]:
@@ -285,7 +281,7 @@ async def _fetch_layer(client: httpx.AsyncClient, simplify_deg: float | None) ->
         _raise_for_arcgis_error(body)
         features = body.get("features") if isinstance(body, dict) else None
         if not isinstance(features, list):
-            raise UpstreamError(f"{PROVIDER} returned an unexpected response shape.")
+            raise UpstreamError("Wildfire data could not be read.")
         fires.extend(fire for fire in map(_to_fire, features) if fire is not None)
         if not body.get("exceededTransferLimit") or not features:
             return tuple(fires)

@@ -72,19 +72,18 @@ describe('composeOverlay', () => {
     expect(view.visible && view.detail).toBe('Trying backup map server 2 of 3…')
   })
 
-  it('stages tiered reassurance as a search runs long', () => {
+  it('shows reassurance once a search runs long', () => {
     const search = { ...idle, analyzeLoading: true, statusMessage: SEARCHING_MESSAGE }
     const early = composeOverlay({ ...search, elapsedS: 19 })
     expect(early.visible && early.detail).toBe(null)
     const staged = composeOverlay({ ...search, elapsedS: 20 })
     expect(staged.visible && staged.detail).toBe(
-      'Still searching. Large areas often take 40 to 60 seconds.'
+      'Still searching. Large analyses can take a while.'
     )
-    // Tier two admits the mirror-failover tail without a false ceiling (the
-    // old "up to 30 seconds" measured false at 44s on a healthy primary).
+    // Same message after more time has elapsed
     const long = composeOverlay({ ...search, elapsedS: 45 })
     expect(long.visible && long.detail).toBe(
-      'Still searching. Some searches take over a minute.'
+      'Still searching. Large analyses can take a while.'
     )
   })
 
@@ -120,12 +119,12 @@ describe('composeOverlay', () => {
     const view = composeOverlay({
       ...idle,
       analyzeLoading: true,
-      statusDetail: 'Weather service quota: resuming in about 30s',
+      statusDetail: 'Open-Meteo quota: resuming in about 30s',
       elapsedS: 40,
       rankedProgress: { processed: 10, total: 100 },
     })
     expect(view.visible && view.detail).toBe(
-      'Weather service quota: resuming in about 30s'
+      'Open-Meteo quota: resuming in about 30s'
     )
   })
 
@@ -137,7 +136,7 @@ describe('composeOverlay', () => {
       rankedProgress: { processed: 550, total: 908 },
       paceRemainingS: 34,
     })
-    expect(view.visible && view.detail).toBe('Weather service quota: resuming in 34s')
+    expect(view.visible && view.detail).toBe('Open-Meteo quota: resuming in 34s')
     const done = composeOverlay({
       ...idle,
       analyzeLoading: true,

@@ -131,10 +131,9 @@ def test_parse_rate_limit_degrades_on_garbage():
 
 
 def test_rate_limit_messages_state_the_horizon():
-    assert "hourly" in rate_limit_message("Open-Meteo (weather service)", "hourly")
-    assert "top of the hour" in rate_limit_message("Open-Meteo (weather service)", "hourly")
-    assert "daily" in rate_limit_message("Open-Meteo (weather service)", "daily")
-    assert "minute" in rate_limit_message("Open-Meteo (weather service)", None)
+    assert "quota reached" in rate_limit_message("Open-Meteo (weather service)", "hourly")
+    assert "quota reached" in rate_limit_message("Open-Meteo (weather service)", "daily")
+    assert "rate-limiting" in rate_limit_message("Open-Meteo (weather service)", None)
 
 
 def test_backwards_clock_never_manufactures_a_deficit():

@@ -379,10 +379,7 @@ def _check_polygon_area(v: GeoPolygon) -> GeoPolygon:
     area = bbox_area_km2(v.coordinates[0])
     if area > MAX_POLYGON_AREA_KM2:
         raise ValueError(
-            f"Search area is too large (~{area:,.0f} km²). "
-            f"Maximum allowed is {MAX_POLYGON_AREA_KM2:,} km². "
-            "Larger areas are more than the map search service can scan in "
-            "one query. Draw a smaller polygon."
+            f"Search area is too large (~{area:,.0f} km²). Maximum is {MAX_POLYGON_AREA_KM2:,} km²."
         )
     return v
 

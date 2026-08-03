@@ -87,7 +87,7 @@ export default function SearchBox({ onSelect, pointed = false }: Props) {
         setHighlight(0)
       }
     } catch {
-      setError('Search failed. Try again.')
+      setError('Search failed. Try again later.')
     } finally {
       setLoading(false)
     }

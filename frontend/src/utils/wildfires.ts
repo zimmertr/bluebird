@@ -112,7 +112,7 @@ export async function fetchWildfires(
 ): Promise<FeatureCollection> {
   const res = await fetch(wildfireQueryUrl(bbox, detail), { signal })
   if (!res.ok) {
-    const err = new Error(`Wildfire request failed: ${res.status}`) as Error & {
+    const err = new Error('Wildfire data unavailable. Try again later.') as Error & {
       rateLimited?: boolean
     }
     err.rateLimited = res.status === 429 || res.status === 503
@@ -120,7 +120,7 @@ export async function fetchWildfires(
   }
   const data = await res.json()
   if (!data || data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
-    throw new Error('Unexpected wildfire response shape')
+    throw new Error('Wildfire data could not be read.')
   }
   // The response also carries `fetched_at`, the age of the server's snapshot.
   // Nothing in the browser reads it: the cache serves an aged snapshot rather

@@ -39,12 +39,10 @@ export const SEARCHING_MESSAGE = 'Searching for Destinations…'
 // Staged reassurance, tiered to the measured mirror behavior (issue #180):
 // overpass-api.de answers big polygons in 12-42s; a failover adds the backup
 // mirror's 38-45s on top, so "up to 30 seconds" (the old copy) measured false
-// the first time a search crossed it. Tier one covers the common case
-// honestly; tier two admits the failover tail without catastrophizing.
+// the first time a search crossed it. Tier one covers the common case and we
+// show the same message for both tiers now.
 const STILL_SEARCHING_AFTER_S = 20
-const STILL_SEARCHING = 'Still searching. Large areas often take 40 to 60 seconds.'
-const LONG_SEARCH_AFTER_S = 45
-const LONG_SEARCH = 'Still searching. Some searches take over a minute.'
+const STILL_SEARCHING = 'Still searching. Large analyses can take a while.'
 
 // "Retrieving Forecast…" for exactly one, "Retrieving {N} Forecasts…" otherwise.
 function retrievingLabel(total: number): string {
@@ -61,9 +59,7 @@ export function composeOverlay(i: OverlayInputs): OverlayView {
     // Staged copy only while genuinely searching — in the retrieval gap it
     // would contradict the heading above it.
     const staged =
-      message === SEARCHING_MESSAGE && i.elapsedS >= LONG_SEARCH_AFTER_S
-        ? LONG_SEARCH
-        : message === SEARCHING_MESSAGE && i.elapsedS >= STILL_SEARCHING_AFTER_S
+      message === SEARCHING_MESSAGE && i.elapsedS >= STILL_SEARCHING_AFTER_S
         ? STILL_SEARCHING
         : null
     return { visible: true, message, detail: i.statusDetail ?? staged, progress: null }
@@ -77,7 +73,7 @@ export function composeOverlay(i: OverlayInputs): OverlayView {
   // is scheduled.
   const detail =
     i.paceRemainingS != null && i.paceRemainingS > 0
-      ? `Weather service quota: resuming in ${i.paceRemainingS}s`
+      ? `Open-Meteo quota: resuming in ${i.paceRemainingS}s`
       : i.statusDetail
   return {
     visible: true,
