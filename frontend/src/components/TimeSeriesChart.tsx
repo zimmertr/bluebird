@@ -10,7 +10,7 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult } from '../types'
-import { CHOICE_INPUT, CHOICE_ROW, RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
+import { CHOICE_INPUT, CHOICE_ROW, FOCUS_RING, RADIUS, SURFACE_FLOATING, STATUS, TEXT } from '../styles'
 import {
   CHART_METRICS,
   ChartMetric,
@@ -39,6 +39,8 @@ interface Props {
   metric: ChartMetric
   onMetricChange: (m: ChartMetric) => void
   colorFor: (row: DestinationResult) => string
+  isSelected?: (row: DestinationResult) => boolean
+  onToggle?: (row: DestinationResult) => void
 }
 
 export default function TimeSeriesChart({
@@ -47,6 +49,8 @@ export default function TimeSeriesChart({
   metric,
   onMetricChange,
   colorFor,
+  isSelected,
+  onToggle,
 }: Props) {
   const plotRef = useRef<HTMLDivElement>(null)
   const [focusedKey, setFocusedKey] = useState<string | null>(null)
@@ -131,7 +135,7 @@ export default function TimeSeriesChart({
         ))}
       </div>
 
-      <div ref={plotRef} className="min-h-0 flex-1">
+      <div ref={plotRef} className="min-h-0 flex-1 overflow-hidden">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={data}
@@ -215,6 +219,33 @@ export default function TimeSeriesChart({
           </LineChart>
         </ResponsiveContainer>
       </div>
+
+      {/* Legend: toggleable row picker for plotted destinations */}
+      {isSelected && onToggle && rows.length > 0 && (
+        <div className="max-h-20 flex-shrink-0 overflow-y-auto border-t border-slate-600 bg-slate-900/50 px-3 py-2">
+          <div className={`${TEXT.overline} mb-2`}>Series</div>
+          <div className="flex flex-wrap gap-1.5">
+            {rows.map((row) => (
+              <button
+                key={`${row.latitude},${row.longitude}`}
+                onClick={() => onToggle(row)}
+                className={`${TEXT.control} inline-flex max-w-56 items-center gap-2 rounded px-2 py-1 transition-colors ${
+                  isSelected(row)
+                    ? 'bg-slate-700 hover:bg-slate-600'
+                    : 'bg-slate-800/50 hover:bg-slate-700'
+                } ${FOCUS_RING}`}
+                aria-pressed={isSelected(row)}
+              >
+                <span
+                  className={`h-2 w-2 ${RADIUS.control} flex-shrink-0`}
+                  style={{ backgroundColor: colorFor(row) }}
+                />
+                <span className="truncate">{row.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

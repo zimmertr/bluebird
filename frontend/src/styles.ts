@@ -488,6 +488,13 @@ export const ICON_ADORNMENT =
   'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400'
 
 /**
+ * Glyph sizing for inline SVG icons paired with text: the results-bar mode
+ * toggle, the columns picker. 16x16 at default density; visible as text width
+ * shrinks below breakpoints.
+ */
+export const ICON = 'h-4 w-4'
+
+/**
  * The indeterminate spinner: the search box while a lookup is in flight.
  *
  * Size stays at the call site; everything that makes it a spinner does not.

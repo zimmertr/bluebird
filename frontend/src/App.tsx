@@ -18,11 +18,16 @@ import {
   ACCENT,
   BUTTON_FLOATING,
   BUTTON_SECONDARY,
+  ICON,
   ICON_BUTTON,
   LAYER,
   LINK,
   PROSE,
   RADIUS,
+  SEGMENT,
+  SEGMENT_DIVIDER,
+  SEGMENT_IDLE,
+  SEGMENT_ITEM,
   SURFACE_CARD,
   SURFACE_FLOATING,
   TAP,
@@ -314,10 +319,34 @@ export default function App() {
   // its own numbers would be a second opinion about what "default" means.
   const [tableHeight, setTableHeight] = useState(DEFAULT_TABLE_HEIGHT)
   const [chartHeight, setChartHeight] = useState(DEFAULT_CHART_HEIGHT)
-  // Chevron-collapsed panels: the header bar stays docked at the bottom (the
-  // panel never unmounts); expanding restores the previous height.
-  const [chartCollapsed, setChartCollapsed] = useState(false)
-  const [tableCollapsed, setTableCollapsed] = useState(false)
+  // Which views are visible in the results area: chart-only, table-only, or both.
+  // Stored preference always wins; no stored preference defaults by breakpoint:
+  // 'table' below lg (1024px), 'both' at/above. Never changes on resize.
+  type ResultsMode = 'chart' | 'table' | 'both'
+  const [resultsMode, setResultsMode] = useState<ResultsMode>(() => {
+    if (typeof localStorage === 'undefined') {
+      return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches ? 'both' : 'table'
+    }
+    try {
+      const stored = JSON.parse(localStorage.getItem('bluebird_view') ?? '{}')
+      if (stored.mode !== undefined) return stored.mode
+      // No stored mode: use breakpoint-based default
+      return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches ? 'both' : 'table'
+    } catch {
+      return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches ? 'both' : 'table'
+    }
+  })
+  // Persist results mode to localStorage when it changes.
+  useEffect(() => {
+    try {
+      const current = JSON.parse(localStorage.getItem('bluebird_view') ?? '{}')
+      localStorage.setItem('bluebird_view', JSON.stringify({ ...current, mode: resultsMode }))
+    } catch {
+      // Ignore localStorage errors (SSR, quota, etc.)
+    }
+  }, [resultsMode])
+  // Chevron to collapse/expand the entire results area.
+  const [resultsCollapsed, setResultsCollapsed] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   // When each grip was last pressed, keyed by which one. A double press resets
   // that grip's own panel — the chart resizer restores the chart, the table
@@ -1089,13 +1118,13 @@ export default function App() {
   // the map always keeps its floor. Drives both breakpoints — mobile is resizable
   // too, so it can no longer rely on Tailwind's fixed panel heights.
   const viewportH = useViewportHeight()
-  // A collapsed panel is just its header bar — it takes no share of the band.
-  const chartExpanded = chartShown && !chartCollapsed
-  const tableExpanded = showTable && !tableCollapsed
+  // Determine which panels are visible based on resultsMode and resultsCollapsed.
+  const chartShowing = !resultsCollapsed && (resultsMode === 'chart' || resultsMode === 'both')
+  const tableShowing = !resultsCollapsed && (resultsMode === 'table' || resultsMode === 'both')
   const { chart: chartPanelPx, table: tablePanelPx } = resolvePanelHeights(
     chartHeight,
     tableHeight,
-    { chartShown: chartExpanded, tableShown: tableExpanded, availPx: viewportH - bannerPx },
+    { chartShown: chartShowing && chartShown, tableShown: tableShowing && showTable, availPx: viewportH - bannerPx },
   )
 
   return (
@@ -1411,211 +1440,92 @@ export default function App() {
           )}
         </div>
 
-        {chartShown && (
+        {(chartShown || showTable) && (
           <div
             className="flex flex-shrink-0 flex-col bg-slate-800"
-            style={chartCollapsed ? undefined : { height: `${chartPanelPx}px` }}
+            
           >
-            {!chartCollapsed && (
-              /* Drag handle — the map│chart divider. Dragging up grows the chart,
-                 stealing height from the map above; the table below stays put
-                 (tablePanelPx is 0 when the table is closed). Pointer events +
-                 touch-none so a finger resizes it on mobile too. */
-              <div
-                onPointerDown={(e) => {
-                  if (isDoublePress('chart', e.timeStamp)) {
-                    // Pin the table to the height it is actually rendered at
-                    // before restoring the chart. Both panels are *desired*
-                    // heights that a shared resolver reconciles, and the table
-                    // grip's drag trades height between the two — so without
-                    // this, restoring one hands the other whatever it was
-                    // holding and the sibling visibly jumps. Pinned, the
-                    // difference comes off the map instead, which is where
-                    // this panel's height came from in the first place.
-                    setTableHeight(tablePanelPx)
-                    setChartHeight(DEFAULT_CHART_HEIGHT)
-                    return
-                  }
-                  // Pin the table's desired height to its applied value first, so a
-                  // stale (larger) desired height can't soak up space freed by
-                  // shrinking the chart — that space belongs to the map here.
-                  setTableHeight(tablePanelPx)
-                  beginResize(e, (up) =>
-                    setChartHeight(
-                      clampPanelHeight(chartPanelPx, up, tablePanelPx + bannerPx, window.innerHeight),
-                    ),
-                  )
-                }}
-                className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
-              >
-                <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
-              </div>
-            )}
-            <div
-              className={`flex flex-shrink-0 items-center justify-between border-b border-slate-600 bg-slate-700 px-3 py-1 ${chartCollapsed ? 'border-t' : ''}`}
-            >
-              {/* Static, leftmost, and shown whether or not the panel is open:
-                  collapsed, this strip is the only thing naming what the
-                  chevron expands. Its twin titles the table bar below. */}
-              <span className={TEXT.panelTitle}>Forecast Chart</span>
-              <button
-                onClick={() => setChartCollapsed((c) => !c)}
-                aria-label={chartCollapsed ? 'Expand the forecast chart' : 'Collapse the forecast chart'}
-                className={ICON_BUTTON}
-              >
-                <Chevron up={chartCollapsed} />
-              </button>
-            </div>
-            {!chartCollapsed && (
-              <div className="min-h-0 flex-1">
-                <TimeSeriesChart
-                  times={chartTimes}
-                  rows={chart.selectedRows}
-                  metric={chart.metric}
-                  onMetricChange={chart.setMetric}
-                  colorFor={chart.colorFor}
-                />
-              </div>
-            )}
-          </div>
-        )}
-        {showTable && (
-          <div
-            className="flex-shrink-0 bg-slate-800 flex flex-col"
-            style={tableCollapsed ? undefined : { height: `${tablePanelPx}px` }}
-          >
-            {!tableCollapsed && (
-              /* Drag handle. With the chart above, this is the chart│table divider:
-                 dragging up grows the table by shrinking the chart, leaving the map
-                 untouched. With no chart it steals from the map like the chart
-                 handle. Pointer events + touch-none for mobile. */
-              <div
-                onPointerDown={(e) => {
-                  if (isDoublePress('table', e.timeStamp)) {
-                    // Same reasoning as the chart grip above, mirrored: pin the
-                    // chart where it is drawn so restoring the table cannot
-                    // move it.
-                    setChartHeight(chartPanelPx)
-                    setTableHeight(DEFAULT_TABLE_HEIGHT)
-                    return
-                  }
-                  beginResize(e, (up) => {
-                    if (chartExpanded) {
-                      const next = splitChartTable(chartPanelPx, tablePanelPx, up)
-                      setChartHeight(next.chart)
-                      setTableHeight(next.table)
-                    } else {
-                      setTableHeight(clampPanelHeight(tablePanelPx, up, bannerPx, window.innerHeight))
-                    }
-                  })
-                }}
-                className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
-              >
-                <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
-              </div>
-            )}
-            {/* Header. One line when the bar is wide, two when it is not, and
-                never three.
-
-                Everything used to sit on one flex line and wrap where it ran
-                out, which on a 412px phone cost three lines and truncated the
-                title to "Forecast Table:…" — the ranking metric is the only
-                reason that line exists. Chrome is not what this panel is for:
-                every line here is a line of ranking nobody gets to read.
-
-                So the bar is two columns that fold. Wide, they run inline and
-                the whole thing is one line. Narrow, each column stacks: what
-                these rows are over which window they cover, the download over
-                the credit, with the chevron beside both. Two lines, never more,
-                because each column has exactly one shrinking member.
-
-                A container query, not a viewport one. This bar's width is the
-                viewport minus the docked sidebar, so a `lg:` breakpoint would
-                fold it on a window that had not changed size and leave it
-                folded on one that had — which is the exact bug #159 removed
-                from the control panel. `@container` asks the bar about itself.
-                The step is measured, and re-measured whenever a member is
-                added: one line needs ~800px since the row count joined it, so
-                between the 768px `@3xl` fold and 800px the ranking ellipsizes
-                rather than the bar folding — which is what its `truncate` is
-                for, and better than folding a bar that nearly fits. */}
-            <div
-              className={`@container flex-shrink-0 px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
-            >
-              <div className="flex items-start gap-2 @3xl:items-baseline">
-                {/* What these rows are, and which window they cover. */}
-                <div className="flex min-w-0 flex-1 flex-col @3xl:flex-row @3xl:items-baseline @3xl:gap-2">
-                  {/* The panel's name, then what is currently in it. The name is
-                      static: it used to be one of "Current Conditions:",
-                      "Forecast:" or "Forecast Table:" depending on the selection,
-                      so the same report renamed itself when you moved the window.
-                      Which selection it was is the caption's job, beside it.
-
-                      Siblings, not nested: the title's weight and color would
-                      otherwise inherit into the ranking, which is the one thing
-                      giving it a different role from the title is meant to stop. */}
-                  {/* One phrase, not three chips. The title, what the rows are
-                      ranked by, and how many of them there are read as a
-                      sentence: "Forecast Table - Lowest Total Precipitation
-                      (100 of 100)". Three spans alternating bold, normal, bold
-                      made the eye stop twice on the way across.
-                      The count rides inside it rather than beside it — it
-                      qualifies the ranking, since both describe the same rows.
-                      Never a shrinking member on its own: an ellipsized number
-                      is a wrong number, so the ranking truncates around it. */}
+            {/* Shared header bar for all results views. A container query, not
+                a viewport one: the bar's width is the viewport minus the docked
+                sidebar, so a viewport breakpoint would fold it on a window that
+                never changed size. The fold stepped up one rung when the mode
+                switch (icons plus words), the filters chip and Columns joined
+                the bar (#238): one line now needs ~870px measured, so the fold
+                sits at the 896px container step. Re-measure if a member joins
+                or leaves. */}
+            <div className={`@container flex-shrink-0 px-3 py-1.5 bg-slate-700 border-b border-slate-600`}>
+              <div className="flex items-start gap-2 @4xl:items-baseline">
+                <div className="flex min-w-0 flex-1 flex-col @4xl:flex-row @4xl:items-baseline @4xl:gap-2">
                   <span className="flex min-w-0 items-baseline gap-1.5">
-                    <span className={`${TEXT.panelTitle} flex-shrink-0`}>Forecast Table</span>
                     {rowCount !== null && (
                       <span className={`${TEXT.subheading} min-w-0 truncate`}>
-                        {`- ${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(
-                          view.sortBy,
-                          pointSample,
-                        )} (${rowCount})`}
+                        {`${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, pointSample)} (${rowCount})`}
                       </span>
                     )}
                   </span>
-                  {/* A multi-hour analysis used to say nothing at all here, so
-                      someone opening a shared link had no on-screen statement of
-                      the days they were reading. Carries its own title so the
-                      full range survives the ellipsis a narrow bar puts on it,
-                      and is absent rather than empty when there is nothing to
-                      qualify — an empty row is still a row. */}
                   {windowTitle !== null && (
                     <span className={`${TEXT.caption} truncate`}>
                       {windowTitle}
                     </span>
                   )}
                 </div>
-                {/* A failed fire check used to post a bare amber label here whose
-                    actual explanation was a title attribute, so the consequence
-                    was readable only by hovering the warning. It is now a notice
-                    in the panel beside Analyze, where the panel's other bad news
-                    already goes, carrying the whole sentence. */}
-                {/* The two asides, stacked narrow and inline wide. Centered on
-                    each other while stacked, not flushed right: they are a
-                    two-line block of their own rather than a column continuing
-                    the ragged left one, and the shorter line hanging off the
-                    longer one's left edge read as a mistake. The block as a
-                    whole still sits at the bar's right end, because the flex
-                    parent puts it there. Never a shrinking member either way:
-                    an ellipsized attribution is not an attribution.
-
-                    The credit is CC-BY 4.0's, and it is required beside the data
-                    rather than only in the document pages — the docked bar keeps
-                    it on screen whenever forecasts are. Open-Meteo's licence
-                    page gives "Weather data by Open-Meteo.com" as an example
-                    rather than as required wording, so the bare link stands; the
-                    licence URI that CC BY 4.0 also asks for is carried by
-                    DataSourceList on both document pages.
-
-                    It also survives on its own: the panel opens for
-                    un-forecasted pending rows too, and a file of empty cells is
-                    not a report, so Download CSV is the conditional one.
-
-                    Both roles carry a color, and they carry the same one. That
-                    is deliberate rather than redundant: two colors here would be
-                    resolved by stylesheet order, not by the order written. */}
-                <div className="flex shrink-0 flex-col items-center @3xl:flex-row @3xl:items-baseline @3xl:gap-3">
+                <div className="flex shrink-0 gap-2 flex-col @4xl:flex-row @4xl:items-baseline">
+                  {/* Mode switch: chart, table, or both */}
+                  {(chartShown || showTable) && (
+                    <div className={`${SEGMENT}`}>
+                      <button
+                        onClick={() => setResultsMode('chart')}
+                        className={`${SEGMENT_ITEM} ${resultsMode === 'chart' ? ACCENT.fill : SEGMENT_IDLE}`}
+                        aria-pressed={resultsMode === 'chart'}
+                        aria-label="Show chart only"
+                      >
+                        <svg viewBox="0 0 16 16" strokeWidth={1.5} stroke="currentColor" fill="none" className={`${ICON} flex-shrink-0`} aria-hidden="true">
+                          <polyline points="2,12 6,6 9,9 14,3" />
+                        </svg>
+                        <span className="hidden sm:inline">Chart</span>
+                      </button>
+                      <div className={SEGMENT_DIVIDER} />
+                      <button
+                        onClick={() => setResultsMode('table')}
+                        className={`${SEGMENT_ITEM} ${resultsMode === 'table' ? ACCENT.fill : SEGMENT_IDLE}`}
+                        aria-pressed={resultsMode === 'table'}
+                        aria-label="Show table only"
+                      >
+                        <svg viewBox="0 0 16 16" strokeWidth={1.5} stroke="currentColor" fill="none" className={`${ICON} flex-shrink-0`} aria-hidden="true">
+                          <rect x="2" y="2" width="12" height="12" />
+                          <line x1="2" y1="6" x2="14" y2="6" />
+                          <line x1="2" y1="10" x2="14" y2="10" />
+                        </svg>
+                        <span className="hidden sm:inline">Table</span>
+                      </button>
+                      <div className={SEGMENT_DIVIDER} />
+                      <button
+                        onClick={() => setResultsMode('both')}
+                        className={`${SEGMENT_ITEM} ${resultsMode === 'both' ? ACCENT.fill : SEGMENT_IDLE}`}
+                        aria-pressed={resultsMode === 'both'}
+                        aria-label="Show chart and table"
+                      >
+                        <svg viewBox="0 0 16 16" strokeWidth={1.5} stroke="currentColor" fill="none" className={`${ICON} flex-shrink-0`} aria-hidden="true">
+                          <rect x="2" y="2" width="12" height="5.5" />
+                          <line x1="8" y1="7.5" x2="8" y2="14" />
+                          <rect x="2" y="7.5" width="12" height="6.5" />
+                        </svg>
+                        <span className="hidden sm:inline">Both</span>
+                      </button>
+                    </div>
+                  )}
+                  {/* Active filters chip */}
+                  {(minElevationFt !== null || maxElevationFt !== null || Object.values(constraints).some(v => v !== null)) && (
+                    <button
+                      onClick={() => {
+                        setSidebarOpen(true)
+                        document.querySelector('[data-filter-section]')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                      }}
+                      className={`${BUTTON_SECONDARY} text-xs`}
+                    >
+                      Filters
+                    </button>
+                  )}
                   {results.length > 0 && (
                     <button
                       onClick={handleDownloadCsv}
@@ -1633,60 +1543,107 @@ export default function App() {
                   >
                     Open-Meteo.com
                   </a>
+                  <button
+                    onClick={() => setResultsCollapsed((c) => !c)}
+                    aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}
+                    className={ICON_BUTTON}
+                  >
+                    <Chevron up={resultsCollapsed} />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setTableCollapsed((c) => !c)}
-                  aria-label={tableCollapsed ? 'Expand the forecast table' : 'Collapse the forecast table'}
-                  className={`${ICON_BUTTON} shrink-0 self-start px-1 @3xl:self-baseline`}
-                >
-                  <Chevron up={tableCollapsed} />
-                </button>
               </div>
             </div>
-            {/* Scrollable table. One container owns BOTH axes: if a nested
-                element scrolled horizontally instead, its scrollbar would sit
-                below the full table height — off-screen until the user
-                scrolled to the last row. results-scrollbars keeps the bars
-                visible (macOS overlay scrollbars hide the sideways hint).
-                The panel has a drag-resized height on every breakpoint now, so
-                the body just fills it (flex-1) and scrolls a long ranking. */}
-            {!tableCollapsed && (
-              // `@container` so the empty-state row inside the table can size
-              // itself to what is VISIBLE rather than to the table, which is
-              // far wider whenever the columns overflow. See ResultsTable.
-              <div className="@container overflow-auto min-h-0 results-scrollbars flex-1">
-                <ResultsTable
-                  emptyReason={emptyReason}
-                  results={tableRows}
-                  leavingRowKeys={leavingRowKeys}
-                  sortBy={view.sortBy}
-                  sortDesc={view.sortDesc}
-                  // A header click on a ranking metric IS the panel knob, so
-                  // the two cannot mean different things. Only offered when a
-                  // field is held to re-rank.
-                  onRank={
-                    universe !== null
-                      ? (key, desc) => {
-                          setSortBy(key)
-                          setSortDesc(desc)
+            {!resultsCollapsed && (
+              <>
+                {chartShown && resultsMode !== 'table' && (
+                  <>
+                    {resultsMode === 'both' && (
+                      <div
+                        onPointerDown={(e) => {
+                          if (isDoublePress('chart', e.timeStamp)) {
+                            setTableHeight(tablePanelPx)
+                            setChartHeight(DEFAULT_CHART_HEIGHT)
+                            return
+                          }
+                          setTableHeight(tablePanelPx)
+                          beginResize(e, (up) =>
+                            setChartHeight(
+                              clampPanelHeight(chartPanelPx, up, tablePanelPx + bannerPx, window.innerHeight),
+                            ),
+                          )
+                        }}
+                        className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
+                      >
+                        <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
+                      </div>
+                    )}
+                    <div className="min-h-0 flex-shrink-0" style={{ height: `${chartPanelPx}px` }}>
+                      <TimeSeriesChart
+                        times={chartTimes}
+                        rows={chart.selectedRows}
+                        metric={chart.metric}
+                        onMetricChange={chart.setMetric}
+                        colorFor={chart.colorFor}
+                        isSelected={chart.isSelected}
+                        onToggle={chart.toggle}
+                      />
+                    </div>
+                  </>
+                )}
+                {showTable && resultsMode !== 'chart' && (
+                  <>
+                    {resultsMode === 'both' && (
+                      <div
+                        onPointerDown={(e) => {
+                          if (isDoublePress('table', e.timeStamp)) {
+                            setChartHeight(chartPanelPx)
+                            setTableHeight(DEFAULT_TABLE_HEIGHT)
+                            return
+                          }
+                          beginResize(e, (up) => {
+                            const next = splitChartTable(chartPanelPx, tablePanelPx, up)
+                            setChartHeight(next.chart)
+                            setTableHeight(next.table)
+                          })
+                        }}
+                        className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
+                      >
+                        <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
+                      </div>
+                    )}
+                    <div className="@container overflow-auto min-h-0 results-scrollbars flex-shrink-0" style={{ height: `${tablePanelPx}px` }}>
+                      <ResultsTable
+                        emptyReason={emptyReason}
+                        results={tableRows}
+                        leavingRowKeys={leavingRowKeys}
+                        sortBy={view.sortBy}
+                        sortDesc={view.sortDesc}
+                        onRank={
+                          universe !== null
+                            ? (key, desc) => {
+                                setSortBy(key)
+                                setSortDesc(desc)
+                              }
+                            : undefined
                         }
-                      : undefined
-                  }
-                  detailSortKey={detailSort.key}
-                  detailSortDir={detailSort.dir}
-                  onDetailSort={(key, dir) => setDetailSort({ key, dir })}
-                  pointSample={pointSample}
-                  fireWarnings={fire.warnings}
-                  pending={pending}
-                  onRemove={handleRemoveResult}
-                  onRemovePending={(d) => searched.removePlace(d.latitude, d.longitude)}
-                  onFocusResult={(row) => mapRef.current?.focusResult(row)}
-                  onToggleChart={chartable ? chart.toggle : undefined}
-                  isCharted={chart.isSelected}
-                  chartColor={chart.colorFor}
-                  onChartRange={chartable ? chart.setRange : undefined}
-                />
-              </div>
+                        detailSortKey={detailSort.key}
+                        detailSortDir={detailSort.dir}
+                        onDetailSort={(key, dir) => setDetailSort({ key, dir })}
+                        pointSample={pointSample}
+                        fireWarnings={fire.warnings}
+                        pending={pending}
+                        onRemove={handleRemoveResult}
+                        onRemovePending={(d) => searched.removePlace(d.latitude, d.longitude)}
+                        onFocusResult={(row) => mapRef.current?.focusResult(row)}
+                        onToggleChart={chartable ? chart.toggle : undefined}
+                        isCharted={chart.isSelected}
+                        chartColor={chart.colorFor}
+                        onChartRange={chartable ? chart.setRange : undefined}
+                      />
+                    </div>
+                  </>
+                )}
+              </>
             )}
           </div>
         )}

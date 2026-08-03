@@ -17,6 +17,7 @@ import {
   FIELD,
   FIELD_NUMERIC,
   FOCUS_RING,
+  ICON,
   ICON_ADORNMENT,
   ICON_ACTION,
   ICON_BUTTON,
@@ -608,6 +609,11 @@ describe('shared recipes', () => {
   // user aims for is the one place that does not open the dropdown.
   it('lets clicks through the glyph drawn over a control', () => {
     expect(ICON_ADORNMENT).toContain('pointer-events-none')
+  })
+
+  // Inline SVG icons beside text: sized for clarity without dominating text labels.
+  it('sizes the inline glyph for text-paired icons', () => {
+    expect(ICON).toBe('h-4 w-4')
   })
 
   // Every floating box on the map is one surface: the search field and its
