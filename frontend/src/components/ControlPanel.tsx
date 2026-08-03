@@ -22,7 +22,9 @@ import {
   CONTROL_W,
   FIELD,
   FIELD_NUMERIC,
+  FOCUS_RING,
   LINK,
+  LINK_ACTION,
   NOTICE,
   PANEL_EDGE,
   PANEL_RULE,
@@ -128,6 +130,10 @@ interface Props {
   // "Specify by Click" section makes them glow, so a method with no control
   // in this panel still has somewhere to point.
   onPointAtMapPois: (on: boolean) => void
+  // Clicked "Search by name" button: focus the search box
+  onFocusSearch?: () => void
+  // Clicked "Search by point" button: toggle POI latching
+  onTogglePoisLatch?: () => void
   // A set: one polygon can look for several kinds at once, and none checked
   // means the polygon discovers nothing.
   destinationTypes: DiscoveryType[]
@@ -230,6 +236,8 @@ export default function ControlPanel({
   onCancelDrawing,
   onPointAtSearch,
   onPointAtMapPois,
+  onFocusSearch,
+  onTogglePoisLatch,
   destinationTypes,
   setDestinationTypes,
   selection,
@@ -425,23 +433,40 @@ export default function ControlPanel({
           </h2>
 
           {/* a. Search by name — the only method whose control is not in this
-              panel; the search box floats on the map. */}
-          <div
-            className="mb-3"
-            onMouseEnter={() => onPointAtSearch(true)}
-            onMouseLeave={() => onPointAtSearch(false)}
-          >
-            <h3 className={`${TEXT.subheading} mb-1`}>Search by name</h3>
+              panel; the search box floats on the map. Now a button that focuses
+              the search box when clicked. */}
+          <div className="mb-3">
+            <h3>
+              <button
+                onClick={(e) => {
+                  e.preventDefault()
+                  onFocusSearch?.()
+                }}
+                onMouseEnter={() => onPointAtSearch(true)}
+                onMouseLeave={() => onPointAtSearch(false)}
+                className={`text-xs font-semibold ${LINK_ACTION} ${FOCUS_RING} transition-colors`}
+              >
+                Search by name
+              </button>
+            </h3>
           </div>
 
           {/* b. Search by click — the second method whose control is not in
-              this panel. */}
-          <div
-            className="mb-3"
-            onMouseEnter={() => onPointAtMapPois(true)}
-            onMouseLeave={() => onPointAtMapPois(false)}
-          >
-            <h3 className={`${TEXT.subheading} mb-1`}>Search by point</h3>
+              this panel. Now a button that toggles the POI latching. */}
+          <div className="mb-3">
+            <h3>
+              <button
+                onClick={(e) => {
+                  e.preventDefault()
+                  onTogglePoisLatch?.()
+                }}
+                onMouseEnter={() => onPointAtMapPois(true)}
+                onMouseLeave={() => onPointAtMapPois(false)}
+                className={`text-xs font-semibold ${LINK_ACTION} ${FOCUS_RING} transition-colors`}
+              >
+                Search by point
+              </button>
+            </h3>
           </div>
 
           {/* c. Search by polygon */}

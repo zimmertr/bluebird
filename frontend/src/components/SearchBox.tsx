@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { Place, parseCoordinates, searchPlaces } from '../utils/geocode'
 import {
   ACCENT,
@@ -20,11 +20,15 @@ interface Props {
   pointed?: boolean
 }
 
+export interface SearchBoxHandle {
+  focus: () => void
+}
+
 // Floating place search for the map. Fires on Enter rather than as-you-type —
 // Nominatim's usage policy forbids autocomplete — and coordinate pairs are
 // handled locally without ever reaching the geocoder. The × only clears the
 // text: searched places persist as pins, removed via their 📍 in the table.
-export default function SearchBox({ onSelect, pointed = false }: Props) {
+const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSelect, pointed = false }, ref) {
   const [query, setQuery] = useState('')
   const [places, setPlaces] = useState<Place[] | null>(null)
   const [highlight, setHighlight] = useState(0)
@@ -32,6 +36,10 @@ export default function SearchBox({ onSelect, pointed = false }: Props) {
   const [error, setError] = useState<string | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  useImperativeHandle(ref, () => ({
+    focus: () => inputRef.current?.focus(),
+  }))
 
   const open = places !== null || error !== null
 
@@ -225,4 +233,6 @@ export default function SearchBox({ onSelect, pointed = false }: Props) {
       )}
     </div>
   )
-}
+})
+
+export default SearchBox

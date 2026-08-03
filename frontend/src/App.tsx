@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import MapView, { MapViewHandle } from './components/MapView'
 import ControlPanel from './components/ControlPanel'
-import SearchBox from './components/SearchBox'
+import SearchBox, { type SearchBoxHandle } from './components/SearchBox'
 import ResultsTable from './components/ResultsTable'
 import TimeSeriesChart from './components/TimeSeriesChart'
 import WelcomeModal from './components/WelcomeModal'
@@ -131,6 +131,8 @@ function useViewportHeight(): number {
 
 export default function App() {
   const mapRef = useRef<MapViewHandle>(null)
+  const searchBoxRef = useRef<SearchBoxHandle>(null)
+  const [poisLatched, setPoisLatched] = useState(false)
 
   // The discovery inputs behind the results currently on screen: `base` covers
   // the user-authored inputs (polygon + type + CSV rows + elevation + limit +
@@ -338,6 +340,18 @@ export default function App() {
     localStorage.setItem('bluebird_welcomed', '1')
     setShowWelcome(false)
   }
+
+  // Handle "Search by name" button click: focus the search box input
+  const handleFocusSearch = useCallback(() => {
+    searchBoxRef.current?.focus()
+  }, [])
+
+  // Handle "Search by point" button click: toggle the POI latching
+  const handleTogglePoisLatch = useCallback(() => {
+    setPoisLatched((prev) => !prev)
+    setPoisPointed((prev) => !prev)
+  }, [])
+
   // Pointer-driven vertical resize, shared by mouse and touch (Pointer Events)
   // and by both breakpoints. `onDrag` receives the drag distance with up
   // positive; the handles below feed it the map│chart or chart│table geometry.
@@ -1129,7 +1143,13 @@ export default function App() {
           onCancelDrawing={handleCancelDrawing}
           onPointAtSearch={setSearchPointed}
           wildfireCheckFailed={fire.status === 'unavailable' && results.length > 0}
-          onPointAtMapPois={setPoisPointed}
+          onPointAtMapPois={(on) => {
+            // If latching is active, stay active; otherwise respond to the hover state
+            if (poisLatched) return
+            setPoisPointed(on)
+          }}
+          onFocusSearch={handleFocusSearch}
+          onTogglePoisLatch={handleTogglePoisLatch}
           destinationTypes={destinationTypes}
           setDestinationTypes={setDestinationTypes}
           selection={selection}
@@ -1300,7 +1320,7 @@ export default function App() {
                 Controls
               </button>
             )}
-            <SearchBox onSelect={handleSearchSelect} pointed={searchPointed} />
+            <SearchBox ref={searchBoxRef} onSelect={handleSearchSelect} pointed={searchPointed} />
           </div>
           {/* Bottom-anchored legends. On mobile the top edge is clamped below
               the Controls/search cluster (top-16) and the stack scrolls if it
