@@ -34,6 +34,7 @@ import {
   poiToPlace,
   samePoi,
 } from '../utils/basemapPoi'
+import { BUTTON_FLOATING, ICON } from '../styles'
 import { POI_ACTION_ATTR, poiPopupHtml } from '../utils/poiPopup'
 import { Ring, widestPole } from '../utils/polylabel'
 import { popupWidth } from '../utils/popupChrome'
@@ -145,6 +146,103 @@ const REFIT_WINDOW_MS = 1_000
 // hurrying, short enough that a popup left behind by a cursor moving on feels
 // dismissed rather than stuck.
 const FIRE_POPUP_GRACE_MS = 400
+
+/**
+ * A map control that centers the map on the user's current location.
+ * Requests permission on click; does nothing on denial.
+ */
+class LocateControl implements maplibregl.IControl {
+  private container: HTMLElement | null = null
+
+  onAdd(map: maplibregl.Map): HTMLElement {
+    this.container = document.createElement('div')
+    this.container.className = 'maplibregl-ctrl maplibregl-ctrl-group'
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = `${BUTTON_FLOATING} p-1.5`
+    button.setAttribute('aria-label', 'Center the map on your location')
+
+    // Crosshair icon: circle with N/E/S/W ticks
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    svg.setAttribute('viewBox', '0 0 16 16')
+    svg.setAttribute('width', '16')
+    svg.setAttribute('height', '16')
+    svg.setAttribute('fill', 'none')
+    svg.setAttribute('stroke', 'currentColor')
+    svg.setAttribute('stroke-width', '1.5')
+    svg.setAttribute('stroke-linecap', 'round')
+
+    // Center circle
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+    circle.setAttribute('cx', '8')
+    circle.setAttribute('cy', '8')
+    circle.setAttribute('r', '4.5')
+
+    // North tick
+    const tickN = document.createElementNS('http://www.w3.org/2000/svg', 'line')
+    tickN.setAttribute('x1', '8')
+    tickN.setAttribute('y1', '2')
+    tickN.setAttribute('x2', '8')
+    tickN.setAttribute('y2', '3.5')
+
+    // East tick
+    const tickE = document.createElementNS('http://www.w3.org/2000/svg', 'line')
+    tickE.setAttribute('x1', '14')
+    tickE.setAttribute('y1', '8')
+    tickE.setAttribute('x2', '12.5')
+    tickE.setAttribute('y2', '8')
+
+    // South tick
+    const tickS = document.createElementNS('http://www.w3.org/2000/svg', 'line')
+    tickS.setAttribute('x1', '8')
+    tickS.setAttribute('y1', '14')
+    tickS.setAttribute('x2', '8')
+    tickS.setAttribute('y2', '12.5')
+
+    // West tick
+    const tickW = document.createElementNS('http://www.w3.org/2000/svg', 'line')
+    tickW.setAttribute('x1', '2')
+    tickW.setAttribute('y1', '8')
+    tickW.setAttribute('x2', '3.5')
+    tickW.setAttribute('y2', '8')
+
+    svg.appendChild(circle)
+    svg.appendChild(tickN)
+    svg.appendChild(tickE)
+    svg.appendChild(tickS)
+    svg.appendChild(tickW)
+
+    const icon = document.createElement('span')
+    icon.className = ICON
+    icon.appendChild(svg)
+
+    button.addEventListener('click', () => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const center: [number, number] = [pos.coords.longitude, pos.coords.latitude]
+            map.flyTo({ center, zoom: 9 })
+          },
+          () => {
+            // User denied permission, do nothing
+            console.warn('Geolocation permission denied')
+          },
+        )
+      }
+    })
+
+    button.appendChild(icon)
+    this.container.appendChild(button)
+    return this.container
+  }
+
+  onRemove(): void {
+    if (this.container?.parentNode) {
+      this.container.parentNode.removeChild(this.container)
+    }
+    this.container = null
+  }
+}
 
 function bboxAreaKm2(pts: [number, number][]): number | null {
   if (pts.length < 3) return null
@@ -803,6 +901,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // spent on something the panel actually tells you about.
       map.boxZoom.disable()
       map.addControl(new maplibregl.NavigationControl(), 'top-right')
+      map.addControl(new LocateControl(), 'top-right')
       map.addControl(new maplibregl.ScaleControl(), 'bottom-right')
 
       // Keep the canvas in sync with its container. MapLibre only tracks window
@@ -821,24 +920,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
       resizeObserver.observe(containerRef.current)
 
       // A polygon or custom CSV list restored from the URL takes precedence
-      // over geolocation — don't scroll the user away from the area their link
-      // points at. The committed-camera guard covers the rest: geolocation can
-      // resolve seconds late (8s timeout), after a paste or search has already
-      // framed the view, and must not yank the user away from it.
+      // over any default framing — don't scroll the user away from the area
+      // their link points at. The default camera is [ -120.5, 47.5 ], zoom 7,
+      // which the geolocation control can refine to the user's location on demand.
       const restoredPolygon = polygon
-      let pendingGeo: [number, number] | null = null
-      if (navigator.geolocation && !restoredPolygon && restoredCustomPoints.length === 0) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            if (cameraCommittedRef.current) return
-            const center: [number, number] = [pos.coords.longitude, pos.coords.latitude]
-            if (loadedRef.current) map.flyTo({ center, zoom: 9 })
-            else pendingGeo = center
-          },
-          () => {},
-          { timeout: 8000 },
-        )
-      }
 
       map.on('load', () => {
         loadedRef.current = true
@@ -874,8 +959,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
           } else {
             map.fitBounds(bounds, { padding: 60, duration: 0 })
           }
-        } else if (pendingGeo) {
-          map.flyTo({ center: pendingGeo, zoom: 9 })
         }
 
         enhanceBasemap(map)
