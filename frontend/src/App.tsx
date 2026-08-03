@@ -148,6 +148,11 @@ export default function App() {
   // come back as type "custom" with no osm_id; this map restores them so a
   // peak still links to Peakbagger and shows the right badge.
   const identityMapRef = useRef<Map<string, { type: string; osm_id: string | null }>>(new Map())
+  // Rows leaving the display due to a live presentation knob: fade them out.
+  // Keyed by coordinate. Only populated when the same analysis has rows
+  // disappearing — not on initial render or a fresh analysis.
+  const [leavingRowKeys, setLeavingRowKeys] = useState<Set<string>>(new Set())
+  const lastAnalyzedResultsRef = useRef<DestinationResult[] | null>(null)
   // Rows the user ×-removed from the current report, by coordinate key. Scoped
   // to the user-authored discovery inputs (removalScopeRef): removing a row —
   // even a searched place, which shrinks the custom list — must not count as
@@ -901,6 +906,26 @@ export default function App() {
       ? windowCaption(analyzed.kind, analyzed.window.startMs, analyzed.window.endMs, pointSample)
       : null
 
+  // Detect rows leaving display via live presentation knobs (not fresh analysis).
+  // Only fires when analyzed is stable and results change — i.e., a live knob
+  // hid rows. No animation on initial render or fresh analysis.
+  useEffect(() => {
+    if (analyzed === null) {
+      setLeavingRowKeys(new Set())
+      return
+    }
+    const prevKeys = new Set(
+      (lastAnalyzedResultsRef.current ?? []).map((r) => pinKey(r.latitude, r.longitude)),
+    )
+    const currKeys = new Set(results.map((r) => pinKey(r.latitude, r.longitude)))
+    const leaving = new Set<string>()
+    for (const key of prevKeys) {
+      if (!currKeys.has(key)) leaving.add(key)
+    }
+    setLeavingRowKeys(leaving)
+    lastAnalyzedResultsRef.current = results
+  }, [results, analyzed])
+
   // The detail-column sort, held here rather than inside ResultsTable (#125).
   //
   // Clicking one of the four ranking columns re-cuts the whole field through
@@ -1633,6 +1658,7 @@ export default function App() {
                 <ResultsTable
                   emptyReason={emptyReason}
                   results={tableRows}
+                  leavingRowKeys={leavingRowKeys}
                   sortBy={view.sortBy}
                   sortDesc={view.sortDesc}
                   // A header click on a ranking metric IS the panel knob, so

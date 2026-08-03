@@ -7,6 +7,7 @@ import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
 import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
+import { pinKey } from '../utils/customList'
 import { ACCENT, CHOICE_INPUT, ICON_ACTION, LINK_ACTION, TABLE, TEXT } from '../styles'
 import { RANKING_KEYS } from '../metrics'
 
@@ -60,6 +61,9 @@ interface Props {
   // Already in display order: App applies the detail-column sort below before
   // handing these over, so the rows arrive as they are drawn.
   results: DestinationResult[]
+  // Rows that are leaving the display via a live presentation knob, to be
+  // faded out rather than removed instantly. Empty when not animating.
+  leavingRowKeys: Set<string>
   // Why the table has no rows, when it has none. Rendered as a row under the
   // headers rather than above the table, so an empty report still reads as a
   // table that found nothing rather than as a notice with a table beneath it.
@@ -111,6 +115,7 @@ interface Props {
 
 export default function ResultsTable({
   results,
+  leavingRowKeys,
   emptyReason,
   sortBy,
   sortDesc,
@@ -383,10 +388,12 @@ export default function ResultsTable({
               })}
             </tr>
           ))}
-          {results.map((row, i) => (
+          {results.map((row, i) => {
+            const isLeaving = leavingRowKeys.has(pinKey(row.latitude, row.longitude))
+            return (
             <tr
               key={`${row.name}-${i}`}
-              className="group border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors"
+              className={`group border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors ${isLeaving ? 'animate-remove-row' : ''}`}
             >
               {showChartCol && <td className={TABLE.cell}>{renderChartToggle(row)}</td>}
               <RankRemoveCell
@@ -396,7 +403,8 @@ export default function ResultsTable({
               />
               {rowCells(row)}
             </tr>
-          ))}
+            )
+          })}
           {emptyReason && results.length === 0 && (pending?.length ?? 0) === 0 && (
             <tr>
               {/* The cell spans the table, which is wider than the panel once
