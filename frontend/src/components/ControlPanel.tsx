@@ -845,17 +845,20 @@ export default function ControlPanel({
           <p className={`text-xs ${STATUS.warn} text-center`}>{COMMIT_CUE[commitReason]}</p>
         )}
 
-        {/* Every reason Analyze is disabled, one box each, rather than the
-            first reason as italic subtext. Two changes in one: the reasons
-            stack (a chain showed one, so fixing it revealed a second that had
-            been true all along), and each wears the same amber box the panel's
-            other bad news does, because "the app will not do the thing you
-            asked" is a warning and was being typeset as a footnote. */}
-        {blockers.map((blocker) => (
-          <p key={blocker} className={`${STATUS.warn} ${NOTICE.warn}`}>
-            {blockerText(blocker, maxAreaKm2, pointsNeeded)}
-          </p>
-        ))}
+        {/* Every reason Analyze is disabled, in one box. The reasons stack
+            (a chain showed one, so fixing it revealed a second that had been
+            true all along), and the whole box wears the same amber styling
+            the panel's other bad news does, because "the app will not do the
+            thing you asked" is a warning and was being typeset as footnotes. */}
+        {blockers.length > 0 && (
+          <div className={`${NOTICE.warn} space-y-2`} role="status">
+            {blockers.map((blocker) => (
+              <p key={blocker} className={STATUS.warn}>
+                {blockerText(blocker, maxAreaKm2, pointsNeeded)}
+              </p>
+            ))}
+          </div>
+        )}
 
         {refusal && !loading && (
           <div className={`${NOTICE.warn} space-y-2`}>
