@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { cellStyle, scaleFor, METRIC_CONFIG } from '../utils/colors'
 import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
-import { SortDir, SortKey, displayedColumns } from '../utils/tableColumns'
+import { SortDir, SortKey, displayedColumns, ColDef } from '../utils/tableColumns'
 import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
 import { isPeakKind } from '../utils/geocode'
@@ -89,6 +89,9 @@ interface Props {
   // the avg/min/max triplets, and no knob can change that without a new
   // analysis.
   pointSample?: boolean
+  // Columns to display, filtered by user visibility choices. The file always
+  // carries the full set via buildResultsCsv; only the screen narrows.
+  columns?: ColDef[]
   fireWarnings: Map<string, FireWarning>
   // Custom destinations awaiting their first analysis — pasted CSV rows and
   // searched places alike — shown immediately as un-forecasted rows (name +
@@ -124,6 +127,7 @@ export default function ResultsTable({
   detailSortDir,
   onDetailSort,
   pointSample = false,
+  columns,
   fireWarnings,
   pending,
   onRemovePending,
@@ -138,8 +142,8 @@ export default function ResultsTable({
   // The ranked metric's columns lead the table (right after #/Name/Elevation), so
   // the numbers the ranking was built from are the first thing read. Keyed on
   // the analyzed snapshot, like the cell colors — panel knob changes don't
-  // reshuffle the displayed report.
-  const orderedColumns = displayedColumns(pointSample, sortBy)
+  // reshuffle the displayed report. Defaults to all columns if none provided.
+  const orderedColumns = columns ?? displayedColumns(pointSample, sortBy)
 
   // Shift-click range select: the checkbox last interacted with is the anchor;
   // a shift-held click extends (de)selection to every chartable row between.

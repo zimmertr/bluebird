@@ -10,7 +10,7 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult } from '../types'
-import { CHOICE_INPUT, CHOICE_ROW, FOCUS_RING, RADIUS, SURFACE_FLOATING, STATUS, TEXT } from '../styles'
+import { CHOICE_INPUT, CHOICE_ROW, FOCUS_RING, RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
 import {
   CHART_METRICS,
   ChartMetric,

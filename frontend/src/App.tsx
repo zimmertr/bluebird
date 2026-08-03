@@ -4,6 +4,7 @@ import ControlPanel from './components/ControlPanel'
 import SearchBox, { type SearchBoxHandle } from './components/SearchBox'
 import ResultsTable from './components/ResultsTable'
 import TimeSeriesChart from './components/TimeSeriesChart'
+import ColumnsPicker from './components/ColumnsPicker'
 import WelcomeModal from './components/WelcomeModal'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
@@ -63,7 +64,7 @@ import {
 } from './utils/calendar'
 import { isPointSample } from './utils/forecastWindow'
 import { PresentationKnobs, commitNeeded, presentResults } from './utils/present'
-import { SortDir, SortKey, displayedColumns } from './utils/tableColumns'
+import { SortDir, SortKey, displayedColumns, defaultVisibleColumns, visibleColumns } from './utils/tableColumns'
 import { compareValues } from './utils/sortResults'
 import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
 
@@ -137,6 +138,7 @@ function useViewportHeight(): number {
 export default function App() {
   const mapRef = useRef<MapViewHandle>(null)
   const searchBoxRef = useRef<SearchBoxHandle>(null)
+  const columnsButtonRef = useRef<HTMLButtonElement>(null)
   const [poisLatched, setPoisLatched] = useState(false)
 
   // The discovery inputs behind the results currently on screen: `base` covers
@@ -345,6 +347,32 @@ export default function App() {
       // Ignore localStorage errors (SSR, quota, etc.)
     }
   }, [resultsMode])
+  // Which columns the table displays (null = use default narrowed set, Set = user choice).
+  // The CSV export always gets the full displayedColumns set regardless.
+  const [columnVisibility, setColumnVisibility] = useState<Set<string> | null>(() => {
+    if (typeof localStorage === 'undefined') return null
+    try {
+      const stored = JSON.parse(localStorage.getItem('bluebird_view') ?? '{}')
+      if (stored.columns) return new Set(stored.columns)
+    } catch {
+      // Ignore localStorage errors
+    }
+    return null
+  })
+  // Persist column visibility to localStorage when it changes.
+  useEffect(() => {
+    try {
+      const current = JSON.parse(localStorage.getItem('bluebird_view') ?? '{}')
+      localStorage.setItem(
+        'bluebird_view',
+        JSON.stringify({ ...current, columns: columnVisibility ? [...columnVisibility] : undefined }),
+      )
+    } catch {
+      // Ignore localStorage errors (SSR, quota, etc.)
+    }
+  }, [columnVisibility])
+  // Column picker popover open/closed
+  const [columnsOpen, setColumnsOpen] = useState(false)
   // Chevron to collapse/expand the entire results area.
   const [resultsCollapsed, setResultsCollapsed] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
@@ -992,9 +1020,21 @@ export default function App() {
     () => [...results].sort((a, b) => compareValues(a[detailSort.key], b[detailSort.key], detailSort.dir)),
     [results, detailSort],
   )
-  const tableColumns = useMemo(
+  // All columns for the CSV export (includes all columns, not filtered by visibility).
+  const csvColumns = useMemo(
     () => displayedColumns(pointSample, view.sortBy),
     [pointSample, view.sortBy],
+  )
+  // Compute default visible columns on first analysis (when columnVisibility is null).
+  // Includes identity + elevation + ranked metric group; type only if multiple types.
+  const effectiveVisibleKeys = useMemo(() => {
+    if (columnVisibility !== null) return columnVisibility
+    return defaultVisibleColumns(results, pointSample, view.sortBy)
+  }, [columnVisibility, results, pointSample, view.sortBy])
+  // Columns displayed in the table (filtered by visibility).
+  const tableColumns = useMemo(
+    () => visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys),
+    [pointSample, view.sortBy, effectiveVisibleKeys],
   )
 
   // × on a table row. Removing a searched place also deregisters it — else the
@@ -1081,7 +1121,7 @@ export default function App() {
   function handleDownloadCsv() {
     const csv = buildResultsCsv(
       tableRows,
-      tableColumns,
+      csvColumns,
       fire.status === 'ready' ? fire.warnings : null,
     )
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
@@ -1514,6 +1554,17 @@ export default function App() {
                       </button>
                     </div>
                   )}
+                  {/* Columns button opens picker popover */}
+                  {showTable && results.length > 0 && (
+                    <button
+                      ref={columnsButtonRef}
+                      onClick={() => setColumnsOpen(!columnsOpen)}
+                      aria-label="Choose which columns to display"
+                      className={`${TEXT.micro} ${LINK} cursor-pointer whitespace-nowrap`}
+                    >
+                      Columns
+                    </button>
+                  )}
                   {/* Active filters chip */}
                   {(minElevationFt !== null || maxElevationFt !== null || Object.values(constraints).some(v => v !== null)) && (
                     <button
@@ -1630,6 +1681,7 @@ export default function App() {
                         detailSortDir={detailSort.dir}
                         onDetailSort={(key, dir) => setDetailSort({ key, dir })}
                         pointSample={pointSample}
+                        columns={tableColumns}
                         fireWarnings={fire.warnings}
                         pending={pending}
                         onRemove={handleRemoveResult}
@@ -1648,6 +1700,16 @@ export default function App() {
           </div>
         )}
 
+        {/* Columns picker popover */}
+        <ColumnsPicker
+          open={columnsOpen}
+          onOpenChange={setColumnsOpen}
+          columns={csvColumns}
+          sortBy={view.sortBy}
+          visibleKeys={effectiveVisibleKeys}
+          onVisibilityChange={setColumnVisibility}
+          triggerRef={columnsButtonRef}
+        />
       </div>
       </div>
     </div>

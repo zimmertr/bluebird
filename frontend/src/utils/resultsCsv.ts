@@ -1,11 +1,12 @@
 // The results table as a file (#125).
 //
-// Nothing here fetches or re-derives: the caller hands over the rows already in
-// display order and the columns already resolved for the analysis mode, and
-// this turns them into text. That split is deliberate. What the table shows is
-// answered in exactly one place (App.tsx, from present.ts and tableColumns.ts),
-// and a formatter that recomputed any part of it would be a second answer that
-// could disagree with the screen.
+// The file always carries the full column set from the mode (point sample or
+// window); the screen narrows via the column visibility picker. Nothing here
+// fetches or re-derives: the caller hands over the rows already in display
+// order and the columns for the file (the full analyzed set), and this turns
+// them into text. That split is deliberate. What the table shows and what the
+// file carries are answered in exactly one place (App.tsx), and a formatter
+// that recomputed either would be a second answer that could disagree.
 //
 // It is also deliberately DOM-free. Vitest runs this repo in the node
 // environment with no jsdom, so a module reaching for Blob or document could

@@ -132,3 +132,44 @@ export function pointModeColumns<T extends { key: string; label: string }>(colum
 export function displayedColumns(pointSample: boolean, sortBy: SortBy): ColDef[] {
   return orderColumns(pointSample ? pointModeColumns(COLUMNS) : COLUMNS, sortBy)
 }
+
+/**
+ * Columns visible on screen, filtered by user visibility choices.
+ * Ranked metric columns are always visible (force-shown). CSV gets the full set.
+ */
+export function visibleColumns(
+  pointSample: boolean,
+  sortBy: SortBy,
+  visibleKeys?: Set<string> | null,
+): ColDef[] {
+  const allCols = orderColumns(pointSample ? pointModeColumns(COLUMNS) : COLUMNS, sortBy)
+  if (!visibleKeys) return allCols
+  const group = new Set(METRIC_CONFIG[sortBy].group)
+  return allCols.filter((c) => visibleKeys.has(c.key) || group.has(c.key))
+}
+
+/**
+ * Default narrowed column set: identity + elevation + ranked metric's group.
+ * Includes type only when multiple types are present in the results.
+ * Used as the initial visible set when no localStorage preference exists.
+ */
+export function defaultVisibleColumns(
+  results: Pick<DestinationResult, 'type'>[],
+  pointSample: boolean,
+  sortBy: SortBy,
+): Set<string> {
+  const allCols = orderColumns(pointSample ? pointModeColumns(COLUMNS) : COLUMNS, sortBy)
+  const rankedGroup = new Set(METRIC_CONFIG[sortBy].group)
+
+  // Always include identity columns and ranked metric group
+  const defaults = new Set(['name', 'elevation_ft', ...rankedGroup])
+
+  // Type column only if multiple types in results
+  const types = new Set(results.map((r) => r.type).filter((t) => t != null))
+  if (types.size > 1) {
+    defaults.add('type')
+  }
+
+  // Keep only columns that actually exist in the display set
+  return new Set([...defaults].filter((key) => allCols.some((c) => c.key === key)))
+}
