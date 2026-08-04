@@ -5,6 +5,7 @@ import SearchBox, { type SearchBoxHandle } from './components/SearchBox'
 import ResultsTable from './components/ResultsTable'
 import TimeSeriesChart from './components/TimeSeriesChart'
 import ColumnsPicker from './components/ColumnsPicker'
+import RemovedPicker from './components/RemovedPicker'
 import WelcomeModal from './components/WelcomeModal'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
@@ -69,6 +70,7 @@ import {
 } from './utils/calendar'
 import { isPointSample } from './utils/forecastWindow'
 import { PresentationKnobs, commitNeeded, presentResults } from './utils/present'
+import { RemovedEntry, recordRemoval, restorePlace } from './utils/removals'
 import { SortDir, SortKey, displayedColumns, visibleColumns } from './utils/tableColumns'
 import { NAME_DEFAULT_PX } from './utils/columnResize'
 import { compareValues } from './utils/sortResults'
@@ -145,6 +147,7 @@ export default function App() {
   const mapRef = useRef<MapViewHandle>(null)
   const searchBoxRef = useRef<SearchBoxHandle>(null)
   const columnsButtonRef = useRef<HTMLButtonElement>(null)
+  const removedButtonRef = useRef<HTMLButtonElement>(null)
 
   // The discovery inputs behind the results currently on screen: `base` covers
   // the user-authored inputs (polygon + type + CSV rows + elevation + limit +
@@ -165,12 +168,14 @@ export default function App() {
   // disappearing — not on initial render or a fresh analysis.
   const [leavingRowKeys, setLeavingRowKeys] = useState<Set<string>>(new Set())
   const lastAnalyzedResultsRef = useRef<DestinationResult[] | null>(null)
-  // Rows the user ×-removed from the current report, by coordinate key. Scoped
+  // Rows the user ×-removed from the current report, keyed by coordinate and
+  // carrying what a restore needs (#241 — see utils/removals.ts). Scoped
   // to the user-authored discovery inputs (removalScopeRef): removing a row —
   // even a searched place, which shrinks the custom list — must not count as
   // changing them. Only a polygon/type/elevation/CSV edit starts a clean slate
   // where removed destinations may legitimately return.
-  const [removedKeys, setRemovedKeys] = useState<Set<string>>(new Set())
+  const [removed, setRemoved] = useState<Map<string, RemovedEntry>>(new Map())
+  const removedKeys = useMemo(() => new Set(removed.keys()), [removed])
   const removalScopeRef = useRef<string | null>(null)
   // One debouncer for the whole component lifetime. It has to outlive the URL
   // sync effect below: a timer owned by that effect would be torn down on every
@@ -417,6 +422,7 @@ export default function App() {
   }, [columnVisibility])
   // Column picker popover open/closed
   const [columnsOpen, setColumnsOpen] = useState(false)
+  const [removedOpen, setRemovedOpen] = useState(false)
   // Column widths the user has set (px by key). Held here rather than in the
   // table so a mode switch or the collapse chevron — both of which unmount
   // the table — cannot reset them. Session-only by design: a width is a
@@ -518,10 +524,10 @@ export default function App() {
     searched.addPlace(place)
     // Re-naming a previously ×-removed spot is an explicit re-request — drop
     // the stale removal so the place isn't filtered out of its next report.
-    setRemovedKeys((prev) => {
+    setRemoved((prev) => {
       const key = pinKey(place.lat, place.lon)
       if (!prev.has(key)) return prev
-      const next = new Set(prev)
+      const next = new Map(prev)
       next.delete(key)
       return next
     })
@@ -873,7 +879,7 @@ export default function App() {
     })
     if (removalScopeRef.current !== removalScope) {
       removalScopeRef.current = removalScope
-      setRemovedKeys(new Set())
+      setRemoved(new Map())
     }
 
     // A polygon run whose base inputs are unchanged, with results still on
@@ -1106,10 +1112,47 @@ export default function App() {
   )
 
   // × on a table row. Removing a searched place also deregisters it — else the
-  // next analysis would simply rediscover it from the searched list.
+  // next analysis would simply rediscover it from the searched list. The
+  // backing place is captured first, so a restore can re-register it.
   function handleRemoveResult(row: DestinationResult) {
-    setRemovedKeys((prev) => new Set(prev).add(pinKey(row.latitude, row.longitude)))
+    setRemoved((prev) => recordRemoval(prev, row, searched.places))
     searched.removePlace(row.latitude, row.longitude)
+  }
+
+  // What the browser still holds a forecast row for — the field on the client
+  // path, the trimmed rows on the server path. Decides whether a restore is a
+  // pure unhide or must re-register a place (see restorePlace).
+  const heldKeys = useMemo(
+    () =>
+      new Set((universe ?? response?.results ?? []).map((r) => pinKey(r.latitude, r.longitude))),
+    [universe, response],
+  )
+  const csvKeys = useMemo(
+    () => new Set(csvRows.map((r) => pinKey(r.latitude, r.longitude))),
+    [csvRows],
+  )
+
+  // Undo for the × (#241): drop the removal, and re-register the place when
+  // nothing held can re-present the row. Never fetches — a restored row not in
+  // the held field reappears as a pending row and rejoins the next Analyze.
+  function handleRestoreRemoved(key: string) {
+    const entry = removed.get(key)
+    if (!entry) return
+    const place = restorePlace(entry, heldKeys, csvKeys)
+    setRemoved((prev) => {
+      const next = new Map(prev)
+      next.delete(key)
+      return next
+    })
+    if (place) searched.addPlace(place)
+  }
+
+  function handleRestoreAllRemoved() {
+    for (const entry of removed.values()) {
+      const place = restorePlace(entry, heldKeys, csvKeys)
+      if (place) searched.addPlace(place)
+    }
+    setRemoved(new Map())
   }
 
   // Custom destinations no analysis has covered yet — drawn as neutral pending
@@ -1157,7 +1200,7 @@ export default function App() {
       ).toLocaleString()} were analyzed.`
     }
     if (removedKeys.size > 0) {
-      return 'All rows have been removed from this analysis. Add destinations or adjust the inputs, then Analyze again.'
+      return 'All rows have been removed from this analysis. Use Removed above to restore them.'
     }
     return 'No destinations found. Try a larger area.'
   }, [response, results.length, presented.eligible, presented.excluded, removedKeys])
@@ -1686,6 +1729,20 @@ export default function App() {
                       Columns
                     </button>
                   )}
+                  {/* Removed rows (#241): a removal's only undo, so it is a
+                      standing bar member rather than a transient toast —
+                      removals persist across live knobs and refreshes, and so
+                      does the way back. Hidden at zero: nothing to restore. */}
+                  {removed.size > 0 && (
+                    <button
+                      ref={removedButtonRef}
+                      onClick={() => setRemovedOpen(!removedOpen)}
+                      aria-label={`Restore removed rows (${removed.size} removed)`}
+                      className={`${TEXT.micro} ${LINK} cursor-pointer whitespace-nowrap`}
+                    >
+                      Removed ({removed.size})
+                    </button>
+                  )}
                   {/* Active filters chip */}
                   {(minElevationFt !== null || maxElevationFt !== null || Object.values(constraints).some(v => v !== null)) && (
                     <button
@@ -1889,6 +1946,16 @@ export default function App() {
           visibleKeys={effectiveVisibleKeys}
           onVisibilityChange={setColumnVisibility}
           triggerRef={columnsButtonRef}
+        />
+
+        {/* Removed rows popover */}
+        <RemovedPicker
+          open={removedOpen}
+          onOpenChange={setRemovedOpen}
+          entries={[...removed.entries()]}
+          onRestore={handleRestoreRemoved}
+          onRestoreAll={handleRestoreAllRemoved}
+          triggerRef={removedButtonRef}
         />
       </div>
       </div>
