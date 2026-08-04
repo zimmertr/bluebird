@@ -1499,14 +1499,16 @@ export default function App() {
             <div className={`@container flex-shrink-0 px-3 py-1.5 bg-slate-700 border-b border-slate-600`}>
               <div className="flex flex-col gap-1 @4xl:flex-row @4xl:items-center @4xl:gap-2">
                 <div className="flex min-w-0 flex-1 items-baseline gap-2">
-                  {/* Before the first analysis the rows on show are pending
-                      destinations, and titling them with the ranking would
-                      claim an ordering nothing has computed yet — so the
-                      title says what the table actually holds. */}
+                  {/* Before the first analysis the title is the same ranked
+                      phrase the sidebar has selected, with a zero count —
+                      "Lowest Total Precipitation (0 of 2)" — so the bar reads
+                      the same before and after and the zero says nothing has
+                      been ranked yet. The window timestamp joins once a
+                      report exists (windowTitle below). */}
                   <span className={`${TEXT.subheading} min-w-0 truncate`}>
-                    {rowCount !== null
-                      ? `${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, pointSample)} (${rowCount})`
-                      : `Awaiting analysis (${pending.length})`}
+                    {`${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, pointSample)} (${
+                      rowCount ?? `0 of ${pending.length}`
+                    })`}
                   </span>
                   {windowTitle !== null && (
                     <span className={`${TEXT.caption} truncate`}>
