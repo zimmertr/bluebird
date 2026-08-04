@@ -285,12 +285,18 @@ export default function ResultsTable({
   // itself reads the STRETCHED box (auto layout hands min-w-full's spare
   // space to every column), which made the first double-click widen columns
   // that already fit their content.
+  //
+  // The clipping classes ride ONLY with a width. On an unsized column a
+  // truncatable block stops defending its content in auto table layout — the
+  // column can be dealt less than its own header, which then renders
+  // pre-clipped and makes the first fit look like it widened the column when
+  // it merely un-clipped it.
   function sized(key: string, content: ReactNode): ReactNode {
     const w = widths[key]
     return (
       <div
         data-col-inner
-        className="overflow-hidden text-ellipsis"
+        className={w !== undefined ? 'overflow-hidden text-ellipsis' : undefined}
         style={w !== undefined ? { width: w } : undefined}
       >
         {content}
@@ -480,6 +486,11 @@ export default function ResultsTable({
                 )}
               </th>
             ))}
+            {/* The filler column soaks up min-w-full's spare width. Without
+                it auto layout deals that space to every column, so a fitted
+                or dragged column renders wider than the width it was given
+                and a first double-click reads as "the column grew". */}
+            <th aria-hidden="true" className="w-full p-0" />
           </tr>
         </thead>
         <tbody>
@@ -545,6 +556,7 @@ export default function ResultsTable({
                   </td>
                 )
               })}
+              <td aria-hidden="true" className="p-0" />
             </tr>
           ))}
           {results.map((row, i) => {
@@ -561,6 +573,7 @@ export default function ResultsTable({
                 onRemove={onRemove ? () => onRemove(row) : undefined}
               />
               {rowCells(row)}
+              <td aria-hidden="true" className="p-0" />
             </tr>
             )
           })}
@@ -573,7 +586,7 @@ export default function ResultsTable({
                   container's left edge and sized to its VISIBLE width in
                   container units, so it stays centred on what the reader can
                   see at any scroll offset. */}
-              <td colSpan={orderedColumns.length + (showChartCol ? 2 : 1)} className="p-0">
+              <td colSpan={orderedColumns.length + (showChartCol ? 2 : 1) + 1} className="p-0">
                 <div className={`sticky left-0 w-[100cqi] px-4 py-3 text-center ${TEXT.helper}`}>
                   {emptyReason}
                 </div>

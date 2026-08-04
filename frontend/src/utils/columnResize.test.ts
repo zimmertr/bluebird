@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  FIT_MIN_PX,
   MAX_COL_PX,
   MIN_COL_PX,
   autoFitWidth,
@@ -44,8 +45,14 @@ describe('double-click auto-fit', () => {
     expect(autoFitWidth([80, 139.2, 95, first])).toBe(first)
   })
 
-  it('clamps an empty or absurd column like any other width', () => {
-    expect(autoFitWidth([])).toBe(MIN_COL_PX)
+  // Fit goes BELOW the drag floor: a short column's longest cell is the
+  // honest answer, and clamping it up to MIN_COL_PX widened Type/AQI on the
+  // first double-click. Only the tiny grabbability floor holds.
+  it('fits short columns below the drag floor, down to the fit floor', () => {
+    expect(FIT_MIN_PX).toBeLessThan(MIN_COL_PX)
+    expect(autoFitWidth([30])).toBe(30)
+    expect(autoFitWidth([21])).toBe(21)
+    expect(autoFitWidth([])).toBe(FIT_MIN_PX)
     expect(autoFitWidth([9000])).toBe(MAX_COL_PX)
   })
 })

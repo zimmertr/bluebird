@@ -30,6 +30,18 @@ export function dragWidth(startPx: number, dxPx: number): number {
 }
 
 /**
+ * The auto-fit floor, deliberately far below MIN_COL_PX: fit means "the
+ * longest cell, exactly", and clamping it to anything above real content
+ * makes a first double-click WIDEN a short column (Type, the collapsed
+ * point-sample AQI header at ~21px). The drag floor guards a gesture
+ * overshooting into nothing; a fit cannot overshoot — its result is never
+ * below the column's own min-content, which the table enforces anyway — so
+ * this floor exists only for the degenerate all-empty column, where a 0px
+ * wrapper would leave nothing but cell padding to grab.
+ */
+export const FIT_MIN_PX = 16
+
+/**
  * Double-click auto-fit: wide enough for the longest cell, and no wider.
  *
  * Inputs are the FRACTIONAL content widths of every cell in the column,
@@ -40,7 +52,8 @@ export function dragWidth(startPx: number, dxPx: number): number {
  * content — fit must be idempotent from the natural width onward.
  */
 export function autoFitWidth(contentWidths: readonly number[]): number {
-  return clampColWidth(Math.ceil(Math.max(0, ...contentWidths)))
+  const need = Math.ceil(Math.max(0, ...contentWidths))
+  return Math.max(FIT_MIN_PX, Math.min(need, MAX_COL_PX))
 }
 
 /**
