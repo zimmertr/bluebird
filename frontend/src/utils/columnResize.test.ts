@@ -33,9 +33,9 @@ describe('dragging', () => {
 })
 
 describe('double-click auto-fit', () => {
-  it('fits the longest cell exactly, ceiling fractional measurements', () => {
+  it('fits the longest cell exactly, to a tenth of a pixel', () => {
     expect(autoFitWidth([80, 140, 95])).toBe(140)
-    expect(autoFitWidth([80, 139.2, 95])).toBe(140)
+    expect(autoFitWidth([80, 139.23, 95])).toBe(139.3)
   })
 
   // The first double-click on an already-fitting column must be a no-op to

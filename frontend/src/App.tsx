@@ -592,6 +592,19 @@ export default function App() {
   // name, so "a day narrowed to one hour" is recognized as the point sample it
   // is (#166).
   const pointSample = isPointSample(view.window.startMs, view.window.endMs)
+  // A point-sample flip relabels the metric columns under the SAME keys —
+  // the collapsed bare-noun header and the windowed aggregate header both
+  // live at one key — so a width fitted under one regime clips the other
+  // regime's longer header. The metric columns re-open at their natural width
+  // when the regime changes; the identity columns keep theirs, since their
+  // labels never change.
+  useEffect(() => {
+    setTableColWidths((w) =>
+      Object.fromEntries(
+        Object.entries(w).filter(([k]) => k === 'name' || k === 'type' || k === 'elevation_ft'),
+      ),
+    )
+  }, [pointSample])
   // The forecast window is a data knob: the browser holds no forecasts for days
   // it never fetched, so a calendar change cannot re-present anything. Comparing
   // it at all is new with the calendar, and is the reason to: picking days is a

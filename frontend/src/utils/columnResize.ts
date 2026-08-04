@@ -52,7 +52,11 @@ export const FIT_MIN_PX = 16
  * content — fit must be idempotent from the natural width onward.
  */
 export function autoFitWidth(contentWidths: readonly number[]): number {
-  const need = Math.ceil(Math.max(0, ...contentWidths))
+  // A tenth-pixel ceiling, not a whole one: the natural column sits at a
+  // fractional width, so ceiling to integers let every first fit grow the
+  // column by up to a pixel. A tenth still clears the true content width,
+  // so the ellipsis cannot fire on an engine that rounds the wrapper.
+  const need = Math.ceil(Math.max(0, ...contentWidths) * 10) / 10
   return Math.max(FIT_MIN_PX, Math.min(need, MAX_COL_PX))
 }
 
