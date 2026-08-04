@@ -699,7 +699,9 @@ export default function App() {
   // so there is no pending state for a cancel to roll back — Clear is the
   // control that throws a ring away. Escape is here because it is what a hand
   // reaches for to get out of a mode, not because it means something different
-  // from Done.
+  // from Done. Enter shares Done's 3-point floor — it means "the ring is
+  // finished", which two points cannot be — while Escape stays an
+  // unconditional way out of the mode.
   useEffect(() => {
     if (!drawing) return
     function onKeyDown(e: KeyboardEvent) {
@@ -708,11 +710,12 @@ export default function App() {
       // and Escape belong to the control they are typing into.
       const el = document.activeElement
       if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return
+      if (e.key === 'Enter' && drawPointCount < 3) return
       setDrawing(false)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [drawing])
+  }, [drawing, drawPointCount])
 
 
   // The user-authored discovery inputs as a stable string. Everything that

@@ -464,7 +464,8 @@ export default function ControlPanel({
                     the mode the handles are gone and none of them apply. */}
                 {drawing && pointsNeeded > 0 ? (
                   <p className={STATUS.info}>
-                    {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed.
+                    {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed,{' '}
+                    {pointsNeeded} more needed.
                   </p>
                 ) : drawing ? (
                   <p className={`${STATUS.ok} font-medium`}>
@@ -498,7 +499,14 @@ export default function ControlPanel({
                 leave (Enter and Escape do the same on the map). */}
             <div className="flex flex-wrap gap-2">
               {drawing ? (
-                <button onClick={onFinishDrawing} className={BUTTON_ACCENT}>
+                // Disabled until the ring is a polygon: with two points there
+                // is nothing to be done WITH, and every path out of draw mode
+                // (this button, Enter on the map) shares the 3-point floor.
+                <button
+                  onClick={onFinishDrawing}
+                  disabled={drawPointCount < 3}
+                  className={`${BUTTON_ACCENT} disabled:opacity-40 disabled:cursor-not-allowed`}
+                >
                   Done
                 </button>
               ) : (
