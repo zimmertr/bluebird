@@ -19,7 +19,9 @@ import {
   ACCENT,
   BUTTON_FLOATING,
   BUTTON_SECONDARY,
+  FOCUS_RING,
   ICON,
+  ICON_ACTION,
   ICON_BUTTON,
   LAYER,
   LINK,
@@ -1673,14 +1675,69 @@ export default function App() {
                     >
                       <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
                     </div>
-                    <div className="min-h-0 flex-shrink-0" style={{ height: `${chartPanelPx}px` }}>
-                      <TimeSeriesChart
-                        times={chartTimes}
-                        rows={chart.selectedRows}
-                        metric={chart.metric}
-                        onMetricChange={chart.setMetric}
-                        colorFor={chart.colorFor}
-                      />
+                    <div
+                      className="flex min-h-0 flex-shrink-0 flex-col"
+                      style={{ height: `${chartPanelPx}px` }}
+                    >
+                      <div className="min-h-0 flex-1">
+                        <TimeSeriesChart
+                          times={chartTimes}
+                          rows={chart.selectedRows}
+                          metric={chart.metric}
+                          onMetricChange={chart.setMetric}
+                          colorFor={chart.colorFor}
+                        />
+                      </div>
+                      {/* Chart-only legend. In Both mode the table's checkbox
+                          column is the series picker and this would be a
+                          second copy of it, so it exists exactly where that
+                          column does not. Each chip toggles its line; the ×
+                          is the same removal as the table row's and obeys the
+                          same rules (searched places deregister, removals
+                          survive live knobs). Two chip rows at most —
+                          26px chips + the 6px gap = 58px — then it scrolls. */}
+                      {resultsMode === 'chart' && results.length > 0 && (
+                        <div className="flex-shrink-0 border-t border-slate-600 bg-slate-900/50 px-3 py-1.5">
+                          <div className="results-scrollbars flex max-h-[58px] flex-wrap gap-1.5 overflow-y-auto">
+                            {results.map((row) => {
+                              const plotted = chart.isSelected(row)
+                              return (
+                                <span
+                                  key={`${row.latitude},${row.longitude}`}
+                                  className={`inline-flex max-w-56 items-center ${RADIUS.control} ${
+                                    plotted ? 'bg-slate-700' : 'bg-slate-800/50'
+                                  }`}
+                                >
+                                  <button
+                                    onClick={() => chart.toggle(row)}
+                                    aria-pressed={plotted}
+                                    aria-label={`${plotted ? 'Hide' : 'Show'} ${row.name} on the chart`}
+                                    className={`${TEXT.control} ${FOCUS_RING} inline-flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pl-2 pr-1`}
+                                  >
+                                    <span
+                                      className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : 'opacity-40'}`}
+                                      style={{ backgroundColor: chart.colorFor(row) }}
+                                    />
+                                    <span className={`truncate ${plotted ? '' : 'opacity-50'}`}>
+                                      {row.name}
+                                    </span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleRemoveResult(row)}
+                                    aria-label={`Remove ${row.name}`}
+                                    className={`${ICON_ACTION} ${FOCUS_RING} cursor-pointer py-1 pl-1 pr-2 leading-none`}
+                                  >
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                                      <line x1="18" y1="6" x2="6" y2="18" />
+                                      <line x1="6" y1="6" x2="18" y2="18" />
+                                    </svg>
+                                  </button>
+                                </span>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
