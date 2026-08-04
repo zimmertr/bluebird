@@ -444,7 +444,10 @@ export default function ControlPanel({
               group rings the search box AND glows the selectable features,
               so the reader is shown where both live instead of told.
               Hover-only is fine here because it adds a cue to copy that
-              already stands on its own. */}
+              already stands on its own. The caption names peaks and lakes
+              rather than "a destination" because those are the two things
+              the basemap makes clickable - trailheads are not on it, which
+              is why they are found by polygon instead. */}
           <div
             className="mb-3"
             onMouseEnter={() => {
@@ -457,7 +460,7 @@ export default function ControlPanel({
             }}
           >
             <h3 className={`${TEXT.subheading} mb-1`}>Map</h3>
-            <p className={TEXT.helper}>Search by name or click a destination.</p>
+            <p className={TEXT.helper}>Search by name, or click any peak or lake.</p>
           </div>
 
           {/* Polygon — bare noun, not "Search by polygon": beside Map and
