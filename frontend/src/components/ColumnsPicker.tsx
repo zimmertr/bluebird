@@ -75,9 +75,23 @@ export default function ColumnsPicker({
       }
     }
 
+    // Pointerdown rather than click, matching ModelPicker: a click that lands
+    // on something which unmounts under it never reaches document, and the
+    // picker would stay open. The trigger is exempt so its own toggle does not
+    // fire close-then-reopen — and on a phone, where the popover lands on top
+    // of the trigger, that press hits the popover and keeps it open, which is
+    // why anywhere-outside has to dismiss.
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as Node
+      if (popoverRef.current?.contains(target) || triggerRef.current?.contains(target)) return
+      onOpenChange(false)
+    }
+
     document.addEventListener('keydown', handleEscape)
+    document.addEventListener('pointerdown', handlePointerDown)
     return () => {
       document.removeEventListener('keydown', handleEscape)
+      document.removeEventListener('pointerdown', handlePointerDown)
     }
   }, [open, onOpenChange, triggerRef])
 
@@ -126,9 +140,6 @@ export default function ColumnsPicker({
         })}
       </div>
 
-      <div className={`${TEXT.caption} border-t border-slate-700 px-3 py-2 italic`}>
-        The CSV always includes every column.
-      </div>
     </div>,
     document.body,
   )
