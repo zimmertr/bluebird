@@ -4,7 +4,7 @@ Bluebird is not a recommendation engine. It does not decide what weather is "goo
 
 ## Destinations
 
-One analysis ranks a single set of destinations, which you define using one or all of the following methods. The first two live on the map rather than in the panel, so the panel gives them one line: hovering "Search the map by name or click on a destination" rings the search box and lights every clickable feature, showing you where both controls are.
+One analysis ranks a single set of destinations, which you define using one or all of the following methods. The first two live on the map rather than in the panel, so the panel groups them under **Map**: hovering that group rings the search box and lights every clickable feature, showing you where both controls are.
 
 ### a. Search by name
 

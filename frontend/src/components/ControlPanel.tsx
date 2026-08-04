@@ -126,10 +126,10 @@ interface Props {
   drawPointCount: number
   polygonAreaKm2: number | null
   onCancelDrawing: () => void
-  // Hovering the Destinations caption rings the map's search box and glows
-  // its clickable peaks and lakes together: the two methods whose control is
-  // the map itself share one sentence, so its cue lights everything the map
-  // offers at once.
+  // Hovering the Map group rings the map's search box and glows its
+  // clickable peaks and lakes together: the two methods whose control is
+  // the map itself share one subsection, so its cue lights everything the
+  // map offers at once.
   onPointAtSearch: (on: boolean) => void
   onPointAtMapPois: (on: boolean) => void
   // A set: one polygon can look for several kinds at once, and none checked
@@ -434,15 +434,19 @@ export default function ControlPanel({
             Destinations
           </h2>
 
-          {/* The two methods whose control is the map itself — the floating
-              search box and the clickable peaks and lakes — are one pointer
-              sentence rather than two widgetless subsections. Hovering it
-              rings the search box AND glows the selectable features, so the
-              reader is shown where both live instead of told. Hover-only is
-              fine here because it adds a cue to copy that already stands on
-              its own. */}
-          <p
-            className={`${TEXT.helper} mb-3`}
+          {/* Map — the two methods whose control is the map itself, the
+              floating search box and the clickable peaks and lakes, grouped
+              as one subsection rather than two widgetless ones. The heading
+              keeps the caption from reading as a description of the whole
+              section, and makes the three groups parallel: each names the
+              instrument, so the shape says "another way to add destinations"
+              without a "Search by" prefix saying it four times. Hovering the
+              group rings the search box AND glows the selectable features,
+              so the reader is shown where both live instead of told.
+              Hover-only is fine here because it adds a cue to copy that
+              already stands on its own. */}
+          <div
+            className="mb-3"
             onMouseEnter={() => {
               onPointAtSearch(true)
               onPointAtMapPois(true)
@@ -452,12 +456,13 @@ export default function ControlPanel({
               onPointAtMapPois(false)
             }}
           >
-            Search the map by name or click on a destination.
-          </p>
+            <h3 className={`${TEXT.subheading} mb-1`}>Map</h3>
+            <p className={TEXT.helper}>Search by name or click a destination.</p>
+          </div>
 
-          {/* Polygon — bare noun, not "Search by polygon": under a heading
-              called Destinations, a Draw polygon button says the rest, and
-              the verb phrase restated its own helper line. */}
+          {/* Polygon — bare noun, not "Search by polygon": beside Map and
+              Coordinates, a Draw polygon button says the rest, and the verb
+              phrase restated its own helper line. */}
           <div className="mb-3">
             <h3 className={`${TEXT.subheading} mb-1.5`}>Polygon</h3>
             {drawPointCount > 0 && (

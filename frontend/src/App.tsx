@@ -442,10 +442,10 @@ export default function App() {
   // The controls panel is docked on desktop and an off-canvas drawer on phones.
   // It starts open on both; a close button collapses it to widen the map.
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  // The panel's Destinations caption is hovered, so the map's search box —
-  // a control the panel names but does not contain — wears a ring.
+  // The panel's Map group is hovered, so the map's search box — a control
+  // the panel names but does not contain — wears a ring.
   const [searchPointed, setSearchPointed] = useState(false)
-  // The same hover glows every clickable feature on the map: the caption
+  // The same hover glows every clickable feature on the map: the Map group
   // covers both map-borne methods, so its cue lights both controls at once.
   const [poisPointed, setPoisPointed] = useState(false)
   const isDesktop = useIsDesktop()

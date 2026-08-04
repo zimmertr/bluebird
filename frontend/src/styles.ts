@@ -664,7 +664,7 @@ export const STATUS = {
 
 /**
  * A transient outline drawn around a control to point at it from somewhere
- * else: hovering the panel's Destinations caption rings the map's search box,
+ * else: hovering the panel's Map group rings the map's search box,
  * which is a control the panel names but does not contain.
  *
  * A ring rather than a border or a fill, for the same reason `DAY.today` is
