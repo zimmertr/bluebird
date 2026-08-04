@@ -276,12 +276,18 @@ export default function ResultsTable({
   // column can be dealt less than its own header, which then renders
   // pre-clipped and makes the first fit look like it widened the column when
   // it merely un-clipped it.
-  function sized(key: string, content: ReactNode): ReactNode {
+  function sized(key: string, content: ReactNode, display: 'block' | 'inline' = 'block'): ReactNode {
     const w = widths[key]
+    const clip = w !== undefined ? 'overflow-hidden text-ellipsis' : ''
+    // Inline for headers: the sort arrow renders BESIDE this wrapper, outside
+    // any pinned width, so a column fitted before it was ranked does not clip
+    // its own label when the arrow arrives — the column grows by the arrow.
+    const flow = display === 'inline' ? 'inline-block align-bottom' : ''
+    const className = `${clip} ${flow}`.trim()
     return (
       <div
         data-col-inner
-        className={w !== undefined ? 'overflow-hidden text-ellipsis' : undefined}
+        className={className || undefined}
         style={w !== undefined ? { width: w } : undefined}
       >
         {content}
@@ -448,14 +454,9 @@ export default function ResultsTable({
                 onClick={() => handleSort(col.key)}
                 className={`${TABLE.head} relative cursor-pointer whitespace-nowrap hover:text-white select-none`}
               >
-                {sized(
-                  col.key as string,
-                  <>
-                    {col.label}
-                    {detailSortKey === col.key && (
-                      <span className={`ml-1 ${ACCENT.text}`}>{detailSortDir === 'asc' ? '↑' : '↓'}</span>
-                    )}
-                  </>,
+                {sized(col.key as string, col.label, 'inline')}
+                {detailSortKey === col.key && (
+                  <span className={`ml-1 ${ACCENT.text}`}>{detailSortDir === 'asc' ? '↑' : '↓'}</span>
                 )}
                 {/* The drag handle owns the header's right edge; its clicks
                     stop here so a resize or an auto-fit never doubles as a
