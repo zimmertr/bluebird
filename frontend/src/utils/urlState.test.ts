@@ -667,9 +667,26 @@ describe('a day selection (mode=days)', () => {
     expect(decodeState('mode=days&d1=2026-07-07&d2=2026-07-04')!.selection).toEqual(DAYS)
   })
 
-  it('drops an impossible day rather than restoring a broken selection', () => {
-    expect(decodeState('mode=days&d1=2026-02-30')?.selection).toBeUndefined()
-    expect(decodeState('mode=days&d1=tomorrow')?.selection).toBeUndefined()
+  // The arm survives, the broken day does not: the link reopens on the empty
+  // calendar instead of inventing a date or falling back to Current.
+  it('drops an impossible day but keeps the Dates arm', () => {
+    const pending = { kind: 'days', startDate: null, endDate: null }
+    expect(decodeState('mode=days&d1=2026-02-30')?.selection).toEqual(pending)
+    expect(decodeState('mode=days&d1=tomorrow')?.selection).toEqual(pending)
+  })
+
+  it('reopens a dateless Dates link on the empty calendar, hours kept', () => {
+    expect(decodeState('mode=days')?.selection).toEqual({
+      kind: 'days',
+      startDate: null,
+      endDate: null,
+    })
+    expect(decodeState('mode=days&h1=06:00&h2=18:00')?.selection).toEqual({
+      kind: 'days',
+      startDate: null,
+      endDate: null,
+      hours: { start: '06:00', end: '18:00' },
+    })
   })
 
   it('falls back to a single day when d2 is unusable', () => {

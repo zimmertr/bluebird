@@ -19,6 +19,7 @@ import {
   dayDate,
   dayInMonth,
   dayKey,
+  hasDates,
   dragAnchor,
   inBand,
   isDayKey,
@@ -340,10 +341,32 @@ describe('applyModeSwitch', () => {
     expect(next.kind === 'days' && next.hours).toEqual({ start: '06:00', end: '18:00' })
   })
 
-  it('falls back to today when there is no range to restore', () => {
-    expect(applyModeSwitch('days', DEFAULT_SELECTION, null, NOW, LONG_HOURS)).toEqual(
-      days('2026-07-15', '2026-07-15'),
-    )
+  // No pre-selected today: opening Dates paints nothing as chosen, because
+  // "today" is what Current already provides (#242 review). Analyze blocks on
+  // this state through the dates blocker.
+  it('opens the Dates arm empty when there is no range to restore', () => {
+    expect(applyModeSwitch('days', DEFAULT_SELECTION, null, NOW, LONG_HOURS)).toEqual({
+      kind: 'days',
+      startDate: null,
+      endDate: null,
+    })
+  })
+
+  it('treats the empty Dates arm as unclampable and windowless', () => {
+    const pending = { kind: 'days', startDate: null, endDate: null } as const
+    expect(clampSelection(pending, NOW, LONG_HOURS)).toBeNull()
+    expect(selectionLocalWindow(pending, NOW)).toBeNull()
+    expect(hasDates(pending)).toBe(false)
+  })
+
+  it('selects a single day from the empty Dates arm with one click', () => {
+    const pending = { kind: 'days', startDate: null, endDate: null } as const
+    const first = applyDayClick(pending, null, '2026-07-18')
+    expect(first.selection).toEqual(days('2026-07-18', '2026-07-18'))
+    expect(first.anchor).toBe('2026-07-18')
+    const second = applyDayClick(first.selection, first.anchor, '2026-07-20')
+    expect(second.selection).toEqual(days('2026-07-18', '2026-07-20'))
+    expect(second.anchor).toBeNull()
   })
 
   // The model can change while Now is the live arm, so the remembered range
@@ -591,7 +614,7 @@ describe('hour adjustment helpers', () => {
 
 describe('selectionLocalWindow', () => {
   it('reports the current hour as the same moment twice', () => {
-    const { start, end } = selectionLocalWindow({ kind: 'now' }, NOW)
+    const { start, end } = selectionLocalWindow({ kind: 'now' }, NOW)!
     expect(start).toBe('2026-07-15T12:00')
     expect(end).toBe(start)
   })
@@ -635,7 +658,7 @@ describe('selectionLocalWindow', () => {
     const { start, end } = selectionLocalWindow(
       { kind: 'days', startDate: '2026-07-15', endDate: '2026-07-15' },
       NOW,
-    )
+    )!
     expect(Date.parse(end) - Date.parse(start)).toBe(24 * HOUR - MINUTE)
   })
 
@@ -644,7 +667,7 @@ describe('selectionLocalWindow', () => {
       const { start, end } = selectionLocalWindow(
         { kind: 'days', startDate: date, endDate: date },
         NOW,
-      )
+      )!
       return Date.parse(end) - Date.parse(start)
     }
     expect(span(SPRING_FORWARD)).toBe(23 * HOUR - MINUTE)

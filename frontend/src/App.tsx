@@ -58,9 +58,12 @@ import {
 } from './utils/urlState'
 import { UrlWriter, debounceUrlWrite, urlNeedsSync } from './utils/urlSync'
 import {
+  DAY_END,
+  DAY_START,
   DEFAULT_SELECTION,
   ForecastSelection,
   clampSelection,
+  dayKey,
   selectionLocalWindow,
   windowCaption,
 } from './utils/calendar'
@@ -557,10 +560,16 @@ export default function App() {
   // ISO conversion in handleAnalyze. Recomputed per render rather than memoized,
   // since for the current-hour selection it moves with the clock.
   const panelWindow = selectionLocalWindow(selection, new Date())
-  const panelWindowMs = {
-    startMs: Date.parse(panelWindow.start),
-    endMs: Date.parse(panelWindow.end),
-  }
+  // A dateless Dates arm has no window (Analyze is blocked on it), but the
+  // display still needs a shape — column regime, captions — so it borrows a
+  // whole-day span. Never analyzed: handleAnalyze re-reads the selection and
+  // refuses a null window.
+  const panelWindowMs = panelWindow
+    ? { startMs: Date.parse(panelWindow.start), endMs: Date.parse(panelWindow.end) }
+    : {
+        startMs: Date.parse(`${dayKey(new Date())}T${DAY_START}`),
+        endMs: Date.parse(`${dayKey(new Date())}T${DAY_END}`),
+      }
 
   // The knobs the displayed report is rendered under: markers, legend, results
   // header, and table column order all read from here.
@@ -737,12 +746,10 @@ export default function App() {
   // rejects out-of-range dates outright, so submitting would only produce an
   // upstream error. The calendar cannot pick an unservable day, so a horizon
   // warning now means a shared or hand-edited link brought one in.
-  const windowStatus = classifyWindow(
-    panelWindow.start,
-    panelWindow.end,
-    new Date(),
-    forecastHours,
-  )
+  const windowStatus = panelWindow
+    ? classifyWindow(panelWindow.start, panelWindow.end, new Date(), forecastHours)
+    : // No dates picked yet: nothing to warn about, the dates blocker owns it.
+      'ok'
   const windowWarning =
     selection.kind === 'now' || windowStatus === 'ok' ? null : windowStatus
 
@@ -821,6 +828,9 @@ export default function App() {
     // the hour containing the moment.
     const kind = selection.kind
     const local = selectionLocalWindow(selection, new Date())
+    // Unreachable through the UI (the dates blocker disables Analyze), kept as
+    // the honest backstop: a dateless selection has nothing to fetch.
+    if (local === null) return
     const start = new Date(local.start).toISOString()
     const end = new Date(local.end).toISOString()
 

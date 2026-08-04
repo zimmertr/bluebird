@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { analyzeBlockers, canAnalyze, AnalyzeGate } from './analyzeGate'
 
-// A fully-ready polygon analysis: three points drawn, no vetoes. There is no
-// "dates set" field to fill in — the calendar always holds a window (#166).
+// A fully-ready polygon analysis: three points drawn, no vetoes.
 const READY_POLYGON: AnalyzeGate = {
   hasWindowWarning: false,
+  datesPending: false,
   loading: false,
   areaTooLarge: false,
   polygonReady: true,
@@ -131,9 +131,9 @@ describe('analyzeBlockers', () => {
 
   // The two must agree, or the panel disables a button and gives no reason —
   // or gives a reason for a button that works. Exhaustive over every
-  // combination of the six flags plus a representative point count each.
+  // combination of the seven flags plus a representative point count each.
   it('is non-empty exactly when canAnalyze is false', () => {
-    for (let bits = 0; bits < 32; bits++) {
+    for (let bits = 0; bits < 64; bits++) {
       for (const drawPointCount of [0, 2, 3]) {
         const gate: AnalyzeGate = {
           loading: false,
@@ -142,6 +142,7 @@ describe('analyzeBlockers', () => {
           polygonReady: (bits & 4) !== 0,
           hasCustom: (bits & 8) !== 0,
           hasPins: (bits & 16) !== 0,
+          datesPending: (bits & 32) !== 0,
         }
         const label = `${JSON.stringify(gate)} points=${drawPointCount}`
 
@@ -163,6 +164,7 @@ describe('a polygon with nothing checked', () => {
     polygonReady: false, // three points, but no types checked
     hasCustom: false,
     hasPins: false,
+    datesPending: false,
     drawPointCount: 4,
   }
 

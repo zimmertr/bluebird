@@ -95,6 +95,11 @@ export interface DayHours {
 export type ForecastSelection =
   | { kind: 'now' }
   | { kind: 'days'; startDate: string; endDate: string; hours?: DayHours }
+  // The Dates arm freshly opened, before any day is picked (#242 review):
+  // today is outlined but NOT selected — pre-selecting it painted the current
+  // date as chosen the moment the picker opened, and "today" is what Current
+  // already provides. No window exists in this state, so Analyze blocks on it.
+  | { kind: 'days'; startDate: null; endDate: null; hours?: DayHours }
 
 /** Which of the two shapes an analysis was, recorded on its snapshot. */
 export type SelectionKind = ForecastSelection['kind']
@@ -473,7 +478,7 @@ export function clampSelection(
   now: Date,
   forecastHours: number,
 ): ForecastSelection | null {
-  if (selection.kind === 'now') return null
+  if (!hasDates(selection)) return null
   const first = bandStart(now)
   const last = bandEnd(now, forecastHours)
   const clamp = (day: string): string => (day < first ? first : day > last ? last : day)
@@ -483,8 +488,13 @@ export function clampSelection(
   return { ...selection, startDate, endDate }
 }
 
-/** A day selection on its own, which is what a mode switch has to remember. */
-export type DaysSelection = Extract<ForecastSelection, { kind: 'days' }>
+/** A day selection with real days, which is what a mode switch remembers. */
+export type DaysSelection = { kind: 'days'; startDate: string; endDate: string; hours?: DayHours }
+
+/** The Dates arm with actual dates picked — the only shape with a window. */
+export function hasDates(selection: ForecastSelection): selection is DaysSelection {
+  return selection.kind === 'days' && selection.startDate !== null
+}
 
 /**
  * Picking an arm of the control directly, rather than by acting inside one.
@@ -494,8 +504,10 @@ export type DaysSelection = Extract<ForecastSelection, { kind: 'days' }>
  * so this has to produce one. It restores the last range the user had, because
  * the round trip Days → Now → Days is a comparison people actually make and
  * losing the range to it is the whole cost of the trip. Only when there is no
- * such range does it fall back to today, which is the shortest thing to fix by
- * hand if it guessed wrong.
+ * such range does it open EMPTY, today outlined but nothing selected: a
+ * pre-selected today painted the current date as chosen before the user chose
+ * anything, and a window anchored on today is what Current already provides
+ * (#242 review). Analyze blocks until a day is picked.
  *
  * A remembered range is run back through `clampSelection`, because the band may
  * have moved under it while Now was live: a range picked under ECMWF is mostly
@@ -514,8 +526,7 @@ export function applyModeSwitch(
 ): ForecastSelection {
   if (kind === current.kind) return current
   if (kind === 'now') return { kind: 'now' }
-  const today = dayKey(now)
-  const next: ForecastSelection = remembered ?? { kind: 'days', startDate: today, endDate: today }
+  const next: ForecastSelection = remembered ?? { kind: 'days', startDate: null, endDate: null }
   return clampSelection(next, now, forecastHours) ?? next
 }
 
@@ -526,16 +537,20 @@ export function applyModeSwitch(
  *
  * `now` reports the same moment twice: equal timestamps are how a point sample
  * travels, and the backend floors that to the hour containing it. A day
- * selection spans whole days unless narrowed.
+ * selection spans whole days unless narrowed. The Dates arm with nothing
+ * picked has NO window, and returns null rather than inventing one — the
+ * callers (warnings, Analyze) each have their own honest answer to "no
+ * window yet".
  */
 export function selectionLocalWindow(
   selection: ForecastSelection,
   now: Date,
-): { start: string; end: string } {
+): { start: string; end: string } | null {
   if (selection.kind === 'now') {
     const stamp = nowLocal(now)
     return { start: stamp, end: stamp }
   }
+  if (!hasDates(selection)) return null
   const hours = selection.hours
   return {
     start: `${selection.startDate}T${hours ? hours.start : DAY_START}`,

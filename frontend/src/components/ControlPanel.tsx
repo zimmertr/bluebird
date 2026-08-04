@@ -42,6 +42,7 @@ import {
   AQI_LIMIT_DAYS,
   ForecastSelection,
   PAST_LIMIT_DAYS,
+  hasDates,
   selectionLocalWindow,
 } from '../utils/calendar'
 import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabilities'
@@ -84,6 +85,8 @@ function blockerText(blocker: AnalyzeBlocker, maxAreaKm2: number, pointsNeeded: 
       return `The polygon is too large. The maximum supported size is ${maxAreaKm2.toLocaleString()} km².`
     case 'window':
       return 'Adjust the forecast window to continue.'
+    case 'dates':
+      return 'Select at least one date to analyze.'
     case 'destinations':
       return 'Provide at least one destination to analyze.'
     case 'polygon':
@@ -299,6 +302,9 @@ export default function ControlPanel({
   const polygonReady = drawPointCount >= 3 && !areaTooLarge && destinationTypes.length > 0
   const gate = {
     hasWindowWarning: windowWarning !== null,
+    // The Dates arm is live with no day picked yet (#242 review): there is no
+    // window to analyze, and the blocker says so.
+    datesPending: selection.kind === 'days' && !hasDates(selection),
     loading,
     areaTooLarge,
     polygonReady,
@@ -313,9 +319,12 @@ export default function ControlPanel({
   // explains the mark once a selection actually crosses it.
   const window = selectionLocalWindow(selection, new Date())
   // Informational only — never blocks Analyze. AQI simply degrades to "—". The
-  // current hour is always inside the ~5-day horizon.
+  // current hour is always inside the ~5-day horizon, and a dateless Dates arm
+  // has no window to warn about.
   const aqiCoverage =
-    selection.kind === 'now' ? 'full' : classifyAqiCoverage(window.start, window.end, new Date())
+    selection.kind === 'now' || window === null
+      ? 'full'
+      : classifyAqiCoverage(window.start, window.end, new Date())
 
   const pointsNeeded = Math.max(0, 3 - drawPointCount)
 

@@ -15,6 +15,7 @@ import {
   dayInMonth,
   dayKey,
   dragAnchor,
+  hasDates,
   isTimeOfDay,
   monthGrid,
   monthHasBandDay,
@@ -89,7 +90,7 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
   const today = dayKey(now)
 
   const [month, setMonth] = useState(() =>
-    selection.kind === 'days' ? monthKey(selection.startDate) : monthKey(today),
+    hasDates(selection) ? monthKey(selection.startDate) : monthKey(today),
   )
   // A committed single day that the next click may extend into a range. Spent
   // once a range exists, which is what makes a click inside one restart there.
@@ -101,15 +102,13 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
   // cannot leave it armed.
   const suppressClick = useRef(false)
   const [focused, setFocused] = useState(() =>
-    selection.kind === 'days' ? selection.startDate : today,
+    hasDates(selection) ? selection.startDate : today,
   )
   const gridRef = useRef<HTMLDivElement>(null)
   // The range to come back to when Days is pressed again. A ref rather than
   // state: nothing renders from it, and making it state would re-render the
   // panel on every day click to store what that click already displayed.
-  const lastDays = useRef<DaysSelection | null>(
-    selection.kind === 'days' ? selection : null,
-  )
+  const lastDays = useRef<DaysSelection | null>(hasDates(selection) ? selection : null)
   // Focus follows the arrow keys, but only once one has been pressed: stealing
   // focus on mount would scroll the panel down to the calendar on every load.
   const keyboardNav = useRef(false)
@@ -130,12 +129,12 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
   const drawn =
     drag !== null
       ? orderDays(drag.pivot, drag.over)
-      : selection.kind === 'days'
+      : hasDates(selection)
       ? { startDate: selection.startDate, endDate: selection.endDate }
       : null
 
   useEffect(() => {
-    if (selection.kind === 'days') lastDays.current = selection
+    if (hasDates(selection)) lastDays.current = selection
   }, [selection])
 
   function commitClick(day: string) {
@@ -149,7 +148,7 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
     if (next === selection) return
     // A half-made range does not survive leaving the arm it was being made in.
     setAnchor(null)
-    if (next.kind === 'days') {
+    if (hasDates(next)) {
       // Restoring a range in another month has to page there, or pressing Days
       // shows an empty grid and the selection looks lost.
       setMonth(monthKey(next.startDate))
@@ -218,8 +217,11 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
 
   function setHours(next: { start: string; end: string } | undefined) {
     if (selection.kind !== 'days') return
-    const { startDate, endDate } = selection
-    onChange({ kind: 'days', startDate, endDate, ...(next ? { hours: next } : {}) })
+    // Works on the dateless arm too: the hours refinement rides along and
+    // applies once days are picked. The cast is safe — rest is the selection
+    // minus `hours`, and both dated and dateless shapes admit that.
+    const { hours: _dropped, ...rest } = selection
+    onChange((next ? { ...rest, hours: next } : rest) as ForecastSelection)
   }
 
   const prevMonth = addMonths(month, -1)
