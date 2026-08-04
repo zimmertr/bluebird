@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  FIT_PAD_PX,
   MAX_COL_PX,
   MIN_COL_PX,
   autoFitWidth,
@@ -33,8 +32,16 @@ describe('dragging', () => {
 })
 
 describe('double-click auto-fit', () => {
-  it('fits the longest cell, header included, plus the pad', () => {
-    expect(autoFitWidth([80, 140, 95])).toBe(140 + FIT_PAD_PX)
+  it('fits the longest cell exactly, ceiling fractional measurements', () => {
+    expect(autoFitWidth([80, 140, 95])).toBe(140)
+    expect(autoFitWidth([80, 139.2, 95])).toBe(140)
+  })
+
+  // The first double-click on an already-fitting column must be a no-op to
+  // the eye: fitting the same contents twice yields the same width.
+  it('is idempotent', () => {
+    const first = autoFitWidth([80, 139.2, 95])
+    expect(autoFitWidth([80, 139.2, 95, first])).toBe(first)
   })
 
   it('clamps an empty or absurd column like any other width', () => {

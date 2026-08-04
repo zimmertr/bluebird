@@ -30,17 +30,17 @@ export function dragWidth(startPx: number, dxPx: number): number {
 }
 
 /**
- * Double-click auto-fit: wide enough for the longest cell.
+ * Double-click auto-fit: wide enough for the longest cell, and no wider.
  *
- * Inputs are the content widths (scrollWidth) of every cell in the column,
- * header included. The pad covers the ellipsis threshold: a wrapper sized to
- * exactly its content can still report overflow at fractional widths, and one
- * extra pixel per side is invisible where a truncated name is not.
+ * Inputs are the FRACTIONAL content widths of every cell in the column,
+ * header included (getBoundingClientRect, not the integer scroll metrics).
+ * Ceiling rather than a pad: the width only has to clear the true content
+ * width for the ellipsis never to fire, and any fixed pad made the first
+ * double-click visibly widen a column whose header was already its longest
+ * content — fit must be idempotent from the natural width onward.
  */
-export const FIT_PAD_PX = 2
-
 export function autoFitWidth(contentWidths: readonly number[]): number {
-  return clampColWidth(Math.max(0, ...contentWidths) + FIT_PAD_PX)
+  return clampColWidth(Math.ceil(Math.max(0, ...contentWidths)))
 }
 
 /**

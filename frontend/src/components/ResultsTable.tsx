@@ -248,11 +248,15 @@ export default function ResultsTable({
     inners.forEach((el) => {
       if (el) el.style.width = 'max-content'
     })
+    // Fractional widths, deliberately: the integer scroll metrics round, and
+    // a fit that rounds first and pads after made the first double-click
+    // widen a column that already fit. autoFitWidth ceils once, at the end.
+    // Cells without a wrapper (none today) fall back to their own box.
     const contents = cells.map((c, i) => {
       const inner = inners[i]
-      if (inner) return inner.offsetWidth
+      if (inner) return inner.getBoundingClientRect().width
       const cs = getComputedStyle(c)
-      return c.scrollWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+      return c.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
     })
     inners.forEach((el, i) => {
       if (el) el.style.width = saved[i]
@@ -275,13 +279,20 @@ export default function ResultsTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasRows])
 
-  // A sized column pins every cell's content box to the chosen width; the
-  // wrapper is also what auto-fit measures. Unsized columns render untouched.
+  // Every data cell renders inside this wrapper. Sized, it pins the cell's
+  // content box to the chosen width; unsized it is inert — but it must exist
+  // either way, because it is what auto-fit measures. Measuring the cell
+  // itself reads the STRETCHED box (auto layout hands min-w-full's spare
+  // space to every column), which made the first double-click widen columns
+  // that already fit their content.
   function sized(key: string, content: ReactNode): ReactNode {
     const w = widths[key]
-    if (w === undefined) return content
     return (
-      <div data-col-inner className="overflow-hidden text-ellipsis" style={{ width: w }}>
+      <div
+        data-col-inner
+        className="overflow-hidden text-ellipsis"
+        style={w !== undefined ? { width: w } : undefined}
+      >
         {content}
       </div>
     )
