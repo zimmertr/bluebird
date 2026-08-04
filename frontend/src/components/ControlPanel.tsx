@@ -66,7 +66,8 @@ const COMMIT_CUE: Record<
   'model-changed': 'A new forecast model requires a new analysis.',
   // The overlay already announced the fallback itself ("Open-Meteo is unreachable
   // from this browser"), so this only has to name the consequence.
-  'server-path': 'The server analysis returns only the rows shown.',
+  'server-path':
+    'The server analysis holds only the rows shown, so changing controls needs a new analysis.',
 }
 
 // What each Analyze blocker reads as. A function rather than a record because
@@ -80,15 +81,15 @@ const COMMIT_CUE: Record<
 function blockerText(blocker: AnalyzeBlocker, maxAreaKm2: number, pointsNeeded: number): string {
   switch (blocker) {
     case 'area':
-      return `Polygon is too large. Maximum is ${maxAreaKm2.toLocaleString()} km².`
+      return `The polygon is too large. The maximum supported size is ${maxAreaKm2.toLocaleString()} km².`
     case 'window':
       return 'Adjust the forecast window to continue.'
     case 'destinations':
-      return 'Add a destination to analyze.'
+      return 'Provide at least one destination to analyze.'
     case 'polygon':
-      return `Add ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon.`
+      return `Add at least ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon to continue.`
     case 'types':
-      return 'Pick what the polygon search should discover.'
+      return 'Select at least one destination type for the polygon search.'
   }
 }
 
@@ -893,7 +894,7 @@ export default function ControlPanel({
             check is missing. */}
         {wildfireCheckFailed && !loading && (
           <p className={`${STATUS.warn} ${NOTICE.warn}`}>
-            NIFC is unreachable. Wildfire data unavailable.
+            NIFC is unreachable, so wildfire proximity data is unavailable.
           </p>
         )}
 
@@ -914,7 +915,7 @@ export default function ControlPanel({
         {resultCount !== undefined && !loading && !error && !refusal &&
           aqiAllNull && aqiCoverage !== 'none' && (
             <p className={`${CUE} ${TEXT.caption}`}>
-              Air quality data is unavailable for this window.
+              {NOUN.aqi} data is not available for this forecast window.
             </p>
           )}
 

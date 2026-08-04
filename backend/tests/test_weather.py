@@ -649,9 +649,10 @@ async def test_a_point_outside_a_regional_model_raises_model_coverage(monkeypatc
         await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_hrrr)
 
     assert exc.value.model == "gfs_hrrr"
-    # The message names the model and states it does not cover the area.
+    # The message names the model, states the coverage gap, and offers the remedy.
     assert "NOAA HRRR" in exc.value.message
-    assert "does not cover" in exc.value.message
+    assert "has no forecast coverage" in exc.value.message
+    assert "Switch to a different model" in exc.value.message
 
 
 async def test_a_coverage_refusal_is_not_reported_as_a_generic_upstream_failure(monkeypatch):

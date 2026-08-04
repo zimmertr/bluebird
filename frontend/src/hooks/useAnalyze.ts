@@ -540,7 +540,9 @@ export function useAnalyze(
         // Compose the message with the model label from the models list
         const modelLabel =
           models.find((m) => m.id === e.modelId)?.label ?? e.modelId
-        setError(`${modelLabel} does not cover this area.`)
+        setError(
+          `${modelLabel} has no forecast coverage for this area. Switch to a different model and try again.`,
+        )
       } else {
         setError(e instanceof Error ? e.message : 'Unknown error')
       }

@@ -182,11 +182,17 @@ The accent appears in six places and must pass WCAG AA on all of them. On a whit
 
 The panel is 360px on desktop (100vw − 2rem capped at 360 on phones).
 
-- Boxed status messages: ~47 characters (floor of 360px minus padding and margins)
-- Unboxed status messages: ~50 characters (narrower because bare, not in a box)
+- Boxed status messages: ~47 characters per line (floor of 360px minus padding and margins)
+- Unboxed status messages: ~50 characters per line (narrower because bare, not in a box)
 - Assumption: English; other languages will be tighter
 
-**Binding condition:** a 360px phone with English copy. If copy reaches ~47 chars without wrapping, it fits the budget.
+**Binding condition:** a 360px phone with English copy. If copy reaches ~47 chars without wrapping, it fits one line.
+
+**Line allowance:** messages in the panel body hold to one line. The area
+below the Analyze button — blockers, commit cues, refusals, provider
+errors, and the warnings that qualify a report — may run to two lines,
+because that is where the app explains why it will not or could not act
+and a truncated reason is worse than a second line.
 
 ### Results bar fold point
 
@@ -227,7 +233,7 @@ All UI copy is sentence case (capitalize first word and proper nouns only). Acro
 Errors end with period and a standing sentence: `Try again later.` This has two exceptions:
 
 - Parse failures carry no remedy tail (e.g., "Invalid coordinate format.")
-- Model coverage messages carry no remedy (e.g., "{model} does not cover this area.")
+- Model coverage messages name the remedy (e.g., "{model} has no forecast coverage for this area. Switch to a different model and try again.")
 
 Remedies only work where they work. A generic "try again" for a network error does not help if the network is down. Failing that test, omit the remedy and show only the state.
 
@@ -242,7 +248,7 @@ Never surface an exception type or HTTP status directly. Write a sentence instea
 
 ### Model coverage message
 
-The one message mirrored between backend and frontend: "{label} does not cover this area." Defined in `backend/app/services/weather.py` and ported to `frontend/src/utils/openMeteo.ts` and `frontend/src/hooks/useAnalyze.ts`.
+The one message mirrored between backend and frontend: "{label} has no forecast coverage for this area. Switch to a different model and try again." Defined in `backend/app/services/weather.py` and ported to `frontend/src/utils/openMeteo.ts` and `frontend/src/hooks/useAnalyze.ts`.
 
 ### Adding a new role
 

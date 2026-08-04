@@ -181,7 +181,10 @@ async def _fetch_chunk_indexed(
 
 def _coverage_message(model: ForecastModel) -> str:
     """Why a regional model refused."""
-    return f"{MODEL_INFO[model].label} does not cover this area."
+    return (
+        f"{MODEL_INFO[model].label} has no forecast coverage for this area."
+        " Switch to a different model and try again."
+    )
 
 
 async def _fetch_chunk(

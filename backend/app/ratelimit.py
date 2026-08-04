@@ -483,7 +483,7 @@ def _throttle(limiter: RateLimiter, request: Request) -> None:
     )
     raise HTTPException(
         status_code=429,
-        detail="Too many requests. Try again later.",
+        detail="Too many requests from this connection. Try again later.",
         headers={"Retry-After": str(seconds)},
     )
 

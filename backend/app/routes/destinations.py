@@ -143,7 +143,7 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse:
             raise HTTPException(status_code=502, detail=e.message)
         except Exception:
             log.exception("Destination search failed")
-            raise HTTPException(status_code=502, detail="Destination search failed. Try again later.")
+            raise HTTPException(status_code=502, detail="OpenStreetMap is not available. Try again later.")
 
     # Resolved before the band filter, so an elevation the caller never knew
     # is one the band can actually act on.

@@ -612,7 +612,7 @@ async def analyze_stream(request: AnalyzeRequest):
                     return
                 except Exception:
                     log.exception("Destination search failed")
-                    yield _sse("error", message="Destination search failed. Try again later.")
+                    yield _sse("error", message="OpenStreetMap is not available. Try again later.")
                     return
                 finally:
                     if not osm_task.done():
@@ -747,7 +747,7 @@ async def analyze_stream(request: AnalyzeRequest):
                 return
             except Exception:
                 log.exception("Weather fetch failed")
-                yield _sse("error", message="Weather lookup failed. Try again later.")
+                yield _sse("error", message="The weather search failed. Try again later.")
                 return
             finally:
                 # If the client disconnected (generator torn down) before the
@@ -896,7 +896,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         except Exception:
             log.exception("Destination search failed")
             raise HTTPException(
-                status_code=502, detail="Destination search failed. Try again later."
+                status_code=502, detail="OpenStreetMap is not available. Try again later."
             )
 
         # The user's own list rides along with whatever discovery found — the
@@ -990,7 +990,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
             aqi_task.cancel()
         log.exception("Weather lookup failed")
         raise HTTPException(
-            status_code=502, detail="Weather lookup failed. Try again later."
+            status_code=502, detail="The weather search failed. Try again later."
         )
     aqi_list = await aqi_task if aqi_task is not None else [None] * len(destinations)
 
