@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { COLUMNS, displayedColumns, pointModeColumns, orderColumns, defaultVisibleColumns, visibleColumns } from './tableColumns'
+import { COLUMNS, displayedColumns, pointModeColumns, orderColumns, visibleColumns } from './tableColumns'
 import { SEP } from '../metrics'
-import { SortBy, DestinationResult } from '../types'
+import { SortBy } from '../types'
 
 // The real column set, not a copy of its keys. The list used to be declared in
 // ResultsTable and restated here, which meant this suite could pass against a
@@ -134,49 +134,6 @@ describe('displayedColumns', () => {
   it('collapses a point sample and nothing else', () => {
     expect(displayedColumns(true, 'precip_total_in')).toHaveLength(7)
     expect(displayedColumns(false, 'precip_total_in')).toHaveLength(KEYS.length)
-  })
-})
-
-describe('defaultVisibleColumns', () => {
-  const row = (type: string): Pick<DestinationResult, 'type'> => ({ type })
-
-  it('includes identity columns and the ranked metric group', () => {
-    const defaults = defaultVisibleColumns([row('peak')], false, 'precip_total_in')
-    expect(defaults.has('name')).toBe(true)
-    expect(defaults.has('elevation_ft')).toBe(true)
-    expect(defaults.has('precip_total_in')).toBe(true)
-    expect(defaults.has('precip_avg_in_hr')).toBe(true)
-    expect(defaults.has('precip_max_in_hr')).toBe(true)
-  })
-
-  it('includes type only when multiple types are present', () => {
-    const single = defaultVisibleColumns([row('peak')], false, 'precip_total_in')
-    const multi = defaultVisibleColumns([row('peak'), row('lake')], false, 'precip_total_in')
-
-    expect(single.has('type')).toBe(false)
-    expect(multi.has('type')).toBe(true)
-  })
-
-  it('excludes other metric groups', () => {
-    const defaults = defaultVisibleColumns([row('peak'), row('lake')], false, 'precip_total_in')
-    expect(defaults.has('temp_min_f')).toBe(false)
-    expect(defaults.has('wind_avg_mph')).toBe(false)
-    expect(defaults.has('aqi_avg')).toBe(false)
-  })
-
-  it('uses AQI as the ranked group when sorting by AQI', () => {
-    const defaults = defaultVisibleColumns([row('peak')], false, 'aqi_avg')
-    expect(defaults.has('aqi_avg')).toBe(true)
-    expect(defaults.has('aqi_max')).toBe(true)
-    expect(defaults.has('precip_total_in')).toBe(false)
-  })
-
-  it('works with point-sample mode', () => {
-    const defaults = defaultVisibleColumns([row('peak')], true, 'precip_total_in')
-    expect(defaults.has('name')).toBe(true)
-    expect(defaults.has('elevation_ft')).toBe(true)
-    // Point sample has only one precip column
-    expect(defaults.has('precip_avg_in_hr')).toBe(true)
   })
 })
 

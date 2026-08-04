@@ -25,6 +25,7 @@ import {
   ICON_BUTTON,
   NOTICE,
   SEGMENT,
+  SEGMENT_FLUID,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
   SELECT,
@@ -381,6 +382,16 @@ describe('grouping and segmenting', () => {
     }
     expect(SEGMENT_IDLE).toContain(RECESSED_FILL)
     expect(SEGMENT).toContain(RECESSED_EDGE)
+  })
+
+  // The fluid segment is the panel segment minus the panel's width: same edge,
+  // same radius, same clipping, no CONTROL_W. The width assertion is the
+  // regression test for the results bar's mode switch, which overflow-hidden
+  // clipped to two and a half buttons when it inherited the 144px column.
+  it('sizes an out-of-panel segment by its content, not the panel column', () => {
+    expect(SEGMENT_FLUID).toContain(RECESSED_EDGE)
+    expect(SEGMENT_FLUID).toContain('overflow-hidden')
+    expect(SEGMENT_FLUID).not.toContain(CONTROL_W)
   })
 
   // The edge separates two surfaces and owes 3:1 against BOTH (WCAG 1.4.11).

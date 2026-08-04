@@ -95,7 +95,7 @@ export default function ColumnsPicker({
       }}
       className={`${SURFACE_CARD} ${LAYER.popover} flex flex-col`}
     >
-      <div className={`${TEXT.overline} border-b border-slate-700 px-3 py-2`}>Display Columns</div>
+      <div className={`${TEXT.overline} border-b border-slate-700 px-3 py-2`}>Display columns</div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-1 space-y-1">
         {columns.map((col) => {

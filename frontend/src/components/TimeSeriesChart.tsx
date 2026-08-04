@@ -10,7 +10,7 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult } from '../types'
-import { CHOICE_INPUT, CHOICE_ROW, FOCUS_RING, RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
+import { CHOICE_INPUT, CHOICE_ROW, RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
 import {
   CHART_METRICS,
   ChartMetric,
@@ -33,14 +33,15 @@ import {
 const MARGIN = { top: 8, right: 16, bottom: 2, left: 8 }
 const X_AXIS_HEIGHT = 22
 
+// Which rows are plotted is the table's job: the checkbox column is the one
+// series picker (#242 review dropped the chart's own legend strip), so this
+// component only receives the rows already chosen.
 interface Props {
   times: number[]
   rows: DestinationResult[]
   metric: ChartMetric
   onMetricChange: (m: ChartMetric) => void
   colorFor: (row: DestinationResult) => string
-  isSelected?: (row: DestinationResult) => boolean
-  onToggle?: (row: DestinationResult) => void
 }
 
 export default function TimeSeriesChart({
@@ -49,8 +50,6 @@ export default function TimeSeriesChart({
   metric,
   onMetricChange,
   colorFor,
-  isSelected,
-  onToggle,
 }: Props) {
   const plotRef = useRef<HTMLDivElement>(null)
   const [focusedKey, setFocusedKey] = useState<string | null>(null)
@@ -220,32 +219,6 @@ export default function TimeSeriesChart({
         </ResponsiveContainer>
       </div>
 
-      {/* Legend: toggleable row picker for plotted destinations */}
-      {isSelected && onToggle && rows.length > 0 && (
-        <div className="max-h-20 flex-shrink-0 overflow-y-auto border-t border-slate-600 bg-slate-900/50 px-3 py-2">
-          <div className={`${TEXT.overline} mb-2`}>Series</div>
-          <div className="flex flex-wrap gap-1.5">
-            {rows.map((row) => (
-              <button
-                key={`${row.latitude},${row.longitude}`}
-                onClick={() => onToggle(row)}
-                className={`${TEXT.control} inline-flex max-w-56 items-center gap-2 rounded px-2 py-1 transition-colors ${
-                  isSelected(row)
-                    ? 'bg-slate-700 hover:bg-slate-600'
-                    : 'bg-slate-800/50 hover:bg-slate-700'
-                } ${FOCUS_RING}`}
-                aria-pressed={isSelected(row)}
-              >
-                <span
-                  className={`h-2 w-2 ${RADIUS.control} flex-shrink-0`}
-                  style={{ backgroundColor: colorFor(row) }}
-                />
-                <span className="truncate">{row.name}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

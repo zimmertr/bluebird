@@ -25,7 +25,7 @@ import {
   LINK,
   PROSE,
   RADIUS,
-  SEGMENT,
+  SEGMENT_FLUID,
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
@@ -64,7 +64,7 @@ import {
 } from './utils/calendar'
 import { isPointSample } from './utils/forecastWindow'
 import { PresentationKnobs, commitNeeded, presentResults } from './utils/present'
-import { SortDir, SortKey, displayedColumns, defaultVisibleColumns, visibleColumns } from './utils/tableColumns'
+import { SortDir, SortKey, displayedColumns, visibleColumns } from './utils/tableColumns'
 import { compareValues } from './utils/sortResults'
 import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
 
@@ -1016,12 +1016,13 @@ export default function App() {
     () => displayedColumns(pointSample, view.sortBy),
     [pointSample, view.sortBy],
   )
-  // Compute default visible columns on first analysis (when columnVisibility is null).
-  // Includes identity + elevation + ranked metric group; type only if multiple types.
+  // Every column is on by default — the table scrolls sideways rather than
+  // opening narrowed (TJ's call in the #242 review). A stored choice from the
+  // Columns picker still wins; null means "all of them".
   const effectiveVisibleKeys = useMemo(() => {
     if (columnVisibility !== null) return columnVisibility
-    return defaultVisibleColumns(results, pointSample, view.sortBy)
-  }, [columnVisibility, results, pointSample, view.sortBy])
+    return new Set(csvColumns.map((c) => c.key as string))
+  }, [columnVisibility, csvColumns])
   // Columns displayed in the table (filtered by visibility).
   const tableColumns = useMemo(
     () => visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys),
@@ -1473,43 +1474,42 @@ export default function App() {
             {/* Shared header bar for all results views. A container query, not
                 a viewport one: the bar's width is the viewport minus the docked
                 sidebar, so a viewport breakpoint would fold it on a window that
-                never changed size. The fold stepped up one rung when the mode
-                switch (icons plus words), the filters chip and Columns joined
-                the bar (#238): one line now needs ~870px measured, so the fold
-                sits at the 896px container step. Re-measure if a member joins
-                or leaves. */}
+                never changed size. Wide, everything sits on one line; narrow,
+                it folds to exactly two — the title row (which keeps the
+                collapse chevron) and the actions row — never a vertical stack
+                (#242 review). The fold sits at the 896px container step;
+                re-measure if a member joins or leaves. */}
             <div className={`@container flex-shrink-0 px-3 py-1.5 bg-slate-700 border-b border-slate-600`}>
-              <div className="flex items-start gap-2 @4xl:items-baseline">
-                <div className="flex min-w-0 flex-1 flex-col @4xl:flex-row @4xl:items-baseline @4xl:gap-2">
-                  <span className="flex min-w-0 items-baseline gap-1.5">
-                    {rowCount !== null && (
-                      <span className={`${TEXT.subheading} min-w-0 truncate`}>
-                        {`${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, pointSample)} (${rowCount})`}
-                      </span>
-                    )}
-                  </span>
+              <div className="flex flex-col gap-1 @4xl:flex-row @4xl:items-center @4xl:gap-2">
+                <div className="flex min-w-0 flex-1 items-baseline gap-2">
+                  {rowCount !== null && (
+                    <span className={`${TEXT.subheading} min-w-0 truncate`}>
+                      {`${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, pointSample)} (${rowCount})`}
+                    </span>
+                  )}
                   {windowTitle !== null && (
                     <span className={`${TEXT.caption} truncate`}>
                       {windowTitle}
                     </span>
                   )}
+                  {/* The chevron rides the title row when the bar is folded so
+                      collapsing never needs the second row; its wide twin sits
+                      at the end of the actions row below. */}
+                  <button
+                    onClick={() => setResultsCollapsed((c) => !c)}
+                    aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}
+                    className={`${ICON_BUTTON} ml-auto @4xl:hidden`}
+                  >
+                    <Chevron up={resultsCollapsed} />
+                  </button>
                 </div>
-                <div className="flex shrink-0 gap-2 flex-col @4xl:flex-row @4xl:items-baseline">
-                  {/* Mode switch: chart, table, or both */}
+                <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1">
+                  {/* Mode switch: table, chart, or both — fluid width, since
+                      three icon-plus-label halves cannot fit the panel's
+                      144px column (SEGMENT_FLUID exists because this shipped
+                      clipped). */}
                   {(chartShown || showTable) && (
-                    <div className={`${SEGMENT}`}>
-                      <button
-                        onClick={() => setResultsMode('chart')}
-                        className={`${SEGMENT_ITEM} ${resultsMode === 'chart' ? ACCENT.fill : SEGMENT_IDLE}`}
-                        aria-pressed={resultsMode === 'chart'}
-                        aria-label="Show chart only"
-                      >
-                        <svg viewBox="0 0 16 16" strokeWidth={1.5} stroke="currentColor" fill="none" className={`${ICON} flex-shrink-0`} aria-hidden="true">
-                          <polyline points="2,12 6,6 9,9 14,3" />
-                        </svg>
-                        <span className="hidden sm:inline">Chart</span>
-                      </button>
-                      <div className={SEGMENT_DIVIDER} />
+                    <div className={SEGMENT_FLUID}>
                       <button
                         onClick={() => setResultsMode('table')}
                         className={`${SEGMENT_ITEM} ${resultsMode === 'table' ? ACCENT.fill : SEGMENT_IDLE}`}
@@ -1522,6 +1522,18 @@ export default function App() {
                           <line x1="2" y1="10" x2="14" y2="10" />
                         </svg>
                         <span className="hidden sm:inline">Table</span>
+                      </button>
+                      <div className={SEGMENT_DIVIDER} />
+                      <button
+                        onClick={() => setResultsMode('chart')}
+                        className={`${SEGMENT_ITEM} ${resultsMode === 'chart' ? ACCENT.fill : SEGMENT_IDLE}`}
+                        aria-pressed={resultsMode === 'chart'}
+                        aria-label="Show chart only"
+                      >
+                        <svg viewBox="0 0 16 16" strokeWidth={1.5} stroke="currentColor" fill="none" className={`${ICON} flex-shrink-0`} aria-hidden="true">
+                          <polyline points="2,12 6,6 9,9 14,3" />
+                        </svg>
+                        <span className="hidden sm:inline">Chart</span>
                       </button>
                       <div className={SEGMENT_DIVIDER} />
                       <button
@@ -1582,7 +1594,7 @@ export default function App() {
                   <button
                     onClick={() => setResultsCollapsed((c) => !c)}
                     aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}
-                    className={ICON_BUTTON}
+                    className={`${ICON_BUTTON} hidden @4xl:flex`}
                   >
                     <Chevron up={resultsCollapsed} />
                   </button>
@@ -1593,26 +1605,29 @@ export default function App() {
               <>
                 {chartShown && resultsMode !== 'table' && (
                   <>
-                    {resultsMode === 'both' && (
-                      <div
-                        onPointerDown={(e) => {
-                          if (isDoublePress('chart', e.timeStamp)) {
-                            setTableHeight(tablePanelPx)
-                            setChartHeight(DEFAULT_CHART_HEIGHT)
-                            return
-                          }
-                          setTableHeight(tablePanelPx)
-                          beginResize(e, (up) =>
-                            setChartHeight(
-                              clampPanelHeight(chartPanelPx, up, tablePanelPx + bannerPx, window.innerHeight),
-                            ),
-                          )
-                        }}
-                        className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
-                      >
-                        <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
-                      </div>
-                    )}
+                    {/* The map│chart grip, in Both AND chart-only mode: a
+                        panel shown by itself is still resizable against the
+                        map (#242 review). Only the reserved space differs —
+                        the table's height counts only while it is rendered. */}
+                    <div
+                      onPointerDown={(e) => {
+                        if (isDoublePress('chart', e.timeStamp)) {
+                          if (resultsMode === 'both') setTableHeight(tablePanelPx)
+                          setChartHeight(DEFAULT_CHART_HEIGHT)
+                          return
+                        }
+                        const reserved = (resultsMode === 'both' ? tablePanelPx : 0) + bannerPx
+                        if (resultsMode === 'both') setTableHeight(tablePanelPx)
+                        beginResize(e, (up) =>
+                          setChartHeight(
+                            clampPanelHeight(chartPanelPx, up, reserved, window.innerHeight),
+                          ),
+                        )
+                      }}
+                      className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
+                    >
+                      <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
+                    </div>
                     <div className="min-h-0 flex-shrink-0" style={{ height: `${chartPanelPx}px` }}>
                       <TimeSeriesChart
                         times={chartTimes}
@@ -1620,33 +1635,41 @@ export default function App() {
                         metric={chart.metric}
                         onMetricChange={chart.setMetric}
                         colorFor={chart.colorFor}
-                        isSelected={chart.isSelected}
-                        onToggle={chart.toggle}
                       />
                     </div>
                   </>
                 )}
                 {showTable && resultsMode !== 'chart' && (
                   <>
-                    {resultsMode === 'both' && (
-                      <div
-                        onPointerDown={(e) => {
-                          if (isDoublePress('table', e.timeStamp)) {
-                            setChartHeight(chartPanelPx)
-                            setTableHeight(DEFAULT_TABLE_HEIGHT)
-                            return
-                          }
+                    {/* In Both mode this grip is the chart│table divider and
+                        preserves the pair's sum; alone, there is no chart to
+                        trade with, so it resizes the table against the map
+                        exactly as the chart grip above does. */}
+                    <div
+                      onPointerDown={(e) => {
+                        if (isDoublePress('table', e.timeStamp)) {
+                          if (resultsMode === 'both') setChartHeight(chartPanelPx)
+                          setTableHeight(DEFAULT_TABLE_HEIGHT)
+                          return
+                        }
+                        if (resultsMode === 'both') {
                           beginResize(e, (up) => {
                             const next = splitChartTable(chartPanelPx, tablePanelPx, up)
                             setChartHeight(next.chart)
                             setTableHeight(next.table)
                           })
-                        }}
-                        className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
-                      >
-                        <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
-                      </div>
-                    )}
+                        } else {
+                          beginResize(e, (up) =>
+                            setTableHeight(
+                              clampPanelHeight(tablePanelPx, up, bannerPx, window.innerHeight),
+                            ),
+                          )
+                        }
+                      }}
+                      className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
+                    >
+                      <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
+                    </div>
                     <div className="@container overflow-auto min-h-0 results-scrollbars flex-shrink-0" style={{ height: `${tablePanelPx}px` }}>
                       <ResultsTable
                         emptyReason={emptyReason}

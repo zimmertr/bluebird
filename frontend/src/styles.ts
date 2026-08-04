@@ -583,6 +583,20 @@ export const CONTROL_W = 'w-36'
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 
 /**
+ * A segmented control OUTSIDE the panel's column, sized by its content.
+ *
+ * `SEGMENT` bakes in `CONTROL_W` because the panel's rows must line up on both
+ * edges — but that width is the sidebar's, and a segment that lives elsewhere
+ * inherits a straitjacket instead of an alignment. The results bar's
+ * three-way mode switch shipped clipped for exactly this reason: three
+ * icon-plus-label halves cannot fit in 144px, and `overflow-hidden` (needed to
+ * clip the halves' corners to the radius) cut the third one off silently
+ * rather than visibly. Anything segmented that does not sit in the panel's
+ * control column wears this and takes the width its labels need.
+ */
+export const SEGMENT_FLUID = `inline-flex ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
+
+/**
  * The forecast-bounds grid: a label taking the free space, then a lower and an
  * upper box.
  *
