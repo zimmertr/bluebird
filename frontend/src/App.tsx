@@ -1845,15 +1845,6 @@ export default function App() {
                         results={tableRows}
                         leavingRowKeys={leavingRowKeys}
                         sortBy={view.sortBy}
-                        sortDesc={view.sortDesc}
-                        onRank={
-                          universe !== null
-                            ? (key, desc) => {
-                                setSortBy(key)
-                                setSortDesc(desc)
-                              }
-                            : undefined
-                        }
                         detailSortKey={detailSort.key}
                         detailSortDir={detailSort.dir}
                         onDetailSort={(key, dir) => setDetailSort({ key, dir })}

@@ -180,9 +180,7 @@ Click a marker for a popup with rank, precipitation, wind, temperature, and AQI.
 
 Every row carries a **Type** — Peak, Lake, Trailhead, or Custom for one you supplied — because a single polygon can now look for several kinds at once. It travels into the downloaded CSV too, lower-case there, so a file you re-import reads the same value the API uses.
 
-Click any column header to sort by it, ascending or descending. By default the table follows the **Ranking** selection, for example lowest total precipitation for driest-first.
-
-The four columns that are also ranking options (Precipitation · Total, Wind · Avg, Temperature · Avg, AQI · Avg) *are* that selection: clicking one re-ranks every destination in your area and re-picks the top N, and the Ranking control moves to match. So clicking **Wind** gives you the least windy destinations in the area, not the driest ones reordered by wind. The remaining columns are detail rather than ranking, and reorder the rows currently listed.
+Click any column header to sort the rows on screen by it, ascending or descending. That is all a header click does: the ranking, the column order, and the cell shading move only with the **Ranking** control in the panel. By default the table reads in the ranking's order, for example lowest total precipitation for driest-first, and a header click reorders those same rows in place.
 
 Hovering a row reveals a × at its end (always visible on touch screens) that removes the destination from the report — the rows below renumber, and it stays gone as you re-rank, raise the max results, or change any filter, elevation included. Only changing the destinations themselves starts a fresh report where it may return.
 

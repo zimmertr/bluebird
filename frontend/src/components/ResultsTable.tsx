@@ -11,7 +11,6 @@ import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
 import { pinKey } from '../utils/customList'
 import { ACCENT, CHOICE_INPUT, ICON_ACTION, LINK_ACTION, TABLE, TEXT } from '../styles'
-import { RANKING_KEYS } from '../metrics'
 
 function windyUrl(lat: number, lon: number, layer: string): string {
   return `https://www.windy.com/?${layer},${lat.toFixed(4)},${lon.toFixed(4)},11`
@@ -76,11 +75,6 @@ interface Props {
   // The ranking the displayed rows are already in. Live on the client path,
   // where the panel re-derives the rows from the held field on every change.
   sortBy: SortBy
-  sortDesc: boolean
-  // Re-rank the whole field by one of the four ranking metrics. Absent on the
-  // server path, which holds no field to re-rank, so a header click there falls
-  // back to reordering the rows on screen.
-  onRank?: (key: SortBy, desc: boolean) => void
   // The detail-column sort: which non-ranking column the rows are read in, and
   // which way. Held by App rather than here since #125, because the CSV export
   // has to leave in the order that is on screen, and a component that keeps its
@@ -131,8 +125,6 @@ export default function ResultsTable({
   leavingRowKeys,
   emptyReason,
   sortBy,
-  sortDesc,
-  onRank,
   detailSortKey,
   detailSortDir,
   onDetailSort,
@@ -162,23 +154,15 @@ export default function ResultsTable({
   const shiftHeldRef = useRef(false)
   const anchorRef = useRef<string | null>(null)
 
-  // A header click means "rank by this", and for the four metrics that are also
-  // ranking keys it can mean it literally: `onRank` re-cuts the whole held field,
-  // so clicking Wind gives the least windy destinations in the area rather than
-  // the driest ones reordered by wind. The remaining columns are detail, and
-  // reorder the rows on screen as they always have. Widening the ranking
-  // vocabulary to cover them needs marker thresholds, a URL spelling and an
-  // aggregate-aware header noun per key, which is a separate change (see
-  // RANKING_KEYS in metrics.ts).
-  //
-  // Column ORDER keys off the ranking metric and not its direction, so toggling
-  // ascending/descending never moves the header out from under the cursor;
-  // switching metric does move it, which is the report changing shape.
+  // Every header click is a reading aid: it sorts the displayed rows in place
+  // and changes NOTHING else — not the ranking, not the column order, not the
+  // cell shading. Four of these columns are also ranking keys, and a click
+  // here used to re-rank the whole field through the panel knob; TJ overruled
+  // that in the #242 review, because only four of the fourteen headers doing
+  // it read as a bug, and a header click that reshuffles the columns pulls
+  // the table out from under the cursor. The Ranking control in the panel is
+  // the one thing that re-ranks, reorders the groups, and moves the shading.
   function handleSort(key: SortKey) {
-    if (onRank && (RANKING_KEYS as readonly string[]).includes(key)) {
-      onRank(key as SortBy, key === sortBy ? !sortDesc : false)
-      return
-    }
     onDetailSort(key, key === detailSortKey && detailSortDir === 'asc' ? 'desc' : 'asc')
   }
 
