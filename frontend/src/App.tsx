@@ -1157,12 +1157,28 @@ export default function App() {
   // too: its single-instant grid renders as one dot per destination — still a
   // cross-destination comparison, same default-select-all.
   const chartTimes = response?.times ?? []
-  const chartable = chartTimes.length > 0
-  const chart = useChartSelection(
-    results,
-    view.sortBy,
-    searched.places.map((p) => pinKey(p.lat, p.lon)),
-  )
+  // Everything the chart tracks: the displayed rows plus the pending
+  // destinations no analysis has covered. Pending rows ride along as
+  // series-less pseudo-rows so a searched place is colored and selected the
+  // moment it appears — and since colors stick to the coordinate key, the hue
+  // it wears before the analysis is the hue its line draws in after.
+  const chartCandidates = useMemo(() => {
+    const have = new Set(results.map((r) => pinKey(r.latitude, r.longitude)))
+    const extras = pending
+      .filter((d) => !have.has(pinKey(d.latitude, d.longitude)))
+      .map(
+        (d) =>
+          ({
+            name: d.name,
+            type: d.kind ?? 'custom',
+            elevation_ft: d.elevation_ft ?? null,
+            latitude: d.latitude,
+            longitude: d.longitude,
+          }) as DestinationResult,
+      )
+    return [...results, ...extras]
+  }, [results, pending])
+  const chart = useChartSelection(chartCandidates, view.sortBy)
 
   // A desktop-width window widens to Both when an analysis lands, so the first
   // report arrives with its chart — unless the user has ever explicitly picked
@@ -1696,10 +1712,10 @@ export default function App() {
                           same rules (searched places deregister, removals
                           survive live knobs). Two chip rows at most —
                           26px chips + the 6px gap = 58px — then it scrolls. */}
-                      {resultsMode === 'chart' && results.length > 0 && (
+                      {resultsMode === 'chart' && chartCandidates.length > 0 && (
                         <div className="flex-shrink-0 border-t border-slate-600 bg-slate-900/50 px-3 py-1.5">
                           <div className="results-scrollbars flex max-h-[58px] flex-wrap gap-1.5 overflow-y-auto">
-                            {results.map((row) => {
+                            {chartCandidates.map((row) => {
                               const plotted = chart.isSelected(row)
                               return (
                                 <span
@@ -1797,10 +1813,10 @@ export default function App() {
                         onRemove={handleRemoveResult}
                         onRemovePending={(d) => searched.removePlace(d.latitude, d.longitude)}
                         onFocusResult={(row) => mapRef.current?.focusResult(row)}
-                        onToggleChart={chartable ? chart.toggle : undefined}
+                        onToggleChart={chart.toggle}
                         isCharted={chart.isSelected}
                         chartColor={chart.colorFor}
-                        onChartRange={chartable ? chart.setRange : undefined}
+                        onChartRange={chart.setRange}
                       />
                     </div>
                   </>

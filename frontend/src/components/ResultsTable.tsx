@@ -202,8 +202,11 @@ export default function ResultsTable({
     onToggleChart?.(row)
   }
 
+  // Rendered for every row, series or not: a pending row's box pre-selects it
+  // (and shows its sticky color) so the line appears the moment an analysis
+  // gives it data. Only the shift-range path insists on series rows.
   function renderChartToggle(row: DestinationResult) {
-    if (!onToggleChart || !row.series) return null
+    if (!onToggleChart) return null
     const on = isCharted?.(row) ?? false
     return (
       <input
@@ -347,7 +350,15 @@ export default function ResultsTable({
               key={`pending-${d.latitude},${d.longitude}`}
               className="group border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors"
             >
-              {showChartCol && <td className={TABLE.cell} />}
+              {showChartCol && (
+                <td className={TABLE.cell}>
+                  {renderChartToggle({
+                    name: d.name,
+                    latitude: d.latitude,
+                    longitude: d.longitude,
+                  } as DestinationResult)}
+                </td>
+              )}
               <RankRemoveCell
                 rank="—"
                 name={d.name}

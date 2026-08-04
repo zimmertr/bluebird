@@ -1,21 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DestinationResult, SortBy } from '../types'
-import { ChartMetric, chartKey, defaultChartRows, metricForSort } from '../utils/chartData'
+import { ChartMetric, chartKey, metricForSort } from '../utils/chartData'
 import { colorForIndex } from '../utils/chartColors'
 
-// Chart selection for the results table: which destinations are overlaid, their
-// stable line colors (assigned on add, then fixed), and the active metric. The
-// color is surfaced by the row's checkbox (accent) and the chart tooltip — no
-// legend or picker. Selections persist until the user changes them — removals
-// and re-analyses never uncheck a box (a key whose row leaves the report simply
-// stops rendering, and returns if the row does).
-export function useChartSelection(
-  results: DestinationResult[],
-  sortBy: SortBy,
-  // Keys (chartKey format) that chart themselves on their first appearance in
-  // a report — searched places, which the user added one by one.
-  autoChartKeys: string[] = [],
-) {
+// Chart selection for the results table and the chart-only legend: which
+// destinations are overlaid, their stable line colors, and the active metric.
+//
+// `results` is every destination on show, INCLUDING pending ones an analysis
+// has not covered yet — a searched place earns its color the moment it appears
+// (#242 review), and because a color is assigned once per coordinate key and
+// never reassigned, the color it wears before the analysis is the color its
+// line draws in after, no matter where the row ranks or what else joins the
+// list. The first destination a session ever charts wears the palette's first
+// color, bluebird sky. Selections persist until the user changes them —
+// removals and re-analyses never uncheck a box (a key whose row leaves the
+// report simply stops rendering, and returns if the row does).
+export function useChartSelection(results: DestinationResult[], sortBy: SortBy) {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [colorByKey, setColorByKey] = useState<Record<string, string>>({})
   const [metric, setMetric] = useState<ChartMetric>(() => metricForSort(sortBy))
@@ -26,38 +26,23 @@ export function useChartSelection(
     setMetric(metricForSort(sortBy))
   }, [sortBy])
 
-  // Default selections, applied whenever the displayed set changes (live state
-  // is read through refs so unchecking never re-selects). Keyed on the rows and
-  // not on the report, deliberately: since #188 a live ranking change can swap
-  // every row on screen without a new analysis, and the "chart every row when
-  // none of the selected ones are here" rule below is exactly what should
-  // happen then.
-  //  - A searched place charts itself on its FIRST appearance — colorByKey is
-  //    the "ever charted" memory, so a deliberate uncheck isn't repeated.
-  //  - Every row the chart has never held charts itself, so the chart mirrors
-  //    the table by default and a report that adds rows brings them in
-  //    checked. Unchecking is how the user prunes it, and an unchecked row
-  //    has been charted, so it is never re-checked.
+  // Debut rule, applied whenever the displayed set changes (live state is read
+  // through a ref so unchecking never re-selects). Keyed on the rows and not
+  // on the report, deliberately: since #188 a live ranking change can swap
+  // every row on screen without a new analysis, and new rows still debut then.
+  //
+  // Every destination the chart has NEVER seen — pending or analyzed — arrives
+  // selected and colored, so the chart mirrors the table by default and a
+  // searched place is charted from the moment it is searched. colorByKey is
+  // the "ever charted" memory: a deliberately unchecked box has been charted,
+  // stays in the map, and is therefore never re-checked by a later report.
   const selectedKeysRef = useRef<string[]>([])
   selectedKeysRef.current = selectedKeys
   const colorByKeyRef = useRef<Record<string, string>>({})
   colorByKeyRef.current = colorByKey
-  const autoChartKeysRef = useRef<Set<string>>(new Set())
-  autoChartKeysRef.current = new Set(autoChartKeys)
   useEffect(() => {
-    const debut = results.filter(
-      (r) =>
-        r.series &&
-        autoChartKeysRef.current.has(chartKey(r)) &&
-        !colorByKeyRef.current[chartKey(r)],
-    )
+    const debut = results.filter((r) => !colorByKeyRef.current[chartKey(r)])
     if (debut.length > 0) setRange(debut, true)
-
-    // colorByKey is the 'ever charted' memory — a key lands in it on its
-    // first chart and stays after an uncheck, which is exactly the record
-    // this needs.
-    const defaults = defaultChartRows(results, new Set(Object.keys(colorByKeyRef.current)))
-    if (defaults) setRange(defaults, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results])
 
