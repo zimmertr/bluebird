@@ -182,7 +182,7 @@ Every row carries a **Type** — Peak, Lake, Trailhead, or Custom for one you su
 
 Click any column header to sort the rows on screen by it, ascending or descending. That is all a header click does: the ranking, the column order, and the cell shading move only with the **Ranking** control in the panel. By default the table reads in the ranking's order, for example lowest total precipitation for driest-first, and a header click reorders those same rows in place.
 
-Hovering a row reveals a × at its end (always visible on touch screens) that removes the destination from the report — the rows below renumber, and it stays gone as you re-rank, raise the max results, or change any filter, elevation included. Only changing the destinations themselves starts a fresh report where it may return.
+Hovering a row reveals a × at its end (always visible on touch screens) that removes the destination from the report — the rows below renumber, and it stays gone as you re-rank, raise the max results, or change any filter, elevation included. Changing the destinations themselves starts a fresh report where it may return. To undo one, a **Removed** button appears in the results bar while any removal is in force: it lists every removed row by name, and restores them one at a time or all at once. A restore never fetches — a row the report still holds simply reappears, and one it no longer holds (a searched place, or a row removed before a re-analysis) comes back as a pending destination that rejoins the next Analyze.
 
 | Column | Description |
 |---|---|
