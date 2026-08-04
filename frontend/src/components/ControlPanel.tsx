@@ -23,7 +23,6 @@ import {
   CUE,
   FIELD,
   FIELD_NUMERIC,
-  HEADING_ACTION,
   LINK,
   NOTICE,
   PANEL_EDGE,
@@ -127,13 +126,9 @@ interface Props {
   // control this panel names but does not hold.
   onPointAtSearch: (on: boolean) => void
   // The same idea for the map's clickable peaks and lakes: hovering the
-  // "Specify by Click" section makes them glow, so a method with no control
+  // Search by point section makes them glow, so a method with no control
   // in this panel still has somewhere to point.
   onPointAtMapPois: (on: boolean) => void
-  // Clicked "Search by name" button: focus the search box
-  onFocusSearch?: () => void
-  // Clicked "Search by point" button: toggle POI latching
-  onTogglePoisLatch?: () => void
   // A set: one polygon can look for several kinds at once, and none checked
   // means the polygon discovers nothing.
   destinationTypes: DiscoveryType[]
@@ -236,8 +231,6 @@ export default function ControlPanel({
   onCancelDrawing,
   onPointAtSearch,
   onPointAtMapPois,
-  onFocusSearch,
-  onTogglePoisLatch,
   destinationTypes,
   setDestinationTypes,
   selection,
@@ -433,45 +426,38 @@ export default function ControlPanel({
           </h2>
 
           {/* a. Search by name — the only method whose control is not in this
-              panel; the search box floats on the map. Now a button that focuses
-              the search box when clicked. */}
-          <div className="mb-3">
-            <h3>
-              <button
-                onClick={(e) => {
-                  e.preventDefault()
-                  onFocusSearch?.()
-                }}
-                onMouseEnter={() => onPointAtSearch(true)}
-                onMouseLeave={() => onPointAtSearch(false)}
-                className={`${HEADING_ACTION} transition-colors`}
-              >
-                Search by name
-              </button>
-            </h3>
+              panel; the search box floats on the map. Hovering the heading or
+              its line rings that box, so the reader is shown where it is
+              instead of told. Hover-only is fine here because it adds a cue to
+              copy that already stands on its own. */}
+          <div
+            className="mb-3"
+            onMouseEnter={() => onPointAtSearch(true)}
+            onMouseLeave={() => onPointAtSearch(false)}
+          >
+            <h3 className={`${TEXT.subheading} mb-1`}>Search by name</h3>
+            <p className={TEXT.helper}>Search for a destination by name.</p>
           </div>
 
-          {/* b. Search by click — the second method whose control is not in
-              this panel. Now a button that toggles the POI latching. */}
-          <div className="mb-3">
-            <h3>
-              <button
-                onClick={(e) => {
-                  e.preventDefault()
-                  onTogglePoisLatch?.()
-                }}
-                onMouseEnter={() => onPointAtMapPois(true)}
-                onMouseLeave={() => onPointAtMapPois(false)}
-                className={`${HEADING_ACTION} transition-colors`}
-              >
-                Search by point
-              </button>
-            </h3>
+          {/* b. Search by point — the second method whose control is not in
+              this panel. Hovering it lights every clickable feature on the
+              map, the same trick the Search by name section uses to point at
+              the search box: the reader is shown where it is instead of told. */}
+          <div
+            className="mb-3"
+            onMouseEnter={() => onPointAtMapPois(true)}
+            onMouseLeave={() => onPointAtMapPois(false)}
+          >
+            <h3 className={`${TEXT.subheading} mb-1`}>Search by point</h3>
+            <p className={TEXT.helper}>Select a destination from the map.</p>
           </div>
 
           {/* c. Search by polygon */}
           <div className="mb-3">
             <h3 className={`${TEXT.subheading} mb-1`}>Search by polygon</h3>
+            <p className={`${TEXT.helper} mb-1.5`}>
+              Search for destinations by drawing a polygon.
+            </p>
             {drawPointCount > 0 && (
               <div className={`${TEXT.caption} space-y-0.5 mb-2`}>
                 {/* Only while drawing does the status name a gesture: outside
@@ -555,19 +541,6 @@ export default function ControlPanel({
                 </label>
               ))}
             </div>
-
-            {/* Unnamed peaks — moved here from Options (#238) */}
-            <div className="mt-2">
-              <label className={CHOICE_ROW}>
-                <input
-                  type="checkbox"
-                  checked={includeUnnamedPeaks}
-                  onChange={(e) => setIncludeUnnamedPeaks(e.target.checked)}
-                  className={CHOICE_INPUT}
-                />
-                <span>Include unnamed peaks</span>
-              </label>
-            </div>
           </div>
 
           {/* d. Search by coordinates. Last because it is the one method with
@@ -575,6 +548,9 @@ export default function ControlPanel({
               map, and this is a list you bring to it. */}
           <div>
             <h3 className={`${TEXT.subheading} mb-1`}>Search by coordinates</h3>
+            <p className={`${TEXT.helper} mb-1.5`}>
+              Specify exact destinations using coordinate pairs.
+            </p>
             <textarea
               aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"
               value={customCsv}
@@ -689,17 +665,14 @@ export default function ControlPanel({
           )}
         </section>
 
-        {/* Results — combines ranking and filtering */}
+        {/* Ranking — metric radio + Lowest/Highest toggle per row. The
+            toggle stays clickable on inactive rows so any ranking is one click;
+            selecting a metric via its radio keeps the current direction. */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
-            Results
+            Ranking
           </h2>
-
-          {/* Rank by — metric radio + Lowest/Highest toggle per row. The
-              toggle stays clickable on inactive rows so any ranking is one click;
-              selecting a metric via its radio keeps the current direction. */}
-          <div className={`${TEXT.subheading} mb-2`}>Rank by</div>
-          <div className="space-y-1.5 mb-4">
+          <div className="space-y-1.5">
             {SORT_METRICS.map((metric) => {
               const isActive = sortBy === metric.value
               return (
@@ -745,9 +718,16 @@ export default function ControlPanel({
               )
             })}
           </div>
+        </section>
 
-          {/* Filter by — bounds grid and controls */}
-          <div className={`${TEXT.subheading} mb-2`}>Filter by</div>
+        {/* Filters — one grid, two columns of bounds, one row per thing that
+            can be bounded, in the same order as the Ranking section above so
+            the two scan alike. data-filter-section is the anchor the results
+            bar's Filters chip scrolls to. */}
+        <section data-filter-section>
+          <h2 className={`${TEXT.section} mb-2.5`}>
+            Filters
+          </h2>
           <div className={BOUNDS_GRID}>
             {filterRows.map((row) => (
               <Fragment key={row.id}>
@@ -781,53 +761,69 @@ export default function ControlPanel({
             Destinations with unknown values are included.
           </p>
           {filtersActive && (
-            <button onClick={onClearFilters} className={`${BUTTON_SECONDARY} mt-2 mb-4`}>
+            <button onClick={onClearFilters} className={`${BUTTON_SECONDARY} mt-2`}>
               Clear filters
             </button>
           )}
-
-          {/* Result-count cap. The ceiling is the live analysis cap from
-              /api/capabilities: `limit` trims what is shown, never what is
-              analyzed, so there is no cheaper number to protect. */}
-          <div className="flex items-center gap-2">
-            <label htmlFor="max-results" className={`${TEXT.control} flex-1`}>
-              {AGGREGATE.maximum} results
-            </label>
-            {/* The default rides as a placeholder, like the filter boxes
-                above, so changing it is one keystroke rather than a select-
-                and-erase. Empty means the DEFAULT here, not "no cap" as it
-                does for a filter: this knob always has a value, and the row
-                count in the table's header says what it is doing. */}
-            <input
-              id="max-results"
-              type="number"
-              min={1}
-              max={maxLimit}
-              placeholder={String(DEFAULT_LIMIT)}
-              value={limit === DEFAULT_LIMIT ? '' : limit}
-              onChange={(e) =>
-                setLimit(clampLimit(parseInt(e.target.value) || DEFAULT_LIMIT, maxLimit))
-              }
-              className={`${FIELD_NUMERIC} ${CONTROL_W} px-2 py-1.5 text-center`}
-            />
-          </div>
         </section>
 
-        {/* Map — map overlay options */}
+        {/* Options — the knobs that shape a search without being one of its
+            inputs: how many rows to show, whether discovery counts unnamed
+            summits, and the wildfire overlay. */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
-            Map
+            Options
           </h2>
-          {/* Show wildfires — live NIFC perimeter overlay, off by default */}
-          <label className={CHOICE_ROW}>
-            <input
-              type="checkbox"
-              checked={showWildfires}
-              onChange={(e) => setShowWildfires(e.target.checked)}
-              className={CHOICE_INPUT}
-            />
-            <span>Show wildfires</span>
-          </label>
+          <div className="space-y-4">
+            {/* Result-count cap. The ceiling is the live analysis cap from
+                /api/capabilities: `limit` trims what is shown, never what is
+                analyzed, so there is no cheaper number to protect. */}
+            <div className="flex items-center gap-2">
+              <label htmlFor="max-results" className={`${TEXT.control} flex-1`}>
+                {AGGREGATE.maximum} results
+              </label>
+              {/* The default rides as a placeholder, like the filter boxes
+                  above, so changing it is one keystroke rather than a select-
+                  and-erase. Empty means the DEFAULT here, not "no cap" as it
+                  does for a filter: this knob always has a value, and the row
+                  count in the table's header says what it is doing. */}
+              <input
+                id="max-results"
+                type="number"
+                min={1}
+                max={maxLimit}
+                placeholder={String(DEFAULT_LIMIT)}
+                value={limit === DEFAULT_LIMIT ? '' : limit}
+                onChange={(e) =>
+                  setLimit(clampLimit(parseInt(e.target.value) || DEFAULT_LIMIT, maxLimit))
+                }
+                className={`${FIELD_NUMERIC} ${CONTROL_W} px-2 py-1.5 text-center`}
+              />
+            </div>
+
+            {/* Unnamed peaks — a polygon-discovery knob; off by default
+                because it roughly triples the candidate count. */}
+            <label className={CHOICE_ROW}>
+              <input
+                type="checkbox"
+                checked={includeUnnamedPeaks}
+                onChange={(e) => setIncludeUnnamedPeaks(e.target.checked)}
+                className={CHOICE_INPUT}
+              />
+              <span>Include unnamed peaks</span>
+            </label>
+
+            {/* Show wildfires — live NIFC perimeter overlay, off by default */}
+            <label className={CHOICE_ROW}>
+              <input
+                type="checkbox"
+                checked={showWildfires}
+                onChange={(e) => setShowWildfires(e.target.checked)}
+                className={CHOICE_INPUT}
+              />
+              <span>Show wildfires</span>
+            </label>
+          </div>
         </section>
       </div>
 

@@ -139,7 +139,6 @@ export default function App() {
   const mapRef = useRef<MapViewHandle>(null)
   const searchBoxRef = useRef<SearchBoxHandle>(null)
   const columnsButtonRef = useRef<HTMLButtonElement>(null)
-  const [poisLatched, setPoisLatched] = useState(false)
 
   // The discovery inputs behind the results currently on screen: `base` covers
   // the user-authored inputs (polygon + type + CSV rows + elevation + limit +
@@ -402,17 +401,6 @@ export default function App() {
     localStorage.setItem('bluebird_welcomed', '1')
     setShowWelcome(false)
   }
-
-  // Handle "Search by name" button click: focus the search box input
-  const handleFocusSearch = useCallback(() => {
-    searchBoxRef.current?.focus()
-  }, [])
-
-  // Handle "Search by point" button click: toggle the POI latching
-  const handleTogglePoisLatch = useCallback(() => {
-    setPoisLatched((prev) => !prev)
-    setPoisPointed((prev) => !prev)
-  }, [])
 
   // Pointer-driven vertical resize, shared by mouse and touch (Pointer Events)
   // and by both breakpoints. `onDrag` receives the drag distance with up
@@ -1237,13 +1225,7 @@ export default function App() {
           onCancelDrawing={handleCancelDrawing}
           onPointAtSearch={setSearchPointed}
           wildfireCheckFailed={fire.status === 'unavailable' && results.length > 0}
-          onPointAtMapPois={(on) => {
-            // If latching is active, stay active; otherwise respond to the hover state
-            if (poisLatched) return
-            setPoisPointed(on)
-          }}
-          onFocusSearch={handleFocusSearch}
-          onTogglePoisLatch={handleTogglePoisLatch}
+          onPointAtMapPois={setPoisPointed}
           destinationTypes={destinationTypes}
           setDestinationTypes={setDestinationTypes}
           selection={selection}

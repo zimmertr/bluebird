@@ -19,7 +19,6 @@ import {
   FIELD,
   FIELD_NUMERIC,
   FOCUS_RING,
-  HEADING_ACTION,
   ICON,
   ICON_ADORNMENT,
   ICON_ACTION,
@@ -616,15 +615,6 @@ describe('shared recipes', () => {
   it('sizes the unboxed status line the same as boxed notices', () => {
     expect(CUE).toContain('text-xs')
     expect(sizes(NOTICE.warn)).toContain('text-xs')
-  })
-
-  // A heading that opens a picker, with the accent color because it is a
-  // control. The color is baked in rather than composed to prevent stylesheet-
-  // order race with a heading's default slate color.
-  it('marks an actionable heading with the accent color and focus ring', () => {
-    expect(HEADING_ACTION).toContain('text-sky-400')
-    expect(HEADING_ACTION).toContain(FOCUS_RING)
-    expect(HEADING_ACTION).toContain('font-semibold')
   })
 
   // Three rules, none redundant: Firefox reads the appearance property, WebKit

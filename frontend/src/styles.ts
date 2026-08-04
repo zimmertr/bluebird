@@ -848,19 +848,6 @@ export const DAY = {
 } as const
 
 /**
- * A heading styled as an action: button-like appearance on a label.
- *
- * The color stays `LINK_ACTION` (sky-400) rather than the heading's default
- * (slate-200), because this is a control. Two color utilities in one class list
- * resolve by stylesheet order rather than by intent, so the color cannot be
- * overridden at a call site. The weight is bold to mark it as an action despite
- * the small size.
- *
- * Example use: "Rank by", "Filter by" section headers that also open pickers.
- */
-export const HEADING_ACTION = `text-xs font-semibold ${LINK_ACTION} ${FOCUS_RING}`
-
-/**
  * The shared surface under every text-entry control in the panel.
  *
  * The placeholder color lives here for the same reason every color above
