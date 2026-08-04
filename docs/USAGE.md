@@ -114,7 +114,7 @@ Hovering either dimmed step says why, and selecting one past the air-quality hor
 
 Days are your local calendar days, converted to UTC for the API, and the far edge accounts for that: west of Greenwich the last local day's final hour falls on the next UTC date, so the calendar offers one day less there than it does in London. Selecting days in the past is fine and normal. Those hours are recorded conditions rather than a forecast, and a chart covering both marks where one becomes the other.
 
-**The forecast model moves this calendar.** Picking a short-range model above greys out the days it cannot reach, and shortens a window you had already chosen, with a note saying it did. HRRR is the case that matters: it reaches about two days where the global models reach one to two weeks.
+**The forecast model moves this calendar.** Picking a short-range model above greys out the days it cannot reach, and shortens a window you had already chosen, with a note saying it did. The shortening is undoable by construction: switch back to a model that can serve your original window and it returns whole. The remembered window is dropped once you edit the dates yourself or run an analysis. HRRR is the case that matters: it reaches about two days where the global models reach one to two weeks.
 
 The calendar is fully keyboard operable: arrow keys move by day, Page Up and Page Down by month, Enter or Space selects, and Escape abandons a half-made range.
 

@@ -266,6 +266,15 @@ export default function App() {
   const [modelClamped, setModelClamped] = useState(false)
   const forecastHours = modelForecastHours(caps.forecastModels, forecastModel)
 
+  // The window a model clamp took away, held so switching back to a model
+  // that can serve it restores it (#242 review). A clamp is the picker
+  // editing the user's dates on its own authority; this is the undo. Cleared
+  // whenever the user edits the window themselves (their choice supersedes
+  // the memory) and once an analysis runs (the report pins the window that
+  // was actually asked, and restoring a pre-clamp range after it would
+  // silently disagree with what is on screen).
+  const preClampSelectionRef = useRef<ForecastSelection | null>(null)
+
   // Every model change reconsiders the window, because the far edge moves with
   // it — by twelve days between ECMWF and HRRR. Clamping rather than refusing:
   // the alternative rejects the model over a window chosen before the user knew
@@ -273,16 +282,33 @@ export default function App() {
   function changeForecastModel(id: string) {
     untouchedModelRef.current = false
     const hours = modelForecastHours(caps.forecastModels, id)
+    // A remembered pre-clamp window comes back the moment a model can serve
+    // it whole (clampSelection returns null for "fits unchanged").
+    const remembered = preClampSelectionRef.current
+    if (remembered && clampSelection(remembered, new Date(), hours) === null) {
+      preClampSelectionRef.current = null
+      setSelection(remembered)
+      setModelClamped(false)
+      setForecastModel(id)
+      return
+    }
     const clamped = clampSelection(selection, new Date(), hours)
-    if (clamped) setSelection(clamped)
+    if (clamped) {
+      // Remember the FIRST window in a clamp chain: stepping HRRR → ICON →
+      // GFS should restore the range the user picked, not the wreckage of
+      // the intermediate clamp.
+      if (preClampSelectionRef.current === null) preClampSelectionRef.current = selection
+      setSelection(clamped)
+    }
     setModelClamped(clamped !== null)
     setForecastModel(id)
   }
 
-  // Any deliberate move of the window retires the clamp notice: it describes
+  // Any deliberate move of the window retires the clamp notice — it describes
   // one past edit, and leaving it up would attribute the user's own choice to
-  // the model picker.
+  // the model picker — and the pre-clamp memory with it, for the same reason.
   function changeSelection(next: ForecastSelection) {
+    preClampSelectionRef.current = null
     setModelClamped(false)
     setSelection(next)
   }
@@ -768,6 +794,9 @@ export default function App() {
     // back in the state #118 describes — reading a result and panning around
     // it while every click still adds a vertex.
     setDrawing(false)
+    // The report pins the window that was actually asked; a pre-clamp range
+    // restored after this would silently disagree with it.
+    preClampSelectionRef.current = null
 
     // The one conversion from a local selection to the UTC instants the API
     // takes. Equal timestamps are how a point sample travels — the current hour,
