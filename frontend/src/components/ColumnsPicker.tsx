@@ -33,6 +33,8 @@ export default function ColumnsPicker({
 }: Props) {
   const popoverRef = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState<PopoverBox | null>(null)
+  // Whether this open has had its measuring pass yet — see below.
+  const measuredRef = useRef(false)
 
   const rankedGroup = new Set(METRIC_CONFIG[sortBy].group)
 
@@ -58,12 +60,28 @@ export default function ColumnsPicker({
     if (open) place()
   }, [open])
 
-  // Measure the popover height and re-place
+  // The measuring pass, run after EVERY commit rather than keyed on `open`.
+  // On the first-ever open the popover cannot render until the initial
+  // place() above has set a box, so an [open]-keyed pass ran before the
+  // element existed, measured nothing, and the unmeasured fallback (pinned to
+  // the top of the viewport) stuck for the whole open — while every later
+  // open rendered early against the previous open's stale box and got
+  // measured, which is exactly the "wrong once, right afterwards" bug.
+  // ModelPicker avoids this by placing before it opens; this picker's trigger
+  // lives in App and only flips `open`, so the once-per-open ref does the
+  // sequencing instead. The ref is what stops the loop: place() sets state,
+  // which lands back here.
   useLayoutEffect(() => {
-    if (!open) return
+    if (!open) {
+      measuredRef.current = false
+      return
+    }
     const popover = popoverRef.current
-    if (popover) place(popover.scrollHeight)
-  }, [open])
+    if (popover && !measuredRef.current) {
+      measuredRef.current = true
+      place(popover.scrollHeight)
+    }
+  })
 
   useEffect(() => {
     if (!open) return
