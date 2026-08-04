@@ -78,27 +78,6 @@ export function alignRowToGrid(row: DestinationResult, times: number[]): Destina
   }
 }
 
-// Default chart selection when a report arrives: every chartable row, so the
-// chart mirrors the whole table until the user prunes it. Returns null when any
-// already-charted key is still present — re-analyses over the same area and
-// row removals must never clobber deliberate unchecks.
-export function defaultChartRows(
-  results: DestinationResult[],
-  everCharted: ReadonlySet<string>,
-): DestinationResult[] | null {
-  // Every chartable row this report has never charted before. It used to be
-  // "chart everything, but only when nothing selected is still on screen",
-  // which meant a report that ADDED rows to an existing one left the new ones
-  // unchecked — tick Lakes alongside Peaks, re-analyze, and every lake arrived
-  // off the chart because the peaks were still on it.
-  //
-  // Keyed on ever-charted rather than currently-selected so the fix does not
-  // cost the other half: a box you deliberately unticked is a row that HAS
-  // been charted, so it stays off, and re-analyzing never re-checks it.
-  const rows = results.filter((r) => r.series && !everCharted.has(chartKey(r)))
-  return rows.length > 0 ? rows : null
-}
-
 // Aggregate selection over the chartable rows for the header "select all" box:
 // 'all' when every row is charted, 'none' when none are, 'some' otherwise (the
 // checkbox's indeterminate dash). Empty input is 'none'. A click targets the

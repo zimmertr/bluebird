@@ -168,20 +168,12 @@ describe('fetchWeather', () => {
     ).rejects.toMatchObject({ scope: 'hourly' })
   })
 
-  // The message reaches the panel verbatim, and it is the only thing that tells
-  // a stuck reader whose limit they hit and whether waiting helps. It used to
-  // say the weather *service* had used up *its* quota, which described an
-  // outage rather than the reader's own address running out, and then offered a
-  // smaller area as a remedy that an exhausted daily quota does not accept.
+  // Rate limit quotas across all scopes report the same message.
   it.each([
-    ['Daily API request limit exceeded.', 'daily', 'Please try again later.'],
-    ['Monthly API request limit exceeded.', 'monthly', 'Please try again later.'],
-    [
-      'Hourly API request limit exceeded.',
-      'hourly',
-      'Please try again after the top of the hour.',
-    ],
-  ])('names the reader\'s own quota for a %s refusal', async (reason, scope, advice) => {
+    ['Daily API request limit exceeded.', 'daily'],
+    ['Monthly API request limit exceeded.', 'monthly'],
+    ['Hourly API request limit exceeded.', 'hourly'],
+  ])('reports quota reached for a %s refusal', async (reason, scope) => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => ({ ok: false, status: 429, json: async () => ({ error: true, reason }) })),
@@ -189,7 +181,8 @@ describe('fetchWeather', () => {
     await expect(
       fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { model: MODEL }),
     ).rejects.toMatchObject({
-      message: `You have reached your ${scope} Open-Meteo forecast quota. ${advice}`,
+      message: 'Open-Meteo quota reached. Try again later.',
+      scope,
     })
   })
 

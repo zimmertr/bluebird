@@ -8,7 +8,6 @@ import {
   buildChartData,
   chartKey,
   computeYDomain,
-  defaultChartRows,
   formatMetricValue,
   metricForSort,
   nearestKey,
@@ -183,46 +182,6 @@ describe('alignRowToGrid', () => {
   })
 })
 
-describe('defaultChartRows', () => {
-  const a = row('A', 1, {})
-  const b = row('B', 2, {})
-  const c = row('C', 3, {})
-  const none: ReadonlySet<string> = new Set()
-
-  it('selects every chartable row when nothing has been charted yet', () => {
-    expect(defaultChartRows([a, b, c], none)?.map((r) => r.name)).toEqual(['A', 'B', 'C'])
-  })
-
-  it('excludes rows without series data', () => {
-    const bare = { ...row('D', 4, {}), series: undefined }
-    expect(defaultChartRows([a, bare, c], none)?.map((r) => r.name)).toEqual(['A', 'C'])
-  })
-
-  // The bug this rule replaced: ticking Lakes alongside Peaks and re-analyzing
-  // left every new lake off the chart, because a peak was still on it.
-  it('charts rows the report just gained, even while others are charted', () => {
-    expect(defaultChartRows([a, b, c], new Set([chartKey(b)]))?.map((r) => r.name)).toEqual([
-      'A',
-      'C',
-    ])
-  })
-
-  // The other half, which the old rule got right and this must not lose: a box
-  // you unticked names a row that HAS been charted, so it stays off.
-  it('leaves a deliberately unchecked row alone', () => {
-    const everCharted = new Set([chartKey(a), chartKey(b), chartKey(c)])
-    expect(defaultChartRows([a, b, c], everCharted)).toBeNull()
-  })
-
-  it('is null when no row can chart', () => {
-    const bare = { ...row('A', 1, {}), series: undefined }
-    expect(defaultChartRows([bare], none)).toBeNull()
-    expect(defaultChartRows([], none)).toBeNull()
-  })
-})
-
-// A calendar makes a 16-day range two clicks, so the long-span axis went from a
-// rare shape to an ordinary one (#166).
 describe('axisTimeLabel', () => {
   const t = Date.parse('2026-07-21T15:00:00Z')
   const HOURS = 3_600_000

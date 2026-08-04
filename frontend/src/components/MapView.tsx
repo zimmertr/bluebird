@@ -803,6 +803,14 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // spent on something the panel actually tells you about.
       map.boxZoom.disable()
       map.addControl(new maplibregl.NavigationControl(), 'top-right')
+      // MapLibre's own geolocate button, not a hand-rolled control: it wears
+      // the same chrome as the zoom and compass buttons above it, and its
+      // permission/error/busy states come with the library instead of being
+      // re-implemented badly. Nothing asks for location until it is pressed.
+      map.addControl(
+        new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }),
+        'top-right',
+      )
       map.addControl(new maplibregl.ScaleControl(), 'bottom-right')
 
       // Keep the canvas in sync with its container. MapLibre only tracks window
@@ -821,24 +829,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
       resizeObserver.observe(containerRef.current)
 
       // A polygon or custom CSV list restored from the URL takes precedence
-      // over geolocation — don't scroll the user away from the area their link
-      // points at. The committed-camera guard covers the rest: geolocation can
-      // resolve seconds late (8s timeout), after a paste or search has already
-      // framed the view, and must not yank the user away from it.
+      // over any default framing — don't scroll the user away from the area
+      // their link points at. The default camera is [ -120.5, 47.5 ], zoom 7,
+      // which the geolocation control can refine to the user's location on demand.
       const restoredPolygon = polygon
-      let pendingGeo: [number, number] | null = null
-      if (navigator.geolocation && !restoredPolygon && restoredCustomPoints.length === 0) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            if (cameraCommittedRef.current) return
-            const center: [number, number] = [pos.coords.longitude, pos.coords.latitude]
-            if (loadedRef.current) map.flyTo({ center, zoom: 9 })
-            else pendingGeo = center
-          },
-          () => {},
-          { timeout: 8000 },
-        )
-      }
 
       map.on('load', () => {
         loadedRef.current = true
@@ -874,8 +868,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
           } else {
             map.fitBounds(bounds, { padding: 60, duration: 0 })
           }
-        } else if (pendingGeo) {
-          map.flyTo({ center: pendingGeo, zoom: 9 })
         }
 
         enhanceBasemap(map)

@@ -13,7 +13,7 @@ import { RADIUS } from '../styles'
 // this page used to offer sent people somewhere they hadn't asked to go.
 export default function NotFoundPage() {
   return (
-    <PageShell title="404" subtitle="Page not found">
+    <PageShell heading="404" subtitle="Page not found">
       {/* The src has to be absolute. 404.html is served at whatever URL missed
           rather than at /404.html, so on a miss at /a/b/c a relative path would
           resolve against /a/b/ and the image would 404 as well.

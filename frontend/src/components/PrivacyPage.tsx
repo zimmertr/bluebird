@@ -15,7 +15,7 @@ import { PROSE } from '../styles'
 // too, and legal.test.ts pins the claims that have already been wrong once.
 export default function PrivacyPage() {
   return (
-    <PageShell title="Privacy" subtitle="What Bluebird does with your data">
+    <PageShell heading="Privacy" subtitle="What Bluebird does with your data">
       <div className="space-y-4">
         <p className={PROSE.body}>
           Bluebird is free to use. There are no ads, no paid tiers, and nothing to sign up for.
@@ -53,7 +53,7 @@ export default function PrivacyPage() {
         </ul>
       </div>
 
-      <Section id="data" title="Where your requests go">
+      <Section id="data" heading="Where your requests go">
         <p className={`${PROSE.body} mb-3`}>
           Bluebird produces none of this data. It queries these providers, ranks what comes
           back, and shows you the result. Each has its own privacy policy and license, and
@@ -62,7 +62,7 @@ export default function PrivacyPage() {
         <DataSourceList />
       </Section>
 
-      <Section id="contact" title="Contact">
+      <Section id="contact" heading="Contact">
         <ContactBody />
       </Section>
 

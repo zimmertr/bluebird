@@ -101,6 +101,27 @@ describe('what the file carries', () => {
     expect(csv).not.toContain('node/1')
   })
 
+  // The table draws pending (un-analyzed) rows above the ranked ones with "—"
+  // for a rank; the file mirrors that as leading rows with an EMPTY Rank cell,
+  // so a spreadsheet reads "no value" instead of text in a numeric column.
+  // Before the first analysis this is the whole file.
+  it('carries pending rows first, with an empty rank and blank metrics', () => {
+    const pendingRow = {
+      name: 'Somewhere New',
+      type: 'custom',
+      elevation_ft: null,
+      latitude: 47,
+      longitude: -121,
+    } as DestinationResult
+    const csv = buildResultsCsv([row({ name: 'Ranked' })], WINDOW_COLUMNS, NO_FIRES, [pendingRow])
+    const body = lines(csv).slice(1)
+    expect(cells(body[0])[0]).toBe('')
+    expect(cells(body[0])[1]).toBe('Somewhere New')
+    expect(cells(body[0])).toHaveLength(WINDOW_COLUMNS.length + 2)
+    expect(cells(body[1])[0]).toBe('1')
+    expect(cells(body[1])[1]).toBe('Ranked')
+  })
+
   // A point sample covers one hour, so its triplets collapse to one column per
   // metric. Header and body must collapse together or every cell shifts.
   it('follows a point sample down to one column per metric', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { COLUMNS, displayedColumns, pointModeColumns, orderColumns } from './tableColumns'
+import { COLUMNS, displayedColumns, pointModeColumns, orderColumns, visibleColumns } from './tableColumns'
 import { SEP } from '../metrics'
 import { SortBy } from '../types'
 
@@ -134,5 +134,46 @@ describe('displayedColumns', () => {
   it('collapses a point sample and nothing else', () => {
     expect(displayedColumns(true, 'precip_total_in')).toHaveLength(7)
     expect(displayedColumns(false, 'precip_total_in')).toHaveLength(KEYS.length)
+  })
+})
+
+describe('visibleColumns', () => {
+  it('returns all columns when visibleKeys is null (default)', () => {
+    const all = displayedColumns(false, 'precip_total_in')
+    const visible = visibleColumns(false, 'precip_total_in', null)
+    expect(visible).toEqual(all)
+  })
+
+  it('filters to only visible keys, but force-shows the ranked group', () => {
+    const keys = new Set(['name', 'elevation_ft', 'precip_total_in'])
+    const visible = visibleColumns(false, 'precip_total_in', keys)
+    // Ranked group includes all precip columns, so they all appear
+    expect(visible.map((c) => c.key)).toEqual([
+      'name',
+      'elevation_ft',
+      'precip_total_in',
+      'precip_avg_in_hr',
+      'precip_max_in_hr',
+    ])
+  })
+
+  it('always includes the ranked metric group even if not in visibleKeys', () => {
+    const keys = new Set(['name', 'elevation_ft'])
+    const visible = visibleColumns(false, 'precip_total_in', keys)
+    expect(visible.map((c) => c.key)).toContain('precip_total_in')
+    expect(visible.map((c) => c.key)).toContain('precip_avg_in_hr')
+    expect(visible.map((c) => c.key)).toContain('precip_max_in_hr')
+  })
+
+  it('respects both visibility and force-shown constraints', () => {
+    const keys = new Set(['name', 'temp_min_f'])
+    const visible = visibleColumns(false, 'aqi_avg', keys)
+    const visibleKeys = visible.map((c) => c.key)
+
+    expect(visibleKeys).toContain('name')
+    expect(visibleKeys).toContain('temp_min_f')
+    // AQI is the ranked group, should be force-shown
+    expect(visibleKeys).toContain('aqi_avg')
+    expect(visibleKeys).toContain('aqi_max')
   })
 })

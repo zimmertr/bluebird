@@ -3,6 +3,7 @@ import {
   ACCENT,
   ACCENT_RING,
   BADGE_ACCENT,
+  BADGE_STEP,
   LAYER,
   BUTTON_ACCENT,
   BUTTON_DANGER,
@@ -11,16 +12,20 @@ import {
   BUTTON_SECONDARY,
   CHOICE_INPUT,
   CHOICE_ROW,
+  CUE,
   DAY,
   BOUNDS_GRID,
   CONTROL_W,
   FIELD,
   FIELD_NUMERIC,
+  FOCUS_RING,
+  ICON,
   ICON_ADORNMENT,
   ICON_ACTION,
   ICON_BUTTON,
   NOTICE,
   SEGMENT,
+  SEGMENT_FLUID,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
   SELECT,
@@ -29,6 +34,7 @@ import {
   RECESSED_EDGE,
   RECESSED_FILL,
   SURFACE_GROUP,
+  SURFACE_GROUP_BLEED,
   LINK,
   LINK_ACTION,
   PROSE,
@@ -158,8 +164,16 @@ describe('every component', () => {
   // Arbitrary sizes are how a 10px and an 11px treatment ended up inside the
   // same 160px legend box. The ramp owns the two steps Tailwind has no name
   // for; nothing else may invent one.
+  // L1: No component sets a text size of its own.
   it.each(Object.entries(sources))('%s invents no size of its own', (_path, source) => {
+    expect(source).not.toMatch(/\btext-(?:xs|sm|base|lg|xl|2xl|3xl)\b/)
     expect(source).not.toMatch(/text-\[/)
+  })
+
+  // L2: No component sets a slate text color of its own. Slate is the surface
+  // system, already covered by TEXT, SURFACE_* and FIELD roles.
+  it.each(Object.entries(sources))('%s sets no slate text color of its own', (_path, source) => {
+    expect(source).not.toMatch(/\btext-slate-\d+/)
   })
 
   // Derived from the scale rather than blocking a list of names, so a utility
@@ -237,9 +251,16 @@ describe('every component', () => {
   it.each(Object.entries(sources))('%s builds no checkbox of its own', (_path, source) => {
     expect(source).not.toMatch(/accent-sky-500/)
   })
+
+  // L6: No title= attributes on JSX elements. Knowledge belongs in labels,
+  // captions, empty states, or docs — not in tooltips. Rename any title props
+  // to heading to avoid false positives on document.title assignments.
+  it.each(Object.entries(sources))('%s adds no HTML tooltips', (_path, source) => {
+    expect(source).not.toMatch(/\btitle=/)
+  })
 })
 
-// The panel is 320px wide at every breakpoint, so a width variant used for
+// The panel is a near-constant width on every breakpoint, so a width variant used for
 // padding re-spaced its rows on desktop windows that had not changed size,
 // while leaving large tablets with mouse-tight rows. Nothing catches a relapse
 // at build time: `lg:py-*` reads as ordinary responsive code.
@@ -341,6 +362,16 @@ describe('grouping and segmenting', () => {
     expect(SURFACE_GROUP).toContain(RADIUS.surface)
   })
 
+  // The bleed exists so a control inside a well lands on the same column as
+  // one outside it: it must cancel exactly the inset the well imposes, which
+  // is the call sites' p-2 (8px) plus RECESSED_EDGE's 1px border. Pinned as
+  // the finished number because Tailwind cannot do the arithmetic — a well
+  // that changes its padding has to re-derive this by hand.
+  it('bleeds a well by exactly its border plus its padding', () => {
+    expect(SURFACE_GROUP_BLEED).toBe('-mx-[9px]')
+    expect(RECESSED_EDGE).toContain('border')
+  })
+
   // Every surface the panel sinks into is one recipe, so an input, the idle
   // half of a segmented control and the calendar cannot drift into three
   // near-identical looks the way they had.
@@ -351,6 +382,16 @@ describe('grouping and segmenting', () => {
     }
     expect(SEGMENT_IDLE).toContain(RECESSED_FILL)
     expect(SEGMENT).toContain(RECESSED_EDGE)
+  })
+
+  // The fluid segment is the panel segment minus the panel's width: same edge,
+  // same radius, same clipping, no CONTROL_W. The width assertion is the
+  // regression test for the results bar's mode switch, which overflow-hidden
+  // clipped to two and a half buttons when it inherited the 144px column.
+  it('sizes an out-of-panel segment by its content, not the panel column', () => {
+    expect(SEGMENT_FLUID).toContain(RECESSED_EDGE)
+    expect(SEGMENT_FLUID).toContain('overflow-hidden')
+    expect(SEGMENT_FLUID).not.toContain(CONTROL_W)
   })
 
   // The edge separates two surfaces and owes 3:1 against BOTH (WCAG 1.4.11).
@@ -416,17 +457,6 @@ describe('grouping and segmenting', () => {
     expect(NOTICE.warn).toContain(RADIUS.control)
   })
 
-  // A docked panel's name and the report inside it sat a few pixels apart in
-  // the same role, so they read as one run of text. They separate by weight and
-  // brightness at one size — not by the caps-and-tracking of `section`, which
-  // was tried on these bars and shouted.
-  it('separates a panel title from the subheadings it sits beside', () => {
-    expect(TEXT.panelTitle).not.toBe(TEXT.subheading)
-    expect(TEXT.panelTitle).toContain('font-bold')
-    expect(TEXT.subheading).toContain('font-semibold')
-    expect(TEXT.panelTitle).not.toContain('uppercase')
-    expect(sizes(TEXT.panelTitle)).toEqual(sizes(TEXT.subheading))
-  })
 })
 
 describe('shared recipes', () => {
@@ -460,6 +490,14 @@ describe('shared recipes', () => {
     expect(BADGE_ACCENT).not.toContain(ACCENT.text)
     expect(BADGE_ACCENT).not.toContain('touch:')
     expect(BADGE_ACCENT).toContain(RADIUS.pill)
+  })
+
+  // Step number badge in the welcome modal: takes the accent fill for visibility
+  // and fixed size/weight so every step reads the same.
+  it('sizes step badges consistently with fixed type and fill', () => {
+    expect(BADGE_STEP).toContain(ACCENT.fill)
+    expect(BADGE_STEP).toContain('text-xs')
+    expect(BADGE_STEP).toContain('font-bold')
   })
 
   // The model picker opened behind the drawer that contains it, because the two
@@ -566,6 +604,41 @@ describe('shared recipes', () => {
     expect(FIELD_NUMERIC).toContain(FIELD)
   })
 
+  // Every control that can be focused by keyboard should show a visible focus
+  // ring. FOCUS_RING fires on focus-visible, not on pointer focus, so mouse
+  // users see no change while keyboard users get a clear outline.
+  it.each([
+    ['BUTTON_PRIMARY', BUTTON_PRIMARY],
+    ['BUTTON_SECONDARY', BUTTON_SECONDARY],
+    ['BUTTON_ACCENT', BUTTON_ACCENT],
+    ['BUTTON_DANGER', BUTTON_DANGER],
+    ['BUTTON_FLOATING', BUTTON_FLOATING],
+    ['SEGMENT_ITEM', SEGMENT_ITEM],
+    ['ICON_BUTTON', ICON_BUTTON],
+  ])('%s composes the keyboard focus ring', (_name, recipe) => {
+    expect(recipe).toContain(FOCUS_RING)
+  })
+
+  // CHOICE_ROW wraps a native checkbox/radio, so focus lands on the input
+  // rather than on the row itself: it carries FOCUS_RING's exact recipe under
+  // the has-[:focus-visible] variant, lighting the whole strip when its input
+  // has keyboard focus. Derived from FOCUS_RING rather than restated, so the
+  // two cannot drift apart — change the ring and this fails until the row's
+  // hand-spelled copy follows (a variant cannot be composed at runtime because
+  // Tailwind only generates CSS for class names it can read in the source).
+  it('gives choice rows the focus ring through the has-[:focus-visible] variant', () => {
+    const rowRing = FOCUS_RING.replace(/focus-visible:/g, 'has-[:focus-visible]:')
+    expect(CHOICE_ROW).toContain(rowRing)
+  })
+
+  // Unboxed status lines that stand alone need their own size. Boxed notices
+  // (`NOTICE.*`) set size on the box. Both end up at text-xs, so the two paths
+  // compose to the same step.
+  it('sizes the unboxed status line the same as boxed notices', () => {
+    expect(CUE).toContain('text-xs')
+    expect(sizes(NOTICE.warn)).toContain('text-xs')
+  })
+
   // Three rules, none redundant: Firefox reads the appearance property, WebKit
   // and Blink read the two pseudo-elements. Dropping any one leaves the arrows
   // on somewhere, and the filters grid (#115) budgets its column widths on
@@ -580,6 +653,11 @@ describe('shared recipes', () => {
   // user aims for is the one place that does not open the dropdown.
   it('lets clicks through the glyph drawn over a control', () => {
     expect(ICON_ADORNMENT).toContain('pointer-events-none')
+  })
+
+  // Inline SVG icons beside text: sized for clarity without dominating text labels.
+  it('sizes the inline glyph for text-paired icons', () => {
+    expect(ICON).toBe('h-4 w-4')
   })
 
   // Every floating box on the map is one surface: the search field and its

@@ -50,7 +50,13 @@ export class OpenMeteoRateLimited extends Error {
 // {"error": true, "reason": "No data is available for this location"} — and a
 // batch answers the same way if a SINGLE one of its 50 locations is outside,
 // so this never identifies which destination was the problem.
-export class OpenMeteoModelCoverage extends Error {}
+export class OpenMeteoModelCoverage extends Error {
+  modelId: string
+  constructor(modelId: string) {
+    super(`Model ${modelId} does not cover this area`)
+    this.modelId = modelId
+  }
+}
 
 // Any other HTTP status: reachable, failed. The server shares the same
 // upstream, so a fallback would fail identically — surface it instead.
@@ -507,22 +513,20 @@ async function classify429(res: Response): Promise<OpenMeteoRateLimited> {
   if (header && Number.isFinite(Number(header))) retryAfterS = Math.max(1, Math.ceil(Number(header)))
   // Whose quota it is, named. These fetches leave the reader's own browser
   // against the reader's own address, so "your quota" is literally true and is
-  // the fact that makes the wait make sense; "the weather service has used up
+  // the fact that makes the wait make sense; "Open-Meteo has used up
   // its quota" described an outage the reader could only wait out, and invited
   // the reading that Bluebird was down. Naming Open-Meteo matters for the same
   // reason: it is the credit already docked beside the results, so the sentence
   // lands on something the reader can see rather than on an anonymous service.
   //
-  // The advice to analyze a smaller area is gone. It is true of the minutely
-  // bucket, which the pacer already absorbs without ever reaching this message;
-  // against an exhausted daily quota a smaller area is still refused, so it
-  // read as a remedy and was not one.
+  // The smaller-area advice is gone. It was true of the minutely bucket,
+  // which the pacer already absorbs without reaching this message; against an
+  // exhausted daily quota narrowing the search still fails, so it read as a
+  // remedy and was not one.
   const message =
-    scope === 'hourly'
-      ? 'You have reached your hourly Open-Meteo forecast quota. Please try again after the top of the hour.'
-      : scope === 'daily' || scope === 'monthly'
-      ? `You have reached your ${scope} Open-Meteo forecast quota. Please try again later.`
-      : 'Open-Meteo is rate-limiting your connection. Bluebird pauses and resumes automatically; if this keeps failing, wait a minute and try again.'
+    scope === 'hourly' || scope === 'daily' || scope === 'monthly'
+      ? 'Open-Meteo quota reached. Try again later.'
+      : 'Open-Meteo is rate-limiting. Try again later.'
   return new OpenMeteoRateLimited(message, scope, retryAfterS)
 }
 
@@ -564,18 +568,12 @@ async function getJson(
       // out of fifty and never says which, and the picker is on screen anyway.
       // Surfaced rather than rerouted — the reroute is for OpenMeteoUnreachable
       // alone, and the server reaches the same upstream and would 400 alike.
-      throw new OpenMeteoModelCoverage(
-        'That forecast model does not cover part of this area. It is a regional ' +
-          'model, run over the continental US and neighbouring parts of Canada ' +
-          'and Mexico only. Choose a global forecast model, or move the search ' +
-          'area inside its coverage.',
-      )
+      const modelId = params.models || 'unknown'
+      throw new OpenMeteoModelCoverage(modelId)
     }
     if (!res.ok) {
       throw new OpenMeteoHttpError(
-        res.status >= 500
-          ? `The weather service is having trouble on their end (HTTP ${res.status}). Try again shortly.`
-          : `The weather service returned an unexpected response (HTTP ${res.status}).`,
+        `Open-Meteo error (HTTP ${res.status}). Try again later.`,
         res.status,
       )
     }
@@ -585,9 +583,7 @@ async function getJson(
     if (e instanceof OpenMeteoRateLimited || e instanceof OpenMeteoHttpError) throw e
     if (e instanceof OpenMeteoModelCoverage) throw e
     if (e instanceof OpenMeteoUnreachable) throw e
-    throw new OpenMeteoUnreachable(
-      `Open-Meteo request failed: ${e instanceof Error ? e.message : String(e)}`,
-    )
+    throw new OpenMeteoUnreachable('Cannot reach Open-Meteo. Try again later.')
   }
 }
 

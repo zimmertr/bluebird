@@ -33,6 +33,9 @@ import {
 const MARGIN = { top: 8, right: 16, bottom: 2, left: 8 }
 const X_AXIS_HEIGHT = 22
 
+// Which rows are plotted is the table's job: the checkbox column is the one
+// series picker (#242 review dropped the chart's own legend strip), so this
+// component only receives the rows already chosen.
 interface Props {
   times: number[]
   rows: DestinationResult[]
@@ -131,7 +134,7 @@ export default function TimeSeriesChart({
         ))}
       </div>
 
-      <div ref={plotRef} className="min-h-0 flex-1">
+      <div ref={plotRef} className="min-h-0 flex-1 overflow-hidden">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={data}
@@ -215,6 +218,7 @@ export default function TimeSeriesChart({
           </LineChart>
         </ResponsiveContainer>
       </div>
+
     </div>
   )
 }

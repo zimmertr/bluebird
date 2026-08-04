@@ -263,10 +263,12 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
   p.set('mode', state.selection.kind)
   if (state.selection.kind === 'days') {
     const { startDate, endDate, hours } = state.selection
-    p.set('d1', startDate)
+    // A dateless Dates arm writes mode=days alone: the link reopens on the
+    // empty calendar rather than inventing a day the user never picked.
+    if (startDate !== null) p.set('d1', startDate)
     // Omitted for a single day, so the common link stays as short as the shape
     // it describes.
-    if (endDate !== startDate) p.set('d2', endDate)
+    if (endDate !== null && endDate !== startDate) p.set('d2', endDate)
     // Written whenever the narrow-hours control is open, defaults included: the
     // pair is the control's state, not only its effect, and a link that dropped
     // 00:00/23:59 would reopen with the disclosure closed.
@@ -328,6 +330,19 @@ function decodeSelection(params: URLSearchParams): ForecastSelection | undefined
     // filling the missing end from a default would invent a span.
     const narrowed = h1 !== null && h2 !== null && isTimeOfDay(h1) && isTimeOfDay(h2)
     return { kind: 'days', ...days, ...(narrowed ? { hours: { start: h1, end: h2 } } : {}) }
+  }
+
+  // mode=days with no valid d1: the empty Dates arm, hours refinement kept.
+  if (mode === 'days') {
+    const h1 = params.get('h1')
+    const h2 = params.get('h2')
+    const narrowed = h1 !== null && h2 !== null && isTimeOfDay(h1) && isTimeOfDay(h2)
+    return {
+      kind: 'days',
+      startDate: null,
+      endDate: null,
+      ...(narrowed ? { hours: { start: h1, end: h2 } } : {}),
+    }
   }
 
   const at = params.get('at')

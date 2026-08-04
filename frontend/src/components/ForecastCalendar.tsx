@@ -8,23 +8,27 @@ import {
   SelectionKind,
   addDays,
   addMonths,
+  addOneHour,
   applyDayClick,
   applyDayDrag,
   applyModeSwitch,
   dayInMonth,
   dayKey,
   dragAnchor,
+  hasDates,
   isTimeOfDay,
   monthGrid,
   monthHasBandDay,
   monthKey,
   monthLabel,
   orderDays,
+  subtractOneHour,
   weekdayInitials,
 } from '../utils/calendar'
 import {
   ACCENT,
   BUTTON_SECONDARY,
+  CONTROL_W,
   DAY,
   FIELD,
   RADIUS,
@@ -33,6 +37,7 @@ import {
   SEGMENT_IDLE,
   SEGMENT_ITEM,
   SURFACE_GROUP,
+  SURFACE_GROUP_BLEED,
   TEXT,
 } from '../styles'
 
@@ -85,7 +90,7 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
   const today = dayKey(now)
 
   const [month, setMonth] = useState(() =>
-    selection.kind === 'days' ? monthKey(selection.startDate) : monthKey(today),
+    hasDates(selection) ? monthKey(selection.startDate) : monthKey(today),
   )
   // A committed single day that the next click may extend into a range. Spent
   // once a range exists, which is what makes a click inside one restart there.
@@ -97,15 +102,13 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
   // cannot leave it armed.
   const suppressClick = useRef(false)
   const [focused, setFocused] = useState(() =>
-    selection.kind === 'days' ? selection.startDate : today,
+    hasDates(selection) ? selection.startDate : today,
   )
   const gridRef = useRef<HTMLDivElement>(null)
   // The range to come back to when Days is pressed again. A ref rather than
   // state: nothing renders from it, and making it state would re-render the
   // panel on every day click to store what that click already displayed.
-  const lastDays = useRef<DaysSelection | null>(
-    selection.kind === 'days' ? selection : null,
-  )
+  const lastDays = useRef<DaysSelection | null>(hasDates(selection) ? selection : null)
   // Focus follows the arrow keys, but only once one has been pressed: stealing
   // focus on mount would scroll the panel down to the calendar on every load.
   const keyboardNav = useRef(false)
@@ -126,12 +129,12 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
   const drawn =
     drag !== null
       ? orderDays(drag.pivot, drag.over)
-      : selection.kind === 'days'
+      : hasDates(selection)
       ? { startDate: selection.startDate, endDate: selection.endDate }
       : null
 
   useEffect(() => {
-    if (selection.kind === 'days') lastDays.current = selection
+    if (hasDates(selection)) lastDays.current = selection
   }, [selection])
 
   function commitClick(day: string) {
@@ -145,7 +148,7 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
     if (next === selection) return
     // A half-made range does not survive leaving the arm it was being made in.
     setAnchor(null)
-    if (next.kind === 'days') {
+    if (hasDates(next)) {
       // Restoring a range in another month has to page there, or pressing Days
       // shows an empty grid and the selection looks lost.
       setMonth(monthKey(next.startDate))
@@ -214,8 +217,11 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
 
   function setHours(next: { start: string; end: string } | undefined) {
     if (selection.kind !== 'days') return
-    const { startDate, endDate } = selection
-    onChange({ kind: 'days', startDate, endDate, ...(next ? { hours: next } : {}) })
+    // Works on the dateless arm too: the hours refinement rides along and
+    // applies once days are picked. The cast is safe — rest is the selection
+    // minus `hours`, and both dated and dateless shapes admit that.
+    const { hours: _dropped, ...rest } = selection
+    onChange((next ? { ...rest, hours: next } : rest) as ForecastSelection)
   }
 
   const prevMonth = addMonths(month, -1)
@@ -268,7 +274,6 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
             <button
               key={option.kind}
               aria-pressed={selection.kind === option.kind}
-              title={option.hint}
               onClick={() => switchMode(option.kind)}
               className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
                 selection.kind === option.kind ? ACCENT.fill : SEGMENT_IDLE
@@ -288,12 +293,12 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
           got eight points into a review without finding it at all, back when it
           was a collapsed disclosure. */}
       {revealsGrid && (
-        <div className={`${SURFACE_GROUP} mt-2 p-2`}>
+        <div className={`${SURFACE_GROUP} ${SURFACE_GROUP_BLEED} mt-2 p-2`}>
           <div className="flex items-center justify-between gap-2">
             <span className={TEXT.subheading}>Hours</span>
             <div className={SEGMENT}>
               {[
-                { hourly: false, label: 'All Day' },
+                { hourly: false, label: 'All day' },
                 { hourly: true, label: 'Hourly' },
               ].map((option, i) => (
                 <button
@@ -309,28 +314,60 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
               ))}
             </div>
           </div>
+          {/* Two label-plus-control rows, not a side-by-side pair: every other
+              control in this panel sits beside its label at CONTROL_W, and the
+              time fields lining up under the segments is what makes the well
+              read as part of the same column. */}
           {hours && (
-            <div className="mt-1.5 flex items-center gap-2">
-              <input
-                type="time"
-                aria-label="Window start time"
-                value={hours.start}
-                onChange={(e) =>
-                  isTimeOfDay(e.target.value) && setHours({ ...hours, start: e.target.value })
-                }
-                className={`${FIELD} w-full px-2 py-1.5`}
-              />
-              <span className={`${TEXT.caption} flex-shrink-0`}>to</span>
-              <input
-                type="time"
-                aria-label="Window end time"
-                value={hours.end}
-                onChange={(e) =>
-                  isTimeOfDay(e.target.value) && setHours({ ...hours, end: e.target.value })
-                }
-                className={`${FIELD} w-full px-2 py-1.5`}
-              />
-            </div>
+            <>
+              <div className="mt-1.5 flex items-center gap-2">
+                <label htmlFor="window-start-time" className={`${TEXT.control} flex-1`}>
+                  Start
+                </label>
+                <input
+                  id="window-start-time"
+                  type="time"
+                  value={hours.start}
+                  onChange={(e) => {
+                    if (!isTimeOfDay(e.target.value)) return
+                    // On a single day, clamp the end time if start moves past it.
+                    // This prevents overnight spans (18:00-06:00) from being entered
+                    // on a single day, where they are invalid.
+                    const isSingleDay =
+                      selection.kind === 'days' && selection.startDate === selection.endDate
+                    const newEnd =
+                      isSingleDay && e.target.value >= hours.end
+                        ? addOneHour(e.target.value)
+                        : hours.end
+                    setHours({ ...hours, start: e.target.value, end: newEnd })
+                  }}
+                  className={`${FIELD} ${CONTROL_W} px-2 py-1.5`}
+                />
+              </div>
+              <div className="mt-1.5 flex items-center gap-2">
+                <label htmlFor="window-end-time" className={`${TEXT.control} flex-1`}>
+                  End
+                </label>
+                <input
+                  id="window-end-time"
+                  type="time"
+                  value={hours.end}
+                  onChange={(e) => {
+                    if (!isTimeOfDay(e.target.value)) return
+                    // On a single day, clamp the start time if end moves before it.
+                    // This prevents overnight spans from being entered on a single day.
+                    const isSingleDay =
+                      selection.kind === 'days' && selection.startDate === selection.endDate
+                    const newStart =
+                      isSingleDay && e.target.value <= hours.start
+                        ? subtractOneHour(e.target.value)
+                        : hours.start
+                    setHours({ ...hours, start: newStart, end: e.target.value })
+                  }}
+                  className={`${FIELD} ${CONTROL_W} px-2 py-1.5`}
+                />
+              </div>
+            </>
           )}
 
       {/* Month navigation, bounded by the servable band rather than open-ended:
@@ -476,16 +513,6 @@ function Day({
       aria-disabled={inert || undefined}
       aria-selected={isEnd || inRange}
       aria-label={cell.date}
-      // Only where the cell's own appearance raises the question. Every day
-      // already announces its date through aria-label, so a tooltip on all 42 of
-      // them would be noise rather than help.
-      title={
-        inert
-          ? 'Outside the range of history and forecast the weather service publishes.'
-          : cell.availability === 'partial'
-          ? 'Weather forecast available. Air quality reaches only about 5 days out, so those columns will be blank.'
-          : undefined
-      }
       tabIndex={focused ? 0 : -1}
       onPointerDown={onPress}
       onPointerEnter={onEnter}

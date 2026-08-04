@@ -15,11 +15,14 @@
 // lets it be unit-tested — the frontend suite runs in a bare node environment
 // with no component rendering.
 //
-// There is no "has a window been set" guard anymore. The calendar always holds
-// one — the current hour if the user never touched it (#166) — where the three
-// pickers each had their own way of being half-filled.
+// The one "is the window set" guard left is `datesPending`: the Dates arm
+// freshly opened holds no dates at all (#242 review — today is outlined, not
+// selected), so there is no window to analyze until a day is picked. Every
+// other selection shape always holds a window (#166).
 export interface AnalyzeGate {
   hasWindowWarning: boolean
+  // The Dates arm is live with nothing picked yet.
+  datesPending: boolean
   loading: boolean
   areaTooLarge: boolean
   // A polygon that is drawn, inside the area cap, AND has at least one type
@@ -32,7 +35,7 @@ export interface AnalyzeGate {
 }
 
 export function canAnalyze(g: AnalyzeGate): boolean {
-  if (g.hasWindowWarning || g.loading || g.areaTooLarge) return false
+  if (g.hasWindowWarning || g.datesPending || g.loading || g.areaTooLarge) return false
   return g.polygonReady || g.hasCustom || g.hasPins
 }
 
@@ -62,7 +65,7 @@ export function canAnalyze(g: AnalyzeGate): boolean {
  * produce, because "unreachable" is a claim about a caller and this function
  * should not depend on one.
  */
-export type AnalyzeBlocker = 'area' | 'window' | 'destinations' | 'polygon' | 'types'
+export type AnalyzeBlocker = 'area' | 'window' | 'dates' | 'destinations' | 'polygon' | 'types'
 
 export function analyzeBlockers(g: AnalyzeGate & { drawPointCount: number }): AnalyzeBlocker[] {
   // Mid-analysis the button is disabled because it is busy, which the button
@@ -71,6 +74,7 @@ export function analyzeBlockers(g: AnalyzeGate & { drawPointCount: number }): An
   const blockers: AnalyzeBlocker[] = []
   if (g.areaTooLarge) blockers.push('area')
   if (g.hasWindowWarning) blockers.push('window')
+  if (g.datesPending) blockers.push('dates')
   if (!g.polygonReady && !g.hasCustom && !g.hasPins) {
     if (g.drawPointCount > 0 && g.drawPointCount < 3) blockers.push('polygon')
     // A finished polygon with nothing checked is not an unfinished polygon

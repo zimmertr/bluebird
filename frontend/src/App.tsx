@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import MapView, { MapViewHandle } from './components/MapView'
 import ControlPanel from './components/ControlPanel'
-import SearchBox from './components/SearchBox'
+import SearchBox, { type SearchBoxHandle } from './components/SearchBox'
 import ResultsTable from './components/ResultsTable'
 import TimeSeriesChart from './components/TimeSeriesChart'
+import ColumnsPicker from './components/ColumnsPicker'
 import WelcomeModal from './components/WelcomeModal'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
@@ -18,11 +19,18 @@ import {
   ACCENT,
   BUTTON_FLOATING,
   BUTTON_SECONDARY,
+  FOCUS_RING,
+  ICON,
+  ICON_ACTION,
   ICON_BUTTON,
   LAYER,
   LINK,
   PROSE,
   RADIUS,
+  SEGMENT_FLUID,
+  SEGMENT_DIVIDER,
+  SEGMENT_IDLE,
+  SEGMENT_ITEM,
   SURFACE_CARD,
   SURFACE_FLOATING,
   TAP,
@@ -50,15 +58,19 @@ import {
 } from './utils/urlState'
 import { UrlWriter, debounceUrlWrite, urlNeedsSync } from './utils/urlSync'
 import {
+  DAY_END,
+  DAY_START,
   DEFAULT_SELECTION,
   ForecastSelection,
   clampSelection,
+  dayKey,
   selectionLocalWindow,
   windowCaption,
 } from './utils/calendar'
 import { isPointSample } from './utils/forecastWindow'
 import { PresentationKnobs, commitNeeded, presentResults } from './utils/present'
-import { SortDir, SortKey, displayedColumns } from './utils/tableColumns'
+import { SortDir, SortKey, displayedColumns, visibleColumns } from './utils/tableColumns'
+import { NAME_DEFAULT_PX } from './utils/columnResize'
 import { compareValues } from './utils/sortResults'
 import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
 
@@ -131,6 +143,8 @@ function useViewportHeight(): number {
 
 export default function App() {
   const mapRef = useRef<MapViewHandle>(null)
+  const searchBoxRef = useRef<SearchBoxHandle>(null)
+  const columnsButtonRef = useRef<HTMLButtonElement>(null)
 
   // The discovery inputs behind the results currently on screen: `base` covers
   // the user-authored inputs (polygon + type + CSV rows + elevation + limit +
@@ -146,6 +160,11 @@ export default function App() {
   // come back as type "custom" with no osm_id; this map restores them so a
   // peak still links to Peakbagger and shows the right badge.
   const identityMapRef = useRef<Map<string, { type: string; osm_id: string | null }>>(new Map())
+  // Rows leaving the display due to a live presentation knob: fade them out.
+  // Keyed by coordinate. Only populated when the same analysis has rows
+  // disappearing — not on initial render or a fresh analysis.
+  const [leavingRowKeys, setLeavingRowKeys] = useState<Set<string>>(new Set())
+  const lastAnalyzedResultsRef = useRef<DestinationResult[] | null>(null)
   // Rows the user ×-removed from the current report, by coordinate key. Scoped
   // to the user-authored discovery inputs (removalScopeRef): removing a row —
   // even a searched place, which shrinks the custom list — must not count as
@@ -251,6 +270,15 @@ export default function App() {
   const [modelClamped, setModelClamped] = useState(false)
   const forecastHours = modelForecastHours(caps.forecastModels, forecastModel)
 
+  // The window a model clamp took away, held so switching back to a model
+  // that can serve it restores it (#242 review). A clamp is the picker
+  // editing the user's dates on its own authority; this is the undo. Cleared
+  // whenever the user edits the window themselves (their choice supersedes
+  // the memory) and once an analysis runs (the report pins the window that
+  // was actually asked, and restoring a pre-clamp range after it would
+  // silently disagree with what is on screen).
+  const preClampSelectionRef = useRef<ForecastSelection | null>(null)
+
   // Every model change reconsiders the window, because the far edge moves with
   // it — by twelve days between ECMWF and HRRR. Clamping rather than refusing:
   // the alternative rejects the model over a window chosen before the user knew
@@ -258,16 +286,33 @@ export default function App() {
   function changeForecastModel(id: string) {
     untouchedModelRef.current = false
     const hours = modelForecastHours(caps.forecastModels, id)
+    // A remembered pre-clamp window comes back the moment a model can serve
+    // it whole (clampSelection returns null for "fits unchanged").
+    const remembered = preClampSelectionRef.current
+    if (remembered && clampSelection(remembered, new Date(), hours) === null) {
+      preClampSelectionRef.current = null
+      setSelection(remembered)
+      setModelClamped(false)
+      setForecastModel(id)
+      return
+    }
     const clamped = clampSelection(selection, new Date(), hours)
-    if (clamped) setSelection(clamped)
+    if (clamped) {
+      // Remember the FIRST window in a clamp chain: stepping HRRR → ICON →
+      // GFS should restore the range the user picked, not the wreckage of
+      // the intermediate clamp.
+      if (preClampSelectionRef.current === null) preClampSelectionRef.current = selection
+      setSelection(clamped)
+    }
     setModelClamped(clamped !== null)
     setForecastModel(id)
   }
 
-  // Any deliberate move of the window retires the clamp notice: it describes
+  // Any deliberate move of the window retires the clamp notice — it describes
   // one past edit, and leaving it up would attribute the user's own choice to
-  // the model picker.
+  // the model picker — and the pre-clamp memory with it, for the same reason.
   function changeSelection(next: ForecastSelection) {
+    preClampSelectionRef.current = null
     setModelClamped(false)
     setSelection(next)
   }
@@ -307,10 +352,81 @@ export default function App() {
   // its own numbers would be a second opinion about what "default" means.
   const [tableHeight, setTableHeight] = useState(DEFAULT_TABLE_HEIGHT)
   const [chartHeight, setChartHeight] = useState(DEFAULT_CHART_HEIGHT)
-  // Chevron-collapsed panels: the header bar stays docked at the bottom (the
-  // panel never unmounts); expanding restores the previous height.
-  const [chartCollapsed, setChartCollapsed] = useState(false)
-  const [tableCollapsed, setTableCollapsed] = useState(false)
+  // Which views the results area shows: chart-only, table-only, or both. The
+  // mode is always honored literally — a mode with nothing to draw yet shows
+  // its empty panel rather than quietly displaying a different one, or the
+  // segment reads as broken (#242 review: it sat on Chart while the table
+  // showed, and clicking did nothing visible).
+  //
+  // Everyone opens on Table; a desktop-width window widens to Both when an
+  // analysis lands (the effect below). Only an EXPLICIT press on the segment
+  // persists, under `modeChosen`: the old code stored every mode change, so
+  // the automatic default wrote itself back as if the user had picked it and
+  // then beat the desktop widening forever. The stale `mode` field from that
+  // code is deliberately ignored for the same reason — nothing in it says
+  // whether the user ever actually chose.
+  type ResultsMode = 'chart' | 'table' | 'both'
+  const modeChosenRef = useRef(false)
+  const [resultsMode, setResultsMode] = useState<ResultsMode>(() => {
+    if (typeof localStorage === 'undefined') return 'table'
+    try {
+      const stored = JSON.parse(localStorage.getItem('bluebird_view') ?? '{}')
+      if (stored.modeChosen === 'chart' || stored.modeChosen === 'table' || stored.modeChosen === 'both') {
+        modeChosenRef.current = true
+        return stored.modeChosen
+      }
+    } catch {
+      // Ignore localStorage errors (SSR, quota, etc.)
+    }
+    return 'table'
+  })
+  // An intentional press on the segment: sticks for the session and persists.
+  function chooseResultsMode(mode: ResultsMode) {
+    modeChosenRef.current = true
+    setResultsMode(mode)
+    try {
+      const current = JSON.parse(localStorage.getItem('bluebird_view') ?? '{}')
+      localStorage.setItem('bluebird_view', JSON.stringify({ ...current, modeChosen: mode }))
+    } catch {
+      // Ignore localStorage errors (SSR, quota, etc.)
+    }
+  }
+  // Which columns the table displays (null = use default narrowed set, Set = user choice).
+  // The CSV export always gets the full displayedColumns set regardless.
+  const [columnVisibility, setColumnVisibility] = useState<Set<string> | null>(() => {
+    if (typeof localStorage === 'undefined') return null
+    try {
+      const stored = JSON.parse(localStorage.getItem('bluebird_view') ?? '{}')
+      if (stored.columns) return new Set(stored.columns)
+    } catch {
+      // Ignore localStorage errors
+    }
+    return null
+  })
+  // Persist column visibility to localStorage when it changes.
+  useEffect(() => {
+    try {
+      const current = JSON.parse(localStorage.getItem('bluebird_view') ?? '{}')
+      localStorage.setItem(
+        'bluebird_view',
+        JSON.stringify({ ...current, columns: columnVisibility ? [...columnVisibility] : undefined }),
+      )
+    } catch {
+      // Ignore localStorage errors (SSR, quota, etc.)
+    }
+  }, [columnVisibility])
+  // Column picker popover open/closed
+  const [columnsOpen, setColumnsOpen] = useState(false)
+  // Column widths the user has set (px by key). Held here rather than in the
+  // table so a mode switch or the collapse chevron — both of which unmount
+  // the table — cannot reset them. Session-only by design: a width is a
+  // reading posture, not a preference. Name opens at the measured
+  // 25-character width and everything else natural.
+  const [tableColWidths, setTableColWidths] = useState<Record<string, number>>({
+    name: NAME_DEFAULT_PX,
+  })
+  // Chevron to collapse/expand the entire results area.
+  const [resultsCollapsed, setResultsCollapsed] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   // When each grip was last pressed, keyed by which one. A double press resets
   // that grip's own panel — the chart resizer restores the chart, the table
@@ -338,6 +454,7 @@ export default function App() {
     localStorage.setItem('bluebird_welcomed', '1')
     setShowWelcome(false)
   }
+
   // Pointer-driven vertical resize, shared by mouse and touch (Pointer Events)
   // and by both breakpoints. `onDrag` receives the drag distance with up
   // positive; the handles below feed it the map│chart or chart│table geometry.
@@ -380,7 +497,7 @@ export default function App() {
     statusDetail,
     progress,
     paceEndMs,
-  } = useAnalyze(caps.maxDestinations)
+  } = useAnalyze(caps.maxDestinations, caps.forecastModels)
 
   // Places searched by name — the third destination input. Searching registers
   // the place (map dot + URL persistence); its forecast joins the next Analyze,
@@ -443,10 +560,16 @@ export default function App() {
   // ISO conversion in handleAnalyze. Recomputed per render rather than memoized,
   // since for the current-hour selection it moves with the clock.
   const panelWindow = selectionLocalWindow(selection, new Date())
-  const panelWindowMs = {
-    startMs: Date.parse(panelWindow.start),
-    endMs: Date.parse(panelWindow.end),
-  }
+  // A dateless Dates arm has no window (Analyze is blocked on it), but the
+  // display still needs a shape — column regime, captions — so it borrows a
+  // whole-day span. Never analyzed: handleAnalyze re-reads the selection and
+  // refuses a null window.
+  const panelWindowMs = panelWindow
+    ? { startMs: Date.parse(panelWindow.start), endMs: Date.parse(panelWindow.end) }
+    : {
+        startMs: Date.parse(`${dayKey(new Date())}T${DAY_START}`),
+        endMs: Date.parse(`${dayKey(new Date())}T${DAY_END}`),
+      }
 
   // The knobs the displayed report is rendered under: markers, legend, results
   // header, and table column order all read from here.
@@ -482,6 +605,19 @@ export default function App() {
   // name, so "a day narrowed to one hour" is recognized as the point sample it
   // is (#166).
   const pointSample = isPointSample(view.window.startMs, view.window.endMs)
+  // A point-sample flip relabels the metric columns under the SAME keys —
+  // the collapsed bare-noun header and the windowed aggregate header both
+  // live at one key — so a width fitted under one regime clips the other
+  // regime's longer header. The metric columns re-open at their natural width
+  // when the regime changes; the identity columns keep theirs, since their
+  // labels never change.
+  useEffect(() => {
+    setTableColWidths((w) =>
+      Object.fromEntries(
+        Object.entries(w).filter(([k]) => k === 'name' || k === 'type' || k === 'elevation_ft'),
+      ),
+    )
+  }, [pointSample])
   // The forecast window is a data knob: the browser holds no forecasts for days
   // it never fetched, so a calendar change cannot re-present anything. Comparing
   // it at all is new with the calendar, and is the reason to: picking days is a
@@ -610,12 +746,10 @@ export default function App() {
   // rejects out-of-range dates outright, so submitting would only produce an
   // upstream error. The calendar cannot pick an unservable day, so a horizon
   // warning now means a shared or hand-edited link brought one in.
-  const windowStatus = classifyWindow(
-    panelWindow.start,
-    panelWindow.end,
-    new Date(),
-    forecastHours,
-  )
+  const windowStatus = panelWindow
+    ? classifyWindow(panelWindow.start, panelWindow.end, new Date(), forecastHours)
+    : // No dates picked yet: nothing to warn about, the dates blocker owns it.
+      'ok'
   const windowWarning =
     selection.kind === 'now' || windowStatus === 'ok' ? null : windowStatus
 
@@ -635,7 +769,9 @@ export default function App() {
   // so there is no pending state for a cancel to roll back — Clear is the
   // control that throws a ring away. Escape is here because it is what a hand
   // reaches for to get out of a mode, not because it means something different
-  // from Done.
+  // from Done. Enter shares Done's 3-point floor — it means "the ring is
+  // finished", which two points cannot be — while Escape stays an
+  // unconditional way out of the mode.
   useEffect(() => {
     if (!drawing) return
     function onKeyDown(e: KeyboardEvent) {
@@ -644,11 +780,12 @@ export default function App() {
       // and Escape belong to the control they are typing into.
       const el = document.activeElement
       if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return
+      if (e.key === 'Enter' && drawPointCount < 3) return
       setDrawing(false)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [drawing])
+  }, [drawing, drawPointCount])
 
 
   // The user-authored discovery inputs as a stable string. Everything that
@@ -681,6 +818,9 @@ export default function App() {
     // back in the state #118 describes — reading a result and panning around
     // it while every click still adds a vertex.
     setDrawing(false)
+    // The report pins the window that was actually asked; a pre-clamp range
+    // restored after this would silently disagree with it.
+    preClampSelectionRef.current = null
 
     // The one conversion from a local selection to the UTC instants the API
     // takes. Equal timestamps are how a point sample travels — the current hour,
@@ -688,6 +828,9 @@ export default function App() {
     // the hour containing the moment.
     const kind = selection.kind
     const local = selectionLocalWindow(selection, new Date())
+    // Unreachable through the UI (the dates blocker disables Analyze), kept as
+    // the honest backstop: a dateless selection has nothing to fetch.
+    if (local === null) return
     const start = new Date(local.start).toISOString()
     const end = new Date(local.end).toISOString()
 
@@ -887,6 +1030,26 @@ export default function App() {
       ? windowCaption(analyzed.kind, analyzed.window.startMs, analyzed.window.endMs, pointSample)
       : null
 
+  // Detect rows leaving display via live presentation knobs (not fresh analysis).
+  // Only fires when analyzed is stable and results change — i.e., a live knob
+  // hid rows. No animation on initial render or fresh analysis.
+  useEffect(() => {
+    if (analyzed === null) {
+      setLeavingRowKeys(new Set())
+      return
+    }
+    const prevKeys = new Set(
+      (lastAnalyzedResultsRef.current ?? []).map((r) => pinKey(r.latitude, r.longitude)),
+    )
+    const currKeys = new Set(results.map((r) => pinKey(r.latitude, r.longitude)))
+    const leaving = new Set<string>()
+    for (const key of prevKeys) {
+      if (!currKeys.has(key)) leaving.add(key)
+    }
+    setLeavingRowKeys(leaving)
+    lastAnalyzedResultsRef.current = results
+  }, [results, analyzed])
+
   // The detail-column sort, held here rather than inside ResultsTable (#125).
   //
   // Clicking one of the four ranking columns re-cuts the whole field through
@@ -924,9 +1087,22 @@ export default function App() {
     () => [...results].sort((a, b) => compareValues(a[detailSort.key], b[detailSort.key], detailSort.dir)),
     [results, detailSort],
   )
-  const tableColumns = useMemo(
+  // All columns for the CSV export (includes all columns, not filtered by visibility).
+  const csvColumns = useMemo(
     () => displayedColumns(pointSample, view.sortBy),
     [pointSample, view.sortBy],
+  )
+  // Every column is on by default — the table scrolls sideways rather than
+  // opening narrowed (TJ's call in the #242 review). A stored choice from the
+  // Columns picker still wins; null means "all of them".
+  const effectiveVisibleKeys = useMemo(() => {
+    if (columnVisibility !== null) return columnVisibility
+    return new Set(csvColumns.map((c) => c.key as string))
+  }, [columnVisibility, csvColumns])
+  // Columns displayed in the table (filtered by visibility).
+  const tableColumns = useMemo(
+    () => visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys),
+    [pointSample, view.sortBy, effectiveVisibleKeys],
   )
 
   // × on a table row. Removing a searched place also deregisters it — else the
@@ -983,7 +1159,7 @@ export default function App() {
     if (removedKeys.size > 0) {
       return 'All rows have been removed from this analysis. Add destinations or adjust the inputs, then Analyze again.'
     }
-    return 'No destinations found. Try a larger polygon or different time window.'
+    return 'No destinations found. Try a larger area.'
   }, [response, results.length, presented.eligible, presented.excluded, removedKeys])
 
   const hasColoredMarkers = showResults && results.length > 0
@@ -1013,8 +1189,21 @@ export default function App() {
   function handleDownloadCsv() {
     const csv = buildResultsCsv(
       tableRows,
-      tableColumns,
+      csvColumns,
       fire.status === 'ready' ? fire.warnings : null,
+      // The table draws pending (un-analyzed) rows above the ranked ones, so
+      // the file carries them too — identity columns filled, Rank and every
+      // metric blank. Before the first analysis this is the whole file.
+      pending.map(
+        (d) =>
+          ({
+            name: d.name,
+            type: d.kind ?? 'custom',
+            elevation_ft: d.elevation_ft ?? null,
+            latitude: d.latitude,
+            longitude: d.longitude,
+          }) as DestinationResult,
+      ),
     )
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a')
@@ -1029,16 +1218,39 @@ export default function App() {
   // too: its single-instant grid renders as one dot per destination — still a
   // cross-destination comparison, same default-select-all.
   const chartTimes = response?.times ?? []
-  const chartable = chartTimes.length > 0
-  const chart = useChartSelection(
-    results,
-    view.sortBy,
-    searched.places.map((p) => pinKey(p.lat, p.lon)),
-  )
-  // Shown whenever the analysis produced an hourly grid, including when nothing
-  // is currently plotted on it: an empty chart beside an empty table reads as a
-  // report with no matches, where a disappearing one reads as a broken app.
-  const chartShown = chartable
+  // Everything the chart tracks: the displayed rows plus the pending
+  // destinations no analysis has covered. Pending rows ride along as
+  // series-less pseudo-rows so a searched place is colored and selected the
+  // moment it appears — and since colors stick to the coordinate key, the hue
+  // it wears before the analysis is the hue its line draws in after.
+  const chartCandidates = useMemo(() => {
+    const have = new Set(results.map((r) => pinKey(r.latitude, r.longitude)))
+    const extras = pending
+      .filter((d) => !have.has(pinKey(d.latitude, d.longitude)))
+      .map(
+        (d) =>
+          ({
+            name: d.name,
+            type: d.kind ?? 'custom',
+            elevation_ft: d.elevation_ft ?? null,
+            latitude: d.latitude,
+            longitude: d.longitude,
+          }) as DestinationResult,
+      )
+    return [...results, ...extras]
+  }, [results, pending])
+  const chart = useChartSelection(chartCandidates, view.sortBy)
+
+  // A desktop-width window widens to Both when an analysis lands, so the first
+  // report arrives with its chart — unless the user has ever explicitly picked
+  // a mode, which always wins. A phone stays on Table: the stacked pair leaves
+  // the map a sliver there. Checked per analysis rather than on mount so the
+  // pre-analysis screen still opens on the plain table.
+  useEffect(() => {
+    if (response === null || modeChosenRef.current) return
+    if (!window.matchMedia('(min-width: 1024px)').matches) return
+    setResultsMode('both')
+  }, [response, analysisSeq])
 
   // Space below the map that a resize must leave alone: the preview banner (when
   // present) sits above the map, so the map + chart + table share the rest.
@@ -1050,13 +1262,16 @@ export default function App() {
   // the map always keeps its floor. Drives both breakpoints — mobile is resizable
   // too, so it can no longer rely on Tailwind's fixed panel heights.
   const viewportH = useViewportHeight()
-  // A collapsed panel is just its header bar — it takes no share of the band.
-  const chartExpanded = chartShown && !chartCollapsed
-  const tableExpanded = showTable && !tableCollapsed
+  // Which panels are visible: the mode and the collapse chevron alone decide.
+  // Deliberately NOT gated on having data — a mode with nothing to draw shows
+  // its empty panel (the chart with no analysis renders bare axes), because a
+  // segment that says Chart while the table shows reads as broken.
+  const chartShowing = !resultsCollapsed && (resultsMode === 'chart' || resultsMode === 'both')
+  const tableShowing = !resultsCollapsed && (resultsMode === 'table' || resultsMode === 'both')
   const { chart: chartPanelPx, table: tablePanelPx } = resolvePanelHeights(
     chartHeight,
     tableHeight,
-    { chartShown: chartExpanded, tableShown: tableExpanded, availPx: viewportH - bannerPx },
+    { chartShown: chartShowing, tableShown: tableShowing && showTable, availPx: viewportH - bannerPx },
   )
 
   return (
@@ -1080,9 +1295,9 @@ export default function App() {
           When closed it stays absolute + translated off-screen so it leaves the
           layout and the map fills the full width on every breakpoint. */}
       <aside
-        className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[85vw] max-w-xs transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r border-slate-700 ${
+        className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[calc(100vw-2rem)] max-w-90 transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r border-slate-700 ${
           sidebarOpen
-            ? 'translate-x-0 lg:static lg:z-10 lg:w-80 lg:max-w-none lg:transition-none'
+            ? 'translate-x-0 lg:static lg:z-10 lg:w-90 lg:max-w-none lg:transition-none'
             : '-translate-x-full'
         }`}
       >
@@ -1095,7 +1310,7 @@ export default function App() {
           // visibly high in the circle however the line-height was nudged —
           // and it moves again with any font change. Two lines in a square
           // viewBox are centred by construction, and flex centres the box.
-          className={`${TAP.action} absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center ${RADIUS.pill} bg-slate-700/80 text-slate-200 transition-colors hover:bg-slate-600 active:bg-slate-600`}
+          className={`${TAP.action} absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center ${TEXT.control} ${RADIUS.pill} bg-slate-700/80 transition-colors hover:bg-slate-600 active:bg-slate-600`}
         >
           <svg
             viewBox="0 0 24 24"
@@ -1233,7 +1448,7 @@ export default function App() {
                         style={{ width: `${overlay.progress.percent}%` }}
                       />
                     </div>
-                    <p className="mt-1.5 text-xs text-slate-400 font-mono">
+                    <p className={`mt-1.5 ${TEXT.caption} font-mono`}>
                       {overlay.progress.percent}%
                     </p>
                   </div>
@@ -1243,7 +1458,7 @@ export default function App() {
                     <div className={`h-2 w-full ${RADIUS.pill} bg-slate-700 overflow-hidden`}>
                       <div className={`h-full w-1/3 ${RADIUS.pill} ${ACCENT.mark} animate-indeterminate`} />
                     </div>
-                    <p className="mt-1.5 text-xs text-slate-400 font-mono">
+                    <p className={`mt-1.5 ${TEXT.caption} font-mono`}>
                       Elapsed {elapsed}s
                     </p>
                   </div>
@@ -1300,7 +1515,7 @@ export default function App() {
                 Controls
               </button>
             )}
-            <SearchBox onSelect={handleSearchSelect} pointed={searchPointed} />
+            <SearchBox ref={searchBoxRef} onSelect={handleSearchSelect} pointed={searchPointed} />
           </div>
           {/* Bottom-anchored legends. On mobile the top edge is clamped below
               the Controls/search cluster (top-16) and the stack scrolls if it
@@ -1354,7 +1569,7 @@ export default function App() {
                   </p>
                   {METRIC_CONFIG[view.sortBy].colors.map((color, i) => (
                     <div key={i} className="flex items-center gap-1.5 py-0.5">
-                      <span style={{ color }} className="text-sm leading-none">●</span>
+                      <span style={{ backgroundColor: color }} className={`flex-shrink-0 h-2.5 w-2.5 ${RADIUS.pill}`} aria-hidden="true" />
                       <span className={`${TEXT.control} font-mono`}>
                         {METRIC_CONFIG[view.sortBy].legendLabels[i]}
                       </span>
@@ -1366,218 +1581,126 @@ export default function App() {
           )}
         </div>
 
-        {chartShown && (
-          <div
-            className="flex flex-shrink-0 flex-col bg-slate-800"
-            style={chartCollapsed ? undefined : { height: `${chartPanelPx}px` }}
-          >
-            {!chartCollapsed && (
-              /* Drag handle — the map│chart divider. Dragging up grows the chart,
-                 stealing height from the map above; the table below stays put
-                 (tablePanelPx is 0 when the table is closed). Pointer events +
-                 touch-none so a finger resizes it on mobile too. */
-              <div
-                onPointerDown={(e) => {
-                  if (isDoublePress('chart', e.timeStamp)) {
-                    // Pin the table to the height it is actually rendered at
-                    // before restoring the chart. Both panels are *desired*
-                    // heights that a shared resolver reconciles, and the table
-                    // grip's drag trades height between the two — so without
-                    // this, restoring one hands the other whatever it was
-                    // holding and the sibling visibly jumps. Pinned, the
-                    // difference comes off the map instead, which is where
-                    // this panel's height came from in the first place.
-                    setTableHeight(tablePanelPx)
-                    setChartHeight(DEFAULT_CHART_HEIGHT)
-                    return
-                  }
-                  // Pin the table's desired height to its applied value first, so a
-                  // stale (larger) desired height can't soak up space freed by
-                  // shrinking the chart — that space belongs to the map here.
-                  setTableHeight(tablePanelPx)
-                  beginResize(e, (up) =>
-                    setChartHeight(
-                      clampPanelHeight(chartPanelPx, up, tablePanelPx + bannerPx, window.innerHeight),
-                    ),
-                  )
-                }}
-                title="Drag to resize, double-click to reset"
-                className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
-              >
-                <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
-              </div>
-            )}
-            <div
-              className={`flex flex-shrink-0 items-center justify-between border-b border-slate-600 bg-slate-700 px-3 py-1 ${chartCollapsed ? 'border-t' : ''}`}
-            >
-              {/* Static, leftmost, and shown whether or not the panel is open:
-                  collapsed, this strip is the only thing naming what the
-                  chevron expands. Its twin titles the table bar below. */}
-              <span className={TEXT.panelTitle}>Forecast Chart</span>
-              <button
-                onClick={() => setChartCollapsed((c) => !c)}
-                title={chartCollapsed ? 'Expand the chart' : 'Collapse the chart'}
-                aria-label={chartCollapsed ? 'Expand the forecast chart' : 'Collapse the forecast chart'}
-                className={ICON_BUTTON}
-              >
-                <Chevron up={chartCollapsed} />
-              </button>
-            </div>
-            {!chartCollapsed && (
-              <div className="min-h-0 flex-1">
-                <TimeSeriesChart
-                  times={chartTimes}
-                  rows={chart.selectedRows}
-                  metric={chart.metric}
-                  onMetricChange={chart.setMetric}
-                  colorFor={chart.colorFor}
-                />
-              </div>
-            )}
-          </div>
-        )}
         {showTable && (
           <div
-            className="flex-shrink-0 bg-slate-800 flex flex-col"
-            style={tableCollapsed ? undefined : { height: `${tablePanelPx}px` }}
+            className="flex flex-shrink-0 flex-col bg-slate-800"
+            
           >
-            {!tableCollapsed && (
-              /* Drag handle. With the chart above, this is the chart│table divider:
-                 dragging up grows the table by shrinking the chart, leaving the map
-                 untouched. With no chart it steals from the map like the chart
-                 handle. Pointer events + touch-none for mobile. */
-              <div
-                onPointerDown={(e) => {
-                  if (isDoublePress('table', e.timeStamp)) {
-                    // Same reasoning as the chart grip above, mirrored: pin the
-                    // chart where it is drawn so restoring the table cannot
-                    // move it.
-                    setChartHeight(chartPanelPx)
-                    setTableHeight(DEFAULT_TABLE_HEIGHT)
-                    return
-                  }
-                  beginResize(e, (up) => {
-                    if (chartExpanded) {
-                      const next = splitChartTable(chartPanelPx, tablePanelPx, up)
-                      setChartHeight(next.chart)
-                      setTableHeight(next.table)
-                    } else {
-                      setTableHeight(clampPanelHeight(tablePanelPx, up, bannerPx, window.innerHeight))
-                    }
-                  })
-                }}
-                title="Drag to resize, double-click to reset"
-                className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
-              >
-                <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
-              </div>
-            )}
-            {/* Header. One line when the bar is wide, two when it is not, and
-                never three.
-
-                Everything used to sit on one flex line and wrap where it ran
-                out, which on a 412px phone cost three lines and truncated the
-                title to "Forecast Table:…" — the ranking metric is the only
-                reason that line exists. Chrome is not what this panel is for:
-                every line here is a line of ranking nobody gets to read.
-
-                So the bar is two columns that fold. Wide, they run inline and
-                the whole thing is one line. Narrow, each column stacks: what
-                these rows are over which window they cover, the download over
-                the credit, with the chevron beside both. Two lines, never more,
-                because each column has exactly one shrinking member.
-
-                A container query, not a viewport one. This bar's width is the
-                viewport minus the docked sidebar, so a `lg:` breakpoint would
-                fold it on a window that had not changed size and leave it
-                folded on one that had — which is the exact bug #159 removed
-                from the control panel. `@container` asks the bar about itself.
-                The step is measured, and re-measured whenever a member is
-                added: one line needs ~800px since the row count joined it, so
-                between the 768px `@3xl` fold and 800px the ranking ellipsizes
-                rather than the bar folding — which is what its `truncate` is
-                for, and better than folding a bar that nearly fits. */}
-            <div
-              className={`@container flex-shrink-0 px-3 py-1.5 bg-slate-700 border-b border-slate-600 ${tableCollapsed ? 'border-t' : ''}`}
-            >
-              <div className="flex items-start gap-2 @3xl:items-baseline">
-                {/* What these rows are, and which window they cover. */}
-                <div className="flex min-w-0 flex-1 flex-col @3xl:flex-row @3xl:items-baseline @3xl:gap-2">
-                  {/* The panel's name, then what is currently in it. The name is
-                      static: it used to be one of "Current Conditions:",
-                      "Forecast:" or "Forecast Table:" depending on the selection,
-                      so the same report renamed itself when you moved the window.
-                      Which selection it was is the caption's job, beside it.
-
-                      Siblings, not nested: the title's weight and color would
-                      otherwise inherit into the ranking, which is the one thing
-                      giving it a different role from the title is meant to stop. */}
-                  {/* One phrase, not three chips. The title, what the rows are
-                      ranked by, and how many of them there are read as a
-                      sentence: "Forecast Table - Lowest Total Precipitation
-                      (100 of 100)". Three spans alternating bold, normal, bold
-                      made the eye stop twice on the way across.
-                      The count rides inside it rather than beside it — it
-                      qualifies the ranking, since both describe the same rows.
-                      Never a shrinking member on its own: an ellipsized number
-                      is a wrong number, so the ranking truncates around it. */}
-                  <span className="flex min-w-0 items-baseline gap-1.5">
-                    <span className={`${TEXT.panelTitle} flex-shrink-0`}>Forecast Table</span>
-                    {rowCount !== null && (
-                      <span className={`${TEXT.subheading} min-w-0 truncate`}>
-                        {`- ${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(
-                          view.sortBy,
-                          pointSample,
-                        )} (${rowCount})`}
-                      </span>
-                    )}
+            {/* Shared header bar for all results views. A container query, not
+                a viewport one: the bar's width is the viewport minus the docked
+                sidebar, so a viewport breakpoint would fold it on a window that
+                never changed size. Wide, everything sits on one line; narrow,
+                it folds to exactly two — the title row (which keeps the
+                collapse chevron) and the actions row — never a vertical stack
+                (#242 review). The fold sits at the 896px container step;
+                re-measure if a member joins or leaves. */}
+            <div className={`@container flex-shrink-0 px-3 py-1.5 bg-slate-700 border-b border-slate-600`}>
+              <div className="flex flex-col gap-1 @4xl:flex-row @4xl:items-center @4xl:gap-2">
+                <div className="flex min-w-0 flex-1 items-baseline gap-2">
+                  {/* Before the first analysis the title is the same ranked
+                      phrase the sidebar has selected, with a zero count —
+                      "Lowest Total Precipitation (0 of 2)" — so the bar reads
+                      the same before and after and the zero says nothing has
+                      been ranked yet. The window timestamp joins once a
+                      report exists (windowTitle below). */}
+                  <span className={`${TEXT.subheading} min-w-0 truncate`}>
+                    {`${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, pointSample)} (${
+                      rowCount ?? `0 of ${pending.length}`
+                    })`}
                   </span>
-                  {/* A multi-hour analysis used to say nothing at all here, so
-                      someone opening a shared link had no on-screen statement of
-                      the days they were reading. Carries its own title so the
-                      full range survives the ellipsis a narrow bar puts on it,
-                      and is absent rather than empty when there is nothing to
-                      qualify — an empty row is still a row. */}
                   {windowTitle !== null && (
-                    <span className={`${TEXT.caption} truncate`} title={windowTitle}>
+                    <span className={`${TEXT.caption} truncate`}>
                       {windowTitle}
                     </span>
                   )}
+                  {/* The chevron rides the title row when the bar is folded so
+                      collapsing never needs the second row; its wide twin sits
+                      at the end of the actions row below. */}
+                  <button
+                    onClick={() => setResultsCollapsed((c) => !c)}
+                    aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}
+                    className={`${ICON_BUTTON} ml-auto @4xl:hidden`}
+                  >
+                    <Chevron up={resultsCollapsed} />
+                  </button>
                 </div>
-                {/* A failed fire check used to post a bare amber label here whose
-                    actual explanation was a title attribute, so the consequence
-                    was readable only by hovering the warning. It is now a notice
-                    in the panel beside Analyze, where the panel's other bad news
-                    already goes, carrying the whole sentence. */}
-                {/* The two asides, stacked narrow and inline wide. Centered on
-                    each other while stacked, not flushed right: they are a
-                    two-line block of their own rather than a column continuing
-                    the ragged left one, and the shorter line hanging off the
-                    longer one's left edge read as a mistake. The block as a
-                    whole still sits at the bar's right end, because the flex
-                    parent puts it there. Never a shrinking member either way:
-                    an ellipsized attribution is not an attribution.
-
-                    The credit is CC-BY 4.0's, and it is required beside the data
-                    rather than only in the document pages — the docked bar keeps
-                    it on screen whenever forecasts are. Open-Meteo's licence
-                    page gives "Weather data by Open-Meteo.com" as an example
-                    rather than as required wording, so the bare link stands; the
-                    licence URI that CC BY 4.0 also asks for is carried by
-                    DataSourceList on both document pages.
-
-                    It also survives on its own: the panel opens for
-                    un-forecasted pending rows too, and a file of empty cells is
-                    not a report, so Download CSV is the conditional one.
-
-                    Both roles carry a color, and they carry the same one. That
-                    is deliberate rather than redundant: two colors here would be
-                    resolved by stylesheet order, not by the order written. */}
-                <div className="flex shrink-0 flex-col items-center @3xl:flex-row @3xl:items-baseline @3xl:gap-3">
-                  {results.length > 0 && (
+                <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1">
+                  {/* Mode switch: table, chart, or both — fluid width, since
+                      three icon-plus-label halves cannot fit the panel's
+                      144px column (SEGMENT_FLUID exists because this shipped
+                      clipped). */}
+                  {showResults && (
+                    <div className={SEGMENT_FLUID}>
+                      <button
+                        onClick={() => chooseResultsMode('table')}
+                        className={`${SEGMENT_ITEM} ${resultsMode === 'table' ? ACCENT.fill : SEGMENT_IDLE}`}
+                        aria-pressed={resultsMode === 'table'}
+                        aria-label="Show table only"
+                      >
+                        <svg viewBox="0 0 16 16" strokeWidth={1.5} stroke="currentColor" fill="none" className={`${ICON} flex-shrink-0`} aria-hidden="true">
+                          <rect x="2" y="2" width="12" height="12" />
+                          <line x1="2" y1="6" x2="14" y2="6" />
+                          <line x1="2" y1="10" x2="14" y2="10" />
+                        </svg>
+                        <span className="hidden sm:inline">Table</span>
+                      </button>
+                      <div className={SEGMENT_DIVIDER} />
+                      <button
+                        onClick={() => chooseResultsMode('chart')}
+                        className={`${SEGMENT_ITEM} ${resultsMode === 'chart' ? ACCENT.fill : SEGMENT_IDLE}`}
+                        aria-pressed={resultsMode === 'chart'}
+                        aria-label="Show chart only"
+                      >
+                        <svg viewBox="0 0 16 16" strokeWidth={1.5} stroke="currentColor" fill="none" className={`${ICON} flex-shrink-0`} aria-hidden="true">
+                          <polyline points="2,12 6,6 9,9 14,3" />
+                        </svg>
+                        <span className="hidden sm:inline">Chart</span>
+                      </button>
+                      <div className={SEGMENT_DIVIDER} />
+                      <button
+                        onClick={() => chooseResultsMode('both')}
+                        className={`${SEGMENT_ITEM} ${resultsMode === 'both' ? ACCENT.fill : SEGMENT_IDLE}`}
+                        aria-pressed={resultsMode === 'both'}
+                        aria-label="Show chart and table"
+                      >
+                        <svg viewBox="0 0 16 16" strokeWidth={1.5} stroke="currentColor" fill="none" className={`${ICON} flex-shrink-0`} aria-hidden="true">
+                          <rect x="2" y="2" width="12" height="5.5" />
+                          <line x1="8" y1="7.5" x2="8" y2="14" />
+                          <rect x="2" y="7.5" width="12" height="6.5" />
+                        </svg>
+                        <span className="hidden sm:inline">Both</span>
+                      </button>
+                    </div>
+                  )}
+                  {/* Columns button opens picker popover. Present from the
+                      first pending row, not only once a report exists: the
+                      bar keeping its full membership is what makes it read
+                      as one control surface (#242 review). */}
+                  {showTable && (
+                    <button
+                      ref={columnsButtonRef}
+                      onClick={() => setColumnsOpen(!columnsOpen)}
+                      aria-label="Choose which columns to display"
+                      className={`${TEXT.micro} ${LINK} cursor-pointer whitespace-nowrap`}
+                    >
+                      Columns
+                    </button>
+                  )}
+                  {/* Active filters chip */}
+                  {(minElevationFt !== null || maxElevationFt !== null || Object.values(constraints).some(v => v !== null)) && (
+                    <button
+                      onClick={() => {
+                        setSidebarOpen(true)
+                        document.querySelector('[data-filter-section]')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                      }}
+                      className={BUTTON_SECONDARY}
+                    >
+                      Filters
+                    </button>
+                  )}
+                  {(results.length > 0 || pending.length > 0) && (
                     <button
                       onClick={handleDownloadCsv}
-                      title="Download these results as a CSV file"
                       aria-label="Download these results as a CSV file"
                       className={`${TEXT.micro} ${LINK} cursor-pointer whitespace-nowrap`}
                     >
@@ -1592,64 +1715,181 @@ export default function App() {
                   >
                     Open-Meteo.com
                   </a>
+                  <button
+                    onClick={() => setResultsCollapsed((c) => !c)}
+                    aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}
+                    className={`${ICON_BUTTON} hidden @4xl:flex`}
+                  >
+                    <Chevron up={resultsCollapsed} />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setTableCollapsed((c) => !c)}
-                  title={tableCollapsed ? 'Expand the table' : 'Collapse the table'}
-                  aria-label={tableCollapsed ? 'Expand the forecast table' : 'Collapse the forecast table'}
-                  className={`${ICON_BUTTON} shrink-0 self-start px-1 @3xl:self-baseline`}
-                >
-                  <Chevron up={tableCollapsed} />
-                </button>
               </div>
             </div>
-            {/* Scrollable table. One container owns BOTH axes: if a nested
-                element scrolled horizontally instead, its scrollbar would sit
-                below the full table height — off-screen until the user
-                scrolled to the last row. results-scrollbars keeps the bars
-                visible (macOS overlay scrollbars hide the sideways hint).
-                The panel has a drag-resized height on every breakpoint now, so
-                the body just fills it (flex-1) and scrolls a long ranking. */}
-            {!tableCollapsed && (
-              // `@container` so the empty-state row inside the table can size
-              // itself to what is VISIBLE rather than to the table, which is
-              // far wider whenever the columns overflow. See ResultsTable.
-              <div className="@container overflow-auto min-h-0 results-scrollbars flex-1">
-                <ResultsTable
-                  emptyReason={emptyReason}
-                  results={tableRows}
-                  sortBy={view.sortBy}
-                  sortDesc={view.sortDesc}
-                  // A header click on a ranking metric IS the panel knob, so
-                  // the two cannot mean different things. Only offered when a
-                  // field is held to re-rank.
-                  onRank={
-                    universe !== null
-                      ? (key, desc) => {
-                          setSortBy(key)
-                          setSortDesc(desc)
+            {!resultsCollapsed && (
+              <>
+                {resultsMode !== 'table' && (
+                  <>
+                    {/* The map│chart grip, in Both AND chart-only mode: a
+                        panel shown by itself is still resizable against the
+                        map (#242 review). Only the reserved space differs —
+                        the table's height counts only while it is rendered. */}
+                    <div
+                      onPointerDown={(e) => {
+                        if (isDoublePress('chart', e.timeStamp)) {
+                          if (resultsMode === 'both') setTableHeight(tablePanelPx)
+                          setChartHeight(DEFAULT_CHART_HEIGHT)
+                          return
                         }
-                      : undefined
-                  }
-                  detailSortKey={detailSort.key}
-                  detailSortDir={detailSort.dir}
-                  onDetailSort={(key, dir) => setDetailSort({ key, dir })}
-                  pointSample={pointSample}
-                  fireWarnings={fire.warnings}
-                  pending={pending}
-                  onRemove={handleRemoveResult}
-                  onRemovePending={(d) => searched.removePlace(d.latitude, d.longitude)}
-                  onFocusResult={(row) => mapRef.current?.focusResult(row)}
-                  onToggleChart={chartable ? chart.toggle : undefined}
-                  isCharted={chart.isSelected}
-                  chartColor={chart.colorFor}
-                  onChartRange={chartable ? chart.setRange : undefined}
-                />
-              </div>
+                        const reserved = (resultsMode === 'both' ? tablePanelPx : 0) + bannerPx
+                        if (resultsMode === 'both') setTableHeight(tablePanelPx)
+                        beginResize(e, (up) =>
+                          setChartHeight(
+                            clampPanelHeight(chartPanelPx, up, reserved, window.innerHeight),
+                          ),
+                        )
+                      }}
+                      className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
+                    >
+                      <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
+                    </div>
+                    <div
+                      className="flex min-h-0 flex-shrink-0 flex-col"
+                      style={{ height: `${chartPanelPx}px` }}
+                    >
+                      <div className="min-h-0 flex-1">
+                        <TimeSeriesChart
+                          times={chartTimes}
+                          rows={chart.selectedRows}
+                          metric={chart.metric}
+                          onMetricChange={chart.setMetric}
+                          colorFor={chart.colorFor}
+                        />
+                      </div>
+                      {/* Chart-only legend. In Both mode the table's checkbox
+                          column is the series picker and this would be a
+                          second copy of it, so it exists exactly where that
+                          column does not. Each chip toggles its line; the ×
+                          is the same removal as the table row's and obeys the
+                          same rules (searched places deregister, removals
+                          survive live knobs). Two chip rows at most —
+                          26px chips + the 6px gap = 58px — then it scrolls. */}
+                      {resultsMode === 'chart' && chartCandidates.length > 0 && (
+                        <div className="flex-shrink-0 border-t border-slate-600 bg-slate-900/50 px-3 py-1.5">
+                          <div className="results-scrollbars flex max-h-[58px] flex-wrap gap-1.5 overflow-y-auto">
+                            {chartCandidates.map((row) => {
+                              const plotted = chart.isSelected(row)
+                              return (
+                                <span
+                                  key={`${row.latitude},${row.longitude}`}
+                                  className={`inline-flex max-w-56 items-center ${RADIUS.control} ${
+                                    plotted ? 'bg-slate-700' : 'bg-slate-800/50'
+                                  }`}
+                                >
+                                  <button
+                                    onClick={() => chart.toggle(row)}
+                                    aria-pressed={plotted}
+                                    aria-label={`${plotted ? 'Hide' : 'Show'} ${row.name} on the chart`}
+                                    className={`${TEXT.control} ${FOCUS_RING} inline-flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pl-2 pr-1`}
+                                  >
+                                    <span
+                                      className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : 'opacity-40'}`}
+                                      style={{ backgroundColor: chart.colorFor(row) }}
+                                    />
+                                    <span className={`truncate ${plotted ? '' : 'opacity-50'}`}>
+                                      {row.name}
+                                    </span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleRemoveResult(row)}
+                                    aria-label={`Remove ${row.name}`}
+                                    className={`${ICON_ACTION} ${FOCUS_RING} cursor-pointer py-1 pl-1 pr-2 leading-none`}
+                                  >
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                                      <line x1="18" y1="6" x2="6" y2="18" />
+                                      <line x1="6" y1="6" x2="18" y2="18" />
+                                    </svg>
+                                  </button>
+                                </span>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+                {resultsMode !== 'chart' && (
+                  <>
+                    {/* In Both mode this grip is the chart│table divider and
+                        preserves the pair's sum; alone, there is no chart to
+                        trade with, so it resizes the table against the map
+                        exactly as the chart grip above does. */}
+                    <div
+                      onPointerDown={(e) => {
+                        if (isDoublePress('table', e.timeStamp)) {
+                          if (resultsMode === 'both') setChartHeight(chartPanelPx)
+                          setTableHeight(DEFAULT_TABLE_HEIGHT)
+                          return
+                        }
+                        if (resultsMode === 'both') {
+                          beginResize(e, (up) => {
+                            const next = splitChartTable(chartPanelPx, tablePanelPx, up)
+                            setChartHeight(next.chart)
+                            setTableHeight(next.table)
+                          })
+                        } else {
+                          beginResize(e, (up) =>
+                            setTableHeight(
+                              clampPanelHeight(tablePanelPx, up, bannerPx, window.innerHeight),
+                            ),
+                          )
+                        }
+                      }}
+                      className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
+                    >
+                      <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
+                    </div>
+                    <div className="@container overflow-auto min-h-0 results-scrollbars flex-shrink-0" style={{ height: `${tablePanelPx}px` }}>
+                      <ResultsTable
+                        emptyReason={emptyReason}
+                        results={tableRows}
+                        leavingRowKeys={leavingRowKeys}
+                        sortBy={view.sortBy}
+                        detailSortKey={detailSort.key}
+                        detailSortDir={detailSort.dir}
+                        onDetailSort={(key, dir) => setDetailSort({ key, dir })}
+                        pointSample={pointSample}
+                        columns={tableColumns}
+                        columnWidths={tableColWidths}
+                        onColumnWidthsChange={setTableColWidths}
+                        fireWarnings={fire.warnings}
+                        pending={pending}
+                        onRemove={handleRemoveResult}
+                        onRemovePending={(d) => searched.removePlace(d.latitude, d.longitude)}
+                        onFocusResult={(row) => mapRef.current?.focusResult(row)}
+                        onToggleChart={chart.toggle}
+                        isCharted={chart.isSelected}
+                        chartColor={chart.colorFor}
+                        onChartRange={chart.setRange}
+                      />
+                    </div>
+                  </>
+                )}
+              </>
             )}
           </div>
         )}
 
+        {/* Columns picker popover */}
+        <ColumnsPicker
+          open={columnsOpen}
+          onOpenChange={setColumnsOpen}
+          columns={csvColumns}
+          sortBy={view.sortBy}
+          visibleKeys={effectiveVisibleKeys}
+          onVisibilityChange={setColumnVisibility}
+          triggerRef={columnsButtonRef}
+        />
       </div>
       </div>
     </div>

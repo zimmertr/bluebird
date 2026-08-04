@@ -2,7 +2,7 @@
 
 Bluebird is not a recommendation engine. It does not decide what weather is "good" or "bad." It attaches objective forecast data to geographic features and lets you sort the results however you like. A typical question it answers: it's Thursday, the weekend looks wet across Washington, so which peaks in the North Cascades see the least total precipitation from Saturday morning through Sunday evening?
 
-## Step 1: Destinations
+## Destinations
 
 One analysis ranks a single set of destinations, which you define using one or all of the following methods.
 
@@ -12,7 +12,7 @@ The search box at the top-left of the map recenters on any named place (a peak, 
 
 ### b. Search by Point
 
-The control for this one is the map itself, which is why the panel section carries no widget. Hover it and every selectable feature on the map lights up, the way hovering **Search by Name** rings the search box. Whenever you are not drawing, the peaks and lakes labeled on the map can be picked. Tap or click one for a popup with its name, and its elevation where there is one, then press **Add to analysis**. Picking it again offers **Remove from analysis**.
+The control for this one is the map itself, which is why the panel section carries no widget. Hover it and every selectable feature on the map lights up, the way hovering **Search by name** rings the search box. Whenever you are not drawing, the peaks and lakes labeled on the map can be picked. Tap or click one for a popup with its name, and its elevation where there is one, then press **Add to analysis**. Picking it again offers **Remove from analysis**.
 
 An added feature behaves exactly like a place searched by name: a neutral blue dot until analyzed, saved in the URL, and ranked against everything else on the next Analyze. Its elevation and its link to Peakbagger or OpenStreetMap are filled in during that analysis, by matching the point to the nearest mapped feature the way a pasted coordinate is.
 
@@ -47,7 +47,7 @@ The checkboxes under the buttons control what discovery looks for inside your po
 | Lakes | `natural=water` + `water=lake` (named nodes/ways/relations) | Implemented |
 | Trailheads | `highway=trailhead` (named nodes/ways) | Implemented |
 
-Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. **Include Unnamed Peaks**, in Options, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods below still work on their own, so an analysis of pasted coordinates or clicked destinations needs no polygon and no ticks at all.
+Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. **Include unnamed peaks**, in Options, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods below still work on their own, so an analysis of pasted coordinates or clicked destinations needs no polygon and no ticks at all.
 
 ### d. Search by Coordinates
 
@@ -64,7 +64,7 @@ The format is `Lat,Lon` or `Lat,Lon,Name`, one per line; without a name the coor
 
 You do not need to supply an elevation, and there is nowhere in the format to put one. Each pasted coordinate is matched to the nearest mapped peak and shows that peak's elevation once you analyze, the same figure a polygon search shows for it. A point with no mapped peak beside it stays blank, and a blank elevation is never filtered out by the elevation range, so those rows always ride along. The ready-made lists in [`examples/`](../examples/) are formatted this way.
 
-## Step 2: Forecast
+## Forecast
 
 Which model answers, and over which hours.
 
@@ -95,7 +95,7 @@ A calendar, with a **When** toggle above the grid reading **Current** or **Dates
 - **Current** analyzes the hour you press Analyze. It is the default, so a fresh load can Analyze without touching this step at all.
 - **Pick a day** to analyze that whole day, midnight to 23:59 your local time; that also moves the toggle to **Dates**. Precipitation ranks by the day's total; wind, temperature, and AQI by its average.
 - **Pick a second day** to extend to a range, or **drag across days** to choose one in a single gesture. Dragging either end of an existing range adjusts that end, and picking a day inside a range starts over from that day.
-- **Dates** on the toggle brings back the last range you had, so switching to Current to compare and back does not cost you the range. With no range yet it picks today.
+- **Dates** on the toggle brings back the last range you had, so switching to Current to compare and back does not cost you the range. With no range yet the calendar opens empty — today is outlined, nothing is selected, and Analyze waits until you pick a day (one click for a single day, a second click or a drag for a range).
 - **Hours** appears under **When**, set to **All Day**. Switch it to **Hourly** for part of a day rather than all of it: it opens on the current hour through the end of the day, and runs from the first time on your first day to the second time on your last, as one continuous window. Two equal hours analyze that single hour, which is the finest question you can ask.
 
 Both rows sit above the grid, so the two decisions the window needs are together and neither is below the fold on a short screen. Days in the past are ordinary here: the calendar reaches 55 days back against about 15 forward, which is why the toggle says Dates rather than anything that implies the future.
@@ -114,37 +114,49 @@ Hovering either dimmed step says why, and selecting one past the air-quality hor
 
 Days are your local calendar days, converted to UTC for the API, and the far edge accounts for that: west of Greenwich the last local day's final hour falls on the next UTC date, so the calendar offers one day less there than it does in London. Selecting days in the past is fine and normal. Those hours are recorded conditions rather than a forecast, and a chart covering both marks where one becomes the other.
 
-**The forecast model moves this calendar.** Picking a short-range model above greys out the days it cannot reach, and shortens a window you had already chosen, with a note saying it did. HRRR is the case that matters: it reaches about two days where the global models reach one to two weeks.
+**The forecast model moves this calendar.** Picking a short-range model above greys out the days it cannot reach, and shortens a window you had already chosen, with a note saying it did. The shortening is undoable by construction: switch back to a model that can serve your original window and it returns whole. The remembered window is dropped once you edit the dates yourself or run an analysis. HRRR is the case that matters: it reaches about two days where the global models reach one to two weeks.
 
 The calendar is fully keyboard operable: arrow keys move by day, Page Up and Page Down by month, Enter or Space selects, and Escape abandons a half-made range.
 
-## Step 3: Filters
+## Ranking, filters, and options
 
-Ranking puts the best destinations first. Filters say which ones you would consider at all. The section is one grid: a row per thing you can bound, and a Min and a Max box on each row. Leave a box empty and that side is unbounded.
+Once you have set your destinations and forecast window, three short sections shape the report: **Ranking** picks the order, **Filters** picks who qualifies, and **Options** holds the remaining knobs (max results, unnamed peaks, the wildfire overlay).
 
-| Row | Min | Max |
-|---|---|---|
-| Elevation (ft) | no lower than | no higher than |
-| Precipitation (in) | total over the window is at least | total over the window is at most |
-| Wind (mph) | never drops below | never exceeds |
-| Temperature (°F) | never drops below | never exceeds |
-| AQI | its worst hour is at least | its worst hour is at most |
+### Ranking
 
-Each box carries that sentence as a tooltip, because the grid itself cannot show which of a destination's hours it reads. The wording of that table is the point. **A ceiling is a promise about every hour**, not about an average: a 20 mph wind ceiling excludes a destination that gusts to 45 at noon even if it averages 8, because an average that hides a bad afternoon is not something you can plan around. A floor is the mirror of that and is worth understanding before you reach for one: a 15 mph wind floor asks for somewhere whose *calmest* hour still blows 15, which almost nowhere satisfies, so it empties the table rather than finding you windy places. For elevation, wind and temperature the two columns are exactly the Min and Max columns of the results table. Precipitation is the exception, bounded on its window total in both columns, because a per-hour minimum would read 0.000 almost everywhere and the total is what "Precipitation" means in the Ranking section too.
+Sort destinations by any metric: total precipitation, average wind, average temperature, or average AQI. The table re-ranks every destination in your analyzed area, not just the ones on screen, so the winners really are the extremes of the area. You can also see these four metrics in the table itself and click any of them to re-rank.
 
-**Destinations with an unknown elevation or AQI are included.** Those are the two values that can be missing: many mapped features carry no elevation, and air quality is only forecast about five days out, so a longer window has none at all. A missing number is not evidence of bad conditions, and dropping those rows would quietly empty a report that had simply asked about next week. They ride along, and the table shows a dash where the number would be.
+### Filtering
 
-Four of these five rows apply the instant you type in them, in both directions, because the browser already holds a forecast for every destination it found. **Elevation is the exception**: it decides what gets fetched in the first place, so narrowing it is instant while widening it needs Analyze again, and the panel says so. **Clear filters** empties the whole grid, elevation included.
+Filters say which destinations you would consider at all. Set bounds on elevation, precipitation, wind, temperature, or AQI. The grid has a Min and a Max box on each row; leave a box empty and that side is unbounded.
 
-Everything on screen follows a filter change at once: the table, the map markers, the forecast chart, and the row count in the Forecast Table's header, which reads *12 of 34 matching (91 analyzed)* whenever a filter is hiding something. If nothing matches, the table stays where it is and says so in place of its rows, rather than disappearing as though the search had failed.
+**A ceiling is a promise about every hour**, not an average: a 20 mph wind ceiling excludes a destination that gusts to 45 at noon even if it averages 8. A floor is the opposite: a 15 mph wind floor asks for somewhere whose *calmest* hour still blows 15, which almost nowhere satisfies. For elevation, wind and temperature the bounds are exactly the table's Min and Max columns. Precipitation is bounded on its window total in both columns, because a per-hour minimum would read 0.000 almost everywhere.
 
-## Step 4: Set Max Results
+**Destinations with unknown elevation or AQI are included.** Many peaks carry no elevation in the map data, and air quality is only forecast about five days out. Missing values are not evidence of bad conditions, so those rows ride along and the table shows a dash where the number would be.
+
+Four of the five filters apply the instant you type, since the browser already holds forecasts for every destination it found. **Elevation is the exception:** it decides what gets fetched, so narrowing it is instant while widening it needs Analyze again, and the panel says so.
+
+Everything on screen follows a filter change: the table, the map markers, the chart, and the row count in the header.
+
+### Viewing the results
+
+The results bar at the top of the report gives you three viewing modes. The report opens as a table; a desktop-sized window switches to Both when an analysis completes, and a mode you pick yourself sticks across visits. **Table** is the detailed breakdown you can sort, filter and download. **Chart** is a time series of the plotted destinations. In Both, the table's checkbox column is the series picker; in Chart alone, a legend under the plot lists every destination — click one to hide or show its line, or its × to remove it from the report, and scroll the legend when two rows cannot hold them all. Every destination gets its line color the moment it appears — searched places included, before any analysis — and keeps it for the whole session no matter how the list changes; the first destination of a session wears Bluebird blue. **Both** stacks them. Each view has a drag handle to trade height with the map, and in Both the divider between the two trades their share.
+
+Every column is resizable: drag the divider at a header's right edge, or double-click it to fit the column to its longest value. Name opens wide enough for a 25-character name so more numbers fit on a phone — widen it whenever a longer name is cut off. Widths hold for the session.
+
+**Columns** opens a picker for the columns the table shows. Every column starts on — the table scrolls sideways when it must — and unticking narrows the view for easier comparison. The downloaded CSV always carries every column regardless of what the table displays.
+
+### Max results (in Options)
+
+The default is 200, sized to sit above the 100-row lists people usually paste so a first analysis does not open half-cut. The ceiling is what the running service reports. Raising this number costs nothing upstream: weather is fetched for *every* destination in your area, and the top N by your ranking come back. Lowering it shows you the extremes.
+
+## Analyze
 
 The default is 200, chosen to sit above the 100-row lists people usually paste so a first analysis does not open with half of one cut off; the ceiling is whatever the running service reports as its analysis cap. The Forecast Table's header says how many rows you are seeing out of how many there are. Weather is fetched for *every* named destination in the polygon (after the optional elevation filter), and the top N by the selected ranking come back. There is no sampling, so the winners really are the extremes of the area. Raising this number therefore costs nothing upstream: it widens the view onto work already done. Past the cap on candidates the app asks you to draw a smaller polygon or narrow the elevation range rather than silently truncating. See [Limits](LIMITS.md) for why the caps exist and where to read their current values.
 
 Destinations you name yourself are candidates like any other. A searched place and every row of a pasted CSV are analyzed and then ranked against whatever the polygon found, so combining the two can push some of your own destinations below the cut, where they are simply not listed. Their forecasts were still fetched: raise max results and they appear, already filled in.
 
-## Step 5: Analyze
+## What happens when you analyze
 
 Click **Analyze**. Results appear in a sortable table below the map and as color-coded markers on the map itself.
 
@@ -168,9 +180,7 @@ Click a marker for a popup with rank, precipitation, wind, temperature, and AQI.
 
 Every row carries a **Type** — Peak, Lake, Trailhead, or Custom for one you supplied — because a single polygon can now look for several kinds at once. It travels into the downloaded CSV too, lower-case there, so a file you re-import reads the same value the API uses.
 
-Click any column header to sort by it, ascending or descending. By default the table follows the **Ranking** selection, for example lowest total precipitation for driest-first.
-
-The four columns that are also ranking options (Precipitation · Total, Wind · Avg, Temperature · Avg, AQI · Avg) *are* that selection: clicking one re-ranks every destination in your area and re-picks the top N, and the Ranking control moves to match. So clicking **Wind** gives you the least windy destinations in the area, not the driest ones reordered by wind. The remaining columns are detail rather than ranking, and reorder the rows currently listed.
+Click any column header to sort the rows on screen by it, ascending or descending. That is all a header click does: the ranking, the column order, and the cell shading move only with the **Ranking** control in the panel. By default the table reads in the ranking's order, for example lowest total precipitation for driest-first, and a header click reorders those same rows in place.
 
 Hovering a row reveals a × at its end (always visible on touch screens) that removes the destination from the report — the rows below renumber, and it stays gone as you re-rank, raise the max results, or change any filter, elevation included. Only changing the destinations themselves starts a fresh report where it may return.
 

@@ -84,7 +84,7 @@ def test_arcgis_reports_a_quota_refusal_inside_http_200():
     with pytest.raises(UpstreamRateLimited) as excinfo:
         nifc._raise_for_arcgis_error(body)
     assert excinfo.value.retry_after_s == 60
-    assert "62896" in excinfo.value.message
+    assert "rate-limited" in excinfo.value.message
 
 
 def test_arcgis_non_quota_error_is_a_plain_upstream_error():

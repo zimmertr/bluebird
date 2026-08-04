@@ -8,6 +8,7 @@ import {
   PAST_LIMIT_DAYS,
   addDays,
   addMonths,
+  addOneHour,
   applyDayClick,
   applyDayDrag,
   applyModeSwitch,
@@ -18,6 +19,7 @@ import {
   dayDate,
   dayInMonth,
   dayKey,
+  hasDates,
   dragAnchor,
   inBand,
   isDayKey,
@@ -29,6 +31,7 @@ import {
   monthLabel,
   orderDays,
   selectionLocalWindow,
+  subtractOneHour,
   weekdayInitials,
   windowCaption,
   windowPhrase,
@@ -338,10 +341,32 @@ describe('applyModeSwitch', () => {
     expect(next.kind === 'days' && next.hours).toEqual({ start: '06:00', end: '18:00' })
   })
 
-  it('falls back to today when there is no range to restore', () => {
-    expect(applyModeSwitch('days', DEFAULT_SELECTION, null, NOW, LONG_HOURS)).toEqual(
-      days('2026-07-15', '2026-07-15'),
-    )
+  // No pre-selected today: opening Dates paints nothing as chosen, because
+  // "today" is what Current already provides (#242 review). Analyze blocks on
+  // this state through the dates blocker.
+  it('opens the Dates arm empty when there is no range to restore', () => {
+    expect(applyModeSwitch('days', DEFAULT_SELECTION, null, NOW, LONG_HOURS)).toEqual({
+      kind: 'days',
+      startDate: null,
+      endDate: null,
+    })
+  })
+
+  it('treats the empty Dates arm as unclampable and windowless', () => {
+    const pending = { kind: 'days', startDate: null, endDate: null } as const
+    expect(clampSelection(pending, NOW, LONG_HOURS)).toBeNull()
+    expect(selectionLocalWindow(pending, NOW)).toBeNull()
+    expect(hasDates(pending)).toBe(false)
+  })
+
+  it('selects a single day from the empty Dates arm with one click', () => {
+    const pending = { kind: 'days', startDate: null, endDate: null } as const
+    const first = applyDayClick(pending, null, '2026-07-18')
+    expect(first.selection).toEqual(days('2026-07-18', '2026-07-18'))
+    expect(first.anchor).toBe('2026-07-18')
+    const second = applyDayClick(first.selection, first.anchor, '2026-07-20')
+    expect(second.selection).toEqual(days('2026-07-18', '2026-07-20'))
+    expect(second.anchor).toBeNull()
   })
 
   // The model can change while Now is the live arm, so the remembered range
@@ -517,11 +542,79 @@ describe('picking days', () => {
     expect(dragAnchor(single, '2026-07-15')).toBe('2026-07-15')
     expect(dragAnchor({ kind: 'now' }, '2026-07-15')).toBe('2026-07-15')
   })
+
+  // An overnight span (18:00 to 06:00) is valid on a multi-day range but
+  // impossible on a single day. When a range with overnight hours collapses
+  // to one day, the reversed hours should be dropped entirely.
+  it('drops reversed hours when a range with overnight hours collapses to one day', () => {
+    const rangeWithOvernight: ForecastSelection = {
+      kind: 'days',
+      startDate: '2026-07-15',
+      endDate: '2026-07-19',
+      hours: { start: '18:00', end: '06:00' },
+    }
+    const result = applyDayClick(rangeWithOvernight, null, '2026-07-17')
+    expect(result.selection).toEqual({
+      kind: 'days',
+      startDate: '2026-07-17',
+      endDate: '2026-07-17',
+      // hours dropped because 06:00 <= 18:00 on a single day
+    })
+  })
+
+  it('keeps forward hours when a range collapses to one day', () => {
+    const rangeWithForward: ForecastSelection = {
+      kind: 'days',
+      startDate: '2026-07-15',
+      endDate: '2026-07-19',
+      hours: { start: '06:00', end: '18:00' },
+    }
+    const result = applyDayClick(rangeWithForward, null, '2026-07-17')
+    expect(result.selection).toEqual({
+      kind: 'days',
+      startDate: '2026-07-17',
+      endDate: '2026-07-17',
+      hours: { start: '06:00', end: '18:00' },
+    })
+  })
+
+  it('keeps overnight hours across a multi-day drag', () => {
+    const rangeWithOvernight: ForecastSelection = {
+      kind: 'days',
+      startDate: '2026-07-15',
+      endDate: '2026-07-19',
+      hours: { start: '18:00', end: '06:00' },
+    }
+    expect(applyDayDrag(rangeWithOvernight, '2026-07-16', '2026-07-25')).toEqual({
+      kind: 'days',
+      startDate: '2026-07-16',
+      endDate: '2026-07-25',
+      hours: { start: '18:00', end: '06:00' },
+    })
+  })
+})
+
+describe('hour adjustment helpers', () => {
+  it('adds one hour, clamping at 23:59', () => {
+    expect(addOneHour('06:00')).toBe('07:00')
+    expect(addOneHour('22:00')).toBe('23:00')
+    expect(addOneHour('23:00')).toBe('23:59')
+    expect(addOneHour('23:59')).toBe('23:59')
+    expect(addOneHour('14:30')).toBe('15:30')
+  })
+
+  it('subtracts one hour, clamping at 00:00', () => {
+    expect(subtractOneHour('07:00')).toBe('06:00')
+    expect(subtractOneHour('01:00')).toBe('00:00')
+    expect(subtractOneHour('00:30')).toBe('00:00')
+    expect(subtractOneHour('00:00')).toBe('00:00')
+    expect(subtractOneHour('15:30')).toBe('14:30')
+  })
 })
 
 describe('selectionLocalWindow', () => {
   it('reports the current hour as the same moment twice', () => {
-    const { start, end } = selectionLocalWindow({ kind: 'now' }, NOW)
+    const { start, end } = selectionLocalWindow({ kind: 'now' }, NOW)!
     expect(start).toBe('2026-07-15T12:00')
     expect(end).toBe(start)
   })
@@ -565,7 +658,7 @@ describe('selectionLocalWindow', () => {
     const { start, end } = selectionLocalWindow(
       { kind: 'days', startDate: '2026-07-15', endDate: '2026-07-15' },
       NOW,
-    )
+    )!
     expect(Date.parse(end) - Date.parse(start)).toBe(24 * HOUR - MINUTE)
   })
 
@@ -574,7 +667,7 @@ describe('selectionLocalWindow', () => {
       const { start, end } = selectionLocalWindow(
         { kind: 'days', startDate: date, endDate: date },
         NOW,
-      )
+      )!
       return Date.parse(end) - Date.parse(start)
     }
     expect(span(SPRING_FORWARD)).toBe(23 * HOUR - MINUTE)

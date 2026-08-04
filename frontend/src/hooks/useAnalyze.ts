@@ -18,9 +18,10 @@ import {
   runClientAnalysis,
 } from '../utils/clientAnalyze'
 import { pinKey } from '../utils/customList'
-import { OpenMeteoUnreachable } from '../utils/openMeteo'
+import { OpenMeteoUnreachable, OpenMeteoModelCoverage } from '../utils/openMeteo'
 import { SelectionKind } from '../utils/calendar'
 import { AnalyzedSnapshot } from '../utils/present'
+import type { ForecastModelOption } from './useCapabilities'
 
 export type Progress = {
   processed: number
@@ -117,7 +118,10 @@ function refusalFromFields(message: string, fields: RefusalFields): Refusal {
   }
 }
 
-export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
+export function useAnalyze(
+  maxDestinations: number = MAX_ANALYZE_DESTINATIONS,
+  models: readonly ForecastModelOption[] = [],
+) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [refusal, setRefusal] = useState<Refusal | null>(null)
@@ -514,7 +518,7 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
           e.message,
         )
         setStatusMessage('Retrieving Forecasts…')
-        setStatusDetail('Weather service unreachable from this browser. Retrying through the server.')
+        setStatusDetail('Open-Meteo is unreachable from this browser. Retrying through the server.')
         setProgress(null)
         setPaceEndMs(null)
       }
@@ -531,6 +535,13 @@ export function useAnalyze(maxDestinations: number = MAX_ANALYZE_DESTINATIONS) {
             suggested_min_elevation_ft: e.suggestedMinElevationFt,
             suggested_keeps: e.suggestedKeeps,
           }),
+        )
+      } else if (e instanceof OpenMeteoModelCoverage) {
+        // Compose the message with the model label from the models list
+        const modelLabel =
+          models.find((m) => m.id === e.modelId)?.label ?? e.modelId
+        setError(
+          `${modelLabel} has no forecast coverage for this area. Switch to a different model and try again.`,
         )
       } else {
         setError(e instanceof Error ? e.message : 'Unknown error')

@@ -69,6 +69,27 @@ body,
   animation: indeterminate-slide 1.2s ease-in-out infinite;
 }
 
+/* Row removal animation: fade opacity when a live presentation knob removes rows
+   from the same analysis. 120ms ease-out, gated by prefers-reduced-motion. */
+@keyframes fade-out-removal {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.animate-remove-row {
+  animation: fade-out-removal 120ms ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-remove-row {
+    animation: none;
+  }
+}
+
 /* Results panel scroll container: keep scrollbars rendered whenever content
    overflows. macOS overlay scrollbars vanish until scrolled, so a too-narrow
    window gives no hint the table pans sideways. `scrollbar-color` flips

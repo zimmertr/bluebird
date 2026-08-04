@@ -132,3 +132,18 @@ export function pointModeColumns<T extends { key: string; label: string }>(colum
 export function displayedColumns(pointSample: boolean, sortBy: SortBy): ColDef[] {
   return orderColumns(pointSample ? pointModeColumns(COLUMNS) : COLUMNS, sortBy)
 }
+
+/**
+ * Columns visible on screen, filtered by user visibility choices.
+ * Ranked metric columns are always visible (force-shown). CSV gets the full set.
+ */
+export function visibleColumns(
+  pointSample: boolean,
+  sortBy: SortBy,
+  visibleKeys?: Set<string> | null,
+): ColDef[] {
+  const allCols = orderColumns(pointSample ? pointModeColumns(COLUMNS) : COLUMNS, sortBy)
+  if (!visibleKeys) return allCols
+  const group = new Set(METRIC_CONFIG[sortBy].group)
+  return allCols.filter((c) => visibleKeys.has(c.key) || group.has(c.key))
+}

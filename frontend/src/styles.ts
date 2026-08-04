@@ -65,23 +65,6 @@ export const TEXT = {
   appTitle: 'text-lg font-bold text-white leading-tight',
   /** Named sub-blocks and the labels naming a field. */
   subheading: 'text-xs font-semibold text-slate-200',
-  /**
-   * The name of a docked panel, on its own header bar: "Forecast Chart",
-   * "Forecast Table".
-   *
-   * A weight and a brightness step above `subheading`, which is what the
-   * report's own ranking wears a few pixels to the right ("Highest Avg AQI") —
-   * the two used to be the same role, so a panel's name and its current
-   * contents were identical text and read as one run.
-   *
-   * Deliberately *not* the caps-and-tracking of `section` above, which was
-   * tried and reverted: that idiom belongs to the sidebar's numbered headings,
-   * and on a dense horizontal bar sitting inches from a data table it shouted.
-   * The separation here comes from weight plus the jump to slate-100, the
-   * brightest rung in the ramp, which is what a title can afford and a label
-   * beside it cannot.
-   */
-  panelTitle: 'text-xs font-bold text-slate-100',
   /** Anything you read or type in a control: radio labels, inputs, pickers. */
   control: 'text-xs text-slate-200',
   /** Secondary text: the app tagline, a place's description, a dialog's note. */
@@ -186,8 +169,10 @@ export const RADIUS = {
  * here rather than inferred from whatever each component happened to do.
  *
  * Coarse pointers only, for the reason `touch` exists at all (index.css): the
- * panel is 320px wide at every breakpoint, so a viewport query re-spaces it on
- * a desktop window that never changed size. A mouse keeps today's density.
+ * panel is a near-constant width on every breakpoint (360px docked on desktop,
+ * 100vw − 2rem capped at 360 as the phone drawer), so a viewport query would
+ * re-space it on a desktop window that never changed size. A mouse keeps
+ * today's density.
  *
  * The lesson of #159 was not "no touch sizing" — it was "not one control at a
  * time". A coarse-pointer padding on the ranking rows and nothing else is what
@@ -321,6 +306,16 @@ export const ACCENT = {
 } as const
 
 /**
+ * The visible keyboard-focus indicator for interactive controls.
+ *
+ * Fires only on focus-visible, not on pointer focus, so mouse users see no
+ * change while keyboard users get a clear outline. The outline is 2px with a
+ * 2px offset, and uses sky-400 which comfortably clears the 3:1 boundary
+ * contrast on the slate-800 panel.
+ */
+export const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400'
+
+/**
  * The full-width primary action: Analyze, and the modals' dismiss buttons.
  *
  * It had been written out three times and had drifted into two radii, with the
@@ -344,7 +339,7 @@ export const ACCENT = {
  */
 export const BUTTON_PRIMARY =
   `${TEXT.cta} ${TAP.action} w-full py-2.5 ${RADIUS.surface} transition-colors ` +
-  `${ACCENT.fill} ${ACCENT.fillHover}`
+  `${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING}`
 
 /**
  * The secondary action standing next to something else: Clear under the
@@ -362,7 +357,7 @@ export const BUTTON_PRIMARY =
  */
 export const BUTTON_SECONDARY =
   `${TEXT.control} ${TAP.action} px-3 py-1.5 ${RADIUS.control} transition-colors ` +
-  'bg-slate-700 hover:bg-slate-600'
+  `bg-slate-700 hover:bg-slate-600 ${FOCUS_RING}`
 
 /**
  * The leading action of an inline pair: Done, with Clear beside it, ending the
@@ -382,7 +377,7 @@ export const BUTTON_SECONDARY =
  */
 export const BUTTON_ACCENT =
   `text-xs ${TAP.action} px-3 py-1.5 ${RADIUS.control} transition-colors ` +
-  `${ACCENT.fill} ${ACCENT.fillHover}`
+  `${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING}`
 
 /**
  * A word marking the row it sits in, not a control: "Recommended" on the
@@ -426,8 +421,8 @@ export const BADGE_ACCENT =
  */
 export const BUTTON_DANGER =
   `text-xs ${TAP.action} w-full py-1.5 ${RADIUS.control} font-medium transition-colors ` +
-  'text-red-200 bg-red-900/60 hover:bg-red-800 border border-red-700 ' +
-  'disabled:opacity-40 disabled:cursor-not-allowed'
+  `text-red-200 bg-red-900/60 hover:bg-red-800 border border-red-700 ` +
+  `disabled:opacity-40 disabled:cursor-not-allowed ${FOCUS_RING}`
 
 /**
  * A button floating over the map rather than sitting in a panel: today, the
@@ -440,7 +435,7 @@ export const BUTTON_DANGER =
  */
 export const BUTTON_FLOATING =
   `${SURFACE_FLOATING} ${TEXT.cta} text-white transition-colors ` +
-  `${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-slate-700`
+  `${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-slate-700 ${FOCUS_RING}`
 
 /**
  * The preview-deployment banner, the one surface that is deliberately loud.
@@ -462,7 +457,7 @@ export const BANNER_PREVIEW =
 export const ICON_ACTION = `text-slate-500 ${ACCENT.hoverText}`
 
 /** A bare icon button in a header: the chart and table collapse chevrons. */
-export const ICON_BUTTON = 'px-1 text-slate-400 hover:text-white transition-colors'
+export const ICON_BUTTON = `px-1 text-slate-400 hover:text-white transition-colors ${FOCUS_RING}`
 
 /**
  * A glyph drawn inside a field rather than beside it: the `SELECT` arrow.
@@ -474,6 +469,13 @@ export const ICON_BUTTON = 'px-1 text-slate-400 hover:text-white transition-colo
  */
 export const ICON_ADORNMENT =
   'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400'
+
+/**
+ * Glyph sizing for inline SVG icons paired with text: the results-bar mode
+ * toggle, the columns picker. 16x16 at default density; visible as text width
+ * shrinks below breakpoints.
+ */
+export const ICON = 'h-4 w-4'
 
 /**
  * The indeterminate spinner: the search box while a lookup is in flight.
@@ -581,6 +583,20 @@ export const CONTROL_W = 'w-36'
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 
 /**
+ * A segmented control OUTSIDE the panel's column, sized by its content.
+ *
+ * `SEGMENT` bakes in `CONTROL_W` because the panel's rows must line up on both
+ * edges — but that width is the sidebar's, and a segment that lives elsewhere
+ * inherits a straitjacket instead of an alignment. The results bar's
+ * three-way mode switch shipped clipped for exactly this reason: three
+ * icon-plus-label halves cannot fit in 144px, and `overflow-hidden` (needed to
+ * clip the halves' corners to the radius) cut the third one off silently
+ * rather than visibly. Anything segmented that does not sit in the panel's
+ * control column wears this and takes the width its labels need.
+ */
+export const SEGMENT_FLUID = `inline-flex ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
+
+/**
  * The forecast-bounds grid: a label taking the free space, then a lower and an
  * upper box.
  *
@@ -592,7 +608,7 @@ export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RE
  */
 export const BOUNDS_GRID =
   'grid grid-cols-[minmax(0,1fr)_4.25rem_4.25rem] items-center gap-x-2 gap-y-2'
-export const SEGMENT_ITEM = `${TAP.action} flex-1 px-2 py-0.5 text-xs transition-colors`
+export const SEGMENT_ITEM = `${TAP.action} flex-1 px-2 py-0.5 text-xs transition-colors ${FOCUS_RING}`
 /** Between two halves, never before the first. */
 export const SEGMENT_DIVIDER = 'border-l border-slate-500'
 
@@ -615,7 +631,8 @@ export const SEGMENT_DIVIDER = 'border-l border-slate-500'
  */
 export const CHOICE_ROW =
   `${TEXT.control} ${TAP.row} gap-2.5 cursor-pointer ` +
-  'has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40'
+  `has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40 ` +
+  `has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-sky-400`
 export const CHOICE_INPUT = `${ACCENT.input} flex-shrink-0 cursor-pointer align-middle`
 
 /**
@@ -737,6 +754,28 @@ export const PANEL_RULE =
   '[&>*+*]:mt-4 [&>*+*]:border-t [&>*+*]:border-slate-600/50 [&>*+*]:pt-4'
 
 /**
+ * Step number badge in the welcome modal.
+ *
+ * The badge wears the accent fill with white text; the size and weight are
+ * fixed here so every step reads the same. Layout (the flex row, centering,
+ * margin) stays at the call site. Derived from `ACCENT.fill` rather than
+ * restated so the color cannot drift.
+ */
+export const BADGE_STEP = `${ACCENT.fill} text-xs font-bold`
+
+/**
+ * The unboxed status line.
+ *
+ * Boxed messages (`NOTICE.*`) get their size from the role's own text-xs. Unboxed
+ * status lines that sit alone need their own size, and compose with `STATUS.*`
+ * for color. This lives at text-xs so both paths size to the same step.
+ *
+ * Example use: the "model-changed" cue telling the user that the forecast window
+ * was shortened by a model change.
+ */
+export const CUE = 'text-xs text-center'
+
+/**
  * A bordered region grouping controls inside the panel: today, the calendar.
  *
  * The border is deliberately brighter than anything else in the panel.
@@ -767,6 +806,19 @@ export const PANEL_RULE =
 export const SURFACE_GROUP = `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.surface}`
 
 /**
+ * Cancels a SURFACE_GROUP well's inset so its CONTENTS sit on the panel's
+ * control column: the well grows outward instead of pushing its children in.
+ * Without this, a segmented control inside a well ends 9px left of the same
+ * control outside one — the calendar's Hours row against the When row above
+ * it — and the panel's right edge stops being one line.
+ *
+ * 9px = the 8px of `p-2` the well's call sites use plus the 1px RECESSED_EDGE
+ * border. A well that changes its padding must change this with it;
+ * styles.test.ts pins the sum so the drift is a red test, not a crooked column.
+ */
+export const SURFACE_GROUP_BLEED = '-mx-[9px]'
+
+/**
  * The calendar's day cells.
  *
  * The first three are one ramp, and the thing they encode is **how much of that
@@ -779,7 +831,7 @@ export const SURFACE_GROUP = `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.surface
  *   horizon. Still holds the 4.5:1 floor because the day is clickable content;
  *   dimming it to slate-500's 3.1:1 would put a live date below AA, which is
  *   what #165 spent five PRs undoing.
- * - `unservable` (slate-600, ~2.6:1) — outside what the weather service serves.
+ * - `unservable` (slate-600, ~2.6:1) — outside what Open-Meteo serves.
  *   The one step here deliberately below AA: WCAG 1.4.3 exempts inactive
  *   controls, and a disabled day that read as text would invite the click it
  *   cannot accept.
@@ -804,12 +856,14 @@ export const SURFACE_GROUP = `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.surface
  */
 export const DAY = {
   /**
-   * The cell box itself. Seven columns inside a ~272px card is ~38px wide, and
-   * the drawer is 320px on every phone, so this is the one control in the app
-   * that cannot reach 44 on both axes — the width has nowhere to come from
-   * short of a wider panel, which would cost more than it buys. Height it can
-   * have, and a calendar's mis-taps are overwhelmingly vertical: the columns
-   * are a whole finger apart in meaning (a week) while the rows are a day.
+   * The cell box itself. Seven columns split the calendar card, and the card's
+   * width is the drawer's minus the gutters: at the 360px panel (#238) a phone
+   * drawer is 100vw − 2rem, so a 375px phone yields ~295px of card and ~42px
+   * cells — closer to the 44px target than the old 320px drawer's ~38px, but
+   * still the one control in the app that cannot promise 44 on both axes,
+   * because the width is the phone's to give. Height it can have, and a
+   * calendar's mis-taps are overwhelmingly vertical: the columns are a whole
+   * finger apart in meaning (a week) while the rows are a day.
    */
   cell: 'flex h-9 touch:h-11 items-center justify-center',
   full: 'text-slate-200 hover:bg-slate-700',

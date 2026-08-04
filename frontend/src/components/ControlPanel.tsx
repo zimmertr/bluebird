@@ -20,6 +20,7 @@ import {
   BOUNDS_GRID,
   CHOICE_ROW,
   CONTROL_W,
+  CUE,
   FIELD,
   FIELD_NUMERIC,
   LINK,
@@ -33,7 +34,7 @@ import {
   STATUS,
   TEXT,
 } from '../styles'
-import { AGGREGATE, NOUN, RANKING_KEYS, familyOf, metricLabel } from '../metrics'
+import { AGGREGATE, NOUN, RANKING_KEYS, familyOf, metricLabel, windowAggregate } from '../metrics'
 import { Constraints, hasConstraints } from '../utils/clientAnalyze'
 import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analyzeGate'
 import { DEFAULT_LIMIT, classifyAqiCoverage, clampLimit } from '../utils/urlState'
@@ -41,6 +42,7 @@ import {
   AQI_LIMIT_DAYS,
   ForecastSelection,
   PAST_LIMIT_DAYS,
+  hasDates,
   selectionLocalWindow,
 } from '../utils/calendar'
 import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabilities'
@@ -51,22 +53,22 @@ import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabi
 // visible (and click-sortable) in the results table.
 const SORT_METRICS: { value: SortBy; label: string }[] = RANKING_KEYS.map((value) => ({
   value,
-  label: NOUN[familyOf(value)],
+  label: metricLabel(familyOf(value), windowAggregate(value), ''),
 }))
 
-// Why a knob stopped applying live. Each case leads with the action, because
-// that is what the reader wants first; the sentence after it is the reason the
+// Why a knob stopped applying live. Each case names the reason the
 // controls went quiet, which is the thing this cue exists to not leave unsaid.
 const COMMIT_CUE: Record<
   'server-path' | 'elevation-widened' | 'window-changed' | 'model-changed',
   string
 > = {
-  'elevation-widened': 'Press Analyze to apply. A wider elevation range needs a new search.',
-  'window-changed': 'Press Analyze to apply. A different forecast window needs new forecasts.',
-  'model-changed': 'Press Analyze to apply. A different model gives different forecasts.',
-  // The overlay already announced the fallback itself ("Weather service
-  // unreachable from this browser"), so this only has to name the consequence.
-  'server-path': 'Press Analyze to apply. The server analysis returns only the rows shown.',
+  'elevation-widened': 'A wider elevation range requires a new search.',
+  'window-changed': 'A new forecast window requires a new analysis.',
+  'model-changed': 'A new forecast model requires a new analysis.',
+  // The overlay already announced the fallback itself ("Open-Meteo is unreachable
+  // from this browser"), so this only has to name the consequence.
+  'server-path':
+    'The server analysis holds only the rows shown, so changing controls needs a new analysis.',
 }
 
 // What each Analyze blocker reads as. A function rather than a record because
@@ -80,15 +82,17 @@ const COMMIT_CUE: Record<
 function blockerText(blocker: AnalyzeBlocker, maxAreaKm2: number, pointsNeeded: number): string {
   switch (blocker) {
     case 'area':
-      return `Area too large. Draw a smaller polygon (max ${maxAreaKm2.toLocaleString()} km²).`
+      return `The polygon is too large. The maximum supported size is ${maxAreaKm2.toLocaleString()} km².`
     case 'window':
       return 'Adjust the forecast window to continue.'
+    case 'dates':
+      return 'Select at least one date to analyze.'
     case 'destinations':
       return 'Provide at least one destination to analyze.'
     case 'polygon':
-      return `Add ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon.`
+      return `Add at least ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon to continue.`
     case 'types':
-      return 'Pick what the polygon should find, or add a destination another way.'
+      return 'Select at least one destination type for the polygon search.'
   }
 }
 
@@ -126,7 +130,7 @@ interface Props {
   // control this panel names but does not hold.
   onPointAtSearch: (on: boolean) => void
   // The same idea for the map's clickable peaks and lakes: hovering the
-  // "Specify by Click" section makes them glow, so a method with no control
+  // Search by point section makes them glow, so a method with no control
   // in this panel still has somewhere to point.
   onPointAtMapPois: (on: boolean) => void
   // A set: one polygon can look for several kinds at once, and none checked
@@ -298,6 +302,9 @@ export default function ControlPanel({
   const polygonReady = drawPointCount >= 3 && !areaTooLarge && destinationTypes.length > 0
   const gate = {
     hasWindowWarning: windowWarning !== null,
+    // The Dates arm is live with no day picked yet (#242 review): there is no
+    // window to analyze, and the blocker says so.
+    datesPending: selection.kind === 'days' && !hasDates(selection),
     loading,
     areaTooLarge,
     polygonReady,
@@ -312,9 +319,12 @@ export default function ControlPanel({
   // explains the mark once a selection actually crosses it.
   const window = selectionLocalWindow(selection, new Date())
   // Informational only — never blocks Analyze. AQI simply degrades to "—". The
-  // current hour is always inside the ~5-day horizon.
+  // current hour is always inside the ~5-day horizon, and a dateless Dates arm
+  // has no window to warn about.
   const aqiCoverage =
-    selection.kind === 'now' ? 'full' : classifyAqiCoverage(window.start, window.end, new Date())
+    selection.kind === 'now' || window === null
+      ? 'full'
+      : classifyAqiCoverage(window.start, window.end, new Date())
 
   const pointsNeeded = Math.max(0, 3 - drawPointCount)
 
@@ -418,11 +428,11 @@ export default function ControlPanel({
         // the gutter between two steps rather than tucked under the one above.
         className={`flex-1 overflow-y-auto px-4 py-4 ${PANEL_RULE}`}
       >
-        {/* Step 1: Destinations — one list, defined via any of three methods
+        {/* Destinations — one list, defined via any of three methods
             that union into a single ranked report */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
-            1. Destinations
+            Destinations
           </h2>
 
           {/* a. Search by name — the only method whose control is not in this
@@ -435,43 +445,41 @@ export default function ControlPanel({
             onMouseEnter={() => onPointAtSearch(true)}
             onMouseLeave={() => onPointAtSearch(false)}
           >
-            <h3 className={`${TEXT.subheading} mb-1`}>Search by Name</h3>
-            <p className={TEXT.helper}>
-              Search for a destination by name.
-            </p>
+            <h3 className={`${TEXT.subheading} mb-1`}>Search by name</h3>
+            <p className={TEXT.helper}>Search for a destination by name.</p>
           </div>
 
-          {/* b. Search by click — the second method whose control is not in
+          {/* b. Search by point — the second method whose control is not in
               this panel. Hovering it lights every clickable feature on the
-              map, the same trick the Search by Name section uses to point at
+              map, the same trick the Search by name section uses to point at
               the search box: the reader is shown where it is instead of told. */}
           <div
             className="mb-3"
             onMouseEnter={() => onPointAtMapPois(true)}
             onMouseLeave={() => onPointAtMapPois(false)}
           >
-            <h3 className={`${TEXT.subheading} mb-1`}>Search by Point</h3>
+            <h3 className={`${TEXT.subheading} mb-1`}>Search by point</h3>
             <p className={TEXT.helper}>Select a destination from the map.</p>
           </div>
 
           {/* c. Search by polygon */}
           <div className="mb-3">
-            <h3 className={`${TEXT.subheading} mb-1`}>Search by Polygon</h3>
+            <h3 className={`${TEXT.subheading} mb-1`}>Search by polygon</h3>
             <p className={`${TEXT.helper} mb-1.5`}>
               Search for destinations by drawing a polygon.
             </p>
             {drawPointCount > 0 && (
-              <div className="text-xs text-slate-300 space-y-0.5 mb-2">
+              <div className={`${TEXT.caption} space-y-0.5 mb-2`}>
                 {/* Only while drawing does the status name a gesture: outside
                     the mode the handles are gone and none of them apply. */}
                 {drawing && pointsNeeded > 0 ? (
                   <p className={STATUS.info}>
                     {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed,{' '}
-                    {pointsNeeded} more needed. Click a point to remove it.
+                    {pointsNeeded} more needed.
                   </p>
                 ) : drawing ? (
                   <p className={`${STATUS.ok} font-medium`}>
-                    {drawPointCount} points placed. Drag points to adjust, or press Done.
+                    {drawPointCount} points placed. Press Done when ready.
                   </p>
                 ) : (
                   <p className={pointsNeeded > 0 ? STATUS.info : `${STATUS.ok} font-medium`}>
@@ -480,7 +488,7 @@ export default function ControlPanel({
                   </p>
                 )}
                 {polygonAreaKm2 !== null && (
-                  <p className={areaTooLarge ? STATUS.error : 'text-slate-400'}>
+                  <p className={areaTooLarge ? STATUS.error : TEXT.caption}>
                     ~{Math.round(polygonAreaKm2).toLocaleString()} km²
                     {areaTooLarge && ` (max ${maxAreaKm2.toLocaleString()} km²)`}
                   </p>
@@ -489,8 +497,7 @@ export default function ControlPanel({
                   polygonAreaKm2 > AREA_NOTE_KM2 &&
                   !areaTooLarge && (
                     <p className={STATUS.warn}>
-                      Large area: dense regions this size can exceed the
-                      destination limit, and searches take longer.
+                      Large polygon areas may be slow and hit limits.
                     </p>
                   )}
               </div>
@@ -502,12 +509,19 @@ export default function ControlPanel({
                 leave (Enter and Escape do the same on the map). */}
             <div className="flex flex-wrap gap-2">
               {drawing ? (
-                <button onClick={onFinishDrawing} className={BUTTON_ACCENT}>
+                // Disabled until the ring is a polygon: with two points there
+                // is nothing to be done WITH, and every path out of draw mode
+                // (this button, Enter on the map) shares the 3-point floor.
+                <button
+                  onClick={onFinishDrawing}
+                  disabled={drawPointCount < 3}
+                  className={`${BUTTON_ACCENT} disabled:opacity-40 disabled:cursor-not-allowed`}
+                >
                   Done
                 </button>
               ) : (
                 <button onClick={onStartDrawing} className={BUTTON_SECONDARY}>
-                  {drawPointCount > 0 ? 'Edit Polygon' : 'Draw Polygon'}
+                  {drawPointCount > 0 ? 'Edit polygon' : 'Draw polygon'}
                 </button>
               )}
               {drawPointCount > 0 && (
@@ -551,7 +565,7 @@ export default function ControlPanel({
               no map gesture at all — the three above are things you do to the
               map, and this is a list you bring to it. */}
           <div>
-            <h3 className={`${TEXT.subheading} mb-1`}>Search by Coordinates</h3>
+            <h3 className={`${TEXT.subheading} mb-1`}>Search by coordinates</h3>
             <p className={`${TEXT.helper} mb-1.5`}>
               Specify exact destinations using coordinate pairs.
             </p>
@@ -585,13 +599,13 @@ export default function ControlPanel({
 
         </section>
 
-        {/* Step 2: which model answers, and over which hours. One calendar,
+        {/* which model answers, and over which hours. One calendar,
             replacing the three mutually exclusive modes and their four
             date/time pairs (#166); the model above it bounds how far the
             calendar reaches. */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
-            2. Forecast
+            Forecast
           </h2>
 
           {/* Above the calendar rather than in Options, because it bounds the
@@ -636,8 +650,7 @@ export default function ControlPanel({
           </div>
           {modelClamped && (
             <p className={`mb-3 ${STATUS.warn} ${NOTICE.warn}`}>
-              {modelLabel} does not forecast that far ahead. The window was
-              shortened to what it covers.
+              {modelLabel} shortened the window.
             </p>
           )}
 
@@ -650,10 +663,10 @@ export default function ControlPanel({
           {windowWarning && (
             <p className={`mt-2 ${STATUS.warn} ${NOTICE.warn}`}>
               {windowWarning === 'order'
-                ? 'The narrowed hours end before they start. Adjust them to run an analysis.'
+                ? 'The narrowed hours end before they start.'
                 : windowWarning === 'past'
-                ? `This window starts before the ${PAST_LIMIT_DAYS}-day history limit. Pick days inside the calendar's range to run an analysis.`
-                : `This window extends beyond what ${modelLabel} forecasts. Pick days inside the calendar's range to run an analysis.`}
+                ? `Forecast range starts before the ${PAST_LIMIT_DAYS}-day limit.`
+                : `${modelLabel} does not reach that far.`}
             </p>
           )}
           {/* One sentence for both the partial and the fully-past-horizon case.
@@ -670,12 +683,12 @@ export default function ControlPanel({
           )}
         </section>
 
-        {/* Step 3: Rank by — metric radio + Lowest/Highest toggle per row. The
+        {/* Ranking — metric radio + Lowest/Highest toggle per row. The
             toggle stays clickable on inactive rows so any ranking is one click;
             selecting a metric via its radio keeps the current direction. */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
-            3. Ranking
+            Ranking
           </h2>
           <div className="space-y-1.5">
             {SORT_METRICS.map((metric) => {
@@ -725,14 +738,15 @@ export default function ControlPanel({
           </div>
         </section>
 
-        {/* Step 4: what to keep. One grid, two columns of bounds, one row per
-            thing that can be bounded — the same order as the Ranking section
-            above, so the two scan alike. */}
-        <section>
-          <h2 className={`${TEXT.section} mb-1`}>
-            4. Filters
+        {/* Filters — one grid, two columns of bounds, one row per thing that
+            can be bounded, in the same order as the Ranking section above so
+            the two scan alike. data-filter-section is the anchor the results
+            bar's Filters chip scrolls to. */}
+        <section data-filter-section>
+          <h2 className={`${TEXT.section} mb-2.5`}>
+            Filters
           </h2>
-                    <div className={BOUNDS_GRID}>
+          <div className={BOUNDS_GRID}>
             {filterRows.map((row) => (
               <Fragment key={row.id}>
                 <label htmlFor={`${row.id}-lower`} className={TEXT.control}>
@@ -745,7 +759,6 @@ export default function ControlPanel({
                     type="number"
                     step={row.step}
                     placeholder={placeholder}
-                    title={row.hint[i]}
                     aria-label={`${row.label} ${placeholder}. ${row.hint[i]}`}
                     value={row[edge][0] ?? ''}
                     onChange={(e) =>
@@ -772,10 +785,12 @@ export default function ControlPanel({
           )}
         </section>
 
-        {/* Step 5: Additional options — result count and map overlays */}
+        {/* Options — the knobs that shape a search without being one of its
+            inputs: how many rows to show, whether discovery counts unnamed
+            summits, and the wildfire overlay. */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
-            5. Options
+            Options
           </h2>
           <div className="space-y-4">
             {/* Result-count cap. The ceiling is the live analysis cap from
@@ -804,33 +819,28 @@ export default function ControlPanel({
               />
             </div>
 
-            {/* Unnamed peaks — a polygon-discovery knob, so it sits with the
-                other things that change what an analysis costs rather than
-                with the map overlay below it. */}
-            <div>
-              <label className={CHOICE_ROW}>
-                <input
-                  type="checkbox"
-                  checked={includeUnnamedPeaks}
-                  onChange={(e) => setIncludeUnnamedPeaks(e.target.checked)}
-                  className={CHOICE_INPUT}
-                />
-                <span>Include Unnamed Peaks in Polygon Results</span>
-              </label>
-            </div>
+            {/* Unnamed peaks — a polygon-discovery knob; off by default
+                because it roughly triples the candidate count. */}
+            <label className={CHOICE_ROW}>
+              <input
+                type="checkbox"
+                checked={includeUnnamedPeaks}
+                onChange={(e) => setIncludeUnnamedPeaks(e.target.checked)}
+                className={CHOICE_INPUT}
+              />
+              <span>Include unnamed peaks</span>
+            </label>
 
             {/* Show wildfires — live NIFC perimeter overlay, off by default */}
-            <div>
-              <label className={CHOICE_ROW}>
-                <input
-                  type="checkbox"
-                  checked={showWildfires}
-                  onChange={(e) => setShowWildfires(e.target.checked)}
-                  className={CHOICE_INPUT}
-                />
-                <span>Show Wildfires</span>
-              </label>
-            </div>
+            <label className={CHOICE_ROW}>
+              <input
+                type="checkbox"
+                checked={showWildfires}
+                onChange={(e) => setShowWildfires(e.target.checked)}
+                className={CHOICE_INPUT}
+              />
+              <span>Show wildfires</span>
+            </label>
           </div>
         </section>
       </div>
@@ -846,20 +856,23 @@ export default function ControlPanel({
         </button>
 
         {commitReason && !loading && (
-          <p className={`text-xs ${STATUS.warn} text-center`}>{COMMIT_CUE[commitReason]}</p>
+          <p className={`${CUE} ${STATUS.warn}`}>{COMMIT_CUE[commitReason]}</p>
         )}
 
-        {/* Every reason Analyze is disabled, one box each, rather than the
-            first reason as italic subtext. Two changes in one: the reasons
-            stack (a chain showed one, so fixing it revealed a second that had
-            been true all along), and each wears the same amber box the panel's
-            other bad news does, because "the app will not do the thing you
-            asked" is a warning and was being typeset as a footnote. */}
-        {blockers.map((blocker) => (
-          <p key={blocker} className={`${STATUS.warn} ${NOTICE.warn}`}>
-            {blockerText(blocker, maxAreaKm2, pointsNeeded)}
-          </p>
-        ))}
+        {/* Every reason Analyze is disabled, in one box. The reasons stack
+            (a chain showed one, so fixing it revealed a second that had been
+            true all along), and the whole box wears the same amber styling
+            the panel's other bad news does, because "the app will not do the
+            thing you asked" is a warning and was being typeset as footnotes. */}
+        {blockers.length > 0 && (
+          <div className={`${NOTICE.warn} space-y-2`} role="status">
+            {blockers.map((blocker) => (
+              <p key={blocker} className={STATUS.warn}>
+                {blockerText(blocker, maxAreaKm2, pointsNeeded)}
+              </p>
+            ))}
+          </div>
+        )}
 
         {refusal && !loading && (
           <div className={`${NOTICE.warn} space-y-2`}>
@@ -890,8 +903,7 @@ export default function ControlPanel({
             check is missing. */}
         {wildfireCheckFailed && !loading && (
           <p className={`${STATUS.warn} ${NOTICE.warn}`}>
-            NIFC could not be reached to provide wildfire data so no proximity information is
-            available.
+            NIFC is unreachable, so wildfire proximity data is unavailable.
           </p>
         )}
 
@@ -911,8 +923,8 @@ export default function ControlPanel({
             view of it. */}
         {resultCount !== undefined && !loading && !error && !refusal &&
           aqiAllNull && aqiCoverage !== 'none' && (
-            <p className="text-xs text-slate-400 text-center">
-              Air quality data unavailable for this forecast window.
+            <p className={`${CUE} ${TEXT.caption}`}>
+              {NOUN.aqi} data is not available for this forecast window.
             </p>
           )}
 

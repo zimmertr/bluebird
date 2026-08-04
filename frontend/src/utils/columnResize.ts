@@ -1,0 +1,75 @@
+// Column-width arithmetic for the results table (#242 review).
+//
+// The DOM work — measuring headers, tracking a drag, reading a column's
+// cells — stays in ResultsTable; everything that decides a NUMBER lives here,
+// because Vitest runs with no DOM and logic left in the component is
+// untestable by construction (the listbox/calendar split, applied again).
+//
+// The width model: `columnWidths` holds only columns someone has decided —
+// a drag, a double-click auto-fit, or the automatic Name narrowing below.
+// A column absent from the map keeps its natural auto-layout width, so the
+// table never needs a seeding pass over every column.
+
+/**
+ * The floor a drag or an auto-fit can reach. Below ~3ch a numeric column
+ * shows nothing but its ellipsis, which reads as data loss rather than a
+ * narrow column; 48px also keeps the resize handle itself grabbable.
+ */
+export const MIN_COL_PX = 48
+
+/** The ceiling: past this a runaway drag just costs scroll distance. */
+export const MAX_COL_PX = 640
+
+export function clampColWidth(px: number): number {
+  return Math.max(MIN_COL_PX, Math.min(Math.round(px), MAX_COL_PX))
+}
+
+/** A drag in progress: the width it started from plus the pointer's travel. */
+export function dragWidth(startPx: number, dxPx: number): number {
+  return clampColWidth(startPx + dxPx)
+}
+
+/**
+ * The auto-fit floor, deliberately far below MIN_COL_PX: fit means "the
+ * longest cell, exactly", and clamping it to anything above real content
+ * makes a first double-click WIDEN a short column (Type, the collapsed
+ * point-sample AQI header at ~21px). The drag floor guards a gesture
+ * overshooting into nothing; a fit cannot overshoot — its result is never
+ * below the column's own min-content, which the table enforces anyway — so
+ * this floor exists only for the degenerate all-empty column, where a 0px
+ * wrapper would leave nothing but cell padding to grab.
+ */
+export const FIT_MIN_PX = 16
+
+/**
+ * Double-click auto-fit: wide enough for the longest cell, and no wider.
+ *
+ * Inputs are the FRACTIONAL content widths of every cell in the column,
+ * header included (getBoundingClientRect, not the integer scroll metrics).
+ * Ceiling rather than a pad: the width only has to clear the true content
+ * width for the ellipsis never to fire, and any fixed pad made the first
+ * double-click visibly widen a column whose header was already its longest
+ * content — fit must be idempotent from the natural width onward.
+ */
+export function autoFitWidth(contentWidths: readonly number[]): number {
+  // A tenth-pixel ceiling, not a whole one: the natural column sits at a
+  // fractional width, so ceiling to integers let every first fit grow the
+  // column by up to a pixel. A tenth still clears the true content width,
+  // so the ellipsis cannot fire on an engine that rounds the wrapper.
+  const need = Math.ceil(Math.max(0, ...contentWidths) * 10) / 10
+  return Math.max(FIT_MIN_PX, Math.min(need, MAX_COL_PX))
+}
+
+/**
+ * The Name column's opening width: room for 25 characters of name.
+ *
+ * A static constant, not a fraction of the rendered width — measuring "75%
+ * of natural" at first content sized the column off whatever short name
+ * happened to arrive first ("Issaquah" → a 60px column showing four
+ * letters). Measured 2026-08-04 in Chrome on macOS at the name cell's face
+ * (500-weight 12px system sans): typical 25-character names run 156-162px
+ * ("Observation Rock Peak XYZ" is the widest at 161.4), plus the 14px
+ * external-link icon, its 6px gap, and a couple of pixels of slack.
+ * Re-measure if the table's type ramp or the name cell's adornments change.
+ */
+export const NAME_DEFAULT_PX = 184

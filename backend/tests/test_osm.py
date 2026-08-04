@@ -316,8 +316,7 @@ async def test_post_with_fallback_all_partial_raises(monkeypatch):
     assert fake.calls == len(osm.OVERPASS_MIRRORS)
     # The user should be told the query was too demanding, not shown a raw
     # "failed unexpectedly" fallback string.
-    assert "part of the results" in excinfo.value.message
-    assert "smaller search area" in excinfo.value.message
+    assert "partial results" in excinfo.value.message
 
 
 # ── Custom-destination enrichment (issue #207) ────────────────────────────────

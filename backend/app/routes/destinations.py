@@ -141,8 +141,9 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse:
             )
         except UpstreamError as e:
             raise HTTPException(status_code=502, detail=e.message)
-        except Exception as e:  # noqa: BLE001 — any OSM failure maps to a 502
-            raise HTTPException(status_code=502, detail=f"OSM query failed: {e}")
+        except Exception:
+            log.exception("Destination search failed")
+            raise HTTPException(status_code=502, detail="OpenStreetMap is not available. Try again later.")
 
     # Resolved before the band filter, so an elevation the caller never knew
     # is one the band can actually act on.

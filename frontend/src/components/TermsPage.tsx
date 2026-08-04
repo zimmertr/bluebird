@@ -16,13 +16,13 @@ import { SUPPORT_EMAIL } from '../utils/contact'
 // Bluebird trips behind them are the least likely to have seen it recently.
 export default function TermsPage() {
   return (
-    <PageShell title="Terms" subtitle="The terms of using Bluebird Forecast">
+    <PageShell heading="Terms" subtitle="The terms of using Bluebird Forecast">
       <p className={PROSE.body}>
         Bluebird Forecast is a free tool for finding good weather windows in the mountains.
         Using it means accepting what is on this page.
       </p>
 
-      <Section id="license" title="License">
+      <Section id="license" heading="License">
         <p className={PROSE.body}>
           Bluebird is free to use. Its source is public but it is not open source: it is
           licensed under the{' '}
@@ -43,7 +43,7 @@ export default function TermsPage() {
         </p>
       </Section>
 
-      <Section id="warranty" title="No warranty">
+      <Section id="warranty" heading="No warranty">
         <p className={PROSE.body}>
           Bluebird comes with no warranty of any kind. Forecasts are automated estimates from
           third-party models, the destination data is community-maintained, and neither is
@@ -51,7 +51,7 @@ export default function TermsPage() {
         </p>
       </Section>
 
-      <Section id="availability" title="Availability and fair use">
+      <Section id="availability" heading="Availability and fair use">
         <div className={`${PROSE.body} space-y-3`}>
           <p>
             There is no uptime commitment. Bluebird runs on the free tiers of services that
@@ -70,13 +70,13 @@ export default function TermsPage() {
         </div>
       </Section>
 
-      <Section id="safety" title="Safety">
+      <Section id="safety" heading="Safety">
         <p className={PROSE.body}>
           <SafetyNotice />
         </p>
       </Section>
 
-      <Section id="data" title="Data licenses">
+      <Section id="data" heading="Data licenses">
         <p className={`${PROSE.body} mb-3`}>
           Bluebird produces none of this data. It queries these providers, ranks what comes
           back, and shows you the result. Each provider's own license governs its data, and
@@ -85,7 +85,7 @@ export default function TermsPage() {
         <DataSourceList />
       </Section>
 
-      <Section id="contact" title="Contact">
+      <Section id="contact" heading="Contact">
         <ContactBody />
       </Section>
 

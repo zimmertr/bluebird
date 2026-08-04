@@ -62,9 +62,12 @@ export function capDetail(
   hasCustom: boolean,
   suggestion?: { floorFt: number; keeps: number } | null,
   cap: number = MAX_ANALYZE_DESTINATIONS,
+  hasUnnamedPeaks: boolean = false,
 ): string {
   const advice =
-    hasPolygon && hasCustom
+    hasPolygon && hasUnnamedPeaks
+      ? 'Draw a smaller polygon, narrow the elevation range, or turn off unnamed peaks.'
+      : hasPolygon && hasCustom
       ? 'Draw a smaller polygon, narrow the elevation range, or trim the custom list.'
       : hasPolygon
       ? 'Draw a smaller polygon or narrow the elevation range.'
@@ -495,6 +498,7 @@ export async function runClientAnalysis(
           Boolean(request.custom_destinations?.length),
           suggestion,
           cap,
+          Boolean(request.include_unnamed_peaks),
         ),
         candidates.length,
         cap,

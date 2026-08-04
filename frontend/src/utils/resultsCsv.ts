@@ -1,11 +1,12 @@
 // The results table as a file (#125).
 //
-// Nothing here fetches or re-derives: the caller hands over the rows already in
-// display order and the columns already resolved for the analysis mode, and
-// this turns them into text. That split is deliberate. What the table shows is
-// answered in exactly one place (App.tsx, from present.ts and tableColumns.ts),
-// and a formatter that recomputed any part of it would be a second answer that
-// could disagree with the screen.
+// The file always carries the full column set from the mode (point sample or
+// window); the screen narrows via the column visibility picker. Nothing here
+// fetches or re-derives: the caller hands over the rows already in display
+// order and the columns for the file (the full analyzed set), and this turns
+// them into text. That split is deliberate. What the table shows and what the
+// file carries are answered in exactly one place (App.tsx), and a formatter
+// that recomputed either would be a second answer that could disagree.
 //
 // It is also deliberately DOM-free. Vitest runs this repo in the node
 // environment with no jsdom, so a module reaching for Blob or document could
@@ -110,15 +111,27 @@ export function buildResultsCsv(
   rows: readonly DestinationResult[],
   columns: readonly ColDef[],
   fireWarnings: ReadonlyMap<string, FireWarning> | null,
+  pendingRows: readonly DestinationResult[] = [],
 ): string {
   const header = [RANK_HEADER, ...columns.map((c) => c.label)]
   if (fireWarnings) header.push(FIRE_HEADER)
+  // Pending rows first with an empty Rank, mirroring the table, which draws
+  // un-analyzed destinations above the ranked ones with "—" in the # column.
+  // Empty rather than a dash for the same reason null metrics become empty
+  // cells: a spreadsheet reads blank as "no value" and text as data.
+  const pendingBody = pendingRows.map((row) => {
+    const cells = ['', ...columns.map((c) => cell(row, c))]
+    if (fireWarnings) cells.push('')
+    return cells
+  })
   const body = rows.map((row, i) => {
     const cells = [String(i + 1), ...columns.map((c) => cell(row, c))]
     if (fireWarnings) cells.push(fireCell(row, fireWarnings))
     return cells
   })
-  return BOM + [header, ...body].map((r) => r.map(escapeCell).join(',')).join(CRLF) + CRLF
+  return (
+    BOM + [header, ...pendingBody, ...body].map((r) => r.map(escapeCell).join(',')).join(CRLF) + CRLF
+  )
 }
 
 /**
