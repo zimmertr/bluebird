@@ -111,15 +111,27 @@ export function buildResultsCsv(
   rows: readonly DestinationResult[],
   columns: readonly ColDef[],
   fireWarnings: ReadonlyMap<string, FireWarning> | null,
+  pendingRows: readonly DestinationResult[] = [],
 ): string {
   const header = [RANK_HEADER, ...columns.map((c) => c.label)]
   if (fireWarnings) header.push(FIRE_HEADER)
+  // Pending rows first with an empty Rank, mirroring the table, which draws
+  // un-analyzed destinations above the ranked ones with "—" in the # column.
+  // Empty rather than a dash for the same reason null metrics become empty
+  // cells: a spreadsheet reads blank as "no value" and text as data.
+  const pendingBody = pendingRows.map((row) => {
+    const cells = ['', ...columns.map((c) => cell(row, c))]
+    if (fireWarnings) cells.push('')
+    return cells
+  })
   const body = rows.map((row, i) => {
     const cells = [String(i + 1), ...columns.map((c) => cell(row, c))]
     if (fireWarnings) cells.push(fireCell(row, fireWarnings))
     return cells
   })
-  return BOM + [header, ...body].map((r) => r.map(escapeCell).join(',')).join(CRLF) + CRLF
+  return (
+    BOM + [header, ...pendingBody, ...body].map((r) => r.map(escapeCell).join(',')).join(CRLF) + CRLF
+  )
 }
 
 /**

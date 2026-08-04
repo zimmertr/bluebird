@@ -1115,6 +1115,19 @@ export default function App() {
       tableRows,
       csvColumns,
       fire.status === 'ready' ? fire.warnings : null,
+      // The table draws pending (un-analyzed) rows above the ranked ones, so
+      // the file carries them too — identity columns filled, Rank and every
+      // metric blank. Before the first analysis this is the whole file.
+      pending.map(
+        (d) =>
+          ({
+            name: d.name,
+            type: d.kind ?? 'custom',
+            elevation_ft: d.elevation_ft ?? null,
+            latitude: d.latitude,
+            longitude: d.longitude,
+          }) as DestinationResult,
+      ),
     )
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a')
@@ -1152,7 +1165,11 @@ export default function App() {
   const viewportH = useViewportHeight()
   // Determine which panels are visible based on resultsMode and resultsCollapsed.
   const chartShowing = !resultsCollapsed && (resultsMode === 'chart' || resultsMode === 'both')
-  const tableShowing = !resultsCollapsed && (resultsMode === 'table' || resultsMode === 'both')
+  // In Chart mode the table still shows when there is no chart to yield to
+  // (pending rows before the first analysis) — the render below and this
+  // height derivation must agree, or the table draws into a 0px band.
+  const tableShowing =
+    !resultsCollapsed && (resultsMode === 'table' || resultsMode === 'both' || !chartShown)
   const { chart: chartPanelPx, table: tablePanelPx } = resolvePanelHeights(
     chartHeight,
     tableHeight,
@@ -1482,11 +1499,15 @@ export default function App() {
             <div className={`@container flex-shrink-0 px-3 py-1.5 bg-slate-700 border-b border-slate-600`}>
               <div className="flex flex-col gap-1 @4xl:flex-row @4xl:items-center @4xl:gap-2">
                 <div className="flex min-w-0 flex-1 items-baseline gap-2">
-                  {rowCount !== null && (
-                    <span className={`${TEXT.subheading} min-w-0 truncate`}>
-                      {`${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, pointSample)} (${rowCount})`}
-                    </span>
-                  )}
+                  {/* Before the first analysis the rows on show are pending
+                      destinations, and titling them with the ranking would
+                      claim an ordering nothing has computed yet — so the
+                      title says what the table actually holds. */}
+                  <span className={`${TEXT.subheading} min-w-0 truncate`}>
+                    {rowCount !== null
+                      ? `${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, pointSample)} (${rowCount})`
+                      : `Awaiting analysis (${pending.length})`}
+                  </span>
                   {windowTitle !== null && (
                     <span className={`${TEXT.caption} truncate`}>
                       {windowTitle}
@@ -1551,8 +1572,11 @@ export default function App() {
                       </button>
                     </div>
                   )}
-                  {/* Columns button opens picker popover */}
-                  {showTable && results.length > 0 && (
+                  {/* Columns button opens picker popover. Present from the
+                      first pending row, not only once a report exists: the
+                      bar keeping its full membership is what makes it read
+                      as one control surface (#242 review). */}
+                  {showTable && (
                     <button
                       ref={columnsButtonRef}
                       onClick={() => setColumnsOpen(!columnsOpen)}
@@ -1574,7 +1598,7 @@ export default function App() {
                       Filters
                     </button>
                   )}
-                  {results.length > 0 && (
+                  {(results.length > 0 || pending.length > 0) && (
                     <button
                       onClick={handleDownloadCsv}
                       aria-label="Download these results as a CSV file"
@@ -1639,7 +1663,10 @@ export default function App() {
                     </div>
                   </>
                 )}
-                {showTable && resultsMode !== 'chart' && (
+                {/* In Chart mode the table yields — unless there is no chart
+                    to yield to (pending rows before the first analysis),
+                    where honoring the mode would blank the whole area. */}
+                {showTable && (resultsMode !== 'chart' || !chartShown) && (
                   <>
                     {/* In Both mode this grip is the chart│table divider and
                         preserves the pair's sum; alone, there is no chart to
