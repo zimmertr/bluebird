@@ -792,6 +792,19 @@ export const CUE = 'text-xs text-center'
 export const SURFACE_GROUP = `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.surface}`
 
 /**
+ * Cancels a SURFACE_GROUP well's inset so its CONTENTS sit on the panel's
+ * control column: the well grows outward instead of pushing its children in.
+ * Without this, a segmented control inside a well ends 9px left of the same
+ * control outside one — the calendar's Hours row against the When row above
+ * it — and the panel's right edge stops being one line.
+ *
+ * 9px = the 8px of `p-2` the well's call sites use plus the 1px RECESSED_EDGE
+ * border. A well that changes its padding must change this with it;
+ * styles.test.ts pins the sum so the drift is a red test, not a crooked column.
+ */
+export const SURFACE_GROUP_BLEED = '-mx-[9px]'
+
+/**
  * The calendar's day cells.
  *
  * The first three are one ramp, and the thing they encode is **how much of that

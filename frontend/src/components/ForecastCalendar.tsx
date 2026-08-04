@@ -35,6 +35,7 @@ import {
   SEGMENT_IDLE,
   SEGMENT_ITEM,
   SURFACE_GROUP,
+  SURFACE_GROUP_BLEED,
   TEXT,
 } from '../styles'
 
@@ -289,7 +290,7 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
           got eight points into a review without finding it at all, back when it
           was a collapsed disclosure. */}
       {revealsGrid && (
-        <div className={`${SURFACE_GROUP} mt-2 p-2`}>
+        <div className={`${SURFACE_GROUP} ${SURFACE_GROUP_BLEED} mt-2 p-2`}>
           <div className="flex items-center justify-between gap-2">
             <span className={TEXT.subheading}>Hours</span>
             <div className={SEGMENT}>

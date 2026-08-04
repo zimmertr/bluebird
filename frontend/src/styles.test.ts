@@ -33,6 +33,7 @@ import {
   RECESSED_EDGE,
   RECESSED_FILL,
   SURFACE_GROUP,
+  SURFACE_GROUP_BLEED,
   LINK,
   LINK_ACTION,
   PROSE,
@@ -358,6 +359,16 @@ describe('grouping and segmenting', () => {
   it('draws a group boundary bright enough to be one', () => {
     expect(SURFACE_GROUP).toContain('border-slate-500')
     expect(SURFACE_GROUP).toContain(RADIUS.surface)
+  })
+
+  // The bleed exists so a control inside a well lands on the same column as
+  // one outside it: it must cancel exactly the inset the well imposes, which
+  // is the call sites' p-2 (8px) plus RECESSED_EDGE's 1px border. Pinned as
+  // the finished number because Tailwind cannot do the arithmetic — a well
+  // that changes its padding has to re-derive this by hand.
+  it('bleeds a well by exactly its border plus its padding', () => {
+    expect(SURFACE_GROUP_BLEED).toBe('-mx-[9px]')
+    expect(RECESSED_EDGE).toContain('border')
   })
 
   // Every surface the panel sinks into is one recipe, so an input, the idle
