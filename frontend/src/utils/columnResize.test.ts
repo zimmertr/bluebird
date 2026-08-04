@@ -3,9 +3,9 @@ import {
   FIT_MIN_PX,
   MAX_COL_PX,
   MIN_COL_PX,
+  NAME_DEFAULT_PX,
   autoFitWidth,
   clampColWidth,
-  defaultNameWidth,
   dragWidth,
 } from './columnResize'
 
@@ -58,11 +58,11 @@ describe('double-click auto-fit', () => {
 })
 
 describe('the Name default', () => {
-  it('opens at three quarters of the natural width', () => {
-    expect(defaultNameWidth(200)).toBe(150)
-  })
-
-  it('never defaults below the usable floor', () => {
-    expect(defaultNameWidth(40)).toBe(MIN_COL_PX)
+  // A measured constant (25 characters at the name cell's face plus the link
+  // icon), not a fraction of whatever rendered first — see columnResize.ts.
+  it('is a fixed width inside the resize range', () => {
+    expect(NAME_DEFAULT_PX).toBe(184)
+    expect(NAME_DEFAULT_PX).toBeGreaterThan(MIN_COL_PX)
+    expect(NAME_DEFAULT_PX).toBeLessThan(MAX_COL_PX)
   })
 })

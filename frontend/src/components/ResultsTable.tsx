@@ -1,10 +1,10 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useRef } from 'react'
 import type { ReactNode } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { cellStyle, scaleFor, METRIC_CONFIG } from '../utils/colors'
 import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
 import { SortDir, SortKey, displayedColumns, ColDef } from '../utils/tableColumns'
-import { autoFitWidth, defaultNameWidth, dragWidth } from '../utils/columnResize'
+import { autoFitWidth, dragWidth } from '../utils/columnResize'
 import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
 import { isPeakKind } from '../utils/geocode'
@@ -263,21 +263,6 @@ export default function ResultsTable({
     })
     onColumnWidthsChange({ ...widthsRef.current, [key]: autoFitWidth(contents) })
   }
-
-  // Name opens at 75% of its natural width, measured once real rows exist
-  // (an empty table would measure the bare header). Applied only while the
-  // user has never sized the column: once `name` is in the map — by this
-  // default or by hand — it never fires again, App holds the map across
-  // remounts, and a remount cannot compound the discount.
-  const hasRows = results.length > 0 || (pending?.length ?? 0) > 0
-  useLayoutEffect(() => {
-    if (!onColumnWidthsChange || !hasRows) return
-    if (widthsRef.current['name'] !== undefined) return
-    const th = tableRef.current?.querySelector<HTMLElement>('th[data-col="name"]')
-    if (!th) return
-    onColumnWidthsChange({ ...widthsRef.current, name: defaultNameWidth(thContentWidth(th)) })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasRows])
 
   // Every data cell renders inside this wrapper. Sized, it pins the cell's
   // content box to the chosen width; unsized it is inert — but it must exist

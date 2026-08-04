@@ -61,16 +61,15 @@ export function autoFitWidth(contentWidths: readonly number[]): number {
 }
 
 /**
- * The Name column's opening width: 75% of what its content would take.
+ * The Name column's opening width: room for 25 characters of name.
  *
- * Names are the widest column and the least numeric — a cut-off name is
- * recoverable (resize, or read the popup) where a cut-off number is wrong, so
- * Name gives up a quarter of its natural width to keep more metric columns on
- * a phone screen. Applied once per session, only while the user has not sized
- * the column themselves.
+ * A static constant, not a fraction of the rendered width — measuring "75%
+ * of natural" at first content sized the column off whatever short name
+ * happened to arrive first ("Issaquah" → a 60px column showing four
+ * letters). Measured 2026-08-04 in Chrome on macOS at the name cell's face
+ * (500-weight 12px system sans): typical 25-character names run 156-162px
+ * ("Observation Rock Peak XYZ" is the widest at 161.4), plus the 14px
+ * external-link icon, its 6px gap, and a couple of pixels of slack.
+ * Re-measure if the table's type ramp or the name cell's adornments change.
  */
-export const NAME_DEFAULT_SCALE = 0.75
-
-export function defaultNameWidth(naturalPx: number): number {
-  return clampColWidth(naturalPx * NAME_DEFAULT_SCALE)
-}
+export const NAME_DEFAULT_PX = 184

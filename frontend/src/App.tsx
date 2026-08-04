@@ -67,6 +67,7 @@ import {
 import { isPointSample } from './utils/forecastWindow'
 import { PresentationKnobs, commitNeeded, presentResults } from './utils/present'
 import { SortDir, SortKey, displayedColumns, visibleColumns } from './utils/tableColumns'
+import { NAME_DEFAULT_PX } from './utils/columnResize'
 import { compareValues } from './utils/sortResults'
 import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
 
@@ -413,11 +414,14 @@ export default function App() {
   }, [columnVisibility])
   // Column picker popover open/closed
   const [columnsOpen, setColumnsOpen] = useState(false)
-  // Column widths the user has set (px by key), plus the automatic Name
-  // narrowing. Held here rather than in the table so a mode switch or the
-  // collapse chevron — both of which unmount the table — cannot reset them.
-  // Session-only by design: a width is a reading posture, not a preference.
-  const [tableColWidths, setTableColWidths] = useState<Record<string, number>>({})
+  // Column widths the user has set (px by key). Held here rather than in the
+  // table so a mode switch or the collapse chevron — both of which unmount
+  // the table — cannot reset them. Session-only by design: a width is a
+  // reading posture, not a preference. Name opens at the measured
+  // 25-character width and everything else natural.
+  const [tableColWidths, setTableColWidths] = useState<Record<string, number>>({
+    name: NAME_DEFAULT_PX,
+  })
   // Chevron to collapse/expand the entire results area.
   const [resultsCollapsed, setResultsCollapsed] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
