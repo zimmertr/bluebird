@@ -9,9 +9,8 @@ Bluebird's frontend design lives in `frontend/src/styles.ts`, which exports the 
 | Role | Purpose |
 |---|---|
 | `TEXT.appTitle` | Panel identity in the header |
-| `TEXT.section` | Numbered section headings (deprecated, use unnumbered headers in new code) |
+| `TEXT.section` | Panel section headings |
 | `TEXT.subheading` | Named sub-blocks and field labels |
-| `TEXT.panelTitle` | Docked panel names like "Forecast Chart" |
 | `TEXT.cta` | Single call-to-action text, step up from body |
 | `TEXT.control` | Anything you read or type in a control |
 | `TEXT.caption` | Secondary text: taglines, descriptions, notes |
@@ -39,6 +38,7 @@ Bluebird's frontend design lives in `frontend/src/styles.ts`, which exports the 
 | `SURFACE_CARD` | Opaque cards above a scrim: dialogs, analysis overlay |
 | `SURFACE_FLOATING` | Boxes floating over the map: search field, legends, chart tooltip |
 | `SURFACE_GROUP` | Bordered region grouping controls: the calendar |
+| `SURFACE_GROUP_BLEED` | Cancels a well's inset so its contents sit on the panel's control column |
 
 **Buttons**
 
@@ -59,7 +59,8 @@ Bluebird's frontend design lives in `frontend/src/styles.ts`, which exports the 
 | `SELECT` | Native dropdown, recessed fill with suppressed platform chrome |
 | `CHOICE_ROW` | Radio or checkbox and its label as one strip |
 | `CHOICE_INPUT` | The box itself inside a choice row |
-| `SEGMENT` | Geometry of segmented control pair (two halves share this) |
+| `SEGMENT` | Geometry of a panel segmented control (fixed to `CONTROL_W`) |
+| `SEGMENT_FLUID` | Segmented control outside the panel column, sized by content |
 | `SEGMENT_IDLE` | Unchosen half of segmented control |
 | `SEGMENT_ITEM` | Individual segment half with padding and transitions |
 | `CUE` | Unboxed status line: commit-needed messages |
@@ -196,9 +197,9 @@ and a truncated reason is worse than a second line.
 
 ### Results bar fold point
 
-The results bar shows three modes: Chart, Table, Both. On screens narrower than 896px, "Both" collapses to Tab-like switching.
+The results bar is one line when its container is 896px or wider, and exactly two lines below that: the title row (ranking summary, window, collapse chevron) and the actions row (mode switch, Columns, Download CSV, Open-Meteo.com). It never stacks further.
 
-**Measurement:** the point where the chart and table can no longer sit side by side at useful widths.
+The mode switch wears `SEGMENT_FLUID`, not `SEGMENT`: the panel's segment role bakes in the sidebar's 144px column, which three icon-plus-label halves cannot fit — that mismatch is how the switch once shipped clipped by its own `overflow-hidden`.
 
 ### Control width
 

@@ -6,13 +6,14 @@ interface Props {
   onDismiss: () => void
 }
 
-// Five steps matching the panel's four sections plus the Analyze button and what
-// comes after. A reader arrives here and then looks at the panel, so each step
-// that matches a panel section naming makes following the walkthrough clear.
+// Five steps walking the panel top to bottom, then the Analyze button and what
+// comes after. Step three covers the Ranking, Filters, and Options sections in
+// one breath — a step per section would push the dialog past its no-scroll
+// budget (measured in STYLES.md).
 const STEPS: [string, string][] = [
   ['Destinations', 'Search by name, draw a polygon, click the map, or paste coordinates. Each method finds what you want in its own way; they all work together.'],
   ['Forecast', 'Pick a weather model, then choose a day and time window. The calendar updates as the model changes, since different models reach different distances ahead.'],
-  ['Results', 'Rank by precipitation, wind, temperature, or air quality. Filter by elevation or those same metrics. Choose how many destinations to list, and pick which forecast values and which detail to show.'],
+  ['Rank and filter', 'Rank by precipitation, wind, temperature, or air quality. Filter by elevation or those same metrics, and cap how many results to list.'],
   ['Analyze', 'Generate ranked results, see them on the map as color-coded markers, and inspect forecasts across your destinations.'],
   ['Repeat', 'Adjust any control to refine your window. Changing destinations, the forecast window, or the model needs a new Analyze; everything else updates live.'],
 ]

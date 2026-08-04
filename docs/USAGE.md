@@ -12,7 +12,7 @@ The search box at the top-left of the map recenters on any named place (a peak, 
 
 ### b. Search by Point
 
-The control for this one is the map itself, which is why the panel section carries no widget. Hover it and every selectable feature on the map lights up, the way hovering **Search by Name** rings the search box. Whenever you are not drawing, the peaks and lakes labeled on the map can be picked. Tap or click one for a popup with its name, and its elevation where there is one, then press **Add to analysis**. Picking it again offers **Remove from analysis**.
+The control for this one is the map itself, which is why the panel section carries no widget. Hover it and every selectable feature on the map lights up, the way hovering **Search by name** rings the search box. Whenever you are not drawing, the peaks and lakes labeled on the map can be picked. Tap or click one for a popup with its name, and its elevation where there is one, then press **Add to analysis**. Picking it again offers **Remove from analysis**.
 
 An added feature behaves exactly like a place searched by name: a neutral blue dot until analyzed, saved in the URL, and ranked against everything else on the next Analyze. Its elevation and its link to Peakbagger or OpenStreetMap are filled in during that analysis, by matching the point to the nearest mapped feature the way a pasted coordinate is.
 
@@ -47,7 +47,7 @@ The checkboxes under the buttons control what discovery looks for inside your po
 | Lakes | `natural=water` + `water=lake` (named nodes/ways/relations) | Implemented |
 | Trailheads | `highway=trailhead` (named nodes/ways) | Implemented |
 
-Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. **Include Unnamed Peaks**, in Options, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods below still work on their own, so an analysis of pasted coordinates or clicked destinations needs no polygon and no ticks at all.
+Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. **Include unnamed peaks**, in Options, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods below still work on their own, so an analysis of pasted coordinates or clicked destinations needs no polygon and no ticks at all.
 
 ### d. Search by Coordinates
 
@@ -118,9 +118,9 @@ Days are your local calendar days, converted to UTC for the API, and the far edg
 
 The calendar is fully keyboard operable: arrow keys move by day, Page Up and Page Down by month, Enter or Space selects, and Escape abandons a half-made range.
 
-## Results
+## Ranking, filters, and options
 
-Once you have set your destinations and forecast window, the Results section controls how you see the ranked data.
+Once you have set your destinations and forecast window, three short sections shape the report: **Ranking** picks the order, **Filters** picks who qualifies, and **Options** holds the remaining knobs (max results, unnamed peaks, the wildfire overlay).
 
 ### Ranking
 
@@ -140,11 +140,11 @@ Everything on screen follows a filter change: the table, the map markers, the ch
 
 ### Viewing the results
 
-The results bar at the top of the table gives you three viewing modes. **Chart** shows a time series of the top ranked destination. **Table** is the detailed breakdown you can sort, filter and download. **Both** splits the screen between them.
+The results bar at the top of the report gives you three viewing modes. **Table** is the detailed breakdown you can sort, filter and download. **Chart** is a time series of the destinations ticked in the table's checkbox column — that column is the one series picker, so what the chart plots is always what the table has checked. **Both** stacks them. Each view has a drag handle to trade height with the map, and in Both the divider between the two trades their share.
 
-**Columns** opens a picker for the columns the table shows. Not every analysis needs every column, and a crowded view makes comparison harder. The downloaded CSV always carries every column regardless of what the table displays.
+**Columns** opens a picker for the columns the table shows. Every column starts on — the table scrolls sideways when it must — and unticking narrows the view for easier comparison. The downloaded CSV always carries every column regardless of what the table displays.
 
-### Max results
+### Max results (in Options)
 
 The default is 200, sized to sit above the 100-row lists people usually paste so a first analysis does not open half-cut. The ceiling is what the running service reports. Raising this number costs nothing upstream: weather is fetched for *every* destination in your area, and the top N by your ranking come back. Lowering it shows you the extremes.
 
