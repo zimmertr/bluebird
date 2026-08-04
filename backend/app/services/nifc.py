@@ -47,6 +47,7 @@ from typing import Any
 import httpx
 
 from app.services.errors import UpstreamError, UpstreamRateLimited, classify_http_error
+from app.services.snapshot import SnapshotCache
 
 log = logging.getLogger(__name__)
 
@@ -309,141 +310,33 @@ async def fetch_snapshot() -> Snapshot:
     return Snapshot(fetched_at_ms=int(time.time() * 1000), full=full, coarse=coarse)
 
 
-class PerimeterCache:
-    """One national snapshot, refreshed on demand, kept past its freshness date.
+def perimeter_cache(
+    *,
+    ttl_s: float = TTL_S,
+    retry_after_failure_s: float = RETRY_AFTER_FAILURE_S,
+    clock: Callable[[], float] = time.monotonic,
+    fetch: Callable[[], Awaitable[Snapshot]] = fetch_snapshot,
+) -> SnapshotCache[Snapshot]:
+    """The shared snapshot cache, wired to this module's fetch and knobs.
 
-    Deliberately not a :class:`~app.services.cache.TTLCache`: that one deletes an
-    entry the moment it expires, which is exactly the value this needs to hold
-    on to. A perimeter measured 40 minutes ago still answers "is this trailhead
-    within 10 miles of a fire" correctly, so an expired snapshot is a far better
-    answer than the honest-but-useless "wildfire check unavailable" that a hard
-    expiry produces whenever NIFC's shared quota happens to be empty. The only
-    state that means "we cannot answer" is having never fetched at all.
-
-    Aging out therefore does not block anyone: an aged snapshot is served
-    immediately and refreshed behind the request. Only a cache that has never
-    been filled makes a caller wait, or fail.
+    A factory rather than a subclass, because nothing about the caching is
+    NIFC's: the singleflight, the serve-stale-and-refresh-behind, and the
+    failure backoff all live in :mod:`app.services.snapshot`, shared with the
+    smoke overlay that wants the same behavior for the same reason. What
+    belongs here is which upstream it calls, and what a successful refresh is
+    worth saying in a pod's log.
     """
-
-    def __init__(
-        self,
-        *,
-        ttl_s: float = TTL_S,
-        retry_after_failure_s: float = RETRY_AFTER_FAILURE_S,
-        clock: Callable[[], float] = time.monotonic,
-        fetch: Callable[[], Awaitable[Snapshot]] = fetch_snapshot,
-    ):
-        self._ttl_s = ttl_s
-        self._retry_after_failure_s = retry_after_failure_s
-        self._clock = clock
-        self._fetch = fetch
-        self._lock = asyncio.Lock()
-        self._snapshot: Snapshot | None = None
-        self._fresh_until = 0.0
-        self._refresh_task: asyncio.Task[None] | None = None
-        self._last_error: Exception | None = None
-        self.refreshes = 0
-
-    @property
-    def snapshot_or_none(self) -> Snapshot | None:
-        """Whatever is held, without triggering a refresh. For diagnostics."""
-        return self._snapshot
-
-    def _current(self) -> Snapshot | None:
-        if self._snapshot is not None and self._clock() < self._fresh_until:
-            return self._snapshot
-        return None
-
-    async def get(self) -> Snapshot:
-        """The best snapshot available now, refreshing behind the request if aged.
-
-        Raises :class:`UpstreamError` only when there is nothing at all to
-        serve, which after one successful fetch means never.
-        """
-        fresh = self._current()
-        if fresh is not None:
-            return fresh
-
-        if self._snapshot is not None:
-            # Aged, not absent. Refresh behind the caller rather than in front
-            # of it: a national fetch measured 6.7 seconds, and making one
-            # unlucky visitor per TTL wait that long to learn what the previous
-            # visitor already knew is a bad trade for shapes that move on a
-            # human timescale. The stamp travels with the data, so a reader can
-            # still see exactly how old this answer is.
-            self._schedule_refresh()
-            return self._snapshot
-
-        # Nothing at all. This is the only path that can fail, and the only one
-        # a caller has to wait on.
-        async with self._lock:
-            if self._snapshot is not None:
-                return self._snapshot
-            await self._refresh_locked()
-            if self._snapshot is None:
-                raise self._last_error or UpstreamError(f"{PROVIDER} is unavailable.")
-            return self._snapshot
-
-    def _schedule_refresh(self) -> None:
-        """Start a background refresh unless one is already running.
-
-        The task reference is held because asyncio only weakly references
-        running tasks, and a garbage-collected refresh would leave the snapshot
-        aging forever while every request happily served it.
-        """
-        if self._refresh_task is not None and not self._refresh_task.done():
-            return
-        self._refresh_task = asyncio.create_task(self._refresh_guarded())
-
-    async def _refresh_guarded(self) -> None:
-        async with self._lock:
-            # The refresh that just finished may already have satisfied this.
-            if self._current() is not None:
-                return
-            await self._refresh_locked()
-
-    async def _refresh_locked(self) -> None:
-        """One upstream fetch. Caller holds the lock, which is what makes this
-        singleflight: without it, the first pan after a TTL boundary multiplied
-        by every visitor is a thundering herd against the quota this class
-        exists to stop spending."""
-        try:
-            snapshot = await self._fetch()
-        except Exception as exc:  # noqa: BLE001 — a refresh must never take the pod with it
-            self._last_error = exc
-            self._fresh_until = self._clock() + self._retry_after_failure_s
-            if self._snapshot is None:
-                log.warning("NIFC fetch failed with nothing cached to fall back on: %s", exc)
-            else:
-                log.warning(
-                    "NIFC refresh failed (%s); still serving the snapshot from epoch %d ms",
-                    exc,
-                    self._snapshot.fetched_at_ms,
-                )
-            return
-        self._last_error = None
-        self.refreshes += 1
-        self._snapshot = snapshot
-        self._fresh_until = self._clock() + self._ttl_s
-        log.info(
-            "NIFC snapshot refreshed: %d perimeters (%d coarse)",
-            len(snapshot.full),
-            len(snapshot.coarse),
-        )
-
-    async def settle(self) -> None:
-        """Await any background refresh. For tests and for orderly shutdown."""
-        task = self._refresh_task
-        if task is not None:
-            await asyncio.gather(task, return_exceptions=True)
-
-    def clear(self) -> None:
-        self._snapshot = None
-        self._fresh_until = 0.0
-        self._last_error = None
+    return SnapshotCache(
+        label=PROVIDER,
+        fetch=fetch,
+        ttl_s=ttl_s,
+        retry_after_failure_s=retry_after_failure_s,
+        describe=lambda s: f"{len(s.full)} perimeters ({len(s.coarse)} coarse)",
+        clock=clock,
+    )
 
 
-PERIMETERS = PerimeterCache()
+PERIMETERS = perimeter_cache()
 
 
 def unavailable_message(exc: Exception) -> str:

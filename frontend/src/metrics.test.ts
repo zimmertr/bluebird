@@ -18,6 +18,7 @@ import appSource from './App.tsx?raw'
 import controlPanelSource from './components/ControlPanel.tsx?raw'
 import resultsTableSource from './components/ResultsTable.tsx?raw'
 import timeSeriesChartSource from './components/TimeSeriesChart.tsx?raw'
+import timelineTransportSource from './components/TimelineTransport.tsx?raw'
 import chartDataSource from './utils/chartData.ts?raw'
 import colorsSource from './utils/colors.ts?raw'
 import resultPopupSource from './utils/resultPopup.ts?raw'
@@ -146,6 +147,7 @@ describe('no surface writes its own metric name', () => {
     ['ControlPanel.tsx', controlPanelSource],
     ['ResultsTable.tsx', resultsTableSource],
     ['TimeSeriesChart.tsx', timeSeriesChartSource],
+    ['TimelineTransport.tsx', timelineTransportSource],
     ['chartData.ts', chartDataSource],
     ['colors.ts', colorsSource],
     ['resultPopup.ts', resultPopupSource],

@@ -24,6 +24,8 @@ import {
   ICON_ACTION,
   ICON_BUTTON,
   NOTICE,
+  SCRUBBER,
+  SCRUBBER_TRACK,
   SEGMENT,
   SEGMENT_FLUID,
   SEGMENT_IDLE,
@@ -513,6 +515,32 @@ describe('shared recipes', () => {
     // The two that caused the bug, stated outright rather than left to the sort.
     expect(depth(LAYER.popover)).toBeGreaterThan(depth(LAYER.drawer))
     expect(depth(LAYER.modal)).toBeGreaterThan(depth(LAYER.popover))
+  })
+
+  // The map timeline's scrubber (#121). A real range input arrives knowing
+  // arrow keys and screen readers, and arrives painting itself from the system
+  // palette — dark-on-light inside a dark map card on a light-mode OS, the same
+  // trap SELECT documents. Suppressing that is only half done unless both
+  // vendor thumb spellings are covered: WebKit and Blink read one, Firefox the
+  // other, and each ignores the one it does not own, so a single spelling ships
+  // a control that looks native on half the machines it runs on.
+  it('suppresses the platform slider on every engine that draws one', () => {
+    expect(SCRUBBER).toContain('appearance-none')
+    expect(SCRUBBER).toContain('[&::-webkit-slider-thumb]:[appearance:none]')
+    expect(SCRUBBER).toContain('[&::-moz-range-thumb]:[appearance:none]')
+  })
+
+  it('gives the scrubber a keyboard-visible focus ring like every other control', () => {
+    expect(SCRUBBER).toContain(FOCUS_RING)
+  })
+
+  // The rail is a separate element rather than the input's own track
+  // pseudo-element, because the filled portion has to be a third box on top of
+  // it. What that must not become is a fourth spelling of the recessed well.
+  it('builds the scrubber rail from the recessed surface every other well uses', () => {
+    expect(SCRUBBER_TRACK).toContain(RECESSED_FILL)
+    expect(SCRUBBER_TRACK).toContain(RECESSED_EDGE)
+    expect(SCRUBBER_TRACK).toContain(RADIUS.pill)
   })
 
   // The segmented control had been built twice from scratch and matched only by

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { markerColor, cellStyle, scaleFor, METRIC_CONFIG } from './colors'
+import { markerColor, cellStyle, hourlyScale, scaleFor, METRIC_CONFIG } from './colors'
 import { COLUMNS } from './tableColumns'
 
 // Anchor hexes, lowest (green) → highest. Weather scales top out at red; the
@@ -207,5 +207,48 @@ describe('METRIC_CONFIG', () => {
       // boundary is named exactly twice, in order.
       expect(advertised).toEqual(cfg.thresholds.flatMap((t) => [t, t]))
     }
+  })
+})
+
+describe('hourlyScale', () => {
+  // Map playback (#121) colors a marker by one hour of the report rather than
+  // by the window the ranking used. Three metrics do not care — they rank by an
+  // average of the same quantity the hourly series holds — and precipitation
+  // does, because its ranked value is a total and its hourly value is a rate.
+
+  it('leaves the three metrics whose hourly value is the ranked quantity alone', () => {
+    for (const key of ['wind_avg_mph', 'temp_avg_f', 'aqi_avg'] as const) {
+      expect(hourlyScale(key).thresholds).toEqual(METRIC_CONFIG[key].thresholds)
+    }
+  })
+
+  it('moves precipitation off the window scale onto the rainfall-rate one', () => {
+    const rate = hourlyScale('precip_total_in')
+    expect(rate.thresholds).not.toEqual(METRIC_CONFIG.precip_total_in.thresholds)
+    // The National Weather Service's own intensity classes, borrowed rather
+    // than invented so a reader can look them up.
+    expect(rate.thresholds).toEqual([0.01, 0.1, 0.3, 0.5])
+  })
+
+  it('captions the rate scale in its own unit', () => {
+    // The legend shows one scale or the other with nothing beside it to
+    // compare against, so the unit is the only thing saying which reading it
+    // is on.
+    for (const label of hourlyScale('precip_total_in').legendLabels) {
+      expect(label).toContain('in/hr')
+    }
+  })
+
+  it('advertises the boundaries the rate scale actually switches on', () => {
+    const cfg = hourlyScale('precip_total_in')
+    const advertised = cfg.legendLabels.flatMap((label) =>
+      (label.match(/\d+(?:\.\d+)?/g) ?? []).map(Number),
+    )
+    expect(advertised).toEqual(cfg.thresholds.flatMap((t) => [t, t]))
+  })
+
+  it('gives every scale as many captions as colors', () => {
+    const scale = hourlyScale('precip_total_in')
+    expect(scale.legendLabels).toHaveLength(scale.colors.length)
   })
 })

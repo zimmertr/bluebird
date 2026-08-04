@@ -8,6 +8,7 @@ import ColumnsPicker from './components/ColumnsPicker'
 import RemovedPicker from './components/RemovedPicker'
 import WelcomeModal from './components/WelcomeModal'
 import PreviewBanner from './components/PreviewBanner'
+import TimelineTransport from './components/TimelineTransport'
 import { useAnalyze } from './hooks/useAnalyze'
 import { modelForecastHours, useCapabilities } from './hooks/useCapabilities'
 import { useChartSelection } from './hooks/useChartSelection'
@@ -38,7 +39,26 @@ import {
   TEXT,
 } from './styles'
 import { NOUN, familyOf, rankedNoun } from './metrics'
-import { METRIC_CONFIG } from './utils/colors'
+import { METRIC_CONFIG, hourlyScale } from './utils/colors'
+import {
+  RADAR_FRAME_COUNT,
+  IEM_HREF,
+  radarOffsetLabel,
+  radarOffsets,
+  radarScaleEnds,
+} from './utils/radar'
+import { HMS_HREF, SMOKE_DENSITIES, smokeSwatch } from './utils/smoke'
+import {
+  TimelineAxis,
+  availableAxes,
+  clampIndex,
+  forecastScaleMarks,
+  forecastStampLabel,
+  frameHoldMs,
+  initialIndex,
+  nextFrame,
+  resolveAxis,
+} from './utils/timeline'
 import {
   Constraints,
   NO_CONSTRAINTS,
@@ -345,6 +365,12 @@ export default function App() {
   // URL so a shared link reproduces it. Defaults off; toggling queries NIFC for
   // the current viewport.
   const [showWildfires, setShowWildfires] = useState(() => restored?.showWildfires ?? false)
+  // The two overlays #121 adds, on the same contract: live, off by default,
+  // persisted to the URL, and never an input to the ranking. Radar is raster
+  // tiles the browser fetches straight from IEM; smoke is one national GeoJSON
+  // from the pod.
+  const [showRadar, setShowRadar] = useState(() => restored?.showRadar ?? false)
+  const [showSmoke, setShowSmoke] = useState(() => restored?.showSmoke ?? false)
   // Summits OSM knows only by their height. Off by default: measured over one
   // 8x10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so
   // this roughly triples what an analysis costs and how often it refuses.
@@ -709,6 +735,8 @@ export default function App() {
       limit,
       customCsv,
       showWildfires,
+      showRadar,
+      showSmoke,
       pins: searched.places,
     }, caps.defaultForecastModel)
 
@@ -738,6 +766,8 @@ export default function App() {
     limit,
     customCsv,
     showWildfires,
+    showRadar,
+    showSmoke,
     searched.places,
     writeUrl,
   ])
@@ -1205,6 +1235,96 @@ export default function App() {
     return 'No destinations found. Try a larger area.'
   }, [response, results.length, presented.eligible, presented.excluded, removedKeys])
 
+
+  // ── The map timeline (#121) ───────────────────────────────────────────────
+  //
+  // Two things span time and share one bar: radar's last 55 minutes of observed
+  // rain, and the analyzed window's own hourly grid. Every reducer behind it is
+  // in `utils/timeline.ts`; what lives here is the state and the interval.
+  //
+  // Each axis keeps its own playhead, so scrubbing radar back half an hour and
+  // then switching to the forecast does not land the forecast half an hour in.
+  const [chosenAxis, setChosenAxis] = useState<TimelineAxis | null>(null)
+  const [radarIndex, setRadarIndex] = useState(() => initialIndex('radar', RADAR_FRAME_COUNT))
+  const [forecastIndex, setForecastIndex] = useState(0)
+  const [playing, setPlaying] = useState(false)
+
+  // The report's own hourly grid, which is what the forecast axis plays. It
+  // comes back on both analysis paths, so the axis does not care which one ran
+  // — unlike the live presentation knobs, which need the held field.
+  const forecastTimes = response?.times ?? []
+  const timelineAxes = availableAxes(showRadar, forecastTimes.length)
+  const timelineAxis = resolveAxis(timelineAxes, chosenAxis)
+  const frameCount = timelineAxis === 'radar' ? RADAR_FRAME_COUNT : forecastTimes.length
+  const frameIndex = clampIndex(
+    timelineAxis === 'radar' ? radarIndex : forecastIndex,
+    frameCount,
+  )
+  const setFrameIndex = timelineAxis === 'radar' ? setRadarIndex : setForecastIndex
+
+  // A new report is a new grid, so the forecast playhead goes back to the start
+  // of it. Keyed on the analysis rather than on the times array, which is a new
+  // reference on every live knob change and would otherwise reset the playhead
+  // under a reader who only re-sorted.
+  useEffect(() => {
+    setForecastIndex(initialIndex('forecast', 0))
+  }, [analysisSeq])
+
+  // Playback stops when the bar goes away, so switching an overlay off cannot
+  // leave an interval running against an axis that no longer exists.
+  useEffect(() => {
+    if (timelineAxis === null) setPlaying(false)
+  }, [timelineAxis])
+
+  useEffect(() => {
+    if (!playing || timelineAxis === null || frameCount < 2) return
+    const id = setTimeout(
+      () => setFrameIndex((i) => nextFrame(clampIndex(i, frameCount), frameCount)),
+      frameHoldMs(frameIndex, frameCount),
+    )
+    return () => clearTimeout(id)
+  }, [playing, timelineAxis, frameCount, frameIndex, setFrameIndex])
+
+  // The hour the markers are colored for, or null to color them by the window
+  // aggregate the ranking used. Playback is marker PRESENTATION and nothing
+  // else: which rows are displayed, how they rank, what the table says and what
+  // the legend's bins are all stay where the analysis left them, and the
+  // `analyzed` snapshot stays authoritative.
+  const playbackIndex = timelineAxis === 'forecast' ? clampIndex(forecastIndex, frameCount) : null
+
+  // What the transport reads out, composed by whichever axis owns the
+  // vocabulary — relative minutes for radar, a weekday and hour for the
+  // forecast. The bar itself formats nothing.
+  const timelineReadout =
+    timelineAxis === 'radar'
+      ? radarOffsetLabel(radarOffsets()[frameIndex] ?? 0)
+      : forecastStampLabel(forecastTimes[frameIndex] ?? forecastTimes[0] ?? Date.now())
+  const timelineScale =
+    timelineAxis === 'radar' ? radarScaleEnds() : forecastScaleMarks(forecastTimes)
+
+  // Clicking the chart moves the map's playhead to that hour, and takes the
+  // transport to the forecast axis if it was showing radar — the reader just
+  // pointed at a forecast hour, so leaving the bar on the past would answer a
+  // question they did not ask. The nearest stamp rather than an exact match:
+  // Recharts hands back the x value under the pointer, which on a wide chart is
+  // an interpolated instant between two hourly points.
+  function movePlayheadTo(ms: number) {
+    if (forecastTimes.length === 0) return
+    let nearest = 0
+    for (let i = 1; i < forecastTimes.length; i++) {
+      if (Math.abs(forecastTimes[i] - ms) < Math.abs(forecastTimes[nearest] - ms)) nearest = i
+    }
+    setForecastIndex(nearest)
+    setChosenAxis('forecast')
+  }
+
+  // The bands the markers are actually colored on, which playback moves.
+  // Precipitation is the reason it has to: the ranking bins a window total and
+  // one hour of it is a rate, so a legend still reading in inches beside
+  // markers scored in inches per hour would be quietly wrong. The metric's NAME
+  // does not change, so the legend's title does not either.
+  const markerScale = playbackIndex !== null ? hourlyScale(view.sortBy) : METRIC_CONFIG[view.sortBy]
+
   const hasColoredMarkers = showResults && results.length > 0
   // A report stays on screen even when the knobs admit none of it. Collapsing
   // the panels would answer "why is nothing listed?" by removing the place the
@@ -1415,6 +1535,10 @@ export default function App() {
           }}
           showWildfires={showWildfires}
           setShowWildfires={setShowWildfires}
+          showRadar={showRadar}
+          setShowRadar={setShowRadar}
+          showSmoke={showSmoke}
+          setShowSmoke={setShowSmoke}
           includeUnnamedPeaks={includeUnnamedPeaks}
           setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}
           windowWarning={windowWarning}
@@ -1533,6 +1657,10 @@ export default function App() {
             sortBy={view.sortBy}
             fireWarnings={fire.warnings}
             showWildfires={showWildfires}
+            showRadar={showRadar}
+            showSmoke={showSmoke}
+            radarIndex={radarIndex}
+            playbackIndex={playbackIndex}
             pending={pending}
             searchedPlaces={searched.places}
             onAddPoi={handleAddPoi}
@@ -1564,9 +1692,76 @@ export default function App() {
               the Controls/search cluster (top-16) and the stack scrolls if it
               can't fit, so a short map can never let the legends ride up over
               those buttons. justify-end keeps them pinned to the bottom when
-              there is room. Desktop has ample height, so the clamp lifts. */}
-          {(hasColoredMarkers || showWildfires) && (
-            <div className="absolute bottom-8 left-2 top-16 z-10 flex flex-col justify-end gap-2 overflow-y-auto lg:top-auto lg:overflow-visible">
+              there is room. Desktop has ample height, so the clamp lifts.
+
+              The stack lifts clear of the timeline when the bar is on screen.
+              The bar is centred and the legends are left-anchored, so on a
+              desktop map they never meet — but a phone is narrow enough that
+              they would overlap, and a legend half under a control reads as a
+              layout fault rather than as two things sharing an edge. */}
+          {(hasColoredMarkers || showWildfires || showSmoke || showRadar) && (
+            <div
+              className={`absolute left-2 top-16 z-10 flex flex-col justify-end gap-2 overflow-y-auto lg:top-auto lg:overflow-visible ${
+                timelineAxis !== null ? 'bottom-40' : 'bottom-8'
+              }`}
+            >
+              {/* Each overlay credits its source on its own swatch row, the
+                  way the fire legend has since #203: a credit belongs beside
+                  the data it describes rather than in a list somewhere else,
+                  and one shape for all of them is what keeps three sources
+                  from becoming three ideas of what a credit looks like. */}
+              {showSmoke && (
+                <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} px-2.5 py-2`}>
+                  <p className={`${TEXT.overline} mb-1.5`}>Smoke</p>
+                  {SMOKE_DENSITIES.map((density, i) => (
+                    <div key={density} className="flex items-center gap-1.5 py-0.5">
+                      <span
+                        className={`inline-block w-3 h-3 flex-shrink-0 ${RADIUS.control} border`}
+                        style={{ backgroundColor: smokeSwatch(density), borderColor: '#78716c' }}
+                      />
+                      <span className={TEXT.control}>
+                        {density}
+                        {/* The credit rides the last row rather than taking a
+                            line of its own, so the box stays three rows tall. */}
+                        {i === SMOKE_DENSITIES.length - 1 && (
+                          <>
+                            {' ('}
+                            <a href={HMS_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
+                              NOAA
+                            </a>
+                            {')'}
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {showRadar && (
+                <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} px-2.5 py-2`}>
+                  <div className="flex items-center gap-1.5">
+                    {/* A gradient rather than banded swatches: NEXRAD's own
+                        reflectivity ramp is continuous, the bands are the
+                        product's and not ours to relabel, and a legend that
+                        invented boundaries would be asserting thresholds
+                        Bluebird does not know. */}
+                    <span
+                      className={`inline-block w-3 h-3 flex-shrink-0 ${RADIUS.control} border`}
+                      style={{
+                        backgroundImage: 'linear-gradient(90deg,#1c8a3c,#40b450,#e7c000,#eb7814)',
+                        borderColor: '#475569',
+                      }}
+                    />
+                    <span className={TEXT.control}>
+                      Rain radar (
+                      <a href={IEM_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
+                        IEM
+                      </a>
+                      )
+                    </span>
+                  </div>
+                </div>
+              )}
               {showWildfires && (
                 // CC BY 3.0 wants the credit wherever the fire data is drawn,
                 // and section 4(b) lets it be "implemented in any reasonable
@@ -1610,17 +1805,35 @@ export default function App() {
                   <p className={`${TEXT.overline} mb-1.5`}>
                     {NOUN[familyOf(view.sortBy)]}
                   </p>
-                  {METRIC_CONFIG[view.sortBy].colors.map((color, i) => (
+                  {markerScale.colors.map((color, i) => (
                     <div key={i} className="flex items-center gap-1.5 py-0.5">
                       <span style={{ backgroundColor: color }} className={`flex-shrink-0 h-2.5 w-2.5 ${RADIUS.pill}`} aria-hidden="true" />
                       <span className={`${TEXT.control} font-mono`}>
-                        {METRIC_CONFIG[view.sortBy].legendLabels[i]}
+                        {markerScale.legendLabels[i]}
                       </span>
                     </div>
                   ))}
                 </div>
               )}
             </div>
+          )}
+          {/* The timeline, present exactly while something spans time: radar
+              contributes a past axis, a multi-hour report a forecast one, and
+              a smoke analysis contributes neither (two passes a day is not an
+              animation). */}
+          {timelineAxis !== null && (
+            <TimelineTransport
+              axis={timelineAxis}
+              axes={timelineAxes}
+              onAxisChange={setChosenAxis}
+              index={frameIndex}
+              frameCount={frameCount}
+              onIndexChange={(i) => setFrameIndex(i)}
+              playing={playing}
+              onPlayingChange={setPlaying}
+              readout={timelineReadout}
+              scale={timelineScale}
+            />
           )}
         </div>
 
@@ -1820,6 +2033,10 @@ export default function App() {
                           metric={chart.metric}
                           onMetricChange={chart.setMetric}
                           colorFor={chart.colorFor}
+                          playheadMs={playbackIndex !== null ? chartTimes[playbackIndex] ?? null : null}
+                          onPlayheadChange={
+                            timelineAxes.includes('forecast') ? movePlayheadTo : undefined
+                          }
                         />
                       </div>
                       {/* Chart-only legend. In Both mode the table's checkbox

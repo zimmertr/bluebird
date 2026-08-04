@@ -72,6 +72,13 @@ RATE_LIMIT_GEOCODE_BURST = _env_int("RATE_LIMIT_GEOCODE_BURST", 10)
 # stutter while saving nothing upstream (issue #203).
 RATE_LIMIT_WILDFIRES_PER_MINUTE = _env_int("RATE_LIMIT_WILDFIRES_PER_MINUTE", 90)
 RATE_LIMIT_WILDFIRES_BURST = _env_int("RATE_LIMIT_WILDFIRES_BURST", 30)
+# Smoke is the same kind of request as wildfires — a filter over a national
+# snapshot this pod already holds — so it gets the same looseness. Its own
+# bucket rather than a shared one because the two overlays toggle
+# independently, and a user turning both on should not spend one budget twice
+# (issue #121).
+RATE_LIMIT_SMOKE_PER_MINUTE = _env_int("RATE_LIMIT_SMOKE_PER_MINUTE", 90)
+RATE_LIMIT_SMOKE_BURST = _env_int("RATE_LIMIT_SMOKE_BURST", 30)
 
 # Pod-wide upstream caps. Weather/AQI count in-flight Open-Meteo batches
 # across every concurrent analysis; the Overpass value is applied PER MIRROR
@@ -454,6 +461,7 @@ DESTINATIONS_LIMITER = RateLimiter(
 )
 GEOCODE_LIMITER = RateLimiter(RATE_LIMIT_GEOCODE_PER_MINUTE, RATE_LIMIT_GEOCODE_BURST)
 WILDFIRES_LIMITER = RateLimiter(RATE_LIMIT_WILDFIRES_PER_MINUTE, RATE_LIMIT_WILDFIRES_BURST)
+SMOKE_LIMITER = RateLimiter(RATE_LIMIT_SMOKE_PER_MINUTE, RATE_LIMIT_SMOKE_BURST)
 
 WEATHER_BUDGET = UpstreamBudget("Open-Meteo", UPSTREAM_CONCURRENCY_WEATHER)
 AQI_BUDGET = UpstreamBudget("Open-Meteo (air quality)", UPSTREAM_CONCURRENCY_AQI)
@@ -511,3 +519,8 @@ async def geocode_rate_limit(request: Request) -> None:
 async def wildfires_rate_limit(request: Request) -> None:
     """Route dependency: the wildfire-overlay bucket, independent of analyze."""
     _throttle(WILDFIRES_LIMITER, request)
+
+
+async def smoke_rate_limit(request: Request) -> None:
+    """Route dependency: the smoke-overlay bucket, independent of wildfires."""
+    _throttle(SMOKE_LIMITER, request)

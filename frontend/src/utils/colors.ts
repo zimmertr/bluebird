@@ -5,8 +5,8 @@ import { SortBy } from '../types'
  *
  * Split out of MetricConfig because a scale is no longer one-per-metric: the
  * table colors each cell by its own number, and two of precipitation's columns
- * are a rate where the third is a total (see PRECIP_RATE below). The legend
- * fields stay on MetricConfig, which is about the *ranked* metric.
+ * are a rate where the third is a total (see PRECIP_RATE below). The `group`
+ * field stays on MetricConfig, which is about the *ranked* metric.
  */
 export type ColorScale = {
   // Band boundaries — always one fewer than colors. Values at or below
@@ -17,10 +17,18 @@ export type ColorScale = {
   colors: string[]
 }
 
-type MetricConfig = ColorScale & {
-  // Captions for the bands above, not a name for the metric — that comes from
-  // metrics.ts, which knows the analysis mode these thresholds do not.
-  legendLabels: string[]
+/**
+ * A scale the map legend can key.
+ *
+ * Captions for the bands, not a name for the metric — that comes from
+ * metrics.ts, which knows the analysis mode these thresholds do not. Every
+ * legendable scale carries its own, because a caption that disagrees with its
+ * threshold is a bug the numbers should catch rather than a wording choice made
+ * in another file.
+ */
+export type LabelledScale = ColorScale & { legendLabels: string[] }
+
+type MetricConfig = LabelledScale & {
   group: string[]
 }
 
@@ -81,9 +89,35 @@ export const METRIC_CONFIG: Record<SortBy, MetricConfig> = {
  * Shares the hues of every other scale, so green still means "nothing going on"
  * across the whole table.
  */
-const PRECIP_RATE: ColorScale = {
+const PRECIP_RATE: LabelledScale = {
   thresholds: [0.01, 0.10, 0.30, 0.50],
   colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
+  // Spelled "in/hr" rather than with an inch mark, which is what the window
+  // scale above uses. The difference is the whole point of this scale existing,
+  // and the map legend shows one or the other with nothing beside it to compare
+  // against — so the unit has to say which reading it is on its own.
+  legendLabels: [
+    '≤ 0.01 in/hr',
+    '0.01 – 0.10 in/hr',
+    '0.10 – 0.30 in/hr',
+    '0.30 – 0.50 in/hr',
+    '> 0.50 in/hr',
+  ],
+}
+
+/**
+ * Which hourly column carries a ranked metric's per-hour value.
+ *
+ * Only precipitation moves: its ranked key is a window total and its hourly
+ * value is a rate, so they are measured against different scales. The other
+ * three rank by an average of the same quantity the hourly series holds, so the
+ * ranked key IS the hourly key and the mapping is the identity.
+ */
+const HOURLY_COLUMN: Record<SortBy, string> = {
+  precip_total_in: 'precip_avg_in_hr',
+  wind_avg_mph: 'wind_avg_mph',
+  temp_avg_f: 'temp_avg_f',
+  aqi_avg: 'aqi_avg',
 }
 
 /**
@@ -91,14 +125,32 @@ const PRECIP_RATE: ColorScale = {
  * than restated: every colorable column is already named in exactly one
  * `group`, and a second list would be a second answer.
  */
-const COLUMN_SCALE: Record<string, ColorScale> = {
+const COLUMN_SCALE: Record<string, LabelledScale> = {
   ...Object.fromEntries(
     (Object.keys(METRIC_CONFIG) as SortBy[]).flatMap((key) =>
-      METRIC_CONFIG[key].group.map((column) => [column, METRIC_CONFIG[key] as ColorScale]),
+      METRIC_CONFIG[key].group.map((column) => [column, METRIC_CONFIG[key] as LabelledScale]),
     ),
   ),
   precip_avg_in_hr: PRECIP_RATE,
   precip_max_in_hr: PRECIP_RATE,
+}
+
+/**
+ * The scale one hour of a ranked metric is read on, for map playback (#121).
+ *
+ * Playback colors a marker by that hour's own number rather than by the
+ * window's, so precipitation has to leave the total scale: 0.30" spread across
+ * three days is drizzle and 0.30 in/hr is a downpour, and coloring the second
+ * like the first would say they were the same weather. It reads the same
+ * `COLUMN_SCALE` the table does, so a marker under the playhead and the cell
+ * beside it in the table cannot be scored differently.
+ *
+ * The point-sample collapse `scaleFor` handles below cannot apply here:
+ * playback exists only over a window of at least two stamps, so an hour is
+ * never the whole window.
+ */
+export function hourlyScale(sortBy: SortBy): LabelledScale {
+  return COLUMN_SCALE[HOURLY_COLUMN[sortBy]]
 }
 
 /**
@@ -157,7 +209,18 @@ function interpolateRgb(value: number, scale: ColorScale): [number, number, numb
 
 /** A marker is colored by the ranked value, which is what the legend explains. */
 export function markerColor(value: number, sortBy: SortBy): string {
-  const [r, g, b] = interpolateRgb(value, METRIC_CONFIG[sortBy])
+  return colorOnScale(value, METRIC_CONFIG[sortBy])
+}
+
+/**
+ * The same interpolation against a scale the caller names.
+ *
+ * Map playback needs it: a marker under the playhead is colored by one hour's
+ * value, which for precipitation is measured on `PRECIP_RATE` rather than on
+ * the window scale its ranking uses.
+ */
+export function colorOnScale(value: number, scale: ColorScale): string {
+  const [r, g, b] = interpolateRgb(value, scale)
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 

@@ -8,6 +8,8 @@
 | [OpenFreeMap](https://openfreemap.org) | Vector map tiles | Free | None |
 | [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) | Active wildfire perimeters, United States only | Free (quota shared across all consumers) | None |
+| [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) | Analyst-traced smoke plumes, North America | Free (public-domain files, no quota) | None |
+| [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) | NEXRAD radar mosaic tiles, continental United States | Free | None |
 
 Every one of these is free, keyless, and paid for by somebody else. The table
 says what each one provides. It cannot say what the numbers coming back
@@ -228,3 +230,70 @@ say the check never happened. Perimeters are a surveyed product with reporting
 lag, so read them as where a fire has been mapped, not where it is burning right
 now. For decisions about an active incident, use
 [InciWeb](https://inciweb.wildfire.gov) and the responsible agency.
+
+## Smoke
+
+The optional smoke overlay comes from NOAA's **Hazard Mapping System**, and the
+first thing to know about it is that it is not a model. Analysts at NOAA look at
+GOES satellite imagery and trace the visible smoke by hand, classing each plume
+Light, Medium or Heavy. Roughly two passes land per day, the first around late
+morning Eastern.
+
+That has three consequences worth reading the layer with.
+
+**It is observation, with a lag.** A plume states the window of imagery it was
+traced from, which the popup shows, and that window can be hours behind now.
+There is nothing here to animate, and the map timeline does not claim it.
+
+**It is a column of air, not the ground.** A satellite sees smoke from above, so
+a plume overhead can mean a hazy sky and perfectly breathable air, or smoke
+sitting in the valley you are walking into. The two look identical from orbit.
+The AQI columns in the results table are what measure air at the surface; this
+layer answers where the smoke is, not what it is doing to you.
+
+**Density is relative.** Light, Medium and Heavy are an analyst's judgement of
+optical thickness in the imagery, not a concentration in any unit. They draw as
+three opacities of one grey for exactly that reason: the encoding is "more" and
+"less", which is what the source actually says.
+
+HMS publishes one dated file per day and Bluebird's server fetches it, for the
+same reason it fetches perimeters — one caller instead of one per visitor —
+though the pressure is milder here, since NOAA serves these off a plain file
+server with no quota to exhaust. What the server buys instead is the date
+arithmetic: before the day's first pass lands, that file does not exist yet, and
+the fetch falls back to yesterday's analysis rather than reporting an outage.
+The response says which date it served under, so the fallback is visible rather
+than silent; see [API.md](API.md#smoke-plumes).
+
+Coverage is North America, which is what HMS analyzes. Elsewhere the layer is
+empty, and empty means "not covered" rather than "clear air".
+
+## Rain radar
+
+The optional radar overlay is the **NEXRAD base-reflectivity mosaic**, served as
+raster tiles by the Iowa Environmental Mesonet at Iowa State University. It is
+the one layer in Bluebird that is a measurement rather than a forecast:
+everything in the results table is a model's opinion about the future, and this
+is where rain was actually falling in the last hour.
+
+The tiles go straight from IEM to your browser rather than through Bluebird's
+server. They are keyless, CORS-open, and cached for five minutes at the edge, so
+there is nothing for the server to hold that the browser would not fetch anyway.
+IEM asks only that applications with thousands of simultaneous users arrange
+their own hosting, which an off-by-default toggle on a hobby-scale site
+respects.
+
+The loop is **twelve frames spanning 55 minutes**, at five-minute steps. Frames
+are addressed as "five minutes ago", "ten minutes ago" and so on rather than by
+timestamp, which is the form the service documents, and that is why the timeline
+reads out a relative time: the capture moment is only known to within the step.
+Two consequences follow. Adjacent frames occasionally resolve to the same
+mosaic, when the radars happened not to run between them. And because the
+offsets are relative to when a tile is requested, panning mid-loop can pull
+slightly newer imagery into an older frame; the whole set refreshes on the same
+five-minute cadence, which bounds it.
+
+Coverage is the continental United States. Reflectivity is not a rainfall rate:
+it is what the radar echo measured, which hail, bright-band melting, and beam
+blockage in mountain terrain can all colour. Read it as where the storm is, not
+as how much water is landing on a summit.

@@ -118,6 +118,8 @@ you claim to be.
 | [Open-Meteo air quality](https://open-meteo.com/en/docs/air-quality-api) | same split, best-effort on both paths, fetched **lazily**: only for the displayed rows unless the ranking key is an AQI metric | same split | same accounting, metered separately | browser and server: same pacing shape (`UPSTREAM_WEIGHT_PER_MINUTE_AQI=550` per pod, undivided for the same reason), failures degrade to null, and the first 429 short-circuits the remaining AQI batches |
 | [Nominatim](https://operations.osmfoundation.org/policies/nominatim/) | backend (`geocode.py`) proxying the search box | cluster egress IP | absolute ~1 req/s per service, real User-Agent required | `NOMINATIM_MIN_INTERVAL_MS=3500` spacing per pod (~0.86/s aggregate at 3 replicas; the previous 2s ≈ 1.5/s quietly exceeded the policy) + per-client geocode bucket |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) (wildfire overlay and proximity warnings) | backend (`nifc.py`), 2 queries per refresh (full-resolution and simplified copies of the whole country), on demand and never when idle | cluster egress IP | per-minute request-unit quota belonging to **NIFC's** ArcGIS organization, shared with every other consumer of the public dataset | `WILDFIRE_CACHE_TTL_S=600` per pod, one refresh at a time, refreshed behind the request rather than in front of it, last good snapshot served on failure, `WILDFIRE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client wildfires bucket |
+| [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) (smoke overlay) | backend (`hms.py`), 1 file per refresh (the whole day's national analysis), on demand and never when idle | cluster egress IP | none published; a static file server with no quota to exhaust | `SMOKE_CACHE_TTL_S=1800` per pod, one refresh at a time, refreshed behind the request, last good snapshot served on failure, `SMOKE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client smoke bucket |
+| [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) (rain radar overlay) | **browser**, raster tiles per visible frame | visitor IP | none published; IEM asks that applications with thousands of simultaneous users self-host | off by default, one frame's tiles on toggle and the rest only as the loop reaches them, plus IEM's own `max-age=300` edge cache |
 
 Everything the browser fetches itself costs our egress IP nothing — that is
 [#170](https://github.com/zimmertr/bluebird/issues/170): the web app calls
@@ -143,6 +145,17 @@ dataset. Per-visitor requests were therefore not spreading load, they were
 crowding one pool nobody involved could see, and losing at random. One pod-side
 snapshot serves everyone, so the cost upstream is now a fixed handful of
 requests per hour rather than a multiple of traffic.
+
+The two overlays added in
+[#121](https://github.com/zimmertr/bluebird/issues/121) split on that same
+question, and land on opposite answers. **Smoke** goes through the pod: NOAA
+publishes one dated file per day, so a per-visitor fetch would be thousands of
+requests for one document, and the day's file does not exist before the first
+analyst pass lands, which is date arithmetic nobody should do three times in
+three timezones. **Radar** stays in the browser: its tiles are cached for five
+minutes at IEM's own edge, a viewport is a different set of tiles for every
+visitor so there is nothing shared to hold, and proxying would put a
+continent's worth of raster through a pod to save nothing.
 
 Both Open-Meteo paths on the server share one process-wide HTTP client
 (`services/http.py`), so the batches of an analysis ride a pooled keep-alive

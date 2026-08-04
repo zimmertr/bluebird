@@ -170,7 +170,7 @@ async def test_cache_refetches_once_the_snapshot_ages_out():
         calls += 1
         return _snapshot(_polygon(-120.0, 45.0, -119.0, 46.0), fetched_at_ms=calls)
 
-    perimeters = nifc.PerimeterCache(ttl_s=600, clock=clock, fetch=fetch)
+    perimeters = nifc.perimeter_cache(ttl_s=600, clock=clock, fetch=fetch)
     assert (await perimeters.get()).fetched_at_ms == 1
     clock.t = 599
     assert (await perimeters.get()).fetched_at_ms == 1
@@ -196,7 +196,7 @@ async def test_an_aged_snapshot_is_served_without_waiting_for_the_refresh():
             await release.wait()
         return _snapshot(_polygon(-120.0, 45.0, -119.0, 46.0), fetched_at_ms=calls)
 
-    perimeters = nifc.PerimeterCache(ttl_s=600, clock=clock, fetch=fetch)
+    perimeters = nifc.perimeter_cache(ttl_s=600, clock=clock, fetch=fetch)
     await perimeters.get()
 
     clock.t = 601
@@ -230,7 +230,7 @@ async def test_concurrent_cold_misses_cost_one_upstream_fetch():
         await release.wait()
         return _snapshot(_polygon(-120.0, 45.0, -119.0, 46.0))
 
-    perimeters = nifc.PerimeterCache(fetch=fetch)
+    perimeters = nifc.perimeter_cache(fetch=fetch)
     waiters = [asyncio.create_task(perimeters.get()) for _ in range(5)]
     await started.wait()
     release.set()
@@ -252,7 +252,7 @@ async def test_concurrent_aged_reads_schedule_one_background_refresh():
             await release.wait()
         return _snapshot(_polygon(-120.0, 45.0, -119.0, 46.0))
 
-    perimeters = nifc.PerimeterCache(ttl_s=600, clock=clock, fetch=fetch)
+    perimeters = nifc.perimeter_cache(ttl_s=600, clock=clock, fetch=fetch)
     await perimeters.get()
 
     clock.t = 601
@@ -271,7 +271,7 @@ async def test_a_failed_refresh_keeps_serving_the_last_good_snapshot():
             raise UpstreamRateLimited(nifc.PROVIDER, "minutely", 60, "quota exhausted")
         return _snapshot(_polygon(-120.0, 45.0, -119.0, 46.0), fetched_at_ms=7)
 
-    perimeters = nifc.PerimeterCache(ttl_s=600, clock=clock, fetch=fetch)
+    perimeters = nifc.perimeter_cache(ttl_s=600, clock=clock, fetch=fetch)
     await perimeters.get()
 
     healthy = False
@@ -295,7 +295,7 @@ async def test_a_failed_refresh_backs_off_instead_of_retrying_per_request():
             raise UpstreamError("down")
         return _snapshot(_polygon(-120.0, 45.0, -119.0, 46.0))
 
-    perimeters = nifc.PerimeterCache(ttl_s=600, retry_after_failure_s=60, clock=clock, fetch=fetch)
+    perimeters = nifc.perimeter_cache(ttl_s=600, retry_after_failure_s=60, clock=clock, fetch=fetch)
     await perimeters.get()
     clock.t = 601
     await perimeters.get()
@@ -314,7 +314,7 @@ async def test_the_first_ever_failure_has_nothing_to_serve_and_raises():
     async def fetch() -> nifc.Snapshot:
         raise UpstreamError("NIFC unreachable")
 
-    perimeters = nifc.PerimeterCache(fetch=fetch)
+    perimeters = nifc.perimeter_cache(fetch=fetch)
     with pytest.raises(UpstreamError):
         await perimeters.get()
 
@@ -366,7 +366,7 @@ def served(monkeypatch):
         async def fetch() -> nifc.Snapshot:
             return snapshot
 
-        monkeypatch.setattr(nifc, "PERIMETERS", nifc.PerimeterCache(fetch=fetch))
+        monkeypatch.setattr(nifc, "PERIMETERS", nifc.perimeter_cache(fetch=fetch))
 
     return install
 

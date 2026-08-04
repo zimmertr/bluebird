@@ -938,6 +938,56 @@ export const FIELD_NUMERIC =
 export const SELECT = `${FIELD} appearance-none pr-8`
 
 /**
+ * The map timeline's scrubber (#121).
+ *
+ * A real `<input type="range">` rather than a div with a drag handler, and that
+ * is the load-bearing decision here: it arrives knowing arrow keys, Home and
+ * End, it announces itself and its value to a screen reader, and a finger drags
+ * it because the platform makes it. A hand-rolled track would owe every one of
+ * those and would ship with none of them.
+ *
+ * What the platform does *not* give is a look — it paints from the system
+ * palette, so a light-mode OS renders a pale track inside a dark map card, the
+ * same problem `SELECT` documents. So `appearance-none` on the input and on
+ * both thumb pseudo-elements, then the track and thumb drawn here.
+ *
+ * The two vendor spellings are both required and neither is redundant: WebKit
+ * and Blink read `::-webkit-slider-thumb`, Firefox reads `::-moz-range-thumb`,
+ * and a browser ignores the other one entirely. They are written as separate
+ * arbitrary variants rather than a grouped selector because Tailwind scans this
+ * file as raw text and generates a rule per variant it finds.
+ *
+ * The thumb is white on the accent-filled track for the same reason the
+ * `ACCENT.fill` label is: white is what reads on this blue, and the thumb is
+ * the one part that has to be findable at a glance while it moves. It is 14px,
+ * which is under the 44px target — deliberately, and it is the exception
+ * `TAP.grip` already argues for: the control is a horizontal drag on a bar that
+ * is itself the target, so the height that matters is the input's, and the
+ * thumb is a mark on it rather than a thing to hit.
+ */
+export const SCRUBBER =
+  'w-full h-2 appearance-none cursor-pointer bg-transparent ' +
+  `${FOCUS_RING} ` +
+  '[&::-webkit-slider-thumb]:[appearance:none] [&::-webkit-slider-thumb]:h-3.5 ' +
+  '[&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:rounded-full ' +
+  '[&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow ' +
+  '[&::-moz-range-thumb]:[appearance:none] [&::-moz-range-thumb]:h-3.5 ' +
+  '[&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full ' +
+  '[&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white'
+
+/**
+ * The rail the scrubber slides on, drawn as the element behind it.
+ *
+ * A separate element rather than styling `::-webkit-slider-runnable-track`,
+ * because the filled portion has to be a third box on top of it and a
+ * pseudo-element cannot carry one. Same recessed surface as every other well in
+ * the app, so the bar reads as part of the same system as the calendar and the
+ * fields — the fill is `ACCENT.mark`, the app's bare accent graphic, which is
+ * what the analysis progress bar already is.
+ */
+export const SCRUBBER_TRACK = `h-2 ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.pill}`
+
+/**
  * The results grid's two cell insets, which had been spelled out ten times
  * across one file.
  *

@@ -42,6 +42,15 @@ interface Props {
   metric: ChartMetric
   onMetricChange: (m: ChartMetric) => void
   colorFor: (row: DestinationResult) => string
+  // The map timeline's playhead, when it is scrubbing this same grid (#121).
+  // Null whenever it is not — no analysis, or the transport sitting on the
+  // radar axis — so the line appears exactly when there is a moment on the map
+  // it corresponds to.
+  playheadMs?: number | null
+  // Move that playhead by clicking the chart. Absent when no forecast axis
+  // exists, which is what makes a click on a chart with no timeline behind it
+  // do nothing rather than something invisible.
+  onPlayheadChange?: (ms: number) => void
 }
 
 export default function TimeSeriesChart({
@@ -50,6 +59,8 @@ export default function TimeSeriesChart({
   metric,
   onMetricChange,
   colorFor,
+  playheadMs = null,
+  onPlayheadChange,
 }: Props) {
   const plotRef = useRef<HTMLDivElement>(null)
   const [focusedKey, setFocusedKey] = useState<string | null>(null)
@@ -116,6 +127,16 @@ export default function TimeSeriesChart({
     setCursorValue(null)
   }
 
+  // A click puts the map's playhead on the hour under the pointer. The chart
+  // and the map are two views of one hourly grid, so a reader who has found the
+  // bad afternoon on the chart should be able to see it on the map without
+  // hunting for it again on a 200px scrubber. `activeLabel` is Recharts' own
+  // name for the x value the tooltip is tracking, which is the timestamp.
+  function handleClick(state: any) {
+    const t = state?.activeLabel
+    if (onPlayheadChange && typeof t === 'number') onPlayheadChange(t)
+  }
+
   return (
     <div className="flex h-full flex-col">
       {/* Metric radios — one series at a time; default is the ranked metric. */}
@@ -141,6 +162,8 @@ export default function TimeSeriesChart({
             margin={MARGIN}
             onMouseMove={followCursor ? handleMove : undefined}
             onMouseLeave={followCursor ? handleLeave : undefined}
+            onClick={onPlayheadChange ? handleClick : undefined}
+            className={onPlayheadChange ? 'cursor-pointer' : undefined}
           >
             <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
             <XAxis
@@ -170,6 +193,15 @@ export default function TimeSeriesChart({
                 strokeDasharray="4 3"
                 label={{ value: 'Now', position: 'insideTopLeft', fill: '#94a3b8', fontSize: 10 }}
               />
+            )}
+            {/* The map's playhead. Solid and in the accent where the "Now"
+                seam above is dashed and in the axis colour, because this one
+                is a control's position and that one is a fact about the data.
+                No label: the transport's own readout already states the hour,
+                and a second copy of it would move with the line across a chart
+                that is mostly line already. */}
+            {playheadMs !== null && (
+              <ReferenceLine x={playheadMs} stroke="#38bdf8" strokeWidth={1.5} />
             )}
             <Tooltip
               isAnimationActive={false}

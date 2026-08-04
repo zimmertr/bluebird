@@ -18,6 +18,7 @@ from app.routes.config import router as config_router
 from app.routes.destinations import router as destinations_router
 from app.routes.geocode import router as geocode_router
 from app.routes.notfound import router as notfound_router
+from app.routes.smoke import router as smoke_router
 from app.routes.version import router as version_router
 from app.routes.wildfires import router as wildfires_router
 from app.services import http as upstream_http
@@ -134,6 +135,14 @@ _TAGS = [
             "the public dataset."
         ),
     },
+    {
+        "name": "smoke",
+        "description": (
+            "Smoke plumes traced by NOAA analysts from satellite imagery, "
+            "cached from their file server. Roughly two analyses land per day, "
+            "so this is a picture of the smoke rather than a forecast of it."
+        ),
+    },
 ]
 
 @asynccontextmanager
@@ -221,6 +230,7 @@ app.include_router(geocode_router, prefix="/api")
 app.include_router(version_router, prefix="/api")
 app.include_router(capabilities_router, prefix="/api")
 app.include_router(wildfires_router, prefix="/api")
+app.include_router(smoke_router, prefix="/api")
 # Must stay last of the /api routers: it matches every path under the prefix, so
 # anything registered after it would be unreachable.
 app.include_router(notfound_router, prefix="/api")

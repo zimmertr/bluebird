@@ -120,11 +120,61 @@ The calendar is fully keyboard operable: arrow keys move by day, Page Up and Pag
 
 ## Ranking, filters, and options
 
-Once you have set your destinations and forecast window, three short sections shape the report: **Ranking** picks the order, **Filters** picks who qualifies, and **Options** holds the remaining knobs (max results, unnamed peaks, the wildfire overlay).
+Once you have set your destinations and forecast window, three short sections shape the report: **Ranking** picks the order, **Filters** picks who qualifies, and **Options** holds the remaining knobs (max results, unnamed peaks, and the map layers).
 
 ### Ranking
 
 Sort destinations by any metric: total precipitation, average wind, average temperature, or average AQI. The table re-ranks every destination in your analyzed area, not just the ones on screen, so the winners really are the extremes of the area. You can also see these four metrics in the table itself and click any of them to re-rank.
+
+### Map layers
+
+Three optional overlays, all off by default, all live. Switching one on draws it
+immediately and changes nothing about the analysis: an overlay is a picture beside
+the ranking, never an input to it, so none of them ever asks you to press Analyze
+again. Each is credited on its own legend, and each rides in the shared link.
+
+| Layer | What it draws | Coverage |
+|---|---|---|
+| **Wildfires** | Active fire perimeters, in red | United States |
+| **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 55 minutes | Continental United States |
+| **Smoke** | Smoke plumes at three densities, in grey | North America |
+
+Clicking a perimeter opens NIFC's live map on that fire; clicking a plume says how
+dense it is, which satellite it was traced from, and over what hours. Where smoke
+sits over a fire — which is most of the time, since one causes the other — the
+click goes to the fire.
+
+Read the three for what they are. Radar is a **measurement of the last hour**,
+which makes it the one layer here that is not a model's opinion about the future.
+Smoke is an analyst's tracing of what a satellite could see, updated about twice a
+day, and it describes a column of air rather than the ground: a plume overhead can
+mean a hazy sky and clean air to breathe, or the opposite. The AQI columns in the
+table are what measure air.
+
+### The timeline
+
+A bar appears at the bottom of the map whenever something on it spans time. Press
+play to run it, or drag the scrubber to a moment.
+
+It has up to two axes, and a switch to pick between them when both exist:
+
+- **Radar** plays the last 55 minutes of observed rain, in twelve five-minute
+  frames. The readout counts backwards from now rather than naming a clock time,
+  because the frames are addressed as "five minutes ago" and the capture moment is
+  only known that closely.
+- **Forecast** appears once an analysis covers more than one hour, and scrubs the
+  window you asked for. The markers recolor to the hour under the playhead, on the
+  same bands the legend shows, and the legend follows: precipitation switches to
+  inches per hour, since an hour of rain and a window's total are different
+  quantities. Ranking a wind metric also draws an arrow beside each marker,
+  pointing the way the wind is blowing at that hour.
+
+The chart below the map draws the same playhead as a vertical line, and clicking
+the chart moves it. The two are one grid seen twice, so finding the bad afternoon
+on the chart puts it on the map.
+
+Playback costs nothing upstream. Every destination's hourly series is already in
+hand from the analysis; the timeline is a position in it.
 
 ### Filtering
 

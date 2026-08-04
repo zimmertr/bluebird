@@ -164,6 +164,13 @@ interface Props {
   onClearFilters: () => void
   showWildfires: boolean
   setShowWildfires: (v: boolean) => void
+  // The two overlays #121 adds. Live like the wildfire one: an overlay is a
+  // thing drawn on the map, never an input to the ranking, so none of these
+  // can make a report stale.
+  showRadar: boolean
+  setShowRadar: (v: boolean) => void
+  showSmoke: boolean
+  setShowSmoke: (v: boolean) => void
   // Summits OSM knows only by their height, discovered as `Peak 5961`.
   // A polygon knob rather than a map one, and off by default, because it
   // roughly triples the candidate count.
@@ -256,6 +263,10 @@ export default function ControlPanel({
   onClearFilters,
   showWildfires,
   setShowWildfires,
+  showRadar,
+  setShowRadar,
+  showSmoke,
+  setShowSmoke,
   includeUnnamedPeaks,
   setIncludeUnnamedPeaks,
   forecastModel,
@@ -406,6 +417,20 @@ export default function ControlPanel({
   ]
   const filtersActive =
     minElevationFt !== null || maxElevationFt !== null || hasConstraints(constraints)
+
+  // The optional map overlays, as one list rather than three hand-written rows.
+  // Ordered by how much of the map each one covers, lightest first: a fire is a
+  // shape you look for, radar is weather over a region, smoke can span the
+  // continent. That also happens to be the order they stack on the map, which
+  // is not a coincidence — both orderings answer "how much is this hiding".
+  //
+  // "Wildfires" rather than "Show wildfires": under a heading that says these
+  // are layers, the verb was the heading's job being done three times.
+  const MAP_LAYERS = [
+    { key: 'fires', label: 'Wildfires', checked: showWildfires, onChange: setShowWildfires },
+    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
+    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
+  ]
 
   return (
     <div className="flex flex-col h-full">
@@ -785,7 +810,7 @@ export default function ControlPanel({
 
         {/* Options — the knobs that shape a search without being one of its
             inputs: how many rows to show, whether discovery counts unnamed
-            summits, and the wildfire overlay. */}
+            summits, and the map layers drawn beside the results. */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
             Options
@@ -829,16 +854,26 @@ export default function ControlPanel({
               <span>Include unnamed peaks</span>
             </label>
 
-            {/* Show wildfires — live NIFC perimeter overlay, off by default */}
-            <label className={CHOICE_ROW}>
-              <input
-                type="checkbox"
-                checked={showWildfires}
-                onChange={(e) => setShowWildfires(e.target.checked)}
-                className={CHOICE_INPUT}
-              />
-              <span>Show wildfires</span>
-            </label>
+            {/* Map layers — the optional overlays, under a heading rather
+                than as three loose checkboxes among the other options. Each is
+                off by default and each is live: turning one on never restates
+                the analysis, so none of them touches the commit cue. The
+                heading is what lets a fourth layer be one more row instead of
+                one more sentence (#121). */}
+            <div>
+              <h3 className={`${TEXT.subheading} mb-1.5`}>Map layers</h3>
+              {MAP_LAYERS.map(({ key, label, checked, onChange }) => (
+                <label key={key} className={CHOICE_ROW}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(e) => onChange(e.target.checked)}
+                    className={CHOICE_INPUT}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
           </div>
         </section>
       </div>

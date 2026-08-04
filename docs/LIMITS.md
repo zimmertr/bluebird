@@ -43,18 +43,24 @@ lowering it saves nothing. A shared link asking for more rows than the running
 service allows opens at the allowed number rather than having the request
 ignored, so the link still means what it says as far as the deployment permits.
 
-**Request pacing.** Analyze, discovery, search, and wildfire perimeters hold
-separate per-address budgets, so a burst of map searches cannot starve
-somebody's analysis. Past one you get a `429` with `Retry-After`. They are sized
+**Request pacing.** Analyze, discovery, search, wildfire perimeters, and smoke
+plumes hold separate per-address budgets, so a burst of map searches cannot
+starve somebody's analysis. Past one you get a `429` with `Retry-After`. They are sized
 so a person iterating on a map never meets them. A script should stay well under
 them anyway, and can sidestep them entirely by running its own container, where
 every limit is tunable or off.
 
-The wildfire budget is the loosest of the four, because the request it paces is
-the cheapest one the service answers: perimeters come from a snapshot the
-instance already holds, so a pan costs no upstream call at all. What that budget
-protects is this instance's own bandwidth, not NIFC's quota, which is bounded
-instead by how often the snapshot refreshes.
+The wildfire and smoke budgets are the loosest, because the requests they pace
+are the cheapest the service answers: both come from a snapshot the instance
+already holds, so a pan costs no upstream call at all. What those budgets
+protect is this instance's own bandwidth, not the providers' quotas, which are
+bounded instead by how often each snapshot refreshes.
+
+The rain-radar overlay appears in none of this, and deliberately. Its tiles go
+from Iowa Environmental Mesonet straight to the browser rather than through this
+service, so there is no request here to pace and no snapshot to hold. What bounds
+that traffic is the layer being off by default and IEM's own five-minute edge
+cache; see [DATA.md](DATA.md#rain-radar).
 
 When a request fails rather than refuses, the status code says whose problem it
 is and whether waiting helps:
@@ -64,7 +70,7 @@ is and whether waiting helps:
 | `400` | The request is runnable in shape but not as asked. Past the candidate cap it carries the remedies above; naming a regional forecast model for somewhere outside its grid is the other case, and there the fix is a different model rather than a smaller area. |
 | `429` | Either you are asking faster than your per-address budget, or the weather service rate-limited this deployment mid-analysis. `Retry-After` is honest in both cases. |
 | `502` | An upstream failed outright. Every Overpass mirror was unreachable, or the weather service did not answer. Transient, worth retrying. |
-| `503` | This instance stayed at capacity long enough that it shed the request instead of queueing it forever. From `GET /api/wildfires` it means something narrower: this instance has never once fetched perimeters successfully, so it has nothing to serve, not even stale. Transient either way, and carries `Retry-After`. |
+| `503` | This instance stayed at capacity long enough that it shed the request instead of queueing it forever. From `GET /api/wildfires` and `GET /api/smoke` it means something narrower: this instance has never once fetched that dataset successfully, so it has nothing to serve, not even stale. Transient either way, and carries `Retry-After`. |
 
 A load problem is never answered with a `500`, and Bluebird itself never
 returns a `504`. An upstream that times out on us surfaces as a `502`, since
