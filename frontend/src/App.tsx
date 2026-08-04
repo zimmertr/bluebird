@@ -387,6 +387,11 @@ export default function App() {
   }, [columnVisibility])
   // Column picker popover open/closed
   const [columnsOpen, setColumnsOpen] = useState(false)
+  // Column widths the user has set (px by key), plus the automatic Name
+  // narrowing. Held here rather than in the table so a mode switch or the
+  // collapse chevron — both of which unmount the table — cannot reset them.
+  // Session-only by design: a width is a reading posture, not a preference.
+  const [tableColWidths, setTableColWidths] = useState<Record<string, number>>({})
   // Chevron to collapse/expand the entire results area.
   const [resultsCollapsed, setResultsCollapsed] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
@@ -1808,6 +1813,8 @@ export default function App() {
                         onDetailSort={(key, dir) => setDetailSort({ key, dir })}
                         pointSample={pointSample}
                         columns={tableColumns}
+                        columnWidths={tableColWidths}
+                        onColumnWidthsChange={setTableColWidths}
                         fireWarnings={fire.warnings}
                         pending={pending}
                         onRemove={handleRemoveResult}

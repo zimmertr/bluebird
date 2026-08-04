@@ -1,8 +1,10 @@
-import { useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
+import type { ReactNode } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { cellStyle, scaleFor, METRIC_CONFIG } from '../utils/colors'
 import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
 import { SortDir, SortKey, displayedColumns, ColDef } from '../utils/tableColumns'
+import { autoFitWidth, defaultNameWidth, dragWidth } from '../utils/columnResize'
 import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
 import { isPeakKind } from '../utils/geocode'
@@ -117,6 +119,11 @@ interface Props {
   // Shift-click range select: (de)select every chartable row in the run,
   // matching the checked state the click produces.
   onChartRange?: (rows: DestinationResult[], selected: boolean) => void
+  // Column widths the user has set (px by column key), held by App so they
+  // survive mode switches and the collapse chevron. A column absent from the
+  // map keeps its natural width — see utils/columnResize.ts for the model.
+  columnWidths?: Record<string, number>
+  onColumnWidthsChange?: (widths: Record<string, number>) => void
 }
 
 export default function ResultsTable({
@@ -140,6 +147,8 @@ export default function ResultsTable({
   isCharted,
   chartColor,
   onChartRange,
+  columnWidths,
+  onColumnWidthsChange,
 }: Props) {
   const coloredGroup = new Set(METRIC_CONFIG[sortBy].group)
   // The ranked metric's columns lead the table (right after #/Name/Elevation), so
@@ -183,6 +192,100 @@ export default function ResultsTable({
   // indeterminate dash.
   const chartableRows = showChartCol ? results.filter((r) => r.series) : []
   const headState = selectionState(chartableRows, (r) => isCharted?.(r) ?? false)
+
+  // ---- Column resizing. The arithmetic lives in utils/columnResize.ts; this
+  // block is only the DOM: where the pointer is, how wide a header's content
+  // renders, and which cells belong to a column.
+  const widths = columnWidths ?? {}
+  const widthsRef = useRef(widths)
+  widthsRef.current = widths
+  const tableRef = useRef<HTMLTableElement>(null)
+
+  // A column's content width: the header's box minus its own padding, which
+  // under auto layout is the width the widest cell has forced on the column.
+  function thContentWidth(th: HTMLElement): number {
+    const cs = getComputedStyle(th)
+    return th.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+  }
+
+  function beginColumnResize(e: React.PointerEvent, key: string) {
+    if (!onColumnWidthsChange) return
+    e.preventDefault()
+    e.stopPropagation()
+    const th = (e.currentTarget as HTMLElement).closest('th') as HTMLElement
+    const start = widthsRef.current[key] ?? thContentWidth(th)
+    const startX = e.clientX
+    const onMove = (ev: PointerEvent) =>
+      onColumnWidthsChange({ ...widthsRef.current, [key]: dragWidth(start, ev.clientX - startX) })
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', onUp)
+      document.removeEventListener('pointercancel', onUp)
+    }
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('pointerup', onUp)
+    document.addEventListener('pointercancel', onUp)
+  }
+
+  // Double-click on a handle: fit the longest cell. scrollWidth alone cannot
+  // answer this — the name cell truncates through flex, which SHRINKS content
+  // to the wrapper instead of overflowing it, so a clipped wrapper reports its
+  // own width back. Instead every wrapper is let out to max-content for one
+  // synchronous layout, measured, and restored; two reflows per double-click.
+  function autoFitColumn(e: React.MouseEvent, key: string) {
+    if (!onColumnWidthsChange || !tableRef.current) return
+    e.preventDefault()
+    e.stopPropagation()
+    const th = (e.currentTarget as HTMLElement).closest('th') as HTMLTableCellElement
+    const body = tableRef.current.tBodies[0]
+    const cells: HTMLElement[] = [th]
+    for (const row of body ? Array.from(body.rows) : []) {
+      const cell = row.cells[th.cellIndex]
+      if (cell) cells.push(cell)
+    }
+    const inners = cells.map((c) => c.querySelector<HTMLElement>('[data-col-inner]'))
+    const saved = inners.map((el) => el?.style.width ?? '')
+    inners.forEach((el) => {
+      if (el) el.style.width = 'max-content'
+    })
+    const contents = cells.map((c, i) => {
+      const inner = inners[i]
+      if (inner) return inner.offsetWidth
+      const cs = getComputedStyle(c)
+      return c.scrollWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+    })
+    inners.forEach((el, i) => {
+      if (el) el.style.width = saved[i]
+    })
+    onColumnWidthsChange({ ...widthsRef.current, [key]: autoFitWidth(contents) })
+  }
+
+  // Name opens at 75% of its natural width, measured once real rows exist
+  // (an empty table would measure the bare header). Applied only while the
+  // user has never sized the column: once `name` is in the map — by this
+  // default or by hand — it never fires again, App holds the map across
+  // remounts, and a remount cannot compound the discount.
+  const hasRows = results.length > 0 || (pending?.length ?? 0) > 0
+  useLayoutEffect(() => {
+    if (!onColumnWidthsChange || !hasRows) return
+    if (widthsRef.current['name'] !== undefined) return
+    const th = tableRef.current?.querySelector<HTMLElement>('th[data-col="name"]')
+    if (!th) return
+    onColumnWidthsChange({ ...widthsRef.current, name: defaultNameWidth(thContentWidth(th)) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasRows])
+
+  // A sized column pins every cell's content box to the chosen width; the
+  // wrapper is also what auto-fit measures. Unsized columns render untouched.
+  function sized(key: string, content: ReactNode): ReactNode {
+    const w = widths[key]
+    if (w === undefined) return content
+    return (
+      <div data-col-inner className="overflow-hidden text-ellipsis" style={{ width: w }}>
+        {content}
+      </div>
+    )
+  }
 
   function handleChartToggle(row: DestinationResult) {
     const shift = shiftHeldRef.current
@@ -247,32 +350,35 @@ export default function ResultsTable({
         const warning = fireWarnings.get(fireKey(row.latitude, row.longitude))
         return (
           <td key={col.key} className={cellClass}>
-            <span className="flex items-center gap-1.5">
-              {warning && (
-                <span
-                  aria-label={fireWarningText(warning)}
-                  className="cursor-help"
+            {sized(
+              'name',
+              <span className="flex min-w-0 items-center gap-1.5">
+                {warning && (
+                  <span
+                    aria-label={fireWarningText(warning)}
+                    className="cursor-help"
+                  >
+                    ⚠️
+                  </span>
+                )}
+                <button
+                  onClick={() => onFocusResult?.(row)}
+                  aria-label={`Center map on ${row.name}`}
+                  className={`${LINK_ACTION} min-w-0 cursor-pointer truncate text-left`}
                 >
-                  ⚠️
-                </span>
-              )}
-              <button
-                onClick={() => onFocusResult?.(row)}
-                aria-label={`Center map on ${row.name}`}
-                className={`${LINK_ACTION} cursor-pointer text-left`}
-              >
-                {display}
-              </button>
-              <a
-                href={destinationUrl(row)}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={`Open ${row.name} in an external map`}
-                className={`shrink-0 ${ICON_ACTION}`}
-              >
-                <ExternalLinkIcon />
-              </a>
-            </span>
+                  {display}
+                </button>
+                <a
+                  href={destinationUrl(row)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Open ${row.name} in an external map`}
+                  className={`shrink-0 ${ICON_ACTION}`}
+                >
+                  <ExternalLinkIcon />
+                </a>
+              </span>,
+            )}
           </td>
         )
       }
@@ -280,21 +386,24 @@ export default function ResultsTable({
       if (col.windyLayer) {
         return (
           <td key={col.key} className={cellClass} style={colorSty}>
-            <a
-              href={windyUrl(row.latitude, row.longitude, col.windyLayer)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={"hover:underline cursor-pointer"}
-            >
-              {display}
-            </a>
+            {sized(
+              col.key as string,
+              <a
+                href={windyUrl(row.latitude, row.longitude, col.windyLayer)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={"hover:underline cursor-pointer"}
+              >
+                {display}
+              </a>,
+            )}
           </td>
         )
       }
 
       return (
         <td key={col.key} className={cellClass} style={colorSty}>
-          {display}
+          {sized(col.key as string, display)}
         </td>
       )
     })
@@ -306,7 +415,7 @@ export default function ResultsTable({
     <div>
       {/* The table's base type is set once here so every cell inherits it and
           only the ranked columns' inline colors override. */}
-      <table className={`min-w-full ${TEXT.control}`}>
+      <table ref={tableRef} className={`min-w-full ${TEXT.control}`}>
         <thead className="sticky top-0 bg-slate-700 z-10">
           <tr>
             {showChartCol && (
@@ -332,13 +441,31 @@ export default function ResultsTable({
               <th
                 key={col.key}
                 scope="col"
+                data-col={col.key}
                 aria-sort={detailSortKey === col.key ? (detailSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                 onClick={() => handleSort(col.key)}
-                className={`${TABLE.head} cursor-pointer whitespace-nowrap hover:text-white select-none`}
+                className={`${TABLE.head} relative cursor-pointer whitespace-nowrap hover:text-white select-none`}
               >
-                {col.label}
-                {detailSortKey === col.key && (
-                  <span className={`ml-1 ${ACCENT.text}`}>{detailSortDir === 'asc' ? '↑' : '↓'}</span>
+                {sized(
+                  col.key as string,
+                  <>
+                    {col.label}
+                    {detailSortKey === col.key && (
+                      <span className={`ml-1 ${ACCENT.text}`}>{detailSortDir === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </>,
+                )}
+                {/* The drag handle owns the header's right edge; its clicks
+                    stop here so a resize or an auto-fit never doubles as a
+                    sort. The border is the visible affordance. */}
+                {onColumnWidthsChange && (
+                  <span
+                    onPointerDown={(e) => beginColumnResize(e, col.key as string)}
+                    onDoubleClick={(e) => autoFitColumn(e, col.key as string)}
+                    onClick={(e) => e.stopPropagation()}
+                    className={`absolute inset-y-0 right-0 w-1.5 cursor-col-resize touch-none border-r-2 border-slate-500/40 ${ACCENT.edgeHover}`}
+                    aria-hidden="true"
+                  />
                 )}
               </th>
             ))}
@@ -370,8 +497,10 @@ export default function ResultsTable({
                 if (col.key === 'name') {
                   return (
                     <td key={col.key} className={`${TABLE.cell} whitespace-nowrap font-sans font-medium`}>
-                      <span className="flex items-center gap-1.5">
-                        {d.name}
+                      {sized(
+                        'name',
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="min-w-0 truncate">{d.name}</span>
                         <a
                           href={destinationUrl({
                             name: d.name,
@@ -387,20 +516,21 @@ export default function ResultsTable({
                         >
                           <ExternalLinkIcon />
                         </a>
-                      </span>
+                        </span>,
+                      )}
                     </td>
                   )
                 }
                 if (col.key === 'elevation_ft') {
                   return (
                     <td key={col.key} className={`${TABLE.cell} whitespace-nowrap font-mono`}>
-                      {d.elevation_ft != null ? d.elevation_ft.toLocaleString() : '—'}
+                      {sized('elevation_ft', d.elevation_ft != null ? d.elevation_ft.toLocaleString() : '—')}
                     </td>
                   )
                 }
                 return (
                   <td key={col.key} className={`${TABLE.cell} whitespace-nowrap font-mono ${TEXT.caption}`}>
-                    —
+                    {sized(col.key as string, '—')}
                   </td>
                 )
               })}
