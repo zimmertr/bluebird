@@ -320,32 +320,45 @@ export default function App() {
   // its own numbers would be a second opinion about what "default" means.
   const [tableHeight, setTableHeight] = useState(DEFAULT_TABLE_HEIGHT)
   const [chartHeight, setChartHeight] = useState(DEFAULT_CHART_HEIGHT)
-  // Which views are visible in the results area: chart-only, table-only, or both.
-  // Stored preference always wins; no stored preference defaults by breakpoint:
-  // 'table' below lg (1024px), 'both' at/above. Never changes on resize.
+  // Which views the results area shows: chart-only, table-only, or both. The
+  // mode is always honored literally — a mode with nothing to draw yet shows
+  // its empty panel rather than quietly displaying a different one, or the
+  // segment reads as broken (#242 review: it sat on Chart while the table
+  // showed, and clicking did nothing visible).
+  //
+  // Everyone opens on Table; a desktop-width window widens to Both when an
+  // analysis lands (the effect below). Only an EXPLICIT press on the segment
+  // persists, under `modeChosen`: the old code stored every mode change, so
+  // the automatic default wrote itself back as if the user had picked it and
+  // then beat the desktop widening forever. The stale `mode` field from that
+  // code is deliberately ignored for the same reason — nothing in it says
+  // whether the user ever actually chose.
   type ResultsMode = 'chart' | 'table' | 'both'
+  const modeChosenRef = useRef(false)
   const [resultsMode, setResultsMode] = useState<ResultsMode>(() => {
-    if (typeof localStorage === 'undefined') {
-      return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches ? 'both' : 'table'
-    }
+    if (typeof localStorage === 'undefined') return 'table'
     try {
       const stored = JSON.parse(localStorage.getItem('bluebird_view') ?? '{}')
-      if (stored.mode !== undefined) return stored.mode
-      // No stored mode: use breakpoint-based default
-      return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches ? 'both' : 'table'
-    } catch {
-      return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches ? 'both' : 'table'
-    }
-  })
-  // Persist results mode to localStorage when it changes.
-  useEffect(() => {
-    try {
-      const current = JSON.parse(localStorage.getItem('bluebird_view') ?? '{}')
-      localStorage.setItem('bluebird_view', JSON.stringify({ ...current, mode: resultsMode }))
+      if (stored.modeChosen === 'chart' || stored.modeChosen === 'table' || stored.modeChosen === 'both') {
+        modeChosenRef.current = true
+        return stored.modeChosen
+      }
     } catch {
       // Ignore localStorage errors (SSR, quota, etc.)
     }
-  }, [resultsMode])
+    return 'table'
+  })
+  // An intentional press on the segment: sticks for the session and persists.
+  function chooseResultsMode(mode: ResultsMode) {
+    modeChosenRef.current = true
+    setResultsMode(mode)
+    try {
+      const current = JSON.parse(localStorage.getItem('bluebird_view') ?? '{}')
+      localStorage.setItem('bluebird_view', JSON.stringify({ ...current, modeChosen: mode }))
+    } catch {
+      // Ignore localStorage errors (SSR, quota, etc.)
+    }
+  }
   // Which columns the table displays (null = use default narrowed set, Set = user choice).
   // The CSV export always gets the full displayedColumns set regardless.
   const [columnVisibility, setColumnVisibility] = useState<Set<string> | null>(() => {
@@ -1148,10 +1161,17 @@ export default function App() {
     view.sortBy,
     searched.places.map((p) => pinKey(p.lat, p.lon)),
   )
-  // Shown whenever the analysis produced an hourly grid, including when nothing
-  // is currently plotted on it: an empty chart beside an empty table reads as a
-  // report with no matches, where a disappearing one reads as a broken app.
-  const chartShown = chartable
+
+  // A desktop-width window widens to Both when an analysis lands, so the first
+  // report arrives with its chart — unless the user has ever explicitly picked
+  // a mode, which always wins. A phone stays on Table: the stacked pair leaves
+  // the map a sliver there. Checked per analysis rather than on mount so the
+  // pre-analysis screen still opens on the plain table.
+  useEffect(() => {
+    if (response === null || modeChosenRef.current) return
+    if (!window.matchMedia('(min-width: 1024px)').matches) return
+    setResultsMode('both')
+  }, [response, analysisSeq])
 
   // Space below the map that a resize must leave alone: the preview banner (when
   // present) sits above the map, so the map + chart + table share the rest.
@@ -1163,17 +1183,16 @@ export default function App() {
   // the map always keeps its floor. Drives both breakpoints — mobile is resizable
   // too, so it can no longer rely on Tailwind's fixed panel heights.
   const viewportH = useViewportHeight()
-  // Determine which panels are visible based on resultsMode and resultsCollapsed.
+  // Which panels are visible: the mode and the collapse chevron alone decide.
+  // Deliberately NOT gated on having data — a mode with nothing to draw shows
+  // its empty panel (the chart with no analysis renders bare axes), because a
+  // segment that says Chart while the table shows reads as broken.
   const chartShowing = !resultsCollapsed && (resultsMode === 'chart' || resultsMode === 'both')
-  // In Chart mode the table still shows when there is no chart to yield to
-  // (pending rows before the first analysis) — the render below and this
-  // height derivation must agree, or the table draws into a 0px band.
-  const tableShowing =
-    !resultsCollapsed && (resultsMode === 'table' || resultsMode === 'both' || !chartShown)
+  const tableShowing = !resultsCollapsed && (resultsMode === 'table' || resultsMode === 'both')
   const { chart: chartPanelPx, table: tablePanelPx } = resolvePanelHeights(
     chartHeight,
     tableHeight,
-    { chartShown: chartShowing && chartShown, tableShown: tableShowing && showTable, availPx: viewportH - bannerPx },
+    { chartShown: chartShowing, tableShown: tableShowing && showTable, availPx: viewportH - bannerPx },
   )
 
   return (
@@ -1483,7 +1502,7 @@ export default function App() {
           )}
         </div>
 
-        {(chartShown || showTable) && (
+        {showTable && (
           <div
             className="flex flex-shrink-0 flex-col bg-slate-800"
             
@@ -1531,10 +1550,10 @@ export default function App() {
                       three icon-plus-label halves cannot fit the panel's
                       144px column (SEGMENT_FLUID exists because this shipped
                       clipped). */}
-                  {(chartShown || showTable) && (
+                  {showResults && (
                     <div className={SEGMENT_FLUID}>
                       <button
-                        onClick={() => setResultsMode('table')}
+                        onClick={() => chooseResultsMode('table')}
                         className={`${SEGMENT_ITEM} ${resultsMode === 'table' ? ACCENT.fill : SEGMENT_IDLE}`}
                         aria-pressed={resultsMode === 'table'}
                         aria-label="Show table only"
@@ -1548,7 +1567,7 @@ export default function App() {
                       </button>
                       <div className={SEGMENT_DIVIDER} />
                       <button
-                        onClick={() => setResultsMode('chart')}
+                        onClick={() => chooseResultsMode('chart')}
                         className={`${SEGMENT_ITEM} ${resultsMode === 'chart' ? ACCENT.fill : SEGMENT_IDLE}`}
                         aria-pressed={resultsMode === 'chart'}
                         aria-label="Show chart only"
@@ -1560,7 +1579,7 @@ export default function App() {
                       </button>
                       <div className={SEGMENT_DIVIDER} />
                       <button
-                        onClick={() => setResultsMode('both')}
+                        onClick={() => chooseResultsMode('both')}
                         className={`${SEGMENT_ITEM} ${resultsMode === 'both' ? ACCENT.fill : SEGMENT_IDLE}`}
                         aria-pressed={resultsMode === 'both'}
                         aria-label="Show chart and table"
@@ -1629,7 +1648,7 @@ export default function App() {
             </div>
             {!resultsCollapsed && (
               <>
-                {chartShown && resultsMode !== 'table' && (
+                {resultsMode !== 'table' && (
                   <>
                     {/* The map│chart grip, in Both AND chart-only mode: a
                         panel shown by itself is still resizable against the
@@ -1665,10 +1684,7 @@ export default function App() {
                     </div>
                   </>
                 )}
-                {/* In Chart mode the table yields — unless there is no chart
-                    to yield to (pending rows before the first analysis),
-                    where honoring the mode would blank the whole area. */}
-                {showTable && (resultsMode !== 'chart' || !chartShown) && (
+                {resultsMode !== 'chart' && (
                   <>
                     {/* In Both mode this grip is the chart│table divider and
                         preserves the pair's sum; alone, there is no chart to

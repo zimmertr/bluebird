@@ -140,7 +140,7 @@ Everything on screen follows a filter change: the table, the map markers, the ch
 
 ### Viewing the results
 
-The results bar at the top of the report gives you three viewing modes. **Table** is the detailed breakdown you can sort, filter and download. **Chart** is a time series of the destinations ticked in the table's checkbox column — that column is the one series picker, so what the chart plots is always what the table has checked. **Both** stacks them. Each view has a drag handle to trade height with the map, and in Both the divider between the two trades their share.
+The results bar at the top of the report gives you three viewing modes. The report opens as a table; a desktop-sized window switches to Both when an analysis completes, and a mode you pick yourself sticks across visits. **Table** is the detailed breakdown you can sort, filter and download. **Chart** is a time series of the destinations ticked in the table's checkbox column — that column is the one series picker, so what the chart plots is always what the table has checked. **Both** stacks them. Each view has a drag handle to trade height with the map, and in Both the divider between the two trades their share.
 
 **Columns** opens a picker for the columns the table shows. Every column starts on — the table scrolls sideways when it must — and unticking narrows the view for easier comparison. The downloaded CSV always carries every column regardless of what the table displays.
 
