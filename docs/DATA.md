@@ -38,7 +38,7 @@ A destination exists in Bluebird only if a volunteer mapped it and gave it a
 name. Unnamed summits are invisible to discovery, elevations come from the OSM
 `ele` tag and are absent or wrong wherever the tag is, and coverage is uneven
 by region in exactly the way volunteer mapping is uneven.
-[Search by Coordinates](USAGE.md#c-search-by-coordinates) exists for that gap:
+[Coordinates](USAGE.md#d-coordinates) exists for that gap:
 whatever OSM does not know, you can paste.
 
 OSM is also what gives a pasted coordinate its elevation. A CSV row carries a
