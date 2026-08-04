@@ -4,15 +4,15 @@ Bluebird is not a recommendation engine. It does not decide what weather is "goo
 
 ## Destinations
 
-One analysis ranks a single set of destinations, which you define using one or all of the following methods.
+One analysis ranks a single set of destinations, which you define using one or all of the following methods. The first two live on the map rather than in the panel, so the panel groups them under **Map**: hovering that group rings the search box and lights every clickable feature, showing you where both controls are.
 
-### a. Search by Name
+### a. Search by name
 
 The search box at the top-left of the map recenters on any named place (a peak, city, lake, river, or trailhead) or on an exact coordinate pair. Type a name like `Mt Whitney` or `Mt Whitney, ca`, or coordinates like `36.57862, -118.29107` (parentheses and space-separated forms work too), then press Enter. Point features get a roughly 10 mile view; larger features like cities, parks, and rivers are framed whole. A searched place registers as a destination (a neutral blue dot until analyzed) and competes in the same ranking as everything else on the next Analyze. Search is powered by [Nominatim](https://nominatim.org), so it works for anything OSM knows about, including places Bluebird can't analyze yet.
 
-### b. Search by Point
+### b. Click a destination
 
-The control for this one is the map itself, which is why the panel section carries no widget. Hover it and every selectable feature on the map lights up, the way hovering **Search by name** rings the search box. Whenever you are not drawing, the peaks and lakes labeled on the map can be picked. Tap or click one for a popup with its name, and its elevation where there is one, then press **Add to analysis**. Picking it again offers **Remove from analysis**.
+The control for this one is the map itself, which is why the panel carries no widget for it beyond the pointer line above. Whenever you are not drawing, the peaks and lakes labeled on the map can be picked. Tap or click one for a popup with its name, and its elevation where there is one, then press **Add to analysis**. Picking it again offers **Remove from analysis**.
 
 An added feature behaves exactly like a place searched by name: a neutral blue dot until analyzed, saved in the URL, and ranked against everything else on the next Analyze. Its elevation and its link to Peakbagger or OpenStreetMap are filled in during that analysis, by matching the point to the nearest mapped feature the way a pasted coordinate is.
 
@@ -26,16 +26,16 @@ Three things are worth knowing about what you can click:
 
 Trailheads are not clickable: the basemap does not carry them, so a polygon is still how you find them.
 
-### c. Search by Polygon
+### c. Polygon
 
-Press **Draw Polygon** to start. While drawing, each click on the map drops a point and the polygon previews live as you add them.
+Press **Draw polygon** to start. While drawing, each click on the map drops a point and the polygon previews live as you add them.
 
 - You need at least 3 points before Analyze turns on.
 - The estimated bounding-box area is shown in km² as you draw.
 - Drag a vertex to move it, drag a midpoint handle to add one, or click a vertex to remove it.
 - Once the shape is closed, a click lands on the edge nearest to it rather than at the end of the outline, so clicking across the polygon widens the side you pointed at instead of folding the shape over itself.
 - Press **Done**, or the Enter or Escape key, to finish. Analyze finishes for you.
-- Press **Edit Polygon** to pick the shape back up, and **Clear** to throw it away and start over.
+- Press **Edit polygon** to pick the shape back up, and **Clear** to throw it away and start over.
 
 Outside draw mode the polygon stays on the map but has no handles, so panning and zooming around your results can't nudge a corner, and a click belongs to whatever sits under it.
 
@@ -49,7 +49,7 @@ The checkboxes under the buttons control what discovery looks for inside your po
 
 Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. **Include unnamed peaks**, in Options, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods below still work on their own, so an analysis of pasted coordinates or clicked destinations needs no polygon and no ticks at all.
 
-### d. Search by Coordinates
+### d. Coordinates
 
 Paste a CSV of your own coordinates to add them to the analysis — alongside whatever the polygon finds, or entirely on their own (no polygon needed):
 
@@ -242,4 +242,4 @@ miles, which still is not proof there is no fire:
 successful check can still miss.
 
 Coordinates are deliberately absent. The file is meant to be read, not pasted
-back into [Search by Coordinates](#c-search-by-coordinates).
+back into [Coordinates](#d-coordinates).

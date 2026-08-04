@@ -126,12 +126,11 @@ interface Props {
   drawPointCount: number
   polygonAreaKm2: number | null
   onCancelDrawing: () => void
-  // Hovering the Search by Name section rings the map's search box, the one
-  // control this panel names but does not hold.
+  // Hovering the Map group rings the map's search box and glows its
+  // clickable peaks and lakes together: the two methods whose control is
+  // the map itself share one subsection, so its cue lights everything the
+  // map offers at once.
   onPointAtSearch: (on: boolean) => void
-  // The same idea for the map's clickable peaks and lakes: hovering the
-  // Search by point section makes them glow, so a method with no control
-  // in this panel still has somewhere to point.
   onPointAtMapPois: (on: boolean) => void
   // A set: one polygon can look for several kinds at once, and none checked
   // means the polygon discovers nothing.
@@ -428,46 +427,47 @@ export default function ControlPanel({
         // the gutter between two steps rather than tucked under the one above.
         className={`flex-1 overflow-y-auto px-4 py-4 ${PANEL_RULE}`}
       >
-        {/* Destinations — one list, defined via any of three methods
+        {/* Destinations — one list, defined via any of four methods
             that union into a single ranked report */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
             Destinations
           </h2>
 
-          {/* a. Search by name — the only method whose control is not in this
-              panel; the search box floats on the map. Hovering the heading or
-              its line rings that box, so the reader is shown where it is
-              instead of told. Hover-only is fine here because it adds a cue to
-              copy that already stands on its own. */}
+          {/* Map — the two methods whose control is the map itself, the
+              floating search box and the clickable peaks and lakes, grouped
+              as one subsection rather than two widgetless ones. The heading
+              keeps the caption from reading as a description of the whole
+              section, and makes the three groups parallel: each names the
+              instrument, so the shape says "another way to add destinations"
+              without a "Search by" prefix saying it four times. Hovering the
+              group rings the search box AND glows the selectable features,
+              so the reader is shown where both live instead of told.
+              Hover-only is fine here because it adds a cue to copy that
+              already stands on its own. The caption names peaks and lakes
+              rather than "a destination" because those are the two things
+              the basemap makes clickable - trailheads are not on it, which
+              is why they are found by polygon instead. */}
           <div
             className="mb-3"
-            onMouseEnter={() => onPointAtSearch(true)}
-            onMouseLeave={() => onPointAtSearch(false)}
+            onMouseEnter={() => {
+              onPointAtSearch(true)
+              onPointAtMapPois(true)
+            }}
+            onMouseLeave={() => {
+              onPointAtSearch(false)
+              onPointAtMapPois(false)
+            }}
           >
-            <h3 className={`${TEXT.subheading} mb-1`}>Search by name</h3>
-            <p className={TEXT.helper}>Search for a destination by name.</p>
+            <h3 className={`${TEXT.subheading} mb-1`}>Map</h3>
+            <p className={TEXT.helper}>Search by name, or click any peak or lake.</p>
           </div>
 
-          {/* b. Search by point — the second method whose control is not in
-              this panel. Hovering it lights every clickable feature on the
-              map, the same trick the Search by name section uses to point at
-              the search box: the reader is shown where it is instead of told. */}
-          <div
-            className="mb-3"
-            onMouseEnter={() => onPointAtMapPois(true)}
-            onMouseLeave={() => onPointAtMapPois(false)}
-          >
-            <h3 className={`${TEXT.subheading} mb-1`}>Search by point</h3>
-            <p className={TEXT.helper}>Select a destination from the map.</p>
-          </div>
-
-          {/* c. Search by polygon */}
+          {/* Polygon — bare noun, not "Search by polygon": beside Map and
+              Coordinates, a Draw polygon button says the rest, and the verb
+              phrase restated its own helper line. */}
           <div className="mb-3">
-            <h3 className={`${TEXT.subheading} mb-1`}>Search by polygon</h3>
-            <p className={`${TEXT.helper} mb-1.5`}>
-              Search for destinations by drawing a polygon.
-            </p>
+            <h3 className={`${TEXT.subheading} mb-1.5`}>Polygon</h3>
             {drawPointCount > 0 && (
               <div className={`${TEXT.caption} space-y-0.5 mb-2`}>
                 {/* Only while drawing does the status name a gesture: outside
@@ -534,8 +534,8 @@ export default function ControlPanel({
                 at once, and they all come back from a single Overpass query,
                 so asking for peaks and lakes together costs what peaks alone
                 would. The "Find:" label that used to lead this row is gone —
-                three checkboxes under a heading called "Search by Polygon"
-                are not ambiguous about what they do. */}
+                three checkboxes under the Polygon heading are not ambiguous
+                about what they do. */}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2">
               {DESTINATION_TYPES.map(({ value, label, implemented }) => (
                 <label key={value} className={CHOICE_ROW}>
@@ -561,14 +561,12 @@ export default function ControlPanel({
             </div>
           </div>
 
-          {/* d. Search by coordinates. Last because it is the one method with
-              no map gesture at all — the three above are things you do to the
-              map, and this is a list you bring to it. */}
+          {/* Coordinates — last because it is the one method with no map
+              gesture at all: the three above are things you do to the map,
+              and this is a list you bring to it. No helper line; the format
+              states itself in the textarea placeholder. */}
           <div>
-            <h3 className={`${TEXT.subheading} mb-1`}>Search by coordinates</h3>
-            <p className={`${TEXT.helper} mb-1.5`}>
-              Specify exact destinations using coordinate pairs.
-            </p>
+            <h3 className={`${TEXT.subheading} mb-1.5`}>Coordinates</h3>
             <textarea
               aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"
               value={customCsv}

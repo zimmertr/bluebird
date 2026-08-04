@@ -15,9 +15,9 @@ import {
 
 interface Props {
   onSelect: (place: Place) => void
-  // The panel is pointing at this box: the reader is hovering "Search by Name",
-  // whose control lives out here on the map rather than in the section that
-  // names it. Purely a cue — nothing about the box's behavior changes.
+  // The panel is pointing at this box: the reader is hovering the panel's
+  // Map group, whose search-by-name control lives out here on the map rather
+  // than in the panel. Purely a cue — nothing about the box's behavior changes.
   pointed?: boolean
 }
 

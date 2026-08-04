@@ -448,11 +448,11 @@ export default function App() {
   // The controls panel is docked on desktop and an off-canvas drawer on phones.
   // It starts open on both; a close button collapses it to widen the map.
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  // The panel's Search by Name section is hovered, so the map's search box —
-  // the control that section names but does not contain — wears a ring.
+  // The panel's Map group is hovered, so the map's search box — a control
+  // the panel names but does not contain — wears a ring.
   const [searchPointed, setSearchPointed] = useState(false)
-  // Hovering the "Specify by Click" section glows every clickable feature on
-  // the map, the same way hovering "Search by Name" rings the search box.
+  // The same hover glows every clickable feature on the map: the Map group
+  // covers both map-borne methods, so its cue lights both controls at once.
   const [poisPointed, setPoisPointed] = useState(false)
   const isDesktop = useIsDesktop()
 
