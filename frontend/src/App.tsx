@@ -1440,8 +1440,13 @@ export default function App() {
   const gridCued = showGrid && grid.status === 'loading'
   // The layer is on and could not draw. Said out loud for the same reason the
   // loading line exists: a switched-on layer with nothing under it and nothing
-  // said reads as a broken app rather than as a failed fetch.
-  const gridFailed = showGrid && grid.status === 'failed'
+  // said reads as a broken app rather than as a failed fetch. The server SSE
+  // fallback is the same sentence for a different reason: that path holds no
+  // field for a lattice to cover, so the hook never runs at all — and without
+  // this the one path where the grid CANNOT work was also the one path where
+  // it said nothing.
+  const gridFailed =
+    showGrid && (grid.status === 'failed' || (response !== null && universe === null))
   // A one-second tick, only while the pacer is actually asleep, so the
   // countdown moves. Nothing else on screen needs it and it stops on its own.
   const [paceNow, setPaceNow] = useState(0)
