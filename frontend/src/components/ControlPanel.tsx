@@ -248,13 +248,35 @@ interface Props {
  */
 function FooterNotice({
   severity,
+  lines,
   children,
 }: {
   severity: 'warn' | 'error' | 'info'
-  children: React.ReactNode
+  // Several messages of the same kind, which the box bullets so they cannot be
+  // misread as one. `children` is the other shape: a single message plus the
+  // buttons that act on it.
+  lines?: string[]
+  children?: React.ReactNode
 }) {
   return (
     <div className={`${NOTICE[severity]} ${STATUS[severity]} space-y-2`} role="status">
+      {lines && lines.length > 1 ? (
+        // Bullets from two messages up, and not before. One reason Analyze is
+        // blocked is a sentence; two are a list, and without the marks they run
+        // together into one long complaint — worse when either of them wraps,
+        // which is when the reader most needs to see where one ends. A lone
+        // bullet is a list of one and just adds furniture.
+        //
+        // `list-outside` puts a wrapped line under its own text rather than
+        // under its bullet, so the marks stay a column the eye can scan.
+        <ul className="list-disc list-outside space-y-1.5 pl-4">
+          {lines.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      ) : (
+        lines?.map((line) => <p key={line}>{line}</p>)
+      )}
       {children}
     </div>
   )
@@ -917,25 +939,21 @@ export default function ControlPanel({
         </button>
 
         {commitReason && !loading && (
-          <FooterNotice severity="warn">
-            <p>{COMMIT_CUE[commitReason]}</p>
-          </FooterNotice>
+          <FooterNotice severity="warn" lines={[COMMIT_CUE[commitReason]]} />
         )}
 
         {/* Every reason Analyze is disabled, in one box. The reasons stack:
             a chain showed one, so fixing it revealed a second that had been
             true all along. */}
         {blockers.length > 0 && (
-          <FooterNotice severity="warn">
-            {blockers.map((blocker) => (
-              <p key={blocker}>{blockerText(blocker, maxAreaKm2, pointsNeeded)}</p>
-            ))}
-          </FooterNotice>
+          <FooterNotice
+            severity="warn"
+            lines={blockers.map((blocker) => blockerText(blocker, maxAreaKm2, pointsNeeded))}
+          />
         )}
 
         {refusal && !loading && (
-          <FooterNotice severity="warn">
-            <p>{refusal.message}</p>
+          <FooterNotice severity="warn" lines={[refusal.message]}>
             {refusal.suggestedMinElevationFt !== null && (
               <button
                 onClick={() => onRetryWithFloor(refusal.suggestedMinElevationFt as number)}
@@ -961,14 +979,14 @@ export default function ControlPanel({
             did not. Amber, not red: the forecasts are sound and only the fire
             check is missing. */}
         {wildfireCheckFailed && !loading && (
-          <FooterNotice severity="warn">
-            <p>NIFC is unreachable, so wildfire proximity data is unavailable.</p>
-          </FooterNotice>
+          <FooterNotice
+            severity="warn"
+            lines={['NIFC is unreachable, so wildfire proximity data is unavailable.']}
+          />
         )}
 
         {error && !refusal && (
-          <FooterNotice severity="error">
-            <p>{error}</p>
+          <FooterNotice severity="error" lines={[error]}>
             <button onClick={onRetry} disabled={loading} className={BUTTON_DANGER}>
               Try again
             </button>
@@ -984,9 +1002,10 @@ export default function ControlPanel({
             rather than something gone wrong. */}
         {resultCount !== undefined && !loading && !error && !refusal &&
           aqiAllNull && aqiCoverage !== 'none' && (
-            <FooterNotice severity="info">
-              <p>{NOUN.aqi} data is not available for this forecast window.</p>
-            </FooterNotice>
+            <FooterNotice
+              severity="info"
+              lines={[`${NOUN.aqi} data is not available for this forecast window.`]}
+            />
           )}
 
         {/* Two labels, two pages, and each label goes where it says. The
