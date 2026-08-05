@@ -47,12 +47,15 @@ export interface ShareableState {
   constraints: Constraints
   limit: number
   customCsv: string
-  // The three live map overlays. Persisted so a shared link reproduces the
+  // The four live map overlays. Persisted so a shared link reproduces the
   // picture, and deliberately not part of the analysis request: an overlay is
-  // drawn beside the ranking, never fed into it.
+  // drawn beside the ranking, never fed into it. That holds for the forecast
+  // grid too, even though it is the one whose toggle costs upstream calls —
+  // what it spends on is a picture, and the ranking never reads it.
   showWildfires: boolean
   showRadar: boolean
   showSmoke: boolean
+  showGrid: boolean
   // Searched places pinned to the results table. Persisted so a refreshed or
   // shared link repopulates them (and refetches their forecasts). Only the
   // fields needed to recreate the pin and its identity link are stored.
@@ -242,6 +245,7 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
     state.showWildfires ||
     state.showRadar ||
     state.showSmoke ||
+    state.showGrid ||
     state.selection.kind !== 'now' ||
     state.forecastModel !== defaultForecastModel
   if (!hasPolygon && !hasCustom && !hasConstraint && !hasPins && !nonDefaultControls)
@@ -299,6 +303,7 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
   if (state.showWildfires) p.set('fires', '1')
   if (state.showRadar) p.set('radar', '1')
   if (state.showSmoke) p.set('smoke', '1')
+  if (state.showGrid) p.set('grid', '1')
   if (state.includeUnnamedPeaks) p.set('unnamed', '1')
   if (hasPins) p.set('pins', encodePins(state.pins))
 
@@ -479,6 +484,7 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   if (params.get('fires') === '1') out.showWildfires = true
   if (params.get('radar') === '1') out.showRadar = true
   if (params.get('smoke') === '1') out.showSmoke = true
+  if (params.get('grid') === '1') out.showGrid = true
   if (params.get('unnamed') === '1') out.includeUnnamedPeaks = true
 
   const pins = params.get('pins')

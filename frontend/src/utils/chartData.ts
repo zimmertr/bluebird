@@ -74,6 +74,11 @@ export function alignRowToGrid(row: DestinationResult, times: number[]): Destina
       temp_f: remap(row.series.temp_f),
       wind_mph: remap(row.series.wind_mph),
       aqi: remap(row.series.aqi),
+      // Remapped rather than dropped, and spread so a row that never carried
+      // bearings still carries no key. The chart does not read them, but the
+      // forecast grid aligns its cells through here (#246) and a silently
+      // dropped series would take that layer's wind arrows with it.
+      ...(row.series.wind_dir_deg ? { wind_dir_deg: remap(row.series.wind_dir_deg) } : {}),
     },
   }
 }

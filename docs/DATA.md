@@ -304,3 +304,44 @@ Coverage is the continental United States. Reflectivity is not a rainfall rate:
 it is what the radar echo measured, which hail, bright-band melting, and beam
 blockage in mountain terrain can all colour. Read it as where the storm is, not
 as how much water is landing on a summit.
+
+## The forecast grid
+
+The forecast grid overlay paints the ranked metric across the area an analysis
+covered, as squares. It is the same Open-Meteo data as the results table, asked
+for on a lattice of points instead of at destinations, and it is worth being
+precise about what a square is and is not.
+
+**A square is one forecast, not an interpolation.** Bluebird asks the model for
+a point, and paints the square around that point in the colour of the answer.
+Nothing is blended between squares, nothing is smoothed at their edges, and the
+value in one square says nothing about the ground in the next. An earlier design
+would have drawn a smooth field, and it was rejected: interpolating temperature
+between two summits across the valley between them invents numbers, in exactly
+the terrain this app exists to serve. Drawing squares is what keeps the picture
+to what was actually asked and answered.
+
+**The square size is the claim.** The legend states it — `3 km grid`,
+`13 km grid` — because a 13 km square asserts one set of conditions over 13 km of
+ground. The size comes from the finest grid the chosen model publishes, which is
+the pitch at which asking twice can give two different answers. Over a large
+area the squares are made coarser, so that a grid stays a few hundred requests
+rather than tens of thousands; the legend always states the size actually drawn
+rather than the model's headline figure.
+
+**A model's finest grid is not its resolution everywhere.** The seamless models
+blend a fine regional grid into a coarse global one, so NOAA GFS is a 3 km model
+over North America and a 13 km one over Nepal. Bluebird samples at the finest
+figure the model publishes, which means that outside the fine region the squares
+are smaller than anything the model can distinguish, and neighbouring squares
+will simply agree with each other. Uniform colour across a grid is the honest
+picture of that: it is what "the model has one answer for this whole area" looks
+like. The same goes for AQI, which comes from CAMS at a much coarser grid than
+any of the weather models — an AQI grid is usually flat, and that is the data.
+
+**A square can disagree with the marker standing on it.** One 3 km box holds a
+summit and the valley floor below it, and the model answers for the box, not for
+either. The destination's own row is a forecast for its own coordinates; the
+square is a forecast for a point somewhere near it. Where the two differ, what
+you are seeing is the resolution limit of the model itself, which is the most
+useful thing a grid can show you about a forecast.

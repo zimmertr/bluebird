@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { hourlyStampCount, isPointSample, resolveWindow } from './forecastWindow'
+import {
+  hourlyStampCount,
+  isPointSample,
+  normalizeWindow,
+  resolveWindow,
+} from './forecastWindow'
 
 const NOW = Date.parse('2026-07-21T12:00:00Z')
 const HOUR = 3_600_000
@@ -76,6 +81,39 @@ describe('resolveWindow', () => {
     ]
     const caught = stamps.filter((t) => t >= w.startMs && t <= w.endMs)
     expect(caught).toEqual([Date.parse('2026-07-21T05:00:00Z')])
+  })
+})
+
+describe('normalizeWindow', () => {
+  it('leaves a real span untouched', () => {
+    const start = Date.parse('2026-07-21T00:00:00Z')
+    const end = Date.parse('2026-07-22T00:00:00Z')
+    expect(normalizeWindow(start, end)).toEqual({ startMs: start, endMs: end })
+  })
+
+  it('turns equal timestamps into the hour they mean', () => {
+    // The rule anything fetching from the `analyzed` snapshot has to apply.
+    // That snapshot records the request's RAW timestamps, so a Current
+    // analysis reaches it as a zero-width window — and Open-Meteo's inclusive
+    // filter matches no stamp at all between a moment and itself, which comes
+    // back as an empty answer rather than as an error (#246).
+    const moment = Date.parse('2026-07-21T12:34:56.789Z')
+    expect(normalizeWindow(moment, moment)).toEqual({
+      startMs: Date.parse('2026-07-21T12:00:00Z'),
+      endMs: Date.parse('2026-07-21T12:00:00Z') + 60_000,
+    })
+    expect(hourlyStampCount(...Object.values(normalizeWindow(moment, moment)) as [number, number]))
+      .toBe(1)
+  })
+
+  it('is the same normalization resolveWindow applies', () => {
+    // One rule, not two: resolveWindow composes this, so a change here cannot
+    // leave the fetch path and the snapshot path disagreeing about what "now"
+    // is worth in milliseconds.
+    const moment = '2026-07-21T12:34:56.789Z'
+    expect(normalizeWindow(Date.parse(moment), Date.parse(moment))).toEqual(
+      resolveWindow(moment, moment, NOW),
+    )
   })
 })
 

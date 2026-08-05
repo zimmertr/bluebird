@@ -58,6 +58,7 @@ import {
   type SmokeProps,
 } from '../utils/smoke'
 import { radarLayerId, radarOffsets, radarTileUrl } from '../utils/radar'
+import { GridCell, gridFeatureCollection } from '../utils/forecastGrid'
 
 export interface MapViewHandle {
   framePolygon: () => void
@@ -103,6 +104,11 @@ interface Props {
   // Which radar frame is on screen, as an index into `radarOffsets()`. Driven
   // by the timeline; ignored entirely while the layer is off.
   radarIndex: number
+  // The forecast grid's sampled cells (#246), or empty while the layer is off
+  // or its fetch is still running. Colored here rather than upstream, off the
+  // same `sortBy`/`playbackIndex` pair the markers read, so a cell and the
+  // marker standing on it can never be showing different hours.
+  gridCells: GridCell[]
   // The forecast hour the markers are colored for, or null to color them by the
   // window aggregate the ranking used. An index into `times`, which is the
   // report's own hourly grid — so a marker under the playhead and the chart's
@@ -194,6 +200,39 @@ const DRAW_COLOR = '#38bdf8'
  * than it appeared at would pulse every time the loop wrapped.
  */
 const RADAR_OPACITY = 0.65
+
+/**
+ * How solid a forecast-grid cell is drawn (#246).
+ *
+ * Below the radar's 0.65 because this is the layer most likely to be under
+ * everything else at once — the cells are the ground the markers, plumes and
+ * perimeters are read against, and terrain has to survive under them or the map
+ * stops being a map. Far enough above nothing that a whole field of green still
+ * reads as green at a glance.
+ */
+const GRID_OPACITY = 0.45
+
+/**
+ * The hairline between cells.
+ *
+ * Slate rather than a metric hue: the edge says "here is a sample boundary",
+ * which is not a claim about weather, and giving it a colour off the ramp would
+ * make it one. It is `fill-outline-color`, so it is always exactly one pixel
+ * and never thickens with zoom — a boundary, not a feature.
+ */
+const GRID_EDGE = 'rgba(15,23,42,0.35)'
+
+/**
+ * How a per-cell wind arrow is drawn against the markers' own.
+ *
+ * Smaller and dimmer, because both are on screen at once during a wind scrub
+ * and at equal weight a field of hundreds of cell arrows buries the handful
+ * actually attached to a ranked destination. Two channels rather than one:
+ * measured on a 3 km lattice over Rainier, opacity alone still left the two
+ * kinds of arrow reading as one field.
+ */
+const GRID_ARROW_OPACITY = 0.5
+const GRID_ARROW_SIZE = 0.7
 
 /**
  * How far apart the loop's frames are armed after the layer is switched on.
@@ -674,6 +713,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       showRadar,
       showSmoke,
       radarIndex,
+      gridCells,
       playbackIndex,
       pending,
       searchedPlaces,
@@ -980,6 +1020,55 @@ const MapView = forwardRef<MapViewHandle, Props>(
         }
         restCursor()
 
+        // ── Forecast grid (#246) ───────────────────────────────────────
+        // The lowest overlay of all, because it is the one most likely to have
+        // every other layer sitting on top of it at once: it is the ranked
+        // metric painted as ground, and rain, smoke, fire and the markers are
+        // all things you read against it.
+        //
+        // Added first so the chain comes out grid → radar → smoke → fire →
+        // draw/results: the radar loop inserts itself before the first smoke
+        // fill, which lands it between these layers and that one.
+        //
+        // The arrow image is registered here rather than with the results
+        // layers below, since this is now the first layer to name it. Data
+        // arrives on demand from the grid effect; until then it draws nothing.
+        const arrow = makeArrowImage()
+        if (arrow && !map.hasImage(WIND_ARROW_IMAGE)) map.addImage(WIND_ARROW_IMAGE, arrow)
+        map.addSource('forecast-grid', { type: 'geojson', data: emptyFC as FeatureCollection })
+        map.addLayer({
+          id: 'forecast-grid-fill',
+          type: 'fill',
+          source: 'forecast-grid',
+          paint: {
+            'fill-color': ['get', 'color'],
+            'fill-opacity': GRID_OPACITY,
+            // A hairline on the fill itself rather than a second line layer.
+            // Without it two neighbouring cells holding the same number merge
+            // into one smooth shape, which is exactly the picture #121 refused
+            // to draw: the whole argument for sampling at the model's pitch is
+            // that a 13 km claim should look like one. The edge is what makes
+            // the sampling visible instead of implied.
+            'fill-outline-color': GRID_EDGE,
+          },
+        })
+        map.addLayer({
+          id: 'forecast-grid-wind',
+          type: 'symbol',
+          source: 'forecast-grid',
+          filter: ['has', 'bearing'],
+          layout: {
+            'icon-image': WIND_ARROW_IMAGE,
+            'icon-rotate': ['get', 'bearing'],
+            'icon-size': GRID_ARROW_SIZE,
+            'icon-rotation-alignment': 'map',
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
+            visibility: 'none',
+          },
+          paint: { 'icon-opacity': GRID_ARROW_OPACITY },
+        })
+
         // ── Smoke overlay (NOAA HMS) ───────────────────────────────────
         // First of the three overlays, so it sits under the fire perimeters
         // and over the radar tiles (which are inserted before this layer when
@@ -1207,9 +1296,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // and the arrow can never be pointing at an hour the colour is not.
         // `filter: ['has','bearing']` is what makes a row with no direction —
         // the SSE fallback never fetches it — draw nothing rather than draw
-        // north.
-        const arrow = makeArrowImage()
-        if (arrow && !map.hasImage(WIND_ARROW_IMAGE)) map.addImage(WIND_ARROW_IMAGE, arrow)
+        // north. (The icon itself is registered with the forecast-grid layers
+        // above, which are now the first to name it.)
         map.addLayer({
           id: 'results-wind',
           type: 'symbol',
@@ -1717,14 +1805,29 @@ const MapView = forwardRef<MapViewHandle, Props>(
       updateResults(mapRef.current, results, sortBy, playbackIndex)
     }, [results, sortBy, playbackIndex])
 
+    // The forecast grid, on the same contract as the markers above: one
+    // `setData` per scrub tick, recolouring from series the browser already
+    // holds. 600 cells at two frames a second costs nothing upstream and
+    // nothing measurable locally, which is the acceptance criterion the whole
+    // fetch design exists to meet.
+    useEffect(() => {
+      const map = mapRef.current
+      if (!map || !mapReady) return
+      setSource(map, 'forecast-grid', gridFeatureCollection(gridCells, sortBy, playbackIndex))
+    }, [gridCells, sortBy, playbackIndex, mapReady])
+
     // Arrows exist only where they mean something: a wind ranking, being
     // scrubbed. On any other metric they would be a second variable nobody
-    // asked about, drawn over the one they did.
+    // asked about, drawn over the one they did. Both arrow layers answer to
+    // this one condition, so the cells and the markers can never disagree
+    // about whether wind has a direction worth drawing.
     useEffect(() => {
       const map = mapRef.current
       if (!map || !mapReady) return
       const showing = playbackIndex !== null && sortBy === 'wind_avg_mph'
-      map.setLayoutProperty('results-wind', 'visibility', showing ? 'visible' : 'none')
+      for (const id of ['results-wind', 'forecast-grid-wind']) {
+        map.setLayoutProperty(id, 'visibility', showing ? 'visible' : 'none')
+      }
     }, [playbackIndex, sortBy, mapReady])
 
     // Keep the ref current so the once-registered marker-click popup reads live

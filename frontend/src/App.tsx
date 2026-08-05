@@ -13,6 +13,7 @@ import { useAnalyze } from './hooks/useAnalyze'
 import { modelForecastHours, useCapabilities } from './hooks/useCapabilities'
 import { useChartSelection } from './hooks/useChartSelection'
 import { useFireProximity } from './hooks/useFireProximity'
+import { useForecastGrid } from './hooks/useForecastGrid'
 import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
@@ -40,6 +41,7 @@ import {
 } from './styles'
 import { NOUN, familyOf, rankedNoun } from './metrics'
 import { METRIC_CONFIG, hourlyScale } from './utils/colors'
+import { FALLBACK_PITCH_KM, pitchLabel } from './utils/forecastGrid'
 import {
   RADAR_FRAME_COUNT,
   IEM_HREF,
@@ -371,6 +373,12 @@ export default function App() {
   // from the pod.
   const [showRadar, setShowRadar] = useState(() => restored?.showRadar ?? false)
   const [showSmoke, setShowSmoke] = useState(() => restored?.showSmoke ?? false)
+  // The forecast grid (#246), on the same contract as the three above with one
+  // difference worth naming: this toggle is a spend boundary. Turning it on is
+  // what fetches a lattice of forecasts over the analyzed field, and leaving it
+  // on is standing consent for the next analysis to do the same. It still
+  // changes nothing about the ranking, so it never touches `commitNeeded`.
+  const [showGrid, setShowGrid] = useState(() => restored?.showGrid ?? false)
   // Summits OSM knows only by their height. Off by default: measured over one
   // 8x10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so
   // this roughly triples what an analysis costs and how often it refuses.
@@ -737,6 +745,7 @@ export default function App() {
       showWildfires,
       showRadar,
       showSmoke,
+      showGrid,
       pins: searched.places,
     }, caps.defaultForecastModel)
 
@@ -768,6 +777,7 @@ export default function App() {
     showWildfires,
     showRadar,
     showSmoke,
+    showGrid,
     searched.places,
     writeUrl,
   ])
@@ -1338,6 +1348,30 @@ export default function App() {
   // re-querying NIFC; falls back to the displayed rows on the server path.
   const fire = useFireProximity(universe ?? results, analysisSeq)
 
+  // The forecast grid (#246): the ranked metric as model-resolution cells under
+  // the markers, scrubbed by the same playhead.
+  //
+  // Every input comes from the `analyzed` snapshot rather than from the panel.
+  // The calendar, the model picker and the ranking can all move while a report
+  // sits on screen, and a grid built from panel state would paint a window the
+  // markers above it never saw. The pitch is the ANALYZED model's finest grid
+  // for the same reason.
+  const grid = useForecastGrid({
+    enabled: showGrid,
+    field: universe,
+    window: analyzed?.window ?? null,
+    model: analyzed?.forecastModel ?? forecastModel,
+    times: forecastTimes,
+    pitchKm:
+      caps.forecastModels.find((m) => m.id === analyzed?.forecastModel)?.finestGridKm ??
+      FALLBACK_PITCH_KM,
+    analysisSeq,
+  })
+  // Something is painted, which is what a legend can be keyed to. A grid still
+  // filling in has no colors to explain yet, and a key to an empty map would be
+  // noise rather than help.
+  const gridPainted = showGrid && grid.cells.length > 0
+
   // Download the displayed report (#125). Everything that decides what the file
   // contains is already resolved above, so this only has to hand settled values
   // to the formatter and hang the result off an anchor.
@@ -1539,6 +1573,8 @@ export default function App() {
           setShowRadar={setShowRadar}
           showSmoke={showSmoke}
           setShowSmoke={setShowSmoke}
+          showGrid={showGrid}
+          setShowGrid={setShowGrid}
           includeUnnamedPeaks={includeUnnamedPeaks}
           setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}
           windowWarning={windowWarning}
@@ -1660,6 +1696,7 @@ export default function App() {
             showRadar={showRadar}
             showSmoke={showSmoke}
             radarIndex={radarIndex}
+            gridCells={grid.cells}
             playbackIndex={playbackIndex}
             pending={pending}
             searchedPlaces={searched.places}
@@ -1699,7 +1736,7 @@ export default function App() {
               desktop map they never meet — but a phone is narrow enough that
               they would overlap, and a legend half under a control reads as a
               layout fault rather than as two things sharing an edge. */}
-          {(hasColoredMarkers || showWildfires || showSmoke || showRadar) && (
+          {(hasColoredMarkers || gridPainted || showWildfires || showSmoke || showRadar) && (
             <div
               className={`absolute left-2 top-16 z-10 flex flex-col justify-end gap-2 overflow-y-auto lg:top-auto lg:overflow-visible ${
                 timelineAxis !== null ? 'bottom-40' : 'bottom-8'
@@ -1797,7 +1834,12 @@ export default function App() {
                   </div>
                 </div>
               )}
-              {hasColoredMarkers && (
+              {/* Keyed to the markers OR to the grid, because either can be
+                  the only colored thing on screen: a live filter can empty the
+                  table while the field still paints, and colors without their
+                  key are noise. One box serves both — they are scored on the
+                  same scale by construction (#246). */}
+              {(hasColoredMarkers || gridPainted) && (
                 <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} p-2.5`}>
                   {/* The bare metric only: which hour or window the colors
                       describe, and how it was reduced, is stated by the
@@ -1813,6 +1855,14 @@ export default function App() {
                       </span>
                     </div>
                   ))}
+                  {/* The pitch the cells were sampled at, stated because it is
+                      the claim they make. A 13 km cell asserts one forecast
+                      over 13 km of ground, and a reader who cannot see that
+                      number has no way to know how much of the picture is one
+                      answer repeated. */}
+                  {gridPainted && (
+                    <p className={`${TEXT.micro} mt-1.5`}>{pitchLabel(grid.pitchKm)}</p>
+                  )}
                 </div>
               )}
             </div>

@@ -170,6 +170,13 @@ interface Props {
   setShowRadar: (v: boolean) => void
   showSmoke: boolean
   setShowSmoke: (v: boolean) => void
+  // The forecast grid (#246). Same overlay contract as the three above — live,
+  // off by default, persisted to the URL, never an input to the ranking — with
+  // the one difference that turning it on is what spends: it fetches a lattice
+  // of forecasts over the analyzed field. That is why it is a checkbox and not
+  // something that follows the ranking automatically.
+  showGrid: boolean
+  setShowGrid: (v: boolean) => void
   // Summits OSM knows only by their height, discovered as `Peak 5961`.
   // A polygon knob rather than a map one, and off by default, because it
   // roughly triples the candidate count.
@@ -317,6 +324,8 @@ export default function ControlPanel({
   setShowRadar,
   showSmoke,
   setShowSmoke,
+  showGrid,
+  setShowGrid,
   includeUnnamedPeaks,
   setIncludeUnnamedPeaks,
   forecastModel,
@@ -496,6 +505,7 @@ export default function ControlPanel({
     { key: 'fires', label: 'Wildfires', checked: showWildfires, onChange: setShowWildfires },
     { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
     { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
+    { key: 'grid', label: 'Forecast grid', checked: showGrid, onChange: setShowGrid },
   ]
 
   return (
@@ -921,11 +931,11 @@ export default function ControlPanel({
             </label>
 
             {/* Map layers — the optional overlays, under a heading rather
-                than as three loose checkboxes among the other options. Each is
-                off by default and each is live: turning one on never restates
-                the analysis, so none of them touches the commit cue. The
-                heading is what lets a fourth layer be one more row instead of
-                one more sentence (#121). */}
+                than as loose checkboxes among the other options. Each is off by
+                default and each is live: turning one on never restates the
+                analysis, so none of them touches the commit cue. The heading is
+                what let the fourth layer be one more row instead of one more
+                sentence (#121, then #246). */}
             <div>
               <h3 className={`${TEXT.subheading} mb-1.5`}>Map layers</h3>
               {MAP_LAYERS.map(({ key, label, checked, onChange }) => (

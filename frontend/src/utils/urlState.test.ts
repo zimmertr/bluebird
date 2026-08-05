@@ -60,6 +60,7 @@ const base: ShareableState = {
   showWildfires: false,
   showRadar: false,
   showSmoke: false,
+  showGrid: false,
   includeUnnamedPeaks: false,
   pins: [],
 }
@@ -84,6 +85,7 @@ const pristine: ShareableState = {
   showWildfires: false,
   showRadar: false,
   showSmoke: false,
+  showGrid: false,
   includeUnnamedPeaks: false,
   pins: [],
 }
@@ -144,8 +146,8 @@ describe('encodeState / decodeState round-trip', () => {
     expect(roundTrip(base)!.showWildfires).toBeUndefined()
   })
 
-  it('round-trips the radar and smoke overlays independently', () => {
-    // Three layers, three params, and none of them implies another: a link
+  it('round-trips the radar, smoke and grid overlays independently', () => {
+    // Four layers, four params, and none of them implies another: a link
     // sharing a smoke picture must not switch radar on as a side effect.
     const both = roundTrip({ ...base, showRadar: true, showSmoke: true })
     expect(both!.showRadar).toBe(true)
@@ -153,10 +155,15 @@ describe('encodeState / decodeState round-trip', () => {
     const radarOnly = roundTrip({ ...base, showRadar: true })
     expect(radarOnly!.showRadar).toBe(true)
     expect(radarOnly!.showSmoke).toBeUndefined()
-    // Off is the default for all three and stays out of the URL entirely.
+    expect(radarOnly!.showGrid).toBeUndefined()
+    const gridOnly = roundTrip({ ...base, showGrid: true })
+    expect(gridOnly!.showGrid).toBe(true)
+    expect(gridOnly!.showRadar).toBeUndefined()
+    // Off is the default for all four and stays out of the URL entirely.
     const clean = encodeState(base, DEFAULT_MODEL)
     expect(clean).not.toContain('radar')
     expect(clean).not.toContain('smoke')
+    expect(clean).not.toContain('grid')
   })
 
   it('gives an overlay-only session a URL of its own', () => {
@@ -164,13 +171,21 @@ describe('encodeState / decodeState round-trip', () => {
     // pristine session that has only switched a layer on still deserves a link.
     expect(encodeState({ ...pristine, showSmoke: true }, DEFAULT_MODEL)).toContain('smoke=1')
     expect(encodeState({ ...pristine, showRadar: true }, DEFAULT_MODEL)).toContain('radar=1')
+    // The grid needs an analysis before it draws anything, so a grid-only link
+    // reopens on an empty map with the layer armed — which is still the state
+    // that was shared, and dropping it would lose the one thing it said.
+    expect(encodeState({ ...pristine, showGrid: true }, DEFAULT_MODEL)).toContain('grid=1')
   })
 
   it('keeps every overlay param hand-editable', () => {
     // Same convention as `fires`: a flag anyone can flip in the address bar,
     // never an opaque blob (#210).
-    expect(decodeState('?radar=1&smoke=1')).toEqual({ showRadar: true, showSmoke: true })
-    expect(decodeState('?radar=0&smoke=yes')).toBeNull()
+    expect(decodeState('?radar=1&smoke=1&grid=1')).toEqual({
+      showRadar: true,
+      showSmoke: true,
+      showGrid: true,
+    })
+    expect(decodeState('?radar=0&smoke=yes&grid=on')).toBeNull()
   })
 
   it('restores a CSV-only analysis without a polygon', () => {

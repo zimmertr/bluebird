@@ -180,6 +180,21 @@ describe('alignRowToGrid', () => {
     const aligned = alignRowToGrid(pin, [1000, 2000, 3000])
     expect(aligned.series?.precip_in).toEqual([null, 5, 6])
   })
+
+  it('carries wind bearings through the remap, and invents none', () => {
+    // The chart does not plot bearings, but the forecast grid aligns its cells
+    // through here (#246) and dropping the series would silently take that
+    // layer's wind arrows with it. A row that never had them keeps no key, so
+    // `['has','bearing']` still draws nothing rather than drawing north.
+    const pin = {
+      ...row('C', 3, { precip_in: [5, 6], wind_dir_deg: [90, 270] }),
+      series_times: [2000, 3000],
+    }
+    expect(alignRowToGrid(pin, [1000, 2000, 3000]).series?.wind_dir_deg).toEqual([null, 90, 270])
+
+    const bare = { ...row('D', 4, { precip_in: [5, 6] }), series_times: [2000, 3000] }
+    expect(alignRowToGrid(bare, [1000, 2000, 3000]).series).not.toHaveProperty('wind_dir_deg')
+  })
 })
 
 describe('axisTimeLabel', () => {

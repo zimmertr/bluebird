@@ -128,7 +128,7 @@ Sort destinations by any metric: total precipitation, average wind, average temp
 
 ### Map layers
 
-Three optional overlays, all off by default, all live. Switching one on draws it
+Four optional overlays, all off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
 the ranking, never an input to it, so none of them ever asks you to press Analyze
 again. Each is credited on its own legend, and each rides in the shared link.
@@ -138,18 +138,48 @@ again. Each is credited on its own legend, and each rides in the shared link.
 | **Wildfires** | Active fire perimeters, in red | United States |
 | **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | Continental United States |
 | **Smoke** | Smoke plumes at three densities, in grey | North America |
+| **Forecast grid** | The ranked metric as squares of forecast, over the area your analysis covered | Wherever the chosen model reaches |
 
 Clicking a perimeter opens NIFC's live map on that fire; clicking a plume says how
 dense it is, which satellite it was traced from, and over what hours. Where smoke
 sits over a fire — which is most of the time, since one causes the other — the
 click goes to the fire.
 
-Read the three for what they are. Radar is a **measurement of the last hour**,
+Read them for what they are. Radar is a **measurement of the last hour**,
 which makes it the one layer here that is not a model's opinion about the future.
 Smoke is an analyst's tracing of what a satellite could see, updated about twice a
 day, and it describes a column of air rather than the ground: a plume overhead can
 mean a hazy sky and clean air to breathe, or the opposite. The AQI columns in the
 table are what measure air.
+
+#### The forecast grid
+
+The other three overlays draw somebody else's data. This one draws yours: the same
+metric your results are ranked by, asked for on a lattice of points across the area
+your analysis covered, and painted as squares on the colors the marker legend
+already shows. It answers the question the markers cannot — is this one summit's
+weather, or is the whole valley like that?
+
+It is the one layer whose switch costs something, which is why it is a switch. Turning
+it on fetches a forecast for every square, after your results have landed and never
+in front of them; leave it on and each later analysis grids itself the same way. Once
+the squares are in hand everything else is free: changing the ranking recolors them
+without asking for anything new, and so does the timeline.
+
+Two things to know when reading it:
+
+- **Nothing is smoothed.** Every square is one real forecast at one real point,
+  drawn at the size it was sampled. Squares do not blend into their neighbors,
+  because the model has nothing to say about the ground between two of them.
+- **The legend states the square size** — `3 km grid`, `13 km grid`. That size is
+  the claim each square makes, and a bigger one covers more ground with a single
+  answer. Over a large area the squares are made coarser to keep the request
+  reasonable, and the legend says the size actually used.
+
+A square can disagree with a marker standing on it. A 3 km box can hold a summit and
+the valley floor below it, and the model gives that whole box one answer. That is the
+model's real resolution showing, not a fault — [DATA.md](DATA.md) has the longer
+version.
 
 ### The timeline
 
@@ -168,7 +198,10 @@ It has up to two axes, and a switch to pick between them when both exist:
   same bands the legend shows, and the legend follows: precipitation switches to
   inches per hour, since an hour of rain and a window's total are different
   quantities. Ranking a wind metric also draws an arrow beside each marker,
-  pointing the way the wind is blowing at that hour.
+  pointing the way the wind is blowing at that hour. With the forecast grid
+  switched on, the squares scrub too, on the same colors and with an arrow of
+  their own per square — so an hour of playback shows a whole field moving rather
+  than a handful of points.
 
 The chart below the map draws the same playhead as a vertical line, and clicking
 the chart moves it. The two are one grid seen twice, so finding the bad afternoon
