@@ -35,7 +35,6 @@ import {
 } from '../styles'
 import { AGGREGATE, NOUN, RANKING_KEYS, familyOf, metricLabel, windowAggregate } from '../metrics'
 import { Constraints, hasConstraints } from '../utils/clientAnalyze'
-import type { GridStyle } from '../utils/forecastGrid'
 import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analyzeGate'
 import { DEFAULT_LIMIT, classifyAqiCoverage, clampLimit } from '../utils/urlState'
 import {
@@ -162,26 +161,6 @@ interface Props {
   // clearing widens rather than narrows, so this can leave the report needing
   // an Analyze — which the commit cue above the button then says.
   onClearFilters: () => void
-  showWildfires: boolean
-  setShowWildfires: (v: boolean) => void
-  // The two overlays #121 adds. Live like the wildfire one: an overlay is a
-  // thing drawn on the map, never an input to the ranking, so none of these
-  // can make a report stale.
-  showRadar: boolean
-  setShowRadar: (v: boolean) => void
-  showSmoke: boolean
-  setShowSmoke: (v: boolean) => void
-  // The forecast grid (#246). Same overlay contract as the three above — live,
-  // off by default, persisted to the URL, never an input to the ranking — with
-  // the one difference that turning it on is what spends: it fetches a lattice
-  // of forecasts over the analyzed field. That is why it is a checkbox and not
-  // something that follows the ranking automatically.
-  showGrid: boolean
-  setShowGrid: (v: boolean) => void
-  // Which drawing the grid's samples get. Purely a display choice over samples
-  // already fetched, so unlike the toggle above it spends nothing.
-  gridStyle: GridStyle
-  setGridStyle: (v: GridStyle) => void
   // Summits OSM knows only by their height, discovered as `Peak 5961`.
   // A polygon knob rather than a map one, and off by default, because it
   // roughly triples the candidate count.
@@ -323,16 +302,6 @@ export default function ControlPanel({
   constraints,
   setConstraints,
   onClearFilters,
-  showWildfires,
-  setShowWildfires,
-  showRadar,
-  setShowRadar,
-  showSmoke,
-  setShowSmoke,
-  showGrid,
-  setShowGrid,
-  gridStyle,
-  setGridStyle,
   includeUnnamedPeaks,
   setIncludeUnnamedPeaks,
   forecastModel,
@@ -508,20 +477,7 @@ export default function ControlPanel({
   //
   // "Wildfires" rather than "Show wildfires": under a heading that says these
   // are layers, the verb was the heading's job being done three times.
-  const MAP_LAYERS = [
-    { key: 'fires', label: 'Wildfires', checked: showWildfires, onChange: setShowWildfires },
-    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
-    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
-    { key: 'grid', label: 'Forecast grid', checked: showGrid, onChange: setShowGrid },
-  ]
-
-  // Blocks first because it is the default, and because it is the reading that
-  // cannot overstate the data: one square is one forecast, and you can count
-  // them. Smooth is the same samples with the space between them drawn.
-  const GRID_STYLE_OPTIONS: { value: GridStyle; label: string }[] = [
-    { value: 'blocks', label: 'Blocks' },
-    { value: 'smooth', label: 'Smooth' },
-  ]
+  const peaksOn = destinationTypes.includes('peak')
 
   return (
     <div className="flex flex-col h-full">
@@ -675,6 +631,25 @@ export default function ControlPanel({
                 </label>
               ))}
             </div>
+            {/* Unnamed peaks, beside the types it modifies rather than in a
+                general options drawer three sections away. It is a polygon
+                DISCOVERY knob and does nothing else: it widens what the
+                Overpass query counts as a peak. Dimmed when Peaks is unticked,
+                because then there is no peak search for it to widen — but still
+                operable, so ticking it asks for peaks the way the grid's style
+                segment asks for the grid. */}
+            <label className={`${CHOICE_ROW} mt-1.5 ${peaksOn ? '' : 'opacity-50'}`}>
+              <input
+                type="checkbox"
+                checked={includeUnnamedPeaks}
+                onChange={(e) => {
+                  setIncludeUnnamedPeaks(e.target.checked)
+                  if (e.target.checked && !peaksOn) setDestinationTypes([...destinationTypes, 'peak'])
+                }}
+                className={CHOICE_INPUT}
+              />
+              <span>Include unnamed peaks</span>
+            </label>
           </div>
 
           {/* Coordinates — last because it is the one method with no map
@@ -850,6 +825,36 @@ export default function ControlPanel({
               )
             })}
           </div>
+          {/* How many of that order to show. It lives here rather than under a
+              general "options" heading because it finishes the sentence the
+              radios start: the rows above say WHICH order, and this says how
+              far down it to go — "the 200 lowest by total precipitation" is one
+              thought, not two. It is also not a filter: it trims what is shown
+              and never what is analyzed, so it belongs nowhere near a section
+              made of bounds on measured values. */}
+          {/* The ceiling is the live analysis cap from /api/capabilities. */}
+          <div className="mt-1.5 flex items-center gap-2">
+            <label htmlFor="max-results" className={`${TEXT.control} flex-1`}>
+              {AGGREGATE.maximum} results
+            </label>
+            {/* The default rides as a placeholder, like the filter boxes below,
+                so changing it is one keystroke rather than a select-and-erase.
+                Empty means the DEFAULT here, not "no cap" as it does for a
+                filter: this knob always has a value, and the row count in the
+                table's header says what it is doing. */}
+            <input
+              id="max-results"
+              type="number"
+              min={1}
+              max={maxLimit}
+              placeholder={String(DEFAULT_LIMIT)}
+              value={limit === DEFAULT_LIMIT ? '' : limit}
+              onChange={(e) =>
+                setLimit(clampLimit(parseInt(e.target.value) || DEFAULT_LIMIT, maxLimit))
+              }
+              className={`${FIELD_NUMERIC} ${CONTROL_W} px-2 py-1.5 text-center`}
+            />
+          </div>
         </section>
 
         {/* Filters — one grid, two columns of bounds, one row per thing that
@@ -899,113 +904,6 @@ export default function ControlPanel({
           )}
         </section>
 
-        {/* Options — the knobs that shape a search without being one of its
-            inputs: how many rows to show, whether discovery counts unnamed
-            summits, and the map layers drawn beside the results. */}
-        <section>
-          <h2 className={`${TEXT.section} mb-2.5`}>
-            Options
-          </h2>
-          <div className="space-y-4">
-            {/* Result-count cap. The ceiling is the live analysis cap from
-                /api/capabilities: `limit` trims what is shown, never what is
-                analyzed, so there is no cheaper number to protect. */}
-            <div className="flex items-center gap-2">
-              <label htmlFor="max-results" className={`${TEXT.control} flex-1`}>
-                {AGGREGATE.maximum} results
-              </label>
-              {/* The default rides as a placeholder, like the filter boxes
-                  above, so changing it is one keystroke rather than a select-
-                  and-erase. Empty means the DEFAULT here, not "no cap" as it
-                  does for a filter: this knob always has a value, and the row
-                  count in the table's header says what it is doing. */}
-              <input
-                id="max-results"
-                type="number"
-                min={1}
-                max={maxLimit}
-                placeholder={String(DEFAULT_LIMIT)}
-                value={limit === DEFAULT_LIMIT ? '' : limit}
-                onChange={(e) =>
-                  setLimit(clampLimit(parseInt(e.target.value) || DEFAULT_LIMIT, maxLimit))
-                }
-                className={`${FIELD_NUMERIC} ${CONTROL_W} px-2 py-1.5 text-center`}
-              />
-            </div>
-
-            {/* Unnamed peaks — a polygon-discovery knob; off by default
-                because it roughly triples the candidate count. */}
-            <label className={CHOICE_ROW}>
-              <input
-                type="checkbox"
-                checked={includeUnnamedPeaks}
-                onChange={(e) => setIncludeUnnamedPeaks(e.target.checked)}
-                className={CHOICE_INPUT}
-              />
-              <span>Include unnamed peaks</span>
-            </label>
-
-            {/* Map layers — the optional overlays, under a heading rather
-                than as loose checkboxes among the other options. Each is off by
-                default and each is live: turning one on never restates the
-                analysis, so none of them touches the commit cue. The heading is
-                what let the fourth layer be one more row instead of one more
-                sentence (#121, then #246). */}
-            <div>
-              <h3 className={`${TEXT.subheading} mb-1.5`}>Map layers</h3>
-              {MAP_LAYERS.map(({ key, label, checked, onChange }) => (
-                // The label wraps the checkbox and its text and nothing else.
-                // A segment inside it would be a click on the checkbox too, so
-                // picking a style would turn the layer on and straight back off
-                // again.
-                <div key={key} className="flex items-center justify-between gap-2">
-                  <label className={`${CHOICE_ROW} flex-1`}>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(e) => onChange(e.target.checked)}
-                      className={CHOICE_INPUT}
-                    />
-                    <span>{label}</span>
-                  </label>
-                  {/* The grid's one sub-choice, on its own row rather than in a
-                      well below it. This is the Ranking rows' shape exactly: a
-                      segment on the right, dimmed while its row is not the live
-                      one. It wears CONTROL_W like every other control here, so
-                      it lands in the same column as the model picker, the row
-                      cap and the bounds — and it holds that place whether or not
-                      the layer is on, so ticking the checkbox never reflows the
-                      list under it. */}
-                  {key === 'grid' && (
-                    // Dimmed while the layer is off, but never disabled: picking
-                    // a style is a request for the layer, so it switches it on
-                    // and lands on the style you asked for. A dead control that
-                    // makes you find the checkbox first would be asking you to
-                    // say the same thing twice.
-                    <div className={`${SEGMENT} flex-shrink-0 ${checked ? '' : 'opacity-50'}`}>
-                      {GRID_STYLE_OPTIONS.map((option, i) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          aria-pressed={checked && gridStyle === option.value}
-                          onClick={() => {
-                            setGridStyle(option.value)
-                            if (!checked) onChange(true)
-                          }}
-                          className={`${SEGMENT_ITEM} ${
-                            checked && gridStyle === option.value ? ACCENT.fill : SEGMENT_IDLE
-                          } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
       </div>
 
       {/* Footer */}

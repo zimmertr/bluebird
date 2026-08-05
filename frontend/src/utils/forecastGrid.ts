@@ -114,15 +114,18 @@ export const FALLBACK_PITCH_KM = 13
 const KM_PER_DEG = 111.32
 
 /**
- * The pitch as the legend says it.
+ * The pitch as a distance, formatted the way the model picker formats the same
+ * kind of number (`gridLabel` in useCapabilities): a space before the unit, so
+ * the figure in the legend and the figure beside a model's name are visibly the
+ * same quantity rather than two conventions.
  *
  * Whole km past 10, one decimal below it: the finest model here is GEM at
  * 2.5 km, and rounding that to "3 km" would misstate a number the reader can
- * check against the model picker's own summary.
+ * check against the picker.
  */
 export function pitchLabel(pitchKm: number): string {
   const km = pitchKm < 10 ? Math.round(pitchKm * 10) / 10 : Math.round(pitchKm)
-  return `${km} km grid`
+  return `${km} km`
 }
 
 /**
@@ -148,7 +151,7 @@ export function gridLegendLine(
   pitchKm: number,
   paceRemainingS: number | null,
 ): string {
-  if (painted) return pitchLabel(pitchKm)
+  if (painted) return `Grid size: ${pitchLabel(pitchKm)}`
   if (paceRemainingS !== null && paceRemainingS > 0) {
     return `Waiting on quota · ${paceRemainingS}s`
   }

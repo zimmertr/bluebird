@@ -128,7 +128,9 @@ Sort destinations by any metric: total precipitation, average wind, average temp
 
 ### Map layers
 
-Four optional overlays, all off by default, all live. Switching one on draws it
+Four optional overlays, on the map's own **Layers** button rather than in the
+controls panel: they are the only controls in the app that change what you are
+looking at rather than what you are asking for. All off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
 the ranking, never an input to it, so none of them ever asks you to press Analyze
 again. Each is credited on its own legend, and each rides in the shared link.
@@ -186,7 +188,7 @@ as well, so you can go straight to the drawing you want.
 
 Two things to know when reading it:
 
-- **The legend states the sample spacing** — `3 km grid`, `13 km grid`. That is
+- **The legend states the sample spacing** — `Grid size: 3 km`. That is
   the distance between the points actually asked about: inside it you are looking
   at one forecast, and between two of them you are looking at a blend. Over a
   large area the points spread further apart to keep the request reasonable, and

@@ -165,13 +165,13 @@ describe('buildGrid', () => {
 })
 
 describe('pitchLabel', () => {
-  it('keeps a decimal below 10 km and drops it above', () => {
+  it('formats a distance the way the model picker does, and keeps a decimal below 10 km', () => {
     // GEM's finest grid is 2.5 km. Rounding that to "3 km" would contradict the
     // number the model picker prints beside its own name.
-    expect(pitchLabel(2.5)).toBe('2.5 km grid')
-    expect(pitchLabel(3)).toBe('3 km grid')
-    expect(pitchLabel(13.27)).toBe('13 km grid')
-    expect(pitchLabel(25)).toBe('25 km grid')
+    expect(pitchLabel(2.5)).toBe('2.5 km')
+    expect(pitchLabel(3)).toBe('3 km')
+    expect(pitchLabel(13.27)).toBe('13 km')
+    expect(pitchLabel(25)).toBe('25 km')
   })
 })
 
@@ -179,8 +179,8 @@ describe('gridLegendLine', () => {
   it('says the pitch once anything is painted', () => {
     // Past the first samples the filling-in is visible on the map itself, so
     // the line goes back to describing what the field IS.
-    expect(gridLegendLine(true, 3, null)).toBe('3 km grid')
-    expect(gridLegendLine(true, 3, 45)).toBe('3 km grid')
+    expect(gridLegendLine(true, 3, null)).toBe('Grid size: 3 km')
+    expect(gridLegendLine(true, 3, 45)).toBe('Grid size: 3 km')
   })
 
   it('names the quota wait ahead of the plain loading line', () => {

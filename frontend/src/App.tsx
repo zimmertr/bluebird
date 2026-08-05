@@ -21,6 +21,8 @@ import { CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy
 import {
   ACCENT,
   BUTTON_FLOATING,
+  CHOICE_INPUT,
+  CHOICE_ROW,
   BUTTON_SECONDARY,
   FOCUS_RING,
   ICON,
@@ -379,6 +381,16 @@ export default function App() {
   // on is standing consent for the next analysis to do the same. It still
   // changes nothing about the ranking, so it never touches `commitNeeded`.
   const [showGrid, setShowGrid] = useState(() => restored?.showGrid ?? false)
+  // The map's own Layers popover, closed on load. Not persisted: it is a
+  // disclosure, not a setting, and a link that reopened it would be sharing a
+  // gesture rather than a picture.
+  const [layersOpen, setLayersOpen] = useState(false)
+  const MAP_LAYERS = [
+    { key: 'fires', label: 'Wildfires', checked: showWildfires, onChange: setShowWildfires },
+    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
+    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
+    { key: 'grid', label: 'Forecast grid', checked: showGrid, onChange: setShowGrid },
+  ]
   // Which drawing the grid's samples get. Blocks by default: it is the style
   // that cannot overstate what was sampled, since one square is one forecast
   // and a reader can count them. Purely presentation over held samples, so
@@ -1592,16 +1604,6 @@ export default function App() {
             setMaxElevationFt(null)
             setConstraints(NO_CONSTRAINTS)
           }}
-          showWildfires={showWildfires}
-          setShowWildfires={setShowWildfires}
-          showRadar={showRadar}
-          setShowRadar={setShowRadar}
-          showSmoke={showSmoke}
-          setShowSmoke={setShowSmoke}
-          showGrid={showGrid}
-          setShowGrid={setShowGrid}
-          gridStyle={gridStyle}
-          setGridStyle={setGridStyle}
           includeUnnamedPeaks={includeUnnamedPeaks}
           setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}
           windowWarning={windowWarning}
@@ -1734,6 +1736,66 @@ export default function App() {
             minElevationFt={minElevationFt}
             maxElevationFt={maxElevationFt}
           />
+          {/* Layers, in the map's own top-right corner beneath MapLibre's zoom,
+              compass and geolocate buttons. These four are the only controls in
+              the app that change the MAP rather than the analysis, which is what
+              earns them a place on it: everything in the panel answers "what am
+              I asking for", and these answer "what am I looking at".
+
+              `top-32` clears the four stacked library buttons. A measured
+              constant rather than a live measurement: MapLibre's control chrome
+              is a fixed 29px button plus borders, and re-deriving it at runtime
+              would be machinery for a number that only moves when a control is
+              added. Re-measure if one is. */}
+          <div className="absolute top-32 right-2.5 z-10 flex flex-col items-end gap-2">
+            <button
+              onClick={() => setLayersOpen((o) => !o)}
+              aria-expanded={layersOpen}
+              className={`${BUTTON_FLOATING} ${TAP.action} gap-2 px-3 py-2`}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+                <polygon points="12,3 21,8 12,13 3,8" />
+                <polyline points="3,13 12,18 21,13" />
+              </svg>
+              Layers
+            </button>
+            {layersOpen && (
+              <div className={`${SURFACE_FLOATING} w-44 px-2.5 py-2`}>
+                {MAP_LAYERS.map(({ key, label, checked, onChange }) => (
+                  <label key={key} className={CHOICE_ROW}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => onChange(e.target.checked)}
+                      className={CHOICE_INPUT}
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+                {/* The grid's one sub-choice, revealed by its own checkbox. The
+                    popover is 176px, so this takes the fluid segment rather than
+                    the panel's fixed 144px column — the same reason the results
+                    bar's mode switch does. */}
+                {showGrid && (
+                  <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
+                    {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
+                      <button
+                        key={value}
+                        type="button"
+                        aria-pressed={gridStyle === value}
+                        onClick={() => setGridStyle(value)}
+                        className={`${SEGMENT_ITEM} ${
+                          gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
+                        } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
+                      >
+                        {value === 'blocks' ? 'Blocks' : 'Smooth'}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           {/* Top-left map cluster — reopen-controls button (only while the
               panel is collapsed) + place search. z-10 keeps it under the
               loading overlay (z-20) and the mobile drawer backdrop (z-30). */}
