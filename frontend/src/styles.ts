@@ -700,6 +700,13 @@ export const ACCENT_RING = 'ring-4 ring-sky-400 shadow-[0_0_18px_rgba(56,189,248
  * forecast-window warning, the AQI-coverage note, the refusal remedies, the
  * error retry, and the failed wildfire check.
  *
+ * There is no unboxed alternative any more. A `CUE` role used to hold the
+ * centred, borderless variant, and the panel's footer showed both: a commit cue
+ * as centred amber text directly above a blocker in an amber box, saying the
+ * same kind of thing in two shapes for no reason a reader could act on. Every
+ * message under the Analyze button is one of these three now, and severity is
+ * the only thing that varies (`FooterNotice` in `ControlPanel.tsx`).
+ *
  * Four boxes, and before this they were four recipes. Three had settled on a
  * `-950/40` fill with a `-800/60` border and the fourth — the error, the one
  * that matters most — ran a `/50` fill behind a fully opaque border, so the app
@@ -762,18 +769,6 @@ export const PANEL_RULE =
  * restated so the color cannot drift.
  */
 export const BADGE_STEP = `${ACCENT.fill} text-xs font-bold`
-
-/**
- * The unboxed status line.
- *
- * Boxed messages (`NOTICE.*`) get their size from the role's own text-xs. Unboxed
- * status lines that sit alone need their own size, and compose with `STATUS.*`
- * for color. This lives at text-xs so both paths size to the same step.
- *
- * Example use: the "model-changed" cue telling the user that the forecast window
- * was shortened by a model change.
- */
-export const CUE = 'text-xs text-center'
 
 /**
  * A bordered region grouping controls inside the panel: today, the calendar.
@@ -936,6 +931,56 @@ export const FIELD_NUMERIC =
  * machines and not others, which is worse than one that consistently does not.
  */
 export const SELECT = `${FIELD} appearance-none pr-8`
+
+/**
+ * The map timeline's scrubber (#121).
+ *
+ * A real `<input type="range">` rather than a div with a drag handler, and that
+ * is the load-bearing decision here: it arrives knowing arrow keys, Home and
+ * End, it announces itself and its value to a screen reader, and a finger drags
+ * it because the platform makes it. A hand-rolled track would owe every one of
+ * those and would ship with none of them.
+ *
+ * What the platform does *not* give is a look — it paints from the system
+ * palette, so a light-mode OS renders a pale track inside a dark map card, the
+ * same problem `SELECT` documents. So `appearance-none` on the input and on
+ * both thumb pseudo-elements, then the track and thumb drawn here.
+ *
+ * The two vendor spellings are both required and neither is redundant: WebKit
+ * and Blink read `::-webkit-slider-thumb`, Firefox reads `::-moz-range-thumb`,
+ * and a browser ignores the other one entirely. They are written as separate
+ * arbitrary variants rather than a grouped selector because Tailwind scans this
+ * file as raw text and generates a rule per variant it finds.
+ *
+ * The thumb is white on the accent-filled track for the same reason the
+ * `ACCENT.fill` label is: white is what reads on this blue, and the thumb is
+ * the one part that has to be findable at a glance while it moves. It is 14px,
+ * which is under the 44px target — deliberately, and it is the exception
+ * `TAP.grip` already argues for: the control is a horizontal drag on a bar that
+ * is itself the target, so the height that matters is the input's, and the
+ * thumb is a mark on it rather than a thing to hit.
+ */
+export const SCRUBBER =
+  'w-full h-2 appearance-none cursor-pointer bg-transparent ' +
+  `${FOCUS_RING} ` +
+  '[&::-webkit-slider-thumb]:[appearance:none] [&::-webkit-slider-thumb]:h-3.5 ' +
+  '[&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:rounded-full ' +
+  '[&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow ' +
+  '[&::-moz-range-thumb]:[appearance:none] [&::-moz-range-thumb]:h-3.5 ' +
+  '[&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full ' +
+  '[&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white'
+
+/**
+ * The rail the scrubber slides on, drawn as the element behind it.
+ *
+ * A separate element rather than styling `::-webkit-slider-runnable-track`,
+ * because the filled portion has to be a third box on top of it and a
+ * pseudo-element cannot carry one. Same recessed surface as every other well in
+ * the app, so the bar reads as part of the same system as the calendar and the
+ * fields — the fill is `ACCENT.mark`, the app's bare accent graphic, which is
+ * what the analysis progress bar already is.
+ */
+export const SCRUBBER_TRACK = `h-2 ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.pill}`
 
 /**
  * The results grid's two cell insets, which had been spelled out ten times

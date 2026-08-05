@@ -260,6 +260,17 @@ export interface WeatherSeries {
   precip_in: (number | null)[]
   temp_f: (number | null)[]
   wind_mph: (number | null)[]
+  /**
+   * Wind bearing per hour, for the map's playback arrows (#121).
+   *
+   * Optional and client-populated, the same shape `series_times` takes on
+   * `DestinationResult`: the backend does not fetch direction, so a report that
+   * came back through the SSE fallback carries none and the arrows simply do
+   * not appear on that path. Filled by the fetch rather than by `weatherSeries`
+   * below, which is pinned byte-for-byte against the backend by
+   * `weather_vectors.json` and must keep producing exactly what Python does.
+   */
+  wind_dir_deg?: (number | null)[]
 }
 
 interface HourlyPayload {
@@ -268,6 +279,7 @@ interface HourlyPayload {
     precipitation?: (number | null)[]
     temperature_2m?: (number | null)[]
     wind_speed_10m?: (number | null)[]
+    wind_direction_10m?: (number | null)[]
     us_aqi?: (number | null)[]
   }
 }
@@ -366,6 +378,46 @@ export function weatherSeries(
     }
     if (grid.length === 0) return null
     return { times: grid, precip_in: pOut, temp_f: tOut, wind_mph: wOut }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Wind bearing per hour, on the same grid `weatherSeries` builds.
+ *
+ * A second pass over the same payload rather than a fourth array inside
+ * `weatherSeries`, because that function is the port half of a two-language
+ * contract: `weather_vectors.json` compares its output to Python's field for
+ * field, and the backend has no reason to fetch direction — nothing it computes
+ * uses it. Adding a field there would be a semantic change to the shared
+ * aggregation for the sake of a browser-only picture.
+ *
+ * The window filter is repeated verbatim for the same reason it is repeated at
+ * all: the arrays must line up index for index, so the only safe way to build
+ * the second one is with the first one's own predicate.
+ *
+ * Bearings are degrees clockwise from north, as Open-Meteo sends them, and are
+ * the direction the wind blows FROM. Which way the arrow points is the map's
+ * decision, not this function's.
+ */
+export function windDirectionSeries(
+  payload: HourlyPayload,
+  startMs: number,
+  endMs: number,
+): (number | null)[] | null {
+  try {
+    const hourly = payload?.hourly ?? {}
+    const times = hourly.time ?? []
+    const direction = hourly.wind_direction_10m
+    if (!direction) return null
+    const out: (number | null)[] = []
+    for (let i = 0; i < times.length; i++) {
+      const t = parseTs(times[i])
+      if (t === null || t < startMs || t > endMs) continue
+      out.push(roundOrNull(at(direction, i), 0))
+    }
+    return out.length > 0 ? out : null
   } catch {
     return null
   }
@@ -657,8 +709,12 @@ export async function fetchWeather(
   const chunks = chunked(misses, BATCH_SIZE)
 
   const tasks = chunks.map((chunk) => async (): Promise<WeatherResult[]> => {
+    // Four variables, not the backend's three: the browser also asks for wind
+    // direction, which only the map's playback arrows use. It costs nothing —
+    // the weight factor is max(1, vars/10), so 3 and 4 both round up to 1 —
+    // and it rides the same request, so there is no extra round trip either.
     await weatherBudget.acquire(
-      callWeight(chunk.length, startMs, endMs, 3),
+      callWeight(chunk.length, startMs, endMs, 4),
       signal,
       onPace,
     )
@@ -667,7 +723,7 @@ export async function fetchWeather(
       {
         ...coordParams(chunk),
         models: model,
-        hourly: 'precipitation,temperature_2m,wind_speed_10m',
+        hourly: 'precipitation,temperature_2m,wind_speed_10m,wind_direction_10m',
         temperature_unit: 'fahrenheit',
         wind_speed_unit: 'mph',
         precipitation_unit: 'inch',
@@ -687,7 +743,12 @@ export async function fetchWeather(
     const chunkResults = items.map((item): WeatherResult => {
       const metrics = weatherMetrics(item, startMs, endMs)
       if (metrics === null) return null
-      return { ...metrics, series: weatherSeries(item, startMs, endMs) }
+      const series = weatherSeries(item, startMs, endMs)
+      const bearings = series && windDirectionSeries(item, startMs, endMs)
+      return {
+        ...metrics,
+        series: series && (bearings ? { ...series, wind_dir_deg: bearings } : series),
+      }
     })
     processed += chunk.length
     onProgress?.(processed, destinations.length)

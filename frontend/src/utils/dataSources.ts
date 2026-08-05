@@ -14,9 +14,11 @@
  *
  * The credits the licenses place next to the data live outside this list:
  * OpenStreetMap in the map's corner control (delivered by the tile server's
- * TileJSON), Open-Meteo docked beside the results, and NIFC on the fire
- * legend — CC BY 3.0 wants that credit wherever the fire data is drawn, not
- * only in a list of sources somewhere else. Each of those is the creator's
+ * TileJSON), Open-Meteo docked beside the results, and NIFC, NOAA and IEM each
+ * on their own overlay's legend — CC BY 3.0 wants the fire credit wherever the
+ * fire data is drawn, not only in a list of sources somewhere else, and the two
+ * overlays added beside it follow the same shape so the map has one idea of
+ * what a credit looks like. Each of those is the creator's
  * name and a link to them, which is the part a license asks to sit beside the
  * data; the license text itself is what `licenseHref` below carries, and this
  * list is the only place in the shipped app it can be read.
@@ -88,5 +90,15 @@ export const DATA_SOURCES: readonly DataSource[] = [
     provides: 'Active wildfire perimeters for the optional fire overlay.',
     license: 'CC BY 3.0',
     licenseHref: 'https://creativecommons.org/licenses/by/3.0/',
+  },
+  {
+    name: 'NOAA HMS',
+    href: 'https://www.ospo.noaa.gov/Products/land/hms.html',
+    provides: 'Smoke plumes traced from satellite imagery, for the optional smoke overlay.',
+  },
+  {
+    name: 'Iowa Environmental Mesonet',
+    href: 'https://mesonet.agron.iastate.edu/ogc/',
+    provides: 'NEXRAD radar mosaic tiles for the optional rain radar overlay.',
   },
 ]

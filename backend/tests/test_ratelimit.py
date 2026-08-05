@@ -429,6 +429,7 @@ def test_capabilities_publishes_live_limiter_values(monkeypatch):
     monkeypatch.setattr(ratelimit, "DESTINATIONS_LIMITER", ratelimit.RateLimiter(30, 10))
     monkeypatch.setattr(ratelimit, "GEOCODE_LIMITER", ratelimit.RateLimiter(30, 10))
     monkeypatch.setattr(ratelimit, "WILDFIRES_LIMITER", ratelimit.RateLimiter(90, 30))
+    monkeypatch.setattr(ratelimit, "SMOKE_LIMITER", ratelimit.RateLimiter(90, 30))
     rate = client.get("/api/capabilities").json()["limits"]["rate"]
     assert rate == {
         "analyze_per_minute": 12,
@@ -439,6 +440,8 @@ def test_capabilities_publishes_live_limiter_values(monkeypatch):
         "geocode_burst": 10,
         "wildfires_per_minute": 90,
         "wildfires_burst": 30,
+        "smoke_per_minute": 90,
+        "smoke_burst": 30,
     }
 
 

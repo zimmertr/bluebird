@@ -107,6 +107,13 @@ Bluebird's frontend design lives in `frontend/src/styles.ts`, which exports the 
 | `CONTROL_W` | Single stacked panel control width: 144px (w-36) |
 | `BOUNDS_GRID` | Forecast bounds grid layout with label + two boxes |
 
+**Map timeline**
+
+| Role | Purpose |
+|---|---|
+| `SCRUBBER` | The timeline's `<input type="range">`: suppresses the platform slider on every engine that draws one, and draws the thumb |
+| `SCRUBBER_TRACK` | The rail behind it, on the same recessed surface as every other well |
+
 **Layers**
 
 | Role | Purpose |
@@ -250,6 +257,26 @@ Never surface an exception type or HTTP status directly. Write a sentence instea
 ### Model coverage message
 
 The one message mirrored between backend and frontend: "{label} has no forecast coverage for this area. Switch to a different model and try again." Defined in `backend/app/services/weather.py` and ported to `frontend/src/utils/openMeteo.ts` and `frontend/src/hooks/useAnalyze.ts`.
+
+### Styling a native range input
+
+A range input is worth taking over a hand-rolled track for what it arrives
+knowing: arrow keys, Home and End, an announced value, and a drag a finger can
+do. What it does not arrive with is a look — it paints from the *system*
+palette, so a light-mode OS renders a pale track inside a dark map card, the
+same trap `SELECT` documents.
+
+Suppressing that takes three declarations, not one, and missing any of them
+ships a control that looks native on half the machines it runs on:
+`appearance-none` on the input, `[&::-webkit-slider-thumb]:[appearance:none]`
+for WebKit and Blink, and `[&::-moz-range-thumb]:[appearance:none]` for
+Firefox. Each engine ignores the spelling it does not own. `styles.test.ts`
+asserts all three.
+
+The filled portion of the track is a third element behind the input rather than
+a styled `::-webkit-slider-runnable-track`, because a pseudo-element cannot
+carry another box on top of it, and it needs `pointer-events-none` so it does
+not swallow the drag that belongs to the input above.
 
 ### Adding a new role
 

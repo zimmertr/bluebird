@@ -133,6 +133,7 @@ meant to prevent.
 | `GET /api/version` | Which build is running: version, commit, build time. |
 | `GET /api/geocode` | Place lookup by name, proxied to Nominatim. |
 | `GET /api/wildfires` | Active US wildfire perimeters in a bounding box, cached from NIFC. |
+| `GET /api/smoke` | Smoke plumes over North America, cached from NOAA's Hazard Mapping System. |
 | `GET /api/config` | Deployment-specific UI settings. Internal to the web app. |
 | `GET /healthz` | Liveness probe. Answers `GET` and `HEAD`. |
 
@@ -213,6 +214,65 @@ hour ago still answers a ten-mile proximity question. Read `fetched_at` if that
 matters to you. Only an instance that has never completed a fetch answers `503`.
 Coverage is the United States only, so an empty result elsewhere means "not
 covered", not "nothing burning". See [DATA.md](DATA.md#wildfires).
+
+### Smoke plumes
+
+`GET /api/smoke` returns the current smoke analysis for North America. It takes
+no parameters:
+
+```bash
+curl -s https://bluebirdforecast.com/api/smoke
+```
+
+```json
+{
+  "type": "FeatureCollection",
+  "fetched_at": 1754347200000,
+  "analysis_date": "2026-08-04",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "density": "Heavy",
+        "satellite": "GOES-WEST",
+        "observed_start": 1754308800000,
+        "observed_end": 1754319600000
+      },
+      "geometry": { "type": "Polygon", "coordinates": [[[-123.18073, 41.42071], "..."]] }
+    }
+  ]
+}
+```
+
+There is no bounding box because there is nothing to save by sending one: a busy
+day measured under half a megabyte for the whole continent, where the wildfire
+endpoint's 16.5 MB genuinely needed the filter.
+
+`density` is `Light`, `Medium` or `Heavy`. HMS has changed that vocabulary once
+already, so a value this service does not recognize comes back as `Light` with
+the unrecognized string in `density_raw`, rather than being dropped: a plume
+nobody can classify is still smoke somebody is standing in.
+
+Two timestamps again, answering different questions. `fetched_at` is when this
+instance last retrieved the file. `observed_start` and `observed_end` bound the
+imagery each plume was traced from, which is the window the plume actually
+describes, and they are null where HMS did not state them.
+
+`analysis_date` is the one field worth reading before trusting the rest. HMS
+publishes one dated file per day and its first analyst pass lands around late
+morning Eastern, so before then this service falls back to yesterday's analysis
+rather than reporting an outage — and this field is how you can tell. It is a
+`YYYY-MM-DD` date in US Eastern time.
+
+Perimeters and plumes share a caching contract: one national snapshot per
+instance, refreshed on a timer, served **past its refresh deadline** when the
+upstream is unreachable, and only a `503` from an instance that has never once
+completed a fetch. Coverage is North America, so an empty result elsewhere means
+"not covered", not "clear air". See [DATA.md](DATA.md#smoke).
+
+The rain-radar overlay has no endpoint here and never will: those tiles go from
+[Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) straight to
+the browser. See [DATA.md](DATA.md#rain-radar) for the tile addressing.
 
 ### Resolving your own coordinates
 

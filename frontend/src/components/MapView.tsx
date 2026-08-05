@@ -46,6 +46,18 @@ import {
   type BBox,
   type WildfireProps,
 } from '../utils/wildfires'
+import {
+  SMOKE_CLICK_ORDER,
+  SMOKE_DENSITIES,
+  SMOKE_EDGE,
+  SMOKE_FILL,
+  SMOKE_OPACITY,
+  fetchSmoke,
+  smokeLayerId,
+  smokePopupHtml,
+  type SmokeProps,
+} from '../utils/smoke'
+import { radarLayerId, radarOffsets, radarTileUrl } from '../utils/radar'
 
 export interface MapViewHandle {
   framePolygon: () => void
@@ -83,6 +95,19 @@ interface Props {
   // table — a clicked point's popup surfaces the same ⚠️ when one applies.
   fireWarnings: Map<string, FireWarning>
   showWildfires: boolean
+  // The two overlays #121 adds. Radar is raster tiles fetched straight from
+  // IEM; smoke is one national GeoJSON from the pod. Both are live map layers
+  // rather than analysis inputs, so neither ever touches `commitNeeded`.
+  showRadar: boolean
+  showSmoke: boolean
+  // Which radar frame is on screen, as an index into `radarOffsets()`. Driven
+  // by the timeline; ignored entirely while the layer is off.
+  radarIndex: number
+  // The forecast hour the markers are colored for, or null to color them by the
+  // window aggregate the ranking used. An index into `times`, which is the
+  // report's own hourly grid — so a marker under the playhead and the chart's
+  // playhead line are reading the same column of the same array.
+  playbackIndex: number | null
   // Custom destinations — pasted CSV rows and searched places alike — not (or
   // not yet) in the displayed analysis: awaiting the next Analyze, or ranked
   // below the cutoff. Drawn as neutral blue dots so a point the user named
@@ -160,6 +185,31 @@ const STYLE = 'https://tiles.openfreemap.org/styles/liberty'
 const DRAW_COLOR = '#38bdf8'
 
 /**
+ * How solid the radar frame on screen is drawn.
+ *
+ * Light enough that basemap labels survive underneath it, which is the point of
+ * a radar overlay on a map you are also reading place names off. Named because
+ * two places need the same number — the layer's opening paint and the opacity
+ * flip that advances a frame — and a frame that faded up to a different value
+ * than it appeared at would pulse every time the loop wrapped.
+ */
+const RADAR_OPACITY = 0.65
+
+/**
+ * How far apart the loop's frames are armed after the layer is switched on.
+ *
+ * One frame is ~35 tiles at the zooms this overlay is read at, so twelve of
+ * them is ~420 requests. Spacing them keeps that off IEM as a burst and keeps
+ * the whole set inside about six seconds, which is comfortably less time than
+ * it takes to notice the timeline and reach for play.
+ *
+ * Deliberately unrelated to the playback frame rate below it: this paces a
+ * download, that paces an animation, and tying them would mean a slower loop
+ * also loaded more slowly.
+ */
+const RADAR_WARM_MS = 500
+
+/**
  * The zoom the clickable basemap destinations start at.
  *
  * Not a coverage promise, because it cannot be: OpenMapTiles decides per
@@ -235,6 +285,49 @@ function makeGlowImage(): ImageData | null {
   ctx.fillStyle = gradient
   ctx.fillRect(0, 0, POI_GLOW_PX, POI_GLOW_PX)
   return ctx.getImageData(0, 0, POI_GLOW_PX, POI_GLOW_PX)
+}
+
+/**
+ * The wind arrow drawn beside a result marker during playback (#121).
+ *
+ * Generated on a canvas for the same reason the POI glow is: the basemap sprite
+ * carries no SDF icons, so nothing shipped with the style can be tinted or
+ * reshaped into this, and an asset pipeline for one triangle is not worth
+ * having.
+ *
+ * The geometry is an arrow whose tail sits at the image's centre and whose tip
+ * reaches the top edge, so rotating the icon swings it around the marker rather
+ * than spinning it in place. It clears the 10px marker circle with room to
+ * spare, which is what keeps it off the rank digit inside.
+ *
+ * White with a dark outline rather than a single colour, because it lands on
+ * every hue the metric ramp produces — green through red — and neither a white
+ * nor a dark arrow reads on all of them alone.
+ */
+const WIND_ARROW_IMAGE = 'result-wind-arrow'
+const WIND_ARROW_PX = 44
+
+function makeArrowImage(): ImageData | null {
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = WIND_ARROW_PX
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  const mid = WIND_ARROW_PX / 2
+  ctx.beginPath()
+  ctx.moveTo(mid, 2) // tip
+  ctx.lineTo(mid - 5, 12)
+  ctx.lineTo(mid - 1.5, 12)
+  ctx.lineTo(mid - 1.5, mid - 2) // tail, stopping short of the marker
+  ctx.lineTo(mid + 1.5, mid - 2)
+  ctx.lineTo(mid + 1.5, 12)
+  ctx.lineTo(mid + 5, 12)
+  ctx.closePath()
+  ctx.fillStyle = 'rgba(255,255,255,0.95)'
+  ctx.strokeStyle = 'rgba(15,23,42,0.85)'
+  ctx.lineWidth = 1.5
+  ctx.fill()
+  ctx.stroke()
+  return ctx.getImageData(0, 0, WIND_ARROW_PX, WIND_ARROW_PX)
 }
 
 // A rendered feature's polygons, each as its own ring list (outer first, holes
@@ -578,6 +671,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
       sortBy,
       fireWarnings,
       showWildfires,
+      showRadar,
+      showSmoke,
+      radarIndex,
+      playbackIndex,
       pending,
       searchedPlaces,
       onAddPoi,
@@ -593,6 +690,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
     const ptsRef = useRef<[number, number][]>([])
     const pendingResultsRef = useRef<DestinationResult[]>([])
     const pendingSortByRef = useRef<SortBy>('precip_total_in')
+    const pendingPlaybackRef = useRef<number | null>(null)
     const pendingSearchRef = useRef<Place | null>(null)
     // CSV list pasted before the map finished loading — folded into the load
     // handler's opening frame, mirroring pendingSearchRef.
@@ -882,6 +980,38 @@ const MapView = forwardRef<MapViewHandle, Props>(
         }
         restCursor()
 
+        // ── Smoke overlay (NOAA HMS) ───────────────────────────────────
+        // First of the three overlays, so it sits under the fire perimeters
+        // and over the radar tiles (which are inserted before this layer when
+        // the radar toggles on). That chain is the one the data implies: rain
+        // is a measurement of the sky, smoke is a shape drawn over the ground,
+        // and a fire is the thing you are steering away from.
+        //
+        // One source, three fills, because opacity is the whole encoding and a
+        // single data-driven fill-opacity would still need the same three-way
+        // match — this way each density is also its own click target and its
+        // own legend row. Data arrives on demand from the showSmoke effect.
+        map.addSource('smoke', { type: 'geojson', data: emptyFC as FeatureCollection })
+        for (const density of SMOKE_DENSITIES) {
+          map.addLayer({
+            id: smokeLayerId(density),
+            type: 'fill',
+            source: 'smoke',
+            filter: ['==', ['get', 'density'], density],
+            paint: { 'fill-color': SMOKE_FILL, 'fill-opacity': SMOKE_OPACITY[density] },
+          })
+        }
+        // One hairline over all three, so a plume has an edge you can find even
+        // where it is faint. Deliberately not per density: the outline says
+        // "here is a boundary", and three weights of it would be a second
+        // encoding competing with the fills.
+        map.addLayer({
+          id: 'smoke-outline',
+          type: 'line',
+          source: 'smoke',
+          paint: { 'line-color': SMOKE_EDGE, 'line-width': 1, 'line-opacity': 0.7 },
+        })
+
         // ── Wildfire overlay (NIFC) ────────────────────────────────────
         // Added before draw/results so the red perimeters sit beneath the
         // drawing UI and result markers. Data is populated on demand by the
@@ -974,13 +1104,29 @@ const MapView = forwardRef<MapViewHandle, Props>(
           restCursor()
           scheduleFireClose()
         })
-        // Clicking (or tapping) a fire opens NIFC's live map centered on that
-        // fire in a new tab. 'wildfire-fill' is in the general click handler's
-        // blocked list below, so this fires instead of dropping a polygon point.
-        // The hover popup carries the same link for pointer users.
-        map.on('click', 'wildfire-fill', (e) => {
-          window.open(fireLink(e), '_blank', 'noopener,noreferrer')
-        })
+
+        // ── Smoke popup ────────────────────────────────────────────────
+        // Click rather than hover, which is the one place the two polygon
+        // overlays deliberately behave differently. A fire is a small shape you
+        // point at; a plume routinely covers three states, so a hover popup
+        // would open the moment the cursor entered the map and follow it
+        // around. Clicking says which plume you meant.
+        function openSmokePopup(props: SmokeProps, at: maplibregl.LngLat, pinned: boolean) {
+          if (!pinned) closeAllPopups()
+          const popup = new maplibregl.Popup({ ...popupOptions(map), closeOnClick: false })
+            .setLngLat(at)
+            .setHTML(smokePopupHtml(props))
+            .addTo(map)
+          if (!pinned) poiPopupRef.current = popup
+          trackPopup(popup)
+        }
+
+        for (const layer of SMOKE_CLICK_ORDER) {
+          map.on('mouseenter', layer, () => {
+            if (!drawingRef.current) map.getCanvas().style.cursor = 'pointer'
+          })
+          map.on('mouseleave', layer, restCursor)
+        }
 
         // ── Draw source + layers ───────────────────────────────────────
         map.addSource('draw', {
@@ -1054,6 +1200,31 @@ const MapView = forwardRef<MapViewHandle, Props>(
             'circle-stroke-width': 2,
             'circle-stroke-color': '#fff',
             'circle-opacity': 0.9,
+          },
+        })
+        // Wind arrows, shown only while playback is scrubbing a wind ranking.
+        // On the same source as the circles, so a scrub sets one lot of GeoJSON
+        // and the arrow can never be pointing at an hour the colour is not.
+        // `filter: ['has','bearing']` is what makes a row with no direction —
+        // the SSE fallback never fetches it — draw nothing rather than draw
+        // north.
+        const arrow = makeArrowImage()
+        if (arrow && !map.hasImage(WIND_ARROW_IMAGE)) map.addImage(WIND_ARROW_IMAGE, arrow)
+        map.addLayer({
+          id: 'results-wind',
+          type: 'symbol',
+          source: 'results',
+          filter: ['has', 'bearing'],
+          layout: {
+            'icon-image': WIND_ARROW_IMAGE,
+            'icon-rotate': ['get', 'bearing'],
+            // Rotate with the map, not with the screen: this is a compass
+            // bearing, so it has to keep pointing at the same piece of ground
+            // when the map is rotated.
+            'icon-rotation-alignment': 'map',
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
+            visibility: 'none',
           },
         })
         map.addLayer({
@@ -1414,6 +1585,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // ── General click → add new polygon point ──────────────────────
         // Draw mode only. Outside it a click is a pan, a POI, or a marker —
         // never a new vertex, which is what frees the gesture for #119.
+        // Which layers under a click open a popup of their own, so the general
+        // dismissal below leaves the card they are about to open alone.
+        const popupLayers = () =>
+          [...POI_LAYERS, 'results-circles', ...SMOKE_CLICK_ORDER].filter((id) => map.getLayer(id))
+
         map.on('click', (e) => {
           // Clicking the map itself dismisses every popup, the same way
           // clicking another destination does. Skipped while pinning, and
@@ -1421,30 +1597,82 @@ const MapView = forwardRef<MapViewHandle, Props>(
           // its own — those handlers do their own clearing, and this would
           // otherwise close the card they just opened.
           if (!isPinning(e)) {
-            const onPopupLayer = map.queryRenderedFeatures(e.point, {
-              layers: [...POI_LAYERS, 'results-circles'].filter((id) => map.getLayer(id)),
-            })
+            const onPopupLayer = map.queryRenderedFeatures(e.point, { layers: popupLayers() })
             if (onPopupLayer.length === 0) closeAllPopups()
           }
-          if (!drawingRef.current) return
-          const blocked = map.queryRenderedFeatures(e.point, {
-            layers: [
-              'results-circles',
-              'draw-vertices',
-              'draw-midpoints',
-              'wildfire-fill',
-            ],
-          })
-          if (blocked.length > 0) return
 
-          const pt: [number, number] = [e.lngLat.lng, e.lngLat.lat]
-          ptsRef.current = addVertex(ptsRef.current, pt)
-          setSource(map, 'draw', makeDrawData(ptsRef.current))
-          commitRing()
+          // One resolution for the polygon overlays, rather than a click
+          // handler per layer, because they overlap in exactly the cases
+          // anyone cares about: smoke comes from fires, so a plume sits on top
+          // of the perimeter that made it. Two handlers there would open a tab
+          // AND a popup for one click. The fire wins — it is the hazard, and
+          // it is the one with somewhere to send you.
+          //
+          // Deliberately ahead of the draw-mode return, keeping the behavior
+          // the fire layer already had: while drawing, a fire is in the blocked
+          // list below and swallows the vertex either way, so the click may as
+          // well do the useful thing.
+          const fire = map.queryRenderedFeatures(e.point, {
+            layers: ['wildfire-fill'].filter((id) => map.getLayer(id)),
+          })
+          if (fire.length > 0) {
+            window.open(
+              nifcFireUrl(e.lngLat.lng, e.lngLat.lat, Math.max(map.getZoom(), 10) + 1),
+              '_blank',
+              'noopener,noreferrer',
+            )
+            return
+          }
+
+          if (drawingRef.current) {
+            // Smoke is deliberately absent from this list where fire is in it.
+            // A plume can cover a whole state, so blocking on one would make
+            // large parts of the map undrawable; a perimeter is small enough
+            // that treating it as an object is free.
+            const blocked = map.queryRenderedFeatures(e.point, {
+              layers: [
+                'results-circles',
+                'draw-vertices',
+                'draw-midpoints',
+                'wildfire-fill',
+              ],
+            })
+            if (blocked.length > 0) return
+
+            const pt: [number, number] = [e.lngLat.lng, e.lngLat.lat]
+            ptsRef.current = addVertex(ptsRef.current, pt)
+            setSource(map, 'draw', makeDrawData(ptsRef.current))
+            commitRing()
+            return
+          }
+
+          // A destination under the cursor outranks the plume over it: the
+          // marker and the POI label are small, deliberate targets and their
+          // own handlers own the click. Smoke is what is left.
+          const claimed = map.queryRenderedFeatures(e.point, {
+            layers: [...POI_LAYERS, 'results-circles'].filter((id) => map.getLayer(id)),
+          })
+          if (claimed.length > 0) return
+          const smoke = map.queryRenderedFeatures(e.point, {
+            layers: SMOKE_CLICK_ORDER.filter((id) => map.getLayer(id)),
+          })
+          // Heaviest first: HMS nests its plumes, so a click in the interesting
+          // place lands on three at once and the reader means the densest.
+          const densest = SMOKE_CLICK_ORDER.map((id) =>
+            smoke.find((f) => f.layer.id === id),
+          ).find(Boolean)
+          if (densest?.properties) {
+            openSmokePopup(densest.properties as SmokeProps, e.lngLat, isPinning(e))
+          }
         })
 
         if (pendingResultsRef.current.length > 0) {
-          updateResults(map, pendingResultsRef.current, pendingSortByRef.current)
+          updateResults(
+            map,
+            pendingResultsRef.current,
+            pendingSortByRef.current,
+            pendingPlaybackRef.current,
+          )
           pendingResultsRef.current = []
         }
         if (pendingSearchRef.current) {
@@ -1473,15 +1701,31 @@ const MapView = forwardRef<MapViewHandle, Props>(
       }
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Markers, and the hour they are colored for. `playbackIndex` joins the
+    // deps because a scrub is a re-render of the same rows at a different hour:
+    // it sets the same source the re-rank path does, which at 1,500 points and
+    // two frames a second is cheap, and which is why nothing here reaches for
+    // feature-state (the arrows could not read it anyway — see resultFeatures).
     useEffect(() => {
       if (!mapRef.current || !loadedRef.current) {
         pendingResultsRef.current = results
         pendingSortByRef.current = sortBy
+        pendingPlaybackRef.current = playbackIndex
         return
       }
       pendingResultsRef.current = []
-      updateResults(mapRef.current, results, sortBy)
-    }, [results, sortBy])
+      updateResults(mapRef.current, results, sortBy, playbackIndex)
+    }, [results, sortBy, playbackIndex])
+
+    // Arrows exist only where they mean something: a wind ranking, being
+    // scrubbed. On any other metric they would be a second variable nobody
+    // asked about, drawn over the one they did.
+    useEffect(() => {
+      const map = mapRef.current
+      if (!map || !mapReady) return
+      const showing = playbackIndex !== null && sortBy === 'wind_avg_mph'
+      map.setLayoutProperty('results-wind', 'visibility', showing ? 'visible' : 'none')
+    }, [playbackIndex, sortBy, mapReady])
 
     // Keep the ref current so the once-registered marker-click popup reads live
     // fire warnings (they arrive asynchronously, after a result set renders).
@@ -1621,6 +1865,158 @@ const MapView = forwardRef<MapViewHandle, Props>(
       }
     }, [showWildfires, mapReady])
 
+    // Toggle the NOAA smoke overlay. Fetched once per toggle and never on a
+    // pan: the whole national analysis is one small response, so unlike the
+    // fire overlay there is no viewport to re-ask about. Best-effort — a failed
+    // fetch leaves the layers empty and never disrupts the map or an analysis.
+    useEffect(() => {
+      const map = mapRef.current
+      if (!map || !mapReady) return
+
+      if (!showSmoke) {
+        setSource(map, 'smoke', emptyFC)
+        return
+      }
+
+      const ac = new AbortController()
+      fetchSmoke(ac.signal)
+        .then((fc) => setSource(map, 'smoke', fc))
+        .catch((err) => {
+          if ((err as Error).name !== 'AbortError') {
+            console.warn('Smoke overlay fetch failed', err)
+          }
+        })
+      return () => ac.abort()
+    }, [showSmoke, mapReady])
+
+    // Toggle the IEM radar loop. The frames are 12 raster sources created here
+    // and torn down on untoggle, rather than declared at load: a raster source
+    // starts fetching the moment a rendered layer names it, so leaving them in
+    // place would download radar tiles for everyone who never asked for any.
+    //
+    // Inserted before the smoke fills, which puts the whole loop under every
+    // polygon overlay and under the draw, result and label layers above them.
+    useEffect(() => {
+      const map = mapRef.current
+      if (!map || !mapReady || !showRadar) return
+
+      const beneath = smokeLayerId(SMOKE_DENSITIES[0])
+      for (const offset of radarOffsets()) {
+        const id = radarLayerId(offset)
+        if (map.getSource(id)) continue
+        map.addSource(id, {
+          type: 'raster',
+          tiles: [radarTileUrl(offset)],
+          tileSize: 256,
+          // No `attribution` here on purpose. IEM's credit is on the radar
+          // legend, beside the data, which is where this app puts a
+          // provider's name (the NIFC and NOAA credits are the same shape).
+          // Adding it to MapLibre's attribution control as well would say it
+          // twice, and the second copy is the expensive one: it pushed that
+          // control onto a second line on a phone, straight under the
+          // timeline.
+        })
+        map.addLayer(
+          {
+            id,
+            type: 'raster',
+            source: id,
+            layout: {
+              // Every frame but the one on screen starts unrendered, and an
+              // unrendered raster layer fetches no tiles — so toggling the
+              // loop on costs one frame's tiles rather than twelve. The other
+              // eleven are armed a moment later by the warm-up effect below,
+              // which is what makes playback smooth rather than a slideshow of
+              // half-loaded frames.
+              visibility: 'none',
+            },
+            paint: {
+              'raster-opacity': RADAR_OPACITY,
+              // A frame change is an opacity flip between two layers, so the
+              // library's own cross-fade would fight it and leave both frames
+              // half-drawn for a moment, at 500 ms a frame.
+              'raster-fade-duration': 0,
+            },
+          },
+          map.getLayer(beneath) ? beneath : undefined,
+        )
+      }
+
+      return () => {
+        for (const offset of radarOffsets()) {
+          const id = radarLayerId(offset)
+          if (map.getLayer(id)) map.removeLayer(id)
+          if (map.getSource(id)) map.removeSource(id)
+        }
+      }
+    }, [showRadar, mapReady])
+
+    // Warm the loop's frames in the background, one every RADAR_WARM_MS.
+    //
+    // Arming on demand — a frame the first time the playhead reached it — is
+    // what made the loop strobe: an unrendered raster layer holds no tiles, so
+    // each frame's first turn on screen was a blank 500 ms while a fetch went
+    // out, and the whole first pass flashed.
+    //
+    // Two things rule out simply showing all twelve at once. It is 420 tile
+    // requests in a burst against a donated server that asks large applications
+    // to self-host, which is not the way to hold up our end. And it does not
+    // work: MapLibre schedules tile loading off style and transform changes, so
+    // one batch of twelve on a map nobody is touching dispatched six frames'
+    // worth of requests and then sat there — measured, at 7 of 12 frames after
+    // thirty seconds with every missing tile answering 200 to a direct fetch.
+    //
+    // Arming one at a time solves both: each layer's own style change is what
+    // gets its tiles fetched, and the requests arrive spread out. A frame the
+    // playhead reaches before the warm-up does is shown by the effect below
+    // regardless, so nothing waits on this.
+    //
+    // The loop runs until every source reports loaded rather than until the
+    // last frame is armed, and repaints on each tick, because being armed is
+    // not the same as being fetched: MapLibre services its tile queue during a
+    // render, so a map nobody is touching goes idle with the tail of the queue
+    // still outstanding. That is the measured failure — six frames loaded and
+    // six armed-but-empty, unchanged after thirty seconds, with every missing
+    // tile answering 200 to a direct fetch.
+    useEffect(() => {
+      const map = mapRef.current
+      if (!map || !mapReady || !showRadar) return
+      const queue = radarOffsets().slice()
+      const timer = setInterval(() => {
+        const offset = queue.shift()
+        if (offset !== undefined) {
+          const id = radarLayerId(offset)
+          if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'visible')
+        }
+        const armed = radarOffsets().filter((o) => map.getLayer(radarLayerId(o)))
+        if (queue.length === 0 && armed.every((o) => map.isSourceLoaded(radarLayerId(o)))) {
+          clearInterval(timer)
+          return
+        }
+        map.triggerRepaint()
+      }, RADAR_WARM_MS)
+      return () => clearInterval(timer)
+    }, [showRadar, mapReady])
+
+    // Which radar frame is on screen. Every armed frame is rendered at all
+    // times and only its opacity moves, so advancing is a flip between two
+    // layers that both already hold their tiles — no fetch, no fade, no gap.
+    useEffect(() => {
+      const map = mapRef.current
+      if (!map || !mapReady || !showRadar) return
+      const offsets = radarOffsets()
+      const active = offsets[Math.max(0, Math.min(offsets.length - 1, radarIndex))]
+      for (const offset of offsets) {
+        const id = radarLayerId(offset)
+        if (!map.getLayer(id)) continue
+        // A frame the warm-up has not reached yet still has to be shown when
+        // the playhead lands on it, or scrubbing in the first second after a
+        // toggle would land on nothing.
+        if (offset === active) map.setLayoutProperty(id, 'visibility', 'visible')
+        map.setPaintProperty(id, 'raster-opacity', offset === active ? RADAR_OPACITY : 0)
+      }
+    }, [radarIndex, showRadar, mapReady])
+
     return <div ref={containerRef} className="absolute inset-0" />
   },
 )
@@ -1628,8 +2024,13 @@ const MapView = forwardRef<MapViewHandle, Props>(
 MapView.displayName = 'MapView'
 export default MapView
 
-function updateResults(map: maplibregl.Map, results: DestinationResult[], sortBy: SortBy) {
-  setSource(map, 'results', resultsFeatureCollection(results, sortBy))
+function updateResults(
+  map: maplibregl.Map,
+  results: DestinationResult[],
+  sortBy: SortBy,
+  hourIndex: number | null,
+) {
+  setSource(map, 'results', resultsFeatureCollection(results, sortBy, true, hourIndex))
 }
 
 // Minimal features for pending custom destinations — just position + name

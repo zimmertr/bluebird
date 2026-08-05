@@ -20,7 +20,6 @@ import {
   BOUNDS_GRID,
   CHOICE_ROW,
   CONTROL_W,
-  CUE,
   FIELD,
   FIELD_NUMERIC,
   LINK,
@@ -164,6 +163,13 @@ interface Props {
   onClearFilters: () => void
   showWildfires: boolean
   setShowWildfires: (v: boolean) => void
+  // The two overlays #121 adds. Live like the wildfire one: an overlay is a
+  // thing drawn on the map, never an input to the ranking, so none of these
+  // can make a report stale.
+  showRadar: boolean
+  setShowRadar: (v: boolean) => void
+  showSmoke: boolean
+  setShowSmoke: (v: boolean) => void
   // Summits OSM knows only by their height, discovered as `Peak 5961`.
   // A polygon knob rather than a map one, and off by default, because it
   // roughly triples the candidate count.
@@ -225,6 +231,57 @@ interface Props {
   wildfireCheckFailed?: boolean
 }
 
+/**
+ * One shape for every message under the Analyze button.
+ *
+ * There were two shapes and the difference said nothing. A commit cue was
+ * centred, unboxed, amber text; a blocker was a left-aligned amber box; the two
+ * appeared together, so the panel showed one warning as a caption and the next
+ * as a notice for no reason a reader could act on. Severity is the only thing
+ * that varies now, and it varies by hue, which is what hue means everywhere
+ * else in this app.
+ *
+ * The colour lives on the box rather than on each line inside it, so a notice
+ * that grows a second paragraph cannot forget it. `NOTICE` sets a size and no
+ * colour and `STATUS` sets a colour and no size, which is what lets the two
+ * compose without the stylesheet-order collision this file keeps warning about.
+ */
+function FooterNotice({
+  severity,
+  lines,
+  children,
+}: {
+  severity: 'warn' | 'error' | 'info'
+  // Several messages of the same kind, which the box bullets so they cannot be
+  // misread as one. `children` is the other shape: a single message plus the
+  // buttons that act on it.
+  lines?: string[]
+  children?: React.ReactNode
+}) {
+  return (
+    <div className={`${NOTICE[severity]} ${STATUS[severity]} space-y-2`} role="status">
+      {lines && lines.length > 1 ? (
+        // Bullets from two messages up, and not before. One reason Analyze is
+        // blocked is a sentence; two are a list, and without the marks they run
+        // together into one long complaint — worse when either of them wraps,
+        // which is when the reader most needs to see where one ends. A lone
+        // bullet is a list of one and just adds furniture.
+        //
+        // `list-outside` puts a wrapped line under its own text rather than
+        // under its bullet, so the marks stay a column the eye can scan.
+        <ul className="list-disc list-outside space-y-1.5 pl-4">
+          {lines.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      ) : (
+        lines?.map((line) => <p key={line}>{line}</p>)
+      )}
+      {children}
+    </div>
+  )
+}
+
 export default function ControlPanel({
   drawing,
   onStartDrawing,
@@ -256,6 +313,10 @@ export default function ControlPanel({
   onClearFilters,
   showWildfires,
   setShowWildfires,
+  showRadar,
+  setShowRadar,
+  showSmoke,
+  setShowSmoke,
   includeUnnamedPeaks,
   setIncludeUnnamedPeaks,
   forecastModel,
@@ -326,6 +387,22 @@ export default function ControlPanel({
       : classifyAqiCoverage(window.start, window.end, new Date())
 
   const pointsNeeded = Math.max(0, 3 - drawPointCount)
+
+  // Every plain-sentence warning under the Analyze button, as one list for one
+  // box. They used to render as a box apiece — the commit cue in its own frame
+  // directly above the blockers in theirs — which read as two kinds of problem
+  // when the difference was plumbing, not meaning (#245 review). Ordered by
+  // what the reader can act on: why the report on screen is stale, why the
+  // button is disabled, then what a delivered report is missing. Only a notice
+  // that carries its own actions (the refusal's remedies, the error's retry)
+  // keeps a box of its own.
+  const footerWarnings = [
+    ...(commitReason && !loading ? [COMMIT_CUE[commitReason]] : []),
+    ...blockers.map((blocker) => blockerText(blocker, maxAreaKm2, pointsNeeded)),
+    ...(wildfireCheckFailed && !loading
+      ? ['NIFC is unreachable, so wildfire proximity data is unavailable.']
+      : []),
+  ]
 
   // The filter grid, one row per bounded thing.
   //
@@ -406,6 +483,20 @@ export default function ControlPanel({
   ]
   const filtersActive =
     minElevationFt !== null || maxElevationFt !== null || hasConstraints(constraints)
+
+  // The optional map overlays, as one list rather than three hand-written rows.
+  // Ordered by how much of the map each one covers, lightest first: a fire is a
+  // shape you look for, radar is weather over a region, smoke can span the
+  // continent. That also happens to be the order they stack on the map, which
+  // is not a coincidence — both orderings answer "how much is this hiding".
+  //
+  // "Wildfires" rather than "Show wildfires": under a heading that says these
+  // are layers, the verb was the heading's job being done three times.
+  const MAP_LAYERS = [
+    { key: 'fires', label: 'Wildfires', checked: showWildfires, onChange: setShowWildfires },
+    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
+    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
+  ]
 
   return (
     <div className="flex flex-col h-full">
@@ -785,7 +876,7 @@ export default function ControlPanel({
 
         {/* Options — the knobs that shape a search without being one of its
             inputs: how many rows to show, whether discovery counts unnamed
-            summits, and the wildfire overlay. */}
+            summits, and the map layers drawn beside the results. */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
             Options
@@ -829,16 +920,26 @@ export default function ControlPanel({
               <span>Include unnamed peaks</span>
             </label>
 
-            {/* Show wildfires — live NIFC perimeter overlay, off by default */}
-            <label className={CHOICE_ROW}>
-              <input
-                type="checkbox"
-                checked={showWildfires}
-                onChange={(e) => setShowWildfires(e.target.checked)}
-                className={CHOICE_INPUT}
-              />
-              <span>Show wildfires</span>
-            </label>
+            {/* Map layers — the optional overlays, under a heading rather
+                than as three loose checkboxes among the other options. Each is
+                off by default and each is live: turning one on never restates
+                the analysis, so none of them touches the commit cue. The
+                heading is what lets a fourth layer be one more row instead of
+                one more sentence (#121). */}
+            <div>
+              <h3 className={`${TEXT.subheading} mb-1.5`}>Map layers</h3>
+              {MAP_LAYERS.map(({ key, label, checked, onChange }) => (
+                <label key={key} className={CHOICE_ROW}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(e) => onChange(e.target.checked)}
+                    className={CHOICE_INPUT}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
           </div>
         </section>
       </div>
@@ -853,28 +954,12 @@ export default function ControlPanel({
           {loading ? 'Analyzing…' : 'Analyze'}
         </button>
 
-        {commitReason && !loading && (
-          <p className={`${CUE} ${STATUS.warn}`}>{COMMIT_CUE[commitReason]}</p>
-        )}
-
-        {/* Every reason Analyze is disabled, in one box. The reasons stack
-            (a chain showed one, so fixing it revealed a second that had been
-            true all along), and the whole box wears the same amber styling
-            the panel's other bad news does, because "the app will not do the
-            thing you asked" is a warning and was being typeset as footnotes. */}
-        {blockers.length > 0 && (
-          <div className={`${NOTICE.warn} space-y-2`} role="status">
-            {blockers.map((blocker) => (
-              <p key={blocker} className={STATUS.warn}>
-                {blockerText(blocker, maxAreaKm2, pointsNeeded)}
-              </p>
-            ))}
-          </div>
+        {footerWarnings.length > 0 && (
+          <FooterNotice severity="warn" lines={footerWarnings} />
         )}
 
         {refusal && !loading && (
-          <div className={`${NOTICE.warn} space-y-2`}>
-            <p className={STATUS.warn}>{refusal.message}</p>
+          <FooterNotice severity="warn" lines={[refusal.message]}>
             {refusal.suggestedMinElevationFt !== null && (
               <button
                 onClick={() => onRetryWithFloor(refusal.suggestedMinElevationFt as number)}
@@ -892,38 +977,30 @@ export default function ControlPanel({
                 Analyze the {refusal.limit.toLocaleString()} highest instead
               </button>
             )}
-          </div>
-        )}
-
-        {/* Sits below a failed analysis and above the row count, because it
-            qualifies a report that did arrive rather than reporting that one
-            did not. Amber, not red: the forecasts are sound and only the fire
-            check is missing. */}
-        {wildfireCheckFailed && !loading && (
-          <p className={`${STATUS.warn} ${NOTICE.warn}`}>
-            NIFC is unreachable, so wildfire proximity data is unavailable.
-          </p>
+          </FooterNotice>
         )}
 
         {error && !refusal && (
-          <div className={`${STATUS.error} ${NOTICE.error} space-y-2`}>
-            <p>{error}</p>
+          <FooterNotice severity="error" lines={[error]}>
             <button onClick={onRetry} disabled={loading} className={BUTTON_DANGER}>
               Try again
             </button>
-          </div>
+          </FooterNotice>
         )}
 
         {/* The row count used to sit here, and moved to the table's own header
             bar: it describes the table, the sidebar is where you build a
             request, and three numbers wrapped this column to two lines. What
             stays is the one line that qualifies the ANALYSIS rather than the
-            view of it. */}
+            view of it. Info rather than warn: the analysis is sound and this
+            explains the dashes in a column, which is a fact about the data
+            rather than something gone wrong. */}
         {resultCount !== undefined && !loading && !error && !refusal &&
           aqiAllNull && aqiCoverage !== 'none' && (
-            <p className={`${CUE} ${TEXT.caption}`}>
-              {NOUN.aqi} data is not available for this forecast window.
-            </p>
+            <FooterNotice
+              severity="info"
+              lines={[`${NOUN.aqi} data is not available for this forecast window.`]}
+            />
           )}
 
         {/* Two labels, two pages, and each label goes where it says. The

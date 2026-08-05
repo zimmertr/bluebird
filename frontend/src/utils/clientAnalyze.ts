@@ -401,6 +401,11 @@ export function assemble(
         temp_f: wxSeries.temp_f,
         wind_mph: wxSeries.wind_mph,
         aqi: alignAqi(wxSeries.times, aqi?.series ?? null),
+        // Present only on the browser path, which is the only one that asks
+        // Open-Meteo for it. Spread rather than assigned so a row from a
+        // response without it carries no key at all, rather than an explicit
+        // undefined the map would have to distinguish from an empty array.
+        ...(wxSeries.wind_dir_deg ? { wind_dir_deg: wxSeries.wind_dir_deg } : {}),
       }
     }
     results.push({

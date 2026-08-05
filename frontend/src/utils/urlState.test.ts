@@ -58,6 +58,8 @@ const base: ShareableState = {
   limit: 10,
   customCsv: '',
   showWildfires: false,
+  showRadar: false,
+  showSmoke: false,
   includeUnnamedPeaks: false,
   pins: [],
 }
@@ -80,6 +82,8 @@ const pristine: ShareableState = {
   limit: 200,
   customCsv: '',
   showWildfires: false,
+  showRadar: false,
+  showSmoke: false,
   includeUnnamedPeaks: false,
   pins: [],
 }
@@ -138,6 +142,35 @@ describe('encodeState / decodeState round-trip', () => {
     // Off is the default and stays out of the URL entirely.
     expect(encodeState(base, DEFAULT_MODEL)).not.toContain('fires')
     expect(roundTrip(base)!.showWildfires).toBeUndefined()
+  })
+
+  it('round-trips the radar and smoke overlays independently', () => {
+    // Three layers, three params, and none of them implies another: a link
+    // sharing a smoke picture must not switch radar on as a side effect.
+    const both = roundTrip({ ...base, showRadar: true, showSmoke: true })
+    expect(both!.showRadar).toBe(true)
+    expect(both!.showSmoke).toBe(true)
+    const radarOnly = roundTrip({ ...base, showRadar: true })
+    expect(radarOnly!.showRadar).toBe(true)
+    expect(radarOnly!.showSmoke).toBeUndefined()
+    // Off is the default for all three and stays out of the URL entirely.
+    const clean = encodeState(base, DEFAULT_MODEL)
+    expect(clean).not.toContain('radar')
+    expect(clean).not.toContain('smoke')
+  })
+
+  it('gives an overlay-only session a URL of its own', () => {
+    // The overlays are the one kind of state with no analysis behind it, so a
+    // pristine session that has only switched a layer on still deserves a link.
+    expect(encodeState({ ...pristine, showSmoke: true }, DEFAULT_MODEL)).toContain('smoke=1')
+    expect(encodeState({ ...pristine, showRadar: true }, DEFAULT_MODEL)).toContain('radar=1')
+  })
+
+  it('keeps every overlay param hand-editable', () => {
+    // Same convention as `fires`: a flag anyone can flip in the address bar,
+    // never an opaque blob (#210).
+    expect(decodeState('?radar=1&smoke=1')).toEqual({ showRadar: true, showSmoke: true })
+    expect(decodeState('?radar=0&smoke=yes')).toBeNull()
   })
 
   it('restores a CSV-only analysis without a polygon', () => {

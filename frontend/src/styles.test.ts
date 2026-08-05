@@ -12,7 +12,6 @@ import {
   BUTTON_SECONDARY,
   CHOICE_INPUT,
   CHOICE_ROW,
-  CUE,
   DAY,
   BOUNDS_GRID,
   CONTROL_W,
@@ -24,6 +23,8 @@ import {
   ICON_ACTION,
   ICON_BUTTON,
   NOTICE,
+  SCRUBBER,
+  SCRUBBER_TRACK,
   SEGMENT,
   SEGMENT_FLUID,
   SEGMENT_IDLE,
@@ -515,6 +516,32 @@ describe('shared recipes', () => {
     expect(depth(LAYER.modal)).toBeGreaterThan(depth(LAYER.popover))
   })
 
+  // The map timeline's scrubber (#121). A real range input arrives knowing
+  // arrow keys and screen readers, and arrives painting itself from the system
+  // palette — dark-on-light inside a dark map card on a light-mode OS, the same
+  // trap SELECT documents. Suppressing that is only half done unless both
+  // vendor thumb spellings are covered: WebKit and Blink read one, Firefox the
+  // other, and each ignores the one it does not own, so a single spelling ships
+  // a control that looks native on half the machines it runs on.
+  it('suppresses the platform slider on every engine that draws one', () => {
+    expect(SCRUBBER).toContain('appearance-none')
+    expect(SCRUBBER).toContain('[&::-webkit-slider-thumb]:[appearance:none]')
+    expect(SCRUBBER).toContain('[&::-moz-range-thumb]:[appearance:none]')
+  })
+
+  it('gives the scrubber a keyboard-visible focus ring like every other control', () => {
+    expect(SCRUBBER).toContain(FOCUS_RING)
+  })
+
+  // The rail is a separate element rather than the input's own track
+  // pseudo-element, because the filled portion has to be a third box on top of
+  // it. What that must not become is a fourth spelling of the recessed well.
+  it('builds the scrubber rail from the recessed surface every other well uses', () => {
+    expect(SCRUBBER_TRACK).toContain(RECESSED_FILL)
+    expect(SCRUBBER_TRACK).toContain(RECESSED_EDGE)
+    expect(SCRUBBER_TRACK).toContain(RADIUS.pill)
+  })
+
   // The segmented control had been built twice from scratch and matched only by
   // luck. Its colors were already roles; its box was not, which is why the two
   // copies could have carried different padding and nothing would have noticed.
@@ -631,12 +658,22 @@ describe('shared recipes', () => {
     expect(CHOICE_ROW).toContain(rowRing)
   })
 
-  // Unboxed status lines that stand alone need their own size. Boxed notices
-  // (`NOTICE.*`) set size on the box. Both end up at text-xs, so the two paths
-  // compose to the same step.
-  it('sizes the unboxed status line the same as boxed notices', () => {
-    expect(CUE).toContain('text-xs')
-    expect(sizes(NOTICE.warn)).toContain('text-xs')
+  // Every message under the Analyze button is a NOTICE box wearing a STATUS
+  // colour, so the two records have to offer the same severities. A hue in one
+  // and not the other is a message that either has no box or no colour, which
+  // is exactly the state the footer was in before this: an amber cue with no
+  // box beside an amber box.
+  it('gives every notice severity a matching status colour', () => {
+    for (const severity of Object.keys(NOTICE)) {
+      expect(STATUS, `STATUS has no ${severity}`).toHaveProperty(severity)
+    }
+  })
+
+  // NOTICE sets a size and no colour, STATUS a colour and no size, which is
+  // what lets the two compose rather than race by stylesheet order.
+  it('keeps size and colour on opposite halves of a notice', () => {
+    for (const recipe of Object.values(NOTICE)) expect(sizes(recipe)).toContain('text-xs')
+    for (const recipe of Object.values(STATUS)) expect(sizes(recipe)).toEqual([])
   })
 
   // Three rules, none redundant: Firefox reads the appearance property, WebKit

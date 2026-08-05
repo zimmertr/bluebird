@@ -79,9 +79,9 @@ class RateLimits(BaseModel):
     wildfires_per_minute: int = Field(
         description=(
             "Sustained `GET /api/wildfires` requests per client address per "
-            "minute. The loosest bucket, because it answers from a snapshot "
-            "this instance already holds and reaches no upstream. 0 means the "
-            "limit is disabled."
+            "minute. Among the loosest buckets, because it answers from a "
+            "snapshot this instance already holds and reaches no upstream. 0 "
+            "means the limit is disabled."
         )
     )
     wildfires_burst: int = Field(
@@ -89,6 +89,20 @@ class RateLimits(BaseModel):
             "How many wildfire requests an idle client can send back-to-back "
             "before the per-minute pace applies. Sized for a map pan, which "
             "refetches on a 400 ms debounce."
+        )
+    )
+    smoke_per_minute: int = Field(
+        description=(
+            "Sustained `GET /api/smoke` requests per client address per minute. "
+            "As loose as the wildfire bucket and for the same reason: it answers "
+            "from a snapshot this instance already holds and reaches no "
+            "upstream. 0 means the limit is disabled."
+        )
+    )
+    smoke_burst: int = Field(
+        description=(
+            "How many smoke requests an idle client can send back-to-back "
+            "before the per-minute pace applies."
         )
     )
 
@@ -284,6 +298,8 @@ async def capabilities() -> CapabilitiesResponse:
                 geocode_burst=ratelimit.GEOCODE_LIMITER.burst,
                 wildfires_per_minute=ratelimit.WILDFIRES_LIMITER.per_minute,
                 wildfires_burst=ratelimit.WILDFIRES_LIMITER.burst,
+                smoke_per_minute=ratelimit.SMOKE_LIMITER.per_minute,
+                smoke_burst=ratelimit.SMOKE_LIMITER.burst,
             ),
         ),
         data_sources=[
@@ -311,6 +327,11 @@ async def capabilities() -> CapabilitiesResponse:
                 name="NIFC WFIGS",
                 url="https://data-nifc.opendata.arcgis.com",
                 provides="Active US wildfire perimeters behind GET /api/wildfires",
+            ),
+            DataSource(
+                name="NOAA HMS",
+                url="https://www.ospo.noaa.gov/Products/land/hms.html",
+                provides="Analyst-traced smoke plumes behind GET /api/smoke",
             ),
         ],
     )

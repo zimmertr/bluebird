@@ -1207,13 +1207,23 @@
             "title": "Geocode Per Minute",
             "type": "integer"
           },
+          "smoke_burst": {
+            "description": "How many smoke requests an idle client can send back-to-back before the per-minute pace applies.",
+            "title": "Smoke Burst",
+            "type": "integer"
+          },
+          "smoke_per_minute": {
+            "description": "Sustained `GET /api/smoke` requests per client address per minute. As loose as the wildfire bucket and for the same reason: it answers from a snapshot this instance already holds and reaches no upstream. 0 means the limit is disabled.",
+            "title": "Smoke Per Minute",
+            "type": "integer"
+          },
           "wildfires_burst": {
             "description": "How many wildfire requests an idle client can send back-to-back before the per-minute pace applies. Sized for a map pan, which refetches on a 400 ms debounce.",
             "title": "Wildfires Burst",
             "type": "integer"
           },
           "wildfires_per_minute": {
-            "description": "Sustained `GET /api/wildfires` requests per client address per minute. The loosest bucket, because it answers from a snapshot this instance already holds and reaches no upstream. 0 means the limit is disabled.",
+            "description": "Sustained `GET /api/wildfires` requests per client address per minute. Among the loosest buckets, because it answers from a snapshot this instance already holds and reaches no upstream. 0 means the limit is disabled.",
             "title": "Wildfires Per Minute",
             "type": "integer"
           }
@@ -1226,9 +1236,49 @@
           "geocode_per_minute",
           "geocode_burst",
           "wildfires_per_minute",
-          "wildfires_burst"
+          "wildfires_burst",
+          "smoke_per_minute",
+          "smoke_burst"
         ],
         "title": "RateLimits",
+        "type": "object"
+      },
+      "SmokeCollection": {
+        "description": "A GeoJSON FeatureCollection, plus when and for which day it was analyzed.\n\nDeclared for the schema only: the handler returns pre-serialized text, since\nevery caller gets the same whole-country answer and re-encoding it per\nrequest would be work with no question behind it.",
+        "properties": {
+          "analysis_date": {
+            "description": "The day whose analysis this is, as `YYYY-MM-DD` in US Eastern time. HMS publishes one dated file per day and its first pass lands around late morning Eastern, so before then this is yesterday's date and the plumes are yesterday's plumes. Read it rather than assuming today.",
+            "title": "Analysis Date",
+            "type": "string"
+          },
+          "features": {
+            "description": "Smoke plumes as `Polygon` features. `density` is `Light`, `Medium` or `Heavy`; `satellite` names the GOES platform the analyst read; `observed_start` and `observed_end` bound the imagery the plume was traced from, in epoch milliseconds, and are null when HMS did not state them. A plume whose style HMS has not published before is returned as `Light` with the unrecognized value in `density_raw`.",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "fetched_at": {
+            "description": "When this instance last fetched from NOAA, in epoch milliseconds. A GeoJSON foreign member, which map libraries ignore. Plumes are cached per instance and served past their refresh deadline when NOAA is unreachable, so this is the only honest statement of how current the shapes are.",
+            "title": "Fetched At",
+            "type": "integer"
+          },
+          "type": {
+            "const": "FeatureCollection",
+            "description": "Always `FeatureCollection`, so the body drops straight into a map library.",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "fetched_at",
+          "analysis_date",
+          "features"
+        ],
+        "title": "SmokeCollection",
         "type": "object"
       },
       "SortBy": {
@@ -1721,6 +1771,48 @@
         ]
       }
     },
+    "/api/smoke": {
+      "get": {
+        "description": "Today's hand-traced smoke plumes covering North America, at all three densities.\n\nHMS is an analyst product, not a model: people at NOAA read GOES imagery and trace what they can see, roughly twice a day. So this is a picture of where the smoke is rather than a forecast, and there is nothing here to animate.\n\nThe whole analysis comes back in one response and there is no bounding box to send: a busy day measured under half a megabyte, so filtering would cost a parameter and save nothing.\n\nThis instance fetches the dated file from NOAA on a timer and serves it to everyone, and serves it past its refresh deadline when NOAA is unreachable \u2014 smoke traced this morning is the only tracing there will be until the next pass. Read `fetched_at` and `analysis_date` to see how current the answer is. Only an instance that has never completed a fetch answers 503.\n\nCoverage is North America, which is what HMS analyzes. An empty result elsewhere means \"not covered\", not \"clear air\".",
+        "operationId": "smoke_api_smoke_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmokeCollection"
+                }
+              }
+            },
+            "description": "Every plume in the current analysis, with its date."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This client is requesting faster than the per-address limit. `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This instance has never completed a fetch from NOAA, so it has nothing to serve, not even stale. Transient; `Retry-After` says when to retry."
+          }
+        },
+        "summary": "Smoke plumes from NOAA's Hazard Mapping System",
+        "tags": [
+          "smoke"
+        ]
+      }
+    },
     "/api/version": {
       "get": {
         "description": "Answers what release is actually live, without cross-referencing the GitHub release, the Docker Hub tag, and the manifests repo. Preview builds report `pr-<number>`. Local and Docker Compose builds report `dev` for every field, because nothing baked a real identity in.",
@@ -1869,6 +1961,10 @@
     {
       "description": "Active US wildfire perimeters, cached from NIFC. Served from this instance's snapshot rather than proxied per request, because the upstream quota is NIFC's and shared with every other consumer of the public dataset.",
       "name": "wildfires"
+    },
+    {
+      "description": "Smoke plumes traced by NOAA analysts from satellite imagery, cached from their file server. Roughly two analyses land per day, so this is a picture of the smoke rather than a forecast of it.",
+      "name": "smoke"
     }
   ]
 }

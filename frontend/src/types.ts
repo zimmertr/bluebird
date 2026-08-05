@@ -87,6 +87,12 @@ export interface HourlySeries {
   temp_f: (number | null)[]
   wind_mph: (number | null)[]
   aqi: (number | null)[]
+  // Wind bearing in degrees clockwise from north, the direction the wind blows
+  // FROM. Client-populated only: the backend does not fetch it, because nothing
+  // it computes uses it, so a report from the SSE fallback carries none and the
+  // map's playback arrows do not appear on that path. Same contract as
+  // `series_times` below.
+  wind_dir_deg?: (number | null)[]
 }
 
 export interface DestinationResult {

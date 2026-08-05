@@ -54,6 +54,77 @@ describe('resultsFeatureCollection', () => {
     expect(props.color).toBe('#64748b')
   })
 
+  // ── Playback (#121) ────────────────────────────────────────────────────
+  //
+  // Scrubbing recolors the markers to one hour of the report. Row membership,
+  // ranking and the table never move: this is marker presentation and nothing
+  // else.
+
+  const hourly = (overrides: Partial<DestinationResult> = {}) =>
+    result({
+      series: {
+        // A dry hour, then a downpour, then dry again.
+        precip_in: [0, 0.4, 0],
+        temp_f: [50, 52, 51],
+        wind_mph: [3, 30, 4],
+        aqi: [40, null, 45],
+        wind_dir_deg: [0, 90, null],
+      },
+      ...overrides,
+    })
+
+  it('colors a marker by the hour under the playhead, not by the window', () => {
+    const dry = resultsFeatureCollection([hourly()], 'precip_total_in', true, 0)
+    const wet = resultsFeatureCollection([hourly()], 'precip_total_in', true, 1)
+    expect(dry.features[0].properties!.color).not.toBe(wet.features[0].properties!.color)
+  })
+
+  it('reads precipitation on the RATE scale during playback', () => {
+    // 0.4 in one hour is a downpour and 0.4" over a window is not much rain.
+    // Scoring the hour on the window scale would say they were the same
+    // weather, which is the whole reason hourlyScale exists.
+    const wet = resultsFeatureCollection([hourly()], 'precip_total_in', true, 1)
+    const asWindowTotal = resultsFeatureCollection(
+      [result({ precip_total_in: 0.4 })],
+      'precip_total_in',
+    )
+    expect(wet.features[0].properties!.color).not.toBe(
+      asWindowTotal.features[0].properties!.color,
+    )
+  })
+
+  it('greys an hour with no value rather than scoring it as zero', () => {
+    const props = resultsFeatureCollection([hourly()], 'aqi_avg', true, 1).features[0].properties!
+    expect(props.color).toBe('#64748b')
+  })
+
+  it('points the wind arrow downwind, the way the wind is going', () => {
+    // Open-Meteo reports the direction the wind blows FROM, so a 90° reading is
+    // an easterly and the arrow points west.
+    const props = resultsFeatureCollection([hourly()], 'wind_avg_mph', true, 1).features[0]
+      .properties!
+    expect(props.bearing).toBe(270)
+  })
+
+  it('omits the bearing where there is none, so the arrow layer draws nothing', () => {
+    // A gap in the series, and a row from the SSE fallback which never fetched
+    // direction at all. A 0 here would draw a confident arrow pointing north.
+    const gap = resultsFeatureCollection([hourly()], 'wind_avg_mph', true, 2).features[0]
+    expect(gap.properties!.bearing).toBeUndefined()
+    const serverRow = resultsFeatureCollection(
+      [hourly({ series: { precip_in: [0], temp_f: [50], wind_mph: [3], aqi: [40] } })],
+      'wind_avg_mph',
+      true,
+      0,
+    ).features[0]
+    expect(serverRow.properties!.bearing).toBeUndefined()
+  })
+
+  it('carries no bearing at all when playback is off', () => {
+    const props = resultsFeatureCollection([hourly()], 'wind_avg_mph').features[0].properties!
+    expect(props.bearing).toBeUndefined()
+  })
+
   it('omits the rank for unranked (searched) destinations', () => {
     const fc = resultsFeatureCollection(
       [result(), result({ name: 'Bandit Peak' })],
