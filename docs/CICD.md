@@ -283,10 +283,25 @@ The moving parts ("KM" = `Kubernetes-Manifests/public/bluebird/`):
 | `Service bluebird` / `bluebird-canary` | chart | stable/canary endpoints; the controller injects `rollouts-pod-template-hash` selectors so each always tracks the right ReplicaSet |
 | `VirtualService bluebird` | chart | the weighted route `bluebird-stable`, whose two destination weights the controller owns |
 | `AnalysisTemplate version-check` | KM `resources/analysisTemplate-versionCheck.yml` | identity gate — the canary must serve the exact image being rolled out |
-| `AnalysisTemplate api-test` | KM `resources/analysisTemplate-apiTest.yml` | functional gate — a real `/api/analyze` through Overpass and Open-Meteo |
+| `AnalysisTemplate api-test` | KM `resources/analysisTemplate-apiTest.yml` | functional gate — a real `/api/destinations` through Overpass |
 
 Both gates are Argo `web` providers, so the controller makes the calls itself:
 a release starts no Job pods and mounts no scripts.
+
+The functional gate deliberately stops short of a forecast. It used to POST
+`/api/analyze`, which reaches Open-Meteo from the pod, and Open-Meteo's free
+tier is metered per day: one development session against it is enough to
+exhaust the quota, after which `/api/analyze` answers `429` with no `results`
+key, the gate's `successCondition` cannot pass, and **no release can ship at
+all**. That happened on 2026-08-05 and blocked deploys until the quota reset. A
+gate a donated third-party quota can jam fails hardest at the moment an
+operator most needs to ship a fix.
+
+Discovery still proves what only a canary can prove — that *this* image serves
+a real request in *this* cluster, through Istio, the app, request validation
+and the Overpass integration. The forecast path is covered by the suites at PR
+time instead. The trade is that Overpass is now the one upstream a deploy
+depends on.
 
 ### The data plane
 
