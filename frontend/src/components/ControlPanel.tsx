@@ -953,18 +953,6 @@ export default function ControlPanel({
                 sentence (#121, then #246). */}
             <div>
               <h3 className={`${TEXT.subheading} mb-1.5`}>Map layers</h3>
-              {/* Indented, alone among the panel's four sub-blocks, because it
-                  is the only one whose children look like what sits above it.
-                  Map, Polygon and Coordinates each hold a distinctive thing —
-                  helper text, buttons, a textarea — so their content groups
-                  itself. These are checkboxes directly under another checkbox
-                  ("Include unnamed peaks"), which left five identical rows with
-                  a heading floating among them.
-
-                  Padding on the left only: it never moves the right edge, so
-                  the style segment below stays in the same column as the row
-                  cap and every other control in the panel. */}
-              <div className="pl-4">
               {MAP_LAYERS.map(({ key, label, checked, onChange }) => (
                 // The label wraps the checkbox and its text and nothing else.
                 // A segment inside it would be a click on the checkbox too, so
@@ -1015,7 +1003,6 @@ export default function ControlPanel({
                   )}
                 </div>
               ))}
-              </div>
             </div>
           </div>
         </section>
