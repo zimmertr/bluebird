@@ -92,3 +92,33 @@
 .maplibregl-popup-content {
   padding-right: 2rem;
 }
+
+/* Where the scale bar goes when the timeline is in its way.
+ *
+ * The timeline is centred and the scale is anchored bottom-right, so they meet
+ * as the map narrows: measured at 500px wide, a 39px overlap. Reserving room
+ * for the scale in the timeline's width was the first attempt and a bad trade,
+ * because a centred box pays twice for every pixel it leaves on one side —
+ * clearing a 95px scale would have taken most of the bar on a phone. Moving the
+ * scale to the other corner was the second, and only swapped which licence-term
+ * neighbour it collided with, since the attribution grows leftward to meet it.
+ *
+ * So it steps UP instead, over the timeline, and only while there is a timeline
+ * to step over.
+ *
+ * The lift is measured rather than derived: 3.25rem puts the scale 6px above
+ * the bar, which is the same gap the bar itself leaves to the attribution
+ * below it, so the three read as one evenly spaced stack rather than as a
+ * control that fled. Deriving it in CSS would mean encoding the bar's offset,
+ * its height and the control container's own inset, three numbers that would
+ * each have to be kept in step. Re-measure this one if the bar's height or its
+ * `bottom-` offset changes.
+ *
+ * 640px is Tailwind's `sm`, comfortably above the ~578px where the overlap
+ * actually begins; the extra range costs nothing but a scale sitting higher
+ * than it strictly must. */
+@media (max-width: 639px) {
+  [data-timeline='on'] .maplibregl-ctrl-bottom-right .maplibregl-ctrl-scale {
+    margin-bottom: 3.25rem;
+  }
+}

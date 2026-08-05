@@ -129,45 +129,41 @@ export function pitchLabel(pitchKm: number): string {
 }
 
 /**
- * The forecast grid's legend row, as a label and the value that right-justifies
- * beside it — the shape every other layer row takes, where the name is on the
- * left and its key on the right.
+ * The forecast grid's legend row: a label and the value that right-justifies
+ * beside it, which is the shape every layer row takes — name on the left, key
+ * on the right.
  *
- * `value` is null while there is nothing to key yet, and the caller renders the
- * label alone across the row: at that point this is a status rather than a key,
- * and a status has no right-hand column to sit in.
+ * The label is the LAYER's name in every state, never the value's. It reads
+ * `Grid size` in one state and `Forecast grid` in another once, and one row
+ * looking like two is the thing that fixed.
+ *
+ * Every state has a value, including the ones that are really a status. They
+ * used to span the whole row on the reasoning that a status is not a key, which
+ * was true and did not matter: what a reader sees is a column of rows, and one
+ * of them breaking the column reads as a fault rather than as a distinction.
  *
  * The grid fills in progressively, so the only gap needing a cue is before the
  * first samples land — which after a large analysis is minutes, because the
  * grid shares its weighted budget with the analysis that just ran and inherits
- * that analysis's quota debt. Silence there reads as broken.
+ * that analysis's quota debt. Silence there reads as broken, and so does a
+ * layer that was switched on and drew nothing, which is what `Unavailable` is
+ * for.
  *
- * The pacing line borrows the analysis overlay's vocabulary rather than
- * inventing one: that overlay already says the app is waiting on quota and
- * counts down to when it resumes, and this is the same wait for the same
- * reason. It outranks the plain loading line because it answers the question
- * the plain one leaves open, which is why nothing is happening.
+ * `Waiting` outranks `Loading` because it is the more specific answer to the
+ * same question: not merely that nothing has arrived, but that nothing is being
+ * asked for yet.
  */
 export function gridLegendLine(
   painted: boolean,
   pitchKm: number,
   paceRemainingS: number | null,
   failed = false,
-): { label: string; value: string | null } {
-  // The label is the LAYER's name, not the value's, so it is the same word in
-  // every state and matches the checkbox that switched the layer on. Naming it
-  // "Grid size" when it had a size and "Forecast grid" when it did not made one
-  // row look like two.
-  if (painted) return { label: 'Forecast grid', value: pitchLabel(pitchKm) }
-  // Named rather than left blank: the layer is switched on and nothing is on
-  // the map, and a checkbox that appears to do nothing is the reading this
-  // avoids. It keeps the label/value shape because it is still a row about the
-  // layer, not a status about the app.
-  if (failed) return { label: 'Forecast grid', value: 'Unavailable' }
-  if (paceRemainingS !== null && paceRemainingS > 0) {
-    return { label: `Waiting on quota · ${paceRemainingS}s`, value: null }
-  }
-  return { label: 'Loading grid', value: null }
+): { label: string; value: string } {
+  const label = 'Forecast grid'
+  if (painted) return { label, value: pitchLabel(pitchKm) }
+  if (failed) return { label, value: 'Unavailable' }
+  if (paceRemainingS !== null && paceRemainingS > 0) return { label, value: 'Waiting' }
+  return { label, value: 'Loading' }
 }
 
 /**

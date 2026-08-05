@@ -965,6 +965,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
         new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }),
         'top-right',
       )
+      // Bottom-right, beside the attribution. Bottom-left was tried and is
+      // worse: the attribution's box grows leftward as the map narrows until it
+      // reaches that corner too, so the scale only swapped which licence-term
+      // neighbour it collided with. Where it goes when it cannot fit beside the
+      // timeline is a CSS question, answered in map.css.
       map.addControl(new maplibregl.ScaleControl(), 'bottom-right')
 
       // Keep the canvas in sync with its container. MapLibre only tracks window

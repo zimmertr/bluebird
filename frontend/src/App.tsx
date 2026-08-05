@@ -1692,7 +1692,10 @@ export default function App() {
 
       {/* Map + results column */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        <div className="flex-1 relative">
+        {/* `data-timeline` is read by map.css, which steps the scale bar over
+            the transport on narrow screens — but only while there is a
+            transport to step over. */}
+        <div className="flex-1 relative" data-timeline={timelineAxis !== null ? 'on' : undefined}>
           {/* Above the drawer, not under it. The drawer now stays open for the
               length of a run, and an analysis with no visible progress is the
               thing this overlay exists to prevent — so it takes the layer that
@@ -1924,16 +1927,15 @@ export default function App() {
                       // No swatch: the grid's colours are the metric key below,
                       // which the markers share. What this row adds is the one
                       // thing that IS the grid's own — how far apart the
-                      // samples are, or why they are not there yet. The spacing
-                      // right-justifies like every other row's key; a status
-                      // has no key, so it takes the whole row.
+                      // samples are, or why it is not there yet. Every state
+                      // right-justifies its value like every other row, statuses
+                      // included: one row breaking the column reads as a fault
+                      // rather than as a distinction.
                       <div className="flex items-center justify-between gap-2">
                         <span className={TEXT.control}>{gridLegend.label}</span>
-                        {gridLegend.value !== null && (
-                          <span className={`${TEXT.control} flex-shrink-0`}>
-                            {gridLegend.value}
-                          </span>
-                        )}
+                        <span className={`${TEXT.control} flex-shrink-0`}>
+                          {gridLegend.value}
+                        </span>
                       </div>
                     )}
                   </div>

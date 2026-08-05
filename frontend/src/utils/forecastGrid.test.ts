@@ -176,43 +176,40 @@ describe('pitchLabel', () => {
 })
 
 describe('gridLegendLine', () => {
-  it('keeps one label in every state, so the row never looks like two', () => {
+  it('reads as one row in every state: same label, always a value', () => {
     // The label names the LAYER, not the value, and matches the checkbox that
-    // switched it on.
-    expect(gridLegendLine(true, 3, null).label).toBe('Forecast grid')
-    expect(gridLegendLine(false, 3, null, true).label).toBe('Forecast grid')
+    // switched it on. Every state fills the right-hand column too, statuses
+    // included — a column with one row breaking it reads as a fault rather
+    // than as a distinction.
+    const states = [
+      gridLegendLine(true, 3, null),
+      gridLegendLine(false, 3, null),
+      gridLegendLine(false, 3, 45),
+      gridLegendLine(false, 3, null, true),
+    ]
+    for (const state of states) {
+      expect(state.label).toBe('Forecast grid')
+      expect(state.value).not.toBe('')
+    }
   })
 
-  it('splits into a label and a right-justified value once painted', () => {
-    // Past the first samples the filling-in is visible on the map itself, so
-    // the row goes back to describing what the field IS — in the same shape
-    // every other layer row takes, name left and key right.
-    expect(gridLegendLine(true, 3, null)).toEqual({ label: 'Forecast grid', value: '3 km' })
-    expect(gridLegendLine(true, 3, 45)).toEqual({ label: 'Forecast grid', value: '3 km' })
+  it('names each state in the value', () => {
+    expect(gridLegendLine(true, 3, null).value).toBe('3 km')
+    expect(gridLegendLine(false, 3, null).value).toBe('Loading')
+    expect(gridLegendLine(false, 3, 45).value).toBe('Waiting')
+    expect(gridLegendLine(false, 3, null, true).value).toBe('Unavailable')
   })
 
-  it('names a failure rather than showing an empty layer', () => {
-    // The layer is switched on and nothing is drawn. Saying nothing leaves a
-    // checkbox that appears to do nothing, which is the reading this avoids.
-    expect(gridLegendLine(false, 3, null, true)).toEqual({
-      label: 'Forecast grid',
-      value: 'Unavailable',
-    })
-    // Anything painted outranks it: a field that drew and then lost a later
+  it('ranks the four states so the most specific answer wins', () => {
+    // Painted outranks everything: a field that drew and then lost a later
     // chunk is still a field, and calling it unavailable would contradict what
     // the reader can see.
-    expect(gridLegendLine(true, 3, null, true)).toEqual({ label: 'Forecast grid', value: '3 km' })
-  })
-
-  it('gives a status no value, since a status is not a key', () => {
-    // The pacing line answers the question the plain one leaves open: why
-    // nothing is happening. It borrows the analysis overlay's vocabulary
-    // because it is the same wait for the same reason, and it takes the whole
-    // row because there is no key to right-justify beside it.
-    expect(gridLegendLine(false, 3, 45)).toEqual({ label: 'Waiting on quota · 45s', value: null })
-    expect(gridLegendLine(false, 3, null)).toEqual({ label: 'Loading grid', value: null })
-    // A countdown that has run out is not a wait worth naming.
-    expect(gridLegendLine(false, 3, 0)).toEqual({ label: 'Loading grid', value: null })
+    expect(gridLegendLine(true, 3, 45, true).value).toBe('3 km')
+    // A failure outranks a wait, because waiting is over once it has failed.
+    expect(gridLegendLine(false, 3, 45, true).value).toBe('Unavailable')
+    // And a wait outranks a plain load, being the more specific answer to the
+    // same question. A countdown that has run out is not a wait worth naming.
+    expect(gridLegendLine(false, 3, 0).value).toBe('Loading')
   })
 })
 
