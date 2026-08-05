@@ -1804,11 +1804,16 @@ export default function App() {
               the overflow goes out of the bottom instead, where a scroll can
               follow it.
 
-              `top-28` clears the Controls/search/Layers column above rather
-              than `top-16`, which cut through the Layers button — and since
-              this stack renders AFTER that column it painted over it, so on a
-              phone switching a layer on made the button that switches layers
-              unclickable.
+              `top-28` clears the Controls/search/Layers column above, at EVERY
+              width. It used to lift at `lg`, on the reasoning that a desktop
+              map has room to spare — but "top-auto" does not mean "as tall as
+              it likes", it means the box starts wherever its content puts it,
+              which on a wide map was 54px: straight through the Layers button
+              at 54-92. The button is opaque and paints above (see the ordering
+              note), so the legend's first row simply disappeared behind it.
+              The clamp is the only thing that keeps them apart, so it holds
+              everywhere. `mt-auto` still pins the stack to the bottom when
+              there is room, which is what the lift was reaching for.
 
               The stack lifts clear of the timeline when the bar is on screen.
               The bar is centred and the legends are left-anchored, so on a
@@ -1817,7 +1822,7 @@ export default function App() {
               layout fault rather than as two things sharing an edge. */}
           {(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar) && (
             <div
-              className={`absolute left-2 top-28 z-10 flex flex-col gap-2 overflow-y-auto lg:top-auto lg:overflow-visible [&>*]:flex-shrink-0 [&>*:first-child]:mt-auto ${
+              className={`absolute left-2 top-28 z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0 [&>*:first-child]:mt-auto ${
                 timelineAxis !== null ? 'bottom-28' : 'bottom-8'
               }`}
             >
