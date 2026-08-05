@@ -1,9 +1,5 @@
 # Bluebird Forecast
 
-*Weather Window Finder*
-
-<hr>
-
 * [Summary](#summary)
 * [How It Works](#how-it-works)
 * [Quick Start](#quick-start)
