@@ -1450,6 +1450,7 @@ export default function App() {
     grid.paceEndMs === null
       ? null
       : Math.max(0, Math.ceil((grid.paceEndMs - Math.max(paceNow, Date.now())) / 1000))
+  const gridLegend = gridLegendLine(gridPainted, grid.pitchKm, gridPaceRemainingS)
 
   // Download the displayed report (#125). Everything that decides what the file
   // contains is already resolved above, so this only has to hand settled values
@@ -1883,7 +1884,7 @@ export default function App() {
           {(hasColoredMarkers || gridPainted || gridCued || showWildfires || showSmoke || showRadar) && (
             <div
               className={`absolute left-2 top-28 z-10 flex flex-col gap-2 overflow-y-auto lg:top-auto lg:overflow-visible [&>*]:flex-shrink-0 [&>*:first-child]:mt-auto ${
-                timelineAxis !== null ? 'bottom-40' : 'bottom-8'
+                timelineAxis !== null ? 'bottom-28' : 'bottom-8'
               }`}
             >
               {/* One row per layer: what it is, who it came from, and its key
@@ -1979,9 +1980,16 @@ export default function App() {
                       // No swatch: the grid's colours are the metric key below,
                       // which the markers share. What this row adds is the one
                       // thing that IS the grid's own — how far apart the
-                      // samples are, or why they are not there yet.
-                      <div className={TEXT.control}>
-                        {gridLegendLine(gridPainted, grid.pitchKm, gridPaceRemainingS)}
+                      // samples are, or why they are not there yet. The spacing
+                      // right-justifies like every other row's key; a status
+                      // has no key, so it takes the whole row.
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={TEXT.control}>{gridLegend.label}</span>
+                        {gridLegend.value !== null && (
+                          <span className={`${TEXT.control} flex-shrink-0`}>
+                            {gridLegend.value}
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>

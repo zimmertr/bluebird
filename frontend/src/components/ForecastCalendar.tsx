@@ -90,7 +90,7 @@ interface Drag {
 // who assumes "6 AM to 6 PM, every day" would be wrong about every day but the
 // first and last, which is exactly why this says so.
 const HOURS_NOTE =
-  'Hourly sets the start time on the first day and the end time on the last. The window runs continuously between them, so nights in the middle are included.'
+  'Hourly sets the start time on the first day and the end time on the last day. Forecast data is inclusive.'
 
 export default function ForecastCalendar({ selection, onChange, forecastHours }: Props) {
   // Captured once: a grid that recomputed against a moving `now` would redraw

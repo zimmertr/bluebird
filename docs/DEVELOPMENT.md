@@ -55,6 +55,10 @@ regenerates the committed OpenAPI snapshot with
 
 ## Testing the browser path without spending quota
 
+> A stopgap for [#224](https://github.com/zimmertr/bluebird/issues/224), which
+> tracks mocking the providers properly. This covers only the browser's
+> Open-Meteo calls, which is the half a backend mock cannot reach.
+
 Open-Meteo is fetched **from the visitor's own browser against the visitor's own
 IP**, so a regression-testing session spends the quota of whoever is sitting at
 the machine — and anyone else behind the same address. A morning of manual

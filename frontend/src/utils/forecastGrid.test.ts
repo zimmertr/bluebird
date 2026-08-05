@@ -176,21 +176,23 @@ describe('pitchLabel', () => {
 })
 
 describe('gridLegendLine', () => {
-  it('says the pitch once anything is painted', () => {
+  it('splits into a label and a right-justified value once painted', () => {
     // Past the first samples the filling-in is visible on the map itself, so
-    // the line goes back to describing what the field IS.
-    expect(gridLegendLine(true, 3, null)).toBe('Grid size: 3 km')
-    expect(gridLegendLine(true, 3, 45)).toBe('Grid size: 3 km')
+    // the row goes back to describing what the field IS — in the same shape
+    // every other layer row takes, name left and key right.
+    expect(gridLegendLine(true, 3, null)).toEqual({ label: 'Grid size', value: '3 km' })
+    expect(gridLegendLine(true, 3, 45)).toEqual({ label: 'Grid size', value: '3 km' })
   })
 
-  it('names the quota wait ahead of the plain loading line', () => {
+  it('gives a status no value, since a status is not a key', () => {
     // The pacing line answers the question the plain one leaves open: why
     // nothing is happening. It borrows the analysis overlay's vocabulary
-    // because it is the same wait for the same reason.
-    expect(gridLegendLine(false, 3, 45)).toBe('Waiting on quota · 45s')
-    expect(gridLegendLine(false, 3, null)).toBe('Loading grid')
+    // because it is the same wait for the same reason, and it takes the whole
+    // row because there is no key to right-justify beside it.
+    expect(gridLegendLine(false, 3, 45)).toEqual({ label: 'Waiting on quota · 45s', value: null })
+    expect(gridLegendLine(false, 3, null)).toEqual({ label: 'Loading grid', value: null })
     // A countdown that has run out is not a wait worth naming.
-    expect(gridLegendLine(false, 3, 0)).toBe('Loading grid')
+    expect(gridLegendLine(false, 3, 0)).toEqual({ label: 'Loading grid', value: null })
   })
 })
 

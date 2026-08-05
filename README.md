@@ -1,6 +1,8 @@
-# Bluebird
+# Bluebird Forecast
 
-> The Weather Window Finder
+*Weather Window Finder*
+
+<hr>
 
 * [Summary](#summary)
 * [How It Works](#how-it-works)
@@ -8,8 +10,6 @@
 * [Documentation](#documentation)
 * [Support](#support)
 * [License](#license)
-
-<hr>
 
 ## Summary
 
