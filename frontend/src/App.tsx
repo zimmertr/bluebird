@@ -1783,83 +1783,13 @@ export default function App() {
             minElevationFt={minElevationFt}
             maxElevationFt={maxElevationFt}
           />
-          {/* Top-left map cluster — reopen-controls button (only while the
-              panel is collapsed) + place search. z-10 keeps it under the
-              loading overlay (z-20) and the mobile drawer backdrop (z-30). */}
-          <div className="absolute top-3 left-3 z-10 flex flex-col items-start gap-2">
-            <div className="flex items-start gap-2">
-              {!sidebarOpen && (
-                <button
-                  onClick={() => setSidebarOpen(true)}
-                  aria-label="Open controls"
-                  className={`${BUTTON_FLOATING} ${TAP.action} ${MAP_BUTTON_W} flex-shrink-0 gap-2 px-3 py-2`}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="3" y1="6" x2="21" y2="6" />
-                    <line x1="3" y1="12" x2="21" y2="12" />
-                    <line x1="3" y1="18" x2="21" y2="18" />
-                  </svg>
-                  Controls
-                </button>
-              )}
-              <SearchBox ref={searchBoxRef} onSelect={handleSearchSelect} pointed={searchPointed} />
-            </div>
-            {/* Layers, under the search box rather than beside MapLibre's own
-                controls on the right. Two reasons it moved: the library's stack
-                is two control GROUPS with a margin between them, so any offset
-                that clears it is a guess that was already wrong once — and the
-                left column is where the app's own map controls live, which
-                makes the split legible. Left is ours, right is the library's. */}
-            <div ref={layersRef} className="relative">
-              <button
-                onClick={() => setLayersOpen((o) => !o)}
-                aria-expanded={layersOpen}
-                className={`${BUTTON_FLOATING} ${TAP.action} ${MAP_BUTTON_W} gap-2 px-3 py-2`}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
-                  <polygon points="12,3 21,8 12,13 3,8" />
-                  <polyline points="3,13 12,18 21,13" />
-                </svg>
-                Layers
-              </button>
-              {layersOpen && (
-                <div className={`${SURFACE_FLOATING} absolute left-0 mt-2 w-44 px-2.5 py-2`}>
-                  {MAP_LAYERS.map(({ key, label, checked, onChange }) => (
-                    <label key={key} className={CHOICE_ROW}>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => onChange(e.target.checked)}
-                        className={CHOICE_INPUT}
-                      />
-                      <span>{label}</span>
-                    </label>
-                  ))}
-                  {/* The grid's one sub-choice, revealed by its own checkbox.
-                      The popover is 176px, so this takes the fluid segment
-                      rather than the panel's fixed 144px column — the same
-                      reason the results bar's mode switch does. */}
-                  {showGrid && (
-                    <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
-                      {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
-                        <button
-                          key={value}
-                          type="button"
-                          aria-pressed={gridStyle === value}
-                          onClick={() => setGridStyle(value)}
-                          className={`${SEGMENT_ITEM} ${
-                            gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
-                          } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
-                        >
-                          {value === 'blocks' ? 'Blocks' : 'Smooth'}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+          {/* The legends render BEFORE the button column below on purpose.
+              Both are map chrome at the same layer, so paint order is DOM
+              order, and the one that has to win is the one you can click:
+              the Layers popover opens downward into exactly this space, and
+              with the legends last it opened underneath them. Pushing the
+              legends further down instead only moved the collision, since a
+              popover is as tall as its contents. */}
           {/* Bottom-anchored legends, and two things about this stack that
               were quietly broken until they were measured on a phone.
 
@@ -2030,6 +1960,83 @@ export default function App() {
               )}
             </div>
           )}
+          {/* Top-left map cluster — reopen-controls button (only while the
+              panel is collapsed) + place search. z-10 keeps it under the
+              loading overlay (z-20) and the mobile drawer backdrop (z-30). */}
+          <div className="absolute top-3 left-3 z-10 flex flex-col items-start gap-2">
+            <div className="flex items-start gap-2">
+              {!sidebarOpen && (
+                <button
+                  onClick={() => setSidebarOpen(true)}
+                  aria-label="Open controls"
+                  className={`${BUTTON_FLOATING} ${TAP.action} ${MAP_BUTTON_W} flex-shrink-0 gap-2 px-3 py-2`}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <line x1="3" y1="12" x2="21" y2="12" />
+                    <line x1="3" y1="18" x2="21" y2="18" />
+                  </svg>
+                  Controls
+                </button>
+              )}
+              <SearchBox ref={searchBoxRef} onSelect={handleSearchSelect} pointed={searchPointed} />
+            </div>
+            {/* Layers, under the search box rather than beside MapLibre's own
+                controls on the right. Two reasons it moved: the library's stack
+                is two control GROUPS with a margin between them, so any offset
+                that clears it is a guess that was already wrong once — and the
+                left column is where the app's own map controls live, which
+                makes the split legible. Left is ours, right is the library's. */}
+            <div ref={layersRef} className="relative">
+              <button
+                onClick={() => setLayersOpen((o) => !o)}
+                aria-expanded={layersOpen}
+                className={`${BUTTON_FLOATING} ${TAP.action} ${MAP_BUTTON_W} gap-2 px-3 py-2`}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+                  <polygon points="12,3 21,8 12,13 3,8" />
+                  <polyline points="3,13 12,18 21,13" />
+                </svg>
+                Layers
+              </button>
+              {layersOpen && (
+                <div className={`${SURFACE_FLOATING} absolute left-0 mt-2 w-44 px-2.5 py-2`}>
+                  {MAP_LAYERS.map(({ key, label, checked, onChange }) => (
+                    <label key={key} className={CHOICE_ROW}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => onChange(e.target.checked)}
+                        className={CHOICE_INPUT}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                  {/* The grid's one sub-choice, revealed by its own checkbox.
+                      The popover is 176px, so this takes the fluid segment
+                      rather than the panel's fixed 144px column — the same
+                      reason the results bar's mode switch does. */}
+                  {showGrid && (
+                    <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
+                      {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
+                        <button
+                          key={value}
+                          type="button"
+                          aria-pressed={gridStyle === value}
+                          onClick={() => setGridStyle(value)}
+                          className={`${SEGMENT_ITEM} ${
+                            gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
+                          } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
+                        >
+                          {value === 'blocks' ? 'Blocks' : 'Smooth'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
           {/* The timeline, present exactly while something spans time: radar
               contributes a past axis, a multi-hour report a forecast one, and
               a smoke analysis contributes neither (two passes a day is not an

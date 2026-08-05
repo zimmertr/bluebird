@@ -176,12 +176,19 @@ describe('pitchLabel', () => {
 })
 
 describe('gridLegendLine', () => {
+  it('keeps one label in every state, so the row never looks like two', () => {
+    // The label names the LAYER, not the value, and matches the checkbox that
+    // switched it on.
+    expect(gridLegendLine(true, 3, null).label).toBe('Forecast grid')
+    expect(gridLegendLine(false, 3, null, true).label).toBe('Forecast grid')
+  })
+
   it('splits into a label and a right-justified value once painted', () => {
     // Past the first samples the filling-in is visible on the map itself, so
     // the row goes back to describing what the field IS — in the same shape
     // every other layer row takes, name left and key right.
-    expect(gridLegendLine(true, 3, null)).toEqual({ label: 'Grid size', value: '3 km' })
-    expect(gridLegendLine(true, 3, 45)).toEqual({ label: 'Grid size', value: '3 km' })
+    expect(gridLegendLine(true, 3, null)).toEqual({ label: 'Forecast grid', value: '3 km' })
+    expect(gridLegendLine(true, 3, 45)).toEqual({ label: 'Forecast grid', value: '3 km' })
   })
 
   it('names a failure rather than showing an empty layer', () => {
@@ -194,7 +201,7 @@ describe('gridLegendLine', () => {
     // Anything painted outranks it: a field that drew and then lost a later
     // chunk is still a field, and calling it unavailable would contradict what
     // the reader can see.
-    expect(gridLegendLine(true, 3, null, true)).toEqual({ label: 'Grid size', value: '3 km' })
+    expect(gridLegendLine(true, 3, null, true)).toEqual({ label: 'Forecast grid', value: '3 km' })
   })
 
   it('gives a status no value, since a status is not a key', () => {

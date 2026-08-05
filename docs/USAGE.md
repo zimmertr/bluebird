@@ -190,7 +190,7 @@ as well, so you can go straight to the drawing you want.
 
 Two things to know when reading it:
 
-- **The legend states the sample spacing** — `Grid size: 3 km`. That is
+- **The legend states the sample spacing** — `Forecast grid   3 km`. That is
   the distance between the points actually asked about: inside it you are looking
   at one forecast, and between two of them you are looking at a blend. Over a
   large area the points spread further apart to keep the request reasonable, and

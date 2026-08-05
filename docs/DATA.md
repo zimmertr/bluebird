@@ -332,7 +332,7 @@ draws it that way. The blocks style makes the opposite trade honestly: its
 edges assert a boundary the model does not have, in exchange for showing you
 exactly how many answers the picture rests on.
 
-**The sample spacing is the claim, and the legend states it.** `Grid size: 3 km`.
+**The sample spacing is the claim, and the legend states it.** `Forecast grid   3 km`.
 That number is the distance over which the picture is a drawing
 rather than a measurement: within it you are looking at one forecast, and
 between two of them you are looking at a blend. It comes from the finest grid

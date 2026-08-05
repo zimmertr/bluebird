@@ -154,7 +154,11 @@ export function gridLegendLine(
   paceRemainingS: number | null,
   failed = false,
 ): { label: string; value: string | null } {
-  if (painted) return { label: 'Grid size', value: pitchLabel(pitchKm) }
+  // The label is the LAYER's name, not the value's, so it is the same word in
+  // every state and matches the checkbox that switched the layer on. Naming it
+  // "Grid size" when it had a size and "Forecast grid" when it did not made one
+  // row look like two.
+  if (painted) return { label: 'Forecast grid', value: pitchLabel(pitchKm) }
   // Named rather than left blank: the layer is switched on and nothing is on
   // the map, and a checkbox that appears to do nothing is the reading this
   // avoids. It keeps the label/value shape because it is still a row about the
