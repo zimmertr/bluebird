@@ -177,7 +177,8 @@ arrives rather than appearing all at once.
   continuous. What it hides is how few points are underneath.
 
 Switching costs nothing. It is the same data drawn two ways, so it applies instantly
-and rides in the shared link.
+and rides in the shared link. Picking a style with the layer off switches the layer on
+as well, so you can go straight to the drawing you want.
 
 Two things to know when reading it:
 

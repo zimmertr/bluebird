@@ -31,8 +31,6 @@ import {
   SEGMENT_IDLE,
   SEGMENT_ITEM,
   STATUS,
-  SURFACE_GROUP,
-  SURFACE_GROUP_BLEED,
   TEXT,
 } from '../styles'
 import { AGGREGATE, NOUN, RANKING_KEYS, familyOf, metricLabel, windowAggregate } from '../metrics'
@@ -955,46 +953,69 @@ export default function ControlPanel({
                 sentence (#121, then #246). */}
             <div>
               <h3 className={`${TEXT.subheading} mb-1.5`}>Map layers</h3>
-              {MAP_LAYERS.map(({ key, label, checked, onChange }) => (
-                <label key={key} className={CHOICE_ROW}>
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={(e) => onChange(e.target.checked)}
-                    className={CHOICE_INPUT}
-                  />
-                  <span>{label}</span>
-                </label>
-              ))}
-              {/* The grid's one sub-choice, revealed by its own checkbox the
-                  way the Hours segment is revealed by Dates: a control offers
-                  the next thing its answer makes relevant, and a style picker
-                  above an un-drawn layer is a row that does nothing.
+              {/* Indented, alone among the panel's four sub-blocks, because it
+                  is the only one whose children look like what sits above it.
+                  Map, Polygon and Coordinates each hold a distinctive thing —
+                  helper text, buttons, a textarea — so their content groups
+                  itself. These are checkboxes directly under another checkbox
+                  ("Include unnamed peaks"), which left five identical rows with
+                  a heading floating among them.
 
-                  It sits last in the list because Forecast grid does, so it
-                  lands directly under its parent with nothing in between. A
-                  fifth layer added later goes above this, not below it. */}
-              {showGrid && (
-                <div className={`${SURFACE_GROUP} ${SURFACE_GROUP_BLEED} mt-2 p-2`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={TEXT.subheading}>Style</span>
-                    <div className={SEGMENT}>
+                  Padding on the left only: it never moves the right edge, so
+                  the style segment below stays in the same column as the row
+                  cap and every other control in the panel. */}
+              <div className="pl-4">
+              {MAP_LAYERS.map(({ key, label, checked, onChange }) => (
+                // The label wraps the checkbox and its text and nothing else.
+                // A segment inside it would be a click on the checkbox too, so
+                // picking a style would turn the layer on and straight back off
+                // again.
+                <div key={key} className="flex items-center justify-between gap-2">
+                  <label className={`${CHOICE_ROW} flex-1`}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => onChange(e.target.checked)}
+                      className={CHOICE_INPUT}
+                    />
+                    <span>{label}</span>
+                  </label>
+                  {/* The grid's one sub-choice, on its own row rather than in a
+                      well below it. This is the Ranking rows' shape exactly: a
+                      segment on the right, dimmed while its row is not the live
+                      one. It wears CONTROL_W like every other control here, so
+                      it lands in the same column as the model picker, the row
+                      cap and the bounds — and it holds that place whether or not
+                      the layer is on, so ticking the checkbox never reflows the
+                      list under it. */}
+                  {key === 'grid' && (
+                    // Dimmed while the layer is off, but never disabled: picking
+                    // a style is a request for the layer, so it switches it on
+                    // and lands on the style you asked for. A dead control that
+                    // makes you find the checkbox first would be asking you to
+                    // say the same thing twice.
+                    <div className={`${SEGMENT} flex-shrink-0 ${checked ? '' : 'opacity-50'}`}>
                       {GRID_STYLE_OPTIONS.map((option, i) => (
                         <button
                           key={option.value}
-                          aria-pressed={gridStyle === option.value}
-                          onClick={() => setGridStyle(option.value)}
+                          type="button"
+                          aria-pressed={checked && gridStyle === option.value}
+                          onClick={() => {
+                            setGridStyle(option.value)
+                            if (!checked) onChange(true)
+                          }}
                           className={`${SEGMENT_ITEM} ${
-                            gridStyle === option.value ? ACCENT.fill : SEGMENT_IDLE
+                            checked && gridStyle === option.value ? ACCENT.fill : SEGMENT_IDLE
                           } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
                         >
                           {option.label}
                         </button>
                       ))}
                     </div>
-                  </div>
+                  )}
                 </div>
-              )}
+              ))}
+              </div>
             </div>
           </div>
         </section>

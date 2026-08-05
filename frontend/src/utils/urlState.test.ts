@@ -182,13 +182,13 @@ describe('encodeState / decodeState round-trip', () => {
     expect(encodeState({ ...base, gridStyle: 'smooth' }, DEFAULT_MODEL)).not.toContain('grid')
   })
 
-  it('reads a pre-picker grid=1 link as blocks', () => {
-    // `grid=1` predates the style picker and meant the only drawing there was,
-    // which is the one blocks now names. Links already shared must not reopen
-    // showing something else.
-    expect(decodeState('?grid=1')).toEqual({ showGrid: true, gridStyle: 'blocks' })
-    // And an unknown style is not a grid at all rather than a silent default.
+  it('names the style in the param, and accepts nothing else', () => {
+    expect(decodeState('?grid=blocks')).toEqual({ showGrid: true, gridStyle: 'blocks' })
+    // An unrecognised value is no grid at all rather than a silent default: the
+    // param carries the whole of the control's state, so a value it cannot read
+    // is a link it cannot honour.
     expect(decodeState('?grid=fancy')).toBeNull()
+    expect(decodeState('?grid=1')).toBeNull()
   })
 
   it('gives an overlay-only session a URL of its own', () => {

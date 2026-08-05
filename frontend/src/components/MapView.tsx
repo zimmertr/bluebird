@@ -63,7 +63,6 @@ import {
   GridSpec,
   GridStyle,
   gridArrowFeatures,
-  gridFeatureCollection,
   gridImageCoordinates,
   gridRaster,
   type GridRaster,
@@ -225,19 +224,6 @@ const RADAR_OPACITY = 0.65
  * reads as green at a glance.
  */
 const GRID_OPACITY = 0.5
-
-/**
- * The hairline between blocks.
- *
- * Slate rather than a metric hue: the edge says "here is a sample boundary",
- * which is not a claim about weather, and a colour off the ramp would make it
- * one. `fill-outline-color`, so it is always exactly one pixel and never
- * thickens with zoom — a boundary, not a feature. It is the whole reason the
- * blocks style is worth having: without it two neighbouring samples holding the
- * same number merge into one shape and you can no longer see how few samples
- * there are.
- */
-const GRID_EDGE = 'rgba(15,23,42,0.35)'
 
 /**
  * A 1x1 transparent PNG, which is what the field's image source is built with.
@@ -1085,40 +1071,23 @@ const MapView = forwardRef<MapViewHandle, Props>(
             [-180, -85],
           ],
         })
+        // One layer for both styles. Blocks and smooth are the same image
+        // magnified with different filters — `nearest` draws one hard square
+        // per sample, `linear` blends between them — so the whole style switch
+        // is a paint property. There is no second layer to keep in step and no
+        // stacking order to re-establish on a change.
         map.addLayer({
-          id: 'forecast-grid-smooth',
+          id: 'forecast-grid-fill',
           type: 'raster',
           source: 'forecast-grid',
-          layout: { visibility: 'none' },
           paint: {
             'raster-opacity': GRID_OPACITY,
-            'raster-resampling': 'linear',
+            'raster-resampling': 'nearest',
             // Zero for the reason the radar loop learned the hard way: a scrub
             // replaces the image every frame, and the library's own cross-fade
             // would leave two hours of the forecast half-drawn on top of each
             // other for the length of it.
             'raster-fade-duration': 0,
-          },
-        })
-        // The blocks style, on its own source. Both styles are declared at load
-        // and only one is ever visible, rather than being added and removed on
-        // a switch: a style change is a display choice over samples already in
-        // hand, and rebuilding a layer stack for it would risk the ordering
-        // this whole block exists to fix. Only the visible one's data is ever
-        // built, so the hidden one costs nothing per scrub.
-        map.addSource('forecast-grid-cells', {
-          type: 'geojson',
-          data: emptyFC as FeatureCollection,
-        })
-        map.addLayer({
-          id: 'forecast-grid-blocks',
-          type: 'fill',
-          source: 'forecast-grid-cells',
-          layout: { visibility: 'none' },
-          paint: {
-            'fill-color': ['get', 'color'],
-            'fill-opacity': GRID_OPACITY,
-            'fill-outline-color': GRID_EDGE,
           },
         })
         // Arrows ride their own point source, because MapLibre has no way to
@@ -1888,31 +1857,14 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       const map = mapRef.current
       if (!map || !mapReady) return
-      // Only the visible style is built. Feeding both would double the work on
-      // every scrub tick to keep a layer nobody is looking at up to date.
-      map.setLayoutProperty(
-        'forecast-grid-smooth',
-        'visibility',
-        gridStyle === 'smooth' ? 'visible' : 'none',
+      map.setPaintProperty(
+        'forecast-grid-fill',
+        'raster-resampling',
+        gridStyle === 'smooth' ? 'linear' : 'nearest',
       )
-      map.setLayoutProperty(
-        'forecast-grid-blocks',
-        'visibility',
-        gridStyle === 'blocks' ? 'visible' : 'none',
-      )
-
-      if (gridStyle === 'blocks') {
-        setSource(
-          map,
-          'forecast-grid-cells',
-          gridFeatureCollection(gridCells, sortBy, playbackIndex),
-        )
-        return
-      }
-
       const source = map.getSource('forecast-grid') as maplibregl.ImageSource | undefined
       if (!source) return
-      const raster = gridSpec && gridRaster(gridSpec, gridCells, sortBy, playbackIndex)
+      const raster = gridSpec && gridRaster(gridSpec, gridCells, sortBy, playbackIndex, gridStyle)
       if (!gridSpec || !raster) {
         source.updateImage({ url: BLANK_PIXEL })
         return

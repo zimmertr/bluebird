@@ -4,7 +4,6 @@ import {
   MAX_GRID_CELLS,
   buildGrid,
   gridArrowFeatures,
-  gridFeatureCollection,
   gridImageCoordinates,
   gridRaster,
   pairCells,
@@ -380,7 +379,7 @@ describe('gridRaster', () => {
     expect(big.cols).toBeGreaterThanOrEqual(5)
     expect(big.rows).toBeGreaterThanOrEqual(5)
     const bigCells = big.points.map((_, i) => cell(big.cells[i], result(), i))
-    const bigRaster = gridRaster(big, bigCells, 'temp_avg_f', null)!
+    const bigRaster = gridRaster(big, bigCells, 'temp_avg_f', null, 'smooth')!
     expect(bigRaster.rgba[3]).toBeLessThan(255)
     const midIndex = (Math.floor(big.rows / 2) * big.cols + Math.floor(big.cols / 2)) * 4
     expect(bigRaster.rgba[midIndex + 3]).toBe(255)
@@ -388,7 +387,7 @@ describe('gridRaster', () => {
     const small = buildGrid(field([46.8, -121.8]), 25)!
     expect(small.cols).toBeLessThan(5)
     const smallCells = small.points.map((_, i) => cell(small.cells[i], result(), i))
-    const smallRaster = gridRaster(small, smallCells, 'temp_avg_f', null)!
+    const smallRaster = gridRaster(small, smallCells, 'temp_avg_f', null, 'smooth')!
     expect(smallRaster.rgba[3]).toBe(255)
   })
 
@@ -401,7 +400,7 @@ describe('gridRaster', () => {
     expect(tall.cols).toBeLessThan(5)
     expect(tall.rows).toBeGreaterThanOrEqual(5)
     const cells = tall.points.map((_, i) => cell(tall.cells[i], result(), i))
-    const raster = gridRaster(tall, cells, 'temp_avg_f', null)!
+    const raster = gridRaster(tall, cells, 'temp_avg_f', null, 'smooth')!
     // Top row faded (rows have room); a middle row at full strength even though
     // it sits in column 0, which has none.
     expect(raster.rgba[3]).toBeLessThan(255)
@@ -409,51 +408,29 @@ describe('gridRaster', () => {
     expect(raster.rgba[midLeft + 3]).toBe(255)
   })
 
+  it('leaves blocks fully opaque to the edge', () => {
+    // The fade is smooth's alone. Blocks draws a boundary at every sample, so a
+    // ring of half-transparent squares reads as samples that answered weakly
+    // rather than as an edge; smooth has no boundaries and would otherwise stop
+    // in a rectangle.
+    const big = buildGrid(field([46, -123], [47.5, -121]), 13)!
+    const cells = big.points.map((_, i) => cell(big.cells[i], result(), i))
+    expect(gridRaster(big, cells, 'temp_avg_f', null, 'blocks')!.rgba[3]).toBe(255)
+    expect(gridRaster(big, cells, 'temp_avg_f', null, 'smooth')!.rgba[3]).toBeLessThan(255)
+  })
+
+  it('colours a sample the same whichever style asks', () => {
+    // One raster, two magnification filters. If the styles differed in colour,
+    // flipping the segment would look like the forecast had changed.
+    const box: [number, number, number, number] = [-121.8, 46.3, -121.6, 46.5]
+    const row = result({ temp_avg_f: 51 })
+    const blocks = gridRaster(oneSpec(box), [cell(box, row)], 'temp_avg_f', null, 'blocks')!
+    const smooth = gridRaster(oneSpec(box), [cell(box, row)], 'temp_avg_f', null, 'smooth')!
+    expect(pixelHex(blocks)).toBe(pixelHex(smooth))
+  })
+
   it('declines to draw nothing', () => {
     expect(gridRaster(buildGrid(CASCADES, 13)!, [], 'temp_avg_f', null)).toBeNull()
-  })
-})
-
-describe('gridFeatureCollection', () => {
-  const box: [number, number, number, number] = [-121.8, 46.3, -121.6, 46.5]
-
-  it('closes each square as a five-point ring', () => {
-    const fc = gridFeatureCollection([cell(box, result())], 'precip_total_in', null)
-    const ring = (fc.features[0].geometry as { coordinates: number[][][] }).coordinates[0]
-    expect(ring).toHaveLength(5)
-    expect(ring[0]).toEqual(ring[4])
-  })
-
-  it('colours a square exactly as the marker standing on it', () => {
-    // The same assertion the raster gets, against the markers' own feature
-    // builder rather than a literal: whichever style is drawn, it and the
-    // markers read one scale.
-    const row = result({
-      precip_total_in: 0.3,
-      series: { precip_in: [0, 0.4], temp_f: [40, 60], wind_mph: [1, 9], aqi: [10, 20] },
-    })
-    for (const hour of [null, 0, 1]) {
-      const square = gridFeatureCollection([cell(box, row)], 'precip_total_in', hour).features[0]
-        .properties!.color
-      const marker = resultsFeatureCollection([row], 'precip_total_in', true, hour).features[0]
-        .properties!.color
-      expect(square).toBe(marker)
-    }
-  })
-
-  it('drops a square with no value instead of greying it', () => {
-    const fc = gridFeatureCollection([cell(box, result({ aqi_avg: null }))], 'aqi_avg', null)
-    expect(fc.features).toHaveLength(0)
-  })
-
-  it('agrees with the raster on colour, so a style switch is only a shape', () => {
-    // The two styles are one dataset drawn twice. If they scored differently,
-    // flipping the segment would look like the forecast had changed.
-    const row = result({ temp_avg_f: 51 })
-    const square = gridFeatureCollection([cell(box, row)], 'temp_avg_f', null).features[0]
-      .properties!.color
-    const raster = gridRaster(oneSpec(box), [cell(box, row)], 'temp_avg_f', null)!
-    expect(pixelHex(raster)).toBe(square)
   })
 })
 

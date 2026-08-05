@@ -22,6 +22,11 @@
 //   already treats as continuous. What it hides is how few samples are under
 //   it.
 //
+// They are ONE raster drawn with two magnification filters, not two drawings:
+// `raster-resampling` is `nearest` for blocks and `linear` for smooth. Nothing
+// downstream of this file needs to know which is showing, the switch touches no
+// data, and there is no second layer to keep in step.
+//
 // The honesty rule sits with the pitch either way, and the legend states it:
 // that is the distance over which the picture is a drawing rather than a
 // measurement.
@@ -328,6 +333,7 @@ export function gridRaster(
   cells: readonly GridCell[],
   sortBy: SortBy,
   hourIndex: number | null,
+  style: GridStyle = 'smooth',
 ): GridRaster | null {
   if (cells.length === 0) return null
   const { cols, rows } = spec
@@ -342,7 +348,7 @@ export function gridRaster(
     rgba[p] = parseInt(color.slice(1, 3), 16)
     rgba[p + 1] = parseInt(color.slice(3, 5), 16)
     rgba[p + 2] = parseInt(color.slice(5, 7), 16)
-    rgba[p + 3] = edgeAlpha(r, c, cols, rows)
+    rgba[p + 3] = style === 'smooth' ? edgeAlpha(r, c, cols, rows) : 255
   }
 
   bleedColor(rgba, cols, rows)
@@ -364,6 +370,11 @@ export function gridRaster(
  * columns wide and eight rows tall, and a single "is there an interior?" test
  * would either fade a lattice that has no column to spare or refuse to fade one
  * whose rows had plenty.
+ *
+ * Smooth only. Blocks draws a boundary at every sample, so a ring of
+ * half-transparent squares reads as a row of samples that answered weakly
+ * rather than as an edge; smooth has no boundaries at all, and without the fade
+ * would simply stop in a rectangle.
  */
 function edgeAlpha(r: number, c: number, cols: number, rows: number): number {
   const onColEdge = cols >= MIN_AXIS_TO_FADE && (c === 0 || c === cols - 1)
@@ -382,6 +393,11 @@ const EDGE_ALPHA = 40
 // neighbouring blend toward black — a dark fringe around exactly the places
 // the field knows nothing about. Iterated so a gap wider than one sample fills
 // from both sides rather than only its first ring.
+//
+// Harmless under `nearest`, which never blends and so never reads the colour of
+// a pixel it is not drawing. Run for both rather than branched, because the
+// cost is a pass over ~600 pixels and a branch here would be one more thing
+// that could disagree between the two styles.
 function bleedColor(rgba: Uint8ClampedArray, cols: number, rows: number): void {
   for (let pass = 0; pass < 3; pass++) {
     let changed = false
@@ -413,40 +429,6 @@ const NEIGHBOURS: [number, number][] = [
   [-1, 0],
   [1, 0],
 ]
-
-/**
- * The field as one square per sample, for the `blocks` style.
- *
- * Reads `fillColor` — the markers' own derivation — rather than mirroring it,
- * so a square and the marker standing on it cannot be scored differently. A
- * sample with no value emits no feature at all, which leaves the basemap
- * showing: a marker must stay on screen because it is a place the reader asked
- * about, and a square must not assert a grey it does not mean.
- */
-export function gridFeatureCollection(
-  cells: readonly GridCell[],
-  sortBy: SortBy,
-  hourIndex: number | null,
-): FeatureCollection {
-  return {
-    type: 'FeatureCollection',
-    features: cells.flatMap(({ box, row }) => {
-      const color = fillColor(row, sortBy, hourIndex)
-      if (color === NO_VALUE) return []
-      const [w, s, e, n] = box
-      return [
-        {
-          type: 'Feature' as const,
-          geometry: {
-            type: 'Polygon' as const,
-            coordinates: [[[w, s], [e, s], [e, n], [w, n], [w, s]]],
-          },
-          properties: { color },
-        },
-      ]
-    }),
-  }
-}
 
 /**
  * The per-sample wind arrows, as points at each sample's coordinate.

@@ -311,8 +311,8 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
   if (state.showSmoke) p.set('smoke', '1')
   // The value names the style rather than being a bare `1`, which keeps the
   // link hand-editable and self-describing: `grid=smooth` says what it will
-  // draw. `grid=1` is still READ as blocks, below, so nothing already shared
-  // reopens differently.
+  // draw. One param rather than two, because a layer that is off has no style
+  // to carry and a link should not be able to say otherwise.
   if (state.showGrid) p.set('grid', state.gridStyle)
   if (state.includeUnnamedPeaks) p.set('unnamed', '1')
   if (hasPins) p.set('pins', encodePins(state.pins))
@@ -495,11 +495,9 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   if (params.get('radar') === '1') out.showRadar = true
   if (params.get('smoke') === '1') out.showSmoke = true
   const grid = params.get('grid')
-  if (grid !== null && (grid === '1' || isGridStyle(grid))) {
+  if (grid !== null && isGridStyle(grid)) {
     out.showGrid = true
-    // `grid=1` predates the style picker and meant the only drawing there was,
-    // which is the one blocks now names.
-    out.gridStyle = grid === '1' ? 'blocks' : grid
+    out.gridStyle = grid
   }
   if (params.get('unnamed') === '1') out.includeUnnamedPeaks = true
 
