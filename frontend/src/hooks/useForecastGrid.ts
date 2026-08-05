@@ -32,8 +32,13 @@ import { GridCell, GridSpec, buildGrid, pairCells } from '../utils/forecastGrid'
  * sample here just leaves the basemap showing, which asserts nothing at all —
  * so the only thing a caller needs is whether there is anything to key a legend
  * to. `loading` persists while the field fills in, since cells arrive during it.
+ *
+ * `failed` is the one state that has to be SAID rather than merely handled. The
+ * layer is switched on and nothing is drawn, so silence there reads as broken —
+ * the same argument that put a line on the loading state. `idle` is different
+ * and stays quiet: it means nothing was asked for.
  */
-export type ForecastGridStatus = 'idle' | 'loading' | 'ready'
+export type ForecastGridStatus = 'idle' | 'loading' | 'ready' | 'failed'
 
 export interface ForecastGrid {
   status: ForecastGridStatus
@@ -222,6 +227,12 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
         // in the console. There is no on-screen failure state because there is
         // no claim to withdraw — an ungridded map is the map.
         console.warn('[bluebird] forecast grid fetch failed', err)
+        // Only when nothing painted. A chunk that lands and then a later one
+        // that fails still leaves a field on the map, and calling that
+        // unavailable would contradict what the reader can see.
+        setState((prev) =>
+          prev.cells.length > 0 ? prev : { ...prev, status: 'failed', paceEndMs: null },
+        )
       }
     })()
 

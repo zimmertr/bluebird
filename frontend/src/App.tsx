@@ -1438,6 +1438,10 @@ export default function App() {
   // grid inherits the quota debt of the analysis that just ran, so after a big
   // one it is minutes before the first samples land.
   const gridCued = showGrid && grid.status === 'loading'
+  // The layer is on and could not draw. Said out loud for the same reason the
+  // loading line exists: a switched-on layer with nothing under it and nothing
+  // said reads as a broken app rather than as a failed fetch.
+  const gridFailed = showGrid && grid.status === 'failed'
   // A one-second tick, only while the pacer is actually asleep, so the
   // countdown moves. Nothing else on screen needs it and it stops on its own.
   const [paceNow, setPaceNow] = useState(0)
@@ -1450,7 +1454,7 @@ export default function App() {
     grid.paceEndMs === null
       ? null
       : Math.max(0, Math.ceil((grid.paceEndMs - Math.max(paceNow, Date.now())) / 1000))
-  const gridLegend = gridLegendLine(gridPainted, grid.pitchKm, gridPaceRemainingS)
+  const gridLegend = gridLegendLine(gridPainted, grid.pitchKm, gridPaceRemainingS, gridFailed)
 
   // Download the displayed report (#125). Everything that decides what the file
   // contains is already resolved above, so this only has to hand settled values
@@ -1881,7 +1885,7 @@ export default function App() {
               desktop map they never meet — but a phone is narrow enough that
               they would overlap, and a legend half under a control reads as a
               layout fault rather than as two things sharing an edge. */}
-          {(hasColoredMarkers || gridPainted || gridCued || showWildfires || showSmoke || showRadar) && (
+          {(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar) && (
             <div
               className={`absolute left-2 top-28 z-10 flex flex-col gap-2 overflow-y-auto lg:top-auto lg:overflow-visible [&>*]:flex-shrink-0 [&>*:first-child]:mt-auto ${
                 timelineAxis !== null ? 'bottom-28' : 'bottom-8'
@@ -1899,7 +1903,7 @@ export default function App() {
                   No heading over them either. Every row names its own layer, so
                   a "Map layers" line above would be a label for four labels —
                   and on a phone it is a whole row of the little map left. */}
-              {(showSmoke || showRadar || showWildfires || gridPainted || gridCued) && (
+              {(showSmoke || showRadar || showWildfires || gridPainted || gridCued || gridFailed) && (
                 <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} px-2.5 py-2`}>
                   <div className="flex flex-col gap-1">
                     {showSmoke && (
@@ -1981,7 +1985,7 @@ export default function App() {
                         />
                       </div>
                     )}
-                    {(gridPainted || gridCued) && (
+                    {(gridPainted || gridCued || gridFailed) && (
                       // No swatch: the grid's colours are the metric key below,
                       // which the markers share. What this row adds is the one
                       // thing that IS the grid's own — how far apart the

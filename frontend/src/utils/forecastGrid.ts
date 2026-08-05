@@ -152,8 +152,14 @@ export function gridLegendLine(
   painted: boolean,
   pitchKm: number,
   paceRemainingS: number | null,
+  failed = false,
 ): { label: string; value: string | null } {
   if (painted) return { label: 'Grid size', value: pitchLabel(pitchKm) }
+  // Named rather than left blank: the layer is switched on and nothing is on
+  // the map, and a checkbox that appears to do nothing is the reading this
+  // avoids. It keeps the label/value shape because it is still a row about the
+  // layer, not a status about the app.
+  if (failed) return { label: 'Forecast grid', value: 'Unavailable' }
   if (paceRemainingS !== null && paceRemainingS > 0) {
     return { label: `Waiting on quota · ${paceRemainingS}s`, value: null }
   }

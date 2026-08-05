@@ -184,6 +184,19 @@ describe('gridLegendLine', () => {
     expect(gridLegendLine(true, 3, 45)).toEqual({ label: 'Grid size', value: '3 km' })
   })
 
+  it('names a failure rather than showing an empty layer', () => {
+    // The layer is switched on and nothing is drawn. Saying nothing leaves a
+    // checkbox that appears to do nothing, which is the reading this avoids.
+    expect(gridLegendLine(false, 3, null, true)).toEqual({
+      label: 'Forecast grid',
+      value: 'Unavailable',
+    })
+    // Anything painted outranks it: a field that drew and then lost a later
+    // chunk is still a field, and calling it unavailable would contradict what
+    // the reader can see.
+    expect(gridLegendLine(true, 3, null, true)).toEqual({ label: 'Grid size', value: '3 km' })
+  })
+
   it('gives a status no value, since a status is not a key', () => {
     // The pacing line answers the question the plain one leaves open: why
     // nothing is happening. It borrows the analysis overlay's vocabulary

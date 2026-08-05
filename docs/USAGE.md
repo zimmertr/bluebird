@@ -170,7 +170,9 @@ arrives rather than appearing all at once.
 
 After a very large analysis it can take a while to start, because it shares a
 per-minute allowance with the analysis you just ran and has to wait its turn. The
-legend says so while that is happening, and counts down.
+legend says so while that is happening, and counts down. If it cannot be fetched
+at all, the legend says that too rather than leaving the layer switched on with
+nothing under it.
 
 **Style** picks how it is drawn, and both readings are true:
 
