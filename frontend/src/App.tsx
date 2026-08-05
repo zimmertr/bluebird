@@ -21,7 +21,6 @@ import { CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy
 import {
   ACCENT,
   BUTTON_FLOATING,
-  BUTTON_FLOATING_QUIET,
   CHOICE_INPUT,
   CHOICE_ROW,
   BUTTON_SECONDARY,
@@ -1312,6 +1311,21 @@ export default function App() {
   )
   const setFrameIndex = timelineAxis === 'radar' ? setRadarIndex : setForecastIndex
 
+  // On mobile the controls are an off-canvas drawer, and it closes when an
+  // analysis SUCCEEDS rather than when the button is pressed. Closing on press
+  // meant a failure was invisible: the drawer slid away, the overlay finished,
+  // and the reader was left looking at an empty map while the error sat in a
+  // panel they had to think to reopen. Keyed on `analysisSeq`, which only moves
+  // when a report commits, so a refusal or an upstream error simply leaves the
+  // drawer where it is with the message already in it — including the refusal
+  // remedies, which are buttons and could not live anywhere else.
+  //
+  // Desktop is unaffected: the panel is docked there and never closes.
+  useEffect(() => {
+    if (analysisSeq > 0 && !isDesktop) setSidebarOpen(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysisSeq])
+
   // A new report is a new grid, so the forecast playhead goes back to the start
   // of it. Keyed on the analysis rather than on the times array, which is a new
   // reference on every live knob change and would otherwise reset the playhead
@@ -1521,6 +1535,20 @@ export default function App() {
   // Deliberately NOT gated on having data — a mode with nothing to draw shows
   // its empty panel (the chart with no analysis renders bare axes), because a
   // segment that says Chart while the table shows reads as broken.
+  // Whether there is enough map left to be worth keying.
+  //
+  // Measured at 402x874 with every layer on: the whole legend needs 401px and a
+  // full-height phone map offers exactly 401px, so it fits — but with the
+  // results panel open the map is 161px, the legend needs more than twice that,
+  // and no amount of merging or compacting closes a gap that size. What has to
+  // give is the legend, not the map: at 161px the map is a thumbnail, and a key
+  // that covers most of it to explain the rest is worse than no key. Expanding
+  // the results brings it straight back.
+  //
+  // Desktop never hits this — the map keeps its height there whatever the
+  // panels do — so the rule is scoped to the phone layout rather than to a
+  // height threshold that would need re-measuring.
+  const legendsFit = isDesktop || resultsCollapsed || !showResults
   const chartShowing = !resultsCollapsed && (resultsMode === 'chart' || resultsMode === 'both')
   const tableShowing = !resultsCollapsed && (resultsMode === 'table' || resultsMode === 'both')
   const { chart: chartPanelPx, table: tablePanelPx } = resolvePanelHeights(
@@ -1655,12 +1683,7 @@ export default function App() {
             results.length > 0 &&
             results.every((r) => r.aqi_avg == null)
           }
-          onAnalyze={() => {
-            // On mobile the controls are an off-canvas drawer — close it so the
-            // user sees the map/results. On desktop the panel is docked; leave it.
-            if (!isDesktop) setSidebarOpen(false)
-            handleAnalyze()
-          }}
+          onAnalyze={handleAnalyze}
           onRetry={retry}
           resultCount={response ? results.length : undefined}
           // What the current elevation band admits, not what the analysis
@@ -1672,8 +1695,13 @@ export default function App() {
       {/* Map + results column */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <div className="flex-1 relative">
+          {/* Above the drawer, not under it. The drawer now stays open for the
+              length of a run, and an analysis with no visible progress is the
+              thing this overlay exists to prevent — so it takes the layer that
+              clears the drawer rather than the one that sits under it. On
+              desktop nothing moves: there is no drawer for it to clear. */}
           {overlay.visible && (
-            <div className="absolute inset-0 bg-slate-900/60 z-20 flex items-center justify-center">
+            <div className={`absolute inset-0 bg-slate-900/60 ${LAYER.popover} flex items-center justify-center`}>
               <div className={`${SURFACE_CARD} px-6 py-5 text-center w-[280px]`}>
                 <img
                   src="/icon.png"
@@ -1788,7 +1816,7 @@ export default function App() {
               <button
                 onClick={() => setLayersOpen((o) => !o)}
                 aria-expanded={layersOpen}
-                className={`${BUTTON_FLOATING_QUIET} ${TAP.action} gap-2 px-3 py-2`}
+                className={`${BUTTON_FLOATING} ${TAP.action} gap-2 px-3 py-2`}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
                   <polygon points="12,3 21,8 12,13 3,8" />
@@ -1834,20 +1862,35 @@ export default function App() {
               )}
             </div>
           </div>
-          {/* Bottom-anchored legends. On mobile the top edge is clamped below
-              the Controls/search cluster (top-16) and the stack scrolls if it
-              can't fit, so a short map can never let the legends ride up over
-              those buttons. justify-end keeps them pinned to the bottom when
-              there is room. Desktop has ample height, so the clamp lifts.
+          {/* Bottom-anchored legends, and two things about this stack that
+              were quietly broken until they were measured on a phone.
+
+              It is anchored with `mt-auto` on the first box rather than with
+              `justify-end`, which is the whole of why it can now be scrolled.
+              A flex column that justifies to the end pushes its overflow past
+              the START edge of the scroll container, and content overflowing
+              the start edge is unreachable: measured at 402x874 with all four
+              layers on and a table showing, four of the five boxes sat at
+              negative coordinates with `scrollTop` pinned at 0 and no way to
+              reach them. The auto margin collapses when there is no room, so
+              the overflow goes out of the bottom instead, where a scroll can
+              follow it.
+
+              `top-28` clears the Controls/search/Layers column above rather
+              than `top-16`, which cut through the Layers button — and since
+              this stack renders AFTER that column it painted over it, so on a
+              phone switching a layer on made the button that switches layers
+              unclickable.
 
               The stack lifts clear of the timeline when the bar is on screen.
               The bar is centred and the legends are left-anchored, so on a
               desktop map they never meet — but a phone is narrow enough that
               they would overlap, and a legend half under a control reads as a
               layout fault rather than as two things sharing an edge. */}
-          {(hasColoredMarkers || gridPainted || gridCued || showWildfires || showSmoke || showRadar) && (
+          {legendsFit &&
+            (hasColoredMarkers || gridPainted || gridCued || showWildfires || showSmoke || showRadar) && (
             <div
-              className={`absolute left-2 top-16 z-10 flex flex-col justify-end gap-2 overflow-y-auto lg:top-auto lg:overflow-visible ${
+              className={`absolute left-2 top-28 z-10 flex flex-col gap-2 overflow-y-auto lg:top-auto lg:overflow-visible [&>*]:flex-shrink-0 [&>*:first-child]:mt-auto ${
                 timelineAxis !== null ? 'bottom-40' : 'bottom-8'
               }`}
             >
@@ -1856,8 +1899,25 @@ export default function App() {
                   the data it describes rather than in a list somewhere else,
                   and one shape for all of them is what keeps three sources
                   from becoming three ideas of what a credit looks like. */}
+              {/* ONE box for every map layer, gaining and losing sections as
+                  layers are switched on and off, rather than a box each. Five
+                  separate boxes cost four extra borders and four gaps — about
+                  a hundred pixels of chrome on a phone where the whole map can
+                  be 161px tall — and read as five objects when they are one
+                  thing: the key to what is drawn on the map.
+
+                  Each section keeps its own title and its own credit, which is
+                  what the licences ask for and what keeps a source beside the
+                  data it describes. Nothing here is new copy; only the boxes
+                  around it changed.
+
+                  The metric key below stays its own box on purpose: it is not
+                  a layer. It explains the marker colours, which exist whenever
+                  a report does, with every layer switched off. */}
+              {(showSmoke || showRadar || showWildfires || gridPainted || gridCued) && (
+                <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} divide-y divide-slate-700/60`}>
               {showSmoke && (
-                <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} px-2.5 py-2`}>
+                <div className="px-2.5 py-2">
                   {/* The credit sits on the title, not on a swatch row. NOAA
                       provides all three densities, so hanging its name off
                       Heavy said it was the source of that row in particular —
@@ -1884,7 +1944,7 @@ export default function App() {
                 </div>
               )}
               {showRadar && (
-                <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} px-2.5 py-2`}>
+                <div className="px-2.5 py-2">
                   <div className="flex items-center gap-1.5">
                     {/* A gradient rather than banded swatches: NEXRAD's own
                         reflectivity ramp is continuous, the bands are the
@@ -1922,7 +1982,7 @@ export default function App() {
                 // This is also how Open-Meteo is credited a few hundred pixels
                 // below (a bare "Open-Meteo.com"), so the app has one idea of
                 // what a beside-the-data credit looks like instead of two.
-                <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} px-2.5 py-2`}>
+                <div className="px-2.5 py-2">
                   <div className="flex items-center gap-1.5">
                     <span
                       className={`inline-block w-3 h-3 ${RADIUS.control} border`}
@@ -1956,11 +2016,13 @@ export default function App() {
                   and they are shared with the markers rather than owned by the
                   grid. Placed directly above so the two read together. */}
               {(gridPainted || gridCued) && (
-                <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} px-2.5 py-2`}>
+                <div className="px-2.5 py-2">
                   <p className={`${TEXT.overline} mb-1.5`}>Forecast grid</p>
                   <p className={TEXT.micro}>
                     {gridLegendLine(gridPainted, grid.pitchKm, gridPaceRemainingS)}
                   </p>
+                </div>
+              )}
                 </div>
               )}
               {(hasColoredMarkers || gridPainted || gridCued) && (

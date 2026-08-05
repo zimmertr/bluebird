@@ -8,7 +8,6 @@ import {
   BUTTON_ACCENT,
   BUTTON_DANGER,
   BUTTON_FLOATING,
-  BUTTON_FLOATING_QUIET,
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
   CHOICE_INPUT,
@@ -252,20 +251,6 @@ describe('every component', () => {
   // spellings of the same 14px box.
   it.each(Object.entries(sources))('%s builds no checkbox of its own', (_path, source) => {
     expect(source).not.toMatch(/accent-sky-500/)
-  })
-
-  // The floating map buttons differ in type and nothing else. The loud one is
-  // the call to action that gets your controls back; the quiet one sits under
-  // the search field offering a choice, and read a size larger than that field
-  // until it got its own role. If these ever stop sharing a surface they have
-  // become two designs rather than one in two voices.
-  it('gives the map its loud and quiet buttons one surface and two sizes', () => {
-    expect(BUTTON_FLOATING).toContain(SURFACE_FLOATING)
-    expect(BUTTON_FLOATING_QUIET).toContain(SURFACE_FLOATING)
-    expect(BUTTON_FLOATING).toContain(TEXT.cta)
-    expect(BUTTON_FLOATING_QUIET).toContain(TEXT.control)
-    // And the quiet one reads at the size of the field stacked above it.
-    expect(BUTTON_FLOATING_QUIET).toContain(TEXT.control)
   })
 
   // L6 used to fail any `title=` outright. It is gone deliberately (TJ,

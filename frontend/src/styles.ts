@@ -425,8 +425,17 @@ export const BUTTON_DANGER =
   `disabled:opacity-40 disabled:cursor-not-allowed ${FOCUS_RING}`
 
 /**
- * A button floating over the map rather than sitting in a panel: today, the
- * one that reopens the collapsed controls.
+ * A button floating over the map rather than sitting in a panel: the one that
+ * reopens the collapsed controls, and the one that opens the map's layers.
+ *
+ * Both wear it, deliberately. They are the app's only two map buttons and they
+ * stack in one column, so a size difference between them reads as a mistake
+ * rather than as a hierarchy — which is exactly how it read when Layers was
+ * given a quieter role of its own. `TEXT.cta` is also the right size for the
+ * job: these sit over a busy map and get pressed outdoors at arm's length,
+ * where the panel's 12px body would be the wrong bet. The search field beside
+ * them stays at its own size because it is a field, and its text is the user's
+ * rather than a label of ours.
  *
  * It is `SURFACE_FLOATING` that has become pressable, so it takes the surface
  * whole and adds only what pressability needs — the accent on hover, and a
@@ -435,32 +444,6 @@ export const BUTTON_DANGER =
  */
 export const BUTTON_FLOATING =
   `${SURFACE_FLOATING} ${TEXT.cta} text-white transition-colors ` +
-  `${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-slate-700 ${FOCUS_RING}`
-
-/**
- * The same floating button when it is NOT the call to action.
- *
- * `TEXT.cta` above is documented as the *single* call to action and is a
- * deliberate step up from the body ramp, which is right for the button that
- * gets your controls back and wrong for anything sitting beside the search box
- * offering a choice. Layers wore the loud one and read a size larger than the
- * field directly above it.
- *
- * So the difference is type and nothing else: same surface, same pressability,
- * same states, at the size everything else on the map is set in. It matches
- * `SearchBox`'s own input deliberately — those two are stacked, and two
- * controls in one column reading at two sizes is the thing that looked wrong.
- *
- * No `text-white` beside it, unlike the loud one. `TEXT.cta` above carries a
- * size and no colour, so that recipe has to name one; `TEXT.control` carries
- * both, and adding a second colour here put two competing utilities in one
- * recipe — which Tailwind v4 resolves by stylesheet order rather than class
- * order, so the winner would not be the one written last. The guardrail in
- * styles.test.ts caught it. Slate-200 is also simply right: it is what the
- * search field stacked above this reads in.
- */
-export const BUTTON_FLOATING_QUIET =
-  `${SURFACE_FLOATING} ${TEXT.control} transition-colors ` +
   `${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-slate-700 ${FOCUS_RING}`
 
 /**
@@ -534,7 +517,12 @@ export const LAYER = {
   scrim: 'z-30',
   /** The mobile drawer itself. */
   drawer: 'z-40',
-  /** Anything opened from inside the drawer, which must clear it. */
+  /**
+   * Anything opened from inside the drawer, which must clear it: the model
+   * picker's listbox, and the analysis overlay — which is started from the
+   * drawer and now runs while it is still open, so a mobile reader can watch
+   * the progress they would otherwise be waiting on blind.
+   */
   popover: 'z-50',
   /** Modal dialogs, and the shield that swallows pointer events mid-drag. */
   modal: 'z-[60]',
