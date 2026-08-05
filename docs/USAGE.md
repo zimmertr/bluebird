@@ -162,8 +162,9 @@ It has up to two axes, and a switch to pick between them when both exist:
   minutes apart. The readout counts backwards from now rather than naming a clock
   time, because the frames are addressed as "ten minutes ago" and the capture
   moment is only known that closely.
-- **Forecast** appears once an analysis covers more than one hour, and scrubs the
-  window you asked for. The markers recolor to the hour under the playhead, on the
+- **The forecast axis**, which the switch labels with the ranked metric —
+  Wind, Precipitation, Temperature, or AQI — appears once an analysis covers
+  more than one hour, and scrubs the window you asked for. The markers recolor to the hour under the playhead, on the
   same bands the legend shows, and the legend follows: precipitation switches to
   inches per hour, since an hour of rain and a window's total are different
   quantities. Ranking a wind metric also draws an arrow beside each marker,

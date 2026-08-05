@@ -1833,6 +1833,7 @@ export default function App() {
               onPlayingChange={setPlaying}
               readout={timelineReadout}
               scale={timelineScale}
+              forecastLabel={NOUN[familyOf(view.sortBy)]}
             />
           )}
         </div>

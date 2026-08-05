@@ -388,6 +388,22 @@ export default function ControlPanel({
 
   const pointsNeeded = Math.max(0, 3 - drawPointCount)
 
+  // Every plain-sentence warning under the Analyze button, as one list for one
+  // box. They used to render as a box apiece — the commit cue in its own frame
+  // directly above the blockers in theirs — which read as two kinds of problem
+  // when the difference was plumbing, not meaning (#245 review). Ordered by
+  // what the reader can act on: why the report on screen is stale, why the
+  // button is disabled, then what a delivered report is missing. Only a notice
+  // that carries its own actions (the refusal's remedies, the error's retry)
+  // keeps a box of its own.
+  const footerWarnings = [
+    ...(commitReason && !loading ? [COMMIT_CUE[commitReason]] : []),
+    ...blockers.map((blocker) => blockerText(blocker, maxAreaKm2, pointsNeeded)),
+    ...(wildfireCheckFailed && !loading
+      ? ['NIFC is unreachable, so wildfire proximity data is unavailable.']
+      : []),
+  ]
+
   // The filter grid, one row per bounded thing.
   //
   // The columns are headed with the two aggregate names from `metrics.ts`,
@@ -938,18 +954,8 @@ export default function ControlPanel({
           {loading ? 'Analyzing…' : 'Analyze'}
         </button>
 
-        {commitReason && !loading && (
-          <FooterNotice severity="warn" lines={[COMMIT_CUE[commitReason]]} />
-        )}
-
-        {/* Every reason Analyze is disabled, in one box. The reasons stack:
-            a chain showed one, so fixing it revealed a second that had been
-            true all along. */}
-        {blockers.length > 0 && (
-          <FooterNotice
-            severity="warn"
-            lines={blockers.map((blocker) => blockerText(blocker, maxAreaKm2, pointsNeeded))}
-          />
+        {footerWarnings.length > 0 && (
+          <FooterNotice severity="warn" lines={footerWarnings} />
         )}
 
         {refusal && !loading && (
@@ -972,17 +978,6 @@ export default function ControlPanel({
               </button>
             )}
           </FooterNotice>
-        )}
-
-        {/* Sits below a failed analysis and above the AQI note, because it
-            qualifies a report that did arrive rather than reporting that one
-            did not. Amber, not red: the forecasts are sound and only the fire
-            check is missing. */}
-        {wildfireCheckFailed && !loading && (
-          <FooterNotice
-            severity="warn"
-            lines={['NIFC is unreachable, so wildfire proximity data is unavailable.']}
-          />
         )}
 
         {error && !refusal && (

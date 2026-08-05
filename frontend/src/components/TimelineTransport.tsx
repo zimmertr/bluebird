@@ -34,16 +34,14 @@ interface Props {
   // Up to three marks under the track. Rendered spread across it, so two marks
   // land at the ends and three put one in the middle.
   scale: string[]
+  // What the forecast axis is called: the ranked metric's noun ("Wind"),
+  // composed by metrics.ts and passed in, so this file never spells a metric
+  // name of its own. It used to say "Forecast", which only said which axis it
+  // was not — the metric name says what the colors under the playhead mean
+  // (#245 review).
+  forecastLabel: string
 }
 
-// The axis names, which are also the readout's overline. Written here rather
-// than derived from the axis key because "radar" is a product name and
-// "forecast" is a common noun, and neither should be produced by capitalizing
-// an identifier.
-const AXIS_LABEL: Record<TimelineAxis, string> = {
-  radar: 'Radar',
-  forecast: 'Forecast',
-}
 
 function PlayIcon({ playing }: { playing: boolean }) {
   return (
@@ -89,7 +87,10 @@ export default function TimelineTransport({
   onPlayingChange,
   readout,
   scale,
+  forecastLabel,
 }: Props) {
+  // Radar names itself: it is a product, not a metric.
+  const axisLabel = (a: TimelineAxis) => (a === 'radar' ? 'Radar' : forecastLabel)
   return (
     <div
       // Sits clear of the two pieces of map chrome that share this edge: the
@@ -126,7 +127,7 @@ export default function TimelineTransport({
             step={1}
             value={index}
             onChange={(e) => onIndexChange(Number(e.target.value))}
-            aria-label={`${AXIS_LABEL[axis]} time`}
+            aria-label={`${axisLabel(axis)} time`}
             // The value a screen reader announces is the readout, not the
             // frame number: "8 of 12" says nothing a listener can act on and
             // "-15 min" is the whole answer.
@@ -155,12 +156,12 @@ export default function TimelineTransport({
                   axis === option ? ACCENT.fill : SEGMENT_IDLE
                 }`}
               >
-                {AXIS_LABEL[option]}
+                {axisLabel(option)}
               </button>
             ))}
           </div>
         ) : (
-          <div className={TEXT.overline}>{AXIS_LABEL[axis]}</div>
+          <div className={TEXT.overline}>{axisLabel(axis)}</div>
         )}
         <div className={`${TEXT.control} whitespace-nowrap font-mono`}>{readout}</div>
       </div>
