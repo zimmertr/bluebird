@@ -253,14 +253,29 @@ describe('every component', () => {
     expect(source).not.toMatch(/accent-sky-500/)
   })
 
-  // L6 used to fail any `title=` outright. It is gone deliberately (TJ,
-  // 2026-08-04): the filter grid's unknown-values note became a tooltip on the
-  // two rows it is about, which bought back the line of height that made the
-  // panel scroll. The rule it enforced has not become weaker, it has become a
-  // thing a person decides rather than a thing a test decides — see the tooltip
-  // section in docs/STYLES.md. A lint cannot tell an approved exception from a
-  // lazy one, and a lint that has to be deleted to ship an approved exception
-  // teaches people to delete lints.
+  // L6 used to fail any `title=` outright. Tooltips are now an approved LIST
+  // rather than a ban (TJ, 2026-08-04), so this pins the list instead: adding
+  // one without asking fails here, and so does losing one by accident — which
+  // is how the smoke chips shipped without theirs, an edit that silently did
+  // not apply and was reported as done.
+  //
+  // Read the tooltip section in docs/STYLES.md before changing these numbers.
+  // The count is the point: a tooltip does not exist on touch, so each one is
+  // a decision someone made and can defend, not a habit.
+  const APPROVED_TOOLTIPS: Record<string, number> = {
+    // The Light/Medium/Heavy chips in the map's layer legend.
+    './App.tsx': 1,
+    // Max results (label + field), and the unknown-value note on the
+    // Elevation and AQI filter rows (label + both boxes, one `title` each).
+    './components/ControlPanel.tsx': 4,
+    // What Hourly actually does to a multi-day window (label + segment).
+    './components/ForecastCalendar.tsx': 2,
+  }
+
+  it.each(Object.entries(sources))('%s carries only its approved tooltips', (path, source) => {
+    const found = (source.match(/\btitle=/g) ?? []).length
+    expect(found).toBe(APPROVED_TOOLTIPS[path] ?? 0)
+  })
 })
 
 // The panel is a near-constant width on every breakpoint, so a width variant used for

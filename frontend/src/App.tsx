@@ -1922,6 +1922,11 @@ export default function App() {
                               key={density}
                               className={SWATCH_CHIP}
                               style={{ backgroundColor: smokeSwatch(density), borderColor: SMOKE_EDGE }}
+                              // A letter is not nameable on sight. The word it
+                              // stands for is the same one the plume popup and
+                              // the layer use, so this names it rather than
+                              // introducing a second vocabulary.
+                              title={density}
                             >
                               {density[0]}
                             </span>
