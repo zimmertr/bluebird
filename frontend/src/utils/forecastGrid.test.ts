@@ -4,6 +4,7 @@ import {
   MAX_GRID_CELLS,
   buildGrid,
   gridArrowFeatures,
+  gridLegendLine,
   gridImageCoordinates,
   gridRaster,
   pairCells,
@@ -171,6 +172,25 @@ describe('pitchLabel', () => {
     expect(pitchLabel(3)).toBe('3 km grid')
     expect(pitchLabel(13.27)).toBe('13 km grid')
     expect(pitchLabel(25)).toBe('25 km grid')
+  })
+})
+
+describe('gridLegendLine', () => {
+  it('says the pitch once anything is painted', () => {
+    // Past the first samples the filling-in is visible on the map itself, so
+    // the line goes back to describing what the field IS.
+    expect(gridLegendLine(true, 3, null)).toBe('3 km grid')
+    expect(gridLegendLine(true, 3, 45)).toBe('3 km grid')
+  })
+
+  it('names the quota wait ahead of the plain loading line', () => {
+    // The pacing line answers the question the plain one leaves open: why
+    // nothing is happening. It borrows the analysis overlay's vocabulary
+    // because it is the same wait for the same reason.
+    expect(gridLegendLine(false, 3, 45)).toBe('Waiting on quota · 45s')
+    expect(gridLegendLine(false, 3, null)).toBe('Loading grid')
+    // A countdown that has run out is not a wait worth naming.
+    expect(gridLegendLine(false, 3, 0)).toBe('Loading grid')
   })
 })
 

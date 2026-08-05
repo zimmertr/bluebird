@@ -126,6 +126,36 @@ export function pitchLabel(pitchKm: number): string {
 }
 
 /**
+ * The one line under the legend's bands: what the field is, or why it is not
+ * there yet.
+ *
+ * The grid fills in progressively, so the only gap needing a cue is before the
+ * first samples land — which after a large analysis is minutes, because the
+ * grid shares its weighted budget with the analysis that just ran and inherits
+ * that analysis's quota debt. Silence there reads as broken.
+ *
+ * The pacing line borrows the analysis overlay's vocabulary rather than
+ * inventing one: that overlay already says the app is waiting on quota and
+ * counts down to when it resumes, and this is the same wait for the same
+ * reason. It outranks the plain loading line because it answers the question
+ * the plain one leaves open, which is why nothing is happening.
+ *
+ * Once anything is painted the line becomes the pitch and stays there: at that
+ * point the filling-in is visible on the map itself and does not need saying.
+ */
+export function gridLegendLine(
+  painted: boolean,
+  pitchKm: number,
+  paceRemainingS: number | null,
+): string {
+  if (painted) return pitchLabel(pitchKm)
+  if (paceRemainingS !== null && paceRemainingS > 0) {
+    return `Waiting on quota · ${paceRemainingS}s`
+  }
+  return 'Loading grid'
+}
+
+/**
  * A lattice covering the analyzed field, at `pitchKm` or the nearest coarser
  * pitch that fits under `cap`.
  *

@@ -166,6 +166,10 @@ the points are in hand everything else is free: changing the ranking recolors th
 field without asking for anything new, and so does the timeline. It fills in as it
 arrives rather than appearing all at once.
 
+After a very large analysis it can take a while to start, because it shares a
+per-minute allowance with the analysis you just ran and has to wait its turn. The
+legend says so while that is happening, and counts down.
+
 **Style** picks how it is drawn, and both readings are true:
 
 - **Blocks** (the default) draws each point as its own square. You can see and count

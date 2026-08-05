@@ -41,7 +41,7 @@ import {
 } from './styles'
 import { NOUN, familyOf, rankedNoun } from './metrics'
 import { METRIC_CONFIG, hourlyScale } from './utils/colors'
-import { FALLBACK_PITCH_KM, pitchLabel, type GridStyle } from './utils/forecastGrid'
+import { FALLBACK_PITCH_KM, gridLegendLine, type GridStyle } from './utils/forecastGrid'
 import {
   RADAR_FRAME_COUNT,
   IEM_HREF,
@@ -1379,6 +1379,23 @@ export default function App() {
   // with the last — a key to an empty map would be noise, but a key to a
   // quarter-painted one is exactly what a reader needs.
   const gridPainted = showGrid && grid.cells.length > 0
+  // The legend also opens while the grid is still fetching, so its one line can
+  // say the field is coming. That gap is the whole reason the cue exists: the
+  // grid inherits the quota debt of the analysis that just ran, so after a big
+  // one it is minutes before the first samples land.
+  const gridCued = showGrid && grid.status === 'loading'
+  // A one-second tick, only while the pacer is actually asleep, so the
+  // countdown moves. Nothing else on screen needs it and it stops on its own.
+  const [paceNow, setPaceNow] = useState(0)
+  useEffect(() => {
+    if (grid.paceEndMs === null) return
+    const id = setInterval(() => setPaceNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [grid.paceEndMs])
+  const gridPaceRemainingS =
+    grid.paceEndMs === null
+      ? null
+      : Math.max(0, Math.ceil((grid.paceEndMs - Math.max(paceNow, Date.now())) / 1000))
 
   // Download the displayed report (#125). Everything that decides what the file
   // contains is already resolved above, so this only has to hand settled values
@@ -1748,7 +1765,7 @@ export default function App() {
               desktop map they never meet — but a phone is narrow enough that
               they would overlap, and a legend half under a control reads as a
               layout fault rather than as two things sharing an edge. */}
-          {(hasColoredMarkers || gridPainted || showWildfires || showSmoke || showRadar) && (
+          {(hasColoredMarkers || gridPainted || gridCued || showWildfires || showSmoke || showRadar) && (
             <div
               className={`absolute left-2 top-16 z-10 flex flex-col justify-end gap-2 overflow-y-auto lg:top-auto lg:overflow-visible ${
                 timelineAxis !== null ? 'bottom-40' : 'bottom-8'
@@ -1851,7 +1868,7 @@ export default function App() {
                   table while the field still paints, and colors without their
                   key are noise. One box serves both — they are scored on the
                   same scale by construction (#246). */}
-              {(hasColoredMarkers || gridPainted) && (
+              {(hasColoredMarkers || gridPainted || gridCued) && (
                 <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} p-2.5`}>
                   {/* The bare metric only: which hour or window the colors
                       describe, and how it was reduced, is stated by the
@@ -1872,8 +1889,10 @@ export default function App() {
                       over 13 km of ground, and a reader who cannot see that
                       number has no way to know how much of the picture is one
                       answer repeated. */}
-                  {gridPainted && (
-                    <p className={`${TEXT.micro} mt-1.5`}>{pitchLabel(grid.pitchKm)}</p>
+                  {(gridPainted || gridCued) && (
+                    <p className={`${TEXT.micro} mt-1.5`}>
+                      {gridLegendLine(gridPainted, grid.pitchKm, gridPaceRemainingS)}
+                    </p>
                   )}
                 </div>
               )}

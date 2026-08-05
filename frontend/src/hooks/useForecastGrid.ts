@@ -42,9 +42,22 @@ export interface ForecastGrid {
   cells: GridCell[]
   /** The pitch the lattice was built at, which the legend prints. */
   pitchKm: number
+  /**
+   * When the client pacer resumes, if it is currently sleeping off a quota
+   * deficit. The legend counts down from it, so a grid queued behind a large
+   * analysis says why rather than looking hung. Null whenever nothing is
+   * waiting — which is most of the time, since a small lattice never paces.
+   */
+  paceEndMs: number | null
 }
 
-const IDLE: ForecastGrid = { status: 'idle', spec: null, cells: [], pitchKm: 0 }
+const IDLE: ForecastGrid = {
+  status: 'idle',
+  spec: null,
+  cells: [],
+  pitchKm: 0,
+  paceEndMs: null,
+}
 
 /**
  * How many samples go out per painted step.
@@ -120,7 +133,7 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     // the analysis changes, and a field from the previous one describes a
     // different bbox over a different window — holding it would paint the old
     // answer under the new markers for as long as the fetch takes.
-    setState({ status: 'loading', spec, cells: [], pitchKm: spec.pitchKm })
+    setState({ status: 'loading', spec, cells: [], pitchKm: spec.pitchKm, paceEndMs: null })
 
     // What has come back so far, by lattice index. Weather arrives in chunks
     // and air quality arrives whole and late, so both write here and repaint
@@ -141,12 +154,15 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
         aqiHave.push(aqi[i] ?? null)
       }
       if (grid.length === 0) grid = canonicalTimes(wxHave)
-      setState({
+      setState((prev) => ({
         status: 'ready',
         spec: spec as GridSpec,
         cells: pairCells(spec as GridSpec, indices, wxHave, aqiHave, grid),
         pitchKm: (spec as GridSpec).pitchKm,
-      })
+        // A repaint means samples arrived, so whatever wait was being counted
+        // down is over.
+        paceEndMs: prev.status === 'loading' ? null : prev.paceEndMs,
+      }))
     }
 
     // Air quality runs alongside the weather rather than in front of the paint,
@@ -182,7 +198,17 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
             indices.push(i)
           }
           const chunk = indices.map((i) => spec.points[i])
-          const got = await fetchWeather(chunk, startMs, endMs, { model, signal: ac.signal })
+          const got = await fetchWeather(chunk, startMs, endMs, {
+            model,
+            signal: ac.signal,
+            // The pacer narrating itself, exactly as the analysis overlay
+            // already does. Without this a grid queued behind a large
+            // analysis is silent for minutes.
+            onPace: (seconds) => {
+              if (cancelled) return
+              setState((prev) => ({ ...prev, paceEndMs: Date.now() + seconds * 1000 }))
+            },
+          })
           if (cancelled) return
           got.forEach((w, j) => {
             wx[indices[j]] = w
