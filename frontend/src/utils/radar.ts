@@ -38,7 +38,8 @@
  * serve, `m60m` is a 404, and tiles are byte-stable when refetched. Adjacent
  * offsets occasionally resolve to the same mosaic (`m10m` and `m15m` were
  * observed identical), which is a property of when the radars ran rather than
- * anything to correct.
+ * anything to correct — and one more reason the 10-minute step below costs
+ * less than its arithmetic suggests.
  */
 
 /** IEM's tile cache. `{z}/{x}/{y}` are MapLibre's own placeholders. */
@@ -50,12 +51,23 @@ export const IEM_HREF = 'https://mesonet.agron.iastate.edu/ogc/'
 /**
  * Minutes between frames, and the oldest offset that serves.
  *
- * Both are the service's, not ours: the composite recomputes on a five-minute
- * cadence and `m60m` 404s. Frames are therefore the base tile plus `m05m`
- * through `m55m` — twelve of them, spanning 55 minutes.
+ * The reach is the service's: `m55m` serves and `m60m` 404s, so 55 minutes is
+ * as far back as this product goes. The step is ours, and it is 10 rather than
+ * the composite's own 5-minute cadence because **MapLibre cannot hold twelve
+ * raster sources**. Measured against the live service at z11: the first six
+ * frames load, the seventh stalls partway, and the remaining five are never
+ * requested at all — permanently, with every missing tile answering 200 to a
+ * direct fetch and no error anywhere. Raster tiles go through MapLibre's image
+ * queue, and a layer parked at `raster-opacity: 0` is exactly the kind of thing
+ * it will abort requests for, which is how that queue's slots leak.
+ *
+ * So the loop is six frames spanning 50 minutes. That halves the sources and
+ * halves the ~420 tile requests a full warm-up sends to a donated server, and
+ * a 10-minute step still animates a storm — it is what several public radar
+ * loops run at. A finer loop is not worth a layer that silently stops loading.
  */
-export const RADAR_STEP_MIN = 5
-export const RADAR_OLDEST_MIN = 55
+export const RADAR_STEP_MIN = 10
+export const RADAR_OLDEST_MIN = 50
 
 /**
  * Frame offsets in minutes, oldest first.

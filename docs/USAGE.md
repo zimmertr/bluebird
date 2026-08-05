@@ -136,7 +136,7 @@ again. Each is credited on its own legend, and each rides in the shared link.
 | Layer | What it draws | Coverage |
 |---|---|---|
 | **Wildfires** | Active fire perimeters, in red | United States |
-| **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 55 minutes | Continental United States |
+| **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | Continental United States |
 | **Smoke** | Smoke plumes at three densities, in grey | North America |
 
 Clicking a perimeter opens NIFC's live map on that fire; clicking a plume says how
@@ -158,10 +158,10 @@ play to run it, or drag the scrubber to a moment.
 
 It has up to two axes, and a switch to pick between them when both exist:
 
-- **Radar** plays the last 55 minutes of observed rain, in twelve five-minute
-  frames. The readout counts backwards from now rather than naming a clock time,
-  because the frames are addressed as "five minutes ago" and the capture moment is
-  only known that closely.
+- **Radar** plays the last 50 minutes of observed rain, in six frames ten
+  minutes apart. The readout counts backwards from now rather than naming a clock
+  time, because the frames are addressed as "ten minutes ago" and the capture
+  moment is only known that closely.
 - **Forecast** appears once an analysis covers more than one hour, and scrubs the
   window you asked for. The markers recolor to the hour under the playhead, on the
   same bands the legend shows, and the legend follows: precipitation switches to

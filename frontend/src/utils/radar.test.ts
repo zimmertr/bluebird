@@ -17,13 +17,19 @@ describe('radarOffsets', () => {
     expect(offsets[offsets.length - 1]).toBe(0)
   })
 
-  it('steps by the service cadence and stops at the oldest offset that serves', () => {
-    // m60m is a 404 upstream (measured 2026-08-04), so the loop is 55 minutes
-    // deep and not an hour.
+  it('steps evenly and stops at the oldest offset that serves', () => {
     const offsets = radarOffsets()
-    expect(offsets).toEqual([55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 0])
+    expect(offsets).toEqual([50, 40, 30, 20, 10, 0])
     expect(offsets.every((m, i) => i === 0 || offsets[i - 1] - m === RADAR_STEP_MIN)).toBe(true)
-    expect(RADAR_FRAME_COUNT).toBe(12)
+  })
+
+  it('keeps the loop inside what MapLibre will actually load', () => {
+    // Measured: at twelve raster sources the tile queue jams — six frames load,
+    // the seventh stalls partway, and the rest are never requested, with every
+    // missing tile answering 200 to a direct fetch. Six is the number that
+    // works, and it is also half the requests against a donated server.
+    expect(RADAR_FRAME_COUNT).toBe(6)
+    expect(RADAR_OLDEST_MIN).toBeLessThanOrEqual(55) // m60m is a 404 upstream
   })
 })
 
@@ -37,12 +43,12 @@ describe('radarTileUrl', () => {
   })
 
   it('zero-pads the offset, which is how the service spells it', () => {
-    expect(radarTileUrl(5)).toContain('nexrad-n0q-900913-m05m')
-    expect(radarTileUrl(55)).toContain('nexrad-n0q-900913-m55m')
+    expect(radarTileUrl(10)).toContain('nexrad-n0q-900913-m10m')
+    expect(radarTileUrl(50)).toContain('nexrad-n0q-900913-m50m')
   })
 
   it('leaves the tile placeholders for MapLibre', () => {
-    expect(radarTileUrl(15)).toMatch(/\{z\}\/\{x\}\/\{y\}\.png$/)
+    expect(radarTileUrl(20)).toMatch(/\{z\}\/\{x\}\/\{y\}\.png$/)
   })
 })
 
@@ -56,7 +62,7 @@ describe('labels', () => {
   })
 
   it('scales the track from the oldest frame to now', () => {
-    expect(radarScaleEnds()).toEqual(['-55 min', 'Now'])
+    expect(radarScaleEnds()).toEqual(['-50 min', 'Now'])
   })
 })
 
@@ -64,6 +70,6 @@ describe('radarLayerId', () => {
   it('is unique per frame and stable across calls', () => {
     const ids = radarOffsets().map(radarLayerId)
     expect(new Set(ids).size).toBe(ids.length)
-    expect(radarLayerId(5)).toBe('radar-05')
+    expect(radarLayerId(10)).toBe('radar-10')
   })
 })

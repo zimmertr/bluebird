@@ -20,7 +20,6 @@ import {
   BOUNDS_GRID,
   CHOICE_ROW,
   CONTROL_W,
-  CUE,
   FIELD,
   FIELD_NUMERIC,
   LINK,
@@ -230,6 +229,35 @@ interface Props {
   // The wildfire proximity lookup failed for the displayed report, so no row
   // has been checked. A safety claim the UI must not make silently.
   wildfireCheckFailed?: boolean
+}
+
+/**
+ * One shape for every message under the Analyze button.
+ *
+ * There were two shapes and the difference said nothing. A commit cue was
+ * centred, unboxed, amber text; a blocker was a left-aligned amber box; the two
+ * appeared together, so the panel showed one warning as a caption and the next
+ * as a notice for no reason a reader could act on. Severity is the only thing
+ * that varies now, and it varies by hue, which is what hue means everywhere
+ * else in this app.
+ *
+ * The colour lives on the box rather than on each line inside it, so a notice
+ * that grows a second paragraph cannot forget it. `NOTICE` sets a size and no
+ * colour and `STATUS` sets a colour and no size, which is what lets the two
+ * compose without the stylesheet-order collision this file keeps warning about.
+ */
+function FooterNotice({
+  severity,
+  children,
+}: {
+  severity: 'warn' | 'error' | 'info'
+  children: React.ReactNode
+}) {
+  return (
+    <div className={`${NOTICE[severity]} ${STATUS[severity]} space-y-2`} role="status">
+      {children}
+    </div>
+  )
 }
 
 export default function ControlPanel({
@@ -889,27 +917,25 @@ export default function ControlPanel({
         </button>
 
         {commitReason && !loading && (
-          <p className={`${CUE} ${STATUS.warn}`}>{COMMIT_CUE[commitReason]}</p>
+          <FooterNotice severity="warn">
+            <p>{COMMIT_CUE[commitReason]}</p>
+          </FooterNotice>
         )}
 
-        {/* Every reason Analyze is disabled, in one box. The reasons stack
-            (a chain showed one, so fixing it revealed a second that had been
-            true all along), and the whole box wears the same amber styling
-            the panel's other bad news does, because "the app will not do the
-            thing you asked" is a warning and was being typeset as footnotes. */}
+        {/* Every reason Analyze is disabled, in one box. The reasons stack:
+            a chain showed one, so fixing it revealed a second that had been
+            true all along. */}
         {blockers.length > 0 && (
-          <div className={`${NOTICE.warn} space-y-2`} role="status">
+          <FooterNotice severity="warn">
             {blockers.map((blocker) => (
-              <p key={blocker} className={STATUS.warn}>
-                {blockerText(blocker, maxAreaKm2, pointsNeeded)}
-              </p>
+              <p key={blocker}>{blockerText(blocker, maxAreaKm2, pointsNeeded)}</p>
             ))}
-          </div>
+          </FooterNotice>
         )}
 
         {refusal && !loading && (
-          <div className={`${NOTICE.warn} space-y-2`}>
-            <p className={STATUS.warn}>{refusal.message}</p>
+          <FooterNotice severity="warn">
+            <p>{refusal.message}</p>
             {refusal.suggestedMinElevationFt !== null && (
               <button
                 onClick={() => onRetryWithFloor(refusal.suggestedMinElevationFt as number)}
@@ -927,38 +953,40 @@ export default function ControlPanel({
                 Analyze the {refusal.limit.toLocaleString()} highest instead
               </button>
             )}
-          </div>
+          </FooterNotice>
         )}
 
-        {/* Sits below a failed analysis and above the row count, because it
+        {/* Sits below a failed analysis and above the AQI note, because it
             qualifies a report that did arrive rather than reporting that one
             did not. Amber, not red: the forecasts are sound and only the fire
             check is missing. */}
         {wildfireCheckFailed && !loading && (
-          <p className={`${STATUS.warn} ${NOTICE.warn}`}>
-            NIFC is unreachable, so wildfire proximity data is unavailable.
-          </p>
+          <FooterNotice severity="warn">
+            <p>NIFC is unreachable, so wildfire proximity data is unavailable.</p>
+          </FooterNotice>
         )}
 
         {error && !refusal && (
-          <div className={`${STATUS.error} ${NOTICE.error} space-y-2`}>
+          <FooterNotice severity="error">
             <p>{error}</p>
             <button onClick={onRetry} disabled={loading} className={BUTTON_DANGER}>
               Try again
             </button>
-          </div>
+          </FooterNotice>
         )}
 
         {/* The row count used to sit here, and moved to the table's own header
             bar: it describes the table, the sidebar is where you build a
             request, and three numbers wrapped this column to two lines. What
             stays is the one line that qualifies the ANALYSIS rather than the
-            view of it. */}
+            view of it. Info rather than warn: the analysis is sound and this
+            explains the dashes in a column, which is a fact about the data
+            rather than something gone wrong. */}
         {resultCount !== undefined && !loading && !error && !refusal &&
           aqiAllNull && aqiCoverage !== 'none' && (
-            <p className={`${CUE} ${TEXT.caption}`}>
-              {NOUN.aqi} data is not available for this forecast window.
-            </p>
+            <FooterNotice severity="info">
+              <p>{NOUN.aqi} data is not available for this forecast window.</p>
+            </FooterNotice>
           )}
 
         {/* Two labels, two pages, and each label goes where it says. The

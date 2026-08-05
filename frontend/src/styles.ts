@@ -700,6 +700,13 @@ export const ACCENT_RING = 'ring-4 ring-sky-400 shadow-[0_0_18px_rgba(56,189,248
  * forecast-window warning, the AQI-coverage note, the refusal remedies, the
  * error retry, and the failed wildfire check.
  *
+ * There is no unboxed alternative any more. A `CUE` role used to hold the
+ * centred, borderless variant, and the panel's footer showed both: a commit cue
+ * as centred amber text directly above a blocker in an amber box, saying the
+ * same kind of thing in two shapes for no reason a reader could act on. Every
+ * message under the Analyze button is one of these three now, and severity is
+ * the only thing that varies (`FooterNotice` in `ControlPanel.tsx`).
+ *
  * Four boxes, and before this they were four recipes. Three had settled on a
  * `-950/40` fill with a `-800/60` border and the fourth — the error, the one
  * that matters most — ran a `/50` fill behind a fully opaque border, so the app
@@ -762,18 +769,6 @@ export const PANEL_RULE =
  * restated so the color cannot drift.
  */
 export const BADGE_STEP = `${ACCENT.fill} text-xs font-bold`
-
-/**
- * The unboxed status line.
- *
- * Boxed messages (`NOTICE.*`) get their size from the role's own text-xs. Unboxed
- * status lines that sit alone need their own size, and compose with `STATUS.*`
- * for color. This lives at text-xs so both paths size to the same step.
- *
- * Example use: the "model-changed" cue telling the user that the forecast window
- * was shortened by a model change.
- */
-export const CUE = 'text-xs text-center'
 
 /**
  * A bordered region grouping controls inside the panel: today, the calendar.

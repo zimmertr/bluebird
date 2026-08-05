@@ -43,22 +43,29 @@ export type SmokeDensity = (typeof SMOKE_DENSITIES)[number]
  * light), and one hue at three alphas means the overlap darkens in the
  * direction it should rather than turning a fourth color.
  *
- * The ceiling is 0.5 and that is a floor on legibility rather than a taste
- * call: the basemap under a heavy plume still has to show a lake and a summit
- * label, since the point of the overlay is knowing whether a destination is
- * *under* the smoke.
+ * The three steps are spread wider than the fill's alpha alone would suggest,
+ * because they first shipped too close to tell apart: over a light basemap
+ * 0.15/0.30/0.50 of stone-400 composited to three greys within 17 points of
+ * lightness of each other, and a ramp nobody can read is not a ramp. The fill
+ * is a step darker now and the top of the range is higher.
+ *
+ * The ceiling is a floor on legibility rather than a taste call: the basemap
+ * under a heavy plume still has to show a lake and a summit label, since the
+ * point of the overlay is knowing whether a destination is *under* the smoke.
+ * 0.58 of this shade leaves the labels legible; past about 0.65 they stop
+ * being.
  *
  * Read by both the map layers and the legend swatches, so the picture and its
  * key cannot disagree. It lives here rather than in `styles.ts` because these
  * are MapLibre paint values handed to the GL renderer, not Tailwind utilities
  * — the same reason the fire perimeter's red lives in `MapView.tsx`.
  */
-export const SMOKE_FILL = '#a8a29e'
-export const SMOKE_EDGE = '#78716c'
+export const SMOKE_FILL = '#78716c'
+export const SMOKE_EDGE = '#57534e'
 export const SMOKE_OPACITY: Record<SmokeDensity, number> = {
-  Light: 0.15,
-  Medium: 0.3,
-  Heavy: 0.5,
+  Light: 0.16,
+  Medium: 0.36,
+  Heavy: 0.58,
 }
 
 /** The MapLibre layer id for one density. Derived so the two cannot drift. */

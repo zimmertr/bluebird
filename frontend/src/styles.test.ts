@@ -12,7 +12,6 @@ import {
   BUTTON_SECONDARY,
   CHOICE_INPUT,
   CHOICE_ROW,
-  CUE,
   DAY,
   BOUNDS_GRID,
   CONTROL_W,
@@ -659,12 +658,22 @@ describe('shared recipes', () => {
     expect(CHOICE_ROW).toContain(rowRing)
   })
 
-  // Unboxed status lines that stand alone need their own size. Boxed notices
-  // (`NOTICE.*`) set size on the box. Both end up at text-xs, so the two paths
-  // compose to the same step.
-  it('sizes the unboxed status line the same as boxed notices', () => {
-    expect(CUE).toContain('text-xs')
-    expect(sizes(NOTICE.warn)).toContain('text-xs')
+  // Every message under the Analyze button is a NOTICE box wearing a STATUS
+  // colour, so the two records have to offer the same severities. A hue in one
+  // and not the other is a message that either has no box or no colour, which
+  // is exactly the state the footer was in before this: an amber cue with no
+  // box beside an amber box.
+  it('gives every notice severity a matching status colour', () => {
+    for (const severity of Object.keys(NOTICE)) {
+      expect(STATUS, `STATUS has no ${severity}`).toHaveProperty(severity)
+    }
+  })
+
+  // NOTICE sets a size and no colour, STATUS a colour and no size, which is
+  // what lets the two compose rather than race by stylesheet order.
+  it('keeps size and colour on opposite halves of a notice', () => {
+    for (const recipe of Object.values(NOTICE)) expect(sizes(recipe)).toContain('text-xs')
+    for (const recipe of Object.values(STATUS)) expect(sizes(recipe)).toEqual([])
   })
 
   // Three rules, none redundant: Firefox reads the appearance property, WebKit

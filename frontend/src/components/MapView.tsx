@@ -196,6 +196,20 @@ const DRAW_COLOR = '#38bdf8'
 const RADAR_OPACITY = 0.65
 
 /**
+ * How far apart the loop's frames are armed after the layer is switched on.
+ *
+ * One frame is ~35 tiles at the zooms this overlay is read at, so twelve of
+ * them is ~420 requests. Spacing them keeps that off IEM as a burst and keeps
+ * the whole set inside about six seconds, which is comfortably less time than
+ * it takes to notice the timeline and reach for play.
+ *
+ * Deliberately unrelated to the playback frame rate below it: this paces a
+ * download, that paces an animation, and tying them would mean a slower loop
+ * also loaded more slowly.
+ */
+const RADAR_WARM_MS = 500
+
+/**
  * The zoom the clickable basemap destinations start at.
  *
  * Not a coverage promise, because it cannot be: OpenMapTiles decides per
@@ -1909,10 +1923,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
             source: id,
             layout: {
               // Every frame but the one on screen starts unrendered, and an
-              // unrendered raster layer fetches no tiles. That is what makes
-              // toggling the loop on cost one frame's tiles instead of twelve;
-              // the rest arm themselves as the playhead reaches them, so the
-              // first pass through the loop is the only choppy one.
+              // unrendered raster layer fetches no tiles — so toggling the
+              // loop on costs one frame's tiles rather than twelve. The other
+              // eleven are armed a moment later by the warm-up effect below,
+              // which is what makes playback smooth rather than a slideshow of
+              // half-loaded frames.
               visibility: 'none',
             },
             paint: {
@@ -1936,9 +1951,56 @@ const MapView = forwardRef<MapViewHandle, Props>(
       }
     }, [showRadar, mapReady])
 
-    // Which radar frame is on screen. A frame is armed the first time the
-    // playhead reaches it and stays armed; from then on a frame change is an
-    // opacity flip, which is instant. Arming is what pays for the tiles.
+    // Warm the loop's frames in the background, one every RADAR_WARM_MS.
+    //
+    // Arming on demand — a frame the first time the playhead reached it — is
+    // what made the loop strobe: an unrendered raster layer holds no tiles, so
+    // each frame's first turn on screen was a blank 500 ms while a fetch went
+    // out, and the whole first pass flashed.
+    //
+    // Two things rule out simply showing all twelve at once. It is 420 tile
+    // requests in a burst against a donated server that asks large applications
+    // to self-host, which is not the way to hold up our end. And it does not
+    // work: MapLibre schedules tile loading off style and transform changes, so
+    // one batch of twelve on a map nobody is touching dispatched six frames'
+    // worth of requests and then sat there — measured, at 7 of 12 frames after
+    // thirty seconds with every missing tile answering 200 to a direct fetch.
+    //
+    // Arming one at a time solves both: each layer's own style change is what
+    // gets its tiles fetched, and the requests arrive spread out. A frame the
+    // playhead reaches before the warm-up does is shown by the effect below
+    // regardless, so nothing waits on this.
+    //
+    // The loop runs until every source reports loaded rather than until the
+    // last frame is armed, and repaints on each tick, because being armed is
+    // not the same as being fetched: MapLibre services its tile queue during a
+    // render, so a map nobody is touching goes idle with the tail of the queue
+    // still outstanding. That is the measured failure — six frames loaded and
+    // six armed-but-empty, unchanged after thirty seconds, with every missing
+    // tile answering 200 to a direct fetch.
+    useEffect(() => {
+      const map = mapRef.current
+      if (!map || !mapReady || !showRadar) return
+      const queue = radarOffsets().slice()
+      const timer = setInterval(() => {
+        const offset = queue.shift()
+        if (offset !== undefined) {
+          const id = radarLayerId(offset)
+          if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'visible')
+        }
+        const armed = radarOffsets().filter((o) => map.getLayer(radarLayerId(o)))
+        if (queue.length === 0 && armed.every((o) => map.isSourceLoaded(radarLayerId(o)))) {
+          clearInterval(timer)
+          return
+        }
+        map.triggerRepaint()
+      }, RADAR_WARM_MS)
+      return () => clearInterval(timer)
+    }, [showRadar, mapReady])
+
+    // Which radar frame is on screen. Every armed frame is rendered at all
+    // times and only its opacity moves, so advancing is a flip between two
+    // layers that both already hold their tiles — no fetch, no fade, no gap.
     useEffect(() => {
       const map = mapRef.current
       if (!map || !mapReady || !showRadar) return
@@ -1947,6 +2009,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
       for (const offset of offsets) {
         const id = radarLayerId(offset)
         if (!map.getLayer(id)) continue
+        // A frame the warm-up has not reached yet still has to be shown when
+        // the playhead lands on it, or scrubbing in the first second after a
+        // toggle would land on nothing.
         if (offset === active) map.setLayoutProperty(id, 'visibility', 'visible')
         map.setPaintProperty(id, 'raster-opacity', offset === active ? RADAR_OPACITY : 0)
       }

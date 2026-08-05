@@ -283,15 +283,22 @@ IEM asks only that applications with thousands of simultaneous users arrange
 their own hosting, which an off-by-default toggle on a hobby-scale site
 respects.
 
-The loop is **twelve frames spanning 55 minutes**, at five-minute steps. Frames
-are addressed as "five minutes ago", "ten minutes ago" and so on rather than by
+The loop is **six frames spanning 50 minutes**, ten minutes apart. Frames are
+addressed as "ten minutes ago", "twenty minutes ago" and so on rather than by
 timestamp, which is the form the service documents, and that is why the timeline
 reads out a relative time: the capture moment is only known to within the step.
 Two consequences follow. Adjacent frames occasionally resolve to the same
 mosaic, when the radars happened not to run between them. And because the
 offsets are relative to when a tile is requested, panning mid-loop can pull
-slightly newer imagery into an older frame; the whole set refreshes on the same
-five-minute cadence, which bounds it.
+slightly newer imagery into an older frame, which the loop's own refresh bounds.
+
+The step is ten minutes rather than the mosaic's own five-minute cadence for a
+reason that is about the map library, not the data. Each frame is its own raster
+layer, and at twelve of them MapLibre's tile queue jams: measured against the
+live service, six frames load, the seventh stalls partway, and the last five are
+never requested at all — permanently, with every missing tile answering 200 to a
+direct fetch. Six frames also halves the roughly 420 tile requests a full loop
+sends to a donated server, which is its own argument.
 
 Coverage is the continental United States. Reflectivity is not a rainfall rate:
 it is what the radar echo measured, which hail, bright-band melting, and beam

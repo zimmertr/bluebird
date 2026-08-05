@@ -47,7 +47,7 @@ import {
   radarOffsets,
   radarScaleEnds,
 } from './utils/radar'
-import { HMS_HREF, SMOKE_DENSITIES, smokeSwatch } from './utils/smoke'
+import { HMS_HREF, SMOKE_DENSITIES, SMOKE_EDGE, smokeSwatch } from './utils/smoke'
 import {
   TimelineAxis,
   availableAxes,
@@ -1712,27 +1712,27 @@ export default function App() {
                   from becoming three ideas of what a credit looks like. */}
               {showSmoke && (
                 <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} px-2.5 py-2`}>
-                  <p className={`${TEXT.overline} mb-1.5`}>Smoke</p>
-                  {SMOKE_DENSITIES.map((density, i) => (
+                  {/* The credit sits on the title, not on a swatch row. NOAA
+                      provides all three densities, so hanging its name off
+                      Heavy said it was the source of that row in particular —
+                      which is what a credit beside a swatch means everywhere
+                      else here, where each swatch box has exactly one source
+                      (Radar/IEM, Active Wildfire/NIFC). One box, one provider,
+                      one place to say so. */}
+                  <p className={`${TEXT.overline} mb-1.5`}>
+                    Smoke (
+                    <a href={HMS_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
+                      NOAA
+                    </a>
+                    )
+                  </p>
+                  {SMOKE_DENSITIES.map((density) => (
                     <div key={density} className="flex items-center gap-1.5 py-0.5">
                       <span
                         className={`inline-block w-3 h-3 flex-shrink-0 ${RADIUS.control} border`}
-                        style={{ backgroundColor: smokeSwatch(density), borderColor: '#78716c' }}
+                        style={{ backgroundColor: smokeSwatch(density), borderColor: SMOKE_EDGE }}
                       />
-                      <span className={TEXT.control}>
-                        {density}
-                        {/* The credit rides the last row rather than taking a
-                            line of its own, so the box stays three rows tall. */}
-                        {i === SMOKE_DENSITIES.length - 1 && (
-                          <>
-                            {' ('}
-                            <a href={HMS_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
-                              NOAA
-                            </a>
-                            {')'}
-                          </>
-                        )}
-                      </span>
+                      <span className={TEXT.control}>{density}</span>
                     </div>
                   ))}
                 </div>

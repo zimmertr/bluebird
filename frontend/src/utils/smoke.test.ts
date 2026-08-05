@@ -35,8 +35,21 @@ describe('the density ramp', () => {
 
   it('never hides the basemap it is drawn over', () => {
     // The point of the overlay is knowing whether a destination is UNDER the
-    // smoke, so a summit label has to survive the heaviest plume.
-    expect(SMOKE_OPACITY.Heavy).toBeLessThanOrEqual(0.5)
+    // smoke, so a summit label has to survive the heaviest plume. Past about
+    // 0.65 of this shade they stop surviving.
+    expect(SMOKE_OPACITY.Heavy).toBeLessThanOrEqual(0.6)
+  })
+
+  it('keeps a full step of lightness between each density', () => {
+    // The ramp first shipped at 0.15/0.30/0.50 of a lighter stone, which
+    // composited to three greys within 17 points of each other: technically a
+    // ramp, unreadable as one. 30 is roughly where two greys stop being
+    // arguable side by side.
+    const lightness = (css: string) =>
+      (css.match(/\d+/g) ?? []).slice(0, 3).reduce((a, c) => a + Number(c), 0) / 3
+    const steps = SMOKE_DENSITIES.map((d) => lightness(smokeSwatch(d)))
+    expect(steps[0] - steps[1]).toBeGreaterThanOrEqual(20)
+    expect(steps[1] - steps[2]).toBeGreaterThanOrEqual(20)
   })
 
   it('shows the legend what the MAP draws, not what the panel would', () => {
@@ -44,7 +57,7 @@ describe('the density ramp', () => {
     // legend a translucent colour to blend with the dark panel behind it. At
     // 15% over slate-800 a Light plume is invisible, so the first row of the
     // key would be a blank square explaining a shade the map shows plainly.
-    expect(smokeSwatch('Heavy')).toBe('rgb(204,199,194)')
+    expect(smokeSwatch('Heavy')).toBe('rgb(170,165,159)')
     for (const density of SMOKE_DENSITIES) {
       expect(smokeSwatch(density)).toMatch(/^rgb\(\d+,\d+,\d+\)$/)
     }
