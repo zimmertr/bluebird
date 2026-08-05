@@ -93,14 +93,15 @@ export default function TimelineTransport({
   const axisLabel = (a: TimelineAxis) => (a === 'radar' ? 'Radar' : forecastLabel)
   return (
     <div
-      // Sits clear of the two pieces of map chrome that share this edge: the
-      // attribution control, which is a licence term and cannot be covered, and
-      // the scale bar above it. On a wide map the bar is centred and those are
-      // at the right, so nothing touches — this offset is what a phone needs,
-      // where the bar spans nearly the whole width and would sit on top of
-      // both. One number rather than a breakpoint, so the control is in the
-      // same place on every screen.
-      className={`${SURFACE_FLOATING} ${LAYER.base} absolute bottom-20 left-1/2 -translate-x-1/2 flex w-[min(23rem,calc(100%-4rem))] items-center gap-2.5 px-3 py-2`}
+      // Sits directly above the attribution control, which is a licence term
+      // and cannot be covered.
+      //
+      // It keeps its full width because the scale bar steps over it on the
+      // screens where the two would meet (see map.css). Reserving room for the
+      // scale here was the alternative and a bad trade: this box is CENTRED, so
+      // every pixel left on one side costs two, and clearing a 95px scale on a
+      // phone would have taken most of the bar.
+      className={`${SURFACE_FLOATING} ${LAYER.base} absolute bottom-10 left-1/2 -translate-x-1/2 flex w-[min(23rem,calc(100%-4rem))] items-center gap-2.5 px-3 py-2`}
     >
       <button
         onClick={() => onPlayingChange(!playing)}

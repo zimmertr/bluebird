@@ -13,6 +13,7 @@ import { useAnalyze } from './hooks/useAnalyze'
 import { modelForecastHours, useCapabilities } from './hooks/useCapabilities'
 import { useChartSelection } from './hooks/useChartSelection'
 import { useFireProximity } from './hooks/useFireProximity'
+import { useForecastGrid } from './hooks/useForecastGrid'
 import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
@@ -20,6 +21,8 @@ import { CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy
 import {
   ACCENT,
   BUTTON_FLOATING,
+  CHOICE_INPUT,
+  CHOICE_ROW,
   BUTTON_SECONDARY,
   FOCUS_RING,
   ICON,
@@ -35,11 +38,13 @@ import {
   SEGMENT_ITEM,
   SURFACE_CARD,
   SURFACE_FLOATING,
+  SWATCH_CHIP,
   TAP,
   TEXT,
 } from './styles'
 import { NOUN, familyOf, rankedNoun } from './metrics'
 import { METRIC_CONFIG, hourlyScale } from './utils/colors'
+import { FALLBACK_PITCH_KM, gridLegendLine, type GridStyle } from './utils/forecastGrid'
 import {
   RADAR_FRAME_COUNT,
   IEM_HREF,
@@ -110,6 +115,12 @@ import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
 // by a tenth of a pixel, which is why this is the next step up: w-44 leaves
 // 154px, ~14px of slack. Re-measure before lengthening a line in either box.
 const LEGEND_WIDTH = 'w-44'
+
+// The two map buttons are one pair and are sized as one: same width, same
+// height, stacked in a column where any difference between them reads as a
+// mistake rather than as a hierarchy. Wide enough for "Controls", which is the
+// longer of the two labels; the shorter one centres inside it.
+const MAP_BUTTON_W = 'w-32 justify-start'
 
 // Stands in for the analysis snapshot's covered set before the first analysis.
 // A module constant rather than an inline `new Set()`, which would be a fresh
@@ -371,6 +382,47 @@ export default function App() {
   // from the pod.
   const [showRadar, setShowRadar] = useState(() => restored?.showRadar ?? false)
   const [showSmoke, setShowSmoke] = useState(() => restored?.showSmoke ?? false)
+  // The forecast grid (#246), on the same contract as the three above with one
+  // difference worth naming: this toggle is a spend boundary. Turning it on is
+  // what fetches a lattice of forecasts over the analyzed field, and leaving it
+  // on is standing consent for the next analysis to do the same. It still
+  // changes nothing about the ranking, so it never touches `commitNeeded`.
+  const [showGrid, setShowGrid] = useState(() => restored?.showGrid ?? false)
+  // The map's own Layers popover, closed on load. Not persisted: it is a
+  // disclosure, not a setting, and a link that reopened it would be sharing a
+  // gesture rather than a picture.
+  const [layersOpen, setLayersOpen] = useState(false)
+  const layersRef = useRef<HTMLDivElement>(null)
+  // Both ways out of a popover a reader expects: click away, or press Escape.
+  // `pointerdown` rather than `click` so a press that starts outside dismisses
+  // even if the pointer travels before release, and so it lands before the
+  // map's own handlers get a chance to treat the same press as a map gesture.
+  useEffect(() => {
+    if (!layersOpen) return
+    function onDown(e: PointerEvent) {
+      if (!layersRef.current?.contains(e.target as Node)) setLayersOpen(false)
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setLayersOpen(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [layersOpen])
+  const MAP_LAYERS = [
+    { key: 'fires', label: 'Wildfires', checked: showWildfires, onChange: setShowWildfires },
+    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
+    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
+    { key: 'grid', label: 'Forecast grid', checked: showGrid, onChange: setShowGrid },
+  ]
+  // Which drawing the grid's samples get. Blocks by default: it is the style
+  // that cannot overstate what was sampled, since one square is one forecast
+  // and a reader can count them. Purely presentation over held samples, so
+  // switching costs one re-render and nothing upstream.
+  const [gridStyle, setGridStyle] = useState<GridStyle>(() => restored?.gridStyle ?? 'blocks')
   // Summits OSM knows only by their height. Off by default: measured over one
   // 8x10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so
   // this roughly triples what an analysis costs and how often it refuses.
@@ -737,6 +789,8 @@ export default function App() {
       showWildfires,
       showRadar,
       showSmoke,
+      showGrid,
+      gridStyle,
       pins: searched.places,
     }, caps.defaultForecastModel)
 
@@ -768,6 +822,8 @@ export default function App() {
     showWildfires,
     showRadar,
     showSmoke,
+    showGrid,
+    gridStyle,
     searched.places,
     writeUrl,
   ])
@@ -1262,6 +1318,21 @@ export default function App() {
   )
   const setFrameIndex = timelineAxis === 'radar' ? setRadarIndex : setForecastIndex
 
+  // On mobile the controls are an off-canvas drawer, and it closes when an
+  // analysis SUCCEEDS rather than when the button is pressed. Closing on press
+  // meant a failure was invisible: the drawer slid away, the overlay finished,
+  // and the reader was left looking at an empty map while the error sat in a
+  // panel they had to think to reopen. Keyed on `analysisSeq`, which only moves
+  // when a report commits, so a refusal or an upstream error simply leaves the
+  // drawer where it is with the message already in it — including the refusal
+  // remedies, which are buttons and could not live anywhere else.
+  //
+  // Desktop is unaffected: the panel is docked there and never closes.
+  useEffect(() => {
+    if (analysisSeq > 0 && !isDesktop) setSidebarOpen(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysisSeq])
+
   // A new report is a new grid, so the forecast playhead goes back to the start
   // of it. Keyed on the analysis rather than on the times array, which is a new
   // reference on every live knob change and would otherwise reset the playhead
@@ -1337,6 +1408,58 @@ export default function App() {
   // Fed the whole analyzed field so live knobs re-present rows without
   // re-querying NIFC; falls back to the displayed rows on the server path.
   const fire = useFireProximity(universe ?? results, analysisSeq)
+
+  // The forecast grid (#246): the ranked metric as model-resolution cells under
+  // the markers, scrubbed by the same playhead.
+  //
+  // Every input comes from the `analyzed` snapshot rather than from the panel.
+  // The calendar, the model picker and the ranking can all move while a report
+  // sits on screen, and a grid built from panel state would paint a window the
+  // markers above it never saw. The pitch is the ANALYZED model's finest grid
+  // for the same reason.
+  const grid = useForecastGrid({
+    enabled: showGrid,
+    field: universe,
+    window: analyzed?.window ?? null,
+    model: analyzed?.forecastModel ?? forecastModel,
+    times: forecastTimes,
+    pitchKm:
+      caps.forecastModels.find((m) => m.id === analyzed?.forecastModel)?.finestGridKm ??
+      FALLBACK_PITCH_KM,
+    analysisSeq,
+  })
+  // Something is painted, which is what a legend can be keyed to. A field still
+  // filling in has some, so the legend arrives with the first chunk rather than
+  // with the last — a key to an empty map would be noise, but a key to a
+  // quarter-painted one is exactly what a reader needs.
+  const gridPainted = showGrid && grid.cells.length > 0
+  // The legend also opens while the grid is still fetching, so its one line can
+  // say the field is coming. That gap is the whole reason the cue exists: the
+  // grid inherits the quota debt of the analysis that just ran, so after a big
+  // one it is minutes before the first samples land.
+  const gridCued = showGrid && grid.status === 'loading'
+  // The layer is on and could not draw. Said out loud for the same reason the
+  // loading line exists: a switched-on layer with nothing under it and nothing
+  // said reads as a broken app rather than as a failed fetch. The server SSE
+  // fallback is the same sentence for a different reason: that path holds no
+  // field for a lattice to cover, so the hook never runs at all — and without
+  // this the one path where the grid CANNOT work was also the one path where
+  // it said nothing.
+  const gridFailed =
+    showGrid && (grid.status === 'failed' || (response !== null && universe === null))
+  // A one-second tick, only while the pacer is actually asleep, so the
+  // countdown moves. Nothing else on screen needs it and it stops on its own.
+  const [paceNow, setPaceNow] = useState(0)
+  useEffect(() => {
+    if (grid.paceEndMs === null) return
+    const id = setInterval(() => setPaceNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [grid.paceEndMs])
+  const gridPaceRemainingS =
+    grid.paceEndMs === null
+      ? null
+      : Math.max(0, Math.ceil((grid.paceEndMs - Math.max(paceNow, Date.now())) / 1000))
+  const gridLegend = gridLegendLine(gridPainted, grid.pitchKm, gridPaceRemainingS, gridFailed)
 
   // Download the displayed report (#125). Everything that decides what the file
   // contains is already resolved above, so this only has to hand settled values
@@ -1533,12 +1656,6 @@ export default function App() {
             setMaxElevationFt(null)
             setConstraints(NO_CONSTRAINTS)
           }}
-          showWildfires={showWildfires}
-          setShowWildfires={setShowWildfires}
-          showRadar={showRadar}
-          setShowRadar={setShowRadar}
-          showSmoke={showSmoke}
-          setShowSmoke={setShowSmoke}
           includeUnnamedPeaks={includeUnnamedPeaks}
           setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}
           windowWarning={windowWarning}
@@ -1569,12 +1686,7 @@ export default function App() {
             results.length > 0 &&
             results.every((r) => r.aqi_avg == null)
           }
-          onAnalyze={() => {
-            // On mobile the controls are an off-canvas drawer — close it so the
-            // user sees the map/results. On desktop the panel is docked; leave it.
-            if (!isDesktop) setSidebarOpen(false)
-            handleAnalyze()
-          }}
+          onAnalyze={handleAnalyze}
           onRetry={retry}
           resultCount={response ? results.length : undefined}
           // What the current elevation band admits, not what the analysis
@@ -1585,9 +1697,17 @@ export default function App() {
 
       {/* Map + results column */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        <div className="flex-1 relative">
+        {/* `data-timeline` is read by map.css, which steps the scale bar over
+            the transport on narrow screens — but only while there is a
+            transport to step over. */}
+        <div className="flex-1 relative" data-timeline={timelineAxis !== null ? 'on' : undefined}>
+          {/* Above the drawer, not under it. The drawer now stays open for the
+              length of a run, and an analysis with no visible progress is the
+              thing this overlay exists to prevent — so it takes the layer that
+              clears the drawer rather than the one that sits under it. On
+              desktop nothing moves: there is no drawer for it to clear. */}
           {overlay.visible && (
-            <div className="absolute inset-0 bg-slate-900/60 z-20 flex items-center justify-center">
+            <div className={`absolute inset-0 bg-slate-900/60 ${LAYER.popover} flex items-center justify-center`}>
               <div className={`${SURFACE_CARD} px-6 py-5 text-center w-[280px]`}>
                 <img
                   src="/icon.png"
@@ -1660,6 +1780,9 @@ export default function App() {
             showRadar={showRadar}
             showSmoke={showSmoke}
             radarIndex={radarIndex}
+            gridSpec={grid.spec}
+            gridCells={grid.cells}
+            gridStyle={gridStyle}
             playbackIndex={playbackIndex}
             pending={pending}
             searchedPlaces={searched.places}
@@ -1668,136 +1791,168 @@ export default function App() {
             minElevationFt={minElevationFt}
             maxElevationFt={maxElevationFt}
           />
-          {/* Top-left map cluster — reopen-controls button (only while the
-              panel is collapsed) + place search. z-10 keeps it under the
-              loading overlay (z-20) and the mobile drawer backdrop (z-30). */}
-          <div className="absolute top-3 left-3 z-10 flex items-start gap-2">
-            {!sidebarOpen && (
-              <button
-                onClick={() => setSidebarOpen(true)}
-                aria-label="Open controls"
-                className={`${BUTTON_FLOATING} ${TAP.action} flex-shrink-0 gap-2 px-3 py-2`}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="3" y1="6" x2="21" y2="6" />
-                  <line x1="3" y1="12" x2="21" y2="12" />
-                  <line x1="3" y1="18" x2="21" y2="18" />
-                </svg>
-                Controls
-              </button>
-            )}
-            <SearchBox ref={searchBoxRef} onSelect={handleSearchSelect} pointed={searchPointed} />
-          </div>
-          {/* Bottom-anchored legends. On mobile the top edge is clamped below
-              the Controls/search cluster (top-16) and the stack scrolls if it
-              can't fit, so a short map can never let the legends ride up over
-              those buttons. justify-end keeps them pinned to the bottom when
-              there is room. Desktop has ample height, so the clamp lifts.
+          {/* The legends render BEFORE the button column below on purpose.
+              Both are map chrome at the same layer, so paint order is DOM
+              order, and the one that has to win is the one you can click:
+              the Layers popover opens downward into exactly this space, and
+              with the legends last it opened underneath them. Pushing the
+              legends further down instead only moved the collision, since a
+              popover is as tall as its contents. */}
+          {/* Bottom-anchored legends, and two things about this stack that
+              were quietly broken until they were measured on a phone.
+
+              It is anchored with `mt-auto` on the first box rather than with
+              `justify-end`, which is the whole of why it can now be scrolled.
+              A flex column that justifies to the end pushes its overflow past
+              the START edge of the scroll container, and content overflowing
+              the start edge is unreachable: measured at 402x874 with all four
+              layers on and a table showing, four of the five boxes sat at
+              negative coordinates with `scrollTop` pinned at 0 and no way to
+              reach them. The auto margin collapses when there is no room, so
+              the overflow goes out of the bottom instead, where a scroll can
+              follow it.
+
+              `top-28` clears the Controls/search/Layers column above, at EVERY
+              width. It used to lift at `lg`, on the reasoning that a desktop
+              map has room to spare — but "top-auto" does not mean "as tall as
+              it likes", it means the box starts wherever its content puts it,
+              which on a wide map was 54px: straight through the Layers button
+              at 54-92. The button is opaque and paints above (see the ordering
+              note), so the legend's first row simply disappeared behind it.
+              The clamp is the only thing that keeps them apart, so it holds
+              everywhere. `mt-auto` still pins the stack to the bottom when
+              there is room, which is what the lift was reaching for.
 
               The stack lifts clear of the timeline when the bar is on screen.
               The bar is centred and the legends are left-anchored, so on a
               desktop map they never meet — but a phone is narrow enough that
               they would overlap, and a legend half under a control reads as a
               layout fault rather than as two things sharing an edge. */}
-          {(hasColoredMarkers || showWildfires || showSmoke || showRadar) && (
+          {(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar) && (
             <div
-              className={`absolute left-2 top-16 z-10 flex flex-col justify-end gap-2 overflow-y-auto lg:top-auto lg:overflow-visible ${
-                timelineAxis !== null ? 'bottom-40' : 'bottom-8'
+              className={`absolute left-2 top-28 z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0 [&>*:first-child]:mt-auto ${
+                timelineAxis !== null ? 'bottom-28' : 'bottom-8'
               }`}
             >
-              {/* Each overlay credits its source on its own swatch row, the
-                  way the fire legend has since #203: a credit belongs beside
-                  the data it describes rather than in a list somewhere else,
-                  and one shape for all of them is what keeps three sources
-                  from becoming three ideas of what a credit looks like. */}
-              {showSmoke && (
+              {/* One row per layer: what it is, who it came from, and its key
+                  on the right. The densities used to be three stacked rows
+                  under a heading, the radar and fire keys a box each — about
+                  a hundred pixels of chrome to say four short things.
+
+                  Each row still carries its own source, which the licences ask
+                  for and which keeps a credit beside the data it describes
+                  rather than in a list somewhere else.
+
+                  No heading over them either. Every row names its own layer, so
+                  a "Map layers" line above would be a label for four labels —
+                  and on a phone it is a whole row of the little map left. */}
+              {(showSmoke || showRadar || showWildfires || gridPainted || gridCued || gridFailed) && (
                 <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} px-2.5 py-2`}>
-                  {/* The credit sits on the title, not on a swatch row. NOAA
-                      provides all three densities, so hanging its name off
-                      Heavy said it was the source of that row in particular —
-                      which is what a credit beside a swatch means everywhere
-                      else here, where each swatch box has exactly one source
-                      (Radar/IEM, Active Wildfire/NIFC). One box, one provider,
-                      one place to say so. */}
-                  <p className={`${TEXT.overline} mb-1.5`}>
-                    Smoke (
-                    <a href={HMS_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
-                      NOAA
-                    </a>
-                    )
-                  </p>
-                  {SMOKE_DENSITIES.map((density) => (
-                    <div key={density} className="flex items-center gap-1.5 py-0.5">
-                      <span
-                        className={`inline-block w-3 h-3 flex-shrink-0 ${RADIUS.control} border`}
-                        style={{ backgroundColor: smokeSwatch(density), borderColor: SMOKE_EDGE }}
-                      />
-                      <span className={TEXT.control}>{density}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {showRadar && (
-                <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} px-2.5 py-2`}>
-                  <div className="flex items-center gap-1.5">
-                    {/* A gradient rather than banded swatches: NEXRAD's own
-                        reflectivity ramp is continuous, the bands are the
-                        product's and not ours to relabel, and a legend that
-                        invented boundaries would be asserting thresholds
-                        Bluebird does not know. */}
-                    <span
-                      className={`inline-block w-3 h-3 flex-shrink-0 ${RADIUS.control} border`}
-                      style={{
-                        backgroundImage: 'linear-gradient(90deg,#1c8a3c,#40b450,#e7c000,#eb7814)',
-                        borderColor: '#475569',
-                      }}
-                    />
-                    <span className={TEXT.control}>
-                      Rain radar (
-                      <a href={IEM_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
-                        IEM
-                      </a>
-                      )
-                    </span>
+                  <div className="flex flex-col gap-1">
+                    {showSmoke && (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={TEXT.control}>
+                          Smoke (
+                          <a href={HMS_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
+                            NOAA
+                          </a>
+                          )
+                        </span>
+                        {/* One lettered chip per density rather than three
+                            rows. Opacity is the whole encoding here, so the
+                            three chips also read as a ramp side by side, which
+                            they could not do stacked. The letter is what keeps
+                            them nameable at 14px. */}
+                        <span className="flex flex-shrink-0 gap-0.5">
+                          {SMOKE_DENSITIES.map((density) => (
+                            <span
+                              key={density}
+                              className={SWATCH_CHIP}
+                              style={{ backgroundColor: smokeSwatch(density), borderColor: SMOKE_EDGE }}
+                              // A letter is not nameable on sight. The word it
+                              // stands for is the same one the plume popup and
+                              // the layer use, so this names it rather than
+                              // introducing a second vocabulary.
+                              title={density}
+                            >
+                              {density[0]}
+                            </span>
+                          ))}
+                        </span>
+                      </div>
+                    )}
+                    {showRadar && (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={TEXT.control}>
+                          Rain radar (
+                          <a href={IEM_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
+                            IEM
+                          </a>
+                          )
+                        </span>
+                        {/* A gradient rather than banded swatches: NEXRAD's own
+                            reflectivity ramp is continuous, and a legend that
+                            invented boundaries would assert thresholds
+                            Bluebird does not know. */}
+                        <span
+                          className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
+                          style={{
+                            backgroundImage: 'linear-gradient(90deg,#1c8a3c,#40b450,#e7c000,#eb7814)',
+                            borderColor: '#475569',
+                          }}
+                        />
+                      </div>
+                    )}
+                    {showWildfires && (
+                      // CC BY 3.0 wants the credit wherever the fire data is
+                      // drawn, and section 4(b) lets it be "implemented in any
+                      // reasonable manner" — so it is the row's own label. The
+                      // licence URI section 4(a) asks for lives in
+                      // DataSourceList, which both document pages render.
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={TEXT.control}>
+                          Active wildfire (
+                          <a
+                            href="https://data-nifc.opendata.arcgis.com/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={LINK}
+                          >
+                            NIFC
+                          </a>
+                          )
+                        </span>
+                        <span
+                          className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
+                          style={{ backgroundColor: 'rgba(220,38,38,0.35)', borderColor: '#b91c1c' }}
+                        />
+                      </div>
+                    )}
+                    {(gridPainted || gridCued || gridFailed) && (
+                      // No swatch: the grid's colours are the metric key below,
+                      // which the markers share. What this row adds is the one
+                      // thing that IS the grid's own — how far apart the
+                      // samples are, or why it is not there yet. Every state
+                      // right-justifies its value like every other row, statuses
+                      // included: one row breaking the column reads as a fault
+                      // rather than as a distinction.
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={TEXT.control}>{gridLegend.label}</span>
+                        <span className={`${TEXT.control} flex-shrink-0`}>
+                          {gridLegend.value}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
-              {showWildfires && (
-                // CC BY 3.0 wants the credit wherever the fire data is drawn,
-                // and section 4(b) lets it be "implemented in any reasonable
-                // manner" — so it is the swatch's own label rather than a
-                // second line under it. "Fire data:" and "(CC BY 3.0)" are
-                // gone: the first restated what the swatch beside it already
-                // says, and the second was the license *name* as plain text,
-                // which satisfies nothing on its own. The license URI section
-                // 4(a) asks for now lives in DataSourceList, which both
-                // document pages render and the panel footer links.
-                //
-                // This is also how Open-Meteo is credited a few hundred pixels
-                // below (a bare "Open-Meteo.com"), so the app has one idea of
-                // what a beside-the-data credit looks like instead of two.
-                <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} px-2.5 py-2`}>
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      className={`inline-block w-3 h-3 ${RADIUS.control} border`}
-                      style={{ backgroundColor: 'rgba(220,38,38,0.35)', borderColor: '#b91c1c' }}
-                    />
-                    <span className={TEXT.control}>
-                      Active Wildfire (
-                      <a
-                        href="https://data-nifc.opendata.arcgis.com/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={LINK}
-                      >
-                        NIFC
-                      </a>
-                      )
-                    </span>
-                  </div>
-                </div>
-              )}
-              {hasColoredMarkers && (
+              {/* Keyed to the markers OR to the grid, because either can be
+                  the only colored thing on screen: a live filter can empty the
+                  table while the field still paints, and colors without their
+                  key are noise. One box serves both — they are scored on the
+                  same scale by construction (#246), which is also why the grid
+                  has no swatch of its own in the layer rows above. */}
+              {(hasColoredMarkers || gridPainted || gridCued) && (
                 <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} p-2.5`}>
                   {/* The bare metric only: which hour or window the colors
                       describe, and how it was reduced, is stated by the
@@ -1817,6 +1972,83 @@ export default function App() {
               )}
             </div>
           )}
+          {/* Top-left map cluster — reopen-controls button (only while the
+              panel is collapsed) + place search. z-10 keeps it under the
+              loading overlay (z-20) and the mobile drawer backdrop (z-30). */}
+          <div className="absolute top-3 left-3 z-10 flex flex-col items-start gap-2">
+            <div className="flex items-start gap-2">
+              {!sidebarOpen && (
+                <button
+                  onClick={() => setSidebarOpen(true)}
+                  aria-label="Open controls"
+                  className={`${BUTTON_FLOATING} ${TAP.action} ${MAP_BUTTON_W} flex-shrink-0 gap-2 px-3 py-2`}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <line x1="3" y1="12" x2="21" y2="12" />
+                    <line x1="3" y1="18" x2="21" y2="18" />
+                  </svg>
+                  Controls
+                </button>
+              )}
+              <SearchBox ref={searchBoxRef} onSelect={handleSearchSelect} pointed={searchPointed} />
+            </div>
+            {/* Layers, under the search box rather than beside MapLibre's own
+                controls on the right. Two reasons it moved: the library's stack
+                is two control GROUPS with a margin between them, so any offset
+                that clears it is a guess that was already wrong once — and the
+                left column is where the app's own map controls live, which
+                makes the split legible. Left is ours, right is the library's. */}
+            <div ref={layersRef} className="relative">
+              <button
+                onClick={() => setLayersOpen((o) => !o)}
+                aria-expanded={layersOpen}
+                className={`${BUTTON_FLOATING} ${TAP.action} ${MAP_BUTTON_W} gap-2 px-3 py-2`}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+                  <polygon points="12,3 21,8 12,13 3,8" />
+                  <polyline points="3,13 12,18 21,13" />
+                </svg>
+                Layers
+              </button>
+              {layersOpen && (
+                <div className={`${SURFACE_FLOATING} absolute left-0 mt-2 w-44 px-2.5 py-2`}>
+                  {MAP_LAYERS.map(({ key, label, checked, onChange }) => (
+                    <label key={key} className={CHOICE_ROW}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => onChange(e.target.checked)}
+                        className={CHOICE_INPUT}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                  {/* The grid's one sub-choice, revealed by its own checkbox.
+                      The popover is 176px, so this takes the fluid segment
+                      rather than the panel's fixed 144px column — the same
+                      reason the results bar's mode switch does. */}
+                  {showGrid && (
+                    <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
+                      {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
+                        <button
+                          key={value}
+                          type="button"
+                          aria-pressed={gridStyle === value}
+                          onClick={() => setGridStyle(value)}
+                          className={`${SEGMENT_ITEM} ${
+                            gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
+                          } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
+                        >
+                          {value === 'blocks' ? 'Blocks' : 'Smooth'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
           {/* The timeline, present exactly while something spans time: radar
               contributes a past axis, a multi-hour report a forecast one, and
               a smoke analysis contributes neither (two passes a day is not an

@@ -128,7 +128,9 @@ Sort destinations by any metric: total precipitation, average wind, average temp
 
 ### Map layers
 
-Three optional overlays, all off by default, all live. Switching one on draws it
+Four optional overlays, on the map's own **Layers** button rather than in the
+controls panel: they are the only controls in the app that change what you are
+looking at rather than what you are asking for. All off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
 the ranking, never an input to it, so none of them ever asks you to press Analyze
 again. Each is credited on its own legend, and each rides in the shared link.
@@ -138,18 +140,70 @@ again. Each is credited on its own legend, and each rides in the shared link.
 | **Wildfires** | Active fire perimeters, in red | United States |
 | **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | Continental United States |
 | **Smoke** | Smoke plumes at three densities, in grey | North America |
+| **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
 
 Clicking a perimeter opens NIFC's live map on that fire; clicking a plume says how
 dense it is, which satellite it was traced from, and over what hours. Where smoke
 sits over a fire — which is most of the time, since one causes the other — the
 click goes to the fire.
 
-Read the three for what they are. Radar is a **measurement of the last hour**,
+Read them for what they are. Radar is a **measurement of the last hour**,
 which makes it the one layer here that is not a model's opinion about the future.
 Smoke is an analyst's tracing of what a satellite could see, updated about twice a
 day, and it describes a column of air rather than the ground: a plume overhead can
 mean a hazy sky and clean air to breathe, or the opposite. The AQI columns in the
 table are what measure air.
+
+#### The forecast grid
+
+The other three overlays draw somebody else's data. This one draws yours: the same
+metric your results are ranked by, asked for on a lattice of points across the area
+your analysis covered, and painted on the colors the marker legend already shows. It answers the question the markers cannot — is this one summit's
+weather, or is the whole valley like that?
+
+It is the one layer whose switch costs something, which is why it is a switch. Turning
+it on fetches a forecast for every square, after your results have landed and never
+in front of them; leave it on and each later analysis grids itself the same way. Once
+the points are in hand everything else is free: changing the ranking recolors the
+field without asking for anything new, and so does the timeline. It fills in as it
+arrives rather than appearing all at once.
+
+After a very large analysis it can take a while to start, because it shares a
+per-minute allowance with the analysis you just ran and has to wait its turn. The
+legend says so while that is happening, and counts down. If it cannot be fetched
+at all, the legend says that too rather than leaving the layer switched on with
+nothing under it.
+
+**Style** picks how it is drawn, and both readings are true:
+
+- **Blocks** (the default) draws each point as its own square. You can see and count
+  the points, so how much detail the forecast actually has is visible rather than
+  stated. The hard edges are the one thing it overstates: the model has no boundary
+  there.
+- **Smooth** draws the space between the points, which is how every other forecast
+  map reads and is the honest shape of something the model already treats as
+  continuous. What it hides is how few points are underneath.
+
+Switching costs nothing. It is the same data drawn two ways, so it applies instantly
+and rides in the shared link. Picking a style with the layer off switches the layer on
+as well, so you can go straight to the drawing you want.
+
+Two things to know when reading it:
+
+- **The legend states the sample spacing** — `Forecast grid   3 km`. That is
+  the distance between the points actually asked about: inside it you are looking
+  at one forecast, and between two of them you are looking at a blend. Over a
+  large area the points spread further apart to keep the request reasonable, and
+  the legend says the spacing actually used.
+- **It covers where you looked.** The field spans the destinations the analysis
+  found plus a margin, and fades out at that edge. Panning away does not extend
+  it: every point is a live request rather than a pre-drawn tile.
+
+The field can disagree with a marker standing on it. A 3 km grid cell holds a summit
+and the valley floor below it, and the model answers for the cell rather than for
+either. That is the model's real resolution showing, not a fault. [DATA.md](DATA.md)
+has the longer version, including why drawing between grid points is a different act
+from drawing between summits.
 
 ### The timeline
 
@@ -168,7 +222,10 @@ It has up to two axes, and a switch to pick between them when both exist:
   same bands the legend shows, and the legend follows: precipitation switches to
   inches per hour, since an hour of rain and a window's total are different
   quantities. Ranking a wind metric also draws an arrow beside each marker,
-  pointing the way the wind is blowing at that hour.
+  pointing the way the wind is blowing at that hour. With the forecast grid
+  switched on, the field scrubs too, on the same colors and with an arrow of its
+  own per sample, so an hour of playback shows the whole picture moving rather
+  than a handful of points.
 
 The chart below the map draws the same playhead as a vertical line, and clicking
 the chart moves it. The two are one grid seen twice, so finding the bad afternoon

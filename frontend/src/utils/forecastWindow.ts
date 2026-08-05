@@ -65,18 +65,34 @@ export function isPointSample(startMs: number, endMs: number): boolean {
   return hourlyStampCount(startMs, endMs) === 1
 }
 
+/**
+ * A point sample as a window a fetch can use.
+ *
+ * Equal timestamps are how "the current hour" is expressed, and they describe
+ * no span at all: Open-Meteo's inclusive `start <= ts <= end` filter matches
+ * nothing between a moment and itself. Flooring to the hour and spanning one
+ * minute is what makes it match exactly the stamp meant. Any other window is
+ * returned untouched.
+ *
+ * Split out of `resolveWindow` because the `analyzed` snapshot records the
+ * request's raw timestamps rather than the resolved ones, so anything fetching
+ * from that snapshot has to apply the same rule — the forecast grid (#246) is
+ * the first thing to, and before this it asked for a zero-width window and got
+ * an empty answer for every cell, silently.
+ */
+export function normalizeWindow(startMs: number, endMs: number): ResolvedWindow {
+  if (startMs !== endMs) return { startMs, endMs }
+  const floored = startMs - (startMs % HOUR_MS)
+  return { startMs: floored, endMs: floored + MINUTE_MS }
+}
+
 export function resolveWindow(
   startIso: string,
   endIso: string,
   nowMs: number = Date.now(),
 ): ResolvedWindow {
-  let startMs = parseIso(startIso)
-  let endMs = parseIso(endIso)
+  const { startMs, endMs } = normalizeWindow(parseIso(startIso), parseIso(endIso))
 
-  if (startMs === endMs) {
-    startMs = startMs - (startMs % HOUR_MS)
-    endMs = startMs + MINUTE_MS
-  }
   if (startMs >= endMs) {
     throw new Error('The start date must be before the end date.')
   }

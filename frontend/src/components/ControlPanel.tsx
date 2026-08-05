@@ -102,6 +102,12 @@ function blockerText(blocker: AnalyzeBlocker, maxAreaKm2: number, pointsNeeded: 
 // the section heading as every other section's, and the elevation band already
 // used this idiom before the grid existed. A filled cell drops its placeholder,
 // by which point its position has said the same thing four rows running.
+// Why raising this costs nothing: the cap trims what is LISTED, never what is
+// fetched. Every destination in the area is forecast either way, which is also
+// why the table's header can say "N of M" without a second analysis.
+const LIMIT_NOTE =
+  'Only limits how many destinations are added to the results. All destinations are still forecasted.'
+
 const EDGES = [
   ['lower', AGGREGATE.minimum],
   ['upper', AGGREGATE.maximum],
@@ -161,15 +167,6 @@ interface Props {
   // clearing widens rather than narrows, so this can leave the report needing
   // an Analyze — which the commit cue above the button then says.
   onClearFilters: () => void
-  showWildfires: boolean
-  setShowWildfires: (v: boolean) => void
-  // The two overlays #121 adds. Live like the wildfire one: an overlay is a
-  // thing drawn on the map, never an input to the ranking, so none of these
-  // can make a report stale.
-  showRadar: boolean
-  setShowRadar: (v: boolean) => void
-  showSmoke: boolean
-  setShowSmoke: (v: boolean) => void
   // Summits OSM knows only by their height, discovered as `Peak 5961`.
   // A polygon knob rather than a map one, and off by default, because it
   // roughly triples the candidate count.
@@ -311,12 +308,6 @@ export default function ControlPanel({
   constraints,
   setConstraints,
   onClearFilters,
-  showWildfires,
-  setShowWildfires,
-  showRadar,
-  setShowRadar,
-  showSmoke,
-  setShowSmoke,
   includeUnnamedPeaks,
   setIncludeUnnamedPeaks,
   forecastModel,
@@ -439,9 +430,19 @@ export default function ControlPanel({
       constraints[key],
       (v: number | null) => setConstraints({ ...constraints, [key]: v }),
     ] as const
+  // The two rows whose value can genuinely be missing: an OSM feature with no
+  // elevation, and air quality past its ~5-day horizon. Neither absence is
+  // evidence of bad conditions, so neither is filtered out — a fact that used
+  // to be one standing line under the grid and is now carried by the rows it is
+  // actually about, each naming the thing IT can be missing rather than sharing
+  // a sentence generic enough to cover both. Read the tooltip note in
+  // docs/STYLES.md before copying this pattern: an approved exception, not a
+  // new tool.
+
   const filterRows = [
     {
       id: 'elevation',
+      note: 'Destinations with no elevation are included.',
       hint: ['The elevation must be at least this.', 'The elevation must be at most this.'] as const,
       label: 'Elevation (ft)',
       step: 100,
@@ -474,6 +475,7 @@ export default function ControlPanel({
     },
     {
       id: 'air-quality',
+      note: 'Destinations with no air quality forecast are included.',
       hint: ['The worst hour must be at least this.', 'The worst hour must be at most this.'] as const,
       label: metricLabel('aqi'),
       step: 1,
@@ -492,11 +494,7 @@ export default function ControlPanel({
   //
   // "Wildfires" rather than "Show wildfires": under a heading that says these
   // are layers, the verb was the heading's job being done three times.
-  const MAP_LAYERS = [
-    { key: 'fires', label: 'Wildfires', checked: showWildfires, onChange: setShowWildfires },
-    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
-    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
-  ]
+  const peaksOn = destinationTypes.includes('peak')
 
   return (
     <div className="flex flex-col h-full">
@@ -650,6 +648,25 @@ export default function ControlPanel({
                 </label>
               ))}
             </div>
+            {/* Unnamed peaks, beside the types it modifies rather than in a
+                general options drawer three sections away. It is a polygon
+                DISCOVERY knob and does nothing else: it widens what the
+                Overpass query counts as a peak. Dimmed when Peaks is unticked,
+                because then there is no peak search for it to widen — but still
+                operable, so ticking it asks for peaks the way the grid's style
+                segment asks for the grid. */}
+            <label className={`${CHOICE_ROW} mt-1.5 ${peaksOn ? '' : 'opacity-50'}`}>
+              <input
+                type="checkbox"
+                checked={includeUnnamedPeaks}
+                onChange={(e) => {
+                  setIncludeUnnamedPeaks(e.target.checked)
+                  if (e.target.checked && !peaksOn) setDestinationTypes([...destinationTypes, 'peak'])
+                }}
+                className={CHOICE_INPUT}
+              />
+              <span>Include unnamed peaks</span>
+            </label>
           </div>
 
           {/* Coordinates — last because it is the one method with no map
@@ -825,6 +842,41 @@ export default function ControlPanel({
               )
             })}
           </div>
+          {/* How many of that order to show. It lives here rather than under a
+              general "options" heading because it finishes the sentence the
+              radios start: the rows above say WHICH order, and this says how
+              far down it to go — "the 200 lowest by total precipitation" is one
+              thought, not two. It is also not a filter: it trims what is shown
+              and never what is analyzed, so it belongs nowhere near a section
+              made of bounds on measured values. */}
+          {/* The ceiling is the live analysis cap from /api/capabilities. */}
+          <div className="mt-1.5 flex items-center gap-2">
+            <label
+              htmlFor="max-results"
+              className={`${TEXT.control} flex-1`}
+              title={LIMIT_NOTE}
+            >
+              {AGGREGATE.maximum} results
+            </label>
+            {/* The default rides as a placeholder, like the filter boxes below,
+                so changing it is one keystroke rather than a select-and-erase.
+                Empty means the DEFAULT here, not "no cap" as it does for a
+                filter: this knob always has a value, and the row count in the
+                table's header says what it is doing. */}
+            <input
+              id="max-results"
+              type="number"
+              min={1}
+              max={maxLimit}
+              placeholder={String(DEFAULT_LIMIT)}
+              value={limit === DEFAULT_LIMIT ? '' : limit}
+              onChange={(e) =>
+                setLimit(clampLimit(parseInt(e.target.value) || DEFAULT_LIMIT, maxLimit))
+              }
+              title={LIMIT_NOTE}
+              className={`${FIELD_NUMERIC} ${CONTROL_W} px-2 py-1.5 text-center`}
+            />
+          </div>
         </section>
 
         {/* Filters — one grid, two columns of bounds, one row per thing that
@@ -838,13 +890,22 @@ export default function ControlPanel({
           <div className={BOUNDS_GRID}>
             {filterRows.map((row) => (
               <Fragment key={row.id}>
-                <label htmlFor={`${row.id}-lower`} className={TEXT.control}>
+                {/* On the label AND both boxes, so the note is reachable from
+                    anywhere in the row rather than from a third of it.
+                    Tooltips are otherwise not used here and need explicit
+                    approval — see docs/STYLES.md. */}
+                <label
+                  htmlFor={`${row.id}-lower`}
+                  className={TEXT.control}
+                  title={'note' in row ? row.note : undefined}
+                >
                   {row.label}
                 </label>
                 {EDGES.map(([edge, placeholder], i) => (
                   <input
                     key={edge}
                     id={`${row.id}-${edge}`}
+                    title={'note' in row ? row.note : undefined}
                     type="number"
                     step={row.step}
                     placeholder={placeholder}
@@ -859,14 +920,6 @@ export default function ControlPanel({
               </Fragment>
             ))}
           </div>
-          {/* Two values can be missing — an OSM feature with no elevation, and
-              air quality past its ~5-day horizon — and neither absence is
-              evidence of bad conditions, so neither is filtered out. Named
-              generically because naming both took two lines to say what the
-              dash in the table already shows. */}
-          <p className={`${TEXT.helper} mt-2`}>
-            Destinations with unknown values are included.
-          </p>
           {filtersActive && (
             <button onClick={onClearFilters} className={`${BUTTON_SECONDARY} mt-2`}>
               Clear filters
@@ -874,74 +927,6 @@ export default function ControlPanel({
           )}
         </section>
 
-        {/* Options — the knobs that shape a search without being one of its
-            inputs: how many rows to show, whether discovery counts unnamed
-            summits, and the map layers drawn beside the results. */}
-        <section>
-          <h2 className={`${TEXT.section} mb-2.5`}>
-            Options
-          </h2>
-          <div className="space-y-4">
-            {/* Result-count cap. The ceiling is the live analysis cap from
-                /api/capabilities: `limit` trims what is shown, never what is
-                analyzed, so there is no cheaper number to protect. */}
-            <div className="flex items-center gap-2">
-              <label htmlFor="max-results" className={`${TEXT.control} flex-1`}>
-                {AGGREGATE.maximum} results
-              </label>
-              {/* The default rides as a placeholder, like the filter boxes
-                  above, so changing it is one keystroke rather than a select-
-                  and-erase. Empty means the DEFAULT here, not "no cap" as it
-                  does for a filter: this knob always has a value, and the row
-                  count in the table's header says what it is doing. */}
-              <input
-                id="max-results"
-                type="number"
-                min={1}
-                max={maxLimit}
-                placeholder={String(DEFAULT_LIMIT)}
-                value={limit === DEFAULT_LIMIT ? '' : limit}
-                onChange={(e) =>
-                  setLimit(clampLimit(parseInt(e.target.value) || DEFAULT_LIMIT, maxLimit))
-                }
-                className={`${FIELD_NUMERIC} ${CONTROL_W} px-2 py-1.5 text-center`}
-              />
-            </div>
-
-            {/* Unnamed peaks — a polygon-discovery knob; off by default
-                because it roughly triples the candidate count. */}
-            <label className={CHOICE_ROW}>
-              <input
-                type="checkbox"
-                checked={includeUnnamedPeaks}
-                onChange={(e) => setIncludeUnnamedPeaks(e.target.checked)}
-                className={CHOICE_INPUT}
-              />
-              <span>Include unnamed peaks</span>
-            </label>
-
-            {/* Map layers — the optional overlays, under a heading rather
-                than as three loose checkboxes among the other options. Each is
-                off by default and each is live: turning one on never restates
-                the analysis, so none of them touches the commit cue. The
-                heading is what lets a fourth layer be one more row instead of
-                one more sentence (#121). */}
-            <div>
-              <h3 className={`${TEXT.subheading} mb-1.5`}>Map layers</h3>
-              {MAP_LAYERS.map(({ key, label, checked, onChange }) => (
-                <label key={key} className={CHOICE_ROW}>
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={(e) => onChange(e.target.checked)}
-                    className={CHOICE_INPUT}
-                  />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </section>
       </div>
 
       {/* Footer */}

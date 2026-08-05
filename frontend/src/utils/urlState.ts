@@ -6,6 +6,7 @@ import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from
 import { GeoPolygon, DiscoveryType, SortBy } from '../types'
 import { RANKING_KEYS } from '../metrics'
 import { Constraints, NO_CONSTRAINTS, hasConstraints } from './clientAnalyze'
+import { isGridStyle, type GridStyle } from './forecastGrid'
 import {
   DAY_END,
   DAY_START,
@@ -47,12 +48,20 @@ export interface ShareableState {
   constraints: Constraints
   limit: number
   customCsv: string
-  // The three live map overlays. Persisted so a shared link reproduces the
+  // The four live map overlays. Persisted so a shared link reproduces the
   // picture, and deliberately not part of the analysis request: an overlay is
-  // drawn beside the ranking, never fed into it.
+  // drawn beside the ranking, never fed into it. That holds for the forecast
+  // grid too, even though it is the one whose toggle costs upstream calls —
+  // what it spends on is a picture, and the ranking never reads it.
   showWildfires: boolean
   showRadar: boolean
   showSmoke: boolean
+  showGrid: boolean
+  // Which of the grid's two drawings. Rides the SAME param as the toggle
+  // (`grid=blocks`, `grid=smooth`) rather than taking a second one: it is one
+  // control's state, and two params for it would let a link say the layer is
+  // off while still carrying a style for it.
+  gridStyle: GridStyle
   // Searched places pinned to the results table. Persisted so a refreshed or
   // shared link repopulates them (and refetches their forecasts). Only the
   // fields needed to recreate the pin and its identity link are stored.
@@ -242,6 +251,7 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
     state.showWildfires ||
     state.showRadar ||
     state.showSmoke ||
+    state.showGrid ||
     state.selection.kind !== 'now' ||
     state.forecastModel !== defaultForecastModel
   if (!hasPolygon && !hasCustom && !hasConstraint && !hasPins && !nonDefaultControls)
@@ -299,6 +309,11 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
   if (state.showWildfires) p.set('fires', '1')
   if (state.showRadar) p.set('radar', '1')
   if (state.showSmoke) p.set('smoke', '1')
+  // The value names the style rather than being a bare `1`, which keeps the
+  // link hand-editable and self-describing: `grid=smooth` says what it will
+  // draw. One param rather than two, because a layer that is off has no style
+  // to carry and a link should not be able to say otherwise.
+  if (state.showGrid) p.set('grid', state.gridStyle)
   if (state.includeUnnamedPeaks) p.set('unnamed', '1')
   if (hasPins) p.set('pins', encodePins(state.pins))
 
@@ -479,6 +494,11 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   if (params.get('fires') === '1') out.showWildfires = true
   if (params.get('radar') === '1') out.showRadar = true
   if (params.get('smoke') === '1') out.showSmoke = true
+  const grid = params.get('grid')
+  if (grid !== null && isGridStyle(grid)) {
+    out.showGrid = true
+    out.gridStyle = grid
+  }
   if (params.get('unnamed') === '1') out.includeUnnamedPeaks = true
 
   const pins = params.get('pins')

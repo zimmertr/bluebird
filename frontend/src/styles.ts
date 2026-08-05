@@ -425,8 +425,17 @@ export const BUTTON_DANGER =
   `disabled:opacity-40 disabled:cursor-not-allowed ${FOCUS_RING}`
 
 /**
- * A button floating over the map rather than sitting in a panel: today, the
- * one that reopens the collapsed controls.
+ * A button floating over the map rather than sitting in a panel: the one that
+ * reopens the collapsed controls, and the one that opens the map's layers.
+ *
+ * Both wear it, deliberately. They are the app's only two map buttons and they
+ * stack in one column, so a size difference between them reads as a mistake
+ * rather than as a hierarchy — which is exactly how it read when Layers was
+ * given a quieter role of its own. `TEXT.cta` is also the right size for the
+ * job: these sit over a busy map and get pressed outdoors at arm's length,
+ * where the panel's 12px body would be the wrong bet. The search field beside
+ * them stays at its own size because it is a field, and its text is the user's
+ * rather than a label of ours.
  *
  * It is `SURFACE_FLOATING` that has become pressable, so it takes the surface
  * whole and adds only what pressability needs — the accent on hover, and a
@@ -454,6 +463,24 @@ export const BANNER_PREVIEW =
  * slate-500 is 3.1:1 on the panel, which is the floor for an icon rather than
  * the 4.5:1 asked of text — these carry no label and are recognized by shape.
  */
+/**
+ * A legend swatch that carries a letter.
+ *
+ * The smoke overlay's three densities are one hue at three opacities, and the
+ * whole encoding is that opacity — so the three have to be readable AGAINST
+ * each other, which they cannot be stacked one per row. Side by side as
+ * lettered chips they read as the ramp they are, in one row instead of four.
+ *
+ * The letter is dark rather than light because the fill it sits on is pale at
+ * every density; that colour lives here rather than at the call site for the
+ * usual reason, and so does the size, which is one step below the ramp's
+ * smallest on purpose — a chip is 14px square and a 10px glyph does not fit
+ * inside it with its own border.
+ */
+export const SWATCH_CHIP =
+  `inline-flex h-3.5 w-3.5 items-center justify-center ${RADIUS.control} border ` +
+  `text-[9px] font-semibold text-slate-900`
+
 export const ICON_ACTION = `text-slate-500 ${ACCENT.hoverText}`
 
 /** A bare icon button in a header: the chart and table collapse chevrons. */
@@ -508,7 +535,12 @@ export const LAYER = {
   scrim: 'z-30',
   /** The mobile drawer itself. */
   drawer: 'z-40',
-  /** Anything opened from inside the drawer, which must clear it. */
+  /**
+   * Anything opened from inside the drawer, which must clear it: the model
+   * picker's listbox, and the analysis overlay — which is started from the
+   * drawer and now runs while it is still open, so a mobile reader can watch
+   * the progress they would otherwise be waiting on blind.
+   */
   popover: 'z-50',
   /** Modal dialogs, and the shield that swallows pointer events mid-drag. */
   modal: 'z-[60]',

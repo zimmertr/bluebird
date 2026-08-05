@@ -253,11 +253,28 @@ describe('every component', () => {
     expect(source).not.toMatch(/accent-sky-500/)
   })
 
-  // L6: No title= attributes on JSX elements. Knowledge belongs in labels,
-  // captions, empty states, or docs — not in tooltips. Rename any title props
-  // to heading to avoid false positives on document.title assignments.
-  it.each(Object.entries(sources))('%s adds no HTML tooltips', (_path, source) => {
-    expect(source).not.toMatch(/\btitle=/)
+  // L6 used to fail any `title=` outright. Tooltips are now an approved LIST
+  // rather than a ban (TJ, 2026-08-04), so this pins the list instead: adding
+  // one without asking fails here, and so does losing one by accident — which
+  // is how the smoke chips shipped without theirs, an edit that silently did
+  // not apply and was reported as done.
+  //
+  // Read the tooltip section in docs/STYLES.md before changing these numbers.
+  // The count is the point: a tooltip does not exist on touch, so each one is
+  // a decision someone made and can defend, not a habit.
+  const APPROVED_TOOLTIPS: Record<string, number> = {
+    // The Light/Medium/Heavy chips in the map's layer legend.
+    './App.tsx': 1,
+    // Max results (label + field), and the unknown-value note on the
+    // Elevation and AQI filter rows (label + both boxes, one `title` each).
+    './components/ControlPanel.tsx': 4,
+    // What Hourly actually does to a multi-day window (label + segment).
+    './components/ForecastCalendar.tsx': 2,
+  }
+
+  it.each(Object.entries(sources))('%s carries only its approved tooltips', (path, source) => {
+    const found = (source.match(/\btitle=/g) ?? []).length
+    expect(found).toBe(APPROVED_TOOLTIPS[path] ?? 0)
   })
 })
 

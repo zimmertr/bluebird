@@ -58,6 +58,15 @@ import {
   type SmokeProps,
 } from '../utils/smoke'
 import { radarLayerId, radarOffsets, radarTileUrl } from '../utils/radar'
+import {
+  GridCell,
+  GridSpec,
+  GridStyle,
+  gridArrowFeatures,
+  gridImageCoordinates,
+  gridRaster,
+  type GridRaster,
+} from '../utils/forecastGrid'
 
 export interface MapViewHandle {
   framePolygon: () => void
@@ -103,6 +112,16 @@ interface Props {
   // Which radar frame is on screen, as an index into `radarOffsets()`. Driven
   // by the timeline; ignored entirely while the layer is off.
   radarIndex: number
+  // The forecast field's lattice and its sampled cells (#246), or null/empty
+  // while the layer is off. Coloured here rather than upstream, off the same
+  // `sortBy`/`playbackIndex` pair the markers read, so the field and the marker
+  // standing on it can never be showing different hours. `gridCells` grows as
+  // the fetch fills in, so this re-renders several times per analysis.
+  gridSpec: GridSpec | null
+  gridCells: GridCell[]
+  // Which of the two drawings the samples get. A display choice over data
+  // already held, so switching costs one re-render and nothing upstream.
+  gridStyle: GridStyle
   // The forecast hour the markers are colored for, or null to color them by the
   // window aggregate the ranking used. An index into `times`, which is the
   // report's own hourly grid — so a marker under the playhead and the chart's
@@ -194,6 +213,40 @@ const DRAW_COLOR = '#38bdf8'
  * than it appeared at would pulse every time the loop wrapped.
  */
 const RADAR_OPACITY = 0.65
+
+/**
+ * How solid the forecast field is drawn (#246).
+ *
+ * Below the radar's 0.65 because this is the layer most likely to be under
+ * everything else at once — the field is the ground the markers, plumes and
+ * perimeters are read against, and terrain has to survive under it or the map
+ * stops being a map. Far enough above nothing that a whole field of green still
+ * reads as green at a glance.
+ */
+const GRID_OPACITY = 0.5
+
+/**
+ * A 1x1 transparent PNG, which is what the field's image source is built with.
+ *
+ * An image source needs a url and four corners at construction, and neither is
+ * known until a lattice exists. Inline rather than a file so the source can be
+ * declared at map load with the rest of them, in the order that fixes the
+ * layer stack.
+ */
+const BLANK_PIXEL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+
+/**
+ * How a per-cell wind arrow is drawn against the markers' own.
+ *
+ * Smaller and dimmer, because both are on screen at once during a wind scrub
+ * and at equal weight a field of hundreds of cell arrows buries the handful
+ * actually attached to a ranked destination. Two channels rather than one:
+ * measured on a 3 km lattice over Rainier, opacity alone still left the two
+ * kinds of arrow reading as one field.
+ */
+const GRID_ARROW_OPACITY = 0.5
+const GRID_ARROW_SIZE = 0.7
 
 /**
  * How far apart the loop's frames are armed after the layer is switched on.
@@ -674,6 +727,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
       showRadar,
       showSmoke,
       radarIndex,
+      gridSpec,
+      gridCells,
+      gridStyle,
       playbackIndex,
       pending,
       searchedPlaces,
@@ -909,6 +965,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
         new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }),
         'top-right',
       )
+      // Bottom-right, beside the attribution. Bottom-left was tried and is
+      // worse: the attribution's box grows leftward as the map narrows until it
+      // reaches that corner too, so the scale only swapped which licence-term
+      // neighbour it collided with. Where it goes when it cannot fit beside the
+      // timeline is a CSS question, answered in map.css.
       map.addControl(new maplibregl.ScaleControl(), 'bottom-right')
 
       // Keep the canvas in sync with its container. MapLibre only tracks window
@@ -979,6 +1040,83 @@ const MapView = forwardRef<MapViewHandle, Props>(
           onDrawUpdate(ptsRef.current.length, bboxAreaKm2(ptsRef.current))
         }
         restCursor()
+
+        // ── Forecast grid (#246) ───────────────────────────────────────
+        // The lowest overlay of all, because it is the one most likely to have
+        // every other layer sitting on top of it at once: it is the ranked
+        // metric painted as ground, and rain, smoke, fire and the markers are
+        // all things you read against it.
+        //
+        // Added first so the chain comes out grid → radar → smoke → fire →
+        // draw/results: the radar loop inserts itself before the first smoke
+        // fill, which lands it between these layers and that one.
+        //
+        // The arrow image is registered here rather than with the results
+        // layers below, since this is now the first layer to name it. Data
+        // arrives on demand from the grid effect; until then it draws nothing.
+        const arrow = makeArrowImage()
+        if (arrow && !map.hasImage(WIND_ARROW_IMAGE)) map.addImage(WIND_ARROW_IMAGE, arrow)
+        // The field itself is an IMAGE source, one pixel per sample, stretched
+        // over the lattice's outer bounds. The smoothing between samples is
+        // then `raster-resampling: linear` on the GPU, which is both free and
+        // the bilinear the field is entitled to between adjacent model grid
+        // cells. Interpolating in JavaScript instead would mean shipping a
+        // resampler the renderer already contains and re-running it per zoom.
+        //
+        // A placeholder 1x1 transparent pixel until the first chunk lands: an
+        // image source has to be constructed with a url and coordinates, and
+        // the real ones are not known until a lattice exists.
+        map.addSource('forecast-grid', {
+          type: 'image',
+          url: BLANK_PIXEL,
+          coordinates: [
+            [-180, 85],
+            [180, 85],
+            [180, -85],
+            [-180, -85],
+          ],
+        })
+        // One layer for both styles. Blocks and smooth are the same image
+        // magnified with different filters — `nearest` draws one hard square
+        // per sample, `linear` blends between them — so the whole style switch
+        // is a paint property. There is no second layer to keep in step and no
+        // stacking order to re-establish on a change.
+        map.addLayer({
+          id: 'forecast-grid-fill',
+          type: 'raster',
+          source: 'forecast-grid',
+          paint: {
+            'raster-opacity': GRID_OPACITY,
+            'raster-resampling': 'nearest',
+            // Zero for the reason the radar loop learned the hard way: a scrub
+            // replaces the image every frame, and the library's own cross-fade
+            // would leave two hours of the forecast half-drawn on top of each
+            // other for the length of it.
+            'raster-fade-duration': 0,
+          },
+        })
+        // Arrows ride their own point source, because MapLibre has no way to
+        // place a symbol per texel of a raster.
+        map.addSource('forecast-grid-arrows', {
+          type: 'geojson',
+          data: emptyFC as FeatureCollection,
+        })
+        map.addLayer({
+          id: 'forecast-grid-wind',
+          type: 'symbol',
+          source: 'forecast-grid-arrows',
+          filter: ['has', 'bearing'],
+          layout: {
+            'icon-image': WIND_ARROW_IMAGE,
+            'icon-rotate': ['get', 'bearing'],
+            'icon-size': GRID_ARROW_SIZE,
+            'icon-rotation-alignment': 'map',
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
+            visibility: 'none',
+          },
+          paint: { 'icon-opacity': GRID_ARROW_OPACITY },
+        })
 
         // ── Smoke overlay (NOAA HMS) ───────────────────────────────────
         // First of the three overlays, so it sits under the fire perimeters
@@ -1207,9 +1345,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // and the arrow can never be pointing at an hour the colour is not.
         // `filter: ['has','bearing']` is what makes a row with no direction —
         // the SSE fallback never fetches it — draw nothing rather than draw
-        // north.
-        const arrow = makeArrowImage()
-        if (arrow && !map.hasImage(WIND_ARROW_IMAGE)) map.addImage(WIND_ARROW_IMAGE, arrow)
+        // north. (The icon itself is registered with the forecast-grid layers
+        // above, which are now the first to name it.)
         map.addLayer({
           id: 'results-wind',
           type: 'symbol',
@@ -1717,14 +1854,51 @@ const MapView = forwardRef<MapViewHandle, Props>(
       updateResults(mapRef.current, results, sortBy, playbackIndex)
     }, [results, sortBy, playbackIndex])
 
+    // The forecast field, on the same contract as the markers above: one
+    // re-render per scrub tick, recoloured from series the browser already
+    // holds and costing nothing upstream. What gets re-encoded is a ~25x24
+    // image, so this is cheaper than the marker path it sits beside — the
+    // expensive-looking part, magnifying it across the viewport, is the GPU's.
+    useEffect(() => {
+      const map = mapRef.current
+      if (!map || !mapReady) return
+      map.setPaintProperty(
+        'forecast-grid-fill',
+        'raster-resampling',
+        gridStyle === 'smooth' ? 'linear' : 'nearest',
+      )
+      const source = map.getSource('forecast-grid') as maplibregl.ImageSource | undefined
+      if (!source) return
+      const raster = gridSpec && gridRaster(gridSpec, gridCells, sortBy, playbackIndex, gridStyle)
+      if (!gridSpec || !raster) {
+        source.updateImage({ url: BLANK_PIXEL })
+        return
+      }
+      const url = rasterDataUrl(raster)
+      if (url) source.updateImage({ url, coordinates: gridImageCoordinates(gridSpec) })
+    }, [gridSpec, gridCells, gridStyle, sortBy, playbackIndex, mapReady])
+
+    // The arrows, on their own point source for the reason given where it is
+    // declared. Empty at rest, which is what `gridArrowFeatures` returns when
+    // there is no hour under the playhead to have a direction.
+    useEffect(() => {
+      const map = mapRef.current
+      if (!map || !mapReady) return
+      setSource(map, 'forecast-grid-arrows', gridArrowFeatures(gridCells, playbackIndex))
+    }, [gridCells, playbackIndex, mapReady])
+
     // Arrows exist only where they mean something: a wind ranking, being
     // scrubbed. On any other metric they would be a second variable nobody
-    // asked about, drawn over the one they did.
+    // asked about, drawn over the one they did. Both arrow layers answer to
+    // this one condition, so the cells and the markers can never disagree
+    // about whether wind has a direction worth drawing.
     useEffect(() => {
       const map = mapRef.current
       if (!map || !mapReady) return
       const showing = playbackIndex !== null && sortBy === 'wind_avg_mph'
-      map.setLayoutProperty('results-wind', 'visibility', showing ? 'visible' : 'none')
+      for (const id of ['results-wind', 'forecast-grid-wind']) {
+        map.setLayoutProperty(id, 'visibility', showing ? 'visible' : 'none')
+      }
     }, [playbackIndex, sortBy, mapReady])
 
     // Keep the ref current so the once-registered marker-click popup reads live
@@ -2023,6 +2197,26 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
 MapView.displayName = 'MapView'
 export default MapView
+
+// The raster as something an image source will take. A canvas is the only way
+// to get pixels into a data URL, which is why this lives here rather than in
+// forecastGrid.ts: everything up to the buffer is pure and tested, and this is
+// the DOM the last step needs. Returns null where there is no canvas at all
+// (jsdom-less test environments), which simply leaves the field undrawn.
+function rasterDataUrl(raster: GridRaster): string | null {
+  const canvas = document.createElement('canvas')
+  canvas.width = raster.width
+  canvas.height = raster.height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  // Copied into the canvas's own ImageData rather than constructing one around
+  // the buffer: TS types `ImageData`'s constructor against a plain ArrayBuffer,
+  // and a Uint8ClampedArray is not narrowed to one. The copy is 600 pixels.
+  const image = ctx.createImageData(raster.width, raster.height)
+  image.data.set(raster.rgba)
+  ctx.putImageData(image, 0, 0)
+  return canvas.toDataURL('image/png')
+}
 
 function updateResults(
   map: maplibregl.Map,

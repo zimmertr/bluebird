@@ -120,6 +120,7 @@ you claim to be.
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) (wildfire overlay and proximity warnings) | backend (`nifc.py`), 2 queries per refresh (full-resolution and simplified copies of the whole country), on demand and never when idle | cluster egress IP | per-minute request-unit quota belonging to **NIFC's** ArcGIS organization, shared with every other consumer of the public dataset | `WILDFIRE_CACHE_TTL_S=600` per pod, one refresh at a time, refreshed behind the request rather than in front of it, last good snapshot served on failure, `WILDFIRE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client wildfires bucket |
 | [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) (smoke overlay) | backend (`hms.py`), 1 file per refresh (the whole day's national analysis), on demand and never when idle | cluster egress IP | none published; a static file server with no quota to exhaust | `SMOKE_CACHE_TTL_S=1800` per pod, one refresh at a time, refreshed behind the request, last good snapshot served on failure, `SMOKE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client smoke bucket |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) (rain radar overlay) | **browser**, raster tiles per visible frame | visitor IP | none published; IEM asks that applications with thousands of simultaneous users self-host | off by default, one frame's tiles on toggle and the rest only as the loop reaches them, plus IEM's own `max-age=300` edge cache |
+| Open-Meteo forecast + air quality (forecast grid overlay) | **browser** (`useForecastGrid.ts`), 1 lattice of ≤ 600 points per analysis while the layer is on, weather and AQI concurrently | visitor IP | same weighted accounting as the rows above, on the same per-visitor quota | off by default, and the toggle is the spend gate: nothing is fetched until it is on with an analysis held. Sequenced behind the ranked report by construction, so it can never delay a ranking; capped at 600 cells by coarsening the lattice; shares the ranked fetch's ~550 weighted/min pacer and its 15-min per-location cache, so a re-toggle or a second analysis over the same ground costs ~0 |
 
 Everything the browser fetches itself costs our egress IP nothing — that is
 [#170](https://github.com/zimmertr/bluebird/issues/170): the web app calls
@@ -194,7 +195,16 @@ costs ~0. For a browser analysis all of that lands on the visitor's own IP
 and the server pays 1 Overpass query (or 0, within the 10-minute discovery
 cache); the full spend lands on the cluster egress IP only for direct API
 callers and the browser's unreachable-fallback, where the per-pod weighted
-budgets (550/min per service, the full safe rate on every pod) pace it. The
+budgets (550/min per service, the full safe rate on every pod) pace it.
+
+The forecast grid overlay adds at most one more fan-out to that, on the
+visitor's own IP and only while the layer is on: 600 cells over the full
+16-day window is ~686 weighted calls per service, which the same pacer
+spreads over roughly a further minute *after* the ranking has landed. It is
+never on the critical path — the fetch starts when the report commits — so
+the worst case above is unchanged for the numbers a user is waiting on.
+The overlay is unavailable on the server fallback path, so it never lands on
+the cluster egress IP at all. The
 per-client buckets bound one address to 12 analyses + 30 discoveries per
 minute per pod; the in-flight caps (4+4+2-per-mirror) bound burst
 concurrency. Multiply by replicas for the cluster ceiling — and note that

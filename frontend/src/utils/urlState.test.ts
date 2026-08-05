@@ -60,6 +60,8 @@ const base: ShareableState = {
   showWildfires: false,
   showRadar: false,
   showSmoke: false,
+  showGrid: false,
+  gridStyle: 'blocks' as const,
   includeUnnamedPeaks: false,
   pins: [],
 }
@@ -84,6 +86,8 @@ const pristine: ShareableState = {
   showWildfires: false,
   showRadar: false,
   showSmoke: false,
+  showGrid: false,
+  gridStyle: 'blocks' as const,
   includeUnnamedPeaks: false,
   pins: [],
 }
@@ -144,8 +148,8 @@ describe('encodeState / decodeState round-trip', () => {
     expect(roundTrip(base)!.showWildfires).toBeUndefined()
   })
 
-  it('round-trips the radar and smoke overlays independently', () => {
-    // Three layers, three params, and none of them implies another: a link
+  it('round-trips the radar, smoke and grid overlays independently', () => {
+    // Four layers, four params, and none of them implies another: a link
     // sharing a smoke picture must not switch radar on as a side effect.
     const both = roundTrip({ ...base, showRadar: true, showSmoke: true })
     expect(both!.showRadar).toBe(true)
@@ -153,10 +157,38 @@ describe('encodeState / decodeState round-trip', () => {
     const radarOnly = roundTrip({ ...base, showRadar: true })
     expect(radarOnly!.showRadar).toBe(true)
     expect(radarOnly!.showSmoke).toBeUndefined()
-    // Off is the default for all three and stays out of the URL entirely.
+    expect(radarOnly!.showGrid).toBeUndefined()
+    const gridOnly = roundTrip({ ...base, showGrid: true })
+    expect(gridOnly!.showGrid).toBe(true)
+    expect(gridOnly!.showRadar).toBeUndefined()
+    // Off is the default for all four and stays out of the URL entirely.
     const clean = encodeState(base, DEFAULT_MODEL)
     expect(clean).not.toContain('radar')
     expect(clean).not.toContain('smoke')
+    expect(clean).not.toContain('grid')
+  })
+
+  it('carries the grid style in the same param as the toggle', () => {
+    // One control, one param. Two would let a link say the layer is off while
+    // still carrying a style for it, which is a state the panel cannot be in.
+    expect(encodeState({ ...base, showGrid: true, gridStyle: 'smooth' }, DEFAULT_MODEL)).toContain(
+      'grid=smooth',
+    )
+    expect(roundTrip({ ...base, showGrid: true, gridStyle: 'smooth' })!.gridStyle).toBe('smooth')
+    expect(roundTrip({ ...base, showGrid: true, gridStyle: 'blocks' })!.gridStyle).toBe('blocks')
+    // A style with the layer off writes nothing at all: there is no drawing to
+    // describe, and a link should not reopen with a picker set for a layer the
+    // reader has to switch on first.
+    expect(encodeState({ ...base, gridStyle: 'smooth' }, DEFAULT_MODEL)).not.toContain('grid')
+  })
+
+  it('names the style in the param, and accepts nothing else', () => {
+    expect(decodeState('?grid=blocks')).toEqual({ showGrid: true, gridStyle: 'blocks' })
+    // An unrecognised value is no grid at all rather than a silent default: the
+    // param carries the whole of the control's state, so a value it cannot read
+    // is a link it cannot honour.
+    expect(decodeState('?grid=fancy')).toBeNull()
+    expect(decodeState('?grid=1')).toBeNull()
   })
 
   it('gives an overlay-only session a URL of its own', () => {
@@ -164,13 +196,22 @@ describe('encodeState / decodeState round-trip', () => {
     // pristine session that has only switched a layer on still deserves a link.
     expect(encodeState({ ...pristine, showSmoke: true }, DEFAULT_MODEL)).toContain('smoke=1')
     expect(encodeState({ ...pristine, showRadar: true }, DEFAULT_MODEL)).toContain('radar=1')
+    // The grid needs an analysis before it draws anything, so a grid-only link
+    // reopens on an empty map with the layer armed — which is still the state
+    // that was shared, and dropping it would lose the one thing it said.
+    expect(encodeState({ ...pristine, showGrid: true }, DEFAULT_MODEL)).toContain('grid=blocks')
   })
 
   it('keeps every overlay param hand-editable', () => {
     // Same convention as `fires`: a flag anyone can flip in the address bar,
     // never an opaque blob (#210).
-    expect(decodeState('?radar=1&smoke=1')).toEqual({ showRadar: true, showSmoke: true })
-    expect(decodeState('?radar=0&smoke=yes')).toBeNull()
+    expect(decodeState('?radar=1&smoke=1&grid=smooth')).toEqual({
+      showRadar: true,
+      showSmoke: true,
+      showGrid: true,
+      gridStyle: 'smooth',
+    })
+    expect(decodeState('?radar=0&smoke=yes&grid=on')).toBeNull()
   })
 
   it('restores a CSV-only analysis without a polygon', () => {

@@ -228,9 +228,27 @@ The bounds grid (two bounds boxes + label) derives from this: two boxes at 4.25r
 
 ## Copy rules
 
-### Never add tooltips
+### Tooltips need permission
 
-Knowledge belongs in labels, captions, empty states, or docs. A `title=` attribute on any control is a lint failure (`styles.test.ts` L6).
+Knowledge belongs in labels, captions, empty states, or docs. A tooltip is the
+last resort, and adding one is **not a call a contributor makes alone** — ask
+the maintainer first. Recommending one is welcome; adding one unasked is not.
+
+This was an absolute ban until 2026-08-04, enforced by a lint. The ban is now a
+policy instead, because the lint could not tell an approved exception from a
+lazy one and would have had to be deleted to ship the first approved exception,
+which teaches people to delete lints.
+
+What has not changed is *why* the rule exists. **A tooltip does not exist on
+touch.** A phone has no hover, so anything a tooltip carries is simply gone for
+those readers. That is a real cost every time, and it is why the answer is
+usually to shorten the label, fix the control, or delete the sentence instead.
+
+The one in the tree today: the filter grid's *"Destinations with unknown values
+are included."* rides as a `title` on the Elevation and AQI rows — the two whose
+value can genuinely be missing — rather than as a standing line under the grid.
+That bought back the line of height that made the panel scroll, and the fact
+stays discoverable in the table (a dash) and in `docs/DATA.md`.
 
 ### Sentence case
 

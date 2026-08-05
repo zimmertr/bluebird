@@ -8,10 +8,17 @@ import { familyOf } from '../metrics'
 // scrubbing playback past that horizon hits the same gap an hour at a time.
 // Both get the neutral gray rather than a metric color, so "no answer" never
 // looks like a good one.
-const NO_VALUE = '#64748b'
+//
+// Exported so the forecast grid can recognise it: a cell has no such duty to
+// stay on screen, and drops out entirely rather than painting a grey block over
+// terrain it knows nothing about (#246).
+export const NO_VALUE = '#64748b'
 
 /**
  * A marker's fill: the ranked window value, or one hour of it during playback.
+ *
+ * Shared with the forecast grid (#246), which is the whole of why the cells
+ * under the markers and the markers themselves cannot be scored differently.
  *
  * The two read different scales, and must. A ranking bins a window — a total
  * for precipitation, an average for the rest — while a playback tick is one
@@ -19,7 +26,11 @@ const NO_VALUE = '#64748b'
  * `hourlyScale`). `valueAt` is the chart's own reader, so the hour a marker is
  * colored for is the hour the chart draws at the same playhead.
  */
-function fillColor(row: DestinationResult, sortBy: SortBy, hourIndex: number | null): string {
+export function fillColor(
+  row: DestinationResult,
+  sortBy: SortBy,
+  hourIndex: number | null,
+): string {
   if (hourIndex !== null) {
     const value = valueAt(row, familyOf(sortBy), hourIndex)
     return value == null ? NO_VALUE : colorOnScale(value, hourlyScale(sortBy))
@@ -38,8 +49,11 @@ function fillColor(row: DestinationResult, sortBy: SortBy, hourIndex: number | n
  * SSE fallback, which never fetched direction, or a gap in the series. The
  * arrow layer filters on the property's presence, so an absent key is what
  * draws nothing; a 0 would draw a confident arrow pointing north.
+ *
+ * Shared with the forecast grid's per-cell arrows (#246), so both layers get
+ * the half turn and the omission from one place.
  */
-function bearingAt(row: DestinationResult, hourIndex: number): { bearing?: number } {
+export function bearingAt(row: DestinationResult, hourIndex: number): { bearing?: number } {
   const from = row.series?.wind_dir_deg?.[hourIndex]
   if (from == null || !Number.isFinite(from)) return {}
   return { bearing: (from + 180) % 360 }
