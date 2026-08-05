@@ -308,40 +308,51 @@ as how much water is landing on a summit.
 ## The forecast grid
 
 The forecast grid overlay paints the ranked metric across the area an analysis
-covered, as squares. It is the same Open-Meteo data as the results table, asked
-for on a lattice of points instead of at destinations, and it is worth being
-precise about what a square is and is not.
+covered, as a continuous field. It is the same Open-Meteo data as the results
+table, asked for on a lattice of points instead of at destinations, and it is
+worth being precise about what it is and is not.
 
-**A square is one forecast, not an interpolation.** Bluebird asks the model for
-a point, and paints the square around that point in the colour of the answer.
-Nothing is blended between squares, nothing is smoothed at their edges, and the
-value in one square says nothing about the ground in the next. An earlier design
-would have drawn a smooth field, and it was rejected: interpolating temperature
-between two summits across the valley between them invents numbers, in exactly
-the terrain this app exists to serve. Drawing squares is what keeps the picture
-to what was actually asked and answered.
+**The field is drawn between model grid points, not between destinations.**
+That distinction is the whole of why this overlay exists at all. Bluebird
+refused a forecast raster once, on the grounds that blending temperature
+between two summits across the valley between them invents numbers in exactly
+the terrain this app serves. That objection was right about interpolating
+between *destinations* and does not apply here. Open-Meteo answers a coordinate
+with the value of the model grid cell containing it, so sampling at the model's
+own spacing means neighbouring samples are neighbouring grid cells, and the
+field drawn between them is one the model already treats as continuous. Every
+meteorological renderer draws it that way.
 
-**The square size is the claim.** The legend states it — `3 km grid`,
-`13 km grid` — because a 13 km square asserts one set of conditions over 13 km of
-ground. The size comes from the finest grid the chosen model publishes, which is
-the pitch at which asking twice can give two different answers. Over a large
-area the squares are made coarser, so that a grid stays a few hundred requests
-rather than tens of thousands; the legend always states the size actually drawn
-rather than the model's headline figure.
+**The sample spacing is the claim, and the legend states it.** `3 km grid`,
+`13 km grid`. That number is the distance over which the picture is a drawing
+rather than a measurement: within it you are looking at one forecast, and
+between two of them you are looking at a blend. It comes from the finest grid
+the chosen model publishes, which is the spacing at which asking twice can give
+two different answers. Over a large area the samples are spread further apart
+so a grid stays a few hundred requests rather than tens of thousands, and the
+legend always states the spacing actually used rather than the model's headline
+figure.
 
 **A model's finest grid is not its resolution everywhere.** The seamless models
 blend a fine regional grid into a coarse global one, so NOAA GFS is a 3 km model
 over North America and a 13 km one over Nepal. Bluebird samples at the finest
-figure the model publishes, which means that outside the fine region the squares
-are smaller than anything the model can distinguish, and neighbouring squares
-will simply agree with each other. Uniform colour across a grid is the honest
-picture of that: it is what "the model has one answer for this whole area" looks
-like. The same goes for AQI, which comes from CAMS at a much coarser grid than
-any of the weather models — an AQI grid is usually flat, and that is the data.
+figure the model publishes, which means that outside the fine region several
+samples can land in one real grid cell and simply agree with each other. A flat
+field is the honest picture of that: it is what "the model has one answer for
+this whole area" looks like. The same goes for AQI, which comes from CAMS at a
+much coarser grid than any of the weather models, so an AQI field is usually
+smooth and featureless, and that is the data rather than a rendering artifact.
 
-**A square can disagree with the marker standing on it.** One 3 km box holds a
-summit and the valley floor below it, and the model answers for the box, not for
-either. The destination's own row is a forecast for its own coordinates; the
-square is a forecast for a point somewhere near it. Where the two differ, what
-you are seeing is the resolution limit of the model itself, which is the most
-useful thing a grid can show you about a forecast.
+**The field can disagree with a marker standing on it.** One 3 km grid cell
+holds a summit and the valley floor below it, and the model answers for the
+cell, not for either. The destination's own row is a forecast for its own
+coordinates; the field under it is a forecast for a nearby grid point, blended
+with its neighbours. Where the two differ, what you are seeing is the resolution
+limit of the model itself, which is the most useful thing a field can show you
+about a forecast.
+
+**It covers where the analysis looked, not the whole map.** The lattice spans
+the destinations an analysis found, plus a margin, and it fades out at that
+edge rather than stopping at a hard line. Panning away from your search area
+does not extend it, because every sample is a live request against a free
+service on your own quota rather than a pre-rendered tile.

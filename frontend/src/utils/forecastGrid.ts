@@ -1,18 +1,23 @@
-// The forecast grid: the ranked metric painted as model-resolution cells
-// beneath the markers (#246).
+// The forecast grid: the ranked metric as a continuous field under the markers
+// (#246).
 //
-// #121 rejected a forecast-derived raster because interpolating temperature
-// between two summits across a valley fabricates data in exactly the terrain
-// this app serves. The grid keeps that rejection and changes the drawing, not
-// the data: every cell is one real Open-Meteo answer at one real coordinate,
-// drawn as a square at the pitch it was sampled on, with nothing smoothed
-// between cells. A 13 km cell looks like a 13 km claim, and the legend states
-// the pitch so the claim is legible rather than implied.
+// #121 rejected a forecast-derived raster, and the rejection was right about
+// what it was aimed at: interpolating between two SUMMITS across the valley
+// between them invents weather in exactly the terrain this app serves. Drawing
+// a field between MODEL GRID POINTS is a different act. Open-Meteo answers a
+// coordinate with the value of the model grid cell containing it, so sampling
+// at the model's own pitch means adjacent samples are adjacent grid cells, and
+// the field between them is one the model already claims is smooth. Every
+// meteorological renderer draws it that way, Windy included. Hard-edged squares
+// asserted a discontinuity the model does not have.
 //
-// Everything here is pure. The fetching lives in `hooks/useForecastGrid.ts` and
-// the drawing in `MapView.tsx`, for the reason `ForecastCalendar` splits the
-// same way: Vitest has no DOM, so logic left in a component is untestable by
-// construction.
+// So the honesty rule moved rather than lapsed, and it is now carried by the
+// pitch: the legend states the sample spacing, because that is the distance
+// over which the picture is a drawing rather than a measurement.
+//
+// Everything here is pure, including the raster, which is built as a pixel
+// buffer rather than a canvas so Vitest can assert on it without a DOM. The
+// fetching lives in `hooks/useForecastGrid.ts` and the drawing in `MapView`.
 
 import type { FeatureCollection } from 'geojson'
 import { DestinationResult, DiscoveredDestination, SortBy } from '../types'
@@ -27,30 +32,38 @@ export type CellBox = [number, number, number, number]
 /**
  * A lattice of sample points and the squares they stand for.
  *
- * `points` and `cells` are parallel: `cells[i]` is the box centred on
- * `points[i]`. `pitchKm` is the pitch the lattice was actually built at, which
- * is the model's own unless the cap coarsened it — and it is returned rather
- * than assumed because the legend prints it. A grid that quietly drew 13 km
- * cells while the panel said 3 km would be the one failure this whole feature
- * exists to avoid.
+ * `points` and `cells` are parallel and laid out row-major from the SOUTH-WEST
+ * corner, which `cols`/`rows` is what makes readable: sample `i` sits at row
+ * `i / cols`, column `i % cols`. The raster needs that shape, and deriving it
+ * back out of the coordinates would be a second answer to a question the
+ * lattice already knows.
+ *
+ * `pitchKm` is the pitch the lattice was actually built at, which is the
+ * model's own unless the cap coarsened it. It is returned rather than assumed
+ * because the legend prints it: a field drawn at 13 km while the panel says
+ * 3 km is the one failure this whole feature exists to avoid.
  */
 export interface GridSpec {
   points: Coordinate[]
   cells: CellBox[]
+  cols: number
+  rows: number
   pitchKm: number
 }
 
-/** One sampled cell: its square, and the forecast that square carries. */
+/** One sampled cell: where it sits in the lattice, its square, and its forecast. */
 export interface GridCell {
+  /** Row-major index into `spec.points`. What places it in the raster. */
+  index: number
   box: CellBox
   row: DestinationResult
 }
 
 /**
- * How many cells one grid may cost.
+ * How many samples one grid may cost.
  *
  * Open-Meteo bills weighted calls per location, so this is the whole spend
- * ceiling: 600 cells over a 16-day window is ~686 weighted calls against the
+ * ceiling: 600 samples over a 16-day window is ~686 weighted calls against the
  * visitor's own budget, which the client pacer spreads rather than refuses.
  * Below the cap the pitch is the model's; above it the pitch coarsens, and the
  * legend says so.
@@ -61,21 +74,21 @@ export const MAX_GRID_CELLS = 600
  * The pitch to fall back on when `/api/capabilities` sent no grid figure for a
  * model (`finestGridKm` is documented as 0 in that case).
  *
- * GFS's global grid, which is the coarsest thing any model here degrades to, so
- * an unknown model is sampled conservatively rather than at a fineness nothing
- * has claimed.
+ * GFS's global grid, the coarsest thing any model here degrades to, so an
+ * unknown model is sampled conservatively rather than at a fineness nothing has
+ * claimed.
  */
 export const FALLBACK_PITCH_KM = 13
 
 // One degree of latitude, in km. Longitude shrinks by cos(lat), which is what
-// keeps a cell roughly square on the ground rather than square in degrees.
+// keeps a sample spacing roughly square on the ground rather than in degrees.
 const KM_PER_DEG = 111.32
 
 /**
  * The pitch as the legend says it.
  *
  * Whole km past 10, one decimal below it: the finest model here is GEM at
- * 2.5 km, and rounding that to "3 km" would misstate a number the user can
+ * 2.5 km, and rounding that to "3 km" would misstate a number the reader can
  * check against the model picker's own summary.
  */
 export function pitchLabel(pitchKm: number): string {
@@ -90,17 +103,17 @@ export function pitchLabel(pitchKm: number): string {
  * The bbox comes from the field's own coordinates rather than from the drawn
  * ring, so a custom-only analysis (which has no ring) grids identically to a
  * polygon one and nothing new has to be pinned in the `analyzed` snapshot. The
- * cost is that cells hug where destinations were *found*: a polygon corner
+ * cost is that samples hug where destinations were *found*: a polygon corner
  * holding no candidates gets none.
  *
- * Padded by one pitch on every side so the outermost destinations sit inside a
- * cell rather than on its edge.
+ * Padded by one pitch on every side. That ring is what the raster fades out
+ * through, so the field has a soft edge rather than a hard rectangle, and it
+ * is the right ring to spend on it: it sits outside the destinations entirely.
  *
  * Returns `null` when there is nothing to grid, or when the field straddles the
- * antimeridian — a west/east bbox is genuinely ill-defined there, which is the
- * same geometry the national fire snapshot sidesteps by never taking a bbox at
- * all. Drawing the long way round would paint the other 340 degrees of the
- * planet.
+ * antimeridian — a west/east bbox is genuinely ill-defined there, the same
+ * geometry the national fire snapshot sidesteps by never taking a bbox at all.
+ * Drawing the long way round would paint the other 340 degrees of the planet.
  */
 export function buildGrid(
   field: readonly { latitude: number; longitude: number }[],
@@ -125,14 +138,14 @@ export function buildGrid(
   const midLat = (south + north) / 2
   // Guard the pole: cos(89.99°) is small enough that a longitude step blows up
   // to hundreds of degrees. Nothing this app ranks is up there, but a lattice
-  // that divides by ~0 would produce one absurd cell rather than no grid.
+  // that divided by ~0 would produce one absurd cell rather than no grid.
   const cosLat = Math.max(Math.cos((midLat * Math.PI) / 180), 0.01)
 
   // Coarsen until it fits. One scaled rebuild is not enough: cell counts come
-  // out of `Math.ceil`, so a bbox 25.1 cells wide still needs 26 columns after
-  // a 2% coarsening and the pass changes nothing. Each round therefore grows
-  // the pitch by at least 5%, which converges in a handful of passes from any
-  // starting point and cannot loop.
+  // out of `Math.ceil`, so a lattice 25 samples over the cap still needs the
+  // same column count after a 2% coarsening and the pass changes nothing. Each
+  // round therefore grows the pitch by at least 5%, which converges in a
+  // handful of passes from any starting point and cannot loop.
   let effective = pitch
   for (let guard = 0; guard < 64; guard++) {
     const spec = lattice(west, south, east, north, effective, cosLat)
@@ -167,50 +180,78 @@ function lattice(
       points.push({ latitude: cs + latStep / 2, longitude: cw + lonStep / 2 })
     }
   }
-  return { points, cells, pitchKm }
+  return { points, cells, cols, rows, pitchKm }
 }
 
 /**
- * The lattice's fetched forecasts, paired back to their squares.
+ * The lattice's outer bounds, as MapLibre wants an image's corners: top-left
+ * first, then clockwise.
  *
- * `wxList`/`aqiList` are positional against `spec.points`, which is why the
- * pairing happens here rather than through `assemble` over the whole list:
- * that helper drops rows whose weather came back null, and a dropped row would
- * slide every later cell onto the wrong square. A cell with no forecast is
- * simply absent from the result, which is also what "nulls draw nothing"
- * wants — an unanswered cell leaves the basemap showing rather than painting a
- * grey block over it.
+ * These are the OUTER edges rather than the corner samples' coordinates, and
+ * that is what puts the raster in register. An image of `cols × rows` pixels
+ * stretched across this box places pixel `i`'s centre at
+ * `west + (i + 0.5) × lonStep`, which is exactly sample `i`'s coordinate. Map
+ * it to the corner samples instead and every pixel lands half a cell off.
+ */
+export function gridImageCoordinates(
+  spec: GridSpec,
+): [[number, number], [number, number], [number, number], [number, number]] {
+  const [w, s] = spec.cells[0]
+  const [, , e, n] = spec.cells[spec.cells.length - 1]
+  return [
+    [w, n],
+    [e, n],
+    [e, s],
+    [w, s],
+  ]
+}
+
+/**
+ * The lattice's fetched forecasts, paired back to their samples.
  *
- * `times` is the report's own hourly grid. Each cell's series is re-indexed
- * onto it by timestamp, so the hour under the playhead is the same hour for a
- * cell as for the marker sitting on top of it. In practice the two grids are
- * identical — same window, same model — and the alignment is the guarantee
- * rather than the mechanism.
+ * `wxList`/`aqiList` are positional against `indices`, not against the whole
+ * lattice, so a caller can pair one chunk at a time and paint what it has —
+ * which is what makes the grid fill in progressively rather than appearing all
+ * at once at the end.
+ *
+ * The pairing happens here rather than through `assemble` over the whole list
+ * because that helper drops rows whose weather came back null, and a dropped
+ * row would slide every later sample onto the wrong lattice position. A sample
+ * with no forecast is simply absent, which is also what "nulls draw nothing"
+ * wants: the raster leaves it transparent rather than asserting a colour.
+ *
+ * `times` is the report's own hourly grid. Each sample's series is re-indexed
+ * onto it by timestamp, so the hour under the playhead is the same hour for the
+ * field as for the marker standing on it. In practice the two grids are
+ * identical — one window, one model — and the alignment is the guarantee rather
+ * than the mechanism.
  */
 export function pairCells(
   spec: GridSpec,
+  indices: readonly number[],
   wxList: readonly WeatherResult[],
   aqiList: readonly AqiResult[],
   times: readonly number[],
 ): GridCell[] {
   const cells: GridCell[] = []
-  for (let i = 0; i < spec.points.length; i++) {
+  for (let i = 0; i < indices.length; i++) {
     const wx = wxList[i]
     if (!wx) continue
-    const built = assemble([cellDestination(spec.points[i])], [wx], [aqiList[i] ?? null])
+    const index = indices[i]
+    const built = assemble([cellDestination(spec.points[index])], [wx], [aqiList[i] ?? null])
     const row = built.results[0]
     if (!row) continue
-    cells.push({ box: spec.cells[i], row: onGrid(row, built.times, times) })
+    cells.push({ index, box: spec.cells[index], row: onGrid(row, built.times, times) })
   }
   return cells
 }
 
 // A sample point in the shape `assemble` zips against. The name is never
-// rendered — cells carry no label and no popup — but it is what the row would
-// say it is if one ever leaked into a table, so it says the true thing.
+// rendered — the field carries no label and no popup — but it is what the row
+// would say it is if one ever leaked into a table, so it says the true thing.
 function cellDestination(point: Coordinate): DiscoveredDestination {
   return {
-    name: 'Forecast grid cell',
+    name: 'Forecast grid sample',
     type: 'grid',
     latitude: point.latitude,
     longitude: point.longitude,
@@ -233,50 +274,150 @@ function onGrid(
   return next
 }
 
+/** A raster ready to be handed to an image source: RGBA, row 0 at the north. */
+export interface GridRaster {
+  width: number
+  height: number
+  rgba: Uint8ClampedArray
+}
+
 /**
- * The cells as GeoJSON, colored for one hour or for the window aggregate.
+ * The field as one pixel per sample.
  *
- * Reads `fillColor` and `bearingAt` — the markers' own derivations — rather
- * than mirroring them, so a cell and the marker standing on it are scored on
- * byte-identical scales and a wind arrow flips FROM-to-toward the same way in
- * both places. A cell whose metric has no value carries no `color` and is
- * filtered out by the layer: an unanswered hour leaves the map showing rather
- * than asserting a neutral grey.
+ * Deliberately tiny — a 600-sample lattice is a ~25×24 image — because the
+ * smoothing is the raster layer's job. `raster-resampling: linear` magnifies it
+ * on the GPU, which is both free and the same bilinear the field is entitled
+ * to between adjacent model grid cells. Interpolating here instead would mean
+ * writing (and testing) a resampler that the renderer already contains, and
+ * re-running it at every zoom level.
+ *
+ * Two passes rather than one. The first writes the colours it has. The second
+ * spreads colour (not opacity) outward into the samples that have none, because
+ * a transparent pixel still carries an RGB value into a bilinear blend: leave
+ * it black and every gap grows a dark halo as the renderer mixes toward it.
+ *
+ * Rows are flipped on the way out. The lattice counts north from its
+ * south-west corner and an image counts south from its top-left one.
  */
-export function gridFeatureCollection(
+export function gridRaster(
+  spec: GridSpec,
   cells: readonly GridCell[],
   sortBy: SortBy,
   hourIndex: number | null,
+): GridRaster | null {
+  if (cells.length === 0) return null
+  const { cols, rows } = spec
+  const rgba = new Uint8ClampedArray(cols * rows * 4)
+
+  for (const { index, row } of cells) {
+    const color = fillColor(row, sortBy, hourIndex)
+    if (color === NO_VALUE) continue
+    const r = Math.floor(index / cols)
+    const c = index % cols
+    const p = ((rows - 1 - r) * cols + c) * 4
+    rgba[p] = parseInt(color.slice(1, 3), 16)
+    rgba[p + 1] = parseInt(color.slice(3, 5), 16)
+    rgba[p + 2] = parseInt(color.slice(5, 7), 16)
+    rgba[p + 3] = edgeAlpha(r, c, cols, rows)
+  }
+
+  bleedColor(rgba, cols, rows)
+  return { width: cols, height: rows, rgba }
+}
+
+/**
+ * How opaque one sample is drawn, which is full everywhere except the padded
+ * outermost ring.
+ *
+ * `buildGrid` pads the bbox by one pitch, so that ring sits outside every
+ * destination the analysis found: it is the least load-bearing data in the
+ * lattice and the right place to spend on an edge. Fading through it is what
+ * keeps the field from ending in a hard rectangle that reads as a UI boundary
+ * rather than as the edge of what was sampled.
+ *
+ * Decided per AXIS rather than for the lattice as a whole, because the two are
+ * routinely very different: a north-south polygon over the Cascades grids four
+ * columns wide and eight rows tall, and a single "is there an interior?" test
+ * would either fade a lattice that has no column to spare or refuse to fade one
+ * whose rows had plenty.
+ */
+function edgeAlpha(r: number, c: number, cols: number, rows: number): number {
+  const onColEdge = cols >= MIN_AXIS_TO_FADE && (c === 0 || c === cols - 1)
+  const onRowEdge = rows >= MIN_AXIS_TO_FADE && (r === 0 || r === rows - 1)
+  return onColEdge || onRowEdge ? EDGE_ALPHA : 255
+}
+
+// Five is the smallest lattice with an interior wide enough that fading its
+// ring leaves more data than edge. Below it the ring IS the data.
+const MIN_AXIS_TO_FADE = 5
+const EDGE_ALPHA = 40
+
+// Spread colour into fully transparent pixels from whichever neighbour has
+// some, leaving their opacity alone. Bilinear magnification reads RGB from
+// transparent pixels too, so a gap left at rgba(0,0,0,0) drags every
+// neighbouring blend toward black — a dark fringe around exactly the places
+// the field knows nothing about. Iterated so a gap wider than one sample fills
+// from both sides rather than only its first ring.
+function bleedColor(rgba: Uint8ClampedArray, cols: number, rows: number): void {
+  for (let pass = 0; pass < 3; pass++) {
+    let changed = false
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const p = (r * cols + c) * 4
+        if (rgba[p + 3] !== 0 || rgba[p] !== 0 || rgba[p + 1] !== 0 || rgba[p + 2] !== 0) continue
+        for (const [dr, dc] of NEIGHBOURS) {
+          const nr = r + dr
+          const nc = c + dc
+          if (nr < 0 || nc < 0 || nr >= rows || nc >= cols) continue
+          const q = (nr * cols + nc) * 4
+          if (rgba[q] === 0 && rgba[q + 1] === 0 && rgba[q + 2] === 0) continue
+          rgba[p] = rgba[q]
+          rgba[p + 1] = rgba[q + 1]
+          rgba[p + 2] = rgba[q + 2]
+          changed = true
+          break
+        }
+      }
+    }
+    if (!changed) return
+  }
+}
+
+const NEIGHBOURS: [number, number][] = [
+  [0, -1],
+  [0, 1],
+  [-1, 0],
+  [1, 0],
+]
+
+/**
+ * The per-sample wind arrows, as points at each sample's coordinate.
+ *
+ * Separate from the raster because they are a second encoding on the same data
+ * and MapLibre has no way to draw a symbol per texel. Reads `bearingAt` — the
+ * markers' own derivation — rather than mirroring it, so the FROM-to-toward
+ * half turn and the absent-bearing omission are defined once for both layers.
+ * Empty unless playback is scrubbing, which is the only time an hour has a
+ * direction to point in.
+ */
+export function gridArrowFeatures(
+  cells: readonly GridCell[],
+  hourIndex: number | null,
 ): FeatureCollection {
+  if (hourIndex === null) return { type: 'FeatureCollection', features: [] }
   return {
     type: 'FeatureCollection',
     features: cells.flatMap(({ box, row }) => {
-      const color = cellColor(row, sortBy, hourIndex)
-      if (color === null) return []
+      const bearing = bearingAt(row, hourIndex)
+      if (bearing.bearing === undefined) return []
       const [w, s, e, n] = box
       return [
         {
           type: 'Feature' as const,
-          geometry: {
-            type: 'Polygon' as const,
-            coordinates: [[[w, s], [e, s], [e, n], [w, n], [w, s]]],
-          },
-          properties: {
-            color,
-            ...(hourIndex !== null ? bearingAt(row, hourIndex) : {}),
-          },
+          geometry: { type: 'Point' as const, coordinates: [(w + e) / 2, (s + n) / 2] },
+          properties: bearing,
         },
       ]
     }),
   }
-}
-
-// The marker fill, except that a missing value drops the cell instead of
-// coloring it. A marker has to stay on screen when its metric is null — it is
-// a place the user asked about — so `fillColor` answers grey. A cell is
-// background, and a grey block over the terrain would be the one thing on this
-// map asserting something it does not know.
-function cellColor(row: DestinationResult, sortBy: SortBy, hourIndex: number | null): string | null {
-  const color = fillColor(row, sortBy, hourIndex)
-  return color === NO_VALUE ? null : color
 }

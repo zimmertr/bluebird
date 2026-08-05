@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { DestinationResult } from '../types'
-import { fetchAqi, fetchWeather } from '../utils/openMeteo'
+import { AqiResult, WeatherResult, fetchAqi, fetchWeather } from '../utils/openMeteo'
 import { canonicalTimes } from '../utils/clientAnalyze'
 import { normalizeWindow } from '../utils/forecastWindow'
-import { GridCell, buildGrid, pairCells } from '../utils/forecastGrid'
+import { GridCell, GridSpec, buildGrid, pairCells } from '../utils/forecastGrid'
 
 // The forecast grid's fetch (#246), modelled on useFireProximity: one query per
 // analysis, best-effort, and entirely beside the ranking.
@@ -18,7 +18,7 @@ import { GridCell, buildGrid, pairCells } from '../utils/forecastGrid'
 // distinction that matters is what a toggle changes — this one changes what is
 // drawn beside the ranking, never which rows are ranked or what they say.
 //
-// Toggling back off drops the cells rather than parking them: re-toggling costs
+// Toggling back off drops the field rather than parking it: re-toggling costs
 // nothing anyway, because the per-location forecast cache the fetch reads
 // through holds the same lattice for 15 minutes, which also covers a second
 // analysis over the same ground.
@@ -28,20 +28,38 @@ import { GridCell, buildGrid, pairCells } from '../utils/forecastGrid'
  *
  * Coarser than `FireProximityStatus` on purpose: a fire warning is safety
  * information whose absence must never read as an all-clear, so that hook
- * distinguishes "checked, nothing near" from "could not check". A missing cell
- * here just leaves the basemap showing, which asserts nothing at all — so the
- * only thing a caller needs is whether there is anything to key a legend to.
+ * distinguishes "checked, nothing near" from "could not check". A missing
+ * sample here just leaves the basemap showing, which asserts nothing at all —
+ * so the only thing a caller needs is whether there is anything to key a legend
+ * to. `loading` persists while the field fills in, since cells arrive during it.
  */
 export type ForecastGridStatus = 'idle' | 'loading' | 'ready'
 
 export interface ForecastGrid {
   status: ForecastGridStatus
+  /** The lattice, which the raster needs for its shape and its corners. */
+  spec: GridSpec | null
   cells: GridCell[]
   /** The pitch the lattice was built at, which the legend prints. */
   pitchKm: number
 }
 
-const IDLE: ForecastGrid = { status: 'idle', cells: [], pitchKm: 0 }
+const IDLE: ForecastGrid = { status: 'idle', spec: null, cells: [], pitchKm: 0 }
+
+/**
+ * How many samples go out per painted step.
+ *
+ * The field used to appear all at once after every batch had returned, which on
+ * a full lattice is twelve requests deep and reads as nothing happening. Fetched
+ * in chunks instead, each one painted as it lands, so the map fills in.
+ *
+ * 150 rather than smaller because `fetchWeather` already batches at 50 with up
+ * to 4 in flight: a chunk of 150 is three batches, which is one full wave of
+ * its own concurrency. Chunks run one after another so the total in flight
+ * stays where the pacer expects it — the same four — and only the FIRST paint
+ * gets earlier. Nothing here asks Open-Meteo for more at once than before.
+ */
+const PAINT_CHUNK = 150
 
 export interface ForecastGridInputs {
   /** Is the layer on? The whole gate: off means no lattice and no fetch. */
@@ -66,7 +84,7 @@ export interface ForecastGridInputs {
    */
   window: { startMs: number; endMs: number } | null
   model: string
-  /** The report's hourly grid, which the cells are re-indexed onto. */
+  /** The report's hourly grid, which the samples are re-indexed onto. */
   times: readonly number[]
   /** The selected model's finest grid, in km, from `/api/capabilities`. */
   pitchKm: number
@@ -93,47 +111,91 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     // The snapshot holds the request as submitted, so a Current analysis
     // arrives as a zero-width window. Asking Open-Meteo for it returns an
     // answer with no hours in it, which reaches `pairCells` as a null forecast
-    // for every cell and paints an empty grid with nothing on screen saying so.
+    // for every sample and paints an empty field with nothing saying so.
     const { startMs, endMs } = normalizeWindow(win.startMs, win.endMs)
 
     const ac = new AbortController()
     let cancelled = false
     // Cleared rather than kept while the fetch runs. The effect re-runs when
-    // the analysis changes, and cells from the previous one describe a
-    // different bbox over a different window — holding them would paint the
-    // old answer under the new markers for as long as the fetch takes.
-    setState({ status: 'loading', cells: [], pitchKm: spec.pitchKm })
+    // the analysis changes, and a field from the previous one describes a
+    // different bbox over a different window — holding it would paint the old
+    // answer under the new markers for as long as the fetch takes.
+    setState({ status: 'loading', spec, cells: [], pitchKm: spec.pitchKm })
 
-    // Weather and air quality concurrently, which is the browser path's
-    // standing philosophy and costs no extra wall clock: Open-Meteo bills its
-    // weighted calls per service, so the two spend separate quotas. It is also
-    // what makes an AQI ranking a live recolour rather than another fetch —
-    // one grid covers all four metrics, and the ranking is never a dependency
-    // of this effect.
+    // What has come back so far, by lattice index. Weather arrives in chunks
+    // and air quality arrives whole and late, so both write here and repaint
+    // from whatever is in hand rather than each owning half the picture.
+    const wx: (WeatherResult | undefined)[] = new Array(spec.points.length)
+    const aqi: (AqiResult | undefined)[] = new Array(spec.points.length)
+    let grid: readonly number[] = times
+
+    function repaint() {
+      if (cancelled) return
+      const indices: number[] = []
+      const wxHave: WeatherResult[] = []
+      const aqiHave: AqiResult[] = []
+      for (let i = 0; i < wx.length; i++) {
+        if (wx[i] === undefined) continue
+        indices.push(i)
+        wxHave.push(wx[i] as WeatherResult)
+        aqiHave.push(aqi[i] ?? null)
+      }
+      if (grid.length === 0) grid = canonicalTimes(wxHave)
+      setState({
+        status: 'ready',
+        spec: spec as GridSpec,
+        cells: pairCells(spec as GridSpec, indices, wxHave, aqiHave, grid),
+        pitchKm: (spec as GridSpec).pitchKm,
+      })
+    }
+
+    // Air quality runs alongside the weather rather than in front of the paint,
+    // which is the whole of why the field now appears when it does. It used to
+    // be awaited together with the weather, so a temperature grid sat invisible
+    // behind 600 AQI samples nobody had asked to see. It is a separate service
+    // on a separate quota, so overlapping costs no wall clock; it simply lands
+    // when it lands and repaints what is already drawn.
     //
-    // Sequenced behind the ranked analysis by construction, since it starts
-    // only once a report has committed, so the shared pacer never delays the
-    // ranking. A large field and a full lattice fill in over a paced minute or
-    // two, silently — the fire-warning precedent for background fill-in.
+    // Fetching it at all, unasked, is still right: ranking is a live knob, so
+    // one pass covers all four metrics and switching to AQI recolours the held
+    // field with no request. Keying the fetch on `sortBy` is the architecture
+    // this line exists to forbid.
+    const air = fetchAqi(spec.points, startMs, endMs, { signal: ac.signal })
+      .then((list) => {
+        if (cancelled) return
+        list.forEach((a, i) => {
+          aqi[i] = a
+        })
+        // Only worth a repaint once there is something painted to fold into.
+        if (wx.some((w) => w !== undefined)) repaint()
+      })
+      .catch(() => {
+        // Best-effort twice over: air quality already degrades to null inside
+        // `fetchAqi`, and a grid missing it is a grid, not a failure.
+      })
+
     void (async () => {
       try {
-        const [wx, aqi] = await Promise.all([
-          fetchWeather(spec.points, startMs, endMs, { model, signal: ac.signal }),
-          fetchAqi(spec.points, startMs, endMs, { signal: ac.signal }),
-        ])
-        if (cancelled) return
-        // The report's grid when it has one. A point-sample analysis and the
-        // moment before `times` arrives both fall back to the lattice's own
-        // stamps, which for one window and one model are the same stamps.
-        const onto = times.length > 0 ? times : canonicalTimes(wx)
-        setState({ status: 'ready', cells: pairCells(spec, wx, aqi, onto), pitchKm: spec.pitchKm })
+        for (let start = 0; start < spec.points.length; start += PAINT_CHUNK) {
+          const indices: number[] = []
+          for (let i = start; i < Math.min(start + PAINT_CHUNK, spec.points.length); i++) {
+            indices.push(i)
+          }
+          const chunk = indices.map((i) => spec.points[i])
+          const got = await fetchWeather(chunk, startMs, endMs, { model, signal: ac.signal })
+          if (cancelled) return
+          got.forEach((w, j) => {
+            wx[indices[j]] = w
+          })
+          repaint()
+        }
+        await air
       } catch (err) {
         if (cancelled || (err as Error).name === 'AbortError') return
-        // Best-effort, like every overlay: an empty layer and one line in the
-        // console. There is no on-screen failure state because there is no
-        // claim to withdraw — an ungridded map is the map.
+        // Best-effort, like every overlay: whatever painted stays, and one line
+        // in the console. There is no on-screen failure state because there is
+        // no claim to withdraw — an ungridded map is the map.
         console.warn('[bluebird] forecast grid fetch failed', err)
-        setState(IDLE)
       }
     })()
 

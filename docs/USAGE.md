@@ -138,7 +138,7 @@ again. Each is credited on its own legend, and each rides in the shared link.
 | **Wildfires** | Active fire perimeters, in red | United States |
 | **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | Continental United States |
 | **Smoke** | Smoke plumes at three densities, in grey | North America |
-| **Forecast grid** | The ranked metric as squares of forecast, over the area your analysis covered | Wherever the chosen model reaches |
+| **Forecast grid** | The ranked metric as a continuous field, over the area your analysis covered | Wherever the chosen model reaches |
 
 Clicking a perimeter opens NIFC's live map on that fire; clicking a plume says how
 dense it is, which satellite it was traced from, and over what hours. Where smoke
@@ -156,30 +156,33 @@ table are what measure air.
 
 The other three overlays draw somebody else's data. This one draws yours: the same
 metric your results are ranked by, asked for on a lattice of points across the area
-your analysis covered, and painted as squares on the colors the marker legend
-already shows. It answers the question the markers cannot — is this one summit's
+your analysis covered, and painted as a continuous field on the colors the marker
+legend already shows. It answers the question the markers cannot — is this one summit's
 weather, or is the whole valley like that?
 
 It is the one layer whose switch costs something, which is why it is a switch. Turning
 it on fetches a forecast for every square, after your results have landed and never
 in front of them; leave it on and each later analysis grids itself the same way. Once
-the squares are in hand everything else is free: changing the ranking recolors them
-without asking for anything new, and so does the timeline.
+the points are in hand everything else is free: changing the ranking recolors the
+field without asking for anything new, and so does the timeline. It fills in as it
+arrives rather than appearing all at once.
 
 Two things to know when reading it:
 
-- **Nothing is smoothed.** Every square is one real forecast at one real point,
-  drawn at the size it was sampled. Squares do not blend into their neighbors,
-  because the model has nothing to say about the ground between two of them.
-- **The legend states the square size** — `3 km grid`, `13 km grid`. That size is
-  the claim each square makes, and a bigger one covers more ground with a single
-  answer. Over a large area the squares are made coarser to keep the request
-  reasonable, and the legend says the size actually used.
+- **The legend states the sample spacing** — `3 km grid`, `13 km grid`. That is
+  the distance between the points actually asked about: inside it you are looking
+  at one forecast, and between two of them you are looking at a blend. Over a
+  large area the points spread further apart to keep the request reasonable, and
+  the legend says the spacing actually used.
+- **It covers where you looked.** The field spans the destinations the analysis
+  found plus a margin, and fades out at that edge. Panning away does not extend
+  it: every point is a live request rather than a pre-drawn tile.
 
-A square can disagree with a marker standing on it. A 3 km box can hold a summit and
-the valley floor below it, and the model gives that whole box one answer. That is the
-model's real resolution showing, not a fault — [DATA.md](DATA.md) has the longer
-version.
+The field can disagree with a marker standing on it. A 3 km grid cell holds a summit
+and the valley floor below it, and the model answers for the cell rather than for
+either. That is the model's real resolution showing, not a fault. [DATA.md](DATA.md)
+has the longer version, including why drawing between grid points is a different act
+from drawing between summits.
 
 ### The timeline
 
@@ -199,8 +202,8 @@ It has up to two axes, and a switch to pick between them when both exist:
   inches per hour, since an hour of rain and a window's total are different
   quantities. Ranking a wind metric also draws an arrow beside each marker,
   pointing the way the wind is blowing at that hour. With the forecast grid
-  switched on, the squares scrub too, on the same colors and with an arrow of
-  their own per square — so an hour of playback shows a whole field moving rather
+  switched on, the field scrubs too, on the same colors and with an arrow of its
+  own per sample, so an hour of playback shows the whole picture moving rather
   than a handful of points.
 
 The chart below the map draws the same playhead as a vertical line, and clicking

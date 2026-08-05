@@ -1367,9 +1367,10 @@ export default function App() {
       FALLBACK_PITCH_KM,
     analysisSeq,
   })
-  // Something is painted, which is what a legend can be keyed to. A grid still
-  // filling in has no colors to explain yet, and a key to an empty map would be
-  // noise rather than help.
+  // Something is painted, which is what a legend can be keyed to. A field still
+  // filling in has some, so the legend arrives with the first chunk rather than
+  // with the last — a key to an empty map would be noise, but a key to a
+  // quarter-painted one is exactly what a reader needs.
   const gridPainted = showGrid && grid.cells.length > 0
 
   // Download the displayed report (#125). Everything that decides what the file
@@ -1696,6 +1697,7 @@ export default function App() {
             showRadar={showRadar}
             showSmoke={showSmoke}
             radarIndex={radarIndex}
+            gridSpec={grid.spec}
             gridCells={grid.cells}
             playbackIndex={playbackIndex}
             pending={pending}
