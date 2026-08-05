@@ -424,9 +424,18 @@ export default function ControlPanel({
       constraints[key],
       (v: number | null) => setConstraints({ ...constraints, [key]: v }),
     ] as const
+  // The two rows whose value can genuinely be missing: an OSM feature with no
+  // elevation, and air quality past its ~5-day horizon. Neither absence is
+  // evidence of bad conditions, so neither is filtered out — a fact that used
+  // to be a standing line under the grid and is now carried by the rows it is
+  // actually about. Read the tooltip note in docs/STYLES.md before copying this
+  // pattern anywhere else: it is an approved exception, not a new tool.
+  const UNKNOWNS_NOTE = 'Destinations with unknown values are included.'
+
   const filterRows = [
     {
       id: 'elevation',
+      note: UNKNOWNS_NOTE,
       hint: ['The elevation must be at least this.', 'The elevation must be at most this.'] as const,
       label: 'Elevation (ft)',
       step: 100,
@@ -459,6 +468,7 @@ export default function ControlPanel({
     },
     {
       id: 'air-quality',
+      note: UNKNOWNS_NOTE,
       hint: ['The worst hour must be at least this.', 'The worst hour must be at most this.'] as const,
       label: metricLabel('aqi'),
       step: 1,
@@ -868,13 +878,22 @@ export default function ControlPanel({
           <div className={BOUNDS_GRID}>
             {filterRows.map((row) => (
               <Fragment key={row.id}>
-                <label htmlFor={`${row.id}-lower`} className={TEXT.control}>
+                {/* On the label AND both boxes, so the note is reachable from
+                    anywhere in the row rather than from a third of it.
+                    Tooltips are otherwise not used here and need explicit
+                    approval — see docs/STYLES.md. */}
+                <label
+                  htmlFor={`${row.id}-lower`}
+                  className={TEXT.control}
+                  title={'note' in row ? row.note : undefined}
+                >
                   {row.label}
                 </label>
                 {EDGES.map(([edge, placeholder], i) => (
                   <input
                     key={edge}
                     id={`${row.id}-${edge}`}
+                    title={'note' in row ? row.note : undefined}
                     type="number"
                     step={row.step}
                     placeholder={placeholder}
@@ -889,14 +908,6 @@ export default function ControlPanel({
               </Fragment>
             ))}
           </div>
-          {/* Two values can be missing — an OSM feature with no elevation, and
-              air quality past its ~5-day horizon — and neither absence is
-              evidence of bad conditions, so neither is filtered out. Named
-              generically because naming both took two lines to say what the
-              dash in the table already shows. */}
-          <p className={`${TEXT.helper} mt-2`}>
-            Destinations with unknown values are included.
-          </p>
           {filtersActive && (
             <button onClick={onClearFilters} className={`${BUTTON_SECONDARY} mt-2`}>
               Clear filters

@@ -21,6 +21,7 @@ import { CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy
 import {
   ACCENT,
   BUTTON_FLOATING,
+  BUTTON_FLOATING_QUIET,
   CHOICE_INPUT,
   CHOICE_ROW,
   BUTTON_SECONDARY,
@@ -1787,7 +1788,7 @@ export default function App() {
               <button
                 onClick={() => setLayersOpen((o) => !o)}
                 aria-expanded={layersOpen}
-                className={`${BUTTON_FLOATING} ${TAP.action} gap-2 px-3 py-2`}
+                className={`${BUTTON_FLOATING_QUIET} ${TAP.action} gap-2 px-3 py-2`}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
                   <polygon points="12,3 21,8 12,13 3,8" />

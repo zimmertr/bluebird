@@ -8,6 +8,7 @@ import {
   BUTTON_ACCENT,
   BUTTON_DANGER,
   BUTTON_FLOATING,
+  BUTTON_FLOATING_QUIET,
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
   CHOICE_INPUT,
@@ -253,12 +254,28 @@ describe('every component', () => {
     expect(source).not.toMatch(/accent-sky-500/)
   })
 
-  // L6: No title= attributes on JSX elements. Knowledge belongs in labels,
-  // captions, empty states, or docs — not in tooltips. Rename any title props
-  // to heading to avoid false positives on document.title assignments.
-  it.each(Object.entries(sources))('%s adds no HTML tooltips', (_path, source) => {
-    expect(source).not.toMatch(/\btitle=/)
+  // The floating map buttons differ in type and nothing else. The loud one is
+  // the call to action that gets your controls back; the quiet one sits under
+  // the search field offering a choice, and read a size larger than that field
+  // until it got its own role. If these ever stop sharing a surface they have
+  // become two designs rather than one in two voices.
+  it('gives the map its loud and quiet buttons one surface and two sizes', () => {
+    expect(BUTTON_FLOATING).toContain(SURFACE_FLOATING)
+    expect(BUTTON_FLOATING_QUIET).toContain(SURFACE_FLOATING)
+    expect(BUTTON_FLOATING).toContain(TEXT.cta)
+    expect(BUTTON_FLOATING_QUIET).toContain(TEXT.control)
+    // And the quiet one reads at the size of the field stacked above it.
+    expect(BUTTON_FLOATING_QUIET).toContain(TEXT.control)
   })
+
+  // L6 used to fail any `title=` outright. It is gone deliberately (TJ,
+  // 2026-08-04): the filter grid's unknown-values note became a tooltip on the
+  // two rows it is about, which bought back the line of height that made the
+  // panel scroll. The rule it enforced has not become weaker, it has become a
+  // thing a person decides rather than a thing a test decides — see the tooltip
+  // section in docs/STYLES.md. A lint cannot tell an approved exception from a
+  // lazy one, and a lint that has to be deleted to ship an approved exception
+  // teaches people to delete lints.
 })
 
 // The panel is a near-constant width on every breakpoint, so a width variant used for

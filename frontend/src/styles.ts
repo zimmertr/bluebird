@@ -438,6 +438,32 @@ export const BUTTON_FLOATING =
   `${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-slate-700 ${FOCUS_RING}`
 
 /**
+ * The same floating button when it is NOT the call to action.
+ *
+ * `TEXT.cta` above is documented as the *single* call to action and is a
+ * deliberate step up from the body ramp, which is right for the button that
+ * gets your controls back and wrong for anything sitting beside the search box
+ * offering a choice. Layers wore the loud one and read a size larger than the
+ * field directly above it.
+ *
+ * So the difference is type and nothing else: same surface, same pressability,
+ * same states, at the size everything else on the map is set in. It matches
+ * `SearchBox`'s own input deliberately — those two are stacked, and two
+ * controls in one column reading at two sizes is the thing that looked wrong.
+ *
+ * No `text-white` beside it, unlike the loud one. `TEXT.cta` above carries a
+ * size and no colour, so that recipe has to name one; `TEXT.control` carries
+ * both, and adding a second colour here put two competing utilities in one
+ * recipe — which Tailwind v4 resolves by stylesheet order rather than class
+ * order, so the winner would not be the one written last. The guardrail in
+ * styles.test.ts caught it. Slate-200 is also simply right: it is what the
+ * search field stacked above this reads in.
+ */
+export const BUTTON_FLOATING_QUIET =
+  `${SURFACE_FLOATING} ${TEXT.control} transition-colors ` +
+  `${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-slate-700 ${FOCUS_RING}`
+
+/**
  * The preview-deployment banner, the one surface that is deliberately loud.
  *
  * It lived as a local constant inside its own component, which is the same
