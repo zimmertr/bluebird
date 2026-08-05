@@ -385,6 +385,26 @@ export default function App() {
   // disclosure, not a setting, and a link that reopened it would be sharing a
   // gesture rather than a picture.
   const [layersOpen, setLayersOpen] = useState(false)
+  const layersRef = useRef<HTMLDivElement>(null)
+  // Both ways out of a popover a reader expects: click away, or press Escape.
+  // `pointerdown` rather than `click` so a press that starts outside dismisses
+  // even if the pointer travels before release, and so it lands before the
+  // map's own handlers get a chance to treat the same press as a map gesture.
+  useEffect(() => {
+    if (!layersOpen) return
+    function onDown(e: PointerEvent) {
+      if (!layersRef.current?.contains(e.target as Node)) setLayersOpen(false)
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setLayersOpen(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [layersOpen])
   const MAP_LAYERS = [
     { key: 'fires', label: 'Wildfires', checked: showWildfires, onChange: setShowWildfires },
     { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
@@ -1736,85 +1756,82 @@ export default function App() {
             minElevationFt={minElevationFt}
             maxElevationFt={maxElevationFt}
           />
-          {/* Layers, in the map's own top-right corner beneath MapLibre's zoom,
-              compass and geolocate buttons. These four are the only controls in
-              the app that change the MAP rather than the analysis, which is what
-              earns them a place on it: everything in the panel answers "what am
-              I asking for", and these answer "what am I looking at".
-
-              `top-32` clears the four stacked library buttons. A measured
-              constant rather than a live measurement: MapLibre's control chrome
-              is a fixed 29px button plus borders, and re-deriving it at runtime
-              would be machinery for a number that only moves when a control is
-              added. Re-measure if one is. */}
-          <div className="absolute top-32 right-2.5 z-10 flex flex-col items-end gap-2">
-            <button
-              onClick={() => setLayersOpen((o) => !o)}
-              aria-expanded={layersOpen}
-              className={`${BUTTON_FLOATING} ${TAP.action} gap-2 px-3 py-2`}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
-                <polygon points="12,3 21,8 12,13 3,8" />
-                <polyline points="3,13 12,18 21,13" />
-              </svg>
-              Layers
-            </button>
-            {layersOpen && (
-              <div className={`${SURFACE_FLOATING} w-44 px-2.5 py-2`}>
-                {MAP_LAYERS.map(({ key, label, checked, onChange }) => (
-                  <label key={key} className={CHOICE_ROW}>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(e) => onChange(e.target.checked)}
-                      className={CHOICE_INPUT}
-                    />
-                    <span>{label}</span>
-                  </label>
-                ))}
-                {/* The grid's one sub-choice, revealed by its own checkbox. The
-                    popover is 176px, so this takes the fluid segment rather than
-                    the panel's fixed 144px column — the same reason the results
-                    bar's mode switch does. */}
-                {showGrid && (
-                  <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
-                    {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
-                      <button
-                        key={value}
-                        type="button"
-                        aria-pressed={gridStyle === value}
-                        onClick={() => setGridStyle(value)}
-                        className={`${SEGMENT_ITEM} ${
-                          gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
-                        } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
-                      >
-                        {value === 'blocks' ? 'Blocks' : 'Smooth'}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
           {/* Top-left map cluster — reopen-controls button (only while the
               panel is collapsed) + place search. z-10 keeps it under the
               loading overlay (z-20) and the mobile drawer backdrop (z-30). */}
-          <div className="absolute top-3 left-3 z-10 flex items-start gap-2">
-            {!sidebarOpen && (
+          <div className="absolute top-3 left-3 z-10 flex flex-col items-start gap-2">
+            <div className="flex items-start gap-2">
+              {!sidebarOpen && (
+                <button
+                  onClick={() => setSidebarOpen(true)}
+                  aria-label="Open controls"
+                  className={`${BUTTON_FLOATING} ${TAP.action} flex-shrink-0 gap-2 px-3 py-2`}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <line x1="3" y1="12" x2="21" y2="12" />
+                    <line x1="3" y1="18" x2="21" y2="18" />
+                  </svg>
+                  Controls
+                </button>
+              )}
+              <SearchBox ref={searchBoxRef} onSelect={handleSearchSelect} pointed={searchPointed} />
+            </div>
+            {/* Layers, under the search box rather than beside MapLibre's own
+                controls on the right. Two reasons it moved: the library's stack
+                is two control GROUPS with a margin between them, so any offset
+                that clears it is a guess that was already wrong once — and the
+                left column is where the app's own map controls live, which
+                makes the split legible. Left is ours, right is the library's. */}
+            <div ref={layersRef} className="relative">
               <button
-                onClick={() => setSidebarOpen(true)}
-                aria-label="Open controls"
-                className={`${BUTTON_FLOATING} ${TAP.action} flex-shrink-0 gap-2 px-3 py-2`}
+                onClick={() => setLayersOpen((o) => !o)}
+                aria-expanded={layersOpen}
+                className={`${BUTTON_FLOATING} ${TAP.action} gap-2 px-3 py-2`}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="3" y1="6" x2="21" y2="6" />
-                  <line x1="3" y1="12" x2="21" y2="12" />
-                  <line x1="3" y1="18" x2="21" y2="18" />
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+                  <polygon points="12,3 21,8 12,13 3,8" />
+                  <polyline points="3,13 12,18 21,13" />
                 </svg>
-                Controls
+                Layers
               </button>
-            )}
-            <SearchBox ref={searchBoxRef} onSelect={handleSearchSelect} pointed={searchPointed} />
+              {layersOpen && (
+                <div className={`${SURFACE_FLOATING} absolute left-0 mt-2 w-44 px-2.5 py-2`}>
+                  {MAP_LAYERS.map(({ key, label, checked, onChange }) => (
+                    <label key={key} className={CHOICE_ROW}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => onChange(e.target.checked)}
+                        className={CHOICE_INPUT}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                  {/* The grid's one sub-choice, revealed by its own checkbox.
+                      The popover is 176px, so this takes the fluid segment
+                      rather than the panel's fixed 144px column — the same
+                      reason the results bar's mode switch does. */}
+                  {showGrid && (
+                    <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
+                      {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
+                        <button
+                          key={value}
+                          type="button"
+                          aria-pressed={gridStyle === value}
+                          onClick={() => setGridStyle(value)}
+                          className={`${SEGMENT_ITEM} ${
+                            gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
+                          } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
+                        >
+                          {value === 'blocks' ? 'Blocks' : 'Smooth'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           {/* Bottom-anchored legends. On mobile the top edge is clamped below
               the Controls/search cluster (top-16) and the stack scrolls if it
@@ -1930,6 +1947,21 @@ export default function App() {
                   table while the field still paints, and colors without their
                   key are noise. One box serves both — they are scored on the
                   same scale by construction (#246). */}
+              {/* The forecast grid's own box, like every other overlay's. It
+                  used to be one line appended to the metric legend below, which
+                  made that box two things at once: a key to what the colours
+                  mean, and a status line about one layer. This says what the
+                  layer is doing; the box under it says what its colours mean,
+                  and they are shared with the markers rather than owned by the
+                  grid. Placed directly above so the two read together. */}
+              {(gridPainted || gridCued) && (
+                <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} px-2.5 py-2`}>
+                  <p className={`${TEXT.overline} mb-1.5`}>Forecast grid</p>
+                  <p className={TEXT.micro}>
+                    {gridLegendLine(gridPainted, grid.pitchKm, gridPaceRemainingS)}
+                  </p>
+                </div>
+              )}
               {(hasColoredMarkers || gridPainted || gridCued) && (
                 <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} p-2.5`}>
                   {/* The bare metric only: which hour or window the colors
@@ -1951,11 +1983,6 @@ export default function App() {
                       over 13 km of ground, and a reader who cannot see that
                       number has no way to know how much of the picture is one
                       answer repeated. */}
-                  {(gridPainted || gridCued) && (
-                    <p className={`${TEXT.micro} mt-1.5`}>
-                      {gridLegendLine(gridPainted, grid.pitchKm, gridPaceRemainingS)}
-                    </p>
-                  )}
                 </div>
               )}
             </div>
