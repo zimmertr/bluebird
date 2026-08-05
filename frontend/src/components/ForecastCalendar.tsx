@@ -83,6 +83,15 @@ interface Drag {
  * it started from. That is also why the grid does not set `touch-none`, which
  * would have stopped the control panel itself from scrolling on a phone.
  */
+// What Hourly actually does, which is not what the word suggests. The narrowed
+// hours become the START time on the first chosen day and the END time on the
+// last (`selectionLocalWindow`), so the window is one continuous run between
+// them — the nights in the middle of a multi-day range are inside it. A reader
+// who assumes "6 AM to 6 PM, every day" would be wrong about every day but the
+// first and last, which is exactly why this says so.
+const HOURS_NOTE =
+  'Hourly sets the start time on the first day and the end time on the last. The window runs continuously between them, so nights in the middle are included.'
+
 export default function ForecastCalendar({ selection, onChange, forecastHours }: Props) {
   // Captured once: a grid that recomputed against a moving `now` would redraw
   // every render, and nothing here changes meaning within a session.
@@ -295,8 +304,10 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
       {revealsGrid && (
         <div className={`${SURFACE_GROUP} ${SURFACE_GROUP_BLEED} mt-2 p-2`}>
           <div className="flex items-center justify-between gap-2">
-            <span className={TEXT.subheading}>Hours</span>
-            <div className={SEGMENT}>
+            <span className={TEXT.subheading} title={HOURS_NOTE}>
+              Hours
+            </span>
+            <div className={SEGMENT} title={HOURS_NOTE}>
               {[
                 { hourly: false, label: 'All day' },
                 { hourly: true, label: 'Hourly' },

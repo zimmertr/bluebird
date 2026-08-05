@@ -463,6 +463,24 @@ export const BANNER_PREVIEW =
  * slate-500 is 3.1:1 on the panel, which is the floor for an icon rather than
  * the 4.5:1 asked of text — these carry no label and are recognized by shape.
  */
+/**
+ * A legend swatch that carries a letter.
+ *
+ * The smoke overlay's three densities are one hue at three opacities, and the
+ * whole encoding is that opacity — so the three have to be readable AGAINST
+ * each other, which they cannot be stacked one per row. Side by side as
+ * lettered chips they read as the ramp they are, in one row instead of four.
+ *
+ * The letter is dark rather than light because the fill it sits on is pale at
+ * every density; that colour lives here rather than at the call site for the
+ * usual reason, and so does the size, which is one step below the ramp's
+ * smallest on purpose — a chip is 14px square and a 10px glyph does not fit
+ * inside it with its own border.
+ */
+export const SWATCH_CHIP =
+  `inline-flex h-3.5 w-3.5 items-center justify-center ${RADIUS.control} border ` +
+  `text-[9px] font-semibold text-slate-900`
+
 export const ICON_ACTION = `text-slate-500 ${ACCENT.hoverText}`
 
 /** A bare icon button in a header: the chart and table collapse chevrons. */

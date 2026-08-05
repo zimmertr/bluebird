@@ -102,6 +102,12 @@ function blockerText(blocker: AnalyzeBlocker, maxAreaKm2: number, pointsNeeded: 
 // the section heading as every other section's, and the elevation band already
 // used this idiom before the grid existed. A filled cell drops its placeholder,
 // by which point its position has said the same thing four rows running.
+// Why raising this costs nothing: the cap trims what is LISTED, never what is
+// fetched. Every destination in the area is forecast either way, which is also
+// why the table's header can say "N of M" without a second analysis.
+const LIMIT_NOTE =
+  'Only limits how many destinations are added to the results. All destinations are still forecasted.'
+
 const EDGES = [
   ['lower', AGGREGATE.minimum],
   ['upper', AGGREGATE.maximum],
@@ -427,15 +433,16 @@ export default function ControlPanel({
   // The two rows whose value can genuinely be missing: an OSM feature with no
   // elevation, and air quality past its ~5-day horizon. Neither absence is
   // evidence of bad conditions, so neither is filtered out — a fact that used
-  // to be a standing line under the grid and is now carried by the rows it is
-  // actually about. Read the tooltip note in docs/STYLES.md before copying this
-  // pattern anywhere else: it is an approved exception, not a new tool.
-  const UNKNOWNS_NOTE = 'Destinations with unknown values are included.'
+  // to be one standing line under the grid and is now carried by the rows it is
+  // actually about, each naming the thing IT can be missing rather than sharing
+  // a sentence generic enough to cover both. Read the tooltip note in
+  // docs/STYLES.md before copying this pattern: an approved exception, not a
+  // new tool.
 
   const filterRows = [
     {
       id: 'elevation',
-      note: UNKNOWNS_NOTE,
+      note: 'Destinations with no elevation are included.',
       hint: ['The elevation must be at least this.', 'The elevation must be at most this.'] as const,
       label: 'Elevation (ft)',
       step: 100,
@@ -468,7 +475,7 @@ export default function ControlPanel({
     },
     {
       id: 'air-quality',
-      note: UNKNOWNS_NOTE,
+      note: 'Destinations with no air quality forecast are included.',
       hint: ['The worst hour must be at least this.', 'The worst hour must be at most this.'] as const,
       label: metricLabel('aqi'),
       step: 1,
@@ -844,7 +851,11 @@ export default function ControlPanel({
               made of bounds on measured values. */}
           {/* The ceiling is the live analysis cap from /api/capabilities. */}
           <div className="mt-1.5 flex items-center gap-2">
-            <label htmlFor="max-results" className={`${TEXT.control} flex-1`}>
+            <label
+              htmlFor="max-results"
+              className={`${TEXT.control} flex-1`}
+              title={LIMIT_NOTE}
+            >
               {AGGREGATE.maximum} results
             </label>
             {/* The default rides as a placeholder, like the filter boxes below,
@@ -862,6 +873,7 @@ export default function ControlPanel({
               onChange={(e) =>
                 setLimit(clampLimit(parseInt(e.target.value) || DEFAULT_LIMIT, maxLimit))
               }
+              title={LIMIT_NOTE}
               className={`${FIELD_NUMERIC} ${CONTROL_W} px-2 py-1.5 text-center`}
             />
           </div>

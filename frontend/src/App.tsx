@@ -38,6 +38,7 @@ import {
   SEGMENT_ITEM,
   SURFACE_CARD,
   SURFACE_FLOATING,
+  SWATCH_CHIP,
   TAP,
   TEXT,
 } from './styles'
@@ -114,6 +115,12 @@ import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
 // by a tenth of a pixel, which is why this is the next step up: w-44 leaves
 // 154px, ~14px of slack. Re-measure before lengthening a line in either box.
 const LEGEND_WIDTH = 'w-44'
+
+// The two map buttons are one pair and are sized as one: same width, same
+// height, stacked in a column where any difference between them reads as a
+// mistake rather than as a hierarchy. Wide enough for "Controls", which is the
+// longer of the two labels; the shorter one centres inside it.
+const MAP_BUTTON_W = 'w-32 justify-start'
 
 // Stands in for the analysis snapshot's covered set before the first analysis.
 // A module constant rather than an inline `new Set()`, which would be a fresh
@@ -1535,20 +1542,6 @@ export default function App() {
   // Deliberately NOT gated on having data — a mode with nothing to draw shows
   // its empty panel (the chart with no analysis renders bare axes), because a
   // segment that says Chart while the table shows reads as broken.
-  // Whether there is enough map left to be worth keying.
-  //
-  // Measured at 402x874 with every layer on: the whole legend needs 401px and a
-  // full-height phone map offers exactly 401px, so it fits — but with the
-  // results panel open the map is 161px, the legend needs more than twice that,
-  // and no amount of merging or compacting closes a gap that size. What has to
-  // give is the legend, not the map: at 161px the map is a thumbnail, and a key
-  // that covers most of it to explain the rest is worse than no key. Expanding
-  // the results brings it straight back.
-  //
-  // Desktop never hits this — the map keeps its height there whatever the
-  // panels do — so the rule is scoped to the phone layout rather than to a
-  // height threshold that would need re-measuring.
-  const legendsFit = isDesktop || resultsCollapsed || !showResults
   const chartShowing = !resultsCollapsed && (resultsMode === 'chart' || resultsMode === 'both')
   const tableShowing = !resultsCollapsed && (resultsMode === 'table' || resultsMode === 'both')
   const { chart: chartPanelPx, table: tablePanelPx } = resolvePanelHeights(
@@ -1794,7 +1787,7 @@ export default function App() {
                 <button
                   onClick={() => setSidebarOpen(true)}
                   aria-label="Open controls"
-                  className={`${BUTTON_FLOATING} ${TAP.action} flex-shrink-0 gap-2 px-3 py-2`}
+                  className={`${BUTTON_FLOATING} ${TAP.action} ${MAP_BUTTON_W} flex-shrink-0 gap-2 px-3 py-2`}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <line x1="3" y1="6" x2="21" y2="6" />
@@ -1816,7 +1809,7 @@ export default function App() {
               <button
                 onClick={() => setLayersOpen((o) => !o)}
                 aria-expanded={layersOpen}
-                className={`${BUTTON_FLOATING} ${TAP.action} gap-2 px-3 py-2`}
+                className={`${BUTTON_FLOATING} ${TAP.action} ${MAP_BUTTON_W} gap-2 px-3 py-2`}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
                   <polygon points="12,3 21,8 12,13 3,8" />
@@ -1887,119 +1880,110 @@ export default function App() {
               desktop map they never meet — but a phone is narrow enough that
               they would overlap, and a legend half under a control reads as a
               layout fault rather than as two things sharing an edge. */}
-          {legendsFit &&
-            (hasColoredMarkers || gridPainted || gridCued || showWildfires || showSmoke || showRadar) && (
+          {(hasColoredMarkers || gridPainted || gridCued || showWildfires || showSmoke || showRadar) && (
             <div
               className={`absolute left-2 top-28 z-10 flex flex-col gap-2 overflow-y-auto lg:top-auto lg:overflow-visible [&>*]:flex-shrink-0 [&>*:first-child]:mt-auto ${
                 timelineAxis !== null ? 'bottom-40' : 'bottom-8'
               }`}
             >
-              {/* Each overlay credits its source on its own swatch row, the
-                  way the fire legend has since #203: a credit belongs beside
-                  the data it describes rather than in a list somewhere else,
-                  and one shape for all of them is what keeps three sources
-                  from becoming three ideas of what a credit looks like. */}
-              {/* ONE box for every map layer, gaining and losing sections as
-                  layers are switched on and off, rather than a box each. Five
-                  separate boxes cost four extra borders and four gaps — about
-                  a hundred pixels of chrome on a phone where the whole map can
-                  be 161px tall — and read as five objects when they are one
-                  thing: the key to what is drawn on the map.
+              {/* One row per layer: what it is, who it came from, and its key
+                  on the right. The densities used to be three stacked rows
+                  under a heading, the radar and fire keys a box each — about
+                  a hundred pixels of chrome to say four short things.
 
-                  Each section keeps its own title and its own credit, which is
-                  what the licences ask for and what keeps a source beside the
-                  data it describes. Nothing here is new copy; only the boxes
-                  around it changed.
+                  Each row still carries its own source, which the licences ask
+                  for and which keeps a credit beside the data it describes
+                  rather than in a list somewhere else.
 
-                  The metric key below stays its own box on purpose: it is not
-                  a layer. It explains the marker colours, which exist whenever
-                  a report does, with every layer switched off. */}
+                  No heading over them either. Every row names its own layer, so
+                  a "Map layers" line above would be a label for four labels —
+                  and on a phone it is a whole row of the little map left. */}
               {(showSmoke || showRadar || showWildfires || gridPainted || gridCued) && (
-                <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} divide-y divide-slate-700/60`}>
-              {showSmoke && (
-                <div className="px-2.5 py-2">
-                  {/* The credit sits on the title, not on a swatch row. NOAA
-                      provides all three densities, so hanging its name off
-                      Heavy said it was the source of that row in particular —
-                      which is what a credit beside a swatch means everywhere
-                      else here, where each swatch box has exactly one source
-                      (Radar/IEM, Active Wildfire/NIFC). One box, one provider,
-                      one place to say so. */}
-                  <p className={`${TEXT.overline} mb-1.5`}>
-                    Smoke (
-                    <a href={HMS_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
-                      NOAA
-                    </a>
-                    )
-                  </p>
-                  {SMOKE_DENSITIES.map((density) => (
-                    <div key={density} className="flex items-center gap-1.5 py-0.5">
-                      <span
-                        className={`inline-block w-3 h-3 flex-shrink-0 ${RADIUS.control} border`}
-                        style={{ backgroundColor: smokeSwatch(density), borderColor: SMOKE_EDGE }}
-                      />
-                      <span className={TEXT.control}>{density}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {showRadar && (
-                <div className="px-2.5 py-2">
-                  <div className="flex items-center gap-1.5">
-                    {/* A gradient rather than banded swatches: NEXRAD's own
-                        reflectivity ramp is continuous, the bands are the
-                        product's and not ours to relabel, and a legend that
-                        invented boundaries would be asserting thresholds
-                        Bluebird does not know. */}
-                    <span
-                      className={`inline-block w-3 h-3 flex-shrink-0 ${RADIUS.control} border`}
-                      style={{
-                        backgroundImage: 'linear-gradient(90deg,#1c8a3c,#40b450,#e7c000,#eb7814)',
-                        borderColor: '#475569',
-                      }}
-                    />
-                    <span className={TEXT.control}>
-                      Rain radar (
-                      <a href={IEM_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
-                        IEM
-                      </a>
-                      )
-                    </span>
-                  </div>
-                </div>
-              )}
-              {showWildfires && (
-                // CC BY 3.0 wants the credit wherever the fire data is drawn,
-                // and section 4(b) lets it be "implemented in any reasonable
-                // manner" — so it is the swatch's own label rather than a
-                // second line under it. "Fire data:" and "(CC BY 3.0)" are
-                // gone: the first restated what the swatch beside it already
-                // says, and the second was the license *name* as plain text,
-                // which satisfies nothing on its own. The license URI section
-                // 4(a) asks for now lives in DataSourceList, which both
-                // document pages render and the panel footer links.
-                //
-                // This is also how Open-Meteo is credited a few hundred pixels
-                // below (a bare "Open-Meteo.com"), so the app has one idea of
-                // what a beside-the-data credit looks like instead of two.
-                <div className="px-2.5 py-2">
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      className={`inline-block w-3 h-3 ${RADIUS.control} border`}
-                      style={{ backgroundColor: 'rgba(220,38,38,0.35)', borderColor: '#b91c1c' }}
-                    />
-                    <span className={TEXT.control}>
-                      Active Wildfire (
-                      <a
-                        href="https://data-nifc.opendata.arcgis.com/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={LINK}
-                      >
-                        NIFC
-                      </a>
-                      )
-                    </span>
+                <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} px-2.5 py-2`}>
+                  <div className="flex flex-col gap-1">
+                    {showSmoke && (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={TEXT.control}>
+                          Smoke (
+                          <a href={HMS_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
+                            NOAA
+                          </a>
+                          )
+                        </span>
+                        {/* One lettered chip per density rather than three
+                            rows. Opacity is the whole encoding here, so the
+                            three chips also read as a ramp side by side, which
+                            they could not do stacked. The letter is what keeps
+                            them nameable at 14px. */}
+                        <span className="flex flex-shrink-0 gap-0.5">
+                          {SMOKE_DENSITIES.map((density) => (
+                            <span
+                              key={density}
+                              className={SWATCH_CHIP}
+                              style={{ backgroundColor: smokeSwatch(density), borderColor: SMOKE_EDGE }}
+                            >
+                              {density[0]}
+                            </span>
+                          ))}
+                        </span>
+                      </div>
+                    )}
+                    {showRadar && (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={TEXT.control}>
+                          Rain radar (
+                          <a href={IEM_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
+                            IEM
+                          </a>
+                          )
+                        </span>
+                        {/* A gradient rather than banded swatches: NEXRAD's own
+                            reflectivity ramp is continuous, and a legend that
+                            invented boundaries would assert thresholds
+                            Bluebird does not know. */}
+                        <span
+                          className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
+                          style={{
+                            backgroundImage: 'linear-gradient(90deg,#1c8a3c,#40b450,#e7c000,#eb7814)',
+                            borderColor: '#475569',
+                          }}
+                        />
+                      </div>
+                    )}
+                    {showWildfires && (
+                      // CC BY 3.0 wants the credit wherever the fire data is
+                      // drawn, and section 4(b) lets it be "implemented in any
+                      // reasonable manner" — so it is the row's own label. The
+                      // licence URI section 4(a) asks for lives in
+                      // DataSourceList, which both document pages render.
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={TEXT.control}>
+                          Active wildfire (
+                          <a
+                            href="https://data-nifc.opendata.arcgis.com/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={LINK}
+                          >
+                            NIFC
+                          </a>
+                          )
+                        </span>
+                        <span
+                          className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
+                          style={{ backgroundColor: 'rgba(220,38,38,0.35)', borderColor: '#b91c1c' }}
+                        />
+                      </div>
+                    )}
+                    {(gridPainted || gridCued) && (
+                      // No swatch: the grid's colours are the metric key below,
+                      // which the markers share. What this row adds is the one
+                      // thing that IS the grid's own — how far apart the
+                      // samples are, or why they are not there yet.
+                      <div className={TEXT.control}>
+                        {gridLegendLine(gridPainted, grid.pitchKm, gridPaceRemainingS)}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -2007,24 +1991,8 @@ export default function App() {
                   the only colored thing on screen: a live filter can empty the
                   table while the field still paints, and colors without their
                   key are noise. One box serves both — they are scored on the
-                  same scale by construction (#246). */}
-              {/* The forecast grid's own box, like every other overlay's. It
-                  used to be one line appended to the metric legend below, which
-                  made that box two things at once: a key to what the colours
-                  mean, and a status line about one layer. This says what the
-                  layer is doing; the box under it says what its colours mean,
-                  and they are shared with the markers rather than owned by the
-                  grid. Placed directly above so the two read together. */}
-              {(gridPainted || gridCued) && (
-                <div className="px-2.5 py-2">
-                  <p className={`${TEXT.overline} mb-1.5`}>Forecast grid</p>
-                  <p className={TEXT.micro}>
-                    {gridLegendLine(gridPainted, grid.pitchKm, gridPaceRemainingS)}
-                  </p>
-                </div>
-              )}
-                </div>
-              )}
+                  same scale by construction (#246), which is also why the grid
+                  has no swatch of its own in the layer rows above. */}
               {(hasColoredMarkers || gridPainted || gridCued) && (
                 <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} p-2.5`}>
                   {/* The bare metric only: which hour or window the colors
@@ -2041,11 +2009,6 @@ export default function App() {
                       </span>
                     </div>
                   ))}
-                  {/* The pitch the cells were sampled at, stated because it is
-                      the claim they make. A 13 km cell asserts one forecast
-                      over 13 km of ground, and a reader who cannot see that
-                      number has no way to know how much of the picture is one
-                      answer repeated. */}
                 </div>
               )}
             </div>
