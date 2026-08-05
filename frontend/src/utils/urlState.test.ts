@@ -61,6 +61,7 @@ const base: ShareableState = {
   showRadar: false,
   showSmoke: false,
   showGrid: false,
+  gridStyle: 'blocks' as const,
   includeUnnamedPeaks: false,
   pins: [],
 }
@@ -86,6 +87,7 @@ const pristine: ShareableState = {
   showRadar: false,
   showSmoke: false,
   showGrid: false,
+  gridStyle: 'blocks' as const,
   includeUnnamedPeaks: false,
   pins: [],
 }
@@ -166,6 +168,29 @@ describe('encodeState / decodeState round-trip', () => {
     expect(clean).not.toContain('grid')
   })
 
+  it('carries the grid style in the same param as the toggle', () => {
+    // One control, one param. Two would let a link say the layer is off while
+    // still carrying a style for it, which is a state the panel cannot be in.
+    expect(encodeState({ ...base, showGrid: true, gridStyle: 'smooth' }, DEFAULT_MODEL)).toContain(
+      'grid=smooth',
+    )
+    expect(roundTrip({ ...base, showGrid: true, gridStyle: 'smooth' })!.gridStyle).toBe('smooth')
+    expect(roundTrip({ ...base, showGrid: true, gridStyle: 'blocks' })!.gridStyle).toBe('blocks')
+    // A style with the layer off writes nothing at all: there is no drawing to
+    // describe, and a link should not reopen with a picker set for a layer the
+    // reader has to switch on first.
+    expect(encodeState({ ...base, gridStyle: 'smooth' }, DEFAULT_MODEL)).not.toContain('grid')
+  })
+
+  it('reads a pre-picker grid=1 link as blocks', () => {
+    // `grid=1` predates the style picker and meant the only drawing there was,
+    // which is the one blocks now names. Links already shared must not reopen
+    // showing something else.
+    expect(decodeState('?grid=1')).toEqual({ showGrid: true, gridStyle: 'blocks' })
+    // And an unknown style is not a grid at all rather than a silent default.
+    expect(decodeState('?grid=fancy')).toBeNull()
+  })
+
   it('gives an overlay-only session a URL of its own', () => {
     // The overlays are the one kind of state with no analysis behind it, so a
     // pristine session that has only switched a layer on still deserves a link.
@@ -174,16 +199,17 @@ describe('encodeState / decodeState round-trip', () => {
     // The grid needs an analysis before it draws anything, so a grid-only link
     // reopens on an empty map with the layer armed — which is still the state
     // that was shared, and dropping it would lose the one thing it said.
-    expect(encodeState({ ...pristine, showGrid: true }, DEFAULT_MODEL)).toContain('grid=1')
+    expect(encodeState({ ...pristine, showGrid: true }, DEFAULT_MODEL)).toContain('grid=blocks')
   })
 
   it('keeps every overlay param hand-editable', () => {
     // Same convention as `fires`: a flag anyone can flip in the address bar,
     // never an opaque blob (#210).
-    expect(decodeState('?radar=1&smoke=1&grid=1')).toEqual({
+    expect(decodeState('?radar=1&smoke=1&grid=smooth')).toEqual({
       showRadar: true,
       showSmoke: true,
       showGrid: true,
+      gridStyle: 'smooth',
     })
     expect(decodeState('?radar=0&smoke=yes&grid=on')).toBeNull()
   })

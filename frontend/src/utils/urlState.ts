@@ -6,6 +6,7 @@ import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from
 import { GeoPolygon, DiscoveryType, SortBy } from '../types'
 import { RANKING_KEYS } from '../metrics'
 import { Constraints, NO_CONSTRAINTS, hasConstraints } from './clientAnalyze'
+import { isGridStyle, type GridStyle } from './forecastGrid'
 import {
   DAY_END,
   DAY_START,
@@ -56,6 +57,11 @@ export interface ShareableState {
   showRadar: boolean
   showSmoke: boolean
   showGrid: boolean
+  // Which of the grid's two drawings. Rides the SAME param as the toggle
+  // (`grid=blocks`, `grid=smooth`) rather than taking a second one: it is one
+  // control's state, and two params for it would let a link say the layer is
+  // off while still carrying a style for it.
+  gridStyle: GridStyle
   // Searched places pinned to the results table. Persisted so a refreshed or
   // shared link repopulates them (and refetches their forecasts). Only the
   // fields needed to recreate the pin and its identity link are stored.
@@ -303,7 +309,11 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
   if (state.showWildfires) p.set('fires', '1')
   if (state.showRadar) p.set('radar', '1')
   if (state.showSmoke) p.set('smoke', '1')
-  if (state.showGrid) p.set('grid', '1')
+  // The value names the style rather than being a bare `1`, which keeps the
+  // link hand-editable and self-describing: `grid=smooth` says what it will
+  // draw. `grid=1` is still READ as blocks, below, so nothing already shared
+  // reopens differently.
+  if (state.showGrid) p.set('grid', state.gridStyle)
   if (state.includeUnnamedPeaks) p.set('unnamed', '1')
   if (hasPins) p.set('pins', encodePins(state.pins))
 
@@ -484,7 +494,13 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   if (params.get('fires') === '1') out.showWildfires = true
   if (params.get('radar') === '1') out.showRadar = true
   if (params.get('smoke') === '1') out.showSmoke = true
-  if (params.get('grid') === '1') out.showGrid = true
+  const grid = params.get('grid')
+  if (grid !== null && (grid === '1' || isGridStyle(grid))) {
+    out.showGrid = true
+    // `grid=1` predates the style picker and meant the only drawing there was,
+    // which is the one blocks now names.
+    out.gridStyle = grid === '1' ? 'blocks' : grid
+  }
   if (params.get('unnamed') === '1') out.includeUnnamedPeaks = true
 
   const pins = params.get('pins')

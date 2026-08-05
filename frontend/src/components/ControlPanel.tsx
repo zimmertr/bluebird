@@ -31,10 +31,13 @@ import {
   SEGMENT_IDLE,
   SEGMENT_ITEM,
   STATUS,
+  SURFACE_GROUP,
+  SURFACE_GROUP_BLEED,
   TEXT,
 } from '../styles'
 import { AGGREGATE, NOUN, RANKING_KEYS, familyOf, metricLabel, windowAggregate } from '../metrics'
 import { Constraints, hasConstraints } from '../utils/clientAnalyze'
+import type { GridStyle } from '../utils/forecastGrid'
 import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analyzeGate'
 import { DEFAULT_LIMIT, classifyAqiCoverage, clampLimit } from '../utils/urlState'
 import {
@@ -177,6 +180,10 @@ interface Props {
   // something that follows the ranking automatically.
   showGrid: boolean
   setShowGrid: (v: boolean) => void
+  // Which drawing the grid's samples get. Purely a display choice over samples
+  // already fetched, so unlike the toggle above it spends nothing.
+  gridStyle: GridStyle
+  setGridStyle: (v: GridStyle) => void
   // Summits OSM knows only by their height, discovered as `Peak 5961`.
   // A polygon knob rather than a map one, and off by default, because it
   // roughly triples the candidate count.
@@ -326,6 +333,8 @@ export default function ControlPanel({
   setShowSmoke,
   showGrid,
   setShowGrid,
+  gridStyle,
+  setGridStyle,
   includeUnnamedPeaks,
   setIncludeUnnamedPeaks,
   forecastModel,
@@ -506,6 +515,14 @@ export default function ControlPanel({
     { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
     { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
     { key: 'grid', label: 'Forecast grid', checked: showGrid, onChange: setShowGrid },
+  ]
+
+  // Blocks first because it is the default, and because it is the reading that
+  // cannot overstate the data: one square is one forecast, and you can count
+  // them. Smooth is the same samples with the space between them drawn.
+  const GRID_STYLE_OPTIONS: { value: GridStyle; label: string }[] = [
+    { value: 'blocks', label: 'Blocks' },
+    { value: 'smooth', label: 'Smooth' },
   ]
 
   return (
@@ -949,6 +966,35 @@ export default function ControlPanel({
                   <span>{label}</span>
                 </label>
               ))}
+              {/* The grid's one sub-choice, revealed by its own checkbox the
+                  way the Hours segment is revealed by Dates: a control offers
+                  the next thing its answer makes relevant, and a style picker
+                  above an un-drawn layer is a row that does nothing.
+
+                  It sits last in the list because Forecast grid does, so it
+                  lands directly under its parent with nothing in between. A
+                  fifth layer added later goes above this, not below it. */}
+              {showGrid && (
+                <div className={`${SURFACE_GROUP} ${SURFACE_GROUP_BLEED} mt-2 p-2`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={TEXT.subheading}>Style</span>
+                    <div className={SEGMENT}>
+                      {GRID_STYLE_OPTIONS.map((option, i) => (
+                        <button
+                          key={option.value}
+                          aria-pressed={gridStyle === option.value}
+                          onClick={() => setGridStyle(option.value)}
+                          className={`${SEGMENT_ITEM} ${
+                            gridStyle === option.value ? ACCENT.fill : SEGMENT_IDLE
+                          } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </section>

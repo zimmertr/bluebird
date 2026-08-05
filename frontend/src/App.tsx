@@ -41,7 +41,7 @@ import {
 } from './styles'
 import { NOUN, familyOf, rankedNoun } from './metrics'
 import { METRIC_CONFIG, hourlyScale } from './utils/colors'
-import { FALLBACK_PITCH_KM, pitchLabel } from './utils/forecastGrid'
+import { FALLBACK_PITCH_KM, pitchLabel, type GridStyle } from './utils/forecastGrid'
 import {
   RADAR_FRAME_COUNT,
   IEM_HREF,
@@ -379,6 +379,11 @@ export default function App() {
   // on is standing consent for the next analysis to do the same. It still
   // changes nothing about the ranking, so it never touches `commitNeeded`.
   const [showGrid, setShowGrid] = useState(() => restored?.showGrid ?? false)
+  // Which drawing the grid's samples get. Blocks by default: it is the style
+  // that cannot overstate what was sampled, since one square is one forecast
+  // and a reader can count them. Purely presentation over held samples, so
+  // switching costs one re-render and nothing upstream.
+  const [gridStyle, setGridStyle] = useState<GridStyle>(() => restored?.gridStyle ?? 'blocks')
   // Summits OSM knows only by their height. Off by default: measured over one
   // 8x10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so
   // this roughly triples what an analysis costs and how often it refuses.
@@ -746,6 +751,7 @@ export default function App() {
       showRadar,
       showSmoke,
       showGrid,
+      gridStyle,
       pins: searched.places,
     }, caps.defaultForecastModel)
 
@@ -778,6 +784,7 @@ export default function App() {
     showRadar,
     showSmoke,
     showGrid,
+    gridStyle,
     searched.places,
     writeUrl,
   ])
@@ -1576,6 +1583,8 @@ export default function App() {
           setShowSmoke={setShowSmoke}
           showGrid={showGrid}
           setShowGrid={setShowGrid}
+          gridStyle={gridStyle}
+          setGridStyle={setGridStyle}
           includeUnnamedPeaks={includeUnnamedPeaks}
           setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}
           windowWarning={windowWarning}
@@ -1699,6 +1708,7 @@ export default function App() {
             radarIndex={radarIndex}
             gridSpec={grid.spec}
             gridCells={grid.cells}
+            gridStyle={gridStyle}
             playbackIndex={playbackIndex}
             pending={pending}
             searchedPlaces={searched.places}

@@ -1,19 +1,30 @@
-// The forecast grid: the ranked metric as a continuous field under the markers
-// (#246).
+// The forecast grid: the ranked metric drawn under the markers (#246), in
+// either of two styles over one set of samples.
 //
 // #121 rejected a forecast-derived raster, and the rejection was right about
 // what it was aimed at: interpolating between two SUMMITS across the valley
 // between them invents weather in exactly the terrain this app serves. Drawing
-// a field between MODEL GRID POINTS is a different act. Open-Meteo answers a
-// coordinate with the value of the model grid cell containing it, so sampling
-// at the model's own pitch means adjacent samples are adjacent grid cells, and
-// the field between them is one the model already claims is smooth. Every
-// meteorological renderer draws it that way, Windy included. Hard-edged squares
-// asserted a discontinuity the model does not have.
+// between MODEL GRID POINTS is a different act. Open-Meteo answers a coordinate
+// with the value of the model grid cell containing it, so sampling at the
+// model's own pitch means adjacent samples are adjacent grid cells, and the
+// field between them is one the model already claims is smooth. Every
+// meteorological renderer draws it that way, Windy included.
 //
-// So the honesty rule moved rather than lapsed, and it is now carried by the
-// pitch: the legend states the sample spacing, because that is the distance
-// over which the picture is a drawing rather than a measurement.
+// Both styles are therefore defensible, and they say different true things,
+// which is why the panel offers both rather than this file choosing:
+//
+// - `blocks` (the default) draws each sample as its own square. It shows you
+//   where the samples ARE, so the model's resolution is a thing you can see
+//   and count rather than a number in the legend. Its edges are the only
+//   dishonest part: the model has no discontinuity there.
+// - `smooth` draws the field between samples. It reads the way every other
+//   forecast map reads, and it is the honest shape of a field the model
+//   already treats as continuous. What it hides is how few samples are under
+//   it.
+//
+// The honesty rule sits with the pitch either way, and the legend states it:
+// that is the distance over which the picture is a drawing rather than a
+// measurement.
 //
 // Everything here is pure, including the raster, which is built as a pixel
 // buffer rather than a canvas so Vitest can assert on it without a DOM. The
@@ -28,6 +39,19 @@ import { NO_VALUE, bearingAt, fillColor } from './resultFeatures'
 
 /** One cell's extent: `[west, south, east, north]` in degrees. */
 export type CellBox = [number, number, number, number]
+
+/**
+ * How the field is drawn. `blocks` is the default because it is the style that
+ * cannot overstate what was sampled: every square is one answer, and you can
+ * count them.
+ */
+export type GridStyle = 'blocks' | 'smooth'
+
+export const GRID_STYLES: GridStyle[] = ['blocks', 'smooth']
+
+export function isGridStyle(value: string): value is GridStyle {
+  return (GRID_STYLES as string[]).includes(value)
+}
 
 /**
  * A lattice of sample points and the squares they stand for.
@@ -389,6 +413,40 @@ const NEIGHBOURS: [number, number][] = [
   [-1, 0],
   [1, 0],
 ]
+
+/**
+ * The field as one square per sample, for the `blocks` style.
+ *
+ * Reads `fillColor` — the markers' own derivation — rather than mirroring it,
+ * so a square and the marker standing on it cannot be scored differently. A
+ * sample with no value emits no feature at all, which leaves the basemap
+ * showing: a marker must stay on screen because it is a place the reader asked
+ * about, and a square must not assert a grey it does not mean.
+ */
+export function gridFeatureCollection(
+  cells: readonly GridCell[],
+  sortBy: SortBy,
+  hourIndex: number | null,
+): FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: cells.flatMap(({ box, row }) => {
+      const color = fillColor(row, sortBy, hourIndex)
+      if (color === NO_VALUE) return []
+      const [w, s, e, n] = box
+      return [
+        {
+          type: 'Feature' as const,
+          geometry: {
+            type: 'Polygon' as const,
+            coordinates: [[[w, s], [e, s], [e, n], [w, n], [w, s]]],
+          },
+          properties: { color },
+        },
+      ]
+    }),
+  }
+}
 
 /**
  * The per-sample wind arrows, as points at each sample's coordinate.

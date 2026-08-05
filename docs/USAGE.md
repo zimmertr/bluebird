@@ -138,7 +138,7 @@ again. Each is credited on its own legend, and each rides in the shared link.
 | **Wildfires** | Active fire perimeters, in red | United States |
 | **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | Continental United States |
 | **Smoke** | Smoke plumes at three densities, in grey | North America |
-| **Forecast grid** | The ranked metric as a continuous field, over the area your analysis covered | Wherever the chosen model reaches |
+| **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
 
 Clicking a perimeter opens NIFC's live map on that fire; clicking a plume says how
 dense it is, which satellite it was traced from, and over what hours. Where smoke
@@ -156,8 +156,7 @@ table are what measure air.
 
 The other three overlays draw somebody else's data. This one draws yours: the same
 metric your results are ranked by, asked for on a lattice of points across the area
-your analysis covered, and painted as a continuous field on the colors the marker
-legend already shows. It answers the question the markers cannot — is this one summit's
+your analysis covered, and painted on the colors the marker legend already shows. It answers the question the markers cannot — is this one summit's
 weather, or is the whole valley like that?
 
 It is the one layer whose switch costs something, which is why it is a switch. Turning
@@ -166,6 +165,19 @@ in front of them; leave it on and each later analysis grids itself the same way.
 the points are in hand everything else is free: changing the ranking recolors the
 field without asking for anything new, and so does the timeline. It fills in as it
 arrives rather than appearing all at once.
+
+**Style** picks how it is drawn, and both readings are true:
+
+- **Blocks** (the default) draws each point as its own square. You can see and count
+  the points, so how much detail the forecast actually has is visible rather than
+  stated. The hard edges are the one thing it overstates: the model has no boundary
+  there.
+- **Smooth** draws the space between the points, which is how every other forecast
+  map reads and is the honest shape of something the model already treats as
+  continuous. What it hides is how few points are underneath.
+
+Switching costs nothing. It is the same data drawn two ways, so it applies instantly
+and rides in the shared link.
 
 Two things to know when reading it:
 

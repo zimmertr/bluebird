@@ -312,16 +312,25 @@ covered, as a continuous field. It is the same Open-Meteo data as the results
 table, asked for on a lattice of points instead of at destinations, and it is
 worth being precise about what it is and is not.
 
-**The field is drawn between model grid points, not between destinations.**
-That distinction is the whole of why this overlay exists at all. Bluebird
-refused a forecast raster once, on the grounds that blending temperature
-between two summits across the valley between them invents numbers in exactly
-the terrain this app serves. That objection was right about interpolating
-between *destinations* and does not apply here. Open-Meteo answers a coordinate
-with the value of the model grid cell containing it, so sampling at the model's
-own spacing means neighbouring samples are neighbouring grid cells, and the
-field drawn between them is one the model already treats as continuous. Every
-meteorological renderer draws it that way.
+**Two styles, both true, and the panel picks between them.** *Blocks* draws
+each sample as its own square, which shows you where the samples are: the
+model's real detail is something you can see and count rather than a number in
+a legend. *Smooth* draws the space between them, which reads the way every
+other forecast map reads. Each hides what the other shows, which is why neither
+is the only option.
+
+**Smoothing here is between model grid points, not between destinations.**
+Bluebird refused a forecast raster once, on the grounds that blending
+temperature between two summits across the valley between them invents numbers
+in exactly the terrain this app serves. That objection was right about
+interpolating between *destinations* and does not apply to a field between grid
+points. Open-Meteo answers a coordinate with the value of the model grid cell
+containing it, so sampling at the model's own spacing means neighbouring
+samples are neighbouring grid cells, and what is drawn between them is
+something the model already treats as continuous. Every meteorological renderer
+draws it that way. The blocks style makes the opposite trade honestly: its
+edges assert a boundary the model does not have, in exchange for showing you
+exactly how many answers the picture rests on.
 
 **The sample spacing is the claim, and the legend states it.** `3 km grid`,
 `13 km grid`. That number is the distance over which the picture is a drawing
