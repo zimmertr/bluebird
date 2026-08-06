@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildResultsCsv, csvFilename } from './resultsCsv'
+import { DATA_SOURCES } from './dataSources'
 import { COLUMNS, displayedColumns } from './tableColumns'
 import { FireWarning, fireKey } from './fireProximity'
 import { DestinationResult } from '../types'
@@ -53,7 +54,8 @@ describe('the file a spreadsheet opens', () => {
     const csv = buildResultsCsv([row(), row({ name: 'Glacier Peak' })], WINDOW_COLUMNS, NO_FIRES)
     expect(csv.endsWith('\r\n')).toBe(true)
     expect(csv).not.toMatch(/[^\r]\n/)
-    expect(lines(csv)).toHaveLength(3)
+    // Header, two data rows, then the blank row and three credit lines.
+    expect(lines(csv)).toHaveLength(7)
   })
 
   it('puts the headers in the first row, where a spreadsheet looks for them', () => {
@@ -78,7 +80,7 @@ describe('what the file carries', () => {
       WINDOW_COLUMNS,
       NO_FIRES,
     )
-    const body = lines(csv).slice(1)
+    const body = lines(csv).slice(1, 4)
     expect(body.map((l) => cells(l)[0])).toEqual(['1', '2', '3'])
     expect(body.map((l) => cells(l)[1])).toEqual(['First', 'Second', 'Third'])
   })
@@ -178,7 +180,8 @@ describe('quoting', () => {
   it('quotes a name carrying a line break rather than splitting the row', () => {
     const csv = buildResultsCsv([row({ name: 'Two\nLines' })], WINDOW_COLUMNS, NO_FIRES)
     expect(csv).toContain('"Two\nLines"')
-    expect(lines(csv)).toHaveLength(2)
+    // Header and one data row; the trailer is the blank row and three credits.
+    expect(lines(csv)).toHaveLength(6)
   })
 
   it('leaves a name needing no quotes unquoted', () => {
@@ -271,8 +274,51 @@ describe('the wildfire column', () => {
       const csv = buildResultsCsv([row(), row({ name: 'Glacier Peak' })], WINDOW_COLUMNS, null)
       expect(csv.charCodeAt(0)).toBe(0xfeff)
       expect(cells(lines(csv)[0])[0]).toBe('Rank')
-      expect(lines(csv)).toHaveLength(3)
+      // Header, two data rows, the blank row, and two credits: no NIFC line,
+      // because a file with no wildfire column must not credit its supplier.
+      expect(lines(csv)).toHaveLength(6)
     })
+  })
+})
+
+// CC BY 4.0 wants the credit to travel with every copy of the material, and a
+// ranked table of OSM places is an ODbL derived product; a file is a copy the
+// on-screen credits do not follow (#258).
+describe('the supplier credits', () => {
+  const openMeteo = DATA_SOURCES.find((s) => s.name === 'Open-Meteo')!
+  const osm = DATA_SOURCES.find((s) => s.name === 'OpenStreetMap')!
+  const nifc = DATA_SOURCES.find((s) => s.name === 'NIFC')!
+
+  it('follow the data behind exactly one blank row, so the table stays a table', () => {
+    const all = lines(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES))
+    expect(all[1]).toContain('Mount Rainier')
+    expect(all[2]).toBe('')
+    expect(all[3]).toContain('Open-Meteo')
+    expect(all.filter((l) => l === '')).toHaveLength(1)
+  })
+
+  it('compose each line from DATA_SOURCES rather than a second literal copy', () => {
+    const csv = buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES)
+    expect(csv).toContain(
+      `"Weather data by ${openMeteo.name}, ${openMeteo.license} (${openMeteo.licenseHref})"`,
+    )
+    expect(csv).toContain(
+      `"Destination data © ${osm.name} contributors, ${osm.license} (${osm.licenseHref})"`,
+    )
+  })
+
+  it('credit the fire supplier exactly when the file carries the fire column', () => {
+    expect(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES)).toContain(
+      `"Wildfire data by ${nifc.name}, ${nifc.license} (${nifc.licenseHref})"`,
+    )
+    expect(buildResultsCsv([row()], WINDOW_COLUMNS, null)).not.toContain('NIFC')
+  })
+
+  it('stand even in a file with no data rows', () => {
+    const all = lines(buildResultsCsv([], WINDOW_COLUMNS, null))
+    expect(all[1]).toBe('')
+    expect(all[2]).toContain('Open-Meteo')
+    expect(all[3]).toContain('OpenStreetMap')
   })
 })
 
