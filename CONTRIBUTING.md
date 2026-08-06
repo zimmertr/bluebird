@@ -1,8 +1,8 @@
 # Contributing
 
-Bluebird has one maintainer. A feature starts as an issue: open one and get a yes before you write code.
+Bluebird has one maintainer. For a large change, an issue first is a good idea: it lets the approach get discussed before you build it.
 
-If you do send a change:
+If you send a change:
 
 - The test and lint commands live in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 - Run `ruff check backend/` from the repository root, not from `backend/`, or it orders imports differently than CI.
