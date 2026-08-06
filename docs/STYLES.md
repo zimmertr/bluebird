@@ -186,6 +186,40 @@ The accent appears in six places and must pass WCAG AA on all of them. On a whit
 
 **Re-measure condition:** if `DAY.range` ever changes, re-derive this shade. The binding edge is `DAY.range` at 3.04:1, so the selected day must still be findable against the range band beside it.
 
+### The metric ramp
+
+The five band colors every metric scale shares, and the purple/maroon pair the
+AQI scale continues into, live as `RAMP` in `frontend/src/utils/colors.ts`.
+Since #255 the ramp's load-bearing channel is **lightness, not hue**: color is
+the only information a map marker carries, about 8 in 100 men cannot rely on
+its hue, and the old ramp's lightness was not even ordered (lime and amber sat
+1.03:1 apart, and protanopia squeezed its first three steps to 1.10:1).
+
+The constraints, all enforced by the measurement suite in `colors.test.ts`
+against the exported values (so an edited hex fails a measurement rather than
+inheriting a stale claim):
+
+- WCAG relative luminance falls strictly from every step to the next — through
+  the shared five and on through AQI's purple and maroon
+- The shared ramp spreads **7.06:1** end to end against a 3:1 floor
+- Every adjacent shared pair measures **≥ 1.50:1** under normal vision and
+  under protanopia, deuteranopia and tritanopia (Viénot 1999 simulation);
+  the deuteranopia simulation is the binding condition at 1.50–1.51
+- The AQI continuation measures **1.27–1.53:1** (floor pinned at 1.25):
+  seven monotonic steps exhaust the luminance range, so the top two bands
+  cannot also clear 1.5 and lean on the EPA hue convention for typical vision
+
+Two consequences ride with the darker bottom half. Table cell text in a band
+color lightens toward white to a measured floor (`TEXT_FLOOR_L`, 4.5:1 over
+the hovered row surface) while the cell's tint keeps the true band color; and
+the legend's swatch dots wear a `slate-400` ring, because a maroon dot alone
+measures 1.3:1 against the floating box.
+
+**Re-measure condition:** any change to a ramp hex, to the table's row
+surfaces (which move `TEXT_FLOOR_L`), or to the legend box surface. The suite
+in `colors.test.ts` is the instrument of record — update the pinned numbers
+from its output, not from a side calculation.
+
 ### Copy length budget
 
 The panel is 360px on desktop (100vw − 2rem capped at 360 on phones).

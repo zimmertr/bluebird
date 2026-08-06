@@ -1962,7 +1962,11 @@ export default function App() {
                   </p>
                   {markerScale.colors.map((color, i) => (
                     <div key={i} className="flex items-center gap-1.5 py-0.5">
-                      <span style={{ backgroundColor: color }} className={`flex-shrink-0 h-2.5 w-2.5 ${RADIUS.pill}`} aria-hidden="true" />
+                      {/* The ring is what keeps the dark end of the ramp
+                          (#255) a visible dot on this dark box: the maroon
+                          swatch alone measures 1.3:1 against it. slate-400
+                          clears the 3:1 a meaningful boundary needs. */}
+                      <span style={{ backgroundColor: color }} className={`flex-shrink-0 h-2.5 w-2.5 ring-1 ring-slate-400 ${RADIUS.pill}`} aria-hidden="true" />
                       <span className={`${TEXT.control} font-mono`}>
                         {markerScale.legendLabels[i]}
                       </span>

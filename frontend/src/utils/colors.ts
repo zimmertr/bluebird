@@ -32,34 +32,56 @@ type MetricConfig = LabelledScale & {
   group: string[]
 }
 
+// The one green→red ramp every scale draws from, plus the two darker steps
+// the AQI scale continues into (#255). Hue still says what kind of conditions
+// (green = dry/calm/cold/clean through red = severe), but hue is no longer
+// the load-bearing channel: WCAG relative luminance falls strictly from each
+// step to the next, so the ramp survives protanopia, deuteranopia and
+// tritanopia, where the old equal-brightness ramp collapsed (its lime and
+// amber measured 1.03:1 apart, and its lightness was not even ordered).
+//
+// Derived by constraint search, and the constraints are enforced in
+// colors.test.ts against these exported values — luminance strictly
+// monotonic; lightest-vs-darkest ≥ 3:1; every adjacent pair ≥ 1.5:1 under
+// normal vision AND all three dichromacies (Viénot 1999 simulation) — so a
+// change here fails the measurement rather than inheriting a stale claim.
+// Six-plus-two monotonic steps exhaust the usable luminance range, which is
+// why the AQI continuation cannot also clear 1.5:1: red→purple→maroon
+// measure 1.27–1.53:1 across conditions (floors pinned at 1.25), with the
+// EPA hue convention still separating them for typical vision.
+const RAMP = ['#16f066', '#74b800', '#9e7400', '#964100', '#800408']
+const AQI_PURPLE = '#470059'
+const AQI_MAROON = '#260000'
+
 // Scales are anchored to absolute conditions (green = dry/calm/cold/clean),
 // not to the chosen ranking direction — ranking "highest" simply surfaces the
 // red end of the same scale first.
 export const METRIC_CONFIG: Record<SortBy, MetricConfig> = {
   precip_total_in: {
     thresholds: [0.01, 0.10, 0.25, 0.50],
-    colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
+    colors: RAMP,
     legendLabels: ['≤ 0.01"', '0.01 – 0.10"', '0.10 – 0.25"', '0.25 – 0.50"', '> 0.50"'],
     group: ['precip_total_in', 'precip_avg_in_hr', 'precip_max_in_hr'],
   },
   wind_avg_mph: {
     thresholds: [5, 15, 25, 35],
-    colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
+    colors: RAMP,
     legendLabels: ['≤ 5 mph', '5 – 15 mph', '15 – 25 mph', '25 – 35 mph', '> 35 mph'],
     group: ['wind_min_mph', 'wind_avg_mph', 'wind_max_mph'],
   },
   temp_avg_f: {
     thresholds: [30, 45, 55, 65],
-    colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
+    colors: RAMP,
     legendLabels: ['≤ 30°F', '30 – 45°F', '45 – 55°F', '55 – 65°F', '> 65°F'],
     group: ['temp_min_f', 'temp_avg_f', 'temp_max_f'],
   },
   // All six US EPA AQI categories — Good / Moderate / Sensitive / Unhealthy /
   // Very Unhealthy / Hazardous — in the app's hues. The purple/maroon top
-  // bands exist so an AQI of 250 and one of 350 never look the same.
+  // bands exist so an AQI of 250 and one of 350 never look the same. The
+  // ramp's lime is skipped: EPA's Moderate is a yellow, not a yellow-green.
   aqi_avg: {
     thresholds: [50, 100, 150, 200, 300],
-    colors: ['#22c55e', '#eab308', '#f97316', '#ef4444', '#a855f7', '#991b1b'],
+    colors: [RAMP[0], RAMP[2], RAMP[3], RAMP[4], AQI_PURPLE, AQI_MAROON],
     legendLabels: [
       '≤ 50 AQI',
       '50 – 100 AQI',
@@ -91,7 +113,7 @@ export const METRIC_CONFIG: Record<SortBy, MetricConfig> = {
  */
 const PRECIP_RATE: LabelledScale = {
   thresholds: [0.01, 0.10, 0.30, 0.50],
-  colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
+  colors: RAMP,
   // Spelled "in/hr" rather than with an inch mark, which is what the window
   // scale above uses. The difference is the whole point of this scale existing,
   // and the map legend shows one or the other with nothing beside it to compare
@@ -224,6 +246,50 @@ export function colorOnScale(value: number, scale: ColorScale): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
+/** WCAG relative luminance of an sRGB triple. */
+function relativeLuminance([r, g, b]: [number, number, number]): number {
+  const lin = (c: number) => {
+    const v = c / 255
+    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+  }
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+}
+
+/**
+ * The luminance floor for text printed in a band color.
+ *
+ * The ramp's accessible channel is darkness (#255), and the table prints its
+ * numbers IN the band color on the results panel — so the darker half of the
+ * ramp would land below AA as text while being exactly right as a marker.
+ * The binding surface is a hovered row: slate-700 at 30% over the panel's
+ * slate-800, whose effective luminance is 0.0349. AA's 4.5:1 for text there
+ * needs L ≥ 4.5 × (0.0349 + 0.05) − 0.05 = 0.332; colors.test.ts measures
+ * the floor against every anchor. Changing the table's surfaces moves this
+ * number, so re-derive it rather than trusting it.
+ */
+const TEXT_FLOOR_L = 0.332
+
+/**
+ * The band color, lightened toward white only as far as the text floor needs.
+ *
+ * The band identity a lightened text loses is carried by the cell's tinted
+ * background and by the printed number itself; text has to be readable first.
+ * Binary search over the mix fraction — luminance rises monotonically with
+ * it — so the result is deterministic and minimal.
+ */
+function readableText(rgb: [number, number, number]): [number, number, number] {
+  if (relativeLuminance(rgb) >= TEXT_FLOOR_L) return rgb
+  let lo = 0
+  let hi = 1
+  for (let i = 0; i < 20; i++) {
+    const t = (lo + hi) / 2
+    const mixed = mix(rgb, [255, 255, 255], t)
+    if (relativeLuminance(mixed) >= TEXT_FLOOR_L) hi = t
+    else lo = t
+  }
+  return mix(rgb, [255, 255, 255], hi)
+}
+
 /**
  * A cell is colored by the number printed in it, on the scale that number is
  * measured against — so the caller passes a scale rather than the ranking, and
@@ -234,14 +300,20 @@ export function colorOnScale(value: number, scale: ColorScale): string {
  * 0.55 in/hr peak inside a 0.10" window showed both cells at the window's
  * color, so the peak the reader was looking for was the one thing the color
  * could not tell them.
+ *
+ * The background keeps the true band color; the text wears `readableText`'s
+ * lightened variant of it, because a dark band's own value is unreadable as
+ * text on the dark panel (see TEXT_FLOOR_L above).
  */
 export function cellStyle(
   value: number,
   scale: ColorScale,
 ): { backgroundColor: string; color: string } {
-  const [r, g, b] = interpolateRgb(value, scale)
+  const rgb = interpolateRgb(value, scale)
+  const [r, g, b] = rgb
+  const [tr, tg, tb] = readableText(rgb)
   return {
     backgroundColor: `rgba(${r},${g},${b},0.2)`,
-    color: `rgb(${r},${g},${b})`,
+    color: `rgb(${tr},${tg},${tb})`,
   }
 }

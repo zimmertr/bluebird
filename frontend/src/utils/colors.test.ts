@@ -4,13 +4,16 @@ import { COLUMNS } from './tableColumns'
 
 // Anchor hexes, lowest (green) → highest. Weather scales top out at red; the
 // AQI scale continues through the EPA Very Unhealthy / Hazardous bands.
-const GREEN = '#22c55e'
-const LIME = '#84cc16'
-const YELLOW = '#eab308'
-const ORANGE = '#f97316'
-const RED = '#ef4444'
-const PURPLE = '#a855f7'
-const MAROON = '#991b1b'
+// Derived under #255's constraints — see the RAMP comment in colors.ts and
+// the measurement suite at the bottom of this file, which is what makes
+// changing one of these a re-measurement rather than a paste.
+const GREEN = '#16f066'
+const LIME = '#74b800'
+const YELLOW = '#9e7400'
+const ORANGE = '#964100'
+const RED = '#800408'
+const PURPLE = '#470059'
+const MAROON = '#260000'
 
 describe('markerColor', () => {
   it('returns green at or below the first threshold', () => {
@@ -57,11 +60,21 @@ describe('markerColor', () => {
 
 describe('cellStyle', () => {
   it('returns a translucent background and solid text of the same hue', () => {
-    // Green anchor #22c55e === rgb(34, 197, 94).
+    // Green anchor #16f066 === rgb(22, 240, 102). Green sits above the text
+    // floor, so its text is the band color itself, untouched.
     expect(cellStyle(0, METRIC_CONFIG.precip_total_in)).toEqual({
-      backgroundColor: 'rgba(34,197,94,0.2)',
-      color: 'rgb(34,197,94)',
+      backgroundColor: 'rgba(22,240,102,0.2)',
+      color: 'rgb(22,240,102)',
     })
+  })
+
+  it('keeps the true band color in the background while lightening dark text', () => {
+    // Red anchor #800408 === rgb(128,4,8): far below the text floor. The
+    // tint must stay the real band color — it is what carries the band once
+    // the text has been lightened to stay readable.
+    const style = cellStyle(10, METRIC_CONFIG.precip_total_in)
+    expect(style.backgroundColor).toBe('rgba(128,4,8,0.2)')
+    expect(style.color).not.toBe('rgb(128,4,8)')
   })
 
   // The regression this signature exists to make impossible: the table used to
@@ -206,6 +219,133 @@ describe('METRIC_CONFIG', () => {
       // "≤ t0", then one pair per middle band, then "> tLast" — so each
       // boundary is named exactly twice, in order.
       expect(advertised).toEqual(cfg.thresholds.flatMap((t) => [t, t]))
+    }
+  })
+})
+
+// The measurement behind #255, kept AS the test so a changed hex fails here
+// and forces a re-measurement instead of inheriting a stale claim. The
+// instrument: WCAG relative luminance, and the Viénot 1999 dichromacy
+// simulation (sRGB → linear → Hunt-Pointer-Estevez LMS, collapse the missing
+// axis, back through the inverse, quantize to 8-bit like a screen would).
+describe('the ramp measured (#255)', () => {
+  const lin = (c: number) => {
+    const v = c / 255
+    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+  }
+  const delin = (c: number) => {
+    const v = Math.max(0, Math.min(1, c))
+    return Math.round((v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055) * 255)
+  }
+  const rgb = (hex: string): number[] => [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ]
+  const lum = (c: number[]) => 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2])
+  const contrast = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+
+  const RGB2LMS = [
+    [0.31399022, 0.63951294, 0.04649755],
+    [0.15537241, 0.75789446, 0.08670142],
+    [0.01775239, 0.10944209, 0.87256922],
+  ]
+  const LMS2RGB = [
+    [5.47221206, -4.6419601, 0.16963708],
+    [-1.1252419, 2.29317094, -0.1678952],
+    [0.02980165, -0.19318073, 1.16364789],
+  ]
+  const mat = (m: number[][], v: number[]) => m.map((row) => row[0] * v[0] + row[1] * v[1] + row[2] * v[2])
+  type Cond = 'normal' | 'protan' | 'deutan' | 'tritan'
+  const simulate = (c: number[], kind: Cond): number[] => {
+    if (kind === 'normal') return c
+    let [L, M, S] = mat(RGB2LMS, c.map(lin))
+    if (kind === 'protan') L = 1.05118294 * M - 0.05116099 * S
+    if (kind === 'deutan') M = 0.9513092 * L + 0.04866992 * S
+    if (kind === 'tritan') S = -0.86744736 * L + 1.86727089 * M
+    return mat(LMS2RGB, [L, M, S]).map(delin)
+  }
+  const simLum = (hex: string, cond: Cond) => lum(simulate(rgb(hex), cond))
+  const CONDS: Cond[] = ['normal', 'protan', 'deutan', 'tritan']
+
+  const shared = METRIC_CONFIG.precip_total_in.colors
+  const aqi = METRIC_CONFIG.aqi_avg.colors
+
+  it('pins each anchor to the luminance it was measured at', () => {
+    // The recorded measurement. Any color edit lands here first.
+    const measured: Array<[string, number]> = [
+      ['#16f066', 0.6345],
+      ['#74b800', 0.3799],
+      ['#9e7400', 0.1976],
+      ['#964100', 0.1026],
+      ['#800408', 0.0469],
+      ['#470059', 0.0206],
+      ['#260000', 0.0041],
+    ]
+    for (const [hex, expected] of measured) {
+      expect(lum(rgb(hex))).toBeCloseTo(expected, 4)
+    }
+  })
+
+  it('orders lightness one way, down the shared ramp and on through AQI', () => {
+    for (const seq of [shared, aqi]) {
+      for (let i = 1; i < seq.length; i++) {
+        expect(lum(rgb(seq[i]))).toBeLessThan(lum(rgb(seq[i - 1])))
+      }
+    }
+  })
+
+  it('spreads the shared ramp at least 3:1 end to end', () => {
+    expect(contrast(lum(rgb(shared[0])), lum(rgb(shared[4])))).toBeGreaterThanOrEqual(3)
+  })
+
+  it('keeps every neighboring shared step ≥ 1.5:1 under all four visions', () => {
+    for (let i = 1; i < shared.length; i++) {
+      for (const cond of CONDS) {
+        const ratio = contrast(simLum(shared[i - 1], cond), simLum(shared[i], cond))
+        expect(ratio, `${shared[i - 1]}/${shared[i]} under ${cond}`).toBeGreaterThanOrEqual(1.5)
+      }
+    }
+  })
+
+  // Six-plus-two monotonic steps exhaust the luminance range, so the AQI
+  // continuation cannot also clear 1.5 (measured minima: red/purple 1.27
+  // protan, purple/maroon 1.27 protan). 1.25 is the honest floor; EPA's hue
+  // convention still separates these bands for typical vision.
+  it('keeps every neighboring AQI step ≥ 1.25:1 under all four visions', () => {
+    for (let i = 1; i < aqi.length; i++) {
+      for (const cond of CONDS) {
+        const ratio = contrast(simLum(aqi[i - 1], cond), simLum(aqi[i], cond))
+        expect(ratio, `${aqi[i - 1]}/${aqi[i]} under ${cond}`).toBeGreaterThanOrEqual(1.25)
+      }
+    }
+  })
+
+  it('keeps cell text AA-readable on the darkest and lightest row surfaces', () => {
+    // The two surfaces a colored cell can sit on: the panel (slate-800) and
+    // a hovered row (slate-700 composited at 30% over it). If the table's
+    // surfaces change, TEXT_FLOOR_L in colors.ts must be re-derived.
+    const composite = (top: number[], bottom: number[], alpha: number) =>
+      top.map((c, i) => alpha * c + (1 - alpha) * bottom[i])
+    const surfaces = [
+      lum(rgb('#1e293b')),
+      lum(composite(rgb('#334155'), rgb('#1e293b'), 0.3)),
+    ]
+    const anchorValues = (scale: { thresholds: number[] }) => [
+      scale.thresholds[0] - 1,
+      ...scale.thresholds,
+      scale.thresholds[scale.thresholds.length - 1] * 10,
+    ]
+    for (const cfg of Object.values(METRIC_CONFIG)) {
+      for (const value of anchorValues(cfg)) {
+        const text = cellStyle(value, cfg).color.match(/\d+/g)!.map(Number)
+        for (const surface of surfaces) {
+          expect(
+            contrast(lum(text), surface),
+            `text for ${value} on L=${surface.toFixed(4)}`,
+          ).toBeGreaterThanOrEqual(4.5)
+        }
+      }
     }
   })
 })
