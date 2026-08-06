@@ -83,11 +83,8 @@ export interface ForecastGridInputs {
   /** Is the layer on? The whole gate: off means no lattice and no fetch. */
   enabled: boolean
   /**
-   * The analyzed field the lattice covers, or null on the server SSE path.
-   *
-   * That path sends only its trimmed rows, so there is no field whose extent a
-   * grid could honestly claim to cover — the established degradation for every
-   * knob that needs the universe.
+   * The analyzed field the lattice covers, or null before the first committed
+   * analysis, when there is no extent a grid could honestly claim to cover.
    */
   field: readonly DestinationResult[] | null
   /**

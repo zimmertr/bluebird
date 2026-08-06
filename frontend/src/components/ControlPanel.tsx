@@ -57,17 +57,10 @@ const SORT_METRICS: { value: SortBy; label: string }[] = RANKING_KEYS.map((value
 
 // Why a knob stopped applying live. Each case names the reason the
 // controls went quiet, which is the thing this cue exists to not leave unsaid.
-const COMMIT_CUE: Record<
-  'server-path' | 'elevation-widened' | 'window-changed' | 'model-changed',
-  string
-> = {
+const COMMIT_CUE: Record<'elevation-widened' | 'window-changed' | 'model-changed', string> = {
   'elevation-widened': 'A wider elevation range requires a new search.',
   'window-changed': 'A new forecast window requires a new analysis.',
   'model-changed': 'A new forecast model requires a new analysis.',
-  // The overlay already announced the fallback itself ("Open-Meteo is unreachable
-  // from this browser"), so this only has to name the consequence.
-  'server-path':
-    'The server analysis holds only the rows shown, so changing controls needs a new analysis.',
 }
 
 // What each Analyze blocker reads as. A function rather than a record because
@@ -195,7 +188,7 @@ interface Props {
   // limit and elevation-narrowing normally re-present the held field with no
   // Analyze at all (#188), so this cue is the exception rather than the rule
   // and has to say which exception it is.
-  commitReason?: 'server-path' | 'elevation-widened' | 'window-changed' | 'model-changed' | null
+  commitReason?: 'elevation-widened' | 'window-changed' | 'model-changed' | null
   // At least one place has been searched by name. Searched places are a ranked
   // input like the CSV, so one alone enables Analyze with no polygon drawn.
   hasPins: boolean

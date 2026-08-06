@@ -133,6 +133,14 @@ meant to prevent.
 | `GET /api/version` | Which build is running: version, commit, build time. |
 | `GET /api/geocode` | Place lookup by name, proxied to Nominatim. |
 | `GET /api/wildfires` | Active US wildfire perimeters in a bounding box, cached from NIFC. |
+
+On `bluebirdforecast.com` the gateway publishes the API by **allowlist**
+(#240): it forwards exactly the endpoints the web app itself calls, plus
+`/api/version`, and any other `/api` path answers the same JSON `404` an
+unknown path gets. The two analyze endpoints are the deliberate omissions,
+because one request can spend more than a thousand weighted Open-Meteo calls
+from the deployment's shared quota. They work unchanged on a self-hosted
+instance and from inside the deployment's own network.
 | `GET /api/smoke` | Smoke plumes over North America, cached from NOAA's Hazard Mapping System. |
 | `GET /api/config` | Deployment-specific UI settings. Internal to the web app. |
 | `GET /healthz` | Liveness probe. Answers `GET` and `HEAD`. |
@@ -159,9 +167,10 @@ never-sampled discovery an analysis starts with, under the same candidate
 ceiling (with its own, cheaper rate-limit bucket), just without the weather. It exists so a
 client can attach forecasts itself: the bundled web app calls it and then
 fetches Open-Meteo **directly from the browser**, spending the visitor's own
-free-tier quota instead of this deployment's (falling back to
-`POST /api/analyze/stream` when Open-Meteo is unreachable from the browser).
-If you are building a client and want ranked forecasts in one call,
+free-tier quota instead of this deployment's. That is the web app's only
+analysis path: since #240 it has no fallback through the server, so a browser
+that cannot reach Open-Meteo gets an error rather than spending the shared
+quota. If you are building a client and want ranked forecasts in one call,
 `POST /api/analyze` remains the endpoint for that; if you want to do your own
 ranking or your own weather, this one saves you a scrape.
 

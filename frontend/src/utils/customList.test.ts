@@ -214,7 +214,7 @@ describe('a field larger than the limit', () => {
   }
 
   it('shows exactly the limit, all of them forecasted', () => {
-    const { rows, eligible } = presentResults(universe, null, knobs, new Set())
+    const { rows, eligible } = presentResults(universe, knobs, new Set())
     expect(rows).toHaveLength(knobs.limit)
     expect(rows.every((r) => r.precip_total_in !== null)).toBe(true)
     expect(eligible).toBe(universe.length)
@@ -225,7 +225,7 @@ describe('a field larger than the limit', () => {
   })
 
   it('raising the limit reveals the overflow with its forecast attached', () => {
-    const { rows } = presentResults(universe, null, { ...knobs, limit: 200 }, new Set())
+    const { rows } = presentResults(universe, { ...knobs, limit: 200 }, new Set())
     expect(rows).toHaveLength(universe.length)
     expect(rows[rows.length - 1].name).toBe(searched.label)
     expect(rows[rows.length - 1].precip_total_in).toBe(999)
