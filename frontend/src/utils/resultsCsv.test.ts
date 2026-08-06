@@ -185,14 +185,45 @@ describe('quoting', () => {
     expect(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES)).toContain('1,Mount Rainier,')
   })
 
-  // Deliberate. Excel and Sheets read a leading "=" as a formula, and the usual
-  // defense prefixes an apostrophe or a tab, which corrupts the name of a real
-  // place to protect the user from data they asked for themselves.
-  it('ships a name that looks like a formula exactly as it was mapped', () => {
-    const csv = buildResultsCsv([row({ name: '=Ruth Mountain' })], WINDOW_COLUMNS, NO_FIRES)
-    expect(csv).toContain('=Ruth Mountain')
-    expect(csv).not.toContain("'=Ruth")
-    expect(csv).not.toContain('\t=Ruth')
+  // A name is not always written by the person who opens the file: it can
+  // arrive through a shared link or a public OSM edit, and a spreadsheet runs
+  // a leading formula character on open. The apostrophe is the spreadsheet
+  // convention for "this is text" (#254).
+  describe('formula characters', () => {
+    it.each([
+      ['=', '=Ruth Mountain'],
+      ['+', '+Lookout Point'],
+      ['@', '@Camp Site'],
+    ])('prefixes an apostrophe to a name leading with %s', (_lead, name) => {
+      const csv = buildResultsCsv([row({ name })], WINDOW_COLUMNS, NO_FIRES)
+      expect(csv).toContain(`'${name}`)
+      expect(csv).not.toContain(`,${name}`)
+    })
+
+    it('guards a leading tab, which spreadsheets also read as a formula lead', () => {
+      const csv = buildResultsCsv([row({ name: '\tIndented' })], WINDOW_COLUMNS, NO_FIRES)
+      expect(csv).toContain("'\tIndented")
+    })
+
+    it('guards a leading carriage return and still quotes it as a line break', () => {
+      const csv = buildResultsCsv([row({ name: '\rReturn' })], WINDOW_COLUMNS, NO_FIRES)
+      expect(csv).toContain('"\'\rReturn"')
+    })
+
+    // A destination with no name falls back to its coordinates, so every
+    // southern-hemisphere coordinate row starts with "-". A prefix there would
+    // corrupt the one field that identifies the row.
+    it('leaves a leading minus untouched, because coordinate names carry one', () => {
+      const csv = buildResultsCsv([row({ name: '-45.123, 170.456' })], WINDOW_COLUMNS, NO_FIRES)
+      expect(csv).toContain('"-45.123, 170.456"')
+      expect(csv).not.toContain("'-45.123")
+    })
+
+    it('leaves a formula character that is not in the lead alone', () => {
+      const csv = buildResultsCsv([row({ name: 'Hidden Lake @ Dusk' })], WINDOW_COLUMNS, NO_FIRES)
+      expect(csv).toContain(',Hidden Lake @ Dusk,')
+      expect(csv).not.toContain("'Hidden")
+    })
   })
 })
 
