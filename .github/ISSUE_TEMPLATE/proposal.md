@@ -1,56 +1,44 @@
 ---
 name: Proposal
-about: A feature, fix, or decision, scoped to one deliverable PR
+about: High-level proposal for a feature, fix, or decision, scoped to one deliverable PR
 title: ''
 labels: ''
 assignees: ''
 ---
 
-<!-- Write in ASD-STE100 Simplified Technical English: short sentences, active
-voice, one instruction per sentence, one name for one thing, American spelling,
-no idioms. The title is one short statement of the problem or the task. -->
+## Origin
 
-## Problem Summary
+<!-- Where this came from: a TODO note, a review finding, a conversation, a bug sighting. Quote the source when it exists. -->
 
-<!-- What is wrong or missing, with verified facts. State what was measured and
-how. Name files and functions. -->
+## Problem
 
-## Proposed Solutions
+<!-- What hurts or is missing today. Verified facts with file references beat speculation. -->
 
-<!-- Lettered options. Give each option Good and Bad bullets. End with one
-recommendation line. State a settled decision as settled, with who decided and
-when. -->
+## Proposal
 
-## Implementation Plan
+<!-- The high-level approach. For decision issues, replace this with an Options section listing each option with pros and cons, and mark a recommendation. -->
 
-<!-- Numbered imperative steps. Name the file and the function for each step.
-Stay high level: detailed design belongs to the implementing session. -->
+## Sketch of changes
 
-## Acceptance Criteria
+<!-- Files and areas expected to change. Stay high level: detailed design belongs to the implementing session. -->
 
-<!-- Plain bullets a reviewer can verify. Repo gates that may apply: both test
-suites pass inside Docker; backend/openapi.json regenerated on contract
-changes; weather vectors regenerated on aggregation changes; the owning
-docs/ page updated in the same PR. -->
+## Out of scope
 
-## Notes for an AI agent
+<!-- What this issue deliberately does not cover. -->
 
-<!-- The guardrails and traps an implementing agent must know. Examples: tests
-run only inside Docker; metrics.ts and styles.ts are the only sources for
-names and styles; new user-facing text needs the maintainer's approval. -->
+## Acceptance criteria
 
-## Notes for a human
+<!-- Checkboxes sized to ONE PR. Repo rules: tests ship with behavior (Vitest frontend, pytest backend); docs/CICD.md updates ship with any deploy-flow change. -->
 
-<!-- The decisions that are the maintainer's, the provenance (review finding,
-TODO, conversation), the risks, and any open questions. -->
+- [ ]
+
+## Open questions
+
+<!-- Anything the implementer must resolve, verify, or ask about before building. -->
 
 <!--
-Optional extra sections (for example, Out of scope or Measured) go between
-Acceptance Criteria and the Notes.
-
 Labels to apply before submitting:
-- Priority (required, exactly one): P1 (do next), P2 (soon), P3 (someday)
-- Never PM: it means Priority Manual, and only the maintainer sets it
+- Priority: P1 (do next), P2 (soon), or P3 (someday/exploratory)
 - Areas: frontend, backend, ci, kubernetes, security, compliance, ux, infra, data-sources, docker
 - Type: enhancement, bug, documentation, or question
 Style: no em dashes anywhere in issue copy.

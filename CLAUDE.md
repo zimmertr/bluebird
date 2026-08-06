@@ -145,4 +145,4 @@ The end-to-end checklist is the `add-destination-type` skill (`.claude/skills/ad
 
 ## Filing issues
 
-Never file an issue unasked; confirm first. The format (six Simplified Technical English sections), the writing rules, and the label rules (exactly one of P1/P2/P3 plus areas and a type; `PM` is never yours to add) are the `create-issue` skill (`.claude/skills/create-issue/SKILL.md`); the skeletons live in `.github/ISSUE_TEMPLATE/`.
+Never file an issue unasked; confirm first. The format (six Simplified Technical English sections), the writing rules, and the label rules (exactly one of P1/P2/P3 plus areas and a type; `PM` is never yours to add) are the `create-issue` skill (`.claude/skills/create-issue/SKILL.md`), which carries the section skeleton itself.

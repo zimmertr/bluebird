@@ -25,8 +25,8 @@ discovered mid-task.
 
 ## Step 3: use the six sections, in this order
 
-The skeletons live in `.github/ISSUE_TEMPLATE/proposal.md` and `bug.md`.
-Every issue carries at least:
+This list is the skeleton; write the sections from it directly. Every issue
+carries at least:
 
 1. **Problem Summary**: what is wrong or missing, with verified facts. State
    what was measured and how.
