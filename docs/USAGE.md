@@ -137,7 +137,7 @@ again. Each is credited on its own legend, and each rides in the shared link.
 
 | Layer | What it draws | Coverage |
 |---|---|---|
-| **Wildfires** | Active fire perimeters, in red | United States |
+| **Wildfires (US only)** | Active fire perimeters, in red | United States — the label says so because the proximity check shares the limit ([DATA.md](DATA.md#wildfires)) |
 | **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | Continental United States |
 | **Smoke** | Smoke plumes at three densities, in grey | North America |
 | **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |

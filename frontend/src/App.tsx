@@ -413,7 +413,7 @@ export default function App() {
     }
   }, [layersOpen])
   const MAP_LAYERS = [
-    { key: 'fires', label: 'Wildfires', checked: showWildfires, onChange: setShowWildfires },
+    { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
     { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
     { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
     { key: 'grid', label: 'Forecast grid', checked: showGrid, onChange: setShowGrid },
@@ -1630,6 +1630,9 @@ export default function App() {
           onCancelDrawing={handleCancelDrawing}
           onPointAtSearch={setSearchPointed}
           wildfireCheckFailed={fire.status === 'unavailable' && results.length > 0}
+          wildfireUncovered={
+            (fire.status === 'uncovered' || fire.coverage === 'partial') && results.length > 0
+          }
           onPointAtMapPois={setPoisPointed}
           destinationTypes={destinationTypes}
           setDestinationTypes={setDestinationTypes}

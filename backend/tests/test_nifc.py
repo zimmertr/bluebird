@@ -353,6 +353,15 @@ def test_collection_json_handles_an_empty_result():
     assert body["features"] == []
 
 
+def test_collection_json_carries_the_coverage_member():
+    # The member the browser reads to tell "not covered" from "nothing
+    # burning" (#256). It rides every response, empty results included,
+    # because the empty result is exactly the case that needs disambiguating.
+    body = json.loads(nifc.collection_json(_snapshot(), []))
+    assert body["coverage"]["type"] == "MultiPolygon"
+    assert len(body["coverage"]["coordinates"]) >= 4
+
+
 # ── The route ─────────────────────────────────────────────────────────────────
 
 

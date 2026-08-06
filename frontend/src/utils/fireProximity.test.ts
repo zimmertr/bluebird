@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import type { FeatureCollection } from 'geojson'
+import type { FeatureCollection, MultiPolygon } from 'geojson'
 import {
+  classifyCoverage,
   fireKey,
   fireWarningText,
   pointsBbox,
@@ -195,5 +196,68 @@ describe('pointsKey', () => {
   // as one place cannot look like two questions to ask about fires.
   it('collapses coordinates finer than the warning key resolution', () => {
     expect(pointsKey([a])).toBe(pointsKey([{ latitude: 46.852301, longitude: -121.760299 }]))
+  })
+})
+
+// A toy coverage in the server's published shape: one square per hemisphere,
+// mirroring the real geometry's antimeridian split (#256). The classifier is
+// exercised against the shape's PROPERTIES (split rings, outer-ring test),
+// not the real outline — the backend pins that geometry to named places.
+const coverage: MultiPolygon = {
+  type: 'MultiPolygon',
+  coordinates: [
+    // "CONUS": lon -125..-66, lat 24..49
+    [
+      [
+        [-125, 24],
+        [-66, 24],
+        [-66, 49],
+        [-125, 49],
+        [-125, 24],
+      ],
+    ],
+    // "Aleutians west of the antimeridian": lon 172..180, lat 51..53.5
+    [
+      [
+        [172, 51],
+        [180, 51],
+        [180, 53.5],
+        [172, 53.5],
+        [172, 51],
+      ],
+    ],
+  ],
+}
+
+const point = (latitude: number, longitude: number) => ({ latitude, longitude })
+
+describe('classifyCoverage', () => {
+  it('answers full when every point is inside the coverage', () => {
+    expect(classifyCoverage([point(46.85, -121.76), point(40, -105)], coverage)).toBe('full')
+  })
+
+  it('answers none when the dataset is silent about the whole field', () => {
+    // The Alps and the Canadian Rockies: the two live-verified false-safe
+    // areas from the issue.
+    expect(classifyCoverage([point(46.02, 7.75)], coverage)).toBe('none')
+    expect(classifyCoverage([point(53.1, -119.2)], coverage)).toBe('none')
+  })
+
+  it('answers partial for a field straddling the boundary', () => {
+    expect(classifyCoverage([point(48.9, -122.2), point(49.5, -122.2)], coverage)).toBe('partial')
+  })
+
+  it('finds a point in a polygon on the far side of the antimeridian', () => {
+    // Attu-like: eastern-hemisphere longitude, its own split polygon. No
+    // wraparound math anywhere — the split IS the handling.
+    expect(classifyCoverage([point(52.85, 173.2)], coverage)).toBe('full')
+  })
+
+  it('trusts an answer with no coverage member, like an older server', () => {
+    expect(classifyCoverage([point(46.02, 7.75)], undefined)).toBe('full')
+  })
+
+  it('has nothing to say about an empty field', () => {
+    expect(classifyCoverage([], coverage)).toBe('full')
   })
 })

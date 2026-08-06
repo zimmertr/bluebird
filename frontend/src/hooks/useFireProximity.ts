@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { DestinationResult } from '../types'
 import { fetchWildfires, isRateLimited } from '../utils/wildfires'
 import {
+  CoverageState,
   FireWarning,
   FIRE_WARN_MILES,
+  classifyCoverage,
   fireKey,
   nearestFire,
   pointsBbox,
@@ -38,15 +40,21 @@ import {
  * snapshot rather than expiring into nothing, so only a server that has never
  * completed a fetch has no answer at all (issue #203).
  *
- * (The separate, documented ambiguity survives untouched: WFIGS is US-only, so
- * a `ready` empty map outside the US means "not covered", not "nothing
- * burning". See docs/DATA.md.)
+ * `uncovered` is the geographic sibling of `unavailable` (#256): WFIGS is
+ * US-only, and a successful fetch over a field entirely outside the coverage
+ * the server publishes used to land as `ready` with an empty map — the
+ * feature's blind spot wearing its all-clear face. The caller must treat it
+ * exactly like `unavailable`: say the check could not run, imply nothing.
+ * `coverage` carries the mixed case: `partial` means the field straddles the
+ * boundary, the warnings that exist are real, and the caller should still
+ * say the data stops at the border.
  */
-export type FireProximityStatus = 'idle' | 'loading' | 'ready' | 'unavailable'
+export type FireProximityStatus = 'idle' | 'loading' | 'ready' | 'unavailable' | 'uncovered'
 
 export interface FireProximity {
   status: FireProximityStatus
   warnings: Map<string, FireWarning>
+  coverage: CoverageState
 }
 
 // Three tries, backing off, because the observed failure was intermittent
@@ -69,7 +77,11 @@ const EMPTY: Map<string, FireWarning> = new Map()
  *   query per analysis, which matters because perimeters move.
  */
 export function useFireProximity(field: DestinationResult[], analysisSeq = 0): FireProximity {
-  const [state, setState] = useState<FireProximity>({ status: 'idle', warnings: EMPTY })
+  const [state, setState] = useState<FireProximity>({
+    status: 'idle',
+    warnings: EMPTY,
+    coverage: 'full',
+  })
 
   // The identity of the destinations, not the identity of the array holding
   // them. `field` is a fresh array on paths that rebuild it per render (the
@@ -88,7 +100,7 @@ export function useFireProximity(field: DestinationResult[], analysisSeq = 0): F
       setState((prev) =>
         prev.status === 'idle' && prev.warnings.size === 0
           ? prev
-          : { status: 'idle', warnings: EMPTY },
+          : { status: 'idle', warnings: EMPTY, coverage: 'full' },
       )
       return
     }
@@ -108,6 +120,15 @@ export function useFireProximity(field: DestinationResult[], analysisSeq = 0): F
         // and the server's coarse copy exists for the map, not for this.
         const fires = await fetchWildfires(bbox, 'full', ac.signal)
         if (cancelled) return
+        // What the dataset could actually see, from the coverage the server
+        // publishes beside the data (#256). A field wholly outside it gets
+        // `uncovered` INSTEAD of `ready`: the empty map that follows would
+        // otherwise be indistinguishable from a real all-clear.
+        const coverage = classifyCoverage(points, fires.coverage)
+        if (coverage === 'none') {
+          setState({ status: 'uncovered', warnings: EMPTY, coverage })
+          return
+        }
         const next = new Map<string, FireWarning>()
         for (const r of points) {
           const near = nearestFire(r.latitude, r.longitude, fires)
@@ -115,7 +136,7 @@ export function useFireProximity(field: DestinationResult[], analysisSeq = 0): F
             next.set(fireKey(r.latitude, r.longitude), near)
           }
         }
-        setState({ status: 'ready', warnings: next })
+        setState({ status: 'ready', warnings: next, coverage })
       } catch (err) {
         // An abort is the caller changing its mind, not a failure to report.
         if (cancelled || (err as Error).name === 'AbortError') return
@@ -134,7 +155,7 @@ export function useFireProximity(field: DestinationResult[], analysisSeq = 0): F
         // doctrine as #180 on the Open-Meteo side: a hard limit stops honestly
         // rather than retrying into the wall.
         if (isRateLimited(err)) {
-          setState({ status: 'unavailable', warnings: EMPTY })
+          setState({ status: 'unavailable', warnings: EMPTY, coverage: 'full' })
           return
         }
         if (n + 1 < ATTEMPTS) {
@@ -143,7 +164,7 @@ export function useFireProximity(field: DestinationResult[], analysisSeq = 0): F
           }, BACKOFF_MS[n])
           return
         }
-        setState({ status: 'unavailable', warnings: EMPTY })
+        setState({ status: 'unavailable', warnings: EMPTY, coverage: 'full' })
       }
     }
 

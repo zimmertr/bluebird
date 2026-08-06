@@ -3,7 +3,7 @@
 // it), not to a centroid — a large fire's centroid can be many miles from its
 // edge, so a centroid check would badly under-warn. Everything here is pure and
 // deterministic; the fetch/lifecycle lives in hooks/useFireProximity.ts.
-import type { FeatureCollection, Feature, Geometry, Position } from 'geojson'
+import type { FeatureCollection, Feature, Geometry, MultiPolygon, Position } from 'geojson'
 import type { BBox, WildfireProps } from './wildfires'
 
 export const FIRE_WARN_MILES = 10
@@ -136,6 +136,37 @@ function distanceToFeatureMiles(lat: number, lon: number, geom: Geometry | null)
 function featureFireName(props: WildfireProps | null): string {
   const p = props ?? {}
   return (p.attr_IncidentName || p.poly_IncidentName || '').trim() || 'unnamed fire'
+}
+
+/**
+ * How much of an analyzed field the fire dataset can actually see (#256).
+ *
+ * `coverage` is the server-published WFIGS outline (a coarse US shape, split
+ * at the antimeridian so the plain ray cast above needs no wraparound case).
+ * `full` means every point is inside it and an empty warnings map is a real
+ * all-clear; `none` means the dataset is silent about the whole field and an
+ * empty answer asserts nothing; `partial` means a field straddles the edge,
+ * so warnings are real where they exist and absent points were never checked.
+ *
+ * A missing `coverage` (an older server) and an empty field both answer
+ * `full`: the first degrades to the old behavior rather than warning about
+ * every analysis, and the second has nothing to be uncovered.
+ */
+export type CoverageState = 'full' | 'partial' | 'none'
+
+export function classifyCoverage(
+  points: { latitude: number; longitude: number }[],
+  coverage: MultiPolygon | undefined,
+): CoverageState {
+  if (!coverage || points.length === 0) return 'full'
+  let inside = 0
+  for (const p of points) {
+    if (coverage.coordinates.some((polygon) => pointInRing(p.longitude, p.latitude, polygon[0]))) {
+      inside++
+    }
+  }
+  if (inside === points.length) return 'full'
+  return inside === 0 ? 'none' : 'partial'
 }
 
 // The nearest active fire to (lat, lon), or null when there are none. Distance is
