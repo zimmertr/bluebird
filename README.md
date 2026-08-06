@@ -15,7 +15,7 @@ Bluebird helps you find out. Search for destinations, provide a list of coordina
 
 Ready to find your Bluebird day? https://bluebirdforecast.com
 
-![Bluebird analyzing peaks in the North Cascades](docs/images/screenshot.png)
+![Bluebird analyzing peaks in the North Cascades](docs/images/screenshot.jpg)
 
 <hr>
 
