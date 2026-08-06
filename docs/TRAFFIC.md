@@ -89,6 +89,13 @@ Destinations is deliberately its own bucket (issue #180): discovery is one
 map query with no forecasts, and sharing the analyze bucket let the browser
 flow starve real analyses.
 
+The analyze bucket meters a route the internet cannot reach on this
+deployment: the Istio VirtualService answers `/api/analyze*` from the public
+gateway with the app's own JSON `404` (#240), because one request there can
+spend more than a thousand weighted Open-Meteo calls from the pod's shared
+budget. In-cluster callers — the Argo Rollouts release probe, development
+against the Service — bypass the gateway and still land in this bucket.
+
 **Pod-wide upstream budgets** capping what all concurrent requests may have
 in flight against each provider. Saturation queues up to
 `UPSTREAM_BUDGET_WAIT_S` (30s), then sheds: `503` + `Retry-After` (the SSE

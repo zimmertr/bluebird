@@ -471,8 +471,7 @@ export interface ClientAnalysis {
 // candidates in, ranked AnalyzeResponse out. Throws AnalysisRefusalError for
 // an over-limit set (with remedy fields), plain Error for conditions the
 // server would refuse identically, and lets openMeteo.ts's typed errors
-// (Unreachable / RateLimited / HttpError) propagate — the CALLER decides
-// which of those justifies the server fallback.
+// (Unreachable / RateLimited / HttpError) propagate to the caller.
 export async function runClientAnalysis(
   request: AnalyzeRequest,
   destinations: readonly DiscoveredDestination[],
@@ -589,7 +588,8 @@ export async function runClientAnalysis(
           onProgress?.(
             processed,
             total,
-            // Byte-identical to the SSE progress copy, so both paths read alike.
+            // Byte-identical to the analyze route's progress copy, so the
+            // app and a direct API caller read alike.
             `Retrieving forecasts: ${processed} of ${total} ${noun}s…`,
           ),
       })
@@ -612,10 +612,10 @@ export async function runClientAnalysis(
       response: {
         results: top,
         total_queried: candidates.length,
-        // Nothing is filtered here. On this path the browser holds the whole
-        // field and applies the forecast bounds live in present.ts, which is
-        // what makes them a knob rather than another Analyze; these two counts
-        // can only differ on the server path, where the field never arrives.
+        // Nothing is filtered here. The browser holds the whole field and
+        // applies the forecast bounds live in present.ts, which is what makes
+        // them a knob rather than another Analyze; the two counts only differ
+        // for direct callers of the server route, which sends trimmed rows.
         total_matched: candidates.length,
         times,
         total_found: totalFound,
@@ -631,12 +631,11 @@ export async function runClientAnalysis(
   }
 }
 
-// The destinations a refresh re-analyzes: the held universe when there is one,
-// so a window change re-ranks the field the analysis actually saw rather than
-// the handful the last cut left on screen (#177). Falls back to the displayed
-// rows when no universe is held — the server SSE path only ever hands the
-// browser its trimmed rows, so that path keeps the old approximation rather
-// than growing the response shape to fix a fallback nobody normally takes.
+// The destinations a refresh re-analyzes: the held universe, so a window
+// change re-ranks the field the analysis actually saw rather than the handful
+// the last cut left on screen (#177). The displayed-rows fallback survives
+// only as null-tolerance: since #240 every committed report holds its field,
+// so a refresh without one cannot happen.
 //
 // Removals have to be applied here explicitly. Echoing the displayed rows used
 // to drop ×-removed destinations as a side effect of them already being gone

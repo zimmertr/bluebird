@@ -1,6 +1,6 @@
 // Composes the full-screen loading overlay for an Analyze operation — a single
-// ranked streaming analysis (searched places and CSV rows ride inside it as
-// custom destinations). Two destination-type-agnostic phases:
+// ranked analysis (searched places and CSV rows ride inside it as custom
+// destinations). Two destination-type-agnostic phases:
 //   1. "Searching for Destinations…"  — Overpass discovery (backend status)
 //   2. "Retrieving {N} Forecasts…"    — the weather fetch (a lone forecast
 //        reads "Retrieving Forecast…")
@@ -8,11 +8,9 @@
 // The message carries only the TOTAL, not a live "x of y" fraction; the filling
 // progress BAR visualizes the real batch progress underneath it.
 //
-// Under the message, one secondary `detail` line can appear in either phase:
-// real news (mirror failover or the announced server fallback, via the SSE
-// `detail` field / hook state) or, during retrieval, the live quota countdown
-// while the pacer sleeps. When nothing real is happening, a timer-staged
-// reassurance appears once a search has run long.
+// Under the message, one secondary `detail` line can appear: during
+// retrieval, the live quota countdown while the pacer sleeps; during a long
+// search, a timer-staged reassurance.
 export type OverlayProgress = { processed: number; total: number; percent: number }
 
 export type OverlayView =
@@ -20,9 +18,8 @@ export type OverlayView =
   | { visible: true; message: string; detail: string | null; progress: OverlayProgress | null }
 
 export interface OverlayInputs {
-  analyzeLoading: boolean // ranked streaming request in flight
-  statusMessage: string | null // latest backend status (drives phase 1 + the gap)
-  statusDetail: string | null // secondary line (SSE detail / fallback announcement)
+  analyzeLoading: boolean // ranked analysis in flight
+  statusMessage: string | null // latest phase status (drives phase 1 + the gap)
   elapsedS: number // whole seconds since the overlay appeared
   rankedProgress: { processed: number; total: number } | null // batch progress
   // Seconds until the client-side pacer resumes spending quota; null/absent
@@ -62,19 +59,17 @@ export function composeOverlay(i: OverlayInputs): OverlayView {
       message === SEARCHING_MESSAGE && i.elapsedS >= STILL_SEARCHING_AFTER_S
         ? STILL_SEARCHING
         : null
-    return { visible: true, message, detail: i.statusDetail ?? staged, progress: null }
+    return { visible: true, message, detail: staged, progress: null }
   }
   const { processed, total } = i.rankedProgress
   const percent = total ? Math.round((processed / total) * 100) : 100
   // During retrieval the detail line carries the live pace countdown when the
-  // quota bucket is refilling, else any server-sent detail (its own pace
-  // narration, or the fallback announcement). A paced analysis must never
-  // look hung: the countdown plus the elapsed timer is what proves the wait
-  // is scheduled.
+  // quota bucket is refilling. A paced analysis must never look hung: the
+  // countdown plus the elapsed timer is what proves the wait is scheduled.
   const detail =
     i.paceRemainingS != null && i.paceRemainingS > 0
       ? `Open-Meteo quota: resuming in ${i.paceRemainingS}s`
-      : i.statusDetail
+      : null
   return {
     visible: true,
     message: retrievingLabel(total),
