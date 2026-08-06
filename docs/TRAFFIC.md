@@ -90,11 +90,14 @@ map query with no forecasts, and sharing the analyze bucket let the browser
 flow starve real analyses.
 
 The analyze bucket meters a route the internet cannot reach on this
-deployment: the Istio VirtualService answers `/api/analyze*` from the public
-gateway with the app's own JSON `404` (#240), because one request there can
-spend more than a thousand weighted Open-Meteo calls from the pod's shared
-budget. In-cluster callers — the Argo Rollouts release probe, development
-against the Service — bypass the gateway and still land in this bucket.
+deployment. The Istio VirtualService publishes the API by allowlist
+(`ingress.publicApiPrefixes` in the chart, #240): only the endpoints the web
+app itself calls are forwarded, and every other `/api` path — the analyze
+routes deliberately among them — answers the app's own JSON `404` at the
+edge, because one analyze request can spend more than a thousand weighted
+Open-Meteo calls from the pod's shared budget. In-cluster callers — the Argo
+Rollouts release probe, development against the Service — bypass the gateway
+and still land in this bucket.
 
 **Pod-wide upstream budgets** capping what all concurrent requests may have
 in flight against each provider. Saturation queues up to

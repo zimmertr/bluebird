@@ -134,12 +134,13 @@ meant to prevent.
 | `GET /api/geocode` | Place lookup by name, proxied to Nominatim. |
 | `GET /api/wildfires` | Active US wildfire perimeters in a bounding box, cached from NIFC. |
 
-On `bluebirdforecast.com` the two analyze endpoints are **not reachable from
-the internet**: one request can spend more than a thousand weighted Open-Meteo
-calls from the deployment's shared quota, so the gateway answers them with the
-same JSON `404` an unknown path gets (#240). They work unchanged on a
-self-hosted instance and from inside the deployment's own network. Every other
-endpoint here is public.
+On `bluebirdforecast.com` the gateway publishes the API by **allowlist**
+(#240): it forwards exactly the endpoints the web app itself calls, plus
+`/api/version`, and any other `/api` path answers the same JSON `404` an
+unknown path gets. The two analyze endpoints are the deliberate omissions,
+because one request can spend more than a thousand weighted Open-Meteo calls
+from the deployment's shared quota. They work unchanged on a self-hosted
+instance and from inside the deployment's own network.
 | `GET /api/smoke` | Smoke plumes over North America, cached from NOAA's Hazard Mapping System. |
 | `GET /api/config` | Deployment-specific UI settings. Internal to the web app. |
 | `GET /healthz` | Liveness probe. Answers `GET` and `HEAD`. |
