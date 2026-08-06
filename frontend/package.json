@@ -22,7 +22,7 @@
     "@types/geojson": "^7946.0.16",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.4",
+    "@vitejs/plugin-react": "^6.0.5",
     "postcss": "^8.5.25",
     "swagger-ui-dist": "^5.32.11",
     "tailwindcss": "^4.3.2",
