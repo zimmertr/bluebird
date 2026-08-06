@@ -7,7 +7,7 @@ import { COLUMNS } from './tableColumns'
 // Derived under #255's constraints — see the RAMP comment in colors.ts and
 // the measurement suite at the bottom of this file, which is what makes
 // changing one of these a re-measurement rather than a paste.
-const GREEN = '#16f066'
+const GREEN = '#50eb74'
 const LIME = '#74b800'
 const YELLOW = '#9e7400'
 const ORANGE = '#964100'
@@ -60,11 +60,11 @@ describe('markerColor', () => {
 
 describe('cellStyle', () => {
   it('returns a translucent background and solid text of the same hue', () => {
-    // Green anchor #16f066 === rgb(22, 240, 102). Green sits above the text
+    // Green anchor #50eb74 === rgb(80, 235, 116). Green sits above the text
     // floor, so its text is the band color itself, untouched.
     expect(cellStyle(0, METRIC_CONFIG.precip_total_in)).toEqual({
-      backgroundColor: 'rgba(22,240,102,0.2)',
-      color: 'rgb(22,240,102)',
+      backgroundColor: 'rgba(80,235,116,0.2)',
+      color: 'rgb(80,235,116)',
     })
   })
 
@@ -274,7 +274,7 @@ describe('the ramp measured (#255)', () => {
   it('pins each anchor to the luminance it was measured at', () => {
     // The recorded measurement. Any color edit lands here first.
     const measured: Array<[string, number]> = [
-      ['#16f066', 0.6345],
+      ['#50eb74', 0.6238],
       ['#74b800', 0.3799],
       ['#9e7400', 0.1976],
       ['#964100', 0.1026],

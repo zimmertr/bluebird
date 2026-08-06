@@ -49,7 +49,11 @@ type MetricConfig = LabelledScale & {
 // why the AQI continuation cannot also clear 1.5:1: red→purple→maroon
 // measure 1.27–1.53:1 across conditions (floors pinned at 1.25), with the
 // EPA hue convention still separating them for typical vision.
-const RAMP = ['#16f066', '#74b800', '#9e7400', '#964100', '#800408']
+// Green's LIGHTNESS is structural (it must clear lime by 1.5:1 under
+// deuteranopia, and every step below already sits at its floor), but its
+// saturation is not: 66% instead of the searcher's 91% keeps the same
+// luminance while dropping the neon edge (TJ, 2026-08-06).
+const RAMP = ['#50eb74', '#74b800', '#9e7400', '#964100', '#800408']
 const AQI_PURPLE = '#470059'
 const AQI_MAROON = '#260000'
 

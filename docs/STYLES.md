@@ -201,10 +201,13 @@ inheriting a stale claim):
 
 - WCAG relative luminance falls strictly from every step to the next — through
   the shared five and on through AQI's purple and maroon
-- The shared ramp spreads **7.06:1** end to end against a 3:1 floor
+- The shared ramp spreads **6.95:1** end to end against a 3:1 floor
 - Every adjacent shared pair measures **≥ 1.50:1** under normal vision and
   under protanopia, deuteranopia and tritanopia (Viénot 1999 simulation);
-  the deuteranopia simulation is the binding condition at 1.50–1.51
+  the deuteranopia simulation is the binding condition at 1.50–1.52
+- Green's lightness is structural (it must clear lime under deuteranopia)
+  but its saturation is not: 66%, chosen over the searcher's neon 91% at
+  the same luminance
 - The AQI continuation measures **1.27–1.53:1** (floor pinned at 1.25):
   seven monotonic steps exhaust the luminance range, so the top two bands
   cannot also clear 1.5 and lean on the EPA hue convention for typical vision
