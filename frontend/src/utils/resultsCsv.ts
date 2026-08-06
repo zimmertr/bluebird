@@ -54,13 +54,22 @@ const CRLF = '\r\n'
 /**
  * Quote a cell only where the format requires it, and escape by doubling.
  *
- * Values are otherwise passed through untouched. That includes a name starting
- * with "=", which Excel and Sheets will read as a formula: the alternative is
- * prefixing an apostrophe or a tab, which corrupts the name of a real place to
- * defend the user against data they asked for themselves.
+ * A cell that BEGINS with "=", "+", "@", a tab or a carriage return first gains
+ * a leading apostrophe. Excel, Sheets and LibreOffice all read those leads as a
+ * live formula, and a destination name is not always written by the person who
+ * opens the file: it can arrive through a shared link or a public OSM edit, so
+ * an unprefixed lead hands a stranger a command that runs on open (#254). The
+ * apostrophe is the spreadsheet convention for "this is text", which is the
+ * least the defense can alter.
+ *
+ * A bare leading "-" is deliberately NOT prefixed. It is not a formula lead on
+ * its own in any of the three, and a destination with no name falls back to its
+ * coordinates, so every southern-hemisphere coordinate row starts with "-"; a
+ * prefix there would corrupt the one field that identifies the row.
  */
 function escapeCell(value: string): string {
-  return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+  const guarded = /^[=+@\t\r]/.test(value) ? `'${value}` : value
+  return /[",\r\n]/.test(guarded) ? `"${guarded.replace(/"/g, '""')}"` : guarded
 }
 
 /**
