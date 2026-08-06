@@ -59,6 +59,7 @@ Then open `http://localhost:8000`.
 | [Development](docs/DEVELOPMENT.md) | Hot-reload setup and the test suites |
 | [Traffic](docs/TRAFFIC.md) | Rate limiting and the budgets protecting the upstream APIs |
 | [CI/CD](docs/CICD.md) | The pipeline from merge to production, with diagrams |
+| [Contributing](CONTRIBUTING.md) | How this project accepts work: an issue first, then code |
 
 <hr>
 
