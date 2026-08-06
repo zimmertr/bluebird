@@ -2,14 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { DestinationResult } from '../types'
 import { fetchWildfires, isRateLimited } from '../utils/wildfires'
 import {
-  CoverageState,
   FireWarning,
   FIRE_WARN_MILES,
-  classifyCoverage,
   fireKey,
   nearestFire,
   pointsBbox,
   pointsKey,
+  uncoveredKeys,
 } from '../utils/fireProximity'
 
 // For each destination within FIRE_WARN_MILES of an active US wildfire, returns
@@ -40,21 +39,20 @@ import {
  * snapshot rather than expiring into nothing, so only a server that has never
  * completed a fetch has no answer at all (issue #203).
  *
- * `uncovered` is the geographic sibling of `unavailable` (#256): WFIGS is
- * US-only, and a successful fetch over a field entirely outside the coverage
- * the server publishes used to land as `ready` with an empty map — the
- * feature's blind spot wearing its all-clear face. The caller must treat it
- * exactly like `unavailable`: say the check could not run, imply nothing.
- * `coverage` carries the mixed case: `partial` means the field straddles the
- * boundary, the warnings that exist are real, and the caller should still
- * say the data stops at the border.
+ * `uncovered` names the geographic blind spot (#256): WFIGS is US-only, and
+ * a destination outside the coverage the server publishes was never checked,
+ * which used to be indistinguishable from its all-clear. It is a per-row
+ * set rather than a status, because one analysis can hold a Cascades row and
+ * a British Columbia row at once: the table marks each uncovered row N/A and
+ * the CSV writes N/A in its fire cell, while covered rows keep their real
+ * answers.
  */
-export type FireProximityStatus = 'idle' | 'loading' | 'ready' | 'unavailable' | 'uncovered'
+export type FireProximityStatus = 'idle' | 'loading' | 'ready' | 'unavailable'
 
 export interface FireProximity {
   status: FireProximityStatus
   warnings: Map<string, FireWarning>
-  coverage: CoverageState
+  uncovered: Set<string>
 }
 
 // Three tries, backing off, because the observed failure was intermittent
@@ -66,6 +64,7 @@ const ATTEMPTS = 3
 const BACKOFF_MS = [1000, 3000]
 
 const EMPTY: Map<string, FireWarning> = new Map()
+const NONE: Set<string> = new Set()
 
 /**
  * @param field the analyzed destinations to check
@@ -80,7 +79,7 @@ export function useFireProximity(field: DestinationResult[], analysisSeq = 0): F
   const [state, setState] = useState<FireProximity>({
     status: 'idle',
     warnings: EMPTY,
-    coverage: 'full',
+    uncovered: NONE,
   })
 
   // The identity of the destinations, not the identity of the array holding
@@ -100,7 +99,7 @@ export function useFireProximity(field: DestinationResult[], analysisSeq = 0): F
       setState((prev) =>
         prev.status === 'idle' && prev.warnings.size === 0
           ? prev
-          : { status: 'idle', warnings: EMPTY, coverage: 'full' },
+          : { status: 'idle', warnings: EMPTY, uncovered: NONE },
       )
       return
     }
@@ -120,23 +119,20 @@ export function useFireProximity(field: DestinationResult[], analysisSeq = 0): F
         // and the server's coarse copy exists for the map, not for this.
         const fires = await fetchWildfires(bbox, 'full', ac.signal)
         if (cancelled) return
-        // What the dataset could actually see, from the coverage the server
-        // publishes beside the data (#256). A field wholly outside it gets
-        // `uncovered` INSTEAD of `ready`: the empty map that follows would
-        // otherwise be indistinguishable from a real all-clear.
-        const coverage = classifyCoverage(points, fires.coverage)
-        if (coverage === 'none') {
-          setState({ status: 'uncovered', warnings: EMPTY, coverage })
-          return
-        }
+        // Which rows the dataset could not see, from the coverage the server
+        // publishes beside the data (#256). Kept per row: an uncovered
+        // destination reads N/A in the table and the CSV, while its covered
+        // neighbours keep their real answers.
+        const uncovered = uncoveredKeys(points, fires.coverage)
         const next = new Map<string, FireWarning>()
         for (const r of points) {
+          if (uncovered.has(fireKey(r.latitude, r.longitude))) continue
           const near = nearestFire(r.latitude, r.longitude, fires)
           if (near && near.miles <= FIRE_WARN_MILES) {
             next.set(fireKey(r.latitude, r.longitude), near)
           }
         }
-        setState({ status: 'ready', warnings: next, coverage })
+        setState({ status: 'ready', warnings: next, uncovered })
       } catch (err) {
         // An abort is the caller changing its mind, not a failure to report.
         if (cancelled || (err as Error).name === 'AbortError') return
@@ -155,7 +151,7 @@ export function useFireProximity(field: DestinationResult[], analysisSeq = 0): F
         // doctrine as #180 on the Open-Meteo side: a hard limit stops honestly
         // rather than retrying into the wall.
         if (isRateLimited(err)) {
-          setState({ status: 'unavailable', warnings: EMPTY, coverage: 'full' })
+          setState({ status: 'unavailable', warnings: EMPTY, uncovered: NONE })
           return
         }
         if (n + 1 < ATTEMPTS) {
@@ -164,7 +160,7 @@ export function useFireProximity(field: DestinationResult[], analysisSeq = 0): F
           }, BACKOFF_MS[n])
           return
         }
-        setState({ status: 'unavailable', warnings: EMPTY, coverage: 'full' })
+        setState({ status: 'unavailable', warnings: EMPTY, uncovered: NONE })
       }
     }
 

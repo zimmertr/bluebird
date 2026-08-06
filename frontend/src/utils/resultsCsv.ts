@@ -79,15 +79,24 @@ function cell(row: DestinationResult, col: ColDef): string {
 }
 
 /**
- * Miles to the nearest active fire, or an empty cell.
+ * Miles to the nearest active fire, an empty cell, or N/A.
  *
  * No threshold test: useFireProximity only admits warnings within
  * FIRE_WARN_MILES, so presence in the map is the condition. An empty cell here
  * means the check ran and found nothing within that radius, which is only true
- * because the caller withholds the map entirely when it did not run.
+ * because the caller withholds the map entirely when it did not run. N/A is
+ * the third state (#256): the destination sits outside the fire dataset's
+ * US-only coverage, so it was never checked, and a blank there would assert
+ * a clear check the data cannot make.
  */
-function fireCell(row: DestinationResult, warnings: ReadonlyMap<string, FireWarning>): string {
-  const warning = warnings.get(fireKey(row.latitude, row.longitude))
+function fireCell(
+  row: DestinationResult,
+  warnings: ReadonlyMap<string, FireWarning>,
+  uncovered: ReadonlySet<string>,
+): string {
+  const key = fireKey(row.latitude, row.longitude)
+  if (uncovered.has(key)) return 'N/A'
+  const warning = warnings.get(key)
   return warning ? warning.miles.toFixed(1) : ''
 }
 
@@ -112,6 +121,7 @@ export function buildResultsCsv(
   columns: readonly ColDef[],
   fireWarnings: ReadonlyMap<string, FireWarning> | null,
   pendingRows: readonly DestinationResult[] = [],
+  fireUncovered: ReadonlySet<string> = new Set(),
 ): string {
   const header = [RANK_HEADER, ...columns.map((c) => c.label)]
   if (fireWarnings) header.push(FIRE_HEADER)
@@ -126,7 +136,7 @@ export function buildResultsCsv(
   })
   const body = rows.map((row, i) => {
     const cells = [String(i + 1), ...columns.map((c) => cell(row, c))]
-    if (fireWarnings) cells.push(fireCell(row, fireWarnings))
+    if (fireWarnings) cells.push(fireCell(row, fireWarnings, fireUncovered))
     return cells
   })
   return (

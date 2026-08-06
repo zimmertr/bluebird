@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import type { FeatureCollection, MultiPolygon } from 'geojson'
 import {
-  classifyCoverage,
   fireKey,
+  uncoveredKeys,
   fireWarningText,
   pointsBbox,
   pointsKey,
@@ -231,33 +231,36 @@ const coverage: MultiPolygon = {
 
 const point = (latitude: number, longitude: number) => ({ latitude, longitude })
 
-describe('classifyCoverage', () => {
-  it('answers full when every point is inside the coverage', () => {
-    expect(classifyCoverage([point(46.85, -121.76), point(40, -105)], coverage)).toBe('full')
+describe('uncoveredKeys', () => {
+  it('returns nothing when every point is inside the coverage', () => {
+    expect(uncoveredKeys([point(46.85, -121.76), point(40, -105)], coverage).size).toBe(0)
   })
 
-  it('answers none when the dataset is silent about the whole field', () => {
+  it('names every point in a field the dataset is silent about', () => {
     // The Alps and the Canadian Rockies: the two live-verified false-safe
     // areas from the issue.
-    expect(classifyCoverage([point(46.02, 7.75)], coverage)).toBe('none')
-    expect(classifyCoverage([point(53.1, -119.2)], coverage)).toBe('none')
+    const keys = uncoveredKeys([point(46.02, 7.75), point(53.1, -119.2)], coverage)
+    expect(keys.has(fireKey(46.02, 7.75))).toBe(true)
+    expect(keys.has(fireKey(53.1, -119.2))).toBe(true)
   })
 
-  it('answers partial for a field straddling the boundary', () => {
-    expect(classifyCoverage([point(48.9, -122.2), point(49.5, -122.2)], coverage)).toBe('partial')
+  it('names only the outside points of a field straddling the boundary', () => {
+    const keys = uncoveredKeys([point(48.9, -122.2), point(49.5, -122.2)], coverage)
+    expect(keys.has(fireKey(49.5, -122.2))).toBe(true)
+    expect(keys.has(fireKey(48.9, -122.2))).toBe(false)
   })
 
   it('finds a point in a polygon on the far side of the antimeridian', () => {
     // Attu-like: eastern-hemisphere longitude, its own split polygon. No
     // wraparound math anywhere — the split IS the handling.
-    expect(classifyCoverage([point(52.85, 173.2)], coverage)).toBe('full')
+    expect(uncoveredKeys([point(52.85, 173.2)], coverage).size).toBe(0)
   })
 
   it('trusts an answer with no coverage member, like an older server', () => {
-    expect(classifyCoverage([point(46.02, 7.75)], undefined)).toBe('full')
+    expect(uncoveredKeys([point(46.02, 7.75)], undefined).size).toBe(0)
   })
 
   it('has nothing to say about an empty field', () => {
-    expect(classifyCoverage([], coverage)).toBe('full')
+    expect(uncoveredKeys([], coverage).size).toBe(0)
   })
 })

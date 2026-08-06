@@ -139,34 +139,35 @@ function featureFireName(props: WildfireProps | null): string {
 }
 
 /**
- * How much of an analyzed field the fire dataset can actually see (#256).
+ * What the N/A marker and the CSV's N/A cell say out loud. Beside
+ * `fireWarningText` because the two annotate the same spot in the table: one
+ * is the check's finding, the other is the check's blind spot.
+ */
+export const FIRE_NOT_COVERED_TEXT = 'Fire data covers the United States only.'
+
+/**
+ * The destinations the fire dataset cannot see, keyed by `fireKey` (#256).
  *
  * `coverage` is the server-published WFIGS outline (a coarse US shape, split
  * at the antimeridian so the plain ray cast above needs no wraparound case).
- * `full` means every point is inside it and an empty warnings map is a real
- * all-clear; `none` means the dataset is silent about the whole field and an
- * empty answer asserts nothing; `partial` means a field straddles the edge,
- * so warnings are real where they exist and absent points were never checked.
- *
- * A missing `coverage` (an older server) and an empty field both answer
- * `full`: the first degrades to the old behavior rather than warning about
- * every analysis, and the second has nothing to be uncovered.
+ * A point outside it was never checked, and the table and the CSV mark it
+ * `N/A` per row rather than raising one report-wide banner — a Cascades row
+ * and a British Columbia row in the same table each say what happened to
+ * them. A missing `coverage` (an older server) returns the empty set, which
+ * degrades to the old trust-the-empty-answer behavior.
  */
-export type CoverageState = 'full' | 'partial' | 'none'
-
-export function classifyCoverage(
+export function uncoveredKeys(
   points: { latitude: number; longitude: number }[],
   coverage: MultiPolygon | undefined,
-): CoverageState {
-  if (!coverage || points.length === 0) return 'full'
-  let inside = 0
+): Set<string> {
+  const out = new Set<string>()
+  if (!coverage) return out
   for (const p of points) {
-    if (coverage.coordinates.some((polygon) => pointInRing(p.longitude, p.latitude, polygon[0]))) {
-      inside++
+    if (!coverage.coordinates.some((polygon) => pointInRing(p.longitude, p.latitude, polygon[0]))) {
+      out.add(fireKey(p.latitude, p.longitude))
     }
   }
-  if (inside === points.length) return 'full'
-  return inside === 0 ? 'none' : 'partial'
+  return out
 }
 
 // The nearest active fire to (lat, lon), or null when there are none. Distance is

@@ -1490,6 +1490,7 @@ export default function App() {
             longitude: d.longitude,
           }) as DestinationResult,
       ),
+      fire.uncovered,
     )
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a')
@@ -1630,9 +1631,6 @@ export default function App() {
           onCancelDrawing={handleCancelDrawing}
           onPointAtSearch={setSearchPointed}
           wildfireCheckFailed={fire.status === 'unavailable' && results.length > 0}
-          wildfireUncovered={
-            (fire.status === 'uncovered' || fire.coverage === 'partial') && results.length > 0
-          }
           onPointAtMapPois={setPoisPointed}
           destinationTypes={destinationTypes}
           setDestinationTypes={setDestinationTypes}
@@ -2373,6 +2371,7 @@ export default function App() {
                         columnWidths={tableColWidths}
                         onColumnWidthsChange={setTableColWidths}
                         fireWarnings={fire.warnings}
+                        fireUncovered={fire.uncovered}
                         pending={pending}
                         onRemove={handleRemoveResult}
                         onRemovePending={(d) => searched.removePlace(d.latitude, d.longitude)}

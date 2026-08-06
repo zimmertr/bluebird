@@ -226,10 +226,6 @@ interface Props {
   // The wildfire proximity lookup failed for the displayed report, so no row
   // has been checked. A safety claim the UI must not make silently.
   wildfireCheckFailed?: boolean
-  // The analyzed area falls wholly or partly outside the fire dataset's
-  // US-only coverage (#256), so an absent warning there means "not looked",
-  // never "nothing burning". The same silence rule as the line above.
-  wildfireUncovered?: boolean
 }
 
 /**
@@ -334,7 +330,6 @@ export default function ControlPanel({
   resultCount,
   aqiAllNull,
   wildfireCheckFailed,
-  wildfireUncovered,
 }: Props) {
   // Parse the CSV once per change rather than twice on every render (this and the
   // "N destinations parsed" count below both used to call parseCustomCsv directly).
@@ -398,7 +393,6 @@ export default function ControlPanel({
     ...(wildfireCheckFailed && !loading
       ? ['NIFC is unreachable, so wildfire proximity data is unavailable.']
       : []),
-    ...(wildfireUncovered && !loading ? ['Fire data covers the United States only.'] : []),
   ]
 
   // The filter grid, one row per bounded thing.

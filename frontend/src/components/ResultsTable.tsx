@@ -5,7 +5,7 @@ import { cellStyle, scaleFor, METRIC_CONFIG } from '../utils/colors'
 import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
 import { SortDir, SortKey, displayedColumns, ColDef } from '../utils/tableColumns'
 import { autoFitWidth, dragWidth } from '../utils/columnResize'
-import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
+import { FIRE_NOT_COVERED_TEXT, FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
 import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
@@ -92,6 +92,10 @@ interface Props {
   // carries the full set via buildResultsCsv; only the screen narrows.
   columns?: ColDef[]
   fireWarnings: Map<string, FireWarning>
+  // Rows the fire dataset could not see (outside its US coverage, #256).
+  // Marked N/A beside the name, where a warning would otherwise sit, so a
+  // missing warning is never mistaken for a clear check.
+  fireUncovered: Set<string>
   // Custom destinations awaiting their first analysis — pasted CSV rows and
   // searched places alike — shown immediately as un-forecasted rows (name +
   // elevation, "—" metrics) so both inputs have feedback before Analyze runs.
@@ -131,6 +135,7 @@ export default function ResultsTable({
   pointSample = false,
   columns,
   fireWarnings,
+  fireUncovered,
   pending,
   onRemovePending,
   onRemove,
@@ -340,6 +345,7 @@ export default function ResultsTable({
 
       if (col.key === 'name') {
         const warning = fireWarnings.get(fireKey(row.latitude, row.longitude))
+        const uncovered = fireUncovered.has(fireKey(row.latitude, row.longitude))
         return (
           <td key={col.key} className={cellClass}>
             {sized(
@@ -351,6 +357,14 @@ export default function ResultsTable({
                     className="cursor-help"
                   >
                     ⚠️
+                  </span>
+                )}
+                {!warning && uncovered && (
+                  // The check's blind spot, in the warning's spot: outside the
+                  // fire dataset's US coverage this row was never looked at,
+                  // and silence here would read as a clear check (#256).
+                  <span aria-label={FIRE_NOT_COVERED_TEXT} className={`shrink-0 cursor-help ${TEXT.micro}`}>
+                    N/A
                   </span>
                 )}
                 <button
