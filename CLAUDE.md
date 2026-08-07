@@ -27,6 +27,7 @@ the README linking to it. It was split out of a 560-line README in #192
 | [`docs/CICD.md`](docs/CICD.md) | The pipeline from merge to production, with diagrams |
 | [`docs/STYLES.md`](docs/STYLES.md) | The design system: roles, enforcement, measured numbers; keep it current like CICD.md |
 | [`NOTICES.md`](NOTICES.md) | Third-party attribution, at the repo root: the data-provider half transcribes `frontend/src/utils/dataSources.ts` (change one, change both in the same PR), plus bundled-software licenses |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | How the project accepts work, at the repo root so GitHub surfaces it on new PRs: one maintainer, an issue before code, and the short list of rules a change must meet |
 | `docs/images/` | README assets only (`screenshot.jpg` is the front-page shot) |
 
 Two conventions hold across every page:
@@ -142,3 +143,7 @@ Manifests live in a separate repo (`zimmertr/Kubernetes-Manifests`) under `publi
 ## Adding a new destination type
 
 The end-to-end checklist is the `add-destination-type` skill (`.claude/skills/add-destination-type/SKILL.md`).
+
+## Filing issues
+
+Never file an issue unasked; confirm first. The format (six Simplified Technical English sections), the writing rules, and the label rules (exactly one of P1/P2/P3 plus areas and a type; `PM` is never yours to add) are the `create-issue` skill (`.claude/skills/create-issue/SKILL.md`), which carries the section skeleton itself.
