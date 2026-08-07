@@ -3,7 +3,7 @@
 // it), not to a centroid — a large fire's centroid can be many miles from its
 // edge, so a centroid check would badly under-warn. Everything here is pure and
 // deterministic; the fetch/lifecycle lives in hooks/useFireProximity.ts.
-import type { FeatureCollection, Feature, Geometry, Position } from 'geojson'
+import type { FeatureCollection, Feature, Geometry, MultiPolygon, Position } from 'geojson'
 import type { BBox, WildfireProps } from './wildfires'
 
 export const FIRE_WARN_MILES = 10
@@ -136,6 +136,38 @@ function distanceToFeatureMiles(lat: number, lon: number, geom: Geometry | null)
 function featureFireName(props: WildfireProps | null): string {
   const p = props ?? {}
   return (p.attr_IncidentName || p.poly_IncidentName || '').trim() || 'unnamed fire'
+}
+
+/**
+ * What the N/A marker and the CSV's N/A cell say out loud. Beside
+ * `fireWarningText` because the two annotate the same spot in the table: one
+ * is the check's finding, the other is the check's blind spot.
+ */
+export const FIRE_NOT_COVERED_TEXT = 'Fire data covers the United States only.'
+
+/**
+ * The destinations the fire dataset cannot see, keyed by `fireKey` (#256).
+ *
+ * `coverage` is the server-published WFIGS outline (a coarse US shape, split
+ * at the antimeridian so the plain ray cast above needs no wraparound case).
+ * A point outside it was never checked, and the table and the CSV mark it
+ * `N/A` per row rather than raising one report-wide banner — a Cascades row
+ * and a British Columbia row in the same table each say what happened to
+ * them. A missing `coverage` (an older server) returns the empty set, which
+ * degrades to the old trust-the-empty-answer behavior.
+ */
+export function uncoveredKeys(
+  points: { latitude: number; longitude: number }[],
+  coverage: MultiPolygon | undefined,
+): Set<string> {
+  const out = new Set<string>()
+  if (!coverage) return out
+  for (const p of points) {
+    if (!coverage.coordinates.some((polygon) => pointInRing(p.longitude, p.latitude, polygon[0]))) {
+      out.add(fireKey(p.latitude, p.longitude))
+    }
+  }
+  return out
 }
 
 // The nearest active fire to (lat, lon), or null when there are none. Distance is

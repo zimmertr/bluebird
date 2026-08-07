@@ -218,9 +218,18 @@ for a surveyed product and not a sign of stale data on this end. If you are
 calling the API directly, the response also carries `fetched_at`, saying how
 current the copy itself is; see [API.md](API.md#wildfire-perimeters).
 
-WFIGS is the authoritative national dataset and it is **United States only**.
-Outside the US the query returns nothing, which draws as an empty overlay and
-warns on no rows, and that is indistinguishable from "nothing burning nearby."
+WFIGS is the authoritative national dataset and it is **United States only** —
+the layer's checkbox says so. The API publishes what that means as a
+`coverage` geometry riding every `/api/wildfires` response (a coarse US
+outline, biased slightly outward, split at the antimeridian for the
+Aleutians), and the app compares every analyzed destination against it, row
+by row. A destination outside coverage shows **N/A** where a fire warning
+would sit, and its cell in a downloaded CSV's wildfire column reads **N/A**
+too, so a missing warning is never mistaken for a clear check — while a
+covered destination in the same table keeps its real answer. The outline is
+coarse to roughly ±50 km, so a trip hugging the border may read as covered
+from just outside it; the bias errs toward keeping a real US warning over
+silencing a Canadian false one.
 
 Both features remain best-effort, and a failed check is not silent. The results
 header says **Wildfire check unavailable** and a downloaded CSV omits its

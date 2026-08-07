@@ -178,6 +178,7 @@ curl -s "https://bluebirdforecast.com/api/wildfires?bbox=-122.1,46.6,-121.4,47.0
 {
   "type": "FeatureCollection",
   "fetched_at": 1785495937012,
+  "coverage": { "type": "MultiPolygon", "coordinates": ["…"] },
   "features": [
     {
       "type": "Feature",
@@ -212,8 +213,14 @@ national snapshot and refreshes it on a timer, and serves it **past its refresh
 deadline** when NIFC is unreachable, on the grounds that a perimeter mapped an
 hour ago still answers a ten-mile proximity question. Read `fetched_at` if that
 matters to you. Only an instance that has never completed a fetch answers `503`.
+
 Coverage is the United States only, so an empty result elsewhere means "not
-covered", not "nothing burning". See [DATA.md](DATA.md#wildfires).
+covered", not "nothing burning". The `coverage` foreign member states this
+machine-readably: a coarse (±50 km, biased outward) US outline as a GeoJSON
+MultiPolygon, with Alaska split at the antimeridian so no ring wraps 180°.
+Test your query area against it before reading an empty `features` array as
+an all-clear — that test is exactly what the app does with it. Static per
+release. See [DATA.md](DATA.md#wildfires).
 
 ### Smoke plumes
 

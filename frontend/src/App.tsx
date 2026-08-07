@@ -413,7 +413,7 @@ export default function App() {
     }
   }, [layersOpen])
   const MAP_LAYERS = [
-    { key: 'fires', label: 'Wildfires', checked: showWildfires, onChange: setShowWildfires },
+    { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
     { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
     { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
     { key: 'grid', label: 'Forecast grid', checked: showGrid, onChange: setShowGrid },
@@ -1490,6 +1490,7 @@ export default function App() {
             longitude: d.longitude,
           }) as DestinationResult,
       ),
+      fire.uncovered,
     )
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a')
@@ -2370,6 +2371,7 @@ export default function App() {
                         columnWidths={tableColWidths}
                         onColumnWidthsChange={setTableColWidths}
                         fireWarnings={fire.warnings}
+                        fireUncovered={fire.uncovered}
                         pending={pending}
                         onRemove={handleRemoveResult}
                         onRemovePending={(d) => searched.removePlace(d.latitude, d.longitude)}

@@ -247,6 +247,25 @@ describe('the wildfire column', () => {
     expect(lines(csv)[1].endsWith(',')).toBe(true)
   })
 
+  // The third state of a fire cell (#256): outside the dataset's US-only
+  // coverage a destination was never checked, and a blank there would assert
+  // a clear check. N/A per row keeps the covered rows' real answers beside it.
+  it('writes N/A for a destination outside the fire coverage', () => {
+    const robson = row({ name: 'Mount Robson', latitude: 53.1106, longitude: -119.2317 })
+    const uncovered = new Set([fireKey(53.1106, -119.2317)])
+    const csv = buildResultsCsv([row(), robson], WINDOW_COLUMNS, near, [], uncovered)
+    const body = lines(csv).slice(1, 3)
+    expect(body[0].endsWith(',5.3')).toBe(true)
+    expect(body[1].endsWith(',N/A')).toBe(true)
+  })
+
+  it('still omits the whole column when the lookup itself never ran', () => {
+    const uncovered = new Set([fireKey(53.1106, -119.2317)])
+    const csv = buildResultsCsv([row()], WINDOW_COLUMNS, null, [], uncovered)
+    expect(csv).not.toContain('N/A')
+    expect(cells(lines(csv)[0])).not.toContain('Nearby Wildfire (mi)')
+  })
+
   it('keeps the column when the check ran and found nothing', () => {
     const header = cells(lines(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES))[0])
     expect(header[header.length - 1]).toBe('Nearby Wildfire (mi)')

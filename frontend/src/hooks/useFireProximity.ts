@@ -8,6 +8,7 @@ import {
   nearestFire,
   pointsBbox,
   pointsKey,
+  uncoveredKeys,
 } from '../utils/fireProximity'
 
 // For each destination within FIRE_WARN_MILES of an active US wildfire, returns
@@ -38,15 +39,20 @@ import {
  * snapshot rather than expiring into nothing, so only a server that has never
  * completed a fetch has no answer at all (issue #203).
  *
- * (The separate, documented ambiguity survives untouched: WFIGS is US-only, so
- * a `ready` empty map outside the US means "not covered", not "nothing
- * burning". See docs/DATA.md.)
+ * `uncovered` names the geographic blind spot (#256): WFIGS is US-only, and
+ * a destination outside the coverage the server publishes was never checked,
+ * which used to be indistinguishable from its all-clear. It is a per-row
+ * set rather than a status, because one analysis can hold a Cascades row and
+ * a British Columbia row at once: the table marks each uncovered row N/A and
+ * the CSV writes N/A in its fire cell, while covered rows keep their real
+ * answers.
  */
 export type FireProximityStatus = 'idle' | 'loading' | 'ready' | 'unavailable'
 
 export interface FireProximity {
   status: FireProximityStatus
   warnings: Map<string, FireWarning>
+  uncovered: Set<string>
 }
 
 // Three tries, backing off, because the observed failure was intermittent
@@ -58,6 +64,7 @@ const ATTEMPTS = 3
 const BACKOFF_MS = [1000, 3000]
 
 const EMPTY: Map<string, FireWarning> = new Map()
+const NONE: Set<string> = new Set()
 
 /**
  * @param field the analyzed destinations to check
@@ -69,7 +76,11 @@ const EMPTY: Map<string, FireWarning> = new Map()
  *   query per analysis, which matters because perimeters move.
  */
 export function useFireProximity(field: DestinationResult[], analysisSeq = 0): FireProximity {
-  const [state, setState] = useState<FireProximity>({ status: 'idle', warnings: EMPTY })
+  const [state, setState] = useState<FireProximity>({
+    status: 'idle',
+    warnings: EMPTY,
+    uncovered: NONE,
+  })
 
   // The identity of the destinations, not the identity of the array holding
   // them. `field` is a fresh array on paths that rebuild it per render (the
@@ -88,7 +99,7 @@ export function useFireProximity(field: DestinationResult[], analysisSeq = 0): F
       setState((prev) =>
         prev.status === 'idle' && prev.warnings.size === 0
           ? prev
-          : { status: 'idle', warnings: EMPTY },
+          : { status: 'idle', warnings: EMPTY, uncovered: NONE },
       )
       return
     }
@@ -108,14 +119,20 @@ export function useFireProximity(field: DestinationResult[], analysisSeq = 0): F
         // and the server's coarse copy exists for the map, not for this.
         const fires = await fetchWildfires(bbox, 'full', ac.signal)
         if (cancelled) return
+        // Which rows the dataset could not see, from the coverage the server
+        // publishes beside the data (#256). Kept per row: an uncovered
+        // destination reads N/A in the table and the CSV, while its covered
+        // neighbours keep their real answers.
+        const uncovered = uncoveredKeys(points, fires.coverage)
         const next = new Map<string, FireWarning>()
         for (const r of points) {
+          if (uncovered.has(fireKey(r.latitude, r.longitude))) continue
           const near = nearestFire(r.latitude, r.longitude, fires)
           if (near && near.miles <= FIRE_WARN_MILES) {
             next.set(fireKey(r.latitude, r.longitude), near)
           }
         }
-        setState({ status: 'ready', warnings: next })
+        setState({ status: 'ready', warnings: next, uncovered })
       } catch (err) {
         // An abort is the caller changing its mind, not a failure to report.
         if (cancelled || (err as Error).name === 'AbortError') return
@@ -134,7 +151,7 @@ export function useFireProximity(field: DestinationResult[], analysisSeq = 0): F
         // doctrine as #180 on the Open-Meteo side: a hard limit stops honestly
         // rather than retrying into the wall.
         if (isRateLimited(err)) {
-          setState({ status: 'unavailable', warnings: EMPTY })
+          setState({ status: 'unavailable', warnings: EMPTY, uncovered: NONE })
           return
         }
         if (n + 1 < ATTEMPTS) {
@@ -143,7 +160,7 @@ export function useFireProximity(field: DestinationResult[], analysisSeq = 0): F
           }, BACKOFF_MS[n])
           return
         }
-        setState({ status: 'unavailable', warnings: EMPTY })
+        setState({ status: 'unavailable', warnings: EMPTY, uncovered: NONE })
       }
     }
 
