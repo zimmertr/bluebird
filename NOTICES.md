@@ -14,11 +14,15 @@ services the data comes from, and the software bundled into the shipped image.
   coordinates, and elevations, queried through the Overpass API. The data is
   © OpenStreetMap contributors, under the
   [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/).
-  Credited in the map's corner attribution control.
+  Credited in the map's corner attribution control, and below the data in
+  every exported CSV, because a ranked table of OSM places is a derived
+  product that leaves the screen the credit sits on.
 - [Open-Meteo](https://open-meteo.com): hourly precipitation, temperature, and
   wind forecasts, under
   [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Credited beside
-  the results whenever forecasts are on screen.
+  the results whenever forecasts are on screen, and below the data in every
+  exported CSV, because 4.0 §3(a)(1)(C) asks the credit to accompany every
+  copy of the material.
 - [CAMS](https://atmosphere.copernicus.eu): the Copernicus Atmosphere
   Monitoring Service, whose model output is the basis of the air quality
   figures. It reaches Bluebird through Open-Meteo's processing, and the
@@ -31,7 +35,8 @@ services the data comes from, and the software bundled into the shipped image.
   results derive from OpenStreetMap data, under the same ODbL.
 - [NIFC](https://www.nifc.gov): active wildfire perimeters from the WFIGS
   services, under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
-  Credited on the map's fire legend whenever fire data is drawn.
+  Credited on the map's fire legend whenever fire data is drawn, and in an
+  exported CSV whenever the file carries the wildfire column.
 - [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html): smoke plumes
   traced from GOES imagery by analysts at the Hazard Mapping System. A work of
   the US government, and so in the public domain under 17 U.S.C. §105; no
