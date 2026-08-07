@@ -14,6 +14,7 @@
 
 import { DestinationResult } from '../types'
 import { ColDef } from './tableColumns'
+import { DATA_SOURCES } from './dataSources'
 import { FireWarning, fireKey } from './fireProximity'
 
 /**
@@ -110,6 +111,45 @@ function fireCell(
 }
 
 /**
+ * One supplier's credit line, composed from its DATA_SOURCES entry.
+ *
+ * Only the lead-in phrase lives here; the name, license and license URI come
+ * from the one list the privacy pages render and NOTICES.md transcribes, so a
+ * relicense or a link change cannot leave the export crediting the old terms.
+ * The throw is for a test to hit, not a user: a renamed entry breaks the
+ * lookup at build-and-test time rather than silently dropping a credit.
+ */
+function credit(lead: string, sourceName: string, suffix = ''): string {
+  const s = DATA_SOURCES.find((d) => d.name === sourceName)
+  if (!s?.license || !s.licenseHref) throw new Error(`no licensed data source named ${sourceName}`)
+  return `${lead} ${s.name}${suffix}, ${s.license} (${s.licenseHref})`
+}
+
+/**
+ * The supplier credits the licenses require to travel with the data (#258).
+ *
+ * CC BY 4.0 section 3(a)(1)(C) asks for the credit with every copy of the
+ * material, and a ranked table of OpenStreetMap places is a derived product
+ * under ODbL: the screen carrying the credits does not cover a file read
+ * detached from it. They land BELOW the data, behind one blank row, so a
+ * spreadsheet still reads the first row as the column titles and the numbers
+ * as a table. One cell per line; the commas inside are quoted away by
+ * escapeCell like any other cell.
+ *
+ * Only suppliers the file actually used appear: NIFC is credited exactly when
+ * the wildfire column is present, and CAMS is absent because its figures reach
+ * the file through Open-Meteo, which is the credit its arrangement asks for.
+ */
+function creditRows(fireColumn: boolean): string[][] {
+  const rows = [
+    [credit('Weather data by', 'Open-Meteo')],
+    [credit('Destination data ©', 'OpenStreetMap', ' contributors')],
+  ]
+  if (fireColumn) rows.push([credit('Wildfire data by', 'NIFC')])
+  return rows
+}
+
+/**
  * The displayed report as CSV text.
  *
  * `rows` must already be in display order and `columns` must already be the set
@@ -124,6 +164,9 @@ function fireCell(
  * blanks in that setting is not missing data, it is an assertion that every
  * destination was checked and none is near a fire. An absent column asserts
  * nothing, which is the honest thing to say when nothing is known.
+ *
+ * The file ends with the supplier credits behind one blank row; see
+ * creditRows above for why they are in the file at all.
  */
 export function buildResultsCsv(
   rows: readonly DestinationResult[],
@@ -148,9 +191,8 @@ export function buildResultsCsv(
     if (fireWarnings) cells.push(fireCell(row, fireWarnings, fireUncovered))
     return cells
   })
-  return (
-    BOM + [header, ...pendingBody, ...body].map((r) => r.map(escapeCell).join(',')).join(CRLF) + CRLF
-  )
+  const doc = [header, ...pendingBody, ...body, [''], ...creditRows(fireWarnings != null)]
+  return BOM + doc.map((r) => r.map(escapeCell).join(',')).join(CRLF) + CRLF
 }
 
 /**

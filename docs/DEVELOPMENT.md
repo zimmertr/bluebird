@@ -80,7 +80,7 @@ state and interaction, never for judging a forecast.
     for (let h = 0; h < 24 * days; h++) {
       time.push(new Date(t0 + h * 3600000).toISOString().slice(0, 16))
       precipitation.push(Math.max(0, Math.sin(h / 9) * 0.04))
-      temperature_2m.push(40 + (47 - lat) * 90 + Math.sin(h / 4) * 6)
+      temperature_2m.push(52 - (lat - 46) * 3 + Math.sin(h / 4) * 9)
       wind_speed_10m.push(5 + Math.abs(Math.sin(h / 6)) * 10)
       wind_direction_10m.push((h * 17 + lat * 30) % 360)
     }

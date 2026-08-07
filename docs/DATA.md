@@ -16,7 +16,11 @@ says what each one provides. It cannot say what the numbers coming back
 actually mean, or what each provider asks of Bluebird in return, so the rest of
 this section does: what every source can tell you, what it cannot, and why
 Bluebird calls it the way it does. The licenses and credits each provider
-requires are collected in [NOTICES.md](../NOTICES.md).
+requires are collected in [NOTICES.md](../NOTICES.md). A downloaded CSV
+carries its own copy of the Open-Meteo and OpenStreetMap credits below the
+data — CC BY 4.0 and ODbL both ask the credit to travel with every copy, and
+a file is read detached from the screen that shows them — plus the NIFC
+credit whenever the file carries the wildfire column.
 
 ## A forecast is not a measurement
 
