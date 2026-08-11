@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { COLUMNS, displayedColumns, pointModeColumns, orderColumns, visibleColumns } from './tableColumns'
+import {
+  COLUMNS,
+  WILDFIRE_COL,
+  WILDFIRE_KEY,
+  displayedColumns,
+  pointModeColumns,
+  orderColumns,
+  visibleColumns,
+} from './tableColumns'
 import { SEP } from '../metrics'
 import { SortBy } from '../types'
 
@@ -175,5 +183,20 @@ describe('visibleColumns', () => {
     // AQI is the ranked group, should be force-shown
     expect(visibleKeys).toContain('aqi_avg')
     expect(visibleKeys).toContain('aqi_max')
+  })
+})
+
+// The wildfire column (#256): defined here so the table and the CSV share one
+// header, appended by the caller once the fire check has answered rather than
+// riding in COLUMNS, whose keys all index a DestinationResult.
+describe('WILDFIRE_COL', () => {
+  it('carries the approved label under its virtual key', () => {
+    expect(WILDFIRE_COL.key).toBe(WILDFIRE_KEY)
+    expect(WILDFIRE_COL.label).toBe('Wildfire (mi)')
+  })
+
+  it('is not part of the row-backed column set', () => {
+    expect(COLUMNS.map((c) => c.key)).not.toContain(WILDFIRE_KEY)
+    expect(displayedColumns(false, 'precip_total_in').map((c) => c.key)).not.toContain(WILDFIRE_KEY)
   })
 })

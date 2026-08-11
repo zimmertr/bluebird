@@ -223,9 +223,9 @@ the layer's checkbox says so. The API publishes what that means as a
 `coverage` geometry riding every `/api/wildfires` response (a coarse US
 outline, biased slightly outward, split at the antimeridian for the
 Aleutians), and the app compares every analyzed destination against it, row
-by row. A destination outside coverage shows **N/A** where a fire warning
-would sit, and its cell in a downloaded CSV's wildfire column reads **N/A**
-too, so a missing warning is never mistaken for a clear check — while a
+by row. A destination outside coverage reads a dash in the table's
+**Wildfire (mi)** column and in the same column of a downloaded CSV, so a
+missing warning is never mistaken for the blank of a clear check — while a
 covered destination in the same table keeps its real answer. The outline is
 coarse to roughly ±50 km, so a trip hugging the border may read as covered
 from just outside it; the bias errs toward keeping a real US warning over

@@ -3,6 +3,7 @@ import type { FeatureCollection, MultiPolygon } from 'geojson'
 import {
   fireKey,
   uncoveredKeys,
+  fireCellText,
   fireWarningText,
   pointsBbox,
   pointsKey,
@@ -262,5 +263,25 @@ describe('uncoveredKeys', () => {
 
   it('has nothing to say about an empty field', () => {
     expect(uncoveredKeys([], coverage).size).toBe(0)
+  })
+})
+
+describe('fireCellText', () => {
+  it('repeats the flag beside the mileage for a warned row', () => {
+    expect(fireCellText({ miles: 4.23, name: 'Sourdough Fire' }, false)).toBe('⚠️ 4.2')
+  })
+
+  it('is blank for a row the check cleared', () => {
+    expect(fireCellText(undefined, false)).toBe('')
+  })
+
+  it('is the no-data dash for a row outside the coverage', () => {
+    expect(fireCellText(undefined, true)).toBe('—')
+  })
+
+  it('lets a real warning win over the uncovered mark', () => {
+    // The hook never produces both, but the cell must not blank a warning
+    // if it ever did.
+    expect(fireCellText({ miles: 0, name: 'x' }, true)).toBe('⚠️ 0.0')
   })
 })

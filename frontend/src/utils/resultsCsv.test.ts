@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildResultsCsv, csvFilename } from './resultsCsv'
 import { DATA_SOURCES } from './dataSources'
-import { COLUMNS, displayedColumns } from './tableColumns'
+import { COLUMNS, WILDFIRE_COL, displayedColumns } from './tableColumns'
 import { FireWarning, fireKey } from './fireProximity'
 import { DestinationResult } from '../types'
 
@@ -249,26 +249,30 @@ describe('the wildfire column', () => {
 
   // The third state of a fire cell (#256): outside the dataset's US-only
   // coverage a destination was never checked, and a blank there would assert
-  // a clear check. N/A per row keeps the covered rows' real answers beside it.
-  it('writes N/A for a destination outside the fire coverage', () => {
+  // a clear check. The dash per row keeps the covered rows' real answers
+  // beside it, and matches the table's cell for the same state.
+  it('writes a dash for a destination outside the fire coverage', () => {
     const robson = row({ name: 'Mount Robson', latitude: 53.1106, longitude: -119.2317 })
     const uncovered = new Set([fireKey(53.1106, -119.2317)])
     const csv = buildResultsCsv([row(), robson], WINDOW_COLUMNS, near, [], uncovered)
     const body = lines(csv).slice(1, 3)
     expect(body[0].endsWith(',5.3')).toBe(true)
-    expect(body[1].endsWith(',N/A')).toBe(true)
+    expect(body[1].endsWith(',—')).toBe(true)
   })
 
   it('still omits the whole column when the lookup itself never ran', () => {
     const uncovered = new Set([fireKey(53.1106, -119.2317)])
     const csv = buildResultsCsv([row()], WINDOW_COLUMNS, null, [], uncovered)
-    expect(csv).not.toContain('N/A')
-    expect(cells(lines(csv)[0])).not.toContain('Nearby Wildfire (mi)')
+    expect(csv).not.toContain('—')
+    expect(cells(lines(csv)[0])).not.toContain(WILDFIRE_COL.label)
   })
 
+  // The header is the table's own (WILDFIRE_COL), so the file and the screen
+  // cannot name the column differently.
   it('keeps the column when the check ran and found nothing', () => {
     const header = cells(lines(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES))[0])
-    expect(header[header.length - 1]).toBe('Nearby Wildfire (mi)')
+    expect(header[header.length - 1]).toBe(WILDFIRE_COL.label)
+    expect(WILDFIRE_COL.label).toBe('Wildfire (mi)')
   })
 
   // The distinction the null carries. A column of blanks in a file nobody can
@@ -277,7 +281,7 @@ describe('the wildfire column', () => {
   describe('when the lookup produced no trustworthy answer', () => {
     it('leaves the column out of the header entirely', () => {
       const header = cells(lines(buildResultsCsv([row()], WINDOW_COLUMNS, null))[0])
-      expect(header).not.toContain('Nearby Wildfire (mi)')
+      expect(header).not.toContain(WILDFIRE_COL.label)
       expect(header[header.length - 1]).toBe(WINDOW_COLUMNS[WINDOW_COLUMNS.length - 1].label)
     })
 

@@ -43,9 +43,9 @@ import {
  * a destination outside the coverage the server publishes was never checked,
  * which used to be indistinguishable from its all-clear. It is a per-row
  * set rather than a status, because one analysis can hold a Cascades row and
- * a British Columbia row at once: the table marks each uncovered row N/A and
- * the CSV writes N/A in its fire cell, while covered rows keep their real
- * answers.
+ * a British Columbia row at once: both the table and the CSV write the no-data
+ * dash in an uncovered row's wildfire cell, while covered rows keep their
+ * real answers.
  */
 export type FireProximityStatus = 'idle' | 'loading' | 'ready' | 'unavailable'
 
@@ -121,8 +121,8 @@ export function useFireProximity(field: DestinationResult[], analysisSeq = 0): F
         if (cancelled) return
         // Which rows the dataset could not see, from the coverage the server
         // publishes beside the data (#256). Kept per row: an uncovered
-        // destination reads N/A in the table and the CSV, while its covered
-        // neighbours keep their real answers.
+        // destination's wildfire cell reads the no-data dash in the table and
+        // the CSV, while its covered neighbours keep their real answers.
         const uncovered = uncoveredKeys(points, fires.coverage)
         const next = new Map<string, FireWarning>()
         for (const r of points) {

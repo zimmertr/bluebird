@@ -331,10 +331,11 @@ What lands in the file:
   alike, numbered by a leading **Rank** column.
 - The columns the table is showing, under the same headers, which means a
   single-hour analysis exports the collapsed set.
-- A **Nearby Wildfire (mi)** column, which the table itself carries as the ⚠️
-  beside a name. A file has nowhere to hover, so the number gets a column. It
-  holds a distance only where one is within 10 miles, and is blank otherwise,
-  which is why it is not headed as a distance to the nearest fire outright.
+- The **Wildfire (mi)** column, exactly as the table shows it once the fire
+  check answers. It holds a distance only where a fire is within 10 miles
+  (the table adds the ⚠️ that also sits beside the name), is blank where the
+  check ran and found nothing, and reads a dash where the destination sits
+  outside the fire data's US coverage and was never checked.
 - Nothing a removed row would have contributed. Removals and the max-results
   cut apply first, exactly as on screen.
 

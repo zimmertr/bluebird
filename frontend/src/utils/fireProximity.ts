@@ -139,22 +139,30 @@ function featureFireName(props: WildfireProps | null): string {
 }
 
 /**
- * What the N/A marker and the CSV's N/A cell say out loud. Beside
- * `fireWarningText` because the two annotate the same spot in the table: one
- * is the check's finding, the other is the check's blind spot.
+ * The Wildfire (mi) column's on-screen cell (#256). Three states, and the
+ * empty one is load-bearing: blank means the check ran and found no fire
+ * within FIRE_WARN_MILES, the dash means the row sits outside the fire
+ * dataset's US-only coverage and was never checked — the same "no data" mark
+ * the table's other columns use — and the ⚠️ repeats the flag beside the name
+ * so the column reads on its own when scrolled away from it. The CSV renders
+ * its own cell (resultsCsv.ts): a file needs the number bare to stay
+ * parseable, where this string is written for a human reading a row.
  */
-export const FIRE_NOT_COVERED_TEXT = 'Fire data covers the United States only.'
+export function fireCellText(warning: FireWarning | undefined, uncovered: boolean): string {
+  if (warning) return `⚠️ ${warning.miles.toFixed(1)}`
+  return uncovered ? '—' : ''
+}
 
 /**
  * The destinations the fire dataset cannot see, keyed by `fireKey` (#256).
  *
  * `coverage` is the server-published WFIGS outline (a coarse US shape, split
  * at the antimeridian so the plain ray cast above needs no wraparound case).
- * A point outside it was never checked, and the table and the CSV mark it
- * `N/A` per row rather than raising one report-wide banner — a Cascades row
- * and a British Columbia row in the same table each say what happened to
- * them. A missing `coverage` (an older server) returns the empty set, which
- * degrades to the old trust-the-empty-answer behavior.
+ * A point outside it was never checked, and the table and the CSV mark its
+ * wildfire cell `—` per row rather than raising one report-wide banner — a
+ * Cascades row and a British Columbia row in the same table each say what
+ * happened to them. A missing `coverage` (an older server) returns the empty
+ * set, which degrades to the old trust-the-empty-answer behavior.
  */
 export function uncoveredKeys(
   points: { latitude: number; longitude: number }[],

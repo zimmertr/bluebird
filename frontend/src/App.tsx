@@ -13,6 +13,7 @@ import { useAnalyze } from './hooks/useAnalyze'
 import { modelForecastHours, useCapabilities } from './hooks/useCapabilities'
 import { useChartSelection } from './hooks/useChartSelection'
 import { useFireProximity } from './hooks/useFireProximity'
+import { fireKey } from './utils/fireProximity'
 import { useForecastGrid } from './hooks/useForecastGrid'
 import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
@@ -96,7 +97,7 @@ import {
 import { isPointSample } from './utils/forecastWindow'
 import { PresentationKnobs, commitNeeded, presentResults } from './utils/present'
 import { RemovedEntry, recordRemoval, restorePlace } from './utils/removals'
-import { SortDir, SortKey, displayedColumns, visibleColumns } from './utils/tableColumns'
+import { SortDir, SortKey, WILDFIRE_COL, WILDFIRE_KEY, displayedColumns, visibleColumns } from './utils/tableColumns'
 import { NAME_DEFAULT_PX } from './utils/columnResize'
 import { compareValues } from './utils/sortResults'
 import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
@@ -1173,12 +1174,25 @@ export default function App() {
     setDetailSort({ key: view.sortBy, dir: view.sortDesc ? 'desc' : 'asc' })
   }, [view.sortBy, view.sortDesc, analysisSeq])
 
+  // Flags destinations within 10 mi of an active US wildfire; independent of the
+  // map overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
+  // Fed the whole analyzed field so live knobs re-present rows without
+  // re-querying NIFC; falls back to the displayed rows on the server path.
+  // (Called here, above the table derivations, because the wildfire column
+  // sorts and renders out of its maps.)
+  const fire = useFireProximity(universe ?? results, analysisSeq)
+
   // Nulls sort last in both directions; string columns use numeric collation so
-  // a pasted list numbered 1..100 reads in order. See compareValues.
-  const tableRows = useMemo(
-    () => [...results].sort((a, b) => compareValues(a[detailSort.key], b[detailSort.key], detailSort.dir)),
-    [results, detailSort],
-  )
+  // a pasted list numbered 1..100 reads in order. See compareValues. The
+  // wildfire column's key is virtual: its value is the warning's mileage, so a
+  // clear row and an uncovered row are both null and land last either way.
+  const tableRows = useMemo(() => {
+    const value = (r: DestinationResult) =>
+      detailSort.key === WILDFIRE_KEY
+        ? (fire.warnings.get(fireKey(r.latitude, r.longitude))?.miles ?? null)
+        : r[detailSort.key]
+    return [...results].sort((a, b) => compareValues(value(a), value(b), detailSort.dir))
+  }, [results, detailSort, fire.warnings])
   // All columns for the CSV export (includes all columns, not filtered by visibility).
   const csvColumns = useMemo(
     () => displayedColumns(pointSample, view.sortBy),
@@ -1191,11 +1205,16 @@ export default function App() {
     if (columnVisibility !== null) return columnVisibility
     return new Set(csvColumns.map((c) => c.key as string))
   }, [columnVisibility, csvColumns])
-  // Columns displayed in the table (filtered by visibility).
-  const tableColumns = useMemo(
-    () => visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys),
-    [pointSample, view.sortBy, effectiveVisibleKeys],
-  )
+  // Columns displayed in the table (filtered by visibility). The wildfire
+  // column joins last, once the fire check has answered — the same condition
+  // under which handleDownloadCsv hands the warnings to the file, so the
+  // screen and the CSV carry the column under one rule. It bypasses the
+  // Columns picker (and the stored visibility sets that predate it): a safety
+  // flag is not a metric preference, and the picker never lists it.
+  const tableColumns = useMemo(() => {
+    const cols = visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys)
+    return fire.status === 'ready' ? [...cols, WILDFIRE_COL] : cols
+  }, [pointSample, view.sortBy, effectiveVisibleKeys, fire.status])
 
   // × on a table row. Removing a searched place also deregisters it — else the
   // next analysis would simply rediscover it from the searched list. The
@@ -1402,12 +1421,6 @@ export default function App() {
   // answer goes, and the table's own empty row says which of the three reasons
   // it is.
   const showTable = showResults && (response !== null || pending.length > 0)
-
-  // Flags destinations within 10 mi of an active US wildfire; independent of the
-  // map overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
-  // Fed the whole analyzed field so live knobs re-present rows without
-  // re-querying NIFC; falls back to the displayed rows on the server path.
-  const fire = useFireProximity(universe ?? results, analysisSeq)
 
   // The forecast grid (#246): the ranked metric as model-resolution cells under
   // the markers, scrubbed by the same playhead.
