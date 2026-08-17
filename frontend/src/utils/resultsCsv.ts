@@ -15,7 +15,7 @@
 import { DestinationResult } from '../types'
 import { ColDef, WILDFIRE_COL, WILDFIRE_KEY } from './tableColumns'
 import { DATA_SOURCES } from './dataSources'
-import { FireWarning, fireKey } from './fireProximity'
+import { FIRE_WARN_MILES, FireWarning, fireKey } from './fireProximity'
 
 /**
  * The leading position column, named rather than numbered.
@@ -88,17 +88,17 @@ function cell(row: DestinationResult, col: ColDef): string {
 }
 
 /**
- * Miles to the nearest active fire, an empty cell, or a dash.
+ * Miles to the nearest active fire, the cleared threshold, or an empty cell.
  *
  * No threshold test: useFireProximity only admits warnings within
- * FIRE_WARN_MILES, so presence in the map is the condition. An empty cell here
- * means the check ran and found nothing within that radius, which is only true
- * because the caller withholds the map entirely when it did not run. The dash
- * is the third state (#256): the destination sits outside the fire dataset's
- * US-only coverage, so it was never checked, and a blank there would assert a
- * clear check the data cannot make. It matches the table's cell (fireCellText)
- * minus the ⚠️, which a numeric column in a file has no room for: text beside
- * the number would turn every covered cell into a string.
+ * FIRE_WARN_MILES, so presence in the map is the condition. A cleared row
+ * writes `>10` — the same answer the table prints — so a checked row is
+ * never blank. The empty cell is the row with no answer (#256): outside the
+ * fire dataset's US-only coverage the destination was never checked, and an
+ * empty cell is how this file already says "no value" in every other column
+ * (the table renders the same state as its dash). The one divergence from
+ * fireCellText is the bare number: text beside it would turn every warned
+ * cell into a string.
  */
 function fireCell(
   row: DestinationResult,
@@ -106,9 +106,9 @@ function fireCell(
   uncovered: ReadonlySet<string>,
 ): string {
   const key = fireKey(row.latitude, row.longitude)
-  if (uncovered.has(key)) return '—'
+  if (uncovered.has(key)) return ''
   const warning = warnings.get(key)
-  return warning ? warning.miles.toFixed(1) : ''
+  return warning ? warning.miles.toFixed(1) : `>${FIRE_WARN_MILES}`
 }
 
 /**

@@ -26,8 +26,9 @@ export type ColDef = {
  * The wildfire-proximity column (#256). Its key is virtual: the value lives in
  * useFireProximity's warning map rather than on the row, so every consumer
  * branches on the key before indexing a DestinationResult. It is not in
- * COLUMNS because it exists only once the fire check has answered — the caller
- * appends it then — and it is not in the Columns picker because it is a safety
+ * COLUMNS because its cells come from the fire lookup's state rather than the
+ * report — App appends it to every table, the CSV appends it only once the
+ * check answered — and it is not in the Columns picker because it is a safety
  * flag rather than a metric preference. The label is shared by the table and
  * the CSV so the two surfaces cannot name the same numbers differently.
  */

@@ -139,18 +139,36 @@ function featureFireName(props: WildfireProps | null): string {
 }
 
 /**
- * The Wildfire (mi) column's on-screen cell (#256). Three states, and the
- * empty one is load-bearing: blank means the check ran and found no fire
- * within FIRE_WARN_MILES, the dash means the row sits outside the fire
- * dataset's US-only coverage and was never checked — the same "no data" mark
- * the table's other columns use — and the ⚠️ repeats the flag beside the name
- * so the column reads on its own when scrolled away from it. The CSV renders
- * its own cell (resultsCsv.ts): a file needs the number bare to stay
- * parseable, where this string is written for a human reading a row.
+ * The Wildfire (mi) column's on-screen cell once the check has answered
+ * (#256). Three states, and only one of them is a mark: the ⚠️ and the
+ * mileage where a fire is within FIRE_WARN_MILES (the column is the flag's
+ * only home — the name column carries nothing, so one row never warns
+ * twice), `>10` where the check ran and cleared the row (the threshold it
+ * cleared, so the cell stays numeric and visibly answered), and the dash
+ * where the row has no answer — outside the fire dataset's US-only coverage,
+ * so it was never checked. The dash therefore means exactly what it means in
+ * every other column: no data for this row. The CSV renders its own cell
+ * (resultsCsv.ts): a file needs the number bare to stay parseable, where
+ * this string is written for a human reading a row.
  */
 export function fireCellText(warning: FireWarning | undefined, uncovered: boolean): string {
   if (warning) return `⚠️ ${warning.miles.toFixed(1)}`
-  return uncovered ? '—' : ''
+  return uncovered ? '—' : `>${FIRE_WARN_MILES}`
+}
+
+/**
+ * The same cell while the check is still running: a ticking trail of middle
+ * dots — the separator glyph the app already speaks (`Precipitation ·
+ * Total`), so the loader reads as the product's own punctuation rather than
+ * a terminal cursor. Frames rather than a spinner because the cell is a text
+ * column in a font-mono table — a glyph animation stays in the type system
+ * and costs no layout. The component owns the clock (and mutes the type);
+ * this owns the frames so the sequence is testable without a DOM.
+ */
+export const FIRE_LOADING_FRAMES = ['·', '··', '···', ''] as const
+
+export function fireLoadingFrame(tick: number): string {
+  return FIRE_LOADING_FRAMES[((tick % FIRE_LOADING_FRAMES.length) + FIRE_LOADING_FRAMES.length) % FIRE_LOADING_FRAMES.length]
 }
 
 /**
@@ -159,10 +177,11 @@ export function fireCellText(warning: FireWarning | undefined, uncovered: boolea
  * `coverage` is the server-published WFIGS outline (a coarse US shape, split
  * at the antimeridian so the plain ray cast above needs no wraparound case).
  * A point outside it was never checked, and the table and the CSV mark its
- * wildfire cell `—` per row rather than raising one report-wide banner — a
- * Cascades row and a British Columbia row in the same table each say what
- * happened to them. A missing `coverage` (an older server) returns the empty
- * set, which degrades to the old trust-the-empty-answer behavior.
+ * wildfire cell as having no data (the dash on screen, an empty cell in the
+ * file) per row rather than raising one report-wide banner — a Cascades row
+ * and a British Columbia row in the same table each say what happened to
+ * them. A missing `coverage` (an older server) returns the empty set, which
+ * degrades to the old trust-the-empty-answer behavior.
  */
 export function uncoveredKeys(
   points: { latitude: number; longitude: number }[],

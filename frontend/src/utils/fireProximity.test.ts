@@ -4,6 +4,8 @@ import {
   fireKey,
   uncoveredKeys,
   fireCellText,
+  fireLoadingFrame,
+  FIRE_LOADING_FRAMES,
   fireWarningText,
   pointsBbox,
   pointsKey,
@@ -267,12 +269,14 @@ describe('uncoveredKeys', () => {
 })
 
 describe('fireCellText', () => {
-  it('repeats the flag beside the mileage for a warned row', () => {
+  it('carries the flag beside the mileage for a warned row', () => {
     expect(fireCellText({ miles: 4.23, name: 'Sourdough Fire' }, false)).toBe('⚠️ 4.2')
   })
 
-  it('is blank for a row the check cleared', () => {
-    expect(fireCellText(undefined, false)).toBe('')
+  it('prints the cleared threshold for a row the check cleared, never blank', () => {
+    // A checked row must say so visibly, and the threshold keeps the cell
+    // numeric; the dash stays reserved for "no data".
+    expect(fireCellText(undefined, false)).toBe(`>${FIRE_WARN_MILES}`)
   })
 
   it('is the no-data dash for a row outside the coverage', () => {
@@ -283,5 +287,16 @@ describe('fireCellText', () => {
     // The hook never produces both, but the cell must not blank a warning
     // if it ever did.
     expect(fireCellText({ miles: 0, name: 'x' }, true)).toBe('⚠️ 0.0')
+  })
+})
+
+describe('fireLoadingFrame', () => {
+  it('cycles · → ·· → ··· → empty and wraps', () => {
+    expect([0, 1, 2, 3, 4].map(fireLoadingFrame)).toEqual(['·', '··', '···', '', '·'])
+  })
+
+  it('is defined for any tick, including negatives', () => {
+    expect(fireLoadingFrame(-1)).toBe('')
+    expect(fireLoadingFrame(403)).toBe(FIRE_LOADING_FRAMES[3])
   })
 })

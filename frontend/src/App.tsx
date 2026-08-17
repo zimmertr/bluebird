@@ -1206,15 +1206,18 @@ export default function App() {
     return new Set(csvColumns.map((c) => c.key as string))
   }, [columnVisibility, csvColumns])
   // Columns displayed in the table (filtered by visibility). The wildfire
-  // column joins last, once the fire check has answered — the same condition
-  // under which handleDownloadCsv hands the warnings to the file, so the
-  // screen and the CSV carry the column under one rule. It bypasses the
-  // Columns picker (and the stored visibility sets that predate it): a safety
-  // flag is not a metric preference, and the picker never lists it.
+  // column is always last and always present — its cells, not the column,
+  // say where the check stands (ticking while it runs, answered when it has;
+  // ResultsTable owns that). The CSV keeps the stricter rule and carries the
+  // column only once the check answered, because a file is read detached
+  // from the app where a mid-flight column cannot resolve itself. It
+  // bypasses the Columns picker (and the stored visibility sets that predate
+  // it): a safety flag is not a metric preference, and the picker never
+  // lists it.
   const tableColumns = useMemo(() => {
     const cols = visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys)
-    return fire.status === 'ready' ? [...cols, WILDFIRE_COL] : cols
-  }, [pointSample, view.sortBy, effectiveVisibleKeys, fire.status])
+    return [...cols, WILDFIRE_COL]
+  }, [pointSample, view.sortBy, effectiveVisibleKeys])
 
   // × on a table row. Removing a searched place also deregisters it — else the
   // next analysis would simply rediscover it from the searched list. The
@@ -2385,6 +2388,7 @@ export default function App() {
                         onColumnWidthsChange={setTableColWidths}
                         fireWarnings={fire.warnings}
                         fireUncovered={fire.uncovered}
+                        fireStatus={fire.status}
                         pending={pending}
                         onRemove={handleRemoveResult}
                         onRemovePending={(d) => searched.removePlace(d.latitude, d.longitude)}
