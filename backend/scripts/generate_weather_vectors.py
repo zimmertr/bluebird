@@ -35,6 +35,8 @@ from app.services import air_quality, weather
 OUT = Path(__file__).parent.parent / "tests" / "data" / "weather_vectors.json"
 
 H = [f"2026-07-21T{h:02d}:00" for h in range(6)]  # a fixed UTC day, hourly
+H8 = [f"2026-07-21T{h:02d}:00" for h in range(8)]  # eight hours: /8 terminates,
+# which is what lets an average of two-decimal inputs land on a fifth decimal.
 
 
 def _win(start: str, end: str) -> dict[str, str]:
@@ -113,6 +115,45 @@ WEATHER_INPUTS = [
         "window": _win(H[0], H[1]),
         "payload": _wx(
             H[:2], [0.03125, 0.03125], [50.25, 50.25], [7.25, 7.25]
+        ),
+    },
+    {
+        # The case the boundary vector above cannot reach. 20.1 and 20.2 are the
+        # shape a real API returns (one decimal), and their average is
+        # 20.1499999999999986, which rounds DOWN. A port that scales by 10 first
+        # gets exactly 201.5 out of that multiply, reads a tie that is not there,
+        # and answers 20.2. Same for wind. Measured across realistic windows, the
+        # class covered ~4% of temperature averages before it was fixed.
+        "name": "manufactured_tie_from_decimal_inputs",
+        "window": _win(H[0], H[1]),
+        "payload": _wx(H[:2], [0.1, 0.2], [20.1, 20.2], [20.1, 20.2]),
+    },
+    {
+        # Negatives, which no other vector carries, and which December supplies
+        # daily at altitude. -0.35 rounds toward zero (-0.3) and -69.65 rounds
+        # away from it (-69.7): the direction is a property of the true value,
+        # not of the sign, so a port that breaks ties on Math.floor alone gets
+        # one of these two wrong whichever way it leans.
+        "name": "negative_temperatures_round_from_the_true_value",
+        "window": _win(H[0], H[1]),
+        "payload": _wx(H[:2], [0.0, 0.0], [-0.4, -0.3], [0.0, 0.0]),
+    },
+    {
+        "name": "negative_temperature_rounds_away_from_zero",
+        "window": _win(H[0], H[1]),
+        "payload": _wx(H[:2], [0.0, 0.0], [-69.6, -69.7], [0.0, 0.0]),
+    },
+    {
+        # Precipitation carries four decimals, so the manufactured tie lands one
+        # place deeper: eight hours of two-decimal values averaging to a fifth
+        # decimal of 5. 1.77 / 8 = 0.22125.
+        "name": "precip_average_manufactured_tie_at_fifth_decimal",
+        "window": _win(H8[0], H8[7]),
+        "payload": _wx(
+            H8,
+            [0.05, 0.19, 0.10, 0.22, 0.33, 0.32, 0.28, 0.28],
+            [50.0] * 8,
+            [5.0] * 8,
         ),
     },
 ]

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildResultsCsv, csvFilename } from './resultsCsv'
+import { DATA_SOURCES } from './dataSources'
 import { COLUMNS, displayedColumns } from './tableColumns'
 import { FireWarning, fireKey } from './fireProximity'
 import { DestinationResult } from '../types'
@@ -53,7 +54,8 @@ describe('the file a spreadsheet opens', () => {
     const csv = buildResultsCsv([row(), row({ name: 'Glacier Peak' })], WINDOW_COLUMNS, NO_FIRES)
     expect(csv.endsWith('\r\n')).toBe(true)
     expect(csv).not.toMatch(/[^\r]\n/)
-    expect(lines(csv)).toHaveLength(3)
+    // Header, two data rows, then the blank row and three credit lines.
+    expect(lines(csv)).toHaveLength(7)
   })
 
   it('puts the headers in the first row, where a spreadsheet looks for them', () => {
@@ -78,7 +80,7 @@ describe('what the file carries', () => {
       WINDOW_COLUMNS,
       NO_FIRES,
     )
-    const body = lines(csv).slice(1)
+    const body = lines(csv).slice(1, 4)
     expect(body.map((l) => cells(l)[0])).toEqual(['1', '2', '3'])
     expect(body.map((l) => cells(l)[1])).toEqual(['First', 'Second', 'Third'])
   })
@@ -178,21 +180,53 @@ describe('quoting', () => {
   it('quotes a name carrying a line break rather than splitting the row', () => {
     const csv = buildResultsCsv([row({ name: 'Two\nLines' })], WINDOW_COLUMNS, NO_FIRES)
     expect(csv).toContain('"Two\nLines"')
-    expect(lines(csv)).toHaveLength(2)
+    // Header and one data row; the trailer is the blank row and three credits.
+    expect(lines(csv)).toHaveLength(6)
   })
 
   it('leaves a name needing no quotes unquoted', () => {
     expect(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES)).toContain('1,Mount Rainier,')
   })
 
-  // Deliberate. Excel and Sheets read a leading "=" as a formula, and the usual
-  // defense prefixes an apostrophe or a tab, which corrupts the name of a real
-  // place to protect the user from data they asked for themselves.
-  it('ships a name that looks like a formula exactly as it was mapped', () => {
-    const csv = buildResultsCsv([row({ name: '=Ruth Mountain' })], WINDOW_COLUMNS, NO_FIRES)
-    expect(csv).toContain('=Ruth Mountain')
-    expect(csv).not.toContain("'=Ruth")
-    expect(csv).not.toContain('\t=Ruth')
+  // A name is not always written by the person who opens the file: it can
+  // arrive through a shared link or a public OSM edit, and a spreadsheet runs
+  // a leading formula character on open. The apostrophe is the spreadsheet
+  // convention for "this is text" (#254).
+  describe('formula characters', () => {
+    it.each([
+      ['=', '=Ruth Mountain'],
+      ['+', '+Lookout Point'],
+      ['@', '@Camp Site'],
+    ])('prefixes an apostrophe to a name leading with %s', (_lead, name) => {
+      const csv = buildResultsCsv([row({ name })], WINDOW_COLUMNS, NO_FIRES)
+      expect(csv).toContain(`'${name}`)
+      expect(csv).not.toContain(`,${name}`)
+    })
+
+    it('guards a leading tab, which spreadsheets also read as a formula lead', () => {
+      const csv = buildResultsCsv([row({ name: '\tIndented' })], WINDOW_COLUMNS, NO_FIRES)
+      expect(csv).toContain("'\tIndented")
+    })
+
+    it('guards a leading carriage return and still quotes it as a line break', () => {
+      const csv = buildResultsCsv([row({ name: '\rReturn' })], WINDOW_COLUMNS, NO_FIRES)
+      expect(csv).toContain('"\'\rReturn"')
+    })
+
+    // A destination with no name falls back to its coordinates, so every
+    // southern-hemisphere coordinate row starts with "-". A prefix there would
+    // corrupt the one field that identifies the row.
+    it('leaves a leading minus untouched, because coordinate names carry one', () => {
+      const csv = buildResultsCsv([row({ name: '-45.123, 170.456' })], WINDOW_COLUMNS, NO_FIRES)
+      expect(csv).toContain('"-45.123, 170.456"')
+      expect(csv).not.toContain("'-45.123")
+    })
+
+    it('leaves a formula character that is not in the lead alone', () => {
+      const csv = buildResultsCsv([row({ name: 'Hidden Lake @ Dusk' })], WINDOW_COLUMNS, NO_FIRES)
+      expect(csv).toContain(',Hidden Lake @ Dusk,')
+      expect(csv).not.toContain("'Hidden")
+    })
   })
 })
 
@@ -240,8 +274,51 @@ describe('the wildfire column', () => {
       const csv = buildResultsCsv([row(), row({ name: 'Glacier Peak' })], WINDOW_COLUMNS, null)
       expect(csv.charCodeAt(0)).toBe(0xfeff)
       expect(cells(lines(csv)[0])[0]).toBe('Rank')
-      expect(lines(csv)).toHaveLength(3)
+      // Header, two data rows, the blank row, and two credits: no NIFC line,
+      // because a file with no wildfire column must not credit its supplier.
+      expect(lines(csv)).toHaveLength(6)
     })
+  })
+})
+
+// CC BY 4.0 wants the credit to travel with every copy of the material, and a
+// ranked table of OSM places is an ODbL derived product; a file is a copy the
+// on-screen credits do not follow (#258).
+describe('the supplier credits', () => {
+  const openMeteo = DATA_SOURCES.find((s) => s.name === 'Open-Meteo')!
+  const osm = DATA_SOURCES.find((s) => s.name === 'OpenStreetMap')!
+  const nifc = DATA_SOURCES.find((s) => s.name === 'NIFC')!
+
+  it('follow the data behind exactly one blank row, so the table stays a table', () => {
+    const all = lines(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES))
+    expect(all[1]).toContain('Mount Rainier')
+    expect(all[2]).toBe('')
+    expect(all[3]).toContain('Open-Meteo')
+    expect(all.filter((l) => l === '')).toHaveLength(1)
+  })
+
+  it('compose each line from DATA_SOURCES rather than a second literal copy', () => {
+    const csv = buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES)
+    expect(csv).toContain(
+      `"Weather data by ${openMeteo.name}, ${openMeteo.license} (${openMeteo.licenseHref})"`,
+    )
+    expect(csv).toContain(
+      `"Destination data © ${osm.name} contributors, ${osm.license} (${osm.licenseHref})"`,
+    )
+  })
+
+  it('credit the fire supplier exactly when the file carries the fire column', () => {
+    expect(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES)).toContain(
+      `"Wildfire data by ${nifc.name}, ${nifc.license} (${nifc.licenseHref})"`,
+    )
+    expect(buildResultsCsv([row()], WINDOW_COLUMNS, null)).not.toContain('NIFC')
+  })
+
+  it('stand even in a file with no data rows', () => {
+    const all = lines(buildResultsCsv([], WINDOW_COLUMNS, null))
+    expect(all[1]).toBe('')
+    expect(all[2]).toContain('Open-Meteo')
+    expect(all[3]).toContain('OpenStreetMap')
   })
 })
 
