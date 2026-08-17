@@ -333,7 +333,7 @@ What lands in the file:
   single-hour analysis exports the collapsed set.
 - The **Wildfire (mi)** column, once the fire check answers. On screen the
   column is always present: its cells tick while the check runs, then show
-  ⚠️ and the distance where a fire is within 10 miles, a dash where the
+  ⚠️ and the distance where a fire is within 25 miles, a dash where the
   check ran and cleared the row, and `N/A` where the row has no answer.
   Hovering an `N/A` says which of its two causes applies: the destination
   sits outside the fire data's US coverage, or NIFC is unreachable and the
@@ -349,7 +349,7 @@ The wildfire column is the one that can disappear from the file. If the fire
 check could not run, the column is left out entirely and a warning under
 Analyze says NIFC is unreachable, rather than the file reporting every row as
 clear. So a blank wildfire cell in a file means the check ran and found
-nothing within 10 miles, which still is not proof there is no fire:
+nothing within 25 miles, which still is not proof there is no fire:
 [the wildfire notes](DATA.md#wildfires) explain the coverage gap that a
 successful check can still miss.
 

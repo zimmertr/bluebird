@@ -52,9 +52,11 @@ export type BBox = [number, number, number, number]
  * Geometry fidelity.
  *
  * `coarse` is simplified to ~56 m, which is finer than a screen pixel at any
- * zoom that fits a whole fire and about a thirteenth of the bytes. `full` is the
- * surveyed shape, for the proximity check, which measures distances rather than
- * drawing them.
+ * zoom that fits a whole fire and about a thirteenth of the bytes. The app
+ * uses it for drawing AND for the proximity check: 56 m is 0.035 mi against a
+ * 25-mile threshold displayed at 0.1 mi, so the simplification cannot change
+ * an answer. `full` is the surveyed shape, kept on the API for callers who
+ * need the real geometry.
  */
 export type FireDetail = 'coarse' | 'full'
 

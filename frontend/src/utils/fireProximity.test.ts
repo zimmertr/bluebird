@@ -164,11 +164,12 @@ describe('nearestFire', () => {
 })
 
 describe('FIRE_WARN_MILES', () => {
-  it('warns within ten miles of a perimeter', () => {
+  it('warns within twenty-five miles of a perimeter', () => {
     // Pinned to the literal because the radius is the product decision, and a
     // safety-adjacent one: widening it floods every report with warnings,
     // narrowing it drops real ones. Nothing else in either suite notices.
-    expect(FIRE_WARN_MILES).toBe(10)
+    // Raised from 10 in the PR #275 review (TJ, 2026-08-17).
+    expect(FIRE_WARN_MILES).toBe(25)
   })
 })
 

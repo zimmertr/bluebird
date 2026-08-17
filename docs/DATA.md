@@ -186,7 +186,7 @@ of running in your browser the way the weather fetch does.
 ## Wildfires
 
 The optional perimeter overlay and the proximity warnings on result rows both
-come from NIFC's WFIGS service. The warnings run after every analysis whether or
+come from NIFC's WFIGS service. The warnings run with every analysis whether or
 not the overlay is switched on, and measure to the fire perimeter rather than
 its centroid, because a large fire's centroid can sit many miles inside its own
 edge.
@@ -208,7 +208,7 @@ resource nobody involved could see or influence.
 
 Perimeters are served **past their refresh deadline** when NIFC is unreachable,
 rather than expiring into nothing. A perimeter mapped an hour ago still answers
-a ten-mile proximity question correctly, so withholding it would trade a good
+a 25-mile proximity question correctly, so withholding it would trade a good
 answer for no answer.
 
 Hovering a fire dates the perimeter: **Last updated** is when NIFC last

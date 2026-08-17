@@ -573,6 +573,8 @@ export default function App() {
     reset,
     analyzed,
     analysisSeq,
+    fireField,
+    fireSeq,
     loading,
     error,
     refusal,
@@ -1174,13 +1176,16 @@ export default function App() {
     setDetailSort({ key: view.sortBy, dir: view.sortDesc ? 'desc' : 'asc' })
   }, [view.sortBy, view.sortDesc, analysisSeq])
 
-  // Flags destinations within 10 mi of an active US wildfire; independent of the
+  // Flags destinations within 25 mi of an active US wildfire; independent of the
   // map overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
-  // Fed the whole analyzed field so live knobs re-present rows without
-  // re-querying NIFC; falls back to the displayed rows on the server path.
-  // (Called here, above the table derivations, because the wildfire column
-  // sorts and renders out of its maps.)
-  const fire = useFireProximity(universe ?? results, analysisSeq)
+  // Fed the candidate field useAnalyze publishes at discovery, so the NIFC
+  // lookup overlaps the weather fetch instead of following it; the committed
+  // universe answers when no candidate field exists (a failed run, the server
+  // path), and the displayed rows when there is no universe either. Live
+  // knobs re-present rows without re-querying NIFC. (Called here, above the
+  // table derivations, because the wildfire column sorts and renders out of
+  // its maps.)
+  const fire = useFireProximity(fireField ?? universe ?? results, fireSeq)
 
   // Nulls sort last in both directions; string columns use numeric collation so
   // a pasted list numbered 1..100 reads in order. See compareValues. The

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { DestinationResult } from '../types'
 import { fetchWildfires, isRateLimited } from '../utils/wildfires'
 import {
   FireWarning,
@@ -16,12 +15,14 @@ import {
 // state of the lookup itself. Independent of the map overlay toggle — this is
 // safety info, not a display option.
 //
-// Takes the analyzed FIELD, not the rows on screen. Since #188 the displayed
-// rows are re-derived on every sort, limit and elevation change, so keying off
-// them would fire a NIFC query per knob twiddle. The field changes once per
-// analysis, and warnings for destinations below the cut are simply never looked
-// up — cheap, since the extra work is local distance math against one query's
-// perimeters rather than another request.
+// Takes the analysis's candidate FIELD, not the rows on screen. Since #188 the
+// displayed rows are re-derived on every sort, limit and elevation change, so
+// keying off them would fire a NIFC query per knob twiddle. The field changes
+// once per analysis — published at discovery so this lookup overlaps the
+// weather fetch — and warnings for destinations below the cut are simply never
+// looked up: cheap, since the extra work is local distance math against one
+// query's perimeters rather than another request. Only coordinates are read,
+// which is what lets a pre-forecast candidate stand in for a result row.
 
 /**
  * Whether the lookup has an answer, and whether that answer can be trusted.
@@ -67,15 +68,21 @@ const EMPTY: Map<string, FireWarning> = new Map()
 const NONE: Set<string> = new Set()
 
 /**
- * @param field the analyzed destinations to check
- * @param analysisSeq bumped once per committed analysis, so clicking Analyze
- *   re-asks even when the destinations are identical. Without it the content
- *   key below is *too* stable: a failed lookup over an unchanged polygon could
- *   never be retried, which turns a transient outage into a stuck warning until
- *   the user edits their search. It also keeps the documented contract of one
- *   query per analysis, which matters because perimeters move.
+ * @param field the destinations to check; only coordinates are read
+ * @param seq bumped once per analysis, when its field is published, so
+ *   clicking Analyze re-asks even when the destinations are identical.
+ *   Without it the content key below is *too* stable: a failed lookup over an
+ *   unchanged polygon could never be retried, which turns a transient outage
+ *   into a stuck warning until the user edits their search. It also keeps the
+ *   documented contract of one query per analysis, which matters because
+ *   perimeters move. It is the publisher's own counter rather than
+ *   analysisSeq: the commit lands after this lookup has started, and a bump
+ *   there would abort the request in flight and restart it — serial again.
  */
-export function useFireProximity(field: DestinationResult[], analysisSeq = 0): FireProximity {
+export function useFireProximity(
+  field: { latitude: number; longitude: number }[],
+  seq = 0,
+): FireProximity {
   const [state, setState] = useState<FireProximity>({
     status: 'idle',
     warnings: EMPTY,
@@ -115,9 +122,12 @@ export function useFireProximity(field: DestinationResult[], analysisSeq = 0): F
 
     const attempt = async (n: number): Promise<void> => {
       try {
-        // Full resolution: this measures distances rather than drawing them,
-        // and the server's coarse copy exists for the map, not for this.
-        const fires = await fetchWildfires(bbox, 'full', ac.signal)
+        // The coarse copy, deliberately (TJ, PR #275 review). Its ~56 m of
+        // simplification is 0.035 mi against a FIRE_WARN_MILES threshold and
+        // a cell that rounds to 0.1 mi, so it cannot change any displayed
+        // answer — and it is about a thirteenth of the full copy's bytes
+        // (measured: 210 KB vs 3.3 MB for a Washington-sized field).
+        const fires = await fetchWildfires(bbox, 'coarse', ac.signal)
         if (cancelled) return
         // Which rows the dataset could not see, from the coverage the server
         // publishes beside the data (#256). Kept per row: an uncovered
@@ -171,7 +181,7 @@ export function useFireProximity(field: DestinationResult[], analysisSeq = 0): F
       clearTimeout(timer)
       ac.abort()
     }
-  }, [points, analysisSeq])
+  }, [points, seq])
 
   return state
 }
