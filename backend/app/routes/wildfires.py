@@ -35,6 +35,16 @@ class WildfireCollection(BaseModel):
             "`attr_ModifiedOnDateTime_dt`, which routinely runs days older."
         )
     )
+    coverage: dict[str, Any] = Field(
+        description=(
+            "The area WFIGS covers, as a GeoJSON MultiPolygon geometry riding "
+            "as a second foreign member: a coarse (±50 km, biased outward) "
+            "outline of the United States, with Alaska split at the "
+            "antimeridian so no ring wraps 180°. An empty `features` array for "
+            "a bbox outside this geometry means the dataset cannot see that "
+            "area, not that nothing is burning there. Static per release."
+        )
+    )
     features: list[dict[str, Any]] = Field(
         description=(
             "Active wildfire perimeters intersecting the requested bounding box, "

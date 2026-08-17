@@ -13,6 +13,7 @@ import { useAnalyze } from './hooks/useAnalyze'
 import { modelForecastHours, useCapabilities } from './hooks/useCapabilities'
 import { useChartSelection } from './hooks/useChartSelection'
 import { useFireProximity } from './hooks/useFireProximity'
+import { fireKey } from './utils/fireProximity'
 import { useForecastGrid } from './hooks/useForecastGrid'
 import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
@@ -96,7 +97,7 @@ import {
 import { isPointSample } from './utils/forecastWindow'
 import { PresentationKnobs, commitNeeded, presentResults } from './utils/present'
 import { RemovedEntry, recordRemoval, restorePlace } from './utils/removals'
-import { SortDir, SortKey, displayedColumns, visibleColumns } from './utils/tableColumns'
+import { SortDir, SortKey, WILDFIRE_COL, WILDFIRE_KEY, displayedColumns, visibleColumns } from './utils/tableColumns'
 import { NAME_DEFAULT_PX } from './utils/columnResize'
 import { compareValues } from './utils/sortResults'
 import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
@@ -413,7 +414,7 @@ export default function App() {
     }
   }, [layersOpen])
   const MAP_LAYERS = [
-    { key: 'fires', label: 'Wildfires', checked: showWildfires, onChange: setShowWildfires },
+    { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
     { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
     { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
     { key: 'grid', label: 'Forecast grid', checked: showGrid, onChange: setShowGrid },
@@ -572,6 +573,8 @@ export default function App() {
     reset,
     analyzed,
     analysisSeq,
+    fireField,
+    fireSeq,
     loading,
     error,
     refusal,
@@ -1173,12 +1176,28 @@ export default function App() {
     setDetailSort({ key: view.sortBy, dir: view.sortDesc ? 'desc' : 'asc' })
   }, [view.sortBy, view.sortDesc, analysisSeq])
 
+  // Flags destinations within 10 mi of an active US wildfire; independent of the
+  // map overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
+  // Fed the candidate field useAnalyze publishes at discovery, so the NIFC
+  // lookup overlaps the weather fetch instead of following it; the committed
+  // universe answers when no candidate field exists (a failed run, the server
+  // path), and the displayed rows when there is no universe either. Live
+  // knobs re-present rows without re-querying NIFC. (Called here, above the
+  // table derivations, because the wildfire column sorts and renders out of
+  // its maps.)
+  const fire = useFireProximity(fireField ?? universe ?? results, fireSeq)
+
   // Nulls sort last in both directions; string columns use numeric collation so
-  // a pasted list numbered 1..100 reads in order. See compareValues.
-  const tableRows = useMemo(
-    () => [...results].sort((a, b) => compareValues(a[detailSort.key], b[detailSort.key], detailSort.dir)),
-    [results, detailSort],
-  )
+  // a pasted list numbered 1..100 reads in order. See compareValues. The
+  // wildfire column's key is virtual: its value is the warning's mileage, so a
+  // clear row and an uncovered row are both null and land last either way.
+  const tableRows = useMemo(() => {
+    const value = (r: DestinationResult) =>
+      detailSort.key === WILDFIRE_KEY
+        ? (fire.warnings.get(fireKey(r.latitude, r.longitude))?.miles ?? null)
+        : r[detailSort.key]
+    return [...results].sort((a, b) => compareValues(value(a), value(b), detailSort.dir))
+  }, [results, detailSort, fire.warnings])
   // All columns for the CSV export (includes all columns, not filtered by visibility).
   const csvColumns = useMemo(
     () => displayedColumns(pointSample, view.sortBy),
@@ -1191,11 +1210,19 @@ export default function App() {
     if (columnVisibility !== null) return columnVisibility
     return new Set(csvColumns.map((c) => c.key as string))
   }, [columnVisibility, csvColumns])
-  // Columns displayed in the table (filtered by visibility).
-  const tableColumns = useMemo(
-    () => visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys),
-    [pointSample, view.sortBy, effectiveVisibleKeys],
-  )
+  // Columns displayed in the table (filtered by visibility). The wildfire
+  // column is always last and always present — its cells, not the column,
+  // say where the check stands (ticking while it runs, answered when it has;
+  // ResultsTable owns that). The CSV keeps the stricter rule and carries the
+  // column only once the check answered, because a file is read detached
+  // from the app where a mid-flight column cannot resolve itself. It
+  // bypasses the Columns picker (and the stored visibility sets that predate
+  // it): a safety flag is not a metric preference, and the picker never
+  // lists it.
+  const tableColumns = useMemo(() => {
+    const cols = visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys)
+    return [...cols, WILDFIRE_COL]
+  }, [pointSample, view.sortBy, effectiveVisibleKeys])
 
   // × on a table row. Removing a searched place also deregisters it — else the
   // next analysis would simply rediscover it from the searched list. The
@@ -1403,12 +1430,6 @@ export default function App() {
   // it is.
   const showTable = showResults && (response !== null || pending.length > 0)
 
-  // Flags destinations within 10 mi of an active US wildfire; independent of the
-  // map overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
-  // Fed the whole analyzed field so live knobs re-present rows without
-  // re-querying NIFC; falls back to the displayed rows on the server path.
-  const fire = useFireProximity(universe ?? results, analysisSeq)
-
   // The forecast grid (#246): the ranked metric as model-resolution cells under
   // the markers, scrubbed by the same playhead.
   //
@@ -1490,6 +1511,7 @@ export default function App() {
             longitude: d.longitude,
           }) as DestinationResult,
       ),
+      fire.uncovered,
     )
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a')
@@ -2370,6 +2392,8 @@ export default function App() {
                         columnWidths={tableColWidths}
                         onColumnWidthsChange={setTableColWidths}
                         fireWarnings={fire.warnings}
+                        fireUncovered={fire.uncovered}
+                        fireStatus={fire.status}
                         pending={pending}
                         onRemove={handleRemoveResult}
                         onRemovePending={(d) => searched.removePlace(d.latitude, d.longitude)}

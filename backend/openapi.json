@@ -1375,6 +1375,12 @@
       "WildfireCollection": {
         "description": "A GeoJSON FeatureCollection, plus when Bluebird last heard from NIFC.\n\nDeclared for the schema only: the handler returns pre-serialized text so a\nviewport is a filter and a join rather than a re-encode of every perimeter.",
         "properties": {
+          "coverage": {
+            "additionalProperties": true,
+            "description": "The area WFIGS covers, as a GeoJSON MultiPolygon geometry riding as a second foreign member: a coarse (\u00b150 km, biased outward) outline of the United States, with Alaska split at the antimeridian so no ring wraps 180\u00b0. An empty `features` array for a bbox outside this geometry means the dataset cannot see that area, not that nothing is burning there. Static per release.",
+            "title": "Coverage",
+            "type": "object"
+          },
           "features": {
             "description": "Active wildfire perimeters intersecting the requested bounding box, as NIFC's WFIGS layer returned them. Properties carry the incident name, acreage, containment percentage, and timestamps; `attr_` fields come from the joined IRWIN record and `poly_` fields from the perimeter polygon, so either may be null and callers should coalesce the pair.",
             "items": {
@@ -1399,6 +1405,7 @@
         "required": [
           "type",
           "fetched_at",
+          "coverage",
           "features"
         ],
         "title": "WildfireCollection",

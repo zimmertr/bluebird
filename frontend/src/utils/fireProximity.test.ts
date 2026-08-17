@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import type { FeatureCollection } from 'geojson'
+import type { FeatureCollection, MultiPolygon } from 'geojson'
 import {
   fireKey,
+  uncoveredKeys,
+  fireCellText,
+  fireLoadingFrame,
+  FIRE_LOADING_FRAMES,
+  FIRE_UNAVAILABLE_NOTE,
+  FIRE_UNCOVERED_NOTE,
   fireWarningText,
   pointsBbox,
   pointsKey,
@@ -162,6 +168,8 @@ describe('FIRE_WARN_MILES', () => {
     // Pinned to the literal because the radius is the product decision, and a
     // safety-adjacent one: widening it floods every report with warnings,
     // narrowing it drops real ones. Nothing else in either suite notices.
+    // 25 was tried in the PR #275 review and rejected as too wide: in fire
+    // season it flagged every row in a Cascades report.
     expect(FIRE_WARN_MILES).toBe(10)
   })
 })
@@ -195,5 +203,116 @@ describe('pointsKey', () => {
   // as one place cannot look like two questions to ask about fires.
   it('collapses coordinates finer than the warning key resolution', () => {
     expect(pointsKey([a])).toBe(pointsKey([{ latitude: 46.852301, longitude: -121.760299 }]))
+  })
+})
+
+// A toy coverage in the server's published shape: one square per hemisphere,
+// mirroring the real geometry's antimeridian split (#256). The classifier is
+// exercised against the shape's PROPERTIES (split rings, outer-ring test),
+// not the real outline — the backend pins that geometry to named places.
+const coverage: MultiPolygon = {
+  type: 'MultiPolygon',
+  coordinates: [
+    // "CONUS": lon -125..-66, lat 24..49
+    [
+      [
+        [-125, 24],
+        [-66, 24],
+        [-66, 49],
+        [-125, 49],
+        [-125, 24],
+      ],
+    ],
+    // "Aleutians west of the antimeridian": lon 172..180, lat 51..53.5
+    [
+      [
+        [172, 51],
+        [180, 51],
+        [180, 53.5],
+        [172, 53.5],
+        [172, 51],
+      ],
+    ],
+  ],
+}
+
+const point = (latitude: number, longitude: number) => ({ latitude, longitude })
+
+describe('uncoveredKeys', () => {
+  it('returns nothing when every point is inside the coverage', () => {
+    expect(uncoveredKeys([point(46.85, -121.76), point(40, -105)], coverage).size).toBe(0)
+  })
+
+  it('names every point in a field the dataset is silent about', () => {
+    // The Alps and the Canadian Rockies: the two live-verified false-safe
+    // areas from the issue.
+    const keys = uncoveredKeys([point(46.02, 7.75), point(53.1, -119.2)], coverage)
+    expect(keys.has(fireKey(46.02, 7.75))).toBe(true)
+    expect(keys.has(fireKey(53.1, -119.2))).toBe(true)
+  })
+
+  it('names only the outside points of a field straddling the boundary', () => {
+    const keys = uncoveredKeys([point(48.9, -122.2), point(49.5, -122.2)], coverage)
+    expect(keys.has(fireKey(49.5, -122.2))).toBe(true)
+    expect(keys.has(fireKey(48.9, -122.2))).toBe(false)
+  })
+
+  it('finds a point in a polygon on the far side of the antimeridian', () => {
+    // Attu-like: eastern-hemisphere longitude, its own split polygon. No
+    // wraparound math anywhere — the split IS the handling.
+    expect(uncoveredKeys([point(52.85, 173.2)], coverage).size).toBe(0)
+  })
+
+  it('trusts an answer with no coverage member, like an older server', () => {
+    expect(uncoveredKeys([point(46.02, 7.75)], undefined).size).toBe(0)
+  })
+
+  it('has nothing to say about an empty field', () => {
+    expect(uncoveredKeys([], coverage).size).toBe(0)
+  })
+})
+
+describe('fireCellText', () => {
+  it('carries the flag beside the mileage for a warned row', () => {
+    expect(fireCellText({ miles: 4.23, name: 'Sourdough Fire' }, false)).toBe('⚠️ 4.2')
+  })
+
+  it('is the dash for a row the check cleared, never blank', () => {
+    // A checked row must say so visibly; blank is reserved for cells that
+    // have no answer yet (loading, or a failed check).
+    expect(fireCellText(undefined, false)).toBe('—')
+  })
+
+  it('is N/A for a row outside the coverage', () => {
+    expect(fireCellText(undefined, true)).toBe('N/A')
+  })
+
+  it('lets a real warning win over the uncovered mark', () => {
+    // The hook never produces both, but the cell must not blank a warning
+    // if it ever did.
+    expect(fireCellText({ miles: 0, name: 'x' }, true)).toBe('⚠️ 0.0')
+  })
+})
+
+describe('fire notes', () => {
+  // The two hover sentences an N/A cell can carry. Pinned verbatim: both are
+  // approved copy, and the unavailable one is also the panel's footer
+  // warning, imported there from the same constant.
+  it('pins the approved N/A hover sentences', () => {
+    expect(FIRE_UNCOVERED_NOTE).toBe('NIFC wildfire proximity data is only available in the USA')
+    expect(FIRE_UNAVAILABLE_NOTE).toBe(
+      'NIFC is unreachable, so wildfire proximity data is unavailable.',
+    )
+  })
+})
+
+describe('fireLoadingFrame', () => {
+  it('cycles · → ·· → ··· → empty and wraps', () => {
+    expect([0, 1, 2, 3, 4].map(fireLoadingFrame)).toEqual(['·', '··', '···', '', '·'])
+  })
+
+  it('is defined for any tick, including negatives', () => {
+    expect(fireLoadingFrame(-1)).toBe('')
+    expect(fireLoadingFrame(403)).toBe(FIRE_LOADING_FRAMES[3])
   })
 })

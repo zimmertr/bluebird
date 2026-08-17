@@ -1,11 +1,20 @@
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { cellStyle, scaleFor, METRIC_CONFIG } from '../utils/colors'
 import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
-import { SortDir, SortKey, displayedColumns, ColDef } from '../utils/tableColumns'
+import { SortDir, SortKey, WILDFIRE_KEY, displayedColumns, ColDef } from '../utils/tableColumns'
 import { autoFitWidth, dragWidth } from '../utils/columnResize'
-import { FireWarning, fireKey, fireWarningText } from '../utils/fireProximity'
+import {
+  FIRE_UNAVAILABLE_NOTE,
+  FIRE_UNCOVERED_NOTE,
+  FireWarning,
+  fireCellText,
+  fireKey,
+  fireLoadingFrame,
+  fireWarningText,
+} from '../utils/fireProximity'
+import type { FireProximityStatus } from '../hooks/useFireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
 import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
@@ -92,6 +101,15 @@ interface Props {
   // carries the full set via buildResultsCsv; only the screen narrows.
   columns?: ColDef[]
   fireWarnings: Map<string, FireWarning>
+  // Rows the fire dataset could not see (outside its US coverage, #256).
+  // Their Wildfire (mi) cells read "N/A", where a cleared check prints the
+  // dash, so a missing warning is never mistaken for a clear one.
+  fireUncovered: Set<string>
+  // The lookup's own state. The Wildfire (mi) column is always on screen, so
+  // its cells have to say when they are still waiting (a ticking ellipsis)
+  // versus answered — a column that appeared only on 'ready' looked like the
+  // table quietly growing a column moments after every analysis.
+  fireStatus: FireProximityStatus
   // Custom destinations awaiting their first analysis — pasted CSV rows and
   // searched places alike — shown immediately as un-forecasted rows (name +
   // elevation, "—" metrics) so both inputs have feedback before Analyze runs.
@@ -131,6 +149,8 @@ export default function ResultsTable({
   pointSample = false,
   columns,
   fireWarnings,
+  fireUncovered,
+  fireStatus,
   pending,
   onRemovePending,
   onRemove,
@@ -153,6 +173,19 @@ export default function ResultsTable({
   // a shift-held click extends (de)selection to every chartable row between.
   const shiftHeldRef = useRef(false)
   const anchorRef = useRef<string | null>(null)
+
+  // The wildfire cells' shared clock while the fire check is in flight. One
+  // ticking state for the whole table rather than per cell, so every cell
+  // shows the same frame; the interval exists only while there is something
+  // to wait for, and 'idle' animates too because it is what the hook reports
+  // for the one render before its effect has run.
+  const fireLoading = fireStatus === 'idle' || fireStatus === 'loading'
+  const [fireTick, setFireTick] = useState(0)
+  useEffect(() => {
+    if (!fireLoading) return
+    const id = setInterval(() => setFireTick((t) => t + 1), 400)
+    return () => clearInterval(id)
+  }, [fireLoading])
 
   // Every header click is a reading aid: it sorts the displayed rows in place
   // and changes NOTHING else — not the ranking, not the column order, not the
@@ -322,6 +355,47 @@ export default function ResultsTable({
   // so the searched point gets identical formatting, links, and cell colors.
   function rowCells(row: DestinationResult) {
     return orderedColumns.map((col) => {
+      // Before anything indexes the row: the wildfire column's key is virtual,
+      // its value living in the fire lookup rather than on the row. While the
+      // check is in flight every cell ticks the shared dots, muted to caption
+      // type so a whole column of them reads as waiting rather than data. A
+      // failed check marks every row N/A — the same mark as an uncovered row,
+      // because both mean "no answer for this row" — and the hover text is
+      // what tells the two causes apart. A warned cell carries the fire's
+      // name — this is the flag's only home, so the label lives here rather
+      // than beside the row's name. `title` is the hover text (the app's
+      // idiom, see ForecastCalendar); `aria-label` is the same sentence for
+      // a screen reader.
+      if (col.key === WILDFIRE_KEY) {
+        const warning = fireWarnings.get(fireKey(row.latitude, row.longitude))
+        const uncovered = fireUncovered.has(fireKey(row.latitude, row.longitude))
+        const note =
+          fireStatus === 'unavailable'
+            ? FIRE_UNAVAILABLE_NOTE
+            : fireStatus === 'ready' && warning
+              ? fireWarningText(warning)
+              : fireStatus === 'ready' && uncovered
+                ? FIRE_UNCOVERED_NOTE
+                : null
+        const text =
+          fireStatus === 'unavailable' ? 'N/A' : fireCellText(warning, uncovered)
+        return (
+          <td key={col.key} className={`${TABLE.cell} whitespace-nowrap font-mono`}>
+            {sized(
+              col.key,
+              fireLoading ? (
+                <span className={TEXT.caption}>{fireLoadingFrame(fireTick)}</span>
+              ) : note ? (
+                <span title={note} aria-label={note} className="cursor-help">
+                  {text}
+                </span>
+              ) : (
+                text
+              ),
+            )}
+          </td>
+        )
+      }
       const raw = row[col.key]
       const display = col.format ? col.format(raw) : String(raw ?? '—')
       // Each colored cell scores the number printed in it, against the scale
@@ -339,20 +413,11 @@ export default function ResultsTable({
       const colorSty = scale && raw != null ? cellStyle(raw as number, scale) : undefined
 
       if (col.key === 'name') {
-        const warning = fireWarnings.get(fireKey(row.latitude, row.longitude))
         return (
           <td key={col.key} className={cellClass}>
             {sized(
               'name',
               <span className="flex min-w-0 items-center gap-1.5">
-                {warning && (
-                  <span
-                    aria-label={fireWarningText(warning)}
-                    className="cursor-help"
-                  >
-                    ⚠️
-                  </span>
-                )}
                 <button
                   onClick={() => onFocusResult?.(row)}
                   aria-label={`Center map on ${row.name}`}
