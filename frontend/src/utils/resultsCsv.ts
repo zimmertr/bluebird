@@ -15,7 +15,7 @@
 import { DestinationResult } from '../types'
 import { ColDef, WILDFIRE_COL, WILDFIRE_KEY } from './tableColumns'
 import { DATA_SOURCES } from './dataSources'
-import { FIRE_WARN_MILES, FireWarning, fireKey } from './fireProximity'
+import { FireWarning, fireKey } from './fireProximity'
 
 /**
  * The leading position column, named rather than numbered.
@@ -88,15 +88,15 @@ function cell(row: DestinationResult, col: ColDef): string {
 }
 
 /**
- * Miles to the nearest active fire, the cleared threshold, or an empty cell.
+ * Miles to the nearest active fire, an empty cell, or N/A.
  *
  * No threshold test: useFireProximity only admits warnings within
- * FIRE_WARN_MILES, so presence in the map is the condition. A cleared row
- * writes `>10` — the same answer the table prints — so a checked row is
- * never blank. The empty cell is the row with no answer (#256): outside the
- * fire dataset's US-only coverage the destination was never checked, and an
- * empty cell is how this file already says "no value" in every other column
- * (the table renders the same state as its dash). The one divergence from
+ * FIRE_WARN_MILES, so presence in the map is the condition. An empty cell
+ * means the check ran and cleared the row (the table renders the same state
+ * as its dash), which is only true because the caller withholds the map
+ * entirely when the check did not run. `N/A` is the row that was never
+ * checked (#256): outside the fire dataset's US-only coverage, where a blank
+ * would assert a clear check the data cannot make. The one divergence from
  * fireCellText is the bare number: text beside it would turn every warned
  * cell into a string.
  */
@@ -106,9 +106,9 @@ function fireCell(
   uncovered: ReadonlySet<string>,
 ): string {
   const key = fireKey(row.latitude, row.longitude)
-  if (uncovered.has(key)) return ''
+  if (uncovered.has(key)) return 'N/A'
   const warning = warnings.get(key)
-  return warning ? warning.miles.toFixed(1) : `>${FIRE_WARN_MILES}`
+  return warning ? warning.miles.toFixed(1) : ''
 }
 
 /**

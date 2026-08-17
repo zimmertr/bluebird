@@ -140,20 +140,19 @@ function featureFireName(props: WildfireProps | null): string {
 
 /**
  * The Wildfire (mi) column's on-screen cell once the check has answered
- * (#256). Three states, and only one of them is a mark: the ⚠️ and the
+ * (#256). Three states, each visible (TJ, PR #275 review): the ⚠️ and the
  * mileage where a fire is within FIRE_WARN_MILES (the column is the flag's
  * only home — the name column carries nothing, so one row never warns
- * twice), `>10` where the check ran and cleared the row (the threshold it
- * cleared, so the cell stays numeric and visibly answered), and the dash
- * where the row has no answer — outside the fire dataset's US-only coverage,
- * so it was never checked. The dash therefore means exactly what it means in
- * every other column: no data for this row. The CSV renders its own cell
+ * twice), the dash where the check ran and cleared the row, and `N/A` where
+ * the row was never checked because it sits outside the fire dataset's
+ * US-only coverage. Cleared and unchecked stay distinct marks so a missing
+ * warning is never mistaken for a clear check. The CSV renders its own cell
  * (resultsCsv.ts): a file needs the number bare to stay parseable, where
  * this string is written for a human reading a row.
  */
 export function fireCellText(warning: FireWarning | undefined, uncovered: boolean): string {
   if (warning) return `⚠️ ${warning.miles.toFixed(1)}`
-  return uncovered ? '—' : `>${FIRE_WARN_MILES}`
+  return uncovered ? 'N/A' : '—'
 }
 
 /**
@@ -177,11 +176,10 @@ export function fireLoadingFrame(tick: number): string {
  * `coverage` is the server-published WFIGS outline (a coarse US shape, split
  * at the antimeridian so the plain ray cast above needs no wraparound case).
  * A point outside it was never checked, and the table and the CSV mark its
- * wildfire cell as having no data (the dash on screen, an empty cell in the
- * file) per row rather than raising one report-wide banner — a Cascades row
- * and a British Columbia row in the same table each say what happened to
- * them. A missing `coverage` (an older server) returns the empty set, which
- * degrades to the old trust-the-empty-answer behavior.
+ * wildfire cell `N/A` per row rather than raising one report-wide banner — a
+ * Cascades row and a British Columbia row in the same table each say what
+ * happened to them. A missing `coverage` (an older server) returns the empty
+ * set, which degrades to the old trust-the-empty-answer behavior.
  */
 export function uncoveredKeys(
   points: { latitude: number; longitude: number }[],

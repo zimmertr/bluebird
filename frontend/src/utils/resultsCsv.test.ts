@@ -241,29 +241,29 @@ describe('the wildfire column', () => {
   })
 
   // Presence in the map IS the threshold: useFireProximity only admits
-  // warnings within FIRE_WARN_MILES, so this must not re-test the distance —
-  // only that a cleared row writes the threshold it cleared, never a blank.
-  it('writes the cleared threshold for a row the check cleared', () => {
+  // warnings within FIRE_WARN_MILES, so this must not re-test it.
+  it('leaves the cell empty for a row the check cleared', () => {
     const csv = buildResultsCsv([row({ latitude: 40, longitude: -120 })], WINDOW_COLUMNS, near)
-    expect(lines(csv)[1].endsWith(',>10')).toBe(true)
+    expect(lines(csv)[1].endsWith(',')).toBe(true)
   })
 
   // The third state of a fire cell (#256): outside the dataset's US-only
-  // coverage a destination was never checked, and its cell is empty — the
-  // file's own no-value mark, kept honest by cleared rows never being blank.
-  it('leaves the cell empty for a destination outside the fire coverage', () => {
+  // coverage a destination was never checked, and a blank there would assert
+  // a clear check. The N/A per row keeps the covered rows' real answers
+  // beside it, and matches the table's cell for the same state.
+  it('writes N/A for a destination outside the fire coverage', () => {
     const robson = row({ name: 'Mount Robson', latitude: 53.1106, longitude: -119.2317 })
     const uncovered = new Set([fireKey(53.1106, -119.2317)])
     const csv = buildResultsCsv([row(), robson], WINDOW_COLUMNS, near, [], uncovered)
     const body = lines(csv).slice(1, 3)
     expect(body[0].endsWith(',5.3')).toBe(true)
-    expect(body[1].endsWith(',')).toBe(true)
+    expect(body[1].endsWith(',N/A')).toBe(true)
   })
 
   it('still omits the whole column when the lookup itself never ran', () => {
     const uncovered = new Set([fireKey(53.1106, -119.2317)])
     const csv = buildResultsCsv([row()], WINDOW_COLUMNS, null, [], uncovered)
-    expect(csv).not.toContain('>10')
+    expect(csv).not.toContain('N/A')
     expect(cells(lines(csv)[0])).not.toContain(WILDFIRE_COL.label)
   })
 

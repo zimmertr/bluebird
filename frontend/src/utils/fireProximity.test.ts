@@ -273,14 +273,14 @@ describe('fireCellText', () => {
     expect(fireCellText({ miles: 4.23, name: 'Sourdough Fire' }, false)).toBe('⚠️ 4.2')
   })
 
-  it('prints the cleared threshold for a row the check cleared, never blank', () => {
-    // A checked row must say so visibly, and the threshold keeps the cell
-    // numeric; the dash stays reserved for "no data".
-    expect(fireCellText(undefined, false)).toBe(`>${FIRE_WARN_MILES}`)
+  it('is the dash for a row the check cleared, never blank', () => {
+    // A checked row must say so visibly; blank is reserved for cells that
+    // have no answer yet (loading, or a failed check).
+    expect(fireCellText(undefined, false)).toBe('—')
   })
 
-  it('is the no-data dash for a row outside the coverage', () => {
-    expect(fireCellText(undefined, true)).toBe('—')
+  it('is N/A for a row outside the coverage', () => {
+    expect(fireCellText(undefined, true)).toBe('N/A')
   })
 
   it('lets a real warning win over the uncovered mark', () => {

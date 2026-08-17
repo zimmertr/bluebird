@@ -94,9 +94,8 @@ interface Props {
   columns?: ColDef[]
   fireWarnings: Map<string, FireWarning>
   // Rows the fire dataset could not see (outside its US coverage, #256).
-  // Their Wildfire (mi) cells read the no-data dash, where a cleared check
-  // prints the threshold (`>10`), so a missing warning is never mistaken
-  // for a clear one.
+  // Their Wildfire (mi) cells read "N/A", where a cleared check prints the
+  // dash, so a missing warning is never mistaken for a clear one.
   fireUncovered: Set<string>
   // The lookup's own state. The Wildfire (mi) column is always on screen, so
   // its cells have to say when they are still waiting (a ticking ellipsis)
@@ -352,10 +351,10 @@ export default function ResultsTable({
       // its value living in the fire lookup rather than on the row. While the
       // check is in flight every cell ticks the shared dots, muted to caption
       // type so a whole column of them reads as waiting rather than data; a
-      // failed check shows the no-data dash and the results header names the
-      // failure. A warned cell carries the fire's name as its label — this is
-      // the flag's only home, so the label lives here rather than beside the
-      // row's name.
+      // failed check leaves the cells empty — the dash would claim a clear
+      // check — and the results header names the failure. A warned cell
+      // carries the fire's name as its label — this is the flag's only home,
+      // so the label lives here rather than beside the row's name.
       if (col.key === WILDFIRE_KEY) {
         const warning = fireWarnings.get(fireKey(row.latitude, row.longitude))
         const uncovered = fireUncovered.has(fireKey(row.latitude, row.longitude))
@@ -373,7 +372,7 @@ export default function ResultsTable({
               ) : answered ? (
                 fireCellText(warning, uncovered)
               ) : (
-                '—'
+                ''
               ),
             )}
           </td>
