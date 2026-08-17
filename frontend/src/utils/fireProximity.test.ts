@@ -6,6 +6,8 @@ import {
   fireCellText,
   fireLoadingFrame,
   FIRE_LOADING_FRAMES,
+  FIRE_UNAVAILABLE_NOTE,
+  FIRE_UNCOVERED_NOTE,
   fireWarningText,
   pointsBbox,
   pointsKey,
@@ -287,6 +289,18 @@ describe('fireCellText', () => {
     // The hook never produces both, but the cell must not blank a warning
     // if it ever did.
     expect(fireCellText({ miles: 0, name: 'x' }, true)).toBe('⚠️ 0.0')
+  })
+})
+
+describe('fire notes', () => {
+  // The two hover sentences an N/A cell can carry. Pinned verbatim: both are
+  // approved copy, and the unavailable one is also the panel's footer
+  // warning, imported there from the same constant.
+  it('pins the approved N/A hover sentences', () => {
+    expect(FIRE_UNCOVERED_NOTE).toBe('NIFC wildfire proximity data is only available in the USA')
+    expect(FIRE_UNAVAILABLE_NOTE).toBe(
+      'NIFC is unreachable, so wildfire proximity data is unavailable.',
+    )
   })
 })
 

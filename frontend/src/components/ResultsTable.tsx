@@ -5,7 +5,15 @@ import { cellStyle, scaleFor, METRIC_CONFIG } from '../utils/colors'
 import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
 import { SortDir, SortKey, WILDFIRE_KEY, displayedColumns, ColDef } from '../utils/tableColumns'
 import { autoFitWidth, dragWidth } from '../utils/columnResize'
-import { FireWarning, fireCellText, fireKey, fireLoadingFrame, fireWarningText } from '../utils/fireProximity'
+import {
+  FIRE_UNAVAILABLE_NOTE,
+  FIRE_UNCOVERED_NOTE,
+  FireWarning,
+  fireCellText,
+  fireKey,
+  fireLoadingFrame,
+  fireWarningText,
+} from '../utils/fireProximity'
 import type { FireProximityStatus } from '../hooks/useFireProximity'
 import { destinationUrl } from '../utils/destinationUrl'
 import { isPeakKind } from '../utils/geocode'
@@ -350,29 +358,39 @@ export default function ResultsTable({
       // Before anything indexes the row: the wildfire column's key is virtual,
       // its value living in the fire lookup rather than on the row. While the
       // check is in flight every cell ticks the shared dots, muted to caption
-      // type so a whole column of them reads as waiting rather than data; a
-      // failed check leaves the cells empty — the dash would claim a clear
-      // check — and the results header names the failure. A warned cell
-      // carries the fire's name as its label — this is the flag's only home,
-      // so the label lives here rather than beside the row's name.
+      // type so a whole column of them reads as waiting rather than data. A
+      // failed check marks every row N/A — the same mark as an uncovered row,
+      // because both mean "no answer for this row" — and the hover text is
+      // what tells the two causes apart. A warned cell carries the fire's
+      // name — this is the flag's only home, so the label lives here rather
+      // than beside the row's name. `title` is the hover text (the app's
+      // idiom, see ForecastCalendar); `aria-label` is the same sentence for
+      // a screen reader.
       if (col.key === WILDFIRE_KEY) {
         const warning = fireWarnings.get(fireKey(row.latitude, row.longitude))
         const uncovered = fireUncovered.has(fireKey(row.latitude, row.longitude))
-        const answered = fireStatus === 'ready'
+        const note =
+          fireStatus === 'unavailable'
+            ? FIRE_UNAVAILABLE_NOTE
+            : fireStatus === 'ready' && warning
+              ? fireWarningText(warning)
+              : fireStatus === 'ready' && uncovered
+                ? FIRE_UNCOVERED_NOTE
+                : null
+        const text =
+          fireStatus === 'unavailable' ? 'N/A' : fireCellText(warning, uncovered)
         return (
           <td key={col.key} className={`${TABLE.cell} whitespace-nowrap font-mono`}>
             {sized(
               col.key,
               fireLoading ? (
                 <span className={TEXT.caption}>{fireLoadingFrame(fireTick)}</span>
-              ) : answered && warning ? (
-                <span aria-label={fireWarningText(warning)} className="cursor-help">
-                  {fireCellText(warning, uncovered)}
+              ) : note ? (
+                <span title={note} aria-label={note} className="cursor-help">
+                  {text}
                 </span>
-              ) : answered ? (
-                fireCellText(warning, uncovered)
               ) : (
-                ''
+                text
               ),
             )}
           </td>

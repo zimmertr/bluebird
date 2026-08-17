@@ -31,6 +31,17 @@ export function fireWarningText(w: FireWarning): string {
 }
 
 /**
+ * The two hover texts an N/A cell carries (TJ, PR #275 review). One N/A mark
+ * covers two causes, and the tooltip is what tells them apart: the row sat
+ * outside the dataset's coverage, or the whole check failed. The second is
+ * the same sentence the panel's footer warning shows, so the cell and the
+ * panel cannot describe one failure two ways.
+ */
+export const FIRE_UNCOVERED_NOTE = 'NIFC wildfire proximity data is only available in the USA'
+export const FIRE_UNAVAILABLE_NOTE =
+  'NIFC is unreachable, so wildfire proximity data is unavailable.'
+
+/**
  * Identity of a SET of destinations, order-independent.
  *
  * useFireProximity keys its lookup on this rather than on the array holding the

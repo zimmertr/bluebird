@@ -232,8 +232,9 @@ coarse to roughly ±50 km, so a trip hugging the border may read as covered
 from just outside it; the bias errs toward keeping a real US warning over
 silencing a Canadian false one.
 
-Both features remain best-effort, and a failed check is not silent. The results
-header says **Wildfire check unavailable** and a downloaded CSV omits its
+Both features remain best-effort, and a failed check is not silent. Every
+row's **Wildfire (mi)** cell reads `N/A` with the reason as its hover text, a
+warning under Analyze says NIFC is unreachable, and a downloaded CSV omits its
 wildfire column rather than leaving it blank on every row. Reaching that state
 now requires a server that has never once completed a fetch since it started,
 rather than a single unlucky request. A blank cell in that column means the

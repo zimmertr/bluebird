@@ -334,10 +334,11 @@ What lands in the file:
 - The **Wildfire (mi)** column, once the fire check answers. On screen the
   column is always present: its cells tick while the check runs, then show
   ⚠️ and the distance where a fire is within 10 miles, a dash where the
-  check ran and cleared the row, and `N/A` where the destination sits
-  outside the fire data's US coverage and was never checked. The file writes
-  the same answers with the distance bare and the cleared cell empty; `N/A`
-  carries over as written.
+  check ran and cleared the row, and `N/A` where the row has no answer.
+  Hovering an `N/A` says which of its two causes applies: the destination
+  sits outside the fire data's US coverage, or NIFC is unreachable and the
+  whole check failed. The file writes the same answers with the distance
+  bare and the cleared cell empty; a coverage `N/A` carries over as written.
 - Nothing a removed row would have contributed. Removals and the max-results
   cut apply first, exactly as on screen.
 
@@ -345,9 +346,9 @@ A blank cell means no value, never a zero. AQI is blank past its forecast
 horizon, and elevation is blank where OpenStreetMap has no `ele` tag.
 
 The wildfire column is the one that can disappear from the file. If the fire
-check could not run, the column is left out entirely and the results header
-says **Wildfire check unavailable**, rather than the file reporting every row
-as clear. So a blank wildfire cell in a file means the check ran and found
+check could not run, the column is left out entirely and a warning under
+Analyze says NIFC is unreachable, rather than the file reporting every row as
+clear. So a blank wildfire cell in a file means the check ran and found
 nothing within 10 miles, which still is not proof there is no fire:
 [the wildfire notes](DATA.md#wildfires) explain the coverage gap that a
 successful check can still miss.
