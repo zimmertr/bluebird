@@ -208,7 +208,7 @@ resource nobody involved could see or influence.
 
 Perimeters are served **past their refresh deadline** when NIFC is unreachable,
 rather than expiring into nothing. A perimeter mapped an hour ago still answers
-a 25-mile proximity question correctly, so withholding it would trade a good
+a ten-mile proximity question correctly, so withholding it would trade a good
 answer for no answer.
 
 Hovering a fire dates the perimeter: **Last updated** is when NIFC last

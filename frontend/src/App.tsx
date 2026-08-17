@@ -1176,7 +1176,7 @@ export default function App() {
     setDetailSort({ key: view.sortBy, dir: view.sortDesc ? 'desc' : 'asc' })
   }, [view.sortBy, view.sortDesc, analysisSeq])
 
-  // Flags destinations within 25 mi of an active US wildfire; independent of the
+  // Flags destinations within 10 mi of an active US wildfire; independent of the
   // map overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
   // Fed the candidate field useAnalyze publishes at discovery, so the NIFC
   // lookup overlaps the weather fetch instead of following it; the committed

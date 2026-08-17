@@ -6,7 +6,7 @@
 import type { FeatureCollection, Feature, Geometry, MultiPolygon, Position } from 'geojson'
 import type { BBox, WildfireProps } from './wildfires'
 
-export const FIRE_WARN_MILES = 25
+export const FIRE_WARN_MILES = 10
 
 export interface FireWarning {
   miles: number // 0 when the point falls inside a perimeter
@@ -14,7 +14,7 @@ export interface FireWarning {
 }
 
 // One degree of latitude ≈ 69 mi. Longitude is scaled by cos(lat). Good to a
-// fraction of a percent at the ~25 mi scale this warning cares about.
+// fraction of a percent at the ~10 mi scale this warning cares about.
 const MI_PER_DEG_LAT = 69.0
 
 // Stable lookup key tying a result row to its warning. Coordinate-based so it
