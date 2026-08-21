@@ -12,8 +12,8 @@ this repo, and undocumented edge config is unreproducible edge config.
 ```mermaid
 flowchart LR
     U[Browser / API client] --> CF[Cloudflare proxy\nbluebirdforecast.com]
-    CF --> O[Origin: residential IP\nsingle port-forward]
-    O --> IG[Istio ingress gateway]
+    CF --> T[Cloudflare Tunnel\ncloudflared in cluster]
+    T --> IG[Istio ingress gateway]
     IG --> VS[VirtualService bluebird\ncanary weights]
     VS --> P1[pod]
     VS --> P2[pod]
@@ -24,11 +24,15 @@ flowchart LR
   TLS session, hides the origin IP, and is where the coarse edge rate rule
   lives (below). It sets `CF-Connecting-IP` on every forwarded request, and
   overwrites any value the client sent.
-- **The origin** is a single port-forward on a residential IP. Until
-  [#148](https://github.com/zimmertr/bluebird/issues/148) moves ingress to a
-  Cloudflare Tunnel, someone who discovers that IP can reach the cluster
-  without passing Cloudflare, which is why the app never *trusts* Cloudflare
-  to have filtered anything (see "Client identity" below).
+- **The tunnel** is a `cloudflared` deployment in the cluster that dials out to
+  Cloudflare ([#148](https://github.com/zimmertr/bluebird/issues/148)). The
+  origin holds no inbound port, so there is no direct-to-origin path: every
+  request reaches a pod only after passing Cloudflare, which is what makes
+  `CF-Connecting-IP` trustworthy (see "Client identity" below). cloudflared
+  forwards each hostname to the shared Istio ingress gateway with the public
+  hostname as SNI, so Istio serves the right certificate and routes by Host
+  unchanged. Its config lives in `Kubernetes-Manifests` under
+  `misc/cloudflared/`.
 - **Istio** routes `bluebirdforecast.com` through the `bluebird`
   VirtualService to the stable/canary services managed by Argo Rollouts
   (3 replicas stable; roughly double mid-rollout).
@@ -114,10 +118,17 @@ our edge actually saw; the leftmost hop is client-typed and rotating it must
 not mint fresh buckets), else the socket peer. The access log prints the same
 value enforcement counted.
 
-Honest caveat: traffic that reaches the origin directly (bypassing
-Cloudflare) can forge both headers until #148 closes that path. The upstream
-budgets are the backstop a spoofer cannot bypass, because they don't care who
-you claim to be.
+`CF-Connecting-IP` is trustworthy because the Cloudflare Tunnel
+([#148](https://github.com/zimmertr/bluebird/issues/148)) is the only inbound
+path: the origin holds no open port, so a request cannot reach a pod without
+passing Cloudflare, and Cloudflare overwrites the header. Before the tunnel,
+an inbound port-forward left a direct-to-origin path where a caller could
+forge the header and defeat the per-client buckets
+([#200](https://github.com/zimmertr/bluebird/issues/200)); the pod-wide
+upstream budgets were the backstop then, and remain one now, because they do
+not care who you claim to be. A caller already inside the cluster mesh can
+still set the header, which is why the buckets are one layer of several, not
+the whole defense.
 
 ## Outbound: what calls what
 
