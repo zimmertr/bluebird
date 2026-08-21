@@ -754,7 +754,12 @@ class HourlySeries(BaseModel):
 
     precip_in: list[float | None] = Field(description="Precipitation, inches.")
     temp_f: list[float | None] = Field(description="Temperature, degrees Fahrenheit.")
-    wind_mph: list[float | None] = Field(description="Wind speed, miles per hour.")
+    wind_mph: list[float | None] = Field(
+        description=(
+            "Wind speed at the destination's elevation, miles per hour. "
+            "See `wind_avg_mph` on the result for how it is derived."
+        )
+    )
     aqi: list[int | None] = Field(description="US AQI, all EPA pollutants combined.")
 
 
@@ -792,7 +797,16 @@ class DestinationResult(BaseModel):
     temp_avg_f: float = Field(description="Mean temperature, degrees Fahrenheit.")
     wind_min_mph: float = Field(description="Calmest hour, miles per hour.")
     wind_max_mph: float = Field(description="Windiest hour, miles per hour.")
-    wind_avg_mph: float = Field(description="Mean wind speed, miles per hour.")
+    wind_avg_mph: float = Field(
+        description=(
+            "Mean wind speed at the destination's elevation, miles per hour. "
+            "Each hour interpolates Open-Meteo's free-air wind between the "
+            "two pressure levels bracketing `elevation_ft`, floored at the "
+            "10 m surface wind; rows with no elevation, or below the lowest "
+            "level (~762 m), report the 10 m wind. All three wind aggregates "
+            "reduce the same adjusted hourly values."
+        )
+    )
     aqi_avg: int | None = Field(
         default=None,
         description=(

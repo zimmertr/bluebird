@@ -731,6 +731,448 @@
           5.0
         ]
       }
+    },
+    {
+      "name": "elevation_interpolates_between_bracketing_levels",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "elevation_ft": 8000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "precipitation": [
+            0.0,
+            0.1
+          ],
+          "temperature_2m": [
+            40.0,
+            41.0
+          ],
+          "wind_speed_10m": [
+            5.0,
+            6.0
+          ],
+          "wind_speed_925hPa": [
+            7.0,
+            7.0
+          ],
+          "wind_speed_850hPa": [
+            10.0,
+            12.0
+          ],
+          "wind_speed_700hPa": [
+            30.0,
+            24.0
+          ],
+          "wind_speed_600hPa": [
+            40.0,
+            40.0
+          ],
+          "wind_speed_500hPa": [
+            50.0,
+            50.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.1,
+        "precip_avg_in_hr": 0.05,
+        "precip_max_in_hr": 0.1,
+        "temp_min_f": 40.0,
+        "temp_max_f": 41.0,
+        "temp_avg_f": 40.5,
+        "wind_min_mph": 19.6,
+        "wind_max_mph": 22.6,
+        "wind_avg_mph": 21.1
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "precip_in": [
+          0.0,
+          0.1
+        ],
+        "temp_f": [
+          40.0,
+          41.0
+        ],
+        "wind_mph": [
+          22.6,
+          19.6
+        ]
+      }
+    },
+    {
+      "name": "elevation_below_lowest_level_keeps_10m_wind",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "elevation_ft": 2000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "precipitation": [
+            0.0,
+            0.0
+          ],
+          "temperature_2m": [
+            50.0,
+            50.0
+          ],
+          "wind_speed_10m": [
+            5.0,
+            6.0
+          ],
+          "wind_speed_925hPa": [
+            20.0,
+            20.0
+          ],
+          "wind_speed_850hPa": [
+            30.0,
+            30.0
+          ],
+          "wind_speed_700hPa": [
+            40.0,
+            40.0
+          ],
+          "wind_speed_600hPa": [
+            50.0,
+            50.0
+          ],
+          "wind_speed_500hPa": [
+            60.0,
+            60.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.0,
+        "precip_avg_in_hr": 0.0,
+        "precip_max_in_hr": 0.0,
+        "temp_min_f": 50.0,
+        "temp_max_f": 50.0,
+        "temp_avg_f": 50.0,
+        "wind_min_mph": 5.0,
+        "wind_max_mph": 6.0,
+        "wind_avg_mph": 5.5
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "precip_in": [
+          0.0,
+          0.0
+        ],
+        "temp_f": [
+          50.0,
+          50.0
+        ],
+        "wind_mph": [
+          5.0,
+          6.0
+        ]
+      }
+    },
+    {
+      "name": "elevation_above_top_level_clamps_to_500hPa",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "elevation_ft": 20000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "precipitation": [
+            0.0,
+            0.0
+          ],
+          "temperature_2m": [
+            10.0,
+            10.0
+          ],
+          "wind_speed_10m": [
+            8.0,
+            8.0
+          ],
+          "wind_speed_925hPa": [
+            10.0,
+            10.0
+          ],
+          "wind_speed_850hPa": [
+            15.0,
+            15.0
+          ],
+          "wind_speed_700hPa": [
+            25.0,
+            25.0
+          ],
+          "wind_speed_600hPa": [
+            35.0,
+            35.0
+          ],
+          "wind_speed_500hPa": [
+            45.0,
+            47.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.0,
+        "precip_avg_in_hr": 0.0,
+        "precip_max_in_hr": 0.0,
+        "temp_min_f": 10.0,
+        "temp_max_f": 10.0,
+        "temp_avg_f": 10.0,
+        "wind_min_mph": 45.0,
+        "wind_max_mph": 47.0,
+        "wind_avg_mph": 46.0
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "precip_in": [
+          0.0,
+          0.0
+        ],
+        "temp_f": [
+          10.0,
+          10.0
+        ],
+        "wind_mph": [
+          45.0,
+          47.0
+        ]
+      }
+    },
+    {
+      "name": "free_air_weaker_than_10m_keeps_10m_wind",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "elevation_ft": 8000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "precipitation": [
+            0.0,
+            0.0
+          ],
+          "temperature_2m": [
+            30.0,
+            30.0
+          ],
+          "wind_speed_10m": [
+            18.0,
+            18.0
+          ],
+          "wind_speed_925hPa": [
+            2.0,
+            2.0
+          ],
+          "wind_speed_850hPa": [
+            3.0,
+            3.0
+          ],
+          "wind_speed_700hPa": [
+            4.0,
+            4.0
+          ],
+          "wind_speed_600hPa": [
+            5.0,
+            5.0
+          ],
+          "wind_speed_500hPa": [
+            6.0,
+            6.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.0,
+        "precip_avg_in_hr": 0.0,
+        "precip_max_in_hr": 0.0,
+        "temp_min_f": 30.0,
+        "temp_max_f": 30.0,
+        "temp_avg_f": 30.0,
+        "wind_min_mph": 18.0,
+        "wind_max_mph": 18.0,
+        "wind_avg_mph": 18.0
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "precip_in": [
+          0.0,
+          0.0
+        ],
+        "temp_f": [
+          30.0,
+          30.0
+        ],
+        "wind_mph": [
+          18.0,
+          18.0
+        ]
+      }
+    },
+    {
+      "name": "elevation_with_missing_levels_falls_back_to_10m",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "elevation_ft": 8000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "precipitation": [
+            0.0,
+            0.0
+          ],
+          "temperature_2m": [
+            30.0,
+            30.0
+          ],
+          "wind_speed_10m": [
+            11.0,
+            13.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.0,
+        "precip_avg_in_hr": 0.0,
+        "precip_max_in_hr": 0.0,
+        "temp_min_f": 30.0,
+        "temp_max_f": 30.0,
+        "temp_avg_f": 30.0,
+        "wind_min_mph": 11.0,
+        "wind_max_mph": 13.0,
+        "wind_avg_mph": 12.0
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "precip_in": [
+          0.0,
+          0.0
+        ],
+        "temp_f": [
+          30.0,
+          30.0
+        ],
+        "wind_mph": [
+          11.0,
+          13.0
+        ]
+      }
+    },
+    {
+      "name": "null_bracketing_level_falls_back_that_hour_only",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "elevation_ft": 8000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "precipitation": [
+            0.0,
+            0.0
+          ],
+          "temperature_2m": [
+            30.0,
+            30.0
+          ],
+          "wind_speed_10m": [
+            5.0,
+            5.0
+          ],
+          "wind_speed_925hPa": [
+            7.0,
+            7.0
+          ],
+          "wind_speed_850hPa": [
+            null,
+            10.0
+          ],
+          "wind_speed_700hPa": [
+            30.0,
+            30.0
+          ],
+          "wind_speed_600hPa": [
+            40.0,
+            40.0
+          ],
+          "wind_speed_500hPa": [
+            50.0,
+            50.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.0,
+        "precip_avg_in_hr": 0.0,
+        "precip_max_in_hr": 0.0,
+        "temp_min_f": 30.0,
+        "temp_max_f": 30.0,
+        "temp_avg_f": 30.0,
+        "wind_min_mph": 5.0,
+        "wind_max_mph": 22.6,
+        "wind_avg_mph": 13.8
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "precip_in": [
+          0.0,
+          0.0
+        ],
+        "temp_f": [
+          30.0,
+          30.0
+        ],
+        "wind_mph": [
+          5.0,
+          22.6
+        ]
+      }
     }
   ],
   "aqi": [

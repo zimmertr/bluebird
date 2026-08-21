@@ -1473,7 +1473,13 @@ export default function App() {
     grid.paceEndMs === null
       ? null
       : Math.max(0, Math.ceil((grid.paceEndMs - Math.max(paceNow, Date.now())) / 1000))
-  const gridLegend = gridLegendLine(gridPainted, grid.pitchKm, gridPaceRemainingS, gridFailed)
+  const gridLegend = gridLegendLine(
+    gridPainted,
+    grid.pitchKm,
+    gridPaceRemainingS,
+    gridFailed,
+    familyOf(view.sortBy),
+  )
 
   // Download the displayed report (#125). Everything that decides what the file
   // contains is already resolved above, so this only has to hand settled values
@@ -1951,12 +1957,24 @@ export default function App() {
                       // right-justifies its value like every other row, statuses
                       // included: one row breaking the column reads as a fault
                       // rather than as a distinction.
-                      <div className="flex items-center justify-between gap-2">
-                        <span className={TEXT.control}>{gridLegend.label}</span>
-                        <span className={`${TEXT.control} flex-shrink-0`}>
-                          {gridLegend.value}
-                        </span>
-                      </div>
+                      <>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={TEXT.control}>{gridLegend.label}</span>
+                          <span className={`${TEXT.control} flex-shrink-0`}>
+                            {gridLegend.value}
+                          </span>
+                        </div>
+                        {/* The grid's wind field is measured at a different
+                            height than the markers above it (#257); the note
+                            right-aligns under the row's value, where the
+                            layer's facts live, because the composed one-line
+                            form does not fit the legend box. */}
+                        {gridLegend.note && (
+                          <div className="flex justify-end">
+                            <span className={TEXT.control}>{gridLegend.note}</span>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

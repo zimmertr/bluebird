@@ -126,6 +126,8 @@ Once you have set your destinations and forecast window, three short sections sh
 
 Sort destinations by any metric: total precipitation, average wind, average temperature, or average AQI. The table re-ranks every destination in your analyzed area, not just the ones on screen, so the winners really are the extremes of the area. You can also see these four metrics in the table itself and click any of them to re-rank.
 
+Wind is reported at each destination's own elevation, not at the standard 10 meters above the model's terrain — on a summit the 10-meter value understates what you would feel, often by a factor of two. How the number is derived, and its limits, are in [DATA.md](DATA.md#open-meteo). Destinations with no known elevation show the plain near-ground wind.
+
 ### Map layers
 
 Four optional overlays, on the map's own **Layers** button rather than in the

@@ -27,6 +27,7 @@ type VectorCase = {
   name: string
   window: { start: string; end: string }
   payload: never
+  elevation_ft?: number
   expected_metrics: unknown
   expected_series: unknown
 }
@@ -39,8 +40,13 @@ describe('weather vectors', () => {
   for (const c of vectors.weather as unknown as VectorCase[]) {
     it(c.name, () => {
       const [startMs, endMs] = windowMs(c)
-      expect(weatherMetrics(c.payload, startMs, endMs)).toEqual(c.expected_metrics)
-      expect(weatherSeries(c.payload, startMs, endMs)).toEqual(c.expected_series)
+      const elevationFt = c.elevation_ft ?? null
+      expect(weatherMetrics(c.payload, startMs, endMs, elevationFt)).toEqual(
+        c.expected_metrics,
+      )
+      expect(weatherSeries(c.payload, startMs, endMs, elevationFt)).toEqual(
+        c.expected_series,
+      )
     })
   }
 })
@@ -139,6 +145,66 @@ describe('fetchWeather', () => {
     const again = await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { model: MODEL })
     expect(fetchSpy).toHaveBeenCalledTimes(1)
     expect(again[0]?.precip_total_in).toBe(0.3)
+  })
+
+  it('requests the five level winds alongside the surface variables', async () => {
+    const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    await fetchWeather(
+      [{ latitude: 47.5, longitude: -121.9 }],
+      WINDOW.startMs,
+      WINDOW.endMs, { model: MODEL },
+    )
+    const url = new URL(String((fetchSpy.mock.calls[0] as unknown[])[0]))
+    const hourly = (url.searchParams.get('hourly') ?? '').split(',')
+    for (const name of [
+      'wind_speed_925hPa',
+      'wind_speed_850hPa',
+      'wind_speed_700hPa',
+      'wind_speed_600hPa',
+      'wind_speed_500hPa',
+    ]) {
+      expect(hourly).toContain(name)
+    }
+    // Nine variables stay at weight factor 1: max(1, vars/10).
+    expect(hourly).toHaveLength(9)
+  })
+
+  it('adjusts wind to the elevation the coordinate carries (#257)', async () => {
+    const payload = hourlyPayload()
+    Object.assign(payload.hourly, {
+      wind_speed_925hPa: [7.0, 7.0],
+      wind_speed_850hPa: [10.0, 10.0],
+      wind_speed_700hPa: [30.0, 30.0],
+      wind_speed_600hPa: [40.0, 40.0],
+      wind_speed_500hPa: [50.0, 50.0],
+    })
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload)))
+    const out = await fetchWeather(
+      // 8,000 ft between 850 hPa (1457 m) and 700 hPa (3012 m):
+      // 10 + 20 * (981.4 / 1555) = 22.6226... → 22.6 at every hour.
+      [{ latitude: 47.5, longitude: -121.9, elevation_ft: 8000 }],
+      WINDOW.startMs,
+      WINDOW.endMs, { model: MODEL },
+    )
+    expect(out[0]?.wind_avg_mph).toBe(22.6)
+    expect(out[0]?.series?.wind_mph).toEqual([22.6, 22.6])
+  })
+
+  it('keys the cache by elevation, so a lattice point never reads a summit entry', async () => {
+    const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    await fetchWeather(
+      [{ latitude: 47.5, longitude: -121.9, elevation_ft: 8000 }],
+      WINDOW.startMs,
+      WINDOW.endMs, { model: MODEL },
+    )
+    await fetchWeather(
+      [{ latitude: 47.5, longitude: -121.9 }],
+      WINDOW.startMs,
+      WINDOW.endMs, { model: MODEL },
+    )
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
   })
 
   it('classifies HTTP 429 as rate limited, never as unreachable', async () => {

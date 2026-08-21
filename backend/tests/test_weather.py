@@ -15,6 +15,7 @@ from app.services.weather import (
     _naive,
     _parse_ts,
     _series,
+    _wind_at_elevation,
     fetch_weather_batch,
 )
 
@@ -133,6 +134,43 @@ def test_metrics_rounding_precision():
 def test_metrics_malformed_payload_returns_none():
     # A completely unexpected shape is swallowed to None, never raised.
     assert _metrics({"unexpected": True}, START, END) is None
+
+
+# One hour's free-air winds at the five levels, weakest to strongest, so an
+# interpolation that picks the wrong bracket lands on a visibly wrong number.
+_LEVELS_HOUR = [7.0, 10.0, 30.0, 40.0, 50.0]
+
+
+def test_wind_at_elevation_none_returns_10m():
+    assert _wind_at_elevation(5.0, None, _LEVELS_HOUR) == 5.0
+
+
+def test_wind_at_elevation_below_lowest_level_returns_10m():
+    # 2,000 ft = 609.6 m, under the 925 hPa height (762 m): a valley
+    # destination is sheltered, and free air says nothing about it.
+    assert _wind_at_elevation(5.0, 2000.0, _LEVELS_HOUR) == 5.0
+
+
+def test_wind_at_elevation_interpolates_between_brackets():
+    # 8,000 ft = 2438.4 m between 850 hPa (1457 m) and 700 hPa (3012 m):
+    # 10 + (30 - 10) * (981.4 / 1555) = 22.6226...
+    assert _wind_at_elevation(5.0, 8000.0, _LEVELS_HOUR) == pytest.approx(22.6226, abs=1e-3)
+
+
+def test_wind_at_elevation_above_top_level_clamps():
+    # 20,000 ft = 6096 m, above 500 hPa (5574 m): the top level's value.
+    assert _wind_at_elevation(5.0, 20000.0, _LEVELS_HOUR) == 50.0
+
+
+def test_wind_at_elevation_floors_at_10m_wind():
+    # Free air weaker than the surface keeps the surface value: altitude can
+    # only add exposure, never shelter.
+    assert _wind_at_elevation(35.0, 8000.0, _LEVELS_HOUR) == 35.0
+
+
+def test_wind_at_elevation_null_level_returns_10m():
+    levels = [7.0, None, 30.0, 40.0, 50.0]
+    assert _wind_at_elevation(5.0, 8000.0, levels) == 5.0
 
 
 def test_parse_ts_valid():
@@ -318,6 +356,61 @@ async def test_fetch_weather_batch_fetches_only_the_uncached_locations(monkeypat
     # The second request carried one coordinate, not three.
     assert calls[1]["latitude"] == "41.0"
     assert [r["precip_total_in"] for r in results] == [0.1, 0.2, 0.3]
+
+
+async def test_fetch_weather_batch_requests_the_level_winds(monkeypatch):
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    await fetch_weather_batch(_dests(1), START, END)
+
+    hourly = calls[0]["hourly"].split(",")
+    for name, _ in weather._WIND_LEVELS:
+        assert name in hourly
+    # Still at weight factor 1: max(1, vars/10) with 8 variables.
+    assert len(hourly) == weather.N_VARIABLES
+
+
+async def test_fetch_weather_batch_adjusts_wind_to_the_destinations_elevation(
+    monkeypatch,
+):
+    # Two destinations, one payload each: identical hourly blocks carrying
+    # level winds. The 8,000 ft destination reads the interpolated free-air
+    # wind; the one with no elevation keeps the 10 m value.
+    block = _one_location()
+    block["hourly"].update(
+        {
+            "wind_speed_925hPa": [7.0] * 3,
+            "wind_speed_850hPa": [10.0] * 3,
+            "wind_speed_700hPa": [30.0] * 3,
+            "wind_speed_600hPa": [40.0] * 3,
+            "wind_speed_500hPa": [50.0] * 3,
+        }
+    )
+    _stub_openmeteo(monkeypatch, [[block, dict(block)]])
+    dests = _dests(2)
+    dests[0]["elevation_ft"] = 8000.0
+
+    results = await fetch_weather_batch(dests, START, END)
+
+    # 10 + 20 * (981.4 / 1555) = 22.6226... → 22.6 at every hour.
+    assert results[0]["wind_avg_mph"] == 22.6
+    assert results[1]["wind_avg_mph"] == 7.0  # mean of 5, 7, 9
+    assert results[0]["series"]["wind_mph"] == [22.6, 22.6, 22.6]
+    assert results[1]["series"]["wind_mph"] == [5.0, 7.0, 9.0]
+
+
+async def test_fetch_weather_batch_keys_the_cache_by_elevation(monkeypatch):
+    # The cached aggregates were computed AT an elevation, so the same
+    # coordinates claimed at a different height are a genuine miss — being
+    # served the other row's numbers would be the model-sharing bug the model
+    # key already guards against, one field over.
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1]), _payload([0.1])])
+    base = _dests(1)
+    raised = [{**base[0], "elevation_ft": 8000.0}]
+
+    await fetch_weather_batch(base, START, END)
+    await fetch_weather_batch(raised, START, END)
+
+    assert len(calls) == 2
 
 
 async def test_fetch_weather_batch_splits_into_batches_of_fifty(monkeypatch):

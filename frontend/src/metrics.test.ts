@@ -5,6 +5,7 @@ import {
   NOUN,
   SEP,
   UNIT,
+  WIND_GRID_NOTE,
   familyOf,
   metricLabel,
   rankedNoun,
@@ -40,6 +41,9 @@ describe('the vocabulary', () => {
     // `us_aqi`, the EPA index combined across every pollutant, so naming one
     // of them understated what the number covers.
     expect(NOUN.aqi).toBe('AQI')
+    // The grid's wind note (#257): approved copy, composed from the noun so
+    // renaming Wind drags it along.
+    expect(WIND_GRID_NOTE).toBe('Wind (10 m)')
   })
 
   // Nouns are identity and spell out; aggregates are modifiers and wear the

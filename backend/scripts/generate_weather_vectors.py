@@ -43,15 +43,19 @@ def _win(start: str, end: str) -> dict[str, str]:
     return {"start": start, "end": end}
 
 
-def _wx(times, precip, temp, wind) -> dict:
-    return {
-        "hourly": {
-            "time": times,
-            "precipitation": precip,
-            "temperature_2m": temp,
-            "wind_speed_10m": wind,
-        }
+def _wx(times, precip, temp, wind, levels=None) -> dict:
+    """A weather payload; `levels` maps pressure-level variable names
+    (`wind_speed_925hPa` … `wind_speed_500hPa`) to hourly arrays for the
+    elevation-adjusted wind cases (issue #257)."""
+    hourly = {
+        "time": times,
+        "precipitation": precip,
+        "temperature_2m": temp,
+        "wind_speed_10m": wind,
     }
+    if levels:
+        hourly.update(levels)
+    return {"hourly": hourly}
 
 
 def _aq(times, aqi) -> dict:
@@ -156,6 +160,118 @@ WEATHER_INPUTS = [
             [5.0] * 8,
         ),
     },
+    # ── Elevation-adjusted wind (issue #257) ──────────────────────────────
+    # The ISA level heights are 762 / 1457 / 3012 / 4206 / 5574 m; elevations
+    # below are in feet, as destinations carry them (× 0.3048 to meters).
+    {
+        # 8,000 ft = 2438.4 m sits between 850 hPa (1457 m) and 700 hPa
+        # (3012 m); the interpolation and its fraction ride the contract, so a
+        # port that interpolates in a different order of operations fails here.
+        "name": "elevation_interpolates_between_bracketing_levels",
+        "window": _win(H[0], H[1]),
+        "elevation_ft": 8000.0,
+        "payload": _wx(
+            H[:2],
+            [0.0, 0.1],
+            [40.0, 41.0],
+            [5.0, 6.0],
+            {
+                "wind_speed_925hPa": [7.0, 7.0],
+                "wind_speed_850hPa": [10.0, 12.0],
+                "wind_speed_700hPa": [30.0, 24.0],
+                "wind_speed_600hPa": [40.0, 40.0],
+                "wind_speed_500hPa": [50.0, 50.0],
+            },
+        ),
+    },
+    {
+        # 2,000 ft = 609.6 m is under the lowest level: a valley destination
+        # is sheltered and keeps the 10 m wind even with level data present.
+        "name": "elevation_below_lowest_level_keeps_10m_wind",
+        "window": _win(H[0], H[1]),
+        "elevation_ft": 2000.0,
+        "payload": _wx(
+            H[:2],
+            [0.0, 0.0],
+            [50.0, 50.0],
+            [5.0, 6.0],
+            {
+                "wind_speed_925hPa": [20.0, 20.0],
+                "wind_speed_850hPa": [30.0, 30.0],
+                "wind_speed_700hPa": [40.0, 40.0],
+                "wind_speed_600hPa": [50.0, 50.0],
+                "wind_speed_500hPa": [60.0, 60.0],
+            },
+        ),
+    },
+    {
+        # 20,000 ft = 6096 m is above the top level and clamps to 500 hPa.
+        "name": "elevation_above_top_level_clamps_to_500hPa",
+        "window": _win(H[0], H[1]),
+        "elevation_ft": 20000.0,
+        "payload": _wx(
+            H[:2],
+            [0.0, 0.0],
+            [10.0, 10.0],
+            [8.0, 8.0],
+            {
+                "wind_speed_925hPa": [10.0, 10.0],
+                "wind_speed_850hPa": [15.0, 15.0],
+                "wind_speed_700hPa": [25.0, 25.0],
+                "wind_speed_600hPa": [35.0, 35.0],
+                "wind_speed_500hPa": [45.0, 47.0],
+            },
+        ),
+    },
+    {
+        # Free air weaker than the surface keeps the 10 m value: the floor is
+        # max(w10, interpolated), because altitude can only add exposure.
+        "name": "free_air_weaker_than_10m_keeps_10m_wind",
+        "window": _win(H[0], H[1]),
+        "elevation_ft": 8000.0,
+        "payload": _wx(
+            H[:2],
+            [0.0, 0.0],
+            [30.0, 30.0],
+            [18.0, 18.0],
+            {
+                "wind_speed_925hPa": [2.0, 2.0],
+                "wind_speed_850hPa": [3.0, 3.0],
+                "wind_speed_700hPa": [4.0, 4.0],
+                "wind_speed_600hPa": [5.0, 5.0],
+                "wind_speed_500hPa": [6.0, 6.0],
+            },
+        ),
+    },
+    {
+        # No level arrays at all (the forecast-grid lattice's payload shape,
+        # and any model hour the levels are missing for): 10 m wind, and the
+        # hour is never dropped.
+        "name": "elevation_with_missing_levels_falls_back_to_10m",
+        "window": _win(H[0], H[1]),
+        "elevation_ft": 8000.0,
+        "payload": _wx(H[:2], [0.0, 0.0], [30.0, 30.0], [11.0, 13.0]),
+    },
+    {
+        # A null at ONE bracketing level sends that hour back to 10 m; the
+        # neighboring hour with both levels still interpolates.
+        "name": "null_bracketing_level_falls_back_that_hour_only",
+        "window": _win(H[0], H[1]),
+        "elevation_ft": 8000.0,
+        "payload": _wx(
+            H[:2],
+            [0.0, 0.0],
+            [30.0, 30.0],
+            [5.0, 5.0],
+            {
+                "wind_speed_925hPa": [7.0, 7.0],
+                "wind_speed_850hPa": [None, 10.0],
+                "wind_speed_700hPa": [30.0, 30.0],
+                "wind_speed_600hPa": [40.0, 40.0],
+                "wind_speed_500hPa": [50.0, 50.0],
+            },
+        ),
+    },
 ]
 
 AQI_INPUTS = [
@@ -200,11 +316,16 @@ def main() -> None:
     weather_cases = []
     for case in WEATHER_INPUTS:
         start, end = _parse(case["window"]["start"]), _parse(case["window"]["end"])
+        elevation_ft = case.get("elevation_ft")
         weather_cases.append(
             {
                 **case,
-                "expected_metrics": weather._metrics(case["payload"], start, end),
-                "expected_series": weather._series(case["payload"], start, end),
+                "expected_metrics": weather._metrics(
+                    case["payload"], start, end, elevation_ft
+                ),
+                "expected_series": weather._series(
+                    case["payload"], start, end, elevation_ft
+                ),
             }
         )
 

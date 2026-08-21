@@ -141,6 +141,7 @@ def forecast_key(
     start_iso: str,
     end_iso: str,
     model: str = "",
+    elevation: Any = "",
 ) -> tuple:
     """Cache key for one location's windowed result from one Open-Meteo
     service (``service`` distinguishes weather from air quality).
@@ -149,6 +150,12 @@ def forecast_key(
     or two models would share one entry and the second one asked for would be
     served the first one's numbers — the whole point of choosing a model being
     that they disagree. Empty for air quality, which has only one model.
+
+    ``elevation`` joins the key for weather because the stored aggregates are
+    computed AT that elevation (the wind column reports wind at the
+    destination's own height, issue #257): the same coordinates asked at a
+    different claimed elevation are a different question. Empty for air
+    quality, which does not adjust by elevation.
     """
     return (
         CACHE_VERSION,
@@ -158,6 +165,7 @@ def forecast_key(
         start_iso,
         end_iso,
         model,
+        str(elevation),
     )
 
 

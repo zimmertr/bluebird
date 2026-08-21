@@ -44,7 +44,32 @@ BATCH_SIZE = 50
 # paces the pod's spend in weighted calls per minute, the unit Open-Meteo
 # actually meters (see services.openmeteo_weight).
 MAX_CONCURRENT_BATCHES = 4
-N_VARIABLES = 3  # precipitation, temperature_2m, wind_speed_10m
+# The wind the table ranks on is wind at the destination's OWN elevation
+# (issue #257). Open-Meteo's 10 m wind stands 10 m above the model's smoothed
+# terrain, inside the friction layer — measured at Rainier 2026-08-21, the
+# 600 hPa wind (~summit height) was 27.5 mph where the 10 m value read 10.8.
+# So each hour also carries the free-air wind at five pressure levels, and
+# `_wind_at_elevation` interpolates between the two levels bracketing the
+# destination's elevation, floored at the 10 m value. The heights are the ISA
+# standard atmosphere, fixed rather than fetched: real geopotential heights
+# move a few percent with weather, and fetching them would double the
+# variable count for a correction smaller than the model's own grid error.
+# All eight models Bluebird offers answered all five levels (probed
+# 2026-08-21).
+_WIND_LEVELS: list[tuple[str, float]] = [
+    ("wind_speed_925hPa", 762.0),
+    ("wind_speed_850hPa", 1457.0),
+    ("wind_speed_700hPa", 3012.0),
+    ("wind_speed_600hPa", 4206.0),
+    ("wind_speed_500hPa", 5574.0),
+]
+_FT_TO_M = 0.3048
+HOURLY_VARIABLES = "precipitation,temperature_2m,wind_speed_10m," + ",".join(
+    name for name, _ in _WIND_LEVELS
+)
+# 8 stays at weight factor 1: Open-Meteo's factor is max(1, vars/10), so the
+# five level winds ride the same weighted budget the three originals did.
+N_VARIABLES = 8
 PROVIDER = "Open-Meteo"
 
 # Called as each batch completes: (processed_destinations, total_destinations,
@@ -83,6 +108,7 @@ async def fetch_weather_batch(
             start_dt.isoformat(),
             end_dt.isoformat(),
             model.value,
+            dest.get("elevation_ft") or "",
         )
         hit = cache.FORECAST_CACHE.get(key)
         if hit is None:
@@ -145,6 +171,7 @@ async def fetch_weather_batch(
             start_dt.isoformat(),
             end_dt.isoformat(),
             model.value,
+            dest.get("elevation_ft") or "",
         )
         cache.FORECAST_CACHE.put(key, cache.NO_DATA if result is None else result)
     for i, result in zip(miss_indices, fetched):
@@ -212,7 +239,7 @@ async def _fetch_chunk(
         # it picked — so two adjacent peaks in one response could come from two
         # different models with nothing saying so.
         "models": model.value,
-        "hourly": "precipitation,temperature_2m,wind_speed_10m",
+        "hourly": HOURLY_VARIABLES,
         "temperature_unit": "fahrenheit",
         "wind_speed_unit": "mph",
         "precipitation_unit": "inch",
@@ -266,22 +293,66 @@ async def _fetch_chunk(
     # Single location → object; multiple → array
     items = data if isinstance(data, list) else [data]
     results: list[dict[str, Any] | None] = []
-    for item in items:
-        m = _metrics(item, start_dt, end_dt)
+    for dest, item in zip(destinations, items):
+        elevation_ft = dest.get("elevation_ft")
+        m = _metrics(item, start_dt, end_dt, elevation_ft)
         if m is not None:
             # Carry the raw hourly series alongside the aggregates so the route
             # can bake it into the response for the chart — one upstream fetch,
             # no re-query. The aggregates in `_metrics` stay byte-for-byte.
-            m = {**m, "series": _series(item, start_dt, end_dt)}
+            m = {**m, "series": _series(item, start_dt, end_dt, elevation_ft)}
         results.append(m)
     log.trace("Open-Meteo batch returned %d result(s)", sum(1 for r in results if r is not None))  # type: ignore[attr-defined]
     return results
+
+
+def _wind_at_elevation(
+    w10: float,
+    elevation_ft: float | None,
+    levels: list[float | None],
+) -> float:
+    """One hour's wind at the destination's own elevation, in mph.
+
+    Linear interpolation between the two ISA-height levels bracketing the
+    elevation, clamped to the top level above it, floored at the 10 m value —
+    free air can only add exposure, never shelter. Every gap degrades to the
+    10 m wind: no elevation, an elevation under the lowest level (a valley
+    destination IS sheltered, and the 10 m wind is the right answer there),
+    or a null at a needed level. `max` here and `Math.max` in the port agree
+    bit-for-bit on finite doubles, and every input here is finite.
+    """
+    if elevation_ft is None:
+        return w10
+    elev_m = elevation_ft * _FT_TO_M
+    if elev_m <= _WIND_LEVELS[0][1]:
+        return w10
+    free: float | None = None
+    if elev_m >= _WIND_LEVELS[-1][1]:
+        free = levels[-1]
+    else:
+        for k in range(len(_WIND_LEVELS) - 1):
+            hi_h = _WIND_LEVELS[k + 1][1]
+            if elev_m < hi_h:
+                lo_h = _WIND_LEVELS[k][1]
+                lo_v = levels[k]
+                hi_v = levels[k + 1]
+                if lo_v is not None and hi_v is not None:
+                    free = lo_v + (hi_v - lo_v) * ((elev_m - lo_h) / (hi_h - lo_h))
+                break
+    if free is None:
+        return w10
+    return max(w10, free)
+
+
+def _level_arrays(hourly: dict[str, Any]) -> list[list[Any]]:
+    return [hourly.get(name, []) for name, _ in _WIND_LEVELS]
 
 
 def _metrics(
     data: dict[str, Any],
     start_dt: datetime,
     end_dt: datetime,
+    elevation_ft: float | None = None,
 ) -> dict[str, Any] | None:
     try:
         hourly = data.get("hourly", {})
@@ -289,18 +360,25 @@ def _metrics(
         precip = hourly.get("precipitation", [])
         temp = hourly.get("temperature_2m", [])
         wind = hourly.get("wind_speed_10m", [])
+        levels = _level_arrays(hourly)
 
         start = _naive(start_dt)
         end = _naive(end_dt)
 
-        filtered = [
-            (p, t, w)
-            for ts, p, t, w in zip(times, precip, temp, wind)
-            if _parse_ts(ts) is not None and start <= _parse_ts(ts) <= end  # type: ignore[operator]
-            and p is not None
-            and t is not None
-            and w is not None
-        ]
+        # zip over the four core arrays keeps the pre-#257 hour-dropping
+        # semantics: a missing or short LEVEL array can never drop an hour,
+        # only send its wind back to the 10 m value.
+        filtered = []
+        for i, (ts, p, t, w) in enumerate(zip(times, precip, temp, wind)):
+            parsed = _parse_ts(ts)
+            if parsed is None or not (start <= parsed <= end):
+                continue
+            if p is None or t is None or w is None:
+                continue
+            w_adj = _wind_at_elevation(
+                w, elevation_ft, [_at(arr, i) for arr in levels]
+            )
+            filtered.append((p, t, w_adj))
 
         if not filtered:
             return None
@@ -326,13 +404,16 @@ def _series(
     data: dict[str, Any],
     start_dt: datetime,
     end_dt: datetime,
+    elevation_ft: float | None = None,
 ) -> dict[str, Any] | None:
     """Per-hour precip/temp/wind over the window, aligned to a shared grid.
 
     Unlike `_metrics` — which drops any hour missing a value and collapses the
     rest into aggregates — this keeps every in-window hour and preserves each
     metric's nulls independently (the chart renders them as line gaps). Returns
-    None only when the window contains no hours at all.
+    None only when the window contains no hours at all. Wind is adjusted to
+    the destination's elevation exactly as `_metrics` adjusts it, so the chart
+    and the playback recoloring draw the same quantity the table ranks.
     """
     try:
         hourly = data.get("hourly", {})
@@ -340,6 +421,7 @@ def _series(
         precip = hourly.get("precipitation", [])
         temp = hourly.get("temperature_2m", [])
         wind = hourly.get("wind_speed_10m", [])
+        levels = _level_arrays(hourly)
 
         start = _naive(start_dt)
         end = _naive(end_dt)
@@ -355,7 +437,15 @@ def _series(
             grid.append(_epoch_ms(parsed))
             p_out.append(_round_or_none(_at(precip, i), 4))
             t_out.append(_round_or_none(_at(temp, i), 1))
-            w_out.append(_round_or_none(_at(wind, i), 1))
+            w10 = _at(wind, i)
+            w_adj = (
+                None
+                if w10 is None
+                else _wind_at_elevation(
+                    w10, elevation_ft, [_at(arr, i) for arr in levels]
+                )
+            )
+            w_out.append(_round_or_none(w_adj, 1))
 
         if not grid:
             return None

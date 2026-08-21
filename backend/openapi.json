@@ -646,7 +646,7 @@
             "type": "string"
           },
           "wind_avg_mph": {
-            "description": "Mean wind speed, miles per hour.",
+            "description": "Mean wind speed at the destination's elevation, miles per hour. Each hour interpolates Open-Meteo's free-air wind between the two pressure levels bracketing `elevation_ft`, floored at the 10 m surface wind; rows with no elevation, or below the lowest level (~762 m), report the 10 m wind. All three wind aggregates reduce the same adjusted hourly values.",
             "title": "Wind Avg Mph",
             "type": "number"
           },
@@ -1047,7 +1047,7 @@
             "type": "array"
           },
           "wind_mph": {
-            "description": "Wind speed, miles per hour.",
+            "description": "Wind speed at the destination's elevation, miles per hour. See `wind_avg_mph` on the result for how it is derived.",
             "items": {
               "anyOf": [
                 {

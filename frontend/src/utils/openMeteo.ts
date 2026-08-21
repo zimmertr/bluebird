@@ -171,7 +171,11 @@ function cacheKey(
   endMs: number,
   model = '',
 ): string {
-  return `${service}|${c.latitude}|${c.longitude}|${startMs}|${endMs}|${model}`
+  // Elevation joins the weather key for the reason the model does: the stored
+  // aggregates were computed AT that elevation (issue #257), so the same
+  // coordinates claimed at a different height are a different question.
+  const elevation = service === 'weather' ? (c.elevation_ft ?? '') : ''
+  return `${service}|${c.latitude}|${c.longitude}|${startMs}|${endMs}|${model}|${elevation}`
 }
 
 function cacheGet(key: string): CacheEntry['value'] | undefined {
@@ -310,8 +314,65 @@ interface HourlyPayload {
     temperature_2m?: (number | null)[]
     wind_speed_10m?: (number | null)[]
     wind_direction_10m?: (number | null)[]
+    wind_speed_925hPa?: (number | null)[]
+    wind_speed_850hPa?: (number | null)[]
+    wind_speed_700hPa?: (number | null)[]
+    wind_speed_600hPa?: (number | null)[]
+    wind_speed_500hPa?: (number | null)[]
     us_aqi?: (number | null)[]
   }
+}
+
+// Port of weather._WIND_LEVELS: the five free-air winds each hour also
+// carries, and the ISA standard-atmosphere height of each level. The wind the
+// table ranks on is wind at the destination's OWN elevation (issue #257) —
+// `windAtElevation` interpolates between the two bracketing levels, floored
+// at the friction-slowed 10 m value. Fixed heights rather than fetched
+// geopotentials, for the reason weather.py records.
+const WIND_LEVELS = [
+  ['wind_speed_925hPa', 762],
+  ['wind_speed_850hPa', 1457],
+  ['wind_speed_700hPa', 3012],
+  ['wind_speed_600hPa', 4206],
+  ['wind_speed_500hPa', 5574],
+] as const
+const FT_TO_M = 0.3048
+
+// Port of weather._wind_at_elevation — line-for-line, because it feeds the
+// vector-pinned aggregates. Every gap degrades to the 10 m wind: no
+// elevation, an elevation under the lowest level (a valley destination IS
+// sheltered), or a null at a needed level.
+export function windAtElevation(
+  w10: number,
+  elevationFt: number | null | undefined,
+  levels: readonly (number | null)[],
+): number {
+  if (elevationFt == null) return w10
+  const elevM = elevationFt * FT_TO_M
+  if (elevM <= WIND_LEVELS[0][1]) return w10
+  let free: number | null = null
+  if (elevM >= WIND_LEVELS[WIND_LEVELS.length - 1][1]) {
+    free = levels[levels.length - 1] ?? null
+  } else {
+    for (let k = 0; k < WIND_LEVELS.length - 1; k++) {
+      const hiH = WIND_LEVELS[k + 1][1]
+      if (elevM < hiH) {
+        const loH = WIND_LEVELS[k][1]
+        const loV = levels[k]
+        const hiV = levels[k + 1]
+        if (loV != null && hiV != null) {
+          free = loV + (hiV - loV) * ((elevM - loH) / (hiH - loH))
+        }
+        break
+      }
+    }
+  }
+  if (free == null) return w10
+  return Math.max(w10, free)
+}
+
+function levelArrays(hourly: NonNullable<HourlyPayload['hourly']>): (number | null)[][] {
+  return WIND_LEVELS.map(([name]) => hourly[name] ?? [])
 }
 
 // Port of weather._metrics: an hour missing ANY metric is dropped entirely,
@@ -322,6 +383,7 @@ export function weatherMetrics(
   payload: HourlyPayload,
   startMs: number,
   endMs: number,
+  elevationFt: number | null = null,
 ): WeatherAggregates | null {
   try {
     const hourly = payload?.hourly ?? {}
@@ -329,7 +391,11 @@ export function weatherMetrics(
     const precip = hourly.precipitation ?? []
     const temp = hourly.temperature_2m ?? []
     const wind = hourly.wind_speed_10m ?? []
+    const levels = levelArrays(hourly)
 
+    // min over the four core arrays keeps the pre-#257 hour-dropping
+    // semantics: a missing or short LEVEL array can never drop an hour, only
+    // send its wind back to the 10 m value.
     const n = Math.min(times.length, precip.length, temp.length, wind.length)
     const rows: Array<[number, number, number]> = []
     for (let i = 0; i < n; i++) {
@@ -339,7 +405,8 @@ export function weatherMetrics(
       const tf = temp[i]
       const w = wind[i]
       if (p == null || tf == null || w == null) continue
-      rows.push([p, tf, w])
+      const wAdj = windAtElevation(w, elevationFt, levels.map((arr) => at(arr, i)))
+      rows.push([p, tf, wAdj])
     }
     if (rows.length === 0) return null
 
@@ -386,6 +453,7 @@ export function weatherSeries(
   payload: HourlyPayload,
   startMs: number,
   endMs: number,
+  elevationFt: number | null = null,
 ): WeatherSeries | null {
   try {
     const hourly = payload?.hourly ?? {}
@@ -393,6 +461,7 @@ export function weatherSeries(
     const precip = hourly.precipitation ?? []
     const temp = hourly.temperature_2m ?? []
     const wind = hourly.wind_speed_10m ?? []
+    const levels = levelArrays(hourly)
 
     const grid: number[] = []
     const pOut: (number | null)[] = []
@@ -404,7 +473,12 @@ export function weatherSeries(
       grid.push(t)
       pOut.push(roundOrNull(at(precip, i), 4))
       tOut.push(roundOrNull(at(temp, i), 1))
-      wOut.push(roundOrNull(at(wind, i), 1))
+      const w10 = at(wind, i)
+      const wAdj =
+        w10 == null
+          ? null
+          : windAtElevation(w10, elevationFt, levels.map((arr) => at(arr, i)))
+      wOut.push(roundOrNull(wAdj, 1))
     }
     if (grid.length === 0) return null
     return { times: grid, precip_in: pOut, temp_f: tOut, wind_mph: wOut }
@@ -534,6 +608,13 @@ export function aqiSeries(
 export interface Coordinate {
   latitude: number
   longitude: number
+  /**
+   * The destination's own elevation, when known. Present on analysis
+   * candidates and absent on forecast-grid lattice points, which is exactly
+   * the split that decides the wind: with an elevation the aggregates report
+   * wind at that height (issue #257), without one they report the 10 m wind.
+   */
+  elevation_ft?: number | null
 }
 
 export type WeatherResult = (WeatherAggregates & { series: WeatherSeries | null }) | null
@@ -739,12 +820,12 @@ export async function fetchWeather(
   const chunks = chunked(misses, BATCH_SIZE)
 
   const tasks = chunks.map((chunk) => async (): Promise<WeatherResult[]> => {
-    // Four variables, not the backend's three: the browser also asks for wind
-    // direction, which only the map's playback arrows use. It costs nothing —
-    // the weight factor is max(1, vars/10), so 3 and 4 both round up to 1 —
-    // and it rides the same request, so there is no extra round trip either.
+    // Nine variables, not the backend's eight: the browser also asks for wind
+    // direction, which only the map's playback arrows use. Still weight
+    // factor 1 — max(1, vars/10) — so the five level winds and the bearing
+    // all ride the budget the original three variables set.
     await weatherBudget.acquire(
-      callWeight(chunk.length, startMs, endMs, 4),
+      callWeight(chunk.length, startMs, endMs, 9),
       signal,
       onPace,
     )
@@ -753,7 +834,9 @@ export async function fetchWeather(
       {
         ...coordParams(chunk),
         models: model,
-        hourly: 'precipitation,temperature_2m,wind_speed_10m,wind_direction_10m',
+        hourly:
+          'precipitation,temperature_2m,wind_speed_10m,wind_direction_10m,' +
+          WIND_LEVELS.map(([name]) => name).join(','),
         temperature_unit: 'fahrenheit',
         wind_speed_unit: 'mph',
         precipitation_unit: 'inch',
@@ -770,10 +853,11 @@ export async function fetchWeather(
         `Open-Meteo returned ${items.length} results for ${chunk.length} locations`,
       )
     }
-    const chunkResults = items.map((item): WeatherResult => {
-      const metrics = weatherMetrics(item, startMs, endMs)
+    const chunkResults = items.map((item, j): WeatherResult => {
+      const elevationFt = chunk[j].elevation_ft ?? null
+      const metrics = weatherMetrics(item, startMs, endMs, elevationFt)
       if (metrics === null) return null
-      const series = weatherSeries(item, startMs, endMs)
+      const series = weatherSeries(item, startMs, endMs, elevationFt)
       const bearings = series && windDirectionSeries(item, startMs, endMs)
       return {
         ...metrics,

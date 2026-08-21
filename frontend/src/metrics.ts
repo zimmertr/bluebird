@@ -69,6 +69,18 @@ export const NOUN: Record<MetricFamily, string> = {
 }
 
 /**
+ * The forecast grid's wind note (issue #257).
+ *
+ * The wind the table and the markers show is adjusted to each destination's
+ * own elevation, but a grid lattice sample has no elevation to adjust to, so
+ * the grid paints the friction-slowed 10 m wind. While wind is the displayed
+ * metric, the grid's legend row carries this note so the field under a marker
+ * is never mistaken for the stronger number standing on it. The other three
+ * metrics need no note: the grid and the markers measure them identically.
+ */
+export const WIND_GRID_NOTE = `${NOUN.wind} (10 m)`
+
+/**
  * The unit a metric is quoted in, empty where it has none.
  *
  * Callers append their own where a column reports a rate rather than the base
