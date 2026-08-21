@@ -7,7 +7,6 @@ import {
   DiscoveredDestination,
   RefusalFields,
 } from '../types'
-import { drainSseBuffer } from '../utils/analyzeEvents'
 import { SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
 import { resolveWindow } from '../utils/forecastWindow'
 import {
@@ -18,7 +17,7 @@ import {
   runClientAnalysis,
 } from '../utils/clientAnalyze'
 import { pinKey } from '../utils/customList'
-import { OpenMeteoUnreachable, OpenMeteoModelCoverage } from '../utils/openMeteo'
+import { OpenMeteoModelCoverage } from '../utils/openMeteo'
 import { SelectionKind } from '../utils/calendar'
 import { AnalyzedSnapshot } from '../utils/present'
 import type { ForecastModelOption } from './useCapabilities'
@@ -52,10 +51,9 @@ export type Refusal = {
 //
 // The knobs are recorded so the live ones can be compared against them, which
 // is how `utils/present.ts` decides whether the display can be re-derived from
-// the held field or genuinely needs another Analyze (#188). On the client path
-// sort and limit are re-derived, so this copy of them is history rather than
-// the display source; on the server SSE path, where there is no field to
-// re-derive from, it stays the display source as it always was.
+// the held field or genuinely needs another Analyze (#188). Sort and limit
+// are re-derived live, so this copy of them is history rather than the
+// display source.
 // Composes PresentationKnobs rather than restating them, so the recorded set
 // and the compared set cannot drift apart.
 export type AnalyzedView = AnalyzedSnapshot & {
@@ -73,9 +71,7 @@ export type AnalyzedView = AnalyzedSnapshot & {
   // The custom destinations this analysis covered — searched places and pasted
   // CSV rows, by pinKey. Recorded off the request rather than read back off the
   // results, which are cut to `limit` and so cannot answer "was this analyzed?"
-  // for a field bigger than the cut (#205). Taken from the request also makes
-  // the answer path-independent: the SSE fallback sends no universe, but the
-  // browser still knows what it submitted.
+  // for a field bigger than the cut (#205).
   customKeys: ReadonlySet<string>
   // The model that produced every number in the field. A data knob like the
   // window, and recorded for the same reason: the panel's model can move
@@ -126,10 +122,9 @@ export function useAnalyze(
   const [error, setError] = useState<string | null>(null)
   const [refusal, setRefusal] = useState<Refusal | null>(null)
   const [response, setResponse] = useState<AnalyzeResponse | null>(null)
-  // The full ranked field behind `response`, before the `limit` cut, when the
-  // browser did the analysis itself. Null on the server SSE path, which only
-  // sends the trimmed rows — callers must treat "no universe" as a real state
-  // and degrade, not assume the displayed rows are the whole field.
+  // The full ranked field behind `response`, before the `limit` cut. Null
+  // only before the first committed analysis: since #240 removed the server
+  // SSE fallback, every path that commits a report also holds its field.
   const [universe, setUniverse] = useState<DestinationResult[] | null>(null)
   const [analyzed, setAnalyzed] = useState<AnalyzedView | null>(null)
   // Bumped once per committed analysis. See commit().
@@ -142,16 +137,12 @@ export function useAnalyze(
   // matches a row. `fireSeq` is the check's own refetch trigger, bumped when
   // the field is published — keying the check on analysisSeq would abort the
   // in-flight lookup at commit and restart it, serial again. Null when the
-  // last analysis failed or ran on the server path; callers fall back to the
-  // committed field.
+  // last analysis failed; callers fall back to the committed field.
   const [fireField, setFireField] = useState<{ latitude: number; longitude: number }[] | null>(
     null,
   )
   const [fireSeq, setFireSeq] = useState(0)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
-  // Secondary line for the search phase (SSE `detail`): mirror-failover news,
-  // a pace wait, or the announced server fallback.
-  const [statusDetail, setStatusDetail] = useState<string | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
   // When the client pacer is sleeping off a quota deficit, the wall-clock
   // moment it resumes — the overlay renders a live countdown from this.
@@ -165,9 +156,6 @@ export function useAnalyze(
   // forecast on screen to add a few. It helps any re-analysis at the same
   // window and model — a pasted destination, a toggled unnamed-peaks — since
   // reuse is decided per destination rather than per reason.
-  //
-  // Null on the server path by construction: that path is handed trimmed rows
-  // and no field, so there is nothing to reuse and nothing to reuse it for.
   const heldForecastsRef = useRef<{
     rows: DestinationResult[]
     times: number[]
@@ -229,7 +217,7 @@ export function useAnalyze(
     data: AnalyzeResponse,
     request: AnalyzeRequest,
     kind: SelectionKind,
-    fullField: DestinationResult[] | null,
+    fullField: DestinationResult[],
   ) {
     setResponse(data)
     setUniverse(fullField)
@@ -320,9 +308,8 @@ export function useAnalyze(
         body: JSON.stringify({
           polygon: request.polygon,
           destination_types: request.destination_types,
-          // The client path is the normal one — the SSE route below is only
-          // reached when Open-Meteo is unreachable from the browser — so a
-          // discovery knob missing here is a knob that does nothing at all.
+          // The client path is the only one (#240), so a discovery knob
+          // missing here is a knob that does nothing at all.
           include_unnamed_peaks: request.include_unnamed_peaks ?? false,
           min_elevation_ft: request.min_elevation_ft,
           max_elevation_ft: request.max_elevation_ft,
@@ -416,92 +403,6 @@ export function useAnalyze(
     )
   }
 
-  // The server pipeline, unchanged in role: POST /api/analyze/stream and
-  // render its SSE events. Still the canonical API and the fallback when the
-  // browser cannot reach Open-Meteo directly (corporate proxies, outages).
-  async function analyzeViaServer(
-    request: AnalyzeRequest,
-    kind: SelectionKind,
-    signal: AbortSignal,
-  ): Promise<void> {
-    // This path commits no field, so anything held is about to describe a
-    // report the browser can no longer re-derive. Dropped rather than kept, or
-    // a later client analysis would reuse forecasts from a report whose own
-    // rows were never held. The fire field goes with it: this path learns no
-    // candidate list, so the check falls back to the committed rows and
-    // refetches on the bump below once they land.
-    heldForecastsRef.current = null
-    setFireField(null)
-    const res = await fetch('/api/analyze/stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-      signal,
-    })
-
-    if (!res.ok || !res.body) {
-      const { message } = await readErrorBody(res)
-      throw new Error(message)
-    }
-
-    const reader = res.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-
-      const drained = drainSseBuffer(buffer)
-      buffer = drained.rest
-
-      for (const event of drained.events) {
-        if (event.type === 'status' && event.message) {
-          setStatusMessage(event.message)
-          // Absent detail on a status event clears any stale failover line.
-          setStatusDetail(event.detail ?? null)
-        } else if (event.type === 'progress') {
-          setStatusDetail(null)
-          if (event.message) setStatusMessage(event.message)
-          if (event.total != null && event.processed != null) {
-            setProgress({
-              processed: event.processed,
-              total: event.total,
-              percent: event.percent ?? Math.round((event.processed / event.total) * 100),
-            })
-          }
-        } else if (event.type === 'error' && event.message) {
-          if (event.found != null) {
-            throw new AnalysisRefusalError(
-              event.message,
-              event.found,
-              event.limit ?? maxDestinations,
-              event.suggested_min_elevation_ft != null
-                ? {
-                    floorFt: event.suggested_min_elevation_ft,
-                    keeps: event.suggested_keeps ?? 0,
-                  }
-                : null,
-            )
-          }
-          throw new Error(event.message)
-        } else if (event.type === 'result' && event.data) {
-          // No universe: the stream sends the ranked rows already cut to
-          // `limit` (routes/analyze.py trims before the result event), so this
-          // path cannot offer an exact re-rank later. Deliberate: growing the
-          // response shape to serve a fallback the browser takes only when
-          // Open-Meteo is unreachable is not worth the contract change (#177).
-          commit(event.data, request, kind, null)
-          // The check's field is now the trimmed rows the commit just set;
-          // this is what triggers its (serial, on this path) refetch.
-          setFireSeq((n) => n + 1)
-        }
-        // Unknown types (keepalive) are ignored by construction.
-      }
-    }
-  }
-
   // One explicit fetch per Analyze click: every candidate in the polygon is
   // analyzed (refusing loudly above the ceiling, truncating only on explicit
   // election) and the table shows exactly the ranked rows. Repeats may be
@@ -525,30 +426,14 @@ export function useAnalyze(
     // custom/refresh run goes straight to retrieval (upgraded to the counted label
     // once the up-front progress lands).
     setStatusMessage(request.polygon ? SEARCHING_MESSAGE : 'Retrieving Forecasts…')
-    setStatusDetail(null)
 
     try {
-      try {
-        await analyzeViaClient(request, kind, controller.signal)
-        return
-      } catch (e) {
-        // ONLY an unreachable forecast API reroutes to the server, whose
-        // different network path can genuinely help. Everything else —
-        // validation, refusals, rate limits (same IP pool), HTTP errors
-        // (same upstream), a user cancel — surfaces directly. And the
-        // reroute announces itself: the silent phase regression was the
-        // "restart loop" of issue #180.
-        if (!(e instanceof OpenMeteoUnreachable)) throw e
-        console.warn(
-          'Open-Meteo unreachable from this browser; falling back to the server analysis:',
-          e.message,
-        )
-        setStatusMessage('Retrieving Forecasts…')
-        setStatusDetail('Open-Meteo is unreachable from this browser. Retrying through the server.')
-        setProgress(null)
-        setPaceEndMs(null)
-      }
-      await analyzeViaServer(request, kind, controller.signal)
+      // No server fallback (#240). An OpenMeteoUnreachable used to reroute the
+      // whole analysis through POST /api/analyze/stream on the pod's shared
+      // quota — a public quota-amplification surface no ordinary visitor ever
+      // exercised (27 review seats, zero fallbacks). It now surfaces below
+      // like every other provider failure, with its own message.
+      await analyzeViaClient(request, kind, controller.signal)
     } catch (e) {
       // The published fire field describes an analysis that will never
       // commit; drop it so the check falls back to the report still on
@@ -580,7 +465,6 @@ export function useAnalyze(
       abortRef.current = null
       setLoading(false)
       setStatusMessage(null)
-      setStatusDetail(null)
       setProgress(null)
       setPaceEndMs(null)
     }
@@ -603,7 +487,6 @@ export function useAnalyze(
     response,
     universe,
     statusMessage,
-    statusDetail,
     progress,
     paceEndMs,
   }

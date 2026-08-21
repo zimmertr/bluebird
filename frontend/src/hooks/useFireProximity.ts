@@ -90,9 +90,9 @@ export function useFireProximity(
   })
 
   // The identity of the destinations, not the identity of the array holding
-  // them. `field` is a fresh array on paths that rebuild it per render (the
-  // server SSE path passes the displayed rows), and keying the effect on the
-  // reference meant re-querying NIFC — and aborting the request in flight —
+  // them. `field` is a fresh array on paths that rebuild it per render, and
+  // keying the effect on the reference meant re-querying NIFC — and aborting
+  // the request in flight —
   // for a set of points that had not actually changed. Live knobs are exactly
   // that case: a re-rank hands over the same destinations in a new array.
   const contentKey = useMemo(() => pointsKey(field), [field])

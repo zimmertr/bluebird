@@ -4,7 +4,6 @@ import { composeOverlay, OverlayInputs, SEARCHING_MESSAGE } from './analyzeOverl
 const idle: OverlayInputs = {
   analyzeLoading: false,
   statusMessage: null,
-  statusDetail: null,
   elapsedS: 0,
   rankedProgress: null,
 }
@@ -62,16 +61,6 @@ describe('composeOverlay', () => {
     expect(view.visible && view.message).toBe('Retrieving Forecast…')
   })
 
-  it('surfaces backend failover detail under the search heading', () => {
-    const view = composeOverlay({
-      ...idle,
-      analyzeLoading: true,
-      statusMessage: SEARCHING_MESSAGE,
-      statusDetail: 'Trying backup map server 2 of 3…',
-    })
-    expect(view.visible && view.detail).toBe('Trying backup map server 2 of 3…')
-  })
-
   it('shows reassurance once a search runs long', () => {
     const search = { ...idle, analyzeLoading: true, statusMessage: SEARCHING_MESSAGE }
     const early = composeOverlay({ ...search, elapsedS: 19 })
@@ -85,17 +74,6 @@ describe('composeOverlay', () => {
     expect(long.visible && long.detail).toBe(
       'Still searching. Large analyses can take a while.'
     )
-  })
-
-  it('prefers real failover news over the staged reassurance', () => {
-    const view = composeOverlay({
-      ...idle,
-      analyzeLoading: true,
-      statusMessage: SEARCHING_MESSAGE,
-      statusDetail: 'Trying backup map server 3 of 3…',
-      elapsedS: 40,
-    })
-    expect(view.visible && view.detail).toBe('Trying backup map server 3 of 3…')
   })
 
   it('never stages the searching reassurance outside the search phase', () => {
@@ -112,27 +90,10 @@ describe('composeOverlay', () => {
     expect(custom.visible && custom.detail).toBe(null)
   })
 
-  it('carries live detail into the progress phase', () => {
-    // Mid-retrieval news (a server pace narration, the announced fallback)
-    // must stay visible over the progress bar; staleness is the state
-    // layer's job — useAnalyze clears statusDetail on every progress event.
+  it('renders the pace countdown during retrieval', () => {
     const view = composeOverlay({
       ...idle,
       analyzeLoading: true,
-      statusDetail: 'Open-Meteo quota: resuming in about 30s',
-      elapsedS: 40,
-      rankedProgress: { processed: 10, total: 100 },
-    })
-    expect(view.visible && view.detail).toBe(
-      'Open-Meteo quota: resuming in about 30s'
-    )
-  })
-
-  it('renders the pace countdown over any other detail during retrieval', () => {
-    const view = composeOverlay({
-      ...idle,
-      analyzeLoading: true,
-      statusDetail: 'stale line',
       rankedProgress: { processed: 550, total: 908 },
       paceRemainingS: 34,
     })

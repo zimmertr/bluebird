@@ -581,7 +581,6 @@ export default function App() {
     response,
     universe,
     statusMessage,
-    statusDetail,
     progress,
     paceEndMs,
   } = useAnalyze(caps.maxDestinations, caps.forecastModels)
@@ -665,8 +664,8 @@ export default function App() {
   // below are re-derived from it on every change, so reading the snapshot here
   // would show a legend that disagreed with the table. The window stays
   // from the snapshot either way: it is a data knob, and a point sample cannot
-  // become a range without a new analysis. Without a field (the SSE fallback, or before
-  // the first analysis) this is the pre-#188 behavior unchanged.
+  // become a range without a new analysis. Before the first analysis there is
+  // no field and nothing to disagree with.
   const liveKnobs: PresentationKnobs = useMemo(
     () => ({
       sortBy,
@@ -678,9 +677,9 @@ export default function App() {
     [sortBy, sortDesc, limit, minElevationFt, maxElevationFt, constraints],
   )
   const view =
-    universe !== null && analyzed !== null
+    analyzed !== null
       ? { sortBy, sortDesc, kind: analyzed.kind, window: analyzed.window }
-      : analyzed ?? {
+      : {
           sortBy,
           sortDesc,
           kind: selection.kind,
@@ -730,7 +729,7 @@ export default function App() {
   const modelChanged = analyzed !== null && analyzed.forecastModel !== forecastModel
   const commitReason =
     !loading && response !== null
-      ? commitNeeded(analyzed, liveKnobs, universe !== null, windowChanged, modelChanged)
+      ? commitNeeded(analyzed, liveKnobs, windowChanged, modelChanged)
       : null
   const preview = usePreview()
 
@@ -739,13 +738,12 @@ export default function App() {
   // reads it to stage the "Still searching…" reassurance line.
   const [elapsed, setElapsed] = useState(0)
 
-  // The loading overlay for the one ranked streaming analysis — searched
-  // places ride inside it as custom destinations, so there is no separate pin
-  // refresh to fold in anymore.
+  // The loading overlay for the one ranked analysis — searched places ride
+  // inside it as custom destinations, so there is no separate pin refresh to
+  // fold in anymore.
   const overlay = composeOverlay({
     analyzeLoading: loading,
     statusMessage,
-    statusDetail,
     elapsedS: elapsed,
     rankedProgress: progress ? { processed: progress.processed, total: progress.total } : null,
     // Live countdown while the client pacer sleeps off a quota deficit; the
@@ -930,10 +928,10 @@ export default function App() {
     const end = new Date(local.end).toISOString()
 
     // Every bound the request carries. The elevation band gates discovery, so
-    // the server has always needed it; the forecast bounds ride along for the
-    // SSE fallback, which sends back only trimmed rows and so has to do the
-    // filtering itself. On the normal path the browser holds the field and
-    // applies them live, and these fields go unused.
+    // the server needs it; the forecast bounds stay on the request because it
+    // is the same shape POST /api/analyze documents for direct callers, but
+    // the browser holds the field and applies them live, so they go unused
+    // here.
     const bounds = {
       min_elevation_ft: minElevationFt,
       max_elevation_ft: maxElevationFt,
@@ -1103,8 +1101,8 @@ export default function App() {
   // the remembered discovery identities by coordinate; genuine custom-CSV rows
   // simply have no match and pass through unchanged.
   const presented = useMemo(
-    () => presentResults(universe, response, liveKnobs, removedKeys),
-    [universe, response, liveKnobs, removedKeys],
+    () => presentResults(universe, liveKnobs, removedKeys),
+    [universe, liveKnobs, removedKeys],
   )
   const results = useMemo(
     () =>
@@ -1461,13 +1459,8 @@ export default function App() {
   const gridCued = showGrid && grid.status === 'loading'
   // The layer is on and could not draw. Said out loud for the same reason the
   // loading line exists: a switched-on layer with nothing under it and nothing
-  // said reads as a broken app rather than as a failed fetch. The server SSE
-  // fallback is the same sentence for a different reason: that path holds no
-  // field for a lattice to cover, so the hook never runs at all — and without
-  // this the one path where the grid CANNOT work was also the one path where
-  // it said nothing.
-  const gridFailed =
-    showGrid && (grid.status === 'failed' || (response !== null && universe === null))
+  // said reads as a broken app rather than as a failed fetch.
+  const gridFailed = showGrid && grid.status === 'failed'
   // A one-second tick, only while the pacer is actually asleep, so the
   // countdown moves. Nothing else on screen needs it and it stops on its own.
   const [paceNow, setPaceNow] = useState(0)
