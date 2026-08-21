@@ -137,7 +137,7 @@ again. Each is credited on its own legend, and each rides in the shared link.
 
 | Layer | What it draws | Coverage |
 |---|---|---|
-| **Wildfires** | Active fire perimeters, in red | United States |
+| **Wildfires (US only)** | Active fire perimeters, in red | United States — the label says so because the proximity check shares the limit ([DATA.md](DATA.md#wildfires)) |
 | **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | Continental United States |
 | **Smoke** | Smoke plumes at three densities, in grey | North America |
 | **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
@@ -331,21 +331,25 @@ What lands in the file:
   alike, numbered by a leading **Rank** column.
 - The columns the table is showing, under the same headers, which means a
   single-hour analysis exports the collapsed set.
-- A **Nearby Wildfire (mi)** column, which the table itself carries as the ⚠️
-  beside a name. A file has nowhere to hover, so the number gets a column. It
-  holds a distance only where one is within 10 miles, and is blank otherwise,
-  which is why it is not headed as a distance to the nearest fire outright.
+- The **Wildfire (mi)** column, once the fire check answers. On screen the
+  column is always present: its cells tick while the check runs, then show
+  ⚠️ and the distance where a fire is within 10 miles, a dash where the
+  check ran and cleared the row, and `N/A` where the row has no answer.
+  Hovering an `N/A` says which of its two causes applies: the destination
+  sits outside the fire data's US coverage, or NIFC is unreachable and the
+  whole check failed. The file writes the same answers with the distance
+  bare and the cleared cell empty; a coverage `N/A` carries over as written.
 - Nothing a removed row would have contributed. Removals and the max-results
   cut apply first, exactly as on screen.
 
 A blank cell means no value, never a zero. AQI is blank past its forecast
 horizon, and elevation is blank where OpenStreetMap has no `ele` tag.
 
-The wildfire column is the one that can disappear. If the fire check could not
-run, the column is left out of the file entirely and the results header says
-**Wildfire check unavailable**, rather than the file reporting every row as
-clear. So a blank wildfire cell means the check ran and found nothing within 10
-miles, which still is not proof there is no fire:
+The wildfire column is the one that can disappear from the file. If the fire
+check could not run, the column is left out entirely and a warning under
+Analyze says NIFC is unreachable, rather than the file reporting every row as
+clear. So a blank wildfire cell in a file means the check ran and found
+nothing within 10 miles, which still is not proof there is no fire:
 [the wildfire notes](DATA.md#wildfires) explain the coverage gap that a
 successful check can still miss.
 

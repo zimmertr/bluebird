@@ -187,6 +187,7 @@ curl -s "https://bluebirdforecast.com/api/wildfires?bbox=-122.1,46.6,-121.4,47.0
 {
   "type": "FeatureCollection",
   "fetched_at": 1785495937012,
+  "coverage": { "type": "MultiPolygon", "coordinates": ["…"] },
   "features": [
     {
       "type": "Feature",
@@ -205,8 +206,10 @@ curl -s "https://bluebirdforecast.com/api/wildfires?bbox=-122.1,46.6,-121.4,47.0
 `bbox` is `west,south,east,north` in decimal degrees. `detail` picks the
 geometry fidelity: `coarse` (the default) simplifies perimeters to roughly 56
 metres, which is finer than a map pixel at any zoom that fits a whole fire and
-about a thirteenth of the bytes; `full` returns them as surveyed, for measuring
-distances rather than drawing shapes.
+about a thirteenth of the bytes; `full` returns them as surveyed. The web app
+itself uses `coarse` for drawing and for its proximity check alike — 56 metres
+cannot move a 10-mile answer — so `full` exists for callers who need the
+surveyed shapes.
 
 Two timestamps appear and they answer different questions. `fetched_at` is when
 this instance last retrieved the dataset from NIFC. The per-feature
@@ -221,8 +224,14 @@ national snapshot and refreshes it on a timer, and serves it **past its refresh
 deadline** when NIFC is unreachable, on the grounds that a perimeter mapped an
 hour ago still answers a ten-mile proximity question. Read `fetched_at` if that
 matters to you. Only an instance that has never completed a fetch answers `503`.
+
 Coverage is the United States only, so an empty result elsewhere means "not
-covered", not "nothing burning". See [DATA.md](DATA.md#wildfires).
+covered", not "nothing burning". The `coverage` foreign member states this
+machine-readably: a coarse (±50 km, biased outward) US outline as a GeoJSON
+MultiPolygon, with Alaska split at the antimeridian so no ring wraps 180°.
+Test your query area against it before reading an empty `features` array as
+an all-clear — that test is exactly what the app does with it. Static per
+release. See [DATA.md](DATA.md#wildfires).
 
 ### Smoke plumes
 

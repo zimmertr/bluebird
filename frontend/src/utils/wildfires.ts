@@ -13,9 +13,22 @@
 // Coverage is still US-only: this is the authoritative national perimeter
 // dataset (CC-BY 3.0), and outside the US an empty answer means "not covered",
 // not "nothing burning".
-import type { FeatureCollection } from 'geojson'
+import type { FeatureCollection, MultiPolygon } from 'geojson'
 
 const WILDFIRES_URL = '/api/wildfires'
+
+/**
+ * The wildfire FeatureCollection plus the foreign members the API rides on it.
+ *
+ * `coverage` is what WFIGS can see: a coarse US outline, split at the
+ * antimeridian so no ring wraps 180°. It is the server's statement, published
+ * beside the data it qualifies, so the browser holds no copy of the boundary
+ * (#256). Optional because an older server may not send it; a missing member
+ * degrades to the old behavior of trusting an empty answer.
+ */
+export interface WildfireResponse extends FeatureCollection {
+  coverage?: MultiPolygon
+}
 
 // NIFC's public "explore" map for this dataset. There's no per-incident detail
 // page keyed by any field this layer exposes, so a clicked fire instead deep-
@@ -39,9 +52,11 @@ export type BBox = [number, number, number, number]
  * Geometry fidelity.
  *
  * `coarse` is simplified to ~56 m, which is finer than a screen pixel at any
- * zoom that fits a whole fire and about a thirteenth of the bytes. `full` is the
- * surveyed shape, for the proximity check, which measures distances rather than
- * drawing them.
+ * zoom that fits a whole fire and about a thirteenth of the bytes. The app
+ * uses it for drawing AND for the proximity check: 56 m is 0.035 mi against a
+ * 10-mile threshold displayed at 0.1 mi, so the simplification cannot change
+ * an answer. `full` is the surveyed shape, kept on the API for callers who
+ * need the real geometry.
  */
 export type FireDetail = 'coarse' | 'full'
 
@@ -109,7 +124,7 @@ export async function fetchWildfires(
   bbox: BBox,
   detail: FireDetail,
   signal: AbortSignal,
-): Promise<FeatureCollection> {
+): Promise<WildfireResponse> {
   const res = await fetch(wildfireQueryUrl(bbox, detail), { signal })
   if (!res.ok) {
     const err = new Error('Wildfire data unavailable. Try again later.') as Error & {
@@ -127,8 +142,10 @@ export async function fetchWildfires(
   // than failing, so a visitor's answer no longer hinges on a fetch of their
   // own, and a freshness line on every fire would be noise about an internal
   // detail. It stays in the payload for API callers, who have no other way to
-  // know how current an answer is (see docs/API.md).
-  return data as FeatureCollection
+  // know how current an answer is (see docs/API.md). `coverage`, the other
+  // foreign member, IS read: useFireProximity tests the analyzed points
+  // against it so an empty answer outside the US stops reading as all-clear.
+  return data as WildfireResponse
 }
 
 export function formatAcres(acres: number | null | undefined): string {

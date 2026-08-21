@@ -129,6 +129,19 @@ export function useAnalyze(
   const [analyzed, setAnalyzed] = useState<AnalyzedView | null>(null)
   // Bumped once per committed analysis. See commit().
   const [analysisSeq, setAnalysisSeq] = useState(0)
+  // The wildfire check's field, published the moment discovery settles so the
+  // NIFC lookup runs concurrently with the weather fetch instead of after it
+  // (TJ, PR #275 review). It is the candidate list, a superset of the
+  // committed universe (the cap and the elevation filter cut later), which is
+  // safe: warnings are keyed by coordinate, so an extra point's warning never
+  // matches a row. `fireSeq` is the check's own refetch trigger, bumped when
+  // the field is published — keying the check on analysisSeq would abort the
+  // in-flight lookup at commit and restart it, serial again. Null when the
+  // last analysis failed; callers fall back to the committed field.
+  const [fireField, setFireField] = useState<{ latitude: number; longitude: number }[] | null>(
+    null,
+  )
+  const [fireSeq, setFireSeq] = useState(0)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
   // When the client pacer is sleeping off a quota deficit, the wall-clock
@@ -143,9 +156,6 @@ export function useAnalyze(
   // forecast on screen to add a few. It helps any re-analysis at the same
   // window and model — a pasted destination, a toggled unnamed-peaks — since
   // reuse is decided per destination rather than per reason.
-  //
-  // Null on the server path by construction: that path is handed trimmed rows
-  // and no field, so there is nothing to reuse and nothing to reuse it for.
   const heldForecastsRef = useRef<{
     rows: DestinationResult[]
     times: number[]
@@ -195,6 +205,7 @@ export function useAnalyze(
     setAnalyzed(null)
     setError(null)
     setRefusal(null)
+    setFireField(null)
     lastRequestRef.current = null
     heldForecastsRef.current = null
   }
@@ -342,6 +353,11 @@ export function useAnalyze(
     // settles, exactly like the streaming endpoint's up-front progress event.
     setProgress({ processed: 0, total: candidates.length, percent: 0 })
 
+    // Publish the fire check's field now, so its NIFC lookup overlaps the
+    // weather fetch below — see fireField's declaration.
+    setFireField(candidates.map((c) => ({ latitude: c.latitude, longitude: c.longitude })))
+    setFireSeq((n) => n + 1)
+
     const { response: data, universe: fullField } = await runClientAnalysis(
       request,
       candidates,
@@ -419,6 +435,10 @@ export function useAnalyze(
       // like every other provider failure, with its own message.
       await analyzeViaClient(request, kind, controller.signal)
     } catch (e) {
+      // The published fire field describes an analysis that will never
+      // commit; drop it so the check falls back to the report still on
+      // screen rather than describing rows that never arrived.
+      setFireField(null)
       // User-initiated cancel — not an error worth surfacing.
       if (e instanceof DOMException && e.name === 'AbortError') {
         setStatusMessage(null)
@@ -459,6 +479,8 @@ export function useAnalyze(
     reset,
     analyzed,
     analysisSeq,
+    fireField,
+    fireSeq,
     loading,
     error,
     refusal,

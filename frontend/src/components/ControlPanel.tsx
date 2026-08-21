@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useRef } from 'react'
 import { CustomDestination, DiscoveryType, SortBy } from '../types'
 import { Refusal } from '../hooks/useAnalyze'
+import { FIRE_UNAVAILABLE_NOTE } from '../utils/fireProximity'
 // Above this drawn area, an informational note warns that dense regions can
 // exceed the destination limit and searches slow down. Advisory only: the hard
 // gate is the deployment's published polygon cap, which arrives as maxAreaKm2.
@@ -383,9 +384,9 @@ export default function ControlPanel({
   const footerWarnings = [
     ...(commitReason && !loading ? [COMMIT_CUE[commitReason]] : []),
     ...blockers.map((blocker) => blockerText(blocker, maxAreaKm2, pointsNeeded)),
-    ...(wildfireCheckFailed && !loading
-      ? ['NIFC is unreachable, so wildfire proximity data is unavailable.']
-      : []),
+    // The same sentence the N/A cells' hover text shows, from one constant,
+    // so the panel and the table cannot describe one failure two ways.
+    ...(wildfireCheckFailed && !loading ? [FIRE_UNAVAILABLE_NOTE] : []),
   ]
 
   // The filter grid, one row per bounded thing.

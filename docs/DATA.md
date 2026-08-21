@@ -186,7 +186,7 @@ of running in your browser the way the weather fetch does.
 ## Wildfires
 
 The optional perimeter overlay and the proximity warnings on result rows both
-come from NIFC's WFIGS service. The warnings run after every analysis whether or
+come from NIFC's WFIGS service. The warnings run with every analysis whether or
 not the overlay is switched on, and measure to the fire perimeter rather than
 its centroid, because a large fire's centroid can sit many miles inside its own
 edge.
@@ -218,12 +218,23 @@ for a surveyed product and not a sign of stale data on this end. If you are
 calling the API directly, the response also carries `fetched_at`, saying how
 current the copy itself is; see [API.md](API.md#wildfire-perimeters).
 
-WFIGS is the authoritative national dataset and it is **United States only**.
-Outside the US the query returns nothing, which draws as an empty overlay and
-warns on no rows, and that is indistinguishable from "nothing burning nearby."
+WFIGS is the authoritative national dataset and it is **United States only** —
+the layer's checkbox says so. The API publishes what that means as a
+`coverage` geometry riding every `/api/wildfires` response (a coarse US
+outline, biased slightly outward, split at the antimeridian for the
+Aleutians), and the app compares every analyzed destination against it, row
+by row. A destination outside coverage reads `N/A` in the table's
+**Wildfire (mi)** column and in the same column of a downloaded CSV, so a
+missing warning is never mistaken for a clear check (a dash in the table, a
+blank cell in the file) — while a covered destination in the same table keeps
+its real answer. The outline is
+coarse to roughly ±50 km, so a trip hugging the border may read as covered
+from just outside it; the bias errs toward keeping a real US warning over
+silencing a Canadian false one.
 
-Both features remain best-effort, and a failed check is not silent. The results
-header says **Wildfire check unavailable** and a downloaded CSV omits its
+Both features remain best-effort, and a failed check is not silent. Every
+row's **Wildfire (mi)** cell reads `N/A` with the reason as its hover text, a
+warning under Analyze says NIFC is unreachable, and a downloaded CSV omits its
 wildfire column rather than leaving it blank on every row. Reaching that state
 now requires a server that has never once completed a fetch since it started,
 rather than a single unlucky request. A blank cell in that column means the

@@ -13,7 +13,7 @@
 // not be unit-tested at all; the download itself is seven lines in App.tsx.
 
 import { DestinationResult } from '../types'
-import { ColDef } from './tableColumns'
+import { ColDef, WILDFIRE_COL, WILDFIRE_KEY } from './tableColumns'
 import { DATA_SOURCES } from './dataSources'
 import { FireWarning, fireKey } from './fireProximity'
 
@@ -28,17 +28,13 @@ import { FireWarning, fireKey } from './fireProximity'
 const RANK_HEADER = 'Rank'
 
 /**
- * Distance to the nearest active wildfire, which the table carries as the ⚠️
- * beside a name and its tooltip. A file has nowhere to hover, so the number
- * that the tooltip spells out becomes a column of its own.
- *
- * "Nearby" rather than plain "Distance" because the column is not a distance
- * to everything: it is populated only within the warning radius, and blank
- * beyond it. A header reading "Wildfire Distance" invites the blank cells to be
- * read as an unknown or a zero, when what they mean is "no active fire is
- * near". The word carries the threshold that the numbers alone cannot.
+ * Distance to the nearest active wildfire. The table draws the same column
+ * under the same header (WILDFIRE_COL, so screen and file cannot disagree on
+ * the name); it is appended here rather than riding in `columns` because its
+ * value lives in the fire lookup's map, not on the row, and because its
+ * presence is a statement of its own — see buildResultsCsv below.
  */
-const FIRE_HEADER = 'Nearby Wildfire (mi)'
+const FIRE_HEADER = WILDFIRE_COL.label
 
 /**
  * Byte-order mark.
@@ -82,6 +78,9 @@ function escapeCell(value: string): string {
  * numeric column and poisons every average computed over it.
  */
 function cell(row: DestinationResult, col: ColDef): string {
+  // The wildfire column never reaches here (this module appends it with its
+  // own cell), but its key is virtual and must not index a row.
+  if (col.key === WILDFIRE_KEY) return ''
   const raw = row[col.key]
   if (raw == null) return ''
   const project = col.csv ?? col.format
@@ -89,15 +88,26 @@ function cell(row: DestinationResult, col: ColDef): string {
 }
 
 /**
- * Miles to the nearest active fire, or an empty cell.
+ * Miles to the nearest active fire, an empty cell, or N/A.
  *
  * No threshold test: useFireProximity only admits warnings within
- * FIRE_WARN_MILES, so presence in the map is the condition. An empty cell here
- * means the check ran and found nothing within that radius, which is only true
- * because the caller withholds the map entirely when it did not run.
+ * FIRE_WARN_MILES, so presence in the map is the condition. An empty cell
+ * means the check ran and cleared the row (the table renders the same state
+ * as its dash), which is only true because the caller withholds the map
+ * entirely when the check did not run. `N/A` is the row that was never
+ * checked (#256): outside the fire dataset's US-only coverage, where a blank
+ * would assert a clear check the data cannot make. The one divergence from
+ * fireCellText is the bare number: text beside it would turn every warned
+ * cell into a string.
  */
-function fireCell(row: DestinationResult, warnings: ReadonlyMap<string, FireWarning>): string {
-  const warning = warnings.get(fireKey(row.latitude, row.longitude))
+function fireCell(
+  row: DestinationResult,
+  warnings: ReadonlyMap<string, FireWarning>,
+  uncovered: ReadonlySet<string>,
+): string {
+  const key = fireKey(row.latitude, row.longitude)
+  if (uncovered.has(key)) return 'N/A'
+  const warning = warnings.get(key)
   return warning ? warning.miles.toFixed(1) : ''
 }
 
@@ -164,6 +174,7 @@ export function buildResultsCsv(
   columns: readonly ColDef[],
   fireWarnings: ReadonlyMap<string, FireWarning> | null,
   pendingRows: readonly DestinationResult[] = [],
+  fireUncovered: ReadonlySet<string> = new Set(),
 ): string {
   const header = [RANK_HEADER, ...columns.map((c) => c.label)]
   if (fireWarnings) header.push(FIRE_HEADER)
@@ -178,7 +189,7 @@ export function buildResultsCsv(
   })
   const body = rows.map((row, i) => {
     const cells = [String(i + 1), ...columns.map((c) => cell(row, c))]
-    if (fireWarnings) cells.push(fireCell(row, fireWarnings))
+    if (fireWarnings) cells.push(fireCell(row, fireWarnings, fireUncovered))
     return cells
   })
   const doc = [header, ...pendingBody, ...body, [''], ...creditRows(fireWarnings != null)]

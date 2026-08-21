@@ -270,6 +270,9 @@ describe('every component', () => {
     './components/ControlPanel.tsx': 4,
     // What Hourly actually does to a multi-day window (label + segment).
     './components/ForecastCalendar.tsx': 2,
+    // The Wildfire (mi) cell's one `title`: the fire's name on a warned row,
+    // or which of its two causes an N/A carries (TJ, PR #275 review).
+    './components/ResultsTable.tsx': 1,
   }
 
   it.each(Object.entries(sources))('%s carries only its approved tooltips', (path, source) => {

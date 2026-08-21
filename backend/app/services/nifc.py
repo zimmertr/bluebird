@@ -46,6 +46,7 @@ from typing import Any
 
 import httpx
 
+from app.services import wfigs_coverage
 from app.services.errors import UpstreamError, UpstreamRateLimited, classify_http_error
 from app.services.snapshot import SnapshotCache
 
@@ -171,6 +172,11 @@ def collection_json(snapshot: Snapshot, fires: list[Fire]) -> str:
     return (
         '{"type":"FeatureCollection","fetched_at":'
         + str(snapshot.fetched_at_ms)
+        # What the dataset covers, so an empty answer outside the US reads as
+        # "not covered" rather than "nothing burning" (#256). Static, so it is
+        # a second foreign member rather than a second endpoint.
+        + ',"coverage":'
+        + wfigs_coverage.COVERAGE_JSON
         + ',"features":['
         + ",".join(f.blob for f in fires)
         + "]}"

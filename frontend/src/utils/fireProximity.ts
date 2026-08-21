@@ -3,7 +3,7 @@
 // it), not to a centroid — a large fire's centroid can be many miles from its
 // edge, so a centroid check would badly under-warn. Everything here is pure and
 // deterministic; the fetch/lifecycle lives in hooks/useFireProximity.ts.
-import type { FeatureCollection, Feature, Geometry, Position } from 'geojson'
+import type { FeatureCollection, Feature, Geometry, MultiPolygon, Position } from 'geojson'
 import type { BBox, WildfireProps } from './wildfires'
 
 export const FIRE_WARN_MILES = 10
@@ -29,6 +29,17 @@ export function fireWarningText(w: FireWarning): string {
   if (w.miles < 0.1) return `Inside an active wildfire perimeter (${w.name})`
   return `${w.miles.toFixed(1)} mi from an active wildfire (${w.name})`
 }
+
+/**
+ * The two hover texts an N/A cell carries (TJ, PR #275 review). One N/A mark
+ * covers two causes, and the tooltip is what tells them apart: the row sat
+ * outside the dataset's coverage, or the whole check failed. The second is
+ * the same sentence the panel's footer warning shows, so the cell and the
+ * panel cannot describe one failure two ways.
+ */
+export const FIRE_UNCOVERED_NOTE = 'NIFC wildfire proximity data is only available in the USA'
+export const FIRE_UNAVAILABLE_NOTE =
+  'NIFC is unreachable, so wildfire proximity data is unavailable.'
 
 /**
  * Identity of a SET of destinations, order-independent.
@@ -136,6 +147,63 @@ function distanceToFeatureMiles(lat: number, lon: number, geom: Geometry | null)
 function featureFireName(props: WildfireProps | null): string {
   const p = props ?? {}
   return (p.attr_IncidentName || p.poly_IncidentName || '').trim() || 'unnamed fire'
+}
+
+/**
+ * The Wildfire (mi) column's on-screen cell once the check has answered
+ * (#256). Three states, each visible (TJ, PR #275 review): the ⚠️ and the
+ * mileage where a fire is within FIRE_WARN_MILES (the column is the flag's
+ * only home — the name column carries nothing, so one row never warns
+ * twice), the dash where the check ran and cleared the row, and `N/A` where
+ * the row was never checked because it sits outside the fire dataset's
+ * US-only coverage. Cleared and unchecked stay distinct marks so a missing
+ * warning is never mistaken for a clear check. The CSV renders its own cell
+ * (resultsCsv.ts): a file needs the number bare to stay parseable, where
+ * this string is written for a human reading a row.
+ */
+export function fireCellText(warning: FireWarning | undefined, uncovered: boolean): string {
+  if (warning) return `⚠️ ${warning.miles.toFixed(1)}`
+  return uncovered ? 'N/A' : '—'
+}
+
+/**
+ * The same cell while the check is still running: a ticking trail of middle
+ * dots — the separator glyph the app already speaks (`Precipitation ·
+ * Total`), so the loader reads as the product's own punctuation rather than
+ * a terminal cursor. Frames rather than a spinner because the cell is a text
+ * column in a font-mono table — a glyph animation stays in the type system
+ * and costs no layout. The component owns the clock (and mutes the type);
+ * this owns the frames so the sequence is testable without a DOM.
+ */
+export const FIRE_LOADING_FRAMES = ['·', '··', '···', ''] as const
+
+export function fireLoadingFrame(tick: number): string {
+  return FIRE_LOADING_FRAMES[((tick % FIRE_LOADING_FRAMES.length) + FIRE_LOADING_FRAMES.length) % FIRE_LOADING_FRAMES.length]
+}
+
+/**
+ * The destinations the fire dataset cannot see, keyed by `fireKey` (#256).
+ *
+ * `coverage` is the server-published WFIGS outline (a coarse US shape, split
+ * at the antimeridian so the plain ray cast above needs no wraparound case).
+ * A point outside it was never checked, and the table and the CSV mark its
+ * wildfire cell `N/A` per row rather than raising one report-wide banner — a
+ * Cascades row and a British Columbia row in the same table each say what
+ * happened to them. A missing `coverage` (an older server) returns the empty
+ * set, which degrades to the old trust-the-empty-answer behavior.
+ */
+export function uncoveredKeys(
+  points: { latitude: number; longitude: number }[],
+  coverage: MultiPolygon | undefined,
+): Set<string> {
+  const out = new Set<string>()
+  if (!coverage) return out
+  for (const p of points) {
+    if (!coverage.coordinates.some((polygon) => pointInRing(p.longitude, p.latitude, polygon[0]))) {
+      out.add(fireKey(p.latitude, p.longitude))
+    }
+  }
+  return out
 }
 
 // The nearest active fire to (lat, lon), or null when there are none. Distance is
