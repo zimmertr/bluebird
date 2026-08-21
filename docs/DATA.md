@@ -114,8 +114,9 @@ fixed rather than fetched: real level heights move a few percent with
 weather, less than the model's own terrain error. Two caveats. This is still
 a model's free-air wind, not a gust or a summit anemometer, and local
 funneling can exceed it. And the map's forecast-grid overlay paints the 10 m
-wind — its lattice points have no elevations to adjust to — so its legend
-says `Wind (10 m)` while the markers above it carry the adjusted values.
+wind — its lattice points have no elevations to adjust to — so on a wind
+ranking the field under a summit marker can read calmer than the marker
+standing on it.
 
 History reaches back only as far as the forecast endpoint's own archive, and
 that archive is shorter than the range of dates the endpoint will accept. Past

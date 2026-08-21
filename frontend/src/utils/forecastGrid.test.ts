@@ -12,7 +12,6 @@ import {
   type GridCell,
   type GridSpec,
 } from './forecastGrid'
-import { WIND_GRID_NOTE } from '../metrics'
 import { resultsFeatureCollection } from './resultFeatures'
 import type { DestinationResult } from '../types'
 import type { AqiResult, WeatherResult } from './openMeteo'
@@ -201,18 +200,10 @@ describe('gridLegendLine', () => {
     expect(gridLegendLine(false, 3, null, true).value).toBe('Unavailable')
   })
 
-  it('notes the measurement height only while painting wind (#257)', () => {
-    // The markers carry wind at each destination's elevation; the lattice has
-    // no elevations and paints the 10 m wind, and the note is what says so.
-    expect(gridLegendLine(true, 3, null, false, 'wind').note).toBe(WIND_GRID_NOTE)
-    // Every other metric is measured identically by grid and markers, and an
-    // unpainted grid shows no colors for the note to qualify.
-    expect(gridLegendLine(true, 3, null, false, 'temp').note).toBeNull()
-    expect(gridLegendLine(true, 3, null, false, 'precip').note).toBeNull()
-    expect(gridLegendLine(true, 3, null, false, 'aqi').note).toBeNull()
-    expect(gridLegendLine(false, 3, null, false, 'wind').note).toBeNull()
-    expect(gridLegendLine(false, 3, 45, false, 'wind').note).toBeNull()
-    expect(gridLegendLine(false, 3, null, true, 'wind').note).toBeNull()
+  it('stays one row even though the grid paints 10 m wind under adjusted markers (#257)', () => {
+    // The measurement-height difference is documented in DATA.md; a second
+    // legend line was tried and rejected for its vertical cost.
+    expect(Object.keys(gridLegendLine(true, 3, null))).toEqual(['label', 'value'])
   })
 
   it('ranks the four states so the most specific answer wins', () => {

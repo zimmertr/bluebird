@@ -41,7 +41,6 @@ import type { Coordinate, WeatherResult, AqiResult } from './openMeteo'
 import { assemble } from './clientAnalyze'
 import { alignRowToGrid } from './chartData'
 import { NO_VALUE, bearingAt, fillColor } from './resultFeatures'
-import { MetricFamily, WIND_GRID_NOTE } from '../metrics'
 
 /** One cell's extent: `[west, south, east, north]` in degrees. */
 export type CellBox = [number, number, number, number]
@@ -154,34 +153,23 @@ export function pitchLabel(pitchKm: number): string {
  * same question: not merely that nothing has arrived, but that nothing is being
  * asked for yet.
  *
- * `note` is the one fact the grid must add while it paints wind (issue #257):
- * the field is the 10 m wind, where the markers standing on it carry wind at
- * each destination's elevation. It rides as its own field rather than joining
- * `value` because label + composed value measure ~180px against the legend
- * box's ~156px of content — the caller renders it as a second right-aligned
- * line under the row. Null in every other state and for every other metric,
- * which the grid measures identically to the markers.
+ * The grid's wind field is the 10 m wind while the markers carry wind at each
+ * destination's elevation (issue #257). That difference is documented in
+ * DATA.md rather than stated here: a second legend line was tried and
+ * rejected, because vertical space on the map is the scarcest thing the app
+ * has (TJ, 2026-08-21).
  */
 export function gridLegendLine(
   painted: boolean,
   pitchKm: number,
   paceRemainingS: number | null,
   failed = false,
-  family: MetricFamily | null = null,
-): { label: string; value: string; note: string | null } {
+): { label: string; value: string } {
   const label = 'Forecast grid'
-  if (painted) {
-    return {
-      label,
-      value: pitchLabel(pitchKm),
-      note: family === 'wind' ? WIND_GRID_NOTE : null,
-    }
-  }
-  if (failed) return { label, value: 'Unavailable', note: null }
-  if (paceRemainingS !== null && paceRemainingS > 0) {
-    return { label, value: 'Waiting', note: null }
-  }
-  return { label, value: 'Loading', note: null }
+  if (painted) return { label, value: pitchLabel(pitchKm) }
+  if (failed) return { label, value: 'Unavailable' }
+  if (paceRemainingS !== null && paceRemainingS > 0) return { label, value: 'Waiting' }
+  return { label, value: 'Loading' }
 }
 
 /**
