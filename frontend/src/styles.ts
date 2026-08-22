@@ -770,20 +770,32 @@ export const NOTICE = {
  * 2026-08-22); which dismissal it triggers, and when that dismissal expires,
  * is `utils/notices.ts`'s business, not this recipe's.
  *
- * No resting color of its own: the glyph inherits its box's `STATUS` voice,
- * so each notice stays monochrome — a slate X here would read as chrome that
- * escaped into a status message. Measured on the tinted fills over the panel:
- * amber-300 on `NOTICE.warn` is 10.53:1, red-400 on `NOTICE.error` is 5.75:1,
- * sky-300 on `NOTICE.info` is 8.66:1, all past the 3:1 a UI glyph owes; the
- * hover's white is 14:1+. Pinned in styles.test.ts so a fill or `STATUS`
- * change forces a re-measurement.
+ * Two parts, because the touch target and the visible control must be
+ * different sizes. The `button` carries `TAP.action` in-flow, so on touch
+ * the 44px target grows the box's first row rather than overhanging it —
+ * the Analyze button sits directly above, and an absolutely-positioned
+ * square would cover its bottom edge. The `pill` inside it is what the eye
+ * gets: a 20px disc, the panel close button's idiom at notice scale, so the
+ * X reads as a control rather than a stray character. `-mt-0.5` drops the
+ * disc's centre onto the first text line's centre (a 20px disc against a
+ * 16px text-xs line box is otherwise 2px low).
  *
- * `TAP.action` rides in-flow, so on touch the target grows the box's first
- * row rather than overhanging it — the Analyze button sits directly above,
- * and an absolutely-positioned 44px square would cover its bottom edge.
+ * The fill is `white/10`, deliberately hue-free so one recipe sits on all
+ * three tints; at 1.36:1 against the box it is an affordance, not the
+ * boundary, and owes no ratio — the glyph is the icon and it does. The
+ * glyph inherits its box's `STATUS` voice (a slate X would read as chrome
+ * that escaped into a status message). Measured on the pill backdrop
+ * (fill + white/10 over the panel): amber-300 7.74:1, red-400 4.26:1,
+ * sky-300 6.35:1, all past the 3:1 a UI glyph owes; the hover's white on
+ * the `white/15` hover fill is 8.9:1+. Pinned in styles.test.ts so a fill
+ * or `STATUS` change forces a re-measurement.
  */
-export const NOTICE_DISMISS =
-  `${TAP.action} self-start px-1 hover:text-white transition-colors ${FOCUS_RING}`
+export const NOTICE_DISMISS = {
+  button: `group ${TAP.action} self-start -mt-0.5 hover:text-white transition-colors ${FOCUS_RING}`,
+  pill:
+    `flex h-5 w-5 items-center justify-center ${RADIUS.pill} ` +
+    `bg-white/10 transition-colors group-hover:bg-white/15`,
+} as const
 
 /**
  * The two weights of rule in the control panel.

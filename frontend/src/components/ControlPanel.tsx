@@ -288,24 +288,26 @@ function FooterNotice({
             type="button"
             onClick={onDismiss}
             aria-label="Dismiss notice"
-            className={NOTICE_DISMISS}
+            className={NOTICE_DISMISS.button}
           >
-            {/* A drawn cross rather than the "×" character, for the reason the
-                panel's own close button documents: that glyph centres on the
-                font's maths, where two lines in a square viewBox centre by
-                construction. */}
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              className="h-3 w-3"
-              aria-hidden="true"
-            >
-              <line x1="6" y1="6" x2="18" y2="18" />
-              <line x1="18" y1="6" x2="6" y2="18" />
-            </svg>
+            <span className={NOTICE_DISMISS.pill}>
+              {/* A drawn cross rather than the "×" character, for the reason
+                  the panel's own close button documents: that glyph centres on
+                  the font's maths, where two lines in a square viewBox centre
+                  by construction. */}
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                className="h-2.5 w-2.5"
+                aria-hidden="true"
+              >
+                <line x1="6" y1="6" x2="18" y2="18" />
+                <line x1="18" y1="6" x2="6" y2="18" />
+              </svg>
+            </span>
           </button>
         )}
       </div>
