@@ -98,6 +98,28 @@ Bluebird's own [PolyForm Noncommercial license](../LICENSE) lines up with that
 tier deliberately. A commercial deployment would need an arrangement with
 Open-Meteo as well as one here.
 
+**Wind is reported at the destination's own elevation.** Open-Meteo's
+`wind_speed_10m` measures 10 meters above the *model's* terrain, which is
+smoothed to the model's grid and sits inside the friction layer — on a summit
+it understates what a person feels, and during a measured November storm the
+100 m wind ran more than twice the 10 m value over Cascade summits
+([#257](https://github.com/zimmertr/bluebird/issues/257)). So each hourly
+fetch also carries the free-air wind at five pressure levels (925 / 850 /
+700 / 600 / 500 hPa), and every wind number interpolates between the two
+levels bracketing the destination's elevation, floored at the 10 m value —
+free air can only add exposure, never shelter. Destinations with no known
+elevation, or below the lowest level (~762 m — a valley really is sheltered),
+report the plain 10 m wind. The level heights are the standard atmosphere's,
+fixed rather than fetched: real level heights move a few percent with
+weather, less than the model's own terrain error. Two caveats. This is still
+a model's free-air wind, not a gust or a summit anemometer, and local
+funneling can exceed it. And the map's forecast-grid overlay adjusts each
+sample to the terrain height Open-Meteo resolves for that coordinate (its
+~90 m elevation model, reported on every response) rather than to any
+destination's claimed height — so high ground paints its real winds, but a
+summit marker can still read somewhat windier than the cell containing it,
+because the cell's height is the ground at the sample point, not the peak.
+
 History reaches back only as far as the forecast endpoint's own archive, and
 that archive is shorter than the range of dates the endpoint will accept. Past
 roughly two months a request still succeeds and comes back with no numbers in

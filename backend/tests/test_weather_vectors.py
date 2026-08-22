@@ -33,8 +33,15 @@ def _window(case: dict) -> tuple[datetime, datetime]:
 @pytest.mark.parametrize("case", VECTORS["weather"], ids=lambda c: c["name"])
 def test_weather_reference_reproduces_vectors(case):
     start, end = _window(case)
-    assert weather._metrics(case["payload"], start, end) == case["expected_metrics"]
-    assert weather._series(case["payload"], start, end) == case["expected_series"]
+    elevation_ft = case.get("elevation_ft")
+    assert (
+        weather._metrics(case["payload"], start, end, elevation_ft)
+        == case["expected_metrics"]
+    )
+    assert (
+        weather._series(case["payload"], start, end, elevation_ft)
+        == case["expected_series"]
+    )
 
 
 @pytest.mark.parametrize("case", VECTORS["aqi"], ids=lambda c: c["name"])

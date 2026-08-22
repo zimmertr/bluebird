@@ -33,7 +33,15 @@ import {
   LINK,
   PROSE,
   RADIUS,
+  RECESSED_EDGE,
+  RECESSED_FILL,
   SEGMENT_FLUID,
+  CONTROL_SIZE,
+  SLIDER_IDLE,
+  STATUS,
+  SLIDER_OVERLAY,
+  SLIDER_VALUE,
+  SLIDER_WORDMARK,
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
@@ -45,7 +53,14 @@ import {
 } from './styles'
 import { NOUN, familyOf, rankedNoun } from './metrics'
 import { METRIC_CONFIG, hourlyScale } from './utils/colors'
-import { FALLBACK_PITCH_KM, gridLegendLine, type GridStyle } from './utils/forecastGrid'
+import {
+  FALLBACK_PITCH_KM,
+  GRID_REACH_DEFAULT_FRAC,
+  gridLegendLine,
+  pitchLabel,
+  reachKmFor,
+  type GridStyle,
+} from './utils/forecastGrid'
 import {
   RADAR_FRAME_COUNT,
   IEM_HREF,
@@ -110,12 +125,15 @@ import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
 // than anything the metric box holds (the bare metric title ≤ 85px at
 // TEXT.overline, the widest band row 113px).
 //
-// Measured 2026-07-31 in Chrome on macOS, the widest face in the stack: the
-// label is 122.1px unwrapped, plus the 12px swatch and its 6px gap, so the row
-// needs 140.1px. w-40 leaves exactly 140px inside the px-2.5 padding and wraps
-// by a tenth of a pixel, which is why this is the next step up: w-44 leaves
-// 154px, ~14px of slack. Re-measure before lengthening a line in either box.
-const LEGEND_WIDTH = 'w-44'
+// Measured 2026-07-31 in Chrome on macOS, the widest face was then the fire
+// credit row at 140.1px. The governor moved again when the grid legend's wait
+// gained its countdown (#288): "Forecast grid" against "Waiting · 99s" is the
+// new widest row — measured 2026-08-21 in Chrome on macOS at 74.7 + 74.1 +
+// the 8px gap = 156.8px — and w-44's 154px wrapped the label by under three
+// pixels at two-digit seconds. w-48 leaves 172px, ~15px of slack; the
+// countdown switches to minutes past 99s so this row's widest case is
+// bounded. Re-measure before lengthening a line in either box.
+const LEGEND_WIDTH = 'w-48'
 
 // The two map buttons are one pair and are sized as one: same width, same
 // height, stacked in a column where any difference between them reads as a
@@ -424,6 +442,24 @@ export default function App() {
   // and a reader can count them. Purely presentation over held samples, so
   // switching costs one re-render and nothing upstream.
   const [gridStyle, setGridStyle] = useState<GridStyle>(() => restored?.gridStyle ?? 'blocks')
+  // The coverage slider's committed BAR POSITION in [0, 1] — the kilometres
+  // derive from the model's pitch, so the position means the same thing on
+  // every model. Changing it re-grids on its own — the layer fetches for
+  // itself the way toggling it on does — so this is an overlay property,
+  // never a knob: commitNeeded does not know it exists.
+  const [gridReachFrac, setGridReachFrac] = useState<number>(
+    () => restored?.gridReachFrac ?? GRID_REACH_DEFAULT_FRAC,
+  )
+  // The slider's live position while a drag is in flight, or null at rest.
+  // Displaying the draft and committing on release is what keeps a drag from
+  // refetching the lattice per pixel.
+  const [gridReachDraft, setGridReachDraft] = useState<number | null>(null)
+  const commitGridReach = useCallback(() => {
+    if (gridReachDraft !== null) {
+      setGridReachFrac(gridReachDraft)
+      setGridReachDraft(null)
+    }
+  }, [gridReachDraft])
   // Summits OSM knows only by their height. Off by default: measured over one
   // 8x10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so
   // this roughly triples what an analysis costs and how often it refuses.
@@ -481,7 +517,13 @@ export default function App() {
     if (typeof localStorage === 'undefined') return null
     try {
       const stored = JSON.parse(localStorage.getItem('bluebird_view') ?? '{}')
-      if (stored.columns) return new Set(stored.columns)
+      // `columns2` is the set since the wildfire column joined the picker
+      // (#288). A set stored under the old key predates that choice and
+      // never contained the wildfire key, so reading it verbatim would hide
+      // the column for everyone with a stored preference — migrate it as
+      // "wildfire visible", which is what those users were seeing.
+      if (stored.columns2) return new Set(stored.columns2)
+      if (stored.columns) return new Set([...stored.columns, WILDFIRE_KEY])
     } catch {
       // Ignore localStorage errors
     }
@@ -491,9 +533,13 @@ export default function App() {
   useEffect(() => {
     try {
       const current = JSON.parse(localStorage.getItem('bluebird_view') ?? '{}')
+      delete current.columns
       localStorage.setItem(
         'bluebird_view',
-        JSON.stringify({ ...current, columns: columnVisibility ? [...columnVisibility] : undefined }),
+        JSON.stringify({
+          ...current,
+          columns2: columnVisibility ? [...columnVisibility] : undefined,
+        }),
       )
     } catch {
       // Ignore localStorage errors (SSR, quota, etc.)
@@ -792,6 +838,7 @@ export default function App() {
       showSmoke,
       showGrid,
       gridStyle,
+      gridReachFrac,
       pins: searched.places,
     }, caps.defaultForecastModel)
 
@@ -825,6 +872,7 @@ export default function App() {
     showSmoke,
     showGrid,
     gridStyle,
+    gridReachFrac,
     searched.places,
     writeUrl,
   ])
@@ -1206,20 +1254,19 @@ export default function App() {
   // Columns picker still wins; null means "all of them".
   const effectiveVisibleKeys = useMemo(() => {
     if (columnVisibility !== null) return columnVisibility
-    return new Set(csvColumns.map((c) => c.key as string))
+    return new Set([...csvColumns.map((c) => c.key as string), WILDFIRE_KEY])
   }, [columnVisibility, csvColumns])
   // Columns displayed in the table (filtered by visibility). The wildfire
-  // column is always last and always present — its cells, not the column,
-  // say where the check stands (ticking while it runs, answered when it has;
-  // ResultsTable owns that). The CSV keeps the stricter rule and carries the
-  // column only once the check answered, because a file is read detached
-  // from the app where a mid-flight column cannot resolve itself. It
-  // bypasses the Columns picker (and the stored visibility sets that predate
-  // it): a safety flag is not a metric preference, and the picker never
-  // lists it.
+  // column is last, shown by default, and toggleable in the Columns picker
+  // like everything else (TJ, 2026-08-21, reversing the #256-era always-on
+  // rule). While shown, its cells — not the column — say where the check
+  // stands (ticking while it runs, answered when it has; ResultsTable owns
+  // that). The CSV keeps the stricter rule and carries the column only once
+  // the check answered AND the column is shown, because a file's columns
+  // must not disagree with the screen's.
   const tableColumns = useMemo(() => {
     const cols = visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys)
-    return [...cols, WILDFIRE_COL]
+    return effectiveVisibleKeys.has(WILDFIRE_KEY) ? [...cols, WILDFIRE_COL] : cols
   }, [pointSample, view.sortBy, effectiveVisibleKeys])
 
   // × on a table row. Removing a searched place also deregisters it — else the
@@ -1445,8 +1492,19 @@ export default function App() {
     pitchKm:
       caps.forecastModels.find((m) => m.id === analyzed?.forecastModel)?.finestGridKm ??
       FALLBACK_PITCH_KM,
+    reachFrac: gridReachFrac,
+    // The live thumb position while dragging: the held field re-cuts to it in
+    // real time, and only a committed value can fetch.
+    displayReachFrac: gridReachDraft ?? gridReachFrac,
     analysisSeq,
   })
+  // The pitch the slider's kilometres read from: the analyzed model once a
+  // report is held (what the grid actually draws), the panel's pick before
+  // one exists — so the control never quotes the 13 km fallback at a reader
+  // who has GFS selected.
+  const gridReachPitchKm =
+    caps.forecastModels.find((m) => m.id === (analyzed?.forecastModel ?? forecastModel))
+      ?.finestGridKm ?? FALLBACK_PITCH_KM
   // Something is painted, which is what a legend can be keyed to. A field still
   // filling in has some, so the legend arrives with the first chunk rather than
   // with the last — a key to an empty map would be noise, but a key to a
@@ -1473,7 +1531,13 @@ export default function App() {
     grid.paceEndMs === null
       ? null
       : Math.max(0, Math.ceil((grid.paceEndMs - Math.max(paceNow, Date.now())) / 1000))
-  const gridLegend = gridLegendLine(gridPainted, grid.pitchKm, gridPaceRemainingS, gridFailed)
+  const gridLegend = gridLegendLine(
+    gridPainted,
+    grid.pitchKm,
+    gridPaceRemainingS,
+    gridFailed,
+    grid.complete,
+  )
 
   // Download the displayed report (#125). Everything that decides what the file
   // contains is already resolved above, so this only has to hand settled values
@@ -1490,7 +1554,10 @@ export default function App() {
     const csv = buildResultsCsv(
       tableRows,
       csvColumns,
-      fire.status === 'ready' ? fire.warnings : null,
+      // Null also when the column is hidden: buildResultsCsv drops the
+      // wildfire column on null, and a file must not carry a column the
+      // screen does not show.
+      fire.status === 'ready' && effectiveVisibleKeys.has(WILDFIRE_KEY) ? fire.warnings : null,
       // The table draws pending (un-analyzed) rows above the ranked ones, so
       // the file carries them too — identity columns filled, Rank and every
       // metric blank. Before the first analysis this is the whole file.
@@ -1951,9 +2018,23 @@ export default function App() {
                       // right-justifies its value like every other row, statuses
                       // included: one row breaking the column reads as a fault
                       // rather than as a distinction.
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center justify-between gap-2 whitespace-nowrap">
                         <span className={TEXT.control}>{gridLegend.label}</span>
-                        <span className={`${TEXT.control} flex-shrink-0`}>
+                        {/* Colored by state (TJ, 2026-08-21): amber while the
+                            grid is waiting or loading so a stall catches the
+                            eye, red when it failed, and the accent once the
+                            pitch is real. The size is the colorless
+                            CONTROL_SIZE because a color beside TEXT.control's
+                            own would resolve by stylesheet order. */}
+                        <span
+                          className={`${CONTROL_SIZE} ${
+                            gridLegend.kind === 'pitch'
+                              ? ACCENT.text
+                              : gridLegend.kind === 'error'
+                                ? STATUS.error
+                                : STATUS.warn
+                          } flex-shrink-0`}
+                        >
                           {gridLegend.value}
                         </span>
                       </div>
@@ -1991,7 +2072,11 @@ export default function App() {
               panel is collapsed) + place search. z-10 keeps it under the
               loading overlay (z-20) and the mobile drawer backdrop (z-30). */}
           <div className="absolute top-3 left-3 z-10 flex flex-col items-start gap-2">
-            <div className="flex items-start gap-2">
+            {/* Raised above its later siblings so the search dropdown paints
+                over the Layers button below it — both live in the top-left
+                cluster, and DOM order alone put the button on top (#288
+                review). */}
+            <div className="relative z-10 flex items-start gap-2">
               {!sidebarOpen && (
                 <button
                   onClick={() => setSidebarOpen(true)}
@@ -2039,26 +2124,76 @@ export default function App() {
                       <span>{label}</span>
                     </label>
                   ))}
-                  {/* The grid's one sub-choice, revealed by its own checkbox.
-                      The popover is 176px, so this takes the fluid segment
+                  {/* The grid's sub-choices, revealed by its own checkbox.
+                      The popover is 176px, so these take the fluid segment
                       rather than the panel's fixed 144px column — the same
                       reason the results bar's mode switch does. */}
                   {showGrid && (
-                    <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
-                      {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
-                        <button
-                          key={value}
-                          type="button"
-                          aria-pressed={gridStyle === value}
-                          onClick={() => setGridStyle(value)}
-                          className={`${SEGMENT_ITEM} ${
-                            gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
-                          } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
-                        >
-                          {value === 'blocks' ? 'Blocks' : 'Smooth'}
-                        </button>
-                      ))}
-                    </div>
+                    <>
+                      <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
+                        {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
+                          <button
+                            key={value}
+                            type="button"
+                            aria-pressed={gridStyle === value}
+                            onClick={() => setGridStyle(value)}
+                            className={`${SEGMENT_ITEM} ${
+                              gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
+                            } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
+                          >
+                            {value === 'blocks' ? 'Blocks' : 'Smooth'}
+                          </button>
+                        ))}
+                      </div>
+                      {/* The coverage slider: how far from each destination
+                          the grid reaches. The value and wordmark render
+                          TWICE — muted on the well, white inside the accent
+                          fill — with the top copy clipped to the fill, so the
+                          line stays readable at any position without a color
+                          racing another. Drag previews live (`gridReachDraft`)
+                          and commits on release, because each committed value
+                          is a refetch and a drag must not fetch per pixel. */}
+                      <div
+                        className={`relative mt-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${RECESSED_EDGE} ${RECESSED_FILL}`}
+                      >
+                        {(() => {
+                          const shown = gridReachDraft ?? gridReachFrac
+                          const pct = shown * 100
+                          const line = (
+                            <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-2">
+                              <span className={SLIDER_VALUE}>
+                                {pitchLabel(reachKmFor(gridReachPitchKm, shown))}
+                              </span>
+                              <span className={SLIDER_WORDMARK}>Coverage</span>
+                            </div>
+                          )
+                          return (
+                            <>
+                              <div className={`absolute inset-0 ${SLIDER_IDLE}`}>{line}</div>
+                              <div
+                                className={`absolute inset-0 ${ACCENT.fill}`}
+                                style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}
+                              >
+                                {line}
+                              </div>
+                            </>
+                          )
+                        })()}
+                        <input
+                          type="range"
+                          aria-label="Coverage"
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={Math.round((gridReachDraft ?? gridReachFrac) * 100)}
+                          onChange={(e) => setGridReachDraft(Number(e.target.value) / 100)}
+                          onPointerUp={commitGridReach}
+                          onKeyUp={commitGridReach}
+                          onBlur={commitGridReach}
+                          className={SLIDER_OVERLAY}
+                        />
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -2408,7 +2543,7 @@ export default function App() {
         <ColumnsPicker
           open={columnsOpen}
           onOpenChange={setColumnsOpen}
-          columns={csvColumns}
+          columns={[...csvColumns, WILDFIRE_COL]}
           sortBy={view.sortBy}
           visibleKeys={effectiveVisibleKeys}
           onVisibilityChange={setColumnVisibility}

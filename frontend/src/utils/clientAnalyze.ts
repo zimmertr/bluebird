@@ -541,6 +541,9 @@ export async function runClientAnalysis(
   const coords: Coordinate[] = unforecast.map((d) => ({
     latitude: d.latitude,
     longitude: d.longitude,
+    // The fetch adjusts wind to this height (issue #257); a lattice point
+    // in useForecastGrid sends none and keeps the 10 m wind.
+    elevation_ft: d.elevation_ft,
   }))
 
   // One controller spans every fetch this analysis makes: the first fatal

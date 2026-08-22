@@ -126,6 +126,8 @@ Once you have set your destinations and forecast window, three short sections sh
 
 Sort destinations by any metric: total precipitation, average wind, average temperature, or average AQI. The table re-ranks every destination in your analyzed area, not just the ones on screen, so the winners really are the extremes of the area. You can also see these four metrics in the table itself and click any of them to re-rank.
 
+Wind is reported at each destination's own elevation, not at the standard 10 meters above the model's terrain — on a summit the 10-meter value understates what you would feel, often by a factor of two. How the number is derived, and its limits, are in [DATA.md](DATA.md#open-meteo). Destinations with no known elevation show the plain near-ground wind.
+
 ### Map layers
 
 Four optional overlays, on the map's own **Layers** button rather than in the
@@ -195,9 +197,18 @@ Two things to know when reading it:
   at one forecast, and between two of them you are looking at a blend. Over a
   large area the points spread further apart to keep the request reasonable, and
   the legend says the spacing actually used.
-- **It covers where you looked.** The field spans the destinations the analysis
-  found plus a margin, and fades out at that edge. Panning away does not extend
-  it: every point is a live request rather than a pre-drawn tile.
+- **It covers where you looked.** The field extends a set distance around each
+  destination the analysis found — the **Coverage** slider under the style
+  toggle — and fades out at that edge. The slider's range follows the model:
+  from one to four of its own grid cells around each destination, with the
+  default in the middle. On NOAA GFS's 3 km grid that is 3 to 12 km; on
+  ECMWF's 25 km grid, 25 to 100 km. Destinations far apart each get their own
+  patch, and the gap between them stays empty: a list with peaks on two
+  continents grids as two local fields, never as one band across the ocean
+  between. Shrinking follows the thumb in real time from points already
+  fetched; only growing past what has been fetched asks for more, on release.
+  Panning away does not extend it: every point is a live request rather than a
+  pre-drawn tile.
 
 The field can disagree with a marker standing on it. A 3 km grid cell holds a summit
 and the valley floor below it, and the model answers for the cell rather than for

@@ -25,6 +25,8 @@ import {
   NOTICE,
   SCRUBBER,
   SCRUBBER_TRACK,
+  SLIDER_OVERLAY,
+  SLIDER_WORDMARK,
   SEGMENT,
   SEGMENT_FLUID,
   SEGMENT_IDLE,
@@ -551,6 +553,26 @@ describe('shared recipes', () => {
 
   it('gives the scrubber a keyboard-visible focus ring like every other control', () => {
     expect(SCRUBBER).toContain(FOCUS_RING)
+  })
+
+  // The coverage slider (#288) is the scrubber's argument a second time: a real
+  // range input, both vendor thumb spellings, a visible focus ring. Its track
+  // is drawn by the caller, so the input itself must be transparent full-bleed.
+  it('builds the coverage slider like the scrubber, transparent over its own track', () => {
+    expect(SLIDER_OVERLAY).toContain('appearance-none')
+    expect(SLIDER_OVERLAY).toContain('[&::-webkit-slider-thumb]:[appearance:none]')
+    expect(SLIDER_OVERLAY).toContain('[&::-moz-range-thumb]:[appearance:none]')
+    expect(SLIDER_OVERLAY).toContain(FOCUS_RING)
+    expect(SLIDER_OVERLAY).toContain('bg-transparent')
+    expect(SLIDER_OVERLAY).toContain('absolute inset-0')
+  })
+
+  // The wordmark is the overline's shape with no color of its own: its line
+  // renders twice, muted on the well and white inside the accent fill, and a
+  // baked-in color would race the layer's by stylesheet order.
+  it('keeps the slider wordmark colorless so each layer supplies its own', () => {
+    expect(SLIDER_WORDMARK).toContain('uppercase')
+    expect(SLIDER_WORDMARK).not.toMatch(/text-(slate|white)/)
   })
 
   // The rail is a separate element rather than the input's own track

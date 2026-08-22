@@ -41,7 +41,12 @@
  * not by their order in the class list, so a site cannot reliably brighten a
  * role it was handed — which is also why LINK below shares this exact color.
  */
-const MICRO = 'text-[10px] text-slate-300'
+// Size and color split so the coverage slider's wordmark below can take the
+// shape without the color: its line renders twice, muted on the well and white
+// inside the accent fill, and a color baked into the shape would race the
+// layer's by stylesheet order.
+const MICRO_SIZE = 'text-[10px]'
+const MICRO = `${MICRO_SIZE} text-slate-300`
 
 /**
  * The base size, stepped back: secondary text that is read, not scanned.
@@ -992,15 +997,69 @@ export const SELECT = `${FIELD} appearance-none pr-8`
  * is itself the target, so the height that matters is the input's, and the
  * thumb is a mark on it rather than a thing to hit.
  */
-export const SCRUBBER =
-  'w-full h-2 appearance-none cursor-pointer bg-transparent ' +
-  `${FOCUS_RING} ` +
+const SLIDER_THUMB =
   '[&::-webkit-slider-thumb]:[appearance:none] [&::-webkit-slider-thumb]:h-3.5 ' +
   '[&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:rounded-full ' +
   '[&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow ' +
   '[&::-moz-range-thumb]:[appearance:none] [&::-moz-range-thumb]:h-3.5 ' +
   '[&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full ' +
   '[&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white'
+
+export const SCRUBBER =
+  'w-full h-2 appearance-none cursor-pointer bg-transparent ' +
+  `${FOCUS_RING} ` +
+  SLIDER_THUMB
+
+/**
+ * The coverage slider's range input (#288), laid over a track the caller
+ * draws — the well, the accent fill, and the in-track line are its siblings,
+ * so the input itself is transparent and full-bleed. Same real
+ * `<input type="range">` argument as `SCRUBBER` above, and the same two
+ * vendor spellings for the same reason. The thumb is a slim full-height bar
+ * rather than the scrubber's dot: it marks the fill's edge, and a dot at
+ * that edge sat on top of the value the fill carries.
+ */
+const SLIDER_BAR_THUMB =
+  '[&::-webkit-slider-thumb]:[appearance:none] [&::-webkit-slider-thumb]:h-6 ' +
+  '[&::-webkit-slider-thumb]:w-1 [&::-webkit-slider-thumb]:rounded-sm ' +
+  '[&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow ' +
+  '[&::-moz-range-thumb]:[appearance:none] [&::-moz-range-thumb]:h-6 ' +
+  '[&::-moz-range-thumb]:w-1 [&::-moz-range-thumb]:rounded-sm ' +
+  '[&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white'
+
+export const SLIDER_OVERLAY =
+  'absolute inset-0 h-full w-full appearance-none cursor-pointer bg-transparent ' +
+  `${FOCUS_RING} ` +
+  SLIDER_BAR_THUMB
+
+/**
+ * The coverage slider's in-track wordmark: `TEXT.overline`'s shape without its
+ * color. The line renders twice — muted on the recessed well, and white where
+ * the accent fill has reached (the fill layer is `ACCENT.fill`, whose label
+ * color is not separable from it) — so the color belongs to the layer, never
+ * to this shape.
+ */
+export const SLIDER_WORDMARK = `${MICRO_SIZE} font-semibold uppercase tracking-wider`
+
+/**
+ * Control-size text with NO color of its own, for spans whose color is a
+ * separate role's to supply: the coverage slider's two-layer value, and the
+ * grid legend's value, which wears `STATUS.warn` while transient and
+ * `ACCENT.text` once settled. `TEXT.control` cannot serve these — its color
+ * is baked in, and a second color class beside it would resolve by
+ * stylesheet order rather than by intent.
+ */
+export const CONTROL_SIZE = 'text-xs'
+
+/** The slider's value readout: the colorless control size above. */
+export const SLIDER_VALUE = CONTROL_SIZE
+
+/**
+ * The coverage slider's un-filled text layer: the same idle slate the resting
+ * segment wears, carried by the layer rather than the shape so the filled
+ * copy of the identical line can be white without two colors racing.
+ */
+export const SLIDER_IDLE = 'text-slate-400'
 
 /**
  * The rail the scrubber slides on, drawn as the element behind it.

@@ -41,6 +41,7 @@ import type { Coordinate, WeatherResult, AqiResult } from './openMeteo'
 import { assemble } from './clientAnalyze'
 import { alignRowToGrid } from './chartData'
 import { NO_VALUE, bearingAt, fillColor } from './resultFeatures'
+import { SEP } from '../metrics'
 
 /** One cell's extent: `[west, south, east, north]` in degrees. */
 export type CellBox = [number, number, number, number]
@@ -73,16 +74,44 @@ export function isGridStyle(value: string): value is GridStyle {
  * 3 km is the one failure this whole feature exists to avoid.
  */
 export interface GridSpec {
+  /**
+   * The kept samples only — the cells within the coverage reach of a destination.
+   * `points`, `cells` and `indices` are parallel: position `i` in any of them
+   * describes the same sample. An array POSITION is the currency the fetch
+   * loop and `pairCells` trade in; the VIRTUAL lattice index in `indices[i]`
+   * (row-major from the lattice's south-west corner, over the full
+   * `cols × rows`) is what places a sample in the raster. Before the reach
+   * limit the lattice was dense and the two numbers coincided; they no longer
+   * do, and `indices` is the bridge.
+   */
   points: Coordinate[]
   cells: CellBox[]
+  indices: number[]
+  /**
+   * Each kept cell's distance to its nearest destination, in km — the number
+   * the reach compared against. Held so `gridView` can re-cut the SAME
+   * fetched lattice at a smaller reach without rebuilding or refetching
+   * anything: the coverage slider's shrink direction is a filter over these.
+   */
+  distancesKm: number[]
+  /** The VIRTUAL lattice shape — the raster image's dimensions. */
   cols: number
   rows: number
+  /** The lattice's outer south-west corner and per-cell steps, in degrees.
+   * `gridImageCoordinates` derives the raster's corners from these rather
+   * than from the first and last kept cell, which with a sparse lattice are
+   * not corners at all. */
+  west: number
+  south: number
+  latStep: number
+  lonStep: number
   pitchKm: number
 }
 
 /** One sampled cell: where it sits in the lattice, its square, and its forecast. */
 export interface GridCell {
-  /** Row-major index into `spec.points`. What places it in the raster. */
+  /** VIRTUAL lattice index (row-major over `cols × rows`), never an array
+   * position. What places the sample in the raster. */
   index: number
   box: CellBox
   row: DestinationResult
@@ -98,6 +127,56 @@ export interface GridCell {
  * legend says so.
  */
 export const MAX_GRID_CELLS = 600
+
+/**
+ * The coverage slider's span, in multiples of the MODEL's grid pitch.
+ *
+ * The grid exists to show the weather AROUND the places the analysis ranked,
+ * so a cell earns its fetch only near one of them. How far "around" reaches
+ * is model-relative (TJ, 2026-08-21): a fixed km range went dead on coarse
+ * models (a 10 km slider under ECMWF's 25 km cells had nothing to vary), so
+ * the slider spans one to four RINGS of the model's own cells and means the
+ * same thing on every model. The default sits dead-centre on the bar —
+ * 2.5 rings, 7.5 km on NOAA GFS's 3 km grid, 62.5 km on ECMWF's 25 km.
+ *
+ * The kilometres derive from the MODEL pitch, never the coarsened effective
+ * pitch: reach that grew with coarsening would keep the kept-cell count
+ * roughly constant per destination, and the cell cap could never converge on
+ * a field of scattered, far-apart destinations.
+ *
+ * Before any reach bound existed, one stray destination an ocean away
+ * stretched the lattice across the Atlantic and the 600-cell cap answered
+ * with a 181 km pitch — the whole budget spent on cells no destination was
+ * in (PR #288 review, 2026-08-21).
+ */
+export const GRID_REACH_MIN_X = 1
+export const GRID_REACH_MAX_X = 4
+/** The slider's default position, as a fraction of the bar: the middle. */
+export const GRID_REACH_DEFAULT_FRAC = 0.5
+
+/**
+ * The reach in km for a slider position, on a model of `modelPitchKm`.
+ *
+ * `frac` is the bar position in [0, 1], clamped rather than trusted — it
+ * arrives from the URL as well as from the control.
+ */
+export function reachKmFor(modelPitchKm: number, frac: number): number {
+  const pitch = modelPitchKm > 0 ? modelPitchKm : FALLBACK_PITCH_KM
+  const f = Math.min(1, Math.max(0, frac))
+  return pitch * (GRID_REACH_MIN_X + f * (GRID_REACH_MAX_X - GRID_REACH_MIN_X))
+}
+
+/**
+ * The raster's texture bound, per axis, in pixels.
+ *
+ * The lattice's virtual cols × rows becomes a MapLibre image source, which is
+ * a WebGL texture, and WebGL guarantees only 4096 as the minimum max-texture
+ * size — 2048 leaves margin for that floor. Without this bound two far-apart
+ * clusters keep a fine pitch (their KEPT cells fit the cap easily) while the
+ * virtual lattice between them grows a several-thousand-pixel-wide image that
+ * is almost entirely transparent.
+ */
+export const MAX_IMAGE_DIM = 2048
 
 /**
  * The pitch to fall back on when `/api/capabilities` sent no grid figure for a
@@ -151,19 +230,48 @@ export function pitchLabel(pitchKm: number): string {
  *
  * `Waiting` outranks `Loading` because it is the more specific answer to the
  * same question: not merely that nothing has arrived, but that nothing is being
- * asked for yet.
+ * asked for yet. And a PARTIAL field stalled behind the pacer says `Waiting`
+ * too, not its pitch: a half-painted field labelled `4.8 km` claims a picture
+ * it does not fully have, and the reader watches a frozen semicircle with a
+ * legend asserting all is well (#288 review). Once the fetch completes, the
+ * pitch is the answer even through a later pace — a whole field is a whole
+ * field.
+ *
+ * `Waiting` carries its countdown — `Waiting · 42s` — so the word explains
+ * itself and visibly is not frozen (TJ, 2026-08-21). And the caller colors
+ * the value by `kind`: the transient states wear the app's warning amber so
+ * a stall catches the eye, `Unavailable` wears the error red because it is
+ * the one state that already failed, and the settled pitch wears the accent
+ * — which is why kind rides the return rather than the caller re-deriving it
+ * from strings.
+ *
+ * The grid's wind field is the 10 m wind while the markers carry wind at each
+ * destination's elevation (issue #257). That difference is documented in
+ * DATA.md rather than stated here: a second legend line was tried and
+ * rejected, because vertical space on the map is the scarcest thing the app
+ * has (TJ, 2026-08-21).
  */
 export function gridLegendLine(
   painted: boolean,
   pitchKm: number,
   paceRemainingS: number | null,
   failed = false,
-): { label: string; value: string } {
+  complete = true,
+): { label: string; value: string; kind: 'pitch' | 'status' | 'error' } {
   const label = 'Forecast grid'
-  if (painted) return { label, value: pitchLabel(pitchKm) }
-  if (failed) return { label, value: 'Unavailable' }
-  if (paceRemainingS !== null && paceRemainingS > 0) return { label, value: 'Waiting' }
-  return { label, value: 'Loading' }
+  const pacing = paceRemainingS !== null && paceRemainingS > 0
+  // Minutes past 99 seconds: three-digit seconds are both harder to read and
+  // the one spelling that outgrows the legend box's measured width.
+  const wait =
+    paceRemainingS !== null && paceRemainingS > 99
+      ? `${Math.round(paceRemainingS / 60)}m`
+      : `${paceRemainingS}s`
+  const waiting = { label, value: `Waiting ${SEP} ${wait}`, kind: 'status' as const }
+  if (painted && !complete && pacing) return waiting
+  if (painted) return { label, value: pitchLabel(pitchKm), kind: 'pitch' }
+  if (failed) return { label, value: 'Unavailable', kind: 'error' }
+  if (pacing) return waiting
+  return { label, value: 'Loading', kind: 'status' }
 }
 
 /**
@@ -176,9 +284,15 @@ export function gridLegendLine(
  * cost is that samples hug where destinations were *found*: a polygon corner
  * holding no candidates gets none.
  *
- * Padded by one pitch on every side. That ring is what the raster fades out
- * through, so the field has a soft edge rather than a hard rectangle, and it
- * is the right ring to spend on it: it sits outside the destinations entirely.
+ * A cell exists only within `GRID_REACH_KM` of some destination — the lattice
+ * is the union of disks around the field, not the field's bounding box. Two
+ * far-apart clusters each get their own local patch at a fine pitch, and the
+ * ocean between them gets nothing: before this a single stray destination
+ * stretched one rectangle across the Atlantic and coarsened it to a 181 km
+ * pitch (PR #288 review). The reach also replaces the old one-pitch padding as
+ * the soft margin the raster fades out through. One consequence to know: a
+ * compact field's margin grew from one pitch to ~25 km, so its pitch coarsens
+ * slightly sooner than it used to.
  *
  * Returns `null` when there is nothing to grid, or when the field straddles the
  * antimeridian — a west/east bbox is genuinely ill-defined there, the same
@@ -188,10 +302,15 @@ export function gridLegendLine(
 export function buildGrid(
   field: readonly { latitude: number; longitude: number }[],
   pitchKm: number,
+  reachKm?: number,
   cap: number = MAX_GRID_CELLS,
 ): GridSpec | null {
   if (field.length === 0) return null
   const pitch = pitchKm > 0 ? pitchKm : FALLBACK_PITCH_KM
+  // Defaulted from the MODEL pitch at the bar's default position — never from
+  // the coarsened effective pitch, for the convergence reason the constants
+  // above record.
+  const reach = reachKm ?? reachKmFor(pitch, GRID_REACH_DEFAULT_FRAC)
 
   let south = Infinity
   let north = -Infinity
@@ -216,11 +335,28 @@ export function buildGrid(
   // same column count after a 2% coarsening and the pass changes nothing. Each
   // round therefore grows the pitch by at least 5%, which converges in a
   // handful of passes from any starting point and cannot loop.
+  //
+  // Two fits are demanded, and each can bind alone: the KEPT cell count under
+  // `cap` (the spend), and the VIRTUAL cols/rows under `MAX_IMAGE_DIM` (the
+  // texture). Two far-apart clusters fit the cap at a fine pitch while their
+  // virtual lattice is thousands of pixels wide, which is exactly the case the
+  // second bound exists for.
   let effective = pitch
   for (let guard = 0; guard < 64; guard++) {
-    const spec = lattice(west, south, east, north, effective, cosLat)
-    if (spec.points.length <= cap) return spec
-    effective *= Math.max(Math.sqrt(spec.points.length / cap), 1.05)
+    const spec = lattice(west, south, east, north, effective, cosLat, field, reach)
+    if (
+      spec.points.length <= cap &&
+      spec.cols <= MAX_IMAGE_DIM &&
+      spec.rows <= MAX_IMAGE_DIM
+    ) {
+      return spec
+    }
+    effective *= Math.max(
+      Math.sqrt(spec.points.length / cap),
+      spec.cols / MAX_IMAGE_DIM,
+      spec.rows / MAX_IMAGE_DIM,
+      1.05,
+    )
   }
   return null
 }
@@ -232,25 +368,117 @@ function lattice(
   north: number,
   pitchKm: number,
   cosLat: number,
+  field: readonly { latitude: number; longitude: number }[],
+  baseReachKm: number,
 ): GridSpec {
   const latStep = pitchKm / KM_PER_DEG
   const lonStep = pitchKm / (KM_PER_DEG * cosLat)
-  const w = west - lonStep
-  const s = south - latStep
-  const cols = Math.max(1, Math.ceil((east + lonStep - w) / lonStep))
-  const rows = Math.max(1, Math.ceil((north + latStep - s) / latStep))
+  // The one-pitch floor keeps a destination's own cell and its axial
+  // neighbours at any slider value, zero included — a coverage of nothing
+  // would draw nothing, and a layer switched on that draws nothing reads as
+  // broken. `gridView` applies the same floor so the fetched set and the
+  // displayed subset agree about what a value means.
+  const reachKm = Math.max(baseReachKm, pitchKm)
+  const reachLat = reachKm / KM_PER_DEG
+  const reachLon = reachKm / (KM_PER_DEG * cosLat)
+  const w = west - reachLon
+  const s = south - reachLat
+  const cols = Math.max(1, Math.ceil((east + reachLon - w) / lonStep))
+  const rows = Math.max(1, Math.ceil((north + reachLat - s) / latStep))
 
-  const points: Coordinate[] = []
-  const cells: CellBox[] = []
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const cw = w + c * lonStep
-      const cs = s + r * latStep
-      cells.push([cw, cs, cw + lonStep, cs + latStep])
-      points.push({ latitude: cs + latStep / 2, longitude: cw + lonStep / 2 })
+  // The kept set is built from the destinations OUTWARD, never by filtering
+  // the full lattice: Washington-to-Sicily at a 3 km pitch is ~2M virtual
+  // cells, where the disks around even 1,500 destinations mark ~400k cell
+  // visits with heavy overlap. A cell is kept when its CENTER is within reach
+  // of some destination — a true disk, so the field's edge is a rounded blob
+  // hugging the candidates rather than a rectangle asserting a coverage
+  // nothing sampled.
+  const kept = new Map<number, number>()
+  for (const d of field) {
+    const minC = Math.max(0, Math.floor((d.longitude - reachLon - w) / lonStep))
+    const maxC = Math.min(cols - 1, Math.floor((d.longitude + reachLon - w) / lonStep))
+    const minR = Math.max(0, Math.floor((d.latitude - reachLat - s) / latStep))
+    const maxR = Math.min(rows - 1, Math.floor((d.latitude + reachLat - s) / latStep))
+    for (let r = minR; r <= maxR; r++) {
+      const dyKm = (s + r * latStep + latStep / 2 - d.latitude) * KM_PER_DEG
+      for (let c = minC; c <= maxC; c++) {
+        const dxKm = (w + c * lonStep + lonStep / 2 - d.longitude) * KM_PER_DEG * cosLat
+        const distKm = Math.sqrt(dxKm * dxKm + dyKm * dyKm)
+        if (distKm <= reachKm) {
+          const index = r * cols + c
+          const prev = kept.get(index)
+          if (prev === undefined || distKm < prev) kept.set(index, distKm)
+        }
+      }
     }
   }
-  return { points, cells, cols, rows, pitchKm }
+
+  const indices = Array.from(kept.keys()).sort((a, b) => a - b)
+  const points: Coordinate[] = []
+  const cells: CellBox[] = []
+  const distancesKm: number[] = []
+  for (const index of indices) {
+    const r = Math.floor(index / cols)
+    const c = index % cols
+    const cw = w + c * lonStep
+    const cs = s + r * latStep
+    cells.push([cw, cs, cw + lonStep, cs + latStep])
+    points.push({ latitude: cs + latStep / 2, longitude: cw + lonStep / 2 })
+    distancesKm.push(kept.get(index) as number)
+  }
+  return {
+    points,
+    cells,
+    indices,
+    distancesKm,
+    cols,
+    rows,
+    west: w,
+    south: s,
+    latStep,
+    lonStep,
+    pitchKm,
+  }
+}
+
+/**
+ * The held field re-cut at a smaller reach, with nothing rebuilt and nothing
+ * refetched (#288 review): the coverage slider's shrink direction, applied
+ * live while the thumb moves.
+ *
+ * A pure filter over `distancesKm`: the lattice geometry, the pitch, and the
+ * cell positions all stay exactly the fetched lattice's, so every consumer —
+ * raster, image corners, arrows, edge fade — works on the subset unchanged.
+ * The same one-pitch floor `lattice` applies, so a slider at zero shows the
+ * destinations' own cells rather than an empty map, and the fetched set and
+ * the displayed set agree about what a value means. A reach at or above the
+ * fetched one returns the inputs untouched, which the memoising caller reads
+ * as "nothing changed".
+ */
+export function gridView(
+  spec: GridSpec,
+  cells: readonly GridCell[],
+  reachKm: number,
+): { spec: GridSpec; cells: readonly GridCell[] } {
+  const effective = Math.max(reachKm, spec.pitchKm)
+  if (spec.distancesKm.every((d) => d <= effective)) return { spec, cells }
+
+  const points: Coordinate[] = []
+  const boxes: CellBox[] = []
+  const indices: number[] = []
+  const distancesKm: number[] = []
+  for (let i = 0; i < spec.indices.length; i++) {
+    if (spec.distancesKm[i] > effective) continue
+    points.push(spec.points[i])
+    boxes.push(spec.cells[i])
+    indices.push(spec.indices[i])
+    distancesKm.push(spec.distancesKm[i])
+  }
+  const allowed = new Set(indices)
+  return {
+    spec: { ...spec, points, cells: boxes, indices, distancesKm },
+    cells: cells.filter((cell) => allowed.has(cell.index)),
+  }
 }
 
 /**
@@ -263,11 +491,27 @@ function lattice(
  * `west + (i + 0.5) × lonStep`, which is exactly sample `i`'s coordinate. Map
  * it to the corner samples instead and every pixel lands half a cell off.
  */
+/*
+ * KNOWN LIMIT (#288 review): MapLibre texture-maps an image source linearly
+ * in MERCATOR between these corners, while the lattice rows are linear in
+ * DEGREES. Over a compact field the two agree to well under a pixel; over a
+ * multi-cluster field spanning many degrees of latitude, mid-span rows drift
+ * north of their true position by up to a few cells (measured with a
+ * Washington-plus-Sicily field; the corners stay exact). Fixing it means
+ * spacing rows in mercator or drawing one image per cluster — deferred until
+ * a real field, rather than a stray destination, needs it.
+ */
 export function gridImageCoordinates(
   spec: GridSpec,
 ): [[number, number], [number, number], [number, number], [number, number]] {
-  const [w, s] = spec.cells[0]
-  const [, , e, n] = spec.cells[spec.cells.length - 1]
+  // From the lattice geometry, never from the kept cells: with the reach
+  // limit the first and last kept cell are wherever the destinations were,
+  // not the lattice's corners, and corners read off them would stretch the
+  // raster to fit the blob and land every pixel off its sample.
+  const w = spec.west
+  const s = spec.south
+  const e = spec.west + spec.cols * spec.lonStep
+  const n = spec.south + spec.rows * spec.latStep
   return [
     [w, n],
     [e, n],
@@ -307,11 +551,19 @@ export function pairCells(
   for (let i = 0; i < indices.length; i++) {
     const wx = wxList[i]
     if (!wx) continue
-    const index = indices[i]
-    const built = assemble([cellDestination(spec.points[index])], [wx], [aqiList[i] ?? null])
+    // `indices` carries array POSITIONS into the sparse points/cells — the
+    // fetch loop's currency. The VIRTUAL lattice index the raster places by
+    // is `spec.indices[pos]`; conflating the two only worked while the
+    // lattice was dense and every position WAS its virtual index.
+    const pos = indices[i]
+    const built = assemble([cellDestination(spec.points[pos])], [wx], [aqiList[i] ?? null])
     const row = built.results[0]
     if (!row) continue
-    cells.push({ index, box: spec.cells[index], row: onGrid(row, built.times, times) })
+    cells.push({
+      index: spec.indices[pos],
+      box: spec.cells[pos],
+      row: onGrid(row, built.times, times),
+    })
   }
   return cells
 }
@@ -380,6 +632,12 @@ export function gridRaster(
   const { cols, rows } = spec
   const rgba = new Uint8ClampedArray(cols * rows * 4)
 
+  // The SPEC's kept set, not the painted-so-far cells: the field fills in
+  // chunk by chunk, and a rim judged against what has landed would fade
+  // interior samples whose neighbours simply haven't arrived yet, then
+  // un-fade them a repaint later.
+  const kept = new Set(spec.indices)
+
   for (const { index, row } of cells) {
     const color = fillColor(row, sortBy, hourIndex)
     if (color === NO_VALUE) continue
@@ -389,7 +647,7 @@ export function gridRaster(
     rgba[p] = parseInt(color.slice(1, 3), 16)
     rgba[p + 1] = parseInt(color.slice(3, 5), 16)
     rgba[p + 2] = parseInt(color.slice(5, 7), 16)
-    rgba[p + 3] = style === 'smooth' ? edgeAlpha(r, c, cols, rows) : 255
+    rgba[p + 3] = style === 'smooth' ? edgeAlpha(r, c, cols, rows, kept) : 255
   }
 
   bleedColor(rgba, cols, rows)
@@ -397,14 +655,18 @@ export function gridRaster(
 }
 
 /**
- * How opaque one sample is drawn, which is full everywhere except the padded
- * outermost ring.
+ * How opaque one sample is drawn, which is full everywhere except the field's
+ * rim — the kept cells whose neighbour is missing.
  *
- * `buildGrid` pads the bbox by one pitch, so that ring sits outside every
- * destination the analysis found: it is the least load-bearing data in the
- * lattice and the right place to spend on an edge. Fading through it is what
- * keeps the field from ending in a hard rectangle that reads as a UI boundary
- * rather than as the edge of what was sampled.
+ * With the reach limit the field is a blob hugging the destinations, so "the
+ * rim" is no longer the lattice's outermost ring: it is any kept cell with an
+ * absent 4-neighbour, whether that neighbour fell outside the lattice or
+ * outside every destination's reach. On a dense rectangle the two definitions
+ * coincide, which is what keeps the pre-reach fade behaviour byte-identical.
+ * The rim sits at the reach's edge, outside the destinations: it is the least
+ * load-bearing data in the lattice and the right place to spend on an edge.
+ * Fading through it is what keeps the field from ending in a hard boundary
+ * that reads as UI chrome rather than as the edge of what was sampled.
  *
  * Decided per AXIS rather than for the lattice as a whole, because the two are
  * routinely very different: a north-south polygon over the Cascades grids four
@@ -412,14 +674,27 @@ export function gridRaster(
  * would either fade a lattice that has no column to spare or refuse to fade one
  * whose rows had plenty.
  *
+ * Neighbours are tested as (row, column) COORDINATES, never by raw index
+ * arithmetic: `index - 1` at column zero is a valid index — the previous row's
+ * LAST cell — and an index-only test would read the far edge as this cell's
+ * western neighbour.
+ *
  * Smooth only. Blocks draws a boundary at every sample, so a ring of
  * half-transparent squares reads as a row of samples that answered weakly
  * rather than as an edge; smooth has no boundaries at all, and without the fade
- * would simply stop in a rectangle.
+ * would simply stop in a hard line.
  */
-function edgeAlpha(r: number, c: number, cols: number, rows: number): number {
-  const onColEdge = cols >= MIN_AXIS_TO_FADE && (c === 0 || c === cols - 1)
-  const onRowEdge = rows >= MIN_AXIS_TO_FADE && (r === 0 || r === rows - 1)
+function edgeAlpha(
+  r: number,
+  c: number,
+  cols: number,
+  rows: number,
+  kept: ReadonlySet<number>,
+): number {
+  const missing = (rr: number, cc: number) =>
+    rr < 0 || rr >= rows || cc < 0 || cc >= cols || !kept.has(rr * cols + cc)
+  const onColEdge = cols >= MIN_AXIS_TO_FADE && (missing(r, c - 1) || missing(r, c + 1))
+  const onRowEdge = rows >= MIN_AXIS_TO_FADE && (missing(r - 1, c) || missing(r + 1, c))
   return onColEdge || onRowEdge ? EDGE_ALPHA : 255
 }
 

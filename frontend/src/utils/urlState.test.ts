@@ -62,6 +62,7 @@ const base: ShareableState = {
   showSmoke: false,
   showGrid: false,
   gridStyle: 'blocks' as const,
+  gridReachFrac: 0.5,
   includeUnnamedPeaks: false,
   pins: [],
 }
@@ -88,6 +89,7 @@ const pristine: ShareableState = {
   showSmoke: false,
   showGrid: false,
   gridStyle: 'blocks' as const,
+  gridReachFrac: 0.5,
   includeUnnamedPeaks: false,
   pins: [],
 }
@@ -189,6 +191,34 @@ describe('encodeState / decodeState round-trip', () => {
     // is a link it cannot honour.
     expect(decodeState('?grid=fancy')).toBeNull()
     expect(decodeState('?grid=1')).toBeNull()
+  })
+
+  it('carries the coverage position only while the layer is on and the value moved', () => {
+    // The slider's committed BAR POSITION as a percent — the kilometres
+    // derive from the model's pitch, so the position is the only spelling a
+    // link can carry that means the same thing under any model. The default
+    // writes nothing — a link stays as short as what it changed — and a
+    // layer that is off has no coverage to describe, same rule as the style
+    // above.
+    expect(
+      encodeState({ ...base, showGrid: true, gridReachFrac: 0.75 }, DEFAULT_MODEL),
+    ).toContain('reach=75')
+    expect(encodeState({ ...base, showGrid: true }, DEFAULT_MODEL)).not.toContain('reach')
+    expect(encodeState({ ...base, gridReachFrac: 0.75 }, DEFAULT_MODEL)).not.toContain('reach')
+    expect(roundTrip({ ...base, showGrid: true, gridReachFrac: 0.75 })!.gridReachFrac).toBe(0.75)
+    // Zero is a legal committed position — the bar's left end — and must
+    // survive the trip rather than reading as an absent param.
+    expect(roundTrip({ ...base, showGrid: true, gridReachFrac: 0 })!.gridReachFrac).toBe(0)
+  })
+
+  it('clamps a hand-edited position to the bar, and drops one it cannot read', () => {
+    // The param is hand-editable, and a position outside the bar would draw
+    // a control that cannot show the value it is applying.
+    expect(decodeState('?grid=blocks&reach=999')!.gridReachFrac).toBe(1)
+    expect(decodeState('?grid=blocks&reach=-3')!.gridReachFrac).toBe(0)
+    expect(decodeState('?grid=blocks&reach=junk')!.gridReachFrac).toBeUndefined()
+    // A position with the layer off is a state the popover cannot be in.
+    expect(decodeState('?reach=50')).toBeNull()
   })
 
   it('gives an overlay-only session a URL of its own', () => {

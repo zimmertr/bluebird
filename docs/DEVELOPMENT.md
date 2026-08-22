@@ -76,7 +76,7 @@ state and interaction, never for judging a forecast.
   const real = window.fetch
   const series = (lat, lon, start, days) => {
     const time = [], precipitation = [], temperature_2m = [], wind_speed_10m = [], wind_direction_10m = []
-    const t0 = Date.parse(start + 'T00:00')
+    const t0 = Date.parse(start + 'T00:00Z')
     for (let h = 0; h < 24 * days; h++) {
       time.push(new Date(t0 + h * 3600000).toISOString().slice(0, 16))
       precipitation.push(Math.max(0, Math.sin(h / 9) * 0.04))

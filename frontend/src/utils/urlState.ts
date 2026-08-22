@@ -6,7 +6,7 @@ import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from
 import { GeoPolygon, DiscoveryType, SortBy } from '../types'
 import { RANKING_KEYS } from '../metrics'
 import { Constraints, NO_CONSTRAINTS, hasConstraints } from './clientAnalyze'
-import { isGridStyle, type GridStyle } from './forecastGrid'
+import { GRID_REACH_DEFAULT_FRAC, isGridStyle, type GridStyle } from './forecastGrid'
 import {
   DAY_END,
   DAY_START,
@@ -62,6 +62,12 @@ export interface ShareableState {
   // control's state, and two params for it would let a link say the layer is
   // off while still carrying a style for it.
   gridStyle: GridStyle
+  // The grid's coverage slider position, in [0, 1] of the bar — the
+  // kilometres derive from the model's pitch, so the POSITION is what a link
+  // must carry to mean the same thing under any model. Its own param
+  // (`reach=75`, in percent), written only while the layer is on AND the
+  // value is not the default — a link stays as short as what it changed.
+  gridReachFrac: number
   // Searched places pinned to the results table. Persisted so a refreshed or
   // shared link repopulates them (and refetches their forecasts). Only the
   // fields needed to recreate the pin and its identity link are stored.
@@ -313,7 +319,12 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
   // link hand-editable and self-describing: `grid=smooth` says what it will
   // draw. One param rather than two, because a layer that is off has no style
   // to carry and a link should not be able to say otherwise.
-  if (state.showGrid) p.set('grid', state.gridStyle)
+  if (state.showGrid) {
+    p.set('grid', state.gridStyle)
+    if (state.gridReachFrac !== GRID_REACH_DEFAULT_FRAC) {
+      p.set('reach', String(Math.round(state.gridReachFrac * 100)))
+    }
+  }
   if (state.includeUnnamedPeaks) p.set('unnamed', '1')
   if (hasPins) p.set('pins', encodePins(state.pins))
 
@@ -498,6 +509,17 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   if (grid !== null && isGridStyle(grid)) {
     out.showGrid = true
     out.gridStyle = grid
+    // Clamped to the bar rather than trusted: the param is hand-editable,
+    // and a position outside it would draw a control that cannot show the
+    // value it is applying. Presence checked before Number, because
+    // Number(null) is 0 — a legal position here.
+    const reachParam = params.get('reach')
+    if (reachParam !== null) {
+      const reach = Number(reachParam)
+      if (Number.isFinite(reach)) {
+        out.gridReachFrac = Math.min(100, Math.max(0, reach)) / 100
+      }
+    }
   }
   if (params.get('unnamed') === '1') out.includeUnnamedPeaks = true
 

@@ -35,6 +35,12 @@ Two things to notice. Polygon positions are `[longitude, latitude]`, which is
 GeoJSON order and the reverse of how people usually say coordinates. And the
 ring closes by repeating its first position.
 
+One thing to know about the numbers: the wind fields report wind at each
+destination's own elevation, interpolated from pressure-level winds and floored
+at the surface value, not the bare 10 m wind most forecast APIs hand back. The
+derivation and its limits are in [DATA.md](DATA.md#open-meteo); rows with no
+`elevation_ft` carry the plain 10 m wind.
+
 ## Choosing a forecast window
 
 `forecast_mode` says which of three questions you are asking, and determines
