@@ -62,6 +62,7 @@ const base: ShareableState = {
   showSmoke: false,
   showGrid: false,
   gridStyle: 'blocks' as const,
+  gridReachKm: 25,
   includeUnnamedPeaks: false,
   pins: [],
 }
@@ -88,6 +89,7 @@ const pristine: ShareableState = {
   showSmoke: false,
   showGrid: false,
   gridStyle: 'blocks' as const,
+  gridReachKm: 25,
   includeUnnamedPeaks: false,
   pins: [],
 }
@@ -189,6 +191,28 @@ describe('encodeState / decodeState round-trip', () => {
     // is a link it cannot honour.
     expect(decodeState('?grid=fancy')).toBeNull()
     expect(decodeState('?grid=1')).toBeNull()
+  })
+
+  it('carries the coverage reach only while the layer is on and the value moved', () => {
+    // The slider's committed value, as its own readable param. Default writes
+    // nothing — a link stays as short as what it changed — and a layer that
+    // is off has no coverage to describe, same rule as the style above.
+    expect(
+      encodeState({ ...base, showGrid: true, gridReachKm: 50 }, DEFAULT_MODEL),
+    ).toContain('reach=50')
+    expect(encodeState({ ...base, showGrid: true }, DEFAULT_MODEL)).not.toContain('reach')
+    expect(encodeState({ ...base, gridReachKm: 50 }, DEFAULT_MODEL)).not.toContain('reach')
+    expect(roundTrip({ ...base, showGrid: true, gridReachKm: 50 })!.gridReachKm).toBe(50)
+  })
+
+  it('clamps a hand-edited reach to the slider bounds, and drops one it cannot read', () => {
+    // The param is hand-editable, and a value outside the slider's bounds
+    // would draw a control that cannot show the value it is applying.
+    expect(decodeState('?grid=blocks&reach=999')!.gridReachKm).toBe(100)
+    expect(decodeState('?grid=blocks&reach=1')!.gridReachKm).toBe(5)
+    expect(decodeState('?grid=blocks&reach=junk')!.gridReachKm).toBeUndefined()
+    // A reach with the layer off is a state the popover cannot be in.
+    expect(decodeState('?reach=50')).toBeNull()
   })
 
   it('gives an overlay-only session a URL of its own', () => {

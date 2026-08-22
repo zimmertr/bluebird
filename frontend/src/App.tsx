@@ -33,7 +33,13 @@ import {
   LINK,
   PROSE,
   RADIUS,
+  RECESSED_EDGE,
+  RECESSED_FILL,
   SEGMENT_FLUID,
+  SLIDER_IDLE,
+  SLIDER_OVERLAY,
+  SLIDER_VALUE,
+  SLIDER_WORDMARK,
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
@@ -45,7 +51,15 @@ import {
 } from './styles'
 import { NOUN, familyOf, rankedNoun } from './metrics'
 import { METRIC_CONFIG, hourlyScale } from './utils/colors'
-import { FALLBACK_PITCH_KM, gridLegendLine, type GridStyle } from './utils/forecastGrid'
+import {
+  FALLBACK_PITCH_KM,
+  GRID_REACH_KM,
+  GRID_REACH_MAX_KM,
+  GRID_REACH_MIN_KM,
+  GRID_REACH_STEP_KM,
+  gridLegendLine,
+  type GridStyle,
+} from './utils/forecastGrid'
 import {
   RADAR_FRAME_COUNT,
   IEM_HREF,
@@ -424,6 +438,22 @@ export default function App() {
   // and a reader can count them. Purely presentation over held samples, so
   // switching costs one re-render and nothing upstream.
   const [gridStyle, setGridStyle] = useState<GridStyle>(() => restored?.gridStyle ?? 'blocks')
+  // The coverage slider's committed value. Changing it re-grids on its own —
+  // the layer fetches for itself the way toggling it on does — so this is an
+  // overlay property, never a knob: commitNeeded does not know it exists.
+  const [gridReachKm, setGridReachKm] = useState<number>(
+    () => restored?.gridReachKm ?? GRID_REACH_KM,
+  )
+  // The slider's live position while a drag is in flight, or null at rest.
+  // Displaying the draft and committing on release is what keeps a drag from
+  // refetching the lattice per pixel.
+  const [gridReachDraft, setGridReachDraft] = useState<number | null>(null)
+  const commitGridReach = useCallback(() => {
+    if (gridReachDraft !== null) {
+      setGridReachKm(gridReachDraft)
+      setGridReachDraft(null)
+    }
+  }, [gridReachDraft])
   // Summits OSM knows only by their height. Off by default: measured over one
   // 8x10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so
   // this roughly triples what an analysis costs and how often it refuses.
@@ -792,6 +822,7 @@ export default function App() {
       showSmoke,
       showGrid,
       gridStyle,
+      gridReachKm,
       pins: searched.places,
     }, caps.defaultForecastModel)
 
@@ -825,6 +856,7 @@ export default function App() {
     showSmoke,
     showGrid,
     gridStyle,
+    gridReachKm,
     searched.places,
     writeUrl,
   ])
@@ -1445,6 +1477,7 @@ export default function App() {
     pitchKm:
       caps.forecastModels.find((m) => m.id === analyzed?.forecastModel)?.finestGridKm ??
       FALLBACK_PITCH_KM,
+    reachKm: gridReachKm,
     analysisSeq,
   })
   // Something is painted, which is what a legend can be keyed to. A field still
@@ -2039,26 +2072,77 @@ export default function App() {
                       <span>{label}</span>
                     </label>
                   ))}
-                  {/* The grid's one sub-choice, revealed by its own checkbox.
-                      The popover is 176px, so this takes the fluid segment
+                  {/* The grid's sub-choices, revealed by its own checkbox.
+                      The popover is 176px, so these take the fluid segment
                       rather than the panel's fixed 144px column — the same
                       reason the results bar's mode switch does. */}
                   {showGrid && (
-                    <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
-                      {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
-                        <button
-                          key={value}
-                          type="button"
-                          aria-pressed={gridStyle === value}
-                          onClick={() => setGridStyle(value)}
-                          className={`${SEGMENT_ITEM} ${
-                            gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
-                          } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
-                        >
-                          {value === 'blocks' ? 'Blocks' : 'Smooth'}
-                        </button>
-                      ))}
-                    </div>
+                    <>
+                      <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
+                        {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
+                          <button
+                            key={value}
+                            type="button"
+                            aria-pressed={gridStyle === value}
+                            onClick={() => setGridStyle(value)}
+                            className={`${SEGMENT_ITEM} ${
+                              gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
+                            } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
+                          >
+                            {value === 'blocks' ? 'Blocks' : 'Smooth'}
+                          </button>
+                        ))}
+                      </div>
+                      {/* The coverage slider: how far from each destination
+                          the grid reaches. The value and wordmark render
+                          TWICE — muted on the well, white inside the accent
+                          fill — with the top copy clipped to the fill, so the
+                          line stays readable at any position without a color
+                          racing another. Drag previews live (`gridReachDraft`)
+                          and commits on release, because each committed value
+                          is a refetch and a drag must not fetch per pixel. */}
+                      <div
+                        className={`relative mt-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${RECESSED_EDGE} ${RECESSED_FILL}`}
+                      >
+                        {(() => {
+                          const shown = gridReachDraft ?? gridReachKm
+                          const pct =
+                            ((shown - GRID_REACH_MIN_KM) /
+                              (GRID_REACH_MAX_KM - GRID_REACH_MIN_KM)) *
+                            100
+                          const line = (
+                            <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-2">
+                              <span className={SLIDER_VALUE}>{shown} km</span>
+                              <span className={SLIDER_WORDMARK}>Coverage</span>
+                            </div>
+                          )
+                          return (
+                            <>
+                              <div className={`absolute inset-0 ${SLIDER_IDLE}`}>{line}</div>
+                              <div
+                                className={`absolute inset-0 ${ACCENT.fill}`}
+                                style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}
+                              >
+                                {line}
+                              </div>
+                            </>
+                          )
+                        })()}
+                        <input
+                          type="range"
+                          aria-label="Coverage"
+                          min={GRID_REACH_MIN_KM}
+                          max={GRID_REACH_MAX_KM}
+                          step={GRID_REACH_STEP_KM}
+                          value={gridReachDraft ?? gridReachKm}
+                          onChange={(e) => setGridReachDraft(Number(e.target.value))}
+                          onPointerUp={commitGridReach}
+                          onKeyUp={commitGridReach}
+                          onBlur={commitGridReach}
+                          className={SLIDER_OVERLAY}
+                        />
+                      </div>
+                    </>
                   )}
                 </div>
               )}

@@ -197,12 +197,15 @@ Two things to know when reading it:
   at one forecast, and between two of them you are looking at a blend. Over a
   large area the points spread further apart to keep the request reasonable, and
   the legend says the spacing actually used.
-- **It covers where you looked.** The field extends about 25 km around each
-  destination the analysis found, and fades out at that edge. Destinations far
-  apart each get their own patch, and the gap between them stays empty: a list
-  with peaks on two continents grids as two local fields, never as one band
-  across the ocean between. Panning away does not extend it: every point is a
-  live request rather than a pre-drawn tile.
+- **It covers where you looked.** The field extends a set distance around each
+  destination the analysis found — the **Coverage** slider under the style
+  toggle, 25 km unless you move it — and fades out at that edge. Destinations
+  far apart each get their own patch, and the gap between them stays empty: a
+  list with peaks on two continents grids as two local fields, never as one
+  band across the ocean between. Moving the slider redraws on release:
+  shrinking repaints from points already fetched, growing fetches the new ring.
+  Panning away does not extend it: every point is a live request rather than a
+  pre-drawn tile.
 
 The field can disagree with a marker standing on it. A 3 km grid cell holds a summit
 and the valley floor below it, and the model answers for the cell rather than for

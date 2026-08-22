@@ -212,6 +212,16 @@ describe('buildGrid', () => {
     const distances = spec.points.map(km)
     expect(Math.max(...distances)).toBeLessThanOrEqual(GRID_REACH_KM + 1e-6)
     expect(Math.max(...distances)).toBeGreaterThan(GRID_REACH_KM * 0.8)
+
+    // The coverage slider's value overrides the default, both directions.
+    const wide = buildGrid([dest], 3, 60)!
+    const wideMax = Math.max(...wide.points.map(km))
+    expect(wideMax).toBeLessThanOrEqual(60 + 1e-6)
+    expect(wideMax).toBeGreaterThan(48)
+    // And the two-pitch floor still binds under a small slider value: 5 km of
+    // asked-for reach at a 13 km pitch keeps the ring of neighbours.
+    const floored = buildGrid([dest], 13, 5)!
+    expect(Math.max(...floored.points.map(km))).toBeGreaterThan(13)
   })
 
   it('keeps indices parallel to the samples, ascending, and inside the lattice', () => {

@@ -132,8 +132,25 @@ export const MAX_GRID_CELLS = 600
  * stray destination an ocean away stretched the lattice across the Atlantic
  * and the 600-cell cap answered with a 181 km pitch — the whole budget spent
  * on cells no destination was in (PR #288 review, 2026-08-21).
+ *
+ * The DEFAULT: the Layers popover's coverage slider lets the reader set the
+ * reach per session, and the chosen value rides the shared link.
  */
 export const GRID_REACH_KM = 25
+
+/**
+ * The coverage slider's bounds and step, in km.
+ *
+ * 5 km is the smallest reach that still draws a patch at every model pitch
+ * (the `2 × pitch` floor in `lattice` takes over below it anyway). 100 km is
+ * where a single destination's disk alone approaches the 600-cell cap at a
+ * 3 km pitch, so anything past it only coarsens. Steps of 5 keep a drag from
+ * committing a fetch per pixel and match the precision the number has — the
+ * reach is context, not a measurement.
+ */
+export const GRID_REACH_MIN_KM = 5
+export const GRID_REACH_MAX_KM = 100
+export const GRID_REACH_STEP_KM = 5
 
 /**
  * The raster's texture bound, per axis, in pixels.
@@ -248,6 +265,7 @@ export function gridLegendLine(
 export function buildGrid(
   field: readonly { latitude: number; longitude: number }[],
   pitchKm: number,
+  reachKm: number = GRID_REACH_KM,
   cap: number = MAX_GRID_CELLS,
 ): GridSpec | null {
   if (field.length === 0) return null
@@ -284,7 +302,7 @@ export function buildGrid(
   // second bound exists for.
   let effective = pitch
   for (let guard = 0; guard < 64; guard++) {
-    const spec = lattice(west, south, east, north, effective, cosLat, field)
+    const spec = lattice(west, south, east, north, effective, cosLat, field, reachKm)
     if (
       spec.points.length <= cap &&
       spec.cols <= MAX_IMAGE_DIM &&
@@ -310,13 +328,15 @@ function lattice(
   pitchKm: number,
   cosLat: number,
   field: readonly { latitude: number; longitude: number }[],
+  baseReachKm: number,
 ): GridSpec {
   const latStep = pitchKm / KM_PER_DEG
   const lonStep = pitchKm / (KM_PER_DEG * cosLat)
   // The floor of two pitches keeps a ring of neighbouring samples around a
   // destination at any pitch, which the smooth style's edge fade and the
-  // arrows both want.
-  const reachKm = Math.max(GRID_REACH_KM, 2 * pitchKm)
+  // arrows both want — it binds when the slider's value is small against a
+  // coarse model's pitch.
+  const reachKm = Math.max(baseReachKm, 2 * pitchKm)
   const reachLat = reachKm / KM_PER_DEG
   const reachLon = reachKm / (KM_PER_DEG * cosLat)
   const w = west - reachLon

@@ -103,12 +103,21 @@ export interface ForecastGridInputs {
   times: readonly number[]
   /** The selected model's finest grid, in km, from `/api/capabilities`. */
   pitchKm: number
+  /**
+   * How far from a destination the lattice reaches, in km — the coverage
+   * slider's value. A change rebuilds and refetches like toggling the layer
+   * does, and the per-location forecast cache is what makes it cheap in the
+   * direction the reader usually goes: shrinking repaints from cells already
+   * in hand, growing pays only for coordinates not yet asked about (unless
+   * the cell cap moves the pitch, which relocates every sample).
+   */
+  reachKm: number
   /** Bumped once per committed analysis; re-grids even for an identical field. */
   analysisSeq: number
 }
 
 export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
-  const { enabled, field, window: win, model, times, pitchKm, analysisSeq } = inputs
+  const { enabled, field, window: win, model, times, pitchKm, reachKm, analysisSeq } = inputs
   const [state, setState] = useState<ForecastGrid>(IDLE)
 
   useEffect(() => {
@@ -117,7 +126,7 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
       return
     }
 
-    const spec = buildGrid(field, pitchKm)
+    const spec = buildGrid(field, pitchKm, reachKm)
     if (spec === null) {
       setState((prev) => (prev === IDLE ? prev : IDLE))
       return
@@ -240,10 +249,11 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     // Keyed on the analysis rather than on `field`, which is a new array on
     // every live knob change: a re-rank hands over the same destinations in a
     // new reference, and keying on it would abort the fetch in flight and
-    // re-ask the same question per twiddle. Everything else here is fixed for
-    // the life of one analysis.
+    // re-ask the same question per twiddle. `reachKm` IS a key: the coverage
+    // slider commits on release, and each committed value is a different
+    // lattice. Everything else here is fixed for the life of one analysis.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, analysisSeq, pitchKm])
+  }, [enabled, analysisSeq, pitchKm, reachKm])
 
   return state
 }

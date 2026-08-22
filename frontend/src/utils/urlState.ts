@@ -6,7 +6,13 @@ import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from
 import { GeoPolygon, DiscoveryType, SortBy } from '../types'
 import { RANKING_KEYS } from '../metrics'
 import { Constraints, NO_CONSTRAINTS, hasConstraints } from './clientAnalyze'
-import { isGridStyle, type GridStyle } from './forecastGrid'
+import {
+  GRID_REACH_KM,
+  GRID_REACH_MAX_KM,
+  GRID_REACH_MIN_KM,
+  isGridStyle,
+  type GridStyle,
+} from './forecastGrid'
 import {
   DAY_END,
   DAY_START,
@@ -62,6 +68,10 @@ export interface ShareableState {
   // control's state, and two params for it would let a link say the layer is
   // off while still carrying a style for it.
   gridStyle: GridStyle
+  // The grid's coverage reach in km (the Layers popover's slider). Its own
+  // param (`reach=50`), written only while the layer is on AND the value is
+  // not the default — a link stays as short as what it changed.
+  gridReachKm: number
   // Searched places pinned to the results table. Persisted so a refreshed or
   // shared link repopulates them (and refetches their forecasts). Only the
   // fields needed to recreate the pin and its identity link are stored.
@@ -313,7 +323,10 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
   // link hand-editable and self-describing: `grid=smooth` says what it will
   // draw. One param rather than two, because a layer that is off has no style
   // to carry and a link should not be able to say otherwise.
-  if (state.showGrid) p.set('grid', state.gridStyle)
+  if (state.showGrid) {
+    p.set('grid', state.gridStyle)
+    if (state.gridReachKm !== GRID_REACH_KM) p.set('reach', String(state.gridReachKm))
+  }
   if (state.includeUnnamedPeaks) p.set('unnamed', '1')
   if (hasPins) p.set('pins', encodePins(state.pins))
 
@@ -498,6 +511,13 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   if (grid !== null && isGridStyle(grid)) {
     out.showGrid = true
     out.gridStyle = grid
+    // Clamped to the slider's own bounds rather than trusted: the param is
+    // hand-editable, and a reach outside them would draw a control that
+    // cannot show the value it is applying.
+    const reach = Number(params.get('reach'))
+    if (Number.isFinite(reach) && reach > 0) {
+      out.gridReachKm = Math.min(GRID_REACH_MAX_KM, Math.max(GRID_REACH_MIN_KM, reach))
+    }
   }
   if (params.get('unnamed') === '1') out.includeUnnamedPeaks = true
 
