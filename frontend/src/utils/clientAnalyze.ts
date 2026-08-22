@@ -261,27 +261,13 @@ export function truncateTopElevation<T extends { elevation_ft: number | null }>(
     .slice(0, cap)
 }
 
-// Thrown by the client-only paths (custom CSV / pins refresh) for an
-// over-limit set, carrying the same remedy fields the server's structured
-// 400 does, so the refusal panel renders identically on every path.
-export class AnalysisRefusalError extends Error {
-  found: number
-  limit: number
-  suggestedMinElevationFt: number | null
-  suggestedKeeps: number | null
-  constructor(
-    message: string,
-    found: number,
-    limit: number,
-    suggestion: { floorFt: number; keeps: number } | null,
-  ) {
-    super(message)
-    this.found = found
-    this.limit = limit
-    this.suggestedMinElevationFt = suggestion ? suggestion.floorFt : null
-    this.suggestedKeeps = suggestion ? suggestion.keeps : null
-  }
-}
+// Thrown for an over-limit set, by the client-only paths and by the server's
+// structured 400 alike. The type is the signal: it routes the message to the
+// refusal box rather than the error box, because a deterministic refusal
+// retried verbatim can only repeat itself. The remedies ride in the message
+// prose (`capDetail`); the server's structured remedy fields stay on the API
+// for direct callers, and the SPA reads none of them.
+export class AnalysisRefusalError extends Error {}
 
 // Port of _custom_dicts: a caller row in the same shape discovery produces.
 export function customRows(custom: readonly CustomDestination[]): DiscoveredDestination[] {
@@ -504,9 +490,6 @@ export async function runClientAnalysis(
           cap,
           Boolean(request.include_unnamed_peaks),
         ),
-        candidates.length,
-        cap,
-        suggestion,
       )
     }
   }

@@ -35,15 +35,14 @@ export type Progress = {
 const FORECAST_REUSE_MS = 15 * 60 * 1000
 
 // An over-limit refusal, normalized from whichever path produced it (the
-// server's structured 400, the stream's error event, or the client-only
-// paths' AnalysisRefusalError). Drives the remedy panel instead of the plain
-// error box: a deterministic refusal retried verbatim can only repeat itself.
+// server's structured 400 or the client-only paths' AnalysisRefusalError).
+// Drives the warn box instead of the error box, with no retry action: a
+// deterministic refusal retried verbatim can only repeat itself, and the
+// message already names the remedies in prose. The server's structured
+// remedy fields stay on the API for direct callers; the SPA renders none of
+// them (removed with #253's PR at TJ's request, 2026-08-22).
 export type Refusal = {
   message: string
-  found: number | null
-  limit: number | null
-  suggestedMinElevationFt: number | null
-  suggestedKeeps: number | null
 }
 
 // The data snapshot behind the current response: the window it sampled, and
@@ -104,16 +103,6 @@ async function readErrorBody(
   return { message: message || `HTTP ${res.status}`, refusal }
 }
 
-function refusalFromFields(message: string, fields: RefusalFields): Refusal {
-  return {
-    message,
-    found: fields.found ?? null,
-    limit: fields.limit ?? null,
-    suggestedMinElevationFt: fields.suggested_min_elevation_ft ?? null,
-    suggestedKeeps: fields.suggested_keeps ?? null,
-  }
-}
-
 export function useAnalyze(
   maxDestinations: number = MAX_ANALYZE_DESTINATIONS,
   models: readonly ForecastModelOption[] = [],
@@ -172,28 +161,10 @@ export function useAnalyze(
   }
 
   // Re-run the most recent request (used by the "Try again" button on
-  // transient errors; deterministic refusals get remedy actions instead).
+  // transient errors; a deterministic refusal gets no retry, because run
+  // verbatim it can only repeat itself).
   function retry() {
     if (lastRequestRef.current) analyze(lastRequestRef.current.request, lastRequestRef.current.kind)
-  }
-
-  // Remedy: re-run the last request with the suggested elevation floor.
-  function retryWithFloor(minElevationFt: number) {
-    const last = lastRequestRef.current
-    if (!last) return
-    analyze(
-      { ...last.request, min_elevation_ft: minElevationFt, top_by_elevation: false },
-      last.kind,
-    )
-  }
-
-  // Remedy: re-run the last request electing the top-N-by-elevation cut.
-  // Discovery for the identical polygon is served from the server's cache,
-  // so the re-run costs no second Overpass query.
-  function retryTopByElevation() {
-    const last = lastRequestRef.current
-    if (!last) return
-    analyze({ ...last.request, top_by_elevation: true }, last.kind)
   }
 
   // Clear the current ranked results without fetching. Used by a pins-only
@@ -324,19 +295,7 @@ export function useAnalyze(
       })
       if (!res.ok) {
         const { message, refusal: fields } = await readErrorBody(res)
-        if (fields) {
-          throw new AnalysisRefusalError(
-            message,
-            fields.found ?? 0,
-            fields.limit ?? maxDestinations,
-            fields.suggested_min_elevation_ft != null
-              ? {
-                  floorFt: fields.suggested_min_elevation_ft,
-                  keeps: fields.suggested_keeps ?? 0,
-                }
-              : null,
-          )
-        }
+        if (fields) throw new AnalysisRefusalError(message)
         throw new Error(message)
       }
       const discovered = (await res.json()) as DestinationsResponse
@@ -443,14 +402,7 @@ export function useAnalyze(
       if (e instanceof DOMException && e.name === 'AbortError') {
         setStatusMessage(null)
       } else if (e instanceof AnalysisRefusalError) {
-        setRefusal(
-          refusalFromFields(e.message, {
-            found: e.found,
-            limit: e.limit,
-            suggested_min_elevation_ft: e.suggestedMinElevationFt,
-            suggested_keeps: e.suggestedKeeps,
-          }),
-        )
+        setRefusal({ message: e.message })
       } else if (e instanceof OpenMeteoModelCoverage) {
         // Compose the message with the model label from the models list
         const modelLabel =
@@ -474,8 +426,6 @@ export function useAnalyze(
     analyze,
     cancel,
     retry,
-    retryWithFloor,
-    retryTopByElevation,
     reset,
     analyzed,
     analysisSeq,

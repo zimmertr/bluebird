@@ -38,7 +38,7 @@ import {
 import { AGGREGATE, NOUN, RANKING_KEYS, familyOf, metricLabel, windowAggregate } from '../metrics'
 import { Constraints, hasConstraints } from '../utils/clientAnalyze'
 import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analyzeGate'
-import { eventNoticeKey, eventNoticeVisible, rearmDismissal } from '../utils/notices'
+import { isDismissed, noticeKey, pruneDismissals } from '../utils/notices'
 import { DEFAULT_LIMIT, classifyAqiCoverage, clampLimit } from '../utils/urlState'
 import {
   AQI_LIMIT_DAYS,
@@ -204,8 +204,6 @@ interface Props {
   onAnalyze: () => void
   onRetry: () => void
   // Remedies: re-run with the suggested elevation floor / elect the top-N cut.
-  onRetryWithFloor: (minElevationFt: number) => void
-  onRetryTopByElevation: () => void
   // Live ceiling for the results knob, from /api/capabilities (falls back to
   // the compiled analysis cap).
   maxLimit: number
@@ -357,8 +355,6 @@ export default function ControlPanel({
   refusal,
   onAnalyze,
   onRetry,
-  onRetryWithFloor,
-  onRetryTopByElevation,
   maxLimit,
   maxAreaKm2,
   resultCount,
@@ -413,28 +409,30 @@ export default function ControlPanel({
 
   const pointsNeeded = Math.max(0, 3 - drawPointCount)
 
-  // The event notices' dismissal (#253). The key is the message's identity
-  // from `utils/notices.ts`; the effect spends the dismissal whenever the key
-  // clears, which every Analyze does on its way in (`useAnalyze` nulls both
-  // states before it fetches) — so a stale dismissal can never swallow the
-  // next run's notice, even one that reads exactly like the dismissed one.
-  // Local state on purpose: the panel stays mounted while closed, and a
-  // dismissal is presentation, not part of the analysis.
-  const noticeKey = eventNoticeKey(error, refusal?.message ?? null)
-  const [dismissedNotice, setDismissedNotice] = useState<string | null>(null)
+  // The event notices' dismissal (#253), tracked per notice so each box
+  // dismisses itself alone. The effect prunes a dismissal the moment its
+  // notice stops being active — which every Analyze causes on its way in
+  // (`useAnalyze` nulls both states before it fetches) — so a stale dismissal
+  // can never swallow the next run's notice, even one that reads exactly like
+  // the dismissed one. Local state on purpose: the panel stays mounted while
+  // closed, and a dismissal is presentation, not part of the analysis.
+  const refusalKey = refusal ? noticeKey('refusal', refusal.message) : null
+  const errorKey = error ? noticeKey('error', error) : null
+  const [dismissed, setDismissed] = useState<readonly string[]>([])
   useEffect(() => {
-    setDismissedNotice((prev) => rearmDismissal(prev, noticeKey))
-  }, [noticeKey])
-  const noticeVisible = eventNoticeVisible(noticeKey, dismissedNotice)
+    setDismissed((prev) => pruneDismissals(prev, [refusalKey, errorKey]))
+  }, [refusalKey, errorKey])
 
   // Every plain-sentence warning under the Analyze button, as one list for one
   // box. They used to render as a box apiece — the commit cue in its own frame
   // directly above the blockers in theirs — which read as two kinds of problem
   // when the difference was plumbing, not meaning (#245 review). Ordered by
   // what the reader can act on: why the report on screen is stale, why the
-  // button is disabled, then what a delivered report is missing. Only a notice
-  // that carries its own actions (the refusal's remedies, the error's retry)
-  // keeps a box of its own.
+  // button is disabled, then what a delivered report is missing. The event
+  // notices (the refusal, the error with its retry) keep boxes of their own,
+  // because they live on a different clock: they report one run's outcome and
+  // are individually dismissable (#253), where this list restates what is
+  // still true right now.
   const footerWarnings = [
     ...(commitReason && !loading ? [COMMIT_CUE[commitReason]] : []),
     ...blockers.map((blocker) => blockerText(blocker, maxAreaKm2, pointsNeeded)),
@@ -991,37 +989,19 @@ export default function ControlPanel({
           <FooterNotice severity="warn" lines={footerWarnings} />
         )}
 
-        {refusal && !loading && noticeVisible && (
+        {refusal && refusalKey && !loading && !isDismissed(refusalKey, dismissed) && (
           <FooterNotice
             severity="warn"
             lines={[refusal.message]}
-            onDismiss={() => setDismissedNotice(noticeKey)}
-          >
-            {refusal.suggestedMinElevationFt !== null && (
-              <button
-                onClick={() => onRetryWithFloor(refusal.suggestedMinElevationFt as number)}
-                className={`${BUTTON_SECONDARY} w-full`}
-              >
-                Set min elevation to{' '}
-                {refusal.suggestedMinElevationFt.toLocaleString()} ft and analyze
-              </button>
-            )}
-            {refusal.limit !== null && (
-              <button
-                onClick={onRetryTopByElevation}
-                className={`${BUTTON_SECONDARY} w-full`}
-              >
-                Analyze the {refusal.limit.toLocaleString()} highest instead
-              </button>
-            )}
-          </FooterNotice>
+            onDismiss={() => setDismissed((prev) => [...prev, refusalKey])}
+          />
         )}
 
-        {error && !refusal && noticeVisible && (
+        {error && errorKey && !refusal && !isDismissed(errorKey, dismissed) && (
           <FooterNotice
             severity="error"
             lines={[error]}
-            onDismiss={() => setDismissedNotice(noticeKey)}
+            onDismiss={() => setDismissed((prev) => [...prev, errorKey])}
           >
             <button onClick={onRetry} disabled={loading} className={BUTTON_DANGER}>
               Try again

@@ -1,76 +1,86 @@
 import { describe, expect, it } from 'vitest'
-import { eventNoticeKey, eventNoticeVisible, rearmDismissal } from './notices'
+import { isDismissed, noticeKey, pruneDismissals } from './notices'
 
-describe('eventNoticeKey', () => {
-  it('is null when neither notice exists', () => {
-    expect(eventNoticeKey(null, null)).toBeNull()
-  })
-
-  it('identifies an error by its message', () => {
-    expect(eventNoticeKey('Open-Meteo quota reached. Try again later.', null)).toBe(
-      'error:Open-Meteo quota reached. Try again later.',
+describe('noticeKey', () => {
+  it('identifies a notice by kind and message', () => {
+    expect(noticeKey('error', 'Cannot reach Open-Meteo. Try again later.')).toBe(
+      'error:Cannot reach Open-Meteo. Try again later.',
     )
   })
 
-  it('lets the refusal win, matching the render precedence', () => {
-    expect(eventNoticeKey('some error', 'over the limit')).toBe('refusal:over the limit')
-  })
-
   it('never confuses an error with a refusal carrying the same text', () => {
-    expect(eventNoticeKey('same text', null)).not.toBe(eventNoticeKey(null, 'same text'))
+    expect(noticeKey('error', 'same text')).not.toBe(noticeKey('refusal', 'same text'))
   })
 })
 
-describe('rearmDismissal', () => {
-  it('holds a dismissal while its notice persists', () => {
-    expect(rearmDismissal('error:a', 'error:a')).toBe('error:a')
-  })
-
-  it('spends every dismissal when the slate clears', () => {
-    // Analyze clears both notice states before it fetches, so this is the
-    // next-Analyze re-arm: key → null → key.
-    expect(rearmDismissal('error:a', null)).toBeNull()
-  })
-})
-
-describe('eventNoticeVisible', () => {
-  it('shows a notice nobody dismissed', () => {
-    expect(eventNoticeVisible('error:a', null)).toBe(true)
-  })
-
-  it('hides the dismissed notice', () => {
-    expect(eventNoticeVisible('error:a', 'error:a')).toBe(false)
+describe('isDismissed', () => {
+  it('hides the dismissed notice and only it', () => {
+    const dismissed = [noticeKey('refusal', 'over the limit')]
+    expect(isDismissed(noticeKey('refusal', 'over the limit'), dismissed)).toBe(true)
+    expect(isDismissed(noticeKey('error', 'network down'), dismissed)).toBe(false)
   })
 
   it('shows fresh content through a stale dismissal', () => {
-    expect(eventNoticeVisible('error:b', 'error:a')).toBe(true)
+    const dismissed = [noticeKey('error', 'message a')]
+    expect(isDismissed(noticeKey('error', 'message b'), dismissed)).toBe(false)
+  })
+})
+
+describe('pruneDismissals', () => {
+  it('keeps a dismissal while its notice persists', () => {
+    const key = noticeKey('error', 'a')
+    expect(pruneDismissals([key], [key, null])).toEqual([key])
   })
 
-  it('renders nothing when there is no notice', () => {
-    expect(eventNoticeVisible(null, null)).toBe(false)
-    expect(eventNoticeVisible(null, 'error:a')).toBe(false)
+  it('spends every dismissal when no notice is active', () => {
+    // Analyze clears both notice states before it fetches, so this is the
+    // next-Analyze re-arm: key → no keys → key.
+    expect(pruneDismissals([noticeKey('error', 'a')], [null, null])).toEqual([])
+  })
+
+  it('prunes only the dismissal whose notice went away', () => {
+    const errorKey = noticeKey('error', 'a')
+    const refusalKey = noticeKey('refusal', 'b')
+    expect(pruneDismissals([errorKey, refusalKey], [refusalKey, null])).toEqual([refusalKey])
+  })
+
+  it('returns the same reference when nothing was pruned', () => {
+    const dismissed = [noticeKey('error', 'a')]
+    expect(pruneDismissals(dismissed, [noticeKey('error', 'a')])).toBe(dismissed)
   })
 })
 
 describe('the dismissal lifecycle', () => {
-  // The full loop the criteria name: dismiss, re-analyze, and the identical
-  // failure must show again because the analyze-start clear spent the
-  // dismissal on its way through.
+  // The full loop the acceptance criteria name: dismiss, re-analyze, and the
+  // identical failure must show again because the analyze-start clear spent
+  // the dismissal on its way through.
   it('shows an identical message again after the next Analyze', () => {
-    const first = eventNoticeKey('Open-Meteo quota reached. Try again later.', null)
-    let dismissed: string | null = first // the click
-    expect(eventNoticeVisible(first, dismissed)).toBe(false)
+    const key = noticeKey('error', 'Open-Meteo quota reached. Try again later.')
+    let dismissed: readonly string[] = [key] // the click
+    expect(isDismissed(key, dismissed)).toBe(true)
 
-    dismissed = rearmDismissal(dismissed, null) // analyze start clears both states
-    const second = eventNoticeKey('Open-Meteo quota reached. Try again later.', null)
-    expect(eventNoticeVisible(second, dismissed)).toBe(true)
+    dismissed = pruneDismissals(dismissed, [null, null]) // analyze start clears both states
+    expect(isDismissed(key, dismissed)).toBe(false)
+  })
+
+  it('dismisses each notice individually when more than one is dismissable', () => {
+    const errorKey = noticeKey('error', 'network down')
+    const refusalKey = noticeKey('refusal', 'over the limit')
+    let dismissed: readonly string[] = []
+
+    dismissed = [...dismissed, refusalKey] // dismiss one box
+    expect(isDismissed(refusalKey, dismissed)).toBe(true)
+    expect(isDismissed(errorKey, dismissed)).toBe(false) // the other stays
+
+    dismissed = pruneDismissals(dismissed, [errorKey, refusalKey]) // both still active
+    expect(isDismissed(refusalKey, dismissed)).toBe(true)
   })
 
   it('keeps a dismissal through re-renders that change nothing', () => {
-    const key = eventNoticeKey(null, 'over the limit')
-    let dismissed: string | null = key
-    dismissed = rearmDismissal(dismissed, key)
-    dismissed = rearmDismissal(dismissed, key)
-    expect(eventNoticeVisible(key, dismissed)).toBe(false)
+    const key = noticeKey('refusal', 'over the limit')
+    let dismissed: readonly string[] = [key]
+    dismissed = pruneDismissals(dismissed, [key])
+    dismissed = pruneDismissals(dismissed, [key])
+    expect(isDismissed(key, dismissed)).toBe(true)
   })
 })

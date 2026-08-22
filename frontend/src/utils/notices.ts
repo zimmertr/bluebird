@@ -7,46 +7,43 @@
  * refusal box — report something that already happened, and once read they
  * only occupy space.
  *
+ * Dismissal is tracked per notice, keyed by kind and message, so each box
+ * dismisses itself alone. Today the two event notices are also mutually
+ * exclusive by construction — one analysis produces one outcome, and the
+ * error box renders only when there is no refusal — but nothing here relies
+ * on that, so a third event notice would inherit individual dismissal
+ * without a new decision.
+ *
  * The safety property is that a dismissal can never swallow a fresh message.
- * Two rules deliver it, and both fall out of one shape: the identity of a
- * dismissal is the message it dismissed, and `useAnalyze` clears both notice
- * states before every fetch, so content always moves key → null → key. A
- * different message has a different key and shows through a stale dismissal;
- * an identical message from the next Analyze passes through the null, which
- * spends the dismissal.
+ * A dismissal lives exactly as long as the notice it dismissed: when that
+ * notice's key stops being active it is pruned. `useAnalyze` clears both
+ * notice states before every fetch, so a re-run always passes through a
+ * no-keys moment — which is why an identical message from the next Analyze
+ * shows again — and a different message was never dismissed in the first
+ * place.
  */
 
-/**
- * The identity of the visible event notice, or null when there is none.
- * Refusal wins, matching the render precedence: the error box only renders
- * when there is no refusal.
- */
-export function eventNoticeKey(
-  error: string | null,
-  refusalMessage: string | null,
-): string | null {
-  if (refusalMessage !== null) return `refusal:${refusalMessage}`
-  if (error !== null) return `error:${error}`
-  return null
+export type EventNoticeKind = 'error' | 'refusal'
+
+/** The identity of one event notice: what was said, and which box said it. */
+export function noticeKey(kind: EventNoticeKind, message: string): string {
+  return `${kind}:${message}`
 }
 
 /**
- * What a standing dismissal becomes when the notice key changes. The moment
- * there is nothing to show is the moment every dismissal is spent: that is
- * the analyze-start clear, so the notice the run produces shows even when it
- * reads exactly like the one the reader dismissed.
+ * Drop every dismissal whose notice is no longer active. Returns the input
+ * array unchanged (same reference) when nothing was pruned, so state setters
+ * can skip a no-op update.
  */
-export function rearmDismissal(
-  dismissedKey: string | null,
-  currentKey: string | null,
-): string | null {
-  return currentKey === null ? null : dismissedKey
+export function pruneDismissals(
+  dismissed: readonly string[],
+  activeKeys: readonly (string | null)[],
+): readonly string[] {
+  const kept = dismissed.filter((key) => activeKeys.includes(key))
+  return kept.length === dismissed.length ? dismissed : kept
 }
 
-/** Whether the event notice should render: there is one, and it is not the one dismissed. */
-export function eventNoticeVisible(
-  currentKey: string | null,
-  dismissedKey: string | null,
-): boolean {
-  return currentKey !== null && currentKey !== dismissedKey
+/** Whether this notice's box should stay hidden. */
+export function isDismissed(key: string, dismissed: readonly string[]): boolean {
+  return dismissed.includes(key)
 }
