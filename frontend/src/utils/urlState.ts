@@ -4,7 +4,15 @@
 // to unit-test — App.tsx owns the thin glue that reads/writes location.
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
 import { GeoPolygon, DiscoveryType, SortBy } from '../types'
-import { RANKING_KEYS } from '../metrics'
+import {
+  DEFAULT_FAMILY_KEY,
+  FAMILY_KEYS,
+  MetricFamily,
+  RANKED_FAMILIES,
+  RANKING_KEYS,
+  aggregateToken,
+  familyOf,
+} from '../metrics'
 import { Constraints, NO_CONSTRAINTS, hasConstraints } from './clientAnalyze'
 import { GRID_REACH_DEFAULT_FRAC, isGridStyle, type GridStyle } from './forecastGrid'
 import {
@@ -40,6 +48,11 @@ export interface ShareableState {
   forecastModel: string
   sortBy: SortBy
   sortDesc: boolean // false = lowest first (the historical behavior)
+  // Which aggregate each metric's ranking-row dropdown holds (#291), active
+  // row included — its entry always equals `sortBy`. Carried whole because the
+  // three inactive rows are real state a reload must not lose, per TJ's call
+  // (2026-08-22) that every row's choice persists in the URL.
+  rowKeys: Record<MetricFamily, SortBy>
   minElevationFt: number | null
   maxElevationFt: number | null
   // The forecast bounds, as one value rather than eight fields, because every
@@ -76,16 +89,10 @@ export interface ShareableState {
 
 const DISCOVERY_TYPES: DiscoveryType[] = ['peak', 'trailhead', 'lake']
 
-// Sort keys from before the metric × direction redesign, when aggregation
-// variants were individually rankable. Old shared links fall back to their
-// metric's representative key rather than being dropped.
-const LEGACY_SORT_MAP: Record<string, SortBy> = {
-  precip_max_in_hr: 'precip_total_in',
-  wind_max_mph: 'wind_avg_mph',
-  temp_min_f: 'temp_avg_f',
-  temp_max_f: 'temp_avg_f',
-  aqi_max: 'aqi_avg',
-}
+// No legacy sort map anymore: the aggregate keys it used to fold into their
+// metric's representative one (`wind_max_mph` → `wind_avg_mph`) are first-class
+// RANKING_KEYS again since #291, so an old link now restores as exactly the
+// ranking it named.
 
 // The forecast bounds' query params, spelled out rather than abbreviated the
 // way `minel`/`maxel` were: eight terse keys would be eight guesses in the
@@ -250,6 +257,7 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
   const hasPins = state.pins.length > 0
   const nonDefaultControls =
     state.sortBy !== DEFAULT_SORT ||
+    RANKED_FAMILIES.some((family) => state.rowKeys[family] !== DEFAULT_FAMILY_KEY[family]) ||
     state.sortDesc ||
     state.limit !== DEFAULT_LIMIT ||
     state.destinationTypes.length !== DEFAULT_TYPES.length ||
@@ -270,6 +278,16 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
   if (state.destinationTypes.length > 0) p.set('type', state.destinationTypes.join(','))
   p.set('sort', state.sortBy)
   if (state.sortDesc) p.set('desc', '1')
+  // Inactive aggregate dropdowns (#291), written only off their defaults so a
+  // link stays as short as what was changed. The active family is skipped:
+  // `sort` above already carries its whole key, and a second spelling of the
+  // same fact is a chance for the two to disagree.
+  for (const family of RANKED_FAMILIES) {
+    if (family === familyOf(state.sortBy)) continue
+    if (state.rowKeys[family] !== DEFAULT_FAMILY_KEY[family]) {
+      p.set(family, aggregateToken(state.rowKeys[family]))
+    }
+  }
   p.set('limit', String(state.limit))
   // Always written once the link exists at all, for the same reason `mode` is:
   // the model is part of what the numbers mean, so a link that left it to the
@@ -434,9 +452,30 @@ export function decodeState(search: string): Partial<ShareableState> | null {
 
   const sort = params.get('sort')
   if (sort && (RANKING_KEYS as readonly string[]).includes(sort)) out.sortBy = sort as SortBy
-  else if (sort && sort in LEGACY_SORT_MAP) out.sortBy = LEGACY_SORT_MAP[sort]
 
   if (params.get('desc') === '1') out.sortDesc = true
+
+  // The aggregate dropdowns (#291): one param per metric family, valued by the
+  // aggregate token its keys already spell (`wind=max`), written only off the
+  // default. The active family's dropdown rides `sort` instead, so it wins
+  // over its own param — the two can only disagree in a hand-edited link, and
+  // `sort` is the one that names the ranking on screen.
+  const rowKeys = { ...DEFAULT_FAMILY_KEY }
+  let rowTouched = false
+  for (const family of RANKED_FAMILIES) {
+    const raw = params.get(family)
+    if (raw === null) continue
+    const key = FAMILY_KEYS[family].find((k) => aggregateToken(k) === raw)
+    if (key !== undefined && key !== DEFAULT_FAMILY_KEY[family]) {
+      rowKeys[family] = key
+      rowTouched = true
+    }
+  }
+  if (out.sortBy !== undefined) {
+    rowKeys[familyOf(out.sortBy)] = out.sortBy
+    rowTouched = rowTouched || out.sortBy !== DEFAULT_FAMILY_KEY[familyOf(out.sortBy)]
+  }
+  if (rowTouched) out.rowKeys = rowKeys
 
   // Shape only, no ceiling: a link asking for more rows than this deployment
   // allows gets clamped down by the caller, never discarded. Dropping it here

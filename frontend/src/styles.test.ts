@@ -33,6 +33,7 @@ import {
   SEGMENT_IDLE,
   SEGMENT_ITEM,
   SELECT,
+  SELECT_W_AGGREGATE,
   SPINNER,
   STATUS,
   RECESSED_EDGE,
@@ -655,6 +656,26 @@ describe('shared recipes', () => {
 
     expect(boxes).toHaveLength(2)
     expect(boxes[0] + boxes[1] + gap).toBeCloseTo(steps(CONTROL_W))
+  })
+
+  // The aggregate dropdown (#291) is the one control beside the shared column
+  // rather than in it, so its width is a budget the ranking row has to close:
+  // radio (14px) + label gap (10px) + the row's two gap-1.5 gaps (12px) +
+  // dropdown + segment must leave the label its longest noun, which measures
+  // exactly 72px at text-xs, inside the panel's measured 327px of content.
+  // The other bound is the dropdown's content: the widest aggregate word
+  // (28px) plus the field's 8px left padding plus the 32px the SELECT recipe
+  // reserves for its arrow. All numbers measured in the running app
+  // (2026-08-22); re-measure before moving this width, CONTROL_W, the row
+  // gap, or the nouns.
+  it('budgets the aggregate dropdown against the ranking row', () => {
+    const rem = Number(SELECT_W_AGGREGATE.match(/\[(\d+(?:\.\d+)?)rem\]/)![1])
+    const dropdownPx = rem * 16
+    const segmentPx = (Number(CONTROL_W.match(/-(\d+)$/)![1]) / 4) * 16
+    const labelPx = 327 - 14 - 10 - 12 - dropdownPx - segmentPx
+
+    expect(labelPx).toBeGreaterThanOrEqual(72)
+    expect(dropdownPx).toBeGreaterThanOrEqual(28 + 8 + 32)
   })
 
   // Every stacked control in the panel composes CONTROL_W, so none of them may

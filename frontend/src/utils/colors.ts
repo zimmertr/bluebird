@@ -1,4 +1,5 @@
 import { SortBy } from '../types'
+import { MetricFamily } from '../metrics'
 
 /**
  * A set of band boundaries and the colors they anchor.
@@ -35,20 +36,27 @@ type MetricConfig = LabelledScale & {
 // Scales are anchored to absolute conditions (green = dry/calm/cold/clean),
 // not to the chosen ranking direction — ranking "highest" simply surfaces the
 // red end of the same scale first.
-export const METRIC_CONFIG: Record<SortBy, MetricConfig> = {
-  precip_total_in: {
+//
+// Keyed by family rather than by ranking key (#291): a family's aggregates
+// share one scale (a windy hour is windy whether it was the average or the
+// peak), so eleven rankable keys would be eleven copies of four scales. The
+// exception is precipitation's rate columns, which measure a different
+// quantity and carry their own scale below (PRECIP_RATE); `rankedScale` is
+// the per-key reading that knows this.
+export const METRIC_CONFIG: Record<MetricFamily, MetricConfig> = {
+  precip: {
     thresholds: [0.01, 0.10, 0.25, 0.50],
     colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
     legendLabels: ['≤ 0.01"', '0.01 – 0.10"', '0.10 – 0.25"', '0.25 – 0.50"', '> 0.50"'],
     group: ['precip_total_in', 'precip_avg_in_hr', 'precip_max_in_hr'],
   },
-  wind_avg_mph: {
+  wind: {
     thresholds: [5, 15, 25, 35],
     colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
     legendLabels: ['≤ 5 mph', '5 – 15 mph', '15 – 25 mph', '25 – 35 mph', '> 35 mph'],
     group: ['wind_min_mph', 'wind_avg_mph', 'wind_max_mph'],
   },
-  temp_avg_f: {
+  temp: {
     thresholds: [30, 45, 55, 65],
     colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
     legendLabels: ['≤ 30°F', '30 – 45°F', '45 – 55°F', '55 – 65°F', '> 65°F'],
@@ -57,7 +65,7 @@ export const METRIC_CONFIG: Record<SortBy, MetricConfig> = {
   // All six US EPA AQI categories — Good / Moderate / Sensitive / Unhealthy /
   // Very Unhealthy / Hazardous — in the app's hues. The purple/maroon top
   // bands exist so an AQI of 250 and one of 350 never look the same.
-  aqi_avg: {
+  aqi: {
     thresholds: [50, 100, 150, 200, 300],
     colors: ['#22c55e', '#eab308', '#f97316', '#ef4444', '#a855f7', '#991b1b'],
     legendLabels: [
@@ -106,29 +114,14 @@ const PRECIP_RATE: LabelledScale = {
 }
 
 /**
- * Which hourly column carries a ranked metric's per-hour value.
- *
- * Only precipitation moves: its ranked key is a window total and its hourly
- * value is a rate, so they are measured against different scales. The other
- * three rank by an average of the same quantity the hourly series holds, so the
- * ranked key IS the hourly key and the mapping is the identity.
- */
-const HOURLY_COLUMN: Record<SortBy, string> = {
-  precip_total_in: 'precip_avg_in_hr',
-  wind_avg_mph: 'wind_avg_mph',
-  temp_avg_f: 'temp_avg_f',
-  aqi_avg: 'aqi_avg',
-}
-
-/**
  * Which scale scores a given column, derived from the ranking scales rather
  * than restated: every colorable column is already named in exactly one
  * `group`, and a second list would be a second answer.
  */
 const COLUMN_SCALE: Record<string, LabelledScale> = {
   ...Object.fromEntries(
-    (Object.keys(METRIC_CONFIG) as SortBy[]).flatMap((key) =>
-      METRIC_CONFIG[key].group.map((column) => [column, METRIC_CONFIG[key] as LabelledScale]),
+    (Object.keys(METRIC_CONFIG) as MetricFamily[]).flatMap((family) =>
+      METRIC_CONFIG[family].group.map((column) => [column, METRIC_CONFIG[family] as LabelledScale]),
     ),
   ),
   precip_avg_in_hr: PRECIP_RATE,
@@ -136,21 +129,38 @@ const COLUMN_SCALE: Record<string, LabelledScale> = {
 }
 
 /**
+ * The scale the ranked value is measured on: what colors the markers and what
+ * the map's metric legend prints.
+ *
+ * Every ranking key is a column, so this is `COLUMN_SCALE` read for the ranked
+ * one — which is what puts a rate ranking on the rate scale: rank by the
+ * precipitation peak and the markers, the legend, and the table cell all read
+ * in/hr together.
+ */
+export function rankedScale(sortBy: SortBy): LabelledScale {
+  return COLUMN_SCALE[sortBy]
+}
+
+/**
  * The scale one hour of a ranked metric is read on, for map playback (#121).
  *
  * Playback colors a marker by that hour's own number rather than by the
- * window's, so precipitation has to leave the total scale: 0.30" spread across
- * three days is drizzle and 0.30 in/hr is a downpour, and coloring the second
- * like the first would say they were the same weather. It reads the same
- * `COLUMN_SCALE` the table does, so a marker under the playhead and the cell
- * beside it in the table cannot be scored differently.
+ * window's, so a total ranking has to leave the total scale: 0.30" spread
+ * across three days is drizzle and 0.30 in/hr is a downpour, and coloring the
+ * second like the first would say they were the same weather. Hence the one
+ * remapping: the window-total key reads its hour on the average-rate column's
+ * scale. Every other key already names an hourly quantity — one hour's
+ * minimum, average and maximum are the same reading — so it is its own hourly
+ * column. It reads the same `COLUMN_SCALE` the table does, so a marker under
+ * the playhead and the cell beside it in the table cannot be scored
+ * differently.
  *
  * The point-sample collapse `scaleFor` handles below cannot apply here:
  * playback exists only over a window of at least two stamps, so an hour is
  * never the whole window.
  */
 export function hourlyScale(sortBy: SortBy): LabelledScale {
-  return COLUMN_SCALE[HOURLY_COLUMN[sortBy]]
+  return COLUMN_SCALE[sortBy === 'precip_total_in' ? 'precip_avg_in_hr' : sortBy]
 }
 
 /**
@@ -166,7 +176,7 @@ export function hourlyScale(sortBy: SortBy): LabelledScale {
  */
 export function scaleFor(key: string, pointSample: boolean): ColorScale | null {
   if (pointSample && (key === 'precip_avg_in_hr' || key === 'precip_max_in_hr')) {
-    return METRIC_CONFIG.precip_total_in
+    return METRIC_CONFIG.precip
   }
   return COLUMN_SCALE[key] ?? null
 }
@@ -209,7 +219,7 @@ function interpolateRgb(value: number, scale: ColorScale): [number, number, numb
 
 /** A marker is colored by the ranked value, which is what the legend explains. */
 export function markerColor(value: number, sortBy: SortBy): string {
-  return colorOnScale(value, METRIC_CONFIG[sortBy])
+  return colorOnScale(value, rankedScale(sortBy))
 }
 
 /**

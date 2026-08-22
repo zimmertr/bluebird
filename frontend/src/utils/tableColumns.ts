@@ -1,5 +1,5 @@
 import { DestinationResult, SortBy } from '../types'
-import { AGGREGATE, metricLabel } from '../metrics'
+import { AGGREGATE, familyOf, metricLabel } from '../metrics'
 import { METRIC_CONFIG } from './colors'
 
 /**
@@ -95,7 +95,7 @@ export const COLUMNS: ColDef[] = [
  * lint scans comments too.)
  */
 export function orderColumns<T extends { key: string }>(columns: T[], sortBy: SortBy): T[] {
-  const group = new Set<string>(METRIC_CONFIG[sortBy].group)
+  const group = new Set<string>(METRIC_CONFIG[familyOf(sortBy)].group)
   const lead = columns.filter((c) => LEAD_KEYS.has(c.key))
   const ranked = columns.filter((c) => !LEAD_KEYS.has(c.key) && group.has(c.key))
   const rest = columns.filter((c) => !LEAD_KEYS.has(c.key) && !group.has(c.key))
@@ -157,6 +157,6 @@ export function visibleColumns(
 ): ColDef[] {
   const allCols = orderColumns(pointSample ? pointModeColumns(COLUMNS) : COLUMNS, sortBy)
   if (!visibleKeys) return allCols
-  const group = new Set(METRIC_CONFIG[sortBy].group)
+  const group = new Set(METRIC_CONFIG[familyOf(sortBy)].group)
   return allCols.filter((c) => visibleKeys.has(c.key) || group.has(c.key))
 }

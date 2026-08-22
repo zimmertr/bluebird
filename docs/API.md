@@ -377,9 +377,14 @@ are never filtered out.
 
 ## Asking for only what you would actually go to
 
-Ranking orders every candidate; it never removes one. To say "and nothing
-wetter than this", set bounds. Each is optional, each is a number or omitted,
-and they combine as an AND:
+Ranking orders every candidate; it never removes one. `sort_by` accepts every
+aggregate column a result row carries — the window's peak wind
+(`wind_max_mph`) as readily as its average — and `sort_desc` picks the
+direction. The accepted keys are published by `GET /api/capabilities` under
+`sort_keys`.
+
+To say "and nothing wetter than this", set bounds. Each is optional, each is a
+number or omitted, and they combine as an AND:
 
 | Field pair | Keeps a destination when |
 | --- | --- |

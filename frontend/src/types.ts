@@ -11,14 +11,23 @@ export type DiscoveryType = Exclude<DestinationType, 'custom'>
 // point sample is start == end == the moment, which the backend normalizes to
 // the hour containing it.
 
-// One representative ranking value per metric (the backend enum accepts more
-// aggregation keys for direct API callers, but the UI ranks by these four —
-// direction is the second axis, carried separately as sortDesc/sort_desc).
+// Every aggregate column a result row carries, which since #291 is also every
+// value the UI can rank by — the ranking picker pairs each metric with an
+// aggregate dropdown, so this union mirrors the backend's SortBy enum member
+// for member (direction is the second axis, carried separately as
+// sortDesc/sort_desc). AQI has no minimum column, hence the one short family.
 export type SortBy =
   | 'precip_total_in'
+  | 'precip_avg_in_hr'
+  | 'precip_max_in_hr'
+  | 'wind_min_mph'
   | 'wind_avg_mph'
+  | 'wind_max_mph'
+  | 'temp_min_f'
   | 'temp_avg_f'
+  | 'temp_max_f'
   | 'aqi_avg'
+  | 'aqi_max'
 
 export interface GeoPolygon {
   type: 'Polygon'

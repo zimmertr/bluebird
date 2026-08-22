@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   AGGREGATE,
+  DEFAULT_FAMILY_KEY,
+  FAMILY_KEYS,
   MetricFamily,
   NOUN,
+  RANKED_FAMILIES,
+  RANKING_KEYS,
   SEP,
   UNIT,
+  aggregateToken,
   familyOf,
   metricLabel,
   rankedNoun,
@@ -28,6 +33,65 @@ import openMeteoSource from './utils/openMeteo.ts?raw'
 import presentSource from './utils/present.ts?raw'
 
 const SORTS: SortBy[] = ['precip_total_in', 'wind_avg_mph', 'temp_avg_f', 'aqi_avg']
+
+describe('the rankable keys', () => {
+  // Every aggregate column the table shows is rankable, and nothing else is:
+  // the per-family lists mirror the table's column set, AQI's missing minimum
+  // included, and the flat list is derived from them.
+  it('offers exactly the aggregate columns per family', () => {
+    expect(FAMILY_KEYS.precip).toEqual(['precip_total_in', 'precip_avg_in_hr', 'precip_max_in_hr'])
+    expect(FAMILY_KEYS.wind).toEqual(['wind_min_mph', 'wind_avg_mph', 'wind_max_mph'])
+    expect(FAMILY_KEYS.temp).toEqual(['temp_min_f', 'temp_avg_f', 'temp_max_f'])
+    expect(FAMILY_KEYS.aqi).toEqual(['aqi_avg', 'aqi_max'])
+  })
+
+  it('derives RANKING_KEYS from the family lists', () => {
+    expect(RANKING_KEYS).toEqual(RANKED_FAMILIES.flatMap((f) => FAMILY_KEYS[f]))
+    expect(RANKING_KEYS).toHaveLength(11)
+  })
+
+  // The pre-#291 rankable four: what each row holds until the user says
+  // otherwise, so a fresh session ranks exactly as it always has.
+  it('defaults every family to its historical representative key', () => {
+    expect(DEFAULT_FAMILY_KEY).toEqual({
+      precip: 'precip_total_in',
+      wind: 'wind_avg_mph',
+      temp: 'temp_avg_f',
+      aqi: 'aqi_avg',
+    })
+    for (const family of RANKED_FAMILIES) {
+      expect(FAMILY_KEYS[family]).toContain(DEFAULT_FAMILY_KEY[family])
+    }
+  })
+
+  it('keys every family entry to its own family', () => {
+    for (const family of RANKED_FAMILIES) {
+      for (const key of FAMILY_KEYS[family]) expect(familyOf(key)).toBe(family)
+    }
+  })
+})
+
+describe('aggregateToken', () => {
+  it('reads the reduction out of every ranking key', () => {
+    expect(RANKING_KEYS.map(aggregateToken)).toEqual([
+      'total',
+      'avg',
+      'max',
+      'min',
+      'avg',
+      'max',
+      'min',
+      'avg',
+      'max',
+      'avg',
+      'max',
+    ])
+  })
+
+  it('throws on a key with no aggregate segment', () => {
+    expect(() => aggregateToken('elevation_ft' as SortBy)).toThrow(/elevation_ft/)
+  })
+})
 
 describe('the vocabulary', () => {
   it('names every metric in full, with no short form', () => {
@@ -90,11 +154,18 @@ describe('familyOf', () => {
 })
 
 describe('windowAggregate', () => {
-  it('totals precipitation and averages everything else', () => {
+  it('reads the display word off the key itself', () => {
     expect(windowAggregate('precip_total_in')).toBe('Total')
     expect(windowAggregate('wind_avg_mph')).toBe('Avg')
-    expect(windowAggregate('temp_avg_f')).toBe('Avg')
-    expect(windowAggregate('aqi_avg')).toBe('Avg')
+    expect(windowAggregate('wind_min_mph')).toBe('Min')
+    expect(windowAggregate('temp_max_f')).toBe('Max')
+    expect(windowAggregate('aqi_max')).toBe('Max')
+  })
+
+  it('answers with an AGGREGATE word for every rankable key', () => {
+    for (const key of RANKING_KEYS) {
+      expect(Object.values(AGGREGATE)).toContain(windowAggregate(key))
+    }
   })
 })
 
@@ -104,7 +175,10 @@ describe('rankedNoun', () => {
   it('qualifies a window ranking and leaves a point sample bare', () => {
     expect(rankedNoun('precip_total_in', false)).toBe('Total Precipitation')
     expect(rankedNoun('temp_avg_f', false)).toBe('Avg Temperature')
+    expect(rankedNoun('wind_max_mph', false)).toBe('Max Wind')
+    expect(rankedNoun('temp_min_f', false)).toBe('Min Temperature')
     expect(rankedNoun('precip_total_in', true)).toBe('Precipitation')
+    expect(rankedNoun('wind_max_mph', true)).toBe('Wind')
     expect(rankedNoun('aqi_avg', true)).toBe('AQI')
   })
 })

@@ -5,7 +5,13 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from app.main import app
-from app.models import AnalyzeRequest, DestinationResult, DestinationType, GeoPolygon
+from app.models import (
+    AnalyzeRequest,
+    DestinationResult,
+    DestinationType,
+    GeoPolygon,
+    SortBy,
+)
 from app.routes import analyze as analyze_mod
 from app.routes.analyze import (
     _aligned_aqi,
@@ -99,6 +105,24 @@ def test_sort_key_none_sorts_last_descending():
     rows = [_result("none", aqi=None), _result("low", aqi=50), _result("high", aqi=100)]
     rows.sort(key=_sort_key("aqi_avg", descending=True))
     assert [r.name for r in rows] == ["high", "low", "none"]
+
+
+def test_sort_key_ranks_the_new_aggregate_members():
+    # The two members #291 added so every aggregate column is rankable. The
+    # helper is a getattr, so this pins the enum values to real field names.
+    rows = [
+        _result("calm", wind_min=2.0),
+        _result("breezy", wind_min=8.0),
+        _result("still", wind_min=0.0),
+    ]
+    rows.sort(key=_sort_key(SortBy.wind_min.value, descending=False))
+    assert [r.name for r in rows] == ["still", "calm", "breezy"]
+
+    rows = [_result("a"), _result("b"), _result("c")]
+    for row, rate in zip(rows, (0.3, 0.1, 0.2)):
+        row.precip_avg_in_hr = rate
+    rows.sort(key=_sort_key(SortBy.precip_avg.value, descending=True))
+    assert [r.name for r in rows] == ["a", "c", "b"]
 
 
 # ── _filter_constraints ────────────────────────────────────────────────────

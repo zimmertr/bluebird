@@ -33,23 +33,49 @@ import { SortBy } from './types'
 export type MetricFamily = 'precip' | 'temp' | 'wind' | 'aqi'
 
 /**
- * The four keys a report can be RANKED by, one per family: the ranking picker's
- * options, the values the URL's `sort` param accepts, and the table columns
- * whose header click re-cuts the whole field rather than reordering the rows on
- * screen (#188).
- *
- * One list because there were three, and a fourth key would have had to be
- * added to each of them. The table's other columns are detail, not ranking:
- * making them rank the field too would need marker thresholds in `colors.ts`, a
- * URL spelling, and an aggregate-aware `rankedNoun` for each, which is a
- * separate change.
+ * The four metric rows of the ranking picker, in the order they render — the
+ * same order the ranking radios have always used.
  */
-export const RANKING_KEYS = [
-  'precip_total_in',
-  'wind_avg_mph',
-  'temp_avg_f',
-  'aqi_avg',
-] as const satisfies readonly SortBy[]
+export const RANKED_FAMILIES: readonly MetricFamily[] = ['precip', 'wind', 'temp', 'aqi']
+
+/**
+ * Each family's rankable keys, in the order its aggregate picker offers them
+ * (#291). One key per aggregate column the table shows, so the picker and the
+ * table cannot disagree about what a metric's choices are; AQI has no minimum
+ * column, which is why its list is the one short one. Precipitation leads with
+ * the window total because that is the quantity its ranking has always meant;
+ * the others read low-to-high.
+ */
+export const FAMILY_KEYS: Record<MetricFamily, readonly SortBy[]> = {
+  precip: ['precip_total_in', 'precip_avg_in_hr', 'precip_max_in_hr'],
+  wind: ['wind_min_mph', 'wind_avg_mph', 'wind_max_mph'],
+  temp: ['temp_min_f', 'temp_avg_f', 'temp_max_f'],
+  aqi: ['aqi_avg', 'aqi_max'],
+}
+
+/**
+ * The aggregate each family ranks by until the user says otherwise: the total
+ * for precipitation, the window average for the rest. These were the only four
+ * rankable keys before #291, which is why they are the defaults rather than a
+ * new opinion.
+ */
+export const DEFAULT_FAMILY_KEY: Record<MetricFamily, SortBy> = {
+  precip: 'precip_total_in',
+  wind: 'wind_avg_mph',
+  temp: 'temp_avg_f',
+  aqi: 'aqi_avg',
+}
+
+/**
+ * Every key a report can be RANKED by: the values the URL's `sort` param
+ * accepts, and the union the aggregate pickers choose from (#291).
+ *
+ * Derived from the per-family lists above rather than spelled again, so a key
+ * cannot be rankable in the picker and unknown to the URL.
+ */
+export const RANKING_KEYS: readonly SortBy[] = RANKED_FAMILIES.flatMap(
+  (family) => FAMILY_KEYS[family],
+)
 
 /**
  * The metric's name. Spelled out, with no short form anywhere.
@@ -125,14 +151,36 @@ export function familyOf(key: string): MetricFamily {
 }
 
 /**
- * The aggregate a window-mode ranking actually used: precipitation ranks by
- * its total over the window, everything else by its average.
+ * The reduction spelled inside a ranking key: `wind_max_mph` reduces by its
+ * maximum, `precip_total_in` by its total.
  *
- * This mirrors the backend's choice of representative value per metric, and is
- * the same sentence the ranking picker's helper text spells out for the user.
+ * Every key writes its aggregate as its second segment, the same way it leads
+ * with its family, so the token is the answer — a lookup table here would be a
+ * second copy of the key list waiting to miss one. Throws on an unknown token
+ * for the same reason `familyOf` does.
+ */
+export function aggregateToken(sortBy: SortBy): 'total' | 'avg' | 'min' | 'max' {
+  const token = sortBy.split('_')[1]
+  if (token === 'total' || token === 'avg' || token === 'min' || token === 'max') return token
+  throw new Error(`no aggregate in "${sortBy}"`)
+}
+
+/**
+ * The aggregate a window-mode ranking used, as the display word the surfaces
+ * compose: "Total" for `precip_total_in`, "Max" for `wind_max_mph`.
+ *
+ * Before #291 this was a rule (precipitation totals, everything else
+ * averages); now every aggregate column is rankable, it is a reading of the
+ * key itself.
  */
 export function windowAggregate(sortBy: SortBy): string {
-  return familyOf(sortBy) === 'precip' ? AGGREGATE.total : AGGREGATE.average
+  const word = {
+    total: AGGREGATE.total,
+    avg: AGGREGATE.average,
+    min: AGGREGATE.minimum,
+    max: AGGREGATE.maximum,
+  } as const
+  return word[aggregateToken(sortBy)]
 }
 
 /**

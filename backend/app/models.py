@@ -285,8 +285,13 @@ MODEL_INFO: dict[ForecastModel, ModelInfo] = {
 
 
 class SortBy(str, Enum):
+    # One member per aggregate column a result row carries, so anything the
+    # table can show, a caller can rank by (#291). AQI has no minimum column,
+    # which is why its pair is the one incomplete set.
     precip_total = "precip_total_in"
+    precip_avg = "precip_avg_in_hr"
     precip_max = "precip_max_in_hr"
+    wind_min = "wind_min_mph"
     wind_avg = "wind_avg_mph"
     wind_max = "wind_max_mph"
     temp_min = "temp_min_f"

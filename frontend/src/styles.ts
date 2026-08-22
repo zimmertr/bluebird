@@ -620,6 +620,25 @@ export const CONTROL_W = 'w-36'
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 
 /**
+ * The ranking rows' aggregate dropdown (#291): the one control that sits
+ * BESIDE the shared control column rather than in it, so it takes its own
+ * width and the metric label absorbs what is left.
+ *
+ * 4.5rem (72px) is a budget, not a taste. Measured in the running app
+ * (2026-08-22): panel content is 327px, and a ranking row spends 14px on the
+ * radio, 10px on its label gap, 12px on its two gap-1.5 row gaps and 144px on
+ * the direction segment, leaving 75px for the label — whose longest nouns
+ * measure exactly 72px at text-xs. That is also why the ranking row is the
+ * panel's one gap-1.5 row: at the usual gap-2 the label gets 71px and
+ * truncates. The dropdown's own floor is its content: the widest aggregate
+ * word measures 28px, plus the field's 8px left padding and the 32px the
+ * SELECT recipe reserves for its arrow — 68px. Re-measure both sums before
+ * changing this, CONTROL_W, the row gap, or the nouns; styles.test.ts pins
+ * the arithmetic.
+ */
+export const SELECT_W_AGGREGATE = 'w-[4.5rem]'
+
+/**
  * A segmented control OUTSIDE the panel's column, sized by its content.
  *
  * `SEGMENT` bakes in `CONTROL_W` because the panel's rows must line up on both

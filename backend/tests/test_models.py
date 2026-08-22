@@ -9,6 +9,7 @@ from app.models import (
     MAX_POLYGON_AREA_KM2,
     AnalyzeRequest,
     CustomDestination,
+    DestinationResult,
     DestinationType,
     GeoPolygon,
     SortBy,
@@ -193,8 +194,13 @@ def test_as_utc_preserves_aware():
 
 def test_sortby_values_match_result_fields():
     # The frontend ranks by these string values; they must equal DestinationResult
-    # attribute names so _sort_key's getattr resolves.
+    # attribute names so _sort_key's getattr resolves. Checked for every member,
+    # because #291 made the whole enum reachable from the UI's aggregate pickers.
+    for member in SortBy:
+        assert member.value in DestinationResult.model_fields, member
     assert SortBy.precip_total.value == "precip_total_in"
+    assert SortBy.precip_avg.value == "precip_avg_in_hr"
+    assert SortBy.wind_min.value == "wind_min_mph"
     assert SortBy.aqi_max.value == "aqi_max"
 
 

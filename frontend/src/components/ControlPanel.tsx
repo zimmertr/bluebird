@@ -28,14 +28,26 @@ import {
   NOTICE_DISMISS,
   PANEL_EDGE,
   PANEL_RULE,
+  ICON_ADORNMENT,
   SEGMENT,
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
+  SELECT,
+  SELECT_W_AGGREGATE,
   STATUS,
   TEXT,
 } from '../styles'
-import { AGGREGATE, NOUN, RANKING_KEYS, familyOf, metricLabel, windowAggregate } from '../metrics'
+import {
+  AGGREGATE,
+  FAMILY_KEYS,
+  MetricFamily,
+  NOUN,
+  RANKED_FAMILIES,
+  familyOf,
+  metricLabel,
+  windowAggregate,
+} from '../metrics'
 import { Constraints, hasConstraints } from '../utils/clientAnalyze'
 import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analyzeGate'
 import { isDismissed, noticeKey, pruneDismissals } from '../utils/notices'
@@ -49,14 +61,10 @@ import {
 } from '../utils/calendar'
 import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabilities'
 
-// The app's core question: "top N peaks by <metric>, lowest or highest".
-// Each metric ranks by one representative value — total precipitation,
-// window-average wind/temperature/AQI. The finer min/avg/max detail stays
-// visible (and click-sortable) in the results table.
-const SORT_METRICS: { value: SortBy; label: string }[] = RANKING_KEYS.map((value) => ({
-  value,
-  label: metricLabel(familyOf(value), windowAggregate(value), ''),
-}))
+// The app's core question: "top N peaks by <metric's aggregate>, lowest or
+// highest". Each row is a metric; which of its aggregate columns it ranks by
+// is the row's dropdown (#291), so the label is the bare noun and the
+// reduction lives in the control beside it.
 
 // Why a knob stopped applying live. Each case names the reason the
 // controls went quiet, which is the thing this cue exists to not leave unsaid.
@@ -157,6 +165,16 @@ interface Props {
   setSortBy: (s: SortBy) => void
   sortDesc: boolean
   setSortDesc: (d: boolean) => void
+  // Each metric row's aggregate choice (#291), active row included. App owns
+  // the invariant that the active family's entry equals sortBy; changing any
+  // row's dropdown goes through setSortBy, which is what makes a dropdown
+  // change activate its row the way the direction toggle always has.
+  rowKeys: Record<MetricFamily, SortBy>
+  // Whether the window the report ranks is a single hourly stamp. The
+  // aggregate dropdowns hide then — min, average and maximum of one hour are
+  // the same number — the same way the calendar's Hours row hides under a
+  // selection that takes no hours.
+  pointSample: boolean
   minElevationFt: number | null
   setMinElevationFt: (v: number | null) => void
   maxElevationFt: number | null
@@ -338,6 +356,8 @@ export default function ControlPanel({
   setSortBy,
   sortDesc,
   setSortDesc,
+  rowKeys,
+  pointSample,
   minElevationFt,
   setMinElevationFt,
   maxElevationFt,
@@ -867,31 +887,76 @@ export default function ControlPanel({
           )}
         </section>
 
-        {/* Ranking — metric radio + Lowest/Highest toggle per row. The
-            toggle stays clickable on inactive rows so any ranking is one click;
-            selecting a metric via its radio keeps the current direction. */}
+        {/* Ranking — metric radio + aggregate dropdown + Lowest/Highest toggle
+            per row (#291). Dropdown and toggle stay clickable on inactive rows
+            so any ranking is one click: touching either activates its row, and
+            selecting a metric via its radio keeps the row's remembered
+            aggregate and the current direction. The dropdowns hide for a
+            single-hour window, where every aggregate is the same number — the
+            same disclosure the calendar's Hours row uses. */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
             Ranking
           </h2>
           <div className="space-y-1.5">
-            {SORT_METRICS.map((metric) => {
-              const isActive = sortBy === metric.value
+            {RANKED_FAMILIES.map((family) => {
+              const rowKey = rowKeys[family]
+              const isActive = familyOf(sortBy) === family
               return (
-                <div
-                  key={metric.value}
-                  className="flex items-center justify-between gap-2"
-                >
-                  <label className={`${CHOICE_ROW} min-w-0`}>
+                // The label grows (flex-1) and the two controls keep fixed
+                // widths, so the dropdown column and the toggle column line up
+                // on every row — justify-between would instead split the spare
+                // width around the dropdown and let each label's length place
+                // it. gap-1.5 rather than the section's usual gap-2: this is
+                // the one three-control row, and at gap-2 the label measures
+                // 71px against the 72px its longest noun needs (see
+                // SELECT_W_AGGREGATE in styles.ts for the full budget).
+                <div key={family} className="flex items-center gap-1.5">
+                  <label className={`${CHOICE_ROW} min-w-0 flex-1`}>
                     <input
                       type="radio"
                       name="sort_metric"
                       checked={isActive}
-                      onChange={() => setSortBy(metric.value)}
+                      onChange={() => setSortBy(rowKey)}
                       className={CHOICE_INPUT}
                     />
-                    <span className="truncate">{metric.label}</span>
+                    <span className="truncate">{NOUN[family]}</span>
                   </label>
+                  {!pointSample && (
+                    // flex, not block: an inline-level select in a block
+                    // wrapper reserves baseline descender space below itself,
+                    // which read as the dropdown sitting ~1px lower than the
+                    // toggle it must align with.
+                    <div className={`relative flex flex-shrink-0 ${isActive ? '' : 'opacity-50'}`}>
+                      {/* py-0.5 is SEGMENT_ITEM's own vertical padding, so the
+                          dropdown and the toggle beside it are the same
+                          height. */}
+                      <select
+                        aria-label={`${NOUN[family]} aggregate`}
+                        value={rowKey}
+                        onChange={(e) => setSortBy(e.target.value as SortBy)}
+                        className={`${SELECT} ${SELECT_W_AGGREGATE} px-2 py-0.5`}
+                      >
+                        {FAMILY_KEYS[family].map((key) => (
+                          <option key={key} value={key}>
+                            {windowAggregate(key)}
+                          </option>
+                        ))}
+                      </select>
+                      <svg
+                        className={`${ICON_ADORNMENT} h-4 w-4`}
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                  )}
                   <div
                     className={`${SEGMENT} flex-shrink-0 ${isActive ? '' : 'opacity-50'}`}
                   >
@@ -903,7 +968,7 @@ export default function ControlPanel({
                         key={dir.label}
                         aria-pressed={isActive && sortDesc === dir.desc}
                         onClick={() => {
-                          setSortBy(metric.value)
+                          setSortBy(rowKey)
                           setSortDesc(dir.desc)
                         }}
                         className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${

@@ -15,6 +15,7 @@ import {
   bandEnd,
 } from './calendar'
 import { GeoPolygon } from '../types'
+import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { NO_CONSTRAINTS } from './clientAnalyze'
 
 const polygon: GeoPolygon = {
@@ -52,6 +53,7 @@ const base: ShareableState = {
   forecastModel: DEFAULT_MODEL,
   sortBy: 'precip_total_in',
   sortDesc: false,
+  rowKeys: { ...DEFAULT_FAMILY_KEY },
   minElevationFt: null,
   maxElevationFt: null,
   constraints: NO_CONSTRAINTS,
@@ -79,6 +81,7 @@ const pristine: ShareableState = {
   forecastModel: DEFAULT_MODEL,
   sortBy: 'precip_total_in',
   sortDesc: false,
+  rowKeys: { ...DEFAULT_FAMILY_KEY },
   minElevationFt: null,
   maxElevationFt: null,
   constraints: NO_CONSTRAINTS,
@@ -518,19 +521,82 @@ describe('decodeState tolerance', () => {
     expect(decodeState('limit=0&sort=wind_avg_mph')!.limit).toBeUndefined()
   })
 
-  it('maps legacy aggregation sort keys to their metric', () => {
-    // Links shared before the metric × direction redesign keep working.
-    expect(decodeState('sort=precip_max_in_hr')!.sortBy).toBe('precip_total_in')
-    expect(decodeState('sort=wind_max_mph')!.sortBy).toBe('wind_avg_mph')
-    expect(decodeState('sort=temp_min_f')!.sortBy).toBe('temp_avg_f')
-    expect(decodeState('sort=temp_max_f')!.sortBy).toBe('temp_avg_f')
-    expect(decodeState('sort=aqi_max')!.sortBy).toBe('aqi_avg')
+  it('restores the aggregate sort keys as themselves', () => {
+    // These spent a while folded into their metric's representative key by a
+    // legacy map; since #291 every aggregate is rankable again, so an old link
+    // now restores as exactly the ranking it named.
+    expect(decodeState('sort=precip_max_in_hr')!.sortBy).toBe('precip_max_in_hr')
+    expect(decodeState('sort=wind_max_mph')!.sortBy).toBe('wind_max_mph')
+    expect(decodeState('sort=temp_min_f')!.sortBy).toBe('temp_min_f')
+    expect(decodeState('sort=temp_max_f')!.sortBy).toBe('temp_max_f')
+    expect(decodeState('sort=aqi_max')!.sortBy).toBe('aqi_max')
     expect(decodeState('sort=not_a_metric')).toBeNull()
   })
 
   it('only honors desc=1 for the sort direction', () => {
     expect(decodeState('sort=temp_avg_f&desc=1')!.sortDesc).toBe(true)
     expect(decodeState('sort=temp_avg_f&desc=0')!.sortDesc).toBeUndefined()
+  })
+
+  // The aggregate dropdowns (#291): one param per metric family, written only
+  // off the default, with the active family riding `sort` instead.
+  describe('aggregate row params', () => {
+    it('round-trips inactive rows set off their defaults', () => {
+      const out = roundTrip({
+        ...base,
+        sortBy: 'precip_total_in',
+        rowKeys: { ...DEFAULT_FAMILY_KEY, wind: 'wind_max_mph', temp: 'temp_min_f' },
+      })
+      expect(out!.rowKeys).toEqual({
+        precip: 'precip_total_in',
+        wind: 'wind_max_mph',
+        temp: 'temp_min_f',
+        aqi: 'aqi_avg',
+      })
+      expect(out!.sortBy).toBe('precip_total_in')
+    })
+
+    it('writes no family param at its default, and none for the active family', () => {
+      const qs = encodeState(
+        {
+          ...base,
+          sortBy: 'wind_max_mph',
+          rowKeys: { ...DEFAULT_FAMILY_KEY, wind: 'wind_max_mph' },
+        },
+        DEFAULT_MODEL,
+      )
+      const params = new URLSearchParams(qs)
+      // The active row's whole key is in `sort`; a second spelling could only
+      // disagree with it.
+      expect(params.get('sort')).toBe('wind_max_mph')
+      expect(params.get('wind')).toBeNull()
+      expect(params.get('precip')).toBeNull()
+      expect(params.get('temp')).toBeNull()
+      expect(params.get('aqi')).toBeNull()
+    })
+
+    it('restores the active row from sort alone', () => {
+      const out = decodeState('sort=aqi_max')
+      expect(out!.rowKeys).toEqual({ ...DEFAULT_FAMILY_KEY, aqi: 'aqi_max' })
+    })
+
+    it('lets sort win over its own family param in a hand-edited link', () => {
+      const out = decodeState('sort=wind_max_mph&wind=min')
+      expect(out!.sortBy).toBe('wind_max_mph')
+      expect(out!.rowKeys!.wind).toBe('wind_max_mph')
+    })
+
+    it('drops an unknown aggregate token without losing its neighbors', () => {
+      const out = decodeState('sort=temp_avg_f&wind=median&aqi=max')
+      expect(out!.rowKeys!.wind).toBe('wind_avg_mph')
+      expect(out!.rowKeys!.aqi).toBe('aqi_max')
+    })
+
+    it('drops a token a family has no key for', () => {
+      // AQI has no minimum column, so aqi=min names nothing.
+      expect(decodeState('aqi=min')).toBeNull()
+      expect(decodeState('aqi=total')).toBeNull()
+    })
   })
 
   it('rejects a malformed datetime', () => {
