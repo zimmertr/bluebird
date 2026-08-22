@@ -614,8 +614,6 @@ export default function App() {
     analyze,
     cancel,
     retry,
-    retryWithFloor,
-    retryTopByElevation,
     reset,
     analyzed,
     analysisSeq,
@@ -1748,14 +1746,6 @@ export default function App() {
           loading={loading}
           error={error}
           refusal={refusal}
-          onRetryWithFloor={(ft) => {
-            // Sync the panel/URL state so the applied floor is visible and
-            // survives, then re-run from the request snapshot (state updates
-            // land asynchronously, so the re-run cannot read them).
-            setMinElevationFt(ft)
-            retryWithFloor(ft)
-          }}
-          onRetryTopByElevation={retryTopByElevation}
           forecastModel={forecastModel}
           setForecastModel={changeForecastModel}
           forecastModels={caps.forecastModels}

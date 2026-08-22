@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { CustomDestination, DiscoveryType, SortBy } from '../types'
 import { Refusal } from '../hooks/useAnalyze'
 import { FIRE_UNAVAILABLE_NOTE } from '../utils/fireProximity'
@@ -25,6 +25,7 @@ import {
   FIELD_NUMERIC,
   LINK,
   NOTICE,
+  NOTICE_DISMISS,
   PANEL_EDGE,
   PANEL_RULE,
   SEGMENT,
@@ -37,6 +38,7 @@ import {
 import { AGGREGATE, NOUN, RANKING_KEYS, familyOf, metricLabel, windowAggregate } from '../metrics'
 import { Constraints, hasConstraints } from '../utils/clientAnalyze'
 import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analyzeGate'
+import { isDismissed, noticeKey, pruneDismissals } from '../utils/notices'
 import { DEFAULT_LIMIT, classifyAqiCoverage, clampLimit } from '../utils/urlState'
 import {
   AQI_LIMIT_DAYS,
@@ -63,6 +65,10 @@ const COMMIT_CUE: Record<'elevation-widened' | 'window-changed' | 'model-changed
   'window-changed': 'A new forecast window requires a new analysis.',
   'model-changed': 'A new forecast model requires a new analysis.',
 }
+
+// The AQI info line's dismissal key (#253): a condition, not a message, like
+// every derived line's.
+const AQI_NOTE_KEY = 'aqi:none'
 
 // What each Analyze blocker reads as. A function rather than a record because
 // two of the four quote a number the panel holds, and the area cap in
@@ -202,8 +208,6 @@ interface Props {
   onAnalyze: () => void
   onRetry: () => void
   // Remedies: re-run with the suggested elevation floor / elect the top-N cut.
-  onRetryWithFloor: (minElevationFt: number) => void
-  onRetryTopByElevation: () => void
   // Live ceiling for the results knob, from /api/capabilities (falls back to
   // the compiled analysis cap).
   maxLimit: number
@@ -241,6 +245,7 @@ function FooterNotice({
   severity,
   lines,
   children,
+  onDismiss,
 }: {
   severity: 'warn' | 'error' | 'info'
   // Several messages of the same kind, which the box bullets so they cannot be
@@ -248,26 +253,64 @@ function FooterNotice({
   // buttons that act on it.
   lines?: string[]
   children?: React.ReactNode
+  // Every footer box passes this: all notices are dismissable (#253). What
+  // varies is the key the dismissal lives under — a message for the event
+  // boxes, a condition for the derived lines — which `utils/notices.ts` owns.
+  onDismiss?: () => void
 }) {
   return (
     <div className={`${NOTICE[severity]} ${STATUS[severity]} space-y-2`} role="status">
-      {lines && lines.length > 1 ? (
-        // Bullets from two messages up, and not before. One reason Analyze is
-        // blocked is a sentence; two are a list, and without the marks they run
-        // together into one long complaint — worse when either of them wraps,
-        // which is when the reader most needs to see where one ends. A lone
-        // bullet is a list of one and just adds furniture.
-        //
-        // `list-outside` puts a wrapped line under its own text rather than
-        // under its bullet, so the marks stay a column the eye can scan.
-        <ul className="list-disc list-outside space-y-1.5 pl-4">
-          {lines.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-      ) : (
-        lines?.map((line) => <p key={line}>{line}</p>)
-      )}
+      {/* The X shares a row with the message alone; the actions below it
+          (`children`) keep the full box width, so a remedy button does not
+          stop short at the X's column. */}
+      <div className="flex gap-2">
+        <div className="flex-1 space-y-2">
+          {lines && lines.length > 1 ? (
+            // Bullets from two messages up, and not before. One reason Analyze
+            // is blocked is a sentence; two are a list, and without the marks
+            // they run together into one long complaint — worse when either of
+            // them wraps, which is when the reader most needs to see where one
+            // ends. A lone bullet is a list of one and just adds furniture.
+            //
+            // `list-outside` puts a wrapped line under its own text rather than
+            // under its bullet, so the marks stay a column the eye can scan.
+            <ul className="list-disc list-outside space-y-1.5 pl-4">
+              {lines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          ) : (
+            lines?.map((line) => <p key={line}>{line}</p>)
+          )}
+        </div>
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="Dismiss notice"
+            className={NOTICE_DISMISS.button}
+          >
+            <span className={NOTICE_DISMISS.pill}>
+              {/* A drawn cross rather than the "×" character, for the reason
+                  the panel's own close button documents: that glyph centres on
+                  the font's maths, where two lines in a square viewBox centre
+                  by construction. */}
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                className="h-2.5 w-2.5"
+                aria-hidden="true"
+              >
+                <line x1="6" y1="6" x2="18" y2="18" />
+                <line x1="18" y1="6" x2="6" y2="18" />
+              </svg>
+            </span>
+          </button>
+        )}
+      </div>
       {children}
     </div>
   )
@@ -317,8 +360,6 @@ export default function ControlPanel({
   refusal,
   onAnalyze,
   onRetry,
-  onRetryWithFloor,
-  onRetryTopByElevation,
   maxLimit,
   maxAreaKm2,
   resultCount,
@@ -378,16 +419,59 @@ export default function ControlPanel({
   // directly above the blockers in theirs — which read as two kinds of problem
   // when the difference was plumbing, not meaning (#245 review). Ordered by
   // what the reader can act on: why the report on screen is stale, why the
-  // button is disabled, then what a delivered report is missing. Only a notice
-  // that carries its own actions (the refusal's remedies, the error's retry)
-  // keeps a box of its own.
+  // button is disabled, then what a delivered report is missing. The event
+  // notices (the refusal, the error with its retry) keep boxes of their own
+  // because they live on a different clock — they report one run's outcome —
+  // where this list restates what is still true right now.
+  //
+  // Each line carries the key its dismissal lives under: the CONDITION, not
+  // the text, so the polygon blocker counting down as you draw stays one
+  // dismissed thing (see `utils/notices.ts`).
   const footerWarnings = [
-    ...(commitReason && !loading ? [COMMIT_CUE[commitReason]] : []),
-    ...blockers.map((blocker) => blockerText(blocker, maxAreaKm2, pointsNeeded)),
+    ...(commitReason && !loading
+      ? [{ key: `cue:${commitReason}`, text: COMMIT_CUE[commitReason] }]
+      : []),
+    ...blockers.map((blocker) => ({
+      key: `blocker:${blocker}`,
+      text: blockerText(blocker, maxAreaKm2, pointsNeeded),
+    })),
     // The same sentence the N/A cells' hover text shows, from one constant,
     // so the panel and the table cannot describe one failure two ways.
-    ...(wildfireCheckFailed && !loading ? [FIRE_UNAVAILABLE_NOTE] : []),
+    ...(wildfireCheckFailed && !loading
+      ? [{ key: 'fire:unavailable', text: FIRE_UNAVAILABLE_NOTE }]
+      : []),
   ]
+
+  // The dismissal ledger (#253): every footer notice is dismissable, each
+  // alone. `pruneDismissals` retires a dismissal the moment its key stops
+  // being active, which is what makes an identical error return after the
+  // next Analyze (`useAnalyze` nulls both event states before it fetches)
+  // and a cleared-then-retriggered warning return — while panning, sorting
+  // and knob twiddling, which change no key, resurface nothing. Local state
+  // on purpose: the panel stays mounted while closed, and a dismissal is
+  // presentation, not part of the analysis.
+  const refusalKey = refusal ? noticeKey('refusal', refusal.message) : null
+  const errorKey = error ? noticeKey('error', error) : null
+  const aqiNoteActive =
+    resultCount !== undefined &&
+    !loading &&
+    !error &&
+    !refusal &&
+    Boolean(aqiAllNull) &&
+    aqiCoverage !== 'none'
+  const [dismissed, setDismissed] = useState<readonly string[]>([])
+  const activeKeySig = [
+    refusalKey,
+    errorKey,
+    ...footerWarnings.map((w) => w.key),
+    ...(aqiNoteActive ? [AQI_NOTE_KEY] : []),
+  ]
+    .filter((k): k is string => k !== null)
+    .join('\u0000')
+  useEffect(() => {
+    setDismissed((prev) => pruneDismissals(prev, activeKeySig.split('\u0000')))
+  }, [activeKeySig])
+  const visibleWarnings = footerWarnings.filter((w) => !isDismissed(w.key, dismissed))
 
   // The filter grid, one row per bounded thing.
   //
@@ -933,34 +1017,33 @@ export default function ControlPanel({
           {loading ? 'Analyzing…' : 'Analyze'}
         </button>
 
-        {footerWarnings.length > 0 && (
-          <FooterNotice severity="warn" lines={footerWarnings} />
+        {visibleWarnings.length > 0 && (
+          <FooterNotice
+            severity="warn"
+            lines={visibleWarnings.map((w) => w.text)}
+            // One X for the box: it dismisses the lines currently shown, each
+            // under its own key, so a NEW condition later reopens the box
+            // showing only what has not been dismissed.
+            onDismiss={() =>
+              setDismissed((prev) => [...prev, ...visibleWarnings.map((w) => w.key)])
+            }
+          />
         )}
 
-        {refusal && !loading && (
-          <FooterNotice severity="warn" lines={[refusal.message]}>
-            {refusal.suggestedMinElevationFt !== null && (
-              <button
-                onClick={() => onRetryWithFloor(refusal.suggestedMinElevationFt as number)}
-                className={`${BUTTON_SECONDARY} w-full`}
-              >
-                Set min elevation to{' '}
-                {refusal.suggestedMinElevationFt.toLocaleString()} ft and analyze
-              </button>
-            )}
-            {refusal.limit !== null && (
-              <button
-                onClick={onRetryTopByElevation}
-                className={`${BUTTON_SECONDARY} w-full`}
-              >
-                Analyze the {refusal.limit.toLocaleString()} highest instead
-              </button>
-            )}
-          </FooterNotice>
+        {refusal && refusalKey && !loading && !isDismissed(refusalKey, dismissed) && (
+          <FooterNotice
+            severity="warn"
+            lines={[refusal.message]}
+            onDismiss={() => setDismissed((prev) => [...prev, refusalKey])}
+          />
         )}
 
-        {error && !refusal && (
-          <FooterNotice severity="error" lines={[error]}>
+        {error && errorKey && !refusal && !isDismissed(errorKey, dismissed) && (
+          <FooterNotice
+            severity="error"
+            lines={[error]}
+            onDismiss={() => setDismissed((prev) => [...prev, errorKey])}
+          >
             <button onClick={onRetry} disabled={loading} className={BUTTON_DANGER}>
               Try again
             </button>
@@ -974,13 +1057,13 @@ export default function ControlPanel({
             view of it. Info rather than warn: the analysis is sound and this
             explains the dashes in a column, which is a fact about the data
             rather than something gone wrong. */}
-        {resultCount !== undefined && !loading && !error && !refusal &&
-          aqiAllNull && aqiCoverage !== 'none' && (
-            <FooterNotice
-              severity="info"
-              lines={[`${NOUN.aqi} data is not available for this forecast window.`]}
-            />
-          )}
+        {aqiNoteActive && !isDismissed(AQI_NOTE_KEY, dismissed) && (
+          <FooterNotice
+            severity="info"
+            lines={[`${NOUN.aqi} data is not available for this forecast window.`]}
+            onDismiss={() => setDismissed((prev) => [...prev, AQI_NOTE_KEY])}
+          />
+        )}
 
         {/* Two labels, two pages, and each label goes where it says. The
             privacy copy used to open a dialog here, which meant it had no URL

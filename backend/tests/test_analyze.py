@@ -723,8 +723,11 @@ def test_analyze_union_counts_toward_cap(monkeypatch, stub_upstreams):
     assert resp.status_code == 400
     detail = resp.json()["detail"]
     assert "analysis limit" in detail
-    assert "destinations" in detail          # mixed set speaks generically
-    assert "trim the custom list" in detail  # advice includes the CSV remedy
+    assert "destinations" in detail  # mixed set speaks generically
+    # The detail states the problem only; the remedies live in the
+    # structured fields, never in the prose (TJ, 2026-08-22).
+    assert "trim" not in detail.lower()
+    assert "minimum elevation" not in detail
 
 
 def test_analyze_union_elevation_filter_applies_to_custom_rows(monkeypatch, stub_upstreams):

@@ -19,7 +19,6 @@ import {
   refreshEchoRows,
   resolveCustomOnly,
   runClientAnalysis,
-  suggestElevationFloor,
   truncateTopElevation,
 } from './clientAnalyze'
 import { pinKey } from './customList'
@@ -259,23 +258,17 @@ describe('assemble', () => {
 // ── capDetail + noun (ports of _cap_detail/_noun) ──────────────────────────
 
 describe('capDetail', () => {
-  it('advises only the remedies in play', () => {
-    expect(capDetail(1201, 'peak', true, false)).toContain(
-      'Draw a smaller polygon or narrow the elevation range.',
+  it('states what is wrong and stops', () => {
+    // TJ removed the remedy prose (2026-08-22): no advice sentence, no
+    // computed elevation floor. The message is the problem, nothing else.
+    expect(capDetail(1201, 'peak')).toBe(
+      'This search covers 1,201 peaks. The analysis limit is 1,500 destinations.',
     )
-    expect(capDetail(1201, 'destination', false, true)).toContain('Trim the custom list')
-    expect(capDetail(1201, 'destination', true, true)).toContain('or trim the custom list')
   })
 
   it('formats counts with separators and names the unit like the backend', () => {
-    expect(capDetail(1601, 'peak', true, false)).toContain('1,601 peaks')
-    expect(capDetail(1601, 'peak', true, false)).toContain('1,500 destinations')
-  })
-
-  it('appends the computed elevation-floor suggestion when one exists', () => {
-    expect(
-      capDetail(1601, 'peak', true, false, { floorFt: 5600, keeps: 950 }),
-    ).toContain('minimum elevation of 5,600 ft would keep about 950 peaks')
+    expect(capDetail(1601, 'peak')).toContain('1,601 peaks')
+    expect(capDetail(1601, 'peak')).toContain('1,500 destinations')
   })
 })
 
@@ -313,29 +306,7 @@ describe('filterElevation', () => {
   })
 })
 
-// ── Refusal remedies (ports of _suggest_elevation_floor/_truncate_top) ─────
-
-describe('suggestElevationFloor', () => {
-  const dests = (elevs: (number | null)[]) =>
-    elevs.map((e, i) => ({ elevation_ft: e, name: `P${i}` }))
-
-  it('picks the elevation that cuts the list under the cap', () => {
-    expect(suggestElevationFloor(dests([1000, 2000, 3000, 4000, 5000]), 3)).toEqual({
-      floorFt: 3000,
-      keeps: 3,
-    })
-  })
-
-  it('rounds up to a clean number and never overshoots the cap', () => {
-    const s = suggestElevationFloor(dests([4980, 4880, 4780, 4680]), 2)
-    expect(s?.floorFt).toBe(4900)
-    expect(s!.keeps).toBeLessThanOrEqual(2)
-  })
-
-  it('is impossible when unknown elevations alone exceed the cap', () => {
-    expect(suggestElevationFloor(dests([null, null, null, 1000]), 2)).toBeNull()
-  })
-})
+// ── The explicit top-N cut (port of _truncate_top_elevation) ───────────────
 
 describe('truncateTopElevation', () => {
   it('keeps the highest and drops unknowns first', () => {

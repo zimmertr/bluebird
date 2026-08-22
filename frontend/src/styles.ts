@@ -765,6 +765,41 @@ export const NOTICE = {
 } as const
 
 /**
+ * The X that dismisses a footer notice (#253). Every box under the Analyze
+ * button wears it — event notices and derived warnings alike (TJ,
+ * 2026-08-22); which dismissal it triggers, and when that dismissal expires,
+ * is `utils/notices.ts`'s business, not this recipe's.
+ *
+ * Two parts, because the touch target and the visible control must be
+ * different sizes. The `button` carries `TAP.action` in-flow, so on touch
+ * the 44px target grows the box's first row rather than overhanging it —
+ * the Analyze button sits directly above, and an absolutely-positioned
+ * square would cover its bottom edge. The `pill` inside it is what the eye
+ * gets: a 20px disc, the panel close button's idiom at notice scale, so the
+ * X reads as a control rather than a stray character. `-mt-0.5` drops the
+ * disc's centre onto the first text line's centre (a 20px disc against a
+ * 16px text-xs line box is otherwise 2px low).
+ *
+ * The fill is `white/5` at rest — a whisper of a disc, because at `/10` TJ
+ * read it as too buttony for a passive notice — rising to `white/15` on
+ * hover, where the affordance question is actually being asked. Hue-free,
+ * so one recipe sits on all three tints; the pill is an affordance, not the
+ * boundary, and owes no ratio — the glyph is the icon and it does. The
+ * glyph inherits its box's `STATUS` voice (a slate X would read as chrome
+ * that escaped into a status message). Measured on the resting pill
+ * backdrop (fill + white/5 over the panel): amber-300 9.10:1, red-400
+ * 5.00:1, sky-300 7.45:1, all past the 3:1 a UI glyph owes; the hover's
+ * white on the `white/15` hover fill is 8.9:1+. Pinned in styles.test.ts
+ * so a fill or `STATUS` change forces a re-measurement.
+ */
+export const NOTICE_DISMISS = {
+  button: `group ${TAP.action} self-start -mt-0.5 hover:text-white transition-colors ${FOCUS_RING}`,
+  pill:
+    `flex h-5 w-5 items-center justify-center ${RADIUS.pill} ` +
+    `bg-white/5 transition-colors group-hover:bg-white/15`,
+} as const
+
+/**
  * The two weights of rule in the control panel.
  *
  * `PANEL_EDGE` closes the panel: the line under the app title and the one over

@@ -23,6 +23,7 @@ import {
   ICON_ACTION,
   ICON_BUTTON,
   NOTICE,
+  NOTICE_DISMISS,
   SCRUBBER,
   SCRUBBER_TRACK,
   SLIDER_OVERLAY,
@@ -986,5 +987,33 @@ describe('status and notices', () => {
     expect(BUTTON_DANGER).toContain(RADIUS.control)
     expect(BUTTON_DANGER).toMatch(/text-red-/)
     expect(BUTTON_DANGER).not.toContain('text-white')
+  })
+
+  // #253. The dismiss X inherits its box's STATUS color, so neither part of
+  // the recipe may set a resting color of its own — one would override the
+  // voice on every box at once. The ratios are the inherited glyph on the
+  // resting pill backdrop (box fill + white/5 over the panel); literals so
+  // a fill, STATUS or pill change fails here and forces a re-measurement
+  // rather than inheriting a stale claim.
+  const DISMISS_MEASURED = { warn: 9.1, error: 5.0, info: 7.45 }
+
+  it('dismisses in the voice of the box it sits in', () => {
+    expect(NOTICE_DISMISS.button).not.toMatch(/(^|\s)text-/)
+    expect(NOTICE_DISMISS.pill).not.toMatch(/(^|\s)text-/)
+    for (const [tone, ratio] of Object.entries(DISMISS_MEASURED)) {
+      expect(ratio, `${tone} glyph must clear the 3:1 asked of a UI glyph`).toBeGreaterThanOrEqual(3)
+    }
+  })
+
+  // The Analyze button sits directly above the notices, so the 44px touch
+  // target must grow the box in-flow rather than positioning itself over the
+  // button's bottom edge. The visible pill is the separate, smaller part —
+  // and hue-free, so one recipe sits on all three tints.
+  it('earns its touch target by growing the box, not by overhanging it', () => {
+    expect(NOTICE_DISMISS.button).toContain(TAP.action)
+    expect(NOTICE_DISMISS.button).toContain(FOCUS_RING)
+    expect(NOTICE_DISMISS.button).not.toContain('absolute')
+    expect(NOTICE_DISMISS.pill).toContain(RADIUS.pill)
+    expect(NOTICE_DISMISS.pill).toContain('bg-white/')
   })
 })

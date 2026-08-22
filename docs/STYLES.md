@@ -92,6 +92,7 @@ Bluebird's frontend design lives in `frontend/src/styles.ts`, which exports the 
 | `NOTICE.warn` | Boxed warning message |
 | `NOTICE.error` | Boxed error message |
 | `NOTICE.info` | Boxed info message |
+| `NOTICE_DISMISS` | The X that dismisses a footer notice; every box under Analyze wears one |
 
 **Spacing and sizing**
 
@@ -262,6 +263,8 @@ Errors end with period and a standing sentence: `Try again later.` This has two 
 - Model coverage messages name the remedy (e.g., "{model} has no forecast coverage for this area. Switch to a different model and try again.")
 
 Remedies only work where they work. A generic "try again" for a network error does not help if the network is down. Failing that test, omit the remedy and show only the state.
+
+The over-cap refusal states the problem only ("This search covers N peaks. The analysis limit is M destinations."). Its machine-readable remedies live in the API's structured fields, never in the prose (TJ, 2026-08-22).
 
 ### Boxed vs. unboxed messages
 

@@ -76,7 +76,10 @@ def test_over_cap_refuses_with_the_analyze_wording(monkeypatch):
     assert resp.status_code == 400
     detail = resp.json()["detail"]
     assert "analysis limit" in detail
-    assert "smaller polygon" in detail
+    # The detail states the problem only; remedies live in the structured
+    # fields, never in the prose (TJ, 2026-08-22).
+    assert "smaller polygon" not in detail
+    assert "minimum elevation" not in detail
 
 
 def test_oversized_polygon_is_a_422():
@@ -266,7 +269,7 @@ def test_an_oversized_custom_list_is_rejected_at_the_door():
     assert resp.status_code == 422
 
 
-def test_over_cap_union_advises_trimming_the_list_too(monkeypatch):
+def test_over_cap_union_speaks_generically(monkeypatch):
     _stub_osm(monkeypatch, [_peak(f"P{i}") for i in range(MAX_ANALYZE_PEAKS + 1)])
     _stub_enrich(monkeypatch, {})
     resp = client.post(
@@ -275,5 +278,7 @@ def test_over_cap_union_advises_trimming_the_list_too(monkeypatch):
     )
     assert resp.status_code == 400
     detail = resp.json()["detail"]
-    assert "trim the custom list" in detail.lower()
+    # A union is a mixed set, so its refusal says "destinations"; the prose
+    # carries no remedies (TJ, 2026-08-22).
     assert "destinations" in detail
+    assert "trim" not in detail.lower()
