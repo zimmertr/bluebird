@@ -994,7 +994,7 @@ describe('status and notices', () => {
   // box at once. The ratios are the inherited glyph on the tinted fill over
   // the panel; literals so a fill or STATUS change fails here and forces a
   // re-measurement rather than inheriting a stale claim.
-  const DISMISS_MEASURED = { warn: 10.53, error: 5.75 }
+  const DISMISS_MEASURED = { warn: 10.53, error: 5.75, info: 8.66 }
 
   it('dismisses in the voice of the box it sits in', () => {
     expect(NOTICE_DISMISS).not.toMatch(/(^|\s)text-/)

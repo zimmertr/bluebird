@@ -66,6 +66,10 @@ const COMMIT_CUE: Record<'elevation-widened' | 'window-changed' | 'model-changed
   'model-changed': 'A new forecast model requires a new analysis.',
 }
 
+// The AQI info line's dismissal key (#253): a condition, not a message, like
+// every derived line's.
+const AQI_NOTE_KEY = 'aqi:none'
+
 // What each Analyze blocker reads as. A function rather than a record because
 // two of the four quote a number the panel holds, and the area cap in
 // particular is published by /api/capabilities rather than written here.
@@ -249,10 +253,9 @@ function FooterNotice({
   // buttons that act on it.
   lines?: string[]
   children?: React.ReactNode
-  // Only the event notices — the error and the refusal — pass this. The other
-  // boxes state facts that are still true (why the button is disabled, why
-  // the report on screen is stale), and dismissing a fact does not make it
-  // false (#253).
+  // Every footer box passes this: all notices are dismissable (#253). What
+  // varies is the key the dismissal lives under — a message for the event
+  // boxes, a condition for the derived lines — which `utils/notices.ts` owns.
   onDismiss?: () => void
 }) {
   return (
@@ -409,37 +412,64 @@ export default function ControlPanel({
 
   const pointsNeeded = Math.max(0, 3 - drawPointCount)
 
-  // The event notices' dismissal (#253), tracked per notice so each box
-  // dismisses itself alone. The effect prunes a dismissal the moment its
-  // notice stops being active — which every Analyze causes on its way in
-  // (`useAnalyze` nulls both states before it fetches) — so a stale dismissal
-  // can never swallow the next run's notice, even one that reads exactly like
-  // the dismissed one. Local state on purpose: the panel stays mounted while
-  // closed, and a dismissal is presentation, not part of the analysis.
-  const refusalKey = refusal ? noticeKey('refusal', refusal.message) : null
-  const errorKey = error ? noticeKey('error', error) : null
-  const [dismissed, setDismissed] = useState<readonly string[]>([])
-  useEffect(() => {
-    setDismissed((prev) => pruneDismissals(prev, [refusalKey, errorKey]))
-  }, [refusalKey, errorKey])
-
   // Every plain-sentence warning under the Analyze button, as one list for one
   // box. They used to render as a box apiece — the commit cue in its own frame
   // directly above the blockers in theirs — which read as two kinds of problem
   // when the difference was plumbing, not meaning (#245 review). Ordered by
   // what the reader can act on: why the report on screen is stale, why the
   // button is disabled, then what a delivered report is missing. The event
-  // notices (the refusal, the error with its retry) keep boxes of their own,
-  // because they live on a different clock: they report one run's outcome and
-  // are individually dismissable (#253), where this list restates what is
-  // still true right now.
+  // notices (the refusal, the error with its retry) keep boxes of their own
+  // because they live on a different clock — they report one run's outcome —
+  // where this list restates what is still true right now.
+  //
+  // Each line carries the key its dismissal lives under: the CONDITION, not
+  // the text, so the polygon blocker counting down as you draw stays one
+  // dismissed thing (see `utils/notices.ts`).
   const footerWarnings = [
-    ...(commitReason && !loading ? [COMMIT_CUE[commitReason]] : []),
-    ...blockers.map((blocker) => blockerText(blocker, maxAreaKm2, pointsNeeded)),
+    ...(commitReason && !loading
+      ? [{ key: `cue:${commitReason}`, text: COMMIT_CUE[commitReason] }]
+      : []),
+    ...blockers.map((blocker) => ({
+      key: `blocker:${blocker}`,
+      text: blockerText(blocker, maxAreaKm2, pointsNeeded),
+    })),
     // The same sentence the N/A cells' hover text shows, from one constant,
     // so the panel and the table cannot describe one failure two ways.
-    ...(wildfireCheckFailed && !loading ? [FIRE_UNAVAILABLE_NOTE] : []),
+    ...(wildfireCheckFailed && !loading
+      ? [{ key: 'fire:unavailable', text: FIRE_UNAVAILABLE_NOTE }]
+      : []),
   ]
+
+  // The dismissal ledger (#253): every footer notice is dismissable, each
+  // alone. `pruneDismissals` retires a dismissal the moment its key stops
+  // being active, which is what makes an identical error return after the
+  // next Analyze (`useAnalyze` nulls both event states before it fetches)
+  // and a cleared-then-retriggered warning return — while panning, sorting
+  // and knob twiddling, which change no key, resurface nothing. Local state
+  // on purpose: the panel stays mounted while closed, and a dismissal is
+  // presentation, not part of the analysis.
+  const refusalKey = refusal ? noticeKey('refusal', refusal.message) : null
+  const errorKey = error ? noticeKey('error', error) : null
+  const aqiNoteActive =
+    resultCount !== undefined &&
+    !loading &&
+    !error &&
+    !refusal &&
+    Boolean(aqiAllNull) &&
+    aqiCoverage !== 'none'
+  const [dismissed, setDismissed] = useState<readonly string[]>([])
+  const activeKeySig = [
+    refusalKey,
+    errorKey,
+    ...footerWarnings.map((w) => w.key),
+    ...(aqiNoteActive ? [AQI_NOTE_KEY] : []),
+  ]
+    .filter((k): k is string => k !== null)
+    .join('\u0000')
+  useEffect(() => {
+    setDismissed((prev) => pruneDismissals(prev, activeKeySig.split('\u0000')))
+  }, [activeKeySig])
+  const visibleWarnings = footerWarnings.filter((w) => !isDismissed(w.key, dismissed))
 
   // The filter grid, one row per bounded thing.
   //
@@ -985,8 +1015,17 @@ export default function ControlPanel({
           {loading ? 'Analyzing…' : 'Analyze'}
         </button>
 
-        {footerWarnings.length > 0 && (
-          <FooterNotice severity="warn" lines={footerWarnings} />
+        {visibleWarnings.length > 0 && (
+          <FooterNotice
+            severity="warn"
+            lines={visibleWarnings.map((w) => w.text)}
+            // One X for the box: it dismisses the lines currently shown, each
+            // under its own key, so a NEW condition later reopens the box
+            // showing only what has not been dismissed.
+            onDismiss={() =>
+              setDismissed((prev) => [...prev, ...visibleWarnings.map((w) => w.key)])
+            }
+          />
         )}
 
         {refusal && refusalKey && !loading && !isDismissed(refusalKey, dismissed) && (
@@ -1016,13 +1055,13 @@ export default function ControlPanel({
             view of it. Info rather than warn: the analysis is sound and this
             explains the dashes in a column, which is a fact about the data
             rather than something gone wrong. */}
-        {resultCount !== undefined && !loading && !error && !refusal &&
-          aqiAllNull && aqiCoverage !== 'none' && (
-            <FooterNotice
-              severity="info"
-              lines={[`${NOUN.aqi} data is not available for this forecast window.`]}
-            />
-          )}
+        {aqiNoteActive && !isDismissed(AQI_NOTE_KEY, dismissed) && (
+          <FooterNotice
+            severity="info"
+            lines={[`${NOUN.aqi} data is not available for this forecast window.`]}
+            onDismiss={() => setDismissed((prev) => [...prev, AQI_NOTE_KEY])}
+          />
+        )}
 
         {/* Two labels, two pages, and each label goes where it says. The
             privacy copy used to open a dialog here, which meant it had no URL

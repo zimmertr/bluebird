@@ -84,3 +84,34 @@ describe('the dismissal lifecycle', () => {
     expect(isDismissed(key, dismissed)).toBe(true)
   })
 })
+
+describe('derived warnings keyed by condition', () => {
+  // The blocker text counts down as the user draws ("2 more points" → "1
+  // more point"), but its key stays `blocker:polygon`, so the dismissal
+  // holds through the countdown instead of resurfacing per click.
+  it('holds through text changes inside one condition', () => {
+    let dismissed: readonly string[] = ['blocker:polygon']
+    dismissed = pruneDismissals(dismissed, ['blocker:polygon']) // text changed, key did not
+    expect(isDismissed('blocker:polygon', dismissed)).toBe(true)
+  })
+
+  it('returns when the condition clears and later triggers again', () => {
+    let dismissed: readonly string[] = ['blocker:destinations']
+    dismissed = pruneDismissals(dismissed, []) // a destination was provided
+    expect(isDismissed('blocker:destinations', dismissed)).toBe(false) // then removed again
+  })
+
+  it('dismissing the warnings box leaves a later, different condition visible', () => {
+    // The box X records the keys it currently shows; a new blocker later is
+    // not among them and reopens the box alone.
+    let dismissed: readonly string[] = ['blocker:destinations', 'cue:window-changed']
+    dismissed = pruneDismissals(dismissed, [
+      'blocker:destinations',
+      'cue:window-changed',
+      'blocker:area',
+    ])
+    expect(isDismissed('blocker:area', dismissed)).toBe(false)
+    expect(isDismissed('blocker:destinations', dismissed)).toBe(true)
+    expect(isDismissed('cue:window-changed', dismissed)).toBe(true)
+  })
+})

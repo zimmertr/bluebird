@@ -200,56 +200,29 @@ def _truncate_top_elevation(destinations: list[dict], cap: int) -> list[dict]:
     return known[:cap]
 
 
-def _cap_detail(
-    count: int,
-    noun: str,
-    *,
-    has_polygon: bool,
-    has_custom: bool,
-    suggestion: tuple[int, int] | None = None,
-    has_unnamed_peaks: bool = False,
-) -> str:
-    """The over-cap refusal, advising only the remedies actually in play."""
-    if has_polygon and has_unnamed_peaks:
-        advice = "Draw a smaller polygon, narrow the elevation range, or turn off unnamed peaks."
-    elif has_polygon and has_custom:
-        advice = "Draw a smaller polygon, narrow the elevation range, or trim the custom list."
-    elif has_polygon:
-        advice = "Draw a smaller polygon or narrow the elevation range."
-    else:
-        advice = "Trim the custom list or narrow the elevation range."
-    detail = (
+def _cap_detail(count: int, noun: str) -> str:
+    """The over-cap refusal: what is wrong, and nothing else.
+
+    It used to advise the remedies in play ("Draw a smaller polygon...") and
+    quote the computed elevation floor. TJ removed both (2026-08-22, #253's
+    PR): the message states the problem, and the structured fields carry the
+    machine-readable remedies for API callers.
+    """
+    return (
         f"This search covers {count:,} {noun}s. The analysis limit is "
-        f"{MAX_ANALYZE_PEAKS:,} destinations. {advice}"
+        f"{MAX_ANALYZE_PEAKS:,} destinations."
     )
-    if suggestion is not None:
-        floor, keeps = suggestion
-        detail += (
-            f" Setting a minimum elevation of {floor:,} ft would keep about "
-            f"{keeps:,} {noun}s."
-        )
-    return detail
 
 
 def _refusal_body(
     count: int,
     noun: str,
     *,
-    has_polygon: bool,
-    has_custom: bool,
     suggestion: tuple[int, int] | None,
-    has_unnamed_peaks: bool = False,
 ) -> dict:
     """The structured 400 body (`AnalysisRefusal`) for an over-cap refusal."""
     body = AnalysisRefusal(
-        detail=_cap_detail(
-            count,
-            noun,
-            has_polygon=has_polygon,
-            has_custom=has_custom,
-            suggestion=suggestion,
-            has_unnamed_peaks=has_unnamed_peaks,
-        ),
+        detail=_cap_detail(count, noun),
         found=count,
         limit=MAX_ANALYZE_PEAKS,
     )
@@ -644,14 +617,7 @@ async def analyze_stream(request: AnalyzeRequest):
                     truncated = True
                 else:
                     suggestion = _suggest_elevation_floor(destinations, MAX_ANALYZE_PEAKS)
-                    body = _refusal_body(
-                        len(destinations),
-                        noun,
-                        has_polygon=bool(request.destination_types),
-                        has_custom=bool(request.custom_destinations),
-                        suggestion=suggestion,
-                        has_unnamed_peaks=bool(request.include_unnamed_peaks),
-                    )
+                    body = _refusal_body(len(destinations), noun, suggestion=suggestion)
                     # The error event carries the same structured remedy
                     # fields the HTTP 400 does, message first so a plain
                     # consumer can just render it.
@@ -926,14 +892,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
             suggestion = _suggest_elevation_floor(destinations, MAX_ANALYZE_PEAKS)
             return JSONResponse(
                 status_code=400,
-                content=_refusal_body(
-                    len(destinations),
-                    noun,
-                    has_polygon=bool(request.destination_types),
-                    has_custom=bool(request.custom_destinations),
-                    suggestion=suggestion,
-                    has_unnamed_peaks=bool(request.include_unnamed_peaks),
-                ),
+                content=_refusal_body(len(destinations), noun, suggestion=suggestion),
             )
 
     total_queried = len(destinations)

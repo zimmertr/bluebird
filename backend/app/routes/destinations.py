@@ -162,22 +162,15 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse:
             truncated = True
         else:
             suggestion = _suggest_elevation_floor(found, MAX_ANALYZE_PEAKS)
-            # A union is a mixed set, so its refusal says "destinations" and
-            # advises only the remedies actually in play — the same rule the
-            # analyze routes apply.
+            # A union is a mixed set, so its refusal says "destinations" —
+            # the same noun rule the analyze routes apply.
             noun = _noun(
                 request.destination_types,
                 has_custom=bool(request.custom_destinations),
             )
             return JSONResponse(
                 status_code=400,
-                content=_refusal_body(
-                    len(found),
-                    noun,
-                    has_polygon=request.polygon is not None,
-                    has_custom=bool(request.custom_destinations),
-                    suggestion=suggestion,
-                ),
+                content=_refusal_body(len(found), noun, suggestion=suggestion),
             )
 
     telemetry.DESTINATIONS_RETURNED.observe(len(found))

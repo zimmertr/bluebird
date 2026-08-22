@@ -52,35 +52,19 @@ export function analysisNoun(request: AnalyzeRequest): string {
   return NOUNS[[...kinds][0]] ?? 'destination'
 }
 
-// Port of _cap_detail: the over-cap refusal, advising only the remedies
-// actually in play, plus the computed elevation-floor suggestion when one
-// exists.
+// Port of _cap_detail: the over-cap refusal states what is wrong, and
+// nothing else. It used to advise the remedies in play and quote the
+// computed elevation floor; TJ removed both (2026-08-22, #253's PR), and the
+// server's copy dropped them in the same change.
 export function capDetail(
   count: number,
   noun: string,
-  hasPolygon: boolean,
-  hasCustom: boolean,
-  suggestion?: { floorFt: number; keeps: number } | null,
   cap: number = MAX_ANALYZE_DESTINATIONS,
-  hasUnnamedPeaks: boolean = false,
 ): string {
-  const advice =
-    hasPolygon && hasUnnamedPeaks
-      ? 'Draw a smaller polygon, narrow the elevation range, or turn off unnamed peaks.'
-      : hasPolygon && hasCustom
-      ? 'Draw a smaller polygon, narrow the elevation range, or trim the custom list.'
-      : hasPolygon
-      ? 'Draw a smaller polygon or narrow the elevation range.'
-      : 'Trim the custom list or narrow the elevation range.'
-  let detail =
+  return (
     `This search covers ${count.toLocaleString('en-US')} ${noun}s. The ` +
-    `analysis limit is ${cap.toLocaleString('en-US')} destinations. ${advice}`
-  if (suggestion) {
-    detail +=
-      ` Setting a minimum elevation of ${suggestion.floorFt.toLocaleString('en-US')} ft ` +
-      `would keep about ${suggestion.keeps.toLocaleString('en-US')} ${noun}s.`
-  }
-  return detail
+    `analysis limit is ${cap.toLocaleString('en-US')} destinations.`
+  )
 }
 
 // Port of _filter_elevation. Unknown elevations pass through: many OSM peaks
@@ -223,29 +207,6 @@ export function filterConstraints(
     }
     return true
   })
-}
-
-// Port of _suggest_elevation_floor: a minimum elevation that would bring the
-// candidate count under `cap`, or null when none can (unknown elevations
-// always pass elevation filters, so too many unknowns make a floor useless).
-// Rounded up to the next 100 ft; rounding up only ever keeps fewer rows, so
-// the suggestion always actually works.
-export function suggestElevationFloor(
-  destinations: readonly { elevation_ft: number | null }[],
-  cap: number,
-): { floorFt: number; keeps: number } | null {
-  const unknowns = destinations.filter((d) => d.elevation_ft == null).length
-  const budget = cap - unknowns
-  if (budget <= 0) return null
-  const known = destinations
-    .map((d) => d.elevation_ft)
-    .filter((e): e is number => e != null)
-    .sort((a, b) => b - a)
-  if (known.length <= budget) return null
-  const threshold = known[budget - 1]
-  const floorFt = Math.ceil(threshold / 100) * 100
-  const keeps = unknowns + known.filter((e) => e >= floorFt).length
-  return { floorFt, keeps }
 }
 
 // Port of _truncate_top_elevation: the explicit opt-in cut. Unknown
@@ -479,18 +440,7 @@ export async function runClientAnalysis(
       candidates = truncateTopElevation(candidates, cap)
       truncated = true
     } else {
-      const suggestion = suggestElevationFloor(candidates, cap)
-      throw new AnalysisRefusalError(
-        capDetail(
-          candidates.length,
-          noun,
-          request.destination_types.length > 0,
-          Boolean(request.custom_destinations?.length),
-          suggestion,
-          cap,
-          Boolean(request.include_unnamed_peaks),
-        ),
-      )
+      throw new AnalysisRefusalError(capDetail(candidates.length, noun, cap))
     }
   }
 

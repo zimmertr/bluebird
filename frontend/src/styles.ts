@@ -765,18 +765,18 @@ export const NOTICE = {
 } as const
 
 /**
- * The X that dismisses an event notice (#253). Only the error and refusal
- * boxes wear it: they report something that already happened, so once read
- * they may be cleared. The derived warnings beside them state facts that are
- * still true, and get no X.
+ * The X that dismisses a footer notice (#253). Every box under the Analyze
+ * button wears it — event notices and derived warnings alike (TJ,
+ * 2026-08-22); which dismissal it triggers, and when that dismissal expires,
+ * is `utils/notices.ts`'s business, not this recipe's.
  *
  * No resting color of its own: the glyph inherits its box's `STATUS` voice,
  * so each notice stays monochrome — a slate X here would read as chrome that
  * escaped into a status message. Measured on the tinted fills over the panel:
- * amber-300 on `NOTICE.warn` is 10.53:1 and red-400 on `NOTICE.error` is
- * 5.75:1, both past the 3:1 a UI glyph owes; the hover's white is 15:1+.
- * Pinned in styles.test.ts so a fill or `STATUS` change forces a
- * re-measurement.
+ * amber-300 on `NOTICE.warn` is 10.53:1, red-400 on `NOTICE.error` is 5.75:1,
+ * sky-300 on `NOTICE.info` is 8.66:1, all past the 3:1 a UI glyph owes; the
+ * hover's white is 14:1+. Pinned in styles.test.ts so a fill or `STATUS`
+ * change forces a re-measurement.
  *
  * `TAP.action` rides in-flow, so on touch the target grows the box's first
  * row rather than overhanging it — the Analyze button sits directly above,
