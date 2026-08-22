@@ -37,12 +37,18 @@ const SORTS: SortBy[] = ['precip_total_in', 'wind_avg_mph', 'temp_avg_f', 'aqi_a
 describe('the rankable keys', () => {
   // Every aggregate column the table shows is rankable, and nothing else is:
   // the per-family lists mirror the table's column set, AQI's missing minimum
-  // included, and the flat list is derived from them.
-  it('offers exactly the aggregate columns per family', () => {
-    expect(FAMILY_KEYS.precip).toEqual(['precip_total_in', 'precip_avg_in_hr', 'precip_max_in_hr'])
-    expect(FAMILY_KEYS.wind).toEqual(['wind_min_mph', 'wind_avg_mph', 'wind_max_mph'])
-    expect(FAMILY_KEYS.temp).toEqual(['temp_min_f', 'temp_avg_f', 'temp_max_f'])
+  // included, and the flat list is derived from them. The order is
+  // alphabetical by display word, so every dropdown opens with the same word
+  // first (TJ, 2026-08-22).
+  it('offers exactly the aggregate columns per family, alphabetically', () => {
+    expect(FAMILY_KEYS.precip).toEqual(['precip_avg_in_hr', 'precip_max_in_hr', 'precip_total_in'])
+    expect(FAMILY_KEYS.wind).toEqual(['wind_avg_mph', 'wind_max_mph', 'wind_min_mph'])
+    expect(FAMILY_KEYS.temp).toEqual(['temp_avg_f', 'temp_max_f', 'temp_min_f'])
     expect(FAMILY_KEYS.aqi).toEqual(['aqi_avg', 'aqi_max'])
+    for (const family of RANKED_FAMILIES) {
+      const words = FAMILY_KEYS[family].map(windowAggregate)
+      expect(words).toEqual([...words].sort())
+    }
   })
 
   it('derives RANKING_KEYS from the family lists', () => {
@@ -74,6 +80,8 @@ describe('the rankable keys', () => {
 describe('aggregateToken', () => {
   it('reads the reduction out of every ranking key', () => {
     expect(RANKING_KEYS.map(aggregateToken)).toEqual([
+      'avg',
+      'max',
       'total',
       'avg',
       'max',
@@ -81,8 +89,6 @@ describe('aggregateToken', () => {
       'avg',
       'max',
       'min',
-      'avg',
-      'max',
       'avg',
       'max',
     ])

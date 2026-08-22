@@ -42,14 +42,14 @@ export const RANKED_FAMILIES: readonly MetricFamily[] = ['precip', 'wind', 'temp
  * Each family's rankable keys, in the order its aggregate picker offers them
  * (#291). One key per aggregate column the table shows, so the picker and the
  * table cannot disagree about what a metric's choices are; AQI has no minimum
- * column, which is why its list is the one short one. Precipitation leads with
- * the window total because that is the quantity its ranking has always meant;
- * the others read low-to-high.
+ * column, which is why its list is the one short one. The order is
+ * alphabetical by display word (Avg, Max, Min, Total; TJ, 2026-08-22), so all
+ * four dropdowns open with the same word first.
  */
 export const FAMILY_KEYS: Record<MetricFamily, readonly SortBy[]> = {
-  precip: ['precip_total_in', 'precip_avg_in_hr', 'precip_max_in_hr'],
-  wind: ['wind_min_mph', 'wind_avg_mph', 'wind_max_mph'],
-  temp: ['temp_min_f', 'temp_avg_f', 'temp_max_f'],
+  precip: ['precip_avg_in_hr', 'precip_max_in_hr', 'precip_total_in'],
+  wind: ['wind_avg_mph', 'wind_max_mph', 'wind_min_mph'],
+  temp: ['temp_avg_f', 'temp_max_f', 'temp_min_f'],
   aqi: ['aqi_avg', 'aqi_max'],
 }
 
