@@ -10,6 +10,11 @@ pip install -r requirements.txt
 LOG_LEVEL=TRACE uvicorn app.main:app --reload --port 8000
 ```
 
+While it runs, Prometheus metrics are served at `http://localhost:9464/metrics`
+(its own port, never a route on the app — see
+[ARCHITECTURE.md](ARCHITECTURE.md#metrics)); set `METRICS_PORT=0` to turn that
+off.
+
 Frontend:
 
 ```bash

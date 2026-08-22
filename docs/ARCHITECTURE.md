@@ -22,6 +22,12 @@ None of the external APIs need a key:
 - **Open-Meteo** provides the hourly forecast and air-quality data, batched up to 50 locations per request.
 - **OpenFreeMap** serves the vector map tiles.
 
+## Metrics
+
+The service emits Prometheus metrics (issue #77): request rate, errors, and duration per route template; per-mirror Overpass latency and failover counts; Open-Meteo batch latency, 429s by quota scope, weighted-call spend, pace waits, and sheds; cache hits and misses; per-bucket throttle counts; degraded-AQI batches; and the size distributions of the analyses people actually run. The counters wrap what the code already counts — the pacers in `app/ratelimit.py`, the hit/miss tallies on `TTLCache` — rather than keeping parallel books. Labels are bounded by construction (route templates, mirror hosts, closed outcome sets) and never carry coordinates or client identity; `backend/tests/test_telemetry.py` fails any sample that grows a label outside the allowlist.
+
+The registry is served on its own port (`METRICS_PORT`, default 9464), never as a route on the app. That placement is a security boundary, not a convenience: the production gateway publishes `/api/*` by allowlist but passes non-API paths through to the pod, so a `/metrics` route on port 8000 would be publicly readable. The second port is unreachable through the gateway entirely, and the OpenAPI document stays unchanged. In Kubernetes the chart's PodMonitor scrapes the pod port directly — the Service never exposes it — and the cluster side (kube-prometheus-stack, Grafana, the bluebird dashboard) lives in `Kubernetes-Manifests` under `observability/`.
+
 ## Kubernetes Deployment
 
 Manifests live in a separate repo, `zimmertr/Kubernetes-Manifests`, under `public/bluebird/`, and ArgoCD picks them up automatically. The stack runs an Argo Rollout with a canary strategy, an Istio VirtualService and Gateway, and a cert-manager `Certificate` for `bluebirdforecast.com`, all managed with Kustomize.

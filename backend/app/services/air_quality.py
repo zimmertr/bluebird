@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import httpx
 
-from app import ratelimit
+from app import ratelimit, telemetry
 from app.services import cache, http
 from app.services.errors import (
     UpstreamRateLimited,
@@ -112,9 +113,11 @@ async def fetch_aqi_batch(
                 async with ratelimit.AQI_BUDGET.slot():
                     return await _fetch_chunk(chunk, req_start, req_end, start_dt, end_dt)
             except ratelimit.BudgetExhausted:
+                telemetry.AQI_DEGRADED.labels(reason="budget").inc()
                 log.warning("AQI budget exhausted (continuing without AQI)")
                 return [None] * len(chunk)
             except UpstreamRateLimited as exc:
+                telemetry.AQI_DEGRADED.labels(reason="rate_limited").inc()
                 log.warning(
                     "AQI rate limited (%s); skipping remaining AQI batches",
                     exc.scope or "unknown",
@@ -162,20 +165,41 @@ async def _fetch_chunk(
 
     try:
         log.trace("Open-Meteo air quality request params: %s", params)  # type: ignore[attr-defined]
-        resp = await http.client().get(AIR_QUALITY_URL, params=params)
+        # One duration observation per HTTP attempt, failures included, so the
+        # histogram and the outcome counter tally the same events.
+        attempt_start = time.perf_counter()
+        try:
+            resp = await http.client().get(AIR_QUALITY_URL, params=params)
+        finally:
+            telemetry.OPENMETEO_DURATION.labels(service="aqi").observe(
+                time.perf_counter() - attempt_start
+            )
         resp.raise_for_status()
+        telemetry.OPENMETEO_REQUESTS.labels(service="aqi", outcome="success").inc()
         data = resp.json()
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code == 429:
             # Raised (not degraded) so the caller can stop burning the AQI
             # quota on the remaining batches; it still degrades to nulls there.
             scope, retry_after = parse_rate_limit(exc)
+            telemetry.OPENMETEO_REQUESTS.labels(
+                service="aqi", outcome="rate_limited"
+            ).inc()
+            telemetry.OPENMETEO_RATE_LIMITED.labels(
+                service="aqi", scope=scope or "unknown"
+            ).inc()
             raise UpstreamRateLimited(
                 PROVIDER, scope, retry_after, rate_limit_message(PROVIDER, scope)
             ) from exc
+        telemetry.OPENMETEO_REQUESTS.labels(service="aqi", outcome="http_error").inc()
+        telemetry.AQI_DEGRADED.labels(reason="error").inc()
         log.warning("Open-Meteo air quality request failed (continuing without AQI): %s", exc)
         return [None] * len(destinations)
     except httpx.HTTPError as exc:
+        telemetry.OPENMETEO_REQUESTS.labels(
+            service="aqi", outcome="network_error"
+        ).inc()
+        telemetry.AQI_DEGRADED.labels(reason="error").inc()
         log.warning("Open-Meteo air quality request failed (continuing without AQI): %s", exc)
         return [None] * len(destinations)
 

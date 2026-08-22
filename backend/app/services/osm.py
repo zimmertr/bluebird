@@ -3,13 +3,15 @@ from __future__ import annotations
 import copy
 import logging
 import math
+import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
-from app import ratelimit
+from app import ratelimit, telemetry
 from app.models import DestinationType, GeoPolygon
 from app.services import cache
 from app.services.errors import PartialResultError, UpstreamError, classify_http_error
@@ -475,6 +477,21 @@ async def enrich_custom(destinations: list[dict[str, Any]]) -> list[dict[str, An
     return enriched
 
 
+def _attempt_outcome(exc: Exception) -> str:
+    """The metric outcome for one failed mirror attempt. Timeout is split from
+    the other transport errors because it is the one this table's timeouts are
+    retuned from (TimeoutException must be tested first: it IS an HTTPError)."""
+    if isinstance(exc, PartialResultError):
+        return "partial"
+    if isinstance(exc, httpx.TimeoutException):
+        return "timeout"
+    if isinstance(exc, httpx.HTTPStatusError):
+        return "http_error"
+    if isinstance(exc, httpx.HTTPError):
+        return "network_error"
+    return "error"
+
+
 async def _post_with_fallback(
     query: str,
     on_status: StatusCallback | None = None,
@@ -485,18 +502,27 @@ async def _post_with_fallback(
     # (httpx would otherwise apply its 5s default to any request that missed one).
     async with httpx.AsyncClient(timeout=None, headers=HEADERS) as client:
         for i, mirror in enumerate(OVERPASS_MIRRORS, start=1):
+            host = urlparse(mirror.url).hostname or mirror.url
             # Failover is news the user can act on (the wait just got longer);
             # the healthy first attempt needs no narration.
             if i > 1 and on_status is not None:
                 await on_status(f"Trying backup map server {i} of {total}…")
+            outcome = "error"
+            elapsed: float | None = None
             try:
                 log.info("Trying Overpass endpoint: %s", mirror.url)
                 # The slot is held only while this mirror's request is in
-                # flight; parsing and validation happen after release.
+                # flight; parsing and validation happen after release. The
+                # duration is timed the same way — inside the slot, so a queue
+                # wait never inflates a mirror's measured latency.
                 async with mirror.budget.slot():
-                    resp = await client.post(
-                        mirror.url, data={"data": query}, timeout=mirror.timeout_s
-                    )
+                    attempt_start = time.perf_counter()
+                    try:
+                        resp = await client.post(
+                            mirror.url, data={"data": query}, timeout=mirror.timeout_s
+                        )
+                    finally:
+                        elapsed = time.perf_counter() - attempt_start
                 resp.raise_for_status()
                 data = resp.json()
                 # Overpass reports mid-query timeouts/errors via `remark` on an
@@ -507,20 +533,33 @@ async def _post_with_fallback(
                 remark = data.get("remark")
                 if remark:
                     raise PartialResultError(f"Overpass returned a partial result: {remark}")
+                outcome = "success"
                 log.info("Overpass query succeeded via %s", mirror.url)
                 return data
             except ratelimit.BudgetExhausted:
                 # This mirror is saturated pod-wide, but the next one is a
                 # different operator with its own capacity. Only the LAST
                 # mirror's saturation is terminal, preserving the 503 +
-                # Retry-After mapping the routes already apply.
+                # Retry-After mapping the routes already apply. No request was
+                # made, so only the failover is counted (the shed itself is
+                # already counted where it happened, in ratelimit).
                 if i == total:
                     raise
+                telemetry.OVERPASS_FALLBACK.labels(mirror=host).inc()
                 log.warning(
                     "Overpass mirror %s budget saturated; trying next mirror", mirror.url
                 )
             except Exception as exc:  # noqa: BLE001 — try the next mirror on any failure
+                outcome = _attempt_outcome(exc)
+                if i < total:
+                    telemetry.OVERPASS_FALLBACK.labels(mirror=host).inc()
                 log.warning("Overpass endpoint %s failed: %s", mirror.url, exc)
                 last_exc = exc
+            finally:
+                # `elapsed` stays None when the budget shed before any HTTP
+                # left the pod — nothing was asked, so nothing is recorded.
+                if elapsed is not None:
+                    telemetry.OVERPASS_DURATION.labels(mirror=host).observe(elapsed)
+                    telemetry.OVERPASS_REQUESTS.labels(mirror=host, outcome=outcome).inc()
     # Every mirror failed — surface the last failure as an actionable message.
     raise UpstreamError(classify_http_error(last_exc, PROVIDER)) from last_exc

@@ -77,6 +77,7 @@ Backend (pip), installed into the image:
 | uvicorn | BSD-3-Clause |
 | httpx | BSD-3-Clause |
 | pydantic | MIT |
+| prometheus-client | Apache-2.0 |
 
 Vendored: [swagger-ui-dist](https://www.npmjs.com/package/swagger-ui-dist)
 (Apache-2.0), copied into `static/swagger-ui/` at build time so `/docs` loads

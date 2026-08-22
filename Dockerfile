@@ -60,7 +60,10 @@ ENV APP_VERSION=${APP_VERSION} \
     APP_COMMIT=${APP_COMMIT} \
     APP_BUILT_AT=${APP_BUILT_AT}
 USER 10001:10001
-EXPOSE 8000
+# 8000 is the app; 9464 is the Prometheus metrics server (see app/telemetry.py
+# for why it is a separate port). EXPOSE is documentation — neither is
+# published unless the runtime maps it.
+EXPOSE 8000 9464
 # Kubernetes ignores HEALTHCHECK (its probes hit /healthz directly); this is
 # for plain docker/compose users. Python stdlib rather than busybox wget so the
 # check doesn't depend on which base-image flavor is underneath.

@@ -11,7 +11,7 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import ratelimit
+from app import ratelimit, telemetry
 from app.routes.analyze import router
 from app.routes.capabilities import router as capabilities_router
 from app.routes.config import router as config_router
@@ -147,10 +147,15 @@ _TAGS = [
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    # Metrics live on their own port (METRICS_PORT, default 9464), never on
+    # this app: the public gateway allowlist filters /api/* only, so a
+    # /metrics route here would be a public one (see telemetry.py).
+    telemetry.start_metrics_server()
     # The Open-Meteo client is built lazily on first use so it binds to this
     # loop; all we owe it is a close, so the pod's keep-alive connections go
     # away with the process rather than waiting on upstream's idle timeout.
     yield
+    telemetry.stop_metrics_server()
     await upstream_http.aclose()
 
 
@@ -221,6 +226,12 @@ async def access_log(request: Request, call_next) -> Response:
             _client_ip(request),
         )
     return response
+
+
+# Registered after the access log so it wraps it (last added runs outermost):
+# the duration observed includes every middleware below, and a request no
+# route matched is still counted.
+app.middleware("http")(telemetry.metrics_middleware)
 
 
 app.include_router(router, prefix="/api")

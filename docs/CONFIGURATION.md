@@ -29,6 +29,7 @@ in detail in [`TRAFFIC.md`](TRAFFIC.md)):
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `LOG_LEVEL` | `WARNING` | Log verbosity: `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. |
+| `METRICS_PORT` | `9464` | Port the Prometheus metrics server listens on. Its own port rather than a route on the app, so the metrics surface is never publicly routable (the production gateway's allowlist covers `/api/*` only). `0` disables it. |
 | `RATE_LIMIT_ANALYZE_PER_MINUTE` | `12` | Sustained analyze requests per client address per minute, shared by `POST /api/analyze` and `/api/analyze/stream`. `0` disables the limit. |
 | `RATE_LIMIT_ANALYZE_BURST` | `6` | Analyze requests an idle client may send back-to-back before the per-minute pace applies. |
 | `RATE_LIMIT_DESTINATIONS_PER_MINUTE` | `30` | Sustained `POST /api/destinations` requests per client address per minute, its own bucket so discovery never starves analyses. `0` disables the limit. |
