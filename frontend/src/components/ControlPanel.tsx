@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { CustomDestination, DiscoveryType, SortBy } from '../types'
 import { Refusal } from '../hooks/useAnalyze'
 import { FIRE_UNAVAILABLE_NOTE } from '../utils/fireProximity'
@@ -25,6 +25,7 @@ import {
   FIELD_NUMERIC,
   LINK,
   NOTICE,
+  NOTICE_DISMISS,
   PANEL_EDGE,
   PANEL_RULE,
   SEGMENT,
@@ -37,6 +38,7 @@ import {
 import { AGGREGATE, NOUN, RANKING_KEYS, familyOf, metricLabel, windowAggregate } from '../metrics'
 import { Constraints, hasConstraints } from '../utils/clientAnalyze'
 import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analyzeGate'
+import { eventNoticeKey, eventNoticeVisible, rearmDismissal } from '../utils/notices'
 import { DEFAULT_LIMIT, classifyAqiCoverage, clampLimit } from '../utils/urlState'
 import {
   AQI_LIMIT_DAYS,
@@ -241,6 +243,7 @@ function FooterNotice({
   severity,
   lines,
   children,
+  onDismiss,
 }: {
   severity: 'warn' | 'error' | 'info'
   // Several messages of the same kind, which the box bullets so they cannot be
@@ -248,26 +251,63 @@ function FooterNotice({
   // buttons that act on it.
   lines?: string[]
   children?: React.ReactNode
+  // Only the event notices — the error and the refusal — pass this. The other
+  // boxes state facts that are still true (why the button is disabled, why
+  // the report on screen is stale), and dismissing a fact does not make it
+  // false (#253).
+  onDismiss?: () => void
 }) {
   return (
     <div className={`${NOTICE[severity]} ${STATUS[severity]} space-y-2`} role="status">
-      {lines && lines.length > 1 ? (
-        // Bullets from two messages up, and not before. One reason Analyze is
-        // blocked is a sentence; two are a list, and without the marks they run
-        // together into one long complaint — worse when either of them wraps,
-        // which is when the reader most needs to see where one ends. A lone
-        // bullet is a list of one and just adds furniture.
-        //
-        // `list-outside` puts a wrapped line under its own text rather than
-        // under its bullet, so the marks stay a column the eye can scan.
-        <ul className="list-disc list-outside space-y-1.5 pl-4">
-          {lines.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-      ) : (
-        lines?.map((line) => <p key={line}>{line}</p>)
-      )}
+      {/* The X shares a row with the message alone; the actions below it
+          (`children`) keep the full box width, so a remedy button does not
+          stop short at the X's column. */}
+      <div className="flex gap-2">
+        <div className="flex-1 space-y-2">
+          {lines && lines.length > 1 ? (
+            // Bullets from two messages up, and not before. One reason Analyze
+            // is blocked is a sentence; two are a list, and without the marks
+            // they run together into one long complaint — worse when either of
+            // them wraps, which is when the reader most needs to see where one
+            // ends. A lone bullet is a list of one and just adds furniture.
+            //
+            // `list-outside` puts a wrapped line under its own text rather than
+            // under its bullet, so the marks stay a column the eye can scan.
+            <ul className="list-disc list-outside space-y-1.5 pl-4">
+              {lines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          ) : (
+            lines?.map((line) => <p key={line}>{line}</p>)
+          )}
+        </div>
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="Dismiss notice"
+            className={NOTICE_DISMISS}
+          >
+            {/* A drawn cross rather than the "×" character, for the reason the
+                panel's own close button documents: that glyph centres on the
+                font's maths, where two lines in a square viewBox centre by
+                construction. */}
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              className="h-3 w-3"
+              aria-hidden="true"
+            >
+              <line x1="6" y1="6" x2="18" y2="18" />
+              <line x1="18" y1="6" x2="6" y2="18" />
+            </svg>
+          </button>
+        )}
+      </div>
       {children}
     </div>
   )
@@ -372,6 +412,20 @@ export default function ControlPanel({
       : classifyAqiCoverage(window.start, window.end, new Date())
 
   const pointsNeeded = Math.max(0, 3 - drawPointCount)
+
+  // The event notices' dismissal (#253). The key is the message's identity
+  // from `utils/notices.ts`; the effect spends the dismissal whenever the key
+  // clears, which every Analyze does on its way in (`useAnalyze` nulls both
+  // states before it fetches) — so a stale dismissal can never swallow the
+  // next run's notice, even one that reads exactly like the dismissed one.
+  // Local state on purpose: the panel stays mounted while closed, and a
+  // dismissal is presentation, not part of the analysis.
+  const noticeKey = eventNoticeKey(error, refusal?.message ?? null)
+  const [dismissedNotice, setDismissedNotice] = useState<string | null>(null)
+  useEffect(() => {
+    setDismissedNotice((prev) => rearmDismissal(prev, noticeKey))
+  }, [noticeKey])
+  const noticeVisible = eventNoticeVisible(noticeKey, dismissedNotice)
 
   // Every plain-sentence warning under the Analyze button, as one list for one
   // box. They used to render as a box apiece — the commit cue in its own frame
@@ -937,8 +991,12 @@ export default function ControlPanel({
           <FooterNotice severity="warn" lines={footerWarnings} />
         )}
 
-        {refusal && !loading && (
-          <FooterNotice severity="warn" lines={[refusal.message]}>
+        {refusal && !loading && noticeVisible && (
+          <FooterNotice
+            severity="warn"
+            lines={[refusal.message]}
+            onDismiss={() => setDismissedNotice(noticeKey)}
+          >
             {refusal.suggestedMinElevationFt !== null && (
               <button
                 onClick={() => onRetryWithFloor(refusal.suggestedMinElevationFt as number)}
@@ -959,8 +1017,12 @@ export default function ControlPanel({
           </FooterNotice>
         )}
 
-        {error && !refusal && (
-          <FooterNotice severity="error" lines={[error]}>
+        {error && !refusal && noticeVisible && (
+          <FooterNotice
+            severity="error"
+            lines={[error]}
+            onDismiss={() => setDismissedNotice(noticeKey)}
+          >
             <button onClick={onRetry} disabled={loading} className={BUTTON_DANGER}>
               Try again
             </button>

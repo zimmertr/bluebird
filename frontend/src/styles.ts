@@ -765,6 +765,27 @@ export const NOTICE = {
 } as const
 
 /**
+ * The X that dismisses an event notice (#253). Only the error and refusal
+ * boxes wear it: they report something that already happened, so once read
+ * they may be cleared. The derived warnings beside them state facts that are
+ * still true, and get no X.
+ *
+ * No resting color of its own: the glyph inherits its box's `STATUS` voice,
+ * so each notice stays monochrome — a slate X here would read as chrome that
+ * escaped into a status message. Measured on the tinted fills over the panel:
+ * amber-300 on `NOTICE.warn` is 10.53:1 and red-400 on `NOTICE.error` is
+ * 5.75:1, both past the 3:1 a UI glyph owes; the hover's white is 15:1+.
+ * Pinned in styles.test.ts so a fill or `STATUS` change forces a
+ * re-measurement.
+ *
+ * `TAP.action` rides in-flow, so on touch the target grows the box's first
+ * row rather than overhanging it — the Analyze button sits directly above,
+ * and an absolutely-positioned 44px square would cover its bottom edge.
+ */
+export const NOTICE_DISMISS =
+  `${TAP.action} self-start px-1 hover:text-white transition-colors ${FOCUS_RING}`
+
+/**
  * The two weights of rule in the control panel.
  *
  * `PANEL_EDGE` closes the panel: the line under the app title and the one over

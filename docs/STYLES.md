@@ -92,6 +92,7 @@ Bluebird's frontend design lives in `frontend/src/styles.ts`, which exports the 
 | `NOTICE.warn` | Boxed warning message |
 | `NOTICE.error` | Boxed error message |
 | `NOTICE.info` | Boxed info message |
+| `NOTICE_DISMISS` | The X that dismisses an event notice (error or refusal); derived warnings get none |
 
 **Spacing and sizing**
 
