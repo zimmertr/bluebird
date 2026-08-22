@@ -1478,6 +1478,9 @@ export default function App() {
       caps.forecastModels.find((m) => m.id === analyzed?.forecastModel)?.finestGridKm ??
       FALLBACK_PITCH_KM,
     reachKm: gridReachKm,
+    // The live thumb position while dragging: the held field re-cuts to it in
+    // real time, and only a committed value can fetch.
+    displayReachKm: gridReachDraft ?? gridReachKm,
     analysisSeq,
   })
   // Something is painted, which is what a legend can be keyed to. A field still
@@ -1506,7 +1509,13 @@ export default function App() {
     grid.paceEndMs === null
       ? null
       : Math.max(0, Math.ceil((grid.paceEndMs - Math.max(paceNow, Date.now())) / 1000))
-  const gridLegend = gridLegendLine(gridPainted, grid.pitchKm, gridPaceRemainingS, gridFailed)
+  const gridLegend = gridLegendLine(
+    gridPainted,
+    grid.pitchKm,
+    gridPaceRemainingS,
+    gridFailed,
+    grid.complete,
+  )
 
   // Download the displayed report (#125). Everything that decides what the file
   // contains is already resolved above, so this only has to hand settled values
@@ -1876,7 +1885,12 @@ export default function App() {
               desktop map they never meet — but a phone is narrow enough that
               they would overlap, and a legend half under a control reads as a
               layout fault rather than as two things sharing an edge. */}
-          {(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar) && (
+          {/* Hidden while the Layers popover is open: the popover opens over
+              this stack's column and a legend half-covered by it reads as
+              clipping (#288 review) — the same rule that hides the legends
+              when the phone's results panel needs the space. They return on
+              dismiss, updated for whatever the popover changed. */}
+          {!layersOpen && (hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar) && (
             <div
               className={`absolute left-2 top-28 z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0 [&>*:first-child]:mt-auto ${
                 timelineAxis !== null ? 'bottom-28' : 'bottom-8'
@@ -2024,7 +2038,11 @@ export default function App() {
               panel is collapsed) + place search. z-10 keeps it under the
               loading overlay (z-20) and the mobile drawer backdrop (z-30). */}
           <div className="absolute top-3 left-3 z-10 flex flex-col items-start gap-2">
-            <div className="flex items-start gap-2">
+            {/* Raised above its later siblings so the search dropdown paints
+                over the Layers button below it — both live in the top-left
+                cluster, and DOM order alone put the button on top (#288
+                review). */}
+            <div className="relative z-10 flex items-start gap-2">
               {!sidebarOpen && (
                 <button
                   onClick={() => setSidebarOpen(true)}

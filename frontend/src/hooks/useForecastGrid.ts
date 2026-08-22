@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DestinationResult } from '../types'
 import { AqiResult, WeatherResult, fetchAqi, fetchWeather } from '../utils/openMeteo'
 import { canonicalTimes } from '../utils/clientAnalyze'
 import { normalizeWindow } from '../utils/forecastWindow'
-import { GridCell, GridSpec, buildGrid, pairCells } from '../utils/forecastGrid'
+import { GridCell, GridSpec, buildGrid, gridView, pairCells } from '../utils/forecastGrid'
 
 // The forecast grid's fetch (#246), modelled on useFireProximity: one query per
 // analysis, best-effort, and entirely beside the ranking.
@@ -48,6 +48,13 @@ export interface ForecastGrid {
   /** The pitch the lattice was built at, which the legend prints. */
   pitchKm: number
   /**
+   * Has every sample been asked for? False while the chunk loop is still
+   * running, which is what lets the legend say `Waiting` for a partial field
+   * stalled behind the pacer instead of naming a pitch the picture does not
+   * fully have (#288 review).
+   */
+  complete: boolean
+  /**
    * When the client pacer resumes, if it is currently sleeping off a quota
    * deficit. The legend counts down from it, so a grid queued behind a large
    * analysis says why rather than looking hung. Null whenever nothing is
@@ -61,6 +68,7 @@ const IDLE: ForecastGrid = {
   spec: null,
   cells: [],
   pitchKm: 0,
+  complete: true,
   paceEndMs: null,
 }
 
@@ -104,33 +112,66 @@ export interface ForecastGridInputs {
   /** The selected model's finest grid, in km, from `/api/capabilities`. */
   pitchKm: number
   /**
-   * How far from a destination the lattice reaches, in km — the coverage
-   * slider's value. A change rebuilds and refetches like toggling the layer
-   * does, and the per-location forecast cache is what makes it cheap in the
-   * direction the reader usually goes: shrinking repaints from cells already
-   * in hand, growing pays only for coordinates not yet asked about (unless
-   * the cell cap moves the pitch, which relocates every sample).
+   * The coverage slider's COMMITTED value, in km. The fetch ratchets on it:
+   * within one analysis the lattice is built at the largest reach ever
+   * committed, so growing past what is held fetches once and shrinking never
+   * fetches at all — the smaller picture is a filter over samples already in
+   * hand (#288 review).
    */
   reachKm: number
+  /**
+   * The reach to DISPLAY right now — the slider's live drag position, or the
+   * committed value at rest. Presentation only: it re-cuts the held field
+   * through `gridView` per render and never touches the fetch, which is what
+   * makes the picture follow the thumb in real time.
+   */
+  displayReachKm: number
   /** Bumped once per committed analysis; re-grids even for an identical field. */
   analysisSeq: number
 }
 
 export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
-  const { enabled, field, window: win, model, times, pitchKm, reachKm, analysisSeq } = inputs
+  const {
+    enabled,
+    field,
+    window: win,
+    model,
+    times,
+    pitchKm,
+    reachKm,
+    displayReachKm,
+    analysisSeq,
+  } = inputs
   const [state, setState] = useState<ForecastGrid>(IDLE)
+  // What the current analysis has already been fetched at. The ratchet: a
+  // committed reach at or under a COMPLETED fetch's reach is served from the
+  // held field with no effect run at all; anything else rebuilds at the
+  // largest reach seen, so one grow covers every earlier value on the way
+  // back down.
+  const fetchedRef = useRef<{ seq: number; reach: number; complete: boolean } | null>(null)
 
   useEffect(() => {
     if (!enabled || field === null || win === null || field.length === 0) {
+      fetchedRef.current = null
       setState((prev) => (prev === IDLE ? prev : IDLE))
       return
     }
 
-    const spec = buildGrid(field, pitchKm, reachKm)
+    const held = fetchedRef.current
+    if (held && held.seq === analysisSeq && held.complete && reachKm <= held.reach) {
+      // The held lattice covers this reach; `gridView` below re-cuts it.
+      return
+    }
+    const target =
+      held && held.seq === analysisSeq ? Math.max(reachKm, held.reach) : reachKm
+
+    const spec = buildGrid(field, pitchKm, target)
     if (spec === null) {
+      fetchedRef.current = null
       setState((prev) => (prev === IDLE ? prev : IDLE))
       return
     }
+    fetchedRef.current = { seq: analysisSeq, reach: target, complete: false }
 
     // The snapshot holds the request as submitted, so a Current analysis
     // arrives as a zero-width window. Asking Open-Meteo for it returns an
@@ -144,7 +185,14 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     // the analysis changes, and a field from the previous one describes a
     // different bbox over a different window — holding it would paint the old
     // answer under the new markers for as long as the fetch takes.
-    setState({ status: 'loading', spec, cells: [], pitchKm: spec.pitchKm, paceEndMs: null })
+    setState({
+      status: 'loading',
+      spec,
+      cells: [],
+      pitchKm: spec.pitchKm,
+      complete: false,
+      paceEndMs: null,
+    })
 
     // What has come back so far, by lattice index. Weather arrives in chunks
     // and air quality arrives whole and late, so both write here and repaint
@@ -170,6 +218,7 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
         spec: spec as GridSpec,
         cells: pairCells(spec as GridSpec, indices, wxHave, aqiHave, grid),
         pitchKm: (spec as GridSpec).pitchKm,
+        complete: fetchedRef.current?.complete ?? false,
         // A repaint means samples arrived, so whatever wait was being counted
         // down is over.
         paceEndMs: prev.status === 'loading' ? null : prev.paceEndMs,
@@ -226,6 +275,11 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
           })
           repaint()
         }
+        // Every sample has been asked for; the legend may name the pitch now
+        // even through a later pace.
+        if (cancelled) return
+        if (fetchedRef.current?.seq === analysisSeq) fetchedRef.current.complete = true
+        repaint()
         await air
       } catch (err) {
         if (cancelled || (err as Error).name === 'AbortError') return
@@ -249,11 +303,21 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     // Keyed on the analysis rather than on `field`, which is a new array on
     // every live knob change: a re-rank hands over the same destinations in a
     // new reference, and keying on it would abort the fetch in flight and
-    // re-ask the same question per twiddle. `reachKm` IS a key: the coverage
-    // slider commits on release, and each committed value is a different
-    // lattice. Everything else here is fixed for the life of one analysis.
+    // re-ask the same question per twiddle. `reachKm` is a key so a commit
+    // ABOVE the ratchet can fetch; at or under a completed fetch's reach the
+    // body returns before touching anything, so the shrink direction costs no
+    // teardown. `displayReachKm` is deliberately absent: display is the
+    // memo's job below, and keying the fetch on it would abort a grow because
+    // the thumb wiggled.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, analysisSeq, pitchKm, reachKm])
 
-  return state
+  // The held field re-cut to the reach on display, live with the thumb. Same
+  // state object back when nothing is cut, so consumers' effects do not churn.
+  return useMemo(() => {
+    if (state.spec === null) return state
+    const view = gridView(state.spec, state.cells, displayReachKm)
+    if (view.spec === state.spec && view.cells === state.cells) return state
+    return { ...state, spec: view.spec, cells: view.cells as GridCell[] }
+  }, [state, displayReachKm])
 }

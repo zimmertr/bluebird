@@ -2,9 +2,11 @@ import { describe, it, expect } from 'vitest'
 import {
   FALLBACK_PITCH_KM,
   GRID_REACH_KM,
+  GRID_REACH_MAX_KM,
   MAX_GRID_CELLS,
   MAX_IMAGE_DIM,
   buildGrid,
+  gridView,
   gridArrowFeatures,
   gridLegendLine,
   gridImageCoordinates,
@@ -107,6 +109,7 @@ function oneSpec(box: [number, number, number, number]): GridSpec {
     points: [{ latitude: (box[1] + box[3]) / 2, longitude: (box[0] + box[2]) / 2 }],
     cells: [box],
     indices: [0],
+    distancesKm: [0],
     cols: 1,
     rows: 1,
     west: box[0],
@@ -211,17 +214,59 @@ describe('buildGrid', () => {
     }
     const distances = spec.points.map(km)
     expect(Math.max(...distances)).toBeLessThanOrEqual(GRID_REACH_KM + 1e-6)
-    expect(Math.max(...distances)).toBeGreaterThan(GRID_REACH_KM * 0.8)
+    expect(Math.max(...distances)).toBeGreaterThan(GRID_REACH_KM * 0.5)
 
     // The coverage slider's value overrides the default, both directions.
-    const wide = buildGrid([dest], 3, 60)!
+    const wide = buildGrid([dest], 3, GRID_REACH_MAX_KM)!
     const wideMax = Math.max(...wide.points.map(km))
-    expect(wideMax).toBeLessThanOrEqual(60 + 1e-6)
-    expect(wideMax).toBeGreaterThan(48)
-    // And the two-pitch floor still binds under a small slider value: 5 km of
-    // asked-for reach at a 13 km pitch keeps the ring of neighbours.
-    const floored = buildGrid([dest], 13, 5)!
-    expect(Math.max(...floored.points.map(km))).toBeGreaterThan(13)
+    expect(wideMax).toBeLessThanOrEqual(GRID_REACH_MAX_KM + 1e-6)
+    expect(wideMax).toBeGreaterThan(GRID_REACH_KM)
+    // The one-pitch floor still binds under a small slider value: even at
+    // zero, a destination keeps its own cell and some neighbours.
+    const floored = buildGrid([dest], 13, 0)!
+    expect(floored.points.length).toBeGreaterThan(1)
+    expect(Math.max(...floored.points.map(km))).toBeLessThanOrEqual(13 + 1e-6)
+
+    // And the fetched distances ride the spec, one per kept cell, so a
+    // smaller reach can re-cut the same lattice without rebuilding it.
+    expect(wide.distancesKm).toHaveLength(wide.points.length)
+    wide.distancesKm.forEach((d, i) => expect(d).toBeCloseTo(km(wide.points[i]), 6))
+  })
+
+  it('re-cuts a held field to a smaller reach without rebuilding it', () => {
+    // gridView is the coverage slider's shrink direction (#288 review): the
+    // lattice geometry and the pitch stay the fetched lattice's, only the
+    // kept subset narrows — which is what makes the picture follow the thumb
+    // with no fetch behind it.
+    const dest = { latitude: 46.8, longitude: -121.8 }
+    const spec = buildGrid([dest], 3, GRID_REACH_MAX_KM)!
+    const cells = spec.points.map((_, i) => ({
+      index: spec.indices[i],
+      box: spec.cells[i],
+      row: result(),
+    }))
+
+    const view = gridView(spec, cells, 4)
+    expect(view.spec.cols).toBe(spec.cols)
+    expect(view.spec.rows).toBe(spec.rows)
+    expect(view.spec.pitchKm).toBe(spec.pitchKm)
+    expect(view.spec.points.length).toBeLessThan(spec.points.length)
+    expect(Math.max(...view.spec.distancesKm)).toBeLessThanOrEqual(4 + 1e-6)
+    // The paired cells narrow in step with the spec, by virtual index.
+    expect(view.cells).toHaveLength(view.spec.points.length)
+    const allowed = new Set(view.spec.indices)
+    for (const cell of view.cells) expect(allowed.has(cell.index)).toBe(true)
+
+    // A reach at or above the fetched one is the identity, not a copy.
+    const same = gridView(spec, cells, GRID_REACH_MAX_KM)
+    expect(same.spec).toBe(spec)
+    expect(same.cells).toBe(cells)
+
+    // The same one-pitch floor as the build: zero still shows the
+    // destination's own cells rather than an empty map.
+    const floor = gridView(spec, cells, 0)
+    expect(floor.spec.points.length).toBeGreaterThan(0)
+    expect(Math.max(...floor.spec.distancesKm)).toBeLessThanOrEqual(spec.pitchKm + 1e-6)
   })
 
   it('keeps indices parallel to the samples, ascending, and inside the lattice', () => {
@@ -322,6 +367,17 @@ describe('gridLegendLine', () => {
     expect(gridLegendLine(false, 3, null, true).value).toBe('Unavailable')
   })
 
+  it('says Waiting for a partial field stalled behind the pacer, pitch once whole', () => {
+    // A half-painted field labelled with its pitch claims a picture it does
+    // not fully have (#288 review): the reader watches a frozen semicircle
+    // while the legend asserts all is well. Incomplete and pacing → Waiting;
+    // incomplete but actively filling → the pitch (progress is visible);
+    // complete → the pitch even through a later pace.
+    expect(gridLegendLine(true, 3, 45, false, false).value).toBe('Waiting')
+    expect(gridLegendLine(true, 3, null, false, false).value).toBe('3 km')
+    expect(gridLegendLine(true, 3, 45, false, true).value).toBe('3 km')
+  })
+
   it('stays one row even though the grid paints 10 m wind under adjusted markers (#257)', () => {
     // The measurement-height difference is documented in DATA.md; a second
     // legend line was tried and rejected for its vertical cost.
@@ -352,6 +408,7 @@ describe('pairCells', () => {
       [-121.8, 46.5, -121.6, 46.7],
     ] as [number, number, number, number][],
     indices: [0, 1],
+    distancesKm: [0, 0],
     cols: 1,
     rows: 2,
     west: -121.8,
@@ -497,6 +554,7 @@ describe('gridRaster', () => {
         [-122.5, 46.5, -121.5, 47.5],
       ],
       indices: [0, 1],
+      distancesKm: [0, 0],
       cols: 1,
       rows: 2,
       west: -122.5,
@@ -566,6 +624,7 @@ describe('gridRaster', () => {
         [-121.5, 45.5, -120.5, 46.5],
       ],
       indices: [0, 1],
+      distancesKm: [0, 0],
       cols: 2,
       rows: 1,
       west: -122.5,
@@ -613,6 +672,7 @@ describe('gridRaster', () => {
         return [w, s, w + lonStep, s + latStep] as [number, number, number, number]
       }),
       indices: smallIndices,
+      distancesKm: smallIndices.map(() => 0),
       cols: 3,
       rows: 3,
       west: -122,
@@ -652,6 +712,7 @@ describe('gridRaster', () => {
         return [w, s, w + lonStep, s + latStep] as [number, number, number, number]
       }),
       indices,
+      distancesKm: indices.map(() => 0),
       cols,
       rows,
       west: -122,
@@ -689,6 +750,7 @@ describe('gridRaster', () => {
         return [w, s, w + lonStep, s + latStep] as [number, number, number, number]
       }),
       indices,
+      distancesKm: indices.map(() => 0),
       cols,
       rows,
       west: -122,

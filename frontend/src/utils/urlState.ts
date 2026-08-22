@@ -513,10 +513,14 @@ export function decodeState(search: string): Partial<ShareableState> | null {
     out.gridStyle = grid
     // Clamped to the slider's own bounds rather than trusted: the param is
     // hand-editable, and a reach outside them would draw a control that
-    // cannot show the value it is applying.
-    const reach = Number(params.get('reach'))
-    if (Number.isFinite(reach) && reach > 0) {
-      out.gridReachKm = Math.min(GRID_REACH_MAX_KM, Math.max(GRID_REACH_MIN_KM, reach))
+    // cannot show the value it is applying. Presence checked before Number,
+    // because Number(null) is 0 — a legal value here.
+    const reachParam = params.get('reach')
+    if (reachParam !== null) {
+      const reach = Number(reachParam)
+      if (Number.isFinite(reach)) {
+        out.gridReachKm = Math.min(GRID_REACH_MAX_KM, Math.max(GRID_REACH_MIN_KM, reach))
+      }
     }
   }
   if (params.get('unnamed') === '1') out.includeUnnamedPeaks = true

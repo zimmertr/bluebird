@@ -86,6 +86,13 @@ export interface GridSpec {
   points: Coordinate[]
   cells: CellBox[]
   indices: number[]
+  /**
+   * Each kept cell's distance to its nearest destination, in km — the number
+   * the reach compared against. Held so `gridView` can re-cut the SAME
+   * fetched lattice at a smaller reach without rebuilding or refetching
+   * anything: the coverage slider's shrink direction is a filter over these.
+   */
+  distancesKm: number[]
   /** The VIRTUAL lattice shape — the raster image's dimensions. */
   cols: number
   rows: number
@@ -124,11 +131,9 @@ export const MAX_GRID_CELLS = 600
  * How far from the nearest destination a grid cell may sit, in km.
  *
  * The grid exists to show the weather AROUND the places the analysis ranked,
- * so a cell earns its fetch only near one of them: 25 km is roughly the
- * terrain a day trip can see from a summit, measured against the Cascades
- * examples rather than derived (re-measure before changing it). The effective
- * reach is `max(GRID_REACH_KM, 2 × pitch)` so a destination always keeps a
- * ring of neighbouring samples even at a coarse pitch. Before this bound one
+ * so a cell earns its fetch only near one of them. The effective reach is
+ * `max(reach, pitch)` so a destination always keeps its own cell and its
+ * axial neighbours even when the slider sits at zero. Before this bound one
  * stray destination an ocean away stretched the lattice across the Atlantic
  * and the 600-cell cap answered with a 181 km pitch — the whole budget spent
  * on cells no destination was in (PR #288 review, 2026-08-21).
@@ -136,21 +141,25 @@ export const MAX_GRID_CELLS = 600
  * The DEFAULT: the Layers popover's coverage slider lets the reader set the
  * reach per session, and the chosen value rides the shared link.
  */
-export const GRID_REACH_KM = 25
+export const GRID_REACH_KM = 5
 
 /**
  * The coverage slider's bounds and step, in km.
  *
- * 5 km is the smallest reach that still draws a patch at every model pitch
- * (the `2 × pitch` floor in `lattice` takes over below it anyway). 100 km is
- * where a single destination's disk alone approaches the 600-cell cap at a
- * 3 km pitch, so anything past it only coarsens. Steps of 5 keep a drag from
- * committing a fetch per pixel and match the precision the number has — the
- * reach is context, not a measurement.
+ * 0 to 10 with the 5 km default dead-centre on the bar (TJ, 2026-08-21).
+ * Zero still draws: the pitch floor above keeps each destination's own cell
+ * and its immediate neighbours, so the minimum is "just the destinations".
+ * Ten keeps even a hundred-summit list's disks well under the cell cap, so
+ * moving the slider rarely moves the pitch — which is also what keeps a
+ * shrink re-presentable from held samples instead of a refetch. One caveat
+ * the floor implies: on a model whose grid is coarser than this range
+ * (ECMWF's 25 km, say), the floor exceeds the whole slider and the control
+ * has nothing to vary — the patches are already as small as that model can
+ * draw.
  */
-export const GRID_REACH_MIN_KM = 5
-export const GRID_REACH_MAX_KM = 100
-export const GRID_REACH_STEP_KM = 5
+export const GRID_REACH_MIN_KM = 0
+export const GRID_REACH_MAX_KM = 10
+export const GRID_REACH_STEP_KM = 1
 
 /**
  * The raster's texture bound, per axis, in pixels.
@@ -216,7 +225,12 @@ export function pitchLabel(pitchKm: number): string {
  *
  * `Waiting` outranks `Loading` because it is the more specific answer to the
  * same question: not merely that nothing has arrived, but that nothing is being
- * asked for yet.
+ * asked for yet. And a PARTIAL field stalled behind the pacer says `Waiting`
+ * too, not its pitch: a half-painted field labelled `4.8 km` claims a picture
+ * it does not fully have, and the reader watches a frozen semicircle with a
+ * legend asserting all is well (#288 review). Once the fetch completes, the
+ * pitch is the answer even through a later pace — a whole field is a whole
+ * field.
  *
  * The grid's wind field is the 10 m wind while the markers carry wind at each
  * destination's elevation (issue #257). That difference is documented in
@@ -229,11 +243,14 @@ export function gridLegendLine(
   pitchKm: number,
   paceRemainingS: number | null,
   failed = false,
+  complete = true,
 ): { label: string; value: string } {
   const label = 'Forecast grid'
+  const pacing = paceRemainingS !== null && paceRemainingS > 0
+  if (painted && !complete && pacing) return { label, value: 'Waiting' }
   if (painted) return { label, value: pitchLabel(pitchKm) }
   if (failed) return { label, value: 'Unavailable' }
-  if (paceRemainingS !== null && paceRemainingS > 0) return { label, value: 'Waiting' }
+  if (pacing) return { label, value: 'Waiting' }
   return { label, value: 'Loading' }
 }
 
@@ -332,11 +349,12 @@ function lattice(
 ): GridSpec {
   const latStep = pitchKm / KM_PER_DEG
   const lonStep = pitchKm / (KM_PER_DEG * cosLat)
-  // The floor of two pitches keeps a ring of neighbouring samples around a
-  // destination at any pitch, which the smooth style's edge fade and the
-  // arrows both want — it binds when the slider's value is small against a
-  // coarse model's pitch.
-  const reachKm = Math.max(baseReachKm, 2 * pitchKm)
+  // The one-pitch floor keeps a destination's own cell and its axial
+  // neighbours at any slider value, zero included — a coverage of nothing
+  // would draw nothing, and a layer switched on that draws nothing reads as
+  // broken. `gridView` applies the same floor so the fetched set and the
+  // displayed subset agree about what a value means.
+  const reachKm = Math.max(baseReachKm, pitchKm)
   const reachLat = reachKm / KM_PER_DEG
   const reachLon = reachKm / (KM_PER_DEG * cosLat)
   const w = west - reachLon
@@ -351,7 +369,7 @@ function lattice(
   // of some destination — a true disk, so the field's edge is a rounded blob
   // hugging the candidates rather than a rectangle asserting a coverage
   // nothing sampled.
-  const kept = new Set<number>()
+  const kept = new Map<number, number>()
   for (const d of field) {
     const minC = Math.max(0, Math.floor((d.longitude - reachLon - w) / lonStep))
     const maxC = Math.min(cols - 1, Math.floor((d.longitude + reachLon - w) / lonStep))
@@ -361,14 +379,20 @@ function lattice(
       const dyKm = (s + r * latStep + latStep / 2 - d.latitude) * KM_PER_DEG
       for (let c = minC; c <= maxC; c++) {
         const dxKm = (w + c * lonStep + lonStep / 2 - d.longitude) * KM_PER_DEG * cosLat
-        if (dxKm * dxKm + dyKm * dyKm <= reachKm * reachKm) kept.add(r * cols + c)
+        const distKm = Math.sqrt(dxKm * dxKm + dyKm * dyKm)
+        if (distKm <= reachKm) {
+          const index = r * cols + c
+          const prev = kept.get(index)
+          if (prev === undefined || distKm < prev) kept.set(index, distKm)
+        }
       }
     }
   }
 
-  const indices = Array.from(kept).sort((a, b) => a - b)
+  const indices = Array.from(kept.keys()).sort((a, b) => a - b)
   const points: Coordinate[] = []
   const cells: CellBox[] = []
+  const distancesKm: number[] = []
   for (const index of indices) {
     const r = Math.floor(index / cols)
     const c = index % cols
@@ -376,8 +400,61 @@ function lattice(
     const cs = s + r * latStep
     cells.push([cw, cs, cw + lonStep, cs + latStep])
     points.push({ latitude: cs + latStep / 2, longitude: cw + lonStep / 2 })
+    distancesKm.push(kept.get(index) as number)
   }
-  return { points, cells, indices, cols, rows, west: w, south: s, latStep, lonStep, pitchKm }
+  return {
+    points,
+    cells,
+    indices,
+    distancesKm,
+    cols,
+    rows,
+    west: w,
+    south: s,
+    latStep,
+    lonStep,
+    pitchKm,
+  }
+}
+
+/**
+ * The held field re-cut at a smaller reach, with nothing rebuilt and nothing
+ * refetched (#288 review): the coverage slider's shrink direction, applied
+ * live while the thumb moves.
+ *
+ * A pure filter over `distancesKm`: the lattice geometry, the pitch, and the
+ * cell positions all stay exactly the fetched lattice's, so every consumer —
+ * raster, image corners, arrows, edge fade — works on the subset unchanged.
+ * The same one-pitch floor `lattice` applies, so a slider at zero shows the
+ * destinations' own cells rather than an empty map, and the fetched set and
+ * the displayed set agree about what a value means. A reach at or above the
+ * fetched one returns the inputs untouched, which the memoising caller reads
+ * as "nothing changed".
+ */
+export function gridView(
+  spec: GridSpec,
+  cells: readonly GridCell[],
+  reachKm: number,
+): { spec: GridSpec; cells: readonly GridCell[] } {
+  const effective = Math.max(reachKm, spec.pitchKm)
+  if (spec.distancesKm.every((d) => d <= effective)) return { spec, cells }
+
+  const points: Coordinate[] = []
+  const boxes: CellBox[] = []
+  const indices: number[] = []
+  const distancesKm: number[] = []
+  for (let i = 0; i < spec.indices.length; i++) {
+    if (spec.distancesKm[i] > effective) continue
+    points.push(spec.points[i])
+    boxes.push(spec.cells[i])
+    indices.push(spec.indices[i])
+    distancesKm.push(spec.distancesKm[i])
+  }
+  const allowed = new Set(indices)
+  return {
+    spec: { ...spec, points, cells: boxes, indices, distancesKm },
+    cells: cells.filter((cell) => allowed.has(cell.index)),
+  }
 }
 
 /**
@@ -389,6 +466,16 @@ function lattice(
  * stretched across this box places pixel `i`'s centre at
  * `west + (i + 0.5) × lonStep`, which is exactly sample `i`'s coordinate. Map
  * it to the corner samples instead and every pixel lands half a cell off.
+ */
+/*
+ * KNOWN LIMIT (#288 review): MapLibre texture-maps an image source linearly
+ * in MERCATOR between these corners, while the lattice rows are linear in
+ * DEGREES. Over a compact field the two agree to well under a pixel; over a
+ * multi-cluster field spanning many degrees of latitude, mid-span rows drift
+ * north of their true position by up to a few cells (measured with a
+ * Washington-plus-Sicily field; the corners stay exact). Fixing it means
+ * spacing rows in mercator or drawing one image per cluster — deferred until
+ * a real field, rather than a stray destination, needs it.
  */
 export function gridImageCoordinates(
   spec: GridSpec,

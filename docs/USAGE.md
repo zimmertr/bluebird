@@ -199,11 +199,12 @@ Two things to know when reading it:
   the legend says the spacing actually used.
 - **It covers where you looked.** The field extends a set distance around each
   destination the analysis found — the **Coverage** slider under the style
-  toggle, 25 km unless you move it — and fades out at that edge. Destinations
-  far apart each get their own patch, and the gap between them stays empty: a
-  list with peaks on two continents grids as two local fields, never as one
-  band across the ocean between. Moving the slider redraws on release:
-  shrinking repaints from points already fetched, growing fetches the new ring.
+  toggle, 0 to 10 km with 5 the default — and fades out at that edge. At zero
+  only the destinations' own cells draw. Destinations far apart each get their
+  own patch, and the gap between them stays empty: a list with peaks on two
+  continents grids as two local fields, never as one band across the ocean
+  between. Shrinking follows the thumb in real time from points already
+  fetched; only growing past what has been fetched asks for more, on release.
   Panning away does not extend it: every point is a live request rather than a
   pre-drawn tile.
 
