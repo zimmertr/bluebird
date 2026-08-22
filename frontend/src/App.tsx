@@ -36,7 +36,9 @@ import {
   RECESSED_EDGE,
   RECESSED_FILL,
   SEGMENT_FLUID,
+  CONTROL_SIZE,
   SLIDER_IDLE,
+  STATUS,
   SLIDER_OVERLAY,
   SLIDER_VALUE,
   SLIDER_WORDMARK,
@@ -2003,7 +2005,17 @@ export default function App() {
                       // rather than as a distinction.
                       <div className="flex items-center justify-between gap-2">
                         <span className={TEXT.control}>{gridLegend.label}</span>
-                        <span className={`${TEXT.control} flex-shrink-0`}>
+                        {/* Colored by state (TJ, 2026-08-21): amber while the
+                            grid is waiting or loading, so a stall catches the
+                            eye, and the accent once the pitch is real. The
+                            size is the colorless CONTROL_SIZE because a color
+                            beside TEXT.control's own would resolve by
+                            stylesheet order. */}
+                        <span
+                          className={`${CONTROL_SIZE} ${
+                            gridLegend.kind === 'pitch' ? ACCENT.text : STATUS.warn
+                          } flex-shrink-0`}
+                        >
                           {gridLegend.value}
                         </span>
                       </div>

@@ -387,11 +387,23 @@ describe('gridLegendLine', () => {
     }
   })
 
-  it('names each state in the value', () => {
+  it('names each state in the value, and the wait carries its countdown', () => {
     expect(gridLegendLine(true, 3, null).value).toBe('3 km')
     expect(gridLegendLine(false, 3, null).value).toBe('Loading')
-    expect(gridLegendLine(false, 3, 45).value).toBe('Waiting')
+    // The countdown is what makes the word explain itself and visibly not be
+    // frozen (TJ, 2026-08-21); App's one-second tick moves it.
+    expect(gridLegendLine(false, 3, 45).value).toBe('Waiting · 45s')
     expect(gridLegendLine(false, 3, null, true).value).toBe('Unavailable')
+  })
+
+  it('marks the settled pitch as the value and everything transient as status', () => {
+    // The caller colors by this: amber for the states, accent for the pitch,
+    // so a stall catches the eye and a settled field reads as the app's own.
+    expect(gridLegendLine(true, 3, null).kind).toBe('pitch')
+    expect(gridLegendLine(false, 3, null).kind).toBe('status')
+    expect(gridLegendLine(false, 3, 45).kind).toBe('status')
+    expect(gridLegendLine(false, 3, null, true).kind).toBe('status')
+    expect(gridLegendLine(true, 3, 45, false, false).kind).toBe('status')
   })
 
   it('says Waiting for a partial field stalled behind the pacer, pitch once whole', () => {
@@ -400,7 +412,7 @@ describe('gridLegendLine', () => {
     // while the legend asserts all is well. Incomplete and pacing → Waiting;
     // incomplete but actively filling → the pitch (progress is visible);
     // complete → the pitch even through a later pace.
-    expect(gridLegendLine(true, 3, 45, false, false).value).toBe('Waiting')
+    expect(gridLegendLine(true, 3, 45, false, false).value).toBe('Waiting · 45s')
     expect(gridLegendLine(true, 3, null, false, false).value).toBe('3 km')
     expect(gridLegendLine(true, 3, 45, false, true).value).toBe('3 km')
   })
@@ -408,7 +420,7 @@ describe('gridLegendLine', () => {
   it('stays one row even though the grid paints 10 m wind under adjusted markers (#257)', () => {
     // The measurement-height difference is documented in DATA.md; a second
     // legend line was tried and rejected for its vertical cost.
-    expect(Object.keys(gridLegendLine(true, 3, null))).toEqual(['label', 'value'])
+    expect(Object.keys(gridLegendLine(true, 3, null))).toEqual(['label', 'value', 'kind'])
   })
 
   it('ranks the four states so the most specific answer wins', () => {

@@ -1042,10 +1042,17 @@ export const SLIDER_OVERLAY =
 export const SLIDER_WORDMARK = `${MICRO_SIZE} font-semibold uppercase tracking-wider`
 
 /**
- * The slider's value readout: control-size text with no color of its own, for
- * the same two-layer reason as the wordmark above.
+ * Control-size text with NO color of its own, for spans whose color is a
+ * separate role's to supply: the coverage slider's two-layer value, and the
+ * grid legend's value, which wears `STATUS.warn` while transient and
+ * `ACCENT.text` once settled. `TEXT.control` cannot serve these — its color
+ * is baked in, and a second color class beside it would resolve by
+ * stylesheet order rather than by intent.
  */
-export const SLIDER_VALUE = 'text-xs'
+export const CONTROL_SIZE = 'text-xs'
+
+/** The slider's value readout: the colorless control size above. */
+export const SLIDER_VALUE = CONTROL_SIZE
 
 /**
  * The coverage slider's un-filled text layer: the same idle slate the resting

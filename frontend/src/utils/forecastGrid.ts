@@ -41,6 +41,7 @@ import type { Coordinate, WeatherResult, AqiResult } from './openMeteo'
 import { assemble } from './clientAnalyze'
 import { alignRowToGrid } from './chartData'
 import { NO_VALUE, bearingAt, fillColor } from './resultFeatures'
+import { SEP } from '../metrics'
 
 /** One cell's extent: `[west, south, east, north]` in degrees. */
 export type CellBox = [number, number, number, number]
@@ -236,6 +237,12 @@ export function pitchLabel(pitchKm: number): string {
  * pitch is the answer even through a later pace — a whole field is a whole
  * field.
  *
+ * `Waiting` carries its countdown — `Waiting · 42s` — so the word explains
+ * itself and visibly is not frozen (TJ, 2026-08-21). And the caller colors
+ * the value by `kind`: the transient states wear the app's warning amber so
+ * a stall catches the eye, the settled pitch wears the accent — which is why
+ * kind rides the return rather than the caller re-deriving it from strings.
+ *
  * The grid's wind field is the 10 m wind while the markers carry wind at each
  * destination's elevation (issue #257). That difference is documented in
  * DATA.md rather than stated here: a second legend line was tried and
@@ -248,14 +255,15 @@ export function gridLegendLine(
   paceRemainingS: number | null,
   failed = false,
   complete = true,
-): { label: string; value: string } {
+): { label: string; value: string; kind: 'pitch' | 'status' } {
   const label = 'Forecast grid'
   const pacing = paceRemainingS !== null && paceRemainingS > 0
-  if (painted && !complete && pacing) return { label, value: 'Waiting' }
-  if (painted) return { label, value: pitchLabel(pitchKm) }
-  if (failed) return { label, value: 'Unavailable' }
-  if (pacing) return { label, value: 'Waiting' }
-  return { label, value: 'Loading' }
+  const waiting = { label, value: `Waiting ${SEP} ${paceRemainingS}s`, kind: 'status' as const }
+  if (painted && !complete && pacing) return waiting
+  if (painted) return { label, value: pitchLabel(pitchKm), kind: 'pitch' }
+  if (failed) return { label, value: 'Unavailable', kind: 'status' }
+  if (pacing) return waiting
+  return { label, value: 'Loading', kind: 'status' }
 }
 
 /**
