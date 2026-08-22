@@ -125,12 +125,15 @@ import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
 // than anything the metric box holds (the bare metric title ≤ 85px at
 // TEXT.overline, the widest band row 113px).
 //
-// Measured 2026-07-31 in Chrome on macOS, the widest face in the stack: the
-// label is 122.1px unwrapped, plus the 12px swatch and its 6px gap, so the row
-// needs 140.1px. w-40 leaves exactly 140px inside the px-2.5 padding and wraps
-// by a tenth of a pixel, which is why this is the next step up: w-44 leaves
-// 154px, ~14px of slack. Re-measure before lengthening a line in either box.
-const LEGEND_WIDTH = 'w-44'
+// Measured 2026-07-31 in Chrome on macOS, the widest face was then the fire
+// credit row at 140.1px. The governor moved again when the grid legend's wait
+// gained its countdown (#288): "Forecast grid" against "Waiting · 99s" is the
+// new widest row — measured 2026-08-21 in Chrome on macOS at 74.7 + 74.1 +
+// the 8px gap = 156.8px — and w-44's 154px wrapped the label by under three
+// pixels at two-digit seconds. w-48 leaves 172px, ~15px of slack; the
+// countdown switches to minutes past 99s so this row's widest case is
+// bounded. Re-measure before lengthening a line in either box.
+const LEGEND_WIDTH = 'w-48'
 
 // The two map buttons are one pair and are sized as one: same width, same
 // height, stacked in a column where any difference between them reads as a
@@ -2003,7 +2006,7 @@ export default function App() {
                       // right-justifies its value like every other row, statuses
                       // included: one row breaking the column reads as a fault
                       // rather than as a distinction.
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center justify-between gap-2 whitespace-nowrap">
                         <span className={TEXT.control}>{gridLegend.label}</span>
                         {/* Colored by state (TJ, 2026-08-21): amber while the
                             grid is waiting or loading, so a stall catches the

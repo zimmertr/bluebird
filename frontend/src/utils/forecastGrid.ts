@@ -258,7 +258,13 @@ export function gridLegendLine(
 ): { label: string; value: string; kind: 'pitch' | 'status' } {
   const label = 'Forecast grid'
   const pacing = paceRemainingS !== null && paceRemainingS > 0
-  const waiting = { label, value: `Waiting ${SEP} ${paceRemainingS}s`, kind: 'status' as const }
+  // Minutes past 99 seconds: three-digit seconds are both harder to read and
+  // the one spelling that outgrows the legend box's measured width.
+  const wait =
+    paceRemainingS !== null && paceRemainingS > 99
+      ? `${Math.round(paceRemainingS / 60)}m`
+      : `${paceRemainingS}s`
+  const waiting = { label, value: `Waiting ${SEP} ${wait}`, kind: 'status' as const }
   if (painted && !complete && pacing) return waiting
   if (painted) return { label, value: pitchLabel(pitchKm), kind: 'pitch' }
   if (failed) return { label, value: 'Unavailable', kind: 'status' }

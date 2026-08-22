@@ -393,6 +393,9 @@ describe('gridLegendLine', () => {
     // The countdown is what makes the word explain itself and visibly not be
     // frozen (TJ, 2026-08-21); App's one-second tick moves it.
     expect(gridLegendLine(false, 3, 45).value).toBe('Waiting · 45s')
+    // Past 99 seconds the wait reads in minutes: three-digit seconds are both
+    // harder to read and the one spelling that outgrows the legend box.
+    expect(gridLegendLine(false, 3, 154).value).toBe('Waiting · 3m')
     expect(gridLegendLine(false, 3, null, true).value).toBe('Unavailable')
   })
 
