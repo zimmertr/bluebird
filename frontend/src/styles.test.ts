@@ -992,10 +992,10 @@ describe('status and notices', () => {
   // #253. The dismiss X inherits its box's STATUS color, so neither part of
   // the recipe may set a resting color of its own — one would override the
   // voice on every box at once. The ratios are the inherited glyph on the
-  // pill backdrop (box fill + white/10 over the panel); literals so a fill,
-  // STATUS or pill change fails here and forces a re-measurement rather
-  // than inheriting a stale claim.
-  const DISMISS_MEASURED = { warn: 7.74, error: 4.26, info: 6.35 }
+  // resting pill backdrop (box fill + white/5 over the panel); literals so
+  // a fill, STATUS or pill change fails here and forces a re-measurement
+  // rather than inheriting a stale claim.
+  const DISMISS_MEASURED = { warn: 9.1, error: 5.0, info: 7.45 }
 
   it('dismisses in the voice of the box it sits in', () => {
     expect(NOTICE_DISMISS.button).not.toMatch(/(^|\s)text-/)

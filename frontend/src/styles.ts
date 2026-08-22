@@ -780,21 +780,23 @@ export const NOTICE = {
  * disc's centre onto the first text line's centre (a 20px disc against a
  * 16px text-xs line box is otherwise 2px low).
  *
- * The fill is `white/10`, deliberately hue-free so one recipe sits on all
- * three tints; at 1.36:1 against the box it is an affordance, not the
+ * The fill is `white/5` at rest — a whisper of a disc, because at `/10` TJ
+ * read it as too buttony for a passive notice — rising to `white/15` on
+ * hover, where the affordance question is actually being asked. Hue-free,
+ * so one recipe sits on all three tints; the pill is an affordance, not the
  * boundary, and owes no ratio — the glyph is the icon and it does. The
  * glyph inherits its box's `STATUS` voice (a slate X would read as chrome
- * that escaped into a status message). Measured on the pill backdrop
- * (fill + white/10 over the panel): amber-300 7.74:1, red-400 4.26:1,
- * sky-300 6.35:1, all past the 3:1 a UI glyph owes; the hover's white on
- * the `white/15` hover fill is 8.9:1+. Pinned in styles.test.ts so a fill
- * or `STATUS` change forces a re-measurement.
+ * that escaped into a status message). Measured on the resting pill
+ * backdrop (fill + white/5 over the panel): amber-300 9.10:1, red-400
+ * 5.00:1, sky-300 7.45:1, all past the 3:1 a UI glyph owes; the hover's
+ * white on the `white/15` hover fill is 8.9:1+. Pinned in styles.test.ts
+ * so a fill or `STATUS` change forces a re-measurement.
  */
 export const NOTICE_DISMISS = {
   button: `group ${TAP.action} self-start -mt-0.5 hover:text-white transition-colors ${FOCUS_RING}`,
   pill:
     `flex h-5 w-5 items-center justify-center ${RADIUS.pill} ` +
-    `bg-white/10 transition-colors group-hover:bg-white/15`,
+    `bg-white/5 transition-colors group-hover:bg-white/15`,
 } as const
 
 /**
