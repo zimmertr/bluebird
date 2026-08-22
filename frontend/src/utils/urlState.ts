@@ -6,13 +6,7 @@ import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from
 import { GeoPolygon, DiscoveryType, SortBy } from '../types'
 import { RANKING_KEYS } from '../metrics'
 import { Constraints, NO_CONSTRAINTS, hasConstraints } from './clientAnalyze'
-import {
-  GRID_REACH_KM,
-  GRID_REACH_MAX_KM,
-  GRID_REACH_MIN_KM,
-  isGridStyle,
-  type GridStyle,
-} from './forecastGrid'
+import { GRID_REACH_DEFAULT_FRAC, isGridStyle, type GridStyle } from './forecastGrid'
 import {
   DAY_END,
   DAY_START,
@@ -68,10 +62,12 @@ export interface ShareableState {
   // control's state, and two params for it would let a link say the layer is
   // off while still carrying a style for it.
   gridStyle: GridStyle
-  // The grid's coverage reach in km (the Layers popover's slider). Its own
-  // param (`reach=50`), written only while the layer is on AND the value is
-  // not the default — a link stays as short as what it changed.
-  gridReachKm: number
+  // The grid's coverage slider position, in [0, 1] of the bar — the
+  // kilometres derive from the model's pitch, so the POSITION is what a link
+  // must carry to mean the same thing under any model. Its own param
+  // (`reach=75`, in percent), written only while the layer is on AND the
+  // value is not the default — a link stays as short as what it changed.
+  gridReachFrac: number
   // Searched places pinned to the results table. Persisted so a refreshed or
   // shared link repopulates them (and refetches their forecasts). Only the
   // fields needed to recreate the pin and its identity link are stored.
@@ -325,7 +321,9 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
   // to carry and a link should not be able to say otherwise.
   if (state.showGrid) {
     p.set('grid', state.gridStyle)
-    if (state.gridReachKm !== GRID_REACH_KM) p.set('reach', String(state.gridReachKm))
+    if (state.gridReachFrac !== GRID_REACH_DEFAULT_FRAC) {
+      p.set('reach', String(Math.round(state.gridReachFrac * 100)))
+    }
   }
   if (state.includeUnnamedPeaks) p.set('unnamed', '1')
   if (hasPins) p.set('pins', encodePins(state.pins))
@@ -511,15 +509,15 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   if (grid !== null && isGridStyle(grid)) {
     out.showGrid = true
     out.gridStyle = grid
-    // Clamped to the slider's own bounds rather than trusted: the param is
-    // hand-editable, and a reach outside them would draw a control that
-    // cannot show the value it is applying. Presence checked before Number,
-    // because Number(null) is 0 — a legal value here.
+    // Clamped to the bar rather than trusted: the param is hand-editable,
+    // and a position outside it would draw a control that cannot show the
+    // value it is applying. Presence checked before Number, because
+    // Number(null) is 0 — a legal position here.
     const reachParam = params.get('reach')
     if (reachParam !== null) {
       const reach = Number(reachParam)
       if (Number.isFinite(reach)) {
-        out.gridReachKm = Math.min(GRID_REACH_MAX_KM, Math.max(GRID_REACH_MIN_KM, reach))
+        out.gridReachFrac = Math.min(100, Math.max(0, reach)) / 100
       }
     }
   }

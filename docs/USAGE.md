@@ -199,9 +199,11 @@ Two things to know when reading it:
   the legend says the spacing actually used.
 - **It covers where you looked.** The field extends a set distance around each
   destination the analysis found — the **Coverage** slider under the style
-  toggle, 0 to 10 km with 5 the default — and fades out at that edge. At zero
-  only the destinations' own cells draw. Destinations far apart each get their
-  own patch, and the gap between them stays empty: a list with peaks on two
+  toggle — and fades out at that edge. The slider's range follows the model:
+  from one to four of its own grid cells around each destination, with the
+  default in the middle. On NOAA GFS's 3 km grid that is 3 to 12 km; on
+  ECMWF's 25 km grid, 25 to 100 km. Destinations far apart each get their own
+  patch, and the gap between them stays empty: a list with peaks on two
   continents grids as two local fields, never as one band across the ocean
   between. Shrinking follows the thumb in real time from points already
   fetched; only growing past what has been fetched asks for more, on release.

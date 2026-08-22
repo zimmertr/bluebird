@@ -1,12 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import {
   FALLBACK_PITCH_KM,
-  GRID_REACH_KM,
-  GRID_REACH_MAX_KM,
+  GRID_REACH_DEFAULT_FRAC,
+  GRID_REACH_MAX_X,
+  GRID_REACH_MIN_X,
   MAX_GRID_CELLS,
   MAX_IMAGE_DIM,
   buildGrid,
   gridView,
+  reachKmFor,
   gridArrowFeatures,
   gridLegendLine,
   gridImageCoordinates,
@@ -201,9 +203,10 @@ describe('buildGrid', () => {
   })
 
   it('keeps every cell within reach of some destination, and reaches all of it', () => {
-    // GRID_REACH_KM pinned: a lone destination's cells are a disk — nothing
-    // past the reach, and the disk genuinely extends toward it rather than
-    // stopping at the old one-pitch padding.
+    // The default reach pinned: a lone destination's cells are a disk —
+    // nothing past the reach, and the disk genuinely extends toward it rather
+    // than stopping at the old one-pitch padding. The default is the bar's
+    // middle — 2.5 model pitches, 7.5 km at a 3 km pitch.
     const dest = { latitude: 46.8, longitude: -121.8 }
     const spec = buildGrid([dest], 3)!
     const cos = Math.cos((dest.latitude * Math.PI) / 180)
@@ -212,15 +215,18 @@ describe('buildGrid', () => {
       const dx = (p.longitude - dest.longitude) * 111.32 * cos
       return Math.sqrt(dx * dx + dy * dy)
     }
+    const defaultReach = reachKmFor(3, GRID_REACH_DEFAULT_FRAC)
+    expect(defaultReach).toBeCloseTo(7.5, 10)
     const distances = spec.points.map(km)
-    expect(Math.max(...distances)).toBeLessThanOrEqual(GRID_REACH_KM + 1e-6)
-    expect(Math.max(...distances)).toBeGreaterThan(GRID_REACH_KM * 0.5)
+    expect(Math.max(...distances)).toBeLessThanOrEqual(defaultReach + 1e-6)
+    expect(Math.max(...distances)).toBeGreaterThan(defaultReach * 0.5)
 
     // The coverage slider's value overrides the default, both directions.
-    const wide = buildGrid([dest], 3, GRID_REACH_MAX_KM)!
+    const maxReach = reachKmFor(3, 1)
+    const wide = buildGrid([dest], 3, maxReach)!
     const wideMax = Math.max(...wide.points.map(km))
-    expect(wideMax).toBeLessThanOrEqual(GRID_REACH_MAX_KM + 1e-6)
-    expect(wideMax).toBeGreaterThan(GRID_REACH_KM)
+    expect(wideMax).toBeLessThanOrEqual(maxReach + 1e-6)
+    expect(wideMax).toBeGreaterThan(defaultReach)
     // The one-pitch floor still binds under a small slider value: even at
     // zero, a destination keeps its own cell and some neighbours.
     const floored = buildGrid([dest], 13, 0)!
@@ -239,7 +245,7 @@ describe('buildGrid', () => {
     // kept subset narrows — which is what makes the picture follow the thumb
     // with no fetch behind it.
     const dest = { latitude: 46.8, longitude: -121.8 }
-    const spec = buildGrid([dest], 3, GRID_REACH_MAX_KM)!
+    const spec = buildGrid([dest], 3, reachKmFor(3, 1))!
     const cells = spec.points.map((_, i) => ({
       index: spec.indices[i],
       box: spec.cells[i],
@@ -258,7 +264,7 @@ describe('buildGrid', () => {
     for (const cell of view.cells) expect(allowed.has(cell.index)).toBe(true)
 
     // A reach at or above the fetched one is the identity, not a copy.
-    const same = gridView(spec, cells, GRID_REACH_MAX_KM)
+    const same = gridView(spec, cells, reachKmFor(3, 1))
     expect(same.spec).toBe(spec)
     expect(same.cells).toBe(cells)
 
@@ -328,6 +334,27 @@ describe('buildGrid', () => {
     // other 340 degrees of the planet. Out of scope by decision, and declining
     // is how that decision is expressed — the alternative paints the Atlantic.
     expect(buildGrid(field([51.9, 179.5], [51.8, -179.5]), 13)).toBeNull()
+  })
+})
+
+describe('reachKmFor', () => {
+  it('spans one to four rings of the MODEL pitch, default dead-centre', () => {
+    // Model-relative bounds (TJ, 2026-08-21): the same bar position means the
+    // same number of cell rings on every model, so the control never goes
+    // dead under a coarse one the way a fixed km range did.
+    expect(GRID_REACH_MIN_X).toBe(1)
+    expect(GRID_REACH_MAX_X).toBe(4)
+    expect(reachKmFor(3, 0)).toBeCloseTo(3, 10)
+    expect(reachKmFor(3, 1)).toBeCloseTo(12, 10)
+    expect(reachKmFor(3, GRID_REACH_DEFAULT_FRAC)).toBeCloseTo(7.5, 10)
+    expect(reachKmFor(25, GRID_REACH_DEFAULT_FRAC)).toBeCloseTo(62.5, 10)
+  })
+
+  it('clamps the position and falls back on an unpublished pitch', () => {
+    expect(reachKmFor(3, -1)).toBeCloseTo(3, 10)
+    expect(reachKmFor(3, 2)).toBeCloseTo(12, 10)
+    // finestGridKm is documented as 0 when the server did not send one.
+    expect(reachKmFor(0, 0)).toBeCloseTo(FALLBACK_PITCH_KM, 10)
   })
 })
 

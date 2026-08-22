@@ -3,7 +3,7 @@ import { DestinationResult } from '../types'
 import { AqiResult, WeatherResult, fetchAqi, fetchWeather } from '../utils/openMeteo'
 import { canonicalTimes } from '../utils/clientAnalyze'
 import { normalizeWindow } from '../utils/forecastWindow'
-import { GridCell, GridSpec, buildGrid, gridView, pairCells } from '../utils/forecastGrid'
+import { GridCell, GridSpec, buildGrid, gridView, pairCells, reachKmFor } from '../utils/forecastGrid'
 
 // The forecast grid's fetch (#246), modelled on useFireProximity: one query per
 // analysis, best-effort, and entirely beside the ranking.
@@ -112,20 +112,21 @@ export interface ForecastGridInputs {
   /** The selected model's finest grid, in km, from `/api/capabilities`. */
   pitchKm: number
   /**
-   * The coverage slider's COMMITTED value, in km. The fetch ratchets on it:
-   * within one analysis the lattice is built at the largest reach ever
-   * committed, so growing past what is held fetches once and shrinking never
-   * fetches at all — the smaller picture is a filter over samples already in
-   * hand (#288 review).
+   * The coverage slider's COMMITTED bar position, in [0, 1]; `reachKmFor`
+   * with the model's pitch turns it into km. The fetch ratchets on it: within
+   * one analysis the lattice is built at the largest reach ever committed, so
+   * growing past what is held fetches once and shrinking never fetches at
+   * all — the smaller picture is a filter over samples already in hand
+   * (#288 review).
    */
-  reachKm: number
+  reachFrac: number
   /**
-   * The reach to DISPLAY right now — the slider's live drag position, or the
-   * committed value at rest. Presentation only: it re-cuts the held field
-   * through `gridView` per render and never touches the fetch, which is what
-   * makes the picture follow the thumb in real time.
+   * The bar position to DISPLAY right now — the slider's live drag position,
+   * or the committed value at rest. Presentation only: it re-cuts the held
+   * field through `gridView` per render and never touches the fetch, which is
+   * what makes the picture follow the thumb in real time.
    */
-  displayReachKm: number
+  displayReachFrac: number
   /** Bumped once per committed analysis; re-grids even for an identical field. */
   analysisSeq: number
 }
@@ -138,8 +139,8 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     model,
     times,
     pitchKm,
-    reachKm,
-    displayReachKm,
+    reachFrac,
+    displayReachFrac,
     analysisSeq,
   } = inputs
   const [state, setState] = useState<ForecastGrid>(IDLE)
@@ -149,6 +150,10 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
   // largest reach seen, so one grow covers every earlier value on the way
   // back down.
   const fetchedRef = useRef<{ seq: number; reach: number; complete: boolean } | null>(null)
+
+  // The bar position as km, from the MODEL's pitch — the same conversion for
+  // the fetch and the display, so the two can be compared in one unit.
+  const reachKm = reachKmFor(pitchKm, reachFrac)
 
   useEffect(() => {
     if (!enabled || field === null || win === null || field.length === 0) {
@@ -314,6 +319,7 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
 
   // The held field re-cut to the reach on display, live with the thumb. Same
   // state object back when nothing is cut, so consumers' effects do not churn.
+  const displayReachKm = reachKmFor(pitchKm, displayReachFrac)
   return useMemo(() => {
     if (state.spec === null) return state
     const view = gridView(state.spec, state.cells, displayReachKm)

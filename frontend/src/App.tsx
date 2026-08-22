@@ -53,11 +53,10 @@ import { NOUN, familyOf, rankedNoun } from './metrics'
 import { METRIC_CONFIG, hourlyScale } from './utils/colors'
 import {
   FALLBACK_PITCH_KM,
-  GRID_REACH_KM,
-  GRID_REACH_MAX_KM,
-  GRID_REACH_MIN_KM,
-  GRID_REACH_STEP_KM,
+  GRID_REACH_DEFAULT_FRAC,
   gridLegendLine,
+  pitchLabel,
+  reachKmFor,
   type GridStyle,
 } from './utils/forecastGrid'
 import {
@@ -438,11 +437,13 @@ export default function App() {
   // and a reader can count them. Purely presentation over held samples, so
   // switching costs one re-render and nothing upstream.
   const [gridStyle, setGridStyle] = useState<GridStyle>(() => restored?.gridStyle ?? 'blocks')
-  // The coverage slider's committed value. Changing it re-grids on its own —
-  // the layer fetches for itself the way toggling it on does — so this is an
-  // overlay property, never a knob: commitNeeded does not know it exists.
-  const [gridReachKm, setGridReachKm] = useState<number>(
-    () => restored?.gridReachKm ?? GRID_REACH_KM,
+  // The coverage slider's committed BAR POSITION in [0, 1] — the kilometres
+  // derive from the model's pitch, so the position means the same thing on
+  // every model. Changing it re-grids on its own — the layer fetches for
+  // itself the way toggling it on does — so this is an overlay property,
+  // never a knob: commitNeeded does not know it exists.
+  const [gridReachFrac, setGridReachFrac] = useState<number>(
+    () => restored?.gridReachFrac ?? GRID_REACH_DEFAULT_FRAC,
   )
   // The slider's live position while a drag is in flight, or null at rest.
   // Displaying the draft and committing on release is what keeps a drag from
@@ -450,7 +451,7 @@ export default function App() {
   const [gridReachDraft, setGridReachDraft] = useState<number | null>(null)
   const commitGridReach = useCallback(() => {
     if (gridReachDraft !== null) {
-      setGridReachKm(gridReachDraft)
+      setGridReachFrac(gridReachDraft)
       setGridReachDraft(null)
     }
   }, [gridReachDraft])
@@ -822,7 +823,7 @@ export default function App() {
       showSmoke,
       showGrid,
       gridStyle,
-      gridReachKm,
+      gridReachFrac,
       pins: searched.places,
     }, caps.defaultForecastModel)
 
@@ -856,7 +857,7 @@ export default function App() {
     showSmoke,
     showGrid,
     gridStyle,
-    gridReachKm,
+    gridReachFrac,
     searched.places,
     writeUrl,
   ])
@@ -1477,12 +1478,19 @@ export default function App() {
     pitchKm:
       caps.forecastModels.find((m) => m.id === analyzed?.forecastModel)?.finestGridKm ??
       FALLBACK_PITCH_KM,
-    reachKm: gridReachKm,
+    reachFrac: gridReachFrac,
     // The live thumb position while dragging: the held field re-cuts to it in
     // real time, and only a committed value can fetch.
-    displayReachKm: gridReachDraft ?? gridReachKm,
+    displayReachFrac: gridReachDraft ?? gridReachFrac,
     analysisSeq,
   })
+  // The pitch the slider's kilometres read from: the analyzed model once a
+  // report is held (what the grid actually draws), the panel's pick before
+  // one exists — so the control never quotes the 13 km fallback at a reader
+  // who has GFS selected.
+  const gridReachPitchKm =
+    caps.forecastModels.find((m) => m.id === (analyzed?.forecastModel ?? forecastModel))
+      ?.finestGridKm ?? FALLBACK_PITCH_KM
   // Something is painted, which is what a legend can be keyed to. A field still
   // filling in has some, so the legend arrives with the first chunk rather than
   // with the last — a key to an empty map would be noise, but a key to a
@@ -1885,12 +1893,7 @@ export default function App() {
               desktop map they never meet — but a phone is narrow enough that
               they would overlap, and a legend half under a control reads as a
               layout fault rather than as two things sharing an edge. */}
-          {/* Hidden while the Layers popover is open: the popover opens over
-              this stack's column and a legend half-covered by it reads as
-              clipping (#288 review) — the same rule that hides the legends
-              when the phone's results panel needs the space. They return on
-              dismiss, updated for whatever the popover changed. */}
-          {!layersOpen && (hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar) && (
+          {(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar) && (
             <div
               className={`absolute left-2 top-28 z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0 [&>*:first-child]:mt-auto ${
                 timelineAxis !== null ? 'bottom-28' : 'bottom-8'
@@ -2123,14 +2126,13 @@ export default function App() {
                         className={`relative mt-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${RECESSED_EDGE} ${RECESSED_FILL}`}
                       >
                         {(() => {
-                          const shown = gridReachDraft ?? gridReachKm
-                          const pct =
-                            ((shown - GRID_REACH_MIN_KM) /
-                              (GRID_REACH_MAX_KM - GRID_REACH_MIN_KM)) *
-                            100
+                          const shown = gridReachDraft ?? gridReachFrac
+                          const pct = shown * 100
                           const line = (
                             <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-2">
-                              <span className={SLIDER_VALUE}>{shown} km</span>
+                              <span className={SLIDER_VALUE}>
+                                {pitchLabel(reachKmFor(gridReachPitchKm, shown))}
+                              </span>
                               <span className={SLIDER_WORDMARK}>Coverage</span>
                             </div>
                           )
@@ -2149,11 +2151,11 @@ export default function App() {
                         <input
                           type="range"
                           aria-label="Coverage"
-                          min={GRID_REACH_MIN_KM}
-                          max={GRID_REACH_MAX_KM}
-                          step={GRID_REACH_STEP_KM}
-                          value={gridReachDraft ?? gridReachKm}
-                          onChange={(e) => setGridReachDraft(Number(e.target.value))}
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={Math.round((gridReachDraft ?? gridReachFrac) * 100)}
+                          onChange={(e) => setGridReachDraft(Number(e.target.value) / 100)}
                           onPointerUp={commitGridReach}
                           onKeyUp={commitGridReach}
                           onBlur={commitGridReach}

@@ -74,7 +74,7 @@ export function isGridStyle(value: string): value is GridStyle {
  */
 export interface GridSpec {
   /**
-   * The kept samples only — the cells within `GRID_REACH_KM` of a destination.
+   * The kept samples only — the cells within the coverage reach of a destination.
    * `points`, `cells` and `indices` are parallel: position `i` in any of them
    * describes the same sample. An array POSITION is the currency the fetch
    * loop and `pairCells` trade in; the VIRTUAL lattice index in `indices[i]`
@@ -128,38 +128,42 @@ export interface GridCell {
 export const MAX_GRID_CELLS = 600
 
 /**
- * How far from the nearest destination a grid cell may sit, in km.
+ * The coverage slider's span, in multiples of the MODEL's grid pitch.
  *
  * The grid exists to show the weather AROUND the places the analysis ranked,
- * so a cell earns its fetch only near one of them. The effective reach is
- * `max(reach, pitch)` so a destination always keeps its own cell and its
- * axial neighbours even when the slider sits at zero. Before this bound one
- * stray destination an ocean away stretched the lattice across the Atlantic
- * and the 600-cell cap answered with a 181 km pitch — the whole budget spent
- * on cells no destination was in (PR #288 review, 2026-08-21).
+ * so a cell earns its fetch only near one of them. How far "around" reaches
+ * is model-relative (TJ, 2026-08-21): a fixed km range went dead on coarse
+ * models (a 10 km slider under ECMWF's 25 km cells had nothing to vary), so
+ * the slider spans one to four RINGS of the model's own cells and means the
+ * same thing on every model. The default sits dead-centre on the bar —
+ * 2.5 rings, 7.5 km on NOAA GFS's 3 km grid, 62.5 km on ECMWF's 25 km.
  *
- * The DEFAULT: the Layers popover's coverage slider lets the reader set the
- * reach per session, and the chosen value rides the shared link.
+ * The kilometres derive from the MODEL pitch, never the coarsened effective
+ * pitch: reach that grew with coarsening would keep the kept-cell count
+ * roughly constant per destination, and the cell cap could never converge on
+ * a field of scattered, far-apart destinations.
+ *
+ * Before any reach bound existed, one stray destination an ocean away
+ * stretched the lattice across the Atlantic and the 600-cell cap answered
+ * with a 181 km pitch — the whole budget spent on cells no destination was
+ * in (PR #288 review, 2026-08-21).
  */
-export const GRID_REACH_KM = 5
+export const GRID_REACH_MIN_X = 1
+export const GRID_REACH_MAX_X = 4
+/** The slider's default position, as a fraction of the bar: the middle. */
+export const GRID_REACH_DEFAULT_FRAC = 0.5
 
 /**
- * The coverage slider's bounds and step, in km.
+ * The reach in km for a slider position, on a model of `modelPitchKm`.
  *
- * 0 to 10 with the 5 km default dead-centre on the bar (TJ, 2026-08-21).
- * Zero still draws: the pitch floor above keeps each destination's own cell
- * and its immediate neighbours, so the minimum is "just the destinations".
- * Ten keeps even a hundred-summit list's disks well under the cell cap, so
- * moving the slider rarely moves the pitch — which is also what keeps a
- * shrink re-presentable from held samples instead of a refetch. One caveat
- * the floor implies: on a model whose grid is coarser than this range
- * (ECMWF's 25 km, say), the floor exceeds the whole slider and the control
- * has nothing to vary — the patches are already as small as that model can
- * draw.
+ * `frac` is the bar position in [0, 1], clamped rather than trusted — it
+ * arrives from the URL as well as from the control.
  */
-export const GRID_REACH_MIN_KM = 0
-export const GRID_REACH_MAX_KM = 10
-export const GRID_REACH_STEP_KM = 1
+export function reachKmFor(modelPitchKm: number, frac: number): number {
+  const pitch = modelPitchKm > 0 ? modelPitchKm : FALLBACK_PITCH_KM
+  const f = Math.min(1, Math.max(0, frac))
+  return pitch * (GRID_REACH_MIN_X + f * (GRID_REACH_MAX_X - GRID_REACH_MIN_X))
+}
 
 /**
  * The raster's texture bound, per axis, in pixels.
@@ -282,11 +286,15 @@ export function gridLegendLine(
 export function buildGrid(
   field: readonly { latitude: number; longitude: number }[],
   pitchKm: number,
-  reachKm: number = GRID_REACH_KM,
+  reachKm?: number,
   cap: number = MAX_GRID_CELLS,
 ): GridSpec | null {
   if (field.length === 0) return null
   const pitch = pitchKm > 0 ? pitchKm : FALLBACK_PITCH_KM
+  // Defaulted from the MODEL pitch at the bar's default position — never from
+  // the coarsened effective pitch, for the convergence reason the constants
+  // above record.
+  const reach = reachKm ?? reachKmFor(pitch, GRID_REACH_DEFAULT_FRAC)
 
   let south = Infinity
   let north = -Infinity
@@ -319,7 +327,7 @@ export function buildGrid(
   // second bound exists for.
   let effective = pitch
   for (let guard = 0; guard < 64; guard++) {
-    const spec = lattice(west, south, east, north, effective, cosLat, field, reachKm)
+    const spec = lattice(west, south, east, north, effective, cosLat, field, reach)
     if (
       spec.points.length <= cap &&
       spec.cols <= MAX_IMAGE_DIM &&
