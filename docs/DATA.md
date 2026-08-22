@@ -113,10 +113,12 @@ report the plain 10 m wind. The level heights are the standard atmosphere's,
 fixed rather than fetched: real level heights move a few percent with
 weather, less than the model's own terrain error. Two caveats. This is still
 a model's free-air wind, not a gust or a summit anemometer, and local
-funneling can exceed it. And the map's forecast-grid overlay paints the 10 m
-wind — its lattice points have no elevations to adjust to — so on a wind
-ranking the field under a summit marker can read calmer than the marker
-standing on it.
+funneling can exceed it. And the map's forecast-grid overlay adjusts each
+sample to the terrain height Open-Meteo resolves for that coordinate (its
+~90 m elevation model, reported on every response) rather than to any
+destination's claimed height — so high ground paints its real winds, but a
+summit marker can still read somewhat windier than the cell containing it,
+because the cell's height is the ground at the sample point, not the peak.
 
 History reaches back only as far as the forecast endpoint's own archive, and
 that archive is shorter than the range of dates the endpoint will accept. Past

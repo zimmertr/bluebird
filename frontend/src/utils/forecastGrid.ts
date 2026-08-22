@@ -240,8 +240,10 @@ export function pitchLabel(pitchKm: number): string {
  * `Waiting` carries its countdown — `Waiting · 42s` — so the word explains
  * itself and visibly is not frozen (TJ, 2026-08-21). And the caller colors
  * the value by `kind`: the transient states wear the app's warning amber so
- * a stall catches the eye, the settled pitch wears the accent — which is why
- * kind rides the return rather than the caller re-deriving it from strings.
+ * a stall catches the eye, `Unavailable` wears the error red because it is
+ * the one state that already failed, and the settled pitch wears the accent
+ * — which is why kind rides the return rather than the caller re-deriving it
+ * from strings.
  *
  * The grid's wind field is the 10 m wind while the markers carry wind at each
  * destination's elevation (issue #257). That difference is documented in
@@ -255,7 +257,7 @@ export function gridLegendLine(
   paceRemainingS: number | null,
   failed = false,
   complete = true,
-): { label: string; value: string; kind: 'pitch' | 'status' } {
+): { label: string; value: string; kind: 'pitch' | 'status' | 'error' } {
   const label = 'Forecast grid'
   const pacing = paceRemainingS !== null && paceRemainingS > 0
   // Minutes past 99 seconds: three-digit seconds are both harder to read and
@@ -267,7 +269,7 @@ export function gridLegendLine(
   const waiting = { label, value: `Waiting ${SEP} ${wait}`, kind: 'status' as const }
   if (painted && !complete && pacing) return waiting
   if (painted) return { label, value: pitchLabel(pitchKm), kind: 'pitch' }
-  if (failed) return { label, value: 'Unavailable', kind: 'status' }
+  if (failed) return { label, value: 'Unavailable', kind: 'error' }
   if (pacing) return waiting
   return { label, value: 'Loading', kind: 'status' }
 }

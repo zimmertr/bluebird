@@ -405,7 +405,8 @@ describe('gridLegendLine', () => {
     expect(gridLegendLine(true, 3, null).kind).toBe('pitch')
     expect(gridLegendLine(false, 3, null).kind).toBe('status')
     expect(gridLegendLine(false, 3, 45).kind).toBe('status')
-    expect(gridLegendLine(false, 3, null, true).kind).toBe('status')
+    // Unavailable is the one state that already failed: error red, not amber.
+    expect(gridLegendLine(false, 3, null, true).kind).toBe('error')
     expect(gridLegendLine(true, 3, 45, false, false).kind).toBe('status')
   })
 

@@ -191,6 +191,59 @@ describe('fetchWeather', () => {
     expect(out[0]?.series?.wind_mph).toEqual([22.6, 22.6])
   })
 
+  it('adjusts wind to the terrain elevation the response carries, when asked (#288)', async () => {
+    // The forecast grid's option: a lattice point has no destination
+    // elevation, but Open-Meteo reports the terrain height it resolved for
+    // the coordinate, and that is real ground the sample stands on.
+    const payload = hourlyPayload() as ReturnType<typeof hourlyPayload> & { elevation?: number }
+    payload.elevation = 2438.4 // meters = 8,000 ft: between 850 and 700 hPa
+    Object.assign(payload.hourly, {
+      wind_speed_925hPa: [7.0, 7.0],
+      wind_speed_850hPa: [10.0, 10.0],
+      wind_speed_700hPa: [30.0, 30.0],
+      wind_speed_600hPa: [40.0, 40.0],
+      wind_speed_500hPa: [50.0, 50.0],
+    })
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload)))
+    const out = await fetchWeather(
+      [{ latitude: 47.5, longitude: -121.9 }],
+      WINDOW.startMs,
+      WINDOW.endMs, { model: MODEL, terrainElevation: true },
+    )
+    // Same interpolation as a destination at 8,000 ft: 10 + 20 * (981.4/1555).
+    expect(out[0]?.wind_avg_mph).toBe(22.6)
+
+    // Without the option, the same coordinate keeps the 10 m wind — and the
+    // two answers live under different cache keys, so neither poisons the
+    // other at identical coordinates.
+    const plain = await fetchWeather(
+      [{ latitude: 47.5, longitude: -121.9 }],
+      WINDOW.startMs,
+      WINDOW.endMs, { model: MODEL },
+    )
+    expect(plain[0]?.wind_avg_mph).toBe(6.0) // mean of 5, 7
+  })
+
+  it('lets a claimed elevation beat the terrain option', async () => {
+    // A destination's own height is more specific than the DEM's cell value.
+    const payload = hourlyPayload() as ReturnType<typeof hourlyPayload> & { elevation?: number }
+    payload.elevation = 500 // meters: below the lowest level, would stay 10 m
+    Object.assign(payload.hourly, {
+      wind_speed_925hPa: [7.0, 7.0],
+      wind_speed_850hPa: [10.0, 10.0],
+      wind_speed_700hPa: [30.0, 30.0],
+      wind_speed_600hPa: [40.0, 40.0],
+      wind_speed_500hPa: [50.0, 50.0],
+    })
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(payload)))
+    const out = await fetchWeather(
+      [{ latitude: 47.5, longitude: -121.9, elevation_ft: 8000 }],
+      WINDOW.startMs,
+      WINDOW.endMs, { model: MODEL, terrainElevation: true },
+    )
+    expect(out[0]?.wind_avg_mph).toBe(22.6)
+  })
+
   it('keys the cache by elevation, so a lattice point never reads a summit entry', async () => {
     const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
     vi.stubGlobal('fetch', fetchSpy)

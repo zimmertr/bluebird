@@ -170,11 +170,17 @@ function cacheKey(
   startMs: number,
   endMs: number,
   model = '',
+  terrainElevation = false,
 ): string {
   // Elevation joins the weather key for the reason the model does: the stored
   // aggregates were computed AT that elevation (issue #257), so the same
-  // coordinates claimed at a different height are a different question.
-  const elevation = service === 'weather' ? (c.elevation_ft ?? '') : ''
+  // coordinates claimed at a different height are a different question. A
+  // grid sample adjusting to the MODEL's terrain height is a third answer at
+  // the same coordinates, distinct from both a claimed elevation and none —
+  // without its own key, a destination with no elevation and the grid cell
+  // over it would poison each other's entries.
+  const elevation =
+    service === 'weather' ? (c.elevation_ft ?? (terrainElevation ? 'model' : '')) : ''
   return `${service}|${c.latitude}|${c.longitude}|${startMs}|${endMs}|${model}|${elevation}`
 }
 
@@ -308,6 +314,13 @@ export interface WeatherSeries {
 }
 
 interface HourlyPayload {
+  /**
+   * The terrain elevation Open-Meteo resolved for the coordinate, in meters —
+   * its ~90 m downscaling DEM, sent back on every forecast response. The
+   * forecast grid reads it as each sample's own height (#288 review): a
+   * lattice point has no destination elevation, but it stands on real ground.
+   */
+  elevation?: number
   hourly?: {
     time?: unknown[]
     precipitation?: (number | null)[]
@@ -772,6 +785,17 @@ export interface FetchWeatherOptions {
   // location and never reports its choice, so two adjacent peaks in one
   // response could come from two different models with nothing saying so.
   model: string
+  /**
+   * For coordinates carrying no `elevation_ft` of their own, adjust wind to
+   * the TERRAIN elevation Open-Meteo reports for the coordinate (its ~90 m
+   * DEM, on every response) instead of falling back to the 10 m wind. The
+   * forecast grid's option (#288 review): its lattice points are not
+   * destinations, but each stands on real ground, and painting a volcano's
+   * flank with valley-calm wind under a red summit marker was the confusion
+   * this resolves. A coordinate WITH `elevation_ft` keeps it — a destination's
+   * claimed height beats the DEM's cell average.
+   */
+  terrainElevation?: boolean
 }
 
 // getJson plus one automatic resume for a minutely 429: that quota refills
@@ -801,14 +825,14 @@ export async function fetchWeather(
   destinations: readonly Coordinate[],
   startMs: number,
   endMs: number,
-  { signal, onProgress, onPace, model }: FetchWeatherOptions,
+  { signal, onProgress, onPace, model, terrainElevation = false }: FetchWeatherOptions,
 ): Promise<WeatherResult[]> {
   if (destinations.length === 0) return []
 
   const results: WeatherResult[] = new Array(destinations.length).fill(null)
   const missIdx: number[] = []
   destinations.forEach((c, i) => {
-    const hit = cacheGet(cacheKey('weather', c, startMs, endMs, model))
+    const hit = cacheGet(cacheKey('weather', c, startMs, endMs, model, terrainElevation))
     if (hit === undefined) missIdx.push(i)
     else results[i] = hit === NO_DATA ? null : (hit as WeatherResult)
   })
@@ -854,7 +878,11 @@ export async function fetchWeather(
       )
     }
     const chunkResults = items.map((item, j): WeatherResult => {
-      const elevationFt = chunk[j].elevation_ft ?? null
+      const elevationFt =
+        chunk[j].elevation_ft ??
+        (terrainElevation && typeof item.elevation === 'number'
+          ? item.elevation / FT_TO_M
+          : null)
       const metrics = weatherMetrics(item, startMs, endMs, elevationFt)
       if (metrics === null) return null
       const series = weatherSeries(item, startMs, endMs, elevationFt)
@@ -872,7 +900,7 @@ export async function fetchWeather(
   const perChunk = await pooled(tasks, MAX_CONCURRENT_BATCHES, signal)
   const fetched = perChunk.flat()
   fetched.forEach((r, j) => {
-    cachePut(cacheKey('weather', misses[j], startMs, endMs, model), r ?? NO_DATA)
+    cachePut(cacheKey('weather', misses[j], startMs, endMs, model, terrainElevation), r ?? NO_DATA)
   })
   missIdx.forEach((i, j) => {
     results[i] = fetched[j]

@@ -265,6 +265,11 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
           const chunk = indices.map((i) => spec.points[i])
           const got = await fetchWeather(chunk, startMs, endMs, {
             model,
+            // A lattice point is not a destination, but it stands on real
+            // ground: adjust its wind to the terrain height Open-Meteo
+            // reports for the coordinate, so a volcano's flank paints its
+            // real winds instead of valley calm (#288 review).
+            terrainElevation: true,
             signal: ac.signal,
             // The pacer narrating itself, exactly as the analysis overlay
             // already does. Without this a grid queued behind a large

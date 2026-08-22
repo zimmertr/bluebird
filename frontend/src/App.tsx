@@ -517,7 +517,13 @@ export default function App() {
     if (typeof localStorage === 'undefined') return null
     try {
       const stored = JSON.parse(localStorage.getItem('bluebird_view') ?? '{}')
-      if (stored.columns) return new Set(stored.columns)
+      // `columns2` is the set since the wildfire column joined the picker
+      // (#288). A set stored under the old key predates that choice and
+      // never contained the wildfire key, so reading it verbatim would hide
+      // the column for everyone with a stored preference — migrate it as
+      // "wildfire visible", which is what those users were seeing.
+      if (stored.columns2) return new Set(stored.columns2)
+      if (stored.columns) return new Set([...stored.columns, WILDFIRE_KEY])
     } catch {
       // Ignore localStorage errors
     }
@@ -527,9 +533,13 @@ export default function App() {
   useEffect(() => {
     try {
       const current = JSON.parse(localStorage.getItem('bluebird_view') ?? '{}')
+      delete current.columns
       localStorage.setItem(
         'bluebird_view',
-        JSON.stringify({ ...current, columns: columnVisibility ? [...columnVisibility] : undefined }),
+        JSON.stringify({
+          ...current,
+          columns2: columnVisibility ? [...columnVisibility] : undefined,
+        }),
       )
     } catch {
       // Ignore localStorage errors (SSR, quota, etc.)
@@ -1244,20 +1254,19 @@ export default function App() {
   // Columns picker still wins; null means "all of them".
   const effectiveVisibleKeys = useMemo(() => {
     if (columnVisibility !== null) return columnVisibility
-    return new Set(csvColumns.map((c) => c.key as string))
+    return new Set([...csvColumns.map((c) => c.key as string), WILDFIRE_KEY])
   }, [columnVisibility, csvColumns])
   // Columns displayed in the table (filtered by visibility). The wildfire
-  // column is always last and always present — its cells, not the column,
-  // say where the check stands (ticking while it runs, answered when it has;
-  // ResultsTable owns that). The CSV keeps the stricter rule and carries the
-  // column only once the check answered, because a file is read detached
-  // from the app where a mid-flight column cannot resolve itself. It
-  // bypasses the Columns picker (and the stored visibility sets that predate
-  // it): a safety flag is not a metric preference, and the picker never
-  // lists it.
+  // column is last, shown by default, and toggleable in the Columns picker
+  // like everything else (TJ, 2026-08-21, reversing the #256-era always-on
+  // rule). While shown, its cells — not the column — say where the check
+  // stands (ticking while it runs, answered when it has; ResultsTable owns
+  // that). The CSV keeps the stricter rule and carries the column only once
+  // the check answered AND the column is shown, because a file's columns
+  // must not disagree with the screen's.
   const tableColumns = useMemo(() => {
     const cols = visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys)
-    return [...cols, WILDFIRE_COL]
+    return effectiveVisibleKeys.has(WILDFIRE_KEY) ? [...cols, WILDFIRE_COL] : cols
   }, [pointSample, view.sortBy, effectiveVisibleKeys])
 
   // × on a table row. Removing a searched place also deregisters it — else the
@@ -1545,7 +1554,10 @@ export default function App() {
     const csv = buildResultsCsv(
       tableRows,
       csvColumns,
-      fire.status === 'ready' ? fire.warnings : null,
+      // Null also when the column is hidden: buildResultsCsv drops the
+      // wildfire column on null, and a file must not carry a column the
+      // screen does not show.
+      fire.status === 'ready' && effectiveVisibleKeys.has(WILDFIRE_KEY) ? fire.warnings : null,
       // The table draws pending (un-analyzed) rows above the ranked ones, so
       // the file carries them too — identity columns filled, Rank and every
       // metric blank. Before the first analysis this is the whole file.
@@ -2009,14 +2021,18 @@ export default function App() {
                       <div className="flex items-center justify-between gap-2 whitespace-nowrap">
                         <span className={TEXT.control}>{gridLegend.label}</span>
                         {/* Colored by state (TJ, 2026-08-21): amber while the
-                            grid is waiting or loading, so a stall catches the
-                            eye, and the accent once the pitch is real. The
-                            size is the colorless CONTROL_SIZE because a color
-                            beside TEXT.control's own would resolve by
-                            stylesheet order. */}
+                            grid is waiting or loading so a stall catches the
+                            eye, red when it failed, and the accent once the
+                            pitch is real. The size is the colorless
+                            CONTROL_SIZE because a color beside TEXT.control's
+                            own would resolve by stylesheet order. */}
                         <span
                           className={`${CONTROL_SIZE} ${
-                            gridLegend.kind === 'pitch' ? ACCENT.text : STATUS.warn
+                            gridLegend.kind === 'pitch'
+                              ? ACCENT.text
+                              : gridLegend.kind === 'error'
+                                ? STATUS.error
+                                : STATUS.warn
                           } flex-shrink-0`}
                         >
                           {gridLegend.value}
@@ -2527,7 +2543,7 @@ export default function App() {
         <ColumnsPicker
           open={columnsOpen}
           onOpenChange={setColumnsOpen}
-          columns={csvColumns}
+          columns={[...csvColumns, WILDFIRE_COL]}
           sortBy={view.sortBy}
           visibleKeys={effectiveVisibleKeys}
           onVisibilityChange={setColumnVisibility}
