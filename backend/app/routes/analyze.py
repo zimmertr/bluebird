@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from app import ratelimit
+from app import ratelimit, telemetry
 from app.models import (
     MAX_ANALYZE_PEAKS,
     AnalysisRefusal,
@@ -659,6 +659,8 @@ async def analyze_stream(request: AnalyzeRequest):
                     return
 
             total_queried = len(destinations)
+            telemetry.ANALYZE_DESTINATIONS.observe(total_queried)
+            telemetry.ANALYZE_LIMIT.observe(request.limit)
 
             # Announce the retrieval phase WITH the final count the moment discovery
             # settles, so the overlay shows "Retrieving N Forecasts…" immediately
@@ -935,6 +937,8 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
             )
 
     total_queried = len(destinations)
+    telemetry.ANALYZE_DESTINATIONS.observe(total_queried)
+    telemetry.ANALYZE_LIMIT.observe(request.limit)
     log.info("Fetching weather for %d destination(s)", total_queried)
 
     # AQI for every candidate only when the answer depends on it before the cut:

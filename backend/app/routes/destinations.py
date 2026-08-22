@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
-from app import ratelimit
+from app import ratelimit, telemetry
 from app.models import (
     MAX_ANALYZE_PEAKS,
     AnalysisRefusal,
@@ -180,6 +180,7 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse:
                 ),
             )
 
+    telemetry.DESTINATIONS_RETURNED.observe(len(found))
     rows = [
         DiscoveredDestination(
             name=d["name"],

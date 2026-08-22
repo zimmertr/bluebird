@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
 
 import httpx
 
-from app import ratelimit
+from app import ratelimit, telemetry
 from app.models import DEFAULT_FORECAST_MODEL, MODEL_INFO, ForecastModel
 from app.services import cache, http
 from app.services.errors import (
@@ -256,8 +257,19 @@ async def _fetch_chunk(
     for attempt in (0, 1):
         try:
             log.trace("Open-Meteo request params: %s", params)  # type: ignore[attr-defined]
-            resp = await http.client().get(FORECAST_URL, params=params)
+            # One duration observation per HTTP attempt, failures included, so
+            # the histogram and the outcome counter tally the same events.
+            attempt_start = time.perf_counter()
+            try:
+                resp = await http.client().get(FORECAST_URL, params=params)
+            finally:
+                telemetry.OPENMETEO_DURATION.labels(service="weather").observe(
+                    time.perf_counter() - attempt_start
+                )
             resp.raise_for_status()
+            telemetry.OPENMETEO_REQUESTS.labels(
+                service="weather", outcome="success"
+            ).inc()
             data = resp.json()
             break
         except httpx.HTTPStatusError as exc:
@@ -266,6 +278,9 @@ async def _fetch_chunk(
                 # batch, so this says nothing about which of the 50 it was.
                 # Naming them would take bisecting the batch — more upstream
                 # spend to refine an answer the user acts on the same way.
+                telemetry.OPENMETEO_REQUESTS.labels(
+                    service="weather", outcome="no_coverage"
+                ).inc()
                 log.warning(
                     "Open-Meteo: %s does not cover part of this batch", model.value
                 )
@@ -273,9 +288,18 @@ async def _fetch_chunk(
                     model.value, _coverage_message(model)
                 ) from exc
             if exc.response.status_code != 429:
+                telemetry.OPENMETEO_REQUESTS.labels(
+                    service="weather", outcome="http_error"
+                ).inc()
                 log.warning("Open-Meteo request failed: %s", exc)
                 raise UpstreamError(classify_http_error(exc, PROVIDER)) from exc
             scope, retry_after = parse_rate_limit(exc)
+            telemetry.OPENMETEO_REQUESTS.labels(
+                service="weather", outcome="rate_limited"
+            ).inc()
+            telemetry.OPENMETEO_RATE_LIMITED.labels(
+                service="weather", scope=scope or "unknown"
+            ).inc()
             if scope == "minutely" and attempt == 0:
                 log.warning(
                     "Open-Meteo minutely quota hit; resuming batch in %ds", retry_after
@@ -287,6 +311,9 @@ async def _fetch_chunk(
                 PROVIDER, scope, retry_after, rate_limit_message(PROVIDER, scope)
             ) from exc
         except httpx.HTTPError as exc:
+            telemetry.OPENMETEO_REQUESTS.labels(
+                service="weather", outcome="network_error"
+            ).inc()
             log.warning("Open-Meteo request failed: %s", exc)
             raise UpstreamError(classify_http_error(exc, PROVIDER)) from exc
 

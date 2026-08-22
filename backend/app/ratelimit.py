@@ -39,6 +39,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import HTTPException, Request
 
+from app import telemetry
+
 log = logging.getLogger("bluebird.ratelimit")
 
 
@@ -224,11 +226,15 @@ class RateLimiter:
         per_minute: int,
         burst: int,
         *,
+        name: str = "",
         max_keys: int = 10_000,
         clock: Callable[[], float] = time.monotonic,
     ):
         self._per_minute = per_minute
         self._burst = max(1, burst)
+        # The bucket's name in the throttle metric; keyword-only so the many
+        # anonymous instances tests build stay valid.
+        self.name = name
         self._max_keys = max(1, max_keys)
         self._clock = clock
         self._buckets: dict[str, _TokenBucket] = {}
@@ -306,6 +312,7 @@ class UpstreamBudget:
 
     @asynccontextmanager
     async def slot(self):
+        queued_from = time.perf_counter()
         try:
             await asyncio.wait_for(self._sem.acquire(), timeout=self._wait_s)
         except TimeoutError:
@@ -315,7 +322,13 @@ class UpstreamBudget:
                 self.capacity,
                 self._wait_s,
             )
+            telemetry.UPSTREAM_SHED.labels(
+                provider=self.provider, mechanism="queue"
+            ).inc()
             raise BudgetExhausted(self.provider) from None
+        telemetry.UPSTREAM_QUEUE_SECONDS.labels(provider=self.provider).observe(
+            time.perf_counter() - queued_from
+        )
         try:
             yield
         finally:
@@ -358,9 +371,13 @@ class MinIntervalGate:
                 wait,
                 self._max_wait,
             )
+            telemetry.UPSTREAM_SHED.labels(
+                provider=self.provider, mechanism="gate"
+            ).inc()
             raise BudgetExhausted(self.provider, retry_after_s=math.ceil(wait))
         self._next_free = start + self._interval
         if wait > 0:
+            telemetry.UPSTREAM_PACE_SECONDS.labels(provider=self.provider).inc(wait)
             await asyncio.sleep(wait)
 
 
@@ -441,8 +458,12 @@ class WeightedBudget:
                 wait,
                 self._max_wait,
             )
+            telemetry.UPSTREAM_SHED.labels(
+                provider=self.provider, mechanism="weight"
+            ).inc()
             raise BudgetExhausted(self.provider, retry_after_s=math.ceil(wait))
         self._tokens -= weight
+        telemetry.WEIGHT_SPENT.labels(provider=self.provider).inc(weight)
         if wait > 0:
             log.info(
                 "event=weight_pace provider=%s weight=%.0f wait_s=%.1f",
@@ -450,18 +471,25 @@ class WeightedBudget:
                 weight,
                 wait,
             )
+            telemetry.UPSTREAM_PACE_SECONDS.labels(provider=self.provider).inc(wait)
             await asyncio.sleep(wait)
 
 
 # ── Instances ─────────────────────────────────────────────────────────────────
 
-ANALYZE_LIMITER = RateLimiter(RATE_LIMIT_ANALYZE_PER_MINUTE, RATE_LIMIT_ANALYZE_BURST)
-DESTINATIONS_LIMITER = RateLimiter(
-    RATE_LIMIT_DESTINATIONS_PER_MINUTE, RATE_LIMIT_DESTINATIONS_BURST
+ANALYZE_LIMITER = RateLimiter(
+    RATE_LIMIT_ANALYZE_PER_MINUTE, RATE_LIMIT_ANALYZE_BURST, name="analyze"
 )
-GEOCODE_LIMITER = RateLimiter(RATE_LIMIT_GEOCODE_PER_MINUTE, RATE_LIMIT_GEOCODE_BURST)
-WILDFIRES_LIMITER = RateLimiter(RATE_LIMIT_WILDFIRES_PER_MINUTE, RATE_LIMIT_WILDFIRES_BURST)
-SMOKE_LIMITER = RateLimiter(RATE_LIMIT_SMOKE_PER_MINUTE, RATE_LIMIT_SMOKE_BURST)
+DESTINATIONS_LIMITER = RateLimiter(
+    RATE_LIMIT_DESTINATIONS_PER_MINUTE, RATE_LIMIT_DESTINATIONS_BURST, name="destinations"
+)
+GEOCODE_LIMITER = RateLimiter(
+    RATE_LIMIT_GEOCODE_PER_MINUTE, RATE_LIMIT_GEOCODE_BURST, name="geocode"
+)
+WILDFIRES_LIMITER = RateLimiter(
+    RATE_LIMIT_WILDFIRES_PER_MINUTE, RATE_LIMIT_WILDFIRES_BURST, name="wildfires"
+)
+SMOKE_LIMITER = RateLimiter(RATE_LIMIT_SMOKE_PER_MINUTE, RATE_LIMIT_SMOKE_BURST, name="smoke")
 
 WEATHER_BUDGET = UpstreamBudget("Open-Meteo", UPSTREAM_CONCURRENCY_WEATHER)
 AQI_BUDGET = UpstreamBudget("Open-Meteo (air quality)", UPSTREAM_CONCURRENCY_AQI)
@@ -483,6 +511,7 @@ def _throttle(limiter: RateLimiter, request: Request) -> None:
     if allowed:
         return
     seconds = max(1, math.ceil(retry_after))
+    telemetry.THROTTLED.labels(bucket=limiter.name or "unnamed").inc()
     log.warning(
         "event=rate_limited path=%s client=%s retry_after_s=%d",
         request.url.path,
