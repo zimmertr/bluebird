@@ -333,5 +333,10 @@ async def capabilities() -> CapabilitiesResponse:
                 url="https://www.ospo.noaa.gov/Products/land/hms.html",
                 provides="Analyst-traced smoke plumes behind GET /api/smoke",
             ),
+            DataSource(
+                name="NOAA HRRR",
+                url="https://rapidrefresh.noaa.gov/hrrr/",
+                provides="Forecast smoke concentration behind GET /api/smoke/forecast",
+            ),
         ],
     )

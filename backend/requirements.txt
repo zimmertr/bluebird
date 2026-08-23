@@ -1,5 +1,9 @@
 fastapi==0.141.1
 uvicorn[standard]==0.52.3
 httpx==0.28.1
+# Reads one HRRR GRIB2 field for the forecast-smoke overlay. The alternative is
+# ecCodes, which Alpine does not package, so it would mean compiling C in the
+# image build; numpy ships a musllinux wheel. See app/services/grib.py.
+numpy==2.5.2
 pydantic==2.13.4
 prometheus-client==0.26.0

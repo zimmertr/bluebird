@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app import ratelimit
 from app.models import ErrorResponse
+from app.routes.bbox import parse_bbox
 from app.services import nifc
 
 log = logging.getLogger(__name__)
@@ -57,27 +58,9 @@ class WildfireCollection(BaseModel):
     )
 
 
-def _parse_bbox(raw: str) -> tuple[float, float, float, float]:
-    parts = raw.split(",")
-    if len(parts) != 4:
-        raise HTTPException(
-            status_code=422,
-            detail="bbox must be four comma-separated numbers: west,south,east,north.",
-        )
-    try:
-        west, south, east, north = (float(p) for p in parts)
-    except ValueError:
-        raise HTTPException(
-            status_code=422,
-            detail="bbox must be four comma-separated numbers: west,south,east,north.",
-        ) from None
-    if not (-180 <= west <= 180 and -180 <= east <= 180):
-        raise HTTPException(status_code=422, detail="bbox longitudes must be between -180 and 180.")
-    if not (-90 <= south <= 90 and -90 <= north <= 90):
-        raise HTTPException(status_code=422, detail="bbox latitudes must be between -90 and 90.")
-    if south > north:
-        raise HTTPException(status_code=422, detail="bbox south must not exceed north.")
-    return west, south, east, north
+# Shared with the forecast-smoke route, which takes the same viewport and must
+# reject the same input the same way. See app/routes/bbox.py.
+_parse_bbox = parse_bbox
 
 
 @router.get(
