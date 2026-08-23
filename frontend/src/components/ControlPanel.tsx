@@ -1064,7 +1064,13 @@ export default function ControlPanel({
             ))}
           </div>
           {filtersActive && (
-            <button onClick={onClearFilters} className={`${BUTTON_SECONDARY} mt-2`}>
+            /* No label row forces this into the control column, so it wears
+               CONTROL_W itself, flush right — sharing both edges with the
+               boxes above the way every other panel control does. */
+            <button
+              onClick={onClearFilters}
+              className={`${BUTTON_SECONDARY} ${CONTROL_W} block ml-auto mt-2`}
+            >
               Clear filters
             </button>
           )}
