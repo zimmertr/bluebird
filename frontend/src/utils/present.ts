@@ -73,9 +73,12 @@ export function bandNarrows(analyzed: Band, panel: Band): boolean {
   return minOk && maxOk
 }
 
+export type CommitReason = 'elevation-widened' | 'window-changed' | 'model-changed'
+
 /**
- * Why the displayed report cannot be re-derived from what the browser holds,
- * or `null` when it can and the knobs are therefore live.
+ * Every reason the displayed report cannot be re-derived from what the
+ * browser holds, or an empty array when it can and the knobs are therefore
+ * live.
  *
  * Replaces `rankingStale`, which flagged any sort change. Once sort is live
  * that cue is not merely redundant, it is wrong: it would ask for an Analyze
@@ -83,35 +86,40 @@ export function bandNarrows(analyzed: Band, panel: Band): boolean {
  * exactly where a knob has stopped being live, so a user is never left
  * wondering why the table went quiet:
  *
- * - `'elevation-widened'`: see `bandNarrows`, and `bandGated` for the reports
- *   this cannot apply to.
- * - `'window-changed'`: the forecast selection is not the one behind the rows.
- *   Always a commit — the browser holds no forecasts for days it never fetched —
- *   and worth naming since the calendar made changing it a click (#166), where
- *   typing two datetimes was hard to do by accident. Reported ahead of the other
- *   two: it names the knob the user just touched, which is the more useful
- *   sentence even when a band was widened in the same breath.
  * - `'model-changed'`: a different weather model is behind the panel than behind
  *   the rows. Always a commit, and for a stronger reason than the window: the
  *   held field is not merely missing rows, every number in it came from a model
- *   the panel no longer names. Reported first, because a model change can clamp
- *   the window as a side effect (`clampSelection`) and would otherwise report
- *   itself as the window change it caused.
+ *   the panel no longer names.
+ * - `'window-changed'`: the forecast selection is not the one behind the rows.
+ *   Always a commit — the browser holds no forecasts for days it never fetched —
+ *   and worth naming since the calendar made changing it a click (#166), where
+ *   typing two datetimes was hard to do by accident.
+ * - `'elevation-widened'`: see `bandNarrows`, and `bandGated` for the reports
+ *   this cannot apply to.
+ *
+ * ALL that apply, not the first (TJ, 2026-08-22): a user who changed both the
+ * window and the model is owed both sentences, and the notice box bullets
+ * them. The order is fixed, model first: a model change can clamp the window
+ * as a side effect (`clampSelection`), and when both lines show, leading with
+ * the model keeps the clamp attributed to its cause.
  */
 export function commitNeeded(
   analyzed: AnalyzedSnapshot | null,
   panel: PresentationKnobs,
   windowChanged: boolean,
   modelChanged: boolean,
-): 'elevation-widened' | 'window-changed' | 'model-changed' | null {
+): CommitReason[] {
   // Nothing on screen yet, so nothing to be out of date with. Since #240
   // removed the server SSE fallback, a committed report always holds its full
   // field, so there is no path where a sort or a limit stops being live.
-  if (analyzed === null) return null
-  if (modelChanged) return 'model-changed'
-  if (windowChanged) return 'window-changed'
-  if (!analyzed.bandGated) return null
-  return bandNarrows(analyzed.band, panel.band) ? null : 'elevation-widened'
+  if (analyzed === null) return []
+  const reasons: CommitReason[] = []
+  if (modelChanged) reasons.push('model-changed')
+  if (windowChanged) reasons.push('window-changed')
+  if (analyzed.bandGated && !bandNarrows(analyzed.band, panel.band)) {
+    reasons.push('elevation-widened')
+  }
+  return reasons
 }
 
 export interface Presentation {

@@ -783,10 +783,10 @@ export default function App() {
   // held rows are not missing days, every number in them came from a model the
   // panel no longer names.
   const modelChanged = analyzed !== null && analyzed.forecastModel !== forecastModel
-  const commitReason =
+  const commitReasons =
     !loading && response !== null
       ? commitNeeded(analyzed, liveKnobs, windowChanged, modelChanged)
-      : null
+      : []
   const preview = usePreview()
 
   // Elapsed-time counter for phases with no countable progress (the OSM search,
@@ -1734,7 +1734,7 @@ export default function App() {
           customCsv={customCsv}
           setCustomCsv={setCustomCsv}
           onCsvPasted={(points) => mapRef.current?.fitToPoints(points)}
-          commitReason={commitReason}
+          commitReasons={commitReasons}
           sortBy={sortBy}
           setSortBy={setSortBy}
           sortDesc={sortDesc}

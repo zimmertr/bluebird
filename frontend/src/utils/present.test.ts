@@ -91,32 +91,35 @@ describe('bandNarrows', () => {
 
 describe('commitNeeded', () => {
   it('is silent before the first analysis', () => {
-    expect(commitNeeded(null, KNOBS, false, false)).toBeNull()
+    expect(commitNeeded(null, KNOBS, false, false)).toEqual([])
   })
 
   // A model change is a commit for a stronger reason than a window change: the
   // held field is not missing rows, every number in it came from a model the
   // panel no longer names.
   it('asks for an Analyze when the model changes', () => {
-    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, false, true)).toBe('model-changed')
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, false, true)).toEqual(['model-changed'])
   })
 
-  // Changing the model can clamp the window as a side effect, so both flags
-  // arrive together. Reporting the window would name the consequence and leave
-  // the cause unsaid.
-  it('names the model rather than the window it clamped', () => {
-    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, true, true)).toBe('model-changed')
+  // A user who changed both is owed both sentences (TJ, 2026-08-22), model
+  // first: a model change can clamp the window as a side effect, and leading
+  // with the model keeps the clamp attributed to its cause.
+  it('reports the model and the window together, model first', () => {
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, true, true)).toEqual([
+      'model-changed',
+      'window-changed',
+    ])
   })
 
   it('still names the window when only the window moved', () => {
-    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, true, false)).toBe('window-changed')
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, true, false)).toEqual(['window-changed'])
   })
 
   it('is silent for sort, direction and limit changes over a held field', () => {
     const analyzed = { ...ANALYZED }
-    expect(commitNeeded(analyzed, { ...KNOBS, sortBy: 'wind_avg_mph' }, false, false)).toBeNull()
-    expect(commitNeeded(analyzed, { ...KNOBS, sortDesc: true }, false, false)).toBeNull()
-    expect(commitNeeded(analyzed, { ...KNOBS, limit: 50 }, false, false)).toBeNull()
+    expect(commitNeeded(analyzed, { ...KNOBS, sortBy: 'wind_avg_mph' }, false, false)).toEqual([])
+    expect(commitNeeded(analyzed, { ...KNOBS, sortDesc: true }, false, false)).toEqual([])
+    expect(commitNeeded(analyzed, { ...KNOBS, limit: 50 }, false, false)).toEqual([])
   })
 
   it('is silent for a forecast bound over a held field', () => {
@@ -124,18 +127,18 @@ describe('commitNeeded', () => {
     // browser already has, so loosening one is as live as tightening it.
     const analyzed = { ...ANALYZED }
     const loosened = { ...KNOBS, constraints: { ...NO_CONSTRAINTS, maxAqi: 200 } }
-    expect(commitNeeded(analyzed, loosened, false, false)).toBeNull()
+    expect(commitNeeded(analyzed, loosened, false, false)).toEqual([])
   })
 
   it('is silent for an AQI ranking, which the eager AQI fetch already covers', () => {
-    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS, sortBy: 'aqi_avg' }, false, false)).toBeNull()
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS, sortBy: 'aqi_avg' }, false, false)).toEqual([])
   })
 
   it('asks for an Analyze when the elevation band widens', () => {
     const analyzed = { ...ANALYZED, band: { min: 8000, max: null } }
-    expect(commitNeeded(analyzed, { ...analyzed, band: { min: 6000, max: null } }, false, false)).toBe(
-      'elevation-widened',
-    )
+    expect(
+      commitNeeded(analyzed, { ...analyzed, band: { min: 6000, max: null } }, false, false),
+    ).toEqual(['elevation-widened'])
   })
 
   it('stays silent on a widened band the report was never gated by', () => {
@@ -146,12 +149,14 @@ describe('commitNeeded', () => {
     const analyzed = { ...ANALYZED, bandGated: false, band: { min: 8000, max: null } }
     expect(
       commitNeeded(analyzed, { ...analyzed, band: { min: null, max: null } }, false, false),
-    ).toBeNull()
+    ).toEqual([])
   })
 
   it('stays silent when the band narrows', () => {
     const analyzed = { ...ANALYZED, band: { min: 8000, max: null } }
-    expect(commitNeeded(analyzed, { ...analyzed, band: { min: 9000, max: null } }, false, false)).toBeNull()
+    expect(
+      commitNeeded(analyzed, { ...analyzed, band: { min: 9000, max: null } }, false, false),
+    ).toEqual([])
   })
 
   // The forecast window is a data knob, so this one is not a comparison of held
@@ -159,20 +164,25 @@ describe('commitNeeded', () => {
   // cue since the calendar made changing days a click rather than two typed
   // datetimes (#166).
   it('asks for an Analyze when the forecast window is not the one behind the rows', () => {
-    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, true, false)).toBe('window-changed')
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, true, false)).toEqual(['window-changed'])
   })
 
-  // Named ahead of the band: it is the knob the user just touched, which is
-  // the more useful sentence even when something else also went stale.
-  it('names the window over a widened band', () => {
+  it('reports the window and a widened band together, window first', () => {
     const analyzed = { ...ANALYZED, band: { min: 8000, max: null } }
     expect(
       commitNeeded(analyzed, { ...analyzed, band: { min: 6000, max: null } }, true, false),
-    ).toBe('window-changed')
+    ).toEqual(['window-changed', 'elevation-widened'])
+  })
+
+  it('reports all three when all three went stale', () => {
+    const analyzed = { ...ANALYZED, band: { min: 8000, max: null } }
+    expect(
+      commitNeeded(analyzed, { ...analyzed, band: { min: 6000, max: null } }, true, true),
+    ).toEqual(['model-changed', 'window-changed', 'elevation-widened'])
   })
 
   it('says nothing about a window before the first analysis', () => {
-    expect(commitNeeded(null, KNOBS, true, false)).toBeNull()
+    expect(commitNeeded(null, KNOBS, true, false)).toEqual([])
   })
 })
 

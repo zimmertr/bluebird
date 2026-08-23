@@ -49,6 +49,7 @@ import {
   windowAggregate,
 } from '../metrics'
 import { Constraints, hasConstraints } from '../utils/clientAnalyze'
+import type { CommitReason } from '../utils/present'
 import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analyzeGate'
 import {
   BLOCKER_SEVERITY,
@@ -83,7 +84,7 @@ import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabi
 // defined at their sources (the backend's SSE strings, the Open-Meteo
 // client), and only share the "Try again later." tail as a convention.
 const commitCue = (subject: string) => `A new ${subject} requires a new analysis.`
-const COMMIT_CUE: Record<'elevation-widened' | 'window-changed' | 'model-changed', string> = {
+const COMMIT_CUE: Record<CommitReason, string> = {
   'elevation-widened': commitCue('elevation range'),
   'window-changed': commitCue('forecast window'),
   'model-changed': commitCue('forecast model'),
@@ -228,7 +229,9 @@ interface Props {
   // limit and elevation-narrowing normally re-present the held field with no
   // Analyze at all (#188), so this cue is the exception rather than the rule
   // and has to say which exception it is.
-  commitReason?: 'elevation-widened' | 'window-changed' | 'model-changed' | null
+  // Every knob that has stopped applying live, in `commitNeeded`'s fixed
+  // order (model, window, elevation). One warn bullet each.
+  commitReasons?: CommitReason[]
   // At least one place has been searched by name. Searched places are a ranked
   // input like the CSV, so one alone enables Analyze with no polygon drawn.
   hasPins: boolean
@@ -396,7 +399,7 @@ export default function ControlPanel({
   defaultForecastModel,
   modelClamped,
   windowWarning,
-  commitReason,
+  commitReasons,
   hasPins,
   loading,
   error,
@@ -490,14 +493,15 @@ export default function ControlPanel({
     ...(error && errorKey && !refusal
       ? [{ key: errorKey, text: error, severity: 'error' as const, retry: true }]
       : []),
-    ...(commitReason && !loading
-      ? [
-          {
-            key: `cue:${commitReason}`,
-            text: COMMIT_CUE[commitReason],
-            severity: 'warn' as const,
-          },
-        ]
+    // Every stale-report reason at once (TJ, 2026-08-22): a user who changed
+    // the window and the model is owed both sentences, in `commitNeeded`'s
+    // fixed order, each dismissable alone.
+    ...(!loading
+      ? (commitReasons ?? []).map((reason) => ({
+          key: `cue:${reason}`,
+          text: COMMIT_CUE[reason],
+          severity: 'warn' as const,
+        }))
       : []),
     ...blockers.map((blocker) => ({
       key: `blocker:${blocker}`,
