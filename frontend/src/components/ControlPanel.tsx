@@ -76,10 +76,17 @@ import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabi
 
 // Why a knob stopped applying live. Each case names the reason the
 // controls went quiet, which is the thing this cue exists to not leave unsaid.
+//
+// One frame, three subjects (TJ, 2026-08-22): the sentence is spelled once so
+// the cues cannot drift apart word by word, and a reword is one edit rather
+// than three. The run errors are deliberately NOT this pattern — they are
+// defined at their sources (the backend's SSE strings, the Open-Meteo
+// client), and only share the "Try again later." tail as a convention.
+const commitCue = (subject: string) => `A new ${subject} requires a new analysis.`
 const COMMIT_CUE: Record<'elevation-widened' | 'window-changed' | 'model-changed', string> = {
-  'elevation-widened': 'A new elevation range requires a new analysis.',
-  'window-changed': 'A new forecast window requires a new analysis.',
-  'model-changed': 'A new forecast model requires a new analysis.',
+  'elevation-widened': commitCue('elevation range'),
+  'window-changed': commitCue('forecast window'),
+  'model-changed': commitCue('forecast model'),
 }
 
 // The AQI info line's dismissal key (#253): a condition, not a message, like
