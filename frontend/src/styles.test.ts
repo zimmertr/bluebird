@@ -1037,4 +1037,30 @@ describe('status and notices', () => {
     expect(NOTICE_DISMISS.pill).toContain(RADIUS.pill)
     expect(NOTICE_DISMISS.pill).toContain('bg-white/')
   })
+
+  // The X rests hidden and appears when its own message is pointed at, so a
+  // bulleted box does not open with a column of pills. Every reveal path must
+  // exist together: the row hover for a mouse, focus for a keyboard, and
+  // `touch:` unconditionally — where hover does not exist, a hover-only
+  // control is a control that does not exist (the tooltip rule, applied to a
+  // button). The row's group must be NAMED: the button's own `group` feeds
+  // the pill's hover, and an unnamed row group would hand the pill every row
+  // hover in the box.
+  it('hides the X until its message is pointed at, and never on touch', () => {
+    expect(NOTICE_DISMISS.button).toContain('opacity-0')
+    expect(NOTICE_DISMISS.button).toContain('group-hover/notice:opacity-100')
+    expect(NOTICE_DISMISS.button).toContain('focus-visible:opacity-100')
+    expect(NOTICE_DISMISS.button).toContain('touch:opacity-100')
+    expect(NOTICE_DISMISS.row).toContain('group/notice')
+  })
+
+  // The row's lift is the binding between a message and its X — in a bulleted
+  // list the X alone does not say which message it belongs to. Hue-free like
+  // the pill, and one step quieter than it, so the resting pill still reads
+  // as the control on the lifted row.
+  it('binds the X to its message with a hue-free lift', () => {
+    expect(NOTICE_DISMISS.row).toContain('hover:bg-white/')
+    expect(NOTICE_DISMISS.row).not.toMatch(/(^|\s)text-/)
+    expect(NOTICE_DISMISS.row).toContain(RADIUS.control)
+  })
 })

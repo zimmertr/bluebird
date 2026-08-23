@@ -784,14 +784,15 @@ export const NOTICE = {
 } as const
 
 /**
- * The X that dismisses a footer notice (#253). Every box under the Analyze
- * button wears it — event notices and derived warnings alike (TJ,
- * 2026-08-22); which dismissal it triggers, and when that dismissal expires,
- * is `utils/notices.ts`'s business, not this recipe's.
+ * The X that dismisses one footer message (#253). Every message under the
+ * Analyze button carries its own — a box dismisses line by line, not whole
+ * (TJ, 2026-08-22); which dismissal it triggers, and when that dismissal
+ * expires, is `utils/notices.ts`'s business, not this recipe's.
  *
- * Two parts, because the touch target and the visible control must be
- * different sizes. The `button` carries `TAP.action` in-flow, so on touch
- * the 44px target grows the box's first row rather than overhanging it —
+ * Three parts, because the touch target and the visible control must be
+ * different sizes. The `row` is the message the X belongs to and the hover
+ * surface that reveals it. The `button` carries `TAP.action` in-flow, so on
+ * touch the 44px target grows its own row rather than overhanging it —
  * the Analyze button sits directly above, and an absolutely-positioned
  * square would cover its bottom edge. The `pill` inside it is what the eye
  * gets: a 20px disc, the panel close button's idiom at notice scale, so the
@@ -812,7 +813,29 @@ export const NOTICE = {
  * so a fill or `STATUS` change forces a re-measurement.
  */
 export const NOTICE_DISMISS = {
-  button: `group ${TAP.action} self-start -mt-0.5 hover:text-white transition-colors ${FOCUS_RING}`,
+  /**
+   * One message inside a notice box, whether it is the box's only line or one
+   * bullet of several. The named group (`group/notice`) is what reveals the X:
+   * the button's own `group` is already taken by the pill's hover, and an
+   * unnamed group here would hand the pill every row hover in the box.
+   *
+   * The lift (`white/[0.04]`) exists to bind the X to its row: in a bulleted
+   * list the X alone does not say which message it belongs to. Arbitrary
+   * rather than `white/5` so the row reads one step quieter than the pill
+   * resting on it.
+   */
+  row: `group/notice flex gap-2 ${RADIUS.control} hover:bg-white/[0.04]`,
+  /**
+   * Hidden until asked for: the X appears when the pointer rests on its row,
+   * on keyboard focus, and is always on where hover does not exist (`touch:`)
+   * — a hover-only control on a phone is a control that does not exist (the
+   * tooltip rule, applied to a button). Opacity rather than `hidden`, so the
+   * reveal can fade and the row never reflows.
+   */
+  button:
+    `group ${TAP.action} self-start -mt-0.5 opacity-0 transition-[color,opacity] ` +
+    `group-hover/notice:opacity-100 focus-visible:opacity-100 touch:opacity-100 ` +
+    `hover:text-white ${FOCUS_RING}`,
   pill:
     `flex h-5 w-5 items-center justify-center ${RADIUS.pill} ` +
     `bg-white/5 transition-colors group-hover:bg-white/15`,
