@@ -110,7 +110,13 @@ import {
   windowCaption,
 } from './utils/calendar'
 import { isPointSample } from './utils/forecastWindow'
-import { PresentationKnobs, commitNeeded, discoveryKeys, presentResults } from './utils/present'
+import {
+  PresentationKnobs,
+  commitNeeded,
+  discoveryChanges,
+  discoveryKeys,
+  presentResults,
+} from './utils/present'
 import { RemovedEntry, recordRemoval, restorePlace } from './utils/removals'
 import { SortDir, SortKey, WILDFIRE_COL, WILDFIRE_KEY, displayedColumns, visibleColumns } from './utils/tableColumns'
 import { NAME_DEFAULT_PX } from './utils/columnResize'
@@ -1334,19 +1340,14 @@ export default function App() {
       pendingDestinations(csvRows, searched.places, analyzed?.customKeys ?? NO_CUSTOM, removedKeys),
     [csvRows, searched.places, analyzed, removedKeys],
   )
-  // Which discovery the panel would run now, in the spelling the analysis
-  // snapshot records. A polygon cue needs a COMPLETE ring: mid-draw the
-  // polygon blocker already speaks, and a cleared ring leaves nothing to
-  // re-search. The types cue is gated on the ring matching, or a redrawn
-  // polygon would cue twice for one gesture.
-  const panelDiscovery = discoveryKeys(polygon, destinationTypes, includeUnnamedPeaks)
-  const polygonChanged =
-    analyzed !== null && polygon !== null && panelDiscovery.polygonKey !== analyzed.polygonKey
-  const typesChanged =
-    analyzed !== null &&
-    polygon !== null &&
-    panelDiscovery.polygonKey === analyzed.polygonKey &&
-    panelDiscovery.typesKey !== analyzed.typesKey
+  // Which discovery inputs the panel has moved since the analysis, in the
+  // spelling the snapshot records. The comparison itself is `present.ts`'s, so
+  // it can be tested; what belongs here is only which panel state feeds it.
+  const discoveryMoved = discoveryChanges(
+    analyzed,
+    discoveryKeys(polygon, destinationTypes, includeUnnamedPeaks),
+    polygon !== null,
+  )
   // Every knob that has stopped being live, and why. Empty while everything
   // applies instantly, which is the normal case: the cues exist so the
   // controls never feel dead, and showing one when the knobs are in fact live
@@ -1359,8 +1360,8 @@ export default function App() {
       ? commitNeeded(analyzed, liveKnobs, {
           window: windowChanged,
           model: modelChanged,
-          polygon: polygonChanged,
-          types: typesChanged,
+          polygon: discoveryMoved.polygon,
+          types: discoveryMoved.types,
           destinationAdded: pending.length > 0,
         })
       : []

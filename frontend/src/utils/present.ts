@@ -108,12 +108,47 @@ export function discoveryKeys(
   polygon: { coordinates: number[][][] } | null | undefined,
   types: readonly string[] | undefined,
   includeUnnamed: boolean | undefined,
-): { polygonKey: string; typesKey: string } {
+): DiscoveryKeys {
   return {
     polygonKey: JSON.stringify(polygon?.coordinates ?? null),
     // Sorted so checking peaks then lakes and lakes then peaks are one
     // discovery, matching the order-independent cache key upstream.
     typesKey: `${[...(types ?? [])].sort().join(',')}${includeUnnamed ? '|unnamed' : ''}`,
+  }
+}
+
+export interface DiscoveryKeys {
+  polygonKey: string
+  typesKey: string
+}
+
+/**
+ * Which discovery inputs the panel has moved since the analysis: the ring, the
+ * kinds, or both.
+ *
+ * The two are INDEPENDENT. Suppressing the types cue when the ring also moved
+ * was tried and is wrong: a user who redrew the polygon *and* checked another
+ * kind changed two things and is owed two sentences, and collapsing them
+ * silently dropped the one they had just clicked (TJ, 2026-08-22).
+ *
+ * Both need a complete ring (`hasRing`), for the same reason from two sides:
+ * mid-draw the polygon blocker is already speaking, a cleared ring leaves
+ * nothing to re-search, and a type set with no ring discovers nothing — so a
+ * report with no polygon at all can never go stale this way.
+ *
+ * Pure and here rather than inline in `App.tsx`, because Vitest runs in a bare
+ * node environment: logic left in the component is untestable by construction,
+ * which is exactly how the suppression above shipped uncaught.
+ */
+export function discoveryChanges(
+  analyzed: DiscoveryKeys | null,
+  panel: DiscoveryKeys,
+  hasRing: boolean,
+): { polygon: boolean; types: boolean } {
+  if (analyzed === null || !hasRing) return { polygon: false, types: false }
+  return {
+    polygon: panel.polygonKey !== analyzed.polygonKey,
+    types: panel.typesKey !== analyzed.typesKey,
   }
 }
 
@@ -143,10 +178,11 @@ export function discoveryKeys(
  *   ring at all. Silent while no complete polygon exists: mid-draw the
  *   polygon blocker already speaks, and a cleared ring leaves nothing to
  *   re-search.
- * - `'types-changed'`: same ring, different kinds — the checked types (or the
- *   unnamed-peaks toggle) are not the ones discovery ran with. Gated on the
- *   ring matching, because a changed ring already cues above and would make
- *   this line a duplicate.
+ * - `'types-changed'`: the checked types (or the unnamed-peaks toggle) are
+ *   not the ones discovery ran with. Independent of the polygon cue — a
+ *   changed ring AND changed types are two sentences, not one (TJ,
+ *   2026-08-22) — and, like it, silent while no complete polygon exists,
+ *   because types without a ring discover nothing.
  * - `'destination-added'`: the panel names a custom destination the analysis
  *   never covered (`pendingDestinations` is the caller's predicate — the same
  *   one behind the map's pending dots, so the cue and the dots cannot

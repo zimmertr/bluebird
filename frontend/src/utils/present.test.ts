@@ -8,6 +8,7 @@ import {
   PresentationKnobs,
   bandNarrows,
   commitNeeded,
+  discoveryChanges,
   discoveryKeys,
   presentResults,
 } from './present'
@@ -285,6 +286,59 @@ describe('discoveryKeys', () => {
     expect(discoveryKeys(undefined, undefined, undefined)).toEqual(
       discoveryKeys(null, [], false),
     )
+  })
+})
+
+// ── discoveryChanges ───────────────────────────────────────────────────────
+
+describe('discoveryChanges', () => {
+  const ANALYZED_KEYS = discoveryKeys(
+    { coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] },
+    ['lake'],
+    false,
+  )
+  const REDRAWN = { coordinates: [[[0, 0], [2, 0], [2, 2], [0, 0]]] }
+
+  it('reports both when the ring and the types both moved', () => {
+    // The bug this function exists to pin: suppressing the types cue under a
+    // changed ring silently dropped the knob the user had just clicked.
+    expect(
+      discoveryChanges(ANALYZED_KEYS, discoveryKeys(REDRAWN, ['lake', 'peak'], false), true),
+    ).toEqual({ polygon: true, types: true })
+  })
+
+  it('reports each alone when only one moved', () => {
+    const ring = { coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] }
+    expect(discoveryChanges(ANALYZED_KEYS, discoveryKeys(REDRAWN, ['lake'], false), true)).toEqual({
+      polygon: true,
+      types: false,
+    })
+    expect(
+      discoveryChanges(ANALYZED_KEYS, discoveryKeys(ring, ['lake', 'peak'], false), true),
+    ).toEqual({ polygon: false, types: true })
+  })
+
+  it('stays silent when neither moved', () => {
+    const same = { coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] }
+    expect(discoveryChanges(ANALYZED_KEYS, discoveryKeys(same, ['lake'], false), true)).toEqual({
+      polygon: false,
+      types: false,
+    })
+  })
+
+  it('stays silent without a complete ring, whatever the keys say', () => {
+    // Mid-draw the polygon blocker is already speaking; a cleared ring leaves
+    // nothing to re-search; types with no ring discover nothing.
+    expect(
+      discoveryChanges(ANALYZED_KEYS, discoveryKeys(REDRAWN, ['peak'], true), false),
+    ).toEqual({ polygon: false, types: false })
+  })
+
+  it('stays silent before the first analysis', () => {
+    expect(discoveryChanges(null, discoveryKeys(REDRAWN, ['peak'], false), true)).toEqual({
+      polygon: false,
+      types: false,
+    })
   })
 })
 

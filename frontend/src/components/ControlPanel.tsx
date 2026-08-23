@@ -86,7 +86,7 @@ import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabi
 const commitCue = (subject: string) => `A new ${subject} requires a new analysis.`
 const COMMIT_CUE: Record<CommitReason, string> = {
   'elevation-widened': commitCue('elevation range'),
-  'window-changed': commitCue('forecast window'),
+  'window-changed': commitCue('forecast range'),
   'model-changed': commitCue('forecast model'),
   'polygon-changed': commitCue('search area'),
   'types-changed': commitCue('destination type'),
