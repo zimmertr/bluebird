@@ -170,6 +170,43 @@ describe('fetchWeather', () => {
     expect(hourly).toHaveLength(9)
   })
 
+  it('asks only for the hours the window needs (#212)', async () => {
+    // The request used to name whole calendar days and the aggregation threw
+    // the overhang away, in the visitor's own memory. Both bounds floor to the
+    // hour, which cannot drop a stamp the inclusive filter keeps.
+    const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    await fetchWeather(
+      [{ latitude: 47.5, longitude: -121.9 }],
+      Date.parse('2026-07-21T09:30:00Z'),
+      Date.parse('2026-07-21T14:45:00Z'),
+      { model: MODEL },
+    )
+    const params = new URL(String((fetchSpy.mock.calls[0] as unknown[])[0])).searchParams
+    expect(params.get('start_hour')).toBe('2026-07-21T09:00')
+    expect(params.get('end_hour')).toBe('2026-07-21T14:00')
+    expect(params.get('start_date')).toBeNull()
+    expect(params.get('end_date')).toBeNull()
+  })
+
+  it('asks for a single hour when the window is a point sample', async () => {
+    // The window every Current analysis resolves to, and the one the whole-day
+    // request wasted most on: measured 2026-08-23 over 50 locations, 97.3 KB
+    // for the day against 32.8 KB for the hour.
+    const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    const moment = Date.parse('2026-07-21T13:00:00Z')
+    await fetchWeather(
+      [{ latitude: 47.5, longitude: -121.9 }],
+      moment,
+      moment + 60_000,
+      { model: MODEL },
+    )
+    const params = new URL(String((fetchSpy.mock.calls[0] as unknown[])[0])).searchParams
+    expect(params.get('start_hour')).toBe('2026-07-21T13:00')
+    expect(params.get('end_hour')).toBe('2026-07-21T13:00')
+  })
+
   it('adjusts wind to the elevation the coordinate carries (#257)', async () => {
     const payload = hourlyPayload()
     Object.assign(payload.hourly, {
@@ -509,12 +546,15 @@ describe('fetchAqi', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
-  it('clamps the requested end date to the ~5-day horizon', async () => {
+  it('clamps the requested end to the last hour of the ~5-day horizon', async () => {
+    // The whole-day request this replaced ended at 23:00 on the cap day, so
+    // the hour bound has to end there too. Clamping to the instant instead
+    // would quietly drop most of a day of real AQI.
     let requested: string | null = null
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
-        requested = new URL(url).searchParams.get('end_date')
+        requested = new URL(url).searchParams.get('end_hour')
         return jsonResponse({ hourly: { time: [], us_aqi: [] } })
       }),
     )
@@ -525,7 +565,29 @@ describe('fetchAqi', () => {
       now + 15 * 86_400_000,
       { nowMs: now },
     )
-    expect(requested).toBe('2026-07-26')
+    expect(requested).toBe('2026-07-26T23:00')
+  })
+
+  it('asks only for the hours the window needs (#212)', async () => {
+    let params: URLSearchParams | null = null
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        params = new URL(url).searchParams
+        return jsonResponse({ hourly: { time: [], us_aqi: [] } })
+      }),
+    )
+    const now = Date.parse('2026-07-21T00:00:00Z')
+    await fetchAqi(
+      [{ latitude: 0, longitude: 0 }],
+      Date.parse('2026-07-21T09:30:00Z'),
+      Date.parse('2026-07-21T14:45:00Z'),
+      { nowMs: now },
+    )
+    expect(params!.get('start_hour')).toBe('2026-07-21T09:00')
+    expect(params!.get('end_hour')).toBe('2026-07-21T14:00')
+    expect(params!.get('start_date')).toBeNull()
+    expect(params!.get('end_date')).toBeNull()
   })
 })
 
