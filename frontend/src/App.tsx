@@ -2057,8 +2057,16 @@ export default function App() {
                       </div>
                     )}
                     {showSmokeForecast && (
-                      <div className="flex items-center justify-between gap-2">
-                        <span className={TEXT.control}>
+                      /* The one row here that can need two lines. Its values
+                         say where the model stops rather than naming a unit,
+                         so the longest of them is three times the width of a
+                         pitch and cannot share a line with the label in a box
+                         this narrow. Wrapping puts it on its own line,
+                         right-aligned, instead of clipping it at the box edge
+                         — and the short values still sit inline, so the row
+                         only breaks the column when it has more to say. */
+                      <div className="flex flex-wrap items-center justify-between gap-x-2">
+                        <span className={`${TEXT.control} whitespace-nowrap`}>
                           Forecast smoke (
                           <a href={HRRR_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
                             HRRR
@@ -2078,7 +2086,7 @@ export default function App() {
                               : smokeForecastLegendLine.kind === 'error'
                                 ? STATUS.error
                                 : STATUS.warn
-                          } flex-shrink-0`}
+                          } ml-auto whitespace-nowrap`}
                         >
                           {smokeForecastLegendLine.value}
                         </span>

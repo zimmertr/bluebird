@@ -9,6 +9,7 @@
 | [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) | Active wildfire perimeters, United States only | Free (quota shared across all consumers) | None |
 | [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) | Analyst-traced smoke plumes, North America | Free (public-domain files, no quota) | None |
+| [NOAA HRRR](https://rapidrefresh.noaa.gov/hrrr/) | Forecast smoke concentration, contiguous US | Free (AWS Open Data, no quota) | None |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) | NEXRAD radar mosaic tiles, continental United States | Free | None |
 
 Every one of these is free, keyless, and paid for by somebody else. The table
@@ -304,6 +305,48 @@ than silent; see [API.md](API.md#smoke-plumes).
 
 Coverage is North America, which is what HMS analyzes. Elsewhere the layer is
 empty, and empty means "not covered" rather than "clear air".
+
+## Forecast smoke
+
+The smoke layer above says where the smoke **is**. This one says where a model
+thinks it **goes**, and it is the answer to the question the observed layer
+cannot answer: will the smoke be over the summit on the morning you are there.
+
+It is NOAA's **High-Resolution Rapid Refresh**, which carries smoke as a tracer
+seeded from satellite fire radiative power and transports it on the model's own
+winds. Bluebird reads the near-surface field, at 8 m, which is the air a person
+breathes rather than the whole column the satellite sees. That is the difference
+between this layer and the one above, and it is the reason a plume can appear on
+one and not the other: smoke aloft is visible from orbit and does nothing to the
+air at a trailhead.
+
+Four things bound what it can tell you.
+
+**It reaches 48 hours, and no further.** HRRR runs every hour, but only the
+00/06/12/18Z runs go out that far, so those are the four Bluebird uses. A window
+starting after the run ends draws nothing, and the legend says so rather than
+leaving an empty map to be read as clear air. A trip next weekend is outside
+this layer entirely; the AQI columns still cover about five days.
+
+**It is the contiguous United States.** That is the model domain. A destination
+outside it is not covered, and the legend distinguishes that from covered air
+with no smoke in it.
+
+**The densities are borrowed, and they are a real unit here.** Light, Medium and
+Heavy are drawn with the same three greys the observed layer uses, at 1, 10 and
+21 micrograms per cubic metre. Unlike an analyst's optical judgement, these are
+concentrations. The shared vocabulary is deliberate: two smoke layers with two
+sets of words for the same three steps would be worse than one borrowed scale.
+
+**Below 1 microgram per cubic metre is drawn as nothing.** The model reports a
+non-zero concentration at every point in the country, most of it far too small
+to mean anything, so a floor is what separates smoke from arithmetic.
+
+Bluebird's server fetches one model run and serves it to everyone, exactly as it
+does perimeters and plumes. Nothing about this layer is fetched per visitor, and
+the field it reads comes from the analysis your report already ran, so it can
+never draw an hour or a model your ranking never saw. See
+[API.md](API.md#forecast-smoke).
 
 ## Rain radar
 
