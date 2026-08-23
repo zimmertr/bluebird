@@ -79,10 +79,10 @@ state and interaction, never for judging a forecast.
 ```js
 (() => {
   const real = window.fetch
-  const series = (lat, lon, start, days) => {
+  const series = (lat, lon, start, end) => {
     const time = [], precipitation = [], temperature_2m = [], wind_speed_10m = [], wind_direction_10m = []
-    const t0 = Date.parse(start + 'T00:00Z')
-    for (let h = 0; h < 24 * days; h++) {
+    const t0 = Date.parse(start + 'Z'), t1 = Date.parse(end + 'Z')
+    for (let h = 0; t0 + h * 3600000 <= t1; h++) {
       time.push(new Date(t0 + h * 3600000).toISOString().slice(0, 16))
       precipitation.push(Math.max(0, Math.sin(h / 9) * 0.04))
       temperature_2m.push(52 - (lat - 46) * 3 + Math.sin(h / 4) * 9)
@@ -97,12 +97,11 @@ state and interaction, never for judging a forecast.
     const u = new URL(url)
     const lats = (u.searchParams.get('latitude') || '').split(',').map(Number)
     const lons = (u.searchParams.get('longitude') || '').split(',').map(Number)
-    const start = u.searchParams.get('start_date')
-    const end = u.searchParams.get('end_date')
-    const days = Math.round((Date.parse(end) - Date.parse(start)) / 86400000) + 1
+    const start = u.searchParams.get('start_hour')
+    const end = u.searchParams.get('end_hour')
     const aqi = url.includes('air-quality')
     const body = lats.map((lat, i) => {
-      const s = series(lat, lons[i], start, days)
+      const s = series(lat, lons[i], start, end)
       return {
         latitude: lat,
         longitude: lons[i],
