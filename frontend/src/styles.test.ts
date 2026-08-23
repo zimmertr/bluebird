@@ -689,6 +689,16 @@ describe('shared recipes', () => {
     expect(controlPanelSource.match(controlSized)).toBeNull()
   })
 
+  // Clear filters has no label row to push it into the control column, so it
+  // wears CONTROL_W itself and pushes itself flush right: both of its edges
+  // sit on the column the bounds boxes above it define. A content-sized
+  // button at the left margin was the one control off the grid.
+  it('keeps the clear-filters button in the control column', () => {
+    const button = controlPanelSource.match(/onClick=\{onClearFilters\}[\s\S]*?>/)![0]
+    expect(button).toContain('CONTROL_W')
+    expect(button).toContain('ml-auto')
+  })
+
   // A numeric field is a field with the spinner arrows taken off, not a second
   // field, for the same reason the dropdown is built from FIELD.
   it('builds the numeric field out of the field rather than beside it', () => {
