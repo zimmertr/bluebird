@@ -125,15 +125,16 @@ describe('derived warnings keyed by condition', () => {
 
 describe('blocker severities', () => {
   // The severity table as decided (TJ, 2026-08-22): an oversized polygon
-  // rejects finished work (error), a drawing mid-stroke is work in progress
-  // (warn), and the rest are setup steps where nothing is wrong (info).
+  // rejects finished work (error), and every other blocker reports an
+  // unfinished input where nothing is wrong (info) — a drawing mid-stroke
+  // included.
   it('pins each blocker to its box', () => {
     expect(BLOCKER_SEVERITY).toEqual({
       area: 'error',
       window: 'info',
       dates: 'info',
       destinations: 'info',
-      polygon: 'warn',
+      polygon: 'info',
       types: 'info',
     })
   })

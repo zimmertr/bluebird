@@ -77,7 +77,7 @@ import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabi
 // Why a knob stopped applying live. Each case names the reason the
 // controls went quiet, which is the thing this cue exists to not leave unsaid.
 const COMMIT_CUE: Record<'elevation-widened' | 'window-changed' | 'model-changed', string> = {
-  'elevation-widened': 'A wider elevation range requires a new analysis.',
+  'elevation-widened': 'A new elevation range requires a new analysis.',
   'window-changed': 'A new forecast window requires a new analysis.',
   'model-changed': 'A new forecast model requires a new analysis.',
 }
@@ -508,8 +508,12 @@ export default function ControlPanel({
           },
         ]
       : []),
+    // The refusal is an error like the area cap: a finished request, refused
+    // for its size (TJ, 2026-08-22). It carries no `retry` — retrying a
+    // deterministic refusal verbatim re-buys the same map query for the same
+    // answer — and it never coexists with the run error above.
     ...(refusal && refusalKey && !loading
-      ? [{ key: refusalKey, text: refusal.message, severity: 'warn' as const }]
+      ? [{ key: refusalKey, text: refusal.message, severity: 'error' as const }]
       : []),
     ...(aqiNoteActive
       ? [

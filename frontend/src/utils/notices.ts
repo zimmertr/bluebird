@@ -32,9 +32,10 @@ export type EventNoticeKind = 'error' | 'refusal'
  * (TJ, 2026-08-22):
  *
  * - `error`: the app cannot or will not do what was asked — a failed run, an
- *   oversized polygon, a data supplier that is unreachable.
+ *   oversized polygon, an over-cap refusal, a data supplier that is
+ *   unreachable.
  * - `warn`: the work stands but is degraded or stale — a report that needs a
- *   new analysis, a drawing mid-stroke, a column that came back empty.
+ *   new analysis, a column that came back empty.
  * - `info`: nothing is wrong; the request is not finished yet.
  */
 export type NoticeSeverity = 'error' | 'warn' | 'info'
@@ -54,17 +55,18 @@ export interface FooterMessage {
 
 /**
  * Which box each Analyze blocker speaks from. Not one box for all six: an
- * oversized polygon rejects finished work where a missing date is a setup
- * step, and coloring both amber flattened that difference (TJ, 2026-08-22).
- * `polygon` stays a warning because it reports a drawing mid-stroke — work
- * in progress, neither rejected nor unstarted.
+ * oversized polygon rejects finished work where every other blocker reports
+ * an input that is not finished yet, and coloring them all amber flattened
+ * that difference (TJ, 2026-08-22). A drawing mid-stroke is one of the
+ * unfinished inputs, not a warning: nothing is wrong, the request is not
+ * complete.
  */
 export const BLOCKER_SEVERITY: Record<AnalyzeBlocker, NoticeSeverity> = {
   area: 'error',
   window: 'info',
   dates: 'info',
   destinations: 'info',
-  polygon: 'warn',
+  polygon: 'info',
   types: 'info',
 }
 
