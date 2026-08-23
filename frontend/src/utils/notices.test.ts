@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   BLOCKER_SEVERITY,
-  CUE_SEVERITY,
   FooterMessage,
   isDismissed,
   noticeBoxes,
@@ -137,17 +136,6 @@ describe('blocker severities', () => {
       destinations: 'info',
       polygon: 'info',
       types: 'info',
-    })
-  })
-
-  // A stale report warns; an un-analyzed addition informs — the held rows are
-  // still right, the request has simply grown (TJ, 2026-08-22).
-  it('pins each commit cue to its box', () => {
-    expect(CUE_SEVERITY).toEqual({
-      'model-changed': 'warn',
-      'window-changed': 'warn',
-      'elevation-widened': 'warn',
-      'destination-added': 'info',
     })
   })
 })

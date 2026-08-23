@@ -110,7 +110,7 @@ import {
   windowCaption,
 } from './utils/calendar'
 import { isPointSample } from './utils/forecastWindow'
-import { PresentationKnobs, commitNeeded, presentResults } from './utils/present'
+import { PresentationKnobs, commitNeeded, discoveryKeys, presentResults } from './utils/present'
 import { RemovedEntry, recordRemoval, restorePlace } from './utils/removals'
 import { SortDir, SortKey, WILDFIRE_COL, WILDFIRE_KEY, displayedColumns, visibleColumns } from './utils/tableColumns'
 import { NAME_DEFAULT_PX } from './utils/columnResize'
@@ -1065,7 +1065,11 @@ export default function App() {
         sort_desc: sortDesc,
         custom_destinations: refreshEchoRows(universe, results, removedKeys),
         ...bounds,
-      }, kind)
+      // The identity this refresh answers for is the polygon discovery it
+      // echoes, not the custom-shaped request it rides on: derived from the
+      // request, the snapshot would say "no ring searched" and the panel's
+      // unchanged polygon would falsely cue as new.
+      }, kind, discoveryKeys(resolvedPolygon, destinationTypes, includeUnnamedPeaks))
     } else if (resolvedPolygon) {
       // Discovery — with the custom list riding along so the backend ranks the
       // polygon ∪ CSV union as one report.
@@ -1330,6 +1334,19 @@ export default function App() {
       pendingDestinations(csvRows, searched.places, analyzed?.customKeys ?? NO_CUSTOM, removedKeys),
     [csvRows, searched.places, analyzed, removedKeys],
   )
+  // Which discovery the panel would run now, in the spelling the analysis
+  // snapshot records. A polygon cue needs a COMPLETE ring: mid-draw the
+  // polygon blocker already speaks, and a cleared ring leaves nothing to
+  // re-search. The types cue is gated on the ring matching, or a redrawn
+  // polygon would cue twice for one gesture.
+  const panelDiscovery = discoveryKeys(polygon, destinationTypes, includeUnnamedPeaks)
+  const polygonChanged =
+    analyzed !== null && polygon !== null && panelDiscovery.polygonKey !== analyzed.polygonKey
+  const typesChanged =
+    analyzed !== null &&
+    polygon !== null &&
+    panelDiscovery.polygonKey === analyzed.polygonKey &&
+    panelDiscovery.typesKey !== analyzed.typesKey
   // Every knob that has stopped being live, and why. Empty while everything
   // applies instantly, which is the normal case: the cues exist so the
   // controls never feel dead, and showing one when the knobs are in fact live
@@ -1339,7 +1356,13 @@ export default function App() {
   // the dots cannot disagree about what an analysis has not covered.
   const commitReasons =
     !loading && response !== null
-      ? commitNeeded(analyzed, liveKnobs, windowChanged, modelChanged, pending.length > 0)
+      ? commitNeeded(analyzed, liveKnobs, {
+          window: windowChanged,
+          model: modelChanged,
+          polygon: polygonChanged,
+          types: typesChanged,
+          destinationAdded: pending.length > 0,
+        })
       : []
   // The table bar's row count: shown, of what the knobs admit, and — only when
   // a forecast bound is hiding some — of what was analyzed. An elected top-N

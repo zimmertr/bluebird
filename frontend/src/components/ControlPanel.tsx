@@ -53,7 +53,6 @@ import type { CommitReason } from '../utils/present'
 import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analyzeGate'
 import {
   BLOCKER_SEVERITY,
-  CUE_SEVERITY,
   type FooterMessage,
   type NoticeSeverity,
   isDismissed,
@@ -89,6 +88,8 @@ const COMMIT_CUE: Record<CommitReason, string> = {
   'elevation-widened': commitCue('elevation range'),
   'window-changed': commitCue('forecast window'),
   'model-changed': commitCue('forecast model'),
+  'polygon-changed': commitCue('search area'),
+  'types-changed': commitCue('destination type'),
   'destination-added': commitCue('destination'),
 }
 
@@ -232,8 +233,8 @@ interface Props {
   // Analyze at all (#188), so this cue is the exception rather than the rule
   // and has to say which exception it is.
   // Every knob that has stopped applying live, in `commitNeeded`'s fixed
-  // order (model, window, elevation, destination). One bullet each, at the
-  // severity `CUE_SEVERITY` assigns.
+  // order (model, window, elevation, polygon, types, destination). One warn
+  // bullet each.
   commitReasons?: CommitReason[]
   // At least one place has been searched by name. Searched places are a ranked
   // input like the CSV, so one alone enables Analyze with no polygon drawn.
@@ -498,13 +499,14 @@ export default function ControlPanel({
       : []),
     // Every stale-report reason at once (TJ, 2026-08-22): a user who changed
     // the window and the model is owed both sentences, in `commitNeeded`'s
-    // fixed order, each dismissable alone. Severity is per cue: a stale
-    // report warns, an un-analyzed addition informs (`CUE_SEVERITY`).
+    // fixed order, each dismissable alone. One severity for the whole cue
+    // family: the report no longer answers what the panel asks, which is
+    // warn's definition.
     ...(!loading
       ? (commitReasons ?? []).map((reason) => ({
           key: `cue:${reason}`,
           text: COMMIT_CUE[reason],
-          severity: CUE_SEVERITY[reason],
+          severity: 'warn' as const,
         }))
       : []),
     ...blockers.map((blocker) => ({

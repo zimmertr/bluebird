@@ -24,7 +24,6 @@
  */
 
 import type { AnalyzeBlocker } from './analyzeGate'
-import type { CommitReason } from './present'
 
 export type EventNoticeKind = 'error' | 'refusal'
 
@@ -35,8 +34,10 @@ export type EventNoticeKind = 'error' | 'refusal'
  * - `error`: the app cannot or will not do what was asked — a failed run, an
  *   oversized polygon, an over-cap refusal, a data supplier that is
  *   unreachable.
- * - `warn`: the work stands but is degraded or stale — a report that needs a
- *   new analysis, a column that came back empty.
+ * - `warn`: the report on screen no longer answers what the panel asks —
+ *   every commit cue (a changed window, model, band, ring, type set, or an
+ *   un-analyzed addition; all one severity, TJ 2026-08-22), and a column
+ *   that came back empty.
  * - `info`: nothing is wrong; the request is not finished yet.
  */
 export type NoticeSeverity = 'error' | 'warn' | 'info'
@@ -71,20 +72,6 @@ export const BLOCKER_SEVERITY: Record<AnalyzeBlocker, NoticeSeverity> = {
   types: 'info',
 }
 
-/**
- * Which box each commit cue speaks from. Three of the four report a held
- * report gone stale — every number came from a window, model or band the
- * panel no longer names — which is warn's definition. `destination-added` is
- * the odd one out (TJ, 2026-08-22): the held rows are still right, the new
- * destination is simply not analyzed yet, which is info's definition — the
- * request is not finished.
- */
-export const CUE_SEVERITY: Record<CommitReason, NoticeSeverity> = {
-  'model-changed': 'warn',
-  'window-changed': 'warn',
-  'elevation-widened': 'warn',
-  'destination-added': 'info',
-}
 
 /**
  * Assemble the footer's boxes: at most three, always in error, warning, info

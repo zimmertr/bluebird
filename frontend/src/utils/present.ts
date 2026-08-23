@@ -77,7 +77,45 @@ export type CommitReason =
   | 'elevation-widened'
   | 'window-changed'
   | 'model-changed'
+  | 'polygon-changed'
+  | 'types-changed'
   | 'destination-added'
+
+/**
+ * The change flags `commitNeeded` cannot compute from the knobs it holds: each
+ * is a comparison against something the caller records about the last analysis
+ * (its window, its model, its discovery inputs, its custom set). An object
+ * rather than positional booleans, because five `false`s in a row is how a
+ * caller swaps two of them without the compiler noticing.
+ */
+export interface CommitChanges {
+  window: boolean
+  model: boolean
+  polygon: boolean
+  types: boolean
+  destinationAdded: boolean
+}
+
+/**
+ * The identity of an analysis's discovery inputs: which ring was searched, and
+ * for which kinds. One builder for both sides of the comparison — recorded off
+ * the request when an analysis commits, and derived from the panel afterwards —
+ * so the two can never disagree on spelling. The unnamed-peaks toggle joins
+ * the types key because it widens what discovery finds the same way checking
+ * another type does.
+ */
+export function discoveryKeys(
+  polygon: { coordinates: number[][][] } | null | undefined,
+  types: readonly string[] | undefined,
+  includeUnnamed: boolean | undefined,
+): { polygonKey: string; typesKey: string } {
+  return {
+    polygonKey: JSON.stringify(polygon?.coordinates ?? null),
+    // Sorted so checking peaks then lakes and lakes then peaks are one
+    // discovery, matching the order-independent cache key upstream.
+    typesKey: `${[...(types ?? [])].sort().join(',')}${includeUnnamed ? '|unnamed' : ''}`,
+  }
+}
 
 /**
  * Every reason the displayed report cannot be re-derived from what the
@@ -100,11 +138,19 @@ export type CommitReason =
  *   typing two datetimes was hard to do by accident.
  * - `'elevation-widened'`: see `bandNarrows`, and `bandGated` for the reports
  *   this cannot apply to.
+ * - `'polygon-changed'`: a complete polygon is drawn and it is not the ring
+ *   the report's discovery searched — including when that report searched no
+ *   ring at all. Silent while no complete polygon exists: mid-draw the
+ *   polygon blocker already speaks, and a cleared ring leaves nothing to
+ *   re-search.
+ * - `'types-changed'`: same ring, different kinds — the checked types (or the
+ *   unnamed-peaks toggle) are not the ones discovery ran with. Gated on the
+ *   ring matching, because a changed ring already cues above and would make
+ *   this line a duplicate.
  * - `'destination-added'`: the panel names a custom destination the analysis
  *   never covered (`pendingDestinations` is the caller's predicate — the same
  *   one behind the map's pending dots, so the cue and the dots cannot
- *   disagree). The one info-severity cue: the held rows are not stale, the
- *   addition is simply not analyzed yet (TJ, 2026-08-22).
+ *   disagree).
  *
  * ALL that apply, not the first (TJ, 2026-08-22): a user who changed both the
  * window and the model is owed both sentences, and the notice box bullets
@@ -115,21 +161,21 @@ export type CommitReason =
 export function commitNeeded(
   analyzed: AnalyzedSnapshot | null,
   panel: PresentationKnobs,
-  windowChanged: boolean,
-  modelChanged: boolean,
-  destinationAdded: boolean,
+  changed: CommitChanges,
 ): CommitReason[] {
   // Nothing on screen yet, so nothing to be out of date with. Since #240
   // removed the server SSE fallback, a committed report always holds its full
   // field, so there is no path where a sort or a limit stops being live.
   if (analyzed === null) return []
   const reasons: CommitReason[] = []
-  if (modelChanged) reasons.push('model-changed')
-  if (windowChanged) reasons.push('window-changed')
+  if (changed.model) reasons.push('model-changed')
+  if (changed.window) reasons.push('window-changed')
   if (analyzed.bandGated && !bandNarrows(analyzed.band, panel.band)) {
     reasons.push('elevation-widened')
   }
-  if (destinationAdded) reasons.push('destination-added')
+  if (changed.polygon) reasons.push('polygon-changed')
+  if (changed.types) reasons.push('types-changed')
+  if (changed.destinationAdded) reasons.push('destination-added')
   return reasons
 }
 
