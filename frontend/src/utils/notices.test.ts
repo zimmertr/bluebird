@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { isDismissed, noticeKey, pruneDismissals } from './notices'
+import {
+  BLOCKER_SEVERITY,
+  FooterMessage,
+  isDismissed,
+  noticeBoxes,
+  noticeKey,
+  pruneDismissals,
+} from './notices'
 
 describe('noticeKey', () => {
   it('identifies a notice by kind and message', () => {
@@ -101,9 +108,9 @@ describe('derived warnings keyed by condition', () => {
     expect(isDismissed('blocker:destinations', dismissed)).toBe(false) // then removed again
   })
 
-  it('dismissing the warnings box leaves a later, different condition visible', () => {
-    // The box X records the keys it currently shows; a new blocker later is
-    // not among them and reopens the box alone.
+  it('dismissing every shown message leaves a later, different condition visible', () => {
+    // Each message dismisses under its own key; a new blocker later is not
+    // among them and reopens its box alone.
     let dismissed: readonly string[] = ['blocker:destinations', 'cue:window-changed']
     dismissed = pruneDismissals(dismissed, [
       'blocker:destinations',
@@ -113,5 +120,77 @@ describe('derived warnings keyed by condition', () => {
     expect(isDismissed('blocker:area', dismissed)).toBe(false)
     expect(isDismissed('blocker:destinations', dismissed)).toBe(true)
     expect(isDismissed('cue:window-changed', dismissed)).toBe(true)
+  })
+})
+
+describe('blocker severities', () => {
+  // The severity table as decided (TJ, 2026-08-22): an oversized polygon
+  // rejects finished work (error), and every other blocker reports an
+  // unfinished input where nothing is wrong (info) — a drawing mid-stroke
+  // included.
+  it('pins each blocker to its box', () => {
+    expect(BLOCKER_SEVERITY).toEqual({
+      area: 'error',
+      window: 'info',
+      dates: 'info',
+      destinations: 'info',
+      polygon: 'info',
+      types: 'info',
+    })
+  })
+})
+
+describe('noticeBoxes', () => {
+  const msg = (key: string, severity: FooterMessage['severity']): FooterMessage => ({
+    key,
+    text: key,
+    severity,
+  })
+
+  it('renders one box per severity, in error, warning, info order', () => {
+    // Caller order is info-first here; the boxes must not follow it.
+    const boxes = noticeBoxes([
+      msg('blocker:dates', 'info'),
+      msg('cue:window-changed', 'warn'),
+      msg('fire:unavailable', 'error'),
+    ])
+    expect(boxes.map((b) => b.severity)).toEqual(['error', 'warn', 'info'])
+  })
+
+  it('drops a box with nothing to say', () => {
+    const boxes = noticeBoxes([msg('blocker:dates', 'info')])
+    expect(boxes.map((b) => b.severity)).toEqual(['info'])
+  })
+
+  it('returns no boxes for no messages', () => {
+    expect(noticeBoxes([])).toEqual([])
+  })
+
+  it('keeps the caller order inside one box', () => {
+    // The caller lists messages by what the reader can act on; grouping must
+    // not re-sort them.
+    const boxes = noticeBoxes([
+      msg('error:run', 'error'),
+      msg('blocker:area', 'error'),
+      msg('fire:unavailable', 'error'),
+    ])
+    expect(boxes).toHaveLength(1)
+    expect(boxes[0].messages.map((m) => m.key)).toEqual([
+      'error:run',
+      'blocker:area',
+      'fire:unavailable',
+    ])
+  })
+
+  it('carries the retry flag through for the box to read', () => {
+    const boxes = noticeBoxes([
+      { key: 'error:run', text: 'x', severity: 'error', retry: true },
+      msg('blocker:area', 'error'),
+    ])
+    expect(boxes[0].messages.some((m) => m.retry)).toBe(true)
+    // A state problem alone summons no retry button.
+    expect(noticeBoxes([msg('blocker:area', 'error')])[0].messages.some((m) => m.retry)).toBe(
+      false,
+    )
   })
 })

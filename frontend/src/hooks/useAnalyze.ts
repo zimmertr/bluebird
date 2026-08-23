@@ -19,7 +19,7 @@ import {
 import { pinKey } from '../utils/customList'
 import { OpenMeteoModelCoverage } from '../utils/openMeteo'
 import { SelectionKind } from '../utils/calendar'
-import { AnalyzedSnapshot } from '../utils/present'
+import { AnalyzedSnapshot, discoveryKeys } from '../utils/present'
 import type { ForecastModelOption } from './useCapabilities'
 
 export type Progress = {
@@ -77,6 +77,14 @@ export type AnalyzedView = AnalyzedSnapshot & {
   // afterwards, and when it does the held rows are not stale so much as
   // answers to a different question.
   forecastModel: string
+  // The discovery inputs behind the field, as `discoveryKeys` spells them:
+  // which ring was searched, and for which kinds. Recorded so the panel can
+  // ask whether the drawn polygon and checked types are still the ones this
+  // report's discovery ran with. Derived off the request by default; the
+  // weather-only refresh path carries no polygon in its request and passes
+  // the panel's keys explicitly instead.
+  polygonKey: string
+  typesKey: string
 }
 
 // FastAPI validation errors (422) carry detail as an array of {msg, ...}
@@ -137,7 +145,15 @@ export function useAnalyze(
   // moment it resumes — the overlay renders a live countdown from this.
   const [paceEndMs, setPaceEndMs] = useState<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
-  const lastRequestRef = useRef<{ request: AnalyzeRequest; kind: SelectionKind } | null>(null)
+  const lastRequestRef = useRef<{
+    request: AnalyzeRequest
+    kind: SelectionKind
+    discovery: { polygonKey: string; typesKey: string }
+  } | null>(null)
+  // The discovery identity of the analysis in flight, for commit() to record.
+  // A ref rather than a commit() parameter because commit is reached through
+  // the client pipeline, and the identity is fixed the moment analyze() runs.
+  const pendingDiscoveryRef = useRef(discoveryKeys(null, [], false))
   // The forecasts the last browser analysis fetched, kept so the next one only
   // pays for what it does not already have. Widening the elevation band is the
   // case this exists for: it readmits destinations this report never fetched
@@ -164,7 +180,12 @@ export function useAnalyze(
   // transient errors; a deterministic refusal gets no retry, because run
   // verbatim it can only repeat itself).
   function retry() {
-    if (lastRequestRef.current) analyze(lastRequestRef.current.request, lastRequestRef.current.kind)
+    if (lastRequestRef.current)
+      analyze(
+        lastRequestRef.current.request,
+        lastRequestRef.current.kind,
+        lastRequestRef.current.discovery,
+      )
   }
 
   // Clear the current ranked results without fetching. Used by a pins-only
@@ -216,6 +237,8 @@ export function useAnalyze(
         (request.custom_destinations ?? []).map((d) => pinKey(d.latitude, d.longitude)),
       ),
       forecastModel: request.forecast_model,
+      polygonKey: pendingDiscoveryRef.current.polygonKey,
+      typesKey: pendingDiscoveryRef.current.typesKey,
     })
     // A fresh report, which is not the same event as a fresh row array: live
     // knobs rebuild the rows constantly. Surfaces that reset per report (the
@@ -367,8 +390,21 @@ export function useAnalyze(
   // election) and the table shows exactly the ranked rows. Repeats may be
   // served from short-lived caches; nothing is refetched behind the user's
   // back.
-  async function analyze(request: AnalyzeRequest, kind: SelectionKind = 'days') {
-    lastRequestRef.current = { request, kind }
+  async function analyze(
+    request: AnalyzeRequest,
+    kind: SelectionKind = 'days',
+    discovery?: { polygonKey: string; typesKey: string },
+  ) {
+    // The discovery identity this run answers for. Derived off the request
+    // unless the caller says otherwise — the weather-only refresh re-fetches
+    // a polygon report through the custom path, so its request carries no
+    // polygon and deriving from it would record "no ring searched" for a
+    // report that plainly has one.
+    const disc =
+      discovery ??
+      discoveryKeys(request.polygon ?? null, request.destination_types, request.include_unnamed_peaks)
+    pendingDiscoveryRef.current = disc
+    lastRequestRef.current = { request, kind, discovery: disc }
 
     const controller = new AbortController()
     abortRef.current = controller

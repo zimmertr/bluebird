@@ -4,9 +4,12 @@ import { pinKey } from './customList'
 import { Constraints, NO_CONSTRAINTS } from './clientAnalyze'
 import {
   AnalyzedSnapshot,
+  CommitChanges,
   PresentationKnobs,
   bandNarrows,
   commitNeeded,
+  discoveryChanges,
+  discoveryKeys,
   presentResults,
 } from './present'
 
@@ -58,6 +61,17 @@ const KNOBS: PresentationKnobs = {
 // the polygon case, where a widen genuinely has rows nobody fetched.
 const ANALYZED: AnalyzedSnapshot = { ...KNOBS, bandGated: true }
 
+// The change flags, defaulting to "nothing moved" so a test names only the
+// flag it is about.
+const changed = (over: Partial<CommitChanges> = {}): CommitChanges => ({
+  window: false,
+  model: false,
+  polygon: false,
+  types: false,
+  destinationAdded: false,
+  ...over,
+})
+
 const NONE = new Set<string>()
 
 // ── bandNarrows ────────────────────────────────────────────────────────────
@@ -91,32 +105,35 @@ describe('bandNarrows', () => {
 
 describe('commitNeeded', () => {
   it('is silent before the first analysis', () => {
-    expect(commitNeeded(null, KNOBS, false, false)).toBeNull()
+    expect(commitNeeded(null, KNOBS, changed())).toEqual([])
   })
 
   // A model change is a commit for a stronger reason than a window change: the
   // held field is not missing rows, every number in it came from a model the
   // panel no longer names.
   it('asks for an Analyze when the model changes', () => {
-    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, false, true)).toBe('model-changed')
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, changed({ model: true }))).toEqual(['model-changed'])
   })
 
-  // Changing the model can clamp the window as a side effect, so both flags
-  // arrive together. Reporting the window would name the consequence and leave
-  // the cause unsaid.
-  it('names the model rather than the window it clamped', () => {
-    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, true, true)).toBe('model-changed')
+  // A user who changed both is owed both sentences (TJ, 2026-08-22), model
+  // first: a model change can clamp the window as a side effect, and leading
+  // with the model keeps the clamp attributed to its cause.
+  it('reports the model and the window together, model first', () => {
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, changed({ window: true, model: true }))).toEqual([
+      'model-changed',
+      'window-changed',
+    ])
   })
 
   it('still names the window when only the window moved', () => {
-    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, true, false)).toBe('window-changed')
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, changed({ window: true }))).toEqual(['window-changed'])
   })
 
   it('is silent for sort, direction and limit changes over a held field', () => {
     const analyzed = { ...ANALYZED }
-    expect(commitNeeded(analyzed, { ...KNOBS, sortBy: 'wind_avg_mph' }, false, false)).toBeNull()
-    expect(commitNeeded(analyzed, { ...KNOBS, sortDesc: true }, false, false)).toBeNull()
-    expect(commitNeeded(analyzed, { ...KNOBS, limit: 50 }, false, false)).toBeNull()
+    expect(commitNeeded(analyzed, { ...KNOBS, sortBy: 'wind_avg_mph' }, changed())).toEqual([])
+    expect(commitNeeded(analyzed, { ...KNOBS, sortDesc: true }, changed())).toEqual([])
+    expect(commitNeeded(analyzed, { ...KNOBS, limit: 50 }, changed())).toEqual([])
   })
 
   it('is silent for a forecast bound over a held field', () => {
@@ -124,18 +141,18 @@ describe('commitNeeded', () => {
     // browser already has, so loosening one is as live as tightening it.
     const analyzed = { ...ANALYZED }
     const loosened = { ...KNOBS, constraints: { ...NO_CONSTRAINTS, maxAqi: 200 } }
-    expect(commitNeeded(analyzed, loosened, false, false)).toBeNull()
+    expect(commitNeeded(analyzed, loosened, changed())).toEqual([])
   })
 
   it('is silent for an AQI ranking, which the eager AQI fetch already covers', () => {
-    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS, sortBy: 'aqi_avg' }, false, false)).toBeNull()
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS, sortBy: 'aqi_avg' }, changed())).toEqual([])
   })
 
   it('asks for an Analyze when the elevation band widens', () => {
     const analyzed = { ...ANALYZED, band: { min: 8000, max: null } }
-    expect(commitNeeded(analyzed, { ...analyzed, band: { min: 6000, max: null } }, false, false)).toBe(
-      'elevation-widened',
-    )
+    expect(
+      commitNeeded(analyzed, { ...analyzed, band: { min: 6000, max: null } }, changed()),
+    ).toEqual(['elevation-widened'])
   })
 
   it('stays silent on a widened band the report was never gated by', () => {
@@ -145,13 +162,15 @@ describe('commitNeeded', () => {
     // already on screen.
     const analyzed = { ...ANALYZED, bandGated: false, band: { min: 8000, max: null } }
     expect(
-      commitNeeded(analyzed, { ...analyzed, band: { min: null, max: null } }, false, false),
-    ).toBeNull()
+      commitNeeded(analyzed, { ...analyzed, band: { min: null, max: null } }, changed()),
+    ).toEqual([])
   })
 
   it('stays silent when the band narrows', () => {
     const analyzed = { ...ANALYZED, band: { min: 8000, max: null } }
-    expect(commitNeeded(analyzed, { ...analyzed, band: { min: 9000, max: null } }, false, false)).toBeNull()
+    expect(
+      commitNeeded(analyzed, { ...analyzed, band: { min: 9000, max: null } }, changed()),
+    ).toEqual([])
   })
 
   // The forecast window is a data knob, so this one is not a comparison of held
@@ -159,20 +178,167 @@ describe('commitNeeded', () => {
   // cue since the calendar made changing days a click rather than two typed
   // datetimes (#166).
   it('asks for an Analyze when the forecast window is not the one behind the rows', () => {
-    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, true, false)).toBe('window-changed')
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, changed({ window: true }))).toEqual(['window-changed'])
   })
 
-  // Named ahead of the band: it is the knob the user just touched, which is
-  // the more useful sentence even when something else also went stale.
-  it('names the window over a widened band', () => {
+  it('reports the window and a widened band together, window first', () => {
     const analyzed = { ...ANALYZED, band: { min: 8000, max: null } }
     expect(
-      commitNeeded(analyzed, { ...analyzed, band: { min: 6000, max: null } }, true, false),
-    ).toBe('window-changed')
+      commitNeeded(analyzed, { ...analyzed, band: { min: 6000, max: null } }, changed({ window: true })),
+    ).toEqual(['window-changed', 'elevation-widened'])
+  })
+
+  it('reports all three when all three went stale', () => {
+    const analyzed = { ...ANALYZED, band: { min: 8000, max: null } }
+    expect(
+      commitNeeded(analyzed, { ...analyzed, band: { min: 6000, max: null } }, changed({ window: true, model: true })),
+    ).toEqual(['model-changed', 'window-changed', 'elevation-widened'])
   })
 
   it('says nothing about a window before the first analysis', () => {
-    expect(commitNeeded(null, KNOBS, true, false)).toBeNull()
+    expect(commitNeeded(null, KNOBS, changed({ window: true }))).toEqual([])
+  })
+
+  // The caller's predicate is `pendingDestinations` — the set behind the
+  // map's pending dots — so the cue and the dots cannot disagree.
+  it('asks for an Analyze when a destination was added since the analysis', () => {
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, changed({ destinationAdded: true }))).toEqual([
+      'destination-added',
+    ])
+  })
+
+  it('reports an added destination after the stale-report reasons', () => {
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, changed({ window: true, model: true, destinationAdded: true }))).toEqual([
+      'model-changed',
+      'window-changed',
+      'destination-added',
+    ])
+  })
+
+  it('says nothing about an added destination before the first analysis', () => {
+    // Everything is pending before the first run; the map's neutral dots and
+    // the un-forecasted rows already say so, and there is no report to be
+    // out of date with.
+    expect(commitNeeded(null, KNOBS, changed({ destinationAdded: true }))).toEqual([])
+  })
+
+  it('asks for an Analyze when the search area or the types changed', () => {
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, changed({ polygon: true }))).toEqual([
+      'polygon-changed',
+    ])
+    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, changed({ types: true }))).toEqual([
+      'types-changed',
+    ])
+  })
+
+  it('reports every reason at once, in the fixed order', () => {
+    const analyzed = { ...ANALYZED, band: { min: 8000, max: null } }
+    expect(
+      commitNeeded(
+        analyzed,
+        { ...analyzed, band: { min: 6000, max: null } },
+        changed({ window: true, model: true, polygon: true, types: true, destinationAdded: true }),
+      ),
+    ).toEqual([
+      'model-changed',
+      'window-changed',
+      'elevation-widened',
+      'polygon-changed',
+      'types-changed',
+      'destination-added',
+    ])
+  })
+})
+
+// ── discoveryKeys ──────────────────────────────────────────────────────────
+
+describe('discoveryKeys', () => {
+  const ring = { coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] }
+
+  it('is order-independent over the type set, like the cache key upstream', () => {
+    expect(discoveryKeys(ring, ['peak', 'lake'], false).typesKey).toBe(
+      discoveryKeys(ring, ['lake', 'peak'], false).typesKey,
+    )
+  })
+
+  it('treats the unnamed-peaks toggle as a type change', () => {
+    // The toggle widens what discovery finds the same way checking another
+    // type does, so it must move the same key.
+    expect(discoveryKeys(ring, ['peak'], true).typesKey).not.toBe(
+      discoveryKeys(ring, ['peak'], false).typesKey,
+    )
+  })
+
+  it('tells two rings apart, and a ring from none', () => {
+    const other = { coordinates: [[[0, 0], [2, 0], [2, 2], [0, 0]]] }
+    expect(discoveryKeys(ring, [], false).polygonKey).not.toBe(
+      discoveryKeys(other, [], false).polygonKey,
+    )
+    expect(discoveryKeys(ring, [], false).polygonKey).not.toBe(
+      discoveryKeys(null, [], false).polygonKey,
+    )
+  })
+
+  it('spells the no-discovery case identically for both sides', () => {
+    // The custom-only request omits polygon and types; the panel derives from
+    // null and an unchecked set. The two must land on one spelling or every
+    // custom-only report would cue.
+    expect(discoveryKeys(undefined, undefined, undefined)).toEqual(
+      discoveryKeys(null, [], false),
+    )
+  })
+})
+
+// ── discoveryChanges ───────────────────────────────────────────────────────
+
+describe('discoveryChanges', () => {
+  const ANALYZED_KEYS = discoveryKeys(
+    { coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] },
+    ['lake'],
+    false,
+  )
+  const REDRAWN = { coordinates: [[[0, 0], [2, 0], [2, 2], [0, 0]]] }
+
+  it('reports both when the ring and the types both moved', () => {
+    // The bug this function exists to pin: suppressing the types cue under a
+    // changed ring silently dropped the knob the user had just clicked.
+    expect(
+      discoveryChanges(ANALYZED_KEYS, discoveryKeys(REDRAWN, ['lake', 'peak'], false), true),
+    ).toEqual({ polygon: true, types: true })
+  })
+
+  it('reports each alone when only one moved', () => {
+    const ring = { coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] }
+    expect(discoveryChanges(ANALYZED_KEYS, discoveryKeys(REDRAWN, ['lake'], false), true)).toEqual({
+      polygon: true,
+      types: false,
+    })
+    expect(
+      discoveryChanges(ANALYZED_KEYS, discoveryKeys(ring, ['lake', 'peak'], false), true),
+    ).toEqual({ polygon: false, types: true })
+  })
+
+  it('stays silent when neither moved', () => {
+    const same = { coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] }
+    expect(discoveryChanges(ANALYZED_KEYS, discoveryKeys(same, ['lake'], false), true)).toEqual({
+      polygon: false,
+      types: false,
+    })
+  })
+
+  it('stays silent without a complete ring, whatever the keys say', () => {
+    // Mid-draw the polygon blocker is already speaking; a cleared ring leaves
+    // nothing to re-search; types with no ring discover nothing.
+    expect(
+      discoveryChanges(ANALYZED_KEYS, discoveryKeys(REDRAWN, ['peak'], true), false),
+    ).toEqual({ polygon: false, types: false })
+  })
+
+  it('stays silent before the first analysis', () => {
+    expect(discoveryChanges(null, discoveryKeys(REDRAWN, ['peak'], false), true)).toEqual({
+      polygon: false,
+      types: false,
+    })
   })
 })
 
