@@ -148,6 +148,7 @@ because one request can spend more than a thousand weighted Open-Meteo calls
 from the deployment's shared quota. They work unchanged on a self-hosted
 instance and from inside the deployment's own network.
 | `GET /api/smoke` | Smoke plumes over North America, cached from NOAA's Hazard Mapping System. |
+| `GET /api/smoke/forecast` | Forecast smoke over a viewport, hour by hour, from NOAA's HRRR model. |
 | `GET /api/config` | Deployment-specific UI settings. Internal to the web app. |
 | `GET /healthz` | Liveness probe. Answers `GET` and `HEAD`. |
 
@@ -293,6 +294,61 @@ instance, refreshed on a timer, served **past its refresh deadline** when the
 upstream is unreachable, and only a `503` from an instance that has never once
 completed a fetch. Coverage is North America, so an empty result elsewhere means
 "not covered", not "clear air". See [DATA.md](DATA.md#smoke).
+
+### Forecast smoke
+
+`GET /api/smoke/forecast` is the forecast counterpart to the endpoint above.
+Where HMS is an analyst tracing what a satellite already saw, this is a model
+saying where that smoke goes next. It takes a bounding box and a window:
+
+```bash
+curl -s "https://bluebirdforecast.com/api/smoke/forecast\
+?bbox=-114.0,46.6,-113.0,47.5\
+&start=2026-08-23T14:00:00Z&end=2026-08-23T17:00:00Z"
+```
+
+```json
+{
+  "cycle": "2026-08-23T00:00:00Z",
+  "fetched_at": 1787472000000,
+  "west": -114.0, "south": 46.6, "east": -113.0, "north": 47.5,
+  "cols": 25, "rows": 33,
+  "pitch_km": 3.0,
+  "hours": [
+    { "time": 1787493600000, "cells": [0, 0, 1, 2, 3, "..."] }
+  ]
+}
+```
+
+`cells` is `cols * rows` density classes, row-major from the **south-west**
+corner, so the value at column `c` and row `r` is `cells[r * cols + c]`. `0` is
+below the reporting floor, `1` `2` and `3` are Light, Medium and Heavy, and
+**`255` means the cell falls outside the model's area**. That last one is not
+clean air and must not be drawn as any density: it is the same distinction the
+wildfire column makes between a check that cleared and a check that never ran.
+
+The classes are concentrations rather than an analyst's judgement, cut at 1, 10
+and 21 micrograms per cubic metre. They carry the same three names as
+`GET /api/smoke` on purpose, so a caller drawing both layers needs one legend.
+
+The lattice is aligned to longitude and latitude and tiles the requested box
+exactly, which is why it can be drawn as a plain image over those four edges.
+That is a resampling, not the model's own grid: HRRR is on a Lambert conformal
+projection turned as much as 15 degrees from north over the western states, and
+its cells drawn directly would sit on a slant. `pitch_km` is how wide one cell
+is, never finer than the model's own 3 km, and coarser when the box is large
+enough to need it.
+
+Two limits are normal answers rather than errors. A window past the run's last
+hour returns `"hours": []` — HRRR reaches 48 hours, and only the 00/06/12/18Z
+runs go that far, which is why `cycle` is always one of those four. A box
+outside the contiguous United States returns cells of `255`. Read `cycle` before
+trusting the rest: it says which run these hours came from.
+
+The caching contract is the one perimeters and plumes share: one snapshot per
+instance, refreshed on a timer, served past its refresh deadline when NOAA is
+unreachable, and a `503` only from an instance that has never once completed a
+fetch. See [DATA.md](DATA.md#forecast-smoke).
 
 The rain-radar overlay has no endpoint here and never will: those tiles go from
 [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) straight to

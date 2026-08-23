@@ -15,6 +15,7 @@ import { useChartSelection } from './hooks/useChartSelection'
 import { useFireProximity } from './hooks/useFireProximity'
 import { fireKey } from './utils/fireProximity'
 import { useForecastGrid } from './hooks/useForecastGrid'
+import { useSmokeForecast } from './hooks/useSmokeForecast'
 import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
@@ -69,6 +70,13 @@ import {
   radarScaleEnds,
 } from './utils/radar'
 import { HMS_HREF, SMOKE_DENSITIES, SMOKE_EDGE, smokeSwatch } from './utils/smoke'
+import {
+  HRRR_HREF,
+  frameFor,
+  smokeForecastLegend,
+  smokeImageCoordinates,
+  smokeRaster,
+} from './utils/smokeForecast'
 import {
   TimelineAxis,
   availableAxes,
@@ -419,6 +427,13 @@ export default function App() {
   // from the pod.
   const [showRadar, setShowRadar] = useState(() => restored?.showRadar ?? false)
   const [showSmoke, setShowSmoke] = useState(() => restored?.showSmoke ?? false)
+  // Forecast smoke (#298). Its own toggle beside the observed one, because a
+  // reader can want either or both, and the two answer different questions:
+  // one is what a person traced from a satellite, the other is where a model
+  // says it goes next.
+  const [showSmokeForecast, setShowSmokeForecast] = useState(
+    () => restored?.showSmokeForecast ?? false,
+  )
   // The forecast grid (#246), on the same contract as the three above with one
   // difference worth naming: this toggle is a spend boundary. Turning it on is
   // what fetches a lattice of forecasts over the analyzed field, and leaving it
@@ -453,6 +468,12 @@ export default function App() {
     { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
     { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
     { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
+    {
+      key: 'smoke-forecast',
+      label: 'Forecast smoke',
+      checked: showSmokeForecast,
+      onChange: setShowSmokeForecast,
+    },
     { key: 'grid', label: 'Forecast grid', checked: showGrid, onChange: setShowGrid },
   ]
   // Which drawing the grid's samples get. Blocks by default: it is the style
@@ -845,6 +866,7 @@ export default function App() {
       showWildfires,
       showRadar,
       showSmoke,
+      showSmokeForecast,
       showGrid,
       gridStyle,
       gridReachFrac,
@@ -880,6 +902,7 @@ export default function App() {
     showWildfires,
     showRadar,
     showSmoke,
+    showSmokeForecast,
     showGrid,
     gridStyle,
     gridReachFrac,
@@ -1537,6 +1560,36 @@ export default function App() {
     displayReachFrac: gridReachDraft ?? gridReachFrac,
     analysisSeq,
   })
+  // Forecast smoke (#298). One fetch per analysis covers every hour of the
+  // window, so playback below is reading an array rather than spending.
+  const smokeForecast = useSmokeForecast({
+    enabled: showSmokeForecast,
+    field: universe,
+    times: forecastTimes,
+    analysisSeq,
+  })
+  // Which hour the layer draws. It follows the playhead whenever the forecast
+  // axis is the live one, and otherwise rests on the window's first hour —
+  // which is the whole window for a Current analysis, and a stable picture
+  // rather than a blank one while the reader is scrubbing radar instead.
+  const smokeHourMs =
+    forecastTimes.length === 0 ? null : (forecastTimes[playbackIndex ?? 0] ?? null)
+  const smokeForecastFrame = frameFor(smokeForecast.response, smokeHourMs)
+  const smokeForecastImage = useMemo(() => {
+    if (!showSmokeForecast || !smokeForecast.response || !smokeForecastFrame) return null
+    return {
+      raster: smokeRaster(smokeForecast.response, smokeForecastFrame),
+      coordinates: smokeImageCoordinates(smokeForecast.response),
+    }
+  }, [showSmokeForecast, smokeForecast.response, smokeForecastFrame])
+  // The layer's one legend line. Read even while the fetch is out, because a
+  // switched-on layer drawing nothing and saying nothing reads as a broken app.
+  const smokeForecastLegendLine = smokeForecastLegend(
+    smokeForecast.response,
+    forecastTimes.length > 0 ? forecastTimes[forecastTimes.length - 1] : null,
+    smokeForecast.status === 'failed',
+    smokeForecast.status === 'loading',
+  )
   // The pitch the slider's kilometres read from: the analyzed model once a
   // report is held (what the grid actually draws), the panel's pick before
   // one exists — so the control never quotes the 13 km fallback at a reader
@@ -1894,6 +1947,7 @@ export default function App() {
             showWildfires={showWildfires}
             showRadar={showRadar}
             showSmoke={showSmoke}
+            smokeForecastImage={smokeForecastImage}
             radarIndex={radarIndex}
             gridSpec={grid.spec}
             gridCells={grid.cells}
@@ -1961,7 +2015,13 @@ export default function App() {
                   No heading over them either. Every row names its own layer, so
                   a "Map layers" line above would be a label for four labels —
                   and on a phone it is a whole row of the little map left. */}
-              {(showSmoke || showRadar || showWildfires || gridPainted || gridCued || gridFailed) && (
+              {(showSmoke ||
+                showSmokeForecast ||
+                showRadar ||
+                showWildfires ||
+                gridPainted ||
+                gridCued ||
+                gridFailed) && (
                 <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} px-2.5 py-2`}>
                   <div className="flex flex-col gap-1">
                     {showSmoke && (
@@ -1993,6 +2053,42 @@ export default function App() {
                               {density[0]}
                             </span>
                           ))}
+                        </span>
+                      </div>
+                    )}
+                    {showSmokeForecast && (
+                      /* The one row here that can need two lines. Its values
+                         say where the model stops rather than naming a unit,
+                         so the longest of them is three times the width of a
+                         pitch and cannot share a line with the label in a box
+                         this narrow. Wrapping puts it on its own line,
+                         right-aligned, instead of clipping it at the box edge
+                         — and the short values still sit inline, so the row
+                         only breaks the column when it has more to say. */
+                      <div className="flex flex-wrap items-center justify-between gap-x-2">
+                        <span className={`${TEXT.control} whitespace-nowrap`}>
+                          Forecast smoke (
+                          <a href={HRRR_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
+                            HRRR
+                          </a>
+                          )
+                        </span>
+                        {/* One value, the same shape the forecast grid's row
+                            takes. No second density key: this layer paints the
+                            observed layer's own three alphas, so a duplicate
+                            ramp would spend a row of the little map a phone has
+                            saying what the row above already says. Where the
+                            model STOPS is the thing only this layer knows. */}
+                        <span
+                          className={`${
+                            smokeForecastLegendLine.kind === 'pitch'
+                              ? ACCENT.text
+                              : smokeForecastLegendLine.kind === 'error'
+                                ? STATUS.error
+                                : STATUS.warn
+                          } ml-auto whitespace-nowrap`}
+                        >
+                          {smokeForecastLegendLine.value}
                         </span>
                       </div>
                     )}

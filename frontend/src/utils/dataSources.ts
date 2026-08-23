@@ -97,6 +97,11 @@ export const DATA_SOURCES: readonly DataSource[] = [
     provides: 'Smoke plumes traced from satellite imagery, for the optional smoke overlay.',
   },
   {
+    name: 'NOAA HRRR',
+    href: 'https://rapidrefresh.noaa.gov/hrrr/',
+    provides: 'Forecast smoke concentration, for the optional forecast smoke overlay.',
+  },
+  {
     name: 'Iowa Environmental Mesonet',
     href: 'https://mesonet.agron.iastate.edu/ogc/',
     provides: 'NEXRAD radar mosaic tiles for the optional rain radar overlay.',

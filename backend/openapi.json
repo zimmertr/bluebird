@@ -1299,6 +1299,102 @@
         "title": "SmokeCollection",
         "type": "object"
       },
+      "SmokeForecast": {
+        "description": "Forecast smoke over a viewport, one lattice per hour.",
+        "properties": {
+          "cols": {
+            "description": "Cells across. The lattice tiles the box exactly.",
+            "title": "Cols",
+            "type": "integer"
+          },
+          "cycle": {
+            "description": "The model run these hours come from, as `YYYY-MM-DDTHH:MM:SSZ`. HRRR runs every hour but only the 00/06/12/18Z runs reach 48 hours, so this is always one of those four.",
+            "title": "Cycle",
+            "type": "string"
+          },
+          "east": {
+            "description": "East edge of the lattice.",
+            "title": "East",
+            "type": "number"
+          },
+          "fetched_at": {
+            "description": "When this instance last fetched from NOAA, in epoch milliseconds. The snapshot is served past its refresh deadline when NOAA is unreachable, so this is the only honest statement of how current the answer is.",
+            "title": "Fetched At",
+            "type": "integer"
+          },
+          "hours": {
+            "description": "Every hour of the run that falls inside the requested window, in order. Empty when the window is entirely outside the run's reach, which is a normal answer rather than an error.",
+            "items": {
+              "$ref": "#/components/schemas/SmokeForecastHour"
+            },
+            "title": "Hours",
+            "type": "array"
+          },
+          "north": {
+            "description": "North edge of the lattice.",
+            "title": "North",
+            "type": "number"
+          },
+          "pitch_km": {
+            "description": "How wide one cell is, in kilometres. Never finer than the model's own 3 km: asking for more samples than the model has grid points would invent detail. A box too large for the cell cap is served coarser, and this is where that is stated.",
+            "title": "Pitch Km",
+            "type": "number"
+          },
+          "rows": {
+            "description": "Cells up.",
+            "title": "Rows",
+            "type": "integer"
+          },
+          "south": {
+            "description": "South edge of the lattice.",
+            "title": "South",
+            "type": "number"
+          },
+          "west": {
+            "description": "West edge of the lattice, which is the requested box's.",
+            "title": "West",
+            "type": "number"
+          }
+        },
+        "required": [
+          "cycle",
+          "fetched_at",
+          "west",
+          "south",
+          "east",
+          "north",
+          "cols",
+          "rows",
+          "pitch_km",
+          "hours"
+        ],
+        "title": "SmokeForecast",
+        "type": "object"
+      },
+      "SmokeForecastHour": {
+        "description": "One forecast hour's cells.",
+        "properties": {
+          "cells": {
+            "description": "`cols` * `rows` density classes, row-major from the **south-west** corner: index `row * cols + col`. `0` is below the reporting floor, `1` Light, `2` Medium, `3` Heavy, and `255` means the cell falls outside the model's area. `255` is not clean air and must not be drawn as any density.",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Cells",
+            "type": "array"
+          },
+          "time": {
+            "description": "The hour this covers, in epoch milliseconds, at the top of the hour UTC.",
+            "title": "Time",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "time",
+          "cells"
+        ],
+        "title": "SmokeForecastHour",
+        "type": "object"
+      },
       "SortBy": {
         "enum": [
           "precip_total_in",
@@ -1837,6 +1933,104 @@
           }
         },
         "summary": "Smoke plumes from NOAA's Hazard Mapping System",
+        "tags": [
+          "smoke"
+        ]
+      }
+    },
+    "/api/smoke/forecast": {
+      "get": {
+        "description": "Near-surface smoke concentration over a viewport, hour by hour, as density classes on a longitude and latitude lattice.\n\nThis is the forecast counterpart to `GET /api/smoke`. HMS is an analyst tracing what a satellite already saw; this is a model saying where that smoke goes next. The field is HRRR's `MASSDEN` at 8 m \u2014 smoke in the air a person breathes, rather than the whole column \u2014 binned to the same Light, Medium and Heavy classes HMS uses, at 10 and 21 micrograms per cubic metre with a reporting floor of 1.\n\n**The reach is 48 hours and the area is the contiguous United States.** A window past the run's last hour returns no hours, and a box outside the model returns cells of `255`. Neither is an error.\n\nThe lattice is resampled from the model's own Lambert grid, which is turned as much as 15 degrees from north over the western states, so the cells here are aligned to longitude and latitude and can be drawn as a plain image over the box.\n\nThis instance fetches one model run from NOAA's public archive on a timer and serves it to everyone, past its refresh deadline when NOAA is unreachable. Only an instance that has never completed a fetch answers 503.",
+        "operationId": "smoke_forecast_api_smoke_forecast_get",
+        "parameters": [
+          {
+            "description": "Bounding box as `west,south,east,north` in decimal degrees (EPSG:4326). The lattice covers exactly this box.",
+            "in": "query",
+            "name": "bbox",
+            "required": true,
+            "schema": {
+              "description": "Bounding box as `west,south,east,north` in decimal degrees (EPSG:4326). The lattice covers exactly this box.",
+              "examples": [
+                "-121.9,46.7,-121.5,47.0"
+              ],
+              "title": "Bbox",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First hour of interest, ISO 8601. A naive value is read as UTC.",
+            "in": "query",
+            "name": "start",
+            "required": true,
+            "schema": {
+              "description": "First hour of interest, ISO 8601. A naive value is read as UTC.",
+              "examples": [
+                "2026-08-23T14:00:00Z"
+              ],
+              "format": "date-time",
+              "title": "Start",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Last hour of interest, ISO 8601, inclusive.",
+            "in": "query",
+            "name": "end",
+            "required": true,
+            "schema": {
+              "description": "Last hour of interest, ISO 8601, inclusive.",
+              "examples": [
+                "2026-08-25T02:00:00Z"
+              ],
+              "format": "date-time",
+              "title": "End",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmokeForecast"
+                }
+              }
+            },
+            "description": "Density classes for every covered hour in the window."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The bounding box or the window could not be read."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This client is requesting faster than the per-address limit. `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This instance has never completed a fetch from NOAA, so it has nothing to serve, not even stale. Transient; `Retry-After` says when to retry."
+          }
+        },
+        "summary": "Forecast smoke from NOAA's HRRR model",
         "tags": [
           "smoke"
         ]

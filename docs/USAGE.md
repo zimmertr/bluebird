@@ -130,7 +130,7 @@ Wind is reported at each destination's own elevation, not at the standard 10 met
 
 ### Map layers
 
-Four optional overlays, on the map's own **Layers** button rather than in the
+Five optional overlays, on the map's own **Layers** button rather than in the
 controls panel: they are the only controls in the app that change what you are
 looking at rather than what you are asking for. All off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
@@ -142,6 +142,7 @@ again. Each is credited on its own legend, and each rides in the shared link.
 | **Wildfires (US only)** | Active fire perimeters, in red | United States — the label says so because the proximity check shares the limit ([DATA.md](DATA.md#wildfires)) |
 | **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | Continental United States |
 | **Smoke** | Smoke plumes at three densities, in grey | North America |
+| **Forecast smoke** | Where a model says that smoke goes next, hour by hour | Contiguous United States, 48 hours ahead |
 | **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
 
 Clicking a perimeter opens NIFC's live map on that fire; clicking a plume says how
@@ -158,7 +159,7 @@ table are what measure air.
 
 #### The forecast grid
 
-The other three overlays draw somebody else's data. This one draws yours: the same
+The other four overlays draw somebody else's data. This one draws yours: the same
 metric your results are ranked by, asked for on a lattice of points across the area
 your analysis covered, and painted on the colors the marker legend already shows. It answers the question the markers cannot — is this one summit's
 weather, or is the whole valley like that?
@@ -236,14 +237,20 @@ It has up to two axes, and a switch to pick between them when both exist:
   pointing the way the wind is blowing at that hour. With the forecast grid
   switched on, the field scrubs too, on the same colors and with an arrow of its
   own per sample, so an hour of playback shows the whole picture moving rather
-  than a handful of points.
+  than a handful of points. With **Forecast smoke** switched on, the plume moves
+  with the playhead too, so you can watch it arrive over a summit at the hour it
+  arrives. That layer reaches 48 hours; past its last hour it stops drawing and
+  its legend says where it stopped, rather than leaving an empty map to be read
+  as clear air.
 
 The chart below the map draws the same playhead as a vertical line, and clicking
 the chart moves it. The two are one grid seen twice, so finding the bad afternoon
 on the chart puts it on the map.
 
 Playback costs nothing upstream. Every destination's hourly series is already in
-hand from the analysis; the timeline is a position in it.
+hand from the analysis; the timeline is a position in it. Forecast smoke is the
+same: its whole window arrives in one response when the layer is switched on, so
+scrubbing it is reading what is already held.
 
 ### Filtering
 
