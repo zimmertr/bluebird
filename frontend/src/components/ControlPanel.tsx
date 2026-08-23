@@ -53,6 +53,7 @@ import type { CommitReason } from '../utils/present'
 import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analyzeGate'
 import {
   BLOCKER_SEVERITY,
+  CUE_SEVERITY,
   type FooterMessage,
   type NoticeSeverity,
   isDismissed,
@@ -88,6 +89,7 @@ const COMMIT_CUE: Record<CommitReason, string> = {
   'elevation-widened': commitCue('elevation range'),
   'window-changed': commitCue('forecast window'),
   'model-changed': commitCue('forecast model'),
+  'destination-added': commitCue('destination'),
 }
 
 // The AQI info line's dismissal key (#253): a condition, not a message, like
@@ -230,7 +232,8 @@ interface Props {
   // Analyze at all (#188), so this cue is the exception rather than the rule
   // and has to say which exception it is.
   // Every knob that has stopped applying live, in `commitNeeded`'s fixed
-  // order (model, window, elevation). One warn bullet each.
+  // order (model, window, elevation, destination). One bullet each, at the
+  // severity `CUE_SEVERITY` assigns.
   commitReasons?: CommitReason[]
   // At least one place has been searched by name. Searched places are a ranked
   // input like the CSV, so one alone enables Analyze with no polygon drawn.
@@ -495,12 +498,13 @@ export default function ControlPanel({
       : []),
     // Every stale-report reason at once (TJ, 2026-08-22): a user who changed
     // the window and the model is owed both sentences, in `commitNeeded`'s
-    // fixed order, each dismissable alone.
+    // fixed order, each dismissable alone. Severity is per cue: a stale
+    // report warns, an un-analyzed addition informs (`CUE_SEVERITY`).
     ...(!loading
       ? (commitReasons ?? []).map((reason) => ({
           key: `cue:${reason}`,
           text: COMMIT_CUE[reason],
-          severity: 'warn' as const,
+          severity: CUE_SEVERITY[reason],
         }))
       : []),
     ...blockers.map((blocker) => ({

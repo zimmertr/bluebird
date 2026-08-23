@@ -73,7 +73,11 @@ export function bandNarrows(analyzed: Band, panel: Band): boolean {
   return minOk && maxOk
 }
 
-export type CommitReason = 'elevation-widened' | 'window-changed' | 'model-changed'
+export type CommitReason =
+  | 'elevation-widened'
+  | 'window-changed'
+  | 'model-changed'
+  | 'destination-added'
 
 /**
  * Every reason the displayed report cannot be re-derived from what the
@@ -96,6 +100,11 @@ export type CommitReason = 'elevation-widened' | 'window-changed' | 'model-chang
  *   typing two datetimes was hard to do by accident.
  * - `'elevation-widened'`: see `bandNarrows`, and `bandGated` for the reports
  *   this cannot apply to.
+ * - `'destination-added'`: the panel names a custom destination the analysis
+ *   never covered (`pendingDestinations` is the caller's predicate — the same
+ *   one behind the map's pending dots, so the cue and the dots cannot
+ *   disagree). The one info-severity cue: the held rows are not stale, the
+ *   addition is simply not analyzed yet (TJ, 2026-08-22).
  *
  * ALL that apply, not the first (TJ, 2026-08-22): a user who changed both the
  * window and the model is owed both sentences, and the notice box bullets
@@ -108,6 +117,7 @@ export function commitNeeded(
   panel: PresentationKnobs,
   windowChanged: boolean,
   modelChanged: boolean,
+  destinationAdded: boolean,
 ): CommitReason[] {
   // Nothing on screen yet, so nothing to be out of date with. Since #240
   // removed the server SSE fallback, a committed report always holds its full
@@ -119,6 +129,7 @@ export function commitNeeded(
   if (analyzed.bandGated && !bandNarrows(analyzed.band, panel.band)) {
     reasons.push('elevation-widened')
   }
+  if (destinationAdded) reasons.push('destination-added')
   return reasons
 }
 

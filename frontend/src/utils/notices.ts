@@ -24,6 +24,7 @@
  */
 
 import type { AnalyzeBlocker } from './analyzeGate'
+import type { CommitReason } from './present'
 
 export type EventNoticeKind = 'error' | 'refusal'
 
@@ -68,6 +69,21 @@ export const BLOCKER_SEVERITY: Record<AnalyzeBlocker, NoticeSeverity> = {
   destinations: 'info',
   polygon: 'info',
   types: 'info',
+}
+
+/**
+ * Which box each commit cue speaks from. Three of the four report a held
+ * report gone stale — every number came from a window, model or band the
+ * panel no longer names — which is warn's definition. `destination-added` is
+ * the odd one out (TJ, 2026-08-22): the held rows are still right, the new
+ * destination is simply not analyzed yet, which is info's definition — the
+ * request is not finished.
+ */
+export const CUE_SEVERITY: Record<CommitReason, NoticeSeverity> = {
+  'model-changed': 'warn',
+  'window-changed': 'warn',
+  'elevation-widened': 'warn',
+  'destination-added': 'info',
 }
 
 /**

@@ -775,18 +775,10 @@ export default function App() {
       (selection.kind === 'days' &&
         (analyzed.window.startMs !== panelWindowMs.startMs ||
           analyzed.window.endMs !== panelWindowMs.endMs)))
-  // A knob that has stopped being live, and why. Null while everything applies
-  // instantly, which is the normal case: the cue exists so the controls never
-  // feel dead, and showing it when they are in fact live would ask for an
-  // Analyze that changes nothing.
   // A model change is a data knob for a stronger reason than the window: the
   // held rows are not missing days, every number in them came from a model the
   // panel no longer names.
   const modelChanged = analyzed !== null && analyzed.forecastModel !== forecastModel
-  const commitReasons =
-    !loading && response !== null
-      ? commitNeeded(analyzed, liveKnobs, windowChanged, modelChanged)
-      : []
   const preview = usePreview()
 
   // Elapsed-time counter for phases with no countable progress (the OSM search,
@@ -1338,6 +1330,17 @@ export default function App() {
       pendingDestinations(csvRows, searched.places, analyzed?.customKeys ?? NO_CUSTOM, removedKeys),
     [csvRows, searched.places, analyzed, removedKeys],
   )
+  // Every knob that has stopped being live, and why. Empty while everything
+  // applies instantly, which is the normal case: the cues exist so the
+  // controls never feel dead, and showing one when the knobs are in fact live
+  // would ask for an Analyze that changes nothing. Declared here rather than
+  // beside windowChanged/modelChanged above because the destination cue reads
+  // `pending` — the same set behind the map's pending dots, so the cue and
+  // the dots cannot disagree about what an analysis has not covered.
+  const commitReasons =
+    !loading && response !== null
+      ? commitNeeded(analyzed, liveKnobs, windowChanged, modelChanged, pending.length > 0)
+      : []
   // The table bar's row count: shown, of what the knobs admit, and — only when
   // a forecast bound is hiding some — of what was analyzed. An elected top-N
   // cut appends what it left out, since "of 1,500" would otherwise read as the
