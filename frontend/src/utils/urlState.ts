@@ -61,7 +61,7 @@ export interface ShareableState {
   constraints: Constraints
   limit: number
   customCsv: string
-  // The four live map overlays. Persisted so a shared link reproduces the
+  // The five live map overlays. Persisted so a shared link reproduces the
   // picture, and deliberately not part of the analysis request: an overlay is
   // drawn beside the ranking, never fed into it. That holds for the forecast
   // grid too, even though it is the one whose toggle costs upstream calls —
@@ -69,6 +69,10 @@ export interface ShareableState {
   showWildfires: boolean
   showRadar: boolean
   showSmoke: boolean
+  // The forecast counterpart to `showSmoke` (#298), and its own toggle rather
+  // than a mode of that one: a reader can want the traced plumes, the modelled
+  // ones, or both, and one param could not say so.
+  showSmokeForecast: boolean
   showGrid: boolean
   // Which of the grid's two drawings. Rides the SAME param as the toggle
   // (`grid=blocks`, `grid=smooth`) rather than taking a second one: it is one
@@ -265,6 +269,7 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
     state.showWildfires ||
     state.showRadar ||
     state.showSmoke ||
+    state.showSmokeForecast ||
     state.showGrid ||
     state.selection.kind !== 'now' ||
     state.forecastModel !== defaultForecastModel
@@ -333,6 +338,9 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
   if (state.showWildfires) p.set('fires', '1')
   if (state.showRadar) p.set('radar', '1')
   if (state.showSmoke) p.set('smoke', '1')
+  // Spelled out rather than abbreviated beside `smoke`, so a hand-edited link
+  // cannot be read as a typo for the observed layer.
+  if (state.showSmokeForecast) p.set('forecastsmoke', '1')
   // The value names the style rather than being a bare `1`, which keeps the
   // link hand-editable and self-describing: `grid=smooth` says what it will
   // draw. One param rather than two, because a layer that is off has no style
@@ -544,6 +552,7 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   if (params.get('fires') === '1') out.showWildfires = true
   if (params.get('radar') === '1') out.showRadar = true
   if (params.get('smoke') === '1') out.showSmoke = true
+  if (params.get('forecastsmoke') === '1') out.showSmokeForecast = true
   const grid = params.get('grid')
   if (grid !== null && isGridStyle(grid)) {
     out.showGrid = true

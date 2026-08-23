@@ -11,8 +11,10 @@
  * Two different things in this app span time, and neither is a special case of
  * the other:
  *
- * - **Radar** is the last 55 minutes of observed rain, in 12 fixed frames. It
- *   exists whenever the layer is on, analysis or no analysis.
+ * - **Radar** is the last 50 minutes of observed rain, in 6 fixed frames. It
+ *   exists whenever the layer is on, analysis or no analysis. The count and the
+ *   span are `radar.ts`'s to state, and the reason they are 6 and 50 rather
+ *   than the product's own 5-minute cadence is documented there.
  * - **Forecast** is the analyzed window's own hourly grid, and every
  *   destination already holds a value at every hour of it. It exists whenever a
  *   report covers more than one hour.

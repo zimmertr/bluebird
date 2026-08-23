@@ -57,6 +57,7 @@ import {
   smokePopupHtml,
   type SmokeProps,
 } from '../utils/smoke'
+import type { SmokeRaster } from '../utils/smokeForecast'
 import { radarLayerId, radarOffsets, radarTileUrl } from '../utils/radar'
 import {
   GridCell,
@@ -109,6 +110,16 @@ interface Props {
   // rather than analysis inputs, so neither ever touches `commitNeeded`.
   showRadar: boolean
   showSmoke: boolean
+  // One hour of forecast smoke (#298), already rastered, or null when the
+  // layer is off, the model does not reach the playhead's hour, or the report
+  // came back on the SSE path with no field to box. Arrives finished because
+  // every decision in it — which hour, what colour, which way up — belongs to
+  // `smokeForecast.ts` where it can be tested; this component only hands the
+  // image to the renderer.
+  smokeForecastImage: {
+    raster: SmokeRaster
+    coordinates: [[number, number], [number, number], [number, number], [number, number]]
+  } | null
   // Which radar frame is on screen, as an index into `radarOffsets()`. Driven
   // by the timeline; ignored entirely while the layer is off.
   radarIndex: number
@@ -726,6 +737,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       showWildfires,
       showRadar,
       showSmoke,
+      smokeForecastImage,
       radarIndex,
       gridSpec,
       gridCells,
@@ -1116,6 +1128,45 @@ const MapView = forwardRef<MapViewHandle, Props>(
             visibility: 'none',
           },
           paint: { 'icon-opacity': GRID_ARROW_OPACITY },
+        })
+
+        // ── Forecast smoke overlay (NOAA HRRR) ─────────────────────────
+        // An image source for the same reason the forecast grid is one: the
+        // samples are a lattice, and magnifying it is the GPU's job. Always
+        // `linear`, with no style segment beside it, and that is a claim this
+        // layer can make where the grid cannot — every cell here IS a model
+        // grid cell rather than a sample taken between them, so blending
+        // neighbours cannot overstate what was computed.
+        //
+        // Under the observed plumes below, which is the order the two mean: a
+        // shape somebody traced from a satellite belongs on top of a model's
+        // opinion about where it goes next.
+        map.addSource('smoke-forecast', {
+          type: 'image',
+          url: BLANK_PIXEL,
+          coordinates: [
+            [-180, 85],
+            [180, 85],
+            [180, -85],
+            [-180, -85],
+          ],
+        })
+        map.addLayer({
+          id: 'smoke-forecast-fill',
+          type: 'raster',
+          source: 'smoke-forecast',
+          paint: {
+            // Full opacity: the alpha per cell already carries the density,
+            // exactly as the observed layer's fill-opacity does, and dimming
+            // the whole raster on top of it would make the two disagree about
+            // what Heavy looks like.
+            'raster-opacity': 1,
+            'raster-resampling': 'linear',
+            // Zero for the reason the radar loop learned: a scrub replaces the
+            // image every frame, and a cross-fade would leave two hours of
+            // smoke half-drawn on top of each other for the length of it.
+            'raster-fade-duration': 0,
+          },
         })
 
         // ── Smoke overlay (NOAA HMS) ───────────────────────────────────
@@ -1877,6 +1928,24 @@ const MapView = forwardRef<MapViewHandle, Props>(
       const url = rasterDataUrl(raster)
       if (url) source.updateImage({ url, coordinates: gridImageCoordinates(gridSpec) })
     }, [gridSpec, gridCells, gridStyle, sortBy, playbackIndex, mapReady])
+
+    // Forecast smoke, on the same contract: one re-encode per scrub tick of an
+    // image a few dozen pixels across, from hours the browser already holds.
+    // A null image blanks the layer rather than leaving the last hour on
+    // screen, which is what makes "the model does not reach this hour" look
+    // like nothing instead of like stalled smoke.
+    useEffect(() => {
+      const map = mapRef.current
+      if (!map || !mapReady) return
+      const source = map.getSource('smoke-forecast') as maplibregl.ImageSource | undefined
+      if (!source) return
+      if (!smokeForecastImage) {
+        source.updateImage({ url: BLANK_PIXEL })
+        return
+      }
+      const url = rasterDataUrl(smokeForecastImage.raster)
+      if (url) source.updateImage({ url, coordinates: smokeForecastImage.coordinates })
+    }, [smokeForecastImage, mapReady])
 
     // The arrows, on their own point source for the reason given where it is
     // declared. Empty at rest, which is what `gridArrowFeatures` returns when
