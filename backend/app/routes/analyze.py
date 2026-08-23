@@ -376,6 +376,7 @@ async def _attach_aqi(
         if not aqi:
             continue
         row.aqi_avg = aqi.get("aqi_avg")
+        row.aqi_min = aqi.get("aqi_min")
         row.aqi_max = aqi.get("aqi_max")
         if row.series is not None:
             row.series.aqi = _aligned_aqi(times, aqi.get("series"))

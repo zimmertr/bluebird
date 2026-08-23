@@ -115,7 +115,8 @@ def stub_upstreams(monkeypatch):
     async def fake_wx(destinations, start, end, on_progress=None, on_pace=None, model=None):
         return [
             {
-                "precip_total_in": 0.1, "precip_avg_in_hr": 0.1, "precip_max_in_hr": 0.1,
+                "precip_total_in": 0.1, "precip_avg_in_hr": 0.1,
+                "precip_min_in_hr": 0.1, "precip_max_in_hr": 0.1,
                 "temp_min_f": 40.0, "temp_max_f": 60.0, "temp_avg_f": 50.0,
                 "wind_min_mph": 1.0, "wind_max_mph": 9.0, "wind_avg_mph": 5.0,
             }

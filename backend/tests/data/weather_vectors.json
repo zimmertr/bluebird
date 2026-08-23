@@ -34,6 +34,7 @@
       "expected_metrics": {
         "precip_total_in": 0.3,
         "precip_avg_in_hr": 0.1,
+        "precip_min_in_hr": 0.0,
         "precip_max_in_hr": 0.2,
         "temp_min_f": 50.0,
         "temp_max_f": 54.0,
@@ -98,6 +99,7 @@
       "expected_metrics": {
         "precip_total_in": 0.1,
         "precip_avg_in_hr": 0.1,
+        "precip_min_in_hr": 0.1,
         "precip_max_in_hr": 0.1,
         "temp_min_f": 50.0,
         "temp_max_f": 50.0,
@@ -216,6 +218,7 @@
       "expected_metrics": {
         "precip_total_in": 0.2,
         "precip_avg_in_hr": 0.2,
+        "precip_min_in_hr": 0.2,
         "precip_max_in_hr": 0.2,
         "temp_min_f": 52.0,
         "temp_max_f": 52.0,
@@ -314,6 +317,7 @@
       "expected_metrics": {
         "precip_total_in": 0.4,
         "precip_avg_in_hr": 0.2,
+        "precip_min_in_hr": 0.1,
         "precip_max_in_hr": 0.3,
         "temp_min_f": 50.0,
         "temp_max_f": 52.0,
@@ -373,6 +377,7 @@
       "expected_metrics": {
         "precip_total_in": 0.3,
         "precip_avg_in_hr": 0.15,
+        "precip_min_in_hr": 0.1,
         "precip_max_in_hr": 0.2,
         "temp_min_f": 50.0,
         "temp_max_f": 52.0,
@@ -433,6 +438,7 @@
       "expected_metrics": {
         "precip_total_in": 0.0625,
         "precip_avg_in_hr": 0.0312,
+        "precip_min_in_hr": 0.0312,
         "precip_max_in_hr": 0.0312,
         "temp_min_f": 50.2,
         "temp_max_f": 50.2,
@@ -489,6 +495,7 @@
       "expected_metrics": {
         "precip_total_in": 0.3,
         "precip_avg_in_hr": 0.15,
+        "precip_min_in_hr": 0.1,
         "precip_max_in_hr": 0.2,
         "temp_min_f": 20.1,
         "temp_max_f": 20.2,
@@ -545,6 +552,7 @@
       "expected_metrics": {
         "precip_total_in": 0.0,
         "precip_avg_in_hr": 0.0,
+        "precip_min_in_hr": 0.0,
         "precip_max_in_hr": 0.0,
         "temp_min_f": -0.4,
         "temp_max_f": -0.3,
@@ -601,6 +609,7 @@
       "expected_metrics": {
         "precip_total_in": 0.0,
         "precip_avg_in_hr": 0.0,
+        "precip_min_in_hr": 0.0,
         "precip_max_in_hr": 0.0,
         "temp_min_f": -69.7,
         "temp_max_f": -69.6,
@@ -681,6 +690,7 @@
       "expected_metrics": {
         "precip_total_in": 1.77,
         "precip_avg_in_hr": 0.2213,
+        "precip_min_in_hr": 0.05,
         "precip_max_in_hr": 0.33,
         "temp_min_f": 50.0,
         "temp_max_f": 50.0,
@@ -782,6 +792,7 @@
       "expected_metrics": {
         "precip_total_in": 0.1,
         "precip_avg_in_hr": 0.05,
+        "precip_min_in_hr": 0.0,
         "precip_max_in_hr": 0.1,
         "temp_min_f": 40.0,
         "temp_max_f": 41.0,
@@ -859,6 +870,7 @@
       "expected_metrics": {
         "precip_total_in": 0.0,
         "precip_avg_in_hr": 0.0,
+        "precip_min_in_hr": 0.0,
         "precip_max_in_hr": 0.0,
         "temp_min_f": 50.0,
         "temp_max_f": 50.0,
@@ -936,6 +948,7 @@
       "expected_metrics": {
         "precip_total_in": 0.0,
         "precip_avg_in_hr": 0.0,
+        "precip_min_in_hr": 0.0,
         "precip_max_in_hr": 0.0,
         "temp_min_f": 10.0,
         "temp_max_f": 10.0,
@@ -1013,6 +1026,7 @@
       "expected_metrics": {
         "precip_total_in": 0.0,
         "precip_avg_in_hr": 0.0,
+        "precip_min_in_hr": 0.0,
         "precip_max_in_hr": 0.0,
         "temp_min_f": 30.0,
         "temp_max_f": 30.0,
@@ -1070,6 +1084,7 @@
       "expected_metrics": {
         "precip_total_in": 0.0,
         "precip_avg_in_hr": 0.0,
+        "precip_min_in_hr": 0.0,
         "precip_max_in_hr": 0.0,
         "temp_min_f": 30.0,
         "temp_max_f": 30.0,
@@ -1147,6 +1162,7 @@
       "expected_metrics": {
         "precip_total_in": 0.0,
         "precip_avg_in_hr": 0.0,
+        "precip_min_in_hr": 0.0,
         "precip_max_in_hr": 0.0,
         "temp_min_f": 30.0,
         "temp_max_f": 30.0,
@@ -1198,6 +1214,7 @@
       },
       "expected_metrics": {
         "aqi_avg": 90,
+        "aqi_min": 80,
         "aqi_max": 100
       },
       "expected_series": {
@@ -1233,6 +1250,7 @@
       },
       "expected_metrics": {
         "aqi_avg": 80,
+        "aqi_min": 80,
         "aqi_max": 81
       },
       "expected_series": {
@@ -1266,6 +1284,7 @@
       },
       "expected_metrics": {
         "aqi_avg": 82,
+        "aqi_min": 81,
         "aqi_max": 82
       },
       "expected_series": {
@@ -1301,6 +1320,7 @@
       },
       "expected_metrics": {
         "aqi_avg": 90,
+        "aqi_min": 80,
         "aqi_max": 100
       },
       "expected_series": {

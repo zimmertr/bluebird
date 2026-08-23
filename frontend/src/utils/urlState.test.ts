@@ -593,9 +593,10 @@ describe('decodeState tolerance', () => {
     })
 
     it('drops a token a family has no key for', () => {
-      // AQI has no minimum column, so aqi=min names nothing.
-      expect(decodeState('aqi=min')).toBeNull()
+      // Only precipitation carries a total.
       expect(decodeState('aqi=total')).toBeNull()
+      expect(decodeState('wind=total')).toBeNull()
+      expect(decodeState('temp=total')).toBeNull()
     })
   })
 

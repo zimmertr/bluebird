@@ -76,10 +76,11 @@ def _result(
 ):
     return DestinationResult(
         name=name, type="peak", latitude=1.0, longitude=2.0,
-        precip_total_in=precip, precip_avg_in_hr=0.0, precip_max_in_hr=0.0,
+        precip_total_in=precip, precip_avg_in_hr=0.0, precip_min_in_hr=0.0,
+        precip_max_in_hr=0.0,
         temp_min_f=temp_min, temp_max_f=temp_max, temp_avg_f=temp_avg,
         wind_min_mph=wind_min, wind_max_mph=wind_max, wind_avg_mph=wind_avg,
-        aqi_avg=aqi, aqi_max=aqi,
+        aqi_avg=aqi, aqi_min=aqi, aqi_max=aqi,
     )
 
 
@@ -282,7 +283,8 @@ def test_summarize_request_union_includes_polygon_and_custom():
 def _wx(precip):
     """A complete weather-metrics dict with a controllable precip total."""
     return {
-        "precip_total_in": precip, "precip_avg_in_hr": precip, "precip_max_in_hr": precip,
+        "precip_total_in": precip, "precip_avg_in_hr": precip,
+        "precip_min_in_hr": precip, "precip_max_in_hr": precip,
         "temp_min_f": 40.0, "temp_max_f": 60.0, "temp_avg_f": 50.0,
         "wind_min_mph": 1.0, "wind_max_mph": 9.0, "wind_avg_mph": 5.0,
     }
@@ -382,7 +384,8 @@ def test_analyze_aqi_bound_fetches_air_quality_for_every_candidate(monkeypatch):
     async def fake_aqi(destinations, start, end):
         batches.append(len(destinations))
         return [
-            {"aqi_avg": int(d["latitude"] * 40), "aqi_max": int(d["latitude"] * 40), "series": None}
+            {"aqi_avg": int(d["latitude"] * 40), "aqi_min": int(d["latitude"] * 40),
+             "aqi_max": int(d["latitude"] * 40), "series": None}
             for d in destinations
         ]
 
@@ -824,7 +827,7 @@ def test_assemble_bakes_series_and_shares_the_time_grid():
         _wx_series(0.2, times, [0.2, 0.3], [40.0, 41.0], [7.0, 8.0]),
     ]
     aqi_list = [
-        {"aqi_avg": 40, "aqi_max": 55, "series": {"times": [1000], "aqi": [40]}},
+        {"aqi_avg": 40, "aqi_min": 30, "aqi_max": 55, "series": {"times": [1000], "aqi": [40]}},
         None,
     ]
     results, out_times = _assemble(dests, wx_list, aqi_list, "custom")

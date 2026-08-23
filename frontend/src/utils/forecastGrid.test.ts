@@ -42,6 +42,7 @@ function result(overrides: Partial<DestinationResult> = {}): DestinationResult {
     osm_id: null,
     precip_total_in: 0,
     precip_avg_in_hr: 0,
+    precip_min_in_hr: 0,
     precip_max_in_hr: 0,
     temp_min_f: 44.2,
     temp_max_f: 74.9,
@@ -50,6 +51,7 @@ function result(overrides: Partial<DestinationResult> = {}): DestinationResult {
     wind_max_mph: 10,
     wind_avg_mph: 6.4,
     aqi_avg: 30,
+    aqi_min: 40,
     aqi_max: 40,
     ...overrides,
   }
@@ -464,6 +466,7 @@ describe('pairCells', () => {
   const wx = (precip: number[]): WeatherResult => ({
     precip_total_in: precip.reduce((a, b) => a + b, 0),
     precip_avg_in_hr: 0,
+    precip_min_in_hr: 0,
     precip_max_in_hr: 0,
     temp_min_f: 40,
     temp_max_f: 60,

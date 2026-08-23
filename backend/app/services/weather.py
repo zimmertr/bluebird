@@ -415,6 +415,9 @@ def _metrics(
         return {
             "precip_total_in": round(sum(p_vals), 4),
             "precip_avg_in_hr": round(sum(p_vals) / len(p_vals), 4),
+            # Near-zero for any window with one dry hour, and kept anyway: every
+            # aggregate column is rankable (#291), so the set stays complete.
+            "precip_min_in_hr": round(min(p_vals), 4),
             "precip_max_in_hr": round(max(p_vals), 4),
             "temp_min_f": round(min(t_vals), 1),
             "temp_max_f": round(max(t_vals), 1),

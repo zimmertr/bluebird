@@ -175,6 +175,7 @@ function row(name: string, aqi: number | null): DestinationResult {
     osm_id: null,
     precip_total_in: 0,
     precip_avg_in_hr: 0,
+    precip_min_in_hr: 0,
     precip_max_in_hr: 0,
     temp_min_f: 0,
     temp_max_f: 0,
@@ -183,6 +184,7 @@ function row(name: string, aqi: number | null): DestinationResult {
     wind_max_mph: 0,
     wind_avg_mph: 0,
     aqi_avg: aqi,
+    aqi_min: aqi,
     aqi_max: aqi,
     series: null,
   }
@@ -230,6 +232,7 @@ describe('rankComparator', () => {
 const WX: WeatherResult = {
   precip_total_in: 0.3,
   precip_avg_in_hr: 0.15,
+  precip_min_in_hr: 0,
   precip_max_in_hr: 0.2,
   temp_min_f: 50,
   temp_max_f: 52,
@@ -258,6 +261,7 @@ describe('assemble', () => {
   it('aligns AQI onto the weather grid inside each row', () => {
     const aqi = {
       aqi_avg: 60,
+      aqi_min: 80,
       aqi_max: 80,
       series: { times: [1784592000000], aqi: [60] },
     }
@@ -372,6 +376,7 @@ function boundRow(name: string, over: Partial<DestinationResult>): DestinationRe
     osm_id: null,
     precip_total_in: 0,
     precip_avg_in_hr: 0,
+    precip_min_in_hr: 0,
     precip_max_in_hr: 0,
     temp_min_f: 0,
     temp_max_f: 0,
@@ -380,6 +385,7 @@ function boundRow(name: string, over: Partial<DestinationResult>): DestinationRe
     wind_max_mph: 0,
     wind_avg_mph: 0,
     aqi_avg: null,
+    aqi_min: null,
     aqi_max: null,
     ...over,
   }

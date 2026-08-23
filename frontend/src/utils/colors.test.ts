@@ -102,6 +102,7 @@ describe('scaleFor', () => {
   // 0.30 of the other is a downpour, so they cannot share a set of boundaries.
   it('scores the per-hour precipitation columns on rainfall intensity', () => {
     expect(scaleFor('precip_avg_in_hr', false)?.thresholds).toEqual([0.01, 0.1, 0.3, 0.5])
+    expect(scaleFor('precip_min_in_hr', false)?.thresholds).toEqual([0.01, 0.1, 0.3, 0.5])
     expect(scaleFor('precip_max_in_hr', false)?.thresholds).toEqual([0.01, 0.1, 0.3, 0.5])
     // The window total keeps its own, which is what the map legend advertises.
     expect(scaleFor('precip_total_in', false)?.thresholds).toEqual([0.01, 0.1, 0.25, 0.5])
@@ -125,6 +126,7 @@ describe('scaleFor', () => {
   // another over an identical value.
   it('reads a point sample on the window-total scale', () => {
     expect(scaleFor('precip_avg_in_hr', true)).toBe(METRIC_CONFIG.precip)
+    expect(scaleFor('precip_min_in_hr', true)).toBe(METRIC_CONFIG.precip)
     expect(scaleFor('precip_max_in_hr', true)).toBe(METRIC_CONFIG.precip)
   })
 
@@ -136,7 +138,7 @@ describe('scaleFor', () => {
     for (const key of ['temp_min_f', 'temp_max_f', 'temp_avg_f']) {
       expect(scaleFor(key, false)).toBe(METRIC_CONFIG.temp)
     }
-    for (const key of ['aqi_avg', 'aqi_max']) {
+    for (const key of ['aqi_avg', 'aqi_min', 'aqi_max']) {
       expect(scaleFor(key, false)).toBe(METRIC_CONFIG.aqi)
     }
   })
@@ -222,7 +224,7 @@ describe('rankedScale', () => {
   // value IS a rate, so the window-total boundaries would say drizzle where
   // the number means downpour.
   it('reads the rate rankings on the rainfall-rate scale', () => {
-    for (const key of ['precip_avg_in_hr', 'precip_max_in_hr'] as const) {
+    for (const key of ['precip_avg_in_hr', 'precip_min_in_hr', 'precip_max_in_hr'] as const) {
       expect(rankedScale(key).thresholds).toEqual([0.01, 0.1, 0.3, 0.5])
     }
     expect(rankedScale('precip_total_in').thresholds).toEqual([0.01, 0.1, 0.25, 0.5])
@@ -258,13 +260,14 @@ describe('hourlyScale', () => {
       'temp_avg_f',
       'temp_max_f',
       'aqi_avg',
+      'aqi_min',
       'aqi_max',
     ] as const) {
       expect(hourlyScale(key).thresholds).toEqual(METRIC_CONFIG[familyOf(key)].thresholds)
     }
     // The rate rankings already read an hourly quantity too, on their own
     // scale — one hour of a peak is that hour's rate.
-    for (const key of ['precip_avg_in_hr', 'precip_max_in_hr'] as const) {
+    for (const key of ['precip_avg_in_hr', 'precip_min_in_hr', 'precip_max_in_hr'] as const) {
       expect(hourlyScale(key).thresholds).toEqual([0.01, 0.1, 0.3, 0.5])
     }
   })

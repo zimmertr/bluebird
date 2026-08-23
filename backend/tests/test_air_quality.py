@@ -23,12 +23,12 @@ def _hourly(times, aqi):
 
 def test_metrics_avg_and_max():
     data = _hourly(["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00"], [80, 90, 100])
-    assert _metrics(data, START, END) == {"aqi_avg": 90, "aqi_max": 100}
+    assert _metrics(data, START, END) == {"aqi_avg": 90, "aqi_min": 80, "aqi_max": 100}
 
 
 def test_metrics_skips_none_values():
     data = _hourly(["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00"], [80, None, 100])
-    assert _metrics(data, START, END) == {"aqi_avg": 90, "aqi_max": 100}
+    assert _metrics(data, START, END) == {"aqi_avg": 90, "aqi_min": 80, "aqi_max": 100}
 
 
 def test_metrics_excludes_out_of_window():

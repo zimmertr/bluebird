@@ -19,6 +19,7 @@ export type DiscoveryType = Exclude<DestinationType, 'custom'>
 export type SortBy =
   | 'precip_total_in'
   | 'precip_avg_in_hr'
+  | 'precip_min_in_hr'
   | 'precip_max_in_hr'
   | 'wind_min_mph'
   | 'wind_avg_mph'
@@ -27,6 +28,7 @@ export type SortBy =
   | 'temp_avg_f'
   | 'temp_max_f'
   | 'aqi_avg'
+  | 'aqi_min'
   | 'aqi_max'
 
 export interface GeoPolygon {
@@ -113,6 +115,7 @@ export interface DestinationResult {
   osm_id: string | null
   precip_total_in: number
   precip_avg_in_hr: number
+  precip_min_in_hr: number
   precip_max_in_hr: number
   temp_min_f: number
   temp_max_f: number
@@ -123,6 +126,7 @@ export interface DestinationResult {
   // US AQI (all EPA pollutants combined) — null when the window is beyond the ~5-day air-quality
   // forecast horizon or the (best-effort) fetch failed
   aqi_avg: number | null
+  aqi_min: number | null
   aqi_max: number | null
   // Hourly series backing the comparison chart, aligned to AnalyzeResponse.times.
   series?: HourlySeries | null

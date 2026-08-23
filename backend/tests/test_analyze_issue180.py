@@ -84,6 +84,7 @@ def _wx(n: int) -> list[dict]:
         {
             "precip_total_in": 0.0,
             "precip_avg_in_hr": 0.0,
+            "precip_min_in_hr": 0.0,
             "precip_max_in_hr": 0.0,
             "temp_min_f": 40.0,
             "temp_max_f": 50.0,

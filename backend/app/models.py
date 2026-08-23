@@ -286,10 +286,10 @@ MODEL_INFO: dict[ForecastModel, ModelInfo] = {
 
 class SortBy(str, Enum):
     # One member per aggregate column a result row carries, so anything the
-    # table can show, a caller can rank by (#291). AQI has no minimum column,
-    # which is why its pair is the one incomplete set.
+    # table can show, a caller can rank by (#291).
     precip_total = "precip_total_in"
     precip_avg = "precip_avg_in_hr"
+    precip_min = "precip_min_in_hr"
     precip_max = "precip_max_in_hr"
     wind_min = "wind_min_mph"
     wind_avg = "wind_avg_mph"
@@ -298,6 +298,7 @@ class SortBy(str, Enum):
     temp_avg = "temp_avg_f"
     temp_max = "temp_max_f"
     aqi_avg = "aqi_avg"
+    aqi_min = "aqi_min"
     aqi_max = "aqi_max"
 
 
@@ -794,6 +795,12 @@ class DestinationResult(BaseModel):
         description="Total precipitation across the window, inches."
     )
     precip_avg_in_hr: float = Field(description="Mean hourly precipitation, inches.")
+    precip_min_in_hr: float = Field(
+        description=(
+            "Driest single hour in the window, inches. Zero for any window "
+            "with one dry hour."
+        )
+    )
     precip_max_in_hr: float = Field(
         description="Wettest single hour in the window, inches."
     )
@@ -819,6 +826,9 @@ class DestinationResult(BaseModel):
             "past the air-quality horizon, or if the best-effort fetch failed. "
             "An air-quality outage never fails an analysis."
         ),
+    )
+    aqi_min: int | None = Field(
+        default=None, description="Cleanest single AQI hour. Null under the same terms."
     )
     aqi_max: int | None = Field(
         default=None, description="Worst single AQI hour. Null under the same terms."

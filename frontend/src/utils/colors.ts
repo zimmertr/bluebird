@@ -48,7 +48,7 @@ export const METRIC_CONFIG: Record<MetricFamily, MetricConfig> = {
     thresholds: [0.01, 0.10, 0.25, 0.50],
     colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
     legendLabels: ['≤ 0.01"', '0.01 – 0.10"', '0.10 – 0.25"', '0.25 – 0.50"', '> 0.50"'],
-    group: ['precip_total_in', 'precip_avg_in_hr', 'precip_max_in_hr'],
+    group: ['precip_total_in', 'precip_avg_in_hr', 'precip_min_in_hr', 'precip_max_in_hr'],
   },
   wind: {
     thresholds: [5, 15, 25, 35],
@@ -76,7 +76,7 @@ export const METRIC_CONFIG: Record<MetricFamily, MetricConfig> = {
       '200 – 300 AQI',
       '> 300 AQI',
     ],
-    group: ['aqi_avg', 'aqi_max'],
+    group: ['aqi_avg', 'aqi_min', 'aqi_max'],
   },
 }
 
@@ -125,6 +125,7 @@ const COLUMN_SCALE: Record<string, LabelledScale> = {
     ),
   ),
   precip_avg_in_hr: PRECIP_RATE,
+  precip_min_in_hr: PRECIP_RATE,
   precip_max_in_hr: PRECIP_RATE,
 }
 
@@ -175,7 +176,10 @@ export function hourlyScale(sortBy: SortBy): LabelledScale {
  * the same number.
  */
 export function scaleFor(key: string, pointSample: boolean): ColorScale | null {
-  if (pointSample && (key === 'precip_avg_in_hr' || key === 'precip_max_in_hr')) {
+  if (
+    pointSample &&
+    (key === 'precip_avg_in_hr' || key === 'precip_min_in_hr' || key === 'precip_max_in_hr')
+  ) {
     return METRIC_CONFIG.precip
   }
   return COLUMN_SCALE[key] ?? null

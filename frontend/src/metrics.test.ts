@@ -36,15 +36,19 @@ const SORTS: SortBy[] = ['precip_total_in', 'wind_avg_mph', 'temp_avg_f', 'aqi_a
 
 describe('the rankable keys', () => {
   // Every aggregate column the table shows is rankable, and nothing else is:
-  // the per-family lists mirror the table's column set, AQI's missing minimum
-  // included, and the flat list is derived from them. The order is
-  // alphabetical by display word, so every dropdown opens with the same word
-  // first (TJ, 2026-08-22).
+  // the per-family lists mirror the table's column set, and the flat list is
+  // derived from them. The order is alphabetical by display word, so every
+  // dropdown opens with the same word first (TJ, 2026-08-22).
   it('offers exactly the aggregate columns per family, alphabetically', () => {
-    expect(FAMILY_KEYS.precip).toEqual(['precip_avg_in_hr', 'precip_max_in_hr', 'precip_total_in'])
+    expect(FAMILY_KEYS.precip).toEqual([
+      'precip_avg_in_hr',
+      'precip_max_in_hr',
+      'precip_min_in_hr',
+      'precip_total_in',
+    ])
     expect(FAMILY_KEYS.wind).toEqual(['wind_avg_mph', 'wind_max_mph', 'wind_min_mph'])
     expect(FAMILY_KEYS.temp).toEqual(['temp_avg_f', 'temp_max_f', 'temp_min_f'])
-    expect(FAMILY_KEYS.aqi).toEqual(['aqi_avg', 'aqi_max'])
+    expect(FAMILY_KEYS.aqi).toEqual(['aqi_avg', 'aqi_max', 'aqi_min'])
     for (const family of RANKED_FAMILIES) {
       const words = FAMILY_KEYS[family].map(windowAggregate)
       expect(words).toEqual([...words].sort())
@@ -53,7 +57,7 @@ describe('the rankable keys', () => {
 
   it('derives RANKING_KEYS from the family lists', () => {
     expect(RANKING_KEYS).toEqual(RANKED_FAMILIES.flatMap((f) => FAMILY_KEYS[f]))
-    expect(RANKING_KEYS).toHaveLength(11)
+    expect(RANKING_KEYS).toHaveLength(13)
   })
 
   // The pre-#291 rankable four: what each row holds until the user says
@@ -82,6 +86,7 @@ describe('aggregateToken', () => {
     expect(RANKING_KEYS.map(aggregateToken)).toEqual([
       'avg',
       'max',
+      'min',
       'total',
       'avg',
       'max',
@@ -91,6 +96,7 @@ describe('aggregateToken', () => {
       'min',
       'avg',
       'max',
+      'min',
     ])
   })
 
@@ -138,6 +144,7 @@ describe('familyOf', () => {
     const fields = [
       'precip_total_in',
       'precip_avg_in_hr',
+      'precip_min_in_hr',
       'precip_max_in_hr',
       'temp_min_f',
       'temp_max_f',
@@ -146,6 +153,7 @@ describe('familyOf', () => {
       'wind_max_mph',
       'wind_avg_mph',
       'aqi_avg',
+      'aqi_min',
       'aqi_max',
     ]
     for (const field of fields) expect(() => familyOf(field)).not.toThrow()

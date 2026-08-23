@@ -286,6 +286,7 @@ function roundOrNull(v: number | null, digits: number): number | null {
 export interface WeatherAggregates {
   precip_total_in: number
   precip_avg_in_hr: number
+  precip_min_in_hr: number
   precip_max_in_hr: number
   temp_min_f: number
   temp_max_f: number
@@ -427,6 +428,7 @@ export function weatherMetrics(
     let pSum = 0
     let tSum = 0
     let wSum = 0
+    let pMin = Infinity
     let pMax = -Infinity
     let tMin = Infinity
     let tMax = -Infinity
@@ -436,6 +438,7 @@ export function weatherMetrics(
       pSum += p
       tSum += tf
       wSum += w
+      if (p < pMin) pMin = p
       if (p > pMax) pMax = p
       if (tf < tMin) tMin = tf
       if (tf > tMax) tMax = tf
@@ -446,6 +449,9 @@ export function weatherMetrics(
     return {
       precip_total_in: roundHalfEven(pSum, 4),
       precip_avg_in_hr: roundHalfEven(pSum / len, 4),
+      // Near-zero for any window with one dry hour, and kept anyway: every
+      // aggregate column is rankable (#291), so the set stays complete.
+      precip_min_in_hr: roundHalfEven(pMin, 4),
       precip_max_in_hr: roundHalfEven(pMax, 4),
       temp_min_f: roundHalfEven(tMin, 1),
       temp_max_f: roundHalfEven(tMax, 1),
@@ -542,6 +548,7 @@ export function windDirectionSeries(
 
 export interface AqiAggregates {
   aqi_avg: number
+  aqi_min: number
   aqi_max: number
 }
 
@@ -574,13 +581,16 @@ export function aqiMetrics(
     }
     if (vals.length === 0) return null
     let sum = 0
+    let min = Infinity
     let max = -Infinity
     for (const v of vals) {
       sum += v
+      if (v < min) min = v
       if (v > max) max = v
     }
     return {
       aqi_avg: roundHalfEven(sum / vals.length, 0),
+      aqi_min: roundHalfEven(min, 0),
       aqi_max: roundHalfEven(max, 0),
     }
   } catch {
