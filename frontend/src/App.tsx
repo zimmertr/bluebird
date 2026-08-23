@@ -51,8 +51,8 @@ import {
   TAP,
   TEXT,
 } from './styles'
-import { NOUN, familyOf, rankedNoun } from './metrics'
-import { METRIC_CONFIG, hourlyScale } from './utils/colors'
+import { DEFAULT_FAMILY_KEY, MetricFamily, NOUN, familyOf, rankedNoun } from './metrics'
+import { hourlyScale, rankedScale } from './utils/colors'
 import {
   FALLBACK_PITCH_KM,
   GRID_REACH_DEFAULT_FRAC,
@@ -376,8 +376,20 @@ export default function App() {
   // Parsed once per edit and shared by the pending markers and the Analyze
   // request, so what the map shows and what gets ranked can't drift apart.
   const csvRows = useMemo(() => parseCustomCsv(customCsv), [customCsv])
-  const [sortBy, setSortBy] = useState<SortBy>(() => restored?.sortBy ?? 'precip_total_in')
+  const [sortBy, setSortByRaw] = useState<SortBy>(() => restored?.sortBy ?? 'precip_total_in')
   const [sortDesc, setSortDesc] = useState(() => restored?.sortDesc ?? false)
+  // What each metric row's aggregate dropdown holds (#291), the active row's
+  // entry always equal to sortBy. One state for the four rows because a
+  // dropdown choice IS a ranking choice — picking an aggregate activates its
+  // row, the same one-click contract the direction toggle has always kept —
+  // so the two could only ever disagree by a missed update.
+  const [rowKeys, setRowKeys] = useState<Record<MetricFamily, SortBy>>(
+    () => restored?.rowKeys ?? { ...DEFAULT_FAMILY_KEY },
+  )
+  const setSortBy = useCallback((key: SortBy) => {
+    setSortByRaw(key)
+    setRowKeys((rows) => (rows[familyOf(key)] === key ? rows : { ...rows, [familyOf(key)]: key }))
+  }, [])
   const [minElevationFt, setMinElevationFt] = useState<number | null>(
     () => restored?.minElevationFt ?? null,
   )
@@ -826,6 +838,7 @@ export default function App() {
       forecastModel,
       sortBy,
       sortDesc,
+      rowKeys,
       minElevationFt,
       maxElevationFt,
       constraints,
@@ -860,6 +873,7 @@ export default function App() {
     selection,
     sortBy,
     sortDesc,
+    rowKeys,
     minElevationFt,
     maxElevationFt,
     constraints,
@@ -1464,7 +1478,7 @@ export default function App() {
   // one hour of it is a rate, so a legend still reading in inches beside
   // markers scored in inches per hour would be quietly wrong. The metric's NAME
   // does not change, so the legend's title does not either.
-  const markerScale = playbackIndex !== null ? hourlyScale(view.sortBy) : METRIC_CONFIG[view.sortBy]
+  const markerScale = playbackIndex !== null ? hourlyScale(view.sortBy) : rankedScale(view.sortBy)
 
   const hasColoredMarkers = showResults && results.length > 0
   // A report stays on screen even when the knobs admit none of it. Collapsing
@@ -1725,6 +1739,8 @@ export default function App() {
           setSortBy={setSortBy}
           sortDesc={sortDesc}
           setSortDesc={setSortDesc}
+          rowKeys={rowKeys}
+          pointSample={pointSample}
           minElevationFt={minElevationFt}
           setMinElevationFt={setMinElevationFt}
           maxElevationFt={maxElevationFt}

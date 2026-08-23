@@ -175,6 +175,7 @@ function row(name: string, aqi: number | null): DestinationResult {
     osm_id: null,
     precip_total_in: 0,
     precip_avg_in_hr: 0,
+    precip_min_in_hr: 0,
     precip_max_in_hr: 0,
     temp_min_f: 0,
     temp_max_f: 0,
@@ -183,6 +184,7 @@ function row(name: string, aqi: number | null): DestinationResult {
     wind_max_mph: 0,
     wind_avg_mph: 0,
     aqi_avg: aqi,
+    aqi_min: aqi,
     aqi_max: aqi,
     series: null,
   }
@@ -206,6 +208,23 @@ describe('rankComparator', () => {
     rows.sort(rankComparator('aqi_avg', false))
     expect(rows.map((r) => r.name)).toEqual(['first', 'second'])
   })
+
+  // The aggregate keys #291 made rankable go through the same comparator; a
+  // key is just a field name, so one representative check per new member.
+  it('ranks by the aggregate members added in #291', () => {
+    const rows = [row('a', 1), row('b', 2), row('c', 3)]
+    rows[0].wind_min_mph = 8
+    rows[1].wind_min_mph = 0
+    rows[2].wind_min_mph = 3
+    rows.sort(rankComparator('wind_min_mph', false))
+    expect(rows.map((r) => r.name)).toEqual(['b', 'c', 'a'])
+
+    rows[0].precip_avg_in_hr = 0.1
+    rows[1].precip_avg_in_hr = 0.3
+    rows[2].precip_avg_in_hr = 0.2
+    rows.sort(rankComparator('precip_avg_in_hr', true))
+    expect(rows.map((r) => r.name)).toEqual(['c', 'a', 'b'])
+  })
 })
 
 // ── assemble (port of _assemble) ───────────────────────────────────────────
@@ -213,6 +232,7 @@ describe('rankComparator', () => {
 const WX: WeatherResult = {
   precip_total_in: 0.3,
   precip_avg_in_hr: 0.15,
+  precip_min_in_hr: 0,
   precip_max_in_hr: 0.2,
   temp_min_f: 50,
   temp_max_f: 52,
@@ -241,6 +261,7 @@ describe('assemble', () => {
   it('aligns AQI onto the weather grid inside each row', () => {
     const aqi = {
       aqi_avg: 60,
+      aqi_min: 80,
       aqi_max: 80,
       series: { times: [1784592000000], aqi: [60] },
     }
@@ -355,6 +376,7 @@ function boundRow(name: string, over: Partial<DestinationResult>): DestinationRe
     osm_id: null,
     precip_total_in: 0,
     precip_avg_in_hr: 0,
+    precip_min_in_hr: 0,
     precip_max_in_hr: 0,
     temp_min_f: 0,
     temp_max_f: 0,
@@ -363,6 +385,7 @@ function boundRow(name: string, over: Partial<DestinationResult>): DestinationRe
     wind_max_mph: 0,
     wind_avg_mph: 0,
     aqi_avg: null,
+    aqi_min: null,
     aqi_max: null,
     ...over,
   }

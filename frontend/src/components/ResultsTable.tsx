@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { cellStyle, scaleFor, METRIC_CONFIG } from '../utils/colors'
+import { familyOf } from '../metrics'
 import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
 import { SortDir, SortKey, WILDFIRE_KEY, displayedColumns, ColDef } from '../utils/tableColumns'
 import { autoFitWidth, dragWidth } from '../utils/columnResize'
@@ -162,7 +163,7 @@ export default function ResultsTable({
   columnWidths,
   onColumnWidthsChange,
 }: Props) {
-  const coloredGroup = new Set(METRIC_CONFIG[sortBy].group)
+  const coloredGroup = new Set(METRIC_CONFIG[familyOf(sortBy)].group)
   // The ranked metric's columns lead the table (right after #/Name/Elevation), so
   // the numbers the ranking was built from are the first thing read. Keyed on
   // the analyzed snapshot, like the cell colors — panel knob changes don't

@@ -560,6 +560,18 @@
             "description": "Worst single AQI hour. Null under the same terms.",
             "title": "Aqi Max"
           },
+          "aqi_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cleanest single AQI hour. Null under the same terms.",
+            "title": "Aqi Min"
+          },
           "elevation_ft": {
             "anyOf": [
               {
@@ -607,6 +619,11 @@
           "precip_max_in_hr": {
             "description": "Wettest single hour in the window, inches.",
             "title": "Precip Max In Hr",
+            "type": "number"
+          },
+          "precip_min_in_hr": {
+            "description": "Driest single hour in the window, inches. Zero for any window with one dry hour.",
+            "title": "Precip Min In Hr",
             "type": "number"
           },
           "precip_total_in": {
@@ -668,6 +685,7 @@
           "longitude",
           "precip_total_in",
           "precip_avg_in_hr",
+          "precip_min_in_hr",
           "precip_max_in_hr",
           "temp_min_f",
           "temp_max_f",
@@ -1284,13 +1302,17 @@
       "SortBy": {
         "enum": [
           "precip_total_in",
+          "precip_avg_in_hr",
+          "precip_min_in_hr",
           "precip_max_in_hr",
+          "wind_min_mph",
           "wind_avg_mph",
           "wind_max_mph",
           "temp_min_f",
           "temp_avg_f",
           "temp_max_f",
           "aqi_avg",
+          "aqi_min",
           "aqi_max"
         ],
         "title": "SortBy",

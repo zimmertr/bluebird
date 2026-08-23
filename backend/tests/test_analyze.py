@@ -5,7 +5,13 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from app.main import app
-from app.models import AnalyzeRequest, DestinationResult, DestinationType, GeoPolygon
+from app.models import (
+    AnalyzeRequest,
+    DestinationResult,
+    DestinationType,
+    GeoPolygon,
+    SortBy,
+)
 from app.routes import analyze as analyze_mod
 from app.routes.analyze import (
     _aligned_aqi,
@@ -70,10 +76,11 @@ def _result(
 ):
     return DestinationResult(
         name=name, type="peak", latitude=1.0, longitude=2.0,
-        precip_total_in=precip, precip_avg_in_hr=0.0, precip_max_in_hr=0.0,
+        precip_total_in=precip, precip_avg_in_hr=0.0, precip_min_in_hr=0.0,
+        precip_max_in_hr=0.0,
         temp_min_f=temp_min, temp_max_f=temp_max, temp_avg_f=temp_avg,
         wind_min_mph=wind_min, wind_max_mph=wind_max, wind_avg_mph=wind_avg,
-        aqi_avg=aqi, aqi_max=aqi,
+        aqi_avg=aqi, aqi_min=aqi, aqi_max=aqi,
     )
 
 
@@ -99,6 +106,24 @@ def test_sort_key_none_sorts_last_descending():
     rows = [_result("none", aqi=None), _result("low", aqi=50), _result("high", aqi=100)]
     rows.sort(key=_sort_key("aqi_avg", descending=True))
     assert [r.name for r in rows] == ["high", "low", "none"]
+
+
+def test_sort_key_ranks_the_new_aggregate_members():
+    # The two members #291 added so every aggregate column is rankable. The
+    # helper is a getattr, so this pins the enum values to real field names.
+    rows = [
+        _result("calm", wind_min=2.0),
+        _result("breezy", wind_min=8.0),
+        _result("still", wind_min=0.0),
+    ]
+    rows.sort(key=_sort_key(SortBy.wind_min.value, descending=False))
+    assert [r.name for r in rows] == ["still", "calm", "breezy"]
+
+    rows = [_result("a"), _result("b"), _result("c")]
+    for row, rate in zip(rows, (0.3, 0.1, 0.2)):
+        row.precip_avg_in_hr = rate
+    rows.sort(key=_sort_key(SortBy.precip_avg.value, descending=True))
+    assert [r.name for r in rows] == ["a", "c", "b"]
 
 
 # ── _filter_constraints ────────────────────────────────────────────────────
@@ -258,7 +283,8 @@ def test_summarize_request_union_includes_polygon_and_custom():
 def _wx(precip):
     """A complete weather-metrics dict with a controllable precip total."""
     return {
-        "precip_total_in": precip, "precip_avg_in_hr": precip, "precip_max_in_hr": precip,
+        "precip_total_in": precip, "precip_avg_in_hr": precip,
+        "precip_min_in_hr": precip, "precip_max_in_hr": precip,
         "temp_min_f": 40.0, "temp_max_f": 60.0, "temp_avg_f": 50.0,
         "wind_min_mph": 1.0, "wind_max_mph": 9.0, "wind_avg_mph": 5.0,
     }
@@ -358,7 +384,8 @@ def test_analyze_aqi_bound_fetches_air_quality_for_every_candidate(monkeypatch):
     async def fake_aqi(destinations, start, end):
         batches.append(len(destinations))
         return [
-            {"aqi_avg": int(d["latitude"] * 40), "aqi_max": int(d["latitude"] * 40), "series": None}
+            {"aqi_avg": int(d["latitude"] * 40), "aqi_min": int(d["latitude"] * 40),
+             "aqi_max": int(d["latitude"] * 40), "series": None}
             for d in destinations
         ]
 
@@ -800,7 +827,7 @@ def test_assemble_bakes_series_and_shares_the_time_grid():
         _wx_series(0.2, times, [0.2, 0.3], [40.0, 41.0], [7.0, 8.0]),
     ]
     aqi_list = [
-        {"aqi_avg": 40, "aqi_max": 55, "series": {"times": [1000], "aqi": [40]}},
+        {"aqi_avg": 40, "aqi_min": 30, "aqi_max": 55, "series": {"times": [1000], "aqi": [40]}},
         None,
     ]
     results, out_times = _assemble(dests, wx_list, aqi_list, "custom")

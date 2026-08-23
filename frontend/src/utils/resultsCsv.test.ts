@@ -17,6 +17,7 @@ function row(over: Partial<DestinationResult> = {}): DestinationResult {
     osm_id: 'node/1',
     precip_total_in: 0.024,
     precip_avg_in_hr: 0.001,
+    precip_min_in_hr: 0,
     precip_max_in_hr: 0.0034,
     temp_min_f: 21.4,
     temp_max_f: 38.2,
@@ -25,6 +26,7 @@ function row(over: Partial<DestinationResult> = {}): DestinationResult {
     wind_max_mph: 22.7,
     wind_avg_mph: 12.3,
     aqi_avg: 31,
+    aqi_min: 44,
     aqi_max: 44,
     ...over,
   }

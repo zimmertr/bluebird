@@ -38,6 +38,7 @@ function result(overrides: Partial<DestinationResult> = {}): DestinationResult {
     osm_id: null,
     precip_total_in: 0,
     precip_avg_in_hr: 0,
+    precip_min_in_hr: 0,
     precip_max_in_hr: 0,
     temp_min_f: 44.2,
     temp_max_f: 74.9,
@@ -46,6 +47,7 @@ function result(overrides: Partial<DestinationResult> = {}): DestinationResult {
     wind_max_mph: 10,
     wind_avg_mph: 6.4,
     aqi_avg: null,
+    aqi_min: null,
     aqi_max: null,
     ...overrides,
   }

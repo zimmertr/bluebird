@@ -46,6 +46,7 @@ def test_metrics_aggregates_full_window():
     assert m == {
         "precip_total_in": 0.3,
         "precip_avg_in_hr": 0.1,
+        "precip_min_in_hr": 0.0,
         "precip_max_in_hr": 0.2,
         "temp_min_f": 50.0,
         "temp_max_f": 54.0,

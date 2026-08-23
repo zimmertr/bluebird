@@ -49,9 +49,11 @@ describe('orderColumns', () => {
       'type',
       'elevation_ft',
       'aqi_avg',
+      'aqi_min',
       'aqi_max',
       'precip_total_in',
       'precip_avg_in_hr',
+      'precip_min_in_hr',
       'precip_max_in_hr',
       'temp_min_f',
       'temp_max_f',
@@ -72,11 +74,13 @@ describe('orderColumns', () => {
       'temp_avg_f',
       'precip_total_in',
       'precip_avg_in_hr',
+      'precip_min_in_hr',
       'precip_max_in_hr',
       'wind_min_mph',
       'wind_max_mph',
       'wind_avg_mph',
       'aqi_avg',
+      'aqi_min',
       'aqi_max',
     ])
   })
@@ -161,6 +165,7 @@ describe('visibleColumns', () => {
       'elevation_ft',
       'precip_total_in',
       'precip_avg_in_hr',
+      'precip_min_in_hr',
       'precip_max_in_hr',
     ])
   })

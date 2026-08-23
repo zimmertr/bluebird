@@ -1,5 +1,5 @@
 import { DestinationResult, SortBy } from '../types'
-import { AGGREGATE, metricLabel } from '../metrics'
+import { AGGREGATE, familyOf, metricLabel } from '../metrics'
 import { METRIC_CONFIG } from './colors'
 
 /**
@@ -76,6 +76,7 @@ export const COLUMNS: ColDef[] = [
   },
   { key: 'precip_total_in', label: metricLabel('precip', AGGREGATE.total), format: (v) => Number(v).toFixed(3), windyLayer: 'rain' },
   { key: 'precip_avg_in_hr', label: metricLabel('precip', AGGREGATE.average, 'in/hr'), format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
+  { key: 'precip_min_in_hr', label: metricLabel('precip', AGGREGATE.minimum, 'in/hr'), format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
   { key: 'precip_max_in_hr', label: metricLabel('precip', AGGREGATE.maximum, 'in/hr'), format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
   { key: 'temp_min_f', label: metricLabel('temp', AGGREGATE.minimum), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
   { key: 'temp_max_f', label: metricLabel('temp', AGGREGATE.maximum), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
@@ -84,6 +85,7 @@ export const COLUMNS: ColDef[] = [
   { key: 'wind_max_mph', label: metricLabel('wind', AGGREGATE.maximum), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
   { key: 'wind_avg_mph', label: metricLabel('wind', AGGREGATE.average), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
   { key: 'aqi_avg', label: metricLabel('aqi', AGGREGATE.average), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
+  { key: 'aqi_min', label: metricLabel('aqi', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
   { key: 'aqi_max', label: metricLabel('aqi', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
 ]
 
@@ -95,7 +97,7 @@ export const COLUMNS: ColDef[] = [
  * lint scans comments too.)
  */
 export function orderColumns<T extends { key: string }>(columns: T[], sortBy: SortBy): T[] {
-  const group = new Set<string>(METRIC_CONFIG[sortBy].group)
+  const group = new Set<string>(METRIC_CONFIG[familyOf(sortBy)].group)
   const lead = columns.filter((c) => LEAD_KEYS.has(c.key))
   const ranked = columns.filter((c) => !LEAD_KEYS.has(c.key) && group.has(c.key))
   const rest = columns.filter((c) => !LEAD_KEYS.has(c.key) && !group.has(c.key))
@@ -157,6 +159,6 @@ export function visibleColumns(
 ): ColDef[] {
   const allCols = orderColumns(pointSample ? pointModeColumns(COLUMNS) : COLUMNS, sortBy)
   if (!visibleKeys) return allCols
-  const group = new Set(METRIC_CONFIG[sortBy].group)
+  const group = new Set(METRIC_CONFIG[familyOf(sortBy)].group)
   return allCols.filter((c) => visibleKeys.has(c.key) || group.has(c.key))
 }

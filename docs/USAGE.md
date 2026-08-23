@@ -93,7 +93,7 @@ Changing the model needs a new **Analyze**, like changing the polygon or the win
 A calendar, with a **When** toggle above the grid reading **Current** or **Dates**.
 
 - **Current** analyzes the hour you press Analyze. It is the default, so a fresh load can Analyze without touching this step at all.
-- **Pick a day** to analyze that whole day, midnight to 23:59 your local time; that also moves the toggle to **Dates**. Precipitation ranks by the day's total; wind, temperature, and AQI by its average.
+- **Pick a day** to analyze that whole day, midnight to 23:59 your local time; that also moves the toggle to **Dates**. By default precipitation ranks by the day's total and wind, temperature, and AQI by its average; the Ranking section's aggregate dropdowns change that.
 - **Pick a second day** to extend to a range, or **drag across days** to choose one in a single gesture. Dragging either end of an existing range adjusts that end, and picking a day inside a range starts over from that day.
 - **Dates** on the toggle brings back the last range you had, so switching to Current to compare and back does not cost you the range. With no range yet the calendar opens empty — today is outlined, nothing is selected, and Analyze waits until you pick a day (one click for a single day, a second click or a drag for a range).
 - **Hours** appears under **When**, set to **All Day**. Switch it to **Hourly** for part of a day rather than all of it: it opens on the current hour through the end of the day, and runs from the first time on your first day to the second time on your last, as one continuous window. Two equal hours analyze that single hour, which is the finest question you can ask.
@@ -124,7 +124,7 @@ Once you have set your destinations and forecast window, three short sections sh
 
 ### Ranking
 
-Sort destinations by any metric: total precipitation, average wind, average temperature, or average AQI. The table re-ranks every destination in your analyzed area, not just the ones on screen, so the winners really are the extremes of the area. You can also see these four metrics in the table itself and click any of them to re-rank.
+Sort destinations by any metric, and by any of that metric's aggregates. Each row pairs a metric with a dropdown naming how it is reduced over your window — Avg, Max, and Min for every metric, plus Total for precipitation — so "calmest peak wind" (`Wind · Max`, Lowest) is as askable as "calmest average wind". The defaults are total precipitation and the averages of the rest. Changing a dropdown, a radio, or Lowest/Highest re-ranks every destination in your analyzed area, not just the ones on screen, so the winners really are the extremes of the area; the markers and the map legend follow the chosen aggregate. For a single-hour window the dropdowns disappear: one hour has no minimum, average, or maximum to choose between. Clicking a column header in the table reorders the rows on screen only — the Ranking section is what re-ranks the whole field.
 
 Wind is reported at each destination's own elevation, not at the standard 10 meters above the model's terrain — on a summit the 10-meter value understates what you would feel, often by a factor of two. How the number is derived, and its limits, are in [DATA.md](DATA.md#open-meteo). Destinations with no known elevation show the plain near-ground wind.
 

@@ -252,6 +252,7 @@ def _metrics(
         # US AQI is an integer index by definition
         return {
             "aqi_avg": round(sum(vals) / len(vals)),
+            "aqi_min": round(min(vals)),
             "aqi_max": round(max(vals)),
         }
     except Exception:  # noqa: BLE001 — best-effort AQI degrades to None, never fails the analysis

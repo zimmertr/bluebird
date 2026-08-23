@@ -364,6 +364,7 @@ export function assemble(
       osm_id: dest.osm_id,
       ...aggregates,
       aqi_avg: aqi?.aqi_avg ?? null,
+      aqi_min: aqi?.aqi_min ?? null,
       aqi_max: aqi?.aqi_max ?? null,
       series,
     })
