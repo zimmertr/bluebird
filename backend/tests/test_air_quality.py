@@ -78,6 +78,34 @@ async def test_fetch_batch_beyond_horizon_skips_without_network():
     assert await fetch_aqi_batch(dests, far_start, far_end) == [None, None]
 
 
+async def test_the_request_asks_only_for_the_hours_the_window_needs(monkeypatch):
+    # Issue #212, the air-quality half. Same flooring rule as the weather
+    # service, and it has to respect the CAMS clamp below.
+    calls = _stub_openmeteo(monkeypatch, [[_hourly(["2026-07-21T10:00"], [80])]])
+    start = datetime(2026, 7, 21, 9, 30)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
+    end = datetime(2026, 7, 21, 14, 45)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
+    await fetch_aqi_batch([{"latitude": 47.0, "longitude": -121.0}], start, end)
+
+    assert calls[0]["start_hour"] == "2026-07-21T09:00"
+    assert calls[0]["end_hour"] == "2026-07-21T14:00"
+    assert "start_date" not in calls[0]
+    assert "end_date" not in calls[0]
+
+
+async def test_the_horizon_clamp_ends_at_the_last_hour_of_the_cap_day(monkeypatch):
+    # The whole-day request this replaced ended at 23:00 on the cap day, so the
+    # hour bound has to end there too. Clamping to the instant instead would
+    # quietly drop most of a day of real AQI.
+    calls = _stub_openmeteo(monkeypatch, [[_hourly(["2026-07-21T10:00"], [80])]])
+    start = datetime.now(timezone.utc)
+    cap_day = (start + timedelta(days=air_quality.MAX_FORECAST_DAYS)).date()
+    await fetch_aqi_batch(
+        [{"latitude": 47.0, "longitude": -121.0}], start, start + timedelta(days=15)
+    )
+
+    assert calls[0]["end_hour"] == f"{cap_day.isoformat()}T23:00"
+
+
 # ── _series (hourly bake-in for the chart) ─────────────────────────────────
 
 

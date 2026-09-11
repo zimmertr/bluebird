@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -329,6 +329,35 @@ def _rate_limited(scope: str, retry_after: int | None = None) -> httpx.HTTPStatu
         headers={"Retry-After": str(retry_after)} if retry_after else {},
     )
     return httpx.HTTPStatusError("429", request=request, response=response)
+
+
+async def test_the_request_asks_only_for_the_hours_the_window_needs(monkeypatch):
+    # Issue #212: the request used to name whole calendar days and the filters
+    # here threw the overhang away. Both bounds now floor to the hour, which
+    # cannot drop a stamp the inclusive filter keeps — every kept stamp sits on
+    # the hour inside the window, so it sits inside the floored bounds too.
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    start = datetime(2026, 7, 21, 9, 30)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
+    end = datetime(2026, 7, 21, 14, 45)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
+    await fetch_weather_batch(_dests(1), start, end)
+
+    assert calls[0]["start_hour"] == "2026-07-21T09:00"
+    assert calls[0]["end_hour"] == "2026-07-21T14:00"
+    assert "start_date" not in calls[0]
+    assert "end_date" not in calls[0]
+
+
+async def test_a_point_sample_asks_for_a_single_hour(monkeypatch):
+    # The models normalize an equal start/end to [floor(T), floor(T)+1min],
+    # which the filters match with exactly one stamp. This is the window the
+    # whole-day request wasted most on: measured 2026-08-23 over 50 locations,
+    # 97.3 KB for the day against 32.8 KB for the hour.
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    moment = datetime(2026, 7, 21, 13, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
+    await fetch_weather_batch(_dests(1), moment, moment + timedelta(minutes=1))
+
+    assert calls[0]["start_hour"] == "2026-07-21T13:00"
+    assert calls[0]["end_hour"] == "2026-07-21T13:00"
 
 
 async def test_fetch_weather_batch_serves_a_repeat_analysis_from_cache(monkeypatch):

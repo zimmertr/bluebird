@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -16,6 +16,7 @@ from app.services.errors import (
     rate_limit_message,
 )
 from app.services.openmeteo_weight import call_weight
+from app.services.weather import hour_param
 
 log = logging.getLogger(__name__)
 
@@ -25,8 +26,8 @@ MAX_CONCURRENT_BATCHES = 4  # same in-flight gate as the weather service
 N_VARIABLES = 1  # us_aqi
 PROVIDER = "Open-Meteo (air quality)"
 
-# The underlying CAMS model publishes ~5 days of forecast. The API accepts
-# end_date a day or two past that, but the exact boundary tracks the model-run
+# The underlying CAMS model publishes ~5 days of forecast. The API accepts an
+# end a day or two past that, but the exact boundary tracks the model-run
 # publish cycle (early in the UTC day it can be today+6, later today+7), so
 # clamping to +5 stays safely inside it at any hour without losing real data —
 # hours past ~5 days come back null anyway.
@@ -47,11 +48,20 @@ async def fetch_aqi_batch(
     if not destinations:
         return []
 
-    # Clamp to the API's accepted date range; a window entirely beyond the
-    # horizon skips the fetch instead of triggering a 400.
-    end_cap = datetime.now(timezone.utc).date() + timedelta(days=MAX_FORECAST_DAYS)
-    req_start = start_dt.date()
-    req_end = min(end_dt.date(), end_cap)
+    # Clamp to the API's accepted range; a window entirely beyond the horizon
+    # skips the fetch instead of triggering a 400. The cap ends at 23:00 on
+    # the day MAX_FORECAST_DAYS names, which is where the whole-day request
+    # this replaced already ended, so the clamp keeps its old reach exactly.
+    # Wall clocks are read as UTC without converting, the same convention
+    # `_naive` uses in the weather service.
+    end_cap = (
+        datetime.now(timezone.utc).replace(tzinfo=None)
+        + timedelta(days=MAX_FORECAST_DAYS)
+    ).replace(hour=23, minute=0, second=0, microsecond=0)
+    req_start = start_dt.replace(tzinfo=None, minute=0, second=0, microsecond=0)
+    req_end = min(
+        end_dt.replace(tzinfo=None, minute=0, second=0, microsecond=0), end_cap
+    )
     if req_start > req_end:
         log.info("AQI window starts beyond the ~%dd forecast horizon — skipping fetch", MAX_FORECAST_DAYS)
         return [None] * len(destinations)
@@ -108,7 +118,9 @@ async def fetch_aqi_batch(
             if rate_limited.is_set():
                 return [None] * len(chunk)
             try:
-                weight = call_weight(len(chunk), req_start, req_end, N_VARIABLES)
+                weight = call_weight(
+                    len(chunk), req_start.date(), req_end.date(), N_VARIABLES
+                )
                 await ratelimit.AQI_WEIGHT.acquire(weight)
                 async with ratelimit.AQI_BUDGET.slot():
                     return await _fetch_chunk(chunk, req_start, req_end, start_dt, end_dt)
@@ -149,8 +161,8 @@ async def fetch_aqi_batch(
 
 async def _fetch_chunk(
     destinations: list[dict[str, Any]],
-    req_start: date,
-    req_end: date,
+    req_start: datetime,
+    req_end: datetime,
     start_dt: datetime,
     end_dt: datetime,
 ) -> list[dict[str, Any] | None]:
@@ -158,8 +170,8 @@ async def _fetch_chunk(
         "latitude": ",".join(str(d["latitude"]) for d in destinations),
         "longitude": ",".join(str(d["longitude"]) for d in destinations),
         "hourly": "us_aqi",
-        "start_date": req_start.isoformat(),
-        "end_date": req_end.isoformat(),
+        "start_hour": hour_param(req_start),
+        "end_hour": hour_param(req_end),
         "timezone": "UTC",
     }
 

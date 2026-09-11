@@ -679,6 +679,21 @@ function utcDate(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10)
 }
 
+// The window's ends in the `start_hour`/`end_hour` shape (issue #212). Asking
+// for hours instead of whole days is what keeps a narrow window from fetching
+// the calendar days around it and discarding the overhang, which on this path
+// is memory in the visitor's browser: measured 2026-08-23 over 50 locations, a
+// point sample fell from 97.3 KB to 32.8 KB and a six-hour window to 46.9 KB.
+// Both hosts accept the form and its accepted range is the date form's, so
+// nothing new can 400. Flooring cannot drop an hour the aggregation keeps:
+// every stamp it keeps sits on the hour inside `start <= ts <= end`, so it
+// also sits inside the floored bounds, and at most one extra hour arrives at
+// the head for the same inclusive filter to drop. Port of `hour_param` in
+// backend/app/services/weather.py.
+function utcHour(ms: number): string {
+  return `${new Date(ms).toISOString().slice(0, 13)}:00`
+}
+
 // Open-Meteo's 429 body names the tripped quota: {"reason": "Minutely API
 // request limit exceeded..."}. Best-effort parse; an unreadable body still
 // classifies as a rate limit, just without a scope.
@@ -874,8 +889,8 @@ export async function fetchWeather(
         temperature_unit: 'fahrenheit',
         wind_speed_unit: 'mph',
         precipitation_unit: 'inch',
-        start_date: utcDate(startMs),
-        end_date: utcDate(endMs),
+        start_hour: utcHour(startMs),
+        end_hour: utcHour(endMs),
         timezone: 'UTC',
       },
       signal,
@@ -941,9 +956,13 @@ export async function fetchAqi(
   if (destinations.length === 0) return []
 
   // Clamp to the CAMS horizon; a window entirely beyond it skips the fetch.
-  const endCap = utcDate(nowMs + AQI_MAX_FORECAST_DAYS * 86_400_000)
-  const reqStart = utcDate(startMs)
-  const reqEnd = utcDate(endMs) < endCap ? utcDate(endMs) : endCap
+  // The cap ends at 23:00 on the day AQI_MAX_FORECAST_DAYS names, which is
+  // where the whole-day request this replaced already ended, so the clamp
+  // keeps its old reach exactly. Both bounds are ISO hour strings, so the
+  // lexical comparisons below order them the same way the dates did.
+  const endCap = `${utcDate(nowMs + AQI_MAX_FORECAST_DAYS * 86_400_000)}T23:00`
+  const reqStart = utcHour(startMs)
+  const reqEnd = utcHour(endMs) < endCap ? utcHour(endMs) : endCap
   if (reqStart > reqEnd) return destinations.map(() => null)
 
   const results: AqiResult[] = new Array(destinations.length).fill(null)
@@ -970,8 +989,8 @@ export async function fetchAqi(
         {
           ...coordParams(chunk),
           hourly: 'us_aqi',
-          start_date: reqStart,
-          end_date: reqEnd,
+          start_hour: reqStart,
+          end_hour: reqEnd,
           timezone: 'UTC',
         },
         signal,

@@ -236,11 +236,11 @@ function modelEnd(now: Date, forecastHours: number): number {
  *
  * Two different edges bound this and only one is per model.
  *
- * The HARD edge is the API's: it refuses an `end_date` past ~16 days with a
+ * The HARD edge is the API's: it refuses a window ending past ~16 days with a
  * 400, whatever model was asked for. That one is walked back rather than
  * computed, because the window is local and the request is not. Every fetch
- * sends `start_date`/`end_date` as UTC dates (`utcDate` in `openMeteo.ts`,
- * `end_dt.date()` in `weather.py`), and the API's own far limit is a UTC date.
+ * sends `start_hour`/`end_hour` stamped in UTC (`utcHour` in `openMeteo.ts`,
+ * `hour_param` in `weather.py`), and the API's own far limit is a UTC date.
  * West of Greenwich a local day's last minute therefore lands on the *next* UTC
  * date: 23:59 Pacific on the 15th is 06:59 UTC on the 16th, one day past what
  * the API will accept, and the request comes back a 400. East of Greenwich it

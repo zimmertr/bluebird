@@ -580,8 +580,8 @@ export function decodeState(search: string): Partial<ShareableState> | null {
  * and 'future' when it ends beyond the forecast horizon.
  *
  * Bounded by whole days rather than by an instant `now + N * 24h`, because that
- * is the granularity of everything it is standing in for: the API takes
- * `start_date`/`end_date`, and the calendar offers whole days. Measuring from the
+ * is the granularity of everything it is standing in for: the API states its own
+ * far limit as a UTC date, and the calendar offers whole days. Measuring from the
  * instant made the last day of the band unusable — a window ending at its 23:59
  * always overshot `now + 15 days` unless you happened to be looking at 23:59 —
  * so the calendar's own far edge failed the check that is supposed to guard it.

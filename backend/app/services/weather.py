@@ -82,6 +82,25 @@ ProgressCallback = Callable[[int, int, int, int], Awaitable[None]]
 PaceCallback = Callable[[int], Awaitable[None]]
 
 
+def hour_param(dt: datetime) -> str:
+    """One end of the window in the `start_hour`/`end_hour` shape (issue #212).
+
+    Asking for hours instead of whole days is what keeps a narrow window from
+    fetching the calendar days around it and discarding the overhang: measured
+    2026-08-23 over 50 locations, a point sample fell from 97.3 KB to 32.8 KB
+    and a six-hour window to 46.9 KB. Both hosts accept the form and the
+    accepted range is the same as the date form's, so nothing new can 400.
+
+    Flooring cannot drop an hour the aggregation would have kept. Every stamp
+    it keeps sits on the hour inside `start <= ts <= end`, so it also sits
+    inside the floored bounds; at most one extra hour arrives at the head and
+    the same inclusive filter drops it. The wall clock is read as UTC without
+    converting, exactly as `_naive` reads it, so a caller sending an offset
+    gets the behavior it already had rather than a second interpretation.
+    """
+    return dt.strftime("%Y-%m-%dT%H:00")
+
+
 async def fetch_weather_batch(
     destinations: list[dict[str, Any]],
     start_dt: datetime,
@@ -227,8 +246,8 @@ async def _fetch_chunk(
     log.info(
         "Open-Meteo batch: %d location(s), %s → %s, model %s",
         len(destinations),
-        start_dt.date().isoformat(),
-        end_dt.date().isoformat(),
+        hour_param(start_dt),
+        hour_param(end_dt),
         model.value,
     )
 
@@ -244,8 +263,8 @@ async def _fetch_chunk(
         "temperature_unit": "fahrenheit",
         "wind_speed_unit": "mph",
         "precipitation_unit": "inch",
-        "start_date": start_dt.date().isoformat(),
-        "end_date": end_dt.date().isoformat(),
+        "start_hour": hour_param(start_dt),
+        "end_hour": hour_param(end_dt),
         "timezone": "UTC",
     }
 
