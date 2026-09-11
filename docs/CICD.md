@@ -544,6 +544,22 @@ released** `zimmertr/bluebird:<semver>` with Trivy:
   base-image PR (below), which cuts a patch release on the fresh base and
   rolls it out through Path 1.
 
+**When there is no base-image PR to merge.** Alpine fixes a package days to
+weeks before the `python:3.14-alpine` image rebuilds carrying it, so the tag
+can be current while the packages under it are not. Dependabot's `docker`
+ecosystem only moves tags, so it has nothing to open, and this is the case
+that failed the 2026-09 scans (seven fixable HIGH util-linux CVEs against a
+base tag that was already the newest published). The Dockerfile answers it
+with `RUN apk upgrade --no-cache` in the runtime stage, which pulls the
+current Alpine index at build time rather than waiting on the base.
+
+That layer is a snapshot, not a live upgrade: BuildKit keys it on the base
+digest plus the command, so between base moves every build serves the cached
+copy. A fix Alpine publishes into that gap is therefore invisible until the
+base moves. **The remedy is a cacheless rebuild** — `gh cache delete --all`,
+then release — not a dependency bump. The weekly scan here is what makes that
+gap visible, which is the only reason the cache is safe to keep.
+
 This job scans a published image rather than a checkout, so its `actions/checkout`
 step exists purely to read `trivy.yaml`. That is deliberate: without the PR gate's
 exclusions, an image could pass `pr.yml` and then fail here on findings that gate

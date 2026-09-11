@@ -24,6 +24,21 @@ LABEL org.opencontainers.image.title="Bluebird" \
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
+# Alpine fixes a package days to weeks before the python base image rebuilds
+# carrying it, so the base tag can ship a libuuid that Alpine 3.24 has already
+# fixed. That gap has no Dependabot remedy: the docker ecosystem only moves the
+# tag, and here the tag was already current while the packages under it were
+# not (7 fixable HIGH util-linux CVEs, 2026-09). Upgrading beats pinning the
+# one package, for the reason the pip upgrade below is written on: a pin sits
+# outside Dependabot's view and goes stale.
+#
+# This does NOT re-run per build. BuildKit keys the layer on the base digest
+# plus this command, so it runs when the base image moves and serves a snapshot
+# in between. A fix Alpine publishes into that gap stays invisible here until
+# the base moves; the weekly image scan is what catches it, and the remedy is a
+# cacheless rebuild rather than a dependency bump.
+RUN apk upgrade --no-cache
+
 WORKDIR /app
 COPY backend/requirements.txt ./
 # Upgrade pip first: the version bundled with the base image trails pip's own
