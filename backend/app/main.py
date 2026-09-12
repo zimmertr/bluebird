@@ -100,11 +100,15 @@ Draw a polygon and every named peak, trailhead, or lake inside it is discovered
 from OpenStreetMap, given a real hourly forecast, and ranked. Or skip discovery
 entirely and send your own coordinates.
 
-There is no API key and no authentication. Light per-address rate limits and
-an instance-wide upstream budget protect the free, keyless APIs underneath:
-requests past them receive 429 or 503 with a `Retry-After` header, and
-`GET /api/capabilities` publishes the numbers. Please stay considerate all the
-same: a single analysis can fan out to hundreds of forecast requests.
+The analyze routes require an Open-Meteo API key in the X-Open-Meteo-Key
+header. Every other route takes no key and no authentication. A keyed request
+spends the caller's Open-Meteo quota, never this deployment's.
+
+Light per-address rate limits and an instance-wide upstream budget protect the
+free, keyless APIs underneath: requests past them receive 429 or 503 with a
+`Retry-After` header, and `GET /api/capabilities` publishes the numbers. Please
+stay considerate all the same: a single analysis can fan out to hundreds of
+forecast requests.
 
 Start with `GET /api/capabilities` to learn the limits this deployment enforces,
 and `GET /api/version` to confirm which build you are talking to.

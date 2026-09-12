@@ -24,7 +24,7 @@ from app.routes.analyze import (
     _sse,
     _summarize_request,
 )
-from app.services.errors import ModelCoverageError
+from app.services.errors import InvalidApiKeyError, ModelCoverageError
 from fastapi.testclient import TestClient
 
 client = TestClient(app)
@@ -300,11 +300,12 @@ def stub_upstreams(monkeypatch):
     """Weather returns precip = destination latitude; AQI degrades to None."""
 
     async def fake_wx(
-        destinations, start, end, on_progress=None, on_pace=None, model=None
+        destinations, start, end, on_progress=None, on_pace=None, model=None,
+        api_key=None,
     ):
         return [_wx(d["latitude"]) for d in destinations]
 
-    async def fake_aqi(destinations, start, end):
+    async def fake_aqi(destinations, start, end, api_key=None):
         return [None] * len(destinations)
 
     monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fake_wx)
@@ -378,10 +379,10 @@ def test_analyze_aqi_bound_fetches_air_quality_for_every_candidate(monkeypatch):
     # are the observable difference.
     batches: list[int] = []
 
-    async def fake_wx(destinations, start, end, on_progress=None, on_pace=None, model=None):
+    async def fake_wx(destinations, start, end, on_progress=None, on_pace=None, model=None, api_key=None):
         return [_wx(d["latitude"]) for d in destinations]
 
-    async def fake_aqi(destinations, start, end):
+    async def fake_aqi(destinations, start, end, api_key=None):
         batches.append(len(destinations))
         return [
             {"aqi_avg": int(d["latitude"] * 40), "aqi_min": int(d["latitude"] * 40),
@@ -876,7 +877,7 @@ def test_analyze_maps_a_model_coverage_refusal_to_400_not_502(monkeypatch):
     async def refuse(*args, **kwargs):
         raise ModelCoverageError("gfs_hrrr", "NOAA HRRR does not cover part of this area.")
 
-    async def fake_aqi(destinations, start, end):
+    async def fake_aqi(destinations, start, end, api_key=None):
         return [None] * len(destinations)
 
     monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", refuse)
@@ -913,3 +914,135 @@ def test_analyze_rejects_a_model_this_deployment_does_not_serve():
     # different model than the one asked for is the failure this whole feature
     # exists to end.
     assert resp.status_code == 422
+
+
+# ── a caller's own Open-Meteo key (issue #317) ─────────────────────────────
+
+
+@pytest.fixture
+def record_key(monkeypatch):
+    """Capture the api_key both fetch layers were called with."""
+    seen: dict[str, list] = {"weather": [], "aqi": []}
+
+    async def fake_wx(
+        destinations, start, end, on_progress=None, on_pace=None, model=None,
+        api_key=None,
+    ):
+        seen["weather"].append(api_key)
+        return [_wx(d["latitude"]) for d in destinations]
+
+    async def fake_aqi(destinations, start, end, api_key=None):
+        seen["aqi"].append(api_key)
+        return [None] * len(destinations)
+
+    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fake_wx)
+    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+    return seen
+
+
+def _custom_body():
+    start, end = _window()
+    return {
+        "destination_types": [],
+        "start_datetime": start,
+        "end_datetime": end,
+        "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 0.0}],
+    }
+
+
+def test_the_header_reaches_both_fetch_layers(record_key):
+    resp = client.post(
+        "/api/analyze",
+        json=_custom_body(),
+        headers={"X-Open-Meteo-Key": "secret-key"},
+    )
+    assert resp.status_code == 200
+    assert record_key["weather"] == ["secret-key"]
+    # Lazy AQI still carries it: the displayed rows are fetched after the cut.
+    assert record_key["aqi"] == ["secret-key"]
+
+
+def test_the_header_reaches_both_fetch_layers_on_the_stream(record_key):
+    resp = client.post(
+        "/api/analyze/stream",
+        json=_custom_body(),
+        headers={"X-Open-Meteo-Key": "secret-key"},
+    )
+    assert resp.status_code == 200
+    assert record_key["weather"] == ["secret-key"]
+    assert record_key["aqi"] == ["secret-key"]
+
+
+def test_no_header_leaves_the_unkeyed_path_alone(record_key):
+    # In-cluster callers (the release probe, PR previews, a port-forward) and
+    # self-hosted instances keep the free tier: the key requirement lives at
+    # the public edge, not here.
+    resp = client.post("/api/analyze", json=_custom_body())
+    assert resp.status_code == 200
+    assert record_key["weather"] == [None]
+
+
+def test_the_key_is_read_from_the_header_only(record_key):
+    # Never from the body or the query string, where it would land in a log
+    # line or a browser history.
+    body = {**_custom_body(), "api_key": "secret-key"}
+    resp = client.post("/api/analyze?apikey=secret-key", json=body)
+    assert resp.status_code == 200
+    assert record_key["weather"] == [None]
+
+
+@pytest.fixture
+def refuse_key(monkeypatch):
+    async def refuse(*args, **kwargs):
+        raise InvalidApiKeyError()
+
+    async def fake_aqi(destinations, start, end, api_key=None):
+        return [None] * len(destinations)
+
+    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", refuse)
+    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+
+
+def test_a_refused_key_is_a_401_not_a_502(refuse_key):
+    resp = client.post(
+        "/api/analyze",
+        json=_custom_body(),
+        headers={"X-Open-Meteo-Key": "bad-key"},
+    )
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Open-Meteo rejected the API key."
+    assert "bad-key" not in resp.text
+
+
+def test_a_refused_key_ends_the_stream_with_an_error_event(refuse_key):
+    resp = client.post(
+        "/api/analyze/stream",
+        json=_custom_body(),
+        headers={"X-Open-Meteo-Key": "bad-key"},
+    )
+    assert resp.status_code == 200  # the stream was already open
+    events = [
+        json.loads(line[len("data: "):])
+        for line in resp.text.splitlines()
+        if line.startswith("data: ")
+    ]
+    assert events[-1] == {
+        "type": "error",
+        "message": "Open-Meteo rejected the API key.",
+    }
+    assert "bad-key" not in resp.text
+
+
+def test_the_key_reaches_no_log_record_from_the_route(record_key, caplog):
+    with caplog.at_level(5):  # TRACE
+        resp = client.post(
+            "/api/analyze",
+            json=_custom_body(),
+            headers={"X-Open-Meteo-Key": "secret-key"},
+        )
+    assert resp.status_code == 200
+    assert caplog.records
+    for record in caplog.records:
+        assert "secret-key" not in record.getMessage()
+    # And the answer itself says nothing about it.
+    assert "secret-key" not in resp.text

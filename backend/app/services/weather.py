@@ -13,10 +13,12 @@ from app import ratelimit, telemetry
 from app.models import DEFAULT_FORECAST_MODEL, MODEL_INFO, ForecastModel
 from app.services import cache, http
 from app.services.errors import (
+    InvalidApiKeyError,
     ModelCoverageError,
     UpstreamError,
     UpstreamRateLimited,
     classify_http_error,
+    is_invalid_api_key,
     is_out_of_domain,
     parse_rate_limit,
     rate_limit_message,
@@ -26,6 +28,10 @@ from app.services.openmeteo_weight import call_weight
 log = logging.getLogger(__name__)
 
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
+# Where a keyed request goes (issue #317). Named directly rather than letting
+# the free host redirect: it answers a request carrying `apikey` with a 303 to
+# this URL, and a redirect the provider can retire is not a transport.
+CUSTOMER_FORECAST_URL = "https://customer-api.open-meteo.com/v1/forecast"
 # Measured 2026-07-31 (issue #182), not guessed. Upstream accepts far more than
 # 50 per request, but raising this buys nothing and costs headroom:
 #   - Weight is per LOCATION, so the pacer caps locations/min identically at any
@@ -81,6 +87,43 @@ ProgressCallback = Callable[[int, int, int, int], Awaitable[None]]
 # Lets the SSE route narrate the wait instead of appearing hung.
 PaceCallback = Callable[[int], Awaitable[None]]
 
+# What stands in for a caller's key wherever text could persist. The pod
+# forwards a paid credential and must forget it, so a log line is the one
+# place it could survive the request.
+_REDACTED = "[redacted]"
+
+
+def redacted_params(params: dict[str, Any]) -> dict[str, Any]:
+    """`params` with any caller API key replaced, for logging.
+
+    Both Open-Meteo services log their full request params at TRACE, which is
+    exactly where a forwarded key would come to rest. Nothing logs `params`
+    directly.
+    """
+    if "apikey" not in params:
+        return params
+    return {**params, "apikey": _REDACTED}
+
+
+def redacted_error(exc: Exception, api_key: str | None) -> str:
+    """An upstream exception's text with the caller's key removed.
+
+    `raise_for_status` builds its message out of the request URL, and a keyed
+    request carries the key in that URL's query string, so interpolating the
+    exception straight into a log line would persist the credential that
+    `redacted_params` was careful not to.
+    """
+    text = str(exc)
+    return text.replace(api_key, _REDACTED) if api_key else text
+
+
+def quota_label(api_key: str | None) -> str:
+    """Whose Open-Meteo quota a batch spends: the caller's key, or this pod's.
+
+    A metric label, so it names the owner and never the key.
+    """
+    return "caller" if api_key else "pod"
+
 
 def hour_param(dt: datetime) -> str:
     """One end of the window in the `start_hour`/`end_hour` shape (issue #212).
@@ -108,6 +151,7 @@ async def fetch_weather_batch(
     on_progress: ProgressCallback | None = None,
     on_pace: PaceCallback | None = None,
     model: ForecastModel = DEFAULT_FORECAST_MODEL,
+    api_key: str | None = None,
 ) -> list[dict[str, Any] | None]:
     if not destinations:
         return []
@@ -118,6 +162,11 @@ async def fetch_weather_batch(
     # misses. A repeat Analyze on the same polygon and window costs zero
     # upstream calls; a partially-overlapping polygon pays only for what
     # actually changed.
+    #
+    # `api_key` is deliberately NOT part of the key. The two hosts answer the
+    # same model the same way for the same location and window, so keying on
+    # the key would split one cache into a copy per caller and buy nothing
+    # except upstream spend.
     results: list[dict[str, Any] | None] = [None] * total
     miss_indices: list[int] = []
     for i, dest in enumerate(destinations):
@@ -163,7 +212,9 @@ async def fetch_weather_batch(
     sem = asyncio.Semaphore(MAX_CONCURRENT_BATCHES)
     tasks = [
         asyncio.create_task(
-            _fetch_chunk_indexed(i, chunk, start_dt, end_dt, sem, on_pace, model)
+            _fetch_chunk_indexed(
+                i, chunk, start_dt, end_dt, sem, on_pace, model, api_key
+            )
         )
         for i, chunk in enumerate(chunks)
     ]
@@ -207,23 +258,33 @@ async def _fetch_chunk_indexed(
     sem: asyncio.Semaphore,
     on_pace: PaceCallback | None = None,
     model: ForecastModel = DEFAULT_FORECAST_MODEL,
+    api_key: str | None = None,
 ) -> tuple[int, list[dict[str, Any] | None]]:
     # Per-analysis fairness slot first, then the pod's weighted spend, then a
     # pod-wide in-flight slot. The weight acquire happens BEFORE the in-flight
     # slot so a pace sleep never holds a slot another analysis could be using.
     # Weight exhaustion (wedged, not busy) raises and fails the analysis with
     # a 503, unlike best-effort AQI.
+    #
+    # A keyed batch skips the weighted pacer, and only the pacer: that budget
+    # meters THIS POD's free-tier quota, which a keyed batch never touches, so
+    # pacing one would queue a caller behind spend it does not share. The
+    # in-flight slot still applies, because it guards the pod's own
+    # concurrency rather than anybody's quota.
     async with sem:
-        weight = call_weight(
-            len(destinations), start_dt.date(), end_dt.date(), N_VARIABLES
-        )
-        if on_pace is not None:
-            estimate = ratelimit.WEATHER_WEIGHT.wait_estimate_s(weight)
-            if estimate > 3:
-                await on_pace(int(estimate) + 1)
-        await ratelimit.WEATHER_WEIGHT.acquire(weight)
+        if api_key is None:
+            weight = call_weight(
+                len(destinations), start_dt.date(), end_dt.date(), N_VARIABLES
+            )
+            if on_pace is not None:
+                estimate = ratelimit.WEATHER_WEIGHT.wait_estimate_s(weight)
+                if estimate > 3:
+                    await on_pace(int(estimate) + 1)
+            await ratelimit.WEATHER_WEIGHT.acquire(weight)
         async with ratelimit.WEATHER_BUDGET.slot():
-            return index, await _fetch_chunk(destinations, start_dt, end_dt, model)
+            return index, await _fetch_chunk(
+                destinations, start_dt, end_dt, model, api_key
+            )
 
 
 def _coverage_message(model: ForecastModel) -> str:
@@ -239,9 +300,11 @@ async def _fetch_chunk(
     start_dt: datetime,
     end_dt: datetime,
     model: ForecastModel = DEFAULT_FORECAST_MODEL,
+    api_key: str | None = None,
 ) -> list[dict[str, Any] | None]:
     lats = ",".join(str(d["latitude"]) for d in destinations)
     lons = ",".join(str(d["longitude"]) for d in destinations)
+    quota = quota_label(api_key)
 
     log.info(
         "Open-Meteo batch: %d location(s), %s → %s, model %s",
@@ -267,6 +330,12 @@ async def _fetch_chunk(
         "end_hour": hour_param(end_dt),
         "timezone": "UTC",
     }
+    # The key rides as a query parameter because that is the only place
+    # Open-Meteo reads it, and only the paid host accepts it at all.
+    url = FORECAST_URL
+    if api_key is not None:
+        url = CUSTOMER_FORECAST_URL
+        params["apikey"] = api_key
 
     # One automatic resume for a minutely 429: that quota refills within the
     # minute, so a single paced retry usually completes the batch instead of
@@ -275,30 +344,38 @@ async def _fetch_chunk(
     data: Any = None
     for attempt in (0, 1):
         try:
-            log.trace("Open-Meteo request params: %s", params)  # type: ignore[attr-defined]
+            log.trace("Open-Meteo request params: %s", redacted_params(params))  # type: ignore[attr-defined]
             # One duration observation per HTTP attempt, failures included, so
             # the histogram and the outcome counter tally the same events.
             attempt_start = time.perf_counter()
             try:
-                resp = await http.client().get(FORECAST_URL, params=params)
+                resp = await http.client().get(url, params=params)
             finally:
-                telemetry.OPENMETEO_DURATION.labels(service="weather").observe(
-                    time.perf_counter() - attempt_start
-                )
+                telemetry.OPENMETEO_DURATION.labels(
+                    service="weather", quota=quota
+                ).observe(time.perf_counter() - attempt_start)
             resp.raise_for_status()
             telemetry.OPENMETEO_REQUESTS.labels(
-                service="weather", outcome="success"
+                service="weather", outcome="success", quota=quota
             ).inc()
             data = resp.json()
             break
         except httpx.HTTPStatusError as exc:
+            if is_invalid_api_key(exc):
+                # The caller's credential, not our outage: raised so the route
+                # can answer 401 instead of a 502 no retry would fix.
+                telemetry.OPENMETEO_REQUESTS.labels(
+                    service="weather", outcome="invalid_key", quota=quota
+                ).inc()
+                log.warning("Open-Meteo rejected the supplied API key")
+                raise InvalidApiKeyError() from exc
             if is_out_of_domain(exc):
                 # One location outside a regional model's grid 400s the whole
                 # batch, so this says nothing about which of the 50 it was.
                 # Naming them would take bisecting the batch — more upstream
                 # spend to refine an answer the user acts on the same way.
                 telemetry.OPENMETEO_REQUESTS.labels(
-                    service="weather", outcome="no_coverage"
+                    service="weather", outcome="no_coverage", quota=quota
                 ).inc()
                 log.warning(
                     "Open-Meteo: %s does not cover part of this batch", model.value
@@ -308,16 +385,18 @@ async def _fetch_chunk(
                 ) from exc
             if exc.response.status_code != 429:
                 telemetry.OPENMETEO_REQUESTS.labels(
-                    service="weather", outcome="http_error"
+                    service="weather", outcome="http_error", quota=quota
                 ).inc()
-                log.warning("Open-Meteo request failed: %s", exc)
+                log.warning(
+                    "Open-Meteo request failed: %s", redacted_error(exc, api_key)
+                )
                 raise UpstreamError(classify_http_error(exc, PROVIDER)) from exc
             scope, retry_after = parse_rate_limit(exc)
             telemetry.OPENMETEO_REQUESTS.labels(
-                service="weather", outcome="rate_limited"
+                service="weather", outcome="rate_limited", quota=quota
             ).inc()
             telemetry.OPENMETEO_RATE_LIMITED.labels(
-                service="weather", scope=scope or "unknown"
+                service="weather", scope=scope or "unknown", quota=quota
             ).inc()
             if scope == "minutely" and attempt == 0:
                 log.warning(
@@ -325,15 +404,19 @@ async def _fetch_chunk(
                 )
                 await asyncio.sleep(retry_after)
                 continue
-            log.warning("Open-Meteo rate limited (%s): %s", scope or "unknown", exc)
+            log.warning(
+                "Open-Meteo rate limited (%s): %s",
+                scope or "unknown",
+                redacted_error(exc, api_key),
+            )
             raise UpstreamRateLimited(
                 PROVIDER, scope, retry_after, rate_limit_message(PROVIDER, scope)
             ) from exc
         except httpx.HTTPError as exc:
             telemetry.OPENMETEO_REQUESTS.labels(
-                service="weather", outcome="network_error"
+                service="weather", outcome="network_error", quota=quota
             ).inc()
-            log.warning("Open-Meteo request failed: %s", exc)
+            log.warning("Open-Meteo request failed: %s", redacted_error(exc, api_key))
             raise UpstreamError(classify_http_error(exc, PROVIDER)) from exc
 
     # Single location → object; multiple → array

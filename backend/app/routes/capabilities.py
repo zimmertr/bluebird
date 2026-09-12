@@ -15,6 +15,7 @@ from app.models import (
     DestinationType,
     SortBy,
 )
+from app.routes.analyze import API_KEY_HEADER
 from app.services.air_quality import MAX_FORECAST_DAYS as AQI_FORECAST_DAYS
 from app.services.osm import IMPLEMENTED_TYPES
 
@@ -238,6 +239,14 @@ class CapabilitiesResponse(BaseModel):
             "reverse of ordering by `forecast_hours`. Render it as given."
         )
     )
+    api_key_header: str = Field(
+        description=(
+            "The request header that carries an Open-Meteo API key on the "
+            "analyze routes. The public deployment requires it there and "
+            "forwards the key to Open-Meteo, so the request spends the "
+            "caller's quota."
+        )
+    )
     limits: Limits
     data_sources: list[DataSource]
 
@@ -278,6 +287,9 @@ async def capabilities() -> CapabilitiesResponse:
             )
             for model, info in MODEL_INFO.items()
         ],
+        # Read from the analyze route's own constant, so the name a client is
+        # told to send is the name the route reads.
+        api_key_header=API_KEY_HEADER,
         limits=Limits(
             max_polygon_area_km2=MAX_POLYGON_AREA_KM2,
             max_destinations=MAX_ANALYZE_PEAKS,

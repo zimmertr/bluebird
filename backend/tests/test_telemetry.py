@@ -47,27 +47,49 @@ def _request(path: str = "/api/analyze") -> Request:
 
 
 def test_http_request_counted_with_route_template():
-    labels = {"route": "/api/capabilities", "method": "GET", "status": "200"}
+    labels = {
+        "route": "/api/capabilities", "method": "GET", "status": "200",
+        "client": "api",
+    }
+    dur_labels = {"route": "/api/capabilities", "method": "GET", "client": "api"}
     before = _value("bluebird_forecast_http_requests_total", labels)
-    dur_before = _value(
-        "bluebird_forecast_http_request_duration_seconds_count",
-        {"route": "/api/capabilities", "method": "GET"},
-    )
+    dur_before = _value("bluebird_forecast_http_request_duration_seconds_count", dur_labels)
     assert client.get("/api/capabilities").status_code == 200
     assert _value("bluebird_forecast_http_requests_total", labels) == before + 1
     assert (
-        _value(
-            "bluebird_forecast_http_request_duration_seconds_count",
-            {"route": "/api/capabilities", "method": "GET"},
-        )
+        _value("bluebird_forecast_http_request_duration_seconds_count", dur_labels)
         == dur_before + 1
     )
+
+
+def test_client_label_splits_the_web_app_from_an_api_caller():
+    # A browser stamps Sec-Fetch-Site on every fetch the app makes; anything
+    # else is an API caller. The label is a picture, never a gate.
+    web = {
+        "route": "/api/capabilities", "method": "GET", "status": "200",
+        "client": "web",
+    }
+    api = {**web, "client": "api"}
+    web_before = _value("bluebird_forecast_http_requests_total", web)
+    api_before = _value("bluebird_forecast_http_requests_total", api)
+    assert client.get(
+        "/api/capabilities", headers={"Sec-Fetch-Site": "same-origin"}
+    ).status_code == 200
+    assert client.get(
+        "/api/capabilities", headers={"Sec-Fetch-Site": "cross-site"}
+    ).status_code == 200
+    assert client.get("/api/capabilities").status_code == 200
+    assert _value("bluebird_forecast_http_requests_total", web) == web_before + 1
+    assert _value("bluebird_forecast_http_requests_total", api) == api_before + 2
 
 
 def test_unknown_api_path_counts_under_the_catchall_template():
     # The 404 catch-all's template, never the raw path — a typo'd URL must not
     # mint a series.
-    labels = {"route": "/api/{path:path}", "method": "GET", "status": "404"}
+    labels = {
+        "route": "/api/{path:path}", "method": "GET", "status": "404",
+        "client": "api",
+    }
     before = _value("bluebird_forecast_http_requests_total", labels)
     assert client.get("/api/no-such-endpoint").status_code == 404
     assert _value("bluebird_forecast_http_requests_total", labels) == before + 1
@@ -81,7 +103,7 @@ def test_unhandled_exception_counts_as_500():
     async def kaboom():
         raise RuntimeError("unhandled")
 
-    labels = {"route": "/kaboom", "method": "GET", "status": "500"}
+    labels = {"route": "/kaboom", "method": "GET", "status": "500", "client": "api"}
     before = _value("bluebird_forecast_http_requests_total", labels)
     with pytest.raises(RuntimeError):
         TestClient(boom).get("/kaboom")
@@ -112,7 +134,10 @@ def _scope_request(route) -> Request:
 
 @pytest.fixture
 def stub_upstreams(monkeypatch):
-    async def fake_wx(destinations, start, end, on_progress=None, on_pace=None, model=None):
+    async def fake_wx(
+        destinations, start, end, on_progress=None, on_pace=None, model=None,
+        api_key=None,
+    ):
         return [
             {
                 "precip_total_in": 0.1, "precip_avg_in_hr": 0.1,
@@ -123,7 +148,7 @@ def stub_upstreams(monkeypatch):
             for _ in destinations
         ]
 
-    async def fake_aqi(destinations, start, end):
+    async def fake_aqi(destinations, start, end, api_key=None):
         return [None] * len(destinations)
 
     monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fake_wx)
@@ -339,10 +364,12 @@ def test_weather_success_counts_request_and_duration(monkeypatch):
     }
     _stub_openmeteo(monkeypatch, weather, [[hourly]])
     ok_before = _value(
-        "bluebird_forecast_openmeteo_requests_total", {"service": "weather", "outcome": "success"}
+        "bluebird_forecast_openmeteo_requests_total",
+        {"service": "weather", "outcome": "success", "quota": "pod"},
     )
     dur_before = _value(
-        "bluebird_forecast_openmeteo_request_duration_seconds_count", {"service": "weather"}
+        "bluebird_forecast_openmeteo_request_duration_seconds_count",
+        {"service": "weather", "quota": "pod"},
     )
     cache.FORECAST_CACHE.clear()
     result = asyncio.run(
@@ -352,13 +379,14 @@ def test_weather_success_counts_request_and_duration(monkeypatch):
     assert (
         _value(
             "bluebird_forecast_openmeteo_requests_total",
-            {"service": "weather", "outcome": "success"},
+            {"service": "weather", "outcome": "success", "quota": "pod"},
         )
         == ok_before + 1
     )
     assert (
         _value(
-            "bluebird_forecast_openmeteo_request_duration_seconds_count", {"service": "weather"}
+            "bluebird_forecast_openmeteo_request_duration_seconds_count",
+            {"service": "weather", "quota": "pod"},
         )
         == dur_before + 1
     )
@@ -367,7 +395,8 @@ def test_weather_success_counts_request_and_duration(monkeypatch):
 def test_weather_terminal_429_counts_scope(monkeypatch):
     _stub_openmeteo(monkeypatch, weather, [_rate_limited(weather.FORECAST_URL, "Hourly")])
     before = _value(
-        "bluebird_forecast_openmeteo_rate_limited_total", {"service": "weather", "scope": "hourly"}
+        "bluebird_forecast_openmeteo_rate_limited_total",
+        {"service": "weather", "scope": "hourly", "quota": "pod"},
     )
     cache.FORECAST_CACHE.clear()
     with pytest.raises(UpstreamRateLimited):
@@ -379,7 +408,7 @@ def test_weather_terminal_429_counts_scope(monkeypatch):
     assert (
         _value(
             "bluebird_forecast_openmeteo_rate_limited_total",
-            {"service": "weather", "scope": "hourly"},
+            {"service": "weather", "scope": "hourly", "quota": "pod"},
         )
         == before + 1
     )
@@ -392,7 +421,7 @@ def test_aqi_failure_counts_a_degraded_batch(monkeypatch):
     degraded_before = _value("bluebird_forecast_aqi_degraded_total", {"reason": "error"})
     err_before = _value(
         "bluebird_forecast_openmeteo_requests_total",
-        {"service": "aqi", "outcome": "network_error"},
+        {"service": "aqi", "outcome": "network_error", "quota": "pod"},
     )
     cache.FORECAST_CACHE.clear()
     result = asyncio.run(
@@ -407,10 +436,55 @@ def test_aqi_failure_counts_a_degraded_batch(monkeypatch):
     assert (
         _value(
             "bluebird_forecast_openmeteo_requests_total",
-            {"service": "aqi", "outcome": "network_error"},
+            {"service": "aqi", "outcome": "network_error", "quota": "pod"},
         )
         == err_before + 1
     )
+
+
+def test_keyed_weather_batch_counts_against_the_callers_quota(monkeypatch):
+    # The whole point of the label: a keyed batch spends the caller's quota,
+    # which none of this pod's pacers meter, so it must not sum into the
+    # series that watches the pod's own free tier.
+    hourly = {
+        "hourly": {
+            "time": ["2026-07-21T00:00"],
+            "precipitation": [0.1],
+            "temperature_2m": [50.0],
+            "wind_speed_10m": [5.0],
+        }
+    }
+    _stub_openmeteo(monkeypatch, weather, [[hourly]])
+    caller = {"service": "weather", "outcome": "success", "quota": "caller"}
+    pod = {**caller, "quota": "pod"}
+    caller_before = _value("bluebird_forecast_openmeteo_requests_total", caller)
+    pod_before = _value("bluebird_forecast_openmeteo_requests_total", pod)
+    cache.FORECAST_CACHE.clear()
+    asyncio.run(
+        weather.fetch_weather_batch(
+            [{"latitude": 47.4, "longitude": -121.4}], *WINDOW, api_key="k"
+        )
+    )
+    assert _value("bluebird_forecast_openmeteo_requests_total", caller) == caller_before + 1
+    assert _value("bluebird_forecast_openmeteo_requests_total", pod) == pod_before
+
+
+def test_keyed_aqi_batch_counts_against_the_callers_quota(monkeypatch):
+    payload = {"hourly": {"time": ["2026-07-21T00:00"], "us_aqi": [42]}}
+    _stub_openmeteo(monkeypatch, air_quality, [[payload]])
+    labels = {"service": "aqi", "outcome": "success", "quota": "caller"}
+    before = _value("bluebird_forecast_openmeteo_requests_total", labels)
+    cache.FORECAST_CACHE.clear()
+    now = datetime.now(timezone.utc)
+    asyncio.run(
+        air_quality.fetch_aqi_batch(
+            [{"latitude": 47.5, "longitude": -121.5}],
+            now,
+            now + timedelta(hours=3),
+            api_key="k",
+        )
+    )
+    assert _value("bluebird_forecast_openmeteo_requests_total", labels) == before + 1
 
 
 # ── Overpass outcomes ──────────────────────────────────────────────────────
@@ -500,8 +574,8 @@ def urlhost(url: str) -> str:
 # Every bluebird metric family must draw its label NAMES from this set, and
 # no label VALUE may look like an IP address or a bare coordinate.
 ALLOWED_LABEL_NAMES = {
-    "route", "method", "status",          # HTTP surface
-    "mirror", "service", "outcome", "scope",  # suppliers
+    "route", "method", "status", "client",  # HTTP surface
+    "mirror", "service", "outcome", "scope", "quota",  # suppliers
     "reason", "bucket", "provider", "mechanism",  # degradation and pacing
     "cache",                               # caches
     "version", "commit",                   # build info

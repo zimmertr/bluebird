@@ -43,6 +43,20 @@ class UpstreamRateLimited(UpstreamError):
         self.retry_after_s = retry_after_s
 
 
+class InvalidApiKeyError(UpstreamError):
+    """Open-Meteo refused the caller's API key.
+
+    Kept apart from a generic :class:`UpstreamError` because the upstream is
+    healthy and the request is the problem, so the route answers 401 rather
+    than 502. Its message is fixed and carries nothing of the key: the key is
+    a paid credential the pod only forwards, and an error body is read by
+    whoever sent the request and by whoever reads the logs.
+    """
+
+    def __init__(self) -> None:
+        super().__init__("Open-Meteo rejected the API key.")
+
+
 class ModelCoverageError(UpstreamError):
     """The requested weather model does not cover somewhere in the batch.
 
@@ -68,6 +82,24 @@ _NO_DATA_REASON = re.compile(r"no data is available for this location", re.IGNOR
 
 def is_out_of_domain(exc: httpx.HTTPStatusError) -> bool:
     """Is this 400 a regional model refusing a location outside its grid?"""
+    return _reason_matches(exc, _NO_DATA_REASON)
+
+
+# How Open-Meteo's customer hosts refuse a bad key. Measured 2026-09-11 on both
+# `customer-api` and `customer-air-quality-api`: HTTP 400 with
+# {"error": true, "reason": "The supplied API key is invalid."}. A 400 rather
+# than a 401, which is why this needs recognising by reason text: left to
+# `classify_http_error` it would reach the caller as a 502 "try again later"
+# for a request no retry can fix.
+_INVALID_KEY_REASON = re.compile(r"the supplied api key is invalid", re.IGNORECASE)
+
+
+def is_invalid_api_key(exc: httpx.HTTPStatusError) -> bool:
+    """Is this 400 Open-Meteo refusing the key the request carried?"""
+    return _reason_matches(exc, _INVALID_KEY_REASON)
+
+
+def _reason_matches(exc: httpx.HTTPStatusError, pattern: re.Pattern[str]) -> bool:
     if exc.response.status_code != 400:
         return False
     try:
@@ -75,7 +107,7 @@ def is_out_of_domain(exc: httpx.HTTPStatusError) -> bool:
     except (json.JSONDecodeError, UnicodeDecodeError):
         return False
     reason = body.get("reason", "") if isinstance(body, dict) else ""
-    return bool(_NO_DATA_REASON.search(reason or ""))
+    return bool(pattern.search(reason or ""))
 
 
 class PartialResultError(RuntimeError):

@@ -1,7 +1,26 @@
 # Using the Bluebird Forecast API
 
-Everything the web app does, it does through this API, and all of it is open to
-you. There are no API keys, no accounts, and no authentication of any kind.
+Everything the web app does, it does through this API. There are no accounts and
+no authentication. Discovery, geocoding, the limits endpoint, the build
+endpoint, and the two cached map overlays are open to anyone, with nothing to
+send but the request.
+
+Forecasts are the exception. On `bluebirdforecast.com` the two analyze routes
+need an Open-Meteo API key in the `X-Open-Meteo-Key` header. One analysis can
+spend more than a thousand weighted Open-Meteo calls, this deployment has a
+single free-tier quota to answer every visitor from, and it does not spend that
+quota on API callers. A keyed request spends the key's own quota instead: the
+pod forwards the key to Open-Meteo, and it reaches no log line, no metric, and
+no error message. Open-Meteo sells keys; the `api_key_header` field of
+`GET /api/capabilities` names the header to put one in.
+
+The web app needs no key, and stays free. The browser fetches its own forecasts
+from Open-Meteo directly, so a visitor's analysis spends the visitor's address
+and free-tier quota rather than the deployment's.
+
+A self-hosted instance needs no key either. The requirement is enforced at the
+public gateway rather than in the code, so your own instance answers an unkeyed
+analyze request from its own free tier.
 
 - **Interactive reference:** [bluebirdforecast.com/docs](https://bluebirdforecast.com/docs)
 - **Machine-readable schema:** [bluebirdforecast.com/openapi.json](https://bluebirdforecast.com/openapi.json) (OpenAPI 3.1)
@@ -17,6 +36,7 @@ Rank the peaks around Tiger Mountain by how dry it is right now:
 ```bash
 curl -s https://bluebirdforecast.com/api/analyze \
   -H 'Content-Type: application/json' \
+  -H "X-Open-Meteo-Key: $OPEN_METEO_KEY" \
   -d '{
     "polygon": {
       "type": "Polygon",
@@ -143,10 +163,18 @@ meant to prevent.
 On `bluebirdforecast.com` the gateway publishes the API by **allowlist**
 (#240): it forwards exactly the endpoints the web app itself calls, plus
 `/api/version`, and any other `/api` path answers the same JSON `404` an
-unknown path gets. The two analyze endpoints are the deliberate omissions,
-because one request can spend more than a thousand weighted Open-Meteo calls
-from the deployment's shared quota. They work unchanged on a self-hosted
-instance and from inside the deployment's own network.
+unknown path gets.
+
+The two analyze endpoints are on that allowlist **only with the
+`X-Open-Meteo-Key` header** (#317). Send the header and the gateway forwards
+the request; leave it out and `/api/analyze` answers the same JSON `404`, at the
+edge, before the deployment is asked to spend anything. The gateway tests only
+that the header is there. Whether the key is any good is Open-Meteo's answer,
+which comes back as a `401` (see the error table below).
+
+An unkeyed analyze request still works from inside the deployment's own network
+and on a self-hosted instance, because the gate is the gateway rather than the
+code.
 | `GET /api/smoke` | Smoke plumes over North America, cached from NOAA's Hazard Mapping System. |
 | `GET /api/config` | Deployment-specific UI settings. Internal to the web app. |
 | `GET /healthz` | Liveness probe. Answers `GET` and `HEAD`. |
@@ -396,6 +424,7 @@ number or omitted, and they combine as an AND:
 ```bash
 curl -s https://bluebirdforecast.com/api/analyze \
   -H 'Content-Type: application/json' \
+  -H "X-Open-Meteo-Key: $OPEN_METEO_KEY" \
   -d '{
     "destination_types": [],
     "forecast_mode": "window",
@@ -470,7 +499,8 @@ real forecast, so a large polygon over dense terrain can take tens of seconds.
 
 ```bash
 curl -N https://bluebirdforecast.com/api/analyze/stream \
-  -H 'Content-Type: application/json' -d @request.json
+  -H 'Content-Type: application/json' \
+  -H "X-Open-Meteo-Key: $OPEN_METEO_KEY" -d @request.json
 ```
 
 ```
@@ -491,7 +521,8 @@ secondary text. During quiet stretches — a paced analysis can legitimately
 wait most of a minute for quota — the stream emits `{"type": "keepalive"}`
 events; ignore them. A terminal `error` event carries the refusal remedy
 fields when the search was over-limit, or `scope` and `retry_after_s` when an
-upstream rate limit ended the analysis.
+upstream rate limit ended the analysis. A key Open-Meteo refuses ends it the
+same way, with `Open-Meteo rejected the API key.` in `message`.
 
 One important catch: **check the status code first, then the stream.** A request
 that fails validation is rejected with a `422` before the stream opens, exactly
@@ -513,7 +544,8 @@ It reports the searchable destination types (narrower than the enum in the
 schema, since not every modelled type is discoverable yet), the sort keys, the
 maximum polygon area, the cap on destinations per analysis, the accepted `limit`
 range, how far forward and back a window may reach, the selectable forecast
-models with each one's reach (under `forecast_models`), and (under
+models with each one's reach (under `forecast_models`), the header an
+Open-Meteo key travels in (`api_key_header`), and (under
 `limits.rate`) the per-address request pacing behind `429` responses. Those
 values are read from the same constants the validators and limiters enforce, so
 they cannot drift.
@@ -541,7 +573,8 @@ the reasoning, along with the equivalent caveats for the other providers.
 | Status | Meaning |
 | --- | --- |
 | `400` | The request parsed but does not describe a runnable analysis. Inverted window, undiscoverable destination type, missing `custom_destinations`, a regional `forecast_model` asked about somewhere outside its grid, or too many candidates — the over-limit case carries the structured remedy fields described above. |
-| `404` | No such endpoint. The body names the path and points at `/docs`. |
+| `401` | Open-Meteo refused the `X-Open-Meteo-Key` this analyze request carried. Only the two analyze routes can answer it, and no retry helps. |
+| `404` | No such endpoint. The body names the path and points at `/docs`. On `bluebirdforecast.com` an analyze request with no `X-Open-Meteo-Key` header gets this from the gateway, so a `404` on a path that exists means the header was missing. |
 | `405` | Right path, wrong method. The `Allow` header lists what the path accepts. |
 | `422` | Request validation failed. Polygon too large, `limit` out of range, or a window outside the servable horizon. |
 | `429` | Either this client is sending faster than the per-address limit, or the upstream weather service rate-limited the deployment mid-analysis. The `Retry-After` header says how many seconds to wait in both cases. Analyze, destinations, and geocode have separate per-address buckets; `GET /api/capabilities` publishes them under `limits.rate`. |
@@ -561,7 +594,11 @@ progress and keepalive events hold the connection open, or narrow the search.
 On `POST /api/analyze/stream`, a `429` arrives as a plain HTTP response because
 rate limiting runs before the stream opens. A capacity problem discovered
 mid-analysis, though, arrives as an `error` event on the already-open `200`
-stream, exactly like any other upstream failure.
+stream, exactly like any other upstream failure. A refused API key is one of
+those: the key is only tested when the first forecast batch goes out, which is
+after the stream has opened, so it arrives as
+`{"type": "error", "message": "Open-Meteo rejected the API key."}` rather than
+as the `401` the JSON route answers.
 
 ## Generating a client
 
@@ -577,14 +614,17 @@ and checked in CI, so it always matches the code in the same commit.
 
 ## Please be considerate
 
-Every upstream Bluebird Forecast depends on (Overpass, Open-Meteo, Nominatim) is free,
-keyless, and run by people paying for it — and Open-Meteo meters weighted
-calls (each location in a batch counts), so a single large analysis can spend
-over a thousand of them. Light per-address rate limits and an
-instance-wide upstream budget enforce a floor of good behavior: past them you
-get a `429` or `503` with `Retry-After` instead of service. The numbers are
-published by `GET /api/capabilities` under `limits.rate`, and the full picture
-of what calls what lives in [`TRAFFIC.md`](TRAFFIC.md).
+Every upstream Bluebird Forecast depends on (Overpass, Open-Meteo, Nominatim) is run by
+people paying for it, and the two that answer without a key are free — and
+Open-Meteo meters weighted calls (each location in a batch counts), so a single
+large analysis can spend over a thousand of them. That is what a key buys: an
+analyze request that carries one spends its own quota rather than anybody
+else's, which is the whole reason the route is public again. Light per-address
+rate limits and an instance-wide upstream budget enforce a floor of good
+behavior: past them you get a `429` or `503` with `Retry-After` instead of
+service, key or no key. The numbers are published by `GET /api/capabilities`
+under `limits.rate`, and the full picture of what calls what lives in
+[`TRAFFIC.md`](TRAFFIC.md).
 
 The limits are sized so a person iterating on a map never meets them. Scripts
 should stay well under them anyway: keep polygons no larger than you need,

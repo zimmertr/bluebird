@@ -11,16 +11,28 @@ import httpx
 from app import ratelimit, telemetry
 from app.services import cache, http
 from app.services.errors import (
+    InvalidApiKeyError,
     UpstreamRateLimited,
+    is_invalid_api_key,
     parse_rate_limit,
     rate_limit_message,
 )
 from app.services.openmeteo_weight import call_weight
-from app.services.weather import hour_param
+from app.services.weather import (
+    hour_param,
+    quota_label,
+    redacted_error,
+    redacted_params,
+)
 
 log = logging.getLogger(__name__)
 
 AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
+# Where a keyed request goes (issue #317), for the reason the weather service
+# names its own customer host: the free host only redirects a keyed request.
+CUSTOMER_AIR_QUALITY_URL = (
+    "https://customer-air-quality-api.open-meteo.com/v1/air-quality"
+)
 BATCH_SIZE = 50  # same as the weather service; see the reasoning on its constant
 MAX_CONCURRENT_BATCHES = 4  # same in-flight gate as the weather service
 N_VARIABLES = 1  # us_aqi
@@ -38,12 +50,15 @@ async def fetch_aqi_batch(
     destinations: list[dict[str, Any]],
     start_dt: datetime,
     end_dt: datetime,
+    api_key: str | None = None,
 ) -> list[dict[str, Any] | None]:
     """Fetch US AQI stats (all EPA pollutants combined) (avg/max over the window) per destination.
 
     Best-effort by design: air quality is supplementary, so upstream failures
     degrade to None entries (rendered as "—") instead of failing the analysis
-    the way a weather outage does.
+    the way a weather outage does. A refused API key is the one exception: the
+    request itself is unusable, so it raises for the route to answer 401
+    rather than returning a ranking that quietly has no air quality in it.
     """
     if not destinations:
         return []
@@ -67,7 +82,8 @@ async def fetch_aqi_batch(
         return [None] * len(destinations)
 
     # Serve repeats from the per-location cache; fetch only the misses (same
-    # pattern as the weather service, same incident rationale).
+    # pattern as the weather service, same incident rationale, and `api_key`
+    # is left out of the key there for the same reason).
     results: list[dict[str, Any] | None] = [None] * len(destinations)
     miss_indices: list[int] = []
     for i, dest in enumerate(destinations):
@@ -114,16 +130,24 @@ async def fetch_aqi_batch(
         # pod-wide in-flight slot. Budget exhaustion or a rate limit degrades
         # this chunk to None rows like any other AQI failure — air quality
         # never fails the analysis.
+        #
+        # A keyed chunk skips the weighted pacer and only the pacer, exactly
+        # as the weather service does and for the same reason: that budget
+        # meters the pod's own air-quality quota, which a keyed chunk never
+        # spends.
         async with sem:
             if rate_limited.is_set():
                 return [None] * len(chunk)
             try:
-                weight = call_weight(
-                    len(chunk), req_start.date(), req_end.date(), N_VARIABLES
-                )
-                await ratelimit.AQI_WEIGHT.acquire(weight)
+                if api_key is None:
+                    weight = call_weight(
+                        len(chunk), req_start.date(), req_end.date(), N_VARIABLES
+                    )
+                    await ratelimit.AQI_WEIGHT.acquire(weight)
                 async with ratelimit.AQI_BUDGET.slot():
-                    return await _fetch_chunk(chunk, req_start, req_end, start_dt, end_dt)
+                    return await _fetch_chunk(
+                        chunk, req_start, req_end, start_dt, end_dt, api_key
+                    )
             except ratelimit.BudgetExhausted:
                 telemetry.AQI_DEGRADED.labels(reason="budget").inc()
                 log.warning("AQI budget exhausted (continuing without AQI)")
@@ -165,7 +189,9 @@ async def _fetch_chunk(
     req_end: datetime,
     start_dt: datetime,
     end_dt: datetime,
+    api_key: str | None = None,
 ) -> list[dict[str, Any] | None]:
+    quota = quota_label(api_key)
     params = {
         "latitude": ",".join(str(d["latitude"]) for d in destinations),
         "longitude": ",".join(str(d["longitude"]) for d in destinations),
@@ -174,45 +200,68 @@ async def _fetch_chunk(
         "end_hour": hour_param(req_end),
         "timezone": "UTC",
     }
+    url = AIR_QUALITY_URL
+    if api_key is not None:
+        url = CUSTOMER_AIR_QUALITY_URL
+        params["apikey"] = api_key
 
     try:
-        log.trace("Open-Meteo air quality request params: %s", params)  # type: ignore[attr-defined]
+        log.trace("Open-Meteo air quality request params: %s", redacted_params(params))  # type: ignore[attr-defined]
         # One duration observation per HTTP attempt, failures included, so the
         # histogram and the outcome counter tally the same events.
         attempt_start = time.perf_counter()
         try:
-            resp = await http.client().get(AIR_QUALITY_URL, params=params)
+            resp = await http.client().get(url, params=params)
         finally:
-            telemetry.OPENMETEO_DURATION.labels(service="aqi").observe(
+            telemetry.OPENMETEO_DURATION.labels(service="aqi", quota=quota).observe(
                 time.perf_counter() - attempt_start
             )
         resp.raise_for_status()
-        telemetry.OPENMETEO_REQUESTS.labels(service="aqi", outcome="success").inc()
+        telemetry.OPENMETEO_REQUESTS.labels(
+            service="aqi", outcome="success", quota=quota
+        ).inc()
         data = resp.json()
     except httpx.HTTPStatusError as exc:
+        if is_invalid_api_key(exc):
+            # The one AQI failure that is not best-effort: the same key is on
+            # every batch of this request, so degrading here would report no
+            # air quality for a reason the caller could have fixed.
+            telemetry.OPENMETEO_REQUESTS.labels(
+                service="aqi", outcome="invalid_key", quota=quota
+            ).inc()
+            log.warning("Open-Meteo air quality rejected the supplied API key")
+            raise InvalidApiKeyError() from exc
         if exc.response.status_code == 429:
             # Raised (not degraded) so the caller can stop burning the AQI
             # quota on the remaining batches; it still degrades to nulls there.
             scope, retry_after = parse_rate_limit(exc)
             telemetry.OPENMETEO_REQUESTS.labels(
-                service="aqi", outcome="rate_limited"
+                service="aqi", outcome="rate_limited", quota=quota
             ).inc()
             telemetry.OPENMETEO_RATE_LIMITED.labels(
-                service="aqi", scope=scope or "unknown"
+                service="aqi", scope=scope or "unknown", quota=quota
             ).inc()
             raise UpstreamRateLimited(
                 PROVIDER, scope, retry_after, rate_limit_message(PROVIDER, scope)
             ) from exc
-        telemetry.OPENMETEO_REQUESTS.labels(service="aqi", outcome="http_error").inc()
+        telemetry.OPENMETEO_REQUESTS.labels(
+            service="aqi", outcome="http_error", quota=quota
+        ).inc()
         telemetry.AQI_DEGRADED.labels(reason="error").inc()
-        log.warning("Open-Meteo air quality request failed (continuing without AQI): %s", exc)
+        log.warning(
+            "Open-Meteo air quality request failed (continuing without AQI): %s",
+            redacted_error(exc, api_key),
+        )
         return [None] * len(destinations)
     except httpx.HTTPError as exc:
         telemetry.OPENMETEO_REQUESTS.labels(
-            service="aqi", outcome="network_error"
+            service="aqi", outcome="network_error", quota=quota
         ).inc()
         telemetry.AQI_DEGRADED.labels(reason="error").inc()
-        log.warning("Open-Meteo air quality request failed (continuing without AQI): %s", exc)
+        log.warning(
+            "Open-Meteo air quality request failed (continuing without AQI): %s",
+            redacted_error(exc, api_key),
+        )
         return [None] * len(destinations)
 
     # Single location → object; multiple → array

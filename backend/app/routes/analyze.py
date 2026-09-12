@@ -4,8 +4,9 @@ import logging
 import math
 from collections.abc import Sequence
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Security
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.security import APIKeyHeader
 
 from app import ratelimit, telemetry
 from app.models import (
@@ -20,7 +21,26 @@ from app.models import (
     bbox_area_km2,
 )
 from app.services import air_quality, osm, weather
-from app.services.errors import ModelCoverageError, UpstreamError, UpstreamRateLimited
+from app.services.errors import (
+    InvalidApiKeyError,
+    ModelCoverageError,
+    UpstreamError,
+    UpstreamRateLimited,
+)
+
+# The one spelling of the header that carries a caller's Open-Meteo key.
+# `GET /api/capabilities` publishes this value, so it is defined once here and
+# imported there rather than written twice (issue #317).
+API_KEY_HEADER = "X-Open-Meteo-Key"
+
+# Optional on purpose. The key requirement is enforced at the public edge: the
+# gateway forwards an analyze request only when this header is present, so a
+# request that reaches an unkeyed path arrived in-cluster (the release probe, a
+# PR preview, a port-forward) or on a self-hosted instance, where the free tier
+# is the deployment's own to spend. `auto_error=False` is what leaves those
+# alone while still declaring the scheme on both routes in the OpenAPI
+# document.
+open_meteo_key = APIKeyHeader(name=API_KEY_HEADER, auto_error=False)
 
 
 def _filter_elevation(destinations, min_ft, max_ft):
@@ -359,6 +379,7 @@ async def _attach_aqi(
     times: list[int],
     start_dt,
     end_dt,
+    api_key: str | None = None,
 ) -> None:
     """Fetch AQI for exactly the rows being returned and merge it in.
 
@@ -371,7 +392,9 @@ async def _attach_aqi(
     if not results:
         return
     dests = [{"latitude": r.latitude, "longitude": r.longitude} for r in results]
-    aqi_list = await air_quality.fetch_aqi_batch(dests, start_dt, end_dt)
+    aqi_list = await air_quality.fetch_aqi_batch(
+        dests, start_dt, end_dt, api_key=api_key
+    )
     for row, aqi in zip(results, aqi_list):
         if not aqi:
             continue
@@ -523,7 +546,10 @@ def _assemble(
         }
     },
 )
-async def analyze_stream(request: AnalyzeRequest):
+async def analyze_stream(
+    request: AnalyzeRequest,
+    api_key: str | None = Security(open_meteo_key),
+):
     async def generate():
         log.info("Analyze request (stream): %s", _summarize_request(request))
         try:
@@ -673,6 +699,7 @@ async def analyze_stream(request: AnalyzeRequest):
                         on_progress,
                         on_pace,
                         request.forecast_model,
+                        api_key=api_key,
                     )
                 finally:
                     await progress_queue.put(_STREAM_DONE)
@@ -688,7 +715,10 @@ async def analyze_stream(request: AnalyzeRequest):
             aqi_task = (
                 asyncio.create_task(
                     air_quality.fetch_aqi_batch(
-                        destinations, request.start_datetime, request.end_datetime
+                        destinations,
+                        request.start_datetime,
+                        request.end_datetime,
+                        api_key=api_key,
                     )
                 )
                 if aqi_eager
@@ -704,6 +734,12 @@ async def analyze_stream(request: AnalyzeRequest):
                     await aqi_task if aqi_task is not None else [None] * len(destinations)
                 )
             except ratelimit.BudgetExhausted as e:
+                yield _sse("error", message=e.message)
+                return
+            except InvalidApiKeyError as e:
+                # Caught ahead of its UpstreamError base: the upstream is
+                # healthy and the key is the problem, so the stream says so
+                # rather than reporting a transient failure.
                 yield _sse("error", message=e.message)
                 return
             except UpstreamRateLimited as e:
@@ -733,9 +769,17 @@ async def analyze_stream(request: AnalyzeRequest):
             results.sort(key=_sort_key(request.sort_by.value, request.sort_desc))
             results = results[: request.limit]
             if not aqi_eager:
-                await _attach_aqi(
-                    results, times, request.start_datetime, request.end_datetime
-                )
+                try:
+                    await _attach_aqi(
+                        results,
+                        times,
+                        request.start_datetime,
+                        request.end_datetime,
+                        api_key,
+                    )
+                except InvalidApiKeyError as e:
+                    yield _sse("error", message=e.message)
+                    return
 
             yield _sse(
                 "result",
@@ -821,7 +865,10 @@ async def analyze_stream(request: AnalyzeRequest):
         },
     },
 )
-async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
+async def analyze(
+    request: AnalyzeRequest,
+    api_key: str | None = Security(open_meteo_key),
+) -> AnalyzeResponse:
     log.info("Analyze request: %s", _summarize_request(request))
 
     if request.start_datetime >= request.end_datetime:
@@ -908,7 +955,10 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     aqi_task = (
         asyncio.create_task(
             air_quality.fetch_aqi_batch(
-                destinations, request.start_datetime, request.end_datetime
+                destinations,
+                request.start_datetime,
+                request.end_datetime,
+                api_key=api_key,
             )
         )
         if aqi_eager
@@ -920,6 +970,7 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
             request.start_datetime,
             request.end_datetime,
             model=request.forecast_model,
+            api_key=api_key,
         )
     except ratelimit.BudgetExhausted as e:
         if aqi_task is not None:
@@ -937,6 +988,13 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
             detail=e.message,
             headers={"Retry-After": str(e.retry_after_s)},
         )
+    except InvalidApiKeyError as e:
+        # 401, not the 502 its UpstreamError base would otherwise give, and for
+        # the same reason ModelCoverageError below is a 400: the upstream is
+        # healthy and only the caller can fix the request.
+        if aqi_task is not None:
+            aqi_task.cancel()
+        raise HTTPException(status_code=401, detail=e.message)
     except ModelCoverageError as e:
         # 400, not the 502 its UpstreamError base would otherwise give: the
         # upstream is healthy and answered correctly. The request asked a
@@ -956,7 +1014,12 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
         raise HTTPException(
             status_code=502, detail="The weather search failed. Try again later."
         )
-    aqi_list = await aqi_task if aqi_task is not None else [None] * len(destinations)
+    try:
+        aqi_list = await aqi_task if aqi_task is not None else [None] * len(destinations)
+    except InvalidApiKeyError as e:
+        # Reachable when the weather half answered entirely from cache, so the
+        # first upstream call the key made was the air-quality one.
+        raise HTTPException(status_code=401, detail=e.message)
 
     results, times = _assemble(
         destinations, wx_list, aqi_list, DestinationType.custom.value
@@ -967,7 +1030,12 @@ async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     results.sort(key=_sort_key(sort_field, request.sort_desc))
     results = results[: request.limit]
     if not aqi_eager:
-        await _attach_aqi(results, times, request.start_datetime, request.end_datetime)
+        try:
+            await _attach_aqi(
+                results, times, request.start_datetime, request.end_datetime, api_key
+            )
+        except InvalidApiKeyError as e:
+            raise HTTPException(status_code=401, detail=e.message)
 
     def _fmt(r: DestinationResult) -> str:
         v = getattr(r, sort_field)
