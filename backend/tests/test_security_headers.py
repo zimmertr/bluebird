@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import hashlib
 import re
-from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
@@ -117,7 +116,9 @@ def test_the_app_policy_forbids_the_dangerous_sources():
     assert app_csp["frame-ancestors"] == ["'none'"]
     assert app_csp["base-uri"] == ["'self'"]
     assert app_csp["form-action"] == ["'self'"]
-    assert "'unsafe-eval'" not in security_headers.APP_CSP
+    # Per directive rather than over the whole string: a substring check on a
+    # policy answers a question about text, not about what any directive allows.
+    assert not [name for name, sources in app_csp.items() if "'unsafe-eval'" in sources]
 
 
 def test_the_docs_policy_differs_from_the_app_policy_only_where_stated():
@@ -145,55 +146,70 @@ def test_the_docs_policy_differs_from_the_app_policy_only_where_stated():
     }
 
 
-class _ScriptCollector(HTMLParser):
-    """Inline script bodies, found the way a browser finds them.
-
-    Deliberately a parser rather than the module's regex: the hash is only
-    worth anything if something other than the code that produced it agrees
-    on which bytes were hashed.
-    """
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.inline: list[str] = []
-        self._depth = 0
-
-    def handle_starttag(self, tag, attrs):
-        if tag == "script" and not dict(attrs).get("src"):
-            self._depth += 1
-
-    def handle_endtag(self, tag):
-        if tag == "script" and self._depth:
-            self._depth -= 1
-
-    def handle_data(self, data):
-        if self._depth:
-            self.inline.append(data)
+def _sha256(body: str) -> str:
+    return "'sha256-" + base64.b64encode(hashlib.sha256(body.encode()).digest()).decode() + "'"
 
 
 def test_the_docs_script_hash_covers_the_script_the_page_serves():
+    # The page is rendered once at import and the policy derives from those
+    # bytes, so this is the check that the two never come apart: the hash in
+    # the header has to cover the script the route hands a browser.
     page = client.get("/docs")
-    collector = _ScriptCollector()
-    collector.feed(page.text)
-    assert collector.inline, "FastAPI's docs page is expected to inline its init script"
+    bodies = security_headers.inline_script_bodies(page.text)
+    assert bodies, "FastAPI's docs page is expected to inline its init script"
 
-    digests = {
-        "'sha256-" + base64.b64encode(hashlib.sha256(body.encode()).digest()).decode() + "'"
-        for body in collector.inline
-    }
     allowed = set(_parse(page.headers["Content-Security-Policy"])["script-src"])
-    assert digests <= allowed
+    assert {_sha256(body) for body in bodies} <= allowed
+
+
+# Each shape here is one a browser executes and a pattern written for the exact
+# spelling FastAPI emits today would miss, leaving it unhashed and the page
+# blank under its own policy. The src= case is the opposite mistake: hashing an
+# external script describes nothing.
+INLINE_SHAPES = [
+    pytest.param("<script>go()</script>", ["go()"], id="plain"),
+    pytest.param("<SCRIPT>go()</SCRIPT>", ["go()"], id="uppercase-tag"),
+    pytest.param('<script type="module">go()</script>', ["go()"], id="with-attribute"),
+    pytest.param("<script >go()</script>", ["go()"], id="whitespace-in-tag"),
+    pytest.param('<script src="/a.js"></script>', [], id="external-is-not-hashed"),
+    pytest.param('<script src="/a.js">go()</script>', [], id="external-with-body"),
+    pytest.param("<script>  </script>", [], id="empty-executes-nothing"),
+    pytest.param("<script>a()</script><script>b()</script>", ["a()", "b()"], id="two"),
+]
+
+
+@pytest.mark.parametrize(("html", "expected"), INLINE_SHAPES)
+def test_the_extractor_finds_every_inline_script_whatever_its_shape(html, expected):
+    assert list(security_headers.inline_script_bodies(html)) == expected
+
+
+@pytest.mark.parametrize(("html", "expected"), INLINE_SHAPES)
+def test_the_policy_hashes_exactly_those_scripts(html, expected):
+    hashes = [
+        source
+        for source in _parse(security_headers.docs_csp(html))["script-src"]
+        if source.startswith("'sha256-")
+    ]
+    assert hashes == [_sha256(body) for body in expected]
 
 
 def test_the_docs_policy_allows_the_cdn_only_when_the_fallback_is_active():
     # A source checkout has no vendored assets, so /docs falls back to a CDN.
     # The policy has to follow the fallback or that checkout renders a blank
     # reference page with no clue why.
-    served_locally = security_headers.docs_csp("<script>x</script>")
-    from_cdn = security_headers.docs_csp("<script>x</script>", ("https://cdn.jsdelivr.net",))
-    assert "cdn.jsdelivr.net" not in served_locally
-    assert _parse(from_cdn)["script-src"][1] == "https://cdn.jsdelivr.net"
-    assert "https://cdn.jsdelivr.net" in _parse(from_cdn)["style-src"]
+    cdn = "https://cdn.jsdelivr.net"
+    served_locally = _parse(security_headers.docs_csp("<script>x</script>"))
+    from_cdn = _parse(security_headers.docs_csp("<script>x</script>", (cdn,)))
+
+    # A token of the two directives that load the page, and of nothing else.
+    assert cdn in from_cdn["script-src"]
+    assert cdn in from_cdn["style-src"]
+    assert [name for name, sources in from_cdn.items() if cdn in sources] == [
+        "script-src",
+        "style-src",
+    ]
+    # Absent from every directive once the assets ship in the image.
+    assert not [name for name, sources in served_locally.items() if cdn in sources]
 
 
 def test_the_docs_page_is_the_one_path_with_its_own_policy():

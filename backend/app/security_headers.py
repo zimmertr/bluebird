@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import re
 from collections.abc import Iterable
+from html.parser import HTMLParser
 
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -113,10 +113,10 @@ def docs_csp(html: str, asset_origins: Iterable[str] = ()) -> str:
     page starts no worker so neither worker directive is sent.
 
     The hash is taken from the rendered page rather than pinned, so a FastAPI
-    upgrade that rewrites that script cannot silently blank the page. What a
-    pinned hash would have caught is caught instead by the suite, which
-    re-extracts the scripts with an HTML parser and fails if this one missed
-    any.
+    upgrade that rewrites that script cannot silently blank the page. The suite
+    checks the header against the page the route actually serves, and pins the
+    extractor on the shapes that would otherwise go unhashed: an uppercase tag,
+    an added attribute, and a tag carrying ``src``.
 
     ``asset_origins`` is where the page's script and stylesheet come from when
     they are not this origin's own. A source checkout has no build output, so
@@ -148,17 +148,57 @@ def _docs_value(name: str, value: str, script_src: str, origins: tuple[str, ...]
     return value
 
 
-# A <script> with no attributes at all. The vendored bundle is loaded by a
-# second tag carrying src=, which this deliberately does not match: an external
-# script is covered by 'self' and has no hash.
-_INLINE_SCRIPT = re.compile(r"<script>(.*?)</script>", re.DOTALL)
+class _InlineScripts(HTMLParser):
+    """The text of every ``<script>`` element that has no ``src``.
+
+    A parser rather than a pattern, because a pattern has to re-decide what a
+    tag is and gets it wrong in the directions that matter: ``<SCRIPT>`` is the
+    same element to a browser, and so is ``<script type="module">``. Both would
+    go unhashed by a regex written for the exact spelling FastAPI happens to
+    emit, and an unhashed inline script is a page that renders blank under its
+    own policy. ``HTMLParser`` lowercases tag names and hands attributes over
+    already parsed, so neither case nor an added attribute is this code's
+    problem.
+
+    An element carrying ``src`` is skipped deliberately: an external script is
+    covered by a source expression, and a hash would not describe it.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.bodies: list[str] = []
+        self._buffer: list[str] | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "script" and not dict(attrs).get("src"):
+            self._buffer = []
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "script" and self._buffer is not None:
+            body = "".join(self._buffer)
+            self._buffer = None
+            # Nothing executes, so nothing needs allowing.
+            if body.strip():
+                self.bodies.append(body)
+
+    def handle_data(self, data: str) -> None:
+        if self._buffer is not None:
+            self._buffer.append(data)
+
+
+def inline_script_bodies(html: str) -> tuple[str, ...]:
+    """Every inline script in ``html``, in document order."""
+    parser = _InlineScripts()
+    parser.feed(html)
+    parser.close()
+    return tuple(parser.bodies)
 
 
 def _script_hashes(html: str) -> tuple[str, ...]:
     """CSP source expressions for every inline script in ``html``."""
     return tuple(
         "'sha256-" + base64.b64encode(hashlib.sha256(body.encode()).digest()).decode() + "'"
-        for body in _INLINE_SCRIPT.findall(html)
+        for body in inline_script_bodies(html)
     )
 
 
