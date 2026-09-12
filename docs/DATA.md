@@ -180,6 +180,40 @@ row. Bluebird Forecast does not ship a copy of HRRR's domain to check against, b
 the grid is not a lat/lon rectangle and any copy would drift; Open-Meteo is the
 authority, and its refusal is reported as one, naming the model and the fix.
 
+### Comparing models at one destination
+
+The chart compares up to three models at one destination (issue #232). It is
+drawn rather than tabulated, deliberately, and three caveats come with it.
+
+**Six of the eight are blends.** Anything named `*_seamless` serves one agency's
+fine regional model for roughly the first two days and its coarse global model
+afterwards, so a single line can change model partway along. The chart marks
+those lines as blends. Only ECMWF IFS and NOAA HRRR are one model for their
+whole length.
+
+**Reaches are ragged, so the chart clamps.** The models stop at different hours,
+and an average over ten days of one model beside three days of another compares
+nothing. Every line on a comparison therefore stops at the shortest reach among
+the models on it, the analysis model's included, and a model that cannot reach
+the analyzed window at all is not offered.
+
+**A model with nothing there says so.** Asked about one model, Open-Meteo
+answers HTTP 400 and names the problem, so a regional model outside its domain is
+reported as uncovered under the chart's key rather than drawn. Asked about several
+models at once it does not: measured 2026-09-12 at 46.5,8.0,
+`models=gfs_hrrr,ecmwf_ifs025` answers HTTP 200 carrying a bare `precipitation`
+key instead of the suffixed pair, which is one model's numbers under no label.
+That is why each compared model is fetched as its own single-model request, and
+why an unsuffixed key is treated as absent wherever one appears.
+
+The cost is small rather than free. Open-Meteo prices a request at
+`locations × max(1, days/14) × max(1, variables × models/10)`, the browser asks
+for nine hourly variables, and the analysis model's numbers are already held: a
+three-model comparison at one destination buys two more model series, roughly two
+weighted calls, against the hundred or more an analysis of a polygon spends. Air
+quality is not part of it, because CAMS is a single model whatever forecast model
+ranks the field.
+
 ## Air quality
 
 AQI comes from [CAMS](https://atmosphere.copernicus.eu) through Open-Meteo, and

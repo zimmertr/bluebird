@@ -51,6 +51,30 @@ export function rowsBetween(
   return ordered.slice(lo, hi + 1)
 }
 
+/**
+ * A function re-indexing any array from one timestamp grid onto another.
+ *
+ * The position map is built once and closed over, because every caller remaps
+ * three or four arrays that share a grid: rebuilding it per array would be the
+ * same map four times. Hours the source does not cover come back null, which is
+ * what keeps a series fetched for a different window from showing wrong-time
+ * data — the chart breaks its line at a null rather than bridging it.
+ */
+export function gridRemapper(
+  from: readonly number[],
+  to: readonly number[],
+): (values: readonly (number | null)[]) => (number | null)[] {
+  const pos = new Map<number, number>()
+  from.forEach((t, j) => {
+    if (!pos.has(t)) pos.set(t, j)
+  })
+  return (values) =>
+    to.map((t) => {
+      const j = pos.get(t)
+      return j == null ? null : values[j] ?? null
+    })
+}
+
 // Re-index a row's series onto the target grid by timestamp. Ranked rows share
 // the grid already (no series_times) and return unchanged; a pinned row carries
 // its own series_times and is remapped — grid hours the pin doesn't cover stay
@@ -58,15 +82,7 @@ export function rowsBetween(
 export function alignRowToGrid(row: DestinationResult, times: number[]): DestinationResult {
   const st = row.series_times
   if (!row.series || !st) return row
-  const pos = new Map<number, number>()
-  st.forEach((t, j) => {
-    if (!pos.has(t)) pos.set(t, j)
-  })
-  const remap = (arr: (number | null)[]): (number | null)[] =>
-    times.map((t) => {
-      const j = pos.get(t)
-      return j == null ? null : arr[j] ?? null
-    })
+  const remap = gridRemapper(st, times)
   return {
     ...row,
     series: {
@@ -99,10 +115,65 @@ export function selectionState(
   return 'some'
 }
 
-export function valueAt(row: DestinationResult, metric: ChartMetric, i: number): number | null {
+/**
+ * Anything the chart can read an hourly value out of.
+ *
+ * A destination row is one. So is a compared model's line (#232), which is the
+ * reason this is a shape rather than `DestinationResult`: on a one-destination
+ * chart a line is a model rather than a place, and neither the reader of a
+ * value nor the y-axis has any business knowing which it has.
+ */
+export interface SeriesHolder {
+  series?: HourlySeries | null
+}
+
+/**
+ * One plotted line: what identifies it, what it is called, what colour it
+ * draws in, and its values on the chart's grid.
+ *
+ * The key is the Recharts `dataKey`, so it has to be unique across everything
+ * on the chart at once — destinations key by coordinate (`chartKey`), models by
+ * a prefixed id, and the two namespaces cannot collide.
+ */
+export interface ChartLine extends SeriesHolder {
+  key: string
+  label: string
+  color: string
+}
+
+export function valueAt(row: SeriesHolder, metric: ChartMetric, i: number): number | null {
   const arr = row.series ? row.series[SERIES_FIELD[metric]] : undefined
   const v = arr ? arr[i] : null
   return v == null ? null : v
+}
+
+/**
+ * The same series with every hour after `endMs` dropped.
+ *
+ * What a model comparison's clamp is made of (#232): the lines have to stop
+ * together or their shapes are not answers to one question. Null rather than a
+ * shorter array, so every line stays index-aligned to the chart's grid and the
+ * x-axis keeps its full extent — the empty stretch on the right IS the statement
+ * that the comparison stops there.
+ */
+export function cutSeriesAfter(
+  times: readonly number[],
+  series: HourlySeries | null | undefined,
+  endMs: number | null,
+): HourlySeries | null {
+  if (!series) return null
+  if (endMs === null || times.length === 0 || times[times.length - 1] <= endMs) {
+    return series
+  }
+  const keep = (values: readonly (number | null)[]): (number | null)[] =>
+    times.map((t, i) => (t > endMs ? null : values[i] ?? null))
+  return {
+    precip_in: keep(series.precip_in),
+    temp_f: keep(series.temp_f),
+    wind_mph: keep(series.wind_mph),
+    aqi: keep(series.aqi),
+    ...(series.wind_dir_deg ? { wind_dir_deg: keep(series.wind_dir_deg) } : {}),
+  }
 }
 
 export function formatMetricValue(v: number, metric: ChartMetric): string {
@@ -190,17 +261,17 @@ export function tracksCursor(timestampCount: number, lineCount: number): boolean
 
 export type ChartPoint = { t: number } & Record<string, number | null>
 
-// One object per timestamp — { t, [destKey]: value|null, … } — the shape
-// Recharts consumes, with a line per selected destination keyed by chartKey.
+// One object per timestamp — { t, [lineKey]: value|null, … } — the shape
+// Recharts consumes, with a line per plotted series keyed by its own key.
 // Nulls pass through so the line breaks at gaps (connectNulls={false}).
 export function buildChartData(
   times: number[],
-  rows: DestinationResult[],
+  lines: readonly ChartLine[],
   metric: ChartMetric,
 ): ChartPoint[] {
   return times.map((t, i) => {
     const point: ChartPoint = { t }
-    for (const row of rows) point[chartKey(row)] = valueAt(row, metric, i)
+    for (const line of lines) point[line.key] = valueAt(line, metric, i)
     return point
   })
 }
@@ -210,7 +281,7 @@ export function buildChartData(
 // keeps the tallest line off the frame. The same [min,max] drives the hover
 // pixel→value inversion, so the focus math matches the rendered axis exactly.
 export function computeYDomain(
-  rows: DestinationResult[],
+  rows: readonly SeriesHolder[],
   metric: ChartMetric,
 ): [number, number] {
   let min = Infinity

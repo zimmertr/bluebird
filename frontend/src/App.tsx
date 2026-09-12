@@ -9,9 +9,12 @@ import RemovedPicker from './components/RemovedPicker'
 import WelcomeModal from './components/WelcomeModal'
 import PreviewBanner from './components/PreviewBanner'
 import TimelineTransport from './components/TimelineTransport'
+import ModelCompare from './components/ModelCompare'
 import { useAnalyze } from './hooks/useAnalyze'
 import { modelForecastHours, useCapabilities } from './hooks/useCapabilities'
 import { useChartSelection } from './hooks/useChartSelection'
+import { useModelCompare } from './hooks/useModelCompare'
+import { isBlend } from './utils/modelCompare'
 import { useFireProximity } from './hooks/useFireProximity'
 import { fireKey } from './utils/fireProximity'
 import { useForecastGrid } from './hooks/useForecastGrid'
@@ -1648,6 +1651,24 @@ export default function App() {
   }, [results, pending])
   const chart = useChartSelection(chartCandidates, view.sortBy)
 
+  // Comparing models at one destination (#232). A drill-down rather than a
+  // knob: it touches nothing the ranking reads, and it exists only while
+  // exactly ONE destination is charted, which is what frees colour to mean
+  // model — there is no second destination left for it to mean. Never on air
+  // quality, which comes from CAMS whatever forecast model ranked the field, so
+  // a comparison there could only draw the same line twice.
+  const soleChartedRow = chart.selectedRows.length === 1 ? chart.selectedRows[0] : null
+  const soleChartedColor = soleChartedRow ? chart.colorFor(soleChartedRow) : ''
+  const compare = useModelCompare({
+    enabled: soleChartedRow !== null && chart.metric !== 'aqi',
+    row: soleChartedRow,
+    analyzed,
+    analysisSeq,
+    models: caps.forecastModels,
+    times: chartTimes,
+    baseColor: soleChartedColor,
+  })
+
   // A desktop-width window widens to Both when an analysis lands, so the first
   // report arrives with its chart — unless the user has ever explicitly picked
   // a mode, which always wins. A phone stays on Table: the stacked pair leaves
@@ -2452,6 +2473,25 @@ export default function App() {
                           playheadMs={playbackIndex !== null ? chartTimes[playbackIndex] ?? null : null}
                           onPlayheadChange={
                             timelineAxes.includes('forecast') ? movePlayheadTo : undefined
+                          }
+                          extraLines={compare.lines}
+                          cutAfterMs={compare.endMs}
+                          controls={
+                            compare.active && analyzed ? (
+                              <ModelCompare
+                                baseLabel={
+                                  caps.forecastModels.find(
+                                    (m) => m.id === analyzed.forecastModel,
+                                  )?.label ?? analyzed.forecastModel
+                                }
+                                baseBlend={isBlend(analyzed.forecastModel)}
+                                baseColor={soleChartedColor}
+                                compared={compare.compared}
+                                addable={compare.addable}
+                                onAdd={compare.add}
+                                onRemove={compare.remove}
+                              />
+                            ) : undefined
                           }
                         />
                       </div>

@@ -265,6 +265,16 @@ Every column is resizable: drag the divider at a header's right edge, or double-
 
 **Columns** opens a picker for the columns the table shows. Every column starts on — the table scrolls sideways when it must — and unticking narrows the view for easier comparison. The downloaded CSV always carries every column regardless of what the table displays.
 
+#### Comparing models at one destination
+
+Plot exactly one destination and a **Compare** dropdown appears beside the chart's metric radios. Pick a model from it and that model's forecast for that one destination is fetched and drawn as a second line, up to three models on the chart at once including the one the analysis ran. Color then means model rather than destination: the destination keeps the color the table gave it, and each added model takes the next color on the same ramp. The × on a model's chip drops its line. A line marked **Blend** serves one agency's fine regional model for roughly the first two days and its coarse global model after that, so that line changes model partway along.
+
+Each added model is a real fetch, which is why it is a click rather than something that happens as you browse. It costs about one weighted call per model for one destination, against the hundred or more an analysis of a polygon spends. The comparison is dropped when you plot a different destination or run a new analysis, and nothing in it touches the ranking, the markers, the table or the downloaded CSV.
+
+Every line on the chart stops at the shortest reach among the models on it, the analysis model's included, because ten days of one model beside three days of another compares nothing. A model that cannot reach the analyzed window at all is not offered. A model Open-Meteo has no data for at that spot draws no line and says so under the key, which is never the same as drawing a flat one.
+
+Air quality has no comparison, so the control is absent on that metric: AQI comes from one model whatever forecast model ranks the field. See [Data Sources](DATA.md) for the rest of the caveats.
+
 ### Max results (in Options)
 
 The default is 200, sized to sit above the 100-row lists people usually paste so a first analysis does not open half-cut. The ceiling is what the running service reports. Raising this number costs nothing upstream: weather is fetched for *every* destination in your area, and the top N by your ranking come back. Lowering it shows you the extremes.

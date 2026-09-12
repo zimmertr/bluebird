@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { DestinationResult, HourlySeries } from '../types'
 import {
+  ChartLine,
   alignRowToGrid,
   axisTimeLabel,
+  cutSeriesAfter,
+  gridRemapper,
   nowWithinGrid,
   tracksCursor,
   buildChartData,
@@ -56,6 +59,15 @@ describe('metricForSort', () => {
   })
 })
 
+function line(key: string, series: Partial<HourlySeries>): ChartLine {
+  return {
+    key,
+    label: key,
+    color: '#38bdf8',
+    series: { precip_in: [], temp_f: [], wind_mph: [], aqi: [], ...series },
+  }
+}
+
 describe('valueAt / buildChartData', () => {
   const a = row('A', 1, { precip_in: [0.1, null, 0.3] })
   const b = row('B', 2, { precip_in: [0.2, 0.4, 0.6] })
@@ -66,11 +78,69 @@ describe('valueAt / buildChartData', () => {
     expect(valueAt(a, 'precip', 9)).toBeNull()
   })
 
-  it('builds one point per timestamp keyed by destination', () => {
-    const data = buildChartData([1000, 2000, 3000], [a, b], 'precip')
+  it('builds one point per timestamp keyed by line', () => {
+    const data = buildChartData(
+      [1000, 2000, 3000],
+      [line(chartKey(a), a.series!), line(chartKey(b), b.series!)],
+      'precip',
+    )
     expect(data).toHaveLength(3)
     expect(data[0]).toEqual({ t: 1000, [chartKey(a)]: 0.1, [chartKey(b)]: 0.2 })
     expect(data[1][chartKey(a)]).toBeNull()
+  })
+
+  // A model's line and a destination's line share one chart when a comparison
+  // is up (#232), and nothing downstream may tell them apart.
+  it('plots a model line beside a destination line', () => {
+    const data = buildChartData(
+      [1000, 2000],
+      [line(chartKey(a), a.series!), line('model:ecmwf_ifs025', { precip_in: [0.9, 0.8] })],
+      'precip',
+    )
+    expect(data[0]).toEqual({ t: 1000, [chartKey(a)]: 0.1, 'model:ecmwf_ifs025': 0.9 })
+  })
+})
+
+describe('gridRemapper', () => {
+  it('re-indexes by timestamp and nulls hours the source lacks', () => {
+    const remap = gridRemapper([2000, 3000], [1000, 2000, 3000])
+    expect(remap([5, 7])).toEqual([null, 5, 7])
+  })
+
+  it('keeps the first position when a timestamp repeats', () => {
+    const remap = gridRemapper([2000, 2000], [2000])
+    expect(remap([1, 9])).toEqual([1])
+  })
+})
+
+describe('cutSeriesAfter', () => {
+  const times = [1000, 2000, 3000]
+  const series: HourlySeries = {
+    precip_in: [0.1, 0.2, 0.3],
+    temp_f: [30, 31, 32],
+    wind_mph: [5, 6, 7],
+    aqi: [10, 11, 12],
+    wind_dir_deg: [90, 180, 270],
+  }
+
+  it('nulls every hour past the cut and keeps the array length', () => {
+    const cut = cutSeriesAfter(times, series, 2000)!
+    expect(cut.precip_in).toEqual([0.1, 0.2, null])
+    expect(cut.temp_f).toEqual([30, 31, null])
+    expect(cut.wind_mph).toEqual([5, 6, null])
+    expect(cut.aqi).toEqual([10, 11, null])
+    expect(cut.wind_dir_deg).toEqual([90, 180, null])
+  })
+
+  it('returns the series untouched when the cut is past the grid or absent', () => {
+    expect(cutSeriesAfter(times, series, 3000)).toBe(series)
+    expect(cutSeriesAfter(times, series, null)).toBe(series)
+    expect(cutSeriesAfter(times, null, 2000)).toBeNull()
+  })
+
+  it('carries no bearing key for a series that had none', () => {
+    const bare: HourlySeries = { precip_in: [1, 2, 3], temp_f: [], wind_mph: [], aqi: [] }
+    expect(cutSeriesAfter(times, bare, 1000)).not.toHaveProperty('wind_dir_deg')
   })
 })
 
