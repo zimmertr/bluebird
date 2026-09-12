@@ -46,6 +46,7 @@ import {
   RADIUS,
   SURFACE_CARD,
   SURFACE_FLOATING,
+  SURFACE_SHEET,
   TAP,
   TEXT,
 } from './styles'
@@ -531,13 +532,25 @@ describe('shared recipes', () => {
   // it belongs rather than pick a number.
   it('orders the stacking layers the way their names read', () => {
     const depth = (v: string) => Number(v.replace(/^z-\[?|\]$/g, ''))
-    const stack = [LAYER.base, LAYER.overlay, LAYER.scrim, LAYER.drawer, LAYER.popover, LAYER.modal]
+    const stack = [
+      LAYER.base,
+      LAYER.sheet,
+      LAYER.overlay,
+      LAYER.scrim,
+      LAYER.drawer,
+      LAYER.popover,
+      LAYER.modal,
+    ]
     const depths = stack.map(depth)
     expect(depths).toEqual([...depths].sort((a, b) => a - b))
     expect(new Set(depths).size).toBe(depths.length)
     // The two that caused the bug, stated outright rather than left to the sort.
     expect(depth(LAYER.popover)).toBeGreaterThan(depth(LAYER.drawer))
     expect(depth(LAYER.modal)).toBeGreaterThan(depth(LAYER.popover))
+    // The sheet covers map chrome and is covered by the drawer's scrim: it sits
+    // on the map, not in front of the app.
+    expect(depth(LAYER.sheet)).toBeGreaterThan(depth(LAYER.base))
+    expect(depth(LAYER.sheet)).toBeLessThan(depth(LAYER.scrim))
   })
 
   // The map timeline's scrubber (#121). A real range input arrives knowing
@@ -780,6 +793,24 @@ describe('shared recipes', () => {
       expect(recipe).toContain(RADIUS.surface)
     }
     expect(FIELD).toContain(RADIUS.control)
+  })
+
+  // The phone results sheet (#249). It is the docked panel's own fill so the
+  // results do not change colour with the breakpoint, it takes the map's
+  // floating edge because it now stands on the map, and it rounds the surface
+  // step on its top corners only — the bottom pair are off the screen. The
+  // radius is asserted against `RADIUS.surface` rather than spelled, so a move
+  // on that scale carries the sheet with it. (Composed from the scale rather
+  // than quoted: a `rounded-t-*` literal in this file would emit that CSS.)
+  it('builds the phone sheet from the panel fill and the map edge', () => {
+    expect(SURFACE_SHEET).toContain('bg-slate-800')
+    expect(SURFACE_SHEET).toContain('border-slate-600')
+    expect(SURFACE_SHEET).toContain(RADIUS.surface.replace('rounded', 'rounded-t'))
+    // The header bar inside is a square block, so the corners only exist while
+    // the sheet clips them.
+    expect(SURFACE_SHEET).toContain('overflow-hidden')
+    // Downward shadows have nothing to fall on under a bottom sheet.
+    expect(SURFACE_SHEET).not.toMatch(/\bshadow-/)
   })
 
   // Sky at rest means "this acts here". Anything that leaves for someone

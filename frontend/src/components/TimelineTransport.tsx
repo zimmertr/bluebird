@@ -12,6 +12,7 @@ import {
   TAP,
   TEXT,
 } from '../styles'
+import { transportBottomPx } from '../utils/resultsSheet'
 import type { TimelineAxis } from '../utils/timeline'
 
 interface Props {
@@ -40,6 +41,10 @@ interface Props {
   // was not — the metric name says what the colors under the playhead mean
   // (#245 review).
   forecastLabel: string
+  // How far something covers the map's bottom edge: the phone results sheet's
+  // height, or 0 wherever the results are docked below the map (#249). The bar
+  // keeps the same gap either way, measured from whatever it is standing on.
+  liftPx: number
 }
 
 
@@ -88,6 +93,7 @@ export default function TimelineTransport({
   readout,
   scale,
   forecastLabel,
+  liftPx,
 }: Props) {
   // Radar names itself: it is a product, not a metric.
   const axisLabel = (a: TimelineAxis) => (a === 'radar' ? 'Radar' : forecastLabel)
@@ -102,6 +108,9 @@ export default function TimelineTransport({
       // every pixel left on one side costs two, and clearing a 95px scale on a
       // phone would have taken most of the bar.
       className={`${SURFACE_FLOATING} ${LAYER.base} absolute bottom-10 left-1/2 -translate-x-1/2 flex w-[min(23rem,calc(100%-4rem))] items-center gap-2.5 px-3 py-2`}
+      // The class above is the docked case; where a sheet covers the map's
+      // bottom edge the same offset is measured from the sheet instead (#249).
+      style={liftPx > 0 ? { bottom: transportBottomPx(liftPx) } : undefined}
     >
       <button
         onClick={() => onPlayingChange(!playing)}

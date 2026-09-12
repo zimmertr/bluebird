@@ -93,6 +93,25 @@
   padding-right: 2rem;
 }
 
+/* Where the library's own bottom controls go when a sheet covers the map's
+ * bottom edge (#249).
+ *
+ * On a phone the results stand on the map instead of taking a share of the
+ * column, so the map container runs on behind them — and maplibre puts its
+ * controls at the container's edges, which would park the attribution under the
+ * sheet. The attribution is a licence term and cannot be covered, and the scale
+ * reads against the map rather than against the results, so the whole corner
+ * rides up with the rest of the map's bottom chrome.
+ *
+ * `--sheet-lift` is the sheet's height, published by App on the map wrapper and
+ * absent wherever the results are docked, which is what the 0px fallback covers.
+ * Unlayered like the rules above, so it beats the vendor's own `bottom: 0` in
+ * @layer base. The scale's own lift over the timeline is a margin on the child,
+ * so the two compose rather than compete. */
+.maplibregl-ctrl-bottom-right {
+  bottom: var(--sheet-lift, 0px);
+}
+
 /* Where the scale bar goes when the timeline is in its way.
  *
  * The timeline is centred and the scale is anchored bottom-right, so they meet

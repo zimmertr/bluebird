@@ -37,6 +37,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 |---|---|
 | `SURFACE_CARD` | Opaque cards above a scrim: dialogs, analysis overlay |
 | `SURFACE_FLOATING` | Boxes floating over the map: search field, legends, chart tooltip |
+| `SURFACE_SHEET` | The results on a phone, standing on the map's bottom edge: the docked panel's fill, the map's floating edge, the surface radius on the top corners only |
 | `SURFACE_GROUP` | Bordered region grouping controls: the calendar |
 | `SURFACE_GROUP_BLEED` | Cancels a well's inset so its contents sit on the panel's control column |
 
@@ -120,6 +121,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | Role | Purpose |
 |---|---|
 | `LAYER.base` | Map chrome, sticky header, docked panels |
+| `LAYER.sheet` | The phone results sheet: over the map chrome it covers, under the drawer's scrim |
 | `LAYER.overlay` | Analysis overlay card |
 | `LAYER.scrim` | Scrim behind mobile drawer and preview banner |
 | `LAYER.drawer` | Mobile drawer itself |

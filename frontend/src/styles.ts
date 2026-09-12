@@ -227,6 +227,24 @@ export const SURFACE_CARD =
   `bg-slate-800 border border-slate-600 ${RADIUS.surface} shadow-xl`
 
 /**
+ * The results sheet on a phone: the panel parked over the map's bottom edge
+ * rather than docked below it (#249).
+ *
+ * The same slate-800 the docked panel wears, so the results do not change colour
+ * with the breakpoint, plus the two things that say it is standing on the map:
+ * the slate-600 edge every box floating over the map already carries, and the
+ * surface radius on the top corners only, since the bottom pair are off the
+ * screen and a curve nobody can see is not a curve.
+ *
+ * `overflow-hidden` is what makes the radius real — the header bar inside is a
+ * square slate-700 block and would paint straight over the corners without it.
+ *
+ * No shadow: Tailwind's shadows cast downward, where this surface has nothing to
+ * fall on, and the edge is already the strongest boundary on the screen.
+ */
+export const SURFACE_SHEET = 'bg-slate-800 border-t border-slate-600 rounded-t-lg overflow-hidden'
+
+/**
  * The accent, named by the jobs it does, because it does six.
  *
  * Every one of these was spelled at a call site before, in fourteen places
@@ -534,6 +552,13 @@ export const SPINNER =
 export const LAYER = {
   /** Map chrome, the sticky table header, the docked panels. */
   base: 'z-10',
+  /**
+   * The results sheet on a phone, which stands on the map rather than beside it
+   * (#249). Above every piece of map chrome it covers — the legends, the
+   * timeline, the map buttons, all `base` — and below the scrim, because the
+   * drawer dims the whole screen behind it and the sheet is part of that screen.
+   */
+  sheet: 'z-[15]',
   /** The analysis overlay, over the map while a run is in flight. */
   overlay: 'z-20',
   /** The scrim behind the mobile drawer, and the preview banner. */

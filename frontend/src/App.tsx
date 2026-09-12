@@ -47,6 +47,7 @@ import {
   SEGMENT_ITEM,
   SURFACE_CARD,
   SURFACE_FLOATING,
+  SURFACE_SHEET,
   SWATCH_CHIP,
   TAP,
   TEXT,
@@ -89,6 +90,11 @@ import {
 import { parseCustomCsv } from './utils/customDestinations'
 import { buildCustomList, pendingDestinations, pinKey } from './utils/customList'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
+import {
+  legendBottomPx,
+  restingMapFloorPx,
+  sheetHeightPx,
+} from './utils/resultsSheet'
 import { composeOverlay } from './utils/analyzeOverlay'
 import { Place, isPeakKind } from './utils/geocode'
 import {
@@ -577,6 +583,13 @@ export default function App() {
   // Chevron to collapse/expand the entire results area.
   const [resultsCollapsed, setResultsCollapsed] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  // Whether the reader has set a panel height themselves. It only matters on a
+  // phone, where the results are a sheet standing on the map (#249): until they
+  // drag, the sheet rests low enough for the whole legend stack to fit above it,
+  // and a drag hands the height over — the legends then scroll, the way they do
+  // on any map too short for them. A double press on a grip means "put it back",
+  // so it returns the resting height with the rest of the default.
+  const [heightsChosen, setHeightsChosen] = useState(false)
   // When each grip was last pressed, keyed by which one. A double press resets
   // that grip's own panel — the chart resizer restores the chart, the table
   // resizer the table — rather than both, since a drag only ever moved one.
@@ -611,6 +624,7 @@ export default function App() {
     e.preventDefault()
     const startY = e.clientY
     setIsDragging(true)
+    setHeightsChosen(true)
 
     function onMove(ev: PointerEvent) {
       onDrag(startY - ev.clientY)
@@ -1675,11 +1689,37 @@ export default function App() {
   // segment that says Chart while the table shows reads as broken.
   const chartShowing = !resultsCollapsed && (resultsMode === 'chart' || resultsMode === 'both')
   const tableShowing = !resultsCollapsed && (resultsMode === 'table' || resultsMode === 'both')
+  // One grip per panel on screen: the map│chart resizer, the chart│table divider.
+  const gripCount = resultsCollapsed ? 0 : resultsMode === 'both' ? 2 : 1
+  // On a phone the results stand ON the map rather than beside it, so the floor
+  // the panels leave is not "some map" but "enough map for the legend stack to
+  // sit above the sheet" (#249). It applies until the reader drags, after which
+  // their height wins and the docked floor is all that holds.
+  const mapFloorPx =
+    isDesktop || heightsChosen ? undefined : restingMapFloorPx(gripCount)
   const { chart: chartPanelPx, table: tablePanelPx } = resolvePanelHeights(
     chartHeight,
     tableHeight,
-    { chartShown: chartShowing, tableShown: tableShowing && showTable, availPx: viewportH - bannerPx },
+    {
+      chartShown: chartShowing,
+      tableShown: tableShowing && showTable,
+      availPx: viewportH - bannerPx,
+      mapMinPx: mapFloorPx,
+    },
   )
+  // How far the sheet reaches up the map, and therefore how far the map's own
+  // bottom chrome — the legend stack, the timeline, and MapLibre's attribution
+  // and scale (lifted by `--sheet-lift` in map.css) — rides up to clear it.
+  // Zero wherever the results are docked below the map, which is every desktop
+  // width and the moment before the first analysis.
+  const sheetLiftPx =
+    isDesktop || !showTable
+      ? 0
+      : sheetHeightPx({
+          collapsed: resultsCollapsed,
+          gripCount,
+          panelsPx: chartPanelPx + tablePanelPx,
+        })
 
   return (
     <div className="flex flex-col h-dvh w-screen overflow-hidden bg-slate-900">
@@ -1810,12 +1850,22 @@ export default function App() {
         />
       </aside>
 
-      {/* Map + results column */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+      {/* Map + results column. On a phone the results leave the flow and stand
+          on the map as a sheet, so the column is what positions them; on
+          desktop nothing is positioned and the class list is the one it was. */}
+      <div className={`flex-1 flex flex-col overflow-hidden min-w-0${isDesktop ? '' : ' relative'}`}>
         {/* `data-timeline` is read by map.css, which steps the scale bar over
             the transport on narrow screens — but only while there is a
-            transport to step over. */}
-        <div className="flex-1 relative" data-timeline={timelineAxis !== null ? 'on' : undefined}>
+            transport to step over. `--sheet-lift` is read there too: it is how
+            far MapLibre's own bottom-right controls rise to clear the sheet,
+            and the attribution in that corner is a licence term that cannot be
+            covered. The map area keeps the whole column, so the canvas runs on
+            behind the sheet and its ResizeObserver sees no change on a drag. */}
+        <div
+          className="flex-1 relative"
+          data-timeline={timelineAxis !== null ? 'on' : undefined}
+          style={sheetLiftPx > 0 ? { '--sheet-lift': `${sheetLiftPx}px` } as React.CSSProperties : undefined}
+        >
           {/* Above the drawer, not under it. The drawer now stays open for the
               length of a run, and an analysis with no visible progress is the
               thing this overlay exists to prevent — so it takes the layer that
@@ -1948,6 +1998,15 @@ export default function App() {
               className={`absolute left-2 top-28 z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0 [&>*:first-child]:mt-auto ${
                 timelineAxis !== null ? 'bottom-28' : 'bottom-8'
               }`}
+              // Where a sheet covers the map's bottom edge, the same two
+              // clearances are measured from the sheet's top edge instead
+              // (#249). The classes above stay the docked case, and this
+              // overrides them only while there is a sheet to clear.
+              style={
+                sheetLiftPx > 0
+                  ? { bottom: legendBottomPx(sheetLiftPx, timelineAxis !== null) }
+                  : undefined
+              }
             >
               {/* One row per layer: what it is, who it came from, and its key
                   on the right. The densities used to be three stacked rows
@@ -2249,14 +2308,22 @@ export default function App() {
               readout={timelineReadout}
               scale={timelineScale}
               forecastLabel={NOUN[familyOf(view.sortBy)]}
+              liftPx={sheetLiftPx}
             />
           )}
         </div>
 
         {showTable && (
+          // Docked below the map on desktop; on a phone the same results stand
+          // on the map's bottom edge as a sheet, so the map keeps its full
+          // height and its legends keep their room (#249). One surface either
+          // way — only where it sits changes.
           <div
-            className="flex flex-shrink-0 flex-col bg-slate-800"
-            
+            className={
+              isDesktop
+                ? 'flex flex-shrink-0 flex-col bg-slate-800'
+                : `absolute inset-x-0 bottom-0 flex flex-col ${SURFACE_SHEET} ${LAYER.sheet}`
+            }
           >
             {/* Shared header bar for all results views. A container query, not
                 a viewport one: the bar's width is the viewport minus the docked
@@ -2424,6 +2491,9 @@ export default function App() {
                         if (isDoublePress('chart', e.timeStamp)) {
                           if (resultsMode === 'both') setTableHeight(tablePanelPx)
                           setChartHeight(DEFAULT_CHART_HEIGHT)
+                          // "Put it back" includes the resting height a phone
+                          // sheet opens at, which a drag had handed over.
+                          setHeightsChosen(false)
                           return
                         }
                         const reserved = (resultsMode === 'both' ? tablePanelPx : 0) + bannerPx
@@ -2519,6 +2589,7 @@ export default function App() {
                         if (isDoublePress('table', e.timeStamp)) {
                           if (resultsMode === 'both') setChartHeight(chartPanelPx)
                           setTableHeight(DEFAULT_TABLE_HEIGHT)
+                          setHeightsChosen(false)
                           return
                         }
                         if (resultsMode === 'both') {
