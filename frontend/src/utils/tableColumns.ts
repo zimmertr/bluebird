@@ -1,6 +1,5 @@
 import { DestinationResult, SortBy } from '../types'
-import { AGGREGATE, familyOf, metricLabel } from '../metrics'
-import { METRIC_CONFIG } from './colors'
+import { AGGREGATE, FAMILY_KEYS, familyOf, metricLabel } from '../metrics'
 
 /**
  * One column of the results table.
@@ -84,6 +83,14 @@ export const COLUMNS: ColDef[] = [
   { key: 'wind_min_mph', label: metricLabel('wind', AGGREGATE.minimum), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
   { key: 'wind_max_mph', label: metricLabel('wind', AGGREGATE.maximum), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
   { key: 'wind_avg_mph', label: metricLabel('wind', AGGREGATE.average), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
+  // Feet above sea level, formatted like the elevation column above it,
+  // because the reading IS the comparison between the two. Null is the
+  // five-model case (#295) and the table draws it as N/A with the note in
+  // freezingLevel.ts rather than the dash a genuine gap gets; the dash below
+  // is the fallback for a formatter called on a null anywhere else.
+  { key: 'freeze_min_ft', label: metricLabel('freeze', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v) },
+  { key: 'freeze_max_ft', label: metricLabel('freeze', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v) },
+  { key: 'freeze_avg_ft', label: metricLabel('freeze', AGGREGATE.average), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v) },
   { key: 'aqi_avg', label: metricLabel('aqi', AGGREGATE.average), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
   { key: 'aqi_min', label: metricLabel('aqi', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
   { key: 'aqi_max', label: metricLabel('aqi', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
@@ -97,7 +104,7 @@ export const COLUMNS: ColDef[] = [
  * lint scans comments too.)
  */
 export function orderColumns<T extends { key: string }>(columns: T[], sortBy: SortBy): T[] {
-  const group = new Set<string>(METRIC_CONFIG[familyOf(sortBy)].group)
+  const group = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])
   const lead = columns.filter((c) => LEAD_KEYS.has(c.key))
   const ranked = columns.filter((c) => !LEAD_KEYS.has(c.key) && group.has(c.key))
   const rest = columns.filter((c) => !LEAD_KEYS.has(c.key) && !group.has(c.key))
@@ -112,6 +119,7 @@ const POINT_LABELS: Record<string, string> = {
   precip_avg_in_hr: metricLabel('precip', undefined, 'in/hr'),
   temp_avg_f: metricLabel('temp'),
   wind_avg_mph: metricLabel('wind'),
+  freeze_avg_ft: metricLabel('freeze'),
   aqi_avg: metricLabel('aqi'),
 }
 
@@ -159,6 +167,6 @@ export function visibleColumns(
 ): ColDef[] {
   const allCols = orderColumns(pointSample ? pointModeColumns(COLUMNS) : COLUMNS, sortBy)
   if (!visibleKeys) return allCols
-  const group = new Set(METRIC_CONFIG[familyOf(sortBy)].group)
+  const group = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])
   return allCols.filter((c) => visibleKeys.has(c.key) || group.has(c.key))
 }

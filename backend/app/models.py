@@ -297,6 +297,9 @@ class SortBy(str, Enum):
     temp_min = "temp_min_f"
     temp_avg = "temp_avg_f"
     temp_max = "temp_max_f"
+    freeze_min = "freeze_min_ft"
+    freeze_avg = "freeze_avg_ft"
+    freeze_max = "freeze_max_ft"
     aqi_avg = "aqi_avg"
     aqi_min = "aqi_min"
     aqi_max = "aqi_max"
@@ -766,6 +769,13 @@ class HourlySeries(BaseModel):
             "See `wind_avg_mph` on the result for how it is derived."
         )
     )
+    freeze_ft: list[float | None] = Field(
+        description=(
+            "Freezing level, feet above sea level. Null at every hour for the "
+            "models that do not publish the variable; see `freeze_avg_ft` on "
+            "the result."
+        )
+    )
     aqi: list[int | None] = Field(description="US AQI, all EPA pollutants combined.")
 
 
@@ -818,6 +828,26 @@ class DestinationResult(BaseModel):
             "level (~762 m), report the 10 m wind. All three wind aggregates "
             "reduce the same adjusted hourly values."
         )
+    )
+    freeze_min_ft: float | None = Field(
+        default=None,
+        description=(
+            "Lowest freezing level in the window, feet above sea level. Read "
+            "against `elevation_ft`: below the destination, the whole "
+            "destination was below freezing at that hour. Zero means the "
+            "freezing level reached sea level, not that there is no value. "
+            "Null for every hour of a forecast model that does not publish "
+            "the variable, which is five of the eight; an absent freezing "
+            "level never affects the other figures on this row."
+        ),
+    )
+    freeze_max_ft: float | None = Field(
+        default=None,
+        description="Highest freezing level in the window. Null under the same terms.",
+    )
+    freeze_avg_ft: float | None = Field(
+        default=None,
+        description="Mean freezing level across the window. Null under the same terms.",
     )
     aqi_avg: int | None = Field(
         default=None,

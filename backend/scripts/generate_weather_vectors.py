@@ -43,10 +43,12 @@ def _win(start: str, end: str) -> dict[str, str]:
     return {"start": start, "end": end}
 
 
-def _wx(times, precip, temp, wind, levels=None) -> dict:
+def _wx(times, precip, temp, wind, levels=None, freeze=None) -> dict:
     """A weather payload; `levels` maps pressure-level variable names
     (`wind_speed_925hPa` … `wind_speed_500hPa`) to hourly arrays for the
-    elevation-adjusted wind cases (issue #257)."""
+    elevation-adjusted wind cases (issue #257). `freeze` is the hourly
+    freezing level in METERS (issue #295), omitted entirely where a payload
+    stands in for one of the five models that do not publish it."""
     hourly = {
         "time": times,
         "precipitation": precip,
@@ -55,6 +57,8 @@ def _wx(times, precip, temp, wind, levels=None) -> dict:
     }
     if levels:
         hourly.update(levels)
+    if freeze is not None:
+        hourly["freezing_level_height"] = freeze
     return {"hourly": hourly}
 
 
@@ -270,6 +274,80 @@ WEATHER_INPUTS = [
                 "wind_speed_600hPa": [40.0, 40.0],
                 "wind_speed_500hPa": [50.0, 50.0],
             },
+        ),
+    },
+    # ── Freezing level (issue #295) ───────────────────────────────────────
+    # Every vector above omits the variable, which is the shape the five
+    # models that do not publish it return; these cover the three that do.
+    # Inputs are meters above sea level, as Open-Meteo sends them.
+    {
+        # 3,000 m is 9842.519685… ft, so the conversion and the whole-foot
+        # rounding both ride the contract.
+        "name": "freezing_level_converts_meters_to_feet",
+        "window": _win(H[0], H[2]),
+        "payload": _wx(
+            H[:3],
+            [0.0, 0.0, 0.0],
+            [30.0, 31.0, 32.0],
+            [5.0, 5.0, 5.0],
+            freeze=[3000.0, 3100.0, 3050.0],
+        ),
+    },
+    {
+        # The five-model shape, stated rather than implied: a column of nulls
+        # nulls the three freeze aggregates and leaves every other figure
+        # exactly as the same payload without the variable produces it.
+        "name": "freezing_level_all_null_leaves_the_other_metrics",
+        "window": _win(H[0], H[2]),
+        "payload": _wx(
+            H[:3],
+            [0.1, 0.2, 0.0],
+            [50.0, 52.0, 54.0],
+            [5.0, 7.0, 9.0],
+            freeze=[None, None, None],
+        ),
+    },
+    {
+        # One null hour is skipped by the aggregates and kept by the series —
+        # and, unlike the core metrics, does not drop the hour.
+        "name": "freezing_level_null_hour_skipped_not_dropped",
+        "window": _win(H[0], H[2]),
+        "payload": _wx(
+            H[:3],
+            [0.1, 0.2, 0.3],
+            [50.0, 52.0, 54.0],
+            [5.0, 7.0, 9.0],
+            freeze=[2000.0, None, 2200.0],
+        ),
+    },
+    {
+        # Open-Meteo clamps to 0.0 when the whole column is below freezing:
+        # that is a reading, not a gap, so the aggregates must be 0.0 rather
+        # than null.
+        "name": "freezing_level_zero_is_a_value_not_a_gap",
+        "window": _win(H[0], H[1]),
+        "payload": _wx(H[:2], [0.0, 0.0], [10.0, 11.0], [5.0, 5.0], freeze=[0.0, 0.0]),
+    },
+    {
+        # 0.1524 m and 0.4572 m are half a foot and one and a half feet: both
+        # land on a rounding tie, and half-even sends them to 0 and 2.
+        "name": "freezing_level_half_even_at_whole_feet",
+        "window": _win(H[0], H[1]),
+        "payload": _wx(
+            H[:2], [0.0, 0.0], [10.0, 11.0], [5.0, 5.0], freeze=[0.1524, 0.4572]
+        ),
+    },
+    {
+        # Shorter than times: the aggregates zip to the shortest and the
+        # series pads with nulls, the same asymmetry the core metrics keep.
+        "name": "freezing_level_short_array_zip_vs_series_padding",
+        "window": _win(H[0], H[2]),
+        "payload": _wx(
+            H[:3],
+            [0.1, 0.2, 0.3],
+            [50.0, 52.0, 54.0],
+            [5.0, 7.0, 9.0],
+            freeze=[1500.0],
         ),
     },
 ]

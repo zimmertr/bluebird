@@ -7,7 +7,8 @@ import { familyOf } from '../metrics'
 // Sorting by AQI can hit rows with no AQI data (beyond its ~5-day horizon), and
 // scrubbing playback past that horizon hits the same gap an hour at a time.
 // Both get the neutral gray rather than a metric color, so "no answer" never
-// looks like a good one.
+// looks like a good one. So does a ranking on a metric that carries no color
+// at all (#295), for which there is no band to read.
 //
 // Exported so the forecast grid can recognise it: a cell has no such duty to
 // stay on screen, and drops out entirely rather than painting a grey block over
@@ -32,10 +33,15 @@ export function fillColor(
   hourIndex: number | null,
 ): string {
   if (hourIndex !== null) {
+    const scale = hourlyScale(sortBy)
     const value = valueAt(row, familyOf(sortBy), hourIndex)
-    return value == null ? NO_VALUE : colorOnScale(value, hourlyScale(sortBy))
+    return value == null || scale === null ? NO_VALUE : colorOnScale(value, scale)
   }
-  return row[sortBy] == null ? NO_VALUE : markerColor(row[sortBy] as number, sortBy)
+  // A ranking on an uncolored metric (#295) lands here with no scale to read,
+  // and takes the same neutral fill a missing value does: the marker must stay
+  // on the map, and a band invented for the occasion would assert that some
+  // height is good weather and another bad.
+  return row[sortBy] == null ? NO_VALUE : markerColor(row[sortBy] as number, sortBy) ?? NO_VALUE
 }
 
 /**

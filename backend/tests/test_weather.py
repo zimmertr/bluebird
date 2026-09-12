@@ -25,15 +25,19 @@ from app.services.weather import (
 )
 
 
-def _hourly(times, precip, temp, wind):
-    return {
-        "hourly": {
-            "time": times,
-            "precipitation": precip,
-            "temperature_2m": temp,
-            "wind_speed_10m": wind,
-        }
+def _hourly(times, precip, temp, wind, freeze=None):
+    hourly = {
+        "time": times,
+        "precipitation": precip,
+        "temperature_2m": temp,
+        "wind_speed_10m": wind,
     }
+    # Omitted rather than nulled by default: a payload with no
+    # `freezing_level_height` key at all is what five of the eight models
+    # return, so it is the shape most of these tests should exercise.
+    if freeze is not None:
+        hourly["freezing_level_height"] = freeze
+    return {"hourly": hourly}
 
 
 START = datetime(2026, 7, 21, 0, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
@@ -59,6 +63,11 @@ def test_metrics_aggregates_full_window():
         "wind_min_mph": 5.0,
         "wind_max_mph": 9.0,
         "wind_avg_mph": 7.0,
+        # This payload carries no freezing level, which is what the five
+        # models that do not publish it amount to.
+        "freeze_min_ft": None,
+        "freeze_max_ft": None,
+        "freeze_avg_ft": None,
     }
 
 
@@ -140,6 +149,81 @@ def test_metrics_rounding_precision():
 def test_metrics_malformed_payload_returns_none():
     # A completely unexpected shape is swallowed to None, never raised.
     assert _metrics({"unexpected": True}, START, END) is None
+
+
+# ── Freezing level (issue #295) ────────────────────────────────────────────
+#
+# The variable is served by three of the eight models, so its aggregates are
+# nullable on their own and are reduced outside the precip/temp/wind zip. What
+# these pin is that separation: a model that answers a column of nulls must
+# leave every other number on the row exactly as it was.
+
+_TIMES_3H = ["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00"]
+
+
+def test_metrics_converts_the_freezing_level_to_whole_feet():
+    data = _hourly(
+        _TIMES_3H, [0.0, 0.0, 0.0], [30.0, 31.0, 32.0], [5.0, 5.0, 5.0],
+        freeze=[3000.0, 3100.0, 3050.0],
+    )
+    m = _metrics(data, START, END)
+    assert m["freeze_min_ft"] == round(3000.0 / 0.3048, 0)
+    assert m["freeze_max_ft"] == round(3100.0 / 0.3048, 0)
+    assert m["freeze_avg_ft"] == round(3050.0 / 0.3048, 0)
+
+
+def test_metrics_all_null_freezing_level_leaves_the_other_aggregates():
+    # The five-model response shape: identical payloads but for the freezing
+    # level, and every other figure must come out identical too.
+    args = (_TIMES_3H, [0.1, 0.2, 0.0], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0])
+    nulled = _metrics(_hourly(*args, freeze=[None, None, None]), START, END)
+    absent = _metrics(_hourly(*args), START, END)
+
+    assert nulled == absent
+    assert nulled["freeze_avg_ft"] is None
+    assert nulled["precip_total_in"] == 0.3
+    assert nulled["temp_min_f"] == 50.0
+    assert nulled["wind_avg_mph"] == 7.0
+
+
+def test_metrics_skips_a_null_freezing_hour_without_dropping_it():
+    # Contrast with the core metrics above, where a null drops the whole hour:
+    # the middle hour's precipitation still counts.
+    data = _hourly(
+        _TIMES_3H, [0.1, 0.2, 0.3], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0],
+        freeze=[2000.0, None, 2200.0],
+    )
+    m = _metrics(data, START, END)
+    assert m["precip_total_in"] == 0.6
+    assert m["freeze_min_ft"] == round(2000.0 / 0.3048, 0)
+    assert m["freeze_max_ft"] == round(2200.0 / 0.3048, 0)
+
+
+def test_metrics_freezing_level_zero_is_a_value_not_a_gap():
+    # Open-Meteo clamps to 0.0 when the whole column is below freezing.
+    data = _hourly(
+        ["2026-07-21T00:00"], [0.0], [10.0], [5.0], freeze=[0.0]
+    )
+    m = _metrics(data, START, END)
+    assert m["freeze_min_ft"] == 0.0
+    assert m["freeze_avg_ft"] == 0.0
+    assert m["freeze_max_ft"] == 0.0
+
+
+def test_series_carries_the_freezing_level_and_its_gaps():
+    data = _hourly(
+        _TIMES_3H, [0.1, 0.2, 0.3], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0],
+        freeze=[3000.0, None, 3100.0],
+    )
+    s = _series(data, START, END)
+    assert s["freeze_ft"] == [round(3000.0 / 0.3048, 0), None, round(3100.0 / 0.3048, 0)]
+
+
+def test_series_freezing_level_is_all_nulls_when_the_model_omits_it():
+    data = _hourly(_TIMES_3H, [0.1, 0.2, 0.3], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0])
+    s = _series(data, START, END)
+    assert s["freeze_ft"] == [None, None, None]
+    assert s["precip_in"] == [0.1, 0.2, 0.3]
 
 
 # One hour's free-air winds at the five levels, weakest to strongest, so an
@@ -407,7 +491,8 @@ async def test_fetch_weather_batch_requests_the_level_winds(monkeypatch):
     hourly = calls[0]["hourly"].split(",")
     for name, _ in weather._WIND_LEVELS:
         assert name in hourly
-    # Still at weight factor 1: max(1, vars/10) with 8 variables.
+    assert weather._FREEZING_LEVEL in hourly
+    # Still at weight factor 1: max(1, vars/10) with 9 variables.
     assert len(hourly) == weather.N_VARIABLES
 
 

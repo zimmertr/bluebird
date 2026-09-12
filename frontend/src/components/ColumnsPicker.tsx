@@ -2,8 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { SortBy } from '../types'
 import { ColDef } from '../utils/tableColumns'
-import { METRIC_CONFIG } from '../utils/colors'
-import { familyOf } from '../metrics'
+import { FAMILY_KEYS, familyOf } from '../metrics'
 import { popoverBox, PopoverBox } from '../utils/listbox'
 import {
   CHOICE_INPUT,
@@ -37,7 +36,7 @@ export default function ColumnsPicker({
   // Whether this open has had its measuring pass yet — see below.
   const measuredRef = useRef(false)
 
-  const rankedGroup = new Set(METRIC_CONFIG[familyOf(sortBy)].group)
+  const rankedGroup = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])
 
   function place(desiredHeight = Infinity) {
     const trigger = triggerRef.current

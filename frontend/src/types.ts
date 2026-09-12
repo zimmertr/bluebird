@@ -27,6 +27,9 @@ export type SortBy =
   | 'temp_min_f'
   | 'temp_avg_f'
   | 'temp_max_f'
+  | 'freeze_min_ft'
+  | 'freeze_avg_ft'
+  | 'freeze_max_ft'
   | 'aqi_avg'
   | 'aqi_min'
   | 'aqi_max'
@@ -97,6 +100,9 @@ export interface HourlySeries {
   precip_in: (number | null)[]
   temp_f: (number | null)[]
   wind_mph: (number | null)[]
+  // Feet above sea level. All null for the forecast models that do not
+  // publish the variable, which is five of the eight (#295).
+  freeze_ft: (number | null)[]
   aqi: (number | null)[]
   // Wind bearing in degrees clockwise from north, the direction the wind blows
   // FROM. Client-populated only: the backend does not fetch it, because nothing
@@ -123,6 +129,15 @@ export interface DestinationResult {
   wind_min_mph: number
   wind_max_mph: number
   wind_avg_mph: number
+  // Freezing level in feet above sea level, read against elevation_ft: below
+  // the destination means the destination itself was below freezing that
+  // hour, and 0 means the freezing level reached sea level. Null for every
+  // row of an analysis run on a model that does not publish it (#295) — the
+  // aggregation keeps it independent, so a null here says nothing about the
+  // numbers above.
+  freeze_min_ft: number | null
+  freeze_max_ft: number | null
+  freeze_avg_ft: number | null
   // US AQI (all EPA pollutants combined) — null when the window is beyond the ~5-day air-quality
   // forecast horizon or the (best-effort) fetch failed
   aqi_avg: number | null

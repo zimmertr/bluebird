@@ -561,6 +561,19 @@ Air quality deserves a note. Its horizon is far shorter than the weather
 forecast, so `aqi_avg` and `aqi_max` come back `null` for hours beyond it. That
 is expected, not an error, and an air-quality outage never fails an analysis.
 
+So does the freezing level. `freeze_min_ft`, `freeze_avg_ft` and `freeze_max_ft`
+are the window's freezing level in feet above sea level, and `series.freeze_ft`
+carries it per hour. They are `null` for every row of an analysis run on a model
+that does not publish the variable, which is five of the eight — only
+`gfs_seamless`, `gfs_hrrr` and `icon_seamless` answer it (measured 2026-09-12).
+Nothing else on the row is affected: the aggregation reduces it separately, so a
+model with no freezing level still returns complete precipitation, temperature
+and wind. A `0` is a value rather than a gap, meaning the freezing level reached
+sea level. Ranking by one of these keys sorts `null` last in either direction,
+exactly as the AQI keys do. [DATA.md's Open-Meteo
+section](DATA.md#open-meteo) has what the number can and cannot say about an
+overnight refreeze.
+
 Two things about the value itself, for anyone rendering it. It is sampled from
 a model grid measured in tens of kilometers, so nearby destinations often carry
 identical numbers and none of them is a reading at that summit. And `us_aqi` is

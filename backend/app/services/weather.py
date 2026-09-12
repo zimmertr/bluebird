@@ -71,12 +71,26 @@ _WIND_LEVELS: list[tuple[str, float]] = [
     ("wind_speed_500hPa", 5574.0),
 ]
 _FT_TO_M = 0.3048
-HOURLY_VARIABLES = "precipitation,temperature_2m,wind_speed_10m," + ",".join(
-    name for name, _ in _WIND_LEVELS
+# The height where the free-air temperature crosses freezing (issue #295).
+# Spring and winter travel turns on the overnight refreeze, and a destination's
+# own temperature answers that only at its own elevation — the freezing level
+# says where the supportable snow starts on the way up.
+#
+# Open-Meteo answers in METERS above sea level, and clamps to 0.0 when the
+# whole column is below freezing, so a zero means "froze to sea level" rather
+# than "no answer". Measured 2026-09-12, three of the eight models serve it
+# (gfs_seamless, gfs_hrrr, icon_seamless); the other five answer HTTP 200 with
+# a column of nulls. That is why its aggregates are nullable on their own and
+# are never reduced inside the precip/temp/wind zip below.
+_FREEZING_LEVEL = "freezing_level_height"
+HOURLY_VARIABLES = ",".join(
+    ["precipitation", "temperature_2m", "wind_speed_10m", _FREEZING_LEVEL]
+    + [name for name, _ in _WIND_LEVELS]
 )
-# 8 stays at weight factor 1: Open-Meteo's factor is max(1, vars/10), so the
-# five level winds ride the same weighted budget the three originals did.
-N_VARIABLES = 8
+# 9 stays at weight factor 1: Open-Meteo's factor is max(1, vars/10), so the
+# five level winds and the freezing level ride the same weighted budget the
+# three originals did.
+N_VARIABLES = 9
 PROVIDER = "Open-Meteo"
 
 # Called as each batch completes: (processed_destinations, total_destinations,
@@ -477,6 +491,29 @@ def _level_arrays(hourly: dict[str, Any]) -> list[list[Any]]:
     return [hourly.get(name, []) for name, _ in _WIND_LEVELS]
 
 
+def _freeze_ft_in_window(
+    hourly: dict[str, Any],
+    start: datetime,
+    end: datetime,
+) -> list[float]:
+    """Every in-window hour that HAS a freezing level, in feet.
+
+    Read against its own pair of arrays rather than inside `_metrics`'s zip,
+    which is the whole of how a model that does not serve the variable stays
+    harmless: an hour dropped for a null freezing level would take the
+    precipitation, temperature and wind of that same hour with it, so five of
+    the eight models would return no weather at all. The null skip and the
+    zip-of-shortest are the AQI aggregation's, for the same reason.
+    """
+    return [
+        v / _FT_TO_M
+        for ts, v in zip(hourly.get("time", []), hourly.get(_FREEZING_LEVEL, []))
+        if v is not None
+        and (parsed := _parse_ts(ts)) is not None
+        and start <= parsed <= end
+    ]
+
+
 def _metrics(
     data: dict[str, Any],
     start_dt: datetime,
@@ -513,6 +550,7 @@ def _metrics(
             return None
 
         p_vals, t_vals, w_vals = zip(*filtered)
+        f_vals = _freeze_ft_in_window(hourly, start, end)
 
         return {
             "precip_total_in": round(sum(p_vals), 4),
@@ -527,6 +565,11 @@ def _metrics(
             "wind_min_mph": round(min(w_vals), 1),
             "wind_max_mph": round(max(w_vals), 1),
             "wind_avg_mph": round(sum(w_vals) / len(w_vals), 1),
+            # Whole feet: the models resolve this to hundreds of meters, so a
+            # decimal would be precision the number does not carry.
+            "freeze_min_ft": round(min(f_vals), 0) if f_vals else None,
+            "freeze_max_ft": round(max(f_vals), 0) if f_vals else None,
+            "freeze_avg_ft": round(sum(f_vals) / len(f_vals), 0) if f_vals else None,
         }
     except Exception:  # noqa: BLE001 — malformed payload degrades to no metrics
         return None
@@ -538,7 +581,7 @@ def _series(
     end_dt: datetime,
     elevation_ft: float | None = None,
 ) -> dict[str, Any] | None:
-    """Per-hour precip/temp/wind over the window, aligned to a shared grid.
+    """Per-hour precip/temp/wind/freezing level over the window, on one grid.
 
     Unlike `_metrics` — which drops any hour missing a value and collapses the
     rest into aggregates — this keeps every in-window hour and preserves each
@@ -553,6 +596,7 @@ def _series(
         precip = hourly.get("precipitation", [])
         temp = hourly.get("temperature_2m", [])
         wind = hourly.get("wind_speed_10m", [])
+        freeze = hourly.get(_FREEZING_LEVEL, [])
         levels = _level_arrays(hourly)
 
         start = _naive(start_dt)
@@ -562,6 +606,7 @@ def _series(
         p_out: list[float | None] = []
         t_out: list[float | None] = []
         w_out: list[float | None] = []
+        f_out: list[float | None] = []
         for i, ts in enumerate(times):
             parsed = _parse_ts(ts)
             if parsed is None or not (start <= parsed <= end):
@@ -578,10 +623,18 @@ def _series(
                 )
             )
             w_out.append(_round_or_none(w_adj, 1))
+            f_m = _at(freeze, i)
+            f_out.append(_round_or_none(None if f_m is None else f_m / _FT_TO_M, 0))
 
         if not grid:
             return None
-        return {"times": grid, "precip_in": p_out, "temp_f": t_out, "wind_mph": w_out}
+        return {
+            "times": grid,
+            "precip_in": p_out,
+            "temp_f": t_out,
+            "wind_mph": w_out,
+            "freeze_ft": f_out,
+        }
     except Exception:  # noqa: BLE001 — best-effort series degrades to None, never fails the analysis
         return None
 

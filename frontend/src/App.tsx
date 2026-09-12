@@ -51,7 +51,14 @@ import {
   TAP,
   TEXT,
 } from './styles'
-import { DEFAULT_FAMILY_KEY, MetricFamily, NOUN, familyOf, rankedNoun } from './metrics'
+import {
+  DEFAULT_FAMILY_KEY,
+  FAMILY_KEYS,
+  MetricFamily,
+  NOUN,
+  familyOf,
+  rankedNoun,
+} from './metrics'
 import { hourlyScale, rankedScale } from './utils/colors'
 import {
   FALLBACK_PITCH_KM,
@@ -385,7 +392,7 @@ export default function App() {
   const [sortBy, setSortByRaw] = useState<SortBy>(() => restored?.sortBy ?? 'precip_total_in')
   const [sortDesc, setSortDesc] = useState(() => restored?.sortDesc ?? false)
   // What each metric row's aggregate dropdown holds (#291), the active row's
-  // entry always equal to sortBy. One state for the four rows because a
+  // entry always equal to sortBy. One state for every row because a
   // dropdown choice IS a ranking choice — picking an aggregate activates its
   // row, the same one-click contract the direction toggle has always kept —
   // so the two could only ever disagree by a missed update.
@@ -535,13 +542,17 @@ export default function App() {
     if (typeof localStorage === 'undefined') return null
     try {
       const stored = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
-      // `columns2` is the set since the wildfire column joined the picker
-      // (#288). A set stored under the old key predates that choice and
-      // never contained the wildfire key, so reading it verbatim would hide
-      // the column for everyone with a stored preference — migrate it as
-      // "wildfire visible", which is what those users were seeing.
-      if (stored.columns2) return new Set(stored.columns2)
-      if (stored.columns) return new Set([...stored.columns, WILDFIRE_KEY])
+      // One key per generation of the column set, because a stored set cannot
+      // otherwise be told apart from a deliberate choice to hide the newest
+      // column: `columns` predates the wildfire column joining the picker
+      // (#288) and `columns2` predates the freezing level (#295), so reading
+      // either verbatim would hide a new column from everyone who has ever
+      // touched the picker. Each migrates with the new keys added, which is
+      // what those users were already seeing.
+      if (stored.columns3) return new Set(stored.columns3)
+      if (stored.columns2) return new Set([...stored.columns2, ...FAMILY_KEYS.freeze])
+      if (stored.columns)
+        return new Set([...stored.columns, WILDFIRE_KEY, ...FAMILY_KEYS.freeze])
     } catch {
       // Ignore localStorage errors
     }
@@ -552,11 +563,12 @@ export default function App() {
     try {
       const current = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
       delete current.columns
+      delete current.columns2
       localStorage.setItem(
         'bluebird_forecast_view',
         JSON.stringify({
           ...current,
-          columns2: columnVisibility ? [...columnVisibility] : undefined,
+          columns3: columnVisibility ? [...columnVisibility] : undefined,
         }),
       )
     } catch {
@@ -1207,7 +1219,7 @@ export default function App() {
 
   // The detail-column sort, held here rather than inside ResultsTable (#125).
   //
-  // Clicking one of the four ranking columns re-cuts the whole field through
+  // Clicking one of the ranking columns re-cuts the whole field through
   // the panel knob and is already answered by `results` above. Clicking any
   // other column is a reading aid: it reorders the rows on screen without
   // changing which rows they are. That order used to be private to the table,
@@ -1505,6 +1517,9 @@ export default function App() {
   // one hour of it is a rate, so a legend still reading in inches beside
   // markers scored in inches per hour would be quietly wrong. The metric's NAME
   // does not change, so the legend's title does not either.
+  // Null where the ranked metric carries no color bands at all (#295). The
+  // markers then wear the neutral no-value fill and the key below is not
+  // drawn: a titled box with no swatches in it explains nothing.
   const markerScale = playbackIndex !== null ? hourlyScale(view.sortBy) : rankedScale(view.sortBy)
 
   const hasColoredMarkers = showResults && results.length > 0
@@ -2081,7 +2096,7 @@ export default function App() {
                   key are noise. One box serves both — they are scored on the
                   same scale by construction (#246), which is also why the grid
                   has no swatch of its own in the layer rows above. */}
-              {(hasColoredMarkers || gridPainted || gridCued) && (
+              {markerScale !== null && (hasColoredMarkers || gridPainted || gridCued) && (
                 <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} p-2.5`}>
                   {/* The bare metric only: which hour or window the colors
                       describe, and how it was reduced, is stated by the

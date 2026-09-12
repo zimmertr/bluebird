@@ -3,7 +3,7 @@
 | Source | Usage | Cost | Auth |
 |---|---|---|---|
 | [OpenStreetMap](https://www.openstreetmap.org) via [Overpass API](https://overpass-api.de) | Destination names, coordinates, elevation | Free | None |
-| [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind | Free (non-commercial) | None, or a caller's own key |
+| [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind, freezing level | Free (non-commercial) | None, or a caller's own key |
 | [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly US AQI | Free (non-commercial) | None, or a caller's own key |
 | [OpenFreeMap](https://openfreemap.org) | Vector map tiles | Free | None |
 | [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
@@ -129,6 +129,32 @@ sample to the terrain height Open-Meteo resolves for that coordinate (its
 destination's claimed height — so high ground paints its real winds, but a
 summit marker can still read somewhat windier than the cell containing it,
 because the cell's height is the ground at the sample point, not the peak.
+
+**The freezing level is an air temperature, not a snow surface.** Each hourly
+fetch carries Open-Meteo's `freezing_level_height`, the height at which the
+free-air temperature crosses freezing, and the table reports its minimum,
+average and maximum over the window in feet above sea level — the same unit and
+datum as the **Elevation (ft)** column, because the reading is the comparison
+between the two. Three things bound what it can tell you.
+
+First, it is a height in the air. On a clear, calm night the snow surface loses
+heat by radiation and refreezes well *above* the freezing level, sometimes by
+thousands of feet; under cloud, or in wind, it may not refreeze even below it.
+So the number tells you where the air supported a refreeze, which is a
+proxy for the crust you will walk on rather than a measurement of it. Read it
+with the same window's cloud and wind in mind.
+
+Second, zero is a reading. Open-Meteo clamps the value to 0 when the whole
+column is below freezing, so a zero means the freezing level reached sea level,
+not that no answer came back.
+
+Third, only three of the eight models publish it at all: GFS Seamless, HRRR and
+ICON. The other five answer the request with a column of nulls, which the table
+shows as `N/A` in those three columns and nothing else — the aggregation keeps
+the freezing level independent of every other figure, so a model that does not
+carry it leaves precipitation, temperature and wind untouched. Which models
+answer is decided from the data rather than from a list in the code, so a model
+that starts publishing it needs no change here.
 
 History reaches back only as far as the forecast endpoint's own archive, and
 that archive is shorter than the range of dates the endpoint will accept. Past

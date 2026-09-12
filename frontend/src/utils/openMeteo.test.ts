@@ -147,7 +147,7 @@ describe('fetchWeather', () => {
     expect(again[0]?.precip_total_in).toBe(0.3)
   })
 
-  it('requests the five level winds alongside the surface variables', async () => {
+  it('requests the level winds and the freezing level alongside the surface variables', async () => {
     const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
     vi.stubGlobal('fetch', fetchSpy)
     await fetchWeather(
@@ -163,11 +163,12 @@ describe('fetchWeather', () => {
       'wind_speed_700hPa',
       'wind_speed_600hPa',
       'wind_speed_500hPa',
+      'freezing_level_height',
     ]) {
       expect(hourly).toContain(name)
     }
-    // Nine variables stay at weight factor 1: max(1, vars/10).
-    expect(hourly).toHaveLength(9)
+    // Ten variables stay at weight factor 1: max(1, vars/10).
+    expect(hourly).toHaveLength(10)
   })
 
   it('asks only for the hours the window needs (#212)', async () => {

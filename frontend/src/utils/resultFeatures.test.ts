@@ -20,6 +20,9 @@ function result(overrides: Partial<DestinationResult> = {}): DestinationResult {
     wind_min_mph: 1,
     wind_max_mph: 10,
     wind_avg_mph: 6.4,
+    freeze_min_ft: null,
+    freeze_max_ft: null,
+    freeze_avg_ft: null,
     aqi_avg: 121,
     aqi_min: 149,
     aqi_max: 149,
@@ -69,6 +72,7 @@ describe('resultsFeatureCollection', () => {
         precip_in: [0, 0.4, 0],
         temp_f: [50, 52, 51],
         wind_mph: [3, 30, 4],
+        freeze_ft: [9000, 9200, null],
         aqi: [40, null, 45],
         wind_dir_deg: [0, 90, null],
       },
@@ -114,7 +118,7 @@ describe('resultsFeatureCollection', () => {
     const gap = resultsFeatureCollection([hourly()], 'wind_avg_mph', true, 2).features[0]
     expect(gap.properties!.bearing).toBeUndefined()
     const serverRow = resultsFeatureCollection(
-      [hourly({ series: { precip_in: [0], temp_f: [50], wind_mph: [3], aqi: [40] } })],
+      [hourly({ series: { precip_in: [0], temp_f: [50], wind_mph: [3], freeze_ft: [9000], aqi: [40] } })],
       'wind_avg_mph',
       true,
       0,

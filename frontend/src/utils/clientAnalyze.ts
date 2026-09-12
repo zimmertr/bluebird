@@ -347,6 +347,7 @@ export function assemble(
         precip_in: wxSeries.precip_in,
         temp_f: wxSeries.temp_f,
         wind_mph: wxSeries.wind_mph,
+        freeze_ft: wxSeries.freeze_ft,
         aqi: alignAqi(wxSeries.times, aqi?.series ?? null),
         // Present only on the browser path, which is the only one that asks
         // Open-Meteo for it. Spread rather than assigned so a row from a

@@ -814,9 +814,12 @@ def _dest(name, lat):
     return {"name": name, "latitude": lat, "longitude": 0.0, "elevation_ft": None, "osm_id": None}
 
 
-def _wx_series(precip_total, times, precip, temp, wind):
+def _wx_series(precip_total, times, precip, temp, wind, freeze=None):
     return {**_wx(precip_total), "series": {
         "times": times, "precip_in": precip, "temp_f": temp, "wind_mph": wind,
+        # All-null by default, which is what the models that do not publish
+        # the freezing level return — the series carries the key either way.
+        "freeze_ft": freeze if freeze is not None else [None] * len(times),
     }}
 
 
@@ -824,7 +827,7 @@ def test_assemble_bakes_series_and_shares_the_time_grid():
     times = [1000, 2000]
     dests = [_dest("a", 1.0), _dest("b", 2.0)]
     wx_list = [
-        _wx_series(0.1, times, [0.1, None], [50.0, 51.0], [5.0, 6.0]),
+        _wx_series(0.1, times, [0.1, None], [50.0, 51.0], [5.0, 6.0], [9000.0, None]),
         _wx_series(0.2, times, [0.2, 0.3], [40.0, 41.0], [7.0, 8.0]),
     ]
     aqi_list = [
@@ -838,6 +841,11 @@ def test_assemble_bakes_series_and_shares_the_time_grid():
     assert a.series.precip_in == [0.1, None]  # per-metric nulls survive as gaps
     assert a.series.temp_f == [50.0, 51.0]
     assert a.series.aqi == [40, None]         # AQI present at 1000, null past horizon
+    assert a.series.freeze_ft == [9000.0, None]
+    # The second row's model published no freezing level, which nulls that
+    # series alone and nothing else on the row.
+    assert results[1].series.freeze_ft == [None, None]
+    assert results[1].series.temp_f == [40.0, 41.0]
     assert a.aqi_avg == 40                    # aggregates still flow through
     # Second row had no AQI → all-null AQI series, but the row still has a series.
     assert results[1].series.aqi == [None, None]

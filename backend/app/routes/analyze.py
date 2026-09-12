@@ -463,6 +463,7 @@ def _assemble(
                 precip_in=wx_series["precip_in"],
                 temp_f=wx_series["temp_f"],
                 wind_mph=wx_series["wind_mph"],
+                freeze_ft=wx_series["freeze_ft"],
                 aqi=_aligned_aqi(wx_series["times"], aqi.get("series")),
             )
         results.append(

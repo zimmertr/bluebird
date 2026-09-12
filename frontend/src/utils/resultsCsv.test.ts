@@ -25,6 +25,9 @@ function row(over: Partial<DestinationResult> = {}): DestinationResult {
     wind_min_mph: 4.1,
     wind_max_mph: 22.7,
     wind_avg_mph: 12.3,
+    freeze_min_ft: null,
+    freeze_max_ft: null,
+    freeze_avg_ft: null,
     aqi_avg: 31,
     aqi_min: 44,
     aqi_max: 44,
@@ -145,6 +148,33 @@ describe('values a spreadsheet can compute over', () => {
     const csv = buildResultsCsv([row({ elevation_ft: 14411 })], WINDOW_COLUMNS, NO_FIRES)
     expect(csv).toContain('14411')
     expect(csv).not.toContain('14,411')
+  })
+
+  // Same case as elevation, and for the same reason: a freezing level is a
+  // height in feet, grouped on screen and bare in the file.
+  it('writes the freezing level as a bare number too', () => {
+    const csv = buildResultsCsv(
+      [row({ freeze_min_ft: 9843, freeze_max_ft: 10171, freeze_avg_ft: 10007 })],
+      WINDOW_COLUMNS,
+      NO_FIRES,
+    )
+    expect(csv).toContain('9843')
+    expect(csv).not.toContain('10,171')
+  })
+
+  // The screen writes N/A in a freezing-level cell the model could not answer,
+  // and the file writes nothing at all. The two say the same thing in the
+  // idiom each is read in: on screen the mark is what stops a blank column
+  // reading as a metric that failed to render, and the hover text names the
+  // cause; in a file a blank is how a spreadsheet spells "no value", and text
+  // in a numeric column poisons every average computed over it. This is unlike
+  // the wildfire column, where a blank is a positive claim (checked, nothing
+  // near) and N/A has to survive into the file to deny it.
+  it('leaves an unavailable freezing level blank rather than writing the screen mark', () => {
+    const csv = buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES)
+
+    expect(csv).not.toContain('N/A')
+    expect(lines(csv)[1]).toMatch(/,,/)
   })
 
   it('keeps the precision the table displays rather than the float behind it', () => {

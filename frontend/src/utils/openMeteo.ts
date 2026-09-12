@@ -294,6 +294,12 @@ export interface WeatherAggregates {
   wind_min_mph: number
   wind_max_mph: number
   wind_avg_mph: number
+  // Nullable where every other aggregate is not: five of the eight models
+  // publish no freezing level at all (issue #295), and a row from one of them
+  // still carries a full set of the numbers above.
+  freeze_min_ft: number | null
+  freeze_max_ft: number | null
+  freeze_avg_ft: number | null
 }
 
 export interface WeatherSeries {
@@ -301,6 +307,7 @@ export interface WeatherSeries {
   precip_in: (number | null)[]
   temp_f: (number | null)[]
   wind_mph: (number | null)[]
+  freeze_ft: (number | null)[]
   /**
    * Wind bearing per hour, for the map's playback arrows (#121).
    *
@@ -328,6 +335,7 @@ interface HourlyPayload {
     temperature_2m?: (number | null)[]
     wind_speed_10m?: (number | null)[]
     wind_direction_10m?: (number | null)[]
+    freezing_level_height?: (number | null)[]
     wind_speed_925hPa?: (number | null)[]
     wind_speed_850hPa?: (number | null)[]
     wind_speed_700hPa?: (number | null)[]
@@ -389,6 +397,35 @@ function levelArrays(hourly: NonNullable<HourlyPayload['hourly']>): (number | nu
   return WIND_LEVELS.map(([name]) => hourly[name] ?? [])
 }
 
+// Port of weather._FREEZING_LEVEL: the height where the free-air temperature
+// crosses freezing, in METERS above sea level, clamped to 0 when the whole
+// column is below freezing. Three of the eight models publish it (issue #295).
+const FREEZING_LEVEL = 'freezing_level_height'
+
+// Port of weather._freeze_ft_in_window: every in-window hour that HAS a
+// freezing level, in feet. Read against its own pair of arrays rather than
+// inside the metrics loop below, because an hour dropped for a null freezing
+// level would take that hour's precipitation, temperature and wind with it —
+// and five of the eight models answer a column of nulls.
+function freezeFtInWindow(
+  hourly: NonNullable<HourlyPayload['hourly']>,
+  startMs: number,
+  endMs: number,
+): number[] {
+  const times = hourly.time ?? []
+  const freeze = hourly[FREEZING_LEVEL] ?? []
+  const out: number[] = []
+  const n = Math.min(times.length, freeze.length)
+  for (let i = 0; i < n; i++) {
+    const v = freeze[i]
+    if (v == null) continue
+    const t = parseTs(times[i])
+    if (t === null || t < startMs || t > endMs) continue
+    out.push(v / FT_TO_M)
+  }
+  return out
+}
+
 // Port of weather._metrics: an hour missing ANY metric is dropped entirely,
 // and the loop stops at the shortest array (Python zip semantics) — unlike
 // the series below, which is times-driven. Malformed payloads degrade to
@@ -423,6 +460,7 @@ export function weatherMetrics(
       rows.push([p, tf, wAdj])
     }
     if (rows.length === 0) return null
+    const fVals = freezeFtInWindow(hourly, startMs, endMs)
 
     // Left-to-right sums in input order, matching Python's sum() exactly.
     let pSum = 0
@@ -445,6 +483,17 @@ export function weatherMetrics(
       if (w < wMin) wMin = w
       if (w > wMax) wMax = w
     }
+    // Its own left-to-right pass, for the same reason Python reduces it in a
+    // separate comprehension: the hours it reduces are not the hours above.
+    let fSum = 0
+    let fMin = Infinity
+    let fMax = -Infinity
+    for (const f of fVals) {
+      fSum += f
+      if (f < fMin) fMin = f
+      if (f > fMax) fMax = f
+    }
+
     const len = rows.length
     return {
       precip_total_in: roundHalfEven(pSum, 4),
@@ -459,6 +508,11 @@ export function weatherMetrics(
       wind_min_mph: roundHalfEven(wMin, 1),
       wind_max_mph: roundHalfEven(wMax, 1),
       wind_avg_mph: roundHalfEven(wSum / len, 1),
+      // Whole feet: the models resolve this to hundreds of meters, so a
+      // decimal would be precision the number does not carry.
+      freeze_min_ft: fVals.length === 0 ? null : roundHalfEven(fMin, 0),
+      freeze_max_ft: fVals.length === 0 ? null : roundHalfEven(fMax, 0),
+      freeze_avg_ft: fVals.length === 0 ? null : roundHalfEven(fSum / fVals.length, 0),
     }
   } catch {
     return null
@@ -480,12 +534,14 @@ export function weatherSeries(
     const precip = hourly.precipitation ?? []
     const temp = hourly.temperature_2m ?? []
     const wind = hourly.wind_speed_10m ?? []
+    const freeze = hourly[FREEZING_LEVEL] ?? []
     const levels = levelArrays(hourly)
 
     const grid: number[] = []
     const pOut: (number | null)[] = []
     const tOut: (number | null)[] = []
     const wOut: (number | null)[] = []
+    const fOut: (number | null)[] = []
     for (let i = 0; i < times.length; i++) {
       const t = parseTs(times[i])
       if (t === null || t < startMs || t > endMs) continue
@@ -498,9 +554,11 @@ export function weatherSeries(
           ? null
           : windAtElevation(w10, elevationFt, levels.map((arr) => at(arr, i)))
       wOut.push(roundOrNull(wAdj, 1))
+      const fM = at(freeze, i)
+      fOut.push(roundOrNull(fM === null ? null : fM / FT_TO_M, 0))
     }
     if (grid.length === 0) return null
-    return { times: grid, precip_in: pOut, temp_f: tOut, wind_mph: wOut }
+    return { times: grid, precip_in: pOut, temp_f: tOut, wind_mph: wOut, freeze_ft: fOut }
   } catch {
     return null
   }
@@ -869,12 +927,12 @@ export async function fetchWeather(
   const chunks = chunked(misses, BATCH_SIZE)
 
   const tasks = chunks.map((chunk) => async (): Promise<WeatherResult[]> => {
-    // Nine variables, not the backend's eight: the browser also asks for wind
+    // Ten variables, not the backend's nine: the browser also asks for wind
     // direction, which only the map's playback arrows use. Still weight
-    // factor 1 — max(1, vars/10) — so the five level winds and the bearing
-    // all ride the budget the original three variables set.
+    // factor 1 — max(1, vars/10) — so the five level winds, the freezing
+    // level and the bearing all ride the budget the original three set.
     await weatherBudget.acquire(
-      callWeight(chunk.length, startMs, endMs, 9),
+      callWeight(chunk.length, startMs, endMs, 10),
       signal,
       onPace,
     )
@@ -884,7 +942,7 @@ export async function fetchWeather(
         ...coordParams(chunk),
         models: model,
         hourly:
-          'precipitation,temperature_2m,wind_speed_10m,wind_direction_10m,' +
+          `precipitation,temperature_2m,wind_speed_10m,wind_direction_10m,${FREEZING_LEVEL},` +
           WIND_LEVELS.map(([name]) => name).join(','),
         temperature_unit: 'fahrenheit',
         wind_speed_unit: 'mph',
