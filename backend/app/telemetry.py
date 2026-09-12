@@ -74,12 +74,12 @@ METRICS_PORT = _env_int("METRICS_PORT", 9464)
 _HTTP_BUCKETS = (0.005, 0.025, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0)
 
 HTTP_REQUESTS = Counter(
-    "bluebird_http_requests_total",
+    "bluebird_forecast_http_requests_total",
     "Requests served, by route template, method, and status code.",
     ["route", "method", "status"],
 )
 HTTP_DURATION = Histogram(
-    "bluebird_http_request_duration_seconds",
+    "bluebird_forecast_http_request_duration_seconds",
     "Wall-clock request duration, by route template and method.",
     ["route", "method"],
     buckets=_HTTP_BUCKETS,
@@ -93,17 +93,17 @@ HTTP_DURATION = Histogram(
 _FIELD_BUCKETS = (1, 5, 10, 25, 50, 100, 250, 500, 1000, 1500)
 
 ANALYZE_DESTINATIONS = Histogram(
-    "bluebird_analyze_destinations",
+    "bluebird_forecast_analyze_destinations",
     "Candidate destinations per analysis, after the elevation band and cap.",
     buckets=_FIELD_BUCKETS,
 )
 ANALYZE_LIMIT = Histogram(
-    "bluebird_analyze_limit",
+    "bluebird_forecast_analyze_limit",
     "Requested result limit per analysis.",
     buckets=_FIELD_BUCKETS,
 )
 DESTINATIONS_RETURNED = Histogram(
-    "bluebird_destinations_returned",
+    "bluebird_forecast_destinations_returned",
     "Rows returned per POST /api/destinations discovery.",
     buckets=_FIELD_BUCKETS,
 )
@@ -111,7 +111,7 @@ DESTINATIONS_RETURNED = Histogram(
 # ── Overpass (discovery) ──────────────────────────────────────────────────────
 
 OVERPASS_REQUESTS = Counter(
-    "bluebird_overpass_requests_total",
+    "bluebird_forecast_overpass_requests_total",
     "Overpass HTTP attempts, by mirror host and outcome.",
     ["mirror", "outcome"],
 )
@@ -119,13 +119,13 @@ OVERPASS_REQUESTS = Counter(
 # this family (per the mirror-table comment in osm.py) is re-tuning those
 # timeouts from measurement instead of a one-day sample.
 OVERPASS_DURATION = Histogram(
-    "bluebird_overpass_request_duration_seconds",
+    "bluebird_forecast_overpass_request_duration_seconds",
     "Overpass HTTP attempt duration, by mirror host.",
     ["mirror"],
     buckets=(0.5, 1.0, 2.5, 5.0, 10.0, 15.0, 25.0, 45.0, 60.0, 90.0, 120.0),
 )
 OVERPASS_FALLBACK = Counter(
-    "bluebird_overpass_fallback_total",
+    "bluebird_forecast_overpass_fallback_total",
     "Times the mirror chain moved past a failed mirror, by the mirror it left.",
     ["mirror"],
 )
@@ -133,23 +133,23 @@ OVERPASS_FALLBACK = Counter(
 # ── Open-Meteo (weather + air quality) ────────────────────────────────────────
 
 OPENMETEO_REQUESTS = Counter(
-    "bluebird_openmeteo_requests_total",
+    "bluebird_forecast_openmeteo_requests_total",
     "Open-Meteo batch HTTP attempts, by service and outcome.",
     ["service", "outcome"],
 )
 OPENMETEO_DURATION = Histogram(
-    "bluebird_openmeteo_request_duration_seconds",
+    "bluebird_forecast_openmeteo_request_duration_seconds",
     "Open-Meteo batch HTTP attempt duration, by service.",
     ["service"],
     buckets=(0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0),
 )
 OPENMETEO_RATE_LIMITED = Counter(
-    "bluebird_openmeteo_rate_limited_total",
+    "bluebird_forecast_openmeteo_rate_limited_total",
     "Open-Meteo 429s, by service and the quota scope the response named.",
     ["service", "scope"],
 )
 AQI_DEGRADED = Counter(
-    "bluebird_aqi_degraded_total",
+    "bluebird_forecast_aqi_degraded_total",
     "AQI batches degraded to null rows instead of failing the analysis.",
     ["reason"],
 )
@@ -157,34 +157,34 @@ AQI_DEGRADED = Counter(
 # ── Pacing, budgets, and per-client limits (ratelimit.py wires these) ────────
 
 THROTTLED = Counter(
-    "bluebird_ratelimit_throttled_total",
+    "bluebird_forecast_ratelimit_throttled_total",
     "Requests refused with 429 by a per-client bucket.",
     ["bucket"],
 )
 UPSTREAM_SHED = Counter(
-    "bluebird_upstream_shed_total",
+    "bluebird_forecast_upstream_shed_total",
     "Work shed by a saturated upstream guard, by provider and mechanism.",
     ["provider", "mechanism"],
 )
 UPSTREAM_PACE_SECONDS = Counter(
-    "bluebird_upstream_pace_seconds_total",
+    "bluebird_forecast_upstream_pace_seconds_total",
     "Seconds spent sleeping to pace upstream spend, by provider.",
     ["provider"],
 )
 UPSTREAM_QUEUE_SECONDS = Histogram(
-    "bluebird_upstream_queue_seconds",
+    "bluebird_forecast_upstream_queue_seconds",
     "Time spent queued for an in-flight slot, by provider.",
     ["provider"],
     buckets=(0.01, 0.1, 0.5, 1.0, 5.0, 15.0, 30.0),
 )
 WEIGHT_SPENT = Counter(
-    "bluebird_openmeteo_weight_spent_total",
+    "bluebird_forecast_openmeteo_weight_spent_total",
     "Weighted Open-Meteo calls spent, in the provider's own billing unit.",
     ["provider"],
 )
 
 BUILD_INFO = Gauge(
-    "bluebird_build_info",
+    "bluebird_forecast_build_info",
     "Build identity of the running image; value is always 1.",
     ["version", "commit"],
 )
@@ -209,10 +209,10 @@ class _CacheCollector(Collector):
 
     def collect(self) -> Iterator[CounterMetricFamily]:
         hits = CounterMetricFamily(
-            "bluebird_cache_hits", "Cache hits, by cache.", labels=["cache"]
+            "bluebird_forecast_cache_hits", "Cache hits, by cache.", labels=["cache"]
         )
         misses = CounterMetricFamily(
-            "bluebird_cache_misses", "Cache misses (including expiries), by cache.", labels=["cache"]
+            "bluebird_forecast_cache_misses", "Cache misses (including expiries), by cache.", labels=["cache"]
         )
         for name, store in self._CACHES:
             hits.add_metric([name], store.hits)

@@ -48,16 +48,16 @@ def _request(path: str = "/api/analyze") -> Request:
 
 def test_http_request_counted_with_route_template():
     labels = {"route": "/api/capabilities", "method": "GET", "status": "200"}
-    before = _value("bluebird_http_requests_total", labels)
+    before = _value("bluebird_forecast_http_requests_total", labels)
     dur_before = _value(
-        "bluebird_http_request_duration_seconds_count",
+        "bluebird_forecast_http_request_duration_seconds_count",
         {"route": "/api/capabilities", "method": "GET"},
     )
     assert client.get("/api/capabilities").status_code == 200
-    assert _value("bluebird_http_requests_total", labels) == before + 1
+    assert _value("bluebird_forecast_http_requests_total", labels) == before + 1
     assert (
         _value(
-            "bluebird_http_request_duration_seconds_count",
+            "bluebird_forecast_http_request_duration_seconds_count",
             {"route": "/api/capabilities", "method": "GET"},
         )
         == dur_before + 1
@@ -68,9 +68,9 @@ def test_unknown_api_path_counts_under_the_catchall_template():
     # The 404 catch-all's template, never the raw path — a typo'd URL must not
     # mint a series.
     labels = {"route": "/api/{path:path}", "method": "GET", "status": "404"}
-    before = _value("bluebird_http_requests_total", labels)
+    before = _value("bluebird_forecast_http_requests_total", labels)
     assert client.get("/api/no-such-endpoint").status_code == 404
-    assert _value("bluebird_http_requests_total", labels) == before + 1
+    assert _value("bluebird_forecast_http_requests_total", labels) == before + 1
 
 
 def test_unhandled_exception_counts_as_500():
@@ -82,10 +82,10 @@ def test_unhandled_exception_counts_as_500():
         raise RuntimeError("unhandled")
 
     labels = {"route": "/kaboom", "method": "GET", "status": "500"}
-    before = _value("bluebird_http_requests_total", labels)
+    before = _value("bluebird_forecast_http_requests_total", labels)
     with pytest.raises(RuntimeError):
         TestClient(boom).get("/kaboom")
-    assert _value("bluebird_http_requests_total", labels) == before + 1
+    assert _value("bluebird_forecast_http_requests_total", labels) == before + 1
 
 
 def test_route_label_collapses_the_static_mount():
@@ -132,9 +132,9 @@ def stub_upstreams(monkeypatch):
 
 def test_analyze_observes_field_size_and_limit(stub_upstreams):
     now = datetime.now(timezone.utc)
-    count_before = _value("bluebird_analyze_destinations_count")
-    sum_before = _value("bluebird_analyze_destinations_sum")
-    limit_sum_before = _value("bluebird_analyze_limit_sum")
+    count_before = _value("bluebird_forecast_analyze_destinations_count")
+    sum_before = _value("bluebird_forecast_analyze_destinations_sum")
+    limit_sum_before = _value("bluebird_forecast_analyze_limit_sum")
     resp = client.post(
         "/api/analyze",
         json={
@@ -149,15 +149,15 @@ def test_analyze_observes_field_size_and_limit(stub_upstreams):
         },
     )
     assert resp.status_code == 200
-    assert _value("bluebird_analyze_destinations_count") == count_before + 1
-    assert _value("bluebird_analyze_destinations_sum") == sum_before + 2
-    assert _value("bluebird_analyze_limit_sum") == limit_sum_before + 7
+    assert _value("bluebird_forecast_analyze_destinations_count") == count_before + 1
+    assert _value("bluebird_forecast_analyze_destinations_sum") == sum_before + 2
+    assert _value("bluebird_forecast_analyze_limit_sum") == limit_sum_before + 7
 
 
 def test_rejected_analyze_observes_nothing(stub_upstreams):
     # An inverted window 400s before discovery; a refusal is not an analysis.
     now = datetime.now(timezone.utc)
-    before = _value("bluebird_analyze_destinations_count")
+    before = _value("bluebird_forecast_analyze_destinations_count")
     resp = client.post(
         "/api/analyze",
         json={
@@ -168,7 +168,7 @@ def test_rejected_analyze_observes_nothing(stub_upstreams):
         },
     )
     assert resp.status_code == 400
-    assert _value("bluebird_analyze_destinations_count") == before
+    assert _value("bluebird_forecast_analyze_destinations_count") == before
 
 
 # ── Throttles, sheds, pacing ───────────────────────────────────────────────
@@ -176,13 +176,13 @@ def test_rejected_analyze_observes_nothing(stub_upstreams):
 
 def test_throttle_increments_the_named_bucket():
     limiter = ratelimit.RateLimiter(1, 1, name="test-bucket")
-    before = _value("bluebird_ratelimit_throttled_total", {"bucket": "test-bucket"})
+    before = _value("bluebird_forecast_ratelimit_throttled_total", {"bucket": "test-bucket"})
     ratelimit._throttle(limiter, _request())
     with pytest.raises(HTTPException) as exc_info:
         ratelimit._throttle(limiter, _request())
     assert exc_info.value.status_code == 429
     assert (
-        _value("bluebird_ratelimit_throttled_total", {"bucket": "test-bucket"})
+        _value("bluebird_forecast_ratelimit_throttled_total", {"bucket": "test-bucket"})
         == before + 1
     )
 
@@ -190,14 +190,14 @@ def test_throttle_increments_the_named_bucket():
 def test_weighted_budget_counts_spend_and_shed():
     budget = ratelimit.WeightedBudget("test-provider", 60, max_wait_s=0.5)
     spent_before = _value(
-        "bluebird_openmeteo_weight_spent_total", {"provider": "test-provider"}
+        "bluebird_forecast_openmeteo_weight_spent_total", {"provider": "test-provider"}
     )
     shed_before = _value(
-        "bluebird_upstream_shed_total", {"provider": "test-provider", "mechanism": "weight"}
+        "bluebird_forecast_upstream_shed_total", {"provider": "test-provider", "mechanism": "weight"}
     )
     asyncio.run(budget.acquire(10))
     assert (
-        _value("bluebird_openmeteo_weight_spent_total", {"provider": "test-provider"})
+        _value("bluebird_forecast_openmeteo_weight_spent_total", {"provider": "test-provider"})
         == spent_before + 10
     )
     # The bucket holds 50 more; asking for far past max_wait's worth sheds.
@@ -205,7 +205,7 @@ def test_weighted_budget_counts_spend_and_shed():
         asyncio.run(budget.acquire(1000))
     assert (
         _value(
-            "bluebird_upstream_shed_total",
+            "bluebird_forecast_upstream_shed_total",
             {"provider": "test-provider", "mechanism": "weight"},
         )
         == shed_before + 1
@@ -216,7 +216,7 @@ def test_weighted_budget_counts_pace_time():
     # Capacity 6000/min = 100/s: draining it then asking for 10 more paces
     # ~0.1s, long enough to count and short enough to sleep for real.
     budget = ratelimit.WeightedBudget("test-pacer", 6000, max_wait_s=5)
-    before = _value("bluebird_upstream_pace_seconds_total", {"provider": "test-pacer"})
+    before = _value("bluebird_forecast_upstream_pace_seconds_total", {"provider": "test-pacer"})
 
     async def drain_then_pace():
         await budget.acquire(6000)
@@ -224,7 +224,7 @@ def test_weighted_budget_counts_pace_time():
 
     asyncio.run(drain_then_pace())
     assert (
-        _value("bluebird_upstream_pace_seconds_total", {"provider": "test-pacer"})
+        _value("bluebird_forecast_upstream_pace_seconds_total", {"provider": "test-pacer"})
         > before
     )
 
@@ -238,12 +238,12 @@ def test_upstream_budget_counts_queue_shed():
                     pass
 
     before = _value(
-        "bluebird_upstream_shed_total", {"provider": "test-queue", "mechanism": "queue"}
+        "bluebird_forecast_upstream_shed_total", {"provider": "test-queue", "mechanism": "queue"}
     )
     asyncio.run(scenario())
     assert (
         _value(
-            "bluebird_upstream_shed_total",
+            "bluebird_forecast_upstream_shed_total",
             {"provider": "test-queue", "mechanism": "queue"},
         )
         == before + 1
@@ -253,7 +253,7 @@ def test_upstream_budget_counts_queue_shed():
 def test_min_interval_gate_counts_gate_shed():
     gate = ratelimit.MinIntervalGate("test-gate", 100.0, max_wait_s=0.01)
     before = _value(
-        "bluebird_upstream_shed_total", {"provider": "test-gate", "mechanism": "gate"}
+        "bluebird_forecast_upstream_shed_total", {"provider": "test-gate", "mechanism": "gate"}
     )
 
     async def scenario():
@@ -264,7 +264,7 @@ def test_min_interval_gate_counts_gate_shed():
     asyncio.run(scenario())
     assert (
         _value(
-            "bluebird_upstream_shed_total",
+            "bluebird_forecast_upstream_shed_total",
             {"provider": "test-gate", "mechanism": "gate"},
         )
         == before + 1
@@ -275,14 +275,14 @@ def test_min_interval_gate_counts_gate_shed():
 
 
 def test_cache_collector_reads_the_existing_counters():
-    misses_before = _value("bluebird_cache_misses_total", {"cache": "discovery"})
-    hits_before = _value("bluebird_cache_hits_total", {"cache": "discovery"})
+    misses_before = _value("bluebird_forecast_cache_misses_total", {"cache": "discovery"})
+    hits_before = _value("bluebird_forecast_cache_hits_total", {"cache": "discovery"})
     key = cache.discovery_key([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]], "telemetry-test")
     cache.DISCOVERY_CACHE.get(key)  # miss
     cache.DISCOVERY_CACHE.put(key, [])
     cache.DISCOVERY_CACHE.get(key)  # hit
-    assert _value("bluebird_cache_misses_total", {"cache": "discovery"}) == misses_before + 1
-    assert _value("bluebird_cache_hits_total", {"cache": "discovery"}) == hits_before + 1
+    assert _value("bluebird_forecast_cache_misses_total", {"cache": "discovery"}) == misses_before + 1
+    assert _value("bluebird_forecast_cache_hits_total", {"cache": "discovery"}) == hits_before + 1
 
 
 # ── Open-Meteo fetch outcomes ──────────────────────────────────────────────
@@ -339,10 +339,10 @@ def test_weather_success_counts_request_and_duration(monkeypatch):
     }
     _stub_openmeteo(monkeypatch, weather, [[hourly]])
     ok_before = _value(
-        "bluebird_openmeteo_requests_total", {"service": "weather", "outcome": "success"}
+        "bluebird_forecast_openmeteo_requests_total", {"service": "weather", "outcome": "success"}
     )
     dur_before = _value(
-        "bluebird_openmeteo_request_duration_seconds_count", {"service": "weather"}
+        "bluebird_forecast_openmeteo_request_duration_seconds_count", {"service": "weather"}
     )
     cache.FORECAST_CACHE.clear()
     result = asyncio.run(
@@ -351,14 +351,14 @@ def test_weather_success_counts_request_and_duration(monkeypatch):
     assert result[0] is not None
     assert (
         _value(
-            "bluebird_openmeteo_requests_total",
+            "bluebird_forecast_openmeteo_requests_total",
             {"service": "weather", "outcome": "success"},
         )
         == ok_before + 1
     )
     assert (
         _value(
-            "bluebird_openmeteo_request_duration_seconds_count", {"service": "weather"}
+            "bluebird_forecast_openmeteo_request_duration_seconds_count", {"service": "weather"}
         )
         == dur_before + 1
     )
@@ -367,7 +367,7 @@ def test_weather_success_counts_request_and_duration(monkeypatch):
 def test_weather_terminal_429_counts_scope(monkeypatch):
     _stub_openmeteo(monkeypatch, weather, [_rate_limited(weather.FORECAST_URL, "Hourly")])
     before = _value(
-        "bluebird_openmeteo_rate_limited_total", {"service": "weather", "scope": "hourly"}
+        "bluebird_forecast_openmeteo_rate_limited_total", {"service": "weather", "scope": "hourly"}
     )
     cache.FORECAST_CACHE.clear()
     with pytest.raises(UpstreamRateLimited):
@@ -378,7 +378,7 @@ def test_weather_terminal_429_counts_scope(monkeypatch):
         )
     assert (
         _value(
-            "bluebird_openmeteo_rate_limited_total",
+            "bluebird_forecast_openmeteo_rate_limited_total",
             {"service": "weather", "scope": "hourly"},
         )
         == before + 1
@@ -389,9 +389,9 @@ def test_aqi_failure_counts_a_degraded_batch(monkeypatch):
     request = httpx.Request("GET", air_quality.AIR_QUALITY_URL)
     boom = httpx.ConnectError("nope", request=request)
     _stub_openmeteo(monkeypatch, air_quality, [boom])
-    degraded_before = _value("bluebird_aqi_degraded_total", {"reason": "error"})
+    degraded_before = _value("bluebird_forecast_aqi_degraded_total", {"reason": "error"})
     err_before = _value(
-        "bluebird_openmeteo_requests_total",
+        "bluebird_forecast_openmeteo_requests_total",
         {"service": "aqi", "outcome": "network_error"},
     )
     cache.FORECAST_CACHE.clear()
@@ -403,10 +403,10 @@ def test_aqi_failure_counts_a_degraded_batch(monkeypatch):
         )
     )
     assert result == [None]
-    assert _value("bluebird_aqi_degraded_total", {"reason": "error"}) == degraded_before + 1
+    assert _value("bluebird_forecast_aqi_degraded_total", {"reason": "error"}) == degraded_before + 1
     assert (
         _value(
-            "bluebird_openmeteo_requests_total",
+            "bluebird_forecast_openmeteo_requests_total",
             {"service": "aqi", "outcome": "network_error"},
         )
         == err_before + 1
@@ -464,25 +464,25 @@ def test_overpass_failure_counts_fallback_and_success_counts_mirror(monkeypatch)
 
     monkeypatch.setattr(osm_mod.httpx, "AsyncClient", _Client)
 
-    fallback_before = _value("bluebird_overpass_fallback_total", {"mirror": first})
+    fallback_before = _value("bluebird_forecast_overpass_fallback_total", {"mirror": first})
     timeout_before = _value(
-        "bluebird_overpass_requests_total", {"mirror": first, "outcome": "timeout"}
+        "bluebird_forecast_overpass_requests_total", {"mirror": first, "outcome": "timeout"}
     )
     ok_before = _value(
-        "bluebird_overpass_requests_total", {"mirror": second, "outcome": "success"}
+        "bluebird_forecast_overpass_requests_total", {"mirror": second, "outcome": "success"}
     )
     data = asyncio.run(osm_mod._post_with_fallback("[out:json];"))
     assert data == {"elements": []}
-    assert _value("bluebird_overpass_fallback_total", {"mirror": first}) == fallback_before + 1
+    assert _value("bluebird_forecast_overpass_fallback_total", {"mirror": first}) == fallback_before + 1
     assert (
         _value(
-            "bluebird_overpass_requests_total", {"mirror": first, "outcome": "timeout"}
+            "bluebird_forecast_overpass_requests_total", {"mirror": first, "outcome": "timeout"}
         )
         == timeout_before + 1
     )
     assert (
         _value(
-            "bluebird_overpass_requests_total", {"mirror": second, "outcome": "success"}
+            "bluebird_forecast_overpass_requests_total", {"mirror": second, "outcome": "success"}
         )
         == ok_before + 1
     )
@@ -515,7 +515,7 @@ _COORD_RE = re.compile(r"^-?\d{1,3}\.\d{3,}$")
 def test_no_label_carries_coordinates_or_client_identity():
     seen_any = False
     for metric in REGISTRY.collect():
-        if not metric.name.startswith("bluebird_"):
+        if not metric.name.startswith("bluebird_forecast_"):
             continue
         for sample in metric.samples:
             seen_any = True
@@ -532,7 +532,7 @@ def test_no_label_carries_coordinates_or_client_identity():
                 assert not _COORD_RE.match(value), (
                     f"{sample.name} label {label_name}={value!r} looks like a coordinate"
                 )
-    assert seen_any, "no bluebird_* samples in the registry — wiring is gone"
+    assert seen_any, "no bluebird_forecast_* samples in the registry — wiring is gone"
 
 
 # ── The metrics server itself ──────────────────────────────────────────────
@@ -556,8 +556,8 @@ def test_metrics_server_starts_and_serves_the_registry(monkeypatch):
     telemetry.start_metrics_server()
     try:
         body = httpx.get(f"http://127.0.0.1:{port}/metrics").text
-        assert "bluebird_http_requests_total" in body
-        assert "bluebird_build_info" in body
+        assert "bluebird_forecast_http_requests_total" in body
+        assert "bluebird_forecast_build_info" in body
     finally:
         telemetry.stop_metrics_server()
     assert telemetry._server is None
