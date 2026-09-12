@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 
 from app import ratelimit
 from app.models import (
+    ARCHIVE_DATA_DAYS,
     DEFAULT_FORECAST_MODEL,
     FUTURE_LIMIT_SLACK_DAYS,
     MAX_ANALYZE_PEAKS,
@@ -178,9 +179,10 @@ class Limits(BaseModel):
     max_limit: int = Field(description="Largest accepted `limit`.")
     max_past_days: int = Field(
         description=(
-            "How far back `start_datetime` may reach. The weather API serves "
-            "roughly 90 days of history; this bound carries slack so a "
-            "legitimate edge window is never falsely rejected."
+            "How far back `start_datetime` may reach. The archive endpoint "
+            "serves the history past `past_data_days`; this bound is "
+            "`archive_days` plus slack, so a legitimate edge window is never "
+            "falsely rejected."
         )
     )
     max_future_days: int = Field(
@@ -191,11 +193,21 @@ class Limits(BaseModel):
     )
     past_data_days: int = Field(
         description=(
-            "How far back the weather API still holds data, as opposed to how "
-            "far back it accepts a date. Past this, a request succeeds and "
-            "returns an hourly array of nulls, so a window reaching further "
-            "yields rows with no numbers rather than an error. Always well "
-            "inside `max_past_days`, which is the accept bound."
+            "Where the forecast endpoint's own data ends, and therefore the "
+            "boundary between the two weather endpoints. A window older than "
+            "this is answered from the archive instead, which changes what a "
+            "row can carry: the archive names no model and reports wind at "
+            "10 m rather than at the destination's elevation. A window that "
+            "starts older than this and ends inside it is refused with 400, "
+            "because the two endpoints answer from different datasets."
+        )
+    )
+    archive_days: int = Field(
+        description=(
+            "How far back `start_datetime` may reach and still be answered with "
+            "real numbers, through the archive endpoint. A deployment choice "
+            "rather than a limit of the data, which runs decades deeper; the "
+            "calendar in the app offers exactly this reach."
         )
     )
     aqi_forecast_days: int = Field(
@@ -298,6 +310,7 @@ async def capabilities() -> CapabilitiesResponse:
             max_past_days=PAST_LIMIT_SLACK_DAYS,
             max_future_days=FUTURE_LIMIT_SLACK_DAYS,
             past_data_days=PAST_DATA_DAYS,
+            archive_days=ARCHIVE_DATA_DAYS,
             aqi_forecast_days=AQI_FORECAST_DAYS,
             # Read from the live limiter instances, not the env constants, so
             # what this publishes is what enforcement actually counts.
@@ -324,6 +337,14 @@ async def capabilities() -> CapabilitiesResponse:
                 name="Open-Meteo",
                 url="https://open-meteo.com",
                 provides="Hourly precipitation, temperature, and wind forecasts",
+            ),
+            DataSource(
+                name="Open-Meteo Historical Weather",
+                url="https://open-meteo.com/en/docs/historical-weather-api",
+                provides=(
+                    "Hourly precipitation, temperature, and wind for windows "
+                    "older than limits.past_data_days"
+                ),
             ),
             DataSource(
                 name="Open-Meteo Air Quality",

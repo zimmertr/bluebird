@@ -32,6 +32,7 @@ import {
   SEGMENT_FLUID,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
+  DISABLED,
   SELECT,
   SELECT_W_AGGREGATE,
   SPINNER,
@@ -635,6 +636,16 @@ describe('shared recipes', () => {
   it('suppresses the platform chrome and keeps room for the arrow it replaces', () => {
     expect(SELECT).toContain('appearance-none')
     expect(SELECT).toContain('pr-8')
+  })
+
+  // The disabled look is one role, not a pair of utilities re-spelled per call
+  // site, which is what it was in four places before the model picker needed a
+  // fifth (#123). It carries no color of its own, so it composes over any button
+  // or field role without racing that role's color by stylesheet order.
+  it('states the disabled look once, and in no colour of its own', () => {
+    expect(DISABLED).toContain('disabled:opacity-40')
+    expect(DISABLED).toContain('disabled:cursor-not-allowed')
+    expect(DISABLED).not.toMatch(/text-|bg-|border-/)
   })
 
   // The panel's controls share a left edge as well as a right one. The segment

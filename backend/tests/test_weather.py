@@ -953,3 +953,87 @@ async def test_a_keyed_and_an_unkeyed_request_share_one_cache_entry(monkeypatch)
 
     assert len(calls) == 1
     assert second[0]["precip_total_in"] == first[0]["precip_total_in"]
+
+
+# ── The archive endpoint (issue #123) ──────────────────────────────────────
+#
+# A window older than the forecast endpoint's retention is answered from the
+# archive instead. `source` says which, and the caller decides it — these tests
+# pass it the way the route does.
+
+
+async def test_an_archive_window_goes_to_the_archive_endpoint(monkeypatch):
+    urls: list[str] = []
+    _stub_openmeteo(monkeypatch, [_payload([0.1])], urls)
+    await fetch_weather_batch(_dests(1), START, END, source="archive")
+
+    assert urls == [weather.ARCHIVE_URL]
+
+
+async def test_an_archive_window_names_no_model(monkeypatch):
+    # The archive's default is a reanalysis, one dataset everywhere, so nothing
+    # varies row to row the way `best_match` would on the forecast endpoint.
+    # Forwarding the picker's model would be worse than useless: the archive
+    # accepts an unknown `models=` with a 200 and plausible data, so a name it
+    # does not serve would be answered silently by something else.
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    await fetch_weather_batch(
+        _dests(1), START, END, model=ForecastModel.gfs_hrrr, source="archive"
+    )
+
+    assert "models" not in calls[0]
+    # Everything else about the request is unchanged, hours included.
+    assert calls[0]["start_hour"] == "2026-07-21T00:00"
+    assert calls[0]["hourly"] == weather.HOURLY_VARIABLES
+
+
+async def test_a_forecast_window_still_names_its_model(monkeypatch):
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_hrrr)
+
+    assert calls[0]["models"] == "gfs_hrrr"
+
+
+async def test_a_keyed_archive_window_goes_to_the_customer_archive_host(monkeypatch):
+    urls: list[str] = []
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])], urls)
+    await fetch_weather_batch(
+        _dests(1), START, END, api_key="secret-key", source="archive"
+    )
+
+    assert urls == [weather.CUSTOMER_ARCHIVE_URL]
+    assert calls[0]["apikey"] == "secret-key"
+
+
+async def test_fetch_weather_batch_keys_the_cache_by_endpoint(monkeypatch):
+    # The two endpoints answer the same coordinates and window from different
+    # data, and the boundary between them moves with the clock — so a window
+    # that changes sides while an entry is live must miss rather than be served
+    # the other endpoint's numbers.
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1]), _payload([0.2])])
+
+    forecast = await fetch_weather_batch(_dests(1), START, END)
+    archive = await fetch_weather_batch(_dests(1), START, END, source="archive")
+
+    assert len(calls) == 2
+    assert forecast[0]["precip_total_in"] == 0.1
+    assert archive[0]["precip_total_in"] == 0.2
+
+
+async def test_an_archive_payload_with_no_level_winds_keeps_every_hour(monkeypatch):
+    # The archive accepts the five pressure levels and answers them all null
+    # (measured 2026-09-12). The elevation adjustment degrades to the 10 m wind
+    # — and, crucially, drops no hour doing it: the aggregation zips the four
+    # core arrays, so a null level can only ever change a wind number.
+    block = _one_location()
+    block["hourly"].update({name: [None] * 3 for name, _ in weather._WIND_LEVELS})
+    _stub_openmeteo(monkeypatch, [[block]])
+    dests = _dests(1)
+    dests[0]["elevation_ft"] = 14000.0
+
+    results = await fetch_weather_batch(dests, START, END, source="archive")
+
+    assert results[0]["wind_avg_mph"] == 7.0  # mean of the 10 m 5, 7, 9
+    assert results[0]["wind_max_mph"] == 9.0
+    assert results[0]["series"]["wind_mph"] == [5.0, 7.0, 9.0]
+    assert len(results[0]["series"]["times"]) == 3

@@ -1047,6 +1047,18 @@ export const FIELD_NUMERIC =
 export const SELECT = `${FIELD} appearance-none pr-8`
 
 /**
+ * What a control looks like when it does not apply.
+ *
+ * One role rather than a pair of utilities re-spelled at each call site, which
+ * is what it was in four places before the model picker needed a fifth. Faded
+ * rather than hidden: a control that vanishes takes its label and its last value
+ * with it, and a reader who set that value is owed the sight of it. No color of
+ * its own, so it composes over any button or field role without racing it by
+ * stylesheet order.
+ */
+export const DISABLED = 'disabled:opacity-40 disabled:cursor-not-allowed'
+
+/**
  * The map timeline's scrubber (#121).
  *
  * A real `<input type="range">` rather than a div with a drag handler, and that

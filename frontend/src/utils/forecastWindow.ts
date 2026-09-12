@@ -8,17 +8,79 @@
 // Equal timestamps are a point sample — floored to the hour they land in and
 // spanned by one minute, so the hourly filter catches exactly one stamp (a
 // bare +1h span would catch two whenever the moment sits on an hour
-// boundary). The horizon slack (95/17 days) matches the backend constants
-// behind the advertised ~90-day / ~16-day limits, and the error strings are
+// boundary). The horizon slack (375/17 days) matches the backend constants
+// behind the advertised one-year / ~16-day limits, and the error strings are
 // the server's own so a client-refused window reads identically to a
 // server-refused one.
+//
+// It also owns which Open-Meteo endpoint a window belongs to (`windowSource`,
+// issue #123), because that is the same question one level down: a window the
+// forecast endpoint has no data for is the archive's, and one that crosses
+// between them is nobody's.
 
 const HOUR_MS = 3_600_000
 const MINUTE_MS = 60_000
 const DAY_MS = 86_400_000
 
-export const PAST_LIMIT_SLACK_DAYS = 95
+// Mirror of `ARCHIVE_DATA_DAYS` + its slack and `FUTURE_LIMIT_SLACK_DAYS` in
+// `backend/app/models.py`. The past bound follows the ARCHIVE's reach rather
+// than the forecast endpoint's, because a window older than `PAST_DATA_DAYS` is
+// answered from the archive (see `windowSource`).
+export const PAST_LIMIT_SLACK_DAYS = 375
 export const FUTURE_LIMIT_SLACK_DAYS = 17
+
+// Where the forecast endpoint's own data stops, and therefore the boundary
+// between the two endpoints. Mirror of `PAST_DATA_DAYS` in
+// `backend/app/models.py`, which carries the per-model measurements behind it:
+// past ~58 days every model answers 200 with an hourly array of nulls, and 55 is
+// one conservative floor for all of them.
+export const PAST_DATA_DAYS = 55
+
+// One local calendar day of tolerance on the forecast side of that boundary.
+// The boundary is an instant and a calendar day is not: west of Greenwich a
+// local day's last minute lands on the next UTC date, so a day the calendar
+// draws can straddle the boundary by up to 14 hours. Without the tolerance that
+// one day could not be analyzed in a single request — refused as spanning
+// although it is one day — which is the "offers a day it cannot answer" defect
+// #230 closed. Mirror of `ARCHIVE_STRADDLE_DAYS` in `backend/app/models.py`.
+export const ARCHIVE_STRADDLE_DAYS = 1
+
+/** Which endpoint answers a window, or that neither can. */
+export type WindowSource = 'forecast' | 'archive' | 'spanning'
+
+// Mirror of `SPANNING_WINDOW_MESSAGE` in `backend/app/models.py`, so a window
+// the panel blocks and a window the API refuses read the same sentence.
+export const SPANNING_WINDOW_MESSAGE = 'A window cannot cross the archive boundary.'
+
+/**
+ * Which Open-Meteo endpoint can answer this window, or neither.
+ *
+ * One boundary, defined once: `now - PAST_DATA_DAYS`, floored to the UTC day,
+ * because every fetch sends UTC hour stamps. A window entirely older than it is
+ * the archive's; one starting at it — within a local day, see
+ * ARCHIVE_STRADDLE_DAYS — is the forecast endpoint's; one that starts before it
+ * and ends after it is neither, and is refused rather than stitched, because the
+ * two endpoints answer from different datasets and a ranking across the seam
+ * would compare hours of one against hours of the other.
+ *
+ * The archive test comes first so the one-day overlap the straddle tolerance
+ * opens resolves to the archive, which holds every hour in it rather than
+ * relying on the forecast endpoint's ragged tail.
+ *
+ * Mirror of `window_source` in `backend/app/models.py`, with the same example
+ * table in both test suites.
+ */
+export function windowSource(
+  startMs: number,
+  endMs: number,
+  nowMs: number = Date.now(),
+): WindowSource {
+  const boundary =
+    Math.floor((nowMs - PAST_DATA_DAYS * DAY_MS) / DAY_MS) * DAY_MS
+  if (endMs < boundary) return 'archive'
+  if (startMs >= boundary - ARCHIVE_STRADDLE_DAYS * DAY_MS) return 'forecast'
+  return 'spanning'
+}
 
 // Naive strings are read as UTC, exactly like the backend's parsing. The SPA
 // always sends zoned ISO, but the guard keeps hand-fed values honest.
@@ -98,7 +160,7 @@ export function resolveWindow(
   }
   if (startMs < nowMs - PAST_LIMIT_SLACK_DAYS * DAY_MS) {
     throw new Error(
-      'start_datetime is beyond the ~90-day history limit of the weather API. ' +
+      'start_datetime is beyond the one-year history limit of the weather API. ' +
         'Move the window start closer to today.',
     )
   }
@@ -107,6 +169,14 @@ export function resolveWindow(
       'end_datetime is beyond the ~16-day forecast horizon of the weather API. ' +
         'Move the window end closer to today.',
     )
+  }
+  // The client twin of the routes' own refusal, so a spanning window never
+  // reaches a fetch: the browser path would otherwise have to pick one of the
+  // two endpoints and answer half the window with nulls. Last, like the route's
+  // own check: the two horizons above are about a window no endpoint accepts,
+  // and this is about one that two of them would each half-answer.
+  if (windowSource(startMs, endMs, nowMs) === 'spanning') {
+    throw new Error(SPANNING_WINDOW_MESSAGE)
   }
   return { startMs, endMs }
 }

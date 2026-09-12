@@ -21,6 +21,7 @@ import {
   BOUNDS_GRID,
   CHOICE_ROW,
   CONTROL_W,
+  DISABLED,
   FIELD,
   FIELD_NUMERIC,
   LINK,
@@ -64,10 +65,10 @@ import { DEFAULT_LIMIT, classifyAqiCoverage, clampLimit } from '../utils/urlStat
 import {
   AQI_LIMIT_DAYS,
   ForecastSelection,
-  PAST_LIMIT_DAYS,
   hasDates,
   selectionLocalWindow,
 } from '../utils/calendar'
+import { SPANNING_WINDOW_MESSAGE, windowSource } from '../utils/forecastWindow'
 import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabilities'
 
 // The app's core question: "top N peaks by <metric's aggregate>, lowest or
@@ -226,8 +227,10 @@ interface Props {
   modelClamped: boolean
   // The selection is unservable, or its narrowed hours run backwards. A horizon
   // case only arrives through a shared link: the calendar draws those days
-  // disabled.
-  windowWarning: 'past' | 'future' | 'order' | null
+  // disabled. 'spanning' is the one a pickable pair of days can still produce
+  // (#123): both ends are inside the band and only the span between them is
+  // unanswerable.
+  windowWarning: 'past' | 'future' | 'order' | 'spanning' | null
   // Why a knob has stopped applying live, or null while they all do. Sort,
   // limit and elevation-narrowing normally re-present the held field with no
   // Analyze at all (#188), so this cue is the exception rather than the rule
@@ -254,6 +257,9 @@ interface Props {
   // Live polygon-area gate from /api/capabilities, same contract as maxLimit
   // above: the deployment's number, with a compiled fallback behind it.
   maxAreaKm2: number
+  // How far back the calendar may reach, from /api/capabilities: the archive
+  // endpoint's reach, same contract as the two ceilings above.
+  archiveDays: number
   // Whether a report is on screen at all — the counts themselves moved to the
   // table's own header bar.
   resultCount?: number
@@ -412,6 +418,7 @@ export default function ControlPanel({
   onRetry,
   maxLimit,
   maxAreaKm2,
+  archiveDays,
   resultCount,
   aqiAllNull,
   wildfireCheckFailed,
@@ -424,6 +431,12 @@ export default function ControlPanel({
   const modelLabel =
     forecastModels.find((m) => m.id === forecastModel)?.label ?? forecastModel
   const forecastHours = modelForecastHours(forecastModels, forecastModel)
+  // Memoized because the calendar's grid hangs off it: a new object on every
+  // render would rebuild the month grid on every keystroke in the panel.
+  const band = useMemo(
+    () => ({ forecastHours, pastDays: archiveDays }),
+    [forecastHours, archiveDays],
+  )
   const parsedCustom = useMemo(() => parseCustomCsv(customCsv), [customCsv])
   const hasCustom = parsedCustom.length > 0
   // True between a paste into the CSV box and the change event it produces —
@@ -461,6 +474,17 @@ export default function ControlPanel({
     selection.kind === 'now' || window === null
       ? 'full'
       : classifyAqiCoverage(window.start, window.end, new Date())
+  // A window the archive endpoint answers (#123), which names no model: its
+  // default is a reanalysis, one dataset everywhere, and the picker's models are
+  // forecast models that do not run over the past. So the picker does not apply
+  // and is disabled rather than left looking like an input to a fetch that
+  // ignores it.
+  const archiveWindow =
+    window !== null &&
+    windowSource(
+      new Date(window.start).getTime(),
+      new Date(window.end).getTime(),
+    ) === 'archive'
 
   const pointsNeeded = Math.max(0, 3 - drawPointCount)
 
@@ -771,7 +795,7 @@ export default function ControlPanel({
                 <button
                   onClick={onFinishDrawing}
                   disabled={drawPointCount < 3}
-                  className={`${BUTTON_ACCENT} disabled:opacity-40 disabled:cursor-not-allowed`}
+                  className={`${BUTTON_ACCENT} ${DISABLED}`}
                 >
                   Done
                 </button>
@@ -918,6 +942,7 @@ export default function ControlPanel({
                 value={forecastModel}
                 defaultId={defaultForecastModel}
                 onChange={setForecastModel}
+                disabled={archiveWindow}
               />
             </div>
           </div>
@@ -927,18 +952,16 @@ export default function ControlPanel({
             </p>
           )}
 
-          <ForecastCalendar
-            selection={selection}
-            onChange={setSelection}
-            forecastHours={forecastHours}
-          />
+          <ForecastCalendar selection={selection} onChange={setSelection} band={band} />
 
           {windowWarning && (
             <p className={`mt-2 ${STATUS.warn} ${NOTICE.warn}`}>
               {windowWarning === 'order'
                 ? 'The narrowed hours end before they start.'
+                : windowWarning === 'spanning'
+                ? SPANNING_WINDOW_MESSAGE
                 : windowWarning === 'past'
-                ? `Forecast range starts before the ${PAST_LIMIT_DAYS}-day limit.`
+                ? `Forecast range starts before the ${archiveDays}-day limit.`
                 : `${modelLabel} does not reach that far.`}
             </p>
           )}
@@ -1152,7 +1175,7 @@ export default function ControlPanel({
         <button
           onClick={onAnalyze}
           disabled={!analyzeEnabled}
-          className={`${BUTTON_PRIMARY} disabled:opacity-40 disabled:cursor-not-allowed`}
+          className={`${BUTTON_PRIMARY} ${DISABLED}`}
         >
           {loading ? 'Analyzing…' : 'Analyze'}
         </button>

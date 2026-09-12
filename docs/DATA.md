@@ -4,6 +4,7 @@
 |---|---|---|---|
 | [OpenStreetMap](https://www.openstreetmap.org) via [Overpass API](https://overpass-api.de) | Destination names, coordinates, elevation | Free | None |
 | [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind | Free (non-commercial) | None, or a caller's own key |
+| [Open-Meteo Historical Weather](https://open-meteo.com/en/docs/historical-weather-api) (reanalysis) | The same three variables for windows older than the forecast endpoint's own history | Free (non-commercial) | None, or a caller's own key |
 | [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly US AQI | Free (non-commercial) | None, or a caller's own key |
 | [OpenFreeMap](https://openfreemap.org) | Vector map tiles | Free | None |
 | [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
@@ -130,13 +131,47 @@ destination's claimed height — so high ground paints its real winds, but a
 summit marker can still read somewhat windier than the cell containing it,
 because the cell's height is the ground at the sample point, not the peak.
 
-History reaches back only as far as the forecast endpoint's own archive, and
-that archive is shorter than the range of dates the endpoint will accept. Past
-roughly two months a request still succeeds and comes back with no numbers in
-it, so Bluebird Forecast's calendar stops well before the date the API stops accepting.
-Going further would mean the separate
-[Open-Meteo Historical API](https://open-meteo.com/en/docs/historical-weather-api),
-which is not wired up.
+### History, and the boundary inside it
+
+Two endpoints answer a window, and which one depends on how old the window is.
+
+The forecast endpoint holds its own short history, and that history is shorter
+than the range of dates it will accept: past roughly two months a request still
+succeeds and comes back with no numbers in it. `limits.past_data_days` on
+[`GET /api/capabilities`](API.md) is where that data stops, measured rather than
+read off the docs.
+
+Older windows go to the
+[Open-Meteo Historical API](https://open-meteo.com/en/docs/historical-weather-api)
+instead, and `limits.archive_days` is how far back that reaches here. The
+calendar offers exactly that, so every day it draws comes back with data.
+
+Three things are different about an archive answer, and all three are the
+archive's nature rather than a limitation of the wiring.
+
+- **It names no model.** Everywhere else Bluebird Forecast sends an explicit
+  `models=` (see below), and the archive is the documented exception: its default
+  is a reanalysis — ECMWF IFS HRES with ERA5 and ERA5-Land — which is one dataset
+  at every location, so there is no per-location pick to hide. The forecast
+  models the panel lists never ran over those hours at all, so the picker does
+  not apply and is disabled while an archive window is selected. Sending a model
+  name the archive does not serve is worse than useless: measured 2026-09-12, it
+  answers an unknown `models=` with a `200` and plausible data rather than an
+  error.
+- **Wind is the 10 m wind.** The archive accepts the five pressure levels the
+  elevation adjustment above is built on and answers every hour `null`, so an
+  archive row reports the plain 10 m wind for every destination, whatever its
+  elevation.
+- **A window may not cross the boundary.** A window that starts in the archive's
+  range and ends inside the forecast endpoint's is refused rather than stitched:
+  the two answer from different datasets, so a ranking across the seam would
+  compare hours of one against hours of the other with nothing saying where the
+  seam fell. Move either end to one side of it.
+
+Air quality is not part of that split. It has an archive of its own on the same
+endpoint — measured 2026-09-12, it answered a window 365 days back with real US
+AQI — so an old window is an ordinary air-quality fetch, and an hour it cannot
+answer degrades to `null` the way every other gap does.
 
 ## Choosing a model
 

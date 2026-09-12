@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  PAST_DATA_DAYS,
+  SPANNING_WINDOW_MESSAGE,
+  type WindowSource,
   hourlyStampCount,
   isPointSample,
   normalizeWindow,
   resolveWindow,
+  windowSource,
 } from './forecastWindow'
 
 const NOW = Date.parse('2026-07-21T12:00:00Z')
@@ -45,9 +49,12 @@ describe('resolveWindow', () => {
   })
 
   it('rejects a start beyond the history horizon', () => {
-    const past = new Date(NOW - 96 * DAY).toISOString()
-    expect(() => resolveWindow(past, new Date(NOW).toISOString(), NOW)).toThrow(
-      /90-day history limit/,
+    // Both ends in the archive's range, so this fails on the horizon rather
+    // than on the boundary check below: the horizon is what is under test.
+    const past = new Date(NOW - 400 * DAY).toISOString()
+    const alsoPast = new Date(NOW - 399 * DAY).toISOString()
+    expect(() => resolveWindow(past, alsoPast, NOW)).toThrow(
+      /one-year history limit/,
     )
   })
 
@@ -59,10 +66,12 @@ describe('resolveWindow', () => {
   })
 
   it('accepts windows just inside both horizons', () => {
-    const start = new Date(NOW - 94 * DAY).toISOString()
+    // Inside the forecast endpoint's own data as well as its accept edge, so
+    // this window crosses no boundary: one that did would be refused (#123).
+    const start = new Date(NOW - 50 * DAY).toISOString()
     const end = new Date(NOW + 16 * DAY).toISOString()
     const w = resolveWindow(start, end, NOW)
-    expect(w.endMs - w.startMs).toBe(110 * DAY)
+    expect(w.endMs - w.startMs).toBe(66 * DAY)
   })
 
   it('rejects garbage timestamps', () => {
@@ -170,5 +179,54 @@ describe('hourlyStampCount', () => {
 
   it('counts a window that spans no whole hour as none', () => {
     expect(hourlyStampCount(at('2026-07-21T06:10:00Z'), at('2026-07-21T06:50:00Z'))).toBe(0)
+  })
+})
+
+// ── windowSource (issue #123) ──────────────────────────────────────────────
+//
+// The table below is the CONTRACT between the two implementations: the same
+// rows, the same expectations, live in `test_window_source_classification_table`
+// in backend/tests/test_models.py. Change one, change both.
+//
+// SOURCE_NOW is 18:00 UTC, so the boundary (now - PAST_DATA_DAYS, floored to the
+// UTC day) is 2026-07-19T00:00Z and the straddle floor a day before it.
+describe('windowSource', () => {
+  const SOURCE_NOW = Date.parse('2026-09-12T18:00:00Z')
+  const at = (s: string) => Date.parse(`${s}:00Z`)
+
+  const cases: [string, string, WindowSource, string][] = [
+    ['2026-09-10T00:00', '2026-09-11T23:59', 'forecast', 'an ordinary recent window'],
+    ['2026-09-12T18:00', '2026-09-12T18:01', 'forecast', 'the current hour'],
+    ['2026-07-19T00:00', '2026-07-19T23:59', 'forecast', 'starts exactly at the boundary'],
+    ['2026-07-18T07:00', '2026-07-19T06:59', 'forecast', 'a Pacific day straddling it'],
+    ['2026-07-18T00:00', '2026-07-18T23:59', 'archive', 'ends before the boundary'],
+    ['2026-07-01T00:00', '2026-07-01T23:59', 'archive', 'a month past it'],
+    ['2025-09-12T00:00', '2025-09-12T23:59', 'archive', 'a year back'],
+    ['2026-07-17T00:00', '2026-07-19T12:00', 'spanning', 'crosses the boundary'],
+    ['2026-07-01T00:00', '2026-09-12T18:00', 'spanning', 'crosses it by weeks'],
+  ]
+
+  it.each(cases)('%s to %s is %s (%s)', (start, end, expected) => {
+    expect(windowSource(at(start), at(end), SOURCE_NOW)).toBe(expected)
+  })
+
+  it('puts the boundary at the forecast endpoint own data edge', () => {
+    const justInside = SOURCE_NOW - PAST_DATA_DAYS * DAY
+    expect(windowSource(justInside, justInside, SOURCE_NOW)).toBe('forecast')
+    const older = SOURCE_NOW - (PAST_DATA_DAYS + 2) * DAY
+    expect(windowSource(older, older, SOURCE_NOW)).toBe('archive')
+  })
+
+  it('refuses a window that crosses the boundary, with the server wording', () => {
+    const start = new Date(NOW - (PAST_DATA_DAYS + 10) * DAY).toISOString()
+    const end = new Date(NOW - (PAST_DATA_DAYS - 10) * DAY).toISOString()
+    expect(() => resolveWindow(start, end, NOW)).toThrow(SPANNING_WINDOW_MESSAGE)
+  })
+
+  it('accepts a window wholly inside the archive range', () => {
+    const start = new Date(NOW - 200 * DAY).toISOString()
+    const end = new Date(NOW - 199 * DAY).toISOString()
+    const w = resolveWindow(start, end, NOW)
+    expect(windowSource(w.startMs, w.endMs, NOW)).toBe('archive')
   })
 })

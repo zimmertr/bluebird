@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   AQI_LIMIT_DAYS,
+  type BandLimits,
   DEFAULT_SELECTION,
   DaysSelection,
   FUTURE_LIMIT_DAYS,
   ForecastSelection,
-  PAST_LIMIT_DAYS,
   addDays,
   addMonths,
   addOneHour,
@@ -45,8 +45,13 @@ const NOW = new Date(2026, 6, 15, 12, 0)
 // does, so these assertions test the edge they mean to. 384 h is what GFS
 // measured; ECMWF's floor is 336. HRRR's 42 is the interesting opposite and
 // gets its own describe block below.
-const LONG_HOURS = 384
-const HRRR_HOURS = 42
+//
+// The near edge rides in the same object (#123). It is the archive's reach, so it
+// is what `/api/capabilities` publishes rather than a measured API edge, and the
+// fallback the hook compiles is the value used here.
+const ARCHIVE_DAYS = 365
+const LONG: BandLimits = { forecastHours: 384, pastDays: ARCHIVE_DAYS }
+const HRRR: BandLimits = { forecastHours: 42, pastDays: ARCHIVE_DAYS }
 
 // The two 2026 transitions in the timezone vitest.config.ts pins. A local
 // calendar day is 23 hours on the first and 25 on the second, which is the whole
@@ -141,9 +146,9 @@ describe('day arithmetic', () => {
 })
 
 describe('the servable band', () => {
-  it('runs back exactly the history limit', () => {
-    expect(bandStart(NOW)).toBe('2026-05-21')
-    expect(addDays(dayKey(NOW), -PAST_LIMIT_DAYS)).toBe(bandStart(NOW))
+  it('runs back exactly the published archive reach', () => {
+    expect(bandStart(NOW, LONG)).toBe('2025-07-15')
+    expect(addDays(dayKey(NOW), -ARCHIVE_DAYS)).toBe(bandStart(NOW, LONG))
   })
 
   // The far edge is one day short of the nominal offset here, and that is the
@@ -155,10 +160,10 @@ describe('the servable band', () => {
     const nominal = addDays(dayKey(NOW), FUTURE_LIMIT_DAYS)
 
     expect(nominal).toBe('2026-07-30')
-    expect(bandEnd(NOW, LONG_HOURS)).toBe('2026-07-29')
+    expect(bandEnd(NOW, LONG)).toBe('2026-07-29')
     // And the last minute it offers really does fall inside the API's UTC limit.
     const limit = new Date(NOW.getTime() + FUTURE_LIMIT_DAYS * 86_400_000)
-    expect(new Date(`${bandEnd(NOW, LONG_HOURS)}T23:59`).toISOString().slice(0, 10)).toBe(
+    expect(new Date(`${bandEnd(NOW, LONG)}T23:59`).toISOString().slice(0, 10)).toBe(
       limit.toISOString().slice(0, 10),
     )
   })
@@ -174,34 +179,41 @@ describe('the servable band', () => {
     expect(FUTURE_LIMIT_DAYS).toBe(15)
   })
 
-  // The near edge is a different measurement from the one above and used to be
-  // conflated with it. The 400 proves where the API stops accepting a DATE; it
-  // says nothing about where it stops holding DATA, and the two are ~35 days
-  // apart. Probed 2026-08-01 by bisecting the last day back with any non-null
-  // hour: 58 for the shortest-retention model, 69 for the longest, every model
-  // fully populated through 56. The band offered 90 and roughly its last 30 days
-  // could only ever come back empty.
-  it('offers a near edge the weather service still has data for', () => {
-    expect(PAST_LIMIT_DAYS).toBe(55)
-    // Comfortably inside the earliest measured cliff, and nowhere near the date
-    // the API merely accepts.
-    expect(PAST_LIMIT_DAYS).toBeLessThan(58)
-    expect(PAST_LIMIT_DAYS).toBeLessThan(93)
+  // The near edge is not a measured API edge at all any more (#123). Past the
+  // forecast endpoint's own retention the archive answers, and it holds decades,
+  // so what bounds this is a deployment choice about how far a calendar should
+  // page — which is why it arrives from /api/capabilities rather than being
+  // compiled here. The rule it still has to obey: every day it offers comes back
+  // with data, which is what #230 closed and this must not reopen.
+  it('takes its near edge from the band it is given', () => {
+    expect(bandStart(NOW, { ...LONG, pastDays: 55 })).toBe('2026-05-21')
+    expect(bandStart(NOW, { ...LONG, pastDays: 30 })).toBe('2026-06-15')
   })
 
   // Exactness at the edges was untested before the calendar, and the calendar is
   // what makes it visible: these are the first and last cells a user can click.
   it('admits both boundary days and refuses the days beyond them', () => {
-    expect(inBand(bandStart(NOW), NOW, LONG_HOURS)).toBe(true)
-    expect(inBand(addDays(bandStart(NOW), -1), NOW, LONG_HOURS)).toBe(false)
-    expect(inBand(bandEnd(NOW, LONG_HOURS), NOW, LONG_HOURS)).toBe(true)
-    expect(inBand(addDays(bandEnd(NOW, LONG_HOURS), 1), NOW, LONG_HOURS)).toBe(false)
+    expect(inBand(bandStart(NOW, LONG), NOW, LONG)).toBe(true)
+    expect(inBand(addDays(bandStart(NOW, LONG), -1), NOW, LONG)).toBe(false)
+    expect(inBand(bandEnd(NOW, LONG), NOW, LONG)).toBe(true)
+    expect(inBand(addDays(bandEnd(NOW, LONG), 1), NOW, LONG)).toBe(false)
+  })
+
+  // The archive's days are ordinary days (#123): it holds every hour of them,
+  // and air quality reaches back over them too, so nothing about a day 200 days
+  // back is partial. The rule this protects is #230's — the calendar must not
+  // offer a day that comes back empty — from the other direction.
+  it('draws a day inside the archive range as fully servable', () => {
+    const grid = monthGrid(monthKey(addDays(dayKey(NOW), -200)), NOW, LONG).flat()
+    const cell = grid.find((c) => c.date === addDays(dayKey(NOW), -200))
+    expect(cell?.availability).toBe('full')
+    expect(cell?.past).toBe(true)
   })
 
   it('puts the air-quality horizon inside the weather one', () => {
     expect(aqiHorizon(NOW)).toBe('2026-07-20')
     expect(addDays(dayKey(NOW), AQI_LIMIT_DAYS)).toBe(aqiHorizon(NOW))
-    expect(aqiHorizon(NOW) < bandEnd(NOW, LONG_HOURS)).toBe(true)
+    expect(aqiHorizon(NOW) < bandEnd(NOW, LONG)).toBe(true)
   })
 })
 
@@ -212,9 +224,9 @@ describe('the servable band under a short-range model', () => {
   // NOW is local noon on 2026-07-15, Pacific. HRRR's 42 h floor reaches
   // 2026-07-17T06:00 local, so the 17th is the last day it touches at all.
   it('ends on the day the model runs out, not the day the API stops accepting', () => {
-    expect(bandEnd(NOW, HRRR_HOURS)).toBe('2026-07-17')
+    expect(bandEnd(NOW, HRRR)).toBe('2026-07-17')
     // Twelve days nearer than the same call under a global model.
-    expect(bandEnd(NOW, LONG_HOURS)).toBe('2026-07-29')
+    expect(bandEnd(NOW, LONG)).toBe('2026-07-29')
   })
 
   // The whole reason the reach is carried in hours. Rounded down to days the
@@ -222,7 +234,7 @@ describe('the servable band under a short-range model', () => {
   // zone west of Greenwich, which for a model whose entire point is tomorrow
   // morning in the mountains is the same as not offering it.
   it('offers the day the reach lands in rather than the last whole day', () => {
-    const grid = monthGrid('2026-07', NOW, HRRR_HOURS).flat()
+    const grid = monthGrid('2026-07', NOW, HRRR).flat()
     const on = (date: string) => grid.find((c) => c.date === date)?.availability
     expect(on('2026-07-15')).toBe('full') // today, covered end to end
     expect(on('2026-07-16')).toBe('full') // tomorrow, covered end to end
@@ -232,14 +244,14 @@ describe('the servable band under a short-range model', () => {
 
   // The near edge is retention, not forecast reach, so it does not move.
   it('leaves the past edge alone', () => {
-    expect(bandStart(NOW)).toBe(bandStart(NOW))
-    expect(inBand('2026-06-01', NOW, HRRR_HOURS)).toBe(true)
-    expect(inBand('2026-06-01', NOW, LONG_HOURS)).toBe(true)
+    expect(bandStart(NOW, HRRR)).toBe(bandStart(NOW, LONG))
+    expect(inBand('2026-06-01', NOW, HRRR)).toBe(true)
+    expect(inBand('2026-06-01', NOW, LONG)).toBe(true)
   })
 
   it('bounds the month navigation by the model, not by the API', () => {
-    expect(monthHasBandDay('2026-08', NOW, LONG_HOURS)).toBe(false)
-    expect(monthHasBandDay('2026-07', NOW, HRRR_HOURS)).toBe(true)
+    expect(monthHasBandDay('2026-08', NOW, LONG)).toBe(false)
+    expect(monthHasBandDay('2026-07', NOW, HRRR)).toBe(true)
   })
 })
 
@@ -251,18 +263,18 @@ describe('clampSelection', () => {
   })
 
   it('leaves a selection that still fits alone', () => {
-    expect(clampSelection(days('2026-07-15', '2026-07-16'), NOW, HRRR_HOURS)).toBeNull()
+    expect(clampSelection(days('2026-07-15', '2026-07-16'), NOW, HRRR)).toBeNull()
   })
 
   // Null rather than an equal value is what lets the caller warn only when
   // something moved; an equality check on the result would fire every time.
   it('reports no change as null rather than as a copy', () => {
     const sel = days('2026-07-15', '2026-07-16')
-    expect(clampSelection(sel, NOW, LONG_HOURS)).toBeNull()
+    expect(clampSelection(sel, NOW, LONG)).toBeNull()
   })
 
   it('trims an end that the new model no longer reaches', () => {
-    expect(clampSelection(days('2026-07-15', '2026-07-28'), NOW, HRRR_HOURS)).toEqual(
+    expect(clampSelection(days('2026-07-15', '2026-07-28'), NOW, HRRR)).toEqual(
       days('2026-07-15', '2026-07-17'),
     )
   })
@@ -271,14 +283,14 @@ describe('clampSelection', () => {
   // wholly past the new edge: it collapses onto the last day still available
   // rather than onto nothing.
   it('collapses a range that is entirely beyond the new edge', () => {
-    expect(clampSelection(days('2026-07-25', '2026-07-28'), NOW, HRRR_HOURS)).toEqual(
+    expect(clampSelection(days('2026-07-25', '2026-07-28'), NOW, HRRR)).toEqual(
       days('2026-07-17', '2026-07-17'),
     )
   })
 
   it('pulls a start from before the history limit back to it', () => {
-    const clamped = clampSelection(days('2026-01-01', '2026-07-16'), NOW, LONG_HOURS)
-    expect(clamped?.kind === 'days' && clamped.startDate).toBe(bandStart(NOW))
+    const clamped = clampSelection(days('2024-01-01', '2026-07-16'), NOW, LONG)
+    expect(clamped?.kind === 'days' && clamped.startDate).toBe(bandStart(NOW, LONG))
   })
 
   // Narrowed hours describe the span, not the days it covers, so a clamp that
@@ -290,13 +302,13 @@ describe('clampSelection', () => {
       endDate: '2026-07-28',
       hours: { start: '06:00', end: '18:00' },
     }
-    const clamped = clampSelection(sel, NOW, HRRR_HOURS)
+    const clamped = clampSelection(sel, NOW, HRRR)
     expect(clamped?.kind === 'days' && clamped.hours).toEqual({ start: '06:00', end: '18:00' })
   })
 
   // The current hour is the one selection every model reaches.
   it('never clamps the current-hour selection', () => {
-    expect(clampSelection(DEFAULT_SELECTION, NOW, HRRR_HOURS)).toBeNull()
+    expect(clampSelection(DEFAULT_SELECTION, NOW, HRRR)).toBeNull()
   })
 })
 
@@ -309,15 +321,15 @@ describe('applyModeSwitch', () => {
 
   it('leaves the arm already live untouched', () => {
     const sel = days('2026-07-15', '2026-07-16')
-    expect(applyModeSwitch('days', sel, null, NOW, LONG_HOURS)).toBe(sel)
-    expect(applyModeSwitch('now', DEFAULT_SELECTION, null, NOW, LONG_HOURS)).toBe(
+    expect(applyModeSwitch('days', sel, null, NOW, LONG)).toBe(sel)
+    expect(applyModeSwitch('now', DEFAULT_SELECTION, null, NOW, LONG)).toBe(
       DEFAULT_SELECTION,
     )
   })
 
   it('switches to the current hour from any range', () => {
     expect(
-      applyModeSwitch('now', days('2026-07-15', '2026-07-16'), null, NOW, LONG_HOURS),
+      applyModeSwitch('now', days('2026-07-15', '2026-07-16'), null, NOW, LONG),
     ).toEqual({ kind: 'now' })
   })
 
@@ -325,7 +337,7 @@ describe('applyModeSwitch', () => {
   // the range to it was the whole cost of making it.
   it('restores the range the user last had', () => {
     const remembered = days('2026-07-20', '2026-07-23')
-    expect(applyModeSwitch('days', DEFAULT_SELECTION, remembered, NOW, LONG_HOURS)).toEqual(
+    expect(applyModeSwitch('days', DEFAULT_SELECTION, remembered, NOW, LONG)).toEqual(
       remembered,
     )
   })
@@ -337,7 +349,7 @@ describe('applyModeSwitch', () => {
       endDate: '2026-07-23',
       hours: { start: '06:00', end: '18:00' },
     }
-    const next = applyModeSwitch('days', DEFAULT_SELECTION, remembered, NOW, LONG_HOURS)
+    const next = applyModeSwitch('days', DEFAULT_SELECTION, remembered, NOW, LONG)
     expect(next.kind === 'days' && next.hours).toEqual({ start: '06:00', end: '18:00' })
   })
 
@@ -345,7 +357,7 @@ describe('applyModeSwitch', () => {
   // "today" is what Current already provides (#242 review). Analyze blocks on
   // this state through the dates blocker.
   it('opens the Dates arm empty when there is no range to restore', () => {
-    expect(applyModeSwitch('days', DEFAULT_SELECTION, null, NOW, LONG_HOURS)).toEqual({
+    expect(applyModeSwitch('days', DEFAULT_SELECTION, null, NOW, LONG)).toEqual({
       kind: 'days',
       startDate: null,
       endDate: null,
@@ -354,7 +366,7 @@ describe('applyModeSwitch', () => {
 
   it('treats the empty Dates arm as unclampable and windowless', () => {
     const pending = { kind: 'days', startDate: null, endDate: null } as const
-    expect(clampSelection(pending, NOW, LONG_HOURS)).toBeNull()
+    expect(clampSelection(pending, NOW, LONG)).toBeNull()
     expect(selectionLocalWindow(pending, NOW)).toBeNull()
     expect(hasDates(pending)).toBe(false)
   })
@@ -374,13 +386,13 @@ describe('applyModeSwitch', () => {
   // the selection where the grid draws unpickable cells.
   it('clamps a restored range into a band that moved under it', () => {
     expect(
-      applyModeSwitch('days', DEFAULT_SELECTION, days('2026-07-20', '2026-07-28'), NOW, HRRR_HOURS),
+      applyModeSwitch('days', DEFAULT_SELECTION, days('2026-07-20', '2026-07-28'), NOW, HRRR),
     ).toEqual(days('2026-07-17', '2026-07-17'))
   })
 })
 
 describe('monthGrid', () => {
-  const weeks = monthGrid('2026-07', NOW, LONG_HOURS)
+  const weeks = monthGrid('2026-07', NOW, LONG)
   const july = weeks.flat()
 
   // Only the weeks the month reaches into. Six fixed rows would hold the controls
@@ -396,9 +408,9 @@ describe('monthGrid', () => {
 
   it('takes a sixth week only when the month needs one', () => {
     // Aug 2026 starts on a Saturday and runs 31 days, so it spills into a sixth.
-    expect(monthGrid('2026-08', NOW, LONG_HOURS)).toHaveLength(6)
+    expect(monthGrid('2026-08', NOW, LONG)).toHaveLength(6)
     // Feb 2027 starts on a Monday with 28 days: four weeks and a day, so five.
-    expect(monthGrid('2027-02', NOW, LONG_HOURS)).toHaveLength(5)
+    expect(monthGrid('2027-02', NOW, LONG)).toHaveLength(5)
   })
 
   it('marks which cells belong to the month being drawn', () => {
@@ -421,8 +433,8 @@ describe('monthGrid', () => {
     expect(on(aqiHorizon(NOW))).toBe('full')
     expect(on(addDays(aqiHorizon(NOW), 1))).toBe('partial')
     // The far edge of the band is analyzable; the day after it is not.
-    expect(on(bandEnd(NOW, LONG_HOURS))).toBe('partial')
-    expect(on(addDays(bandEnd(NOW, LONG_HOURS), 1))).toBe('unservable')
+    expect(on(bandEnd(NOW, LONG))).toBe('partial')
+    expect(on(addDays(bandEnd(NOW, LONG), 1))).toBe('unservable')
     // And a day in the middle, plus one in the recent past, are fully covered.
     expect(on('2026-07-15')).toBe('full')
     expect(on('2026-06-29')).toBe('full')
@@ -448,10 +460,13 @@ describe('monthGrid', () => {
   })
 
   it('knows which months hold something pickable, to bound the navigation', () => {
-    expect(monthHasBandDay('2026-07', NOW, LONG_HOURS)).toBe(true)
-    expect(monthHasBandDay('2026-05', NOW, LONG_HOURS)).toBe(true) // the band starts May 21
-    expect(monthHasBandDay('2026-04', NOW, LONG_HOURS)).toBe(false)
-    expect(monthHasBandDay('2026-08', NOW, LONG_HOURS)).toBe(false)
+    expect(monthHasBandDay('2026-07', NOW, LONG)).toBe(true)
+    expect(monthHasBandDay('2026-05', NOW, LONG)).toBe(true)
+    // The near edge reaches a year back now (#123), so the navigation runs to
+    // the month holding that day and stops the month before it.
+    expect(monthHasBandDay('2025-07', NOW, LONG)).toBe(true) // the band starts Jul 15
+    expect(monthHasBandDay('2025-06', NOW, LONG)).toBe(false)
+    expect(monthHasBandDay('2026-08', NOW, LONG)).toBe(false)
   })
 })
 

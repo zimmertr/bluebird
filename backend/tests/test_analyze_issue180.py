@@ -109,7 +109,7 @@ def _stub_discovery(monkeypatch, count: int):
 def _stub_weather(monkeypatch):
     async def fake_weather(
         destinations, start, end, on_progress=None, on_pace=None, model=None,
-        api_key=None,
+        api_key=None, source="forecast",
     ):
         return _wx(len(destinations))
 

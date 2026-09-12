@@ -16,6 +16,7 @@ import {
 import { Constraints, NO_CONSTRAINTS, hasConstraints } from './clientAnalyze'
 import { GRID_REACH_DEFAULT_FRAC, isGridStyle, type GridStyle } from './forecastGrid'
 import {
+  type BandLimits,
   DAY_END,
   DAY_START,
   ForecastSelection,
@@ -26,6 +27,7 @@ import {
   isTimeOfDay,
   orderDays,
 } from './calendar'
+import { windowSource } from './forecastWindow'
 import { Place } from './geocode'
 
 // Fields that fully describe an analysis. Results are deliberately excluded —
@@ -577,7 +579,10 @@ export function decodeState(search: string): Partial<ShareableState> | null {
  * servable band: Open-Meteo rejects requests whose dates fall outside it, so
  * even a partial overhang would fail upstream. Returns 'order' when the end is
  * before the start, 'past' when the window starts before the history horizon,
- * and 'future' when it ends beyond the forecast horizon.
+ * 'future' when it ends beyond the forecast horizon, and 'spanning' when it
+ * crosses the archive boundary — the one status a pickable pair of days can
+ * still produce, since both of its ends are inside the band and only the span
+ * between them is unanswerable (#123).
  *
  * Bounded by whole days rather than by an instant `now + N * 24h`, because that
  * is the granularity of everything it is standing in for: the API states its own
@@ -602,25 +607,29 @@ export function classifyWindow(
   startDatetime: string,
   endDatetime: string,
   now: Date,
-  forecastHours: number,
-): 'ok' | 'order' | 'past' | 'future' {
+  band: BandLimits,
+): 'ok' | 'order' | 'past' | 'future' | 'spanning' {
   if (!isValidDatetimeLocal(startDatetime) || !isValidDatetimeLocal(endDatetime)) {
     return 'ok' // incomplete window — nothing to warn about yet
   }
   const start = new Date(startDatetime).getTime()
   const end = new Date(endDatetime).getTime()
-  const earliest = Date.parse(`${bandStart(now)}T${DAY_START}`)
+  const earliest = Date.parse(`${bandStart(now, band)}T${DAY_START}`)
   // Reads the same band the calendar draws, so a window the grid shows as
   // unpickable and a window this calls 'future' can never be different sets —
   // which is why the model's reach has to reach this function rather than only
   // the grid.
-  const latest = Date.parse(`${bandEnd(now, forecastHours)}T${DAY_END}`)
+  const latest = Date.parse(`${bandEnd(now, band)}T${DAY_END}`)
 
   // A reversed window is a user error, not a horizon problem — flag it first so
   // the message is about the hours the user just set, not the servable range.
   if (end < start) return 'order'
   if (start < earliest) return 'past'
   if (end > latest) return 'future'
+  // Last, because it is the only one of these a window inside the band can hit:
+  // the horizon checks are about days the calendar cannot offer, and this is
+  // about a pair of days it can.
+  if (windowSource(start, end, now.getTime()) === 'spanning') return 'spanning'
   return 'ok'
 }
 

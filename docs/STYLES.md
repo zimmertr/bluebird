@@ -57,6 +57,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `FIELD` | Text input, recessed fill with border |
 | `FIELD_NUMERIC` | Number input with browser spinners suppressed |
 | `SELECT` | Native dropdown, recessed fill with suppressed platform chrome |
+| `DISABLED` | The faded, unpressable look of a control that does not apply; composes over any button or field role and carries no color of its own |
 | `CHOICE_ROW` | Radio or checkbox and its label as one strip |
 | `CHOICE_INPUT` | The box itself inside a choice row |
 | `SEGMENT` | Geometry of a panel segmented control (fixed to `CONTROL_W`) |

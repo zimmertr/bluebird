@@ -9,9 +9,9 @@ import {
 } from './urlState'
 import {
   AQI_LIMIT_DAYS,
+  type BandLimits,
   FUTURE_LIMIT_DAYS,
   ForecastSelection,
-  PAST_LIMIT_DAYS,
   bandEnd,
 } from './calendar'
 import { GeoPolygon } from '../types'
@@ -43,8 +43,10 @@ const DAYS: ForecastSelection = {
 const DEFAULT_MODEL = 'ecmwf_ifs025'
 
 // A reach long enough that the API's hard date edge binds first, so the horizon
-// assertions below test that edge rather than a model's.
-const LONG_HOURS = 384
+// assertions below test that edge rather than a model's. The near edge is the
+// archive's published reach (#123), here at the fallback the hook compiles.
+const ARCHIVE_DAYS = 365
+const LONG: BandLimits = { forecastHours: 384, pastDays: ARCHIVE_DAYS }
 
 const base: ShareableState = {
   polygon,
@@ -631,27 +633,27 @@ describe('classifyWindow', () => {
   const shift = (days: number) => iso(new Date(now.getTime() + days * 86_400_000))
 
   it('is ok for a near-future window', () => {
-    expect(classifyWindow(shift(1), shift(4), now, LONG_HOURS)).toBe('ok')
+    expect(classifyWindow(shift(1), shift(4), now, LONG)).toBe('ok')
   })
 
   it('is ok for a recent-past window still within the history horizon', () => {
-    expect(classifyWindow(shift(-10), shift(-8), now, LONG_HOURS)).toBe('ok')
+    expect(classifyWindow(shift(-10), shift(-8), now, LONG)).toBe('ok')
   })
 
   it('is past when the window ends before the history horizon', () => {
     expect(
       classifyWindow(
-        shift(-(PAST_LIMIT_DAYS + 5)),
-        shift(-(PAST_LIMIT_DAYS + 2)),
+        shift(-(ARCHIVE_DAYS + 5)),
+        shift(-(ARCHIVE_DAYS + 2)),
         now,
-        LONG_HOURS,
+        LONG,
       ),
     ).toBe('past')
   })
 
   it('is past when the window merely starts before the history horizon', () => {
     // Open-Meteo rejects out-of-range start dates, so a partial overhang fails too.
-    expect(classifyWindow(shift(-(PAST_LIMIT_DAYS + 5)), shift(-10), now, LONG_HOURS)).toBe(
+    expect(classifyWindow(shift(-(ARCHIVE_DAYS + 5)), shift(-10), now, LONG)).toBe(
       'past',
     )
   })
@@ -663,15 +665,15 @@ describe('classifyWindow', () => {
   it('accepts a window ending at the last minute of the last servable day', () => {
     // Read from the calendar's own far edge rather than computed here, so this
     // pins the two agreeing: whatever the grid offers, the guard must accept.
-    expect(classifyWindow(iso(now), `${bandEnd(now, LONG_HOURS)}T23:59`, now, LONG_HOURS)).toBe('ok')
+    expect(classifyWindow(iso(now), `${bandEnd(now, LONG)}T23:59`, now, LONG)).toBe('ok')
   })
 
   it('refuses a window reaching the day after the last servable one', () => {
-    expect(classifyWindow(iso(now), shift(FUTURE_LIMIT_DAYS + 1), now, LONG_HOURS)).toBe('future')
+    expect(classifyWindow(iso(now), shift(FUTURE_LIMIT_DAYS + 1), now, LONG)).toBe('future')
   })
 
   it('is future when the window starts beyond the forecast horizon', () => {
-    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 2), shift(FUTURE_LIMIT_DAYS + 5), now, LONG_HOURS)).toBe(
+    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 2), shift(FUTURE_LIMIT_DAYS + 5), now, LONG)).toBe(
       'future',
     )
   })
@@ -679,21 +681,21 @@ describe('classifyWindow', () => {
   it('is future when the window merely ends beyond the forecast horizon', () => {
     // Starts within the horizon but ends past it — Open-Meteo would 400 the
     // request, so this must warn rather than pass as ok.
-    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS - 1), shift(FUTURE_LIMIT_DAYS + 5), now, LONG_HOURS)).toBe(
+    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS - 1), shift(FUTURE_LIMIT_DAYS + 5), now, LONG)).toBe(
       'future',
     )
   })
 
   it('is future for an absurdly long window (start now, end next year)', () => {
-    expect(classifyWindow(shift(0), shift(365), now, LONG_HOURS)).toBe('future')
+    expect(classifyWindow(shift(0), shift(365), now, LONG)).toBe('future')
   })
 
   it('is ok when the window is incomplete', () => {
-    expect(classifyWindow('', '', now, LONG_HOURS)).toBe('ok')
+    expect(classifyWindow('', '', now, LONG)).toBe('ok')
   })
 
   it('is order when the end is before the start', () => {
-    expect(classifyWindow(shift(3), shift(1), now, LONG_HOURS)).toBe('order')
+    expect(classifyWindow(shift(3), shift(1), now, LONG)).toBe('order')
   })
 
   // Equal ends used to be a status of their own, pointing the user at one of the
@@ -701,19 +703,34 @@ describe('classifyWindow', () => {
   // you ask for a single hour, so flagging them would refuse the thing the
   // control exists for.
   it('accepts an equal start and end — a single hour is a legitimate window', () => {
-    expect(classifyWindow(shift(1), shift(1), now, LONG_HOURS)).toBe('ok')
+    expect(classifyWindow(shift(1), shift(1), now, LONG)).toBe('ok')
   })
 
   it('still flags an equal window that falls outside the horizon', () => {
-    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 5), shift(FUTURE_LIMIT_DAYS + 5), now, LONG_HOURS)).toBe(
+    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 5), shift(FUTURE_LIMIT_DAYS + 5), now, LONG)).toBe(
       'future',
     )
+  })
+
+  // The archive (#123). Both of these windows sit inside the band the calendar
+  // draws, which is what makes the spanning case worth a status of its own: the
+  // grid cannot stop a reader picking a pair of days that crosses the boundary.
+  it('is ok for a window wholly inside the archive range', () => {
+    expect(classifyWindow(shift(-200), shift(-199), now, LONG)).toBe('ok')
+  })
+
+  it('is spanning for a window that crosses the archive boundary', () => {
+    expect(classifyWindow(shift(-70), shift(-40), now, LONG)).toBe('spanning')
+  })
+
+  it('prefers a horizon warning over the boundary, which is inside the band', () => {
+    expect(classifyWindow(shift(-(ARCHIVE_DAYS + 5)), shift(-40), now, LONG)).toBe('past')
   })
 
   it('prefers the order warning over a horizon warning when both apply', () => {
     // End far in the future but before the start — ordering is the actionable
     // problem, so it wins over the "future" classification.
-    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 10), shift(FUTURE_LIMIT_DAYS + 5), now, LONG_HOURS)).toBe(
+    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 10), shift(FUTURE_LIMIT_DAYS + 5), now, LONG)).toBe(
       'order',
     )
   })
@@ -1072,7 +1089,7 @@ describe('the forecast model in a link', () => {
     const now = new Date(2026, 6, 15, 12, 0)
     const start = '2026-07-20T00:00'
     const end = '2026-07-20T23:59'
-    expect(classifyWindow(start, end, now, LONG_HOURS)).toBe('ok')
-    expect(classifyWindow(start, end, now, 42)).toBe('future')
+    expect(classifyWindow(start, end, now, LONG)).toBe('ok')
+    expect(classifyWindow(start, end, now, { ...LONG, forecastHours: 42 })).toBe('future')
   })
 })

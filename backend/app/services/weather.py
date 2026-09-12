@@ -10,7 +10,7 @@ from typing import Any
 import httpx
 
 from app import ratelimit, telemetry
-from app.models import DEFAULT_FORECAST_MODEL, MODEL_INFO, ForecastModel
+from app.models import DEFAULT_FORECAST_MODEL, MODEL_INFO, ForecastModel, WindowSource
 from app.services import cache, http
 from app.services.errors import (
     InvalidApiKeyError,
@@ -32,6 +32,11 @@ FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 # the free host redirect: it answers a request carrying `apikey` with a 303 to
 # this URL, and a redirect the provider can retire is not a transport.
 CUSTOMER_FORECAST_URL = "https://customer-api.open-meteo.com/v1/forecast"
+# Where a window older than the forecast endpoint's retention goes (issue #123).
+# A separate endpoint rather than a parameter, and `models.window_source` is the
+# one thing that decides which of the two a window belongs to.
+ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
+CUSTOMER_ARCHIVE_URL = "https://customer-archive-api.open-meteo.com/v1/archive"
 # Measured 2026-07-31 (issue #182), not guessed. Upstream accepts far more than
 # 50 per request, but raising this buys nothing and costs headroom:
 #   - Weight is per LOCATION, so the pacer caps locations/min identically at any
@@ -62,7 +67,11 @@ MAX_CONCURRENT_BATCHES = 4
 # move a few percent with weather, and fetching them would double the
 # variable count for a correction smaller than the model's own grid error.
 # All eight models Bluebird Forecast offers answered all five levels (probed
-# 2026-08-21).
+# 2026-08-21). The ARCHIVE endpoint accepts all five and answers every hour
+# null (measured 2026-09-12), which the null-level path below already handles by
+# degrading to the 10 m wind — so both endpoints are asked for one variable list
+# rather than each getting its own, and the aggregation stays the one the shared
+# vectors pin.
 _WIND_LEVELS: list[tuple[str, float]] = [
     ("wind_speed_925hPa", 762.0),
     ("wind_speed_850hPa", 1457.0),
@@ -152,7 +161,16 @@ async def fetch_weather_batch(
     on_pace: PaceCallback | None = None,
     model: ForecastModel = DEFAULT_FORECAST_MODEL,
     api_key: str | None = None,
+    source: WindowSource = "forecast",
 ) -> list[dict[str, Any] | None]:
+    """Fetch each destination's windowed weather from the endpoint `source` names.
+
+    `source` is the CALLER's decision (`models.window_source`), not this
+    function's, because the route already has to make it: a window that spans
+    the archive boundary is refused there, and classifying a second time here
+    would let the clock move between the two answers — a window refused as
+    spanning and a window fetched as archive would be the same request.
+    """
     if not destinations:
         return []
 
@@ -167,6 +185,13 @@ async def fetch_weather_batch(
     # same model the same way for the same location and window, so keying on
     # the key would split one cache into a copy per caller and buy nothing
     # except upstream spend.
+    #
+    # `source` IS part of it. The two endpoints answer the same question from
+    # different data — the archive carries no pressure-level winds, so its rows
+    # hold the 10 m wind where the forecast endpoint's hold wind at elevation —
+    # and the boundary between them moves with the clock, so a window can change
+    # sides while an entry is still live. Keying on it means an entry is only
+    # ever read back for the endpoint that produced it.
     results: list[dict[str, Any] | None] = [None] * total
     miss_indices: list[int] = []
     for i, dest in enumerate(destinations):
@@ -178,6 +203,7 @@ async def fetch_weather_batch(
             end_dt.isoformat(),
             model.value,
             dest.get("elevation_ft") or "",
+            source,
         )
         hit = cache.FORECAST_CACHE.get(key)
         if hit is None:
@@ -213,7 +239,7 @@ async def fetch_weather_batch(
     tasks = [
         asyncio.create_task(
             _fetch_chunk_indexed(
-                i, chunk, start_dt, end_dt, sem, on_pace, model, api_key
+                i, chunk, start_dt, end_dt, sem, on_pace, model, api_key, source
             )
         )
         for i, chunk in enumerate(chunks)
@@ -243,6 +269,7 @@ async def fetch_weather_batch(
             end_dt.isoformat(),
             model.value,
             dest.get("elevation_ft") or "",
+            source,
         )
         cache.FORECAST_CACHE.put(key, cache.NO_DATA if result is None else result)
     for i, result in zip(miss_indices, fetched):
@@ -259,6 +286,7 @@ async def _fetch_chunk_indexed(
     on_pace: PaceCallback | None = None,
     model: ForecastModel = DEFAULT_FORECAST_MODEL,
     api_key: str | None = None,
+    source: WindowSource = "forecast",
 ) -> tuple[int, list[dict[str, Any] | None]]:
     # Per-analysis fairness slot first, then the pod's weighted spend, then a
     # pod-wide in-flight slot. The weight acquire happens BEFORE the in-flight
@@ -283,7 +311,7 @@ async def _fetch_chunk_indexed(
             await ratelimit.WEATHER_WEIGHT.acquire(weight)
         async with ratelimit.WEATHER_BUDGET.slot():
             return index, await _fetch_chunk(
-                destinations, start_dt, end_dt, model, api_key
+                destinations, start_dt, end_dt, model, api_key, source
             )
 
 
@@ -301,27 +329,24 @@ async def _fetch_chunk(
     end_dt: datetime,
     model: ForecastModel = DEFAULT_FORECAST_MODEL,
     api_key: str | None = None,
+    source: WindowSource = "forecast",
 ) -> list[dict[str, Any] | None]:
     lats = ",".join(str(d["latitude"]) for d in destinations)
     lons = ",".join(str(d["longitude"]) for d in destinations)
     quota = quota_label(api_key)
+    archive = source == "archive"
 
     log.info(
         "Open-Meteo batch: %d location(s), %s → %s, model %s",
         len(destinations),
         hour_param(start_dt),
         hour_param(end_dt),
-        model.value,
+        "archive blend" if archive else model.value,
     )
 
     params = {
         "latitude": lats,
         "longitude": lons,
-        # Always named, never omitted. Sending no `models=` takes Open-Meteo's
-        # `best_match` blend, which picks per location and never reports what
-        # it picked — so two adjacent peaks in one response could come from two
-        # different models with nothing saying so.
-        "models": model.value,
         "hourly": HOURLY_VARIABLES,
         "temperature_unit": "fahrenheit",
         "wind_speed_unit": "mph",
@@ -330,11 +355,26 @@ async def _fetch_chunk(
         "end_hour": hour_param(end_dt),
         "timezone": "UTC",
     }
+    if not archive:
+        # On the forecast endpoint the model is always named, never omitted.
+        # Sending no `models=` there takes Open-Meteo's `best_match` blend,
+        # which picks per location and never reports what it picked — so two
+        # adjacent peaks in one response could come from two different models
+        # with nothing saying so.
+        #
+        # The archive is the one exception, and the reason it is safe is that it
+        # is not that blend: the archive's default is a reanalysis (IFS HRES with
+        # ERA5 and ERA5-Land), the same dataset at every location, so nothing
+        # varies row to row. Forwarding the picker's model there would be worse
+        # than useless — an unknown `models=` value is accepted with a 200 and
+        # plausible data (measured 2026-09-12), so a wrong name would be silently
+        # answered by something else. Never send one.
+        params["models"] = model.value
     # The key rides as a query parameter because that is the only place
     # Open-Meteo reads it, and only the paid host accepts it at all.
-    url = FORECAST_URL
+    url = ARCHIVE_URL if archive else FORECAST_URL
     if api_key is not None:
-        url = CUSTOMER_FORECAST_URL
+        url = CUSTOMER_ARCHIVE_URL if archive else CUSTOMER_FORECAST_URL
         params["apikey"] = api_key
 
     # One automatic resume for a minutely 429: that quota refills within the

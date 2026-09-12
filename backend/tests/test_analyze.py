@@ -6,6 +6,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from app.main import app
 from app.models import (
+    PAST_DATA_DAYS,
+    SPANNING_WINDOW_MESSAGE,
     AnalyzeRequest,
     DestinationResult,
     DestinationType,
@@ -301,7 +303,7 @@ def stub_upstreams(monkeypatch):
 
     async def fake_wx(
         destinations, start, end, on_progress=None, on_pace=None, model=None,
-        api_key=None,
+        api_key=None, source="forecast",
     ):
         return [_wx(d["latitude"]) for d in destinations]
 
@@ -379,7 +381,7 @@ def test_analyze_aqi_bound_fetches_air_quality_for_every_candidate(monkeypatch):
     # are the observable difference.
     batches: list[int] = []
 
-    async def fake_wx(destinations, start, end, on_progress=None, on_pace=None, model=None, api_key=None):
+    async def fake_wx(destinations, start, end, on_progress=None, on_pace=None, model=None, api_key=None, source="forecast"):
         return [_wx(d["latitude"]) for d in destinations]
 
     async def fake_aqi(destinations, start, end, api_key=None):
@@ -926,7 +928,7 @@ def record_key(monkeypatch):
 
     async def fake_wx(
         destinations, start, end, on_progress=None, on_pace=None, model=None,
-        api_key=None,
+        api_key=None, source="forecast",
     ):
         seen["weather"].append(api_key)
         return [_wx(d["latitude"]) for d in destinations]
@@ -1046,3 +1048,88 @@ def test_the_key_reaches_no_log_record_from_the_route(record_key, caplog):
         assert "secret-key" not in record.getMessage()
     # And the answer itself says nothing about it.
     assert "secret-key" not in resp.text
+
+
+# ── The archive boundary (issue #123) ──────────────────────────────────────
+
+
+def _spanning_window():
+    """A window that starts in the archive's range and ends in the forecast's."""
+    now = datetime.now(timezone.utc)
+    return (
+        (now - timedelta(days=PAST_DATA_DAYS + 10)).isoformat(),
+        (now - timedelta(days=PAST_DATA_DAYS - 10)).isoformat(),
+    )
+
+
+def _archive_window():
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(days=PAST_DATA_DAYS + 30)
+    return start.isoformat(), (start + timedelta(hours=6)).isoformat()
+
+
+def test_analyze_refuses_a_window_that_crosses_the_archive_boundary(stub_upstreams):
+    # Not stitched: the two endpoints answer from different datasets, so the
+    # ranking would compare hours of one against hours of another.
+    start, end = _spanning_window()
+    resp = client.post("/api/analyze", json={
+        "destination_types": [], "start_datetime": start, "end_datetime": end,
+        "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 2.0}],
+    })
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == SPANNING_WINDOW_MESSAGE
+
+
+def test_analyze_stream_refuses_a_spanning_window_with_the_same_sentence(
+    stub_upstreams,
+):
+    start, end = _spanning_window()
+    resp = client.post("/api/analyze/stream", json={
+        "destination_types": [], "start_datetime": start, "end_datetime": end,
+        "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 2.0}],
+    })
+    events = [
+        json.loads(line[len("data: "):])
+        for line in resp.text.splitlines()
+        if line.startswith("data: ")
+    ]
+    assert any(
+        e["type"] == "error" and e["message"] == SPANNING_WINDOW_MESSAGE for e in events
+    )
+
+
+def test_analyze_tells_the_weather_service_which_endpoint_answers(monkeypatch):
+    # The route classifies once and passes it down, so the endpoint that gets
+    # asked cannot disagree with the refusal check above.
+    seen: list[str] = []
+
+    async def fake_wx(
+        destinations, start, end, on_progress=None, on_pace=None, model=None,
+        api_key=None, source="forecast",
+    ):
+        seen.append(source)
+        return [_wx(d["latitude"]) for d in destinations]
+
+    async def fake_aqi(destinations, start, end, api_key=None):
+        return [None] * len(destinations)
+
+    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fake_wx)
+    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+
+    body = {
+        "destination_types": [],
+        "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 2.0}],
+    }
+    start, end = _archive_window()
+    resp = client.post(
+        "/api/analyze",
+        json={**body, "start_datetime": start, "end_datetime": end},
+    )
+    assert resp.status_code == 200
+    recent_start, recent_end = _window()
+    client.post(
+        "/api/analyze",
+        json={**body, "start_datetime": recent_start, "end_datetime": recent_end},
+    )
+
+    assert seen == ["archive", "forecast"]

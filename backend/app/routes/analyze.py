@@ -3,6 +3,7 @@ import json
 import logging
 import math
 from collections.abc import Sequence
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Security
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -11,6 +12,7 @@ from fastapi.security import APIKeyHeader
 from app import ratelimit, telemetry
 from app.models import (
     MAX_ANALYZE_PEAKS,
+    SPANNING_WINDOW_MESSAGE,
     AnalysisRefusal,
     AnalyzeRequest,
     AnalyzeResponse,
@@ -18,7 +20,9 @@ from app.models import (
     DestinationType,
     ErrorResponse,
     HourlySeries,
+    WindowSource,
     bbox_area_km2,
+    window_source,
 )
 from app.services import air_quality, osm, weather
 from app.services.errors import (
@@ -48,6 +52,26 @@ open_meteo_key = APIKeyHeader(
         "analyze routes, and the request spends this key's quota."
     ),
 )
+
+
+def _window_source(request: AnalyzeRequest) -> WindowSource:
+    """Which weather endpoint answers this request, classified ONCE (issue #123).
+
+    Both routes read it twice — to refuse a window that spans the archive
+    boundary, then to tell the weather service which endpoint to ask — and it has
+    to be the same answer both times. Classifying again inside the service would
+    let the boundary advance between the refusal and the fetch, so a request
+    could be accepted as a forecast window and fetched as an archive one.
+
+    A spanning window is refused rather than stitched (TJ, 2026-09-12): the two
+    endpoints answer from different datasets, so a stitched window would rank
+    hours of one against hours of another with nothing saying where the seam
+    fell. It answers 400, which is what every other unanswerable window gets
+    here; the request validator cannot do it, because it bounds each end alone.
+    """
+    return window_source(
+        request.start_datetime, request.end_datetime, datetime.now(timezone.utc)
+    )
 
 
 def _filter_elevation(destinations, min_ft, max_ft):
@@ -567,6 +591,10 @@ async def analyze_stream(
             if request.start_datetime >= request.end_datetime:
                 yield _sse("error", message="The start date must be before the end date.")
                 return
+            source = _window_source(request)
+            if source == "spanning":
+                yield _sse("error", message=SPANNING_WINDOW_MESSAGE)
+                return
 
             # A union (polygon + custom list) is a mixed set, so its messages
             # say "destinations" rather than any one type's noun.
@@ -711,6 +739,7 @@ async def analyze_stream(
                         on_pace,
                         request.forecast_model,
                         api_key=api_key,
+                        source=source,
                     )
                 finally:
                     await progress_queue.put(_STREAM_DONE)
@@ -890,6 +919,9 @@ async def analyze(
         raise HTTPException(
             status_code=400, detail="The start date must be before the end date."
         )
+    source = _window_source(request)
+    if source == "spanning":
+        raise HTTPException(status_code=400, detail=SPANNING_WINDOW_MESSAGE)
 
     # Resolve destinations
     if not request.destination_types:
@@ -986,6 +1018,7 @@ async def analyze(
             request.end_datetime,
             model=request.forecast_model,
             api_key=api_key,
+            source=source,
         )
     except ratelimit.BudgetExhausted as e:
         if aqi_task is not None:

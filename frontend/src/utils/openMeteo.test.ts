@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  ARCHIVE_URL,
+  FORECAST_URL,
   OpenMeteoHttpError,
   OpenMeteoModelCoverage,
   OpenMeteoRateLimited,
@@ -124,13 +126,20 @@ afterEach(() => {
 // all use the default. `models=` reaching the wire is asserted on its own below.
 const MODEL = 'ecmwf_ifs025'
 
+// The clock, pinned. WINDOW is a fixed date, so a real `Date.now()` would put it
+// on the forecast side of the archive boundary today and on the archive side a
+// few days from now (#123) — the endpoint under test would change with the wall
+// calendar. `nowMs` is the only thing here that reads the clock.
+const NOW_MS = Date.parse('2026-07-21T12:00:00Z')
+const OPTS = { model: MODEL, nowMs: NOW_MS }
+
 describe('fetchWeather', () => {
   it('normalizes the single-location object payload to one result', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(hourlyPayload())))
     const out = await fetchWeather(
       [{ latitude: 47.5, longitude: -121.9 }],
       WINDOW.startMs,
-      WINDOW.endMs, { model: MODEL },
+      WINDOW.endMs, OPTS,
     )
     expect(out).toHaveLength(1)
     expect(out[0]?.precip_total_in).toBe(0.3)
@@ -141,8 +150,8 @@ describe('fetchWeather', () => {
     const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
     vi.stubGlobal('fetch', fetchSpy)
     const coords = [{ latitude: 47.5, longitude: -121.9 }]
-    await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { model: MODEL })
-    const again = await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { model: MODEL })
+    await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, OPTS)
+    const again = await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, OPTS)
     expect(fetchSpy).toHaveBeenCalledTimes(1)
     expect(again[0]?.precip_total_in).toBe(0.3)
   })
@@ -153,7 +162,7 @@ describe('fetchWeather', () => {
     await fetchWeather(
       [{ latitude: 47.5, longitude: -121.9 }],
       WINDOW.startMs,
-      WINDOW.endMs, { model: MODEL },
+      WINDOW.endMs, OPTS,
     )
     const url = new URL(String((fetchSpy.mock.calls[0] as unknown[])[0]))
     const hourly = (url.searchParams.get('hourly') ?? '').split(',')
@@ -180,7 +189,7 @@ describe('fetchWeather', () => {
       [{ latitude: 47.5, longitude: -121.9 }],
       Date.parse('2026-07-21T09:30:00Z'),
       Date.parse('2026-07-21T14:45:00Z'),
-      { model: MODEL },
+      OPTS,
     )
     const params = new URL(String((fetchSpy.mock.calls[0] as unknown[])[0])).searchParams
     expect(params.get('start_hour')).toBe('2026-07-21T09:00')
@@ -200,7 +209,7 @@ describe('fetchWeather', () => {
       [{ latitude: 47.5, longitude: -121.9 }],
       moment,
       moment + 60_000,
-      { model: MODEL },
+      OPTS,
     )
     const params = new URL(String((fetchSpy.mock.calls[0] as unknown[])[0])).searchParams
     expect(params.get('start_hour')).toBe('2026-07-21T13:00')
@@ -222,7 +231,7 @@ describe('fetchWeather', () => {
       // 10 + 20 * (981.4 / 1555) = 22.6226... → 22.6 at every hour.
       [{ latitude: 47.5, longitude: -121.9, elevation_ft: 8000 }],
       WINDOW.startMs,
-      WINDOW.endMs, { model: MODEL },
+      WINDOW.endMs, OPTS,
     )
     expect(out[0]?.wind_avg_mph).toBe(22.6)
     expect(out[0]?.series?.wind_mph).toEqual([22.6, 22.6])
@@ -245,7 +254,7 @@ describe('fetchWeather', () => {
     const out = await fetchWeather(
       [{ latitude: 47.5, longitude: -121.9 }],
       WINDOW.startMs,
-      WINDOW.endMs, { model: MODEL, terrainElevation: true },
+      WINDOW.endMs, { ...OPTS, terrainElevation: true },
     )
     // Same interpolation as a destination at 8,000 ft: 10 + 20 * (981.4/1555).
     expect(out[0]?.wind_avg_mph).toBe(22.6)
@@ -256,7 +265,7 @@ describe('fetchWeather', () => {
     const plain = await fetchWeather(
       [{ latitude: 47.5, longitude: -121.9 }],
       WINDOW.startMs,
-      WINDOW.endMs, { model: MODEL },
+      WINDOW.endMs, OPTS,
     )
     expect(plain[0]?.wind_avg_mph).toBe(6.0) // mean of 5, 7
   })
@@ -276,7 +285,7 @@ describe('fetchWeather', () => {
     const out = await fetchWeather(
       [{ latitude: 47.5, longitude: -121.9, elevation_ft: 8000 }],
       WINDOW.startMs,
-      WINDOW.endMs, { model: MODEL, terrainElevation: true },
+      WINDOW.endMs, { ...OPTS, terrainElevation: true },
     )
     expect(out[0]?.wind_avg_mph).toBe(22.6)
   })
@@ -287,12 +296,12 @@ describe('fetchWeather', () => {
     await fetchWeather(
       [{ latitude: 47.5, longitude: -121.9, elevation_ft: 8000 }],
       WINDOW.startMs,
-      WINDOW.endMs, { model: MODEL },
+      WINDOW.endMs, OPTS,
     )
     await fetchWeather(
       [{ latitude: 47.5, longitude: -121.9 }],
       WINDOW.startMs,
-      WINDOW.endMs, { model: MODEL },
+      WINDOW.endMs, OPTS,
     )
     expect(fetchSpy).toHaveBeenCalledTimes(2)
   })
@@ -306,7 +315,7 @@ describe('fetchWeather', () => {
       vi.fn(async () => ({ ok: false, status: 429, json: async () => ({}) })),
     )
     await expect(
-      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { model: MODEL }),
+      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS),
     ).rejects.toBeInstanceOf(OpenMeteoRateLimited)
   })
 
@@ -320,7 +329,7 @@ describe('fetchWeather', () => {
       })),
     )
     await expect(
-      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { model: MODEL }),
+      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS),
     ).rejects.toMatchObject({ scope: 'hourly' })
   })
 
@@ -335,7 +344,7 @@ describe('fetchWeather', () => {
       vi.fn(async () => ({ ok: false, status: 429, json: async () => ({ error: true, reason }) })),
     )
     await expect(
-      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { model: MODEL }),
+      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS),
     ).rejects.toMatchObject({
       message: 'Open-Meteo quota reached. Try again later.',
       scope,
@@ -358,7 +367,7 @@ describe('fetchWeather', () => {
       const pending = fetchWeather(
         [{ latitude: 0, longitude: 0 }],
         WINDOW.startMs,
-        WINDOW.endMs, { model: MODEL },
+        WINDOW.endMs, OPTS,
       )
       await vi.advanceTimersByTimeAsync(1_100)
       const out = await pending
@@ -377,7 +386,7 @@ describe('fetchWeather', () => {
       vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) })),
     )
     await expect(
-      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { model: MODEL }),
+      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS),
     ).rejects.toBeInstanceOf(OpenMeteoHttpError)
   })
 
@@ -392,7 +401,7 @@ describe('fetchWeather', () => {
       }),
     )
     await expect(
-      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { model: MODEL }),
+      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS),
     ).rejects.toBeInstanceOf(OpenMeteoUnreachable)
   })
 
@@ -404,7 +413,7 @@ describe('fetchWeather', () => {
       }),
     )
     await expect(
-      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { model: MODEL }),
+      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS),
     ).rejects.toMatchObject({ name: 'AbortError' })
   })
 
@@ -414,7 +423,7 @@ describe('fetchWeather', () => {
       vi.fn(async () => jsonResponse([hourlyPayload(), hourlyPayload()])),
     )
     await expect(
-      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { model: MODEL }),
+      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS),
     ).rejects.toBeInstanceOf(OpenMeteoUnreachable)
   })
 
@@ -432,7 +441,7 @@ describe('fetchWeather', () => {
     )
     const seen: Array<[number, number]> = []
     await fetchWeather(dests, WINDOW.startMs, WINDOW.endMs, {
-      model: MODEL,
+      ...OPTS,
       onProgress: (processed, total) => seen.push([processed, total]),
     })
     // Two chunks (50 + 10) completing in either order: the processed counter
@@ -452,7 +461,7 @@ describe('the forecast model on the browser path', () => {
   it('names the model on every request', async () => {
     const fetchSpy = vi.fn(async (_url: string) => jsonResponse(hourlyPayload()))
     vi.stubGlobal('fetch', fetchSpy)
-    await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { model: 'gfs_hrrr' })
+    await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { ...OPTS, model: 'gfs_hrrr' })
 
     const url = new URL(fetchSpy.mock.calls[0][0])
     expect(url.searchParams.get('models')).toBe('gfs_hrrr')
@@ -461,9 +470,9 @@ describe('the forecast model on the browser path', () => {
   it('does not let two models share one cache entry', async () => {
     const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
     vi.stubGlobal('fetch', fetchSpy)
-    await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { model: 'ecmwf_ifs025' })
-    await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { model: 'gfs_seamless' })
-    await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { model: 'ecmwf_ifs025' })
+    await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { ...OPTS, model: 'ecmwf_ifs025' })
+    await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { ...OPTS, model: 'gfs_seamless' })
+    await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { ...OPTS, model: 'ecmwf_ifs025' })
 
     // Two fetches, not three: the second model missed, the repeat of the first
     // still hit.
@@ -488,7 +497,7 @@ describe('the forecast model on the browser path', () => {
       })),
     )
     await expect(
-      fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { model: 'gfs_hrrr' }),
+      fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { ...OPTS, model: 'gfs_hrrr' }),
     ).rejects.toBeInstanceOf(OpenMeteoModelCoverage)
   })
 
@@ -503,7 +512,7 @@ describe('the forecast model on the browser path', () => {
       })),
     )
     await expect(
-      fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { model: 'gfs_hrrr' }),
+      fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, { ...OPTS, model: 'gfs_hrrr' }),
     ).rejects.toBeInstanceOf(OpenMeteoHttpError)
   })
 })
@@ -610,5 +619,102 @@ describe('callWeight', () => {
     const weather = callWeight(908, day('2026-07-29'), day('2026-08-01'), 3)
     const aqi = callWeight(908, day('2026-07-29'), day('2026-08-01'), 1)
     expect(weather + aqi).toBe(1816)
+  })
+})
+
+
+// ── The archive endpoint (issue #123) ──────────────────────────────────────
+//
+// A window older than the forecast endpoint's retention is answered from the
+// archive instead. `windowSource` decides, mirrored with the backend, and the
+// clock is pinned here so the decision is the test's rather than the calendar's.
+describe('a window older than the forecast endpoint holds', () => {
+  const coords = [{ latitude: 47.5, longitude: -121.9 }]
+  // 200 days before NOW_MS, with a payload stamped to match.
+  const ARCHIVE_WINDOW = {
+    startMs: Date.parse('2026-01-02T00:00:00Z'),
+    endMs: Date.parse('2026-01-02T02:00:00Z'),
+  }
+
+  function archivePayload() {
+    return {
+      hourly: {
+        time: ['2026-01-02T00:00', '2026-01-02T01:00'],
+        precipitation: [0.1, 0.2],
+        temperature_2m: [30.0, 32.0],
+        wind_speed_10m: [5.0, 7.0],
+        // What the archive actually answers for the five levels: accepted, and
+        // null at every hour (measured 2026-09-12).
+        wind_speed_925hPa: [null, null],
+        wind_speed_850hPa: [null, null],
+        wind_speed_700hPa: [null, null],
+        wind_speed_600hPa: [null, null],
+        wind_speed_500hPa: [null, null],
+      },
+    }
+  }
+
+  it('goes to the archive endpoint and names no model', async () => {
+    const fetchSpy = vi.fn(async () => jsonResponse(archivePayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    await fetchWeather(coords, ARCHIVE_WINDOW.startMs, ARCHIVE_WINDOW.endMs, {
+      ...OPTS,
+      model: 'gfs_hrrr',
+    })
+
+    const url = new URL(String((fetchSpy.mock.calls[0] as unknown[])[0]))
+    expect(`${url.origin}${url.pathname}`).toBe(ARCHIVE_URL)
+    // Never forwarded: the archive answers an unknown `models=` with a 200 and
+    // plausible data, so a name it does not serve would be answered silently by
+    // something else. Its own default is a reanalysis, one dataset everywhere.
+    expect(url.searchParams.get('models')).toBeNull()
+    // Everything else about the request is unchanged.
+    expect(url.searchParams.get('start_hour')).toBe('2026-01-02T00:00')
+    expect(url.searchParams.get('hourly')?.split(',')).toHaveLength(9)
+  })
+
+  it('keeps a recent window on the forecast endpoint', async () => {
+    const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, OPTS)
+
+    const url = new URL(String((fetchSpy.mock.calls[0] as unknown[])[0]))
+    expect(`${url.origin}${url.pathname}`).toBe(FORECAST_URL)
+    expect(url.searchParams.get('models')).toBe(MODEL)
+  })
+
+  it('does not let the two endpoints share one cache entry', async () => {
+    // They answer the same coordinates from different data, and the boundary
+    // between them moves with the clock, so an entry has to belong to the
+    // endpoint that produced it.
+    const fetchSpy = vi.fn(async () => jsonResponse(archivePayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    const window = [ARCHIVE_WINDOW.startMs, ARCHIVE_WINDOW.endMs] as const
+
+    await fetchWeather(coords, ...window, OPTS)
+    await fetchWeather(coords, ...window, OPTS)
+    // The same window, read as a forecast window: a miss, not the archive row.
+    await fetchWeather(coords, ...window, {
+      ...OPTS,
+      nowMs: ARCHIVE_WINDOW.startMs + 60_000,
+    })
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('falls back to the 10 m wind where the levels come back null', async () => {
+    const fetchSpy = vi.fn(async () => jsonResponse(archivePayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    const out = await fetchWeather(
+      [{ latitude: 47.5, longitude: -121.9, elevation_ft: 14_000 }],
+      ARCHIVE_WINDOW.startMs,
+      ARCHIVE_WINDOW.endMs,
+      OPTS,
+    )
+
+    // No hour is dropped for a null level, only the wind sent back to 10 m.
+    expect(out[0]?.wind_avg_mph).toBe(6)
+    expect(out[0]?.wind_max_mph).toBe(7)
+    expect(out[0]?.series?.wind_mph).toEqual([5, 7])
   })
 })

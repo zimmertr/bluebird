@@ -5,8 +5,11 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from app import models
 from app.models import (
+    ARCHIVE_DATA_DAYS,
     MAX_ANALYZE_PEAKS,
     MAX_POLYGON_AREA_KM2,
+    PAST_DATA_DAYS,
+    PAST_LIMIT_SLACK_DAYS,
     AnalyzeRequest,
     CustomDestination,
     DestinationResult,
@@ -135,10 +138,21 @@ def test_polygon_none_passes_validator():
 def test_window_far_in_past_is_rejected():
     with pytest.raises(ValidationError) as exc:
         _valid_request(
-            start_datetime=_now() - timedelta(days=200),
-            end_datetime=_now() - timedelta(days=199),
+            start_datetime=_now() - timedelta(days=PAST_LIMIT_SLACK_DAYS + 5),
+            end_datetime=_now() - timedelta(days=PAST_LIMIT_SLACK_DAYS + 4),
         )
     assert "history limit" in str(exc.value)
+
+
+def test_window_a_year_back_is_accepted_now_that_the_archive_answers_it():
+    # The wall #123 removed: a year back used to fail this validator, and the
+    # calendar never offered it. Both ends sit in the archive's range, so this
+    # is an ordinary window rather than an edge case.
+    req = _valid_request(
+        start_datetime=_now() - timedelta(days=ARCHIVE_DATA_DAYS),
+        end_datetime=_now() - timedelta(days=ARCHIVE_DATA_DAYS) + timedelta(hours=6),
+    )
+    assert req.start_datetime is not None
 
 
 def test_window_far_in_future_is_rejected():
@@ -256,3 +270,55 @@ def test_analyze_request_caps_custom_destination_list():
         _valid_request(custom_destinations=rows)
     # Exactly at the cap is allowed at the model layer.
     _valid_request(custom_destinations=rows[:MAX_ANALYZE_PEAKS])
+
+
+# ── window_source (issue #123) ─────────────────────────────────────────────
+#
+# The table below is the CONTRACT between the two implementations: the same
+# rows, the same expectations, live in `windowSource`'s test in
+# frontend/src/utils/forecastWindow.test.ts. Change one, change both.
+#
+# `NOW` is 18:00 UTC, so the boundary (NOW - PAST_DATA_DAYS, floored to the UTC
+# day) is 2026-07-19T00:00Z and the straddle floor a day before it.
+
+_SOURCE_NOW = datetime(2026, 9, 12, 18, 0, tzinfo=timezone.utc)
+
+_SOURCE_CASES = [
+    # (start, end, expected, why)
+    ("2026-09-10T00:00", "2026-09-11T23:59", "forecast", "an ordinary recent window"),
+    ("2026-09-12T18:00", "2026-09-12T18:01", "forecast", "the current hour"),
+    ("2026-07-19T00:00", "2026-07-19T23:59", "forecast", "starts exactly at the boundary"),
+    ("2026-07-18T07:00", "2026-07-19T06:59", "forecast", "a Pacific day straddling it"),
+    ("2026-07-18T00:00", "2026-07-18T23:59", "archive", "ends before the boundary"),
+    ("2026-07-01T00:00", "2026-07-01T23:59", "archive", "a month past it"),
+    ("2025-09-12T00:00", "2025-09-12T23:59", "archive", "a year back"),
+    ("2026-07-17T00:00", "2026-07-19T12:00", "spanning", "crosses the boundary"),
+    ("2026-07-01T00:00", "2026-09-12T18:00", "spanning", "crosses it by weeks"),
+]
+
+
+@pytest.mark.parametrize(("start", "end", "expected", "why"), _SOURCE_CASES)
+def test_window_source_classification_table(start, end, expected, why):
+    got = models.window_source(
+        datetime.fromisoformat(start).replace(tzinfo=timezone.utc),
+        datetime.fromisoformat(end).replace(tzinfo=timezone.utc),
+        _SOURCE_NOW,
+    )
+    assert got == expected, why
+
+
+def test_window_source_boundary_is_the_forecast_endpoints_own_data_edge():
+    # One boundary, and it is PAST_DATA_DAYS rather than a second constant: the
+    # archive takes over exactly where the forecast endpoint's data stops.
+    just_inside = _SOURCE_NOW - timedelta(days=PAST_DATA_DAYS)
+    assert models.window_source(just_inside, just_inside, _SOURCE_NOW) == "forecast"
+    older = _SOURCE_NOW - timedelta(days=PAST_DATA_DAYS + 2)
+    assert models.window_source(older, older, _SOURCE_NOW) == "archive"
+
+
+def test_window_source_reads_a_naive_timestamp_as_utc():
+    # The API accepts naive timestamps and the whole pipeline reads them as UTC;
+    # a boundary that read them as local would classify a window differently
+    # from the fetch that follows it.
+    naive = datetime(2026, 7, 1, 0, 0)  # noqa: DTZ001 — naive on purpose
+    assert models.window_source(naive, naive, _SOURCE_NOW) == "archive"

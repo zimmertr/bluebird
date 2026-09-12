@@ -7,7 +7,13 @@
 // tests on both sides fail if either drifts. Change semantics there first,
 // regenerate the vectors, and mirror the change here.
 
+import { windowSource } from './forecastWindow'
+
 export const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'
+// Where a window older than the forecast endpoint's retention goes (#123).
+// `windowSource` in forecastWindow.ts is the one thing that decides which of the
+// two a window belongs to, mirrored with the backend.
+export const ARCHIVE_URL = 'https://archive-api.open-meteo.com/v1/archive'
 export const AIR_QUALITY_URL = 'https://air-quality-api.open-meteo.com/v1/air-quality'
 
 // Same batching the backend uses: 50 locations per request, at most 4
@@ -171,6 +177,7 @@ function cacheKey(
   endMs: number,
   model = '',
   terrainElevation = false,
+  source = '',
 ): string {
   // Elevation joins the weather key for the reason the model does: the stored
   // aggregates were computed AT that elevation (issue #257), so the same
@@ -181,7 +188,12 @@ function cacheKey(
   // over it would poison each other's entries.
   const elevation =
     service === 'weather' ? (c.elevation_ft ?? (terrainElevation ? 'model' : '')) : ''
-  return `${service}|${c.latitude}|${c.longitude}|${startMs}|${endMs}|${model}|${elevation}`
+  // `source` is which endpoint answered (#123). The archive carries no
+  // pressure-level winds, so its rows hold the 10 m wind where the forecast
+  // endpoint's hold wind at elevation, and the boundary between the two moves
+  // with the clock — so an entry is only ever read back for the endpoint that
+  // produced it.
+  return `${service}|${c.latitude}|${c.longitude}|${startMs}|${endMs}|${model}|${elevation}|${source}`
 }
 
 function cacheGet(key: string): CacheEntry['value'] | undefined {
@@ -805,11 +817,18 @@ export interface FetchWeatherOptions {
   onProgress?: (processed: number, total: number) => void
   // The pacer or a minutely resume is about to sleep this many seconds.
   onPace?: (seconds: number) => void
-  // Which model answers. Named on every request rather than defaulted here:
-  // omitting `models=` takes Open-Meteo's `best_match` blend, which chooses per
-  // location and never reports its choice, so two adjacent peaks in one
-  // response could come from two different models with nothing saying so.
+  // Which model answers. Named on every FORECAST request rather than defaulted
+  // here: omitting `models=` there takes Open-Meteo's `best_match` blend, which
+  // chooses per location and never reports its choice, so two adjacent peaks in
+  // one response could come from two different models with nothing saying so.
+  // An archive window ignores this and sends no `models=` at all (#123), for the
+  // reason given at the fetch below.
   model: string
+  /**
+   * Injectable clock, so a test can pin which side of the archive boundary a
+   * window falls on. The boundary is the only thing here that reads the clock.
+   */
+  nowMs?: number
   /**
    * For coordinates carrying no `elevation_ft` of their own, adjust wind to
    * the TERRAIN elevation Open-Meteo reports for the coordinate (its ~90 m
@@ -850,14 +869,32 @@ export async function fetchWeather(
   destinations: readonly Coordinate[],
   startMs: number,
   endMs: number,
-  { signal, onProgress, onPace, model, terrainElevation = false }: FetchWeatherOptions,
+  {
+    signal,
+    onProgress,
+    onPace,
+    model,
+    nowMs = Date.now(),
+    terrainElevation = false,
+  }: FetchWeatherOptions,
 ): Promise<WeatherResult[]> {
   if (destinations.length === 0) return []
+
+  // Which endpoint answers, decided once for the whole fetch so the URL, the
+  // `models=` decision and the cache key cannot disagree. A spanning window is
+  // refused before an analysis starts (`resolveWindow`), so what reaches here as
+  // 'spanning' is the boundary having advanced by seconds since that check —
+  // which is the forecast endpoint's window, measurably populated well past the
+  // floor PAST_DATA_DAYS sets.
+  const archive = windowSource(startMs, endMs, nowMs) === 'archive'
+  const source = archive ? 'archive' : 'forecast'
 
   const results: WeatherResult[] = new Array(destinations.length).fill(null)
   const missIdx: number[] = []
   destinations.forEach((c, i) => {
-    const hit = cacheGet(cacheKey('weather', c, startMs, endMs, model, terrainElevation))
+    const hit = cacheGet(
+      cacheKey('weather', c, startMs, endMs, model, terrainElevation, source),
+    )
     if (hit === undefined) missIdx.push(i)
     else results[i] = hit === NO_DATA ? null : (hit as WeatherResult)
   })
@@ -879,10 +916,16 @@ export async function fetchWeather(
       onPace,
     )
     const data = await getJsonWithResume(
-      FORECAST_URL,
+      archive ? ARCHIVE_URL : FORECAST_URL,
       {
         ...coordParams(chunk),
-        models: model,
+        // The model is named on the forecast endpoint and NEVER on the archive.
+        // The archive's default is a reanalysis — one dataset at every location,
+        // so nothing varies row to row the way `best_match` would — and it
+        // accepts an unknown `models=` with a 200 and plausible data (measured
+        // 2026-09-12), so forwarding the picker's model there would be answered
+        // silently by something else.
+        ...(archive ? {} : { models: model }),
         hourly:
           'precipitation,temperature_2m,wind_speed_10m,wind_direction_10m,' +
           WIND_LEVELS.map(([name]) => name).join(','),
@@ -925,7 +968,10 @@ export async function fetchWeather(
   const perChunk = await pooled(tasks, MAX_CONCURRENT_BATCHES, signal)
   const fetched = perChunk.flat()
   fetched.forEach((r, j) => {
-    cachePut(cacheKey('weather', misses[j], startMs, endMs, model, terrainElevation), r ?? NO_DATA)
+    cachePut(
+      cacheKey('weather', misses[j], startMs, endMs, model, terrainElevation, source),
+      r ?? NO_DATA,
+    )
   })
   missIdx.forEach((i, j) => {
     results[i] = fetched[j]

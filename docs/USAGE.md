@@ -98,7 +98,7 @@ A calendar, with a **When** toggle above the grid reading **Current** or **Dates
 - **Dates** on the toggle brings back the last range you had, so switching to Current to compare and back does not cost you the range. With no range yet the calendar opens empty — today is outlined, nothing is selected, and Analyze waits until you pick a day (one click for a single day, a second click or a drag for a range).
 - **Hours** appears under **When**, set to **All Day**. Switch it to **Hourly** for part of a day rather than all of it: it opens on the current hour through the end of the day, and runs from the first time on your first day to the second time on your last, as one continuous window. Two equal hours analyze that single hour, which is the finest question you can ask.
 
-Both rows sit above the grid, so the two decisions the window needs are together and neither is below the fold on a short screen. Days in the past are ordinary here: the calendar reaches 55 days back against about 15 forward, which is why the toggle says Dates rather than anything that implies the future.
+Both rows sit above the grid, so the two decisions the window needs are together and neither is below the fold on a short screen. Days in the past are ordinary here: the calendar reaches about a year back against about 15 days forward, which is why the toggle says Dates rather than anything that implies the future. How wet was this ridge last July is a question it can answer.
 
 Narrowed hours apply to the selection as a whole, not to each day in it: 06:00 to 18:00 across five days is one continuous window from the first morning to the last evening, and the app says so under the control. Daylight hours on each of several days is a separate feature and is not built yet.
 
@@ -108,11 +108,13 @@ How bright a day is says how much of it Bluebird Forecast can tell you about:
 | --- | --- |
 | Normal | Weather and air quality. |
 | Dimmed | Weather only. Past the ~5-day air-quality horizon, so the AQI columns come back blank. Still analyzes fine. |
-| Greyed, not clickable | Outside what the weather service serves. The near edge is where its archive runs out; the far edge is whichever comes first, the API's own limit or the reach of the forecast model you picked in Step 2. |
+| Greyed, not clickable | Outside what the weather service serves. The near edge is how far back its archive goes; the far edge is whichever comes first, the API's own limit or the reach of the forecast model you picked in Step 2. |
 
 Hovering either dimmed step says why, and selecting one past the air-quality horizon says so beside the calendar. Air quality runs shorter than weather because the underlying CAMS model only reaches about 5 days out; that horizon is not the only thing worth knowing about the column, so see [Air quality](DATA.md#air-quality) for how coarse the model grid is and which scale the number is on.
 
 Days are your local calendar days, converted to UTC for the API, and the far edge accounts for that: west of Greenwich the last local day's final hour falls on the next UTC date, so the calendar offers one day less there than it does in London. Selecting days in the past is fine and normal. Those hours are recorded conditions rather than a forecast, and a chart covering both marks where one becomes the other.
+
+**A window older than about two months is served from a different place**, and the far past is the one stretch of the calendar where Step 2's model does not apply: those hours come from Open-Meteo's archive, which is one recorded dataset rather than a forecast any model made, so the model control is faded out while such a window is selected. Wind is measured 10 m above the ground there rather than adjusted to each summit, for the reason [DATA.md](DATA.md#open-meteo) gives. One rule comes with it: a range cannot start in that stretch and end in the recent one, because the two come from different datasets and a ranking across the join would compare one against the other. Move either end to one side of it.
 
 **The forecast model moves this calendar.** Picking a short-range model above greys out the days it cannot reach, and shortens a window you had already chosen, with a note saying it did. The shortening is undoable by construction: switch back to a model that can serve your original window and it returns whole. The remembered window is dropped once you edit the dates yourself or run an analysis. HRRR is the case that matters: it reaches about two days where the global models reach one to two weeks.
 

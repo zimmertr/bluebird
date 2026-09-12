@@ -329,7 +329,12 @@ export default function App() {
   // the selection simply is inside the band, and nothing distinguishes a window
   // that was shortened from one that always fitted.
   const [modelClamped, setModelClamped] = useState(false)
-  const forecastHours = modelForecastHours(caps.forecastModels, forecastModel)
+  // Both edges of the servable band, from /api/capabilities: the selected
+  // model's reach ahead, and the archive's reach back (#123).
+  const band = {
+    forecastHours: modelForecastHours(caps.forecastModels, forecastModel),
+    pastDays: caps.archiveDays,
+  }
 
   // The window a model clamp took away, held so switching back to a model
   // that can serve it restores it (#242 review). A clamp is the picker
@@ -350,14 +355,16 @@ export default function App() {
     // A remembered pre-clamp window comes back the moment a model can serve
     // it whole (clampSelection returns null for "fits unchanged").
     const remembered = preClampSelectionRef.current
-    if (remembered && clampSelection(remembered, new Date(), hours) === null) {
+    // The band as the NEW model leaves it: only the far edge moves with a model.
+    const nextBand = { ...band, forecastHours: hours }
+    if (remembered && clampSelection(remembered, new Date(), nextBand) === null) {
       preClampSelectionRef.current = null
       setSelection(remembered)
       setModelClamped(false)
       setForecastModel(id)
       return
     }
-    const clamped = clampSelection(selection, new Date(), hours)
+    const clamped = clampSelection(selection, new Date(), nextBand)
     if (clamped) {
       // Remember the FIRST window in a clamp chain: stepping HRRR → ICON →
       // GFS should restore the range the user picked, not the wreckage of
@@ -898,7 +905,7 @@ export default function App() {
   // upstream error. The calendar cannot pick an unservable day, so a horizon
   // warning now means a shared or hand-edited link brought one in.
   const windowStatus = panelWindow
-    ? classifyWindow(panelWindow.start, panelWindow.end, new Date(), forecastHours)
+    ? classifyWindow(panelWindow.start, panelWindow.end, new Date(), band)
     : // No dates picked yet: nothing to warn about, the dates blocker owns it.
       'ok'
   const windowWarning =
@@ -1796,6 +1803,7 @@ export default function App() {
           modelClamped={modelClamped}
           maxLimit={caps.maxLimit}
           maxAreaKm2={caps.maxPolygonAreaKm2}
+          archiveDays={caps.archiveDays}
           aqiAllNull={
             response !== null &&
             results.length > 0 &&
