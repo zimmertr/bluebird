@@ -148,7 +148,9 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `ICON_ADORNMENT` | Glyph drawn inside a field |
 | `SPINNER` | Indeterminate spinner |
 | `TABLE.cell` | Results table cell inset |
-| `TABLE.head` | Results table header cell |
+| `TABLE.head` | Results table header cell box, shared by both header kinds |
+| `TABLE.headRanking` | Header of a column the Ranking control can rank the field by |
+| `TABLE.headDetail` | Header of a column that only describes a row |
 
 ## What is enforced
 
@@ -186,6 +188,20 @@ The accent appears in six places and must pass WCAG AA on all of them. On a whit
 **Why this shade?** No Tailwind scale step fits. The surviving window for both constraints is 0.0067 of relative luminance wide, and `sky-650` is the midpoint. Two roads not taken: dark labels clear both constraints with far more room (rejected for brand reasons), and documenting 4.02:1 as a conformance exception was considered (rejected because 4.02 is no longer below AA at the resting state). The hover at 4.02:1 is kept because with a white label every lightening costs contrast — a conformant hover would have to darken, making the app's primary action the only control that dims on pointer-over.
 
 **Re-measure condition:** if `DAY.range` ever changes, re-derive this shade. The binding edge is `DAY.range` at 3.04:1, so the selected day must still be findable against the range band beside it.
+
+### The two results-table headers
+
+The results table has two kinds of column. Thirteen of them name a value the panel's **Ranking** control can rank the whole held field by; the rest only describe a row. The header row says which is which by weight alone, on the `bg-slate-700` header bar:
+
+- `TABLE.headRanking` is `TEXT.subheading` — `text-xs font-semibold text-slate-200`
+- `TABLE.headDetail` is `TEXT.control` plus `font-normal` — `text-xs text-slate-200 font-normal`
+- Both measure **8.40:1** on `slate-700`, well clear of the 4.5:1 text floor
+
+**Why weight and not colour or a mark?** A click cannot carry the difference: since #242 a click on either kind sorts the displayed rows in place and does nothing else, so an underline or an accent would promise an action neither kind performs. What actually differs is the column's standing, and the ramp already carries standing in weight — this is the same relationship `TEXT.subheading` and `TEXT.control` have. Dimming the detail half was the alternative and spends contrast to repeat the weight: `slate-300` holds at **6.98:1** on that bar, but the next step down (`slate-400`) reaches only **4.04:1** and fails AA.
+
+**Why `headDetail` spells `font-normal`:** a `<th>` is bold in the user-agent stylesheet and Preflight does not reset it, so a header that merely omits a weight renders at 700 — heavier than the rankable half it sits beside, which inverts the signal. `styles.test.ts` asserts the class is present.
+
+**Re-measure condition:** if the header bar leaves `slate-700`, re-derive both numbers. The binding constraint is the detail half, because it is the one a future change would be tempted to dim.
 
 ### Copy length budget
 

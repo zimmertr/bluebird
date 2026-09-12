@@ -40,6 +40,7 @@ import {
   RECESSED_FILL,
   SURFACE_GROUP,
   SURFACE_GROUP_BLEED,
+  TABLE,
   LINK,
   LINK_ACTION,
   PROSE,
@@ -115,6 +116,47 @@ describe('the compact tier', () => {
   // the micro step: a call site cannot dim this back, so the floor is here.
   it('keeps the caption step legible on the panel it lands on', () => {
     expect(TEXT.caption).toContain('text-slate-400')
+  })
+})
+
+// #190. The results table has two kinds of header — a column the panel's
+// Ranking control can rank the whole field by, and a column that only
+// describes a row — and nothing on screen said which was which. The click
+// cannot say it either: since #242 a click on either kind sorts the displayed
+// rows in place and nothing more, so a treatment reading as an affordance
+// would promise an action neither one performs. What is left is the column's
+// standing, and the ramp above already carries standing in weight.
+describe('the results table head', () => {
+  it('separates the two header kinds by weight alone', () => {
+    expect(TABLE.headRanking).toBe(TEXT.subheading)
+    expect(TABLE.headRanking.split(' ').filter((c) => c !== 'font-semibold')).toEqual(
+      TABLE.headDetail.split(' ').filter((c) => c !== 'font-normal'),
+    )
+  })
+
+  // A `<th>` is bold in the user-agent stylesheet and Preflight does not reset
+  // it, so the quiet role has to say its weight out loud. Omitting it renders
+  // the detail headers at 700 — heavier than the rankable half they are meant
+  // to sit under, which inverts the whole signal.
+  it('spells the quiet header weight rather than inheriting it', () => {
+    expect(TABLE.headDetail).toContain('font-normal')
+  })
+
+  // Both halves stay on the step that clears AA with room to spare on the
+  // slate-700 header bar (8.4:1). Dimming the detail half was the other way to
+  // say this, and would have spent contrast to repeat the weight: the step
+  // below holds at 7.0:1 and the one below that fails outright at 4.0:1.
+  it('keeps both header kinds legible on the header bar', () => {
+    expect(TABLE.headRanking).toContain('text-slate-200')
+    expect(TABLE.headDetail).toContain('text-slate-200')
+  })
+
+  // One box under both, so the distinction cannot move a column edge, a
+  // baseline, or the width the resize handle measures.
+  it('shares one box between the two header kinds', () => {
+    expect(sizes(TABLE.head)).toHaveLength(0)
+    expect(TABLE.head).not.toMatch(/\bfont-/)
+    expect(TABLE.head).not.toMatch(/\btext-slate-/)
   })
 })
 

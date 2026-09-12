@@ -4,7 +4,14 @@ import { DestinationResult, SortBy } from '../types'
 import { cellStyle, scaleFor, METRIC_CONFIG } from '../utils/colors'
 import { familyOf } from '../metrics'
 import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
-import { SortDir, SortKey, WILDFIRE_KEY, displayedColumns, ColDef } from '../utils/tableColumns'
+import {
+  SortDir,
+  SortKey,
+  WILDFIRE_KEY,
+  displayedColumns,
+  isRankingKey,
+  ColDef,
+} from '../utils/tableColumns'
 import { autoFitWidth, dragWidth } from '../utils/columnResize'
 import {
   FIRE_UNAVAILABLE_NOTE,
@@ -477,7 +484,7 @@ export default function ResultsTable({
         <thead className="sticky top-0 bg-slate-700 z-10">
           <tr>
             {showChartCol && (
-              <th className={`${TABLE.head} w-6`}>
+              <th className={`${TABLE.head} ${TABLE.headDetail} w-6`}>
                 {onChartRange && chartableRows.length > 0 && (
                   <input
                     type="checkbox"
@@ -494,7 +501,10 @@ export default function ResultsTable({
                 )}
               </th>
             )}
-            <th scope="col" className={`${TABLE.head} w-6`}>#</th>
+            {/* The rank number is the ranking's output rather than an input to
+                it, so it wears the quiet header like the columns that only
+                describe a row. */}
+            <th scope="col" className={`${TABLE.head} ${TABLE.headDetail} w-6`}>#</th>
             {orderedColumns.map((col) => (
               <th
                 key={col.key}
@@ -502,7 +512,14 @@ export default function ResultsTable({
                 data-col={col.key}
                 aria-sort={detailSortKey === col.key ? (detailSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                 onClick={() => handleSort(col.key)}
-                className={`${TABLE.head} relative cursor-pointer whitespace-nowrap hover:text-white select-none`}
+                // Two header kinds, and the click is not what tells them apart
+                // (see handleSort). The heavier one names a column the panel's
+                // Ranking control can rank the whole field by; the lighter one
+                // names a column that only describes a row. Which is which is
+                // the ranking vocabulary's answer, not this component's.
+                className={`${TABLE.head} ${
+                  isRankingKey(col.key) ? TABLE.headRanking : TABLE.headDetail
+                } relative cursor-pointer whitespace-nowrap hover:text-white select-none`}
               >
                 {sized(col.key as string, col.label, 'inline')}
                 {detailSortKey === col.key && (

@@ -1,14 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import {
   COLUMNS,
+  SortKey,
   WILDFIRE_COL,
   WILDFIRE_KEY,
   displayedColumns,
+  isRankingKey,
   pointModeColumns,
   orderColumns,
   visibleColumns,
 } from './tableColumns'
-import { SEP } from '../metrics'
+import { RANKING_KEYS, SEP } from '../metrics'
 import { SortBy } from '../types'
 
 // The real column set, not a copy of its keys. The list used to be declared in
@@ -203,5 +205,38 @@ describe('WILDFIRE_COL', () => {
   it('is not part of the row-backed column set', () => {
     expect(COLUMNS.map((c) => c.key)).not.toContain(WILDFIRE_KEY)
     expect(displayedColumns(false, 'precip_total_in').map((c) => c.key)).not.toContain(WILDFIRE_KEY)
+  })
+})
+
+// #190. The header row draws these two answers differently, so the classifier
+// is the one place that decides which columns are which.
+describe('isRankingKey', () => {
+  const IDENTITY: SortKey[] = ['name', 'type', 'elevation_ft']
+
+  it('answers yes for every key the Ranking control offers', () => {
+    for (const key of RANKING_KEYS) expect(isRankingKey(key)).toBe(true)
+  })
+
+  it('answers no for the identity columns and the wildfire flag', () => {
+    for (const key of [...IDENTITY, WILDFIRE_KEY as SortKey]) expect(isRankingKey(key)).toBe(false)
+  })
+
+  // The two kinds cover the table between them with nothing left over: every
+  // rankable key has a column, and every column that is not an identity one is
+  // rankable. A column added without a ranking key would land here, which is
+  // the moment to decide what its header should say.
+  it('splits the column set in two with nothing left over', () => {
+    const rankable = COLUMNS.filter((c) => isRankingKey(c.key)).map((c) => c.key)
+    expect(new Set(rankable)).toEqual(new Set(RANKING_KEYS))
+    expect(COLUMNS.filter((c) => !isRankingKey(c.key)).map((c) => c.key)).toEqual(IDENTITY)
+  })
+
+  // A point-sample report collapses each metric group to one column. Those
+  // survivors have to stay rankable, or the collapse would quietly demote a
+  // header the Ranking control still offers.
+  it('keeps every collapsed column classified as it was', () => {
+    for (const col of pointModeColumns(COLUMNS)) {
+      expect(isRankingKey(col.key) || IDENTITY.includes(col.key)).toBe(true)
+    }
   })
 })

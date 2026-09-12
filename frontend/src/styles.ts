@@ -1159,8 +1159,32 @@ export const SCRUBBER_TRACK = `h-2 ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.pi
  * thing the phone is there to read and 44px rows would show 13 of them instead
  * of 21. The controls living in a cell — the remove ×, the chart checkbox, the
  * destination link — get the floor; the row keeps its density.
+ *
+ * The header splits in two because the columns under it do. Thirteen of them
+ * name a value the panel's Ranking control can rank the whole held field by;
+ * the rest only describe the row they sit in. Nothing on screen said which was
+ * which, and the click cannot say it: since #242 a click on any header sorts
+ * the rows in place and does nothing else, so an underline or an accent would
+ * promise an action neither kind performs. What differs is the column's
+ * standing, so weight carries it — the same relationship `subheading` and
+ * `control` already have in the ramp above: one size, one color, weight alone.
+ *
+ * `headDetail` spells its weight rather than omitting it. A `<th>` is bold in
+ * the user-agent stylesheet and Preflight does not reset it, so a header with
+ * no weight utility renders at 700 and the quiet half of the row comes out the
+ * loudest thing in it.
+ *
+ * Both halves stay on the one text step that clears AA on the slate-700 header
+ * bar with room to spare (8.4:1). Dimming the detail half was the other way to
+ * say this: the step below holds at 7.0:1 and the one below that only 4.0:1, so
+ * color would have spent contrast to repeat what the weight already says.
  */
 export const TABLE = {
   cell: 'px-2 py-1.5',
-  head: `${TEXT.subheading} px-2 py-2 text-left`,
+  /** Every header cell's box. Its type comes from one of the two roles below. */
+  head: 'px-2 py-2 text-left',
+  /** A header whose column the Ranking control can rank the whole field by. */
+  headRanking: TEXT.subheading,
+  /** A header whose column only describes the row it sits in. */
+  headDetail: `${TEXT.control} font-normal`,
 } as const

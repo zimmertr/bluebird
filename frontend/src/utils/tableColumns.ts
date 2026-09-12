@@ -1,5 +1,5 @@
 import { DestinationResult, SortBy } from '../types'
-import { AGGREGATE, familyOf, metricLabel } from '../metrics'
+import { AGGREGATE, RANKING_KEYS, familyOf, metricLabel } from '../metrics'
 import { METRIC_CONFIG } from './colors'
 
 /**
@@ -38,6 +38,27 @@ export const WILDFIRE_COL: ColDef = { key: WILDFIRE_KEY, label: 'Wildfire (mi)' 
 /** The column a detail sort is keyed on, and which way it runs. */
 export type SortKey = ColDef['key']
 export type SortDir = 'asc' | 'desc'
+
+// Held as a set because the header row asks this question once per column on
+// every render.
+const RANKABLE = new Set<string>(RANKING_KEYS)
+
+/**
+ * Is this column one the panel's Ranking control can rank the whole held field
+ * by, or one that only describes a row?
+ *
+ * The table draws the two kinds of header differently (#190), and the answer
+ * cannot be read off the behaviour: since #242 a click on either kind sorts the
+ * displayed rows in place and nothing more. It has to come from the ranking
+ * vocabulary itself, so it reads `RANKING_KEYS` — the same list the Ranking
+ * control offers and the URL's `sort` param validates against — rather than
+ * testing the shape of the key. A column that stops being rankable therefore
+ * stops being drawn as one in the same commit, and a component never has to
+ * hold a second copy of the list.
+ */
+export function isRankingKey(key: SortKey): boolean {
+  return RANKABLE.has(key as string)
+}
 
 // Identity columns that always lead the table, ahead of any metric group.
 const LEAD_KEYS = new Set(['name', 'type', 'elevation_ft'])
