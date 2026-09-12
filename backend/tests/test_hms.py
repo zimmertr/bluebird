@@ -327,6 +327,10 @@ def test_route_answers_503_when_nothing_has_ever_been_fetched():
         response = client.get("/api/smoke")
     assert response.status_code == 503
     assert response.headers["Retry-After"]
+    assert response.json()["error"] == {
+        "code": "snapshot_unavailable",
+        "retryable": True,
+    }
 
 
 def test_capabilities_publishes_the_smoke_bucket():

@@ -4,16 +4,18 @@ import logging
 import math
 from collections.abc import Sequence
 
-from fastapi import APIRouter, Depends, HTTPException, Security
+from fastapi import APIRouter, Depends, Security
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import APIKeyHeader
 
 from app import ratelimit, telemetry
+from app.error_codes import ApiError, ErrorCode, error_object
 from app.models import (
     MAX_ANALYZE_PEAKS,
     AnalysisRefusal,
     AnalyzeRequest,
     AnalyzeResponse,
+    ApiErrorInfo,
     DestinationResult,
     DestinationType,
     ErrorResponse,
@@ -250,13 +252,16 @@ def _refusal_body(
     """The structured 400 body (`AnalysisRefusal`) for an over-cap refusal."""
     body = AnalysisRefusal(
         detail=_cap_detail(count, noun),
+        error=ApiErrorInfo.for_code(ErrorCode.refusal),
         found=count,
         limit=MAX_ANALYZE_PEAKS,
     )
     if suggestion is not None:
         body.suggested_min_elevation_ft = float(suggestion[0])
         body.suggested_keeps = suggestion[1]
-    return body.model_dump()
+    # Dumped in JSON mode because this dict is rendered by hand on both paths:
+    # as a JSONResponse body, and spread into an SSE event.
+    return body.model_dump(mode="json")
 
 
 def _sort_key(sort_field: str, descending: bool = False):
@@ -332,6 +337,16 @@ def _summarize_request(request: AnalyzeRequest) -> str:
 
 def _sse(event_type: str, **kwargs) -> str:
     return f"data: {json.dumps({'type': event_type, **kwargs})}\n\n"
+
+
+def _sse_error(message: str, code: ErrorCode, **kwargs) -> str:
+    """A terminal `error` event.
+
+    The stream has no status code to carry the failure, so the `error` member
+    the JSON routes answer with rides here too, beside the `message` a plain
+    consumer renders and whatever extra fields that failure already sent.
+    """
+    return _sse("error", message=message, error=error_object(code), **kwargs)
 
 
 # Sentinel pushed onto a progress queue once the backing task has finished.
@@ -512,9 +527,10 @@ def _assemble(
         "- `result` — the terminal success event, carrying a full "
         "`AnalyzeResponse` in `data`\n"
         "- `error` — the terminal failure event, with the reason in "
-        "`message`; an over-limit refusal also carries the "
-        "`AnalysisRefusal` remedy fields, and an upstream rate limit "
-        "carries `scope` and `retry_after_s`\n\n"
+        "`message` and the same machine-readable `error` object "
+        "(`code`, `retryable`) the JSON routes answer with; an over-limit "
+        "refusal also carries the `AnalysisRefusal` remedy fields, and an "
+        "upstream rate limit carries `scope` and `retry_after_s`\n\n"
         "Exactly one `result` or one `error` ends the stream.\n\n"
         "Rate limiting applies before the stream opens: a client past the "
         "per-address limit gets a plain **429 with `Retry-After`**, exactly as "
@@ -565,7 +581,7 @@ async def analyze_stream(
         log.info("Analyze request (stream): %s", _summarize_request(request))
         try:
             if request.start_datetime >= request.end_datetime:
-                yield _sse("error", message="The start date must be before the end date.")
+                yield _sse_error("The start date must be before the end date.", ErrorCode.validation)
                 return
 
             # A union (polygon + custom list) is a mixed set, so its messages
@@ -574,12 +590,12 @@ async def analyze_stream(
 
             if not request.destination_types:
                 if not request.custom_destinations:
-                    yield _sse("error", message="Nothing to analyze: send destination_types with a polygon, custom_destinations, or both.")
+                    yield _sse_error("Nothing to analyze: send destination_types with a polygon, custom_destinations, or both.", ErrorCode.validation)
                     return
                 destinations = await _resolve_custom(request.custom_destinations)
             else:
                 if not request.polygon:
-                    yield _sse("error", message="polygon is required when destination_types is non-empty")
+                    yield _sse_error("polygon is required when destination_types is non-empty", ErrorCode.validation)
                     return
                 yield _sse("status", message="Searching for Destinations…")
 
@@ -613,17 +629,17 @@ async def analyze_stream(
                         yield event
                     destinations = await osm_task
                 except NotImplementedError as e:
-                    yield _sse("error", message=str(e))
+                    yield _sse_error(str(e), ErrorCode.validation)
                     return
                 except ratelimit.BudgetExhausted as e:
-                    yield _sse("error", message=e.message)
+                    yield _sse_error(e.message, ErrorCode.busy)
                     return
                 except UpstreamError as e:
-                    yield _sse("error", message=e.message)
+                    yield _sse_error(e.message, ErrorCode.upstream_unavailable)
                     return
                 except Exception:
                     log.exception("Destination search failed")
-                    yield _sse("error", message="OpenStreetMap is not available. Try again later.")
+                    yield _sse_error("OpenStreetMap is not available. Try again later.", ErrorCode.upstream_unavailable)
                     return
                 finally:
                     if not osm_task.done():
@@ -657,8 +673,8 @@ async def analyze_stream(
                     suggestion = _suggest_elevation_floor(destinations, MAX_ANALYZE_PEAKS)
                     body = _refusal_body(len(destinations), noun, suggestion=suggestion)
                     # The error event carries the same structured remedy
-                    # fields the HTTP 400 does, message first so a plain
-                    # consumer can just render it.
+                    # fields the HTTP 400 does — the `error` member among them —
+                    # message first so a plain consumer can just render it.
                     yield _sse("error", message=body.pop("detail"), **body)
                     return
 
@@ -745,25 +761,34 @@ async def analyze_stream(
                     await aqi_task if aqi_task is not None else [None] * len(destinations)
                 )
             except ratelimit.BudgetExhausted as e:
-                yield _sse("error", message=e.message)
+                yield _sse_error(e.message, ErrorCode.busy)
                 return
             except InvalidApiKeyError as e:
                 # Caught ahead of its UpstreamError base: the upstream is
                 # healthy and the key is the problem, so the stream says so
                 # rather than reporting a transient failure.
-                yield _sse("error", message=e.message)
+                yield _sse_error(e.message, ErrorCode.invalid_api_key)
                 return
             except UpstreamRateLimited as e:
-                yield _sse(
-                    "error", message=e.message, scope=e.scope, retry_after_s=e.retry_after_s
+                yield _sse_error(
+                    e.message,
+                    ErrorCode.upstream_rate_limited,
+                    scope=e.scope,
+                    retry_after_s=e.retry_after_s,
                 )
                 return
+            except ModelCoverageError as e:
+                # Caught ahead of its UpstreamError base for the reason the
+                # JSON route answers it 400: the model is the problem, so a
+                # retry of the same request cannot help and the code says so.
+                yield _sse_error(e.message, ErrorCode.model_coverage)
+                return
             except UpstreamError as e:
-                yield _sse("error", message=e.message)
+                yield _sse_error(e.message, ErrorCode.upstream_unavailable)
                 return
             except Exception:
                 log.exception("Weather fetch failed")
-                yield _sse("error", message="The weather search failed. Try again later.")
+                yield _sse_error("The weather search failed. Try again later.", ErrorCode.upstream_unavailable)
                 return
             finally:
                 # If the client disconnected (generator torn down) before the
@@ -789,7 +814,7 @@ async def analyze_stream(
                         api_key,
                     )
                 except InvalidApiKeyError as e:
-                    yield _sse("error", message=e.message)
+                    yield _sse_error(e.message, ErrorCode.invalid_api_key)
                     return
 
             yield _sse(
@@ -806,7 +831,7 @@ async def analyze_stream(
 
         except Exception:
             log.exception("Unexpected error in analyze_stream")
-            yield _sse("error", message="Something went wrong. Try again later.")
+            yield _sse_error("Something went wrong. Try again later.", ErrorCode.internal)
 
     return StreamingResponse(
         _with_keepalive(generate()),
@@ -887,26 +912,30 @@ async def analyze(
     log.info("Analyze request: %s", _summarize_request(request))
 
     if request.start_datetime >= request.end_datetime:
-        raise HTTPException(
-            status_code=400, detail="The start date must be before the end date."
+        raise ApiError(
+            status_code=400,
+            detail="The start date must be before the end date.",
+            code=ErrorCode.validation,
         )
 
     # Resolve destinations
     if not request.destination_types:
         if not request.custom_destinations:
-            raise HTTPException(
+            raise ApiError(
                 status_code=400,
                 detail=(
                     "Nothing to analyze: send destination_types with a polygon, "
                     "custom_destinations, or both."
                 ),
+                code=ErrorCode.validation,
             )
         destinations = await _resolve_custom(request.custom_destinations)
     else:
         if not request.polygon:
-            raise HTTPException(
+            raise ApiError(
                 status_code=400,
                 detail="polygon is required when destination_types is non-empty",
+                code=ErrorCode.validation,
             )
         try:
             destinations = await osm.query_osm(
@@ -915,19 +944,24 @@ async def analyze(
                 include_unnamed_peaks=request.include_unnamed_peaks,
             )
         except NotImplementedError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise ApiError(status_code=400, detail=str(e), code=ErrorCode.validation)
         except ratelimit.BudgetExhausted as e:
-            raise HTTPException(
+            raise ApiError(
                 status_code=503,
                 detail=e.message,
+                code=ErrorCode.busy,
                 headers={"Retry-After": str(e.retry_after_s)},
             )
         except UpstreamError as e:
-            raise HTTPException(status_code=502, detail=e.message)
+            raise ApiError(
+                status_code=502, detail=e.message, code=ErrorCode.upstream_unavailable
+            )
         except Exception:
             log.exception("Destination search failed")
-            raise HTTPException(
-                status_code=502, detail="OpenStreetMap is not available. Try again later."
+            raise ApiError(
+                status_code=502,
+                detail="OpenStreetMap is not available. Try again later.",
+                code=ErrorCode.upstream_unavailable,
             )
 
         # The user's own list rides along with whatever discovery found — the
@@ -990,17 +1024,19 @@ async def analyze(
     except ratelimit.BudgetExhausted as e:
         if aqi_task is not None:
             aqi_task.cancel()
-        raise HTTPException(
+        raise ApiError(
             status_code=503,
             detail=e.message,
+            code=ErrorCode.busy,
             headers={"Retry-After": str(e.retry_after_s)},
         )
     except UpstreamRateLimited as e:
         if aqi_task is not None:
             aqi_task.cancel()
-        raise HTTPException(
+        raise ApiError(
             status_code=429,
             detail=e.message,
+            code=ErrorCode.upstream_rate_limited,
             headers={"Retry-After": str(e.retry_after_s)},
         )
     except InvalidApiKeyError as e:
@@ -1009,7 +1045,9 @@ async def analyze(
         # healthy and only the caller can fix the request.
         if aqi_task is not None:
             aqi_task.cancel()
-        raise HTTPException(status_code=401, detail=e.message)
+        raise ApiError(
+            status_code=401, detail=e.message, code=ErrorCode.invalid_api_key
+        )
     except ModelCoverageError as e:
         # 400, not the 502 its UpstreamError base would otherwise give: the
         # upstream is healthy and answered correctly. The request asked a
@@ -1017,24 +1055,32 @@ async def analyze(
         # caller can fix that.
         if aqi_task is not None:
             aqi_task.cancel()
-        raise HTTPException(status_code=400, detail=e.message)
+        raise ApiError(
+            status_code=400, detail=e.message, code=ErrorCode.model_coverage
+        )
     except UpstreamError as e:
         if aqi_task is not None:
             aqi_task.cancel()
-        raise HTTPException(status_code=502, detail=e.message)
+        raise ApiError(
+            status_code=502, detail=e.message, code=ErrorCode.upstream_unavailable
+        )
     except Exception:
         if aqi_task is not None:
             aqi_task.cancel()
         log.exception("Weather lookup failed")
-        raise HTTPException(
-            status_code=502, detail="The weather search failed. Try again later."
+        raise ApiError(
+            status_code=502,
+            detail="The weather search failed. Try again later.",
+            code=ErrorCode.upstream_unavailable,
         )
     try:
         aqi_list = await aqi_task if aqi_task is not None else [None] * len(destinations)
     except InvalidApiKeyError as e:
         # Reachable when the weather half answered entirely from cache, so the
         # first upstream call the key made was the air-quality one.
-        raise HTTPException(status_code=401, detail=e.message)
+        raise ApiError(
+            status_code=401, detail=e.message, code=ErrorCode.invalid_api_key
+        )
 
     results, times = _assemble(
         destinations, wx_list, aqi_list, DestinationType.custom.value
@@ -1050,7 +1096,9 @@ async def analyze(
                 results, times, request.start_datetime, request.end_datetime, api_key
             )
         except InvalidApiKeyError as e:
-            raise HTTPException(status_code=401, detail=e.message)
+            raise ApiError(
+                status_code=401, detail=e.message, code=ErrorCode.invalid_api_key
+            )
 
     def _fmt(r: DestinationResult) -> str:
         v = getattr(r, sort_field)

@@ -423,7 +423,8 @@ def test_analyze_start_after_end_is_400(stub_upstreams):
     }
     resp = client.post("/api/analyze", json=body)
     assert resp.status_code == 400
-    assert "before" in resp.json()["detail"]
+    assert resp.json()["detail"] == "The start date must be before the end date."
+    assert resp.json()["error"] == {"code": "validation", "retryable": False}
 
 
 def test_analyze_equal_window_is_current_forecast(stub_upstreams):
@@ -463,7 +464,11 @@ def test_analyze_custom_without_destinations_is_400(stub_upstreams):
         "destination_types": [], "start_datetime": start, "end_datetime": end,
     })
     assert resp.status_code == 400
-    assert "Nothing to analyze" in resp.json()["detail"]
+    assert resp.json()["detail"] == (
+        "Nothing to analyze: send destination_types with a polygon, "
+        "custom_destinations, or both."
+    )
+    assert resp.json()["error"] == {"code": "validation", "retryable": False}
 
 
 def test_analyze_peak_without_polygon_is_400(stub_upstreams):
@@ -472,7 +477,10 @@ def test_analyze_peak_without_polygon_is_400(stub_upstreams):
         "destination_types": ["peak"], "start_datetime": start, "end_datetime": end,
     })
     assert resp.status_code == 400
-    assert "polygon is required" in resp.json()["detail"]
+    assert resp.json()["detail"] == (
+        "polygon is required when destination_types is non-empty"
+    )
+    assert resp.json()["error"] == {"code": "validation", "retryable": False}
 
 
 def test_analyze_elevation_band_can_empty_results(stub_upstreams):
@@ -515,6 +523,8 @@ def test_analyze_over_peak_cap_is_400(monkeypatch, stub_upstreams):
     resp = client.post("/api/analyze", json=body)
     assert resp.status_code == 400
     assert "analysis limit" in resp.json()["detail"]
+    # An over-cap refusal is the caller's to fix, so no retry is promised.
+    assert resp.json()["error"] == {"code": "refusal", "retryable": False}
 
 
 def test_analyze_stream_emits_error_event(stub_upstreams):
@@ -530,6 +540,9 @@ def test_analyze_stream_emits_error_event(stub_upstreams):
     assert "text/event-stream" in resp.headers["content-type"]
     events = [json.loads(line[len("data: "):]) for line in resp.text.splitlines() if line.startswith("data: ")]
     assert any(e["type"] == "error" and "before" in e["message"] for e in events)
+    error = next(e for e in events if e["type"] == "error")
+    assert error["message"] == "The start date must be before the end date."
+    assert error["error"] == {"code": "validation", "retryable": False}
 
 
 def test_analyze_stream_custom_happy_path_emits_result(stub_upstreams):
@@ -756,6 +769,7 @@ def test_analyze_union_counts_toward_cap(monkeypatch, stub_upstreams):
     # structured fields, never in the prose (TJ, 2026-08-22).
     assert "trim" not in detail.lower()
     assert "minimum elevation" not in detail
+    assert resp.json()["error"] == {"code": "refusal", "retryable": False}
 
 
 def test_analyze_union_elevation_filter_applies_to_custom_rows(monkeypatch, stub_upstreams):
@@ -896,6 +910,9 @@ def test_analyze_maps_a_model_coverage_refusal_to_400_not_502(monkeypatch):
     )
     assert resp.status_code == 400
     assert "NOAA HRRR" in resp.json()["detail"]
+    # Not upstream_unavailable: the upstream answered correctly and a retry of
+    # the same request gets the same answer.
+    assert resp.json()["error"] == {"code": "model_coverage", "retryable": False}
 
 
 def test_analyze_rejects_a_model_this_deployment_does_not_serve():
@@ -1011,6 +1028,7 @@ def test_a_refused_key_is_a_401_not_a_502(refuse_key):
     )
     assert resp.status_code == 401
     assert resp.json()["detail"] == "Open-Meteo rejected the API key."
+    assert resp.json()["error"] == {"code": "invalid_api_key", "retryable": False}
     assert "bad-key" not in resp.text
 
 
@@ -1029,6 +1047,7 @@ def test_a_refused_key_ends_the_stream_with_an_error_event(refuse_key):
     assert events[-1] == {
         "type": "error",
         "message": "Open-Meteo rejected the API key.",
+        "error": {"code": "invalid_api_key", "retryable": False},
     }
     assert "bad-key" not in resp.text
 
