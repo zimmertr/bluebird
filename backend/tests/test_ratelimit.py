@@ -250,7 +250,7 @@ def test_analyze_503_when_overpass_budget_sheds(monkeypatch):
     resp = client.post("/api/analyze", json=_analyze_payload(inverted=False))
     assert resp.status_code == 503
     assert resp.headers["retry-after"] == str(ratelimit.SHED_RETRY_AFTER_S)
-    assert "capacity" in resp.json()["detail"]
+    assert "busy" in resp.json()["detail"]
 
 
 def test_analyze_503_when_weather_budget_sheds(monkeypatch):
@@ -280,7 +280,7 @@ def test_stream_budget_shed_arrives_as_error_event(monkeypatch):
     assert resp.status_code == 200  # stream already open; failure is an event
     events = _sse_events(resp.text)
     assert events[-1]["type"] == "error"
-    assert "capacity" in events[-1]["message"]
+    assert "busy" in events[-1]["message"]
 
 
 def test_aqi_budget_shed_degrades_to_none(monkeypatch):
@@ -364,7 +364,7 @@ def test_budget_sheds_after_bounded_wait():
     exc = asyncio.run(scenario())
     assert isinstance(exc, ratelimit.BudgetExhausted)
     assert exc.retry_after_s == ratelimit.SHED_RETRY_AFTER_S
-    assert "capacity" in exc.message
+    assert "busy" in exc.message
 
 
 def test_budget_releases_slot_on_exception():

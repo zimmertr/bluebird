@@ -1,6 +1,6 @@
 ---
 name: add-destination-type
-description: Add a new destination type (the OSM feature kinds Bluebird discovers and ranks, e.g. peaks, trailheads, lakes) end to end across the backend enum, the Overpass clauses, and the frontend controls. Use when asked to make Bluebird find a new kind of place, or when adding a value to DestinationType.
+description: Add a new destination type (the OSM feature kinds Bluebird Forecast discovers and ranks, e.g. peaks, trailheads, lakes) end to end across the backend enum, the Overpass clauses, and the frontend controls. Use when asked to make Bluebird Forecast find a new kind of place, or when adding a value to DestinationType.
 ---
 
 # Adding a new destination type

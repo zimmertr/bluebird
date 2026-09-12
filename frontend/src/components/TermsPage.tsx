@@ -13,7 +13,7 @@ import { SUPPORT_EMAIL } from '../utils/contact'
 // The safety notice is the same component the welcome dialog renders. It
 // belongs here as well as there for the reason it is shared at all: the dialog
 // is dismissed once and remembered forever, so the people with the most
-// Bluebird trips behind them are the least likely to have seen it recently.
+// Bluebird Forecast trips behind them are the least likely to have seen it recently.
 export default function TermsPage() {
   return (
     <PageShell heading="Terms" subtitle="The terms of using Bluebird Forecast">
@@ -24,7 +24,7 @@ export default function TermsPage() {
 
       <Section id="license" heading="License">
         <p className={PROSE.body}>
-          Bluebird is free to use. Its source is public but it is not open source: it is
+          Bluebird Forecast is free to use. Its source is public but it is not open source: it is
           licensed under the{' '}
           <a
             href="https://polyformproject.org/licenses/noncommercial/1.0.0"
@@ -45,16 +45,16 @@ export default function TermsPage() {
 
       <Section id="warranty" heading="No warranty">
         <p className={PROSE.body}>
-          Bluebird comes with no warranty of any kind. Forecasts are automated estimates from
+          Bluebird Forecast comes with no warranty of any kind. Forecasts are automated estimates from
           third-party models, the destination data is community-maintained, and neither is
-          reviewed by a human before you see it. Use Bluebird to plan, not to decide.
+          reviewed by a human before you see it. Use Bluebird Forecast to plan, not to decide.
         </p>
       </Section>
 
       <Section id="availability" heading="Availability and fair use">
         <div className={`${PROSE.body} space-y-3`}>
           <p>
-            There is no uptime commitment. Bluebird runs on the free tiers of services that
+            There is no uptime commitment. Bluebird Forecast runs on the free tiers of services that
             are themselves free, so requests are rate limited per client and the site can be
             slow or unavailable when a provider it depends on is. Automated bulk use gets
             limited before a person's request does.
@@ -78,7 +78,7 @@ export default function TermsPage() {
 
       <Section id="data" heading="Data licenses">
         <p className={`${PROSE.body} mb-3`}>
-          Bluebird produces none of this data. It queries these providers, ranks what comes
+          Bluebird Forecast produces none of this data. It queries these providers, ranks what comes
           back, and shows you the result. Each provider's own license governs its data, and
           those terms reach you along with it.
         </p>

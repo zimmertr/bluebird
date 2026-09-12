@@ -4,7 +4,7 @@ Usage: python3 verify_csv.py <lid> <csvfile> [--bbox LAT_MIN LAT_MAX LON_MIN LON
 
 Cross-checks every row against peaks<lid>.json rather than only checking the file's shape,
 so a coordinate attached to the wrong peak or a dropped row is caught. Elevation is not in
-the CSV (bluebird resolves it from OSM), so ordering is checked against the list page.
+the CSV (Bluebird Forecast resolves it from OSM), so ordering is checked against the list page.
 """
 import json, re, sys
 

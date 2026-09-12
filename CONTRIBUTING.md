@@ -1,6 +1,6 @@
 # Contributing
 
-Bluebird has one maintainer. For a large change, an issue first is a good idea: it lets the approach get discussed before you build it.
+Bluebird Forecast has one maintainer. For a large change, an issue first is a good idea: it lets the approach get discussed before you build it.
 
 If you send a change:
 

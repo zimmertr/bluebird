@@ -12,7 +12,7 @@ import { colorForIndex } from '../utils/chartColors'
 // never reassigned, the color it wears before the analysis is the color its
 // line draws in after, no matter where the row ranks or what else joins the
 // list. The first destination a session ever charts wears the palette's first
-// color, bluebird sky. Selections persist until the user changes them —
+// color, bluebird forecast sky. Selections persist until the user changes them —
 // removals and re-analyses never uncheck a box (a key whose row leaves the
 // report simply stops rendering, and returns if the row does).
 export function useChartSelection(results: DestinationResult[], sortBy: SortBy) {

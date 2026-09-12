@@ -46,7 +46,7 @@ from prometheus_client.registry import Collector
 from app.services import cache
 from app.version import get_commit, get_version
 
-log = logging.getLogger("bluebird.telemetry")
+log = logging.getLogger("bluebird_forecast.telemetry")
 
 
 def _env_int(name: str, default: int) -> int:

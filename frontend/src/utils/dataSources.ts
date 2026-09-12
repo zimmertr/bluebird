@@ -1,5 +1,5 @@
 /**
- * Every third-party service Bluebird's data comes from, in one list.
+ * Every third-party service Bluebird Forecast's data comes from, in one list.
  *
  * This existed as three prose copies once — a panel credit line, the privacy
  * dialog's provider sentence, the README's table — and a list that drifts is
@@ -28,7 +28,7 @@ export interface DataSource {
   name: string
   /** Where the credit links. */
   href: string
-  /** What Bluebird takes from it. Rendered by the privacy page. */
+  /** What Bluebird Forecast takes from it. Rendered by the privacy page. */
   provides: string
   /** Stated only where the source publishes one worth naming. */
   license?: string

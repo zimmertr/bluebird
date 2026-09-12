@@ -1,11 +1,11 @@
-"""Write a bluebird examples/*.csv from peaks<lid>.json + coords<lid>.json.
+"""Write a Bluebird Forecast examples/*.csv from peaks<lid>.json + coords<lid>.json.
 
 Row format mirrors examples/washington-bulger-list.csv:
     Lat, Lon, N. Name
 ordered as the list page presents them (normally highest -> lowest), with N as the row
 position rather than peakbagger's rank column (that column has ties and gaps on some lists).
 
-The name carries no elevation: bluebird resolves each coordinate against OpenStreetMap and
+The name carries no elevation: Bluebird Forecast resolves each coordinate against OpenStreetMap and
 fills the Elevation column itself (issue #207), so printing the list page's figure here
 would only be a second number to disagree with the one on screen.
 
@@ -38,7 +38,7 @@ headline = opt('--headline') or f'# {meta["title"]} — ordered highest to lowes
 lines = [
     headline,
     f'# Source: peakbagger.com list {lid}. Coordinates (WGS84 decimal degrees, 6 places)',
-    '# from each peak page; Bluebird resolves elevation itself from OpenStreetMap.',
+    '# from each peak page; Bluebird Forecast resolves elevation itself from OpenStreetMap.',
     '# Paste the rows below into the "Custom (CSV)" destination type. Format: Latitude, Longitude, Name',
 ]
 for i, p in enumerate(peaks, 1):

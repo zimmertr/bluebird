@@ -2,7 +2,7 @@
 // never touch the network; free-text names resolve through Nominatim, OSM's
 // geocoder — keyless like every other API this app calls, and covering every
 // named OSM feature (peaks, cities, lakes, rivers, trails…), not just the
-// destination types Bluebird can analyze. Nominatim is reached via the
+// destination types Bluebird Forecast can analyze. Nominatim is reached via the
 // backend's /api/geocode proxy so queries appear in server logs and the
 // request carries the identifying User-Agent Nominatim's policy asks for
 // (browsers can't set one). The row→Place mapping stays here.

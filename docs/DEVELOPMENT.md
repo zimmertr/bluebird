@@ -115,7 +115,7 @@ state and interaction, never for judging a forecast.
       new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } }),
     )
   }
-  console.log('[bluebird] Open-Meteo stubbed. Values are synthetic. Reload to undo.')
+  console.log('[bluebird-forecast] Open-Meteo stubbed. Values are synthetic. Reload to undo.')
 })()
 ```
 

@@ -1,5 +1,5 @@
 // Serialize the full set of analysis inputs to/from the URL query string so a
-// Bluebird session can be copied out of the address bar and reopened later.
+// Bluebird Forecast session can be copied out of the address bar and reopened later.
 // These functions are intentionally pure (no React, no DOM) so they're trivial
 // to unit-test — App.tsx owns the thin glue that reads/writes location.
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'

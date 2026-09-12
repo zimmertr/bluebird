@@ -16,7 +16,7 @@ NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 # Nominatim's usage policy asks callers to identify themselves with a real
 # User-Agent — something a browser fetch can't set. That, plus getting search
 # queries into the server logs, is why the SPA doesn't call Nominatim directly.
-USER_AGENT = "Bluebird/1.0 (https://bluebirdforecast.com)"
+USER_AGENT = "BluebirdForecast/1.0 (https://bluebirdforecast.com)"
 PROVIDER = "Nominatim (place search)"
 
 
@@ -26,7 +26,7 @@ PROVIDER = "Nominatim (place search)"
     summary="Look up a place by name",
     description=(
         "Thin proxy to Nominatim, forwarding its JSON verbatim. The response "
-        "shape is therefore Nominatim's `jsonv2` format, not something Bluebird "
+        "shape is therefore Nominatim's `jsonv2` format, not something Bluebird Forecast "
         "defines, and each row carries `lat`, `lon`, `display_name`, and "
         "`extratags` (which is where a summit's `ele` lives).\n\n"
         "This exists because Nominatim's usage policy asks callers to identify "

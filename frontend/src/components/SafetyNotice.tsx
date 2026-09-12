@@ -6,7 +6,7 @@ import { LINK } from '../styles'
 //
 // Shared because the welcome dialog is exactly the wrong place for it to live
 // alone: it is dismissed once and remembered forever, so the people with the
-// most Bluebird trips behind them are the ones least likely to have seen this
+// most Bluebird Forecast trips behind them are the ones least likely to have seen this
 // recently. The public page repeats it where a link can reach it.
 //
 // Returns a fragment so each caller supplies its own paragraph and PROSE role.
@@ -14,7 +14,7 @@ import { LINK } from '../styles'
 export default function SafetyNotice() {
   return (
     <>
-      Bluebird is a planning aid, not a safety tool. Forecasts are automated estimates.
+      Bluebird Forecast is a planning aid, not a safety tool. Forecasts are automated estimates.
       Verify conditions with official sources such as{' '}
       <a
         href="https://www.weather.gov"

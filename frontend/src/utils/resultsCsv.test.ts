@@ -349,8 +349,8 @@ describe('the supplier credits', () => {
 
 describe('csvFilename', () => {
   it('stamps local wall-clock time, zero padded and sortable', () => {
-    expect(csvFilename(new Date(2026, 6, 30, 14, 32))).toBe('bluebird-results-2026-07-30-1432.csv')
-    expect(csvFilename(new Date(2026, 0, 5, 9, 4))).toBe('bluebird-results-2026-01-05-0904.csv')
+    expect(csvFilename(new Date(2026, 6, 30, 14, 32))).toBe('bluebird-forecast-results-2026-07-30-1432.csv')
+    expect(csvFilename(new Date(2026, 0, 5, 9, 4))).toBe('bluebird-forecast-results-2026-01-05-0904.csv')
   })
 })
 

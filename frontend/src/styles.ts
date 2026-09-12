@@ -1,7 +1,7 @@
 /**
  * One type ramp, at two densities.
  *
- * Bluebird has two kinds of surface. The working chrome — control panel,
+ * Bluebird Forecast has two kinds of surface. The working chrome — control panel,
  * results table, map legends, chart — is dense: you scan it while doing
  * something else. The reading surfaces — the welcome and privacy dialogs, and
  * the analysis overlay card — are wide, and you read them once, carefully.
@@ -162,7 +162,7 @@ export const RADIUS = {
  * SC 2.5.8 *Target Size (Minimum)* is the AA bar at 24x24 CSS px, with an
  * exception where spacing does the work. SC 2.5.5 *Target Size (Enhanced)* is
  * AAA at 44x44, which is also Apple's 44pt and the nearest web equivalent of
- * Material's 48dp. Bluebird takes the 44, and takes it where a control stands
+ * Material's 48dp. Bluebird Forecast takes the 44, and takes it where a control stands
  * in its own space: the control panel, the calendar, the map chrome.
  *
  * It does **not** reach into the results panel — not the table's rows, not the

@@ -1,5 +1,5 @@
 /**
- * How to reach a human about Bluebird, in one place.
+ * How to reach a human about Bluebird Forecast, in one place.
  *
  * The address is a Cloudflare Email Routing alias on the site's own domain
  * rather than a personal mailbox. It can be re-pointed without editing a page

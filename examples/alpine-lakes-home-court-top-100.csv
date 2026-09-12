@@ -1,6 +1,6 @@
 # Alpine Lakes "Home Court" Top 100 — ordered highest to lowest.
 # Source: peakbagger.com list 21307. Coordinates (WGS84 decimal degrees, 6 places)
-# from each peak page; Bluebird resolves elevation itself from OpenStreetMap.
+# from each peak page; Bluebird Forecast resolves elevation itself from OpenStreetMap.
 # Paste the rows below into the "Custom (CSV)" destination type. Format: Latitude, Longitude, Name
 47.565031, -121.180891, 1. Mount Daniel
 47.507122, -121.290115, 2. Chimney Rock

@@ -1,6 +1,6 @@
 # Smoot's "Climbing Washington's Mountains" 100 Peaks — ordered highest to lowest.
 # Source: peakbagger.com list 5005. Coordinates (WGS84 decimal degrees, 6 places)
-# from each peak page; Bluebird resolves elevation itself from OpenStreetMap.
+# from each peak page; Bluebird Forecast resolves elevation itself from OpenStreetMap.
 # Paste the rows below into the "Custom (CSV)" destination type. Format: Latitude, Longitude, Name
 46.851731, -121.760395, 1. Mount Rainier
 46.202494, -121.490746, 2. Mount Adams

@@ -15,7 +15,7 @@ assignees: ''
 ## Repro steps
 
 <!-- Numbered steps. IMPORTANT: after reproducing, paste the app URL from your
-address bar. Bluebird serializes the whole analysis state into the URL
+address bar. Bluebird Forecast serializes the whole analysis state into the URL
 (polygon, forecast window, custom CSV, ranking, options), so that one link
 usually reproduces your exact report. -->
 

@@ -41,7 +41,7 @@ from fastapi import HTTPException, Request
 
 from app import telemetry
 
-log = logging.getLogger("bluebird.ratelimit")
+log = logging.getLogger("bluebird_forecast.ratelimit")
 
 
 def _env_int(name: str, default: int) -> int:
@@ -293,7 +293,7 @@ class BudgetExhausted(Exception):
     def __init__(self, provider: str, retry_after_s: int = SHED_RETRY_AFTER_S):
         self.provider = provider
         self.retry_after_s = retry_after_s
-        self.message = "Bluebird is at capacity. Try again later."
+        self.message = "Bluebird Forecast is busy. Try again later."
         super().__init__(self.message)
 
 

@@ -296,7 +296,7 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
         // Best-effort, like every overlay: whatever painted stays, and one line
         // in the console. There is no on-screen failure state because there is
         // no claim to withdraw — an ungridded map is the map.
-        console.warn('[bluebird] forecast grid fetch failed', err)
+        console.warn('[bluebird-forecast] forecast grid fetch failed', err)
         // Only when nothing painted. A chunk that lands and then a later one
         // that fails still leaves a field on the map, and calling that
         // unavailable would contradict what the reader can see.

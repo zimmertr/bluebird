@@ -81,7 +81,7 @@ OVERPASS_MIRRORS = [
         ),
     ),
 ]
-HEADERS = {"User-Agent": "Bluebird/1.0 (bluebirdforecast.com; personal weather tool)"}
+HEADERS = {"User-Agent": "BluebirdForecast/1.0 (bluebirdforecast.com; personal weather tool)"}
 
 # The Overpass clauses each destination type contributes, as *fragments*
 # rather than whole queries, because an analysis can now ask for several types

@@ -1,6 +1,6 @@
 # Limits
 
-Bluebird caps four things: the area of a search polygon, how many destinations
+Bluebird Forecast caps four things: the area of a search polygon, how many destinations
 one analysis may forecast, how many rows a response returns, and how fast a
 single client may ask. Every one of those numbers is published as JSON by
 `GET /api/capabilities`, read from the same constants the validators enforce,
@@ -72,8 +72,8 @@ is and whether waiting helps:
 | `502` | An upstream failed outright. Every Overpass mirror was unreachable, or the weather service did not answer. Transient, worth retrying. |
 | `503` | This instance stayed at capacity long enough that it shed the request instead of queueing it forever. From `GET /api/wildfires` and `GET /api/smoke` it means something narrower: this instance has never once fetched that dataset successfully, so it has nothing to serve, not even stale. Transient either way, and carries `Retry-After`. |
 
-A load problem is never answered with a `500`, and Bluebird itself never
+A load problem is never answered with a `500`, and Bluebird Forecast itself never
 returns a `504`. An upstream that times out on us surfaces as a `502`, since
 the timeout was theirs. A gateway timeout you do see came from something in
-front of Bluebird giving up on a slow analysis, which is the case
+front of Bluebird Forecast giving up on a slow analysis, which is the case
 `POST /api/analyze/stream` exists to avoid.

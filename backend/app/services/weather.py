@@ -55,7 +55,7 @@ MAX_CONCURRENT_BATCHES = 4
 # standard atmosphere, fixed rather than fetched: real geopotential heights
 # move a few percent with weather, and fetching them would double the
 # variable count for a correction smaller than the model's own grid error.
-# All eight models Bluebird offers answered all five levels (probed
+# All eight models Bluebird Forecast offers answered all five levels (probed
 # 2026-08-21).
 _WIND_LEVELS: list[tuple[str, float]] = [
     ("wind_speed_925hPa", 762.0),

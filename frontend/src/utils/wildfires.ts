@@ -1,11 +1,11 @@
-// Active US wildfire perimeters, read from Bluebird's own `GET /api/wildfires`
+// Active US wildfire perimeters, read from Bluebird Forecast's own `GET /api/wildfires`
 // rather than from NIFC directly.
 //
 // The browser used to query NIFC's ArcGIS feature service itself, which was
 // tempting because that service is free, keyless, and CORS-open. The catch is
 // that its quota belongs to NIFC's ArcGIS *organization* and is shared by every
 // consumer of the public WFIGS dataset, so it empties and refills on traffic
-// Bluebird has no part in. Fetches failed at random, which is what the
+// Bluebird Forecast has no part in. Fetches failed at random, which is what the
 // "Wildfire check unavailable" label was reporting (issue #203). The backend now
 // holds one national snapshot and serves it to everyone, so a refusal upstream
 // no longer reaches a visitor.
@@ -163,7 +163,7 @@ export function formatContainment(pct: number | null | undefined): string {
  * Epoch-ms → localized "Last updated: <date>, <time>", or null to omit it.
  *
  * This is NIFC's own timestamp for when the incident's perimeter was last
- * redrawn: a fact about the fire, not about Bluebird. Measured across one
+ * redrawn: a fact about the fire, not about Bluebird Forecast. Measured across one
  * national snapshot it ranged from minutes to two weeks old. It sits inside a
  * popup titled with the incident and credited to NIFC, which is what makes
  * "Last updated" read as the fire's date rather than the app's.

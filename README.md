@@ -11,11 +11,11 @@
 
 It's Friday evening. Rain is moving in from the west, smoke is drifting from the east, and strong winds are building to the south. You want to get outside this weekend, but where should you go?
 
-Bluebird helps you find out. Search for destinations, provide a list of coordinates, or draw a polygon and discover the best peaks, trails, lakes, and other destinations for your next adventure. Bluebird analyzes upcoming weather and ranks destinations by precipitation, wind, temperature, and air quality so you can quickly find the best objective.
+Bluebird Forecast helps you find out. Search for destinations, provide a list of coordinates, or draw a polygon and discover the best peaks, trails, lakes, and other destinations for your next adventure. Bluebird Forecast analyzes upcoming weather and ranks destinations by precipitation, wind, temperature, and air quality so you can quickly find the best objective.
 
 Ready to find your Bluebird day? https://bluebirdforecast.com
 
-![Bluebird analyzing peaks in the North Cascades](docs/images/screenshot.jpg)
+![Bluebird Forecast analyzing peaks in the North Cascades](docs/images/screenshot.jpg)
 
 <hr>
 
@@ -69,14 +69,14 @@ Email **hello@bluebirdforecast.com** about anything: a summit at the wrong eleva
 
 If you can describe how to reproduce something, the [issue board](https://github.com/zimmertr/bluebird/issues) is the better channel. Security vulnerabilities go through [GitHub's private advisory form](https://github.com/zimmertr/bluebird/security/advisories/new) rather than a public issue, as described in [SECURITY.md](SECURITY.md).
 
-Two public pages carry the rest: [privacy](https://bluebirdforecast.com/privacy) for what Bluebird does with your data and which providers your requests reach, and [terms](https://bluebirdforecast.com/terms) for the license, the warranty disclaimer, and the licenses covering the data.
+Two public pages carry the rest: [privacy](https://bluebirdforecast.com/privacy) for what Bluebird Forecast does with your data and which providers your requests reach, and [terms](https://bluebirdforecast.com/terms) for the license, the warranty disclaimer, and the licenses covering the data.
 
 <hr>
 
 ## License
 
-Copyright (c) 2026 TJ Zimmerman. Bluebird is source-available: the code is public, but it is not open source software.
+Copyright (c) 2026 TJ Zimmerman. Bluebird Forecast is source-available: the code is public, but it is not open source software.
 
-Bluebird is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may use, modify, self-host, and share it for any noncommercial purpose. Commercial use of any kind requires a separate license: contact [hello@bluebirdforecast.com](mailto:hello@bluebirdforecast.com). It comes with no warranty; see [LICENSE](LICENSE) for the full terms.
+Bluebird Forecast is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may use, modify, self-host, and share it for any noncommercial purpose. Commercial use of any kind requires a separate license: contact [hello@bluebirdforecast.com](mailto:hello@bluebirdforecast.com). It comes with no warranty; see [LICENSE](LICENSE) for the full terms.
 
-The data providers and bundled software Bluebird is built on are credited in [NOTICES.md](NOTICES.md).
+The data providers and bundled software Bluebird Forecast is built on are credited in [NOTICES.md](NOTICES.md).
