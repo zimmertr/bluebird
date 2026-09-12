@@ -45,8 +45,10 @@ cd frontend && npx tsc --noEmit
 docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine \
   sh -c "npm ci && npm test"
 
-# Backend unit tests (pytest)
-docker run --rm -v "$PWD/backend":/app -w /app python:3.14-slim \
+# Backend unit tests (pytest). The whole repository is mounted, not backend/
+# alone: one test reads frontend/src to check the CSP allowlist against the
+# hosts the browser actually fetches, and it skips where it cannot see them.
+docker run --rm -v "$PWD":/repo -w /repo/backend python:3.14-slim \
   sh -c "pip install -r requirements-dev.txt && pytest"
 
 # Backend lint
