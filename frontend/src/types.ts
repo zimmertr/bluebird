@@ -90,6 +90,24 @@ export interface AnalyzeRequest {
   top_by_elevation?: boolean
 }
 
+// The body POST /api/destinations takes: the discovery half of an analysis,
+// with nothing about forecasts on it.
+//
+// Spelled out rather than derived from AnalyzeRequest, and posted as a typed
+// value rather than a bare object literal, because an unannotated literal is
+// where a discovery knob goes missing without a word from the typecheck: a
+// field absent from an untyped body is not a type error anywhere. api-compat.ts
+// then binds this to the route's own schema.
+export interface DestinationsRequest {
+  polygon?: GeoPolygon | null
+  destination_types: DiscoveryType[]
+  include_unnamed_peaks?: boolean
+  min_elevation_ft?: number | null
+  max_elevation_ft?: number | null
+  top_by_elevation?: boolean
+  custom_destinations?: CustomDestination[]
+}
+
 // Per-hour values over the analyzed window, aligned index-for-index to
 // AnalyzeResponse.times. Nulls are gaps (a value missing at that hour, e.g. AQI
 // past its ~5-day horizon) and render as breaks in the chart line.
@@ -144,7 +162,7 @@ export interface AnalyzeResponse {
   // before the limit cut. Equal to total_queried when no bound was set, so the
   // footer can say "N of M matching" without knowing whether anything filtered.
   total_matched: number
-  error?: string
+  error?: string | null
   // Shared hourly grid for every row's `series`, epoch milliseconds (UTC),
   // rendered in the viewer's local time.
   times?: number[]

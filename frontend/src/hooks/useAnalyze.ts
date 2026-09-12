@@ -3,6 +3,7 @@ import {
   AnalyzeRequest,
   AnalyzeResponse,
   DestinationResult,
+  DestinationsRequest,
   DestinationsResponse,
   DiscoveredDestination,
   RefusalFields,
@@ -296,24 +297,25 @@ export function useAnalyze(
     }
     const customList = request.custom_destinations ?? []
     if (request.polygon) {
+      const discoveryRequest: DestinationsRequest = {
+        polygon: request.polygon,
+        destination_types: request.destination_types,
+        // The client path is the only one (#240), so a discovery knob
+        // missing here is a knob that does nothing at all.
+        include_unnamed_peaks: request.include_unnamed_peaks ?? false,
+        min_elevation_ft: request.min_elevation_ft,
+        max_elevation_ft: request.max_elevation_ft,
+        top_by_elevation: request.top_by_elevation ?? false,
+        // The user's own list rides along with whatever discovery found —
+        // the union proceeds even when the polygon itself found nothing.
+        // The server owns this merge now, because resolving those rows and
+        // then merging them are the same trip.
+        ...(customList.length ? { custom_destinations: customList } : {}),
+      }
       const res = await fetch('/api/destinations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          polygon: request.polygon,
-          destination_types: request.destination_types,
-          // The client path is the only one (#240), so a discovery knob
-          // missing here is a knob that does nothing at all.
-          include_unnamed_peaks: request.include_unnamed_peaks ?? false,
-          min_elevation_ft: request.min_elevation_ft,
-          max_elevation_ft: request.max_elevation_ft,
-          top_by_elevation: request.top_by_elevation ?? false,
-          // The user's own list rides along with whatever discovery found —
-          // the union proceeds even when the polygon itself found nothing.
-          // The server owns this merge now, because resolving those rows and
-          // then merging them are the same trip.
-          ...(customList.length ? { custom_destinations: customList } : {}),
-        }),
+        body: JSON.stringify(discoveryRequest),
         signal,
       })
       if (!res.ok) {

@@ -31,6 +31,14 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
         working-directory: frontend
+      # src/api-schema.d.ts is generated from the committed OpenAPI snapshot,
+      # and src/api-compat.ts asserts the hand-written wire types against it.
+      # This fails the PR when the two disagree, which means someone changed a
+      # route or a model without running `npm run generate:api`. It runs before
+      # the typecheck because a stale schema fails that with assertion errors
+      # that do not say what is actually out of date.
+      - run: npm run check:api
+        working-directory: frontend
       - run: npx tsc --noEmit
         working-directory: frontend
       - run: npm test

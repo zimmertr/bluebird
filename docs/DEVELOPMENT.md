@@ -45,6 +45,12 @@ cd frontend && npx tsc --noEmit
 docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine \
   sh -c "npm ci && npm test"
 
+# Frontend API types still match the committed OpenAPI snapshot
+# (`npm run generate:api` rewrites them instead of checking them).
+# Mounts the repo root, because the generator reads ../backend/openapi.json.
+docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
+  sh -c "npm run check:api"
+
 # Backend unit tests (pytest)
 docker run --rm -v "$PWD/backend":/app -w /app python:3.14-slim \
   sh -c "pip install -r requirements-dev.txt && pytest"
@@ -56,7 +62,9 @@ pip install ruff && ruff check backend/
 Two rules worth knowing before you send a change: any behavior change ships with
 a matching test in the same PR, and any change to a route or Pydantic model
 regenerates the committed OpenAPI snapshot with
-`cd backend && python scripts/generate_openapi.py` (CI fails the PR otherwise).
+`cd backend && python scripts/generate_openapi.py`, then the frontend types read
+off it with `cd frontend && npm run generate:api` (CI fails the PR otherwise, on
+both counts).
 
 ## Testing the browser path without spending quota
 

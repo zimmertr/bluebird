@@ -8,7 +8,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "generate:api": "npx --yes openapi-typescript@7.13.0 ../backend/openapi.json -o src/api-schema.d.ts --default-non-nullable false",
+    "check:api": "npm run generate:api -- --check"
   },
   "dependencies": {
     "lz-string": "^1.5.0",

@@ -15,6 +15,7 @@ import {
   AnalyzeResponse,
   CustomDestination,
   DestinationResult,
+  DestinationsRequest,
   DestinationsResponse,
   DiscoveredDestination,
   HourlySeries,
@@ -263,14 +264,15 @@ export async function resolveCustomOnly(
   // server at all, exactly as it did before this call existed. The server
   // makes the same check; this one keeps the round trip itself from happening.
   if (!rows.length || rows.every((r) => r.elevation_ft != null)) return rows
+  const resolveRequest: DestinationsRequest = {
+    destination_types: [],
+    custom_destinations: [...custom],
+  }
   try {
     const res = await fetch('/api/destinations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        destination_types: [],
-        custom_destinations: custom,
-      }),
+      body: JSON.stringify(resolveRequest),
       signal,
     })
     if (!res.ok) return rows
