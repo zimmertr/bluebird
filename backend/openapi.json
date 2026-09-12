@@ -412,6 +412,11 @@
       "CapabilitiesResponse": {
         "description": "What this deployment can do, and the bounds it enforces.",
         "properties": {
+          "api_key_header": {
+            "description": "The request header that carries an Open-Meteo API key on the analyze routes. The public deployment requires it there and forwards the key to Open-Meteo, so the request spends the caller's quota.",
+            "title": "Api Key Header",
+            "type": "string"
+          },
           "data_sources": {
             "items": {
               "$ref": "#/components/schemas/DataSource"
@@ -451,6 +456,7 @@
           "destination_types",
           "sort_keys",
           "forecast_models",
+          "api_key_header",
           "limits",
           "data_sources"
         ],
@@ -1433,6 +1439,14 @@
         "title": "WildfireCollection",
         "type": "object"
       }
+    },
+    "securitySchemes": {
+      "APIKeyHeader": {
+        "description": "An Open-Meteo API key. The public deployment requires it on the analyze routes, and the request spends this key's quota.",
+        "in": "header",
+        "name": "X-Open-Meteo-Key",
+        "type": "apiKey"
+      }
     }
   },
   "info": {
@@ -1440,7 +1454,7 @@
       "name": "Bluebird Forecast on GitHub",
       "url": "https://github.com/zimmertr/bluebird"
     },
-    "description": "\nBluebird Forecast ranks outdoor destinations by their forecast weather.\n\nDraw a polygon and every named peak, trailhead, or lake inside it is discovered\nfrom OpenStreetMap, given a real hourly forecast, and ranked. Or skip discovery\nentirely and send your own coordinates.\n\nThere is no API key and no authentication. Light per-address rate limits and\nan instance-wide upstream budget protect the free, keyless APIs underneath:\nrequests past them receive 429 or 503 with a `Retry-After` header, and\n`GET /api/capabilities` publishes the numbers. Please stay considerate all the\nsame: a single analysis can fan out to hundreds of forecast requests.\n\nStart with `GET /api/capabilities` to learn the limits this deployment enforces,\nand `GET /api/version` to confirm which build you are talking to.\n",
+    "description": "\nBluebird Forecast ranks outdoor destinations by their forecast weather.\n\nDraw a polygon and every named peak, trailhead, or lake inside it is discovered\nfrom OpenStreetMap, given a real hourly forecast, and ranked. Or skip discovery\nentirely and send your own coordinates.\n\nThe analyze routes require an Open-Meteo API key in the X-Open-Meteo-Key\nheader. Every other route takes no key and no authentication. A keyed request\nspends the caller's Open-Meteo quota, never this deployment's.\n\nLight per-address rate limits and an instance-wide upstream budget protect the\nfree, keyless APIs underneath: requests past them receive 429 or 503 with a\n`Retry-After` header, and `GET /api/capabilities` publishes the numbers. Please\nstay considerate all the same: a single analysis can fan out to hundreds of\nforecast requests.\n\nStart with `GET /api/capabilities` to learn the limits this deployment enforces,\nand `GET /api/version` to confirm which build you are talking to.\n",
     "license": {
       "name": "PolyForm-Noncommercial-1.0.0",
       "url": "https://polyformproject.org/licenses/noncommercial/1.0.0"
@@ -1486,6 +1500,16 @@
             },
             "description": "The request parsed but does not describe a runnable analysis: the window is inverted, the destination type is not discoverable, `custom_destinations` is missing for a custom analysis, the elevation band excludes every candidate, or the candidate count exceeds the cap. Over-cap refusals carry the structured remedy fields (`found`, `limit`, and a computed elevation-floor suggestion when one exists); send `top_by_elevation: true` to elect an explicit top-N analysis instead."
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Open-Meteo rejected the API key."
+          },
           "422": {
             "content": {
               "application/json": {
@@ -1527,6 +1551,11 @@
             "description": "This instance's upstream budget is saturated: too many analyses already have calls in flight to the shared free APIs. Transient by nature; `Retry-After` says when a retry is worthwhile."
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Rank destinations by forecast weather",
         "tags": [
           "analysis"
@@ -1559,6 +1588,16 @@
             },
             "description": "An SSE stream. Ends with either a `result` or an `error` event."
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Open-Meteo rejected the API key."
+          },
           "422": {
             "content": {
               "application/json": {
@@ -1580,6 +1619,11 @@
             "description": "This client is analyzing faster than the per-address limit. `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit."
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Rank destinations, streaming progress as it goes",
         "tags": [
           "analysis"

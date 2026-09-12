@@ -74,9 +74,24 @@ def test_both_analyze_routes_declare_the_api_key_scheme(schema):
         "type": "apiKey",
         "in": "header",
         "name": API_KEY_HEADER,
+        "description": (
+            "An Open-Meteo API key. The public deployment requires it on the "
+            "analyze routes, and the request spends this key's quota."
+        ),
     }
     for path in ("/api/analyze", "/api/analyze/stream"):
         assert schema["paths"][path]["post"]["security"] == [{"APIKeyHeader": []}]
+
+
+def test_both_analyze_routes_declare_the_refused_key(schema):
+    # A generated client meeting a 401 has a model for it, and /docs names the
+    # cause. Both routes declare it, so the pair reads the same.
+    for path in ("/api/analyze", "/api/analyze/stream"):
+        response = schema["paths"][path]["post"]["responses"]["401"]
+        assert response["description"] == "Open-Meteo rejected the API key."
+        assert response["content"]["application/json"]["schema"]["$ref"].endswith(
+            "ErrorResponse"
+        )
 
 
 def test_no_other_route_asks_for_the_key(schema):

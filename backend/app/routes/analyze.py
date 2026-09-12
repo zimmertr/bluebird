@@ -40,7 +40,14 @@ API_KEY_HEADER = "X-Open-Meteo-Key"
 # is the deployment's own to spend. `auto_error=False` is what leaves those
 # alone while still declaring the scheme on both routes in the OpenAPI
 # document.
-open_meteo_key = APIKeyHeader(name=API_KEY_HEADER, auto_error=False)
+open_meteo_key = APIKeyHeader(
+    name=API_KEY_HEADER,
+    auto_error=False,
+    description=(
+        "An Open-Meteo API key. The public deployment requires it on the "
+        "analyze routes, and the request spends this key's quota."
+    ),
+)
 
 
 def _filter_elevation(destinations, min_ft, max_ft):
@@ -517,6 +524,10 @@ def _assemble(
     ),
     dependencies=[Depends(ratelimit.analyze_rate_limit)],
     responses={
+        401: {
+            "model": ErrorResponse,
+            "description": "Open-Meteo rejected the API key.",
+        },
         429: {
             "model": ErrorResponse,
             "description": (
@@ -820,6 +831,10 @@ async def analyze_stream(
     ),
     dependencies=[Depends(ratelimit.analyze_rate_limit)],
     responses={
+        401: {
+            "model": ErrorResponse,
+            "description": "Open-Meteo rejected the API key.",
+        },
         429: {
             "model": ErrorResponse,
             "description": (
