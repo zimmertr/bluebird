@@ -1391,7 +1391,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
         // ── Pending custom destinations ────────────────────────────────
         // A pasted CSV row or searched place not yet in the displayed analysis:
-        // a neutral bluebird-blue dot so the point never vanishes, no forecast
+        // a neutral bluebird-forecast-blue dot so the point never vanishes, no forecast
         // popup yet. Absent from the blocked-click list on purpose — a pending
         // dot must never swallow a polygon click while you draw around a
         // just-added spot; it starts blocking (opening a popup) once it ranks in.

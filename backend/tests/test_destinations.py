@@ -114,7 +114,7 @@ def test_budget_exhaustion_maps_to_503_with_retry_after(monkeypatch):
     resp = client.post("/api/destinations", json=_payload())
     assert resp.status_code == 503
     assert resp.headers["retry-after"] == str(ratelimit.SHED_RETRY_AFTER_S)
-    assert "capacity" in resp.json()["detail"]
+    assert "busy" in resp.json()["detail"]
 
 
 def test_has_its_own_rate_limit_bucket(monkeypatch):
