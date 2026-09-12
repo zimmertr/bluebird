@@ -107,6 +107,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `TAP.grip` | Full-width drag handle: 24px height (AA floor, not 44) |
 | `CONTROL_W` | Single stacked panel control width: 144px (w-36) |
 | `BOUNDS_GRID` | Forecast bounds grid layout with label + two boxes |
+| `BUTTON_ROW` | Row of inline actions with no label: Done + Clear, Load + Rename + Delete |
 
 **Map timeline**
 
@@ -220,6 +221,8 @@ Every stacked panel control composes `CONTROL_W = 'w-36'` = 144px.
 The bounds grid (two bounds boxes + label) derives from this: two boxes at 4.25rem (68px) each plus a 0.5rem (8px) gap = 144px total.
 
 **Arithmetic:** `4.25 + 4.25 + 0.5 = 9`, and `9 × 16px / 4 = 144px` (Tailwind's scale is quarter-rem). Checked in `styles.test.ts`.
+
+A control too wide to sit inline keeps its own block instead: the coordinates textarea, the calendar, and the saved-search list, whose value is a name the user wrote. A row of buttons with no label is the other exception, and wears `BUTTON_ROW` so the panel's two of them cannot drift apart.
 
 ## Tailwind v4 facts
 

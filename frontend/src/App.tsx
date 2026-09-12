@@ -51,11 +51,10 @@ import {
   TAP,
   TEXT,
 } from './styles'
-import { DEFAULT_FAMILY_KEY, MetricFamily, NOUN, familyOf, rankedNoun } from './metrics'
+import { MetricFamily, NOUN, familyOf, rankedNoun } from './metrics'
 import { hourlyScale, rankedScale } from './utils/colors'
 import {
   FALLBACK_PITCH_KM,
-  GRID_REACH_DEFAULT_FRAC,
   gridLegendLine,
   pitchLabel,
   reachKmFor,
@@ -87,22 +86,31 @@ import {
   refreshEchoRows,
 } from './utils/clientAnalyze'
 import { parseCustomCsv } from './utils/customDestinations'
+import {
+  SaveOutcome,
+  SavedSearch,
+  deleteSearch,
+  listSaved,
+  loadSearch,
+  renameSearch,
+  saveSearch,
+} from './utils/savedSearches'
 import { buildCustomList, pendingDestinations, pinKey } from './utils/customList'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
 import { composeOverlay } from './utils/analyzeOverlay'
 import { Place, isPeakKind } from './utils/geocode'
 import {
-  DEFAULT_LIMIT,
+  ShareableState,
   encodeState,
   decodeState,
   classifyWindow,
   clampLimit,
+  resolveState,
 } from './utils/urlState'
 import { UrlWriter, debounceUrlWrite, urlNeedsSync } from './utils/urlSync'
 import {
   DAY_END,
   DAY_START,
-  DEFAULT_SELECTION,
   ForecastSelection,
   clampSelection,
   dayKey,
@@ -255,6 +263,30 @@ export default function App() {
   const restoredRef = useRef(decodeState(window.location.search))
   const restored = restoredRef.current
 
+  // The link filled out into the complete set of inputs. `resolveState` owns
+  // every default, so the initializers below read a value rather than each
+  // spelling a fallback — and loading a saved search, which is the same act
+  // performed after mount, goes through the same function (#124).
+  //
+  // Computed once, like the decode above it: `caps` here is still the compiled
+  // fallback, and the two effects below adopt the deployment's real limit and
+  // model default when they land.
+  const initialRef = useRef<ShareableState | null>(null)
+  if (initialRef.current === null) {
+    initialRef.current = resolveState(restored, {
+      maxLimit: caps.maxLimit,
+      defaultForecastModel: caps.defaultForecastModel,
+    })
+  }
+  const initial = initialRef.current
+
+  // A ring's point count is its vertices without the repeated closing one.
+  // Spelled here because both restore paths need it and the map is not
+  // mounted yet on the first of them.
+  function ringPointCount(ring: GeoPolygon | null): number {
+    return Math.max(0, (ring?.coordinates[0]?.length ?? 1) - 1)
+  }
+
   // Custom CSV points restored from the URL, parsed once — MapView frames them
   // on load instead of geolocating, mirroring the restored-polygon behavior.
   const restoredCustomPoints = useMemo(
@@ -262,7 +294,7 @@ export default function App() {
     [restored],
   )
 
-  const [polygon, setPolygon] = useState<GeoPolygon | null>(() => restored?.polygon ?? null)
+  const [polygon, setPolygon] = useState<GeoPolygon | null>(() => initial.polygon)
   // Draw mode (#118). The map used to be permanently in it, which is why a
   // pan could move a vertex and why a click could only ever mean "polygon
   // corner". Every session — including one restored from a link with a ring
@@ -272,32 +304,26 @@ export default function App() {
   const [drawing, setDrawing] = useState(false)
   // A restored polygon seeds the count so Analyze unlocks before the map loads
   // (MapView re-emits the authoritative count+area once its points hydrate).
-  const [drawPointCount, setDrawPointCount] = useState(
-    () => Math.max(0, (restored?.polygon?.coordinates[0]?.length ?? 1) - 1),
-  )
+  const [drawPointCount, setDrawPointCount] = useState(() => ringPointCount(initial.polygon))
   const [polygonAreaKm2, setPolygonAreaKm2] = useState<number | null>(null)
   // Which kinds the polygon looks for, as a set — several are found in one
   // Overpass query. Nothing is checked by default: discovery is the input
   // that needs a polygon and costs an upstream query, so a fresh session
   // asks for none of it until the user says so.
   const [destinationTypes, setDestinationTypes] = useState<DiscoveryType[]>(
-    () => restored?.destinationTypes ?? [],
+    () => initial.destinationTypes,
   )
   // What Analyze asks about: the current hour, or days off the calendar (#166).
   // One value where there used to be four — a mode plus three sets of
   // timestamps, two of them always dormant. Defaults to the current hour: the
   // first question most people arrive with is "where is it clear right now", and
   // it needs no date input, so a fresh load can Analyze without touching Step 2.
-  const [selection, setSelection] = useState<ForecastSelection>(
-    () => restored?.selection ?? DEFAULT_SELECTION,
-  )
+  const [selection, setSelection] = useState<ForecastSelection>(() => initial.selection)
   // 200 rather than 100 because the pasted lists people bring are themselves
   // often 100 long (peakbagger exports, the examples/ CSVs). At 100 a list plus
   // anything else — one searched peak, a polygon — spills over the cut on its
   // first analysis, which is what made #205 visible.
-  const [limit, setLimit] = useState(() =>
-    clampLimit(restored?.limit ?? DEFAULT_LIMIT, caps.maxLimit),
-  )
+  const [limit, setLimit] = useState(() => initial.limit)
   // The initializer above clamps against the compiled fallback, because at
   // first render that is all useCapabilities has. Re-clamp once the real
   // ceiling lands so a deployment that publishes a lower one is honored on a
@@ -312,9 +338,7 @@ export default function App() {
   // around — the blend never reported which model it picked, so there is no
   // honest way to reproduce those numbers. The named default is the closest
   // thing to a continuation: `best_match` resolved to GFS at Rainier.
-  const [forecastModel, setForecastModel] = useState(
-    () => restored?.forecastModel ?? caps.defaultForecastModel,
-  )
+  const [forecastModel, setForecastModel] = useState(() => initial.forecastModel)
   // Same shape as the limit re-clamp above: the initializer runs against the
   // compiled fallback, so adopt the real default once capabilities land — but
   // only when the link named nothing and the user has not chosen, or this would
@@ -378,53 +402,49 @@ export default function App() {
     setSelection(next)
   }
 
-  const [customCsv, setCustomCsv] = useState(() => restored?.customCsv ?? '')
+  const [customCsv, setCustomCsv] = useState(() => initial.customCsv)
   // Parsed once per edit and shared by the pending markers and the Analyze
   // request, so what the map shows and what gets ranked can't drift apart.
   const csvRows = useMemo(() => parseCustomCsv(customCsv), [customCsv])
-  const [sortBy, setSortByRaw] = useState<SortBy>(() => restored?.sortBy ?? 'precip_total_in')
-  const [sortDesc, setSortDesc] = useState(() => restored?.sortDesc ?? false)
+  const [sortBy, setSortByRaw] = useState<SortBy>(() => initial.sortBy)
+  const [sortDesc, setSortDesc] = useState(() => initial.sortDesc)
   // What each metric row's aggregate dropdown holds (#291), the active row's
   // entry always equal to sortBy. One state for the four rows because a
   // dropdown choice IS a ranking choice — picking an aggregate activates its
   // row, the same one-click contract the direction toggle has always kept —
   // so the two could only ever disagree by a missed update.
-  const [rowKeys, setRowKeys] = useState<Record<MetricFamily, SortBy>>(
-    () => restored?.rowKeys ?? { ...DEFAULT_FAMILY_KEY },
-  )
+  const [rowKeys, setRowKeys] = useState<Record<MetricFamily, SortBy>>(() => initial.rowKeys)
   const setSortBy = useCallback((key: SortBy) => {
     setSortByRaw(key)
     setRowKeys((rows) => (rows[familyOf(key)] === key ? rows : { ...rows, [familyOf(key)]: key }))
   }, [])
   const [minElevationFt, setMinElevationFt] = useState<number | null>(
-    () => restored?.minElevationFt ?? null,
+    () => initial.minElevationFt,
   )
   const [maxElevationFt, setMaxElevationFt] = useState<number | null>(
-    () => restored?.maxElevationFt ?? null,
+    () => initial.maxElevationFt,
   )
   // The forecast bounds (#115). Unlike the elevation band above, these cannot
   // gate a fetch — nothing knows a destination's precipitation before it has
   // been fetched — so they are pure presentation and every one of them applies
   // live, loosening as well as tightening.
-  const [constraints, setConstraints] = useState<Constraints>(
-    () => restored?.constraints ?? NO_CONSTRAINTS,
-  )
+  const [constraints, setConstraints] = useState<Constraints>(() => initial.constraints)
   // A live map overlay, not part of the analyze request, but persisted to the
   // URL so a shared link reproduces it. Defaults off; toggling queries NIFC for
   // the current viewport.
-  const [showWildfires, setShowWildfires] = useState(() => restored?.showWildfires ?? false)
+  const [showWildfires, setShowWildfires] = useState(() => initial.showWildfires)
   // The two overlays #121 adds, on the same contract: live, off by default,
   // persisted to the URL, and never an input to the ranking. Radar is raster
   // tiles the browser fetches straight from IEM; smoke is one national GeoJSON
   // from the pod.
-  const [showRadar, setShowRadar] = useState(() => restored?.showRadar ?? false)
-  const [showSmoke, setShowSmoke] = useState(() => restored?.showSmoke ?? false)
+  const [showRadar, setShowRadar] = useState(() => initial.showRadar)
+  const [showSmoke, setShowSmoke] = useState(() => initial.showSmoke)
   // The forecast grid (#246), on the same contract as the three above with one
   // difference worth naming: this toggle is a spend boundary. Turning it on is
   // what fetches a lattice of forecasts over the analyzed field, and leaving it
   // on is standing consent for the next analysis to do the same. It still
   // changes nothing about the ranking, so it never touches `commitNeeded`.
-  const [showGrid, setShowGrid] = useState(() => restored?.showGrid ?? false)
+  const [showGrid, setShowGrid] = useState(() => initial.showGrid)
   // The map's own Layers popover, closed on load. Not persisted: it is a
   // disclosure, not a setting, and a link that reopened it would be sharing a
   // gesture rather than a picture.
@@ -459,15 +479,13 @@ export default function App() {
   // that cannot overstate what was sampled, since one square is one forecast
   // and a reader can count them. Purely presentation over held samples, so
   // switching costs one re-render and nothing upstream.
-  const [gridStyle, setGridStyle] = useState<GridStyle>(() => restored?.gridStyle ?? 'blocks')
+  const [gridStyle, setGridStyle] = useState<GridStyle>(() => initial.gridStyle)
   // The coverage slider's committed BAR POSITION in [0, 1] — the kilometres
   // derive from the model's pitch, so the position means the same thing on
   // every model. Changing it re-grids on its own — the layer fetches for
   // itself the way toggling it on does — so this is an overlay property,
   // never a knob: commitNeeded does not know it exists.
-  const [gridReachFrac, setGridReachFrac] = useState<number>(
-    () => restored?.gridReachFrac ?? GRID_REACH_DEFAULT_FRAC,
-  )
+  const [gridReachFrac, setGridReachFrac] = useState<number>(() => initial.gridReachFrac)
   // The slider's live position while a drag is in flight, or null at rest.
   // Displaying the draft and committing on release is what keeps a drag from
   // refetching the lattice per pixel.
@@ -482,7 +500,7 @@ export default function App() {
   // 8x10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so
   // this roughly triples what an analysis costs and how often it refuses.
   const [includeUnnamedPeaks, setIncludeUnnamedPeaks] = useState(
-    () => restored?.includeUnnamedPeaks ?? false,
+    () => initial.includeUnnamedPeaks,
   )
   const [showResults, setShowResults] = useState(false)
   // The heights both panels open at, and the ones a double-click on either
@@ -816,19 +834,13 @@ export default function App() {
     return () => clearInterval(id)
   }, [overlay.visible])
 
-  // Live-sync all analysis inputs into the address bar so the URL is always
-  // copy-pasteable. replaceState (not pushState) keeps the back button clean;
-  // the map commits polygon edits only at discrete events (point add, drag
-  // end, insert, delete — never mid-drag), so this can't thrash replaceState
-  // past Safari's rate limit.
-  //
-  // A trailing debounce (~400ms) collapses bursts of edits (e.g. per-keystroke
-  // customCsv changes) into a single write. The no-op guard skips replaceState
-  // entirely when the URL is already current. On cleanup (unmount or re-run),
-  // any pending write is flushed so the last state reaches the URL before the
-  // component exits.
-  useEffect(() => {
-    const qs = encodeState({
+  // Every analysis input as one value, in the shape the URL and a saved search
+  // both store. One assembly rather than one per consumer: a field added to
+  // `ShareableState` reaches the address bar and the saved searches together,
+  // or neither, which is the same reason `resolveState` reads it back in one
+  // place (#124).
+  const shareable: ShareableState = useMemo(
+    () => ({
       polygon,
       destinationTypes,
       includeUnnamedPeaks,
@@ -849,7 +861,44 @@ export default function App() {
       gridStyle,
       gridReachFrac,
       pins: searched.places,
-    }, caps.defaultForecastModel)
+    }),
+    [
+      polygon,
+      destinationTypes,
+      includeUnnamedPeaks,
+      selection,
+      forecastModel,
+      sortBy,
+      sortDesc,
+      rowKeys,
+      minElevationFt,
+      maxElevationFt,
+      constraints,
+      limit,
+      customCsv,
+      showWildfires,
+      showRadar,
+      showSmoke,
+      showGrid,
+      gridStyle,
+      gridReachFrac,
+      searched.places,
+    ],
+  )
+
+  // Live-sync all analysis inputs into the address bar so the URL is always
+  // copy-pasteable. replaceState (not pushState) keeps the back button clean;
+  // the map commits polygon edits only at discrete events (point add, drag
+  // end, insert, delete — never mid-drag), so this can't thrash replaceState
+  // past Safari's rate limit.
+  //
+  // A trailing debounce (~400ms) collapses bursts of edits (e.g. per-keystroke
+  // customCsv changes) into a single write. The no-op guard skips replaceState
+  // entirely when the URL is already current. On cleanup (unmount or re-run),
+  // any pending write is flushed so the last state reaches the URL before the
+  // component exits.
+  useEffect(() => {
+    const qs = encodeState(shareable, caps.defaultForecastModel)
 
     // Nothing to write, and just as importantly, drop anything already queued.
     // An edit that lands back on the state the address bar already shows must
@@ -864,33 +913,85 @@ export default function App() {
     // No cleanup here on purpose: flushing once per effect run would write on
     // every keystroke and collapse nothing, which is the trap debounceUrlWrite
     // documents. Unmount is handled by its own effect below.
-  }, [
-    polygon,
-    destinationTypes,
-    includeUnnamedPeaks,
-    selection,
-    sortBy,
-    sortDesc,
-    rowKeys,
-    minElevationFt,
-    maxElevationFt,
-    constraints,
-    limit,
-    customCsv,
-    showWildfires,
-    showRadar,
-    showSmoke,
-    showGrid,
-    gridStyle,
-    gridReachFrac,
-    searched.places,
-    writeUrl,
-  ])
+  }, [shareable, caps.defaultForecastModel, writeUrl])
 
   // Unmount is the one moment a queued write cannot wait out its delay, so it
   // is the one moment worth flushing. Empty deps keep it to unmount only: the
   // sync effect above must not flush, or the debounce collapses nothing.
   useEffect(() => () => writeUrl.flush(), [writeUrl])
+
+  // ── Saved searches (#124) ────────────────────────────────────────────
+  // Named copies of the panel's inputs, held in this browser. The list is read
+  // once and then carried: every write returns the list it produced, so the
+  // panel never asks storage what it already knows.
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>(() =>
+    listSaved(localStorage),
+  )
+  // The browser refused the last write. A `name` refusal cannot reach here —
+  // the buttons that could ask for one are disabled while the field is empty —
+  // so the only outcome worth a sentence is the store being unwritable.
+  const [saveRefused, setSaveRefused] = useState(false)
+
+  function applyOutcome(outcome: SaveOutcome) {
+    if (outcome.ok) {
+      setSavedSearches(outcome.searches)
+      setSaveRefused(false)
+    } else if (outcome.reason === 'quota') {
+      setSaveRefused(true)
+    }
+  }
+
+  /**
+   * Put a saved search's inputs on the panel, which is exactly what opening
+   * its link does: the controls change and nothing else.
+   *
+   * Deliberately not an analysis. The `analyzed` snapshot, the ranked field
+   * behind it and the removals against it are all untouched, so the report on
+   * screen still says what it said — and because the inputs moved under it,
+   * `commitNeeded` starts naming the reasons it is now behind them. The user
+   * presses Analyze.
+   */
+  function applySavedInputs(saved: Partial<ShareableState>) {
+    const next = resolveState(saved, {
+      maxLimit: caps.maxLimit,
+      defaultForecastModel: caps.defaultForecastModel,
+    })
+    setPolygon(next.polygon)
+    setDrawPointCount(ringPointCount(next.polygon))
+    // A link's ring reaches the map through MapView's mount; one arriving
+    // after mount has to be handed over, which also re-frames the camera on it
+    // when it is off screen.
+    setDrawing(false)
+    mapRef.current?.loadPolygon(next.polygon)
+    setDestinationTypes(next.destinationTypes)
+    setIncludeUnnamedPeaks(next.includeUnnamedPeaks)
+    // Through the same function the calendar uses, so a window arriving here
+    // retires a model clamp's notice the way a hand-picked one does.
+    changeSelection(next.selection)
+    // The pick is now the save's, not the deployment default's: without this
+    // the capabilities effect would overwrite it a moment later.
+    untouchedModelRef.current = false
+    setForecastModel(next.forecastModel)
+    setSortByRaw(next.sortBy)
+    setSortDesc(next.sortDesc)
+    setRowKeys(next.rowKeys)
+    setMinElevationFt(next.minElevationFt)
+    setMaxElevationFt(next.maxElevationFt)
+    setConstraints(next.constraints)
+    setLimit(next.limit)
+    setCustomCsv(next.customCsv)
+    setShowWildfires(next.showWildfires)
+    setShowRadar(next.showRadar)
+    setShowSmoke(next.showSmoke)
+    setShowGrid(next.showGrid)
+    setGridStyle(next.gridStyle)
+    setGridReachFrac(next.gridReachFrac)
+    searched.restore(next.pins)
+    // With no ring to frame, the camera follows whatever the save does carry:
+    // a pasted list frames like one pasted by hand.
+    const points = parseCustomCsv(next.customCsv)
+    if (next.polygon === null && points.length > 0) mapRef.current?.fitToPoints(points)
+  }
 
   // Warn when the selection falls outside Open-Meteo's servable range, or its
   // narrowed hours run backwards. Blocks Analyze (in ControlPanel): Open-Meteo
@@ -1779,6 +1880,17 @@ export default function App() {
             setMaxElevationFt(null)
             setConstraints(NO_CONSTRAINTS)
           }}
+          savedSearches={savedSearches}
+          onSaveSearch={(name) =>
+            applyOutcome(saveSearch(localStorage, name, shareable, caps.defaultForecastModel))
+          }
+          onLoadSearch={(name) => {
+            const saved = loadSearch(localStorage, name)
+            if (saved) applySavedInputs(saved)
+          }}
+          onRenameSearch={(from, to) => applyOutcome(renameSearch(localStorage, from, to))}
+          onDeleteSearch={(name) => applyOutcome(deleteSearch(localStorage, name))}
+          saveRefused={saveRefused}
           includeUnnamedPeaks={includeUnnamedPeaks}
           setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}
           windowWarning={windowWarning}

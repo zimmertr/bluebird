@@ -18,6 +18,7 @@ import { GRID_REACH_DEFAULT_FRAC, isGridStyle, type GridStyle } from './forecast
 import {
   DAY_END,
   DAY_START,
+  DEFAULT_SELECTION,
   ForecastSelection,
   aqiHorizon,
   bandEnd,
@@ -569,6 +570,55 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   }
 
   return Object.keys(out).length > 0 ? out : null
+}
+
+/**
+ * Fill a decoded link out into the complete set of inputs.
+ *
+ * `decodeState` reports only what a link actually carried, which is the right
+ * answer for a link and the wrong one for a restore: every input needs a value,
+ * and the value of an absent one is the app's default. Both restore paths go
+ * through here — the mount that reads `location.search` and a saved search
+ * being loaded (#124) — so "what a link means" is answered once instead of
+ * once per path, and a field added to `ShareableState` cannot reach one of them
+ * and miss the other.
+ *
+ * The two deployment-published values are passed in rather than compiled, for
+ * the reason `encodeState` takes the model default: the running service owns
+ * them (issue #152).
+ */
+export function resolveState(
+  restored: Partial<ShareableState> | null,
+  deployment: { maxLimit: number; defaultForecastModel: string },
+): ShareableState {
+  const sortBy = restored?.sortBy ?? DEFAULT_SORT
+  // The active family's dropdown IS the ranking, so the row map is repaired
+  // against `sortBy` rather than trusted: a hand-edited link can carry the two
+  // disagreeing, and the panel would then show a ranking it is not applying.
+  const rowKeys = { ...DEFAULT_FAMILY_KEY, ...restored?.rowKeys }
+  rowKeys[familyOf(sortBy)] = sortBy
+  return {
+    polygon: restored?.polygon ?? null,
+    destinationTypes: restored?.destinationTypes ?? [...DEFAULT_TYPES],
+    includeUnnamedPeaks: restored?.includeUnnamedPeaks ?? false,
+    selection: restored?.selection ?? DEFAULT_SELECTION,
+    forecastModel: restored?.forecastModel ?? deployment.defaultForecastModel,
+    sortBy,
+    sortDesc: restored?.sortDesc ?? false,
+    rowKeys,
+    minElevationFt: restored?.minElevationFt ?? null,
+    maxElevationFt: restored?.maxElevationFt ?? null,
+    constraints: restored?.constraints ?? NO_CONSTRAINTS,
+    limit: clampLimit(restored?.limit ?? DEFAULT_LIMIT, deployment.maxLimit),
+    customCsv: restored?.customCsv ?? '',
+    showWildfires: restored?.showWildfires ?? false,
+    showRadar: restored?.showRadar ?? false,
+    showSmoke: restored?.showSmoke ?? false,
+    showGrid: restored?.showGrid ?? false,
+    gridStyle: restored?.gridStyle ?? 'blocks',
+    gridReachFrac: restored?.gridReachFrac ?? GRID_REACH_DEFAULT_FRAC,
+    pins: restored?.pins ?? [],
+  }
 }
 
 /**

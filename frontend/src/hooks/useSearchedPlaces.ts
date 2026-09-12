@@ -24,9 +24,13 @@ export function useSearchedPlaces() {
     setPlaces((prev) => prev.filter((p) => pinKey(p.lat, p.lon) !== key))
   }
 
-  // Seed places restored from the URL at load.
+  // The pins a restored state carries, replacing whatever is held. It takes
+  // the list whole rather than adding to it, because a saved search being
+  // loaded (#124) has to be able to leave the map with no pins — a restore
+  // that could only ever add would carry the previous session's places into
+  // the one being opened.
   function restore(restored: Place[]) {
-    if (restored.length > 0) setPlaces(restored)
+    setPlaces(restored)
   }
 
   return { places, addPlace, removePlace, restore }

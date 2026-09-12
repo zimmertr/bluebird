@@ -664,6 +664,19 @@ export const SEGMENT_FLUID = `inline-flex ${RADIUS.control} overflow-hidden ${RE
  */
 export const BOUNDS_GRID =
   'grid grid-cols-[minmax(0,1fr)_4.25rem_4.25rem] items-center gap-x-2 gap-y-2'
+
+/**
+ * A row of inline actions with no label beside them: Done next to Clear under
+ * the polygon, and Load/Rename/Delete under the saved-search list (#124).
+ *
+ * The panel's other rows are one label and one control sharing `CONTROL_W`, and
+ * these are neither — two or three buttons sized by their own words, which have
+ * to be allowed to wrap rather than made to line up on a column they do not
+ * belong to. It earns a role because there are now two of them: the gap is the
+ * one every control row uses, and a second row spelling it by hand is how two
+ * rows of the same thing end up a quarter-rem apart.
+ */
+export const BUTTON_ROW = 'flex flex-wrap gap-2'
 export const SEGMENT_ITEM = `${TAP.action} flex-1 px-2 py-0.5 text-xs transition-colors ${FOCUS_RING}`
 /** Between two halves, never before the first. */
 export const SEGMENT_DIVIDER = 'border-l border-slate-500'

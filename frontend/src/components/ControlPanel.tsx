@@ -16,6 +16,7 @@ import {
   BUTTON_ACCENT,
   BUTTON_DANGER,
   BUTTON_PRIMARY,
+  BUTTON_ROW,
   BUTTON_SECONDARY,
   CHOICE_INPUT,
   BOUNDS_GRID,
@@ -49,6 +50,7 @@ import {
   windowAggregate,
 } from '../metrics'
 import { Constraints, hasConstraints } from '../utils/clientAnalyze'
+import type { SavedSearch } from '../utils/savedSearches'
 import type { CommitReason } from '../utils/present'
 import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analyzeGate'
 import {
@@ -264,6 +266,43 @@ interface Props {
   // The wildfire proximity lookup failed for the displayed report, so no row
   // has been checked. A safety claim the UI must not make silently.
   wildfireCheckFailed?: boolean
+  // The named copies of the panel's inputs held in this browser (#124), and
+  // the four things that can be done to them. Loading one is the URL restore
+  // path applied after mount: it refills the controls and nothing else, so the
+  // report on screen survives and the commit cues above Analyze say it is now
+  // behind them.
+  savedSearches: readonly SavedSearch[]
+  onSaveSearch: (name: string) => void
+  onLoadSearch: (name: string) => void
+  onRenameSearch: (from: string, to: string) => void
+  onDeleteSearch: (name: string) => void
+  // The last write was refused by the browser's store. The only failure this
+  // surface has, and the only one it can do anything about.
+  saveRefused: boolean
+}
+
+/**
+ * The arrow a native dropdown would have drawn for itself.
+ *
+ * `SELECT` suppresses the platform chrome (see styles.ts for why), which makes
+ * the arrow the call site's to draw. Spelled once here rather than at each
+ * dropdown, so the panel's two cannot end up different glyphs.
+ */
+function SelectArrow() {
+  return (
+    <svg
+      className={`${ICON_ADORNMENT} h-4 w-4`}
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path
+        fillRule="evenodd"
+        d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
+        clipRule="evenodd"
+      />
+    </svg>
+  )
 }
 
 /**
@@ -415,6 +454,12 @@ export default function ControlPanel({
   resultCount,
   aqiAllNull,
   wildfireCheckFailed,
+  savedSearches,
+  onSaveSearch,
+  onLoadSearch,
+  onRenameSearch,
+  onDeleteSearch,
+  saveRefused,
 }: Props) {
   // Parse the CSV once per change rather than twice on every render (this and the
   // "N destinations parsed" count below both used to call parseCustomCsv directly).
@@ -433,6 +478,21 @@ export default function ControlPanel({
   // true exactly when a change came from a paste — including a paste that
   // replaces existing text — and stale flags can't survive into typing.
   const csvPasteRef = useRef(false)
+
+  // The saved-search section's own two pieces of state: the name being typed,
+  // and which stored name the list is pointing at.
+  const [searchName, setSearchName] = useState('')
+  const [pickedSearch, setPickedSearch] = useState('')
+  const trimmedName = searchName.trim()
+  // The list is App's, so a name this section is pointing at can disappear
+  // under it — a delete, or a rename it just asked for. Resolving the pick
+  // against the list on every render rather than syncing it in an effect is
+  // what keeps the dropdown showing something that exists: with saves at all,
+  // one of them is always selected, which is also why Load, Rename and Delete
+  // need no empty-selection state to explain.
+  const picked =
+    savedSearches.find((s) => s.name === pickedSearch)?.name ?? savedSearches[0]?.name ?? ''
+
   const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > maxAreaKm2
 
   const polygonReady = drawPointCount >= 3 && !areaTooLarge && destinationTypes.length > 0
@@ -763,7 +823,7 @@ export default function ControlPanel({
                 the map can mean anything but "another vertex", so this button
                 is the whole of #118 in the panel: Draw/Edit to enter, Done to
                 leave (Enter and Escape do the same on the map). */}
-            <div className="flex flex-wrap gap-2">
+            <div className={BUTTON_ROW}>
               {drawing ? (
                 // Disabled until the ring is a polygon: with two points there
                 // is nothing to be done WITH, and every path out of draw mode
@@ -1012,18 +1072,7 @@ export default function ControlPanel({
                           </option>
                         ))}
                       </select>
-                      <svg
-                        className={`${ICON_ADORNMENT} h-4 w-4`}
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
+                      <SelectArrow />
                     </div>
                   )}
                   <div
@@ -1142,6 +1191,100 @@ export default function ControlPanel({
             >
               Clear filters
             </button>
+          )}
+        </section>
+
+        {/* Saved searches (#124) — the sections above it, under a name.
+            Last because it is about all of them: a save is a named copy of
+            every input on this panel, and loading one refills the whole
+            column. It is also the one section that spends nothing — loading
+            is the URL restore path run after mount, so the report on screen
+            stays until Analyze is pressed, and the cues above that button
+            say it is now behind the panel.
+
+            The name field leads and is always there, so the section does not
+            reshuffle when the first save lands: the list and its actions
+            appear under it, and disappear again with the last save. That is
+            what saves the empty list a line of copy explaining itself. */}
+        <section>
+          <h2 className={`${TEXT.section} mb-2.5`}>
+            Saved searches
+          </h2>
+          <div className="flex items-center gap-2">
+            {/* No visible label: the placeholder names it, and a label beside
+                it would leave a name field too narrow to read a name in. */}
+            <input
+              aria-label="Name this search"
+              value={searchName}
+              onChange={(e) => setSearchName(e.target.value)}
+              placeholder="Name this search"
+              className={`${FIELD} min-w-0 flex-1 px-2 py-1.5`}
+            />
+            <button
+              onClick={() => {
+                onSaveSearch(trimmedName)
+                setPickedSearch(trimmedName)
+              }}
+              disabled={trimmedName === ''}
+              className={`${BUTTON_SECONDARY} disabled:opacity-40 disabled:cursor-not-allowed`}
+            >
+              Save
+            </button>
+          </div>
+          {saveRefused && (
+            <p className={`mt-2 ${STATUS.error} ${NOTICE.error}`}>
+              Saved searches are full.
+            </p>
+          )}
+          {savedSearches.length > 0 && (
+            <>
+              {/* The one control in the panel whose value is a name the user
+                  wrote, which is why it takes the block rather than the
+                  144px control column: the coordinates box is the same
+                  exception for the same reason. */}
+              <div className="relative mt-2">
+                <select
+                  aria-label="Saved searches"
+                  value={picked}
+                  onChange={(e) => setPickedSearch(e.target.value)}
+                  className={`${SELECT} w-full px-2 py-1.5`}
+                >
+                  {savedSearches.map((saved) => (
+                    <option key={saved.name} value={saved.name}>
+                      {saved.name}
+                    </option>
+                  ))}
+                </select>
+                <SelectArrow />
+              </div>
+              <div className={`${BUTTON_ROW} mt-2`}>
+                <button
+                  onClick={() => {
+                    onLoadSearch(picked)
+                    // The loaded name becomes the name in the field, so the
+                    // next Save writes back over what was just opened rather
+                    // than leaving a second copy under whatever was typed.
+                    setSearchName(picked)
+                  }}
+                  className={BUTTON_SECONDARY}
+                >
+                  Load
+                </button>
+                <button
+                  onClick={() => {
+                    onRenameSearch(picked, trimmedName)
+                    setPickedSearch(trimmedName)
+                  }}
+                  disabled={trimmedName === ''}
+                  className={`${BUTTON_SECONDARY} disabled:opacity-40 disabled:cursor-not-allowed`}
+                >
+                  Rename
+                </button>
+                <button onClick={() => onDeleteSearch(picked)} className={BUTTON_SECONDARY}>
+                  Delete
+                </button>
+              </div>
+            </>
           )}
         </section>
 

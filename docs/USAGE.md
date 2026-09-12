@@ -269,6 +269,14 @@ Every column is resizable: drag the divider at a header's right edge, or double-
 
 The default is 200, sized to sit above the 100-row lists people usually paste so a first analysis does not open half-cut. The ceiling is what the running service reports. Raising this number costs nothing upstream: weather is fetched for *every* destination in your area, and the top N by your ranking come back. Lowering it shows you the extremes.
 
+## Saved searches
+
+Everything the panel holds — the polygon, the destination types, the coordinates you pasted, the forecast window and model, the ranking, and every filter — can be kept under a name. Type a name and press **Save**. The saved names appear in the list below the field, where **Load** puts one back on the panel, **Rename** gives the selected one the name in the field, and **Delete** removes it.
+
+A save is a named copy of the link in your address bar, so loading one does exactly what opening that link does: it refills the controls and nothing else. No forecast is fetched, and the report already on screen stays as it is until you press Analyze — which the panel then asks you to do, naming what has changed under it. Saving over a name you already used replaces it.
+
+Saves live in this browser, on this device. They are not an account: another browser, another machine and a private window each have their own list, and clearing the site's data clears them. To carry a search to someone else, or to another device, copy the address bar instead.
+
 ## Analyze
 
 The default is 200, chosen to sit above the 100-row lists people usually paste so a first analysis does not open with half of one cut off; the ceiling is whatever the running service reports as its analysis cap. The Forecast Table's header says how many rows you are seeing out of how many there are. Weather is fetched for *every* named destination in the polygon (after the optional elevation filter), and the top N by the selected ranking come back. There is no sampling, so the winners really are the extremes of the area. Raising this number therefore costs nothing upstream: it widens the view onto work already done. Past the cap on candidates the app asks you to draw a smaller polygon or narrow the elevation range rather than silently truncating. See [Limits](LIMITS.md) for why the caps exist and where to read their current values.
