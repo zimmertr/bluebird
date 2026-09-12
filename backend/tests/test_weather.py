@@ -407,7 +407,8 @@ async def test_fetch_weather_batch_requests_the_level_winds(monkeypatch):
     hourly = calls[0]["hourly"].split(",")
     for name, _ in weather._WIND_LEVELS:
         assert name in hourly
-    # Still at weight factor 1: max(1, vars/10) with 8 variables.
+    # Still at weight factor 1: max(1, vars x models/10) with 8 variables
+    # and one model.
     assert len(hourly) == weather.N_VARIABLES
 
 
