@@ -508,7 +508,7 @@ export default function App() {
   const [resultsMode, setResultsMode] = useState<ResultsMode>(() => {
     if (typeof localStorage === 'undefined') return 'table'
     try {
-      const stored = JSON.parse(localStorage.getItem('bluebird_view') ?? '{}')
+      const stored = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
       if (stored.modeChosen === 'chart' || stored.modeChosen === 'table' || stored.modeChosen === 'both') {
         modeChosenRef.current = true
         return stored.modeChosen
@@ -523,8 +523,8 @@ export default function App() {
     modeChosenRef.current = true
     setResultsMode(mode)
     try {
-      const current = JSON.parse(localStorage.getItem('bluebird_view') ?? '{}')
-      localStorage.setItem('bluebird_view', JSON.stringify({ ...current, modeChosen: mode }))
+      const current = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
+      localStorage.setItem('bluebird_forecast_view', JSON.stringify({ ...current, modeChosen: mode }))
     } catch {
       // Ignore localStorage errors (SSR, quota, etc.)
     }
@@ -534,7 +534,7 @@ export default function App() {
   const [columnVisibility, setColumnVisibility] = useState<Set<string> | null>(() => {
     if (typeof localStorage === 'undefined') return null
     try {
-      const stored = JSON.parse(localStorage.getItem('bluebird_view') ?? '{}')
+      const stored = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
       // `columns2` is the set since the wildfire column joined the picker
       // (#288). A set stored under the old key predates that choice and
       // never contained the wildfire key, so reading it verbatim would hide
@@ -550,10 +550,10 @@ export default function App() {
   // Persist column visibility to localStorage when it changes.
   useEffect(() => {
     try {
-      const current = JSON.parse(localStorage.getItem('bluebird_view') ?? '{}')
+      const current = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
       delete current.columns
       localStorage.setItem(
-        'bluebird_view',
+        'bluebird_forecast_view',
         JSON.stringify({
           ...current,
           columns2: columnVisibility ? [...columnVisibility] : undefined,
@@ -587,7 +587,7 @@ export default function App() {
     lastGripPressRef.current[grip] = at
     return at - previous < DOUBLE_PRESS_MS
   }
-  const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('bluebird_welcomed'))
+  const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('bluebird_forecast_welcomed'))
   // The controls panel is docked on desktop and an off-canvas drawer on phones.
   // It starts open on both; a close button collapses it to widen the map.
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -600,7 +600,7 @@ export default function App() {
   const isDesktop = useIsDesktop()
 
   function dismissWelcome() {
-    localStorage.setItem('bluebird_welcomed', '1')
+    localStorage.setItem('bluebird_forecast_welcomed', '1')
     setShowWelcome(false)
   }
 
@@ -2008,7 +2008,7 @@ export default function App() {
                         {/* A gradient rather than banded swatches: NEXRAD's own
                             reflectivity ramp is continuous, and a legend that
                             invented boundaries would assert thresholds
-                            Bluebird does not know. */}
+                            Bluebird Forecast does not know. */}
                         <span
                           className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
                           style={{

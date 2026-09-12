@@ -1,9 +1,9 @@
 ---
 name: peakbagger-list-csv
-description: Crawl one or more peakbagger.com peak lists into bluebird examples/*.csv files for the "Custom (CSV)" destination type. Use when given a peakbagger list URL or list id (lid), or asked to create/add a peak list CSV (e.g. "create CSV list", "add the Bulgers/Home Court/Smoot list").
+description: Crawl one or more peakbagger.com peak lists into Bluebird Forecast examples/*.csv files for the "Custom (CSV)" destination type. Use when given a peakbagger list URL or list id (lid), or asked to create/add a peak list CSV (e.g. "create CSV list", "add the Bulgers/Home Court/Smoot list").
 ---
 
-# Peakbagger list → bluebird CSV
+# Peakbagger list → Bluebird Forecast CSV
 
 Turns a peakbagger.com list (`list.aspx?lid=<N>`) into `examples/<list-slug>.csv`, matching
 `examples/washington-bulger-list.csv`. One CSV row per peak in the list — no sampling, no
@@ -14,12 +14,12 @@ truncation.
 ```
 # <List Title> — ordered highest to lowest.
 # Source: peakbagger.com list <lid>. Coordinates (WGS84 decimal degrees, 6 places)
-# from each peak page; Bluebird resolves elevation itself from OpenStreetMap.
+# from each peak page; Bluebird Forecast resolves elevation itself from OpenStreetMap.
 # Paste the rows below into the "Custom (CSV)" destination type. Format: Latitude, Longitude, Name
 46.851731, -121.760395, 1. Mount Rainier
 ```
 
-Four comment lines, then `Lat, Lon, N. Name`. The name carries **no** elevation: bluebird
+Four comment lines, then `Lat, Lon, N. Name`. The name carries **no** elevation: Bluebird Forecast
 matches each coordinate to its OSM peak and fills the Elevation column itself (issue #207),
 so a figure here would only be a second number to disagree with the one on screen.
 
@@ -158,7 +158,7 @@ Rainier is `46.851731, -121.760395`.
   dedupe.
 - **A famous peak may be absent.** List 5045 ("100 Peaks at Mount Rainier N.P.") genuinely does
   not include Mount Rainier. Verify against the source before "correcting" an omission.
-- **Commas in names are safe.** bluebird's Custom (CSV) parser splits on the first two commas
+- **Commas in names are safe.** Bluebird Forecast's Custom (CSV) parser splits on the first two commas
   only, so everything after them is the name.
 - Coordinates are stable across snapshot years — any snapshot is as good as another.
 

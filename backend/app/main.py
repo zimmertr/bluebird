@@ -75,7 +75,7 @@ _uvicorn_access.disabled = True
 # so keep it to warnings and above.
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
-_access_log = logging.getLogger("bluebird.access")
+_access_log = logging.getLogger("bluebird_forecast.access")
 
 
 def _client_ip(request: Request) -> str:
@@ -94,7 +94,7 @@ def _client_ip(request: Request) -> str:
 static_dir = Path(__file__).parent.parent / "static"
 
 _DESCRIPTION = """
-Bluebird ranks outdoor destinations by their forecast weather.
+Bluebird Forecast ranks outdoor destinations by their forecast weather.
 
 Draw a polygon and every named peak, trailhead, or lake inside it is discovered
 from OpenStreetMap, given a real hourly forecast, and ranked. Or skip discovery
@@ -160,7 +160,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(
-    title="Bluebird",
+    title="Bluebird Forecast",
     lifespan=lifespan,
     # The real release, baked into the image at build time. A hardcoded value
     # here silently rots: it read 0.1.0 for the whole 0.x series.
@@ -172,7 +172,7 @@ app = FastAPI(
         "name": "PolyForm-Noncommercial-1.0.0",
         "url": "https://polyformproject.org/licenses/noncommercial/1.0.0",
     },
-    contact={"name": "Bluebird on GitHub", "url": "https://github.com/zimmertr/bluebird"},
+    contact={"name": "Bluebird Forecast on GitHub", "url": "https://github.com/zimmertr/bluebird"},
     # Both must be disabled here rather than reassigned later: FastAPI.setup()
     # registers these routes at the end of __init__, so a post-hoc assignment
     # leaves the built-in route in place and a later @app.get("/docs") loses to

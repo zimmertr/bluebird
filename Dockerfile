@@ -13,7 +13,7 @@ RUN npm run build
 # libc6, …) that scanners flag forever; musl's ~10-package base scans clean.
 FROM python:3.14-alpine
 
-LABEL org.opencontainers.image.title="Bluebird" \
+LABEL org.opencontainers.image.title="Bluebird Forecast" \
       org.opencontainers.image.description="Map-based weather window finder for hikers and mountaineers" \
       org.opencontainers.image.source="https://github.com/zimmertr/bluebird" \
       org.opencontainers.image.url="https://bluebirdforecast.com" \
@@ -63,7 +63,7 @@ COPY --from=frontend-builder \
 # Nothing needs root at runtime — uvicorn binds 8000 and the app only reads
 # baked-in files — so serve as an unprivileged user. Fixed numeric UID/GID so
 # Kubernetes runAsNonRoot can verify without resolving names inside the image.
-RUN addgroup -S -g 10001 bluebird && adduser -S -u 10001 -G bluebird bluebird
+RUN addgroup -S -g 10001 bluebirdforecast && adduser -S -u 10001 -G bluebirdforecast bluebirdforecast
 # Build identity for GET /api/version and the OpenAPI info.version, populated by
 # release.yml and pr-preview.yml. Deliberately the LAST thing before USER:
 # APP_BUILT_AT changes on every build, so declaring it any earlier would

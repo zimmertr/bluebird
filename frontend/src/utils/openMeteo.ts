@@ -716,7 +716,7 @@ async function classify429(res: Response): Promise<OpenMeteoRateLimited> {
   // against the reader's own address, so "your quota" is literally true and is
   // the fact that makes the wait make sense; "Open-Meteo has used up
   // its quota" described an outage the reader could only wait out, and invited
-  // the reading that Bluebird was down. Naming Open-Meteo matters for the same
+  // the reading that Bluebird Forecast was down. Naming Open-Meteo matters for the same
   // reason: it is the credit already docked beside the results, so the sentence
   // lands on something the reader can see rather than on an anonymous service.
   //

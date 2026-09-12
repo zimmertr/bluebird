@@ -15,7 +15,7 @@ router = APIRouter()
 
 
 class WildfireCollection(BaseModel):
-    """A GeoJSON FeatureCollection, plus when Bluebird last heard from NIFC.
+    """A GeoJSON FeatureCollection, plus when Bluebird Forecast last heard from NIFC.
 
     Declared for the schema only: the handler returns pre-serialized text so a
     viewport is a filter and a join rather than a re-encode of every perimeter.
@@ -91,7 +91,7 @@ def _parse_bbox(raw: str) -> tuple[float, float, float, float]:
         "organization and is shared by every consumer of the public dataset, so "
         "a browser calling NIFC directly competes with the rest of the internet "
         "for it and loses at random. This instance fetches the national set on a "
-        "timer and serves it to everyone, which reduces Bluebird's contribution "
+        "timer and serves it to everyone, which reduces Bluebird Forecast's contribution "
         "to that quota to a fixed handful of requests per hour no matter how "
         "many people are looking at maps.\n\n"
         "Coverage is the United States only: NIFC does not publish perimeters "

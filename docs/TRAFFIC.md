@@ -1,4 +1,4 @@
-# Traffic: how requests reach Bluebird, and what Bluebird calls
+# Traffic: how requests reach Bluebird Forecast, and what Bluebird Forecast calls
 
 [`CICD.md`](CICD.md) covers how code becomes a running deployment. This page
 covers the running deployment's traffic: the path a request takes from a

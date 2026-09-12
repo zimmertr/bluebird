@@ -215,7 +215,7 @@ describe('the license the terms name', () => {
   })
 
   // "Noncommercial" in PolyForm constrains the licensee, not the copyright
-  // holder, so describing Bluebird itself as a non-commercial project reads as
+  // holder, so describing Bluebird Forecast itself as a non-commercial project reads as
   // a promise never to charge, which relicensing deliberately kept open.
   it('does not describe the project itself as non-commercial', () => {
     for (const source of [privacyPage, termsPage]) {
@@ -234,7 +234,7 @@ describe('the privacy copy', () => {
   // #169 keyed rate limiting on client address, which made "server logs are
   // used only for debugging" incomplete for as long as it took someone to
   // notice. Pinning the disclosure means a revert fails here rather than
-  // shipping a promise Bluebird no longer keeps.
+  // shipping a promise Bluebird Forecast no longer keeps.
   it('discloses that addresses are used for rate limiting, not only logging', () => {
     const text = copy(privacyPage)
 

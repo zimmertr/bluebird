@@ -94,7 +94,7 @@ jobs:
         run: |
           BODY=$(printf '%s\n' \
             "<!-- bluebird-preview -->" \
-            "### 🐦 Bluebird preview environment" \
+            "### 🐦 Bluebird Forecast preview environment" \
             "" \
             "Once Argo CD syncs, this code will be reachable at" \
             "**http://pr-${PR}.ganymede.sol.milkyway** via \`${IMAGE}:${TAG}\`." \

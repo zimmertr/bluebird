@@ -1,4 +1,4 @@
-# Using the Bluebird API
+# Using the Bluebird Forecast API
 
 Everything the web app does, it does through this API, and all of it is open to
 you. There are no API keys, no accounts, and no authentication of any kind.
@@ -554,7 +554,7 @@ single plain-language `detail` string, written to be shown to a person as-is.
 That table is exhaustive: nothing else is emitted deliberately, and in
 particular a slow upstream surfaces as `502` rather than `504`. So a `504` or a
 `524` reaching your client came from a proxy in front of the deployment, not
-from Bluebird, and means the analysis outran that proxy's patience. Retrying it
+from Bluebird Forecast, and means the analysis outran that proxy's patience. Retrying it
 identically will usually outrun it again; use `POST /api/analyze/stream`, whose
 progress and keepalive events hold the connection open, or narrow the search.
 
@@ -569,7 +569,7 @@ The schema is OpenAPI 3.1, so the usual generators work without special
 handling:
 
 ```bash
-npx openapi-typescript https://bluebirdforecast.com/openapi.json -o bluebird.d.ts
+npx openapi-typescript https://bluebirdforecast.com/openapi.json -o bluebird-forecast.d.ts
 ```
 
 A copy of the schema is committed at [`backend/openapi.json`](../backend/openapi.json)
@@ -577,7 +577,7 @@ and checked in CI, so it always matches the code in the same commit.
 
 ## Please be considerate
 
-Every upstream Bluebird depends on (Overpass, Open-Meteo, Nominatim) is free,
+Every upstream Bluebird Forecast depends on (Overpass, Open-Meteo, Nominatim) is free,
 keyless, and run by people paying for it — and Open-Meteo meters weighted
 calls (each location in a batch counts), so a single large analysis can spend
 over a thousand of them. Light per-address rate limits and an

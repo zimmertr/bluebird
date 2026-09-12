@@ -13,9 +13,9 @@
 
 Every one of these is free, keyless, and paid for by somebody else. The table
 says what each one provides. It cannot say what the numbers coming back
-actually mean, or what each provider asks of Bluebird in return, so the rest of
+actually mean, or what each provider asks of Bluebird Forecast in return, so the rest of
 this section does: what every source can tell you, what it cannot, and why
-Bluebird calls it the way it does. The licenses and credits each provider
+Bluebird Forecast calls it the way it does. The licenses and credits each provider
 requires are collected in [NOTICES.md](../NOTICES.md). A downloaded CSV
 carries its own copy of the Open-Meteo and OpenStreetMap credits below the
 data — CC BY 4.0 and ODbL both ask the credit to travel with every copy, and
@@ -28,19 +28,19 @@ Nothing in the results table was observed. Open-Meteo serves the output of a
 national weather model, and those models re-run on their own schedules, ranging
 from hourly to a few times a day. The value
 against a given hour was therefore computed some time before you asked for it,
-and the same hour can read differently tomorrow. Bluebird caches each location
+and the same hour can read differently tomorrow. Bluebird Forecast caches each location
 briefly on top of that, a far smaller effect than the model cadence but not
-zero. For conditions at a place right now, read an instrument. Bluebird
+zero. For conditions at a place right now, read an instrument. Bluebird Forecast
 answers a different question, which models are good at: how do these places
 compare to each other over the same hours?
 
-Bluebird is a planning aid, not a safety tool. Verify anything you are betting
+Bluebird Forecast is a planning aid, not a safety tool. Verify anything you are betting
 on against official sources such as [weather.gov](https://www.weather.gov)
 before committing to backcountry travel.
 
 ## OpenStreetMap and Overpass
 
-A destination exists in Bluebird only if a volunteer mapped it and gave it a
+A destination exists in Bluebird Forecast only if a volunteer mapped it and gave it a
 name. Unnamed summits are invisible to discovery, elevations come from the OSM
 `ele` tag and are absent or wrong wherever the tag is, and coverage is uneven
 by region in exactly the way volunteer mapping is uneven.
@@ -68,7 +68,7 @@ overwritten by this.
 
 Overpass is the query service in front of OSM, run by volunteers on donated
 hardware, and its operators publish a per-address concurrency policy that
-Bluebird holds itself to separately for each mirror. Three public mirrors are
+Bluebird Forecast holds itself to separately for each mirror. Three public mirrors are
 tried in order, and the order is not arbitrary: `backend/app/services/osm.py`
 carries a dated table of measured response times behind it, giving the fastest
 mirror a tight timeout and the slower fallbacks a looser one, so a healthy
@@ -94,7 +94,7 @@ when it resumes, instead of appearing to hang. If Open-Meteo rate-limits us
 anyway, a short block resumes on its own once the window passes, and a longer
 one stops the analysis and says so rather than retrying into the wall.
 
-Bluebird's own [PolyForm Noncommercial license](../LICENSE) lines up with that
+Bluebird Forecast's own [PolyForm Noncommercial license](../LICENSE) lines up with that
 tier deliberately. A commercial deployment would need an arrangement with
 Open-Meteo as well as one here.
 
@@ -123,14 +123,14 @@ because the cell's height is the ground at the sample point, not the peak.
 History reaches back only as far as the forecast endpoint's own archive, and
 that archive is shorter than the range of dates the endpoint will accept. Past
 roughly two months a request still succeeds and comes back with no numbers in
-it, so Bluebird's calendar stops well before the date the API stops accepting.
+it, so Bluebird Forecast's calendar stops well before the date the API stops accepting.
 Going further would mean the separate
 [Open-Meteo Historical API](https://open-meteo.com/en/docs/historical-weather-api),
 which is not wired up.
 
 ## Choosing a model
 
-Bluebird names a weather model on every request rather than taking Open-Meteo's
+Bluebird Forecast names a weather model on every request rather than taking Open-Meteo's
 `best_match` blend, and the panel lets you change it. Two reasons.
 
 **Models disagree.** Over three days at one Cascades summit, ECMWF and GFS both
@@ -166,7 +166,7 @@ HRRR is the only **regional** model here. It is run over the continental US
 and neighbouring parts of Canada and Mexico, and Open-Meteo refuses any point
 outside that grid — a refusal that takes the whole batch with it, so a single
 destination outside coverage fails the analysis rather than quietly dropping one
-row. Bluebird does not ship a copy of HRRR's domain to check against, because
+row. Bluebird Forecast does not ship a copy of HRRR's domain to check against, because
 the grid is not a lat/lon rectangle and any copy would drift; Open-Meteo is the
 authority, and its refusal is reported as one, naming the model and the fix.
 
@@ -187,7 +187,7 @@ blank for the hours beyond it, and the app says so next to the date inputs.
 **It is American everywhere.** The `us_aqi` figure applies the US EPA's
 category boundaries worldwide, so a value for a peak in the Alps is still on
 the EPA scale rather than the local index that country publishes. Compare it
-against other Bluebird rows, not against the number on a local air-quality
+against other Bluebird Forecast rows, not against the number on a local air-quality
 site.
 
 Air quality is also best-effort throughout. An outage or a rate limit there
@@ -202,7 +202,7 @@ requirement rather than a design preference. Nominatim's
 callers at roughly one request per second and explicitly forbids autocomplete,
 which a search-as-you-type box violates by construction. The same policy
 requires an identifying `User-Agent`, a header browsers refuse to let a page
-set, which is why this one lookup is proxied through Bluebird's server instead
+set, which is why this one lookup is proxied through Bluebird Forecast's server instead
 of running in your browser the way the weather fetch does.
 
 ## Wildfires
@@ -213,7 +213,7 @@ not the overlay is switched on, and measure to the fire perimeter rather than
 its centroid, because a large fire's centroid can sit many miles inside its own
 edge.
 
-Both read from **Bluebird's copy of the dataset, not from NIFC directly**. The
+Both read from **Bluebird Forecast's copy of the dataset, not from NIFC directly**. The
 server holds one snapshot of every active perimeter in the country and refreshes
 it on a timer, so the number of requests reaching NIFC is a fixed handful per
 hour no matter how many people are looking at maps, and no visitor's warning
@@ -222,7 +222,7 @@ depends on a request of their own succeeding.
 That indirection exists because of how the upstream quota works. NIFC meters a
 **per-minute request quota belonging to its own ArcGIS organization**, shared by
 every consumer of this public dataset, so it can be exhausted by traffic that
-has nothing to do with Bluebird. It rejects over-quota queries in an unusual
+has nothing to do with Bluebird Forecast. It rejects over-quota queries in an unusual
 way: HTTP 200, with the refusal in the response body, so nothing about the
 status code says anything went wrong. When each browser asked NIFC for itself,
 that made warnings appear and vanish between one analysis and the next, on a
@@ -234,7 +234,7 @@ a ten-mile proximity question correctly, so withholding it would trade a good
 answer for no answer.
 
 Hovering a fire dates the perimeter: **Last updated** is when NIFC last
-surveyed that incident, which is a fact about the fire and not about Bluebird.
+surveyed that incident, which is a fact about the fire and not about Bluebird Forecast.
 It routinely runs days old on a fire that is burning right now, which is normal
 for a surveyed product and not a sign of stale data on this end. If you are
 calling the API directly, the response also carries `fetched_at`, saying how
@@ -293,7 +293,7 @@ optical thickness in the imagery, not a concentration in any unit. They draw as
 three opacities of one grey for exactly that reason: the encoding is "more" and
 "less", which is what the source actually says.
 
-HMS publishes one dated file per day and Bluebird's server fetches it, for the
+HMS publishes one dated file per day and Bluebird Forecast's server fetches it, for the
 same reason it fetches perimeters — one caller instead of one per visitor —
 though the pressure is milder here, since NOAA serves these off a plain file
 server with no quota to exhaust. What the server buys instead is the date
@@ -309,11 +309,11 @@ empty, and empty means "not covered" rather than "clear air".
 
 The optional radar overlay is the **NEXRAD base-reflectivity mosaic**, served as
 raster tiles by the Iowa Environmental Mesonet at Iowa State University. It is
-the one layer in Bluebird that is a measurement rather than a forecast:
+the one layer in Bluebird Forecast that is a measurement rather than a forecast:
 everything in the results table is a model's opinion about the future, and this
 is where rain was actually falling in the last hour.
 
-The tiles go straight from IEM to your browser rather than through Bluebird's
+The tiles go straight from IEM to your browser rather than through Bluebird Forecast's
 server. They are keyless, CORS-open, and cached for five minutes at the edge, so
 there is nothing for the server to hold that the browser would not fetch anyway.
 IEM asks only that applications with thousands of simultaneous users arrange
@@ -357,7 +357,7 @@ other forecast map reads. Each hides what the other shows, which is why neither
 is the only option.
 
 **Smoothing here is between model grid points, not between destinations.**
-Bluebird refused a forecast raster once, on the grounds that blending
+Bluebird Forecast refused a forecast raster once, on the grounds that blending
 temperature between two summits across the valley between them invents numbers
 in exactly the terrain this app serves. That objection was right about
 interpolating between *destinations* and does not apply to a field between grid
@@ -381,7 +381,7 @@ figure.
 
 **A model's finest grid is not its resolution everywhere.** The seamless models
 blend a fine regional grid into a coarse global one, so NOAA GFS is a 3 km model
-over North America and a 13 km one over Nepal. Bluebird samples at the finest
+over North America and a 13 km one over Nepal. Bluebird Forecast samples at the finest
 figure the model publishes, which means that outside the fine region several
 samples can land in one real grid cell and simply agree with each other. A flat
 field is the honest picture of that: it is what "the model has one answer for

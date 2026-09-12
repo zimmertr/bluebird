@@ -123,7 +123,7 @@ class ForecastModel(str, Enum):
 # it has no coverage cliff: outside the HRRR grid it simply serves GFS, where
 # `gfs_hrrr` would refuse the whole batch.
 #
-# It replaces the `best_match` blend Bluebird used to send, which chose per
+# It replaces the `best_match` blend Bluebird Forecast used to send, which chose per
 # location and never said what it chose, so two adjacent peaks could be
 # answered by two different models with nothing recording it. Naming one model
 # is what makes a row reproducible and a shared link mean what it meant when it
@@ -166,7 +166,7 @@ class ModelInfo(NamedTuple):
     # HRRR is the only model here that is not global, and its domain is a
     # Lambert conformal grid no lat/lon box describes: Banff, Edmonton and
     # Monterrey answer, while Alaska, Hawaii, Puerto Rico, Newfoundland and
-    # northern BC do not. Bluebird therefore ships no domain of its own and
+    # northern BC do not. Bluebird Forecast therefore ships no domain of its own and
     # lets Open-Meteo be the authority (see `analyze.py`); this flag exists so
     # the picker can say the model is regional before a request is spent.
     regional: bool = False

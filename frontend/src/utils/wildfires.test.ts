@@ -15,7 +15,7 @@ import {
 const NIFC = nifcFireUrl(-121.5, 39.5, 11)
 
 describe('wildfireQueryUrl', () => {
-  it('targets Bluebird rather than NIFC', () => {
+  it('targets Bluebird Forecast rather than NIFC', () => {
     // The whole point of #203: a browser calling NIFC directly competes with
     // every other consumer of the public dataset for a quota it cannot see.
     const url = wildfireQueryUrl([-125, 31, -102, 49], 'coarse')
@@ -75,7 +75,7 @@ describe('formatRevised', () => {
     expect(formatRevised(undefined)).toBeNull()
   })
   it('names the fact it states, rather than a bare "Updated"', () => {
-    // This is NIFC's survey time for one fire, not the age of Bluebird's copy,
+    // This is NIFC's survey time for one fire, not the age of Bluebird Forecast's copy,
     // and it is the only date in the popup, so nothing else is there to correct
     // a reader who reads it as ours. Avoid asserting a locale/timezone-specific
     // rendering, just the label.

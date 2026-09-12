@@ -9,7 +9,7 @@
  *
  * **What is being shown is observation, not forecast.** N0Q is the base
  * reflectivity mosaic — where rain is falling now and for the last hour.
- * Everything else in Bluebird is a model's opinion about the future; this is
+ * Everything else in Bluebird Forecast is a model's opinion about the future; this is
  * the one layer that is a measurement of the present, which is why it never
  * mixes into a ranking and only ever draws on the map.
  *

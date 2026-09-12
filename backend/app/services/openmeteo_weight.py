@@ -6,7 +6,7 @@ Locations" post), one request costs
 
     weight = n_locations x max(1, days/14) x max(1, variables/10)
 
-so a 50-location batch is at least 50 calls, and Bluebird's full 16-day
+so a 50-location batch is at least 50 calls, and Bluebird Forecast's full 16-day
 window makes it 50 x (16/14) = 57. The per-factor floor of 1 is inferred
 from observed enforcement rather than documented (issue #180 tracks the
 upstream confirmation); assuming it is the conservative choice, since

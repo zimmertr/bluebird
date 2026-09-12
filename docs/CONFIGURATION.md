@@ -55,7 +55,7 @@ in detail in [`TRAFFIC.md`](TRAFFIC.md)):
 
 ## Log Levels
 
-Bluebird uses Python's standard `logging` module plus one custom level, `TRACE`. Set `LOG_LEVEL` (case-insensitive) to control verbosity. The default is `WARNING`.
+Bluebird Forecast uses Python's standard `logging` module plus one custom level, `TRACE`. Set `LOG_LEVEL` (case-insensitive) to control verbosity. The default is `WARNING`.
 
 | Level | Value | What is logged |
 |---|---|---|

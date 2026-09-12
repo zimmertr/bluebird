@@ -1,4 +1,4 @@
-// Smoke plumes from NOAA's Hazard Mapping System, read from Bluebird's own
+// Smoke plumes from NOAA's Hazard Mapping System, read from Bluebird Forecast's own
 // `GET /api/smoke` rather than from NOAA directly.
 //
 // Through the pod for the reason the fire overlay learned in #203 — one caller

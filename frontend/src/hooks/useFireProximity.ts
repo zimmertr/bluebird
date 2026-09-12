@@ -35,7 +35,7 @@ import {
  * radius; `unavailable` means it could not run and the caller must not imply
  * otherwise.
  *
- * `unavailable` is now rare by construction. Perimeters come from Bluebird's
+ * `unavailable` is now rare by construction. Perimeters come from Bluebird Forecast's
  * own cache rather than from NIFC directly, and that cache serves its last good
  * snapshot rather than expiring into nothing, so only a server that has never
  * completed a fetch has no answer at all (issue #203).
@@ -152,7 +152,7 @@ export function useFireProximity(
         // next reporter whether it was the network, a truncated body, or an
         // ArcGIS error payload behind a 200.
         console.warn(
-          `[bluebird] wildfire proximity lookup failed (attempt ${n + 1} of ${ATTEMPTS})`,
+          `[bluebird-forecast] wildfire proximity lookup failed (attempt ${n + 1} of ${ATTEMPTS})`,
           err,
         )
         // Never retry into a wall. A 429 is this client outpacing its own

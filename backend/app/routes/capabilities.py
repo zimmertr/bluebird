@@ -22,7 +22,7 @@ router = APIRouter()
 
 
 class DataSource(BaseModel):
-    """One upstream Bluebird depends on."""
+    """One upstream Bluebird Forecast depends on."""
 
     name: str
     url: str

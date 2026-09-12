@@ -11,14 +11,14 @@ import { PROSE } from '../styles'
 // goes stale from behavior changes made in files nobody thinks to connect to
 // it: #169 added rate limiting keyed on client address, which quietly
 // falsified "logs are used only for debugging" until it was rewritten here.
-// Anything that changes what Bluebird does with a request changes this file
+// Anything that changes what Bluebird Forecast does with a request changes this file
 // too, and legal.test.ts pins the claims that have already been wrong once.
 export default function PrivacyPage() {
   return (
-    <PageShell heading="Privacy" subtitle="What Bluebird does with your data">
+    <PageShell heading="Privacy" subtitle="What Bluebird Forecast does with your data">
       <div className="space-y-4">
         <p className={PROSE.body}>
-          Bluebird is free to use. There are no ads, no paid tiers, and nothing to sign up for.
+          Bluebird Forecast is free to use. There are no ads, no paid tiers, and nothing to sign up for.
           It has no accounts, no sign-in, and no tracking. There are no analytics scripts, no
           advertising, and no cookies used to follow you.
         </p>
@@ -27,14 +27,14 @@ export default function PrivacyPage() {
           <li>
             <span className={PROSE.strong}>Your location</span> is only requested to
             center the map when you first open the app. If you allow it, it stays in your browser
-            and is never sent to the Bluebird server.
+            and is never sent to the Bluebird Forecast server.
           </li>
           <li>
             <span className={PROSE.strong}>Your searches</span> (the area you draw and
-            the dates you pick) are sent to the Bluebird server to look up destinations. Your
+            the dates you pick) are sent to the Bluebird Forecast server to look up destinations. Your
             browser then fetches weather and air quality for them directly from Open-Meteo, and
             maps and fires from the providers below, so those requests carry your address, not
-            the server's. If your browser cannot reach Open-Meteo, the Bluebird server fetches
+            the server's. If your browser cannot reach Open-Meteo, the Bluebird Forecast server fetches
             forecasts instead. As with any web request, those providers can see your IP address.
           </li>
           <li>
@@ -55,7 +55,7 @@ export default function PrivacyPage() {
 
       <Section id="data" heading="Where your requests go">
         <p className={`${PROSE.body} mb-3`}>
-          Bluebird produces none of this data. It queries these providers, ranks what comes
+          Bluebird Forecast produces none of this data. It queries these providers, ranks what comes
           back, and shows you the result. Each has its own privacy policy and license, and
           each can see your address the way any web request lets a server see it.
         </p>

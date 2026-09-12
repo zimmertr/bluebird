@@ -1,9 +1,9 @@
 import { SortBy } from './types'
 
 /**
- * One vocabulary for the four things Bluebird measures.
+ * One vocabulary for the four things Bluebird Forecast measures.
  *
- * Bluebird measures precipitation, temperature, wind and air quality, and names
+ * Bluebird Forecast measures precipitation, temperature, wind and air quality, and names
  * them on six surfaces: the map legend, the ranking picker, the results header,
  * the results table, the forecast chart's radios, and a marker's popup. Before
  * this module each surface spelled them itself, so the same metric appeared as

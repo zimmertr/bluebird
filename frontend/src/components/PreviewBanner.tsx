@@ -8,7 +8,7 @@ type Props = {
 
 export default function PreviewBanner({ pr, commit }: Props) {
   const shortCommit = commit ? commit.slice(0, 7) : 'unknown'
-  const text = `You are viewing a preview release of Bluebird | PR: ${pr ?? 'unknown'} | Commit: ${shortCommit}`
+  const text = `You are viewing a preview release of Bluebird Forecast | PR: ${pr ?? 'unknown'} | Commit: ${shortCommit}`
 
   // Only link when we actually have a PR number to point at.
   if (!pr) {

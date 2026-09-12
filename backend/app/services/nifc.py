@@ -4,8 +4,8 @@ Every browser used to query NIFC's ArcGIS feature service directly: once per
 analysis for the proximity check, and again on every debounced map pan for the
 overlay. That quota belongs to NIFC's ArcGIS *organization*, not to its callers,
 and is shared by every consumer of the public WFIGS dataset, so it empties and
-refills on traffic Bluebird has no part in and cannot influence. The intermittent
-"Wildfire check unavailable" label was Bluebird losing a race it never entered
+refills on traffic Bluebird Forecast has no part in and cannot influence. The intermittent
+"Wildfire check unavailable" label was Bluebird Forecast losing a race it never entered
 (issue #203). Fetching here turns N visitors into one caller.
 
 Two facts about the dataset shape everything below. Measured 2026-07-31 against
@@ -62,7 +62,7 @@ QUERY_URL = (
     "WFIGS_Interagency_Perimeters_Current/FeatureServer/0/query"
 )
 
-HEADERS = {"User-Agent": "Bluebird/1.0 (bluebirdforecast.com; personal weather tool)"}
+HEADERS = {"User-Agent": "BluebirdForecast/1.0 (bluebirdforecast.com; personal weather tool)"}
 
 # The fields the popup renders. `attr_` values come from the joined IRWIN
 # incident record and `poly_` from the perimeter polygon itself; either can be

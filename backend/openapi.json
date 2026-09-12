@@ -510,7 +510,7 @@
         "type": "object"
       },
       "DataSource": {
-        "description": "One upstream Bluebird depends on.",
+        "description": "One upstream Bluebird Forecast depends on.",
         "properties": {
           "name": {
             "title": "Name",
@@ -1395,7 +1395,7 @@
         "type": "object"
       },
       "WildfireCollection": {
-        "description": "A GeoJSON FeatureCollection, plus when Bluebird last heard from NIFC.\n\nDeclared for the schema only: the handler returns pre-serialized text so a\nviewport is a filter and a join rather than a re-encode of every perimeter.",
+        "description": "A GeoJSON FeatureCollection, plus when Bluebird Forecast last heard from NIFC.\n\nDeclared for the schema only: the handler returns pre-serialized text so a\nviewport is a filter and a join rather than a re-encode of every perimeter.",
         "properties": {
           "coverage": {
             "additionalProperties": true,
@@ -1437,16 +1437,16 @@
   },
   "info": {
     "contact": {
-      "name": "Bluebird on GitHub",
+      "name": "Bluebird Forecast on GitHub",
       "url": "https://github.com/zimmertr/bluebird"
     },
-    "description": "\nBluebird ranks outdoor destinations by their forecast weather.\n\nDraw a polygon and every named peak, trailhead, or lake inside it is discovered\nfrom OpenStreetMap, given a real hourly forecast, and ranked. Or skip discovery\nentirely and send your own coordinates.\n\nThere is no API key and no authentication. Light per-address rate limits and\nan instance-wide upstream budget protect the free, keyless APIs underneath:\nrequests past them receive 429 or 503 with a `Retry-After` header, and\n`GET /api/capabilities` publishes the numbers. Please stay considerate all the\nsame: a single analysis can fan out to hundreds of forecast requests.\n\nStart with `GET /api/capabilities` to learn the limits this deployment enforces,\nand `GET /api/version` to confirm which build you are talking to.\n",
+    "description": "\nBluebird Forecast ranks outdoor destinations by their forecast weather.\n\nDraw a polygon and every named peak, trailhead, or lake inside it is discovered\nfrom OpenStreetMap, given a real hourly forecast, and ranked. Or skip discovery\nentirely and send your own coordinates.\n\nThere is no API key and no authentication. Light per-address rate limits and\nan instance-wide upstream budget protect the free, keyless APIs underneath:\nrequests past them receive 429 or 503 with a `Retry-After` header, and\n`GET /api/capabilities` publishes the numbers. Please stay considerate all the\nsame: a single analysis can fan out to hundreds of forecast requests.\n\nStart with `GET /api/capabilities` to learn the limits this deployment enforces,\nand `GET /api/version` to confirm which build you are talking to.\n",
     "license": {
       "name": "PolyForm-Noncommercial-1.0.0",
       "url": "https://polyformproject.org/licenses/noncommercial/1.0.0"
     },
     "summary": "Map-based weather window finder for hikers and mountaineers.",
-    "title": "Bluebird",
+    "title": "Bluebird Forecast",
     "version": "dev"
   },
   "openapi": "3.1.0",
@@ -1713,7 +1713,7 @@
     },
     "/api/geocode": {
       "get": {
-        "description": "Thin proxy to Nominatim, forwarding its JSON verbatim. The response shape is therefore Nominatim's `jsonv2` format, not something Bluebird defines, and each row carries `lat`, `lon`, `display_name`, and `extratags` (which is where a summit's `ele` lives).\n\nThis exists because Nominatim's usage policy asks callers to identify themselves with a real User-Agent, which a browser fetch cannot set. That same policy forbids autocomplete, so call this on an explicit search action rather than on every keystroke.",
+        "description": "Thin proxy to Nominatim, forwarding its JSON verbatim. The response shape is therefore Nominatim's `jsonv2` format, not something Bluebird Forecast defines, and each row carries `lat`, `lon`, `display_name`, and `extratags` (which is where a summit's `ele` lives).\n\nThis exists because Nominatim's usage policy asks callers to identify themselves with a real User-Agent, which a browser fetch cannot set. That same policy forbids autocomplete, so call this on an explicit search action rather than on every keystroke.",
         "operationId": "geocode_api_geocode_get",
         "parameters": [
           {
@@ -1866,7 +1866,7 @@
     },
     "/api/wildfires": {
       "get": {
-        "description": "Active wildfire perimeters from NIFC's WFIGS \"Interagency Perimeters \u2014 Current\" layer, intersecting `bbox`.\n\nThis exists because NIFC's ArcGIS quota belongs to *their* organization and is shared by every consumer of the public dataset, so a browser calling NIFC directly competes with the rest of the internet for it and loses at random. This instance fetches the national set on a timer and serves it to everyone, which reduces Bluebird's contribution to that quota to a fixed handful of requests per hour no matter how many people are looking at maps.\n\nCoverage is the United States only: NIFC does not publish perimeters elsewhere, so an empty result outside the US means \"not covered\", not \"nothing burning\".\n\nPerimeters are served past their refresh deadline when NIFC is unreachable, because a shape measured an hour ago still answers a 10-mile proximity question correctly. Read `fetched_at` to see how current the answer is. Only an instance that has never completed a fetch answers 503.",
+        "description": "Active wildfire perimeters from NIFC's WFIGS \"Interagency Perimeters \u2014 Current\" layer, intersecting `bbox`.\n\nThis exists because NIFC's ArcGIS quota belongs to *their* organization and is shared by every consumer of the public dataset, so a browser calling NIFC directly competes with the rest of the internet for it and loses at random. This instance fetches the national set on a timer and serves it to everyone, which reduces Bluebird Forecast's contribution to that quota to a fixed handful of requests per hour no matter how many people are looking at maps.\n\nCoverage is the United States only: NIFC does not publish perimeters elsewhere, so an empty result outside the US means \"not covered\", not \"nothing burning\".\n\nPerimeters are served past their refresh deadline when NIFC is unreachable, because a shape measured an hour ago still answers a 10-mile proximity question correctly. Read `fetched_at` to see how current the answer is. Only an instance that has never completed a fetch answers 503.",
         "operationId": "wildfires_api_wildfires_get",
         "parameters": [
           {
