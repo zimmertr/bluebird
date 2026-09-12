@@ -20,6 +20,7 @@ from app.models import (
     ForecastModel,
     SortBy,
 )
+from app.routes.analyze import API_KEY_HEADER
 from app.services.air_quality import MAX_FORECAST_DAYS
 from app.services.osm import IMPLEMENTED_TYPES
 from fastapi.testclient import TestClient
@@ -246,3 +247,9 @@ def test_past_data_days_sits_well_inside_the_date_the_api_merely_accepts():
     limits = _capabilities()["limits"]
     assert limits["past_data_days"] < limits["max_past_days"]
     assert limits["past_data_days"] == 55
+
+
+def test_it_publishes_the_api_key_header_the_route_reads():
+    # Read from the analyze route's own constant, so a client told to send this
+    # name is told the name the route reads (issue #317).
+    assert _capabilities()["api_key_header"] == API_KEY_HEADER

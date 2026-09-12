@@ -13,8 +13,11 @@ upstreams, on purpose:
 
 Label values are bounded by construction: routes are FastAPI route templates,
 mirrors come from the static mirror table, outcomes and reasons are closed
-sets. Never coordinates and never client identity — ``test_telemetry.py``
-fails any sample that grows a label outside the allowlist.
+sets. Two labels name a side rather than a supplier: ``client`` is ``web`` or
+``api``, and ``quota`` is ``pod`` or ``caller`` — which is the closest either
+gets to identity, and deliberately so. Never coordinates, never a client
+address, and never an API key — ``test_telemetry.py`` fails any sample that
+grows a label outside the allowlist.
 
 The registry is served on its own port (``METRICS_PORT``, default 9464, 0
 disables), started by the app lifespan. Deliberately NOT a route on the main
@@ -75,13 +78,13 @@ _HTTP_BUCKETS = (0.005, 0.025, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 
 
 HTTP_REQUESTS = Counter(
     "bluebird_forecast_http_requests_total",
-    "Requests served, by route template, method, and status code.",
-    ["route", "method", "status"],
+    "Requests served, by route template, method, status code, and caller kind.",
+    ["route", "method", "status", "client"],
 )
 HTTP_DURATION = Histogram(
     "bluebird_forecast_http_request_duration_seconds",
-    "Wall-clock request duration, by route template and method.",
-    ["route", "method"],
+    "Wall-clock request duration, by route template, method, and caller kind.",
+    ["route", "method", "client"],
     buckets=_HTTP_BUCKETS,
 )
 
@@ -132,21 +135,26 @@ OVERPASS_FALLBACK = Counter(
 
 # ── Open-Meteo (weather + air quality) ────────────────────────────────────────
 
+# `quota` says which Open-Meteo quota a batch spent: `pod` for this
+# deployment's free tier, `caller` for a request that carried its own API key
+# (bluebird#317). Without it the pod's own spend and an API caller's would sum
+# into one series, and the pod's is the only one its pacers can protect. The
+# key is never a label value; the owner is.
 OPENMETEO_REQUESTS = Counter(
     "bluebird_forecast_openmeteo_requests_total",
-    "Open-Meteo batch HTTP attempts, by service and outcome.",
-    ["service", "outcome"],
+    "Open-Meteo batch HTTP attempts, by service, outcome, and quota spent.",
+    ["service", "outcome", "quota"],
 )
 OPENMETEO_DURATION = Histogram(
     "bluebird_forecast_openmeteo_request_duration_seconds",
-    "Open-Meteo batch HTTP attempt duration, by service.",
-    ["service"],
+    "Open-Meteo batch HTTP attempt duration, by service and quota spent.",
+    ["service", "quota"],
     buckets=(0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0),
 )
 OPENMETEO_RATE_LIMITED = Counter(
     "bluebird_forecast_openmeteo_rate_limited_total",
-    "Open-Meteo 429s, by service and the quota scope the response named.",
-    ["service", "scope"],
+    "Open-Meteo 429s, by service, the quota scope the response named, and quota spent.",
+    ["service", "scope", "quota"],
 )
 AQI_DEGRADED = Counter(
     "bluebird_forecast_aqi_degraded_total",
@@ -259,10 +267,25 @@ def _route_label(request: Request) -> str:
     return template
 
 
+def _client_label(request: Request) -> str:
+    """Whether the web app made this request, or something outside it did.
+
+    `Sec-Fetch-Site: same-origin` is what a browser stamps on a fetch a page
+    makes to its own origin, and page script cannot set it, so its absence
+    means the request came from outside the app. It costs the frontend nothing,
+    which is why it is the signal rather than a header of our own.
+
+    A picture, never a boundary: `curl` can send the header too. Nothing may
+    gate a decision on this label.
+    """
+    return "web" if request.headers.get("sec-fetch-site") == "same-origin" else "api"
+
+
 async def metrics_middleware(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
     start = time.perf_counter()
+    client = _client_label(request)
     try:
         response = await call_next(request)
     except Exception:
@@ -270,15 +293,24 @@ async def metrics_middleware(
         # count it as one so error rate never under-reports crashes.
         elapsed = time.perf_counter() - start
         route = _route_label(request)
-        HTTP_REQUESTS.labels(route=route, method=request.method, status="500").inc()
-        HTTP_DURATION.labels(route=route, method=request.method).observe(elapsed)
+        HTTP_REQUESTS.labels(
+            route=route, method=request.method, status="500", client=client
+        ).inc()
+        HTTP_DURATION.labels(
+            route=route, method=request.method, client=client
+        ).observe(elapsed)
         raise
     elapsed = time.perf_counter() - start
     route = _route_label(request)
     HTTP_REQUESTS.labels(
-        route=route, method=request.method, status=str(response.status_code)
+        route=route,
+        method=request.method,
+        status=str(response.status_code),
+        client=client,
     ).inc()
-    HTTP_DURATION.labels(route=route, method=request.method).observe(elapsed)
+    HTTP_DURATION.labels(route=route, method=request.method, client=client).observe(
+        elapsed
+    )
     return response
 
 

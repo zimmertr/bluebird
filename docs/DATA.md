@@ -3,17 +3,19 @@
 | Source | Usage | Cost | Auth |
 |---|---|---|---|
 | [OpenStreetMap](https://www.openstreetmap.org) via [Overpass API](https://overpass-api.de) | Destination names, coordinates, elevation | Free | None |
-| [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind | Free (non-commercial) | None |
-| [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly US AQI | Free (non-commercial) | None |
+| [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind | Free (non-commercial) | None, or a caller's own key |
+| [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly US AQI | Free (non-commercial) | None, or a caller's own key |
 | [OpenFreeMap](https://openfreemap.org) | Vector map tiles | Free | None |
 | [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) | Active wildfire perimeters, United States only | Free (quota shared across all consumers) | None |
 | [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) | Analyst-traced smoke plumes, North America | Free (public-domain files, no quota) | None |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) | NEXRAD radar mosaic tiles, continental United States | Free | None |
 
-Every one of these is free, keyless, and paid for by somebody else. The table
-says what each one provides. It cannot say what the numbers coming back
-actually mean, or what each provider asks of Bluebird Forecast in return, so the rest of
+Every one of these is free and paid for by somebody else, and Bluebird Forecast
+sends a key to none of them on its own behalf. The one exception is an API
+caller's own Open-Meteo key, described below. The table says what each one
+provides. It cannot say what the numbers coming back actually mean, or what
+each provider asks of Bluebird Forecast in return, so the rest of
 this section does: what every source can tell you, what it cannot, and why
 Bluebird Forecast calls it the way it does. The licenses and credits each provider
 requires are collected in [NOTICES.md](../NOTICES.md). A downloaded CSV
@@ -93,6 +95,14 @@ its budget, the progress line says it is waiting on quota and counts down to
 when it resumes, instead of appearing to hang. If Open-Meteo rate-limits us
 anyway, a short block resumes on its own once the window passes, and a longer
 one stops the analysis and says so rather than retrying into the wall.
+
+An API caller can bring its own Open-Meteo key, and a keyed request reads the
+same models from the same data: it goes to Open-Meteo's customer hosts
+(`customer-api.open-meteo.com` and `customer-air-quality-api.open-meteo.com`),
+which answer the same models, the same variables, and the same response shape
+as the free hosts. Nothing about the aggregation or the numbers changes. What
+changes is whose quota pays, which is why the deployment's weighted pacer does
+not meter a keyed request. [API.md](API.md) has the caller's side of this.
 
 Bluebird Forecast's own [PolyForm Noncommercial license](../LICENSE) lines up with that
 tier deliberately. A commercial deployment would need an arrangement with

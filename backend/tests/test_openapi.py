@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from app.main import app
+from app.routes.analyze import API_KEY_HEADER
 from fastapi.testclient import TestClient
 
 client = TestClient(app)
@@ -64,6 +65,52 @@ def test_analyze_declares_the_errors_it_actually_raises(schema):
     assert responses["502"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "ErrorResponse"
     )
+
+
+def test_both_analyze_routes_declare_the_api_key_scheme(schema):
+    # Declared so /docs shows the header on the two routes that read it, and
+    # a generated client sends it rather than guessing (issue #317).
+    assert schema["components"]["securitySchemes"]["APIKeyHeader"] == {
+        "type": "apiKey",
+        "in": "header",
+        "name": API_KEY_HEADER,
+        "description": (
+            "An Open-Meteo API key. The public deployment requires it on the "
+            "analyze routes, and the request spends this key's quota."
+        ),
+    }
+    for path in ("/api/analyze", "/api/analyze/stream"):
+        assert schema["paths"][path]["post"]["security"] == [{"APIKeyHeader": []}]
+
+
+def test_both_analyze_routes_declare_the_refused_key(schema):
+    # A generated client meeting a 401 has a model for it, and /docs names the
+    # cause. Both routes declare it, so the pair reads the same.
+    for path in ("/api/analyze", "/api/analyze/stream"):
+        response = schema["paths"][path]["post"]["responses"]["401"]
+        assert response["description"] == "Open-Meteo rejected the API key."
+        assert response["content"]["application/json"]["schema"]["$ref"].endswith(
+            "ErrorResponse"
+        )
+
+
+def test_no_other_route_asks_for_the_key(schema):
+    # Every other endpoint takes no key, and a scheme on one would tell a
+    # generated client otherwise.
+    secured = [
+        f"{method.upper()} {path}"
+        for path, operations in schema["paths"].items()
+        for method, operation in operations.items()
+        if operation.get("security")
+    ]
+    assert sorted(secured) == ["POST /api/analyze", "POST /api/analyze/stream"]
+
+
+def test_capabilities_publishes_the_key_header_with_a_description(schema):
+    field = schema["components"]["schemas"]["CapabilitiesResponse"]["properties"][
+        "api_key_header"
+    ]
+    assert field.get("description")
 
 
 def test_geocode_declares_its_upstream_failure(schema):

@@ -9,7 +9,12 @@ import pytest
 from app import ratelimit
 from app.models import DEFAULT_FORECAST_MODEL, ForecastModel
 from app.services import weather
-from app.services.errors import ModelCoverageError, UpstreamError, UpstreamRateLimited
+from app.services.errors import (
+    InvalidApiKeyError,
+    ModelCoverageError,
+    UpstreamError,
+    UpstreamRateLimited,
+)
 from app.services.weather import (
     _metrics,
     _naive,
@@ -267,7 +272,9 @@ class _FakeResponse:
         return self._payload
 
 
-def _stub_openmeteo(monkeypatch, behaviors: list[Any]) -> list[dict[str, Any]]:
+def _stub_openmeteo(
+    monkeypatch, behaviors: list[Any], urls: list[str] | None = None
+) -> list[dict[str, Any]]:
     """Replay one scripted behavior per upstream GET, in call order.
 
     A behavior is an Exception (raised), a ``(ticks, payload)`` pair (yields to
@@ -276,6 +283,9 @@ def _stub_openmeteo(monkeypatch, behaviors: list[Any]) -> list[dict[str, Any]]:
     each call was made with, so batching can be asserted. Running off the end
     of the script is an IndexError, which is the point: a test that expects two
     upstream calls fails loudly on a third.
+
+    Pass ``urls`` to collect the host each call went to as well, which is what
+    a keyed request has to get right.
     """
     calls: list[dict[str, Any]] = []
 
@@ -283,6 +293,8 @@ def _stub_openmeteo(monkeypatch, behaviors: list[Any]) -> list[dict[str, Any]]:
         async def get(self, url, params=None):
             behavior = behaviors[len(calls)]
             calls.append(params or {})
+            if urls is not None:
+                urls.append(url)
             if isinstance(behavior, Exception):
                 raise behavior
             if isinstance(behavior, tuple):
@@ -799,3 +811,145 @@ async def test_an_ordinary_400_stays_an_ordinary_upstream_error(monkeypatch):
         await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_hrrr)
 
     assert not isinstance(exc.value, ModelCoverageError)
+
+
+# ── a caller's own API key (issue #317) ────────────────────────────────────
+
+
+class _RecordingWeight:
+    """Stands in for the weighted pacer and records every acquire."""
+
+    def __init__(self) -> None:
+        self.acquired: list[float] = []
+        self.estimates: list[float] = []
+
+    def wait_estimate_s(self, weight: float) -> float:
+        self.estimates.append(weight)
+        return 99.0  # far past the 3s narration threshold
+
+    async def acquire(self, weight: float) -> None:
+        self.acquired.append(weight)
+
+
+def _invalid_key() -> httpx.HTTPStatusError:
+    """How Open-Meteo's customer host refuses a bad key.
+
+    Measured 2026-09-11: HTTP 400, not a 401, which is why the reason text is
+    what has to be recognised.
+    """
+    request = httpx.Request("GET", weather.CUSTOMER_FORECAST_URL)
+    response = httpx.Response(
+        400,
+        request=request,
+        json={"error": True, "reason": "The supplied API key is invalid."},
+    )
+    return httpx.HTTPStatusError("400", request=request, response=response)
+
+
+async def test_a_keyed_batch_goes_to_the_customer_host_carrying_the_key(monkeypatch):
+    urls: list[str] = []
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])], urls)
+    await fetch_weather_batch(_dests(1), START, END, api_key="secret-key")
+
+    assert urls == [weather.CUSTOMER_FORECAST_URL]
+    assert calls[0]["apikey"] == "secret-key"
+
+
+async def test_an_unkeyed_batch_stays_on_the_free_host_with_no_key(monkeypatch):
+    urls: list[str] = []
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])], urls)
+    await fetch_weather_batch(_dests(1), START, END)
+
+    assert urls == [weather.FORECAST_URL]
+    assert "apikey" not in calls[0]
+
+
+async def test_a_keyed_batch_never_touches_the_weighted_pacer(monkeypatch):
+    # The pacer meters this pod's free tier. A keyed batch spends the caller's
+    # quota, so pacing it would queue one caller behind another's spend.
+    pacer = _RecordingWeight()
+    monkeypatch.setattr(ratelimit, "WEATHER_WEIGHT", pacer)
+    paced: list[int] = []
+
+    async def on_pace(seconds):
+        paced.append(seconds)
+
+    _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    await fetch_weather_batch(
+        _dests(1), START, END, on_pace=on_pace, api_key="secret-key"
+    )
+
+    assert pacer.acquired == []
+    assert pacer.estimates == []
+    assert paced == []  # nothing to narrate when nothing waits
+
+
+async def test_an_unkeyed_batch_still_pays_the_weighted_pacer(monkeypatch):
+    pacer = _RecordingWeight()
+    monkeypatch.setattr(ratelimit, "WEATHER_WEIGHT", pacer)
+    _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    await fetch_weather_batch(_dests(1), START, END)
+
+    assert pacer.acquired == [1.0]
+
+
+async def test_a_keyed_batch_still_takes_an_in_flight_slot(monkeypatch):
+    # The in-flight budget guards the pod's own concurrency rather than a
+    # quota, so it applies to every batch whoever pays for it.
+    taken = {"n": 0}
+    real_slot = ratelimit.WEATHER_BUDGET.slot
+
+    class _CountingBudget:
+        def slot(self):
+            taken["n"] += 1
+            return real_slot()
+
+    monkeypatch.setattr(ratelimit, "WEATHER_BUDGET", _CountingBudget())
+    _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    await fetch_weather_batch(_dests(1), START, END, api_key="secret-key")
+
+    assert taken["n"] == 1
+
+
+async def test_a_refused_key_raises_invalid_api_key(monkeypatch):
+    _stub_openmeteo(monkeypatch, [_invalid_key()])
+    with pytest.raises(InvalidApiKeyError) as exc:
+        await fetch_weather_batch(_dests(1), START, END, api_key="bad-key")
+
+    assert exc.value.message == "Open-Meteo rejected the API key."
+    assert "bad-key" not in exc.value.message
+
+
+async def test_a_refused_key_is_not_classified_as_a_transient_failure(monkeypatch):
+    # Left to classify_http_error it would reach the caller as a 502 "try
+    # again later" for a request no retry can fix.
+    _stub_openmeteo(monkeypatch, [_invalid_key()])
+    with pytest.raises(UpstreamError) as exc:
+        await fetch_weather_batch(_dests(1), START, END, api_key="bad-key")
+
+    assert isinstance(exc.value, InvalidApiKeyError)
+    assert not isinstance(exc.value, ModelCoverageError)
+
+
+async def test_the_key_reaches_no_log_record_at_trace(monkeypatch, caplog):
+    # The pod forwards a paid credential and must forget it. TRACE logs the
+    # full request params, and raise_for_status builds its message out of the
+    # request URL, so both are places the key could come to rest.
+    _stub_openmeteo(monkeypatch, [_invalid_key()])
+    with caplog.at_level(5), pytest.raises(InvalidApiKeyError):  # TRACE
+        await fetch_weather_batch(_dests(1), START, END, api_key="secret-key")
+
+    assert caplog.records
+    for record in caplog.records:
+        assert "secret-key" not in record.getMessage()
+
+
+async def test_a_keyed_and_an_unkeyed_request_share_one_cache_entry(monkeypatch):
+    # Both hosts answer the same model the same way for the same location and
+    # window, so the key is deliberately not part of the cache key.
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    first = await fetch_weather_batch(_dests(1), START, END, api_key="secret-key")
+    second = await fetch_weather_batch(_dests(1), START, END)
+
+    assert len(calls) == 1
+    assert second[0]["precip_total_in"] == first[0]["precip_total_in"]

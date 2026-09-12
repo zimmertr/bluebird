@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from app.main import _client_ip
+from app.main import _client_ip, app
 
 
 def _request(headers=None, client_host="10.0.0.1"):
@@ -35,3 +35,15 @@ def test_client_ip_falls_back_to_peer():
 
 def test_client_ip_handles_missing_client():
     assert _client_ip(_request(client_host=None)) == "-"
+
+
+def test_the_api_description_states_the_key_requirement():
+    # The document used to say "There is no API key and no authentication",
+    # which #240 made false for the analyze routes and #317 replaced.
+    description = app.description
+    assert "There is no API key" not in description
+    assert (
+        "The analyze routes require an Open-Meteo API key in the X-Open-Meteo-Key"
+        in description
+    )
+    assert "Every other route takes no key and no authentication." in description

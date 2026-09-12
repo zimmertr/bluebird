@@ -50,6 +50,15 @@ so a person iterating on a map never meets them. A script should stay well under
 them anyway, and can sidestep them entirely by running its own container, where
 every limit is tunable or off.
 
+An Open-Meteo key changes exactly one of these limits, and it is not one of
+the four. The deployment's weighted pacer, which spreads a large fan-out over
+minutes so the shared free-tier quota is never exhausted, does not meter a
+request that carries a caller's key: that request spends the key's quota, which
+the pacer knows nothing about and cannot protect. Everything else still applies
+to it. The per-address analyze budget above holds, the cap on in-flight
+upstream calls holds, and the candidate cap, the polygon cap, and the row cap
+are all unchanged. A key buys a quota, not an exemption.
+
 The wildfire and smoke budgets are the loosest, because the requests they pace
 are the cheapest the service answers: both come from a snapshot the instance
 already holds, so a pan costs no upstream call at all. What those budgets
@@ -68,6 +77,7 @@ is and whether waiting helps:
 | Status | What happened |
 |---|---|
 | `400` | The request is runnable in shape but not as asked. Past the candidate cap it carries the remedies above; naming a regional forecast model for somewhere outside its grid is the other case, and there the fix is a different model rather than a smaller area. |
+| `401` | The weather service refused the API key an analyze request carried. Nothing here can fix it and no retry helps. |
 | `429` | Either you are asking faster than your per-address budget, or the weather service rate-limited this deployment mid-analysis. `Retry-After` is honest in both cases. |
 | `502` | An upstream failed outright. Every Overpass mirror was unreachable, or the weather service did not answer. Transient, worth retrying. |
 | `503` | This instance stayed at capacity long enough that it shed the request instead of queueing it forever. From `GET /api/wildfires` and `GET /api/smoke` it means something narrower: this instance has never once fetched that dataset successfully, so it has nothing to serve, not even stale. Transient either way, and carries `Retry-After`. |

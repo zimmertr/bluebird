@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
+import pytest
 from app.services import air_quality
 from app.services.air_quality import (
     _metrics,
@@ -12,6 +13,7 @@ from app.services.air_quality import (
     _series,
     fetch_aqi_batch,
 )
+from app.services.errors import InvalidApiKeyError
 
 START = datetime(2026, 7, 21, 0, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
 END = datetime(2026, 7, 21, 2, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
@@ -154,9 +156,13 @@ class _FakeResponse:
         return self._payload
 
 
-def _stub_openmeteo(monkeypatch, behaviors: list[Any]) -> list[dict[str, Any]]:
+def _stub_openmeteo(
+    monkeypatch, behaviors: list[Any], urls: list[str] | None = None
+) -> list[dict[str, Any]]:
     """Replay one behavior per upstream GET; running off the end is an
-    IndexError, which is how "this batch never fired" gets asserted."""
+    IndexError, which is how "this batch never fired" gets asserted.
+
+    Pass ``urls`` to collect the host each call went to as well."""
     calls: list[dict[str, Any]] = []
 
     class _Client:
@@ -167,6 +173,8 @@ def _stub_openmeteo(monkeypatch, behaviors: list[Any]) -> list[dict[str, Any]]:
             await asyncio.sleep(0)
             behavior = behaviors[len(calls)]
             calls.append(params or {})
+            if urls is not None:
+                urls.append(url)
             if isinstance(behavior, Exception):
                 raise behavior
             return _FakeResponse(behavior)
@@ -221,3 +229,103 @@ async def test_a_real_answer_is_still_cached(monkeypatch):
     second = await fetch_aqi_batch(_dests(1), START, END)
     assert len(calls) == 1
     assert second == first
+
+
+# ── a caller's own API key (issue #317) ────────────────────────────────────
+
+
+class _RecordingWeight:
+    """Stands in for the weighted pacer and records every acquire."""
+
+    def __init__(self) -> None:
+        self.acquired: list[float] = []
+
+    def wait_estimate_s(self, weight: float) -> float:
+        return 0.0
+
+    async def acquire(self, weight: float) -> None:
+        self.acquired.append(weight)
+
+
+def _invalid_key() -> httpx.HTTPStatusError:
+    """How the air-quality customer host refuses a bad key (measured
+    2026-09-11): a 400 whose reason names the key, not a 401."""
+    request = httpx.Request("GET", air_quality.CUSTOMER_AIR_QUALITY_URL)
+    response = httpx.Response(
+        400,
+        request=request,
+        json={"error": True, "reason": "The supplied API key is invalid."},
+    )
+    return httpx.HTTPStatusError("400", request=request, response=response)
+
+
+async def test_a_keyed_chunk_goes_to_the_customer_host_carrying_the_key(monkeypatch):
+    urls: list[str] = []
+    calls = _stub_openmeteo(
+        monkeypatch, [[_hourly(["2026-07-21T00:00"], [80])]], urls
+    )
+    await fetch_aqi_batch(_dests(1), START, END, api_key="secret-key")
+
+    assert urls == [air_quality.CUSTOMER_AIR_QUALITY_URL]
+    assert calls[0]["apikey"] == "secret-key"
+
+
+async def test_an_unkeyed_chunk_stays_on_the_free_host_with_no_key(monkeypatch):
+    urls: list[str] = []
+    calls = _stub_openmeteo(
+        monkeypatch, [[_hourly(["2026-07-21T00:00"], [80])]], urls
+    )
+    await fetch_aqi_batch(_dests(1), START, END)
+
+    assert urls == [air_quality.AIR_QUALITY_URL]
+    assert "apikey" not in calls[0]
+
+
+async def test_a_keyed_chunk_never_touches_the_weighted_pacer(monkeypatch):
+    pacer = _RecordingWeight()
+    monkeypatch.setattr(air_quality.ratelimit, "AQI_WEIGHT", pacer)
+    _stub_openmeteo(monkeypatch, [[_hourly(["2026-07-21T00:00"], [80])]])
+    await fetch_aqi_batch(_dests(1), START, END, api_key="secret-key")
+
+    assert pacer.acquired == []
+
+
+async def test_an_unkeyed_chunk_still_pays_the_weighted_pacer(monkeypatch):
+    pacer = _RecordingWeight()
+    monkeypatch.setattr(air_quality.ratelimit, "AQI_WEIGHT", pacer)
+    _stub_openmeteo(monkeypatch, [[_hourly(["2026-07-21T00:00"], [80])]])
+    await fetch_aqi_batch(_dests(1), START, END)
+
+    assert pacer.acquired == [1.0]
+
+
+async def test_a_refused_key_raises_instead_of_degrading_to_nulls(monkeypatch):
+    # The one air-quality failure that is not best-effort: the same key rides
+    # every batch, so nulls here would report no air quality for a reason the
+    # caller could have fixed.
+    _stub_openmeteo(monkeypatch, [_invalid_key()])
+    with pytest.raises(InvalidApiKeyError) as exc:
+        await fetch_aqi_batch(_dests(1), START, END, api_key="bad-key")
+
+    assert exc.value.message == "Open-Meteo rejected the API key."
+
+
+async def test_an_ordinary_400_still_degrades_to_nulls(monkeypatch):
+    # Only the invalid-key reason raises. Every other 400 stays best-effort.
+    request = httpx.Request("GET", air_quality.AIR_QUALITY_URL)
+    response = httpx.Response(400, request=request, json={"reason": "Invalid date"})
+    _stub_openmeteo(
+        monkeypatch,
+        [httpx.HTTPStatusError("400", request=request, response=response)],
+    )
+    assert await fetch_aqi_batch(_dests(1), START, END) == [None]
+
+
+async def test_the_key_reaches_no_log_record_at_trace(monkeypatch, caplog):
+    _stub_openmeteo(monkeypatch, [_invalid_key()])
+    with caplog.at_level(5), pytest.raises(InvalidApiKeyError):  # TRACE
+        await fetch_aqi_batch(_dests(1), START, END, api_key="secret-key")
+
+    assert caplog.records
+    for record in caplog.records:
+        assert "secret-key" not in record.getMessage()
