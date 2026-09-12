@@ -167,6 +167,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | Every focus-able control has focus ring | `styles.test.ts` | List per control type |
 | Segmented controls are built one way | `styles.test.ts` | Check `SEGMENT` / `SEGMENT_IDLE` / `SEGMENT_ITEM` composition |
 | Metric names are centralized | `metrics.test.ts` | Ban Precip/Temp/Avg/Min/Max/Elev abbreviations in nine files |
+| Every results-table header carries a header role | `styles.test.ts` | Every header cell opened in `ResultsTable.tsx` references `TABLE.headRanking` or `TABLE.headDetail` |
 | No `title=` attributes on JSX elements | `styles.test.ts` | Regex pattern on component sources |
 | No unsafe error message patterns | `styles.test.ts` & `metrics.test.ts` | Ban `failed: ${...}` and unsafe response copies |
 
@@ -199,7 +200,7 @@ The results table has two kinds of column. Thirteen of them name a value the pan
 
 **Why weight and not colour or a mark?** A click cannot carry the difference: since #242 a click on either kind sorts the displayed rows in place and does nothing else, so an underline or an accent would promise an action neither kind performs. What actually differs is the column's standing, and the ramp already carries standing in weight — this is the same relationship `TEXT.subheading` and `TEXT.control` have. Dimming the detail half was the alternative and spends contrast to repeat the weight: `slate-300` holds at **6.98:1** on that bar, but the next step down (`slate-400`) reaches only **4.04:1** and fails AA.
 
-**Why `headDetail` spells `font-normal`:** a `<th>` is bold in the user-agent stylesheet and Preflight does not reset it, so a header that merely omits a weight renders at 700 — heavier than the rankable half it sits beside, which inverts the signal. `styles.test.ts` asserts the class is present.
+**Why `headDetail` spells `font-normal`:** a table header cell is bold in the user-agent stylesheet and Preflight does not reset it, so a header that merely omits a weight renders at 700 — heavier than the rankable half it sits beside, which inverts the signal. `styles.test.ts` asserts the class is present, and separately that **every** header cell in the table takes one of the two roles. That second rule exists because the cell which shipped without one was the filler column at the end of the row: it holds no text, so the inversion was invisible in review. The filler takes the type role only, not `TABLE.head`, whose inset would compete with the `p-0` that column exists to keep.
 
 **Re-measure condition:** if the header bar leaves `slate-700`, re-derive both numbers. The binding constraint is the detail half, because it is the one a future change would be tempted to dim.
 

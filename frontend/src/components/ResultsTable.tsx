@@ -542,8 +542,14 @@ export default function ResultsTable({
             {/* The filler column soaks up min-w-full's spare width. Without
                 it auto layout deals that space to every column, so a fitted
                 or dragged column renders wider than the width it was given
-                and a first double-click reads as "the column grew". */}
-            <th aria-hidden="true" className="w-full p-0" />
+                and a first double-click reads as "the column grew".
+                It takes the quiet header's TYPE only. A header cell is bold in
+                the user-agent stylesheet, so one carrying no weight of its own
+                renders heavier than every labelled header beside it, and this
+                one holds no text to make that visible. TABLE.head is left off
+                because its inset would compete with the p-0 this column exists
+                to keep. */}
+            <th aria-hidden="true" className={`${TABLE.headDetail} w-full p-0`} />
           </tr>
         </thead>
         <tbody>

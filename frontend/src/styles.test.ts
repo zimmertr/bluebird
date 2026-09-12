@@ -158,6 +158,27 @@ describe('the results table head', () => {
     expect(TABLE.head).not.toMatch(/\bfont-/)
     expect(TABLE.head).not.toMatch(/\btext-slate-/)
   })
+
+  // The reason the roles above cannot be optional. A header that takes neither
+  // renders at the user-agent's 700 and comes out heavier than the rankable
+  // half it sits beside, which inverts the whole signal — and it is invisible
+  // in review, because the cell that shipped that way holds no text at all
+  // (the filler column that soaks up the table's spare width). So the rule is
+  // per `<th>`, not per labelled column.
+  //
+  // The opening tag is matched up to the first `>` that is not the tail of an
+  // arrow function, since two of these headers carry handlers.
+  it('gives every header cell in the results table one of the two roles', () => {
+    const source = sources['./components/ResultsTable.tsx']
+    expect(source?.length, 'ResultsTable.tsx loaded empty').toBeGreaterThan(500)
+    const openings = source.match(/<th\b[\s\S]*?(?<!=)>/g) ?? []
+    expect(openings.length, 'found no header cells to check').toBeGreaterThanOrEqual(4)
+    for (const tag of openings) {
+      expect(tag, `a header cell with no header role:\n${tag}`).toMatch(
+        /TABLE\.head(?:Ranking|Detail)/,
+      )
+    }
+  })
 })
 
 describe('the reading tier', () => {
