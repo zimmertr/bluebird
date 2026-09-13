@@ -25,7 +25,7 @@ from app.services.weather import (
 )
 
 
-def _hourly(times, precip, temp, wind, freeze=None):
+def _hourly(times, precip, temp, wind, freeze=None, freeze_unit="m"):
     hourly = {
         "time": times,
         "precipitation": precip,
@@ -35,9 +35,15 @@ def _hourly(times, precip, temp, wind, freeze=None):
     # Omitted rather than nulled by default: a payload with no
     # `freezing_level_height` key at all is what five of the eight models
     # return, so it is the shape most of these tests should exercise.
+    payload: dict[str, Any] = {"hourly": hourly}
     if freeze is not None:
         hourly["freezing_level_height"] = freeze
-    return {"hourly": hourly}
+        # A real response always declares the unit, so the payload carries it
+        # whenever it carries the column. `freeze_unit=None` is the malformed
+        # body the aggregation must refuse rather than guess at.
+        if freeze_unit is not None:
+            payload["hourly_units"] = {"freezing_level_height": freeze_unit}
+    return payload
 
 
 START = datetime(2026, 7, 21, 0, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
@@ -224,6 +230,69 @@ def test_series_freezing_level_is_all_nulls_when_the_model_omits_it():
     s = _series(data, START, END)
     assert s["freeze_ft"] == [None, None, None]
     assert s["precip_in"] == [0.1, 0.2, 0.3]
+
+
+# ── The freezing level's unit (issue #295 review) ──────────────────────────
+#
+# Open-Meteo quotes the height in the unit `precipitation_unit` selects and
+# names it in `hourly_units`. One hour over Rainier, measured 2026-09-13 for
+# 2026-09-15T12:00: 2560 with "m", 8398.95 with "ft", and both are 8,399 ft.
+# Every request the app sends carries `precipitation_unit=inch`, so feet is
+# the branch production takes.
+_RAINIER_HOUR = "2026-09-15T12:00"
+_RAINIER_START = datetime(2026, 9, 15, 12, 0)  # noqa: DTZ001 — naive, like the API's stamps
+_RAINIER_END = datetime(2026, 9, 15, 12, 1)  # noqa: DTZ001 — naive, like the API's stamps
+
+
+def _rainier(freeze, freeze_unit="m"):
+    return _hourly(
+        [_RAINIER_HOUR], [0.0], [3.3], [10.0], freeze=freeze, freeze_unit=freeze_unit
+    )
+
+
+def test_metrics_reads_the_unit_the_response_declares():
+    meters = _metrics(_rainier([2560.0]), _RAINIER_START, _RAINIER_END)
+    feet = _metrics(_rainier([8398.95], "ft"), _RAINIER_START, _RAINIER_END)
+    assert meters["freeze_min_ft"] == 8399.0
+    assert feet["freeze_min_ft"] == 8399.0
+    assert feet == meters
+
+
+def test_metrics_does_not_convert_a_response_already_in_feet():
+    # The whole failure this guards: dividing feet by 0.3048 reads 27,556 ft
+    # over a 14,409 ft summit, which looks like a forecast rather than a fault.
+    m = _metrics(_rainier([8398.95], "ft"), _RAINIER_START, _RAINIER_END)
+    assert m["freeze_max_ft"] == 8399.0
+
+
+def test_series_reads_the_unit_the_response_declares():
+    meters = _series(_rainier([2560.0]), _RAINIER_START, _RAINIER_END)
+    feet = _series(_rainier([8398.95], "ft"), _RAINIER_START, _RAINIER_END)
+    assert meters["freeze_ft"] == [8399.0]
+    assert feet["freeze_ft"] == [8399.0]
+
+
+def test_metrics_unknown_unit_fails_instead_of_guessing():
+    with pytest.raises(UpstreamError):
+        _metrics(_rainier([2560.0], "furlongs"), _RAINIER_START, _RAINIER_END)
+
+
+def test_series_unknown_unit_fails_instead_of_guessing():
+    with pytest.raises(UpstreamError):
+        _series(_rainier([2560.0], "furlongs"), _RAINIER_START, _RAINIER_END)
+
+
+def test_metrics_missing_unit_fails_when_the_column_carries_numbers():
+    with pytest.raises(UpstreamError):
+        _metrics(_rainier([2560.0], None), _RAINIER_START, _RAINIER_END)
+
+
+def test_metrics_missing_unit_is_harmless_when_the_column_is_all_null():
+    # The five models that publish no freezing level need no unit, and a
+    # response that declares none for an empty column is not malformed.
+    m = _metrics(_rainier([None], None), _RAINIER_START, _RAINIER_END)
+    assert m["freeze_min_ft"] is None
+    assert m["temp_min_f"] == 3.3
 
 
 # One hour's free-air winds at the five levels, weakest to strongest, so an
@@ -1039,3 +1108,12 @@ async def test_a_keyed_and_an_unkeyed_request_share_one_cache_entry(monkeypatch)
 
     assert len(calls) == 1
     assert second[0]["precip_total_in"] == first[0]["precip_total_in"]
+
+
+async def test_fetch_weather_batch_fails_on_an_unreadable_unit(monkeypatch):
+    # The raise has to clear both aggregation functions' degrade-to-None
+    # handlers and the chunk loop, or an unreadable unit would quietly drop
+    # every row in the batch instead of saying anything.
+    _stub_openmeteo(monkeypatch, [[_rainier([2560.0], "furlongs")]])
+    with pytest.raises(UpstreamError):
+        await fetch_weather_batch(_dests(1), _RAINIER_START, _RAINIER_END)
