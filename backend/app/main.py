@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import ratelimit, security_headers, telemetry
+from app.error_codes import ApiError, api_error_handler
 from app.routes.analyze import router
 from app.routes.capabilities import router as capabilities_router
 from app.routes.config import router as config_router
@@ -206,6 +207,13 @@ app.add_middleware(
     # long Retry-After told it to back off.
     expose_headers=["Retry-After"],
 )
+
+
+# Registered for ApiError rather than HTTPException: Starlette resolves a
+# handler by walking the exception's MRO, so this claims every coded error and
+# leaves a plain HTTPException (the document pages' 404) on FastAPI's stock
+# body.
+app.add_exception_handler(ApiError, api_error_handler)
 
 
 @app.middleware("http")

@@ -283,15 +283,19 @@ multiplexes over one HTTP/2 connection per origin already.
 Open-Meteo does not bill HTTP requests. Per their published accounting
 (pricing page and the official multi-location post):
 
-    weight = locations × max(1, days/14) × max(1, variables/10)
+    weight = locations × max(1, days/14) × max(1, variables × models/10)
 
 so a 50-location batch costs at least 50 calls, and the full 16-day window
 makes it 57. The per-factor floor is inferred from observed enforcement, not
 documented (issue #180 tracks the upstream confirmation); assuming it is the
-conservative choice. **Every capacity number in this file is written in this
-unit** — the 2026-07-29 incident happened because three layers of this
-system priced spend in HTTP requests and were consistently wrong by the
-batch factor of 50.
+conservative choice. The model count multiplies the variable count because a
+request naming several models returns one series per variable per model, and
+Open-Meteo prices what comes back; their own call calculator on the pricing
+page takes Models beside Variables and multiplies the two. Every request this
+service makes today names one model, so that term is 1. **Every capacity
+number in this file is written in this unit** — the 2026-07-29 incident
+happened because three layers of this system priced spend in HTTP requests
+and were consistently wrong by the batch factor of 50.
 
 ## Worst-case math
 

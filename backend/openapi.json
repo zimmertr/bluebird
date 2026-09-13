@@ -9,6 +9,10 @@
             "title": "Detail",
             "type": "string"
           },
+          "error": {
+            "$ref": "#/components/schemas/ApiErrorInfo",
+            "description": "The machine-readable half of the same refusal."
+          },
           "found": {
             "anyOf": [
               {
@@ -59,7 +63,8 @@
           }
         },
         "required": [
-          "detail"
+          "detail",
+          "error"
         ],
         "title": "AnalysisRefusal",
         "type": "object"
@@ -156,6 +161,12 @@
             "$ref": "#/components/schemas/ForecastModel",
             "default": "gfs_seamless",
             "description": "Which weather model answers. Models disagree, sometimes by more than the thing being measured: at one Cascades summit over three days, ECMWF and GFS both totalled 0.000 in of precipitation while ICON gave 0.004 in.\n\nEach model also reaches a different distance ahead, so this bounds `end_datetime` as well: hours past the chosen model's horizon come back null rather than failing, and `GET /api/capabilities` publishes how far each one reaches. `gfs_hrrr` is the short-range outlier \u2014 roughly two days, against two weeks for the global models \u2014 and is also the only regional one, covering the continental US with parts of Canada and Mexico and refusing any point outside that grid."
+          },
+          "include_series": {
+            "default": true,
+            "description": "Send each row's hourly `series`. The hours are the bulk of the body, by an order of magnitude on a long window, so a caller that reads only the aggregates should set this false.\n\nNothing else changes. The aggregates are computed from the same hours either way, `times` is still sent, and air quality is still fetched and summarized under the same best-effort terms. True by default, so an existing caller sees the shape it always saw.",
+            "title": "Include Series",
+            "type": "boolean"
           },
           "include_unnamed_peaks": {
             "default": false,
@@ -365,7 +376,7 @@
           },
           "times": {
             "default": [],
-            "description": "Shared hourly grid for every row's `series`, as epoch milliseconds UTC. Sent once because it is identical across destinations for a given window.",
+            "description": "Shared hourly grid for every row's `series`, as epoch milliseconds UTC. Sent once because it is identical across destinations for a given window, and sent in both shapes: under `include_series: false` it is the only statement of which hours the aggregates reduced.",
             "items": {
               "type": "integer"
             },
@@ -409,6 +420,26 @@
         "title": "AnalyzeResponse",
         "type": "object"
       },
+      "ApiErrorInfo": {
+        "description": "The same failure as a code a program can branch on.\n\nIt rides beside `detail` rather than replacing it, because the two are\nread by different audiences: the sentence by a person, the code by a\nclient deciding whether to retry.",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode",
+            "description": "Which kind of failure this is, from a closed vocabulary. Stable contract: unlike `detail`, a code is not reworded."
+          },
+          "retryable": {
+            "description": "Whether sending the identical request again is worth trying. False means only the caller can change the outcome. On a 429 or 503 the `Retry-After` header says when.",
+            "title": "Retryable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "retryable"
+        ],
+        "title": "ApiErrorInfo",
+        "type": "object"
+      },
       "CapabilitiesResponse": {
         "description": "What this deployment can do, and the bounds it enforces.",
         "properties": {
@@ -425,7 +456,7 @@
             "type": "array"
           },
           "destination_types": {
-            "description": "Destination types this deployment can actually analyze. Narrower than the `DestinationType` enum, which also models types that are not yet discoverable.",
+            "description": "Destination types this deployment can discover, and exactly the values a request may send in `destination_types`. Narrower than the `DestinationType` enum, which also models types that are not yet discoverable, and `custom`, which names rows the caller supplies in `custom_destinations` rather than something to go and find.",
             "items": {
               "type": "string"
             },
@@ -646,7 +677,7 @@
                 "type": "null"
               }
             ],
-            "description": "Hourly detail behind the summary figures above, aligned to `times`. Null only when the upstream forecast carried no hours inside the window."
+            "description": "Hourly detail behind the summary figures above, aligned to `times`. Null when the upstream forecast carried no hours inside the window, and on every row when the request set `include_series: false`."
           },
           "temp_avg_f": {
             "description": "Mean temperature, degrees Fahrenheit.",
@@ -889,6 +920,25 @@
         "title": "DiscoveredDestination",
         "type": "object"
       },
+      "ErrorCode": {
+        "description": "Why a request failed, in the caller's vocabulary rather than the implementation's.",
+        "enum": [
+          "validation",
+          "refusal",
+          "model_coverage",
+          "invalid_api_key",
+          "not_found",
+          "method_not_allowed",
+          "rate_limited",
+          "upstream_rate_limited",
+          "upstream_unavailable",
+          "busy",
+          "snapshot_unavailable",
+          "internal"
+        ],
+        "title": "ErrorCode",
+        "type": "string"
+      },
       "ErrorResponse": {
         "description": "Body of a hand-raised API error.\n\nNote that a 422 differs: request validation is Pydantic's, and its `detail`\nis a list of per-field objects rather than a string. That shape is\ndocumented separately as `HTTPValidationError`.",
         "properties": {
@@ -896,10 +946,15 @@
             "description": "Plain-language explanation of what went wrong, written to be shown to an end user unmodified.",
             "title": "Detail",
             "type": "string"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiErrorInfo",
+            "description": "The machine-readable half of the same failure."
           }
         },
         "required": [
-          "detail"
+          "detail",
+          "error"
         ],
         "title": "ErrorResponse",
         "type": "object"
@@ -1564,7 +1619,7 @@
     },
     "/api/analyze/stream": {
       "post": {
-        "description": "Identical analysis to `POST /api/analyze`, delivered as Server-Sent Events so a caller can show progress instead of waiting on one long request.\n\nCheck the status code first, then the stream. A request that fails validation is rejected with **422 before the stream opens**, exactly as on `POST /api/analyze`. Once the stream does open the status is **200 for the rest of the exchange**, including for failures, because the connection is already streaming by the time an upstream problem surfaces. So a 200 here means the request was accepted, not that the analysis succeeded. Four event types arrive as `data:` lines carrying a JSON object with a `type` field:\n\n- `status` \u2014 a human-readable phase message in `message`, plus an optional `detail` line for mid-phase news: a fall-over to a backup map server, or a weather-quota pace wait with its resume estimate\n- `progress` \u2014 `processed`, `total`, and `percent` counters\n- `keepalive` \u2014 periodic no-op during quiet stretches (a paced analysis can wait most of a minute for quota); ignore it\n- `result` \u2014 the terminal success event, carrying a full `AnalyzeResponse` in `data`\n- `error` \u2014 the terminal failure event, with the reason in `message`; an over-limit refusal also carries the `AnalysisRefusal` remedy fields, and an upstream rate limit carries `scope` and `retry_after_s`\n\nExactly one `result` or one `error` ends the stream.\n\nRate limiting applies before the stream opens: a client past the per-address limit gets a plain **429 with `Retry-After`**, exactly as on `POST /api/analyze`. Capacity problems found mid-analysis (the instance-wide upstream budget saturating) arrive as an `error` event, since the stream is already open.",
+        "description": "Identical analysis to `POST /api/analyze`, delivered as Server-Sent Events so a caller can show progress instead of waiting on one long request.\n\nCheck the status code first, then the stream. A request that fails validation is rejected with **422 before the stream opens**, exactly as on `POST /api/analyze`. Once the stream does open the status is **200 for the rest of the exchange**, including for failures, because the connection is already streaming by the time an upstream problem surfaces. So a 200 here means the request was accepted, not that the analysis succeeded. Four event types arrive as `data:` lines carrying a JSON object with a `type` field:\n\n- `status` \u2014 a human-readable phase message in `message`, plus an optional `detail` line for mid-phase news: a fall-over to a backup map server, or a weather-quota pace wait with its resume estimate\n- `progress` \u2014 `processed`, `total`, and `percent` counters\n- `keepalive` \u2014 periodic no-op during quiet stretches (a paced analysis can wait most of a minute for quota); ignore it\n- `result` \u2014 the terminal success event, carrying a full `AnalyzeResponse` in `data`\n- `error` \u2014 the terminal failure event, with the reason in `message` and the same machine-readable `error` object (`code`, `retryable`) the JSON routes answer with; an over-limit refusal also carries the `AnalysisRefusal` remedy fields, and an upstream rate limit carries `scope` and `retry_after_s`\n\nExactly one `result` or one `error` ends the stream.\n\nRate limiting applies before the stream opens: a client past the per-address limit gets a plain **429 with `Retry-After`**, exactly as on `POST /api/analyze`. Capacity problems found mid-analysis (the instance-wide upstream budget saturating) arrive as an `error` event, since the stream is already open.",
         "operationId": "analyze_stream_api_analyze_stream_post",
         "requestBody": {
           "content": {
