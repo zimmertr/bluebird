@@ -44,6 +44,7 @@ import {
   SURFACE_GROUP_BLEED,
   LINK,
   LINK_ACTION,
+  MAP_BOX_W,
   PROSE,
   RADIUS,
   SURFACE_CARD,
@@ -823,6 +824,25 @@ describe('shared recipes', () => {
     expect(SURFACE_SHEET).toContain('overflow-hidden')
     // Downward shadows have nothing to fall on under a bottom sheet.
     expect(SURFACE_SHEET).not.toMatch(/\bshadow-/)
+  })
+
+  // The three boxes in the map's left column are one width: the Layers popover
+  // and the two legends below it. The popover shipped a step narrower than the
+  // legends it hangs into, which read as a ragged edge rather than as three
+  // boxes, so the width is a role and every one of them wears it.
+  it('gives every box under the Layers button one width', () => {
+    expect(MAP_BOX_W).toBe('w-48')
+    // The call sites are the two legends and the popover. A width spelled
+    // beside the role could not even be relied on to win: two width utilities
+    // resolve by stylesheet order rather than by class order.
+    const rides = appSource.match(/\$\{MAP_BOX_W\}[^`]*/g) ?? []
+    expect(rides).toHaveLength(3)
+    expect(rides.filter((r) => /(^|\s)w-\S+/.test(r))).toEqual([])
+    // And nothing in the file picks its own width in the range one of these
+    // boxes would plausibly take. Written as a range rather than as a list of
+    // names so a step nobody thought of still fails, and with the leading
+    // guard so `max-w-*` is not read as a width of its own.
+    expect(appSource).not.toMatch(/(?<![-\w])w-(?:4\d|5\d)\b/)
   })
 
   // The Layers popover, separated from the legend boxes by elevation rather

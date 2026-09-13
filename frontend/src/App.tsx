@@ -31,6 +31,7 @@ import {
   ICON_BUTTON,
   LAYER,
   LINK,
+  MAP_BOX_W,
   PROSE,
   RADIUS,
   LIFTED_EDGE,
@@ -138,24 +139,6 @@ import { SortDir, SortKey, WILDFIRE_COL, WILDFIRE_KEY, displayedColumns, visible
 import { NAME_DEFAULT_PX } from './utils/columnResize'
 import { compareValues } from './utils/sortResults'
 import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
-
-// Both map legends, sized as one: they stack in a single column, so differing
-// widths would read as a ragged edge rather than as two boxes. The step is a
-// measured magic number, and the governor moved when the fire credit folded up
-// into its swatch row — "Active Wildfire (NIFC)" is one 12px TEXT.control line
-// where it used to be a short label above a 10px credit, and it is now wider
-// than anything the metric box holds (the bare metric title ≤ 85px at
-// TEXT.overline, the widest band row 113px).
-//
-// Measured 2026-07-31 in Chrome on macOS, the widest face was then the fire
-// credit row at 140.1px. The governor moved again when the grid legend's wait
-// gained its countdown (#288): "Forecast grid" against "Waiting · 99s" is the
-// new widest row — measured 2026-08-21 in Chrome on macOS at 74.7 + 74.1 +
-// the 8px gap = 156.8px — and w-44's 154px wrapped the label by under three
-// pixels at two-digit seconds. w-48 leaves 172px, ~15px of slack; the
-// countdown switches to minutes past 99s so this row's widest case is
-// bounded. Re-measure before lengthening a line in either box.
-const LEGEND_WIDTH = 'w-48'
 
 // The two map buttons are one pair and are sized as one: same width, same
 // height, stacked in a column where any difference between them reads as a
@@ -2094,7 +2077,7 @@ export default function App() {
                   a "Map layers" line above would be a label for four labels —
                   and on a phone it is a whole row of the little map left. */}
               {(showSmoke || showRadar || showWildfires || gridPainted || gridCued || gridFailed) && (
-                <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} px-2.5 py-2`}>
+                <div className={`${SURFACE_FLOATING} ${MAP_BOX_W} px-2.5 py-2`}>
                   <div className="flex flex-col gap-1">
                     {showSmoke && (
                       <div className="flex items-center justify-between gap-2">
@@ -2214,7 +2197,7 @@ export default function App() {
                   same scale by construction (#246), which is also why the grid
                   has no swatch of its own in the layer rows above. */}
               {(hasColoredMarkers || gridPainted || gridCued) && (
-                <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} p-2.5`}>
+                <div className={`${SURFACE_FLOATING} ${MAP_BOX_W} p-2.5`}>
                   {/* The bare metric only: which hour or window the colors
                       describe, and how it was reduced, is stated by the
                       results header and the table's own column headers. */}
@@ -2280,7 +2263,7 @@ export default function App() {
                 Layers
               </button>
               {layersOpen && (
-                <div className={`${SURFACE_POPOVER} absolute left-0 mt-2 w-44 px-2.5 py-2`}>
+                <div className={`${SURFACE_POPOVER} ${MAP_BOX_W} absolute left-0 mt-2 px-2.5 py-2`}>
                   {MAP_LAYERS.map(({ key, label, checked, onChange }) => (
                     <label key={key} className={CHOICE_ROW}>
                       <input
@@ -2293,9 +2276,10 @@ export default function App() {
                     </label>
                   ))}
                   {/* The grid's sub-choices, revealed by its own checkbox.
-                      The popover is 176px, so these take the fluid segment
-                      rather than the panel's fixed 144px column — the same
-                      reason the results bar's mode switch does. */}
+                      The popover is as wide as the legend boxes below it
+                      (`MAP_BOX_W`), so these take the fluid segment rather
+                      than the panel's fixed 144px column — the same reason
+                      the results bar's mode switch does. */}
                   {showGrid && (
                     <>
                       <div className={`${SEGMENT_FLUID_LIFTED} mt-1.5 w-full`}>

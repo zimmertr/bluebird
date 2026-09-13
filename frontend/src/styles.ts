@@ -713,6 +713,27 @@ export const SEGMENT_IDLE = `${RECESSED_FILL} text-slate-400 hover:text-slate-20
  */
 export const CONTROL_W = 'w-36'
 
+/**
+ * The width every floating box under the Layers button shares: the Layers
+ * popover itself, the map-layer legend, and the metric colour key.
+ *
+ * They sit in one column on the left of the map, a popover hanging into the
+ * space the legends occupy, so differing widths read as a ragged edge rather
+ * than as three boxes. The popover and the legends had drifted a step apart,
+ * which is why this is a role and not a constant beside one of them.
+ *
+ * The number is measured and the governor is the legend's longest row: the grid
+ * legend's wait line, "Forecast grid" against "Waiting · 99s", measured
+ * 2026-08-21 in Chrome on macOS at 74.7 + 74.1 + the 8px gap = 156.8px. One
+ * step down leaves 154px and wrapped that label by under three pixels at
+ * two-digit seconds; this leaves 172px, about 15px of slack, and the countdown
+ * switches to minutes past 99s so the row's widest case is bounded. The fire
+ * credit row governed before it ("Active Wildfire (NIFC)", 140.1px measured
+ * 2026-07-31), and the popover's own rows are shorter than both. Re-measure
+ * before lengthening a line in any of the three.
+ */
+export const MAP_BOX_W = 'w-48'
+
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 
 /**
