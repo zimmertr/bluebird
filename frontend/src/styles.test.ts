@@ -30,12 +30,14 @@ import {
   SLIDER_WORDMARK,
   SEGMENT,
   SEGMENT_FLUID,
+  SEGMENT_FLUID_LIFTED,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
   SELECT,
   SELECT_W_AGGREGATE,
   SPINNER,
   STATUS,
+  LIFTED_EDGE,
   RECESSED_EDGE,
   RECESSED_FILL,
   SURFACE_GROUP,
@@ -46,6 +48,7 @@ import {
   RADIUS,
   SURFACE_CARD,
   SURFACE_FLOATING,
+  SURFACE_POPOVER,
   SURFACE_SHEET,
   TAP,
   TEXT,
@@ -820,6 +823,38 @@ describe('shared recipes', () => {
     expect(SURFACE_SHEET).toContain('overflow-hidden')
     // Downward shadows have nothing to fall on under a bottom sheet.
     expect(SURFACE_SHEET).not.toMatch(/\bshadow-/)
+  })
+
+  // The Layers popover, separated from the legend boxes by elevation rather
+  // than by a heavier line (spike option (c)). One slate step of fill and a
+  // heavier shadow; the border is the legends', unchanged. It has to be spelled
+  // as its own recipe rather than composed onto the floating one, because two
+  // background utilities resolve by stylesheet order and the lighter fill would
+  // not reliably win.
+  it('lifts the Layers popover off the legends by elevation', () => {
+    expect(SURFACE_POPOVER).toContain('bg-slate-700/95')
+    expect(SURFACE_POPOVER).toContain('border-slate-600')
+    expect(SURFACE_POPOVER).toContain(RADIUS.surface)
+    // The shadow is what does the separating, so it must outrank the legends'.
+    expect(SURFACE_POPOVER).toContain('shadow-2xl')
+    expect(SURFACE_FLOATING).not.toContain('shadow-2xl')
+    expect(SURFACE_POPOVER).not.toContain(SURFACE_FLOATING)
+  })
+
+  // slate-500 carries the recessed boundary at 3.07:1 against the slate-800
+  // panel and only 2.17:1 against the popover's lighter fill, which would leave
+  // the segment and the coverage well without the outer half of their edge.
+  // slate-400 is 3.94:1 out and 7.0:1 against the slate-900 fill in, so both
+  // sides clear the 3:1 WCAG 1.4.11 asks of a component boundary.
+  it('re-derives the recessed edge for the lifted surface', () => {
+    expect(LIFTED_EDGE).toContain('border')
+    expect(LIFTED_EDGE).toContain('slate-400')
+    expect(LIFTED_EDGE).not.toBe(RECESSED_EDGE)
+    // Only the edge varies: shape stays the fluid segment's, so the two cannot
+    // drift into different controls.
+    expect(SEGMENT_FLUID_LIFTED).toContain(LIFTED_EDGE)
+    expect(SEGMENT_FLUID_LIFTED).not.toContain(RECESSED_EDGE)
+    expect(SEGMENT_FLUID_LIFTED.replace(LIFTED_EDGE, RECESSED_EDGE)).toBe(SEGMENT_FLUID)
   })
 
   // Sky at rest means "this acts here". Anything that leaves for someone

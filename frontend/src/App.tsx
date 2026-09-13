@@ -33,9 +33,10 @@ import {
   LINK,
   PROSE,
   RADIUS,
-  RECESSED_EDGE,
+  LIFTED_EDGE,
   RECESSED_FILL,
   SEGMENT_FLUID,
+  SEGMENT_FLUID_LIFTED,
   CONTROL_SIZE,
   SLIDER_IDLE,
   STATUS,
@@ -47,6 +48,7 @@ import {
   SEGMENT_ITEM,
   SURFACE_CARD,
   SURFACE_FLOATING,
+  SURFACE_POPOVER,
   SURFACE_SHEET,
   SWATCH_CHIP,
   TAP,
@@ -2278,7 +2280,7 @@ export default function App() {
                 Layers
               </button>
               {layersOpen && (
-                <div className={`${SURFACE_FLOATING} absolute left-0 mt-2 w-44 px-2.5 py-2`}>
+                <div className={`${SURFACE_POPOVER} absolute left-0 mt-2 w-44 px-2.5 py-2`}>
                   {MAP_LAYERS.map(({ key, label, checked, onChange }) => (
                     <label key={key} className={CHOICE_ROW}>
                       <input
@@ -2296,7 +2298,7 @@ export default function App() {
                       reason the results bar's mode switch does. */}
                   {showGrid && (
                     <>
-                      <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
+                      <div className={`${SEGMENT_FLUID_LIFTED} mt-1.5 w-full`}>
                         {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
                           <button
                             key={value}
@@ -2320,7 +2322,7 @@ export default function App() {
                           and commits on release, because each committed value
                           is a refetch and a drag must not fetch per pixel. */}
                       <div
-                        className={`relative mt-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${RECESSED_EDGE} ${RECESSED_FILL}`}
+                        className={`relative mt-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${LIFTED_EDGE} ${RECESSED_FILL}`}
                       >
                         {(() => {
                           const shown = gridReachDraft ?? gridReachFrac

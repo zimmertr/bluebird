@@ -245,6 +245,48 @@ export const SURFACE_CARD =
 export const SURFACE_SHEET = 'bg-slate-800 border-t border-slate-600 rounded-t-lg overflow-hidden'
 
 /**
+ * The map's Layers popover: the one floating box that is a menu rather than a
+ * label. Spike option (c) — separate it by ELEVATION.
+ *
+ * It wore `SURFACE_FLOATING` byte-identical to the legend boxes a few hundred
+ * pixels below it, so a thing the reader acts in looked like a key the reader
+ * reads. What separates it here is the shadow and one step of fill; the border
+ * stays exactly the legends' slate-600 so the change is elevation only.
+ *
+ * ## Why `shadow-2xl` rather than `shadow-xl`
+ *
+ * Tailwind's `xl` is two layers at 0.1 black alpha; `2xl` is one 50px blur at
+ * 0.25. Over the light basemap both register, but this popover also hangs over
+ * the dark results sheet at the phone breakpoint, where 0.1 alpha on a near
+ * black surface is nothing at all. 0.25 is the only one of the two that reads
+ * on both grounds. `SURFACE_CARD` keeps `xl` because a scrim does its
+ * separating; nothing sits behind this one.
+ *
+ * ## Why slate-700, and what still clears AA on it
+ *
+ * One step up from the legends' slate-800, measured on the v4 oklch steps:
+ * white 10.34:1, `TEXT.control`'s slate-200 8.40:1, `MICRO`'s slate-300
+ * 6.97:1 — every text role in the popover past the 4.5:1 of WCAG 1.4.3.
+ * `ACCENT.input`'s checked sky-500 fill reads 3.81:1 here (5.40:1 on
+ * slate-800), past the 3:1 a control boundary owes under 1.4.11.
+ *
+ * The border is 1.37:1 on this fill where it was 1.94:1 on slate-800, and that
+ * is fine for the same reason it was fine there: it has never been the boundary
+ * doing the work — the shadow is, more so now.
+ *
+ * The one thing the lift genuinely breaks is `RECESSED_EDGE`, which carries
+ * 3.07:1 on slate-800 and only 2.17:1 here, so the segment and the coverage
+ * well inside the popover would lose the outer half of their boundary.
+ * `LIFTED_EDGE` below re-derives it.
+ *
+ * Spelled out rather than composed onto `SURFACE_FLOATING`: two background
+ * utilities resolve by their order in the generated stylesheet, not by class
+ * order, so appending a lighter fill would be a bet rather than an override.
+ */
+export const SURFACE_POPOVER =
+  `bg-slate-700/95 border border-slate-600 ${RADIUS.surface} shadow-2xl backdrop-blur-sm`
+
+/**
  * The accent, named by the jobs it does, because it does six.
  *
  * Every one of these was spelled at a call site before, in fourteen places
@@ -614,6 +656,19 @@ export const RECESSED_FILL = 'bg-slate-900'
 export const RECESSED_EDGE = 'border border-slate-500'
 
 /**
+ * The same boundary, re-derived for the one surface that is a step lighter than
+ * the panel: `SURFACE_POPOVER` (spike option (c)).
+ *
+ * A recessed edge owes 3:1 on both sides, and slate-500 only manages that
+ * against slate-800. On the popover's slate-700 fill it falls to 2.17:1, so the
+ * segment and the coverage well would read as fills with no boundary. slate-400
+ * is 3.94:1 against that fill and 7.0:1 against the slate-900 well inside it, so
+ * both sides clear. The fill it closes is unchanged — only the line moves, and
+ * only where the surface behind it did.
+ */
+export const LIFTED_EDGE = 'border border-slate-400'
+
+/**
  * The idle half of a segmented choice: the ranking direction toggle's unchosen
  * side, and the calendar's Hours toggle.
  *
@@ -690,7 +745,20 @@ export const SELECT_W_AGGREGATE = 'w-[4.5rem]'
  * rather than visibly. Anything segmented that does not sit in the panel's
  * control column wears this and takes the width its labels need.
  */
-export const SEGMENT_FLUID = `inline-flex ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
+const SEGMENT_FLUID_SHAPE = `inline-flex ${RADIUS.control} overflow-hidden`
+export const SEGMENT_FLUID = `${SEGMENT_FLUID_SHAPE} ${RECESSED_EDGE}`
+
+/**
+ * The same segment on `SURFACE_POPOVER`, which is a step lighter than the panel
+ * the recessed edge was derived against (spike option (c)).
+ *
+ * Shape and edge are split so the two cannot drift into different controls: the
+ * only difference between them is `LIFTED_EDGE`, and `styles.test.ts` asserts
+ * that. The divider BETWEEN the halves is untouched, because both of its sides
+ * are well interior — the idle fill and the accent — so the surface behind the
+ * popover never reaches it.
+ */
+export const SEGMENT_FLUID_LIFTED = `${SEGMENT_FLUID_SHAPE} ${LIFTED_EDGE}`
 
 /**
  * The forecast-bounds grid: a label taking the free space, then a lower and an
