@@ -430,7 +430,7 @@ export default function ResultsTable({
                   href={destinationUrl(row)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label={`Open ${row.name} in an external map`}
+                  aria-label={`Open ${row.name} in an external map. Opens in a new tab.`}
                   className={`shrink-0 ${ICON_ACTION}`}
                 >
                   <ExternalLinkIcon />
@@ -450,6 +450,11 @@ export default function ResultsTable({
                 href={windyUrl(row.latitude, row.longitude, col.windyLayer)}
                 target="_blank"
                 rel="noopener noreferrer"
+                // The link text is the measurement itself, so unlabelled this
+                // announces as "link, 0.0000". The label names the destination
+                // and the site, never the layer: a layer name would be a metric
+                // spelled at a call site, which metrics.test.ts forbids.
+                aria-label={`Open ${row.name} on Windy. Opens in a new tab.`}
                 className={"hover:underline cursor-pointer"}
               >
                 {display}
@@ -569,7 +574,7 @@ export default function ResultsTable({
                           } as DestinationResult)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          aria-label={`Open ${d.name} in an external map`}
+                          aria-label={`Open ${d.name} in an external map. Opens in a new tab.`}
                           className={`shrink-0 ${ICON_ACTION}`}
                         >
                           <ExternalLinkIcon />

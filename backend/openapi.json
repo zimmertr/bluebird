@@ -425,7 +425,7 @@
             "type": "array"
           },
           "destination_types": {
-            "description": "Destination types this deployment can actually analyze. Narrower than the `DestinationType` enum, which also models types that are not yet discoverable.",
+            "description": "Destination types this deployment can discover, and exactly the values a request may send in `destination_types`. Narrower than the `DestinationType` enum, which also models types that are not yet discoverable, and `custom`, which names rows the caller supplies in `custom_destinations` rather than something to go and find.",
             "items": {
               "type": "string"
             },

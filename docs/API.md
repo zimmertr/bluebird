@@ -541,7 +541,8 @@ curl -s https://bluebirdforecast.com/api/capabilities | jq
 ```
 
 It reports the searchable destination types (narrower than the enum in the
-schema, since not every modelled type is discoverable yet), the sort keys, the
+schema, since not every modelled type is discoverable yet, and `custom` names
+rows you supply rather than something to find), the sort keys, the
 maximum polygon area, the cap on destinations per analysis, the accepted `limit`
 range, how far forward and back a window may reach, the selectable forecast
 models with each one's reach (under `forecast_models`), the header an
