@@ -492,7 +492,8 @@ async def test_fetch_weather_batch_requests_the_level_winds(monkeypatch):
     for name, _ in weather._WIND_LEVELS:
         assert name in hourly
     assert weather._FREEZING_LEVEL in hourly
-    # Still at weight factor 1: max(1, vars/10) with 9 variables.
+    # Still at weight factor 1: max(1, vars x models/10) with 9 variables
+    # and one model.
     assert len(hourly) == weather.N_VARIABLES
 
 

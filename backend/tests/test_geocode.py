@@ -67,12 +67,18 @@ def test_geocode_upstream_error_is_502(monkeypatch):
     _patch_client(monkeypatch, httpx.ConnectError("down"))
     resp = client.get("/api/geocode", params={"q": "Seattle"})
     assert resp.status_code == 502
+    assert resp.json()["detail"] == "Cannot reach Nominatim (place search). Try again later."
+    assert resp.json()["error"] == {"code": "upstream_unavailable", "retryable": True}
 
 
 def test_geocode_non_list_payload_is_502(monkeypatch):
     _patch_client(monkeypatch, _FakeResp({"error": "unexpected"}))
     resp = client.get("/api/geocode", params={"q": "Seattle"})
     assert resp.status_code == 502
+    assert resp.json()["detail"] == (
+        "Nominatim (place search) returned an unexpected response."
+    )
+    assert resp.json()["error"] == {"code": "upstream_unavailable", "retryable": True}
 
 
 def test_geocode_empty_query_is_422():

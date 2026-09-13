@@ -32,6 +32,40 @@ export function chartKey(row: DestinationResult): string {
   return `${row.latitude},${row.longitude}`
 }
 
+// Identity of the SET of destinations the chart tracks, order-independent — the
+// `pointsKey` idiom in fireProximity.ts, for the same reason.
+//
+// useChartSelection's debut effect keys on this string, never on the array that
+// holds the rows. `chartCandidates` in App.tsx is a fresh array whenever the
+// displayed rows or the pending list are re-derived, which is once per keystroke
+// in the coordinates box and once per live knob change, so an effect keyed on
+// the reference scanned for debuts over a set that had not changed at all.
+// Sorted because a live re-rank reorders the same destinations, and re-ordering
+// debuts nothing.
+export function candidateSetKey(rows: DestinationResult[]): string {
+  return rows.map(chartKey).sort().join('|')
+}
+
+// The rows the chart has never seen, in list order and at most one per
+// coordinate key. `charted` is the "ever charted" memory (useChartSelection's
+// colorByKey): a key in it already owns a color, so it never debuts twice, and a
+// box the user unchecked is never re-checked by a later report.
+//
+// Pure and separate from the hook because the node-env Vitest has no DOM to
+// render a hook in, so a decision left inside one is untestable by construction.
+export function debutRows(
+  rows: DestinationResult[],
+  charted: Record<string, string>,
+): DestinationResult[] {
+  const seen = new Set<string>()
+  return rows.filter((r) => {
+    const key = chartKey(r)
+    if (charted[key] || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 // The inclusive run of rows between two chart keys in the given display order —
 // for shift-click range selection. Order-agnostic (anchor may be above or below
 // the target); empty if either key isn't in the list.

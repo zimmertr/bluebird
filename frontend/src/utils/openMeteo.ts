@@ -71,19 +71,22 @@ export class OpenMeteoHttpError extends Error {
 // ── Weighted-call pacing ───────────────────────────────────────────────────
 
 // Open-Meteo bills weighted calls, not HTTP requests: one location in a batch
-// is one call, times max(1, days/14) x max(1, vars/10). Mirror of
-// backend/app/services/openmeteo_weight.py — keep them in sync.
+// is one call, times max(1, days/14) x max(1, vars x models/10). The model
+// count multiplies the variable count because a request naming several models
+// returns one series per variable per model, and Open-Meteo prices what comes
+// back. Mirror of backend/app/services/openmeteo_weight.py — keep them in sync.
 export function callWeight(
   nLocations: number,
   startMs: number,
   endMs: number,
   nVariables: number,
+  nModels = 1,
 ): number {
   const days = Math.max(
     1,
     Math.floor((Date.parse(utcDate(endMs)) - Date.parse(utcDate(startMs))) / 86_400_000) + 1,
   )
-  return nLocations * Math.max(1, days / 14) * Math.max(1, nVariables / 10)
+  return nLocations * Math.max(1, days / 14) * Math.max(1, (nVariables * nModels) / 10)
 }
 
 // The visitor's own per-IP budget is 600 weighted calls/minute per service;
@@ -929,10 +932,13 @@ export async function fetchWeather(
   const tasks = chunks.map((chunk) => async (): Promise<WeatherResult[]> => {
     // Ten variables, not the backend's nine: the browser also asks for wind
     // direction, which only the map's playback arrows use. Still weight
-    // factor 1 — max(1, vars/10) — so the five level winds, the freezing
-    // level and the bearing all ride the budget the original three set.
+    // factor 1 — max(1, vars x models/10) — so the five level winds, the
+    // freezing level and the bearing all ride the budget the original three
+    // variables set. The model count is spelled here rather than defaulted,
+    // because this is where `models=` is built: a request naming more than
+    // one model returns a series per model and costs that multiple.
     await weatherBudget.acquire(
-      callWeight(chunk.length, startMs, endMs, 10),
+      callWeight(chunk.length, startMs, endMs, 10, 1),
       signal,
       onPace,
     )

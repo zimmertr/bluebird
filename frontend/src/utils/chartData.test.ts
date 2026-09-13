@@ -6,8 +6,10 @@ import {
   nowWithinGrid,
   tracksCursor,
   buildChartData,
+  candidateSetKey,
   chartKey,
   computeYDomain,
+  debutRows,
   formatMetricValue,
   metricForSort,
   nearestKey,
@@ -157,6 +159,57 @@ describe('rowsBetween', () => {
 
   it('is empty when a key is not in the list', () => {
     expect(rowsBetween(ordered, 'missing', chartKey(c))).toEqual([])
+  })
+})
+
+describe('candidateSetKey', () => {
+  const a = row('A', 1, {})
+  const b = row('B', 2, {})
+  const c = row('C', 3, {})
+
+  // The whole point: a rebuilt array of the same destinations is the same
+  // question, so the debut effect keyed on this string does not run again.
+  it('is the same for a rebuilt array of the same destinations', () => {
+    expect(candidateSetKey([a, b, c])).toBe(candidateSetKey([row('A', 1, {}), b, c]))
+  })
+
+  it('ignores order, so a live re-rank debuts nothing', () => {
+    expect(candidateSetKey([c, a, b])).toBe(candidateSetKey([a, b, c]))
+  })
+
+  it('changes when a destination joins or leaves', () => {
+    expect(candidateSetKey([a, b])).not.toBe(candidateSetKey([a, b, c]))
+    expect(candidateSetKey([a, b])).not.toBe(candidateSetKey([a]))
+  })
+
+  it('is empty for no destinations', () => {
+    expect(candidateSetKey([])).toBe('')
+  })
+})
+
+describe('debutRows', () => {
+  const a = row('A', 1, {})
+  const b = row('B', 2, {})
+  const c = row('C', 3, {})
+
+  it('returns every destination the chart has never seen, in list order', () => {
+    expect(debutRows([a, b, c], {}).map((r) => r.name)).toEqual(['A', 'B', 'C'])
+  })
+
+  // colorByKey is the "ever charted" memory. A key in it has had its debut, so
+  // a later report must not re-check a box the user deliberately unchecked.
+  it('skips a destination that already owns a color', () => {
+    expect(debutRows([a, b, c], { [chartKey(b)]: '#38bdf8' }).map((r) => r.name)).toEqual(['A', 'C'])
+  })
+
+  it('returns one row per coordinate key', () => {
+    const twin = row('A again', 1, {})
+    expect(debutRows([a, twin, b], {}).map((r) => r.name)).toEqual(['A', 'B'])
+  })
+
+  it('is empty when every destination is already charted', () => {
+    const charted = { [chartKey(a)]: '#38bdf8', [chartKey(b)]: '#f472b6' }
+    expect(debutRows([a, b], charted)).toEqual([])
   })
 })
 

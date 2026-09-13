@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
 from app import ratelimit, telemetry
+from app.error_codes import ApiError, ErrorCode
 from app.models import (
     MAX_ANALYZE_PEAKS,
     AnalysisRefusal,
@@ -106,23 +107,25 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse:
         # No types requested means discovery is skipped entirely, exactly as
         # on POST /api/analyze. Without a list there is genuinely nothing to do.
         if not request.custom_destinations:
-            raise HTTPException(
+            raise ApiError(
                 status_code=400,
                 detail=(
                     "Nothing to do: no destination_types to discover and no "
                     "custom_destinations to resolve. Pick types from "
                     "GET /api/capabilities, or send a custom list."
                 ),
+                code=ErrorCode.validation,
             )
         found: list[dict] = []
     elif request.polygon is None:
-        raise HTTPException(
+        raise ApiError(
             status_code=400,
             detail=(
                 "polygon is required when destination_types is non-empty. Send "
                 "a polygon to discover, or custom_destinations alone to "
                 "resolve a list."
             ),
+            code=ErrorCode.validation,
         )
     else:
         try:
@@ -132,18 +135,25 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse:
                 include_unnamed_peaks=request.include_unnamed_peaks,
             )
         except NotImplementedError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise ApiError(status_code=400, detail=str(e), code=ErrorCode.validation)
         except ratelimit.BudgetExhausted as e:
-            raise HTTPException(
+            raise ApiError(
                 status_code=503,
                 detail=e.message,
+                code=ErrorCode.busy,
                 headers={"Retry-After": str(e.retry_after_s)},
             )
         except UpstreamError as e:
-            raise HTTPException(status_code=502, detail=e.message)
+            raise ApiError(
+                status_code=502, detail=e.message, code=ErrorCode.upstream_unavailable
+            )
         except Exception:
             log.exception("Destination search failed")
-            raise HTTPException(status_code=502, detail="OpenStreetMap is not available. Try again later.")
+            raise ApiError(
+                status_code=502,
+                detail="OpenStreetMap is not available. Try again later.",
+                code=ErrorCode.upstream_unavailable,
+            )
 
     # Resolved before the band filter, so an elevation the caller never knew
     # is one the band can actually act on.

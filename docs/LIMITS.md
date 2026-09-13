@@ -82,6 +82,10 @@ is and whether waiting helps:
 | `502` | An upstream failed outright. Every Overpass mirror was unreachable, or the weather service did not answer. Transient, worth retrying. |
 | `503` | This instance stayed at capacity long enough that it shed the request instead of queueing it forever. From `GET /api/wildfires` and `GET /api/smoke` it means something narrower: this instance has never once fetched that dataset successfully, so it has nothing to serve, not even stale. Transient either way, and carries `Retry-After`. |
 
+Each of these carries a machine-readable `error.code` beside the sentence, so a
+program can tell a failure it caused from one worth retrying without reading
+English. [API.md](API.md#branching-on-the-error) has the table.
+
 A load problem is never answered with a `500`, and Bluebird Forecast itself never
 returns a `504`. An upstream that times out on us surfaces as a `502`, since
 the timeout was theirs. A gateway timeout you do see came from something in
