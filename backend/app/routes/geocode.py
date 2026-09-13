@@ -3,9 +3,10 @@ from __future__ import annotations
 import logging
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
 from app import ratelimit
+from app.error_codes import ApiError, ErrorCode
 from app.models import ErrorResponse
 from app.services.errors import classify_http_error
 
@@ -73,9 +74,10 @@ async def geocode(
     try:
         await ratelimit.NOMINATIM_GATE.acquire()
     except ratelimit.BudgetExhausted as exc:
-        raise HTTPException(
+        raise ApiError(
             status_code=503,
             detail=exc.message,
+            code=ErrorCode.busy,
             headers={"Retry-After": str(exc.retry_after_s)},
         ) from None
     try:
@@ -92,14 +94,18 @@ async def geocode(
             rows = resp.json()
     except httpx.HTTPError as exc:
         log.warning("Nominatim request failed: %s", exc)
-        raise HTTPException(
-            status_code=502, detail=classify_http_error(exc, PROVIDER)
+        raise ApiError(
+            status_code=502,
+            detail=classify_http_error(exc, PROVIDER),
+            code=ErrorCode.upstream_unavailable,
         ) from exc
 
     if not isinstance(rows, list):
         log.warning("Nominatim returned a non-list payload: %r", type(rows))
-        raise HTTPException(
-            status_code=502, detail=f"{PROVIDER} returned an unexpected response."
+        raise ApiError(
+            status_code=502,
+            detail=f"{PROVIDER} returned an unexpected response.",
+            code=ErrorCode.upstream_unavailable,
         )
 
     log.info("Geocode query %r returned %d place(s)", q, len(rows))

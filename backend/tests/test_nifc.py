@@ -420,7 +420,11 @@ def test_route_defaults_to_coarse_and_accepts_full(served):
 def test_route_rejects_a_malformed_box(served, bbox):
     served()
     with TestClient(app) as client:
-        assert client.get("/api/wildfires", params={"bbox": bbox}).status_code == 422
+        response = client.get("/api/wildfires", params={"bbox": bbox})
+    assert response.status_code == 422
+    # A hand-parsed bbox is still a request problem, so it answers the same
+    # code a route-level 400 does rather than inventing one for the status.
+    assert response.json()["error"] == {"code": "validation", "retryable": False}
 
 
 def test_route_answers_503_when_nothing_has_ever_been_fetched(monkeypatch):
@@ -430,6 +434,10 @@ def test_route_answers_503_when_nothing_has_ever_been_fetched(monkeypatch):
         response = client.get("/api/wildfires", params={"bbox": "-122.5,46.0,-121.0,47.5"})
     assert response.status_code == 503
     assert response.headers["Retry-After"]
+    assert response.json()["error"] == {
+        "code": "snapshot_unavailable",
+        "retryable": True,
+    }
 
 
 def test_capabilities_publishes_the_wildfire_bucket():

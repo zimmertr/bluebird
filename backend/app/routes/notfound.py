@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
+from app.error_codes import ErrorCode, error_object
+
 router = APIRouter()
 
 # Registered last under the /api prefix, after every real route and before the
@@ -42,7 +44,8 @@ async def api_not_found(request: Request, path: str) -> JSONResponse:
                 "detail": (
                     f"{request.method} is not allowed on {full_path}. "
                     f"Use {allow_header}. See /docs for the full API reference."
-                )
+                ),
+                "error": error_object(ErrorCode.method_not_allowed),
             },
             headers={"Allow": allow_header},
         )
@@ -54,6 +57,7 @@ async def api_not_found(request: Request, path: str) -> JSONResponse:
                 f"No API endpoint at {full_path}. "
                 "See /docs for the full API reference, or /openapi.json for the "
                 "machine-readable schema."
-            )
+            ),
+            "error": error_object(ErrorCode.not_found),
         },
     )

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextActiveIndex, popoverBox } from './listbox'
+import { nextActiveIndex, optionDomId, popoverBox } from './listbox'
 
 const VIEWPORT = { width: 1400, height: 900 }
 // Most cases pass a content height explicitly; this is the shared geometry.
@@ -192,5 +192,26 @@ describe('nextActiveIndex', () => {
 
   it('handles an empty list', () => {
     expect(nextActiveIndex(0, 'ArrowDown', 0)).toBeNull()
+  })
+})
+
+describe('an option id', () => {
+  // The defect this replaced: ids read `model-option-0`, so the id a screen
+  // reader had been handed named whatever moved into slot 0 when the model
+  // list arrived from /api/capabilities and grew from one entry to eight.
+  it('names the option rather than its place in the list', () => {
+    const models = ['gfs_seamless', 'ecmwf_ifs025', 'icon_seamless']
+    expect(models.map((id) => optionDomId('model', id))).toEqual([
+      'model-option-gfs_seamless',
+      'model-option-ecmwf_ifs025',
+      'model-option-icon_seamless',
+    ])
+    // The same option keeps its id after the list around it changes.
+    expect(optionDomId('model', models[2])).toBe(optionDomId('model', 'icon_seamless'))
+  })
+
+  it('is unique per option and per list', () => {
+    const ids = ['a', 'b'].flatMap((list) => ['x', 'y'].map((key) => optionDomId(list, key)))
+    expect(new Set(ids).size).toBe(ids.length)
   })
 })

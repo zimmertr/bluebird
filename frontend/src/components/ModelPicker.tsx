@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { PopoverBox, nextActiveIndex, popoverBox } from '../utils/listbox'
+import { PopoverBox, nextActiveIndex, optionDomId, popoverBox } from '../utils/listbox'
 import { gridLabel, reachLabel, type ForecastModelOption } from '../hooks/useCapabilities'
 import {
   BADGE_ACCENT,
@@ -18,6 +18,9 @@ import {
 const PREFERRED_WIDTH_PX = 380
 const GAP_PX = 4
 const VIEWPORT_MARGIN_PX = 8
+
+// Namespaces this listbox's option ids inside the document.
+const LIST_ID = 'model'
 
 interface Props {
   models: readonly ForecastModelOption[]
@@ -154,7 +157,7 @@ export default function ModelPicker({
   }, [open])
 
   // Focus the list itself rather than an option, so `aria-activedescendant`
-  // carries the position and the arrow keys stay on one element.
+  // names the highlighted row and the arrow keys stay on one element.
   useEffect(() => {
     if (open) listRef.current?.focus()
   }, [open])
@@ -250,7 +253,9 @@ export default function ModelPicker({
               ref={listRef}
               role="listbox"
               aria-label="Forecast model"
-              aria-activedescendant={`model-option-${active}`}
+              aria-activedescendant={
+                models[active] ? optionDomId(LIST_ID, models[active].id) : undefined
+              }
               tabIndex={-1}
               onKeyDown={onListKeyDown}
               className="min-h-0 flex-1 overflow-y-auto p-1 focus:outline-none"
@@ -260,7 +265,7 @@ export default function ModelPicker({
               return (
                 <div
                   key={model.id}
-                  id={`model-option-${i}`}
+                  id={optionDomId(LIST_ID, model.id)}
                   data-index={i}
                   role="option"
                   aria-selected={isSelected}

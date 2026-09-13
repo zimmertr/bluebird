@@ -17,6 +17,7 @@ from app.models import (
     PAST_DATA_DAYS,
     PAST_LIMIT_SLACK_DAYS,
     AnalyzeRequest,
+    DestinationsRequest,
     DestinationType,
     ForecastModel,
     SortBy,
@@ -69,10 +70,8 @@ def test_limits_mirror_the_constants_the_validators_enforce():
     }
 
 
-def test_destination_types_are_the_discoverable_ones_plus_custom():
-    assert set(_capabilities()["destination_types"]) == {
-        t.value for t in IMPLEMENTED_TYPES
-    } | {DestinationType.custom.value}
+def test_destination_types_are_the_discoverable_ones():
+    assert set(_capabilities()["destination_types"]) == {t.value for t in IMPLEMENTED_TYPES}
 
 
 def test_unimplemented_enum_members_are_not_advertised():
@@ -80,12 +79,45 @@ def test_unimplemented_enum_members_are_not_advertised():
     # would walk a caller straight into a 400, which is the exact confusion this
     # endpoint exists to remove.
     advertised = set(_capabilities()["destination_types"])
-    unimplemented = {
-        t.value
-        for t in DestinationType
-        if t not in IMPLEMENTED_TYPES and t is not DestinationType.custom
-    }
+    unimplemented = {t.value for t in DestinationType if t not in IMPLEMENTED_TYPES}
     assert advertised.isdisjoint(unimplemented)
+
+
+_POLYGON = {
+    "type": "Polygon",
+    "coordinates": [[[-121.5, 47.4], [-121.4, 47.4], [-121.4, 47.5], [-121.5, 47.5], [-121.5, 47.4]]],
+}
+
+
+def _with_types(model, types: list) -> dict:
+    """The smallest valid body of either request type, carrying `types`."""
+    body = {"polygon": _POLYGON, "destination_types": types}
+    if model is AnalyzeRequest:
+        now = datetime.now(timezone.utc)
+        body |= {"start_datetime": now, "end_datetime": now + timedelta(days=1)}
+    return body
+
+
+@pytest.mark.parametrize("model", [AnalyzeRequest, DestinationsRequest])
+def test_every_advertised_destination_type_is_accepted_back(model):
+    # The whole worth of this endpoint is that a client can send back what it
+    # was told. `custom` used to be published here and rejected by both
+    # validators, so the published list is checked against the validators
+    # themselves rather than against the constant they share.
+    advertised = _capabilities()["destination_types"]
+    assert advertised
+    accepted = model(**_with_types(model, advertised)).destination_types
+    assert [t.value for t in accepted] == advertised
+
+
+@pytest.mark.parametrize("model", [AnalyzeRequest, DestinationsRequest])
+def test_custom_is_not_advertised_because_a_request_refuses_it(model):
+    # The other half of the round trip: this value is absent from the list
+    # precisely because sending it fails, so the reason is pinned here rather
+    # than left as a comment.
+    assert DestinationType.custom.value not in _capabilities()["destination_types"]
+    with pytest.raises(ValidationError):
+        model(**_with_types(model, [DestinationType.custom]))
 
 
 def test_sort_keys_match_the_accepted_enum():

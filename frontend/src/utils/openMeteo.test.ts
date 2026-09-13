@@ -175,7 +175,8 @@ describe('fetchWeather', () => {
     ]) {
       expect(hourly).toContain(name)
     }
-    // Nine variables stay at weight factor 1: max(1, vars/10).
+    // Nine variables stay at weight factor 1: max(1, vars x models/10)
+    // with one model.
     expect(hourly).toHaveLength(9)
   })
 
@@ -619,6 +620,40 @@ describe('callWeight', () => {
     const weather = callWeight(908, day('2026-07-29'), day('2026-08-01'), 3)
     const aqi = callWeight(908, day('2026-07-29'), day('2026-08-01'), 1)
     expect(weather + aqi).toBe(1816)
+  })
+
+  it('multiplies the variable count by the model count', () => {
+    // A request naming N models returns N series per variable, so it costs
+    // the same as one model with N times the variables (issue #232). The
+    // browser's nine variables across three models is 27 series: factor 2.7.
+    const d = day('2026-07-29')
+    expect(callWeight(10, d, d, 9, 3)).toBe(callWeight(10, d, d, 27))
+    expect(callWeight(10, d, d, 8, 3)).toBeCloseTo(10 * 2.4)
+  })
+
+  it('still floors three models at three variables to one call', () => {
+    // The measurement behind the issue's three-model cap: 3 x 3 = 9 series is
+    // under the floor, so comparing three models costs what one does.
+    expect(callWeight(50, day('2026-07-29'), day('2026-07-29'), 3, 3)).toBe(50)
+  })
+
+  it.each([
+    [1, 1.0],
+    [2, 1.0],
+    [3, 1.0],
+    [4, 1.2],
+    [5, 1.5],
+    [8, 2.4],
+  ])('prices %i models at three variables as %fx', (nModels, factor) => {
+    const d = day('2026-07-29')
+    expect(callWeight(100, d, d, 3, nModels)).toBeCloseTo(100 * factor)
+  })
+
+  it('defaults the model count to one and moves no existing answer', () => {
+    const start = day('2026-07-29')
+    const end = day('2026-08-01')
+    expect(callWeight(908, start, end, 3)).toBe(callWeight(908, start, end, 3, 1))
+    expect(callWeight(908, start, end, 3)).toBe(908)
   })
 })
 

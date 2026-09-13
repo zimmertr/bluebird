@@ -137,6 +137,7 @@ def test_over_cap_refusal_carries_remedy_fields(monkeypatch):
     assert body["limit"] == 1_500
     assert body["suggested_min_elevation_ft"] is not None
     assert body["suggested_keeps"] <= 1_500
+    assert body["error"] == {"code": "refusal", "retryable": False}
 
 
 def test_destinations_refusal_matches(monkeypatch):
@@ -147,6 +148,7 @@ def test_destinations_refusal_matches(monkeypatch):
     )
     assert resp.status_code == 400
     assert resp.json()["found"] == 1_501
+    assert resp.json()["error"] == {"code": "refusal", "retryable": False}
 
 
 def test_elected_truncation_analyzes_the_top_and_says_so(monkeypatch):

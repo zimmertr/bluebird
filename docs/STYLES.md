@@ -150,6 +150,8 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `SPINNER` | Indeterminate spinner |
 | `TABLE.cell` | Results table cell inset |
 | `TABLE.head` | Results table header cell |
+| `TABLE.rankStack` | Rank cell: number and remove × in one grid cell, so the column never changes width on hover |
+| `TABLE.rankFace` | One face of that stack, pinned to the shared cell |
 
 ## What is enforced
 

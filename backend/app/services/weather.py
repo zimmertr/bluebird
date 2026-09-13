@@ -83,8 +83,9 @@ _FT_TO_M = 0.3048
 HOURLY_VARIABLES = "precipitation,temperature_2m,wind_speed_10m," + ",".join(
     name for name, _ in _WIND_LEVELS
 )
-# 8 stays at weight factor 1: Open-Meteo's factor is max(1, vars/10), so the
-# five level winds ride the same weighted budget the three originals did.
+# 8 stays at weight factor 1: Open-Meteo's factor is max(1, vars x models/10)
+# and a request names one model, so the five level winds ride the same weighted
+# budget the three originals did.
 N_VARIABLES = 8
 PROVIDER = "Open-Meteo"
 
@@ -301,8 +302,16 @@ async def _fetch_chunk_indexed(
     # concurrency rather than anybody's quota.
     async with sem:
         if api_key is None:
+            # The model count is spelled here rather than defaulted, because
+            # this is where `models=` is built: a request that ever names
+            # more than one model returns a series per model and costs that
+            # multiple, so the two must move together.
             weight = call_weight(
-                len(destinations), start_dt.date(), end_dt.date(), N_VARIABLES
+                len(destinations),
+                start_dt.date(),
+                end_dt.date(),
+                N_VARIABLES,
+                n_models=1,
             )
             if on_pace is not None:
                 estimate = ratelimit.WEATHER_WEIGHT.wait_estimate_s(weight)
