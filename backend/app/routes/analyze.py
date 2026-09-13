@@ -310,6 +310,10 @@ def _summarize_request(request: AnalyzeRequest) -> str:
         f"dir={'desc' if request.sort_desc else 'asc'}",
         f"limit={request.limit}",
     ]
+    # Logged only when off, so a response an order of magnitude smaller than
+    # the same analysis yesterday is traceable to the request that asked for it.
+    if not request.include_series:
+        parts.append("series=off")
     if request.min_elevation_ft is not None:
         parts.append(f"min_elev_ft={request.min_elevation_ft:.0f}")
     if request.max_elevation_ft is not None:
@@ -438,12 +442,19 @@ def _assemble(
     wx_list: list,
     aqi_list: list,
     type_value: str,
+    *,
+    include_series: bool = True,
 ) -> tuple[list[DestinationResult], list[int]]:
     """Zip destinations with their weather + AQI results into rows, baking the
     hourly series (AQI aligned onto the weather grid) into each.
 
     Rows whose weather came back None are dropped. Weather dicts without a
     `series` key (e.g. stubbed in tests) degrade cleanly to `series=None`.
+
+    `include_series=False` is the caller asking for aggregates alone, and this
+    is the one seam where that is honored: the hours are still fetched and
+    still reduced, they are simply not carried into the row. `times` is
+    unaffected, because it says which hours the aggregates cover.
 
     A row's `type` prefers the destination dict's own tag — a union response
     mixes discovered and custom rows — falling back to the request-level value.
@@ -458,7 +469,7 @@ def _assemble(
         agg = {k: v for k, v in wx.items() if k != "series"}
         aqi_stats = {k: v for k, v in aqi.items() if k != "series"}
         series = None
-        if wx_series:
+        if wx_series and include_series:
             series = HourlySeries(
                 precip_in=wx_series["precip_in"],
                 temp_f=wx_series["temp_f"],
@@ -773,7 +784,11 @@ async def analyze_stream(
                         task.cancel()
 
             results, times = _assemble(
-                destinations, wx_list, aqi_list, DestinationType.custom.value
+                destinations,
+                wx_list,
+                aqi_list,
+                DestinationType.custom.value,
+                include_series=request.include_series,
             )
             results = _filter_constraints(results, request)
             total_matched = len(results)
@@ -1037,7 +1052,11 @@ async def analyze(
         raise HTTPException(status_code=401, detail=e.message)
 
     results, times = _assemble(
-        destinations, wx_list, aqi_list, DestinationType.custom.value
+        destinations,
+        wx_list,
+        aqi_list,
+        DestinationType.custom.value,
+        include_series=request.include_series,
     )
     results = _filter_constraints(results, request)
     total_matched = len(results)

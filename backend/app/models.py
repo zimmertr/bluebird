@@ -506,6 +506,19 @@ class AnalyzeRequest(BaseModel):
             "wettest, windiest, warmest, smokiest."
         ),
     )
+    include_series: bool = Field(
+        default=True,
+        description=(
+            "Send each row's hourly `series`. The hours are the bulk of the "
+            "body, by an order of magnitude on a long window, so a caller "
+            "that reads only the aggregates should set this false.\n\n"
+            "Nothing else changes. The aggregates are computed from the same "
+            "hours either way, `times` is still sent, and air quality is still "
+            "fetched and summarized under the same best-effort terms. "
+            "True by default, so an existing caller sees the shape it "
+            "always saw."
+        ),
+    )
     # Applied to candidates before the weather fetch, so a constrained analysis
     # costs fewer upstream calls, and the returned rows always fill `limit` when
     # enough candidates qualify.
@@ -837,8 +850,9 @@ class DestinationResult(BaseModel):
         default=None,
         description=(
             "Hourly detail behind the summary figures above, aligned to "
-            "`times`. Null only when the upstream forecast carried no hours "
-            "inside the window."
+            "`times`. Null when the upstream forecast carried no hours inside "
+            "the window, and on every row when the request set "
+            "`include_series: false`."
         ),
     )
 
@@ -950,7 +964,9 @@ class AnalyzeResponse(BaseModel):
         description=(
             "Shared hourly grid for every row's `series`, as epoch "
             "milliseconds UTC. Sent once because it is identical across "
-            "destinations for a given window."
+            "destinations for a given window, and sent in both shapes: under "
+            "`include_series: false` it is the only statement of which hours "
+            "the aggregates reduced."
         ),
     )
 

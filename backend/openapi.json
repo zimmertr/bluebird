@@ -157,6 +157,12 @@
             "default": "gfs_seamless",
             "description": "Which weather model answers. Models disagree, sometimes by more than the thing being measured: at one Cascades summit over three days, ECMWF and GFS both totalled 0.000 in of precipitation while ICON gave 0.004 in.\n\nEach model also reaches a different distance ahead, so this bounds `end_datetime` as well: hours past the chosen model's horizon come back null rather than failing, and `GET /api/capabilities` publishes how far each one reaches. `gfs_hrrr` is the short-range outlier \u2014 roughly two days, against two weeks for the global models \u2014 and is also the only regional one, covering the continental US with parts of Canada and Mexico and refusing any point outside that grid."
           },
+          "include_series": {
+            "default": true,
+            "description": "Send each row's hourly `series`. The hours are the bulk of the body, by an order of magnitude on a long window, so a caller that reads only the aggregates should set this false.\n\nNothing else changes. The aggregates are computed from the same hours either way, `times` is still sent, and air quality is still fetched and summarized under the same best-effort terms. True by default, so an existing caller sees the shape it always saw.",
+            "title": "Include Series",
+            "type": "boolean"
+          },
           "include_unnamed_peaks": {
             "default": false,
             "description": "Also discover summits OSM knows only by their height, named after it (`Peak 5961`). Off by default because it is not a small addition: measured over one 8x10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so this roughly triples the candidate count \u2014 every candidate being a weighted upstream call and a step closer to the analysis ceiling. Ignored unless `peak` is among `destination_types`.",
@@ -365,7 +371,7 @@
           },
           "times": {
             "default": [],
-            "description": "Shared hourly grid for every row's `series`, as epoch milliseconds UTC. Sent once because it is identical across destinations for a given window.",
+            "description": "Shared hourly grid for every row's `series`, as epoch milliseconds UTC. Sent once because it is identical across destinations for a given window, and sent in both shapes: under `include_series: false` it is the only statement of which hours the aggregates reduced.",
             "items": {
               "type": "integer"
             },
@@ -646,7 +652,7 @@
                 "type": "null"
               }
             ],
-            "description": "Hourly detail behind the summary figures above, aligned to `times`. Null only when the upstream forecast carried no hours inside the window."
+            "description": "Hourly detail behind the summary figures above, aligned to `times`. Null when the upstream forecast carried no hours inside the window, and on every row when the request set `include_series: false`."
           },
           "temp_avg_f": {
             "description": "Mean temperature, degrees Fahrenheit.",

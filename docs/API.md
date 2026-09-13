@@ -473,6 +473,70 @@ applied at discovery and a constrained analysis genuinely costs fewer upstream
 calls. Nothing here can do that: a destination's precipitation is unknowable
 until it has been fetched, so these shrink the answer, never the work.
 
+## Reading only the summary
+
+Every result row carries `series`: the hourly precipitation, temperature, wind
+and AQI behind its aggregates, aligned index-for-index to the shared `times`
+grid. Those hours are nearly the whole body. One analysis at the candidate cap
+across the longest window the API accepts measures 12.92 MB with them and
+0.61 MB without.
+
+Send `include_series: false` when you read only the aggregates:
+
+```bash
+curl -s https://bluebirdforecast.com/api/analyze \
+  -H 'Content-Type: application/json' \
+  -H "X-Open-Meteo-Key: $OPEN_METEO_KEY" \
+  -d '{
+    "destination_types": [],
+    "forecast_mode": "window",
+    "start_datetime": "2026-08-01T14:00:00Z",
+    "end_datetime":   "2026-08-02T02:00:00Z",
+    "include_series": false,
+    "custom_destinations": [
+      { "name": "Mt Rainier", "latitude": 46.8529, "longitude": -121.7604 }
+    ]
+  }' | jq '{hours: (.times | length), row: .results[0]}'
+```
+
+```json
+{
+  "hours": 13,
+  "row": {
+    "name": "Mt Rainier",
+    "type": "custom",
+    "latitude": 46.8529,
+    "longitude": -121.7604,
+    "elevation_ft": 14411,
+    "osm_id": "node/12345678",
+    "precip_total_in": 0.0157,
+    "precip_avg_in_hr": 0.0012,
+    "precip_min_in_hr": 0,
+    "precip_max_in_hr": 0.0079,
+    "temp_min_f": 18.3,
+    "temp_max_f": 27.1,
+    "temp_avg_f": 22.4,
+    "wind_min_mph": 12.6,
+    "wind_max_mph": 41.2,
+    "wind_avg_mph": 24.8,
+    "aqi_avg": 31,
+    "aqi_min": 18,
+    "aqi_max": 47,
+    "series": null
+  }
+}
+```
+
+Only the hours go. The aggregates are reduced from exactly the same hours, the
+forecast bounds and the ranking still read them, and air quality is still
+fetched and summarized under the same best-effort terms. `times` is still sent,
+and under this flag it is the only statement of which hours the aggregates
+cover. `POST /api/analyze/stream` takes the flag identically, on the `result`
+event's payload.
+
+The default is `true`, so a caller that never sends the field sees the shape it
+always saw.
+
 ## When a search finds too much
 
 Every candidate gets a real forecast, so analyses are capped at a candidate
