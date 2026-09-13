@@ -47,23 +47,25 @@ function ExternalLinkIcon() {
 
 // The number cell that swaps to the remove × on row hover (touch devices show
 // both — the row-remove rule in index.css). `rank` is "—" for pending rows.
+// Both faces sit in one grid cell (TABLE.rankStack) so the column never
+// changes width when they trade places; see the role's comment.
 function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; onRemove?: () => void }) {
   return (
     <td className={`${TABLE.cell} tabular-nums whitespace-nowrap`}>
       {onRemove ? (
-        <>
-          <span className={`${TEXT.caption} group-hover:hidden`}>{rank}</span>
+        <span className={TABLE.rankStack}>
+          <span className={`${TEXT.caption} ${TABLE.rankFace} group-hover:invisible`}>{rank}</span>
           <button
             onClick={onRemove}
             aria-label={`Remove ${name}`}
-            className={`row-remove hidden group-hover:inline leading-none ${ICON_ACTION} cursor-pointer`}
+            className={`row-remove ${TABLE.rankFace} invisible group-hover:visible leading-none ${ICON_ACTION} cursor-pointer`}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
-        </>
+        </span>
       ) : (
         <span className={TEXT.caption}>{rank}</span>
       )}

@@ -1163,4 +1163,14 @@ export const SCRUBBER_TRACK = `h-2 ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.pi
 export const TABLE = {
   cell: 'px-2 py-1.5',
   head: `${TEXT.subheading} px-2 py-2 text-left`,
+  /**
+   * The rank cell's two faces, the number and the remove ×, laid in ONE grid
+   * cell so the column is as wide as the wider face at all times and a hover
+   * trades only visibility. Swapping them with display let the column grow by
+   * the icon's extra width on every hover and shove every column to its right
+   * (#339). Touch devices have no hover and place the × in a second column
+   * beside the number instead: the `.row-remove` rule in index.css.
+   */
+  rankStack: 'inline-grid items-center justify-items-center',
+  rankFace: 'col-start-1 row-start-1',
 } as const
