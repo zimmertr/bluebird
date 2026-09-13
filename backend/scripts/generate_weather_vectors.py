@@ -43,12 +43,15 @@ def _win(start: str, end: str) -> dict[str, str]:
     return {"start": start, "end": end}
 
 
-def _wx(times, precip, temp, wind, levels=None, freeze=None) -> dict:
+def _wx(times, precip, temp, wind, levels=None, freeze=None, freeze_unit="m") -> dict:
     """A weather payload; `levels` maps pressure-level variable names
     (`wind_speed_925hPa` … `wind_speed_500hPa`) to hourly arrays for the
     elevation-adjusted wind cases (issue #257). `freeze` is the hourly
-    freezing level in METERS (issue #295), omitted entirely where a payload
-    stands in for one of the five models that do not publish it."""
+    freezing level (issue #295), omitted entirely where a payload stands in
+    for one of the five models that do not publish it, and quoted in the unit
+    `freeze_unit` names — which the payload carries in `hourly_units`, because
+    Open-Meteo's unit for this variable follows `precipitation_unit` and the
+    aggregation reads it rather than assuming either one."""
     hourly = {
         "time": times,
         "precipitation": precip,
@@ -57,9 +60,11 @@ def _wx(times, precip, temp, wind, levels=None, freeze=None) -> dict:
     }
     if levels:
         hourly.update(levels)
+    payload = {"hourly": hourly}
     if freeze is not None:
         hourly["freezing_level_height"] = freeze
-    return {"hourly": hourly}
+        payload["hourly_units"] = {"freezing_level_height": freeze_unit}
+    return payload
 
 
 def _aq(times, aqi) -> dict:
@@ -279,7 +284,9 @@ WEATHER_INPUTS = [
     # ── Freezing level (issue #295) ───────────────────────────────────────
     # Every vector above omits the variable, which is the shape the five
     # models that do not publish it return; these cover the three that do.
-    # Inputs are meters above sea level, as Open-Meteo sends them.
+    # Inputs are heights above sea level in the unit each payload declares:
+    # Open-Meteo's unit for this variable follows `precipitation_unit`, so both
+    # branches are pinned here rather than one being assumed.
     {
         # 3,000 m is 9842.519685… ft, so the conversion and the whole-foot
         # rounding both ride the contract.
@@ -291,6 +298,24 @@ WEATHER_INPUTS = [
             [30.0, 31.0, 32.0],
             [5.0, 5.0, 5.0],
             freeze=[3000.0, 3100.0, 3050.0],
+        ),
+    },
+    {
+        # The unit every Bluebird Forecast request actually gets, because they
+        # all send `precipitation_unit=inch`: feet, passed through with no
+        # conversion at all. The values are one Rainier hour as Open-Meteo
+        # quotes them (three decimals, measured 2026-09-13); a port that
+        # divided them by 0.3048 anyway would answer more than three times as
+        # high, which is why this branch is a vector rather than a comment.
+        "name": "freezing_level_in_feet_is_not_converted",
+        "window": _win(H[0], H[2]),
+        "payload": _wx(
+            H[:3],
+            [0.0, 0.0, 0.0],
+            [30.0, 31.0, 32.0],
+            [5.0, 5.0, 5.0],
+            freeze=[8398.95, 8727.034, 8562.992],
+            freeze_unit="ft",
         ),
     },
     {
