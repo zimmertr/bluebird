@@ -16,6 +16,9 @@ def test_unknown_api_path_returns_a_json_404(path):
     assert response.status_code == 404
     assert response.headers["content-type"].startswith("application/json")
     assert path in response.json()["detail"]
+    # This body is built by hand rather than raised, so it is the one place a
+    # coded error could quietly go missing.
+    assert response.json()["error"] == {"code": "not_found", "retryable": False}
 
 
 def test_unknown_api_path_points_at_the_docs():
@@ -37,6 +40,10 @@ def test_wrong_method_on_a_real_path_is_a_405_not_a_404():
     assert response.status_code == 405
     assert response.headers["allow"] == "POST"
     assert "POST" in response.json()["detail"]
+    assert response.json()["error"] == {
+        "code": "method_not_allowed",
+        "retryable": False,
+    }
 
 
 def test_head_on_a_get_only_endpoint_reports_the_allowed_verb():

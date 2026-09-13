@@ -1114,3 +1114,24 @@ describe('status and notices', () => {
     expect(NOTICE_DISMISS.row).toContain(RADIUS.control)
   })
 })
+
+// The rank cell trades its number for the remove × on hover. Both faces share
+// one grid cell, so the column is as wide as the wider face at all times;
+// toggling display instead let the # column grow on every hover and shove
+// every column to its right (#339).
+describe('the results table rank cell', () => {
+  const source = sources['./components/ResultsTable.tsx']
+
+  it('pins both faces of the rank cell to one grid cell', () => {
+    expect(STYLES.TABLE.rankFace.split(' ')).toEqual(['col-start-1', 'row-start-1'])
+    expect(STYLES.TABLE.rankStack.split(' ')).toContain('inline-grid')
+    expect((source.match(/TABLE\.rankFace/g) ?? []).length).toBe(2)
+  })
+
+  it('trades visibility, never display, on row hover', () => {
+    // Built from parts so the class name never appears in this file as text,
+    // which Tailwind would otherwise compile.
+    const displayToggle = new RegExp(['group-hover', '(hidden|inline|block|flex)\\b'].join(':'))
+    expect(source).not.toMatch(displayToggle)
+  })
+})
