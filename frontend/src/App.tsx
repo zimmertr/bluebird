@@ -117,7 +117,13 @@ import {
   discoveryKeys,
   presentResults,
 } from './utils/present'
-import { RemovedEntry, recordRemoval, restorePlace } from './utils/removals'
+import {
+  RemovedEntry,
+  activeRemovals,
+  authoredScope,
+  recordRemoval,
+  restorePlace,
+} from './utils/removals'
 import { SortDir, SortKey, WILDFIRE_COL, WILDFIRE_KEY, displayedColumns, visibleColumns } from './utils/tableColumns'
 import { NAME_DEFAULT_PX } from './utils/columnResize'
 import { compareValues } from './utils/sortResults'
@@ -229,8 +235,12 @@ export default function App() {
   // to the user-authored discovery inputs (removalScopeRef): removing a row —
   // even a searched place, which shrinks the custom list — must not count as
   // changing them. Only a polygon/type/elevation/CSV edit starts a clean slate
-  // where removed destinations may legitimately return.
+  // where removed destinations may legitimately return. Each entry also records
+  // the authored scope it was made under, which is what lets the live pending
+  // preview expire one between analyses while the report keeps its snapshot.
   const [removed, setRemoved] = useState<Map<string, RemovedEntry>>(new Map())
+  // Every key, for the two snapshot consumers: the displayed report and the
+  // refresh echo. The preview reads `activeRemovedKeys` instead.
   const removedKeys = useMemo(() => new Set(removed.keys()), [removed])
   const removalScopeRef = useRef<string | null>(null)
   // One debouncer for the whole component lifetime. It has to outlive the URL
@@ -382,6 +392,13 @@ export default function App() {
   // Parsed once per edit and shared by the pending markers and the Analyze
   // request, so what the map shows and what gets ranked can't drift apart.
   const csvRows = useMemo(() => parseCustomCsv(customCsv), [customCsv])
+  // The destination inputs the user authored, in one spelling: the removal
+  // reset reads it (folding the polygon ring in) and so does every removal
+  // recorded while these inputs stand, so the two cannot drift apart.
+  const destinationScope = useMemo(
+    () => authoredScope(destinationTypes, customCsv),
+    [destinationTypes, customCsv],
+  )
   const [sortBy, setSortByRaw] = useState<SortBy>(() => restored?.sortBy ?? 'precip_total_in')
   const [sortDesc, setSortDesc] = useState(() => restored?.sortDesc ?? false)
   // What each metric row's aggregate dropdown holds (#291), the active row's
@@ -1030,8 +1047,10 @@ export default function App() {
     // work. Only a genuine change of what gets discovered clears them now.
     const removalScope = JSON.stringify({
       ring: resolvedPolygon?.coordinates[0] ?? null,
-      types: [...destinationTypes].sort(),
-      csv: customCsv.trim(),
+      // The ring is this comparison's alone: it resolves only here, and it
+      // never names a pending destination, which is what the shared scope
+      // serves.
+      authored: destinationScope,
     })
     if (removalScopeRef.current !== removalScope) {
       removalScopeRef.current = removalScope
@@ -1298,7 +1317,7 @@ export default function App() {
   // next analysis would simply rediscover it from the searched list. The
   // backing place is captured first, so a restore can re-register it.
   function handleRemoveResult(row: DestinationResult) {
-    setRemoved((prev) => recordRemoval(prev, row, searched.places))
+    setRemoved((prev) => recordRemoval(prev, row, searched.places, destinationScope))
     searched.removePlace(row.latitude, row.longitude)
   }
 
@@ -1346,10 +1365,24 @@ export default function App() {
   // the top-`limit` rows, so asking them turned every added destination below
   // the cut back into an un-forecasted row (#205). Before the first analysis
   // there is no snapshot, so everything named is pending, which is the point.
+  //
+  // Reads the ACTIVE removals rather than the whole map (#158). The report and
+  // the refresh echo are snapshots of one analysis and keep the full map; this
+  // preview is live over a list the user is still typing, so a × made against
+  // an earlier list must stop hiding a line that is still pasted.
+  const activeRemovedKeys = useMemo(
+    () => activeRemovals(removed, destinationScope),
+    [removed, destinationScope],
+  )
   const pending = useMemo(
     () =>
-      pendingDestinations(csvRows, searched.places, analyzed?.customKeys ?? NO_CUSTOM, removedKeys),
-    [csvRows, searched.places, analyzed, removedKeys],
+      pendingDestinations(
+        csvRows,
+        searched.places,
+        analyzed?.customKeys ?? NO_CUSTOM,
+        activeRemovedKeys,
+      ),
+    [csvRows, searched.places, analyzed, activeRemovedKeys],
   )
   // Which discovery inputs the panel has moved since the analysis, in the
   // spelling the snapshot records. The comparison itself is `present.ts`'s, so
