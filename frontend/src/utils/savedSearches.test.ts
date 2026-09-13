@@ -136,14 +136,31 @@ describe('saved searches', () => {
     expect(loadSearch(storage, 'Nothing here')).toBeNull()
   })
 
-  it('replaces a save of the same name rather than keeping two', () => {
+  // An overwrite would be silent and total, so the occupied name is refused
+  // and the entry already under it is untouched.
+  it('refuses a save onto a name in use and keeps the entry', () => {
     const storage = fakeStorage()
     saved(storage)
-    saveSearch(storage, 'Rainier weekend', { ...state, limit: 7 }, DEFAULT_MODEL)
 
-    const all = listSaved(storage)
-    expect(all).toHaveLength(1)
-    expect(resolveState(loadSearch(storage, 'Rainier weekend'), DEPLOYMENT).limit).toBe(7)
+    expect(saveSearch(storage, 'Rainier weekend', { ...state, limit: 7 }, DEFAULT_MODEL)).toEqual({
+      ok: false,
+      reason: 'exists',
+    })
+    expect(listSaved(storage)).toHaveLength(1)
+    expect(resolveState(loadSearch(storage, 'Rainier weekend'), DEPLOYMENT).limit).toBe(50)
+  })
+
+  // The name is trimmed before it is compared, or a trailing space would buy
+  // a second entry the list draws as a duplicate of the first.
+  it('refuses a name that is in use once it is trimmed', () => {
+    const storage = fakeStorage()
+    saved(storage)
+
+    expect(saveSearch(storage, '  Rainier weekend ', state, DEFAULT_MODEL)).toEqual({
+      ok: false,
+      reason: 'exists',
+    })
+    expect(listSaved(storage)).toHaveLength(1)
   })
 
   it('trims a name and refuses an empty one', () => {
@@ -176,16 +193,26 @@ describe('saved searches', () => {
     expect(loadSearch(storage, 'Rainier weekend')).toBeNull()
   })
 
-  // A rename onto an occupied name replaces its occupant, the same way a save
-  // does: one name is one save.
-  it('replaces the occupant when a rename collides', () => {
+  // A rename onto an occupied name destroys its occupant the way an overwrite
+  // does, so it is refused the same way. Both entries survive.
+  it('refuses a rename onto an occupied name', () => {
     const storage = fakeStorage()
     saveSearch(storage, 'Keep', { ...state, limit: 11 }, DEFAULT_MODEL)
-    saveSearch(storage, 'Drop', { ...state, limit: 22 }, DEFAULT_MODEL)
+    saveSearch(storage, 'Other', { ...state, limit: 22 }, DEFAULT_MODEL)
 
-    expect(renameSearch(storage, 'Keep', 'Drop').ok).toBe(true)
-    expect(listSaved(storage).map((s) => s.name)).toEqual(['Drop'])
-    expect(resolveState(loadSearch(storage, 'Drop'), DEPLOYMENT).limit).toBe(11)
+    expect(renameSearch(storage, 'Keep', 'Other')).toEqual({ ok: false, reason: 'exists' })
+    expect(listSaved(storage).map((s) => s.name)).toEqual(['Keep', 'Other'])
+    expect(resolveState(loadSearch(storage, 'Other'), DEPLOYMENT).limit).toBe(22)
+  })
+
+  // Renaming an entry to the name it already holds moves nothing, so it is not
+  // a collision with itself.
+  it('accepts a rename to the name a save already has', () => {
+    const storage = fakeStorage()
+    saved(storage)
+
+    expect(renameSearch(storage, 'Rainier weekend', 'Rainier weekend').ok).toBe(true)
+    expect(listSaved(storage).map((s) => s.name)).toEqual(['Rainier weekend'])
   })
 
   it('renaming something that is gone changes nothing', () => {

@@ -38,10 +38,18 @@ export type SearchStorage = Pick<Storage, 'getItem' | 'setItem'>
  * `quota` covers every refusal to write, not only a full store — a private
  * window that disallows storage refuses the same way, and from the panel's side
  * the fact is identical: the save did not persist.
+ *
+ * `exists` is the occupied-name refusal. A name is the only handle a save has,
+ * so overwriting one destroys the entry the user reached for it by, with no
+ * undo and nothing on screen that was asked for. `name` is the empty one, which
+ * the panel prevents by disabling the buttons that could ask for it.
  */
 export type SaveOutcome =
   | { ok: true; searches: SavedSearch[] }
-  | { ok: false; reason: 'quota' | 'name' }
+  | { ok: false; reason: 'quota' | 'name' | 'exists' }
+
+/** The refusals the panel has a sentence for. */
+export type SaveRefusal = 'quota' | 'exists'
 
 // A stored entry is whatever a previous version of this app, another tab, or a
 // hand edit left behind, so each one is checked rather than trusted. A bad
@@ -94,9 +102,12 @@ function write(storage: SearchStorage, searches: SavedSearch[]): SaveOutcome {
 }
 
 /**
- * Store the current inputs under `name`, replacing any entry already holding
- * it. Replacing rather than refusing is what "save" means everywhere else: the
- * name is the address, and a second save to the same address is an update.
+ * Store the current inputs under `name`, refusing a name already in use.
+ *
+ * A save carries no field a reader could tell two of them apart by, so an
+ * overwrite is silent and total: the entry that held the name is gone, the
+ * panel looks as it did, and nothing says which set of inputs is now under it.
+ * A refusal costs one more click and cannot lose anything.
  *
  * The name is trimmed, and an empty one is refused — a nameless entry could
  * never be picked out of the list again.
@@ -109,19 +120,22 @@ export function saveSearch(
 ): SaveOutcome {
   const trimmed = name.trim()
   if (trimmed === '') return { ok: false, reason: 'name' }
+  const searches = listSaved(storage)
+  if (searches.some((s) => s.name === trimmed)) return { ok: false, reason: 'exists' }
   const entry: SavedSearch = {
     name: trimmed,
     query: encodeState(state, defaultForecastModel),
     savedAt: new Date().toISOString(),
   }
-  const rest = listSaved(storage).filter((s) => s.name !== trimmed)
-  return write(storage, order([...rest, entry]))
+  return write(storage, order([...searches, entry]))
 }
 
 /**
- * Move a save to another name. A collision replaces the entry already holding
- * the new name, for the same reason `saveSearch` does: one name is one save,
- * and the alternative is a refusal the panel has no approved sentence for.
+ * Move a save to another name. A collision is refused the way `saveSearch`
+ * refuses one, because it destroys the occupant in exactly the same way.
+ *
+ * Renaming an entry to the name it already has moves nothing, so it is not a
+ * collision: it writes the list back unchanged.
  */
 export function renameSearch(storage: SearchStorage, from: string, to: string): SaveOutcome {
   const trimmed = to.trim()
@@ -129,7 +143,10 @@ export function renameSearch(storage: SearchStorage, from: string, to: string): 
   const searches = listSaved(storage)
   const entry = searches.find((s) => s.name === from)
   if (!entry) return { ok: true, searches }
-  const rest = searches.filter((s) => s.name !== from && s.name !== trimmed)
+  if (searches.some((s) => s.name === trimmed && s.name !== from)) {
+    return { ok: false, reason: 'exists' }
+  }
+  const rest = searches.filter((s) => s.name !== from)
   return write(storage, order([...rest, { ...entry, name: trimmed }]))
 }
 

@@ -50,7 +50,7 @@ import {
   windowAggregate,
 } from '../metrics'
 import { Constraints, hasConstraints } from '../utils/clientAnalyze'
-import type { SavedSearch } from '../utils/savedSearches'
+import type { SaveRefusal, SavedSearch } from '../utils/savedSearches'
 import type { CommitReason } from '../utils/present'
 import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analyzeGate'
 import {
@@ -276,9 +276,10 @@ interface Props {
   onLoadSearch: (name: string) => void
   onRenameSearch: (from: string, to: string) => void
   onDeleteSearch: (name: string) => void
-  // The last write was refused by the browser's store. The only failure this
-  // surface has, and the only one it can do anything about.
-  saveRefused: boolean
+  // Why the last write was refused, or null: the browser's store would not
+  // take it, or the name is already in use. Both are refusals the reader can
+  // act on, which is why they are the two this surface names.
+  saveRefusal: SaveRefusal | null
 }
 
 /**
@@ -459,7 +460,7 @@ export default function ControlPanel({
   onLoadSearch,
   onRenameSearch,
   onDeleteSearch,
-  saveRefused,
+  saveRefusal,
 }: Props) {
   // Parse the CSV once per change rather than twice on every render (this and the
   // "N destinations parsed" count below both used to call parseCustomCsv directly).
@@ -1231,9 +1232,11 @@ export default function ControlPanel({
               Save
             </button>
           </div>
-          {saveRefused && (
+          {saveRefusal !== null && (
             <p className={`mt-2 ${STATUS.error} ${NOTICE.error}`}>
-              Saved searches are full.
+              {saveRefusal === 'exists'
+                ? 'A search with this name exists.'
+                : 'Saved searches are full.'}
             </p>
           )}
           {savedSearches.length > 0 && (
@@ -1262,8 +1265,8 @@ export default function ControlPanel({
                   onClick={() => {
                     onLoadSearch(picked)
                     // The loaded name becomes the name in the field, so the
-                    // next Save writes back over what was just opened rather
-                    // than leaving a second copy under whatever was typed.
+                    // field says which save the panel is now showing, and
+                    // Rename acts on a name the reader can edit in place.
                     setSearchName(picked)
                   }}
                   className={BUTTON_SECONDARY}

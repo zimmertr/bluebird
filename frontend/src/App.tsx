@@ -88,6 +88,7 @@ import {
 import { parseCustomCsv } from './utils/customDestinations'
 import {
   SaveOutcome,
+  SaveRefusal,
   SavedSearch,
   deleteSearch,
   listSaved,
@@ -927,17 +928,18 @@ export default function App() {
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>(() =>
     listSaved(localStorage),
   )
-  // The browser refused the last write. A `name` refusal cannot reach here —
-  // the buttons that could ask for one are disabled while the field is empty —
-  // so the only outcome worth a sentence is the store being unwritable.
-  const [saveRefused, setSaveRefused] = useState(false)
+  // Why the last write was refused, or null. A `name` refusal cannot reach
+  // here — the buttons that could ask for one are disabled while the field is
+  // empty — so the two the panel has a sentence for are the store being
+  // unwritable and the name being taken.
+  const [saveRefusal, setSaveRefusal] = useState<SaveRefusal | null>(null)
 
   function applyOutcome(outcome: SaveOutcome) {
     if (outcome.ok) {
       setSavedSearches(outcome.searches)
-      setSaveRefused(false)
-    } else if (outcome.reason === 'quota') {
-      setSaveRefused(true)
+      setSaveRefusal(null)
+    } else if (outcome.reason !== 'name') {
+      setSaveRefusal(outcome.reason)
     }
   }
 
@@ -1890,7 +1892,7 @@ export default function App() {
           }}
           onRenameSearch={(from, to) => applyOutcome(renameSearch(localStorage, from, to))}
           onDeleteSearch={(name) => applyOutcome(deleteSearch(localStorage, name))}
-          saveRefused={saveRefused}
+          saveRefusal={saveRefusal}
           includeUnnamedPeaks={includeUnnamedPeaks}
           setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}
           windowWarning={windowWarning}

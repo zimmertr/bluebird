@@ -265,15 +265,11 @@ Every column is resizable: drag the divider at a header's right edge, or double-
 
 **Columns** opens a picker for the columns the table shows. Every column starts on — the table scrolls sideways when it must — and unticking narrows the view for easier comparison. The downloaded CSV always carries every column regardless of what the table displays.
 
-### Max results (in Options)
-
-The default is 200, sized to sit above the 100-row lists people usually paste so a first analysis does not open half-cut. The ceiling is what the running service reports. Raising this number costs nothing upstream: weather is fetched for *every* destination in your area, and the top N by your ranking come back. Lowering it shows you the extremes.
-
 ## Saved searches
 
 Everything the panel holds — the polygon, the destination types, the coordinates you pasted, the forecast window and model, the ranking, and every filter — can be kept under a name. Type a name and press **Save**. The saved names appear in the list below the field, where **Load** puts one back on the panel, **Rename** gives the selected one the name in the field, and **Delete** removes it.
 
-A save is a named copy of the link in your address bar, so loading one does exactly what opening that link does: it refills the controls and nothing else. No forecast is fetched, and the report already on screen stays as it is until you press Analyze — which the panel then asks you to do, naming what has changed under it. Saving over a name you already used replaces it.
+A save is a named copy of the link in your address bar, so loading one does exactly what opening that link does: it refills the controls and nothing else. No forecast is fetched, and the report already on screen stays as it is until you press Analyze — which the panel then asks you to do, naming what has changed under it. A name already in the list is refused, for a save and for a rename alike, and the panel says so: nothing on that list is overwritten, because a name is the only handle a save has and there is no undo.
 
 Saves live in this browser, on this device. They are not an account: another browser, another machine and a private window each have their own list, and clearing the site's data clears them. To carry a search to someone else, or to another device, copy the address bar instead.
 
@@ -288,8 +284,6 @@ Destinations you name yourself are candidates like any other. A searched place a
 Click **Analyze**. Results appear in a sortable table below the map and as color-coded markers on the map itself.
 
 Once results are up, the knobs split in two. **Ranking, max results, every forecast filter, and narrowing the elevation range apply instantly**, with no second click: the browser keeps the forecast for every destination it found, not just the ones that fit on screen, so it can re-rank, re-filter and re-cut them for free. Changing the **destinations, the forecast window, the model, or widening the elevation range** needs Analyze again, because those need forecasts the app does not have yet, and the panel says which one is waiting. That is also why the numbers are exact rather than approximate: a new ranking reconsiders every destination in your area, not just the rows currently listed.
-
-If the weather service cannot be reached from your browser, Bluebird Forecast says so and retries through its own server. That path only receives the rows it shows, so on it every knob goes back to needing Analyze, and the app says which one is waiting.
 
 Marker colors follow total precipitation:
 
