@@ -152,6 +152,16 @@ class ForecastModelInfo(BaseModel):
             "sees, since discovery happens server-side."
         )
     )
+    blend: bool = Field(
+        description=(
+            "True for a model that serves a fine regional grid for the first "
+            "day or two and a coarse global one after that, so one series "
+            "changes model partway along. Published rather than left to be "
+            "read off the `_seamless` suffix, which is a naming habit rather "
+            "than a contract: this flag is the only reliable way to tell a "
+            "blended product from a single-model one."
+        )
+    )
     default: bool = Field(
         description="True for the model used when `forecast_model` is omitted."
     )
@@ -283,6 +293,7 @@ async def capabilities() -> CapabilitiesResponse:
                 finest_grid_km=info.finest_grid_km,
                 forecast_hours=info.forecast_hours,
                 regional=info.regional,
+                blend=info.blend,
                 default=model is DEFAULT_FORECAST_MODEL,
             )
             for model, info in MODEL_INFO.items()

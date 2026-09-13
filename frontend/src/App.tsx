@@ -2484,7 +2484,7 @@ export default function App() {
                                     (m) => m.id === analyzed.forecastModel,
                                   )?.label ?? analyzed.forecastModel
                                 }
-                                baseBlend={isBlend(analyzed.forecastModel)}
+                                baseBlend={isBlend(caps.forecastModels, analyzed.forecastModel)}
                                 baseColor={soleChartedColor}
                                 compared={compare.compared}
                                 addable={compare.addable}

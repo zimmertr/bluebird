@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { ForecastModelOption } from '../hooks/useCapabilities'
+import { normalizeWindow } from './forecastWindow'
 import { callWeight } from './openMeteo'
 import {
   MAX_COMPARE_MODELS,
@@ -14,7 +15,7 @@ const HOUR = 3_600_000
 const DAY = 24 * HOUR
 const NOW = Date.UTC(2026, 8, 12, 12, 0)
 
-function model(id: string, forecastHours: number): ForecastModelOption {
+function model(id: string, forecastHours: number, blend = false): ForecastModelOption {
   return {
     id,
     label: id.toUpperCase(),
@@ -22,14 +23,15 @@ function model(id: string, forecastHours: number): ForecastModelOption {
     finestGridKm: 3,
     forecastHours,
     regional: false,
+    blend,
   }
 }
 
 const MODELS: ForecastModelOption[] = [
-  model('gfs_seamless', 384),
+  model('gfs_seamless', 384, true),
   model('ecmwf_ifs025', 336),
   model('gfs_hrrr', 42),
-  model('meteofrance_seamless', 72),
+  model('meteofrance_seamless', 72, true),
 ]
 
 // The cost of a comparison, in the unit every capacity number in this app is
@@ -68,15 +70,23 @@ describe('what a comparison costs', () => {
 })
 
 describe('isBlend', () => {
-  it('reads Open-Meteo’s seamless products as blends', () => {
-    expect(isBlend('gfs_seamless')).toBe(true)
-    expect(isBlend('gem_seamless')).toBe(true)
-    expect(isBlend('meteofrance_seamless')).toBe(true)
+  it('reads the flag the server publishes', () => {
+    expect(isBlend(MODELS, 'gfs_seamless')).toBe(true)
+    expect(isBlend(MODELS, 'meteofrance_seamless')).toBe(true)
+    expect(isBlend(MODELS, 'ecmwf_ifs025')).toBe(false)
+    expect(isBlend(MODELS, 'gfs_hrrr')).toBe(false)
   })
 
-  it('leaves the single-model products unlabelled', () => {
-    expect(isBlend('ecmwf_ifs025')).toBe(false)
-    expect(isBlend('gfs_hrrr')).toBe(false)
+  // The suffix is Open-Meteo's naming habit, not a contract: a blended model
+  // under another name has to read as a blend, and a `_seamless` id the server
+  // does not flag has to read as one model.
+  it('does not read the id for a suffix', () => {
+    expect(isBlend([model('acme_blend', 100, true)], 'acme_blend')).toBe(true)
+    expect(isBlend([model('acme_seamless', 100)], 'acme_seamless')).toBe(false)
+  })
+
+  it('is not a blend when the server never published the model', () => {
+    expect(isBlend(MODELS, 'something_retired')).toBe(false)
   })
 })
 
@@ -100,6 +110,15 @@ describe('compareEndMs', () => {
   it('is the window itself when nothing is compared', () => {
     const end = NOW + 10 * DAY
     expect(compareEndMs(end, [], NOW)).toBe(end)
+  })
+
+  // The window the hook fetches for is this function over the resolved window,
+  // so a Current analysis has to buy a span rather than a moment: Open-Meteo's
+  // inclusive filter matches nothing between a moment and itself.
+  it('asks for a span when the analysis was one hour', () => {
+    const at = Date.UTC(2026, 8, 12, 18, 30)
+    const resolved = normalizeWindow(at, at)
+    expect(compareEndMs(resolved.endMs, [384], NOW)).toBeGreaterThan(resolved.startMs)
   })
 })
 
@@ -135,6 +154,20 @@ describe('addableModels', () => {
     // and ARPEGE at 72.
     const far = { startMs: NOW + 5 * DAY, endMs: NOW + 6 * DAY }
     expect(ids(addableModels(MODELS, 'gfs_seamless', [], far, NOW))).toEqual(['ecmwf_ifs025'])
+  })
+
+  // A Current analysis is recorded as start equal to end, which describes no
+  // span: every model then fails the reach test and the Compare control never
+  // appears. `normalizeWindow` is what turns the moment into the hour it means,
+  // and the hook applies it before both this test and the fetch.
+  it('offers models for a Current window once it is resolved', () => {
+    const at = Date.UTC(2026, 8, 12, 18, 30)
+    expect(addableModels(MODELS, 'gfs_seamless', [], { startMs: at, endMs: at }, NOW)).toEqual([])
+    expect(ids(addableModels(MODELS, 'gfs_seamless', [], normalizeWindow(at, at), NOW))).toEqual([
+      'ecmwf_ifs025',
+      'gfs_hrrr',
+      'meteofrance_seamless',
+    ])
   })
 
   it('keeps the published order', () => {

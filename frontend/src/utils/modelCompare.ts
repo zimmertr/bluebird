@@ -45,15 +45,22 @@ const HOUR_MS = 3_600_000
 /**
  * Is this one of Open-Meteo's blended products?
  *
- * The `_seamless` suffix IS the blend in Open-Meteo's own vocabulary: each one
- * serves an agency's fine regional model for the first day or two and its
- * coarse global model after that, so a single line on the chart changes model
- * partway along and has to say so. Read off the id rather than out of the
- * summary prose, which says the same thing ("Blends in the HRRR model.") in a
- * sentence written for a human.
+ * A blend serves an agency's fine regional model for the first day or two and
+ * its coarse global model after that, so a single line on the chart changes
+ * model partway along and has to say so.
+ *
+ * The server publishes the answer as `forecast_models[].blend`, and this reads
+ * it rather than testing the id for a `_seamless` suffix: the suffix is
+ * Open-Meteo's naming habit rather than a contract, so a blended product added
+ * under another name would be drawn as one model with nothing saying otherwise.
+ * A model the server did not publish is not a blend, which is the shape every
+ * other missing field takes here.
  */
-export function isBlend(modelId: string): boolean {
-  return modelId.endsWith('_seamless')
+export function isBlend(
+  models: readonly ForecastModelOption[],
+  modelId: string,
+): boolean {
+  return models.find((m) => m.id === modelId)?.blend === true
 }
 
 /**

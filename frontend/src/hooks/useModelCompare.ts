@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DestinationResult } from '../types'
 import type { ForecastModelOption } from './useCapabilities'
 import { ChartLine, chartKey, cutSeriesAfter } from '../utils/chartData'
+import { normalizeWindow } from '../utils/forecastWindow'
 import {
   MAX_COMPARE_MODELS,
   addableModels,
   compareColors,
   compareEndMs,
   compareSeries,
-  isBlend,
 } from '../utils/modelCompare'
 import { OpenMeteoModelCoverage, fetchWeather } from '../utils/openMeteo'
 import type { WeatherSeries } from '../utils/openMeteo'
@@ -121,7 +121,15 @@ export function useModelCompare({
     [],
   )
 
-  const window_ = analyzed?.window ?? null
+  // The snapshot records the request as submitted, so a Current analysis
+  // arrives with start equal to end. That describes no span at all:
+  // `normalizeWindow` is what turns it into the hour it means, and without it
+  // every model fails the reach test below, the Compare control never appears,
+  // and the fetch would ask Open-Meteo for a moment between itself and itself.
+  const window_ = useMemo(
+    () => (analyzed ? normalizeWindow(analyzed.window.startMs, analyzed.window.endMs) : null),
+    [analyzed],
+  )
 
   const add = useCallback(
     (id: string) => {
@@ -205,7 +213,7 @@ export function useModelCompare({
         return {
           id,
           label: model?.label ?? id,
-          blend: isBlend(id),
+          blend: model?.blend === true,
           color: colors[id],
           status: entry?.status ?? 'loading',
           note: entry?.note ?? null,
@@ -216,10 +224,10 @@ export function useModelCompare({
 
   const addable = useMemo(
     () =>
-      active && analyzed
-        ? addableModels(models, analyzed.forecastModel, added, analyzed.window, nowRef.current)
+      active && analyzed && window_
+        ? addableModels(models, analyzed.forecastModel, added, window_, nowRef.current)
         : [],
-    [active, added, analyzed, models],
+    [active, added, analyzed, models, window_],
   )
 
   /**
@@ -238,13 +246,13 @@ export function useModelCompare({
   )
 
   const endMs = useMemo(() => {
-    if (!active || !analyzed || drawn.length === 0) return null
+    if (!active || !analyzed || !window_ || drawn.length === 0) return null
     const reaches = [analyzed.forecastModel, ...drawn].map(
       (id) => models.find((m) => m.id === id)?.forecastHours ?? 0,
     )
-    const end = compareEndMs(analyzed.window.endMs, reaches, nowRef.current)
-    return end < analyzed.window.endMs ? end : null
-  }, [active, analyzed, drawn, models])
+    const end = compareEndMs(window_.endMs, reaches, nowRef.current)
+    return end < window_.endMs ? end : null
+  }, [active, analyzed, drawn, models, window_])
 
   const lines: ChartLine[] = useMemo(() => {
     if (!active) return []

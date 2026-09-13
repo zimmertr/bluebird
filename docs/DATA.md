@@ -185,11 +185,12 @@ authority, and its refusal is reported as one, naming the model and the fix.
 The chart compares up to three models at one destination (issue #232). It is
 drawn rather than tabulated, deliberately, and three caveats come with it.
 
-**Six of the eight are blends.** Anything named `*_seamless` serves one agency's
-fine regional model for roughly the first two days and its coarse global model
-afterwards, so a single line can change model partway along. The chart marks
-those lines as blends. Only ECMWF IFS and NOAA HRRR are one model for their
-whole length.
+**Six of the eight are blends.** Each one serves an agency's fine regional model
+for roughly the first two days and its coarse global model afterwards, so a
+single line can change model partway along. The chart marks those lines as
+blends, reading the `blend` flag `GET /api/capabilities` publishes on each model
+rather than the model's name. Only ECMWF IFS and NOAA HRRR are one model for
+their whole length.
 
 **Reaches are ragged, so the chart clamps.** The models stop at different hours,
 and an average over ten days of one model beside three days of another compares

@@ -911,6 +911,7 @@ export default function ControlPanel({
                           finestGridKm: 0,
                           forecastHours: 0,
                           regional: false,
+                          blend: false,
                         },
                         ...forecastModels,
                       ]

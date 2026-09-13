@@ -112,7 +112,7 @@ order is this deployment's editorial ranking for mountain terrain, not a sort on
 any field in the response — it weights grid spacing over forecast length, so it
 is roughly the reverse of ordering by `forecast_hours`. Render it as given.
 
-Three more things follow from the choice, and the same endpoint publishes all of
+Four more things follow from the choice, and the same endpoint publishes all of
 them.
 
 **Each model carries a `summary`** saying why to reach for it, written for
@@ -129,6 +129,13 @@ Grid figures describe the variant this service requests, not the headline
 national model: `ecmwf_ifs025` is the 0.25° open-data feed rather than ECMWF's
 9 km HRES, and ECCC GEM reads as a 15 km global model unless you count the
 2.5 km grid that is the reason to pick it here.
+
+**Six of the eight are blends.** `blend: true` marks them. A blend serves a fine
+regional grid for the first day or two and a coarse global one after that, so a
+single series changes model partway along and two hours of one response can come
+from two models. Read the flag rather than the `_seamless` suffix: the suffix is
+Open-Meteo's naming habit rather than a contract, and a blended product added
+under another name would read as a single model.
 
 **Each model reaches a different distance.** `forecast_hours` says how far. It
 is separate from `limits.max_future_days`, which is the hard edge the request
@@ -544,7 +551,8 @@ It reports the searchable destination types (narrower than the enum in the
 schema, since not every modelled type is discoverable yet), the sort keys, the
 maximum polygon area, the cap on destinations per analysis, the accepted `limit`
 range, how far forward and back a window may reach, the selectable forecast
-models with each one's reach (under `forecast_models`), the header an
+models with each one's reach and whether it blends two grids (under
+`forecast_models`), the header an
 Open-Meteo key travels in (`api_key_header`), and (under
 `limits.rate`) the per-address request pacing behind `429` responses. Those
 values are read from the same constants the validators and limiters enforce, so
