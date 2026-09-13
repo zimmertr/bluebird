@@ -2031,39 +2031,40 @@ export default function App() {
               with the legends last it opened underneath them. Pushing the
               legends further down instead only moved the collision, since a
               popover is as tall as its contents. */}
-          {/* Bottom-anchored legends, and two things about this stack that
-              were quietly broken until they were measured on a phone.
+          {/* Top-anchored legends: they hang under the Layers button at
+              `top-28` and grow downward, at EVERY width.
 
-              It is anchored with `mt-auto` on the first box rather than with
-              `justify-end`, which is the whole of why it can now be scrolled.
-              A flex column that justifies to the end pushes its overflow past
-              the START edge of the scroll container, and content overflowing
-              the start edge is unreachable: measured at 402x874 with all four
-              layers on and a table showing, four of the five boxes sat at
-              negative coordinates with `scrollTop` pinned at 0 and no way to
-              reach them. The auto margin collapses when there is no room, so
-              the overflow goes out of the bottom instead, where a scroll can
-              follow it.
+              A key belongs where the reader last looked for it. Anchored to
+              the bottom instead, the stack rode up and down with every panel
+              drag and every results mode, so a box that had said nothing new
+              appeared to be moving on its own — and on a phone the last box
+              ended up under the forecast player. Anchored here it is a fixed
+              landmark under the button that switches the layers it explains,
+              and what gives when the map runs short is the tail of the stack
+              rather than its position.
 
-              `top-28` clears the Controls/search/Layers column above, at EVERY
-              width. It used to lift at `lg`, on the reasoning that a desktop
-              map has room to spare — but "top-auto" does not mean "as tall as
-              it likes", it means the box starts wherever its content puts it,
+              `top-28` is what clears the Controls/search/Layers column above.
+              It used to lift at `lg`, on the reasoning that a desktop map has
+              room to spare — but "top-auto" does not mean "as tall as it
+              likes", it means the box starts wherever its content puts it,
               which on a wide map was 54px: straight through the Layers button
               at 54-92. The button is opaque and paints above (see the ordering
               note), so the legend's first row simply disappeared behind it.
-              The clamp is the only thing that keeps them apart, so it holds
-              everywhere. `mt-auto` still pins the stack to the bottom when
-              there is room, which is what the lift was reaching for.
 
-              The stack lifts clear of the timeline when the bar is on screen.
-              The bar is centred and the legends are left-anchored, so on a
-              desktop map they never meet — but a phone is narrow enough that
-              they would overlap, and a legend half under a control reads as a
-              layout fault rather than as two things sharing an edge. */}
+              The `bottom` offset is a ceiling on the scroll box, not an
+              anchor: it stops the stack above the timeline's band while the
+              bar is on screen, and above the sheet's top edge on a phone, so
+              no box is ever half under a control. Overflow leaves through the
+              bottom, which is the edge a scroll can follow — a stack that
+              overflowed its START edge would put boxes at negative
+              coordinates with `scrollTop` pinned at 0 and no way to reach
+              them, which is measured and is why the bottom anchoring is not
+              coming back. A sheet dragged tall closes the box to nothing, and
+              a double press on its grip brings the legends back with the rest
+              of the default. */}
           {(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar) && (
             <div
-              className={`absolute left-2 top-28 z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0 [&>*:first-child]:mt-auto ${
+              className={`absolute left-2 top-28 z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0 ${
                 timelineAxis !== null ? 'bottom-28' : 'bottom-8'
               }`}
               // Where a sheet covers the map's bottom edge, the same two

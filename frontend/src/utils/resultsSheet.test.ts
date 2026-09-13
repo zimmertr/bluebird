@@ -62,6 +62,21 @@ describe('the map chrome anchors', () => {
     )
   })
 
+  // The legend stack hangs under the Layers button and grows DOWNWARD, so a
+  // box never moves because a panel was dragged, and the overflow leaves
+  // through the edge a scroll can follow. A stack pushed to the bottom edge —
+  // by an auto margin on its first child, or by justifying the column to the
+  // end — overflows past its START edge instead, where content sits at
+  // negative coordinates with `scrollTop` pinned at 0 and cannot be reached.
+  //
+  // Both patterns are matched without spelling either class verbatim: v4 scans
+  // this file as raw text and would emit the CSS for anything it finds.
+  it('anchors the legend stack at the top, not at the bottom', () => {
+    expect(appSource).not.toMatch(/\bm[tb]-(?:auto)\b/)
+    expect(appSource).not.toMatch(/\bjustify-(?:end)\b/)
+    expect(appSource).toContain('top-28')
+  })
+
   // These four numbers are the pixel values of classes `App.tsx` and
   // `TimelineTransport.tsx` still spell, which is the only way a lift can be
   // wrong without a test failing.
