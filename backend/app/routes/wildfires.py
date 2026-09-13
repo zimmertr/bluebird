@@ -3,10 +3,11 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, Query, Response
 from pydantic import BaseModel, Field
 
 from app import ratelimit
+from app.error_codes import ApiError, ErrorCode
 from app.models import ErrorResponse
 from app.services import nifc
 
@@ -60,23 +61,37 @@ class WildfireCollection(BaseModel):
 def _parse_bbox(raw: str) -> tuple[float, float, float, float]:
     parts = raw.split(",")
     if len(parts) != 4:
-        raise HTTPException(
+        raise ApiError(
             status_code=422,
             detail="bbox must be four comma-separated numbers: west,south,east,north.",
+            code=ErrorCode.validation,
         )
     try:
         west, south, east, north = (float(p) for p in parts)
     except ValueError:
-        raise HTTPException(
+        raise ApiError(
             status_code=422,
             detail="bbox must be four comma-separated numbers: west,south,east,north.",
+            code=ErrorCode.validation,
         ) from None
     if not (-180 <= west <= 180 and -180 <= east <= 180):
-        raise HTTPException(status_code=422, detail="bbox longitudes must be between -180 and 180.")
+        raise ApiError(
+            status_code=422,
+            detail="bbox longitudes must be between -180 and 180.",
+            code=ErrorCode.validation,
+        )
     if not (-90 <= south <= 90 and -90 <= north <= 90):
-        raise HTTPException(status_code=422, detail="bbox latitudes must be between -90 and 90.")
+        raise ApiError(
+            status_code=422,
+            detail="bbox latitudes must be between -90 and 90.",
+            code=ErrorCode.validation,
+        )
     if south > north:
-        raise HTTPException(status_code=422, detail="bbox south must not exceed north.")
+        raise ApiError(
+            status_code=422,
+            detail="bbox south must not exceed north.",
+            code=ErrorCode.validation,
+        )
     return west, south, east, north
 
 
@@ -159,9 +174,10 @@ async def wildfires(
         # than raising.
         retry_after = getattr(exc, "retry_after_s", 60)
         log.warning("event=wildfires_unavailable error=%s", exc)
-        raise HTTPException(
+        raise ApiError(
             status_code=503,
             detail=nifc.unavailable_message(exc),
+            code=ErrorCode.snapshot_unavailable,
             headers={"Retry-After": str(retry_after)},
         ) from exc
     fires = snapshot.within(box, coarse=detail == "coarse")

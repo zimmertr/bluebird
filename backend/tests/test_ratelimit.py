@@ -194,7 +194,8 @@ def test_analyze_429_after_burst(monkeypatch):
     resp = client.post("/api/analyze", json=_analyze_payload())
     assert resp.status_code == 429
     assert int(resp.headers["retry-after"]) >= 1
-    assert "Try again" in resp.json()["detail"]
+    assert resp.json()["detail"] == "Too many requests from this connection. Try again later."
+    assert resp.json()["error"] == {"code": "rate_limited", "retryable": True}
 
 
 def test_stream_shares_analyze_bucket_and_429_is_plain_http(monkeypatch):
@@ -206,6 +207,9 @@ def test_stream_shares_analyze_bucket_and_429_is_plain_http(monkeypatch):
     assert resp.status_code == 429
     assert resp.headers["retry-after"]
     assert resp.json()["detail"].startswith("Too many requests")
+    # A per-address refusal is the client's own bucket, distinct from the
+    # upstream's 429 an analysis can hit mid-flight.
+    assert resp.json()["error"] == {"code": "rate_limited", "retryable": True}
 
 
 def test_geocode_bucket_independent_of_analyze(monkeypatch):
@@ -237,6 +241,7 @@ def test_geocode_bucket_independent_of_analyze(monkeypatch):
     resp = client.get("/api/geocode", params={"q": "Rainier"})
     assert resp.status_code == 429
     assert resp.headers["retry-after"]
+    assert resp.json()["error"] == {"code": "rate_limited", "retryable": True}
 
 
 # ── Route enforcement: 503 shed ────────────────────────────────────────────
@@ -251,6 +256,7 @@ def test_analyze_503_when_overpass_budget_sheds(monkeypatch):
     assert resp.status_code == 503
     assert resp.headers["retry-after"] == str(ratelimit.SHED_RETRY_AFTER_S)
     assert "busy" in resp.json()["detail"]
+    assert resp.json()["error"] == {"code": "busy", "retryable": True}
 
 
 def test_analyze_503_when_weather_budget_sheds(monkeypatch):
@@ -269,6 +275,7 @@ def test_analyze_503_when_weather_budget_sheds(monkeypatch):
     resp = client.post("/api/analyze", json=_analyze_payload(inverted=False))
     assert resp.status_code == 503
     assert resp.headers["retry-after"] == str(ratelimit.SHED_RETRY_AFTER_S)
+    assert resp.json()["error"] == {"code": "busy", "retryable": True}
 
 
 def test_stream_budget_shed_arrives_as_error_event(monkeypatch):
@@ -281,6 +288,9 @@ def test_stream_budget_shed_arrives_as_error_event(monkeypatch):
     events = _sse_events(resp.text)
     assert events[-1]["type"] == "error"
     assert "busy" in events[-1]["message"]
+    # The stream has no status code to carry the failure, so the same coded
+    # member rides the event.
+    assert events[-1]["error"] == {"code": "busy", "retryable": True}
 
 
 def test_aqi_budget_shed_degrades_to_none(monkeypatch):
@@ -318,6 +328,7 @@ def test_geocode_503_when_gate_queue_is_full(monkeypatch):
     resp = client.get("/api/geocode", params={"q": "Baker"})
     assert resp.status_code == 503
     assert int(resp.headers["retry-after"]) >= 1
+    assert resp.json()["error"] == {"code": "busy", "retryable": True}
 
 
 # ── UpstreamBudget ─────────────────────────────────────────────────────────

@@ -37,9 +37,10 @@ import time
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 
-from fastapi import HTTPException, Request
+from fastapi import Request
 
 from app import telemetry
+from app.error_codes import ApiError, ErrorCode
 
 log = logging.getLogger("bluebird_forecast.ratelimit")
 
@@ -518,9 +519,10 @@ def _throttle(limiter: RateLimiter, request: Request) -> None:
         key,
         seconds,
     )
-    raise HTTPException(
+    raise ApiError(
         status_code=429,
         detail="Too many requests from this connection. Try again later.",
+        code=ErrorCode.rate_limited,
         headers={"Retry-After": str(seconds)},
     )
 

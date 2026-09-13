@@ -7,6 +7,8 @@ from typing import Literal, NamedTuple
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.error_codes import ErrorCode, error_object
+
 # Bounds the Overpass query, not Open-Meteo spend (the count cap below does
 # that). Measured 2026-07-29 against overpass-api.de with the production peaks
 # query: a ~103,000 km2 sparse box (Iowa) answered in 25.8s; a ~151,000 km2 box
@@ -857,6 +859,35 @@ class DestinationResult(BaseModel):
     )
 
 
+class ApiErrorInfo(BaseModel):
+    """The same failure as a code a program can branch on.
+
+    It rides beside `detail` rather than replacing it, because the two are
+    read by different audiences: the sentence by a person, the code by a
+    client deciding whether to retry.
+    """
+
+    code: ErrorCode = Field(
+        description=(
+            "Which kind of failure this is, from a closed vocabulary. Stable "
+            "contract: unlike `detail`, a code is not reworded."
+        )
+    )
+    retryable: bool = Field(
+        description=(
+            "Whether sending the identical request again is worth trying. "
+            "False means only the caller can change the outcome. On a 429 or "
+            "503 the `Retry-After` header says when."
+        )
+    )
+
+    @classmethod
+    def for_code(cls, code: ErrorCode) -> ApiErrorInfo:
+        """One spelling of the field, so a model body and a hand-built one
+        cannot disagree about `retryable`."""
+        return cls.model_validate(error_object(code))
+
+
 class ErrorResponse(BaseModel):
     """Body of a hand-raised API error.
 
@@ -871,6 +902,9 @@ class ErrorResponse(BaseModel):
             "to an end user unmodified."
         )
     )
+    error: ApiErrorInfo = Field(
+        description="The machine-readable half of the same failure."
+    )
 
 
 class AnalysisRefusal(BaseModel):
@@ -884,6 +918,9 @@ class AnalysisRefusal(BaseModel):
 
     detail: str = Field(
         description="Plain-language refusal, shown to an end user unmodified."
+    )
+    error: ApiErrorInfo = Field(
+        description="The machine-readable half of the same refusal."
     )
     found: int | None = Field(
         default=None,
