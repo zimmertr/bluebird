@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { resolvePanelHeights } from './layout'
+import { clampPanelHeight, resolvePanelHeights } from './layout'
 import {
+  DRAGGED_MAP_PX,
   LEGEND_GAP_PX,
   LEGEND_STACK_PX,
   LEGEND_TOP_PX,
@@ -8,7 +9,10 @@ import {
   SHEET_HEADER_PX,
   TRANSPORT_BAND_PX,
   TRANSPORT_GAP_PX,
+  draggedMapFloorPx,
   legendBottomPx,
+  maxSheetPx,
+  restingLiftPx,
   restingMapFloorPx,
   sheetChromePx,
   sheetHeightPx,
@@ -136,5 +140,113 @@ describe('the resting height', () => {
     expect(chart).toBe(0)
     expect(table).toBe(120)
     expect(VIEWPORT - sheetHeightPx({ collapsed: false, gripCount: 1, panelsPx: table })).toBe(435)
+  })
+})
+
+// The drag is capped where the timeline would cross the map's own buttons. The
+// resting reserve above holds only until the reader takes hold of a grip; this
+// one holds however far they pull.
+describe('the drag cap', () => {
+  it.each([
+    ['402x874', 874],
+    ['500x757', 757],
+  ])('at %s, leaves the transport the floor the legend takes', (_at, availPx) => {
+    expect(availPx - maxSheetPx(availPx) - TRANSPORT_BAND_PX).toBe(LEGEND_TOP_PX)
+  })
+
+  it('states both caps outright', () => {
+    expect(DRAGGED_MAP_PX).toBe(224)
+    expect(maxSheetPx(874)).toBe(650)
+    expect(maxSheetPx(757)).toBe(533)
+  })
+
+  // `clampPanelHeight` is given a map floor rather than a sheet height, and the
+  // sheet's own chrome is part of what covers the map, so the two forms of the
+  // cap have to agree for every grip count the sheet can carry.
+  it.each([1, 2])('reads as a map floor for a sheet with %i grips', (gripCount) => {
+    const availPx = 757
+    const panelsPx = availPx - draggedMapFloorPx(gripCount)
+    expect(sheetHeightPx({ collapsed: false, gripCount, panelsPx })).toBe(maxSheetPx(availPx))
+  })
+
+  it('stops a long drag where the docked floor did not', () => {
+    const VIEWPORT = 757
+    const { table } = resolvePanelHeights(288, 280, {
+      chartShown: false,
+      tableShown: true,
+      availPx: VIEWPORT,
+      mapMinPx: restingMapFloorPx(1),
+    })
+    const lift = (panelsPx: number) => sheetHeightPx({ collapsed: false, gripCount: 1, panelsPx })
+    const capped = lift(clampPanelHeight(table, 400, 0, VIEWPORT, draggedMapFloorPx(1)))
+    expect(capped).toBe(maxSheetPx(VIEWPORT))
+    expect(VIEWPORT - capped - TRANSPORT_BAND_PX).toBe(LEGEND_TOP_PX)
+    // The same drag with only the docked floor under it put the bar into the
+    // button column, which is the collision this cap exists for.
+    const uncapped = lift(clampPanelHeight(table, 400, 0, VIEWPORT))
+    expect(VIEWPORT - uncapped - TRANSPORT_BAND_PX).toBeLessThan(LEGEND_TOP_PX)
+  })
+
+  it('is the floor the drag handlers pass', () => {
+    expect(appSource).toContain('draggedMapFloorPx(gripCount)')
+    // Both grips that resize against the map: the map│chart resizer and the
+    // table's own. The chart│table divider preserves the pair's sum, so it
+    // cannot move the sheet and takes no floor.
+    expect(appSource.match(/clampPanelHeight\([^)]*dragFloorPx/g)).toHaveLength(2)
+  })
+})
+
+// What the camera leaves clear of the sheet. `fitBounds` measures into the
+// whole container, which on a phone runs on behind the sheet.
+describe('the camera padding', () => {
+  const defaults = { chartPx: 288, tablePx: 280 }
+
+  it('is the lift the sheet reserves at 402x874', () => {
+    // The sheet's chrome plus a default-height table, which fits inside the
+    // resting reserve whole: the same 392 the anchors above ride.
+    expect(
+      restingLiftPx({
+        collapsed: false,
+        gripCount: 1,
+        chartShown: false,
+        tableShown: true,
+        availPx: 874,
+        ...defaults,
+      }),
+    ).toBe(392)
+  })
+
+  it('takes only the reserve on a viewport too short for the whole table', () => {
+    const lift = restingLiftPx({
+      collapsed: false,
+      gripCount: 1,
+      chartShown: false,
+      tableShown: true,
+      availPx: 757,
+      ...defaults,
+    })
+    expect(lift).toBe(288)
+    expect(757 - lift).toBe(RESTING_MAP_PX)
+  })
+
+  it('is the header alone while the results are collapsed', () => {
+    expect(
+      restingLiftPx({
+        collapsed: true,
+        gripCount: 0,
+        chartShown: false,
+        tableShown: false,
+        availPx: 874,
+        ...defaults,
+      }),
+    ).toBe(SHEET_HEADER_PX)
+  })
+
+  // A camera move must not depend on a height the reader is dragging at the
+  // time, which is what passing the DEFAULT panel heights buys: the number is
+  // the same before and after any drag.
+  it('is derived from the default heights, not the ones a drag sets', () => {
+    expect(appSource).toContain('chartPx: DEFAULT_CHART_HEIGHT')
+    expect(appSource).toContain('tablePx: DEFAULT_TABLE_HEIGHT')
   })
 })

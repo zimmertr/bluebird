@@ -141,6 +141,13 @@ interface Props {
   onRemovePoi: (latitude: number, longitude: number) => void
   minElevationFt: number | null
   maxElevationFt: number | null
+  // How much of the container's bottom edge the results sheet stands on, which
+  // every framing move below has to leave empty (#249). On a phone the map
+  // keeps the whole column and the sheet is over it, so a fit measured into the
+  // container alone puts its subject under the sheet; 0 on desktop, where the
+  // results are docked beside the map and nothing is covered. It is the sheet's
+  // RESTING lift, so a drag never re-frames the camera under the reader's hand.
+  cameraPadBottomPx: number
 }
 
 // Build a filter for the basemap peak layer from the elevation knobs so the
@@ -181,6 +188,17 @@ const SEARCH_VIEW_MILES = 10
 // later panel drag isn't mistaken for it.
 const FIT_PADDING_PX = 60
 const REFIT_WINDOW_MS = 1_000
+
+// A framing call's inset, with the results sheet's share of the bottom edge
+// added to it (#249). Every `fitBounds` here takes the object form, which
+// MapLibre bakes into the computed centre and zoom and then drops — so the
+// padding never becomes camera state that a later fit would count twice.
+function framePadding(
+  inset: number,
+  bottomPx: number,
+): { top: number; right: number; bottom: number; left: number } {
+  return { top: inset, right: inset, bottom: inset + bottomPx, left: inset }
+}
 
 // How long the wildfire popup survives the cursor leaving its perimeter, so
 // the cursor can cross the gap and land on the NIFC link inside it. The popup
@@ -737,6 +755,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onRemovePoi,
       minElevationFt,
       maxElevationFt,
+      cameraPadBottomPx,
     },
     ref,
   ) => {
@@ -779,6 +798,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // in the load effect and would otherwise close over an empty map. focusResult
     // reads the live prop directly (its imperative handle re-runs every render).
     const fireWarningsRef = useRef(fireWarnings)
+    // The sheet's share of the bottom edge, for the two framing calls that live
+    // inside the mount effect — the resize refit and the opening frame — which
+    // would otherwise hold the first render's value for the session. The
+    // imperative handle re-runs every render and reads the prop directly.
+    const cameraPadBottomRef = useRef(cameraPadBottomPx)
     // The same once-registered-handler problem for draw mode and the POI
     // popup: the click handlers below are installed on map load and would
     // otherwise close over the first render's values forever.
@@ -848,7 +872,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
         const framed = pointsWithinView(
           pts.map((p) => map.project(p)),
           canvas.clientWidth,
-          canvas.clientHeight,
+          // The canvas the reader can see, which on a phone stops at the
+          // sheet's top edge: a vertex behind the sheet is off screen as far as
+          // this question is concerned, or the move that would reveal it is
+          // skipped.
+          canvas.clientHeight - cameraPadBottomPx,
           FIT_PADDING_PX,
         )
         if (framed) return
@@ -857,7 +885,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
           new maplibregl.LngLatBounds(pts[0], pts[0]),
         )
         cameraCommittedRef.current = true
-        map.fitBounds(bounds, { padding: FIT_PADDING_PX, duration: 600, maxZoom: map.getZoom() })
+        map.fitBounds(bounds, {
+          padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx),
+          duration: 600,
+          maxZoom: map.getZoom(),
+        })
       },
       // Snapshot the current ring as a GeoPolygon. The points stay editable —
       // the user iterates by dragging vertices and clicking Analyze again.
@@ -887,7 +919,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
           pendingSearchRef.current = place
           return
         }
-        map.fitBounds(boundsAround(place, SEARCH_VIEW_MILES), { padding: 40, duration: 1500 })
+        map.fitBounds(boundsAround(place, SEARCH_VIEW_MILES), {
+          padding: framePadding(40, cameraPadBottomPx),
+          duration: 1500,
+        })
       },
       // Frame a pasted custom CSV list whole. Deferred like a pre-load search
       // when the map isn't ready — the load handler folds the points into its
@@ -904,7 +939,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
         refitPointsRef.current = points
         if (refitTimerRef.current) clearTimeout(refitTimerRef.current)
         refitTimerRef.current = setTimeout(() => (refitPointsRef.current = null), REFIT_WINDOW_MS)
-        map.fitBounds(bounds, { padding: FIT_PADDING_PX, duration: 1500 })
+        map.fitBounds(bounds, {
+          padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx),
+          duration: 1500,
+        })
       },
       // Center on a result (clicked from its rank in the table) and open the
       // same popup a marker click gives. Rank is the analyzed order the markers
@@ -914,7 +952,18 @@ const MapView = forwardRef<MapViewHandle, Props>(
         if (!map || !loadedRef.current) return
         cameraCommittedRef.current = true
         const center: [number, number] = [result.longitude, result.latitude]
-        map.flyTo({ center, zoom: Math.max(map.getZoom(), 10), duration: 800 })
+        map.flyTo({
+          center,
+          zoom: Math.max(map.getZoom(), 10),
+          duration: 800,
+          // The one framing call that centres rather than fits, so it clears
+          // the sheet with `offset` instead of `padding`: a padding handed to
+          // `flyTo` is interpolated onto the transform and STAYS there, and the
+          // next `fitBounds` would then count it a second time on top of its
+          // own. Half the sheet's height puts the result in the middle of the
+          // map the reader can see.
+          offset: [0, -cameraPadBottomPx / 2],
+        })
         closeAllPopups()
         resultPopupRef.current = new maplibregl.Popup(popupOptions(map))
           .setLngLat(center)
@@ -983,7 +1032,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
         const points = refitPointsRef.current
         if (!points) return
         const bounds = boundsForPoints(points, SEARCH_VIEW_MILES)
-        if (bounds) map.fitBounds(bounds, { padding: FIT_PADDING_PX, duration: 1500 })
+        if (bounds) {
+          map.fitBounds(bounds, {
+            padding: framePadding(FIT_PADDING_PX, cameraPadBottomRef.current),
+            duration: 1500,
+          })
+        }
       })
       resizeObserver.observe(containerRef.current)
 
@@ -1021,11 +1075,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
           // Pull back one zoom level from the tight fit so the whole area
           // clears the viewport with margin — a snug fit can clip vertices
           // behind the controls drawer or browser chrome on small screens.
-          const camera = map.cameraForBounds(bounds, { padding: 60 })
+          const pad = framePadding(60, cameraPadBottomRef.current)
+          const camera = map.cameraForBounds(bounds, { padding: pad })
           if (camera?.zoom !== undefined) {
             map.jumpTo({ center: camera.center, zoom: camera.zoom - 1 })
           } else {
-            map.fitBounds(bounds, { padding: 60, duration: 0 })
+            map.fitBounds(bounds, { padding: pad, duration: 0 })
           }
         }
 
@@ -1814,7 +1869,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         }
         if (pendingSearchRef.current) {
           map.fitBounds(boundsAround(pendingSearchRef.current, SEARCH_VIEW_MILES), {
-            padding: 40,
+            padding: framePadding(40, cameraPadBottomRef.current),
             duration: 1500,
           })
           pendingSearchRef.current = null
@@ -1906,6 +1961,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       fireWarningsRef.current = fireWarnings
     }, [fireWarnings])
+
+    useEffect(() => {
+      cameraPadBottomRef.current = cameraPadBottomPx
+    }, [cameraPadBottomPx])
 
     // Same contract for the POI handler's inputs, which are likewise read by
     // listeners registered once on map load.

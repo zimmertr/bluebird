@@ -91,7 +91,9 @@ import { parseCustomCsv } from './utils/customDestinations'
 import { buildCustomList, pendingDestinations, pinKey } from './utils/customList'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
 import {
+  draggedMapFloorPx,
   legendBottomPx,
+  restingLiftPx,
   restingMapFloorPx,
   sheetHeightPx,
 } from './utils/resultsSheet'
@@ -1693,10 +1695,19 @@ export default function App() {
   const gripCount = resultsCollapsed ? 0 : resultsMode === 'both' ? 2 : 1
   // On a phone the results stand ON the map rather than beside it, so the floor
   // the panels leave is not "some map" but "enough map for the legend stack to
-  // sit above the sheet" (#249). It applies until the reader drags, after which
-  // their height wins and the docked floor is all that holds.
-  const mapFloorPx =
-    isDesktop || heightsChosen ? undefined : restingMapFloorPx(gripCount)
+  // sit above the sheet" (#249). Two of them, and the sheet is never taller
+  // than the looser one allows: the resting reserve holds the whole legend
+  // stack and lasts until the reader takes a grip, and the drag floor holds
+  // however far they pull — it keeps the band the timeline needs to stay clear
+  // of the map's button column, which is where the bar landed before the cap.
+  // Both are undefined on desktop, where the panel is docked below the map and
+  // `clampPanelHeight`'s own default holds.
+  const dragFloorPx = isDesktop ? undefined : draggedMapFloorPx(gripCount)
+  const mapFloorPx = isDesktop
+    ? undefined
+    : heightsChosen
+      ? dragFloorPx
+      : restingMapFloorPx(gripCount)
   const { chart: chartPanelPx, table: tablePanelPx } = resolvePanelHeights(
     chartHeight,
     tableHeight,
@@ -1719,6 +1730,21 @@ export default function App() {
           collapsed: resultsCollapsed,
           gripCount,
           panelsPx: chartPanelPx + tablePanelPx,
+        })
+  // What the map's camera must keep clear of the sheet. The RESTING lift, not
+  // the live one above: a fit re-framed mid-drag would move the map under the
+  // hand that is dragging it.
+  const cameraPadBottomPx =
+    isDesktop || !showTable
+      ? 0
+      : restingLiftPx({
+          collapsed: resultsCollapsed,
+          gripCount,
+          chartShown: chartShowing,
+          tableShown: tableShowing,
+          chartPx: DEFAULT_CHART_HEIGHT,
+          tablePx: DEFAULT_TABLE_HEIGHT,
+          availPx: viewportH - bannerPx,
         })
 
   return (
@@ -1955,6 +1981,7 @@ export default function App() {
             onRemovePoi={handleRemovePoi}
             minElevationFt={minElevationFt}
             maxElevationFt={maxElevationFt}
+            cameraPadBottomPx={cameraPadBottomPx}
           />
           {/* The legends render BEFORE the button column below on purpose.
               Both are map chrome at the same layer, so paint order is DOM
@@ -2161,9 +2188,12 @@ export default function App() {
             </div>
           )}
           {/* Top-left map cluster — reopen-controls button (only while the
-              panel is collapsed) + place search. z-10 keeps it under the
-              loading overlay (z-20) and the mobile drawer backdrop (z-30). */}
-          <div className="absolute top-3 left-3 z-10 flex flex-col items-start gap-2">
+              panel is collapsed) + place search + Layers. It takes its own
+              layer: what these buttons open hangs down across the map's bottom
+              chrome and across the sheet, and the layer has to sit on the
+              cluster rather than on the popover inside it (see LAYER). It stays
+              under the loading overlay and the mobile drawer backdrop. */}
+          <div className={`absolute top-3 left-3 ${LAYER.mapControls} flex flex-col items-start gap-2`}>
             {/* Raised above its later siblings so the search dropdown paints
                 over the Layers button below it — both live in the top-left
                 cluster, and DOM order alone put the button on top (#288
@@ -2500,7 +2530,13 @@ export default function App() {
                         if (resultsMode === 'both') setTableHeight(tablePanelPx)
                         beginResize(e, (up) =>
                           setChartHeight(
-                            clampPanelHeight(chartPanelPx, up, reserved, window.innerHeight),
+                            clampPanelHeight(
+                              chartPanelPx,
+                              up,
+                              reserved,
+                              window.innerHeight,
+                              dragFloorPx,
+                            ),
                           ),
                         )
                       }}
@@ -2601,7 +2637,13 @@ export default function App() {
                         } else {
                           beginResize(e, (up) =>
                             setTableHeight(
-                              clampPanelHeight(tablePanelPx, up, bannerPx, window.innerHeight),
+                              clampPanelHeight(
+                                tablePanelPx,
+                                up,
+                                bannerPx,
+                                window.innerHeight,
+                                dragFloorPx,
+                              ),
                             ),
                           )
                         }

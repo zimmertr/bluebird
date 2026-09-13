@@ -535,6 +535,7 @@ describe('shared recipes', () => {
     const stack = [
       LAYER.base,
       LAYER.sheet,
+      LAYER.mapControls,
       LAYER.overlay,
       LAYER.scrim,
       LAYER.drawer,
@@ -551,6 +552,14 @@ describe('shared recipes', () => {
     // on the map, not in front of the app.
     expect(depth(LAYER.sheet)).toBeGreaterThan(depth(LAYER.base))
     expect(depth(LAYER.sheet)).toBeLessThan(depth(LAYER.scrim))
+    // The Layers popover hangs down across the timeline, the legends and the
+    // sheet, so its cluster clears all three — and still stops below the
+    // overlay an analysis puts over the whole map.
+    expect(depth(LAYER.mapControls)).toBeGreaterThan(depth(LAYER.sheet))
+    expect(depth(LAYER.mapControls)).toBeLessThan(depth(LAYER.overlay))
+    // A stacking context orders only its own children, so the layer is useless
+    // unless the cluster itself wears it.
+    expect(appSource).toContain('LAYER.mapControls')
   })
 
   // The map timeline's scrubber (#121). A real range input arrives knowing

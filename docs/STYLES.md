@@ -122,6 +122,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 |---|---|
 | `LAYER.base` | Map chrome, sticky header, docked panels |
 | `LAYER.sheet` | The phone results sheet: over the map chrome it covers, under the drawer's scrim |
+| `LAYER.mapControls` | The map's top-left cluster and what it opens: over the sheet and the map chrome the Layers popover hangs across |
 | `LAYER.overlay` | Analysis overlay card |
 | `LAYER.scrim` | Scrim behind mobile drawer and preview banner |
 | `LAYER.drawer` | Mobile drawer itself |

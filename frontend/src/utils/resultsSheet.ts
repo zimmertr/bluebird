@@ -12,6 +12,8 @@
 // Desktop is unaffected: the panel is docked below the map there, nothing is
 // covered, and every function here is asked for a lift of 0.
 
+import { resolvePanelHeights } from './layout'
+
 /**
  * The legend stack's own top inset (`top-28` in `App.tsx`), which clears the
  * Controls/search/Layers column at every width.
@@ -62,9 +64,48 @@ const GRIP_PX = 8
  */
 export const RESTING_MAP_PX = LEGEND_TOP_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX
 
+/**
+ * Map that stays uncovered however high the reader drags: the timeline's band
+ * and the inset the map's own button column occupies.
+ *
+ * The legend stack starts at `LEGEND_TOP_PX` because that is where the
+ * Controls/search/Layers column ends, and the transport rides the same lift, so
+ * it takes the same floor. Without it a drag puts the bar THROUGH that column:
+ * measured at 500x757, a sheet dragged high left the transport at y 100-145,
+ * across the Layers button at y 102-140 and MapLibre's zoom stack opposite it.
+ *
+ * The band is counted whether or not a bar is on screen, for the reason
+ * `RESTING_MAP_PX` counts it: a map overlay must never decide how tall the
+ * results may be.
+ */
+export const DRAGGED_MAP_PX = LEGEND_TOP_PX + TRANSPORT_BAND_PX
+
 /** The sheet's own chrome: the header bar plus each grip it renders. */
 export function sheetChromePx(gripCount: number): number {
   return SHEET_HEADER_PX + gripCount * GRIP_PX
+}
+
+/**
+ * The cap as a map floor, which is the form `clampPanelHeight` takes: the
+ * sheet's chrome is part of what covers the map, so the panels inside it may
+ * only have what is left.
+ */
+export function draggedMapFloorPx(gripCount: number): number {
+  return DRAGGED_MAP_PX + sheetChromePx(gripCount)
+}
+
+/**
+ * The same cap read as a sheet height, which is the number the collision is
+ * about. `availPx` is the height the map and the sheet share (the viewport less
+ * any preview banner).
+ *
+ * A viewport shorter than the cap answers with less than a sheet needs, or with
+ * nothing; the panel floors in `clampPanelHeight` win there, and the transport
+ * lands in the button column as it does on any map too short for both. That is
+ * the same trade the resting reserve makes.
+ */
+export function maxSheetPx(availPx: number): number {
+  return availPx - DRAGGED_MAP_PX
 }
 
 /**
@@ -92,6 +133,44 @@ export function sheetHeightPx({
 }): number {
   if (collapsed) return SHEET_HEADER_PX
   return sheetChromePx(gripCount) + panelsPx
+}
+
+/**
+ * How far the sheet stands up the map when it opens, before anyone has dragged
+ * a grip. This is the camera's bottom padding: `fitBounds` and `flyTo` measure
+ * into the whole container, which on a phone runs on behind the sheet, so a
+ * fitted polygon or a pasted list otherwise lands under it.
+ *
+ * The RESTING lift rather than the live one, and from the default panel heights
+ * rather than the reader's: a camera move must not depend on a height the
+ * reader is dragging at the time, and a reader who drags the sheet over the map
+ * has chosen to cover it. So this answers the same number for the whole
+ * session, and only the results mode moves it.
+ */
+export function restingLiftPx({
+  collapsed,
+  gripCount,
+  chartShown,
+  tableShown,
+  chartPx,
+  tablePx,
+  availPx,
+}: {
+  collapsed: boolean
+  gripCount: number
+  chartShown: boolean
+  tableShown: boolean
+  chartPx: number
+  tablePx: number
+  availPx: number
+}): number {
+  const { chart, table } = resolvePanelHeights(chartPx, tablePx, {
+    chartShown,
+    tableShown,
+    availPx,
+    mapMinPx: restingMapFloorPx(gripCount),
+  })
+  return sheetHeightPx({ collapsed, gripCount, panelsPx: chart + table })
 }
 
 /**

@@ -559,6 +559,21 @@ export const LAYER = {
    * drawer dims the whole screen behind it and the sheet is part of that screen.
    */
   sheet: 'z-[15]',
+  /**
+   * The map's own top-left cluster: Controls, the search box, Layers, and
+   * whatever they open.
+   *
+   * Above the sheet and above every piece of map chrome under it, because the
+   * Layers popover hangs down across both and a control the reader has just
+   * opened has to be whole while it is open — the lifted timeline used to paint
+   * over its last row. Below `overlay`, which speaks for the whole map while an
+   * analysis runs.
+   *
+   * The cluster wears it rather than the popover inside it: a positioned box
+   * with a z-index is a stacking context, so a bigger number on a child can
+   * only order that child against its own siblings.
+   */
+  mapControls: 'z-[18]',
   /** The analysis overlay, over the map while a run is in flight. */
   overlay: 'z-20',
   /** The scrim behind the mobile drawer, and the preview banner. */
