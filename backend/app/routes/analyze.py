@@ -75,6 +75,9 @@ def _filter_elevation(destinations, min_ft, max_ft):
 # A ceiling reads the window's worst hour and a floor its best, so a bound is a
 # promise about every hour rather than about an average that can hide a bad
 # afternoon: max_wind_mph=20 admits no destination that gusts to 45 at noon.
+# The freezing level reads the same way in the one family where neither end is
+# the bad one: its floor asks that the level never dropped below the value and
+# its ceiling that it never rose above it.
 # Precipitation and AQI have no minimum aggregate to read — a per-hour
 # precipitation floor would be 0.000 almost everywhere — so both of their
 # bounds compare a single field, the window total and the worst hour.
@@ -82,12 +85,14 @@ _LOWER_BOUNDS = (
     ("min_precip_total_in", "precip_total_in"),
     ("min_temp_f", "temp_min_f"),
     ("min_wind_mph", "wind_min_mph"),
+    ("min_freeze_ft", "freeze_min_ft"),
     ("min_aqi", "aqi_max"),
 )
 _UPPER_BOUNDS = (
     ("max_precip_total_in", "precip_total_in"),
     ("max_temp_f", "temp_max_f"),
     ("max_wind_mph", "wind_max_mph"),
+    ("max_freeze_ft", "freeze_max_ft"),
     ("max_aqi", "aqi_max"),
 )
 
@@ -113,11 +118,13 @@ def _filter_constraints(
     that already matches: "the ten driest destinations that stay under 20 mph",
     never "whichever of the ten driest happened to be calm".
 
-    A null value passes every bound. Only AQI can be null here, and a missing
+    A null value passes every bound. Two fields can be null here. A missing
     AQI means the window outran the ~5-day air-quality horizon or a best-effort
-    fetch failed. Neither is evidence that the air is bad, and dropping those
+    fetch failed; a missing freezing level means the chosen model publishes
+    none at all. Neither is evidence about the weather, and dropping those
     rows would quietly empty every long-window analysis that set an AQI
-    ceiling. It is the same call `_filter_elevation` makes for an untagged
+    ceiling, or every analysis under a model that carries no freezing level.
+    It is the same call `_filter_elevation` makes for an untagged
     summit and `_sort_key` makes for a nullable ranking key.
     """
     lower = [(f, v) for attr, f in _LOWER_BOUNDS if (v := getattr(request, attr)) is not None]

@@ -1,5 +1,6 @@
 import { DestinationResult, SortBy } from '../types'
 import { AGGREGATE, FAMILY_KEYS, familyOf, metricLabel } from '../metrics'
+import { FREEZE_UNAVAILABLE } from './freezingLevel'
 
 /**
  * One column of the results table.
@@ -11,13 +12,20 @@ import { AGGREGATE, FAMILY_KEYS, familyOf, metricLabel } from '../metrics'
  * thousands separator inside a comma-separated cell. Everything else formats
  * through `toFixed`, which is already safe, so it has no `csv` and the exporter
  * falls back to `format`. Nulls never reach either one: `resultsCsv.ts` writes
- * an empty cell before it would call a formatter, where the table writes a dash.
+ * `csvNull` before it would call a formatter, where the table writes a dash.
+ *
+ * `csvNull` is that empty cell's text, and it is empty for every column but
+ * the freezing level's three. A blank is how a spreadsheet spells "no value",
+ * which is the truth for a number the forecast simply lacks; a freezing level
+ * is missing because the MODEL carries no such variable, which is a different
+ * statement and the one the screen already makes with its mark.
  */
 export type ColDef = {
   key: keyof DestinationResult | typeof WILDFIRE_KEY
   label: string
   format?: (v: unknown) => string
   csv?: (v: unknown) => string
+  csvNull?: string
   windyLayer?: string
 }
 
@@ -85,12 +93,14 @@ export const COLUMNS: ColDef[] = [
   { key: 'wind_avg_mph', label: metricLabel('wind', AGGREGATE.average), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
   // Feet above sea level, formatted like the elevation column above it,
   // because the reading IS the comparison between the two. Null is the
-  // five-model case (#295) and the table draws it as N/A with the note in
-  // freezingLevel.ts rather than the dash a genuine gap gets; the dash below
-  // is the fallback for a formatter called on a null anywhere else.
-  { key: 'freeze_min_ft', label: metricLabel('freeze', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v) },
-  { key: 'freeze_max_ft', label: metricLabel('freeze', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v) },
-  { key: 'freeze_avg_ft', label: metricLabel('freeze', AGGREGATE.average), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v) },
+  // five-model case (#295) and both surfaces draw it as N/A — the table with
+  // the note in freezingLevel.ts, the file through `csvNull` — rather than the
+  // dash a genuine gap gets; the dash below is the fallback for a formatter
+  // called on a null anywhere else. Windy's own name for the layer is its
+  // zero-degree isotherm, `deg0`.
+  { key: 'freeze_min_ft', label: metricLabel('freeze', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: FREEZE_UNAVAILABLE, windyLayer: 'deg0' },
+  { key: 'freeze_max_ft', label: metricLabel('freeze', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: FREEZE_UNAVAILABLE, windyLayer: 'deg0' },
+  { key: 'freeze_avg_ft', label: metricLabel('freeze', AGGREGATE.average), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: FREEZE_UNAVAILABLE, windyLayer: 'deg0' },
   { key: 'aqi_avg', label: metricLabel('aqi', AGGREGATE.average), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
   { key: 'aqi_min', label: metricLabel('aqi', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
   { key: 'aqi_max', label: metricLabel('aqi', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },

@@ -114,6 +114,11 @@ export function resultsFeatureCollection(
         // them straight back from the feature, so they must stay numeric).
         wind_avg: r.wind_avg_mph,
         temp_avg: r.temp_avg_f,
+        // Spread only when it exists, like the air-quality pair: an absent
+        // property reads back as undefined, which is the null the popup needs
+        // to draw its mark, and a property explicitly set to null is a value
+        // MapLibre and the popup would then have to tell apart.
+        ...(r.freeze_min_ft != null ? { freeze_min: r.freeze_min_ft } : {}),
         ...(r.aqi_avg != null ? { aqi_avg: r.aqi_avg, aqi_max: r.aqi_max } : {}),
       },
     })),

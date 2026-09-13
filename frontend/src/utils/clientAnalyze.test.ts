@@ -466,6 +466,39 @@ describe('filterConstraints', () => {
     ])
   })
 
+  // Neither end of this family is the bad one, so the bound is read straight:
+  // the floor asks that the level never dropped below the value, the ceiling
+  // that it never rose above it.
+  it('bounds the freezing level on the window low and the window high', () => {
+    const rows = [
+      boundRow('high', { freeze_min_ft: 9000, freeze_max_ft: 11000 }),
+      boundRow('low', { freeze_min_ft: 2000, freeze_max_ft: 4000 }),
+    ]
+    expect(filterConstraints(rows, bounded({ minFreezeFt: 8000 })).map((r) => r.name)).toEqual([
+      'high',
+    ])
+    expect(filterConstraints(rows, bounded({ maxFreezeFt: 5000 })).map((r) => r.name)).toEqual([
+      'low',
+    ])
+  })
+
+  it('lets a null freezing level through either bound', () => {
+    // Five of the eight models publish none at all, so dropping these rows
+    // would empty the table outright for anyone who set the bound under one
+    // of them — a statement about the model, never about the weather.
+    const rows = [
+      boundRow('unknown', { freeze_min_ft: null, freeze_max_ft: null }),
+      boundRow('low', { freeze_min_ft: 2000, freeze_max_ft: 4000 }),
+    ]
+    expect(filterConstraints(rows, bounded({ minFreezeFt: 8000 })).map((r) => r.name)).toEqual([
+      'unknown',
+    ])
+    expect(filterConstraints(rows, bounded({ maxFreezeFt: 5000 })).map((r) => r.name)).toEqual([
+      'unknown',
+      'low',
+    ])
+  })
+
   it('lets a null air quality through either bound', () => {
     // Past the ~5-day horizon there is no air quality at all, and an absent
     // number is not evidence of bad air. Dropping these rows would empty a
@@ -508,7 +541,14 @@ describe('filterConstraints', () => {
 
 describe('constraint round trips', () => {
   it('carries every bound out to the wire fields and back', () => {
-    const c = bounded({ maxPrecipTotalIn: 0.1, minTempF: 20, maxWindMph: 20, maxAqi: 100 })
+    const c = bounded({
+      maxPrecipTotalIn: 0.1,
+      minTempF: 20,
+      maxWindMph: 20,
+      minFreezeFt: 6000,
+      maxFreezeFt: 12000,
+      maxAqi: 100,
+    })
     expect(constraintsFromRequest({ ...REQUEST, ...constraintFields(c) })).toEqual(c)
   })
 

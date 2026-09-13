@@ -255,13 +255,13 @@ hand from the analysis; the timeline is a position in it.
 
 ### Filtering
 
-Filters say which destinations you would consider at all. Set bounds on elevation, precipitation, wind, temperature, or AQI. The grid has a Min and a Max box on each row; leave a box empty and that side is unbounded.
+Filters say which destinations you would consider at all. Set bounds on elevation, precipitation, wind, temperature, the freezing level, or AQI. The grid has a Min and a Max box on each row; leave a box empty and that side is unbounded.
 
-**A ceiling is a promise about every hour**, not an average: a 20 mph wind ceiling excludes a destination that gusts to 45 at noon even if it averages 8. A floor is the opposite: a 15 mph wind floor asks for somewhere whose *calmest* hour still blows 15, which almost nowhere satisfies. For elevation, wind and temperature the bounds are exactly the table's Min and Max columns. Precipitation is bounded on its window total in both columns, because a per-hour minimum would read 0.000 almost everywhere.
+**A ceiling is a promise about every hour**, not an average: a 20 mph wind ceiling excludes a destination that gusts to 45 at noon even if it averages 8. A floor is the opposite: a 15 mph wind floor asks for somewhere whose *calmest* hour still blows 15, which almost nowhere satisfies. For elevation, wind, temperature and the freezing level the bounds are exactly the table's Min and Max columns, so a freezing-level floor of 6,000 asks for somewhere the level never dropped below 6,000 ft. Precipitation is bounded on its window total in both columns, because a per-hour minimum would read 0.000 almost everywhere.
 
-**Destinations with unknown elevation or AQI are included.** Many peaks carry no elevation in the map data, and air quality is only forecast about five days out. Missing values are not evidence of bad conditions, so those rows ride along and the table shows a dash where the number would be.
+**Destinations with unknown elevation, AQI or freezing level are included.** Many peaks carry no elevation in the map data, air quality is only forecast about five days out, and most forecast models publish no freezing level at all. Missing values are not evidence of bad conditions, so those rows ride along: the table shows a dash where a number is missing, and `N/A` where the model carries no freezing level.
 
-Four of the five filters apply the instant you type, since the browser already holds forecasts for every destination it found. **Elevation is the exception:** it decides what gets fetched, so narrowing it is instant while widening it needs Analyze again, and the panel says so.
+Five of the six filters apply the instant you type, since the browser already holds forecasts for every destination it found. **Elevation is the exception:** it decides what gets fetched, so narrowing it is instant while widening it needs Analyze again, and the panel says so.
 
 Everything on screen follows a filter change: the table, the map markers, the chart, and the row count in the header.
 
@@ -301,7 +301,7 @@ Marker colors follow total precipitation:
 | Orange | 0.25" to 0.50" |
 | Red | more than 0.50" |
 
-Click a marker for a popup with rank, precipitation, wind, temperature, and AQI. Click a destination name in the table to open Windy centered on that spot with the rain overlay. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300).
+Click a marker for a popup with rank, precipitation, wind, temperature, the freezing level, and AQI. The freezing-level line reads `N/A` under a model that publishes none, the same mark the table's cells carry. Click a destination name in the table to open Windy centered on that spot with the rain overlay. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300).
 
 ## Results Table
 
@@ -377,7 +377,11 @@ What lands in the file:
   cut apply first, exactly as on screen.
 
 A blank cell means no value, never a zero. AQI is blank past its forecast
-horizon, and elevation is blank where OpenStreetMap has no `ele` tag.
+horizon, and elevation is blank where OpenStreetMap has no `ele` tag. The
+freezing-level columns are the exception and write `N/A` rather than a blank,
+because there the absence is the model carrying no such variable rather than a
+number that came back empty, and a file is read with nothing around it to say
+which.
 
 The wildfire column is the one that can disappear from the file. If the fire
 check could not run, the column is left out entirely and a warning under

@@ -194,6 +194,18 @@
             "description": "Drop candidates above this elevation.",
             "title": "Max Elevation Ft"
           },
+          "max_freeze_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop rows whose `freeze_max_ft` is above this, i.e. keep only destinations whose freezing level never rose above it during the window. A row with a null `freeze_max_ft` passes either bound: only some forecast models publish a freezing level at all, so a missing number says which model answered rather than what the weather did, and dropping those rows would empty the whole result under every other model.",
+            "title": "Max Freeze Ft"
+          },
           "max_precip_total_in": {
             "anyOf": [
               {
@@ -256,6 +268,18 @@
             ],
             "description": "Drop candidates below this elevation. Candidates with an unknown elevation always pass through rather than being silently dropped.",
             "title": "Min Elevation Ft"
+          },
+          "min_freeze_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop rows whose `freeze_min_ft` is below this, i.e. keep only destinations whose freezing level never fell below it during the window. Not bounded below: a freezing level of 0 is a reading, not a gap.",
+            "title": "Min Freeze Ft"
           },
           "min_precip_total_in": {
             "anyOf": [

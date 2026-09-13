@@ -346,7 +346,7 @@ describe('encodeState', () => {
 
   it('omits every forecast bound when unset', () => {
     const qs = encodeState(base, DEFAULT_MODEL)
-    for (const param of ['minprecip', 'maxprecip', 'mintemp', 'maxtemp', 'minwind', 'maxwind', 'minaqi', 'maxaqi']) {
+    for (const param of ['minprecip', 'maxprecip', 'mintemp', 'maxtemp', 'minwind', 'maxwind', 'minfreeze', 'maxfreeze', 'minaqi', 'maxaqi']) {
       expect(qs).not.toContain(param)
     }
   })
@@ -359,6 +359,8 @@ describe('encodeState', () => {
       maxTempF: 80,
       minWindMph: 1,
       maxWindMph: 20,
+      minFreezeFt: 6000,
+      maxFreezeFt: 12000,
       minAqi: 10,
       maxAqi: 100,
     }
@@ -366,6 +368,7 @@ describe('encodeState', () => {
     // Plain numbers under names you can guess, which is the whole convention:
     // a bound should be as editable in the address bar as it is in the panel.
     expect(new URLSearchParams(qs).get('maxaqi')).toBe('100')
+    expect(new URLSearchParams(qs).get('minfreeze')).toBe('6000')
     expect(new URLSearchParams(qs).get('maxprecip')).toBe('0.1')
     expect(decodeState(`?${qs}`)?.constraints).toEqual(constraints)
   })

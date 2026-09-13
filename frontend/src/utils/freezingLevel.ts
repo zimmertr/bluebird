@@ -34,14 +34,21 @@ export function isFreezeKey(key: string): boolean {
 export const FREEZE_UNAVAILABLE_NOTE = `${NOUN.freeze} is only available from the GFS Seamless, HRRR and ICON models.`
 
 /**
- * What an empty freezing-level cell reads, or null when the cell has a number
- * and the column's own formatter should render it.
+ * The mark an empty freezing-level cell wears, on every surface that has one:
+ * the table, the marker popup, and the downloaded file.
  *
  * `N/A` rather than the dash a missing AQI gets, and the same idiom the
  * wildfire column uses for a row it could not check: a dash says "nothing
  * there", and here there is something to say — the number exists, this model
- * does not carry it. The hover text is what says which.
+ * does not carry it. The hover text is what says which, where a surface has
+ * hover to give.
+ */
+export const FREEZE_UNAVAILABLE = 'N/A'
+
+/**
+ * What an empty freezing-level cell reads, or null when the cell has a number
+ * and the column's own formatter should render it.
  */
 export function freezeCellText(value: unknown): string | null {
-  return value == null ? 'N/A' : null
+  return value == null ? FREEZE_UNAVAILABLE : null
 }

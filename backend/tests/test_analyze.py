@@ -73,6 +73,8 @@ def _result(
     wind_min=0.0,
     wind_max=0.0,
     wind_avg=0.0,
+    freeze_min=None,
+    freeze_max=None,
 ):
     return DestinationResult(
         name=name, type="peak", latitude=1.0, longitude=2.0,
@@ -80,6 +82,8 @@ def _result(
         precip_max_in_hr=0.0,
         temp_min_f=temp_min, temp_max_f=temp_max, temp_avg_f=temp_avg,
         wind_min_mph=wind_min, wind_max_mph=wind_max, wind_avg_mph=wind_avg,
+        freeze_min_ft=freeze_min, freeze_max_ft=freeze_max,
+        freeze_avg_ft=freeze_min,
         aqi_avg=aqi, aqi_min=aqi, aqi_max=aqi,
     )
 
@@ -180,6 +184,33 @@ def test_filter_constraints_wind_ceiling_reads_the_gustiest_hour():
     ]
     kept = _filter_constraints(rows, _bounded(max_wind_mph=20.0))
     assert [r.name for r in kept] == ["calm"]
+
+
+def test_filter_constraints_freeze_bounds_read_the_window_low_and_high():
+    # The one family where neither end is the bad one: the floor asks that the
+    # level never dropped below the value, the ceiling that it never rose
+    # above it.
+    rows = [
+        _result("high", freeze_min=9000.0, freeze_max=11000.0),
+        _result("low", freeze_min=2000.0, freeze_max=4000.0),
+    ]
+    assert [r.name for r in _filter_constraints(rows, _bounded(min_freeze_ft=8000))] == ["high"]
+    assert [r.name for r in _filter_constraints(rows, _bounded(max_freeze_ft=5000))] == ["low"]
+
+
+def test_filter_constraints_null_freeze_passes_either_bound():
+    # Only some models publish a freezing level at all. A missing number says
+    # which model answered, not what the weather did, so dropping these rows
+    # would empty the whole result under every other model.
+    rows = [
+        _result("unknown"),
+        _result("low", freeze_min=2000.0, freeze_max=4000.0),
+    ]
+    assert [r.name for r in _filter_constraints(rows, _bounded(min_freeze_ft=8000))] == ["unknown"]
+    assert [r.name for r in _filter_constraints(rows, _bounded(max_freeze_ft=5000))] == [
+        "unknown",
+        "low",
+    ]
 
 
 def test_filter_constraints_aqi_bounds_compare_the_worst_hour():

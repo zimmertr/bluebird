@@ -9,7 +9,12 @@ import {
   visibleColumns,
 } from './tableColumns'
 import { SEP } from '../metrics'
+import { FREEZE_UNAVAILABLE } from './freezingLevel'
 import { SortBy } from '../types'
+
+// The identity columns, which describe the destination rather than its
+// weather and so have no weather layer to open.
+const LEAD = new Set(['name', 'type', 'elevation_ft'])
 
 // The real column set, not a copy of its keys. The list used to be declared in
 // ResultsTable and restated here, which meant this suite could pass against a
@@ -50,6 +55,36 @@ describe('COLUMNS', () => {
       'freeze_max_ft',
       'freeze_avg_ft',
     ])
+  })
+
+  // A blank cell is how a spreadsheet spells "no value", which is the truth
+  // for every metric but this one: a freezing level is absent because the
+  // model carries no such variable, and the file is read detached from the
+  // app that could say so. So the three declare the mark the screen uses and
+  // nothing else does.
+  it('declares a file mark for exactly the freezing-level columns', () => {
+    expect(COLUMNS.filter((c) => c.csvNull).map((c) => c.key)).toEqual([
+      'freeze_min_ft',
+      'freeze_max_ft',
+      'freeze_avg_ft',
+    ])
+    for (const col of COLUMNS.filter((c) => c.csvNull)) {
+      expect(col.csvNull).toBe(FREEZE_UNAVAILABLE)
+    }
+  })
+
+  // Every metric column opens the same map at the same place, on the layer
+  // that shows what the column measures. `deg0` is Windy's own id for the
+  // zero-degree isotherm, which is the freezing level under another name.
+  it('points every metric column at its own Windy layer', () => {
+    const layers = new Map(COLUMNS.map((c) => [c.key, c.windyLayer]))
+    expect(layers.get('freeze_min_ft')).toBe('deg0')
+    expect(layers.get('freeze_max_ft')).toBe('deg0')
+    expect(layers.get('freeze_avg_ft')).toBe('deg0')
+    for (const col of COLUMNS) {
+      if (LEAD.has(col.key as string)) continue
+      expect(col.windyLayer, `${col.key} links to no layer`).toBeTruthy()
+    }
   })
 })
 

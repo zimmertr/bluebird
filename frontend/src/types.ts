@@ -74,7 +74,8 @@ export interface AnalyzeRequest {
   // limit cut. A ceiling compares the window's worst hour and a floor its best,
   // so a bound holds for every hour rather than for an average; precipitation
   // and AQI have no minimum aggregate, so both of their bounds compare
-  // precip_total_in and aqi_max respectively. Null AQI passes either bound.
+  // precip_total_in and aqi_max respectively. A null AQI or freezing level
+  // passes either bound.
   //
   // Sent only on the SSE fallback path. The browser path holds the whole field
   // and applies these live through utils/present.ts, which is what makes them
@@ -85,6 +86,8 @@ export interface AnalyzeRequest {
   max_temp_f?: number | null
   min_wind_mph?: number | null
   max_wind_mph?: number | null
+  min_freeze_ft?: number | null
+  max_freeze_ft?: number | null
   min_aqi?: number | null
   max_aqi?: number | null
   // Explicit opt-in: an over-limit candidate set keeps its highest-elevation

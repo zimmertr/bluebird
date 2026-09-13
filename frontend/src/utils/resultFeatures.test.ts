@@ -54,6 +54,17 @@ describe('resultsFeatureCollection', () => {
     expect(fc.features.map((f) => f.properties!.rank)).toEqual(['1', '2'])
   })
 
+  // The popup reads its numbers straight back off the feature, so a metric it
+  // draws has to travel here. The freezing level rides like the air-quality
+  // pair: present when the model answered, absent otherwise, because absent is
+  // the null the popup turns into its mark.
+  it('carries the freezing level only where the model published one', () => {
+    const answered = resultsFeatureCollection([result({ freeze_min_ft: 9843 })], 'precip_total_in')
+    expect(answered.features[0].properties!.freeze_min).toBe(9843)
+    const silent = resultsFeatureCollection([result()], 'precip_total_in')
+    expect(silent.features[0].properties!.freeze_min).toBeUndefined()
+  })
+
   it('greys a marker whose sort metric is null', () => {
     const props = resultsFeatureCollection([result({ aqi_avg: null })], 'aqi_avg').features[0].properties!
     expect(props.color).toBe('#64748b')

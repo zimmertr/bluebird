@@ -12,6 +12,7 @@ const base = {
   precipTotalIn: 0.123,
   windAvgMph: 5.4,
   tempAvgF: 41.2,
+  freezeMinFt: 9843,
   aqiAvg: null,
   aqiMax: null,
   longitude: -121.760395,
@@ -69,12 +70,13 @@ describe('resultPopupHtml layout', () => {
     const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
     const lines = html.match(/<div>[^]*?<\/div>/g) ?? []
 
-    // Elevation, precipitation, wind, temperature, air quality twice. The
+    // Elevation, precipitation, wind, temperature, the freezing level, and
+    // air quality twice. The
     // title row is a styled div, so it is not in this match, and neither is
     // the coordinate pair — it carries a nowrap of its own now, asserted just
     // below, because a latitude and a longitude are one value in two halves
     // and breaking between them leaves a bare negative number on its own line.
-    expect(lines).toHaveLength(6)
+    expect(lines).toHaveLength(7)
     // Matched whole rather than by stripping the tags out and counting colons,
     // which is the same regex shape as a naive sanitizer and reads to CodeQL as
     // one. It is also the better assertion: a label carries no colon of its own
@@ -91,7 +93,7 @@ describe('resultPopupHtml layout', () => {
   it('omits both air-quality lines together when there is no reading', () => {
     const html = resultPopupHtml({ ...base, aqiAvg: null, aqiMax: null, warning: null })
 
-    expect(html.match(/<div>[^]*?<\/div>/g) ?? []).toHaveLength(4)
+    expect(html.match(/<div>[^]*?<\/div>/g) ?? []).toHaveLength(5)
   })
 
   // The label/value split is carried by a face change rather than by weight,
@@ -101,7 +103,7 @@ describe('resultPopupHtml layout', () => {
     const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
     const values = html.match(/<span style="font-family:ui-monospace[^"]*">[^<]*<\/span>/g) ?? []
 
-    expect(values).toHaveLength(7)
+    expect(values).toHaveLength(8)
     // A label that wandered inside a value span would read as part of the
     // number and defeat the whole split.
     for (const value of values) {
@@ -120,6 +122,24 @@ describe('resultPopupHtml layout', () => {
     const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
     expect(html).toMatch(/<div style="white-space:nowrap[^"]*">Coordinates: /)
     expect(html).toContain('<hr')
+  })
+})
+
+// The freezing level is the one metric a model can decline to publish, and
+// five of the eight do (#295). The popup has no hover to explain a mark with,
+// so the mark is all it carries.
+describe('resultPopupHtml freezing level', () => {
+  it('reads the height in feet, grouped like the elevation above it', () => {
+    const html = resultPopupHtml({ ...base, freezeMinFt: 9843, warning: null })
+    expect(html).toMatch(/Freezing level min: <span[^>]*>9,843 ft<\/span>/)
+  })
+
+  it('marks the line rather than dropping it when the model publishes none', () => {
+    // The opposite of the air-quality pair above: a vanished line would read
+    // as the app forgetting the metric, where a missing air quality is one
+    // forecast falling short and takes its rows with it.
+    const html = resultPopupHtml({ ...base, freezeMinFt: null, warning: null })
+    expect(html).toMatch(/Freezing level min: <span[^>]*>N\/A<\/span>/)
   })
 })
 
