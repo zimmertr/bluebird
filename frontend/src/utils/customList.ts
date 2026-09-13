@@ -70,13 +70,16 @@ export function pendingDestinations(
   csvRows: CustomDestination[],
   places: Place[],
   analyzed: ReadonlySet<string>,
-  removed: Set<string>,
+  removed: ReadonlySet<string>,
 ): PendingDestination[] {
   return mergeCustom(csvRows, places).filter((d) => {
     const key = pinKey(d.latitude, d.longitude)
     // `removed` carries the weight for CSV rows: × on a searched place also
     // deregisters it, but a CSV row's text stays in the textarea, so without
-    // this it would reappear as a dot the moment it left the report.
+    // this it would reappear as a dot the moment it left the report. It is the
+    // ACTIVE removals (`activeRemovals`), not the whole map: a removal speaks
+    // for the list it was made against, and this preview is live over a list
+    // the user is still typing.
     return !analyzed.has(key) && !removed.has(key)
   })
 }

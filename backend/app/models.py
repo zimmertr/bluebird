@@ -7,6 +7,8 @@ from typing import Literal, NamedTuple
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.error_codes import ErrorCode, error_object
+
 # Bounds the Overpass query, not Open-Meteo spend (the count cap below does
 # that). Measured 2026-07-29 against overpass-api.de with the production peaks
 # query: a ~103,000 km2 sparse box (Iowa) answered in 25.8s; a ~151,000 km2 box
@@ -521,6 +523,19 @@ class AnalyzeRequest(BaseModel):
             "wettest, windiest, warmest, smokiest."
         ),
     )
+    include_series: bool = Field(
+        default=True,
+        description=(
+            "Send each row's hourly `series`. The hours are the bulk of the "
+            "body, by an order of magnitude on a long window, so a caller "
+            "that reads only the aggregates should set this false.\n\n"
+            "Nothing else changes. The aggregates are computed from the same "
+            "hours either way, `times` is still sent, and air quality is still "
+            "fetched and summarized under the same best-effort terms. "
+            "True by default, so an existing caller sees the shape it "
+            "always saw."
+        ),
+    )
     # Applied to candidates before the weather fetch, so a constrained analysis
     # costs fewer upstream calls, and the returned rows always fill `limit` when
     # enough candidates qualify.
@@ -852,10 +867,40 @@ class DestinationResult(BaseModel):
         default=None,
         description=(
             "Hourly detail behind the summary figures above, aligned to "
-            "`times`. Null only when the upstream forecast carried no hours "
-            "inside the window."
+            "`times`. Null when the upstream forecast carried no hours inside "
+            "the window, and on every row when the request set "
+            "`include_series: false`."
         ),
     )
+
+
+class ApiErrorInfo(BaseModel):
+    """The same failure as a code a program can branch on.
+
+    It rides beside `detail` rather than replacing it, because the two are
+    read by different audiences: the sentence by a person, the code by a
+    client deciding whether to retry.
+    """
+
+    code: ErrorCode = Field(
+        description=(
+            "Which kind of failure this is, from a closed vocabulary. Stable "
+            "contract: unlike `detail`, a code is not reworded."
+        )
+    )
+    retryable: bool = Field(
+        description=(
+            "Whether sending the identical request again is worth trying. "
+            "False means only the caller can change the outcome. On a 429 or "
+            "503 the `Retry-After` header says when."
+        )
+    )
+
+    @classmethod
+    def for_code(cls, code: ErrorCode) -> ApiErrorInfo:
+        """One spelling of the field, so a model body and a hand-built one
+        cannot disagree about `retryable`."""
+        return cls.model_validate(error_object(code))
 
 
 class ErrorResponse(BaseModel):
@@ -872,6 +917,9 @@ class ErrorResponse(BaseModel):
             "to an end user unmodified."
         )
     )
+    error: ApiErrorInfo = Field(
+        description="The machine-readable half of the same failure."
+    )
 
 
 class AnalysisRefusal(BaseModel):
@@ -885,6 +933,9 @@ class AnalysisRefusal(BaseModel):
 
     detail: str = Field(
         description="Plain-language refusal, shown to an end user unmodified."
+    )
+    error: ApiErrorInfo = Field(
+        description="The machine-readable half of the same refusal."
     )
     found: int | None = Field(
         default=None,
@@ -965,7 +1016,9 @@ class AnalyzeResponse(BaseModel):
         description=(
             "Shared hourly grid for every row's `series`, as epoch "
             "milliseconds UTC. Sent once because it is identical across "
-            "destinations for a given window."
+            "destinations for a given window, and sent in both shapes: under "
+            "`include_series: false` it is the only statement of which hours "
+            "the aggregates reduced."
         ),
     )
 

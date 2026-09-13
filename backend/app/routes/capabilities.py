@@ -12,7 +12,6 @@ from app.models import (
     MODEL_INFO,
     PAST_DATA_DAYS,
     PAST_LIMIT_SLACK_DAYS,
-    DestinationType,
     SortBy,
 )
 from app.routes.analyze import API_KEY_HEADER
@@ -230,9 +229,12 @@ class CapabilitiesResponse(BaseModel):
 
     destination_types: list[str] = Field(
         description=(
-            "Destination types this deployment can actually analyze. Narrower "
-            "than the `DestinationType` enum, which also models types that are "
-            "not yet discoverable."
+            "Destination types this deployment can discover, and exactly the "
+            "values a request may send in `destination_types`. Narrower than "
+            "the `DestinationType` enum, which also models types that are not "
+            "yet discoverable, and `custom`, which names rows the caller "
+            "supplies in `custom_destinations` rather than something to go and "
+            "find."
         )
     )
     sort_keys: list[str] = Field(
@@ -274,10 +276,12 @@ class CapabilitiesResponse(BaseModel):
     ),
 )
 async def capabilities() -> CapabilitiesResponse:
-    # `custom` is appended rather than read from IMPLEMENTED_TYPES because custom
-    # destinations arrive in the request body and never touch Overpass, so the
-    # OSM layer has no reason to know about them.
-    types = sorted(t.value for t in IMPLEMENTED_TYPES) + [DestinationType.custom.value]
+    # Exactly IMPLEMENTED_TYPES, so every value published here round-trips: a
+    # client that sends back what it was told is never refused. `custom` is
+    # deliberately absent, because both request validators reject it — custom
+    # destinations arrive in `custom_destinations` and never touch Overpass, so
+    # naming one here would advertise a value that answers 422.
+    types = sorted(t.value for t in IMPLEMENTED_TYPES)
     return CapabilitiesResponse(
         destination_types=types,
         sort_keys=[s.value for s in SortBy],
