@@ -151,19 +151,18 @@ Edge-owned headers would drift away from the code that defines them.
 
 | Header | Value | Why |
 | --- | --- | --- |
-| `Strict-Transport-Security` | `max-age=31536000` | Sent unconditionally. TLS terminates at Cloudflare, so the pod never sees an `https` scheme of its own, and a conditional header would depend on a forwarded header surviving two proxies. A browser ignores this header on a plain-HTTP response (RFC 6797 §8.1), so the `http://` PR preview environment is unaffected. A year, **for this host alone**: see below. |
 | `X-Content-Type-Options` | `nosniff` | The static mount serves user-visible files by extension. |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` | The full URL to this origin, the bare origin to anybody else. A shared link carries the analysis in its query string. |
 | `Permissions-Policy` | `geolocation=(self), camera=(), microphone=(), payment=()` | Geolocation is the one capability the app uses, for MapLibre's geolocate control. The rest are named rather than left to the default, so switching one on is a deliberate edit. |
 | `Content-Security-Policy` | see below | |
 
-**HSTS carries neither `includeSubDomains` nor `preload`, on purpose.** Both
-reach past the one hostname this service answers on, and neither can be
-withdrawn from a browser that has already read it: a year is a year. The app is
-one service on one host and cannot see what else the zone answers for, so it is
-not the layer that gets to make that claim. Whoever can verify the zone can add
-the directive at the edge, where Cloudflare already terminates the TLS this
-header is about.
+**The app sends no `Strict-Transport-Security` header, on purpose.** Cloudflare
+terminates the TLS this header is about and sets it at the edge, which is the
+layer that knows the zone. The pod never sees an `https` scheme of its own, and
+a browser cannot be told to forget a `max-age` it has already read, so a second
+voice on the same claim adds nothing and makes a wrong value harder to withdraw.
+A self-hosted instance that terminates its own TLS sets the header at whatever
+terminates it, for the same reason.
 
 The policy for the app:
 

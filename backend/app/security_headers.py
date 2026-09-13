@@ -205,21 +205,12 @@ def _script_hashes(html: str) -> tuple[str, ...]:
 # ── The headers themselves ────────────────────────────────────────────────────
 
 # Sent on every response, alongside whichever CSP the path earns.
+#
+# No Strict-Transport-Security here, deliberately. TLS terminates at the edge,
+# which is the layer that knows the zone and already sets the header; a browser
+# cannot be told to forget a max-age it has read, so the app must not be a
+# second voice on a claim it cannot withdraw.
 BASE_HEADERS: dict[str, str] = {
-    # A year, for this host alone. Sent unconditionally: TLS terminates at
-    # Cloudflare, so the pod never sees an https scheme of its own and a
-    # conditional header would depend on a forwarded header surviving two
-    # proxies. Sending it where TLS did not happen costs nothing, because a
-    # browser ignores this header on a plain-HTTP response (RFC 6797 §8.1) —
-    # which is also why the http:// PR preview environment is unaffected.
-    #
-    # Deliberately no includeSubDomains, and no preload. The zone's subdomains
-    # are not this app's to speak for: it is one service on one hostname, it
-    # cannot see what else the zone answers for, and a year of the directive is
-    # not reversible for a browser that has already seen it. The operator can
-    # add it at the edge, which is the layer that knows the zone. preload is
-    # the same argument with a submission form attached.
-    "Strict-Transport-Security": "max-age=31536000",
     "X-Content-Type-Options": "nosniff",
     # Full URL to this origin, bare origin to anybody else. The path of an
     # analysis is not interesting, but the query string of a shared link is.

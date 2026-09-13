@@ -29,9 +29,6 @@ PATHS = [
 ]
 
 EXPECTED = {
-    # This host only. includeSubDomains would have the app assert something
-    # about a zone it cannot see, for a year a visitor cannot take back.
-    "Strict-Transport-Security": "max-age=31536000",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "geolocation=(self), camera=(), microphone=(), payment=()",
@@ -46,13 +43,12 @@ def test_every_response_carries_the_header_set(path):
     assert response.headers["Content-Security-Policy"]
 
 
-def test_hsts_speaks_for_this_host_only():
-    # Both directives reach past the one hostname this service answers on, and
-    # neither can be withdrawn from a browser that has already read it. They
-    # belong to whoever can verify the zone, which is the edge, not the app.
-    hsts = client.get("/healthz").headers["Strict-Transport-Security"]
-    assert "includeSubDomains" not in hsts
-    assert "preload" not in hsts
+@pytest.mark.parametrize("path", PATHS)
+def test_no_response_carries_hsts(path):
+    # The edge terminates the TLS and owns this header. A browser cannot take a
+    # max-age back once it has read one, so a second voice on the same claim can
+    # only make the mistake harder to withdraw.
+    assert "Strict-Transport-Security" not in client.get(path).headers
 
 
 def test_a_streamed_response_still_carries_the_headers():
