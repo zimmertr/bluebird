@@ -139,6 +139,82 @@ not care who you claim to be. A caller already inside the cluster mesh can
 still set the header, which is why the buckets are one layer of several, not
 the whole defense.
 
+## Security response headers
+
+Every response the pod sends carries the set below, added by
+`backend/app/security_headers.py` as the outermost middleware, so a route, a
+static file and a `404` are all covered
+([#132](https://github.com/zimmertr/bluebird/issues/132)). The app owns them
+rather than the mesh because the interesting one is a list of the hosts the
+browser bundle fetches, and that list changes when a frontend overlay changes.
+Edge-owned headers would drift away from the code that defines them.
+
+| Header | Value | Why |
+| --- | --- | --- |
+| `X-Content-Type-Options` | `nosniff` | The static mount serves user-visible files by extension. |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | The full URL to this origin, the bare origin to anybody else. A shared link carries the analysis in its query string. |
+| `Permissions-Policy` | `geolocation=(self), camera=(), microphone=(), payment=()` | Geolocation is the one capability the app uses, for MapLibre's geolocate control. The rest are named rather than left to the default, so switching one on is a deliberate edit. |
+| `Content-Security-Policy` | see below | |
+
+**The app sends no `Strict-Transport-Security` header, on purpose.** Cloudflare
+terminates the TLS this header is about and sets it at the edge, which is the
+layer that knows the zone. The pod never sees an `https` scheme of its own, and
+a browser cannot be told to forget a `max-age` it has already read, so a second
+voice on the same claim adds nothing and makes a wrong value harder to withdraw.
+A self-hosted instance that terminates its own TLS sets the header at whatever
+terminates it, for the same reason.
+
+The policy for the app:
+
+```
+default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none';
+form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
+img-src 'self' data: blob: https://tiles.openfreemap.org https://mesonet.agron.iastate.edu;
+connect-src 'self' data: https://api.open-meteo.com https://air-quality-api.open-meteo.com
+  https://tiles.openfreemap.org https://mesonet.agron.iastate.edu;
+worker-src 'self' blob:; child-src 'self' blob:
+```
+
+Four points in it are measurements rather than habits.
+
+- **`connect-src` is the browser's third-party surface, and nothing else.**
+  The four origins are the ones in the "Outbound" table marked **browser**:
+  Open-Meteo's two services, the basemap, and the radar frames. Overpass,
+  Nominatim, NIFC and NOAA are absent because the pod fetches those, so for
+  them the browser talks to this origin only. The one origin covers every
+  basemap request, checked against the served style document rather than
+  assumed: the style JSON, its TileJSON, the vector tiles, the glyphs and the
+  sprites all resolve to `tiles.openfreemap.org`.
+- **`data:` in `connect-src` is the forecast grid.** MapLibre loads an image
+  source by *fetching* its URL, and that overlay's raster is a canvas
+  `data:` URL, so a strict `connect-src` blanks the layer. `blob:` in the
+  worker directives is MapLibre's own worker, which it builds from a Blob.
+- **`'unsafe-inline'` in `style-src` covers inline style attributes, not a
+  `<style>` block.** Map popups are built as HTML strings and handed to
+  MapLibre's `setHTML`, because a string passed to `setHTML` is not a class
+  list Tailwind's scanner ever sees. Those inline attributes are exactly what
+  `style-src` blocks otherwise, and a strict value renders every popup
+  unstyled. `style-src-attr` would carry it alone, but an engine that does not
+  know that directive falls back to `style-src`, which would break the popups
+  on the older browsers a CSP protects most. The script side stays strict,
+  which is where the XSS boundary sits: the built pages carry no inline
+  `<script>` at all, checked on the build output.
+- **`/docs` is the one path with its own policy**, and it is narrower
+  everywhere except one directive: no third-party origin reaches `img-src` or
+  `connect-src`, the page starts no worker, and Swagger UI's inline init
+  script is allowed by its SHA-256 hash. The hash is taken from the rendered
+  page rather than pinned, so a FastAPI upgrade that rewrites that script
+  cannot silently blank the page. A source checkout has no vendored assets and
+  falls back to a CDN for them, and the policy follows that fallback rather
+  than leaving the fallback broken.
+
+`backend/tests/test_security_headers.py` is what keeps the allowlist honest.
+It reads `frontend/src` as text and fails on any host there that is neither in
+`connect-src` nor in its list of link-only hosts, in both directions, so a new
+overlay's host is a decision somebody has to make rather than one that happens
+by omission. That check needs both trees, so it runs in CI and in any local run
+that mounts the repository rather than `backend/` alone.
+
 ## Outbound: what calls what
 
 | Provider | Called by | From | Policy | Governor |

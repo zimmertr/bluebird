@@ -11,7 +11,7 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import ratelimit, telemetry
+from app import ratelimit, security_headers, telemetry
 from app.error_codes import ApiError, api_error_handler
 from app.routes.analyze import router
 from app.routes.capabilities import router as capabilities_router
@@ -289,15 +289,37 @@ _swagger_base = (
 )
 
 
-@app.get("/docs", include_in_schema=False)
+# Rendered once at import rather than per request: the page is the same bytes
+# every time, and its Content-Security-Policy is derived from those bytes (the
+# init script FastAPI writes inline is allowed by hash), so the two cannot
+# describe different pages.
+_DOCS_HTML = get_swagger_ui_html(
+    openapi_url=app.openapi_url,
+    title=f"{app.title} API reference",
+    swagger_js_url=f"{_swagger_base}/swagger-ui-bundle.js",
+    swagger_css_url=f"{_swagger_base}/swagger-ui.css",
+    swagger_favicon_url="/favicon-32.png",
+).body.decode()
+
+DOCS_PATH = "/docs"
+
+# Only the CDN fallback above needs an entry here: the shipped image serves
+# both assets from this origin, which 'self' already covers.
+_DOCS_ASSET_ORIGINS = () if _swagger_dir.is_dir() else ("https://cdn.jsdelivr.net",)
+
+
+@app.get(DOCS_PATH, include_in_schema=False)
 async def swagger_ui() -> HTMLResponse:
-    return get_swagger_ui_html(
-        openapi_url=app.openapi_url,
-        title=f"{app.title} API reference",
-        swagger_js_url=f"{_swagger_base}/swagger-ui-bundle.js",
-        swagger_css_url=f"{_swagger_base}/swagger-ui.css",
-        swagger_favicon_url="/favicon-32.png",
-    )
+    return HTMLResponse(_DOCS_HTML)
+
+
+# Added last, so it is the outermost layer and every response leaves with these
+# headers — a route's, a static file's, and one an inner middleware produced
+# without reaching a route at all.
+app.add_middleware(
+    security_headers.SecurityHeadersMiddleware,
+    csp_by_path={DOCS_PATH: security_headers.docs_csp(_DOCS_HTML, _DOCS_ASSET_ORIGINS)},
+)
 
 
 # The public document pages, each built as its own SPA entry so a shared link
