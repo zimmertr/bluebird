@@ -47,7 +47,7 @@ The checkboxes under the buttons control what discovery looks for inside your po
 | Lakes | `natural=water` + `water=lake` (named nodes/ways/relations) | Implemented |
 | Trailheads | `highway=trailhead` (named nodes/ways) | Implemented |
 
-Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. **Include unnamed peaks**, in Options, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods below still work on their own, so an analysis of pasted coordinates or clicked destinations needs no polygon and no ticks at all.
+Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. **Include unnamed peaks**, under the same checkboxes, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods below still work on their own, so an analysis of pasted coordinates or clicked destinations needs no polygon and no ticks at all.
 
 ### d. Coordinates
 
@@ -118,9 +118,9 @@ Days are your local calendar days, converted to UTC for the API, and the far edg
 
 The calendar is fully keyboard operable: arrow keys move by day, Page Up and Page Down by month, Enter or Space selects, and Escape abandons a half-made range.
 
-## Ranking, filters, and options
+## Ranking and filters
 
-Once you have set your destinations and forecast window, three short sections shape the report: **Ranking** picks the order, **Filters** picks who qualifies, and **Options** holds the remaining knobs (max results, unnamed peaks, and the map layers).
+Once you have set your destinations and forecast window, two short panel sections shape the report: **Ranking** picks the order and how many rows you see, and **Filters** picks who qualifies. The map overlays are not in the panel at all: they sit on the map's own **Layers** button, because they change what you are looking at rather than what you are asking for.
 
 ### Ranking
 
@@ -263,7 +263,7 @@ The results bar at the top of the report gives you three viewing modes. The repo
 
 Every column is resizable: drag the divider at a header's right edge, or double-click it to fit the column to its longest value. Name opens wide enough for a 25-character name so more numbers fit on a phone — widen it whenever a longer name is cut off. Widths hold for the session.
 
-**Columns** opens a picker for the columns the table shows. Every column starts on — the table scrolls sideways when it must — and unticking narrows the view for easier comparison. The downloaded CSV always carries every column regardless of what the table displays.
+**Columns** opens a picker for the columns the table shows. Every column starts on, **Wildfire (mi)** included — the table scrolls sideways when it must — and unticking narrows the view for easier comparison. What you pick is remembered across visits. The downloaded CSV still carries every column regardless of what the table displays, with one exception: unticking **Wildfire (mi)** takes it out of the file too.
 
 ## Saved searches
 
@@ -342,10 +342,14 @@ What lands in the file:
 
 - The rows in the order you are reading them, ranking or detail-column sort
   alike, numbered by a leading **Rank** column.
-- The columns the table is showing, under the same headers, which means a
-  single-hour analysis exports the collapsed set.
-- The **Wildfire (mi)** column, once the fire check answers. On screen the
-  column is always present: its cells tick while the check runs, then show
+- Every column the report has, under the same headers the table uses, which
+  means a single-hour analysis exports the collapsed set. Unticking a column
+  in **Columns** narrows the screen rather than the file.
+- The **Wildfire (mi)** column, once the fire check answers and while the
+  table is showing it. That column is the one exception to the line above,
+  because a file is read away from the app and a column of blanks there
+  would claim every row was checked and cleared. On screen the column starts
+  on and unticks like any other: its cells tick while the check runs, then show
   ⚠️ and the distance where a fire is within 10 miles, a dash where the
   check ran and cleared the row, and `N/A` where the row has no answer.
   Hovering an `N/A` says which of its two causes applies: the destination
