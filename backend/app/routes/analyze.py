@@ -620,7 +620,7 @@ async def analyze_stream(
                 return
             source = _window_source(request)
             if source == "spanning":
-                yield _sse("error", message=SPANNING_WINDOW_MESSAGE)
+                yield _sse_error(SPANNING_WINDOW_MESSAGE, ErrorCode.validation)
                 return
 
             # A union (polygon + custom list) is a mixed set, so its messages
@@ -963,7 +963,7 @@ async def analyze(
         )
     source = _window_source(request)
     if source == "spanning":
-        raise HTTPException(status_code=400, detail=SPANNING_WINDOW_MESSAGE)
+        raise ApiError(status_code=400, detail=SPANNING_WINDOW_MESSAGE, code=ErrorCode.validation)
 
     # Resolve destinations
     if not request.destination_types:

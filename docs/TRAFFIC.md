@@ -171,7 +171,7 @@ default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none';
 form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
 img-src 'self' data: blob: https://tiles.openfreemap.org https://mesonet.agron.iastate.edu;
 connect-src 'self' data: https://api.open-meteo.com https://air-quality-api.open-meteo.com
-  https://tiles.openfreemap.org https://mesonet.agron.iastate.edu;
+  https://archive-api.open-meteo.com https://tiles.openfreemap.org https://mesonet.agron.iastate.edu;
 worker-src 'self' blob:; child-src 'self' blob:
 ```
 

@@ -922,7 +922,7 @@ def stub_hourly_upstreams(monkeypatch):
 
     async def fake_wx(
         destinations, start, end, on_progress=None, on_pace=None, model=None,
-        api_key=None,
+        api_key=None, source="forecast",
     ):
         return [_wx_hourly(d["latitude"]) for d in destinations]
 
@@ -1058,7 +1058,7 @@ def test_the_hours_are_most_of_a_maximal_response(monkeypatch):
 
     async def fake_wx(
         destinations, start, end, on_progress=None, on_pace=None, model=None,
-        api_key=None,
+        api_key=None, source="forecast",
     ):
         return [
             _wx_series(
