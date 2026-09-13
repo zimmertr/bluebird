@@ -826,8 +826,8 @@ describe('shared recipes', () => {
   })
 
   // The Layers popover, separated from the legend boxes by elevation rather
-  // than by a heavier line (spike option (c)). One slate step of fill and a
-  // heavier shadow; the border is the legends', unchanged. It has to be spelled
+  // than by a heavier line: one slate step of fill and a heavier shadow, with
+  // the border the legends' and unchanged. It has to be spelled
   // as its own recipe rather than composed onto the floating one, because two
   // background utilities resolve by stylesheet order and the lighter fill would
   // not reliably win.

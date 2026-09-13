@@ -246,12 +246,13 @@ export const SURFACE_SHEET = 'bg-slate-800 border-t border-slate-600 rounded-t-l
 
 /**
  * The map's Layers popover: the one floating box that is a menu rather than a
- * label. Spike option (c) — separate it by ELEVATION.
+ * label, separated from the boxes around it by ELEVATION.
  *
- * It wore `SURFACE_FLOATING` byte-identical to the legend boxes a few hundred
- * pixels below it, so a thing the reader acts in looked like a key the reader
- * reads. What separates it here is the shadow and one step of fill; the border
- * stays exactly the legends' slate-600 so the change is elevation only.
+ * `SURFACE_FLOATING` would make it byte-identical to the legend boxes a few
+ * hundred pixels below it, so a thing the reader acts in would look like a key
+ * the reader reads. What separates it here is the shadow and one step of fill;
+ * the border stays exactly the legends' slate-600 so the difference is
+ * elevation only.
  *
  * ## Why `shadow-2xl` rather than `shadow-xl`
  *
@@ -657,7 +658,7 @@ export const RECESSED_EDGE = 'border border-slate-500'
 
 /**
  * The same boundary, re-derived for the one surface that is a step lighter than
- * the panel: `SURFACE_POPOVER` (spike option (c)).
+ * the panel: `SURFACE_POPOVER`.
  *
  * A recessed edge owes 3:1 on both sides, and slate-500 only manages that
  * against slate-800. On the popover's slate-700 fill it falls to 2.17:1, so the
@@ -750,7 +751,7 @@ export const SEGMENT_FLUID = `${SEGMENT_FLUID_SHAPE} ${RECESSED_EDGE}`
 
 /**
  * The same segment on `SURFACE_POPOVER`, which is a step lighter than the panel
- * the recessed edge was derived against (spike option (c)).
+ * the recessed edge was derived against.
  *
  * Shape and edge are split so the two cannot drift into different controls: the
  * only difference between them is `LIFTED_EDGE`, and `styles.test.ts` asserts

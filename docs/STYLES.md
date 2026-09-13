@@ -37,6 +37,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 |---|---|
 | `SURFACE_CARD` | Opaque cards above a scrim: dialogs, analysis overlay |
 | `SURFACE_FLOATING` | Boxes floating over the map: search field, legends, chart tooltip |
+| `SURFACE_POPOVER` | The map's Layers popover: the floating box that is a menu rather than a key, lifted off the legends by one step of fill and a heavier shadow |
 | `SURFACE_SHEET` | The results on a phone, standing on the map's bottom edge: the docked panel's fill, the map's floating edge, the surface radius on the top corners only |
 | `SURFACE_GROUP` | Bordered region grouping controls: the calendar |
 | `SURFACE_GROUP_BLEED` | Cancels a well's inset so its contents sit on the panel's control column |
@@ -62,6 +63,8 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `CHOICE_INPUT` | The box itself inside a choice row |
 | `SEGMENT` | Geometry of a panel segmented control (fixed to `CONTROL_W`) |
 | `SEGMENT_FLUID` | Segmented control outside the panel column, sized by content |
+| `SEGMENT_FLUID_LIFTED` | The same segment on `SURFACE_POPOVER`, wearing the edge that surface needs |
+| `LIFTED_EDGE` | A well's boundary on `SURFACE_POPOVER`: slate-400, since slate-500 clears 3:1 only against the panel |
 | `SEGMENT_IDLE` | Unchosen half of segmented control |
 | `SEGMENT_ITEM` | Individual segment half with padding and transitions |
 | `CUE` | Unboxed status line: commit-needed messages |
