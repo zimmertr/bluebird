@@ -615,8 +615,8 @@ describe('shared recipes', () => {
 
   // The timeline's axis halves are the one segment whose labels the design
   // system does not choose: the right one is the ranked metric's noun, and the
-  // longest of them ran into the edge of its own half at the panel's inset.
-  // One step more, and only that: everything else is the same half, so the bar
+  // longest of them read as too wide for the half at the panel's inset. One
+  // step more, and only that: everything else is the same half, so the bar
   // cannot become a second kind of segment.
   it('gives the timeline axis halves room for a metric noun', () => {
     expect(TRANSPORT_AXIS_ITEM).toMatch(/(^|\s)px-3(\s|$)/)

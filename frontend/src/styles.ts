@@ -1294,17 +1294,19 @@ export const SCRUBBER_TRACK = `h-2 ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.pi
 /**
  * The timeline's axis halves: Radar beside the metric the report ranks by.
  *
- * The one segment whose labels this file does not choose. The right half is a
- * metric noun composed by `metrics.ts` — the longest of them are
- * "Precipitation" and "Temperature" — where every other segment in the app
- * carries a word picked to fit. So it takes one step more horizontal inset than
- * `SEGMENT_ITEM`: the bar sits outside the panel's fixed column and its halves
- * are sized by their own content, `flex-1` gives each a zero flex basis so the
- * width comes out of the container's intrinsic size and lands on a whole pixel,
- * and `SEGMENT_FLUID` clips whatever the rounding leaves outside. The extra
- * inset is the slack that keeps a long noun inside the clip at both
- * breakpoints; at `SEGMENT_ITEM`'s inset the longest ran into the edge of its
- * own half.
+ * The one segment whose labels this file does not choose. The right half is
+ * whatever metric the report ranks by, spelled by `metrics.ts` — the longest of
+ * them are "Precipitation" and "Temperature" — where every other segment in the
+ * app carries a word picked to fit the control. So it takes one step more
+ * horizontal inset than `SEGMENT_ITEM`.
+ *
+ * The inset is the slack that keeps a long noun clear of the clip. This segment
+ * is `SEGMENT_FLUID`, sized by its own content and `overflow-hidden` so the
+ * halves' corners follow the radius, which means a label that fills its half to
+ * the last pixel has nowhere to lose one: the longest nouns read as too wide for
+ * the half they sit in (TJ, 2026-09-13). Re-measure here before shortening it,
+ * and remember the widest case is a metric name rather than a string this file
+ * controls.
  *
  * Only the inset differs, and `styles.test.ts` asserts that, so the bar cannot
  * become a second kind of segment.
