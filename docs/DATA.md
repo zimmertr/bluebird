@@ -424,6 +424,15 @@ so a grid stays a few hundred requests rather than tens of thousands, and the
 legend always states the spacing actually used rather than the model's headline
 figure.
 
+**There is no grid over an archive window.** A window older than the forecast
+endpoint's own history is answered by the archive, which names no model and
+reports a reanalysis on a coarser grid than any forecast model's finest figure
+(see [History, and the boundary inside it](#history-and-the-boundary-inside-it)).
+Sampling that at a model's pitch would paint real numbers at a spacing nothing
+produced them at, and the legend would state that spacing as the claim. So the
+overlay is out of play while an archive report is on screen: its switch is
+disabled rather than drawing a picture whose one stated number would be wrong.
+
 **A model's finest grid is not its resolution everywhere.** The seamless models
 blend a fine regional grid into a coarse global one, so NOAA GFS is a 3 km model
 over North America and a 13 km one over Nepal. Bluebird Forecast samples at the finest

@@ -56,6 +56,7 @@ import { hourlyScale, rankedScale } from './utils/colors'
 import {
   FALLBACK_PITCH_KM,
   GRID_REACH_DEFAULT_FRAC,
+  gridAllowed,
   gridLegendLine,
   pitchLabel,
   reachKmFor,
@@ -456,12 +457,6 @@ export default function App() {
       document.removeEventListener('keydown', onKey)
     }
   }, [layersOpen])
-  const MAP_LAYERS = [
-    { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
-    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
-    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
-    { key: 'grid', label: 'Forecast grid', checked: showGrid, onChange: setShowGrid },
-  ]
   // Which drawing the grid's samples get. Blocks by default: it is the style
   // that cannot overstate what was sampled, since one square is one forecast
   // and a reader can count them. Purely presentation over held samples, so
@@ -1529,8 +1524,32 @@ export default function App() {
   // sits on screen, and a grid built from panel state would paint a window the
   // markers above it never saw. The pitch is the ANALYZED model's finest grid
   // for the same reason.
+  //
+  // An archive report is the one it cannot draw over: that window names no
+  // model, so there is no pitch the lattice could honestly be sampled at
+  // (`gridAllowed`, #123). The layer is switched out of play rather than
+  // switched off — the reader's preference survives, and the next forecast
+  // analysis grids itself the way it always did.
+  const gridAvailable = gridAllowed(analyzed)
+  // The layer as it actually stands, which is what every surface below reads:
+  // the checkbox holds a preference, and this is whether that preference is in
+  // effect. One flag rather than a pair repeated per surface, so the fetch, the
+  // sub-choices and the legend box cannot answer differently.
+  const gridOn = showGrid && gridAvailable
+  const MAP_LAYERS = [
+    { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
+    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
+    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
+    {
+      key: 'grid',
+      label: 'Forecast grid',
+      checked: showGrid,
+      onChange: setShowGrid,
+      disabled: !gridAvailable,
+    },
+  ]
   const grid = useForecastGrid({
-    enabled: showGrid,
+    enabled: gridOn,
     field: universe,
     window: analyzed?.window ?? null,
     model: analyzed?.forecastModel ?? forecastModel,
@@ -1555,16 +1574,16 @@ export default function App() {
   // filling in has some, so the legend arrives with the first chunk rather than
   // with the last — a key to an empty map would be noise, but a key to a
   // quarter-painted one is exactly what a reader needs.
-  const gridPainted = showGrid && grid.cells.length > 0
+  const gridPainted = gridOn && grid.cells.length > 0
   // The legend also opens while the grid is still fetching, so its one line can
   // say the field is coming. That gap is the whole reason the cue exists: the
   // grid inherits the quota debt of the analysis that just ran, so after a big
   // one it is minutes before the first samples land.
-  const gridCued = showGrid && grid.status === 'loading'
+  const gridCued = gridOn && grid.status === 'loading'
   // The layer is on and could not draw. Said out loud for the same reason the
   // loading line exists: a switched-on layer with nothing under it and nothing
   // said reads as a broken app rather than as a failed fetch.
-  const gridFailed = showGrid && grid.status === 'failed'
+  const gridFailed = gridOn && grid.status === 'failed'
   // A one-second tick, only while the pacer is actually asleep, so the
   // countdown moves. Nothing else on screen needs it and it stops on its own.
   const [paceNow, setPaceNow] = useState(0)
@@ -2154,11 +2173,12 @@ export default function App() {
               </button>
               {layersOpen && (
                 <div className={`${SURFACE_FLOATING} absolute left-0 mt-2 w-44 px-2.5 py-2`}>
-                  {MAP_LAYERS.map(({ key, label, checked, onChange }) => (
+                  {MAP_LAYERS.map(({ key, label, checked, onChange, disabled }) => (
                     <label key={key} className={CHOICE_ROW}>
                       <input
                         type="checkbox"
                         checked={checked}
+                        disabled={disabled}
                         onChange={(e) => onChange(e.target.checked)}
                         className={CHOICE_INPUT}
                       />
@@ -2169,7 +2189,7 @@ export default function App() {
                       The popover is 176px, so these take the fluid segment
                       rather than the panel's fixed 144px column — the same
                       reason the results bar's mode switch does. */}
-                  {showGrid && (
+                  {gridOn && (
                     <>
                       <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
                         {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (

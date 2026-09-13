@@ -178,6 +178,11 @@ legend says so while that is happening, and counts down. If it cannot be fetched
 at all, the legend says that too rather than leaving the layer switched on with
 nothing under it.
 
+The switch is faded out while the report on screen came from the archive, because
+those hours are one recorded dataset rather than a model with a grid spacing of its
+own, so there is no sample spacing the picture could state; analyze a recent window
+and the layer comes back.
+
 **Style** picks how it is drawn, and both readings are true:
 
 - **Blocks** (the default) draws each point as its own square. You can see and count
