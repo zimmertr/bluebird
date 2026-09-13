@@ -135,7 +135,11 @@ fetch carries Open-Meteo's `freezing_level_height`, the height at which the
 free-air temperature crosses freezing, and the table reports its minimum,
 average and maximum over the window in feet above sea level — the same unit and
 datum as the **Elevation (ft)** column, because the reading is the comparison
-between the two. Three things bound what it can tell you.
+between the two. Open-Meteo quotes the height in whatever unit
+`precipitation_unit` selects, and names that unit on every response, so a
+request asking for inches (as every request here does) gets the height in feet
+rather than meters, and the aggregation reads the declared unit instead of
+assuming one. Three things bound what it can tell you.
 
 First, it is a height in the air. On a clear, calm night the snow surface loses
 heat by radiation and refreezes well *above* the freezing level, sometimes by
