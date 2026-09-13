@@ -75,6 +75,13 @@ export interface ShareableState {
   // control's state, and two params for it would let a link say the layer is
   // off while still carrying a style for it.
   gridStyle: GridStyle
+  // Whether the forecast player is on the map, which is NOT the same shape as
+  // the four overlays above: `null` means "whatever this device defaults to"
+  // (on at a desktop width, off on a phone, where the bar costs a third of a
+  // short map), and a boolean means the reader has decided. Only a decision is
+  // written to the URL, and it is written either way round, so a link can carry
+  // the player onto a phone or off a desktop.
+  showPlayer: boolean | null
   // The grid's coverage slider position, in [0, 1] of the bar — the
   // kilometres derive from the model's pitch, so the POSITION is what a link
   // must carry to mean the same thing under any model. Its own param
@@ -266,6 +273,7 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
     state.showRadar ||
     state.showSmoke ||
     state.showGrid ||
+    state.showPlayer !== null ||
     state.selection.kind !== 'now' ||
     state.forecastModel !== defaultForecastModel
   if (!hasPolygon && !hasCustom && !hasConstraint && !hasPins && !nonDefaultControls)
@@ -343,6 +351,12 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
       p.set('reach', String(Math.round(state.gridReachFrac * 100)))
     }
   }
+  // Written only once the reader has touched the switch, and then in both
+  // directions: the default is the device's, so `player=0` says "off even at a
+  // desktop width" as meaningfully as `player=1` says "on even on a phone". A
+  // link that left the default out is the link that keeps meaning what it said
+  // when the default moves.
+  if (state.showPlayer !== null) p.set('player', state.showPlayer ? '1' : '0')
   if (state.includeUnnamedPeaks) p.set('unnamed', '1')
   if (hasPins) p.set('pins', encodePins(state.pins))
 
@@ -560,6 +574,11 @@ export function decodeState(search: string): Partial<ShareableState> | null {
       }
     }
   }
+  // Both values are read, and anything else is left to the device default: the
+  // param exists to carry a decision, so no value is not a decision.
+  const player = params.get('player')
+  if (player === '1') out.showPlayer = true
+  if (player === '0') out.showPlayer = false
   if (params.get('unnamed') === '1') out.includeUnnamedPeaks = true
 
   const pins = params.get('pins')

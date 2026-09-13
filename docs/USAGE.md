@@ -144,6 +144,12 @@ again. Each is credited on its own legend, and each rides in the shared link.
 | **Smoke** | Smoke plumes at three densities, in grey | North America |
 | **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
 
+The list ends with one row that draws nothing: **Forecast player** switches the
+timeline bar at the bottom of the map on and off. It is on by default in a
+desktop-sized window and off on a phone, where the bar is a band across a map the
+report already stands on. It changes nothing about the ranking either, and once
+you have set it, it rides in the shared link like the four above.
+
 Clicking a perimeter opens NIFC's live map on that fire; clicking a plume says how
 dense it is, which satellite it was traced from, and over what hours. Where smoke
 sits over a fire — which is most of the time, since one causes the other — the
@@ -218,8 +224,11 @@ from drawing between summits.
 
 ### The timeline
 
-A bar appears at the bottom of the map whenever something on it spans time. Press
-play to run it, or drag the scrubber to a moment.
+A bar appears at the bottom of the map whenever something on it spans time, as
+long as **Forecast player** is switched on in the map's Layers list: it is on by
+default in a desktop-sized window and off on a phone. Press play to run it, or
+drag the scrubber to a moment. With it switched off the markers keep the window
+colors they are ranked on.
 
 It has up to two axes, and a switch to pick between them when both exist:
 

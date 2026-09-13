@@ -79,8 +79,21 @@ export function clampIndex(index: number, count: number): number {
  * is the floor and it is a real one rather than a guard: a Current analysis, or
  * a day narrowed to a single hour, is one instant, and a transport over one
  * instant is a control with nowhere to go.
+ *
+ * `playerShown` is the Layers popover's own switch, and it answers first: the
+ * player is a band across the bottom of the map, which on a phone is a third of
+ * what there is to look at, so it is switched off there by default. Switched
+ * off, nothing spans time as far as the map is concerned — no bar, no playhead,
+ * and the markers keep the window aggregate colour they rank by. It is still an
+ * overlay switch rather than a knob: it changes what is looked at, never what
+ * was asked for, so no ranking and no fetch follows it.
  */
-export function availableAxes(radarOn: boolean, forecastStamps: number): TimelineAxis[] {
+export function availableAxes(
+  playerShown: boolean,
+  radarOn: boolean,
+  forecastStamps: number,
+): TimelineAxis[] {
+  if (!playerShown) return []
   const axes: TimelineAxis[] = []
   if (radarOn) axes.push('radar')
   if (forecastStamps >= 2) axes.push('forecast')

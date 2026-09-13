@@ -63,6 +63,7 @@ const base: ShareableState = {
   showRadar: false,
   showSmoke: false,
   showGrid: false,
+  showPlayer: null,
   gridStyle: 'blocks' as const,
   gridReachFrac: 0.5,
   includeUnnamedPeaks: false,
@@ -91,6 +92,7 @@ const pristine: ShareableState = {
   showRadar: false,
   showSmoke: false,
   showGrid: false,
+  showPlayer: null,
   gridStyle: 'blocks' as const,
   gridReachFrac: 0.5,
   includeUnnamedPeaks: false,
@@ -171,6 +173,34 @@ describe('encodeState / decodeState round-trip', () => {
     expect(clean).not.toContain('radar')
     expect(clean).not.toContain('smoke')
     expect(clean).not.toContain('grid')
+  })
+
+  it('writes the forecast player only once the reader has decided', () => {
+    // The default is the DEVICE's — on at a desktop width, off on a phone — so
+    // `null` is "not decided" and writes nothing at all. A link that spelled
+    // the default out would stop meaning what it said the moment that default
+    // moved, which is the opposite of what `model` is always written for: there
+    // the app's default is the thing that must not leak into a shared link.
+    expect(encodeState(base, DEFAULT_MODEL)).not.toContain('player')
+    expect(roundTrip(base)!.showPlayer).toBeUndefined()
+    // A decision is written in BOTH directions, because either can be the one
+    // the device would not have chosen.
+    expect(encodeState({ ...base, showPlayer: true }, DEFAULT_MODEL)).toContain('player=1')
+    expect(encodeState({ ...base, showPlayer: false }, DEFAULT_MODEL)).toContain('player=0')
+    expect(roundTrip({ ...base, showPlayer: true })!.showPlayer).toBe(true)
+    expect(roundTrip({ ...base, showPlayer: false })!.showPlayer).toBe(false)
+  })
+
+  it('gives a player-only session a URL, and reads both values of the param', () => {
+    // Switching the bar on is the whole of what some links say, so a pristine
+    // session that has touched nothing else still deserves one.
+    expect(encodeState({ ...pristine, showPlayer: true }, DEFAULT_MODEL)).toContain('player=1')
+    expect(encodeState({ ...pristine, showPlayer: false }, DEFAULT_MODEL)).toContain('player=0')
+    // Hand-editable like every other flag, and anything it cannot read is left
+    // to the device default rather than guessed at.
+    expect(decodeState('?player=1')).toEqual({ showPlayer: true })
+    expect(decodeState('?player=0')).toEqual({ showPlayer: false })
+    expect(decodeState('?player=yes')).toBeNull()
   })
 
   it('carries the grid style in the same param as the toggle', () => {

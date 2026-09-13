@@ -141,6 +141,33 @@ import { NAME_DEFAULT_PX } from './utils/columnResize'
 import { compareValues } from './utils/sortResults'
 import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
 
+// One row of the Layers popover: a checkbox and what it switches. The four
+// overlays and the forecast player share it, because they are the same kind of
+// choice — about what the map shows, never about what the analysis asks for.
+function layerRow({
+  key,
+  label,
+  checked,
+  onChange,
+}: {
+  key: string
+  label: string
+  checked: boolean
+  onChange: (on: boolean) => void
+}) {
+  return (
+    <label key={key} className={CHOICE_ROW}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className={CHOICE_INPUT}
+      />
+      <span>{label}</span>
+    </label>
+  )
+}
+
 // The two map buttons are one pair and are sized as one: same width, same
 // height, stacked in a column where any difference between them reads as a
 // mistake rather than as a hierarchy. Wide enough for "Controls", which is the
@@ -436,6 +463,16 @@ export default function App() {
   // on is standing consent for the next analysis to do the same. It still
   // changes nothing about the ranking, so it never touches `commitNeeded`.
   const [showGrid, setShowGrid] = useState(() => restored?.showGrid ?? false)
+  // Whether the forecast player is on the map. `null` means "this device's
+  // default": on at a desktop width, off on a phone, where the bar is a band
+  // across a map that can be a third of the screen. A boolean means the reader
+  // has decided, and only a decision reaches the URL — in either direction, so
+  // a link can carry the player onto a phone or off a desktop.
+  //
+  // Not a knob. Switching it changes what is looked at and nothing about what
+  // was asked for: no ranking moves, nothing is fetched, and `commitNeeded`
+  // does not know it exists.
+  const [showPlayer, setShowPlayer] = useState<boolean | null>(() => restored?.showPlayer ?? null)
   // The map's own Layers popover, closed on load. Not persisted: it is a
   // disclosure, not a setting, and a link that reopened it would be sharing a
   // gesture rather than a picture.
@@ -616,6 +653,9 @@ export default function App() {
   // covers both map-borne methods, so its cue lights both controls at once.
   const [poisPointed, setPoisPointed] = useState(false)
   const isDesktop = useIsDesktop()
+  // Whether the player is on the map: the reader's decision where they have made
+  // one, this device's default otherwise.
+  const playerShown = showPlayer ?? isDesktop
 
   function dismissWelcome() {
     localStorage.setItem('bluebird_forecast_welcomed', '1')
@@ -876,6 +916,7 @@ export default function App() {
       showRadar,
       showSmoke,
       showGrid,
+      showPlayer,
       gridStyle,
       gridReachFrac,
       pins: searched.places,
@@ -911,6 +952,7 @@ export default function App() {
     showRadar,
     showSmoke,
     showGrid,
+    showPlayer,
     gridStyle,
     gridReachFrac,
     searched.places,
@@ -1466,7 +1508,7 @@ export default function App() {
   // comes back on both analysis paths, so the axis does not care which one ran
   // — unlike the live presentation knobs, which need the held field.
   const forecastTimes = response?.times ?? []
-  const timelineAxes = availableAxes(showRadar, forecastTimes.length)
+  const timelineAxes = availableAxes(playerShown, showRadar, forecastTimes.length)
   const timelineAxis = resolveAxis(timelineAxes, chosenAxis)
   const frameCount = timelineAxis === 'radar' ? RADAR_FRAME_COUNT : forecastTimes.length
   const frameIndex = clampIndex(
@@ -2277,17 +2319,7 @@ export default function App() {
               </button>
               {layersOpen && (
                 <div className={`${SURFACE_POPOVER} ${MAP_BOX_W} absolute left-0 mt-2 px-2.5 py-2`}>
-                  {MAP_LAYERS.map(({ key, label, checked, onChange }) => (
-                    <label key={key} className={CHOICE_ROW}>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => onChange(e.target.checked)}
-                        className={CHOICE_INPUT}
-                      />
-                      <span>{label}</span>
-                    </label>
-                  ))}
+                  {MAP_LAYERS.map((layer) => layerRow(layer))}
                   {/* The grid's sub-choices, revealed by its own checkbox.
                       The popover is as wide as the legend boxes below it
                       (`MAP_BOX_W`), so these take the fluid segment rather
@@ -2360,6 +2392,20 @@ export default function App() {
                       </div>
                     </>
                   )}
+                  {/* Last, and the one row here that switches something OFF the
+                      map rather than a picture onto it. It belongs with the
+                      layers because it answers the same question — what is on
+                      the map — and it is the only one of them that a phone
+                      cannot afford by default: the bar is a band across a map
+                      that the results sheet already stands on. Nothing about
+                      the report follows it, so it is no more a knob than the
+                      four above. */}
+                  {layerRow({
+                    key: 'player',
+                    label: 'Forecast player',
+                    checked: playerShown,
+                    onChange: setShowPlayer,
+                  })}
                 </div>
               )}
             </div>

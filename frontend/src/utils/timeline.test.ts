@@ -16,21 +16,32 @@ import {
 
 describe('availableAxes', () => {
   it('offers nothing when neither radar nor a multi-hour report exists', () => {
-    expect(availableAxes(false, 0)).toEqual([])
+    expect(availableAxes(true, false, 0)).toEqual([])
   })
 
   it('offers radar on its own with no analysis at all', () => {
-    expect(availableAxes(true, 0)).toEqual(['radar'])
+    expect(availableAxes(true, true, 0)).toEqual(['radar'])
   })
 
   it('refuses a forecast axis over a single instant', () => {
     // A Current analysis, or a day narrowed to one hour, has no span to play.
-    expect(availableAxes(false, 1)).toEqual([])
-    expect(availableAxes(false, 2)).toEqual(['forecast'])
+    expect(availableAxes(true, false, 1)).toEqual([])
+    expect(availableAxes(true, false, 2)).toEqual(['forecast'])
   })
 
   it('offers both when both exist', () => {
-    expect(availableAxes(true, 24)).toEqual(['radar', 'forecast'])
+    expect(availableAxes(true, true, 24)).toEqual(['radar', 'forecast'])
+  })
+
+  // The Layers popover's own switch, off by default on a phone. It answers
+  // before anything else: with the player off there is no bar, no playhead, and
+  // the markers keep the aggregate colour they rank by — which is exactly the
+  // state `resolveAxis` reads as "nothing spans time".
+  it('offers nothing at all while the player is switched off', () => {
+    expect(availableAxes(false, true, 24)).toEqual([])
+    expect(availableAxes(false, true, 0)).toEqual([])
+    expect(availableAxes(false, false, 24)).toEqual([])
+    expect(resolveAxis(availableAxes(false, true, 24), 'forecast')).toBeNull()
   })
 })
 
