@@ -697,11 +697,22 @@ export default function App() {
 
   // Naming a destination — by search or by pasting CSV — opens the results
   // panel immediately: it appears as an un-forecasted row, so there's feedback
-  // before any analysis runs. Keyed on the inputs rather than the derived
+  // before any analysis runs. Read off the inputs rather than the derived
   // `pending` list, which is declared further down.
+  //
+  // The DEPENDENCY is the fact, never the two lists. `csvRows` is a fresh array
+  // per keystroke, so an effect keyed on it runs per character and calls
+  // setShowResults(true) against a panel that is already open. React skips a
+  // same-value setState only while the fiber has no work pending, which a
+  // typing hand never leaves it, so each of those no-op calls schedules a real
+  // update from inside a passive effect. Fifty in a row is React error #185,
+  // which is what a pasted coordinate list used to produce (issue #185;
+  // measured at the 61st character, the first ten being the row yet to parse).
+  // `src/App.test.ts` fails any effect here that takes `csvRows` again.
+  const destinationNamed = searched.places.length > 0 || csvRows.length > 0
   useEffect(() => {
-    if (searched.places.length > 0 || csvRows.length > 0) setShowResults(true)
-  }, [searched.places, csvRows])
+    if (destinationNamed) setShowResults(true)
+  }, [destinationNamed])
 
   // The selection resolved to the datetime-local pair the rest of the app reads:
   // the horizon and air-quality warnings, the staleness comparison below, and the
