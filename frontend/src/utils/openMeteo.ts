@@ -346,6 +346,13 @@ interface HourlyPayload {
     wind_speed_500hPa?: (number | null)[]
     us_aqi?: (number | null)[]
   }
+  /**
+   * The unit Open-Meteo quoted each hourly variable in. Only the freezing
+   * level's is read: that one follows `precipitation_unit`, so the value is
+   * feet under the `inch` every request here sends and meters without it
+   * (port of `weather._freeze_unit`).
+   */
+  hourly_units?: Record<string, string | undefined>
 }
 
 // Port of weather._WIND_LEVELS: the five free-air winds each hour also
@@ -401,9 +408,29 @@ function levelArrays(hourly: NonNullable<HourlyPayload['hourly']>): (number | nu
 }
 
 // Port of weather._FREEZING_LEVEL: the height where the free-air temperature
-// crosses freezing, in METERS above sea level, clamped to 0 when the whole
-// column is below freezing. Three of the eight models publish it (issue #295).
+// crosses freezing, clamped to 0 when the whole column is below freezing.
+// Three of the eight models publish it (issue #295). Its unit follows
+// `precipitation_unit`, so every request here gets FEET and a request without
+// that parameter gets meters — read off the response, never assumed, because
+// the factor between them is 3.28 and a freezing level 3.28 times too high is
+// a plausible-looking altitude rather than an obvious fault.
 const FREEZING_LEVEL = 'freezing_level_height'
+
+// Port of weather._freeze_unit.
+function freezeUnit(payload: HourlyPayload): string | null {
+  return payload?.hourly_units?.[FREEZING_LEVEL] ?? null
+}
+
+// Port of weather._freeze_to_ft: one reading in feet, per the unit the
+// response declared. A unit that is neither documented one leaves the number
+// unreadable, and assuming either would ship a reading 3.28 times out, so an
+// unknown or missing unit throws the class a malformed body throws (which
+// useAnalyze surfaces with its own message, like any other provider failure).
+function freezeToFeet(v: number, unit: string | null): number {
+  if (unit === 'ft') return v
+  if (unit === 'm') return v / FT_TO_M
+  throw new OpenMeteoUnreachable('Cannot reach Open-Meteo. Try again later.')
+}
 
 // Port of weather._freeze_ft_in_window: every in-window hour that HAS a
 // freezing level, in feet. Read against its own pair of arrays rather than
@@ -414,6 +441,7 @@ function freezeFtInWindow(
   hourly: NonNullable<HourlyPayload['hourly']>,
   startMs: number,
   endMs: number,
+  unit: string | null,
 ): number[] {
   const times = hourly.time ?? []
   const freeze = hourly[FREEZING_LEVEL] ?? []
@@ -424,7 +452,7 @@ function freezeFtInWindow(
     if (v == null) continue
     const t = parseTs(times[i])
     if (t === null || t < startMs || t > endMs) continue
-    out.push(v / FT_TO_M)
+    out.push(freezeToFeet(v, unit))
   }
   return out
 }
@@ -432,7 +460,7 @@ function freezeFtInWindow(
 // Port of weather._metrics: an hour missing ANY metric is dropped entirely,
 // and the loop stops at the shortest array (Python zip semantics) — unlike
 // the series below, which is times-driven. Malformed payloads degrade to
-// null, never throw.
+// null; only an unreadable freezing level unit throws.
 export function weatherMetrics(
   payload: HourlyPayload,
   startMs: number,
@@ -463,7 +491,7 @@ export function weatherMetrics(
       rows.push([p, tf, wAdj])
     }
     if (rows.length === 0) return null
-    const fVals = freezeFtInWindow(hourly, startMs, endMs)
+    const fVals = freezeFtInWindow(hourly, startMs, endMs, freezeUnit(payload))
 
     // Left-to-right sums in input order, matching Python's sum() exactly.
     let pSum = 0
@@ -517,7 +545,12 @@ export function weatherMetrics(
       freeze_max_ft: fVals.length === 0 ? null : roundHalfEven(fMax, 0),
       freeze_avg_ft: fVals.length === 0 ? null : roundHalfEven(fSum / fVals.length, 0),
     }
-  } catch {
+  } catch (e) {
+    // A unit nothing can read is not one bad hour to skip past: every number
+    // in the column would have to be invented, so it passes the degrade and
+    // fails the analysis. Mirrors the `except UpstreamError: raise` the
+    // backend's `_metrics` puts ahead of its own degrade.
+    if (e instanceof OpenMeteoUnreachable) throw e
     return null
   }
 }
@@ -538,6 +571,7 @@ export function weatherSeries(
     const temp = hourly.temperature_2m ?? []
     const wind = hourly.wind_speed_10m ?? []
     const freeze = hourly[FREEZING_LEVEL] ?? []
+    const fUnit = freezeUnit(payload)
     const levels = levelArrays(hourly)
 
     const grid: number[] = []
@@ -557,12 +591,15 @@ export function weatherSeries(
           ? null
           : windAtElevation(w10, elevationFt, levels.map((arr) => at(arr, i)))
       wOut.push(roundOrNull(wAdj, 1))
-      const fM = at(freeze, i)
-      fOut.push(roundOrNull(fM === null ? null : fM / FT_TO_M, 0))
+      const fRaw = at(freeze, i)
+      fOut.push(roundOrNull(fRaw === null ? null : freezeToFeet(fRaw, fUnit), 0))
     }
     if (grid.length === 0) return null
     return { times: grid, precip_in: pOut, temp_f: tOut, wind_mph: wOut, freeze_ft: fOut }
-  } catch {
+  } catch (e) {
+    // The one failure this function does not absorb, for the reason
+    // `weatherMetrics` does not absorb it either.
+    if (e instanceof OpenMeteoUnreachable) throw e
     return null
   }
 }
