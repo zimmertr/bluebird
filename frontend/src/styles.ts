@@ -728,7 +728,7 @@ export const CONTROL_W = 'w-36'
  * step down leaves 154px and wrapped that label by under three pixels at
  * two-digit seconds; this leaves 172px, about 15px of slack, and the countdown
  * switches to minutes past 99s so the row's widest case is bounded. The fire
- * credit row governed before it ("Active Wildfire (NIFC)", 140.1px measured
+ * credit row governed before it ("Active wildfire (NIFC)", 140.1px measured
  * 2026-07-31), and the popover's own rows are shorter than both. Re-measure
  * before lengthening a line in any of the three.
  */
