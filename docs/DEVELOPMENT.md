@@ -47,7 +47,8 @@ docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine \
 
 # Frontend API types still match the committed OpenAPI snapshot
 # (`npm run generate:api` rewrites them instead of checking them).
-# Mounts the repo root, because the generator reads ../backend/openapi.json.
+# Mounts the repo root, because the generator reads backend/openapi.json.
+# The script installs the generator first, so this needs no `npm ci` of its own.
 docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
   sh -c "npm run check:api"
 
@@ -65,6 +66,14 @@ regenerates the committed OpenAPI snapshot with
 `cd backend && python scripts/generate_openapi.py`, then the frontend types read
 off it with `cd frontend && npm run generate:api` (CI fails the PR otherwise, on
 both counts).
+
+The generator is not a frontend dependency. It lives in
+`frontend/tools/api-types`, a private package with its own lockfile, and the two
+frontend scripts only delegate to it. `openapi-typescript` loads the TypeScript
+compiler API at run time and peers on TypeScript 5, the app runs TypeScript 7,
+and npm resolves one version of a peer. A package rather than a version inside a
+script also gives Dependabot something to bump. It installs on demand, so
+`npm ci` in `frontend/` stays as fast as it was.
 
 ## Testing the browser path without spending quota
 
