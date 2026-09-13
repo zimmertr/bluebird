@@ -277,7 +277,7 @@ Never surface an exception type or HTTP status directly. Write a sentence instea
 
 ### Model coverage message
 
-The one message mirrored between backend and frontend: "{label} has no forecast coverage for this area. Switch to a different model and try again." Defined in `backend/app/services/weather.py` and ported to `frontend/src/utils/openMeteo.ts` and `frontend/src/hooks/useAnalyze.ts`.
+The one message mirrored between backend and frontend: "{label} has no forecast coverage for this area. Switch to a different model and try again." Defined in `backend/app/services/weather.py` and ported to `frontend/src/hooks/useAnalyze.ts`. The `OpenMeteoModelCoverage` error in `frontend/src/utils/openMeteo.ts` is developer-facing, names the model id, and is not a copy of it.
 
 ### Styling a native range input
 
