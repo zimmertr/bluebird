@@ -197,8 +197,8 @@ class Limits(BaseModel):
             "this is answered from the archive instead, which changes what a "
             "row can carry: the archive names no model and reports wind at "
             "10 m rather than at the destination's elevation. A window that "
-            "starts older than this and ends inside it is refused with 400, "
-            "because the two endpoints answer from different datasets."
+            "starts older than this and ends inside it is served by both "
+            "endpoints, joined at this boundary."
         )
     )
     archive_days: int = Field(

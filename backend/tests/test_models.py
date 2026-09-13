@@ -296,6 +296,9 @@ _SOURCE_CASES = [
     ("2026-07-01T00:00", "2026-09-12T18:00", "spanning", "crosses it by weeks"),
 ]
 
+# Both 'spanning' rows describe a window that IS served: two fetches, one per
+# endpoint, split at the boundary below and joined before the aggregation.
+
 
 @pytest.mark.parametrize(("start", "end", "expected", "why"), _SOURCE_CASES)
 def test_window_source_classification_table(start, end, expected, why):
@@ -314,6 +317,23 @@ def test_window_source_boundary_is_the_forecast_endpoints_own_data_edge():
     assert models.window_source(just_inside, just_inside, _SOURCE_NOW) == "forecast"
     older = _SOURCE_NOW - timedelta(days=PAST_DATA_DAYS + 2)
     assert models.window_source(older, older, _SOURCE_NOW) == "archive"
+
+
+def test_archive_boundary_is_one_instant_on_the_utc_day():
+    # The seam a spanning window is cut at, and the instant `window_source`
+    # classifies against: the same value, from one function, because a second
+    # spelling could split a window an hour from where it was classified.
+    boundary = models.archive_boundary(_SOURCE_NOW)
+    assert boundary == datetime(2026, 7, 19, tzinfo=timezone.utc)
+    assert models.window_source(
+        boundary - timedelta(minutes=1), boundary - timedelta(minutes=1), _SOURCE_NOW
+    ) == "archive"
+    assert models.window_source(boundary, boundary, _SOURCE_NOW) == "forecast"
+
+
+def test_archive_boundary_reads_a_naive_now_as_utc():
+    naive = _SOURCE_NOW.replace(tzinfo=None)
+    assert models.archive_boundary(naive) == models.archive_boundary(_SOURCE_NOW)
 
 
 def test_window_source_reads_a_naive_timestamp_as_utc():

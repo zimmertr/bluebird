@@ -136,7 +136,7 @@ def _scope_request(route) -> Request:
 def stub_upstreams(monkeypatch):
     async def fake_wx(
         destinations, start, end, on_progress=None, on_pace=None, model=None,
-        api_key=None, source="forecast",
+        api_key=None, source="forecast", boundary=None,
     ):
         return [
             {

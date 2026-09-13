@@ -13,7 +13,6 @@ from app import ratelimit, telemetry
 from app.error_codes import ApiError, ErrorCode, error_object
 from app.models import (
     MAX_ANALYZE_PEAKS,
-    SPANNING_WINDOW_MESSAGE,
     AnalysisRefusal,
     AnalyzeRequest,
     AnalyzeResponse,
@@ -23,6 +22,7 @@ from app.models import (
     ErrorResponse,
     HourlySeries,
     WindowSource,
+    archive_boundary,
     bbox_area_km2,
     window_source,
 )
@@ -56,23 +56,23 @@ open_meteo_key = APIKeyHeader(
 )
 
 
-def _window_source(request: AnalyzeRequest) -> WindowSource:
-    """Which weather endpoint answers this request, classified ONCE (issue #123).
+def _window_split(request: AnalyzeRequest) -> tuple[WindowSource, datetime]:
+    """Which weather endpoint answers this request, and where the seam falls.
 
-    Both routes read it twice — to refuse a window that spans the archive
-    boundary, then to tell the weather service which endpoint to ask — and it has
-    to be the same answer both times. Classifying again inside the service would
-    let the boundary advance between the refusal and the fetch, so a request
-    could be accepted as a forecast window and fetched as an archive one.
+    One reading of the clock for both answers (issue #123). The boundary moves,
+    so classifying in one place and splitting in another would let a window be
+    classified as spanning and then cut at an instant the classification never
+    saw — which is why the weather service takes both as arguments rather than
+    working either out for itself.
 
-    A spanning window is refused rather than stitched (TJ, 2026-09-12): the two
-    endpoints answer from different datasets, so a stitched window would rank
-    hours of one against hours of another with nothing saying where the seam
-    fell. It answers 400, which is what every other unanswerable window gets
-    here; the request validator cannot do it, because it bounds each end alone.
+    A window that crosses the boundary is served rather than refused: the archive
+    answers the hours before the seam, the forecast endpoint the hours from it on,
+    and the two are joined per location before the aggregation runs.
     """
-    return window_source(
-        request.start_datetime, request.end_datetime, datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    return (
+        window_source(request.start_datetime, request.end_datetime, now),
+        archive_boundary(now),
     )
 
 
@@ -618,10 +618,7 @@ async def analyze_stream(
             if request.start_datetime >= request.end_datetime:
                 yield _sse_error("The start date must be before the end date.", ErrorCode.validation)
                 return
-            source = _window_source(request)
-            if source == "spanning":
-                yield _sse_error(SPANNING_WINDOW_MESSAGE, ErrorCode.validation)
-                return
+            source, boundary = _window_split(request)
 
             # A union (polygon + custom list) is a mixed set, so its messages
             # say "destinations" rather than any one type's noun.
@@ -767,6 +764,7 @@ async def analyze_stream(
                         request.forecast_model,
                         api_key=api_key,
                         source=source,
+                        boundary=boundary,
                     )
                 finally:
                     await progress_queue.put(_STREAM_DONE)
@@ -961,9 +959,7 @@ async def analyze(
             detail="The start date must be before the end date.",
             code=ErrorCode.validation,
         )
-    source = _window_source(request)
-    if source == "spanning":
-        raise ApiError(status_code=400, detail=SPANNING_WINDOW_MESSAGE, code=ErrorCode.validation)
+    source, boundary = _window_split(request)
 
     # Resolve destinations
     if not request.destination_types:
@@ -1068,6 +1064,7 @@ async def analyze(
             model=request.forecast_model,
             api_key=api_key,
             source=source,
+            boundary=boundary,
         )
     except ratelimit.BudgetExhausted as e:
         if aqi_task is not None:

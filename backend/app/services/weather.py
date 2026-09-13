@@ -3,9 +3,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Awaitable, Callable
-from datetime import datetime, timezone
-from typing import Any
+from collections.abc import Awaitable, Callable, Sequence
+from datetime import datetime, timedelta, timezone
+from typing import Any, NamedTuple
 
 import httpx
 
@@ -154,6 +154,90 @@ def hour_param(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:00")
 
 
+class _Span(NamedTuple):
+    """One leg of a fetch: which endpoint answers, and the hours it answers for."""
+
+    archive: bool
+    start: datetime
+    end: datetime
+
+
+def _fetch_spans(
+    source: WindowSource,
+    start_dt: datetime,
+    end_dt: datetime,
+    boundary: datetime | None,
+) -> list[_Span]:
+    """The one or two requests a window takes, as hour ranges.
+
+    A forecast or archive window is one request. A window spanning the archive
+    boundary is two, and this is the only place that split is computed, so the
+    weighted spend and the requests themselves can never describe different
+    halves.
+
+    The halves are disjoint: the archive answers through the hour BEFORE the
+    boundary and the forecast endpoint from the boundary on, because both bounds
+    are inclusive and an hour arriving twice would be counted twice in a total.
+
+    Either half can come out empty, and that is not a contradiction of the
+    classification. `window_source` compares real instants while a request
+    carries wall-clock hours read as UTC (see `hour_param`), so a caller sending
+    an offset can be spanning by instant and one-sided by wall clock. An empty
+    half is dropped rather than requested backwards.
+    """
+    if source != "spanning":
+        return [_Span(source == "archive", start_dt, end_dt)]
+    if boundary is None:
+        raise ValueError("a spanning window needs the boundary that classified it")
+    seam = boundary.replace(tzinfo=start_dt.tzinfo)
+    if seam <= start_dt:
+        return [_Span(False, start_dt, end_dt)]
+    if seam > end_dt:
+        return [_Span(True, start_dt, end_dt)]
+    return [
+        _Span(True, start_dt, seam - timedelta(hours=1)),
+        _Span(False, seam, end_dt),
+    ]
+
+
+_JOIN_KEYS: tuple[str, ...] = ("time", *HOURLY_VARIABLES.split(","))
+
+
+def _join_hours(parts: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """One location's half-windows as a single hourly payload.
+
+    The aggregation is pinned byte-for-byte against the browser port by the
+    shared vectors, so a spanning window is made to look like every other window
+    BEFORE it reaches `_metrics`: the halves are concatenated in time order (the
+    spans are disjoint and ordered, so appending them IS time order) and each
+    array is padded to the stamp count, which keeps them parallel for the
+    index-addressed reads below.
+
+    Two payloads are dropped rather than mixed. Disagreeing `hourly_units` means
+    one host answered in units the other did not, and a total of inches and
+    millimetres is a number with no meaning; a repeated stamp would count one
+    hour twice. Both degrade to no metrics, which is what every payload this
+    module cannot read does.
+    """
+    if len(parts) == 1:
+        return parts[0]
+    units = [part.get("hourly_units") for part in parts]
+    if any(unit != units[0] for unit in units[1:]):
+        return {}
+    joined: dict[str, list[Any]] = {key: [] for key in _JOIN_KEYS}
+    seen: set[Any] = set()
+    for part in parts:
+        hourly = part.get("hourly") or {}
+        for i, ts in enumerate(hourly.get("time") or []):
+            if ts in seen:
+                continue
+            seen.add(ts)
+            joined["time"].append(ts)
+            for key in _JOIN_KEYS[1:]:
+                joined[key].append(_at(hourly.get(key) or [], i))
+    return {**parts[0], "hourly": joined}
+
+
 async def fetch_weather_batch(
     destinations: list[dict[str, Any]],
     start_dt: datetime,
@@ -163,17 +247,22 @@ async def fetch_weather_batch(
     model: ForecastModel = DEFAULT_FORECAST_MODEL,
     api_key: str | None = None,
     source: WindowSource = "forecast",
+    boundary: datetime | None = None,
 ) -> list[dict[str, Any] | None]:
-    """Fetch each destination's windowed weather from the endpoint `source` names.
+    """Fetch each destination's windowed weather from the endpoint(s) `source` names.
 
-    `source` is the CALLER's decision (`models.window_source`), not this
-    function's, because the route already has to make it: a window that spans
-    the archive boundary is refused there, and classifying a second time here
-    would let the clock move between the two answers — a window refused as
-    spanning and a window fetched as archive would be the same request.
+    `source` and `boundary` are the CALLER's decision (`models.window_source` and
+    `models.archive_boundary`), not this function's, because both come from one
+    reading of the clock: the boundary moves, so a window classified here a second
+    time could be split at an instant the classification never saw.
+
+    A spanning window is two requests per batch, joined per location before the
+    aggregation runs (`_fetch_spans`, `_join_hours`).
     """
     if not destinations:
         return []
+
+    spans = _fetch_spans(source, start_dt, end_dt, boundary)
 
     total = len(destinations)
 
@@ -240,7 +329,7 @@ async def fetch_weather_batch(
     tasks = [
         asyncio.create_task(
             _fetch_chunk_indexed(
-                i, chunk, start_dt, end_dt, sem, on_pace, model, api_key, source
+                i, chunk, start_dt, end_dt, sem, spans, on_pace, model, api_key
             )
         )
         for i, chunk in enumerate(chunks)
@@ -284,10 +373,10 @@ async def _fetch_chunk_indexed(
     start_dt: datetime,
     end_dt: datetime,
     sem: asyncio.Semaphore,
+    spans: list[_Span],
     on_pace: PaceCallback | None = None,
     model: ForecastModel = DEFAULT_FORECAST_MODEL,
     api_key: str | None = None,
-    source: WindowSource = "forecast",
 ) -> tuple[int, list[dict[str, Any] | None]]:
     # Per-analysis fairness slot first, then the pod's weighted spend, then a
     # pod-wide in-flight slot. The weight acquire happens BEFORE the in-flight
@@ -302,25 +391,31 @@ async def _fetch_chunk_indexed(
     # concurrency rather than anybody's quota.
     async with sem:
         if api_key is None:
+            # One acquire per SPAN, each priced on its own hours: a spanning
+            # window is two requests and two answers, so it spends twice, and
+            # pricing it on the whole window would bill the archive's months for
+            # the forecast half's days as well.
+            #
             # The model count is spelled here rather than defaulted, because
             # this is where `models=` is built: a request that ever names
             # more than one model returns a series per model and costs that
             # multiple, so the two must move together.
-            weight = call_weight(
-                len(destinations),
-                start_dt.date(),
-                end_dt.date(),
-                N_VARIABLES,
-                n_models=1,
-            )
-            if on_pace is not None:
-                estimate = ratelimit.WEATHER_WEIGHT.wait_estimate_s(weight)
-                if estimate > 3:
-                    await on_pace(int(estimate) + 1)
-            await ratelimit.WEATHER_WEIGHT.acquire(weight)
+            for span in spans:
+                weight = call_weight(
+                    len(destinations),
+                    span.start.date(),
+                    span.end.date(),
+                    N_VARIABLES,
+                    n_models=1,
+                )
+                if on_pace is not None:
+                    estimate = ratelimit.WEATHER_WEIGHT.wait_estimate_s(weight)
+                    if estimate > 3:
+                        await on_pace(int(estimate) + 1)
+                await ratelimit.WEATHER_WEIGHT.acquire(weight)
         async with ratelimit.WEATHER_BUDGET.slot():
             return index, await _fetch_chunk(
-                destinations, start_dt, end_dt, model, api_key, source
+                destinations, start_dt, end_dt, spans, model, api_key
             )
 
 
@@ -336,14 +431,55 @@ async def _fetch_chunk(
     destinations: list[dict[str, Any]],
     start_dt: datetime,
     end_dt: datetime,
+    spans: list[_Span],
     model: ForecastModel = DEFAULT_FORECAST_MODEL,
     api_key: str | None = None,
-    source: WindowSource = "forecast",
 ) -> list[dict[str, Any] | None]:
+    """One batch of locations, fetched over every span and aggregated once.
+
+    A spanning window arrives here as two spans. Their hourly arrays are joined
+    per location first, so `_metrics` and `_series` see the one series the report
+    ranks rather than learning that some windows come in halves.
+    """
+    per_span = [
+        _as_items(await _fetch_span(destinations, span, model, api_key))
+        for span in spans
+    ]
+
+    results: list[dict[str, Any] | None] = []
+    # zip truncates to the shortest, which is the tolerance this loop has always
+    # had for a host returning fewer locations than were asked about.
+    for dest, parts in zip(destinations, zip(*per_span)):
+        elevation_ft = dest.get("elevation_ft")
+        item = _join_hours(parts)
+        m = _metrics(item, start_dt, end_dt, elevation_ft)
+        if m is not None:
+            # Carry the raw hourly series alongside the aggregates so the route
+            # can bake it into the response for the chart — one upstream fetch,
+            # no re-query. The aggregates in `_metrics` stay byte-for-byte.
+            m = {**m, "series": _series(item, start_dt, end_dt, elevation_ft)}
+        results.append(m)
+    log.trace("Open-Meteo batch returned %d result(s)", sum(1 for r in results if r is not None))  # type: ignore[attr-defined]
+    return results
+
+
+def _as_items(data: Any) -> list[dict[str, Any]]:
+    """Open-Meteo's two response shapes as one: a single location answers an object."""
+    return data if isinstance(data, list) else [data]
+
+
+async def _fetch_span(
+    destinations: list[dict[str, Any]],
+    span: _Span,
+    model: ForecastModel = DEFAULT_FORECAST_MODEL,
+    api_key: str | None = None,
+) -> Any:
+    """One request: these locations, these hours, from the span's own endpoint."""
     lats = ",".join(str(d["latitude"]) for d in destinations)
     lons = ",".join(str(d["longitude"]) for d in destinations)
     quota = quota_label(api_key)
-    archive = source == "archive"
+    archive = span.archive
+    start_dt, end_dt = span.start, span.end
 
     log.info(
         "Open-Meteo batch: %d location(s), %s → %s, model %s",
@@ -468,20 +604,7 @@ async def _fetch_chunk(
             log.warning("Open-Meteo request failed: %s", redacted_error(exc, api_key))
             raise UpstreamError(classify_http_error(exc, PROVIDER)) from exc
 
-    # Single location → object; multiple → array
-    items = data if isinstance(data, list) else [data]
-    results: list[dict[str, Any] | None] = []
-    for dest, item in zip(destinations, items):
-        elevation_ft = dest.get("elevation_ft")
-        m = _metrics(item, start_dt, end_dt, elevation_ft)
-        if m is not None:
-            # Carry the raw hourly series alongside the aggregates so the route
-            # can bake it into the response for the chart — one upstream fetch,
-            # no re-query. The aggregates in `_metrics` stay byte-for-byte.
-            m = {**m, "series": _series(item, start_dt, end_dt, elevation_ft)}
-        results.append(m)
-    log.trace("Open-Meteo batch returned %d result(s)", sum(1 for r in results if r is not None))  # type: ignore[attr-defined]
-    return results
+    return data
 
 
 def _wind_at_elevation(

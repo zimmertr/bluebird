@@ -4,10 +4,10 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from app import models
 from app.main import app
 from app.models import (
     PAST_DATA_DAYS,
-    SPANNING_WINDOW_MESSAGE,
     AnalyzeRequest,
     DestinationResult,
     DestinationType,
@@ -319,7 +319,7 @@ def stub_upstreams(monkeypatch):
 
     async def fake_wx(
         destinations, start, end, on_progress=None, on_pace=None, model=None,
-        api_key=None, source="forecast",
+        api_key=None, source="forecast", boundary=None,
     ):
         return [_wx(d["latitude"]) for d in destinations]
 
@@ -397,7 +397,10 @@ def test_analyze_aqi_bound_fetches_air_quality_for_every_candidate(monkeypatch):
     # are the observable difference.
     batches: list[int] = []
 
-    async def fake_wx(destinations, start, end, on_progress=None, on_pace=None, model=None, api_key=None, source="forecast"):
+    async def fake_wx(
+        destinations, start, end, on_progress=None, on_pace=None, model=None,
+        api_key=None, source="forecast", boundary=None,
+    ):
         return [_wx(d["latitude"]) for d in destinations]
 
     async def fake_aqi(destinations, start, end, api_key=None):
@@ -922,7 +925,7 @@ def stub_hourly_upstreams(monkeypatch):
 
     async def fake_wx(
         destinations, start, end, on_progress=None, on_pace=None, model=None,
-        api_key=None, source="forecast",
+        api_key=None, source="forecast", boundary=None,
     ):
         return [_wx_hourly(d["latitude"]) for d in destinations]
 
@@ -1058,7 +1061,7 @@ def test_the_hours_are_most_of_a_maximal_response(monkeypatch):
 
     async def fake_wx(
         destinations, start, end, on_progress=None, on_pace=None, model=None,
-        api_key=None, source="forecast",
+        api_key=None, source="forecast", boundary=None,
     ):
         return [
             _wx_series(
@@ -1166,7 +1169,7 @@ def record_key(monkeypatch):
 
     async def fake_wx(
         destinations, start, end, on_progress=None, on_pace=None, model=None,
-        api_key=None, source="forecast",
+        api_key=None, source="forecast", boundary=None,
     ):
         seen["weather"].append(api_key)
         return [_wx(d["latitude"]) for d in destinations]
@@ -1308,21 +1311,18 @@ def _archive_window():
     return start.isoformat(), (start + timedelta(hours=6)).isoformat()
 
 
-def test_analyze_refuses_a_window_that_crosses_the_archive_boundary(stub_upstreams):
-    # Not stitched: the two endpoints answer from different datasets, so the
-    # ranking would compare hours of one against hours of another.
+def test_analyze_serves_a_window_that_crosses_the_archive_boundary(stub_upstreams):
+    # Both endpoints answer it, split at the boundary and joined per location
+    # before the aggregation — so the caller sees one window, not a refusal.
     start, end = _spanning_window()
     resp = client.post("/api/analyze", json={
         "destination_types": [], "start_datetime": start, "end_datetime": end,
         "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 2.0}],
     })
-    assert resp.status_code == 400
-    assert resp.json()["detail"] == SPANNING_WINDOW_MESSAGE
+    assert resp.status_code == 200
 
 
-def test_analyze_stream_refuses_a_spanning_window_with_the_same_sentence(
-    stub_upstreams,
-):
+def test_analyze_stream_serves_a_spanning_window_too(stub_upstreams):
     start, end = _spanning_window()
     resp = client.post("/api/analyze/stream", json={
         "destination_types": [], "start_datetime": start, "end_datetime": end,
@@ -1333,19 +1333,19 @@ def test_analyze_stream_refuses_a_spanning_window_with_the_same_sentence(
         for line in resp.text.splitlines()
         if line.startswith("data: ")
     ]
-    assert any(
-        e["type"] == "error" and e["message"] == SPANNING_WINDOW_MESSAGE for e in events
-    )
+    assert not any(e["type"] == "error" for e in events)
+    assert any(e["type"] == "result" for e in events)
 
 
 def test_analyze_tells_the_weather_service_which_endpoint_answers(monkeypatch):
-    # The route classifies once and passes it down, so the endpoint that gets
-    # asked cannot disagree with the refusal check above.
+    # The route classifies once and passes the answer down with the boundary it
+    # was classified against, so the fetch cannot split a window at an instant
+    # the classification never saw.
     seen: list[str] = []
 
     async def fake_wx(
         destinations, start, end, on_progress=None, on_pace=None, model=None,
-        api_key=None, source="forecast",
+        api_key=None, source="forecast", boundary=None,
     ):
         seen.append(source)
         return [_wx(d["latitude"]) for d in destinations]
@@ -1373,3 +1373,33 @@ def test_analyze_tells_the_weather_service_which_endpoint_answers(monkeypatch):
     )
 
     assert seen == ["archive", "forecast"]
+
+
+def test_analyze_passes_the_boundary_it_classified_against(monkeypatch):
+    # Two values, one clock reading. A spanning window is cut at this instant,
+    # and the service is given it rather than working one out for itself.
+    seen: list[tuple[str, datetime | None]] = []
+
+    async def fake_wx(
+        destinations, start, end, on_progress=None, on_pace=None, model=None,
+        api_key=None, source="forecast", boundary=None,
+    ):
+        seen.append((source, boundary))
+        return [_wx(d["latitude"]) for d in destinations]
+
+    async def fake_aqi(destinations, start, end, api_key=None):
+        return [None] * len(destinations)
+
+    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fake_wx)
+    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+
+    start, end = _spanning_window()
+    resp = client.post("/api/analyze", json={
+        "destination_types": [],
+        "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 2.0}],
+        "start_datetime": start, "end_datetime": end,
+    })
+    assert resp.status_code == 200
+    source, boundary = seen[0]
+    assert source == "spanning"
+    assert boundary == models.archive_boundary(datetime.now(timezone.utc))

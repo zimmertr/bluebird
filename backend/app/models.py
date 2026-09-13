@@ -84,12 +84,12 @@ PAST_DATA_DAYS = 55
 # carries.
 ARCHIVE_STRADDLE_DAYS = 1
 
-# A window that starts before the archive boundary and ends after it. Refused
-# rather than stitched (TJ, 2026-09-12): the two endpoints answer from different
-# datasets, so a stitched window would rank hours of one against hours of the
-# other with nothing saying where the seam fell.
-SPANNING_WINDOW_MESSAGE = "A window cannot cross the archive boundary."
-
+# A window that starts before the archive boundary and ends after it. Served by
+# TWO fetches rather than refused: the hours before the boundary come from the
+# archive, the hours from it on from the forecast endpoint, and each location's
+# hourly arrays are concatenated in time order BEFORE the aggregation runs, so
+# one report ranks one series (`weather.fetch_weather_batch`). Where the seam
+# falls is stated on screen rather than left to be discovered.
 WindowSource = Literal["forecast", "archive", "spanning"]
 
 # Rows returned per analysis. Named rather than inline so the validator and
@@ -106,14 +106,29 @@ def _as_utc(dt: datetime) -> datetime:
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
-def window_source(start: datetime, end: datetime, now: datetime) -> WindowSource:
-    """Which Open-Meteo endpoint can answer this window, or neither.
+def archive_boundary(now: datetime) -> datetime:
+    """The instant the archive's hours end and the forecast endpoint's begin.
 
-    One boundary, defined once: `now - PAST_DATA_DAYS`, floored to the UTC day,
-    because every fetch sends UTC hour stamps. A window entirely older than it
-    is the archive's; one starting at it — within a local day, see
+    `now - PAST_DATA_DAYS`, floored to the UTC day, because every fetch sends UTC
+    hour stamps. One definition for two readers: `window_source` classifies a
+    window against it, and `weather.fetch_weather_batch` splits a spanning window
+    at it. A second spelling could put the seam an hour from where the
+    classification believed it was.
+
+    Mirrored by `archiveBoundaryMs` in `frontend/src/utils/forecastWindow.ts`.
+    """
+    return (_as_utc(now) - timedelta(days=PAST_DATA_DAYS)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+
+
+def window_source(start: datetime, end: datetime, now: datetime) -> WindowSource:
+    """Which Open-Meteo endpoint answers this window, or that both do.
+
+    One boundary, defined once by `archive_boundary` above. A window entirely
+    older than it is the archive's; one starting at it — within a local day, see
     ARCHIVE_STRADDLE_DAYS — is the forecast endpoint's; one that starts before it
-    and ends after it is neither, and is refused.
+    and ends after it is both endpoints', fetched twice and joined at the seam.
 
     The archive test comes first so the one-day overlap the straddle tolerance
     opens resolves to the archive, which holds every hour in it rather than
@@ -122,9 +137,7 @@ def window_source(start: datetime, end: datetime, now: datetime) -> WindowSource
     Mirrored by `windowSource` in `frontend/src/utils/forecastWindow.ts`, with
     the same example table in both test suites.
     """
-    boundary = (_as_utc(now) - timedelta(days=PAST_DATA_DAYS)).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
+    boundary = archive_boundary(now)
     if _as_utc(end) < boundary:
         return "archive"
     if _as_utc(start) >= boundary - timedelta(days=ARCHIVE_STRADDLE_DAYS):

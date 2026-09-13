@@ -1194,7 +1194,7 @@
             "type": "integer"
           },
           "past_data_days": {
-            "description": "Where the forecast endpoint's own data ends, and therefore the boundary between the two weather endpoints. A window older than this is answered from the archive instead, which changes what a row can carry: the archive names no model and reports wind at 10 m rather than at the destination's elevation. A window that starts older than this and ends inside it is refused with 400, because the two endpoints answer from different datasets.",
+            "description": "Where the forecast endpoint's own data ends, and therefore the boundary between the two weather endpoints. A window older than this is answered from the archive instead, which changes what a row can carry: the archive names no model and reports wind at 10 m rather than at the destination's elevation. A window that starts older than this and ends inside it is served by both endpoints, joined at this boundary.",
             "title": "Past Data Days",
             "type": "integer"
           },
