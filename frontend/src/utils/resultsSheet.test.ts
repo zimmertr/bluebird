@@ -11,6 +11,7 @@ import {
   TRANSPORT_GAP_PX,
   draggedMapFloorPx,
   legendBottomPx,
+  mapCornerLiftPx,
   maxSheetPx,
   restingLiftPx,
   restingMapFloorPx,
@@ -73,6 +74,34 @@ describe('the map chrome anchors', () => {
     expect(LEGEND_GAP_PX).toBe(8 * 4)
     expect(TRANSPORT_BAND_PX).toBe(28 * 4)
     expect(TRANSPORT_GAP_PX).toBe(10 * 4)
+  })
+})
+
+// MapLibre's attribution and scale are the library's controls, anchored to the
+// map container's bottom edge — which on a phone carries the sheet and the
+// centred forecast player. The corner therefore steps over both.
+describe('mapCornerLiftPx', () => {
+  it('leaves the corner on the bottom edge where nothing stands there', () => {
+    expect(mapCornerLiftPx(0, false)).toBe(0)
+  })
+
+  it('steps over the player, over the sheet, and over both together', () => {
+    expect(mapCornerLiftPx(0, true)).toBe(TRANSPORT_BAND_PX)
+    expect(mapCornerLiftPx(392, false)).toBe(392)
+    expect(mapCornerLiftPx(392, true)).toBe(392 + TRANSPORT_BAND_PX)
+  })
+
+  // The corner and the legend stack read the transport the same way, so a bar
+  // cannot be clear of the legends on one side and under the licence line on the
+  // other.
+  it('keeps the clearance the legend stack keeps on the other side', () => {
+    expect(mapCornerLiftPx(392, true)).toBe(legendBottomPx(392, true))
+  })
+
+  // map.css cannot be read as text here (vitest stubs a CSS import to an empty
+  // string), so what is pinned is the name App publishes it under.
+  it('is published under the name the stylesheet reads', () => {
+    expect(appSource).toContain('--map-corner-lift')
   })
 })
 

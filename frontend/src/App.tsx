@@ -96,6 +96,7 @@ import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/
 import {
   draggedMapFloorPx,
   legendBottomPx,
+  mapCornerLiftPx,
   restingLiftPx,
   restingMapFloorPx,
   sheetHeightPx,
@@ -1749,9 +1750,9 @@ export default function App() {
   )
   // How far the sheet reaches up the map, and therefore how far the map's own
   // bottom chrome — the legend stack, the timeline, and MapLibre's attribution
-  // and scale (lifted by `--sheet-lift` in map.css) — rides up to clear it.
-  // Zero wherever the results are docked below the map, which is every desktop
-  // width and the moment before the first analysis.
+  // and scale — rides up to clear it. Zero wherever the results are docked below
+  // the map, which is every desktop width and the moment before the first
+  // analysis.
   const sheetLiftPx =
     isDesktop || !showTable
       ? 0
@@ -1760,6 +1761,12 @@ export default function App() {
           gripCount,
           panelsPx: chartPanelPx + tablePanelPx,
         })
+  // The library's own corner takes one more step than the rest: the forecast
+  // player is centred over the same bottom edge the attribution and the scale
+  // are anchored to, and on a narrow map the three meet. Only on a phone, where
+  // the bar is as wide as the map; a desktop map is wide enough that a centred
+  // bar and that corner never touch.
+  const mapCornerLift = mapCornerLiftPx(sheetLiftPx, !isDesktop && timelineAxis !== null)
   // What the map's camera must keep clear of the sheet. The RESTING lift, not
   // the live one above: a fit re-framed mid-drag would move the map under the
   // hand that is dragging it.
@@ -1909,17 +1916,22 @@ export default function App() {
           on the map as a sheet, so the column is what positions them; on
           desktop nothing is positioned and the class list is the one it was. */}
       <div className={`flex-1 flex flex-col overflow-hidden min-w-0${isDesktop ? '' : ' relative'}`}>
-        {/* `data-timeline` is read by map.css, which steps the scale bar over
-            the transport on narrow screens — but only while there is a
-            transport to step over. `--sheet-lift` is read there too: it is how
-            far MapLibre's own bottom-right controls rise to clear the sheet,
-            and the attribution in that corner is a licence term that cannot be
-            covered. The map area keeps the whole column, so the canvas runs on
-            behind the sheet and its ResizeObserver sees no change on a drag. */}
+        {/* `--map-corner-lift` is read by map.css: it is how far MapLibre's own
+            bottom-right controls rise off the container's bottom edge, and both
+            of them have a reason to. The attribution is a licence term that
+            cannot be covered by the phone sheet, and the scale bar reads against
+            the map rather than against the forecast player centred over the same
+            edge. One number for the corner rather than an offset per control,
+            derived beside every other anchor in `resultsSheet.ts`. The map area
+            keeps the whole column, so the canvas runs on behind the sheet and
+            its ResizeObserver sees no change on a drag. */}
         <div
           className="flex-1 relative"
-          data-timeline={timelineAxis !== null ? 'on' : undefined}
-          style={sheetLiftPx > 0 ? { '--sheet-lift': `${sheetLiftPx}px` } as React.CSSProperties : undefined}
+          style={
+            mapCornerLift > 0
+              ? ({ '--map-corner-lift': `${mapCornerLift}px` } as React.CSSProperties)
+              : undefined
+          }
         >
           {/* Above the drawer, not under it. The drawer now stays open for the
               length of a run, and an analysis with no visible progress is the

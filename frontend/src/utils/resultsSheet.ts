@@ -187,3 +187,25 @@ export function legendBottomPx(liftPx: number, timelineShown: boolean): number {
 export function transportBottomPx(liftPx: number): number {
   return liftPx + TRANSPORT_GAP_PX
 }
+
+/**
+ * Where MapLibre's own bottom-right corner goes: the attribution and the scale
+ * bar, published to `map.css` as `--map-corner-lift`.
+ *
+ * Those two are the library's, anchored to the container's bottom edge, and the
+ * transport is centred over the same edge — so on a narrow map they meet. The
+ * attribution is a licence term that cannot be covered, and the scale reads
+ * against the map rather than against a control, so the whole corner steps over
+ * the transport's band instead of the scale taking an offset of its own.
+ *
+ * The band rather than the bar's own gap, so the corner keeps the clearance the
+ * legend stack keeps on the other side of the map: one datum for the whole
+ * bottom cluster.
+ *
+ * `playerShown` is the transport being on screen AND the map being narrow enough
+ * for the two to meet. A wide map is left alone: the bar is centred there with
+ * the corner far outside it.
+ */
+export function mapCornerLiftPx(liftPx: number, playerShown: boolean): number {
+  return liftPx + (playerShown ? TRANSPORT_BAND_PX : 0)
+}
