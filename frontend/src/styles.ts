@@ -794,7 +794,18 @@ export const SEGMENT_FLUID_LIFTED = `${SEGMENT_FLUID_SHAPE} ${LIFTED_EDGE}`
  */
 export const BOUNDS_GRID =
   'grid grid-cols-[minmax(0,1fr)_4.25rem_4.25rem] items-center gap-x-2 gap-y-2'
-export const SEGMENT_ITEM = `${TAP.action} flex-1 px-2 py-0.5 text-xs transition-colors ${FOCUS_RING}`
+/**
+ * One half of a segmented control: the shape, and the inset the panel's own
+ * segments take.
+ *
+ * The two are split because the map timeline's halves need a wider inset and
+ * nothing else about them differs (`TRANSPORT_AXIS_ITEM` below). Two `px-*`
+ * utilities in one class list would resolve by stylesheet order rather than by
+ * intent, so the inset is part of the recipe rather than something a call site
+ * adds.
+ */
+const SEGMENT_ITEM_SHAPE = `${TAP.action} flex-1 py-0.5 text-xs transition-colors ${FOCUS_RING}`
+export const SEGMENT_ITEM = `${SEGMENT_ITEM_SHAPE} px-2`
 /** Between two halves, never before the first. */
 export const SEGMENT_DIVIDER = 'border-l border-slate-500'
 
@@ -1279,6 +1290,26 @@ export const SLIDER_IDLE = 'text-slate-400'
  * what the analysis progress bar already is.
  */
 export const SCRUBBER_TRACK = `h-2 ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.pill}`
+
+/**
+ * The timeline's axis halves: Radar beside the metric the report ranks by.
+ *
+ * The one segment whose labels this file does not choose. The right half is a
+ * metric noun composed by `metrics.ts` — the longest of them are
+ * "Precipitation" and "Temperature" — where every other segment in the app
+ * carries a word picked to fit. So it takes one step more horizontal inset than
+ * `SEGMENT_ITEM`: the bar sits outside the panel's fixed column and its halves
+ * are sized by their own content, `flex-1` gives each a zero flex basis so the
+ * width comes out of the container's intrinsic size and lands on a whole pixel,
+ * and `SEGMENT_FLUID` clips whatever the rounding leaves outside. The extra
+ * inset is the slack that keeps a long noun inside the clip at both
+ * breakpoints; at `SEGMENT_ITEM`'s inset the longest ran into the edge of its
+ * own half.
+ *
+ * Only the inset differs, and `styles.test.ts` asserts that, so the bar cannot
+ * become a second kind of segment.
+ */
+export const TRANSPORT_AXIS_ITEM = `${SEGMENT_ITEM_SHAPE} px-3`
 
 /**
  * The results grid's two cell insets, which had been spelled out ten times

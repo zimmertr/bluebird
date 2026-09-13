@@ -7,10 +7,10 @@ import {
   SEGMENT_DIVIDER,
   SEGMENT_FLUID,
   SEGMENT_IDLE,
-  SEGMENT_ITEM,
   SURFACE_FLOATING,
   TAP,
   TEXT,
+  TRANSPORT_AXIS_ITEM,
 } from '../styles'
 import { transportBottomPx } from '../utils/resultsSheet'
 import type { TimelineAxis } from '../utils/timeline'
@@ -162,7 +162,7 @@ export default function TimelineTransport({
                 key={option}
                 onClick={() => onAxisChange(option)}
                 aria-pressed={axis === option}
-                className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
+                className={`${TRANSPORT_AXIS_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
                   axis === option ? ACCENT.fill : SEGMENT_IDLE
                 }`}
               >

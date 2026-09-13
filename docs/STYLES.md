@@ -110,6 +110,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `TAP.height` | Height-only tap target for already-laid-out content |
 | `TAP.grip` | Full-width drag handle: 24px height (AA floor, not 44) |
 | `CONTROL_W` | Single stacked panel control width: 144px (w-36) |
+| `MAP_BOX_W` | Width of every floating box under the Layers button: the popover and both legends, 192px (w-48), governed by the grid legend's longest row |
 | `BOUNDS_GRID` | Forecast bounds grid layout with label + two boxes |
 
 **Map timeline**
@@ -118,6 +119,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 |---|---|
 | `SCRUBBER` | The timeline's `<input type="range">`: suppresses the platform slider on every engine that draws one, and draws the thumb |
 | `SCRUBBER_TRACK` | The rail behind it, on the same recessed surface as every other well |
+| `TRANSPORT_AXIS_ITEM` | The axis switch's halves: `SEGMENT_ITEM` with one step more inset, because the right half carries a ranked metric's noun rather than a word the app chose |
 
 **Layers**
 

@@ -37,6 +37,7 @@ import {
   SELECT_W_AGGREGATE,
   SPINNER,
   STATUS,
+  TRANSPORT_AXIS_ITEM,
   LIFTED_EDGE,
   RECESSED_EDGE,
   RECESSED_FILL,
@@ -610,6 +611,19 @@ describe('shared recipes', () => {
     expect(SCRUBBER_TRACK).toContain(RECESSED_FILL)
     expect(SCRUBBER_TRACK).toContain(RECESSED_EDGE)
     expect(SCRUBBER_TRACK).toContain(RADIUS.pill)
+  })
+
+  // The timeline's axis halves are the one segment whose labels the design
+  // system does not choose: the right one is the ranked metric's noun, and the
+  // longest of them ran into the edge of its own half at the panel's inset.
+  // One step more, and only that: everything else is the same half, so the bar
+  // cannot become a second kind of segment.
+  it('gives the timeline axis halves room for a metric noun', () => {
+    expect(TRANSPORT_AXIS_ITEM).toMatch(/(^|\s)px-3(\s|$)/)
+    expect(SEGMENT_ITEM).toMatch(/(^|\s)px-2(\s|$)/)
+    expect(TRANSPORT_AXIS_ITEM.replace('px-3', 'px-2')).toBe(SEGMENT_ITEM)
+    // And the bar wears it, or the role is a number nothing reads.
+    expect(sources['./components/TimelineTransport.tsx']).toContain('TRANSPORT_AXIS_ITEM')
   })
 
   // The segmented control had been built twice from scratch and matched only by
