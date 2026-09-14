@@ -37,6 +37,8 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 |---|---|
 | `SURFACE_CARD` | Opaque cards above a scrim: dialogs, analysis overlay |
 | `SURFACE_FLOATING` | Boxes floating over the map: search field, legends, chart tooltip |
+| `SURFACE_POPOVER` | The map's Layers popover: the floating box that is a menu rather than a key, lifted off the legends by one step of fill and a heavier shadow |
+| `SURFACE_SHEET` | The results on a phone, standing on the map's bottom edge: the docked panel's fill, the map's floating edge, the surface radius on the top corners only |
 | `SURFACE_GROUP` | Bordered region grouping controls: the calendar |
 | `SURFACE_GROUP_BLEED` | Cancels a well's inset so its contents sit on the panel's control column |
 
@@ -63,6 +65,8 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `CHOICE_INPUT` | The box itself inside a choice row |
 | `SEGMENT` | Geometry of a panel segmented control (fixed to `CONTROL_W`) |
 | `SEGMENT_FLUID` | Segmented control outside the panel column, sized by content |
+| `SEGMENT_FLUID_LIFTED` | The same segment on `SURFACE_POPOVER`, wearing the edge that surface needs |
+| `LIFTED_EDGE` | A well's boundary on `SURFACE_POPOVER`: slate-400, since slate-500 clears 3:1 only against the panel |
 | `SEGMENT_IDLE` | Unchosen half of segmented control |
 | `SEGMENT_ITEM` | Individual segment half with padding and transitions |
 | `CUE` | Unboxed status line: commit-needed messages |
@@ -99,6 +103,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `NOTICE.error` | Boxed error message |
 | `NOTICE.info` | Boxed info message |
 | `NOTICE_DISMISS` | The X that dismisses one footer message; hidden until its row is hovered, always visible on touch |
+| `NOTICE_DIVIDER` | The rule between two messages in one notice box: the box's own border tint, 6px clear on each side, and no rule at all under a lone message |
 
 **Spacing and sizing**
 
@@ -112,6 +117,8 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `TAP.height` | Height-only tap target for already-laid-out content |
 | `TAP.grip` | Full-width drag handle: 24px height (AA floor, not 44) |
 | `CONTROL_W` | Single stacked panel control width: 144px (w-36) |
+| `MAP_BOX_W` | Width of every floating box under the Layers button: the popover and both legends, 192px (w-48), governed by the grid legend's longest row |
+| `MAP_EDGE` | How far anything floating on the map stands off its edge: 12px, published once as `--map-edge-inset` on the map wrapper and read by the button column, the legend stack and MapLibre's own control stack |
 | `BOUNDS_GRID` | Forecast bounds grid layout with label + two boxes |
 
 **Map timeline**
@@ -120,12 +127,15 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 |---|---|
 | `SCRUBBER` | The timeline's `<input type="range">`: suppresses the platform slider on every engine that draws one, and draws the thumb |
 | `SCRUBBER_TRACK` | The rail behind it, on the same recessed surface as every other well |
+| `TRANSPORT_AXIS_ITEM` | The axis switch's halves: `SEGMENT_ITEM` with one step more inset, because the right half carries a ranked metric's noun rather than a word the app chose |
 
 **Layers**
 
 | Role | Purpose |
 |---|---|
 | `LAYER.base` | Map chrome, sticky header, docked panels |
+| `LAYER.sheet` | The phone results sheet: over the map chrome it covers, under the drawer's scrim |
+| `LAYER.mapControls` | The map's top-left cluster and what it opens: over the sheet and the map chrome the Layers popover hangs across |
 | `LAYER.overlay` | Analysis overlay card |
 | `LAYER.scrim` | Scrim behind mobile drawer and preview banner |
 | `LAYER.drawer` | Mobile drawer itself |
@@ -168,6 +178,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | No component sizes a tap target | `styles.test.ts` | Ban `touch:` utilities in component sources |
 | No component sizes radio/checkbox | `styles.test.ts` | Ban `accent-sky-500` duplication |
 | No component re-widths a segment | `styles.test.ts` | Check for `w-*` inside `SEGMENT` composition |
+| The map's edges are one inset | `styles.test.ts` | Ban a top or left inset at the map's chrome, in `App.tsx` and `map.css` alike |
 | No component dims a placeholder | `styles.test.ts` | Ban placeholder utilities below AA contrast |
 | Every radio/checkbox uses the shared recipe | `styles.test.ts` | Check `CHOICE_INPUT` composition |
 | Every focus-able control has focus ring | `styles.test.ts` | List per control type |
@@ -205,6 +216,19 @@ The panel is 360px on desktop (100vw − 2rem capped at 360 on phones).
 
 **Binding condition:** a 360px phone with English copy. If copy reaches ~47 chars without wrapping, it fits one line.
 
+**No indent:** the messages under the Analyze button are stacked rows
+separated by a 1px rule (`NOTICE_DIVIDER`), never a bulleted list. The
+budget above is measured with the whole text column, and a list indent
+plus its marker take 16px of it — enough to wrap a line that fit on its
+own before a second message joined it.
+
+**The dismiss X costs the column 20px, not 44:** on a coarse pointer the
+target is 44px and the disc is 20, and the difference reaches back over
+the tail of the text (`touch:-ml-6` on `NOTICE_DISMISS.button`) rather
+than out of the column. Nothing moves on screen. Measured at 402px with
+the panel at 360: the column is 281px, where the longest commit cue
+("A new destination type requires a new analysis.") needs 267.3px.
+
 **Line allowance:** messages in the panel body hold to one line. The area
 below the Analyze button — blockers, commit cues, refusals, provider
 errors, and the warnings that qualify a report — may run to two lines,
@@ -213,7 +237,9 @@ and a truncated reason is worse than a second line.
 
 ### Results bar fold point
 
-The results bar is one line when its container is 896px or wider, and exactly two lines below that: the title row (ranking summary, window, collapse chevron) and the actions row (mode switch, Columns, Download CSV, Open-Meteo.com). It never stacks further.
+The results bar is one line when its container is 896px or wider, and two lines below that: the title row (ranking summary, window, collapse chevron) and the actions row (mode switch, Columns, Download CSV, Open-Meteo.com). The column never stacks further, but the actions row itself wraps on a narrow phone: measured at 402px on a coarse pointer, the mode switch takes 136px of the 378px available and the three links need 232px more with their gaps, so the last of them folds under. That makes the bar 102.5px tall there, which `SHEET_HEADER_PX` in `frontend/src/utils/resultsSheet.ts` mirrors — re-measure both together.
+
+The three links read at `TEXT.control`, the size of every other control in the app. They are buttons the reader presses; the micro step is for text that is present but never first.
 
 The mode switch wears `SEGMENT_FLUID`, not `SEGMENT`: the panel's segment role bakes in the sidebar's 144px column, which three icon-plus-label halves cannot fit — that mismatch is how the switch once shipped clipped by its own `overflow-hidden`.
 

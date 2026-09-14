@@ -156,6 +156,12 @@ again. Each is credited on its own legend, and each rides in the shared link.
 | **Smoke** | Smoke plumes at three densities, in grey | North America |
 | **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
 
+The list ends with one row that draws nothing: **Forecast player** switches the
+timeline bar at the bottom of the map on and off. It is on by default in a
+desktop-sized window and off on a phone, where the bar is a band across a map the
+report already stands on. It changes nothing about the ranking either, and once
+you have set it, it rides in the shared link like the four above.
+
 Clicking a perimeter opens NIFC's live map on that fire; clicking a plume says how
 dense it is, which satellite it was traced from, and over what hours. Where smoke
 sits over a fire — which is most of the time, since one causes the other — the
@@ -240,8 +246,11 @@ from drawing between summits.
 
 ### The timeline
 
-A bar appears at the bottom of the map whenever something on it spans time. Press
-play to run it, or drag the scrubber to a moment.
+A bar appears at the bottom of the map whenever something on it spans time, as
+long as **Forecast player** is switched on in the map's Layers list: it is on by
+default in a desktop-sized window and off on a phone. Press play to run it, or
+drag the scrubber to a moment. With it switched off the markers keep the window
+colors they are ranked on.
 
 It has up to two axes, and a switch to pick between them when both exist:
 
@@ -281,7 +290,9 @@ Everything on screen follows a filter change: the table, the map markers, the ch
 
 ### Viewing the results
 
-The results bar at the top of the report gives you three viewing modes. The report opens as a table; a desktop-sized window switches to Both when an analysis completes, and a mode you pick yourself sticks across visits. **Table** is the detailed breakdown you can sort, filter and download. **Chart** is a time series of the plotted destinations. In Both, the table's checkbox column is the series picker; in Chart alone, a legend under the plot lists every destination — click one to hide or show its line, or its × to remove it from the report, and scroll the legend when two rows cannot hold them all. Every destination gets its line color the moment it appears — searched places included, before any analysis — and keeps it for the whole session no matter how the list changes; the first destination of a session wears Bluebird Forecast blue. **Both** stacks them. Each view has a drag handle to trade height with the map, and in Both the divider between the two trades their share.
+The results bar at the top of the report gives you three viewing modes. The report opens as a table; a desktop-sized window switches to Both when an analysis completes, and a mode you pick yourself sticks across visits. **Table** is the detailed breakdown you can sort, filter and download. **Chart** is a time series of the plotted destinations. In Both, the table's checkbox column is the series picker; in Chart alone, a legend under the plot lists every destination — click one to hide or show its line, or its × to remove it from the report, and scroll the legend when two rows cannot hold them all. Every destination gets its line color the moment it appears — searched places included, before any analysis — and keeps it for the whole session no matter how the list changes; the first destination of a session wears Bluebird Forecast blue. **Both** stacks them. Each view has a drag handle to trade height with the map, and in Both the divider between the two trades their share. Double-press a handle to put its panel back.
+
+On a phone the report is a sheet standing on the map rather than a panel beside it: the map keeps its full height and runs on behind the sheet, and the sheet opens low enough for the map's legends and its timeline to stay in view. Drag its handle up for more rows and the legends give way, as they do on any map too short for them.
 
 Every column is resizable: drag the divider at a header's right edge, or double-click it to fit the column to its longest value. Name opens wide enough for a 25-character name so more numbers fit on a phone — widen it whenever a longer name is cut off. Widths hold for the session.
 

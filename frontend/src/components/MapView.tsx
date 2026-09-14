@@ -37,6 +37,7 @@ import {
 import { POI_ACTION_ATTR, poiPopupHtml } from '../utils/poiPopup'
 import { Ring, widestPole } from '../utils/polylabel'
 import { popupWidth } from '../utils/popupChrome'
+import { useIsDesktop } from '../hooks/useIsDesktop'
 import {
   COARSE_TOLERANCE_DEG,
   fetchWildfires,
@@ -141,6 +142,13 @@ interface Props {
   onRemovePoi: (latitude: number, longitude: number) => void
   minElevationFt: number | null
   maxElevationFt: number | null
+  // How much of the container's bottom edge the results sheet stands on, which
+  // every framing move below has to leave empty (#249). On a phone the map
+  // keeps the whole column and the sheet is over it, so a fit measured into the
+  // container alone puts its subject under the sheet; 0 on desktop, where the
+  // results are docked beside the map and nothing is covered. It is the sheet's
+  // RESTING lift, so a drag never re-frames the camera under the reader's hand.
+  cameraPadBottomPx: number
 }
 
 // Build a filter for the basemap peak layer from the elevation knobs so the
@@ -181,6 +189,17 @@ const SEARCH_VIEW_MILES = 10
 // later panel drag isn't mistaken for it.
 const FIT_PADDING_PX = 60
 const REFIT_WINDOW_MS = 1_000
+
+// A framing call's inset, with the results sheet's share of the bottom edge
+// added to it (#249). Every `fitBounds` here takes the object form, which
+// MapLibre bakes into the computed centre and zoom and then drops — so the
+// padding never becomes camera state that a later fit would count twice.
+function framePadding(
+  inset: number,
+  bottomPx: number,
+): { top: number; right: number; bottom: number; left: number } {
+  return { top: inset, right: inset, bottom: inset + bottomPx, left: inset }
+}
 
 // How long the wildfire popup survives the cursor leaving its perimeter, so
 // the cursor can cross the gap and land on the NIFC link inside it. The popup
@@ -737,9 +756,13 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onRemovePoi,
       minElevationFt,
       maxElevationFt,
+      cameraPadBottomPx,
     },
     ref,
   ) => {
+    // The same predicate the results sheet uses, so the map's bottom chrome and
+    // the thing it is standing clear of change shape at one width.
+    const isDesktop = useIsDesktop()
     const containerRef = useRef<HTMLDivElement>(null)
     const mapRef = useRef<maplibregl.Map | null>(null)
     const loadedRef = useRef(false)
@@ -779,6 +802,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // in the load effect and would otherwise close over an empty map. focusResult
     // reads the live prop directly (its imperative handle re-runs every render).
     const fireWarningsRef = useRef(fireWarnings)
+    // The sheet's share of the bottom edge, for the two framing calls that live
+    // inside the mount effect — the resize refit and the opening frame — which
+    // would otherwise hold the first render's value for the session. The
+    // imperative handle re-runs every render and reads the prop directly.
+    const cameraPadBottomRef = useRef(cameraPadBottomPx)
     // The same once-registered-handler problem for draw mode and the POI
     // popup: the click handlers below are installed on map load and would
     // otherwise close over the first render's values forever.
@@ -848,7 +876,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
         const framed = pointsWithinView(
           pts.map((p) => map.project(p)),
           canvas.clientWidth,
-          canvas.clientHeight,
+          // The canvas the reader can see, which on a phone stops at the
+          // sheet's top edge: a vertex behind the sheet is off screen as far as
+          // this question is concerned, or the move that would reveal it is
+          // skipped.
+          canvas.clientHeight - cameraPadBottomPx,
           FIT_PADDING_PX,
         )
         if (framed) return
@@ -857,7 +889,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
           new maplibregl.LngLatBounds(pts[0], pts[0]),
         )
         cameraCommittedRef.current = true
-        map.fitBounds(bounds, { padding: FIT_PADDING_PX, duration: 600, maxZoom: map.getZoom() })
+        map.fitBounds(bounds, {
+          padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx),
+          duration: 600,
+          maxZoom: map.getZoom(),
+        })
       },
       // Snapshot the current ring as a GeoPolygon. The points stay editable —
       // the user iterates by dragging vertices and clicking Analyze again.
@@ -887,7 +923,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
           pendingSearchRef.current = place
           return
         }
-        map.fitBounds(boundsAround(place, SEARCH_VIEW_MILES), { padding: 40, duration: 1500 })
+        map.fitBounds(boundsAround(place, SEARCH_VIEW_MILES), {
+          padding: framePadding(40, cameraPadBottomPx),
+          duration: 1500,
+        })
       },
       // Frame a pasted custom CSV list whole. Deferred like a pre-load search
       // when the map isn't ready — the load handler folds the points into its
@@ -904,7 +943,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
         refitPointsRef.current = points
         if (refitTimerRef.current) clearTimeout(refitTimerRef.current)
         refitTimerRef.current = setTimeout(() => (refitPointsRef.current = null), REFIT_WINDOW_MS)
-        map.fitBounds(bounds, { padding: FIT_PADDING_PX, duration: 1500 })
+        map.fitBounds(bounds, {
+          padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx),
+          duration: 1500,
+        })
       },
       // Center on a result (clicked from its rank in the table) and open the
       // same popup a marker click gives. Rank is the analyzed order the markers
@@ -914,7 +956,18 @@ const MapView = forwardRef<MapViewHandle, Props>(
         if (!map || !loadedRef.current) return
         cameraCommittedRef.current = true
         const center: [number, number] = [result.longitude, result.latitude]
-        map.flyTo({ center, zoom: Math.max(map.getZoom(), 10), duration: 800 })
+        map.flyTo({
+          center,
+          zoom: Math.max(map.getZoom(), 10),
+          duration: 800,
+          // The one framing call that centres rather than fits, so it clears
+          // the sheet with `offset` instead of `padding`: a padding handed to
+          // `flyTo` is interpolated onto the transform and STAYS there, and the
+          // next `fitBounds` would then count it a second time on top of its
+          // own. Half the sheet's height puts the result in the middle of the
+          // map the reader can see.
+          offset: [0, -cameraPadBottomPx / 2],
+        })
         closeAllPopups()
         resultPopupRef.current = new maplibregl.Popup(popupOptions(map))
           .setLngLat(center)
@@ -948,6 +1001,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
         style: STYLE,
         center: [-120.5, 47.5],
         zoom: 7,
+        // The library adds its own attribution unless told not to, and the
+        // only way to decide `compact` is to construct the control. The effect
+        // below does, at the app's own breakpoint rather than the library's
+        // 640px one.
+        attributionControl: false,
       })
       mapRef.current = map
       // Shift is the pinning modifier for popups (isPinning below), and
@@ -966,12 +1024,14 @@ const MapView = forwardRef<MapViewHandle, Props>(
         new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }),
         'top-right',
       )
-      // Bottom-right, beside the attribution. Bottom-left was tried and is
-      // worse: the attribution's box grows leftward as the map narrows until it
-      // reaches that corner too, so the scale only swapped which licence-term
-      // neighbour it collided with. Where it goes when it cannot fit beside the
-      // timeline is a CSS question, answered in map.css.
-      map.addControl(new maplibregl.ScaleControl(), 'bottom-right')
+      // A corner each, which is what lets both sit in the one band the map's
+      // bottom chrome reserves (`TRANSPORT_GAP_PX` in `utils/resultsSheet.ts`)
+      // rather than stacking into two. The scale takes the left, under the
+      // legend stack; the attribution takes the right, where the library puts
+      // it by default and where the OpenStreetMap guideline expects it. They
+      // shared the right corner before, the scale floating above the licence
+      // line, which made the pair as tall as both together.
+      map.addControl(new maplibregl.ScaleControl(), 'bottom-left')
 
       // Keep the canvas in sync with its container. MapLibre only tracks window
       // resizes, but our container also changes size when the results panel
@@ -984,7 +1044,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
         const points = refitPointsRef.current
         if (!points) return
         const bounds = boundsForPoints(points, SEARCH_VIEW_MILES)
-        if (bounds) map.fitBounds(bounds, { padding: FIT_PADDING_PX, duration: 1500 })
+        if (bounds) {
+          map.fitBounds(bounds, {
+            padding: framePadding(FIT_PADDING_PX, cameraPadBottomRef.current),
+            duration: 1500,
+          })
+        }
       })
       resizeObserver.observe(containerRef.current)
 
@@ -1022,11 +1087,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
           // Pull back one zoom level from the tight fit so the whole area
           // clears the viewport with margin — a snug fit can clip vertices
           // behind the controls drawer or browser chrome on small screens.
-          const camera = map.cameraForBounds(bounds, { padding: 60 })
+          const pad = framePadding(60, cameraPadBottomRef.current)
+          const camera = map.cameraForBounds(bounds, { padding: pad })
           if (camera?.zoom !== undefined) {
             map.jumpTo({ center: camera.center, zoom: camera.zoom - 1 })
           } else {
-            map.fitBounds(bounds, { padding: 60, duration: 0 })
+            map.fitBounds(bounds, { padding: pad, duration: 0 })
           }
         }
 
@@ -1816,7 +1882,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         }
         if (pendingSearchRef.current) {
           map.fitBounds(boundsAround(pendingSearchRef.current, SEARCH_VIEW_MILES), {
-            padding: 40,
+            padding: framePadding(40, cameraPadBottomRef.current),
             duration: 1500,
           })
           pendingSearchRef.current = null
@@ -1839,6 +1905,39 @@ const MapView = forwardRef<MapViewHandle, Props>(
         mapRef.current = null
       }
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // The attribution, collapsed behind the library's own (i) on a phone and
+    // spelled out at a desk. Both are what the OpenStreetMap attribution
+    // guideline allows, and which one a width gets is the sheet's own
+    // breakpoint rather than the library's 640px: between the two the map is
+    // wide enough for the line but the layout is the phone's, where the band
+    // this sits in is the one the results sheet and the forecast player leave.
+    //
+    // Re-added rather than updated, because `compact` is read once when the
+    // control is constructed.
+    useEffect(() => {
+      const map = mapRef.current
+      if (!map) return
+      // The library's own defaults, with only `compact` decided here: its
+      // option object also carries the MapLibre credit, and constructing one
+      // with a bare `{compact}` would drop that credit rather than restate it.
+      const { options } = new maplibregl.AttributionControl()
+      const control = new maplibregl.AttributionControl({ ...options, compact: !isDesktop })
+      map.addControl(control, 'bottom-right')
+      // The library adds a compact attribution OPEN and folds it on the first
+      // drag (maplibre-gl 6.8, `_updateCompact` and `_updateCompactMinimize`
+      // in attribution_control.ts), so until the reader moved the map the
+      // whole licence line ran across the band the (i) exists to keep small.
+      // Fold it on add. This is the library's own folded state: the class is
+      // the one its toggle removes, and `open` stays set as its toggle leaves
+      // it, so the (i) opens and closes it exactly as before.
+      map.getContainer()
+        .querySelector('.maplibregl-ctrl-attrib.maplibregl-compact-show')
+        ?.classList.remove('maplibregl-compact-show')
+      return () => {
+        if (mapRef.current === map) map.removeControl(control)
+      }
+    }, [isDesktop])
 
     // Markers, and the hour they are colored for. `playbackIndex` joins the
     // deps because a scrub is a re-render of the same rows at a different hour:
@@ -1908,6 +2007,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       fireWarningsRef.current = fireWarnings
     }, [fireWarnings])
+
+    useEffect(() => {
+      cameraPadBottomRef.current = cameraPadBottomPx
+    }, [cameraPadBottomPx])
 
     // Same contract for the POI handler's inputs, which are likewise read by
     // listeners registered once on map load.

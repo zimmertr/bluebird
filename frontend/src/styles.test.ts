@@ -1,3 +1,7 @@
+// Vitest runs on node; the project ships no node types, and this is the one
+// place in src/ that reads a file, so the suppression stays local to it.
+// @ts-expect-error node builtin, untyped in this project
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   ACCENT,
@@ -25,12 +29,14 @@ import {
   ICON_BUTTON,
   NOTICE,
   NOTICE_DISMISS,
+  NOTICE_DIVIDER,
   SCRUBBER,
   SCRUBBER_TRACK,
   SLIDER_OVERLAY,
   SLIDER_WORDMARK,
   SEGMENT,
   SEGMENT_FLUID,
+  SEGMENT_FLUID_LIFTED,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
   DISABLED,
@@ -38,16 +44,24 @@ import {
   SELECT_W_AGGREGATE,
   SPINNER,
   STATUS,
+  TRANSPORT_AXIS_ITEM,
+  LIFTED_EDGE,
   RECESSED_EDGE,
   RECESSED_FILL,
   SURFACE_GROUP,
   SURFACE_GROUP_BLEED,
   LINK,
   LINK_ACTION,
+  MAP_BOX_W,
+  MICRO_PX,
+  MICRO_SIZE,
+  MAP_EDGE,
   PROSE,
   RADIUS,
   SURFACE_CARD,
   SURFACE_FLOATING,
+  SURFACE_POPOVER,
+  SURFACE_SHEET,
   TAP,
   TEXT,
 } from './styles'
@@ -57,6 +71,11 @@ import * as STYLES from './styles'
 // work on index.css: vitest stubs CSS imports to an empty string.)
 import controlPanelSource from './components/ControlPanel.tsx?raw'
 import appSource from './App.tsx?raw'
+// The one stylesheet with a decision in it: the vendor's own controls have no
+// call site to hand a role to, so what they take is written there. Read off
+// the disk rather than imported — Vitest stubs a CSS import, `?raw` included,
+// to an empty string.
+const mapCss: string = readFileSync(new URL('./map.css', import.meta.url), 'utf8')
 
 // The arbitrary branch cannot carry a trailing \b: `text-[10px]` ends in `]`, a
 // non-word character, so a boundary there would require the *next* character to
@@ -541,13 +560,34 @@ describe('shared recipes', () => {
   // it belongs rather than pick a number.
   it('orders the stacking layers the way their names read', () => {
     const depth = (v: string) => Number(v.replace(/^z-\[?|\]$/g, ''))
-    const stack = [LAYER.base, LAYER.overlay, LAYER.scrim, LAYER.drawer, LAYER.popover, LAYER.modal]
+    const stack = [
+      LAYER.base,
+      LAYER.sheet,
+      LAYER.mapControls,
+      LAYER.overlay,
+      LAYER.scrim,
+      LAYER.drawer,
+      LAYER.popover,
+      LAYER.modal,
+    ]
     const depths = stack.map(depth)
     expect(depths).toEqual([...depths].sort((a, b) => a - b))
     expect(new Set(depths).size).toBe(depths.length)
     // The two that caused the bug, stated outright rather than left to the sort.
     expect(depth(LAYER.popover)).toBeGreaterThan(depth(LAYER.drawer))
     expect(depth(LAYER.modal)).toBeGreaterThan(depth(LAYER.popover))
+    // The sheet covers map chrome and is covered by the drawer's scrim: it sits
+    // on the map, not in front of the app.
+    expect(depth(LAYER.sheet)).toBeGreaterThan(depth(LAYER.base))
+    expect(depth(LAYER.sheet)).toBeLessThan(depth(LAYER.scrim))
+    // The Layers popover hangs down across the timeline, the legends and the
+    // sheet, so its cluster clears all three — and still stops below the
+    // overlay an analysis puts over the whole map.
+    expect(depth(LAYER.mapControls)).toBeGreaterThan(depth(LAYER.sheet))
+    expect(depth(LAYER.mapControls)).toBeLessThan(depth(LAYER.overlay))
+    // A stacking context orders only its own children, so the layer is useless
+    // unless the cluster itself wears it.
+    expect(appSource).toContain('LAYER.mapControls')
   })
 
   // The map timeline's scrubber (#121). A real range input arrives knowing
@@ -594,6 +634,19 @@ describe('shared recipes', () => {
     expect(SCRUBBER_TRACK).toContain(RECESSED_FILL)
     expect(SCRUBBER_TRACK).toContain(RECESSED_EDGE)
     expect(SCRUBBER_TRACK).toContain(RADIUS.pill)
+  })
+
+  // The timeline's axis halves are the one segment whose labels the design
+  // system does not choose: the right one is the ranked metric's noun, and the
+  // longest of them read as too wide for the half at the panel's inset. One
+  // step more, and only that: everything else is the same half, so the bar
+  // cannot become a second kind of segment.
+  it('gives the timeline axis halves room for a metric noun', () => {
+    expect(TRANSPORT_AXIS_ITEM).toMatch(/(^|\s)px-3(\s|$)/)
+    expect(SEGMENT_ITEM).toMatch(/(^|\s)px-2(\s|$)/)
+    expect(TRANSPORT_AXIS_ITEM.replace('px-3', 'px-2')).toBe(SEGMENT_ITEM)
+    // And the bar wears it, or the role is a number nothing reads.
+    expect(sources['./components/TimelineTransport.tsx']).toContain('TRANSPORT_AXIS_ITEM')
   })
 
   // The segmented control had been built twice from scratch and matched only by
@@ -848,6 +901,75 @@ describe('shared recipes', () => {
     expect(FIELD).toContain(RADIUS.control)
   })
 
+  // The phone results sheet (#249). It is the docked panel's own fill so the
+  // results do not change colour with the breakpoint, it takes the map's
+  // floating edge because it now stands on the map, and it rounds the surface
+  // step on its top corners only — the bottom pair are off the screen. The
+  // radius is asserted against `RADIUS.surface` rather than spelled, so a move
+  // on that scale carries the sheet with it. (Composed from the scale rather
+  // than quoted: a `rounded-t-*` literal in this file would emit that CSS.)
+  it('builds the phone sheet from the panel fill and the map edge', () => {
+    expect(SURFACE_SHEET).toContain('bg-slate-800')
+    expect(SURFACE_SHEET).toContain('border-slate-600')
+    expect(SURFACE_SHEET).toContain(RADIUS.surface.replace('rounded', 'rounded-t'))
+    // The header bar inside is a square block, so the corners only exist while
+    // the sheet clips them.
+    expect(SURFACE_SHEET).toContain('overflow-hidden')
+    // Downward shadows have nothing to fall on under a bottom sheet.
+    expect(SURFACE_SHEET).not.toMatch(/\bshadow-/)
+  })
+
+  // The three boxes in the map's left column are one width: the Layers popover
+  // and the two legends below it. The popover shipped a step narrower than the
+  // legends it hangs into, which read as a ragged edge rather than as three
+  // boxes, so the width is a role and every one of them wears it.
+  it('gives every box under the Layers button one width', () => {
+    expect(MAP_BOX_W).toBe('w-48')
+    // The call sites are the two legends and the popover. A width spelled
+    // beside the role could not even be relied on to win: two width utilities
+    // resolve by stylesheet order rather than by class order.
+    const rides = appSource.match(/\$\{MAP_BOX_W\}[^`]*/g) ?? []
+    expect(rides).toHaveLength(3)
+    expect(rides.filter((r) => /(^|\s)w-\S+/.test(r))).toEqual([])
+    // And nothing in the file picks its own width in the range one of these
+    // boxes would plausibly take. Written as a range rather than as a list of
+    // names so a step nobody thought of still fails, and with the leading
+    // guard so `max-w-*` is not read as a width of its own.
+    expect(appSource).not.toMatch(/(?<![-\w])w-(?:4\d|5\d)\b/)
+  })
+
+  // The Layers popover, separated from the legend boxes by elevation rather
+  // than by a heavier line: one slate step of fill and a heavier shadow, with
+  // the border the legends' and unchanged. It has to be spelled
+  // as its own recipe rather than composed onto the floating one, because two
+  // background utilities resolve by stylesheet order and the lighter fill would
+  // not reliably win.
+  it('lifts the Layers popover off the legends by elevation', () => {
+    expect(SURFACE_POPOVER).toContain('bg-slate-700/95')
+    expect(SURFACE_POPOVER).toContain('border-slate-600')
+    expect(SURFACE_POPOVER).toContain(RADIUS.surface)
+    // The shadow is what does the separating, so it must outrank the legends'.
+    expect(SURFACE_POPOVER).toContain('shadow-2xl')
+    expect(SURFACE_FLOATING).not.toContain('shadow-2xl')
+    expect(SURFACE_POPOVER).not.toContain(SURFACE_FLOATING)
+  })
+
+  // slate-500 carries the recessed boundary at 3.07:1 against the slate-800
+  // panel and only 2.17:1 against the popover's lighter fill, which would leave
+  // the segment and the coverage well without the outer half of their edge.
+  // slate-400 is 3.94:1 out and 7.0:1 against the slate-900 fill in, so both
+  // sides clear the 3:1 WCAG 1.4.11 asks of a component boundary.
+  it('re-derives the recessed edge for the lifted surface', () => {
+    expect(LIFTED_EDGE).toContain('border')
+    expect(LIFTED_EDGE).toContain('slate-400')
+    expect(LIFTED_EDGE).not.toBe(RECESSED_EDGE)
+    // Only the edge varies: shape stays the fluid segment's, so the two cannot
+    // drift into different controls.
+    expect(SEGMENT_FLUID_LIFTED).toContain(LIFTED_EDGE)
+    expect(SEGMENT_FLUID_LIFTED).not.toContain(RECESSED_EDGE)
+    expect(SEGMENT_FLUID_LIFTED.replace(LIFTED_EDGE, RECESSED_EDGE)).toBe(SEGMENT_FLUID)
+  })
+
   // Sky at rest means "this acts here". Anything that leaves for someone
   // else's site rests in slate and only reaches for sky on hover, which is what
   // keeps the accent meaning one thing.
@@ -855,6 +977,16 @@ describe('shared recipes', () => {
     expect(LINK_ACTION).toContain('text-sky-400')
     expect(LINK).not.toMatch(/(^|\s)text-sky-/)
     expect(LINK).toContain('hover:text-sky-400')
+  })
+
+  // The results bar's five links — Columns, Models, Removed, Download CSV, and
+  // the Open-Meteo credit beside them — are controls the reader presses, so they
+  // read at the size every other control in the app reads at. The micro step
+  // below is for text that is present but never first, and a 10px button in a
+  // bar of 12px text read as a footnote rather than as a control.
+  it('reads the results bar at the size of every other control', () => {
+    expect((appSource.match(/\$\{TEXT\.control\} \$\{LINK\}/g) ?? []).length).toBe(5)
+    expect(appSource).not.toMatch(/\$\{TEXT\.micro\}/)
   })
 
   // The map's Open-Meteo credit is a link *and* a 10px caption, so it wears
@@ -1130,14 +1262,86 @@ describe('status and notices', () => {
     expect(NOTICE_DISMISS.row).toContain('group/notice')
   })
 
-  // The row's lift is the binding between a message and its X — in a bulleted
-  // list the X alone does not say which message it belongs to. Hue-free like
+  // The row's lift is the binding between a message and its X — in a stack of
+  // messages the X alone does not say which one it belongs to. Hue-free like
   // the pill, and one step quieter than it, so the resting pill still reads
   // as the control on the lifted row.
   it('binds the X to its message with a hue-free lift', () => {
     expect(NOTICE_DISMISS.row).toContain('hover:bg-white/')
     expect(NOTICE_DISMISS.row).not.toMatch(/(^|\s)text-/)
     expect(NOTICE_DISMISS.row).toContain(RADIUS.control)
+  })
+
+  // The rule between two messages is the box's own border tint. A divider in
+  // any other shade would read as a second decision inside a box that has
+  // already made one, so the two are keyed alike and pinned to each other.
+  it('rules between messages in the tint the box is bordered in', () => {
+    const tones = Object.keys(NOTICE) as (keyof typeof NOTICE)[]
+    expect(tones).toHaveLength(3)
+    for (const tone of tones) {
+      const border = NOTICE[tone].split(' ').find((c) => /^border-[a-z]+-\d/.test(c))
+      expect(border, `${tone} must state a border to mirror`).toBeDefined()
+      expect(NOTICE_DIVIDER[tone].split(' ')).toContain(
+        (border as string).replace('border-', 'divide-'),
+      )
+    }
+  })
+
+  // The 6px each side of that rule is padding on the rows, because a gap would
+  // only ever fall BETWEEN rows and the rule is drawn at a row's top edge. The
+  // container then cancels what the first and last rows would add to the box,
+  // so a box holding one message is exactly as tall as it was.
+  it('clears the rule on both sides without growing a one-message box', () => {
+    for (const tone of Object.keys(NOTICE_DIVIDER) as (keyof typeof NOTICE)[]) {
+      expect(NOTICE_DIVIDER[tone]).toContain('divide-y')
+      expect(NOTICE_DIVIDER[tone]).toContain('-my-1.5')
+    }
+    expect(NOTICE_DISMISS.row).toContain('py-1.5')
+  })
+
+  // The message and its X are centred against each other. On a coarse pointer
+  // the button is 44px and the message is one line, so the text sits level with
+  // the disc rather than at the top of a target three times its height; the
+  // offset that used to pin the X to a wrapped message's first line is gone
+  // with the wrap it existed for.
+  it('sets the message level with the X it carries', () => {
+    expect(NOTICE_DISMISS.row).toContain('items-center')
+    expect(NOTICE_DISMISS.button).not.toContain('self-start')
+    // No UNPREFIXED negative margin: the one the button carries is the
+    // coarse-pointer overlay below, and a mouse must not inherit it.
+    expect(NOTICE_DISMISS.button).not.toMatch(/(^|\s)-m[trblxy]?-/)
+  })
+
+  // The 44px target and the 20px disc differ by 24px, and that difference used
+  // to be taken out of the message: a 257px column on a 360px panel, where the
+  // longest commit cue needs 267. The target reaches back over the tail of the
+  // text instead, which costs nothing because the text is not a target, and
+  // the disc does not move — the button's box still ends at the row's right
+  // edge. Only on a coarse pointer, where the target is 44px at all.
+  it('takes the touch target out of the text, not out of the column', () => {
+    const px = (recipe: string, cls: RegExp) => {
+      const step = recipe.match(cls)
+      return step ? Number(step[1]) * 4 : null
+    }
+    const target = px(TAP.action, /touch:min-w-(\d+)/)
+    const disc = px(NOTICE_DISMISS.pill, /(?<![-\w])w-(\d+)/)
+    const overlay = px(NOTICE_DISMISS.button, /touch:-ml-(\d+)/)
+    expect(target).toBe(44)
+    expect(disc).toBe(20)
+    expect(overlay).toBe((target as number) - (disc as number))
+    // The visible distance from the disc to the last word is the row's gap,
+    // which the overlay must not eat.
+    expect(NOTICE_DISMISS.row).toContain('gap-2')
+  })
+
+  // Every message in this app is written to fit one line at 360px, and that
+  // budget is measured with the full text column. A list indent and its marker
+  // take 16px of it, which is what made the first message wrap as soon as a
+  // second joined it. Spelled from parts: v4 scans this file as raw text and
+  // would emit the CSS for a marker class quoted here.
+  it('gives the messages the whole text column', () => {
+    expect(controlPanelSource).not.toContain(['list', 'disc'].join('-'))
+    expect(controlPanelSource).not.toContain(['<', 'ul'].join(''))
   })
 })
 
@@ -1159,6 +1363,90 @@ describe('the results table rank cell', () => {
     // which Tailwind would otherwise compile.
     const displayToggle = new RegExp(['group-hover', '(hidden|inline|block|flex)\\b'].join(':'))
     expect(source).not.toMatch(displayToggle)
+  })
+})
+
+// One inset for everything that stands off the map's edges, the app's chrome
+// and the library's alike.
+describe('the map edge inset', () => {
+  it('publishes one number and reads it everywhere', () => {
+    expect(MAP_EDGE.publish).toContain('[--map-edge-inset:0.75rem]')
+    for (const side of [MAP_EDGE.left, MAP_EDGE.top]) {
+      expect(side).toContain('var(--map-edge-inset)')
+      // The number is published, never repeated: a fallback here would be a
+      // second copy of it, and the two would drift.
+      expect(side).not.toMatch(/rem|px/)
+    }
+  })
+
+  // The map wrapper is what carries the property, so everything inside it —
+  // the app's floating chrome and MapLibre's own markup, which has no call
+  // site to hand a role to — inherits the same number.
+  it('is published on the map wrapper', () => {
+    expect(appSource).toContain('MAP_EDGE.publish')
+  })
+
+  // MapLibre's credit line is sized by map.css from a custom property, because
+  // the library builds that markup itself and there is no call site to hand
+  // `TEXT.micro` to. The number is the ramp's smallest step, spelled once as
+  // `MICRO_PX`; the class and the property are both pinned to it here so the
+  // stylesheet, which no test can read, cannot drift from the ramp.
+  it('publishes the credit size from the ramp', () => {
+    expect(MICRO_SIZE).toBe(`text-[${MICRO_PX}px]`)
+    expect(MAP_EDGE.publish).toContain(`[--map-credit-size:${MICRO_PX}px]`)
+  })
+
+  // The button column, the legend stack and the popover under them. The first
+  // two wear the role; the popover's offset parent IS the column, so it takes
+  // zero from the button it hangs under, which is the same edge. What none of
+  // them may do is spell an inset of its own — that is how the column came to
+  // sit 4px right of the legends. Written as alternation so no banned class
+  // appears verbatim: v4 scans this file as raw text.
+  // The library's top-right stack takes the same inset through `map.css`,
+  // which reads the property and spells no number of its own — the vendor's
+  // 10px is what put its buttons a step above the app's column opposite them.
+  it('is the one inset the vendor stack takes too', () => {
+    expect(mapCss).toContain('.maplibregl-ctrl-top-right .maplibregl-ctrl')
+    const rule = mapCss.slice(
+      mapCss.indexOf('.maplibregl-ctrl-top-right .maplibregl-ctrl'),
+    )
+    const body = rule.slice(rule.indexOf('{'), rule.indexOf('}'))
+    expect(body).toContain('var(--map-edge-inset)')
+    expect(body).not.toMatch(/\d+(?:px|rem)/)
+  })
+
+  it('leaves no top edge spelled at the app\'s own column', () => {
+    expect(appSource).toContain('${MAP_EDGE.top}')
+    expect(appSource).not.toMatch(/\btop-(?:3)\b/)
+  })
+
+  it('leaves no left edge spelled at a call site', () => {
+    expect(appSource).not.toMatch(/\bleft-(?:2|3)\b/)
+    expect(appSource).not.toMatch(/\bleft-\[/)
+    expect((appSource.match(/\$\{MAP_EDGE\.left\}/g) ?? []).length).toBe(2)
+  })
+})
+
+// The map's Layers popover: the one list in the app whose members have no
+// ranking between them.
+describe('the map layer rows', () => {
+  // Read out of the source rather than out of a render, for the reason every
+  // other check here is: Vitest has no DOM, and the order is a property of the
+  // literal the popover maps over.
+  const labels = (() => {
+    const block = appSource.match(/const MAP_LAYERS = \[[\s\S]*?\n {2}\]/)?.[0] ?? ''
+    return [...block.matchAll(/label: '([^']+)'/g)].map((m) => m[1])
+  })()
+
+  it('found every row', () => {
+    expect(labels).toHaveLength(5)
+  })
+
+  // Alphabetical, because nothing else orders these: no cost, no severity and
+  // no dependency separates one switch from another, so any other order is one
+  // the reader has to learn rather than one they can scan.
+  it('lists the layers in alphabetical order', () => {
+    expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)))
   })
 })
 

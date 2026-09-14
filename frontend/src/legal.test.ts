@@ -142,8 +142,12 @@ describe('the provider credits', () => {
   // "implemented in any reasonable manner", so it folded into the swatch's own
   // label; what has to survive a rewrite is that the link is on the map at all
   // and that it names NIFC.
+  //
+  // The label is matched as the legend renders it, sentence case included: the
+  // capitalised spelling this used to look for survived only in a comment
+  // beside the row, so the credit itself could have gone without failing.
   it('keep NIFC on the map beside the fire overlay', () => {
-    expect(app).toMatch(/Active Wildfire/)
+    expect(app).toMatch(/Active wildfire/)
     expect(app).toMatch(/https:\/\/data-nifc\.opendata\.arcgis\.com/)
   })
 
