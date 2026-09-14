@@ -676,7 +676,12 @@ export default function ControlPanel({
       ? [
           {
             key: `compare:gaps:${compareGaps}:${familyOf(sortBy)}`,
-            text: `${compareGaps} of ${compareCount} models carry no ${NOUN[
+            // Says the problem rather than the symptom: most of the models
+            // picked do not forecast this at all, which is why the chart drew
+            // fewer lines than there are chips. Counted the positive way
+            // round, because the number a reader can act on is how many
+            // answers they are actually getting.
+            text: `Only ${compareCount - compareGaps} of ${compareCount} models forecast ${NOUN[
               familyOf(sortBy)
             ].toLowerCase()}.`,
             severity: 'warn' as const,
@@ -687,7 +692,12 @@ export default function ControlPanel({
       ? [
           {
             key: 'compare:aqi',
-            text: `Models cannot be compared on ${NOUN.aqi}.`,
+            // Not a failure, so it does not warn. Air quality comes from one
+            // source whatever model ranks the field, so every model would draw
+            // the same line and the app draws it once. Saying that the models
+            // share the data explains the single line without naming the
+            // source, which is an internal fact a reader cannot use.
+            text: 'Every model uses the same air quality data.',
             severity: 'info' as const,
           },
         ]

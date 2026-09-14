@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { PopoverBox, nextActiveIndex, nextToolbarIndex, optionDomId, popoverBox } from '../utils/listbox'
 import {
@@ -127,8 +127,14 @@ export default function ModelPicker({
   // The chips, left to right. Every selected model in the list's editorial
   // order, the ranking one included and highlighted rather than hidden.
   const chipIds = selectedIds(models, value, compared)
-  const chips = chipIds.map((id) => models.find((m) => m.id === id) ?? null)
   const removable = canRemove(value, compared)
+  // The chips in two groups, named for what each part does. `chipIds` leads
+  // with the ranking model (see `selectedIds`), so the split is positional and
+  // the tab order still runs straight down the two groups.
+  const CHIP_GROUPS: { heading: string; ids: string[] }[] = [
+    { heading: 'Ranking', ids: chipIds.slice(0, 1) },
+    { heading: 'Compared', ids: chipIds.slice(1) },
+  ]
 
   // Two passes, both before paint so neither is visible. The first asks for as
   // much room as the viewport can give, which lets the list lay out at its
@@ -316,6 +322,73 @@ export default function ModelPicker({
 
   const comparedCount = compared.filter((id) => id !== value).length
 
+  // One chip, by id. Lifted out of the JSX because the row is drawn twice now,
+  // once per group, and a chip must be the same object in both: same shape,
+  // same roving-tabindex arithmetic, same remove affordance.
+  function renderChip(id: string) {
+    const at = chipIds.indexOf(id)
+    const model = models.find((m) => m.id === id) ?? null
+
+    const label = model?.label ?? id
+    const isRanking = id === value
+    const canDrop = chipRemovable(value, compared, id)
+    return (
+      <span key={id} className={isRanking ? CHIP.active : CHIP.rest}>
+        <button
+          type="button"
+          ref={(el) => {
+            chipRefs.current[id] = el
+          }}
+          tabIndex={at === Math.min(chipFocus, chipIds.length - 1) ? 0 : -1}
+          onClick={() => rank(id)}
+          onFocus={() => setChipFocus(at)}
+          onKeyDown={(e) => onChipKeyDown(e, at, id)}
+          className={CHIP.label}
+        >
+          {label}
+        </button>
+        {/* Always drawn, and hidden with `invisible` rather than
+            dropped, so the slot keeps its width: a chip that lost
+            this box when the highlight reached it would resize
+            two chips per tap and shuffle the row under the
+            pointer that did it.
+
+            Out of the Tab order rather than out of the
+            accessibility tree while it can act: the chip row's own
+            Delete does this, so a second stop per chip would double
+            the presses a keyboard pays to cross the row, while a
+            screen reader still reaches and names the button. While
+            it cannot act it leaves the tree altogether, since a
+            slot held open for alignment is not a control. */}
+        <button
+          type="button"
+          tabIndex={-1}
+          disabled={!canDrop}
+          aria-hidden={canDrop ? undefined : 'true'}
+          aria-label={`Remove ${label}`}
+          onClick={() => removeChip(id, at)}
+          className={`${CHIP.remove} ${canDrop ? '' : 'invisible'}`}
+        >
+          {/* A drawn cross rather than the "×" character, which
+              centres on the font's maths where two lines in a
+              square viewBox centre by construction. */}
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            className="h-2.5 w-2.5"
+            aria-hidden="true"
+          >
+            <line x1="6" y1="6" x2="18" y2="18" />
+            <line x1="18" y1="6" x2="6" y2="18" />
+          </svg>
+        </button>
+      </span>
+    )
+                }
+
   return (
     <>
       <button
@@ -378,85 +451,39 @@ export default function ModelPicker({
             }}
             className={`${SURFACE_CARD} ${LAYER.popover} flex flex-col`}
           >
-            {/* Names the row under it, the way the list's own header below
-                names the columns under that one. Two blocks in one popover
-                need saying apart, and the same recipe for both is what makes
-                them read as two parts of one control rather than as a chip
-                row that happened to land above a list. */}
-            <div
-              className={`${TEXT.overline} flex-shrink-0 border-b border-slate-700 px-3 py-1.5`}
-            >
-              Selected models
-            </div>
-            {/* The selected set, and which of it ranks. A toolbar rather than a
-                second listbox: these are buttons that act, not options that
-                are chosen, and the one listbox below already owns the arrow
-                keys that walk a selection. */}
+            {/* The selected set, split into what each part DOES, under
+                headings of the same kind the list's own header below wears.
+                Two groups rather than one row of chips is the whole
+                explanation: the reader's model is under `Ranking` and the
+                others are under `Compared`, so the relationship is
+                structural instead of something inferred from a highlight
+                (TJ, 2026-09-14). Promoting a compared chip then shows itself
+                — the chip moves up into the other group.
+
+                `Compared` is drawn only when something is compared. A reader
+                with one model selected sees one heading and one chip, which
+                is the height the single header cost before.
+
+                One toolbar across both groups, not one each: the roving
+                tabindex walks `chipIds`, and that order now leads with the
+                ranking model, so the tab order and the reading order are the
+                same walk. A toolbar rather than a second listbox, because
+                these are buttons that act, not options that are chosen, and
+                the one listbox below already owns the arrow keys. */}
             <div
               role="toolbar"
-              className="flex flex-shrink-0 flex-wrap items-center gap-1.5 border-b border-slate-700 px-3 pb-2 pt-2"
+              className="flex flex-shrink-0 flex-col border-b border-slate-700"
             >
-              {chips.map((model, at) => {
-                const id = chipIds[at]
-                const label = model?.label ?? id
-                const isRanking = id === value
-                const canDrop = chipRemovable(value, compared, id)
-                return (
-                  <span key={id} className={isRanking ? CHIP.active : CHIP.rest}>
-                    <button
-                      type="button"
-                      ref={(el) => {
-                        chipRefs.current[id] = el
-                      }}
-                      tabIndex={at === Math.min(chipFocus, chipIds.length - 1) ? 0 : -1}
-                      onClick={() => rank(id)}
-                      onFocus={() => setChipFocus(at)}
-                      onKeyDown={(e) => onChipKeyDown(e, at, id)}
-                      className={CHIP.label}
-                    >
-                      {label}
-                    </button>
-                    {/* Always drawn, and hidden with `invisible` rather than
-                        dropped, so the slot keeps its width: a chip that lost
-                        this box when the highlight reached it would resize
-                        two chips per tap and shuffle the row under the
-                        pointer that did it.
-
-                        Out of the Tab order rather than out of the
-                        accessibility tree while it can act: the chip row's own
-                        Delete does this, so a second stop per chip would double
-                        the presses a keyboard pays to cross the row, while a
-                        screen reader still reaches and names the button. While
-                        it cannot act it leaves the tree altogether, since a
-                        slot held open for alignment is not a control. */}
-                    <button
-                      type="button"
-                      tabIndex={-1}
-                      disabled={!canDrop}
-                      aria-hidden={canDrop ? undefined : 'true'}
-                      aria-label={`Remove ${label}`}
-                      onClick={() => removeChip(id, at)}
-                      className={`${CHIP.remove} ${canDrop ? '' : 'invisible'}`}
-                    >
-                      {/* A drawn cross rather than the "×" character, which
-                          centres on the font's maths where two lines in a
-                          square viewBox centre by construction. */}
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        className="h-2.5 w-2.5"
-                        aria-hidden="true"
-                      >
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                      </svg>
-                    </button>
-                  </span>
-                )
-              })}
+              {CHIP_GROUPS.map(({ heading, ids }) =>
+                ids.length === 0 ? null : (
+                  <Fragment key={heading}>
+                    <div className={`${TEXT.overline} px-3 pb-1 pt-2`}>{heading}</div>
+                    <div className="flex flex-wrap items-center gap-1.5 px-3 pb-2">
+                      {ids.map(renderChip)}
+                    </div>
+                  </Fragment>
+                ),
+              )}
             </div>
             {/* Names the right-hand column once instead of eight times. The
                 figures are two bare numbers otherwise, and "3 km" beside a
