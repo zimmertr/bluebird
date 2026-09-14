@@ -4,7 +4,15 @@ import { DestinationResult, SortBy } from '../types'
 import { cellStyle, scaleFor } from '../utils/colors'
 import { FAMILY_KEYS, familyOf } from '../metrics'
 import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
-import { SortDir, SortKey, WILDFIRE_KEY, displayedColumns, ColDef } from '../utils/tableColumns'
+import {
+  SortDir,
+  SortKey,
+  MODEL_KEY,
+  WILDFIRE_KEY,
+  displayedColumns,
+  ColDef,
+} from '../utils/tableColumns'
+import type { ModelRow } from '../utils/modelCompare'
 import { autoFitWidth, dragWidth } from '../utils/columnResize'
 import {
   FIRE_UNAVAILABLE_NOTE,
@@ -397,6 +405,15 @@ export default function ResultsTable({
                 text
               ),
             )}
+          </td>
+        )
+      }
+      // Which model answered this row, when more than one did. Virtual like
+      // the wildfire column: the value rides beside the row rather than on it.
+      if (col.key === MODEL_KEY) {
+        return (
+          <td key={col.key} className={`${TABLE.cell} whitespace-nowrap`}>
+            {sized(col.key, (row as ModelRow).modelLabel ?? '—')}
           </td>
         )
       }

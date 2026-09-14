@@ -17,8 +17,10 @@ import { useChartSelection } from './hooks/useChartSelection'
 import { useModelCompare } from './hooks/useModelCompare'
 import { allocateColors } from './utils/chartColors'
 import {
+  ModelRow,
   compareAdded,
   drawnModelIds,
+  modelRowsFor,
   modelsWithoutMetric,
   pairKey,
 } from './utils/modelCompare'
@@ -172,7 +174,17 @@ import {
   recordRemoval,
   restorePlace,
 } from './utils/removals'
-import { SortDir, SortKey, WILDFIRE_COL, WILDFIRE_KEY, displayedColumns, visibleColumns } from './utils/tableColumns'
+import {
+  LEAD_KEYS,
+  MODEL_COL,
+  MODEL_KEY,
+  SortDir,
+  SortKey,
+  WILDFIRE_COL,
+  WILDFIRE_KEY,
+  displayedColumns,
+  visibleColumns,
+} from './utils/tableColumns'
 import { NAME_DEFAULT_PX } from './utils/columnResize'
 import { compareValues } from './utils/sortResults'
 import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
@@ -1417,14 +1429,6 @@ export default function App() {
   // a pasted list numbered 1..100 reads in order. See compareValues. The
   // wildfire column's key is virtual: its value is the warning's mileage, so a
   // clear row and an uncovered row are both null and land last either way.
-  const tableRows = useMemo(() => {
-    const value = (r: DestinationResult) =>
-      detailSort.key === WILDFIRE_KEY
-        ? (fire.warnings.get(fireKey(r.latitude, r.longitude))?.miles ?? null)
-        : r[detailSort.key]
-    return [...results].sort((a, b) => compareValues(value(a), value(b), detailSort.dir))
-  }, [results, detailSort, fire.warnings])
-  // All columns for the CSV export (includes all columns, not filtered by visibility).
   const csvColumns = useMemo(
     () => displayedColumns(pointSample, view.sortBy),
     [pointSample, view.sortBy],
@@ -1436,18 +1440,6 @@ export default function App() {
     if (columnVisibility !== null) return columnVisibility
     return new Set([...csvColumns.map((c) => c.key as string), WILDFIRE_KEY])
   }, [columnVisibility, csvColumns])
-  // Columns displayed in the table (filtered by visibility). The wildfire
-  // column is last, shown by default, and toggleable in the Columns picker
-  // like everything else (TJ, 2026-08-21, reversing the #256-era always-on
-  // rule). While shown, its cells — not the column — say where the check
-  // stands (ticking while it runs, answered when it has; ResultsTable owns
-  // that). The CSV keeps the stricter rule and carries the column only once
-  // the check answered AND the column is shown, because a file's columns
-  // must not disagree with the screen's.
-  const tableColumns = useMemo(() => {
-    const cols = visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys)
-    return effectiveVisibleKeys.has(WILDFIRE_KEY) ? [...cols, WILDFIRE_COL] : cols
-  }, [pointSample, view.sortBy, effectiveVisibleKeys])
 
   // × on a table row. Removing a searched place also deregisters it — else the
   // next analysis would simply rediscover it from the searched list. The
@@ -1897,6 +1889,21 @@ export default function App() {
   // the legend already read — not from `tableRows`, whose numbering follows a
   // detail-column sort that reorders the rows on screen without changing which
   // rows they are.
+  // Every DISPLAYED row as a point the comparison can fetch for. Wider than
+  // the charted set: the results table shows one row per model for everything
+  // on screen, so the numbers are bought for everything on screen. Keyed by
+  // `chartKey` like the charted ones, so one pair key serves both readers.
+  const comparePoints = useMemo(
+    () =>
+      results.map((r) => ({
+        key: chartKey(r),
+        latitude: r.latitude,
+        longitude: r.longitude,
+        elevationFt: r.elevation_ft,
+      })),
+    [results],
+  )
+
   const chartedDestinations = useMemo(() => {
     const rankByKey = new Map(results.map((r, i) => [chartKey(r), i + 1]))
     return chart.selectedRows
@@ -1981,6 +1988,7 @@ export default function App() {
   const compare = useModelCompare({
     enabled: chart.metric !== 'aqi',
     destinations: chartedDestinations,
+    rows: comparePoints,
     heldSeries: chartedSeries,
     analyzed,
     analysisSeq,
@@ -1991,6 +1999,60 @@ export default function App() {
     colors: chartedPairColors,
     times: chartTimes,
   })
+
+  // Whether the table shows one row per model. A single selected model is the
+  // report as it always was: every row would carry the same model name, which
+  // is a column that says nothing.
+  const comparingRows = compare.shown.length > 1
+
+  // Every displayed row under every model that answered, grouped by
+  // destination. `modelRowsFor` owns the rules; this only decides whether to
+  // ask, and hands it the ranking model first so its row leads each group.
+  const comparedTableRows = useMemo(() => {
+    if (!comparingRows) return null
+    return modelRowsFor(
+      results,
+      compare.shown.map((m) => ({ id: m.id, label: m.label })),
+      forecastModel,
+      compare.results,
+      chartKey,
+    )
+  }, [comparingRows, results, compare.shown, compare.results, forecastModel])
+
+  const tableRows = useMemo(() => {
+    const value = (r: DestinationResult) =>
+      detailSort.key === WILDFIRE_KEY
+        ? (fire.warnings.get(fireKey(r.latitude, r.longitude))?.miles ?? null)
+        : detailSort.key === MODEL_KEY
+          ? ((r as ModelRow).modelLabel ?? null)
+          : r[detailSort.key]
+    const base = comparedTableRows ?? results
+    return [...base].sort((a, b) => compareValues(value(a), value(b), detailSort.dir))
+  }, [results, comparedTableRows, detailSort, fire.warnings])
+  // All columns for the CSV export (includes all columns, not filtered by visibility).
+  // Columns displayed in the table (filtered by visibility). The wildfire
+  // column is last, shown by default, and toggleable in the Columns picker
+  // like everything else (TJ, 2026-08-21, reversing the #256-era always-on
+  // rule). While shown, its cells — not the column — say where the check
+  // stands (ticking while it runs, answered when it has; ResultsTable owns
+  // that). The CSV keeps the stricter rule and carries the column only once
+  // the check answered AND the column is shown, because a file's columns
+  // must not disagree with the screen's.
+  const tableColumns = useMemo(() => {
+    const cols = visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys)
+    const withFire = effectiveVisibleKeys.has(WILDFIRE_KEY) ? [...cols, WILDFIRE_COL] : cols
+    if (!comparingRows) return withFire
+    // Directly after the identity columns and before the first metric: it says
+    // WHICH ANSWER this row is, so it belongs with the things that identify a
+    // row rather than among the numbers it qualifies. Inserted here rather than
+    // in `COLUMNS` because it exists only while a comparison is up, and it is
+    // not in the Columns picker for the same reason — a column that cannot be
+    // turned off is one less thing to explain than a column that appears in the
+    // picker only sometimes.
+    const at = withFire.findIndex((c) => !LEAD_KEYS.has(c.key as string))
+    const cut = at === -1 ? withFire.length : at
+    return [...withFire.slice(0, cut), MODEL_COL, ...withFire.slice(cut)]
+  }, [pointSample, view.sortBy, effectiveVisibleKeys, comparingRows])
 
   // Which selected models answered with nothing for the metric the report is
   // ranked on. Read off the RANKED metric rather than the chart's, because the

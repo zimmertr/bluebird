@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import type { DestinationResult } from '../types'
+import type { WeatherAggregates, WeatherResult } from './openMeteo'
 import type { ForecastModelOption } from '../hooks/useCapabilities'
 import { allocateColors } from './chartColors'
 import { normalizeWindow } from './forecastWindow'
@@ -10,6 +12,7 @@ import {
   compareEndMs,
   compareSeries,
   isBlend,
+  modelRowsFor,
   modelSeriesOnGrid,
   modelsWithoutMetric,
   pairKey,
@@ -416,5 +419,118 @@ describe('compareSeries', () => {
     it('names nothing when there are no lines', () => {
       expect(modelsWithoutMetric([], 'freeze')).toEqual([])
     })
+  })
+})
+
+describe('one table row per model', () => {
+  const ROW: DestinationResult = {
+    name: 'East Tiger Mountain',
+    type: 'peak',
+    latitude: 47.44,
+    longitude: -121.93,
+    elevation_ft: 3004,
+    osm_id: 'node/1',
+    precip_total_in: 0.5,
+    precip_avg_in_hr: 0.1,
+    precip_min_in_hr: 0,
+    precip_max_in_hr: 0.2,
+    temp_min_f: 40,
+    temp_max_f: 60,
+    temp_avg_f: 50,
+    wind_min_mph: 2,
+    wind_max_mph: 9,
+    wind_avg_mph: 5,
+    freeze_min_ft: 7000,
+    freeze_max_ft: 9000,
+    freeze_avg_ft: 8000,
+    aqi_avg: 21,
+    aqi_min: 12,
+    aqi_max: 30,
+  }
+  const MODELS = [
+    { id: 'gfs_seamless', label: 'NOAA GFS' },
+    { id: 'ecmwf_ifs025', label: 'ECMWF IFS' },
+  ]
+  const keyOf = (r: DestinationResult) => `${r.latitude},${r.longitude}`
+
+  function answer(over: Partial<WeatherAggregates> = {}): WeatherResult {
+    return {
+      precip_total_in: 1.5,
+      precip_avg_in_hr: 0.3,
+      precip_min_in_hr: 0,
+      precip_max_in_hr: 0.6,
+      temp_min_f: 30,
+      temp_max_f: 50,
+      temp_avg_f: 40,
+      wind_min_mph: 4,
+      wind_max_mph: 18,
+      wind_avg_mph: 10,
+      freeze_min_ft: null,
+      freeze_max_ft: null,
+      freeze_avg_ft: null,
+      series: null,
+      ...over,
+    }
+  }
+
+  it('gives one row per model, grouped by destination', () => {
+    const held = { [pairKey('ecmwf_ifs025', keyOf(ROW))]: answer({}) }
+    const out = modelRowsFor([ROW], MODELS, 'gfs_seamless', held, keyOf)
+    expect(out.map((r) => r.modelLabel)).toEqual(['NOAA GFS', 'ECMWF IFS'])
+    expect(out.map((r) => r.name)).toEqual([ROW.name, ROW.name])
+  })
+
+  // The ranking model's row is the report's own. Re-deriving it from a second
+  // fetch could only disagree with the ranking it already produced.
+  it('takes the ranking model row from the report unchanged', () => {
+    const held = { [pairKey('ecmwf_ifs025', keyOf(ROW))]: answer({}) }
+    const [ranked] = modelRowsFor([ROW], MODELS, 'gfs_seamless', held, keyOf)
+    expect(ranked.precip_total_in).toBe(ROW.precip_total_in)
+    expect(ranked.modelId).toBe('gfs_seamless')
+  })
+
+  it('takes a compared row weather from that model', () => {
+    const held = { [pairKey('ecmwf_ifs025', keyOf(ROW))]: answer({}) }
+    const [, compared] = modelRowsFor([ROW], MODELS, 'gfs_seamless', held, keyOf)
+    expect(compared.precip_total_in).toBe(1.5)
+    expect(compared.wind_max_mph).toBe(18)
+  })
+
+  // The destination is the same place whichever model answered.
+  it('keeps the destination identity on every row', () => {
+    const held = { [pairKey('ecmwf_ifs025', keyOf(ROW))]: answer({}) }
+    for (const row of modelRowsFor([ROW], MODELS, 'gfs_seamless', held, keyOf)) {
+      expect(row.name).toBe(ROW.name)
+      expect(row.latitude).toBe(ROW.latitude)
+      expect(row.elevation_ft).toBe(ROW.elevation_ft)
+    }
+  })
+
+  // Air quality comes from one source whatever model ranks, so a compared row
+  // carries the report's numbers rather than a blank.
+  it('carries the same air quality on every row', () => {
+    const held = { [pairKey('ecmwf_ifs025', keyOf(ROW))]: answer({}) }
+    for (const row of modelRowsFor([ROW], MODELS, 'gfs_seamless', held, keyOf)) {
+      expect(row.aqi_avg).toBe(21)
+      expect(row.aqi_max).toBe(30)
+    }
+  })
+
+  // A model outside its domain has no numbers. A row of zeros there would read
+  // as a forecast of calm, so it contributes no row at all.
+  it('drops a pair nothing was fetched for', () => {
+    const out = modelRowsFor([ROW], MODELS, 'gfs_seamless', {}, keyOf)
+    expect(out.map((r) => r.modelId)).toEqual(['gfs_seamless'])
+  })
+
+  it('drops a pair that answered with nothing', () => {
+    const held = { [pairKey('ecmwf_ifs025', keyOf(ROW))]: null }
+    const out = modelRowsFor([ROW], MODELS, 'gfs_seamless', held, keyOf)
+    expect(out.map((r) => r.modelId)).toEqual(['gfs_seamless'])
+  })
+
+  it('leaves a single-model report one row per destination', () => {
+    const out = modelRowsFor([ROW], MODELS.slice(0, 1), 'gfs_seamless', {}, keyOf)
+    expect(out).toHaveLength(1)
   })
 })

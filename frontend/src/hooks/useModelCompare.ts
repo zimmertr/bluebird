@@ -6,6 +6,7 @@ import { normalizeWindow } from '../utils/forecastWindow'
 import {
   CompareDestination,
   CompareModel,
+  ComparePoint,
   compareEndMs,
   drawnModelIds,
   compareSeries,
@@ -14,7 +15,7 @@ import {
 } from '../utils/modelCompare'
 import { shownModels } from '../utils/modelVisibility'
 import { OpenMeteoModelCoverage, fetchWeather } from '../utils/openMeteo'
-import type { WeatherSeries } from '../utils/openMeteo'
+import type { WeatherResult } from '../utils/openMeteo'
 
 /**
  * Comparing models across the charted destinations (issue #232): the spend, and
@@ -57,15 +58,23 @@ export interface ComparedModel {
 
 /** Forecasts in hand, plus what is still on its way and what never arrived. */
 interface Fetched {
-  /** By `pairKey`: the model's numbers, or null when it had none for that spot. */
-  series: Record<string, WeatherSeries | null>
+  /**
+   * By `pairKey`: the model's whole answer for that spot — the window
+   * aggregates AND the hourly series — or null when it had none.
+   *
+   * The aggregates used to be dropped here and only the series kept, because
+   * the chart was the only consumer. The results table is the second: it shows
+   * one row per model, and those rows' numbers are exactly these, already
+   * computed by the same fetch the chart paid for.
+   */
+  results: Record<string, WeatherResult>
   /** By model id: requests still in the air. */
   inFlight: Record<string, number>
   /** By model id: why a model drew nothing. */
   notes: Record<string, string | null>
 }
 
-const NOTHING_FETCHED: Fetched = { series: {}, inFlight: {}, notes: {} }
+const NOTHING_FETCHED: Fetched = { results: {}, inFlight: {}, notes: {} }
 
 /** One identity for "nothing hidden", so a default does not re-run a memo. */
 const EMPTY_HIDDEN: ReadonlySet<string> = new Set()
@@ -78,6 +87,15 @@ export interface ModelCompareOptions {
   enabled: boolean
   /** The charted destinations, in the chart's order, each with its rank. */
   destinations: readonly CompareDestination[]
+  /**
+   * Every DISPLAYED row, which is what the fetch covers.
+   *
+   * Wider than `destinations` on purpose: the results table shows one row per
+   * model for every row on screen, not only for the handful someone charted.
+   * The fetch extends rather than rebuilds — `requestedRef` holds what has been
+   * asked — so raising the cap or loosening a bound buys the delta.
+   */
+  rows: readonly ComparePoint[]
   /** The ranking model's own numbers per destination, by `chartKey`. */
   heldSeries: Readonly<Record<string, HourlySeries | null>>
   /** The window and model every held number came from. */
@@ -112,6 +130,7 @@ export interface ModelCompareOptions {
 export function useModelCompare({
   enabled,
   destinations,
+  rows,
   heldSeries,
   analyzed,
   analysisSeq,
@@ -176,23 +195,31 @@ export function useModelCompare({
     [fetchable, models, picked, rankingModel],
   )
 
+  // Whether the CHART draws a comparison. Off on air quality, and off with
+  // nothing charted.
   const active =
     enabled && analyzed !== null && destinations.length > 0 && drawnIds.length > 0
+
+  // Whether anything is FETCHED, which is a different question: the results
+  // table shows one row per model over every displayed row, so the numbers are
+  // bought as soon as a second model is selected and an analysis has committed.
+  // The chart is one reader of them, not the reason for them — which is why
+  // `enabled` (off on air quality, where a comparison could only draw one
+  // answer twice) does not gate this. The other columns still differ per model.
+  const fetching = analyzed !== null && rows.length > 0 && drawnIds.length > 0
 
   // One string per dependency that is really a set, so an effect keyed on it
   // runs once per real change rather than once per re-derived array.
   const drawnKey = drawnIds.join(',')
-  const destinationsKey = destinations.map((d) => d.key).join('|')
+  const rowsKey = rows.map((r) => r.key).join('|')
 
   useEffect(() => {
-    if (!active || !window_) return
+    if (!fetching || !window_) return
     const seqAtCall = seqRef.current
     for (const id of drawnIds) {
       const model = models.find((m) => m.id === id)
       if (!model) continue
-      const missing = destinations.filter(
-        (d) => !requestedRef.current.has(pairKey(id, d.key)),
-      )
+      const missing = rows.filter((d) => !requestedRef.current.has(pairKey(id, d.key)))
       if (missing.length === 0) continue
       for (const d of missing) requestedRef.current.add(pairKey(id, d.key))
 
@@ -225,12 +252,12 @@ export function useModelCompare({
         .then((results) => {
           if (seqRef.current !== seqAtCall) return
           setFetched((prev) => {
-            const series = { ...prev.series }
+            const held = { ...prev.results }
             missing.forEach((d, i) => {
-              series[pairKey(id, d.key)] = results[i]?.series ?? null
+              held[pairKey(id, d.key)] = results[i] ?? null
             })
             return {
-              series,
+              results: held,
               inFlight: { ...prev.inFlight, [id]: Math.max(0, (prev.inFlight[id] ?? 1) - 1) },
               notes: prev.notes,
             }
@@ -265,11 +292,11 @@ export function useModelCompare({
           }
         })
     }
-    // `drawnKey` and `destinationsKey` stand in for the two arrays: both are
+    // `drawnKey` and `rowsKey` stand in for the two arrays: both are
     // re-derived on every live knob change, so keying on the references would
     // re-run this for sets that had not moved.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, analysisSeq, drawnKey, destinationsKey, window_])
+  }, [fetching, analysisSeq, drawnKey, rowsKey, window_])
 
   // The models on the chart: the ranking model first, then every extra. The
   // ranking model carries no note — its numbers are the report — so only an
@@ -312,7 +339,7 @@ export function useModelCompare({
     if (!shownIds.has(rankingModel)) return null
     const drew = drawnIds.filter(
       (id) =>
-        shownIds.has(id) && destinations.some((d) => fetched.series[pairKey(id, d.key)]),
+        shownIds.has(id) && destinations.some((d) => fetched.results[pairKey(id, d.key)]),
     )
     if (drew.length === 0) return null
     const reaches = [rankingModel, ...drew].map(
@@ -320,7 +347,7 @@ export function useModelCompare({
     )
     const end = compareEndMs(window_.endMs, reaches, nowRef.current)
     return end < window_.endMs ? end : null
-  }, [active, destinations, drawnIds, fetched.series, models, rankingModel, shownIds, window_])
+  }, [active, destinations, drawnIds, fetched.results, models, rankingModel, shownIds, window_])
 
   const lines: ChartLine[] = useMemo(() => {
     if (!active || !rankingModel) return []
@@ -331,7 +358,10 @@ export function useModelCompare({
     for (const d of destinations) {
       series[pairKey(rankingModel, d.key)] = heldSeries[d.key] ?? null
       for (const id of drawnIds) {
-        series[pairKey(id, d.key)] = modelSeriesOnGrid(fetched.series[pairKey(id, d.key)], times)
+        series[pairKey(id, d.key)] = modelSeriesOnGrid(
+          fetched.results[pairKey(id, d.key)]?.series ?? null,
+          times,
+        )
       }
     }
     const onChart: CompareModel[] = shown.map((m) => ({ id: m.id, label: m.label }))
@@ -342,12 +372,12 @@ export function useModelCompare({
     destinations,
     drawnIds,
     endMs,
-    fetched.series,
+    fetched.results,
     heldSeries,
     rankingModel,
     shown,
     times,
   ])
 
-  return { active, compared, shown, lines, endMs }
+  return { active, compared, shown, lines, endMs, results: fetched.results }
 }

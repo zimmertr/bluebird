@@ -13,7 +13,8 @@
 // not be unit-tested at all; the download itself is seven lines in App.tsx.
 
 import { DestinationResult } from '../types'
-import { ColDef, WILDFIRE_COL, WILDFIRE_KEY } from './tableColumns'
+import { ColDef, MODEL_KEY, WILDFIRE_COL, WILDFIRE_KEY } from './tableColumns'
+import type { ModelRow } from './modelCompare'
 import { DATA_SOURCES } from './dataSources'
 import { FireWarning, fireKey } from './fireProximity'
 
@@ -86,6 +87,11 @@ function cell(row: DestinationResult, col: ColDef): string {
   // The wildfire column never reaches here (this module appends it with its
   // own cell), but its key is virtual and must not index a row.
   if (col.key === WILDFIRE_KEY) return ''
+  // The model column's key is virtual too, and its value rides beside the row
+  // rather than on it. A file carries it whenever the screen does, because a
+  // file of eight rows per destination that did not say which was which would
+  // be unreadable detached from the app.
+  if (col.key === MODEL_KEY) return (row as ModelRow).modelLabel ?? ''
   const raw = row[col.key]
   if (raw == null) return col.csvNull ?? ''
   const project = col.csv ?? col.format

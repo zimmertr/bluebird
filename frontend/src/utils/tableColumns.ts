@@ -21,7 +21,7 @@ import { FREEZE_UNAVAILABLE } from './freezingLevel'
  * statement and the one the screen already makes with its mark.
  */
 export type ColDef = {
-  key: keyof DestinationResult | typeof WILDFIRE_KEY
+  key: keyof DestinationResult | typeof WILDFIRE_KEY | typeof MODEL_KEY
   label: string
   format?: (v: unknown) => string
   csv?: (v: unknown) => string
@@ -42,12 +42,31 @@ export type ColDef = {
 export const WILDFIRE_KEY = 'wildfire_mi'
 export const WILDFIRE_COL: ColDef = { key: WILDFIRE_KEY, label: 'Wildfire (mi)' }
 
+/**
+ * Which model a row's numbers came from, when more than one is selected.
+ *
+ * Virtual like the wildfire column, and for the same reason: the value is
+ * something the browser knows about a row it is displaying rather than a field
+ * the API answered with, so every consumer branches on the key before indexing
+ * a `DestinationResult`. It rides on `ModelRow` (`modelCompare.ts`).
+ *
+ * Appears only while a comparison is up. With one model selected every row
+ * would carry the same name, which is a column that says nothing and costs the
+ * width of its widest label — and that label is a model name, the longest
+ * strings the panel has.
+ */
+export const MODEL_KEY = 'model'
+export const MODEL_COL: ColDef = { key: MODEL_KEY, label: 'Model' }
+
 /** The column a detail sort is keyed on, and which way it runs. */
 export type SortKey = ColDef['key']
 export type SortDir = 'asc' | 'desc'
 
 // Identity columns that always lead the table, ahead of any metric group.
-const LEAD_KEYS = new Set(['name', 'type', 'elevation_ft'])
+// Exported because the Model column is inserted directly after them: it says
+// which answer a row is, so it belongs with what identifies a row rather than
+// among the numbers it qualifies.
+export const LEAD_KEYS: ReadonlySet<string> = new Set(['name', 'type', 'elevation_ft'])
 
 /**
  * Every column a window-mode analysis can show, in canonical order.
