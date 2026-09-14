@@ -8,4 +8,4 @@ If you send a change:
 - Run `ruff check backend/` from the repository root, not from `backend/`, or it orders imports differently than CI.
 - Every behavior change ships with a test in the same PR.
 - Frontend styling composes the roles in `frontend/src/styles.ts`. No component names its own color.
-- A change to a route or a Pydantic model regenerates `backend/openapi.json` (`cd backend && python scripts/generate_openapi.py`). CI fails the PR otherwise.
+- A change to a route or a Pydantic model regenerates `backend/openapi.json` (`cd backend && python scripts/generate_openapi.py`) and the frontend types read off it (`cd frontend && npm run generate:api`). CI fails the PR otherwise.

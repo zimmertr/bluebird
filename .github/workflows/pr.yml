@@ -28,8 +28,22 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          # Both lockfiles: the generator behind `check:api` is a package of its
+          # own (frontend/tools/api-types), and a cache keyed on the app's
+          # lockfile alone would miss every bump of it.
+          cache-dependency-path: |
+            frontend/package-lock.json
+            frontend/tools/api-types/package-lock.json
       - run: npm ci
+        working-directory: frontend
+      # src/api-schema.d.ts is generated from the committed OpenAPI snapshot,
+      # and src/api-compat.ts asserts the hand-written wire types against it.
+      # This fails the PR when the two disagree, which means someone changed a
+      # route or a model without running `npm run generate:api`. It runs before
+      # the typecheck because a stale schema fails that with assertion errors
+      # that do not say what is actually out of date. The script installs the
+      # generator package itself, so no separate `npm ci` step is needed.
+      - run: npm run check:api
         working-directory: frontend
       - run: npx tsc --noEmit
         working-directory: frontend
