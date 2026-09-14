@@ -2000,6 +2000,26 @@ export default function App() {
     times: chartTimes,
   })
 
+  // What colour a table row's chart checkbox wears.
+  //
+  // A colour identifies a LINE, and with a comparison up a line is a
+  // (destination, model) PAIR: two rows for one place draw two lines in two
+  // colours, so their checkboxes have to say which is which. Keyed off the same
+  // `chartedPairColors` the chart itself reads, so the swatch beside a row and
+  // the line it puts on the chart cannot be different colours.
+  //
+  // Falls back to the destination's own colour, which is the right answer
+  // everywhere a pair has none: a single-model report, and any row nobody has
+  // charted (whose swatch is uncoloured anyway until it is).
+  const rowChartColor = useCallback(
+    (row: DestinationResult) => {
+      const modelId = (row as ModelRow).modelId
+      const paired = modelId ? chartedPairColors[pairKey(modelId, chartKey(row))] : undefined
+      return paired ?? chart.colorFor(row)
+    },
+    [chartedPairColors, chart],
+  )
+
   // Whether the table shows one row per model. A single selected model is the
   // report as it always was: every row would carry the same model name, which
   // is a column that says nothing.
@@ -3191,7 +3211,7 @@ export default function App() {
                         onFocusResult={(row) => mapRef.current?.focusResult(row)}
                         onToggleChart={chart.toggle}
                         isCharted={chart.isSelected}
-                        chartColor={chart.colorFor}
+                        chartColor={rowChartColor}
                         onChartRange={chart.setRange}
                       />
                     </div>
