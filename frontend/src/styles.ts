@@ -1032,9 +1032,21 @@ export const NOTICE_DISMISS = {
    * — a hover-only control on a phone is a control that does not exist (the
    * tooltip rule, applied to a button). Opacity rather than `hidden`, so the
    * reveal can fade and the row never reflows.
+   *
+   * On a coarse pointer the target is 44px and the disc inside it is 20, and
+   * the difference used to come out of the message beside it: the text column
+   * was 257px on a 360px panel, where the longest commit cue needs 267. The
+   * negative left margin hands those 24px back. Nothing moves on screen — the
+   * button's box still ends at the row's right edge, so the centred disc sits
+   * exactly where it did — and the target simply reaches further left, over
+   * the tail of the text. That costs nothing, because the text is not a target
+   * and a press on it has never done anything; what it buys is the one-line
+   * budget every message in this app is written to, which is measured against
+   * the column rather than against the box. `gap-2` on the row stays the
+   * visible distance from the disc to the last word.
    */
   button:
-    `group ${TAP.action} opacity-0 transition-[color,opacity] ` +
+    `group ${TAP.action} touch:-ml-6 opacity-0 transition-[color,opacity] ` +
     `group-hover/notice:opacity-100 focus-visible:opacity-100 touch:opacity-100 ` +
     `hover:text-white ${FOCUS_RING}`,
   pill:

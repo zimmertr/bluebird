@@ -1242,7 +1242,31 @@ describe('status and notices', () => {
   it('sets the message level with the X it carries', () => {
     expect(NOTICE_DISMISS.row).toContain('items-center')
     expect(NOTICE_DISMISS.button).not.toContain('self-start')
+    // No UNPREFIXED negative margin: the one the button carries is the
+    // coarse-pointer overlay below, and a mouse must not inherit it.
     expect(NOTICE_DISMISS.button).not.toMatch(/(^|\s)-m[trblxy]?-/)
+  })
+
+  // The 44px target and the 20px disc differ by 24px, and that difference used
+  // to be taken out of the message: a 257px column on a 360px panel, where the
+  // longest commit cue needs 267. The target reaches back over the tail of the
+  // text instead, which costs nothing because the text is not a target, and
+  // the disc does not move — the button's box still ends at the row's right
+  // edge. Only on a coarse pointer, where the target is 44px at all.
+  it('takes the touch target out of the text, not out of the column', () => {
+    const px = (recipe: string, cls: RegExp) => {
+      const step = recipe.match(cls)
+      return step ? Number(step[1]) * 4 : null
+    }
+    const target = px(TAP.action, /touch:min-w-(\d+)/)
+    const disc = px(NOTICE_DISMISS.pill, /(?<![-\w])w-(\d+)/)
+    const overlay = px(NOTICE_DISMISS.button, /touch:-ml-(\d+)/)
+    expect(target).toBe(44)
+    expect(disc).toBe(20)
+    expect(overlay).toBe((target as number) - (disc as number))
+    // The visible distance from the disc to the last word is the row's gap,
+    // which the overlay must not eat.
+    expect(NOTICE_DISMISS.row).toContain('gap-2')
   })
 
   // Every message in this app is written to fit one line at 360px, and that

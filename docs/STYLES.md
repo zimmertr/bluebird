@@ -216,6 +216,13 @@ budget above is measured with the whole text column, and a list indent
 plus its marker take 16px of it — enough to wrap a line that fit on its
 own before a second message joined it.
 
+**The dismiss X costs the column 20px, not 44:** on a coarse pointer the
+target is 44px and the disc is 20, and the difference reaches back over
+the tail of the text (`touch:-ml-6` on `NOTICE_DISMISS.button`) rather
+than out of the column. Nothing moves on screen. Measured at 402px with
+the panel at 360: the column is 281px, where the longest commit cue
+("A new destination type requires a new analysis.") needs 267.3px.
+
 **Line allowance:** messages in the panel body hold to one line. The area
 below the Analyze button — blockers, commit cues, refusals, provider
 errors, and the warnings that qualify a report — may run to two lines,
