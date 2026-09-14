@@ -3,12 +3,16 @@ import { Place, parseCoordinates, searchPlaces } from '../utils/geocode'
 import {
   ACCENT,
   ACCENT_RING,
+  CAPTION_LIFTED,
   ICON_ACTION,
   ICON_BUTTON,
+  MAP_COL_W,
+  MAP_ROW_H,
   NOTICE,
   RADIUS,
   SPINNER,
   SURFACE_FLOATING,
+  SURFACE_POPOVER,
   TAP,
   TEXT,
 } from '../styles'
@@ -133,15 +137,15 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
   return (
     <div
       ref={rootRef}
-      className={`relative ${RADIUS.surface} transition-shadow ${pointed ? ACCENT_RING : ''}`}
+      className={`relative ${MAP_COL_W} ${RADIUS.surface} transition-shadow ${pointed ? ACCENT_RING : ''}`}
     >
-      {/* The box takes the target, not the input inside it. These two float
-          side by side over the map and are the same kind of object, so on a
-          phone they are the same height: TAP.height here, TAP.action on the
-          Controls button, both landing on 44. Sizing the input instead grew
-          the box by its own padding and overshot. */}
+      {/* The box takes the height, not the input inside it: `MAP_ROW_H` is the
+          one row height every member of the map's left column wears, so the
+          field and the two buttons under it cannot land on three different
+          numbers. Sizing the input instead grew the box by its own padding and
+          overshot. */}
       <div
-        className={`${SURFACE_FLOATING} ${TAP.height} flex items-center gap-2 px-2.5 py-2 transition-colors ${ACCENT.edgeFocus}`}
+        className={`${SURFACE_FLOATING} ${MAP_ROW_H} flex items-center gap-2 px-2.5 transition-colors ${ACCENT.edgeFocus}`}
       >
         <svg
           width="15"
@@ -174,7 +178,10 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           autoComplete="off"
           spellCheck={false}
           enterKeyHint="search"
-          className={`${TEXT.control} w-36 sm:w-64 bg-transparent placeholder-slate-400 focus:outline-none`}
+          // No width of its own: the box is `MAP_COL_W` and the input takes
+          // what the icon and the clear button leave. `min-w-0` is what lets
+          // it, a flex item's default `min-width:auto` being its content.
+          className={`${TEXT.control} min-w-0 flex-1 bg-transparent placeholder-slate-400 focus:outline-none`}
         />
         {loading ? (
           <div
@@ -205,18 +212,29 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
         <ul
           role="listbox"
           aria-label="Search results"
-          className={`${SURFACE_FLOATING} absolute left-0 top-full mt-1 w-72 sm:w-80 overflow-hidden divide-y divide-slate-700/60`}
+          // Lifted onto `SURFACE_POPOVER` rather than the floating surface the
+          // field wears (TJ, 2026-09-14): this is a menu the reader acts in,
+          // hanging over the buttons and legends below, and one step of fill
+          // plus the heavier shadow is what says so — the same separation the
+          // Layers popover takes against the same legends. It is the column's
+          // width like everything else in it, which clips a long place name to
+          // one line; the name leads, so what a clipped line loses is the tail
+          // of an address the reader can still see on the map.
+          className={`${SURFACE_POPOVER} ${MAP_COL_W} absolute left-0 top-full mt-1 overflow-hidden divide-y divide-slate-600`}
         >
           {places.map((p, i) => (
             <li key={`${p.lat},${p.lon},${i}`} role="option" aria-selected={i === highlight}>
-              {/* The table's row-highlight tint, not opaque slate-700: the
-                  description below is a caption, and on a full slate-700 bar
-                  it would fall back under 4.5:1 (4.0). */}
+              {/* A tint rather than an opaque step, the way the table's rows
+                  highlight — re-derived for the popover's lighter fill, which
+                  slate-700/30 no longer registers against. slate-600/50 reads
+                  1.18:1 on it, where the old pair read 1.11:1 on slate-800, and
+                  `CAPTION_LIFTED` below still clears AA on the result (5.89:1).
+                  Measured 2026-09-14. */}
               <button
                 onClick={() => pick(p)}
                 onMouseEnter={() => setHighlight(i)}
-                className={`${TAP.height} w-full px-3 py-2 text-left transition-colors ${
-                  i === highlight ? 'bg-slate-700/30' : ''
+                className={`${TAP.height} w-full px-2.5 py-2 text-left transition-colors ${
+                  i === highlight ? 'bg-slate-600/50' : ''
                 }`}
               >
                 <span className={`${TEXT.control} block truncate`}>
@@ -228,7 +246,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
                   )}
                 </span>
                 {p.description && (
-                  <span className={`${TEXT.caption} block truncate`}>{p.description}</span>
+                  <span className={`${CAPTION_LIFTED} block truncate`}>{p.description}</span>
                 )}
               </button>
             </li>

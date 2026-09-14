@@ -53,8 +53,9 @@ import {
   LAYER,
   LEGEND_TOP,
   LINK,
-  MAP_BOX_W,
+  MAP_COL_W,
   MAP_EDGE,
+  MAP_ROW_H,
   PROSE,
   RADIUS,
   LIFTED_EDGE,
@@ -230,12 +231,6 @@ function layerRow({
     </label>
   )
 }
-
-// The two map buttons are one pair and are sized as one: same width, same
-// height, stacked in a column where any difference between them reads as a
-// mistake rather than as a hierarchy. Wide enough for "Controls", which is the
-// longer of the two labels; the shorter one centres inside it.
-const MAP_BUTTON_W = 'w-32 justify-start'
 
 // Stands in for the analysis snapshot's covered set before the first analysis.
 // A module constant rather than an inline `new Set()`, which would be a fresh
@@ -2627,7 +2622,14 @@ export default function App() {
               of the default. */}
           {(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar) && (
             <div
-              className={`absolute ${MAP_EDGE.left} ${LEGEND_TOP} z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0`}
+              // The inset clears the button column above, which is one row
+              // taller while the panel is collapsed and the Controls button
+              // stands in it. `LEGEND_TOP` carries both heights; picking
+              // between them here is the only thing that knows which one is on
+              // screen.
+              className={`absolute ${MAP_EDGE.left} ${
+                sidebarOpen ? LEGEND_TOP.compact : LEGEND_TOP.full
+              } z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0`}
               // The floor of the scroll box, derived rather than chosen: the
               // transport's whole band while the bar is on screen and a plain
               // gap otherwise, measured from whatever stands on the map's
@@ -2648,7 +2650,7 @@ export default function App() {
                   a "Map layers" line above would be a label for four labels —
                   and on a phone it is a whole row of the little map left. */}
               {(showSmoke || showRadar || showWildfires || gridPainted || gridCued || gridFailed) && (
-                <div className={`${SURFACE_FLOATING} ${MAP_BOX_W} px-2.5 py-2`}>
+                <div className={`${SURFACE_FLOATING} ${MAP_COL_W} px-2.5 py-2`}>
                   <div className="flex flex-col gap-1">
                     {showSmoke && (
                       <div className="flex items-center justify-between gap-2">
@@ -2770,7 +2772,7 @@ export default function App() {
               {markerScale !== null &&
                 rankedFieldHasValue &&
                 (hasColoredMarkers || gridPainted || gridCued) && (
-                <div className={`${SURFACE_FLOATING} ${MAP_BOX_W} p-2.5`}>
+                <div className={`${SURFACE_FLOATING} ${MAP_COL_W} p-2.5`}>
                   {/* The bare metric only: which hour or window the colors
                       describe, and how it was reduced, is stated by the
                       results header and the table's own column headers. */}
@@ -2796,27 +2798,32 @@ export default function App() {
               cluster rather than on the popover inside it (see LAYER). It stays
               under the loading overlay and the mobile drawer backdrop. */}
           <div className={`absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${LAYER.mapControls} flex flex-col items-start gap-2`}>
-            {/* Raised above its later siblings so the search dropdown paints
-                over the Layers button below it — both live in the top-left
-                cluster, and DOM order alone put the button on top (#288
-                review). */}
-            <div className="relative z-10 flex items-start gap-2">
-              {!sidebarOpen && (
-                <button
-                  onClick={() => setSidebarOpen(true)}
-                  aria-label="Open controls"
-                  className={`${BUTTON_FLOATING} ${TAP.action} ${MAP_BUTTON_W} flex-shrink-0 gap-2 px-3 py-2`}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="3" y1="6" x2="21" y2="6" />
-                    <line x1="3" y1="12" x2="21" y2="12" />
-                    <line x1="3" y1="18" x2="21" y2="18" />
-                  </svg>
-                  Controls
-                </button>
-              )}
+            {/* The search field is the column's first row rather than a
+                neighbour of the Controls button (TJ, 2026-09-14). Beside it,
+                the two of them at the column's shared width needed 400px of a
+                390px phone; above it, every member of the column is one row
+                wide and the column reads as one object at every width.
+
+                Raised above its later siblings so its results paint over the
+                buttons below — they are siblings in one cluster, and DOM order
+                alone put the buttons on top (#288 review). */}
+            <div className="relative z-10">
               <SearchBox ref={searchBoxRef} onSelect={handleSearchSelect} pointed={searchPointed} />
             </div>
+            {!sidebarOpen && (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                aria-label="Open controls"
+                className={`${BUTTON_FLOATING} ${MAP_COL_W} ${MAP_ROW_H} flex flex-shrink-0 items-center gap-2 px-2.5`}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
+                </svg>
+                Controls
+              </button>
+            )}
             {/* Layers, under the search box rather than beside MapLibre's own
                 controls on the right. Two reasons it moved: the library's stack
                 is two control GROUPS with a margin between them, so any offset
@@ -2827,7 +2834,7 @@ export default function App() {
               <button
                 onClick={() => setLayersOpen((o) => !o)}
                 aria-expanded={layersOpen}
-                className={`${BUTTON_FLOATING} ${TAP.action} ${MAP_BUTTON_W} gap-2 px-3 py-2`}
+                className={`${BUTTON_FLOATING} ${MAP_COL_W} ${MAP_ROW_H} flex items-center gap-2 px-2.5`}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
                   <polygon points="12,3 21,8 12,13 3,8" />
@@ -2840,7 +2847,7 @@ export default function App() {
                   so an inset of its own would be that inset twice and the box
                   would hang a step right of the legends it hangs over. */}
               {layersOpen && (
-                <div className={`${SURFACE_POPOVER} ${MAP_BOX_W} absolute left-0 mt-2 px-2.5 py-2`}>
+                <div className={`${SURFACE_POPOVER} ${MAP_COL_W} absolute left-0 mt-2 px-2.5 py-2`}>
                   {MAP_LAYERS.map((layer) => (
                     <Fragment key={layer.key}>
                       {layerRow(layer)}
@@ -2848,7 +2855,7 @@ export default function App() {
                           and rendered under the row they belong to rather than
                           after the list, so the alphabetical order above holds
                           whatever is open. The popover is as wide as the legend
-                          boxes below it (`MAP_BOX_W`), so these take the fluid
+                          boxes below it (`MAP_COL_W`), so these take the fluid
                           segment rather than the panel's fixed 144px column —
                           the same reason the results bar's mode switch does.
 
