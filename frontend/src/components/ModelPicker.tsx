@@ -378,13 +378,23 @@ export default function ModelPicker({
             }}
             className={`${SURFACE_CARD} ${LAYER.popover} flex flex-col`}
           >
+            {/* Names the row under it, the way the list's own header below
+                names the columns under that one. Two blocks in one popover
+                need saying apart, and the same recipe for both is what makes
+                them read as two parts of one control rather than as a chip
+                row that happened to land above a list. */}
+            <div
+              className={`${TEXT.overline} flex-shrink-0 border-b border-slate-700 px-3 py-1.5`}
+            >
+              Selected models
+            </div>
             {/* The selected set, and which of it ranks. A toolbar rather than a
                 second listbox: these are buttons that act, not options that
                 are chosen, and the one listbox below already owns the arrow
                 keys that walk a selection. */}
             <div
               role="toolbar"
-              className="flex flex-shrink-0 flex-wrap items-center gap-1.5 border-b border-slate-700 px-3 pb-2 pt-1.5"
+              className="flex flex-shrink-0 flex-wrap items-center gap-1.5 border-b border-slate-700 px-3 pb-2 pt-2"
             >
               {chips.map((model, at) => {
                 const id = chipIds[at]
