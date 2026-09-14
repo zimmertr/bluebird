@@ -215,6 +215,34 @@ overlay's host is a decision somebody has to make rather than one that happens
 by omission. That check needs both trees, so it runs in CI and in any local run
 that mounts the repository rather than `backend/` alone.
 
+## Cache headers
+
+Every response the pod sends also carries a `Cache-Control`, added by
+`backend/app/cache_headers.py`
+([#354](https://github.com/zimmertr/bluebird/issues/354)). The app owns this
+header for the reason it owns the security headers above: the rule follows the
+layout of the build output, and only the code that defines that layout can
+follow it. An edge rule would hold in production alone, and a PR preview or a
+self-hosted instance would keep the defect.
+
+| Path | Value | Why |
+| --- | --- | --- |
+| Everything outside `/assets/`: the document, the legal pages, `/docs`, `swagger-ui/`, the icons, `/api/*`, and errors | `no-cache` | Always revalidate. The document names the hashed chunks, so a stale one asks for files the new image does not hold. Starlette answers `If-None-Match` and `If-Modified-Since` with a `304` and no body, so the cost is one small round trip per page load. The unhashed files change with a version bump and need the same rule. |
+| A response under `/assets/` with a status below 400 | `public, max-age=31536000, immutable` | The file name carries the content hash, so the URL never changes meaning. |
+| An error under `/assets/` | `no-cache` | A cached `404` for a year outlasts the release that would have corrected it. |
+
+The middleware sets the header only where the response has none, so a route
+keeps a value of its own.
+
+The edge is what made the defect visible. Cloudflare adds its own
+`max-age=14400` to the cacheable extensions when the origin sends nothing, and
+it strips the `ETag` from HTML, so the document's revalidation rides on
+`Last-Modified`, which survives. A response with a `Last-Modified` and no
+freshness of its own is one a browser may reuse without asking (RFC 9111
+§4.2.2, heuristic freshness). On 2026-09-14 a returning browser ran the
+superseded bundle for exactly that reason while `/api/version` reported the new
+release.
+
 ## Outbound: what calls what
 
 | Provider | Called by | From | Policy | Governor |

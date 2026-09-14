@@ -11,7 +11,7 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import ratelimit, security_headers, telemetry
+from app import cache_headers, ratelimit, security_headers, telemetry
 from app.error_codes import ApiError, api_error_handler
 from app.routes.analyze import router
 from app.routes.capabilities import router as capabilities_router
@@ -320,6 +320,12 @@ app.add_middleware(
     security_headers.SecurityHeadersMiddleware,
     csp_by_path={DOCS_PATH: security_headers.docs_csp(_DOCS_HTML, _DOCS_ASSET_ORIGINS)},
 )
+
+
+# Beside the security headers, and for the same reason: the rule follows the
+# build output layout, so the app owns it. The two read different headers, so
+# the order between them carries nothing.
+app.add_middleware(cache_headers.CacheHeadersMiddleware)
 
 
 # The public document pages, each built as its own SPA entry so a shared link
