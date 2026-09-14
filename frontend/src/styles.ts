@@ -774,10 +774,10 @@ export const SEGMENT_IDLE = `${RECESSED_FILL} text-slate-400 hover:text-slate-20
  * "All Day" and "Hourly" side by side — and everything beside it follows rather
  * than each row picking its own.
  *
- * The Metrics grid is the one place a control is narrower than this: its
- * bound boxes wear `METRIC_BOX_W`, sized by that row's label budget rather
- * than by this column, and its one `CONTROL_W` control (the direction segment)
- * sits in a row of its own above them.
+ * The Metrics grid is the one section that uses none of it: its bound boxes
+ * wear `METRIC_BOX_W`, sized by the metric row's label budget rather than by
+ * this column, and its direction segment wears `SEGMENT_FILL` across the two
+ * box columns, so that section lines up on the boxes' edges instead.
  */
 export const CONTROL_W = 'w-36'
 
@@ -864,6 +864,23 @@ export const MAP_EDGE = {
 export const LEGEND_TOP = 'top-25 touch:top-29'
 
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
+/**
+ * The same segmented control sized by the box it is placed in, for a row whose
+ * column is not the panel's.
+ *
+ * The third width a segment can have, and the three are exhaustive: `SEGMENT`
+ * takes the panel's control column, `SEGMENT_FLUID` takes its own content, and
+ * this one takes whatever it is given. It exists for the Metrics table's
+ * direction row (#341), where the control column is the two bound boxes and
+ * their gap rather than `CONTROL_W` — a `SEGMENT` there would hang 26px past
+ * the boxes on the left, which is the misalignment TJ sent it back for
+ * (2026-09-14). Anything else in a grid cell or a flex row that must match its
+ * neighbours rather than the sidebar wears this.
+ *
+ * Its halves wear `SEGMENT_ITEM_TIGHT`, not `SEGMENT_ITEM`: a narrower segment
+ * has less room to spend on insets. See that recipe for the arithmetic.
+ */
+export const SEGMENT_FILL = `flex w-full ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 
 /**
  * The metric rows' aggregate dropdown (#291): the one control that sits
@@ -922,10 +939,10 @@ export const SEGMENT_FLUID_LIFTED = `${SEGMENT_FLUID_SHAPE} ${LIFTED_EDGE}`
  * `METRIC_BOX_W` — so the header row and every box line up without the grid
  * restating a width. Under a single-hour window the dropdown column holds
  * nothing and every label spans it, which keeps one gap between the label and
- * the boxes rather than two. Anything wider than the three control columns
- * (the `CONTROL_W` direction segment) lays itself out as a flex row inside a
- * full-span cell, because a grid item wider than the auto tracks it spans
- * stretches them and the boxes below stop lining up.
+ * the boxes rather than two. Nothing in the section is wider than the tracks it
+ * spans: the direction segment wears `SEGMENT_FILL` over the two box columns
+ * rather than `SEGMENT`'s `CONTROL_W`, so every control in the table shares the
+ * boxes' two edges and a grid item can never stretch a track.
  *
  * This is the panel's widest row, and the budget is the label's: `Freezing
  * level` must fit beside a dropdown and two boxes at the panel's 327px of
@@ -962,6 +979,18 @@ export const METRICS_RULE = 'border-t border-slate-600/50'
  */
 const SEGMENT_ITEM_SHAPE = `${TAP.action} flex-1 py-0.5 text-xs transition-colors ${FOCUS_RING}`
 export const SEGMENT_ITEM = `${SEGMENT_ITEM_SHAPE} px-2`
+/**
+ * One half of a `SEGMENT_FILL`, where the inset has to come down a step.
+ *
+ * The Metrics direction segment is as wide as the two bound boxes and their
+ * gap: 2 x METRIC_BOX_W + gap-x-1.5 = 118px, less the 2px border and the 1px
+ * divider, is 57.5px a half. `Highest` measures 43.7px at text-xs, so
+ * `SEGMENT_ITEM`'s 8px inset leaves 41.5px, two pixels short of the word.
+ * 4px leaves 49.5px, so the slack is 5.8px. `styles.test.ts` does that
+ * sum from the roles rather than trusting this sentence, so a wider word or a
+ * narrower box fails there instead of on screen.
+ */
+export const SEGMENT_ITEM_TIGHT = `${SEGMENT_ITEM_SHAPE} px-1`
 /** Between two halves, never before the first. */
 export const SEGMENT_DIVIDER = 'border-l border-slate-500'
 

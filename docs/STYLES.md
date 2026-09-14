@@ -64,6 +64,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `CHOICE_ROW` | Radio or checkbox and its label as one strip |
 | `CHOICE_INPUT` | The box itself inside a choice row |
 | `SEGMENT` | Geometry of a panel segmented control (fixed to `CONTROL_W`) |
+| `SEGMENT_FILL` | Segmented control sized by the box it is placed in, for a row whose column is not the panel's (the Metrics direction row) |
 | `SEGMENT_FLUID` | Segmented control outside the panel column, sized by content |
 | `SEGMENT_FLUID_LIFTED` | The same segment on `SURFACE_POPOVER`, wearing the edge that surface needs |
 | `LIFTED_EDGE` | A well's boundary on `SURFACE_POPOVER`: slate-400, since slate-500 clears 3:1 only against the panel |
@@ -120,7 +121,8 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `MAP_BOX_W` | Width of every floating box under the Layers button: the popover and both legends, 192px (w-48), governed by the grid legend's longest row |
 | `MAP_EDGE` | How far anything floating on the map stands off its edge: 12px, published once as `--map-edge-inset` on the map wrapper and read by the button column, the legend stack and MapLibre's own control stack |
 | `METRICS_GRID` | The Metrics table: label, aggregate dropdown, Min box, Max box; the control columns are `auto`, sized by the roles their controls wear |
-| `METRIC_BOX_W` | Every numeric box in the Metrics table, bounds and Max results alike: 56px (w-14), the widest the metric row's label budget allows |
+| `METRIC_BOX_W` | Every numeric box in the Metrics table, bounds and the results cap alike: 56px (w-14), the widest the metric row's label budget allows |
+| `SEGMENT_ITEM_TIGHT` | One half of a `SEGMENT_FILL`: the 4px inset a 118px segment can afford |
 | `METRICS_RULE` | The rule between the five rows that rank and the two that never do, in `PANEL_RULE`'s ink |
 
 **Map timeline**
@@ -253,7 +255,9 @@ Every stacked panel control composes `CONTROL_W = 'w-36'` = 144px.
 - The control takes `CONTROL_W`
 - Both share a baseline in a flex row
 
-The Metrics table is the one place a control is narrower than this. Its row is the panel's widest — radio, label, aggregate dropdown (`SELECT_W_AGGREGATE`, 72px), Min box and Max box (`METRIC_BOX_W`, 56px each) — and the label has to hold `Freezing level` at text-xs inside the panel's 327px of content. The direction segment above the rows is the section's one `CONTROL_W` control.
+The Metrics table is the one section that uses none of it. Its row is the panel's widest — radio, label, aggregate dropdown (`SELECT_W_AGGREGATE`, 72px), Min box and Max box (`METRIC_BOX_W`, 56px each) — and the label has to hold `Freezing level` at text-xs inside the panel's 327px of content. The direction segment above the rows spans the two box columns and wears `SEGMENT_FILL`, so every control in the section shares the boxes' two edges rather than the sidebar's.
+
+**Segment arithmetic:** 2 x 56px + the 6px grid gap = 118px, less the 2px border and the 1px divider, is 57.5px a half. `Highest` measures 43.69px at text-xs, so the halves wear `SEGMENT_ITEM_TIGHT` (4px) and not `SEGMENT_ITEM` (8px, which leaves 41.5px and clips the word). Checked in `styles.test.ts`.
 
 **Arithmetic:** `327 − 14 (radio) − 10 (label gap) − 3 × 6 (grid gaps) − 72 − 2 × 56 = 101px` for the label. The noun's measured width is pinned beside that sum in `styles.test.ts`; re-measure before moving a width, the gap, or the nouns.
 

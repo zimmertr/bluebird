@@ -33,10 +33,10 @@ import {
   METRICS_GRID,
   METRICS_RULE,
   METRIC_BOX_W,
-  SEGMENT,
+  SEGMENT_FILL,
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
-  SEGMENT_ITEM,
+  SEGMENT_ITEM_TIGHT,
   SELECT,
   SELECT_W_AGGREGATE,
   STATUS,
@@ -1047,31 +1047,32 @@ export default function ControlPanel({
           </h2>
           <div className={METRICS_GRID}>
             {/* The one direction. Pressing a half never changes WHICH metric
-                ranks; the radios own that. It is a flex row of its own inside
-                the grid because the segment is CONTROL_W wide, wider than the
-                three control columns under a single-hour window, and a grid
-                item that wide would stretch the box columns to fit it. */}
-            <div className="col-span-full flex items-center gap-2">
-              <span id="rank-by" className={`${TEXT.control} flex-1`}>
-                Rank by
-              </span>
-              <div className={SEGMENT} role="group" aria-labelledby="rank-by">
-                {[
-                  { desc: false, label: 'Lowest' },
-                  { desc: true, label: 'Highest' },
-                ].map((dir, i) => (
-                  <button
-                    key={dir.label}
-                    aria-pressed={sortDesc === dir.desc}
-                    onClick={() => setSortDesc(dir.desc)}
-                    className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
-                      sortDesc === dir.desc ? ACCENT.fill : SEGMENT_IDLE
-                    }`}
-                  >
-                    {dir.label}
-                  </button>
-                ))}
-              </div>
+                ranks; the radios own that. Two grid cells rather than a row of
+                its own: the label spans the label and dropdown columns like
+                Elevation below, and the segment spans the two box columns, so
+                it is the boxes' width in both states and every control in the
+                section shares their two edges. That is why it wears
+                SEGMENT_FILL rather than SEGMENT, whose CONTROL_W would hang
+                past the boxes on the left. */}
+            <span id="rank-by" className={`${TEXT.control} col-span-2 truncate`}>
+              Rank by
+            </span>
+            <div className={`${SEGMENT_FILL} col-span-2`} role="group" aria-labelledby="rank-by">
+              {[
+                { desc: false, label: 'Lowest' },
+                { desc: true, label: 'Highest' },
+              ].map((dir, i) => (
+                <button
+                  key={dir.label}
+                  aria-pressed={sortDesc === dir.desc}
+                  onClick={() => setSortDesc(dir.desc)}
+                  className={`${SEGMENT_ITEM_TIGHT} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
+                    sortDesc === dir.desc ? ACCENT.fill : SEGMENT_IDLE
+                  }`}
+                >
+                  {dir.label}
+                </button>
+              ))}
             </div>
             {/* The box columns' headings, the two aggregate names: for most
                 rows that is literally what a box bounds (see BOUNDS). The
@@ -1109,7 +1110,7 @@ export default function ControlPanel({
                     // which read as the dropdown sitting ~1px lower than the
                     // boxes it must align with.
                     <div className={`relative flex ${isActive ? '' : 'opacity-50'}`}>
-                      {/* py-0.5 is SEGMENT_ITEM's own vertical padding, so the
+                      {/* py-0.5 is SEGMENT_ITEM_SHAPE's own vertical padding, so the
                           dropdown, the boxes and the segment above are the
                           same height. */}
                       <select

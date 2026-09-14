@@ -47,7 +47,7 @@ The checkboxes under the buttons control what discovery looks for inside your po
 | Lakes | `natural=water` + `water=lake` (named nodes/ways/relations) | Implemented |
 | Trailheads | `highway=trailhead` (named nodes/ways) | Implemented |
 
-Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. **Include unnamed peaks**, in Options, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods below still work on their own, so an analysis of pasted coordinates or clicked destinations needs no polygon and no ticks at all.
+Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. **Include unnamed peaks**, under the type checkboxes, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods below still work on their own, so an analysis of pasted coordinates or clicked destinations needs no polygon and no ticks at all.
 
 ### d. Coordinates
 
@@ -328,7 +328,7 @@ The comparison travels in the link as `compare=`, a comma-separated list of mode
 
 ## Analyze
 
-The default is 200, chosen to sit above the 100-row lists people usually paste so a first analysis does not open with half of one cut off; the ceiling is whatever the running service reports as its analysis cap. The Forecast Table's header says how many rows you are seeing out of how many there are. Weather is fetched for *every* named destination in the polygon (after the optional elevation filter), and the top N by the selected ranking come back. There is no sampling, so the winners really are the extremes of the area. Raising this number therefore costs nothing upstream: it widens the view onto work already done. Past the cap on candidates the app asks you to draw a smaller polygon or narrow the elevation range rather than silently truncating. See [Limits](LIMITS.md) for why the caps exist and where to read their current values.
+Weather is fetched for *every* named destination in the polygon, after the optional elevation range. There is no sampling, so the winners really are the extremes of the area, and the Forecast Table's header says how many rows you are seeing out of how many there are. Past the cap on candidates the app asks you to draw a smaller polygon or narrow the elevation range rather than truncating in silence. See [Limits](LIMITS.md) for why the caps exist and where to read their current values.
 
 Destinations you name yourself are candidates like any other. A searched place and every row of a pasted CSV are analyzed and then ranked against whatever the polygon found, so combining the two can push some of your own destinations below the cut, where they are simply not listed. Their forecasts were still fetched: raise max results and they appear, already filled in.
 
@@ -338,7 +338,7 @@ Click **Analyze**. Results appear in a sortable table below the map and as color
 
 Once results are up, the knobs split in two. **Ranking, max results, every forecast filter, and narrowing the elevation range apply instantly**, with no second click: the browser keeps the forecast for every destination it found, not just the ones that fit on screen, so it can re-rank, re-filter and re-cut them for free. Changing the **destinations, the forecast window, the model, or widening the elevation range** needs Analyze again, because those need forecasts the app does not have yet, and the panel says which one is waiting. That is also why the numbers are exact rather than approximate: a new ranking reconsiders every destination in your area, not just the rows currently listed.
 
-If the weather service cannot be reached from your browser, Bluebird Forecast says so and retries through its own server. That path only receives the rows it shows, so on it every knob goes back to needing Analyze, and the app says which one is waiting.
+If Open-Meteo cannot be reached from your browser, the analysis stops and says so. There is no second path: the browser holds your forecasts, and rerouting the fetch through the server would spend a quota every visitor shares.
 
 Marker colors follow total precipitation:
 

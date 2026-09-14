@@ -46,6 +46,8 @@ import {
   DISABLED,
   SELECT,
   PANEL_RULE,
+  SEGMENT_FILL,
+  SEGMENT_ITEM_TIGHT,
   SELECT_W_AGGREGATE,
   SPINNER,
   STATUS,
@@ -537,6 +539,7 @@ describe('shared recipes', () => {
     ['BUTTON_DANGER', BUTTON_DANGER],
     ['CHOICE_ROW', CHOICE_ROW],
     ['SEGMENT_ITEM', SEGMENT_ITEM],
+    ['SEGMENT_ITEM_TIGHT', SEGMENT_ITEM_TIGHT],
     ['FIELD', FIELD],
     ['SELECT', SELECT],
     ['DAY.cell', DAY.cell],
@@ -741,8 +744,8 @@ describe('shared recipes', () => {
   // The Metrics grid (#341) sizes no control itself: its three control columns
   // are `auto`, so the dropdown and the boxes are as wide as the roles they
   // wear and nothing else. A rem in the template would be a second copy of
-  // METRIC_BOX_W or SELECT_W_AGGREGATE, which is the drift BOUNDS_GRID's
-  // 4.25rem used to need a test to police.
+  // METRIC_BOX_W or SELECT_W_AGGREGATE, and two spellings of one width drift
+  // apart the moment either moves.
   it('sizes the Metrics grid columns by their controls, not by the grid', () => {
     const template = METRICS_GRID.match(/grid-cols-\[([^\]]+)\]/)![1]
     expect(template.split('_')).toEqual(['minmax(0,1fr)', 'auto', 'auto', 'auto'])
@@ -770,6 +773,35 @@ describe('shared recipes', () => {
 
     expect(labelPx).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
     expect(dropdownPx).toBeGreaterThanOrEqual(28 + 8 + 32)
+  })
+
+  // The Metrics direction segment is the section's one control that is not a
+  // box, and it still shares the boxes' two edges: it spans the two box
+  // columns, so it wears the fill variant rather than SEGMENT's CONTROL_W.
+  // A CONTROL_W segment there hung 26px past the boxes on the left, which is
+  // what the maintainer sent the first build back for (2026-09-14).
+  it('sizes the fill segment by its container, never by the panel column', () => {
+    expect(SEGMENT_FILL).toContain('w-full')
+    expect(SEGMENT_FILL).not.toContain(CONTROL_W)
+    expect(controlPanelSource).toMatch(/\$\{SEGMENT_FILL\} col-span-2/)
+  })
+
+  // What the narrower segment costs its halves. It is as wide as the two bound
+  // boxes and the gap between them, less the 2px border and the 1px divider,
+  // split in two. `Highest` is the longer word and must clear both insets
+  // inside that half. At SEGMENT_ITEM's 8px the word sits on the divider,
+  // which is why the tight variant exists. Measured in Chrome on macOS,
+  // 2026-09-14; re-measure before moving the box width, the gap, or the words.
+  it('leaves the fill segment half room for its longer word', () => {
+    // `Highest` at text-xs: 43.69px in Chrome on macOS, 2026-09-14.
+    const HIGHEST_PX = 44
+    const boxPx = (Number(METRIC_BOX_W.match(/-(\d+)$/)![1]) / 4) * 16
+    const gapPx = (Number(METRICS_GRID.match(/gap-x-([\d.]+)/)![1]) / 4) * 16
+    const insetPx = (Number(SEGMENT_ITEM_TIGHT.match(/px-([\d.]+)/)![1]) / 4) * 16
+    const halfPx = (2 * boxPx + gapPx - 2 - 1) / 2
+
+    expect(halfPx - 2 * insetPx).toBeGreaterThanOrEqual(HIGHEST_PX)
+    expect(insetPx).toBeLessThan(8)
   })
 
   // Every numeric box in the section — ten bounds and Max results — wears the
@@ -834,6 +866,7 @@ describe('shared recipes', () => {
     ['BUTTON_DANGER', BUTTON_DANGER],
     ['BUTTON_FLOATING', BUTTON_FLOATING],
     ['SEGMENT_ITEM', SEGMENT_ITEM],
+    ['SEGMENT_ITEM_TIGHT', SEGMENT_ITEM_TIGHT],
     ['ICON_BUTTON', ICON_BUTTON],
     ['CHIP.label', CHIP.label],
     ['CHIP.remove', CHIP.remove],

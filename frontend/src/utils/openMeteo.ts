@@ -1000,14 +1000,14 @@ async function getJson(
   signal: AbortSignal | undefined,
 ): Promise<unknown> {
   const qs = new URLSearchParams(params).toString()
-  // The error taxonomy the fallback decision hangs on (issue #180):
-  // - fetch rejecting with a TypeError = network/DNS/CORS = genuinely
-  //   unreachable from THIS browser; the server's different network path can
-  //   help, so it maps to OpenMeteoUnreachable.
-  // - HTTP 429 = reachable, quota spent = OpenMeteoRateLimited; a same-IP
-  //   server retry cannot help and must never be triggered by it.
-  // - any other HTTP status = reachable, failed = OpenMeteoHttpError; the
-  //   server talks to the same upstream, so surface it honestly instead.
+  // The error taxonomy (issue #180). Every arm surfaces now that #240 has
+  // removed the server reroute, but they stay separate because the message
+  // each one owes the reader is different:
+  // - fetch rejecting with a TypeError = network/DNS/CORS = unreachable from
+  //   THIS browser, which is the one cause the reader can act on.
+  // - HTTP 429 = reachable, quota spent = OpenMeteoRateLimited, whose scope
+  //   decides whether waiting can help.
+  // - any other HTTP status = reachable, failed = OpenMeteoHttpError.
   // Only a user cancel passes through untranslated.
   try {
     const res = await fetch(`${url}?${qs}`, { signal })
@@ -1015,8 +1015,6 @@ async function getJson(
     if (res.status === 400 && (await isOutOfDomain(res))) {
       // Names the remedy, not the model: the batch 400s on one bad location
       // out of fifty and never says which, and the picker is on screen anyway.
-      // Surfaced rather than rerouted — the reroute is for OpenMeteoUnreachable
-      // alone, and the server reaches the same upstream and would 400 alike.
       const modelId = params.models || 'unknown'
       throw new OpenMeteoModelCoverage(modelId)
     }
