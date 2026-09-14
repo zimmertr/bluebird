@@ -85,10 +85,13 @@ export function compareAdded(
  * takes `CHART_DASHES[0]`, which is solid, so the lines the report was built
  * from read as the plain ones.
  *
- * Tick order, so a model keeps its pattern as others are ticked on and off
- * around it. Past the table's length it cycles rather than running out, which
- * repeats a pattern already on the chart; the hover box's label is what
- * separates those lines.
+ * The published order, which is the order the picker's chips read in, so one
+ * set of models always draws the same patterns whoever assembled it and in
+ * whatever order. The cost is that selecting a model ahead of another moves
+ * the patterns after it; the gain is that a shared link cannot draw a chart
+ * its sender never saw. Past the table's length it cycles rather than running
+ * out, which repeats a pattern already on the chart; the hover box's label is
+ * what separates those lines.
  */
 export function compareDashes(ids: readonly string[]): Record<string, string> {
   const out: Record<string, string> = {}

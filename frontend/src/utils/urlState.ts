@@ -48,7 +48,7 @@ export interface ShareableState {
   // reopen showing something other than what was shared.
   forecastModel: string
   // The extra models the chart draws beside the ranking one (#232), in the
-  // order they were ticked. Part of the shared state for the same reason
+  // published order. Part of the shared state for the same reason
   // `forecastModel` is: the comparison is half of what a shared chart says.
   // Only the extras — the ranking model is always on the chart and already has
   // its own param, and a second spelling of it could disagree.
@@ -308,10 +308,10 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
   // that default moved. The id is Open-Meteo's own (`ecmwf_ifs025`,
   // `gfs_hrrr`), which keeps the param as hand-editable as the rest.
   p.set('model', state.forecastModel)
-  // Written only when something is picked, so an ordinary link carries nothing
-  // for a chart nobody is comparing on. Comma-joined ids in the order they were
-  // ticked, which is the order the chart's chips read, so the param is as
-  // hand-editable as `model` beside it.
+  // Written only when something is selected, so an ordinary link carries
+  // nothing for a chart nobody is comparing on. Comma-joined ids in the
+  // published order, which is the order the picker's chips read, so the param
+  // is as hand-editable as `model` beside it.
   if (state.compareModels.length > 0) p.set('compare', state.compareModels.join(','))
   // Always written, like type/sort/limit above, even at its default. Links used
   // to leave `mode` out for the then-default window mode and let the reader

@@ -360,9 +360,10 @@ export default function App() {
     setForecastModel(caps.defaultForecastModel)
   }, [caps.defaultForecastModel])
   // The extra models the chart draws beside the ranking one (#232), in the
-  // order they were ticked. Panel state rather than chart state: the model
-  // picker is where it is chosen, and a comparison is bought by the next
-  // Analyze like every other model decision, never on load.
+  // published order — the picker normalizes it, so this never holds the
+  // ranking model and never holds a duplicate. Panel state rather than chart
+  // state: the model picker is where it is chosen, and a comparison is bought
+  // by the next Analyze like every other model decision, never on load.
   const [comparedModels, setComparedModels] = useState<string[]>(
     () => restored?.compareModels ?? [],
   )

@@ -21,7 +21,7 @@ import type { WeatherSeries } from '../utils/openMeteo'
  *
  * Everything decidable without a network sits in `utils/modelCompare.ts`; this
  * is the part that cannot, so it holds as little as possible. WHICH models are
- * picked is not held here at all — it is panel state, ticked in the model
+ * picked is not held here at all — it is panel state, selected in the model
  * picker and carried in the link — so what is left is the forecasts themselves.
  *
  * **One single-model request per model**, over every charted destination at
@@ -152,8 +152,8 @@ export function useModelCompare({
 
   const rankingModel = analyzed?.forecastModel ?? null
 
-  // The extra models actually on the chart: ticked in the panel, bought by the
-  // last Analyze, published by this deployment, and never the ranking model
+  // The extra models actually on the chart: selected in the panel, bought by
+  // the last Analyze, published by this deployment, and never the ranking model
   // (which is on the chart by being the report). Panel order, so the chips and
   // the link read alike.
   const drawnIds = useMemo(

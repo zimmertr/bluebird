@@ -82,6 +82,10 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `FOCUS_RING` | Visible keyboard-focus outline |
 | `ACCENT_RING` | Ring pointing at a control from across the screen |
 | `BADGE_ACCENT` | Word marking a row: "Recommended" badge |
+| `CHIP.rest` | A selected member of a set that is not the one in force: a compared forecast model |
+| `CHIP.active` | The member in force, on `ACCENT.fill`; the remove x is the second channel carrying that state |
+| `CHIP.label` | The chip's label, which is also the control that puts that member in force |
+| `CHIP.remove` | The x that deselects it: 24px square, WCAG 2.5.8's AA floor, on every pointer |
 
 **Status**
 

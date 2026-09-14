@@ -289,17 +289,25 @@ Every column is resizable: drag the divider at a header's right edge, or double-
 
 #### Comparing models on the chart
 
-Every model in the picker carries a checkbox at its right edge. Ticking one adds that model to the chart; the list stays open, so ticking three is one visit. Clicking a row's name still makes that model the one that **ranks** the field, and the list closes on that. The ranking model's own box is ticked and cannot be unticked, because its numbers are the report. The closed control reads the ranking model's name followed by how many extras are on the chart, as in **NOAA GFS +2**, and **Clear comparison** at the foot of the list unticks every box at once.
+The picker does two things, and each has its own half of the popover.
+
+The **list selects**. Every model carries a checkbox at its right edge; tick one, or click anywhere on its row, and that model joins the chart. Untick it and it leaves. The list stays open either way, so selecting three models is one visit rather than three.
+
+The **chips rank**. A row of chips above the list holds one chip per selected model, always in the list's own order. The highlighted chip is the model that **ranks** the field, which is the model the table, the markers and the downloaded file are built from. Tap another chip's name and the highlight moves to it; the model it replaces keeps its chip and gains an x. Tap a chip's x, or untick its row, and that model leaves the chart. The last remaining model has no x and its box is disabled, because a report has to come from some model.
+
+Nothing inside the picker closes it. Press Escape, or click outside it, the way the Columns picker and the map's Layers popover close.
+
+The closed control reads the ranking model's name followed by how many extra models are on the chart, as in **NOAA GFS +2**.
 
 The chart then draws one line per destination per model: three destinations under three models is nine lines. Each line carries two things and each has its own channel. Color is the destination's, the same color it wears in the table and on the map. The line style is the model's: the model that ranked the field draws solid, and each model you tick gets a dash pattern of its own. The chips beside the chart's metric radios show a sample of each pattern with its model's name. Every line in the hover box names all three things it is — rank, destination, model — as in **1. Mount Rainier (NOAA GFS)**, so two lines for one destination read alike. A chip marked **Blend** serves one agency's fine regional model for roughly the first two days and its coarse global model after that, so those lines change model partway along.
 
-A comparison is a real fetch, so it is bought by **Analyze** like the ranking model itself: tick a box and the panel says the report no longer answers what the panel asks. Unticking one is free and takes effect at once, because its line is drawn from numbers already in hand. It costs about one weighted call per model per destination, against the hundred or more an analysis of a polygon spends, and nothing in it touches the ranking, the markers, the table or the downloaded CSV.
+A comparison is a real fetch, so it is bought by **Analyze** like the ranking model itself: select a model and the panel says the report no longer answers what the panel asks. Unselecting one is free and takes effect at once, because its line is drawn from numbers already in hand. It costs about one weighted call per model per destination, against the hundred or more an analysis of a polygon spends, and nothing in it touches the ranking, the markers, the table or the downloaded CSV.
 
 Every line on the chart stops at the shortest reach among the models on it, the analysis model's included, because ten days of one model beside three days of another compares nothing. A model Open-Meteo has no data for at that spot draws no line and says so under the key, which is never the same as drawing a flat one.
 
 Air quality has no comparison, so the chips are absent on that metric: AQI comes from one model whatever forecast model ranks the field. See [Data Sources](DATA.md) for the rest of the caveats.
 
-The comparison travels in the link as `compare=`, a comma-separated list of model ids in the order they were ticked. A restored link reopens with the boxes ticked and buys the forecasts on your first Analyze, never on load.
+The comparison travels in the link as `compare=`, a comma-separated list of model ids in the picker's own order, so the same set of models always reads the same way whoever built the link. A restored link reopens with the boxes ticked and buys the forecasts on your first Analyze, never on load.
 
 ### Max results (in Options)
 
