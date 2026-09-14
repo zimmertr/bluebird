@@ -772,6 +772,23 @@ describe('shared recipes', () => {
     expect(button).toContain('ml-auto')
   })
 
+  // The chart's metric control (#348). It was five radios whose labels carry
+  // their units, which at the panel's 12px type need 584px of row; a phone's
+  // results sheet is the phone's width, so at 402px the row wrapped and AQI
+  // sat alone on a second line. A control whose width its labels cannot move
+  // is what ends that: the select composes SELECT at CONTROL_W, and the row
+  // holding it never wraps, so a sixth metric cannot bring the line back.
+  it('keeps the chart metric control on one row at every width', () => {
+    const chart = sources['./components/TimeSeriesChart.tsx']
+    // Through the whole class template rather than to the closing bracket:
+    // the change handler's arrow is a `>` too, and the template's first
+    // interpolation is a `}` too.
+    const select = chart.match(/<select[\s\S]*?className=\{`[^`]*`\}/)![0]
+    expect(select).toContain('SELECT')
+    expect(select).toContain('CONTROL_W')
+    expect(chart).not.toMatch(/flex-wrap/)
+  })
+
   // A numeric field is a field with the spinner arrows taken off, not a second
   // field, for the same reason the dropdown is built from FIELD.
   it('builds the numeric field out of the field rather than beside it', () => {
