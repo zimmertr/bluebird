@@ -410,8 +410,14 @@ export const BADGE_ACCENT =
   `text-[10px] font-semibold uppercase tracking-wider ` +
   `${ACCENT.fill} ${RADIUS.pill} px-1.5 py-0.5`
 
-/** The box a chip sits in, which is the same box in either state. */
-const CHIP_SHAPE = `inline-flex max-w-full items-center ${RADIUS.control} text-xs`
+/**
+ * The box a chip sits in, which is the same box in either state.
+ *
+ * The right padding is the chip's rather than the label's: the label sits
+ * against the × with nothing between them but the glyph's own inset, so the
+ * gap a reader sees is 5px rather than the 16px two `px-2` halves put there.
+ */
+const CHIP_SHAPE = `inline-flex max-w-full items-center ${RADIUS.control} pr-1 text-xs`
 
 /**
  * A chip naming one selected member of a set: the forecast models the picker
@@ -425,10 +431,11 @@ const CHIP_SHAPE = `inline-flex max-w-full items-center ${RADIUS.control} text-x
  * Colour is not the only channel separating them, and it cannot be: the accent
  * fill against the neutral chip beside it measures 2.2:1, under the 3:1 that
  * WCAG 1.4.11 asks of a boundary carrying meaning on its own. A resting chip
- * carries a remove × and an active one never does, so the state reads from
- * shape as well. The labels are above the text floor in both states — white on
- * `--color-sky-650` is 4.57:1 (the derivation is in `index.css`) and slate-200
- * on slate-700 is 8.2:1.
+ * SHOWS its remove ×, an active one shows the same slot empty, and the row
+ * carries a header naming what the highlight means, so the state survives a
+ * reader the fill does not reach. The labels are above the text floor in both
+ * states — white on `--color-sky-650` is 4.57:1 (the derivation is in
+ * `index.css`) and slate-200 on slate-700 is 8.2:1.
  *
  * The size is spelled bare rather than composed from `TEXT.control`, for the
  * reason `BADGE_ACCENT` above spells its own: that role carries slate-200,
@@ -440,15 +447,27 @@ export const CHIP = {
   rest: `${CHIP_SHAPE} bg-slate-700 text-slate-200`,
   /** The member in force. */
   active: `${CHIP_SHAPE} ${ACCENT.fill}`,
-  /** The label, which is also the control that puts that member in force. */
-  label: `min-w-0 cursor-pointer truncate px-2 py-1 ${FOCUS_RING}`,
   /**
-   * The × that deselects it. 24px square — WCAG 2.5.8's AA floor — on every
-   * pointer rather than only on a coarse one, because the chip row takes its
-   * height from this box and a `touch:` variant here would make a phone's
-   * chips taller than a mouse's for no reading gain.
+   * The label, which is also the control that puts that member in force. Left
+   * padding only: its right edge is the gap before the × and the shape above
+   * owns that, so a chip is as wide as its name plus its control rather than
+   * as wide as four paddings.
    */
-  remove: `flex h-6 w-6 flex-shrink-0 cursor-pointer items-center justify-center ${FOCUS_RING}`,
+  label: `min-w-0 cursor-pointer truncate py-1 pl-2 ${FOCUS_RING}`,
+  /**
+   * The × that deselects it: a 20x24 box, drawn on every chip whether or not
+   * it can act, so the row cannot resize when the highlight moves.
+   *
+   * 20 is narrower than the 24x24 WCAG 2.5.8 asks of a target, and the height
+   * is what keeps the chip a chip — a 24px-wide box put ~16px of nothing
+   * between the last letter and the glyph. So the BOX stays 20 and the TARGET
+   * grows on a coarse pointer instead: `touch:w-6` takes it to 24 and the
+   * negative margin takes the four pixels back out of the layout, which is the
+   * one way to buy a target without moving anything around it.
+   */
+  remove:
+    `flex h-6 w-5 flex-shrink-0 cursor-pointer items-center justify-center ` +
+    `touch:-mx-0.5 touch:w-6 ${FOCUS_RING}`,
 } as const
 
 /**

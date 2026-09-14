@@ -1237,11 +1237,23 @@ describe('the selection chip', () => {
     expect(CHIP.label).toContain('min-w-0')
   })
 
-  // WCAG 2.5.8's AA floor, at every pointer rather than behind a `touch:`
-  // variant: the chip takes its height from this box, so a coarse-pointer-only
-  // rule would make a phone's chips taller than a mouse's for no reading gain.
-  it('gives the remove × the AA target floor on every pointer', () => {
-    expect(CHIP.remove).toContain('h-6 w-6')
-    expect(CHIP.remove).not.toContain('touch:')
+  // The box is 20x24, which is narrower than WCAG 2.5.8's 24x24 and is what
+  // keeps the gap before the glyph at 5px instead of 16. The target reaches
+  // the floor on a coarse pointer instead, and the negative margin takes those
+  // four pixels back out of the layout so nothing beside it moves.
+  it('buys the × its AA target without widening the box', () => {
+    expect(CHIP.remove).toContain('h-6 w-5')
+    expect(CHIP.remove).toContain('touch:w-6')
+    expect(CHIP.remove).toContain('touch:-mx-0.5')
+  })
+
+  // Four paddings around one word is what made the chips too wide: the label
+  // pads its left, the shape pads the chip's right, and the × sits between
+  // them with nothing but the glyph's own inset either side.
+  it('pads a chip once on each side rather than around every part', () => {
+    expect(CHIP.label).toContain('pl-2')
+    expect(CHIP.label).not.toMatch(/\bp[xr]-/)
+    expect(CHIP.rest).toContain('pr-1')
+    expect(CHIP.active).toContain('pr-1')
   })
 })
