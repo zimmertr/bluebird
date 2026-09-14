@@ -245,17 +245,6 @@ const RADAR_OPACITY = 0.65
 const GRID_OPACITY = 0.5
 
 /**
- * A 1x1 transparent PNG, which is what the field's image source is built with.
- *
- * An image source needs a url and four corners at construction, and neither is
- * known until a lattice exists. Inline rather than a file so the source can be
- * declared at map load with the rest of them, in the order that fixes the
- * layer stack.
- */
-const BLANK_PIXEL =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
-
-/**
  * How a per-cell wind arrow is drawn against the markers' own.
  *
  * Smaller and dimmer, because both are on screen at once during a wind scrub
@@ -1130,12 +1119,15 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // cells. Interpolating in JavaScript instead would mean shipping a
         // resampler the renderer already contains and re-running it per zoom.
         //
-        // A placeholder 1x1 transparent pixel until the first chunk lands: an
-        // image source has to be constructed with a url and coordinates, and
-        // the real ones are not known until a lattice exists.
+        // Declared with no url, which is a source that starts empty and draws
+        // nothing until an image is set on it. The field arrives by
+        // `updateImage` as pixels this file has already decoded, so the source
+        // never fetches anything and there is no decode that can fail
+        // silently. Clearing the field is therefore the layer's visibility
+        // rather than a second image: an image source holds the last image it
+        // was given, so there is no way to hand it emptiness.
         map.addSource('forecast-grid', {
           type: 'image',
-          url: BLANK_PIXEL,
           coordinates: [
             [-180, 85],
             [180, 85],
@@ -1152,6 +1144,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
           id: 'forecast-grid-fill',
           type: 'raster',
           source: 'forecast-grid',
+          // Hidden until a raster exists, and hidden again whenever one stops
+          // existing. This is the only thing that takes the field off the map.
+          layout: { visibility: 'none' },
           paint: {
             'raster-opacity': GRID_OPACITY,
             'raster-resampling': 'nearest',
@@ -1971,12 +1966,13 @@ const MapView = forwardRef<MapViewHandle, Props>(
       const source = map.getSource('forecast-grid') as maplibregl.ImageSource | undefined
       if (!source) return
       const raster = gridSpec && gridRaster(gridSpec, gridCells, sortBy, playbackIndex, gridStyle)
-      if (!gridSpec || !raster) {
-        source.updateImage({ url: BLANK_PIXEL })
+      const image = gridSpec && raster ? rasterImage(raster) : null
+      if (!gridSpec || !image) {
+        map.setLayoutProperty('forecast-grid-fill', 'visibility', 'none')
         return
       }
-      const url = rasterDataUrl(raster)
-      if (url) source.updateImage({ url, coordinates: gridImageCoordinates(gridSpec) })
+      source.updateImage({ image, coordinates: gridImageCoordinates(gridSpec) })
+      map.setLayoutProperty('forecast-grid-fill', 'visibility', 'visible')
     }, [gridSpec, gridCells, gridStyle, sortBy, playbackIndex, mapReady])
 
     // The arrows, on their own point source for the reason given where it is
@@ -2303,12 +2299,13 @@ const MapView = forwardRef<MapViewHandle, Props>(
 MapView.displayName = 'MapView'
 export default MapView
 
-// The raster as something an image source will take. A canvas is the only way
-// to get pixels into a data URL, which is why this lives here rather than in
-// forecastGrid.ts: everything up to the buffer is pure and tested, and this is
-// the DOM the last step needs. Returns null where there is no canvas at all
-// (jsdom-less test environments), which simply leaves the field undrawn.
-function rasterDataUrl(raster: GridRaster): string | null {
+// The raster as something an image source will take: a decoded canvas, handed
+// straight to `updateImage` with no encode, no fetch and no decode in between.
+// A canvas is what carries the pixels, which is why this lives here rather
+// than in forecastGrid.ts: everything up to the buffer is pure and tested, and
+// this is the DOM the last step needs. Returns null where there is no canvas at
+// all (jsdom-less test environments), which simply leaves the field undrawn.
+function rasterImage(raster: GridRaster): HTMLCanvasElement | null {
   const canvas = document.createElement('canvas')
   canvas.width = raster.width
   canvas.height = raster.height
@@ -2320,7 +2317,7 @@ function rasterDataUrl(raster: GridRaster): string | null {
   const image = ctx.createImageData(raster.width, raster.height)
   image.data.set(raster.rgba)
   ctx.putImageData(image, 0, 0)
-  return canvas.toDataURL('image/png')
+  return canvas
 }
 
 function updateResults(

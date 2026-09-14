@@ -22,6 +22,7 @@ import {
 // `?raw` gives the file's text without executing it: App.tsx is a component
 // tree the node-env Vitest cannot mount, so what it wires is asserted as source.
 import appSource from '../App.tsx?raw'
+import mapViewSource from '../components/MapView.tsx?raw'
 import { resultsFeatureCollection } from './resultFeatures'
 import type { DestinationResult } from '../types'
 import type { AqiResult, WeatherResult } from './openMeteo'
@@ -425,6 +426,29 @@ describe('the grid layer reads that decision rather than re-deriving one', () =>
     ]) {
       expect(appSource).toContain(surface)
     }
+  })
+})
+
+// The field leaves the map by the layer's visibility, and it reaches the map as
+// pixels this code has already decoded. Both halves are guarded here because a
+// decode the renderer does for us fails SILENTLY: an image source keeps the
+// last image it loaded, so a placeholder that will not decode clears nothing
+// and the previous field stays painted under a ranking it never came from.
+// MapView.tsx is a component the node-env Vitest cannot mount, so this is the
+// `?raw` idiom the block above uses on App.tsx.
+describe('how the grid layer leaves the map', () => {
+  it('hands the source decoded pixels, never a url', () => {
+    // An encoded image anywhere in this file is a decode waiting to fail.
+    expect(mapViewSource).not.toContain('data:image/png;base64')
+    expect(mapViewSource).not.toMatch(/updateImage\(\{\s*url/)
+  })
+
+  it('clears the field by hiding the layer', () => {
+    expect(mapViewSource).toContain(
+      "map.setLayoutProperty('forecast-grid-fill', 'visibility', 'none')",
+    )
+    // Hidden at declaration too, so nothing is on screen before a raster is.
+    expect(mapViewSource).toMatch(/id: 'forecast-grid-fill',[\s\S]{0,400}?visibility: 'none'/)
   })
 })
 
