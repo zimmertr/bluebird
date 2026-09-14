@@ -965,11 +965,11 @@ export const NOTICE = {
  * matching its border.
  *
  * The rule sits 6px clear on both sides. That space is padding on each row
- * (`NOTICE_DISMISS.row`) rather than a gap on this container, because a gap
- * would only ever be BETWEEN rows and the rule is drawn at a row's top edge;
- * the negative margin here cancels the padding the first and last rows would
- * otherwise add to the box, so a box holding one message is exactly as tall as
- * it was.
+ * (`NOTICE_DISMISS.row`) rather than a gap on this container: the rule is a
+ * border on a row's own edge, so a margin between rows would put the whole gap
+ * on one side of it. The negative margin here cancels the padding the first and
+ * last rows would otherwise add to the box, so a box holding one message is
+ * exactly as tall as it was.
  */
 export const NOTICE_DIVIDER = {
   warn: '-my-1.5 divide-y divide-amber-800/60',
