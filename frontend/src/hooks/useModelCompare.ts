@@ -11,7 +11,6 @@ import {
   modelSeriesOnGrid,
   pairKey,
 } from '../utils/modelCompare'
-import { modelColor } from '../utils/chartColors'
 import { shownModels } from '../utils/modelVisibility'
 import { OpenMeteoModelCoverage, fetchWeather } from '../utils/openMeteo'
 import type { WeatherSeries } from '../utils/openMeteo'
@@ -101,6 +100,13 @@ export interface ModelCompareOptions {
    * showing must not start one.
    */
   hidden?: ReadonlySet<string>
+  /**
+   * One colour per COMPARED model, by id. Assigned once from the sidebar
+   * picker's SELECTION (`modelRows` in `utils/modelVisibility.ts`) and passed
+   * in rather than derived here, so the Models popover's swatches and the
+   * lines they key can never come from two different lists.
+   */
+  colors: Readonly<Record<string, string>>
   /** The chart's hourly grid, which compared series are re-indexed onto. */
   times: number[]
 }
@@ -115,6 +121,7 @@ export function useModelCompare({
   picked,
   fetchable,
   hidden = EMPTY_HIDDEN,
+  colors,
   times,
 }: ModelCompareOptions) {
   const [fetched, setFetched] = useState<Fetched>(NOTHING_FETCHED)
@@ -271,19 +278,6 @@ export function useModelCompare({
     // re-run this for sets that had not moved.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, analysisSeq, drawnKey, destinationsKey, window_])
-
-  // One colour per COMPARED model, taken from the ramp past whatever the
-  // destinations on screen are wearing, so no line can be read as the wrong
-  // fact. The ranking model takes none: its lines keep their destinations'
-  // colours, which is how the chart draws with no comparison up.
-  const colors = useMemo(() => {
-    const destinationColors = destinations.map((d) => d.color)
-    const out: Record<string, string> = {}
-    drawnIds.forEach((id, i) => {
-      out[id] = modelColor(destinationColors, i)
-    })
-    return out
-  }, [destinations, drawnIds])
 
   // The models on the chart: the ranking model first, then every extra. The
   // ranking model carries no note — its numbers are the report — so only an

@@ -16,7 +16,7 @@ import { modelForecastHours, useCapabilities } from './hooks/useCapabilities'
 import { useChartSelection } from './hooks/useChartSelection'
 import { useModelCompare } from './hooks/useModelCompare'
 import { compareAdded } from './utils/modelCompare'
-import { pruneHidden, toggleHidden } from './utils/modelVisibility'
+import { modelRows, pruneHidden, toggleHidden } from './utils/modelVisibility'
 import { useFireProximity } from './hooks/useFireProximity'
 import { fireKey } from './utils/fireProximity'
 import { useForecastGrid } from './hooks/useForecastGrid'
@@ -1825,6 +1825,20 @@ export default function App() {
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chart.selectedRows, chartTimes])
+  // Every model the panel has selected, ranking first, each with the colour its
+  // lines wear. One call, read by the Models popover AND by the chart, so a
+  // swatch and the lines it keys cannot be assigned from two different lists.
+  // Off the SELECTION rather than the chart: a model ticked before the next
+  // Analyze has a row, and its colour is settled before its first line.
+  const selectedModelRows = useMemo(
+    () => modelRows(caps.forecastModels, forecastModel, comparedModels, chartedDestinations.map((d) => d.color)),
+    [caps.forecastModels, chartedDestinations, comparedModels, forecastModel],
+  )
+  const modelLineColors = useMemo(() => {
+    const out: Record<string, string> = {}
+    for (const row of selectedModelRows) if (row.color !== null) out[row.id] = row.color
+    return out
+  }, [selectedModelRows])
   const compare = useModelCompare({
     enabled: chart.metric !== 'aqi',
     destinations: chartedDestinations,
@@ -1835,6 +1849,7 @@ export default function App() {
     picked: comparedModels,
     fetchable: analyzed?.compareModels ?? [],
     hidden: hiddenModels,
+    colors: modelLineColors,
     times: chartTimes,
   })
 
@@ -2570,12 +2585,15 @@ export default function App() {
                       Columns
                     </button>
                   )}
-                  {/* Which compared models the chart draws (#232). A bar
-                      member rather than a control on the chart, for the reason
-                      every other comparison control is in one place: the chart
-                      is read, not operated. Present only while there is a
-                      choice to make, which is more than one model on it. */}
-                  {compare.compared.length > 1 && (
+                  {/* Which of the selected models the chart draws (#232). A
+                      bar member rather than a control on the chart, for the
+                      reason every other comparison control is in one place:
+                      the chart is read, not operated. Standing, under exactly
+                      the condition Columns stands under, because a bar that
+                      gains and loses members is a bar a reader has to look for
+                      (#242 review) — and the question it asks is about the
+                      panel's selection, which does not wait on a fetch. */}
+                  {showTable && (
                     <button
                       ref={modelsButtonRef}
                       onClick={() => setModelsOpen(!modelsOpen)}
@@ -2814,7 +2832,7 @@ export default function App() {
         <ModelsPicker
           open={modelsOpen}
           onOpenChange={setModelsOpen}
-          models={compare.compared}
+          models={selectedModelRows}
           hidden={hiddenModels}
           onToggle={(id) => setHiddenModels((prev) => toggleHidden(prev, id))}
           triggerRef={modelsButtonRef}
