@@ -409,7 +409,12 @@ export default function ModelPicker({
             openList()
           }
         }}
-        className={`${SELECT} ${DISABLED} flex w-full items-baseline gap-1 px-2 py-1.5 text-left`}
+        // Centered on both axes. `items-center` rather than `items-baseline`
+        // is what makes the vertical half true on a phone: `FIELD` grows the
+        // box to the tap floor there, and a baseline left the model name
+        // against the top edge of a box half again as tall as its text
+        // (TJ, 2026-09-14).
+        className={`${SELECT} ${DISABLED} flex w-full items-center justify-center gap-1 px-2 py-1.5 text-center`}
       >
         {/* The label gives way, never the count: `+2` is the only thing on the
             trigger that a reader cannot otherwise see, so a long model name

@@ -238,7 +238,7 @@ describe('the approved comparison blocker copy', () => {
   // alone. Measured at 80 characters against a 92-character two-line budget.
   it('says why air quality cannot be compared, and that it cannot', () => {
     expect(controlPanelSource).toContain(
-      "'Air quality data is retrieved independently of the model and cannot be compared.'",
+      '`${NOUN.aqi} data is retrieved independently of the model and cannot be compared.`',
     )
   })
 

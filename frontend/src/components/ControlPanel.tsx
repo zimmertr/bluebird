@@ -135,9 +135,9 @@ function blockerText(
       // Two lines, and the exception that proves the one-line rule: the
       // reader needs both halves, that the data is one source and that the
       // comparison is therefore off, and neither half stands alone (TJ,
-      // 2026-09-14). Measured at 80 characters against a 92-character
+      // 2026-09-14). Measured at 69 characters against a 92-character
       // two-line budget.
-      return 'Air quality data is retrieved independently of the model and cannot be compared.'
+      return `${NOUN.aqi} data is retrieved independently of the model and cannot be compared.`
     case 'compare-freeze':
       // Names the models rather than counting them, because a model is a
       // control in the panel: the reader can see the one the sentence is
