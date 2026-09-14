@@ -794,7 +794,9 @@ npx openapi-typescript https://bluebirdforecast.com/openapi.json -o bluebird-for
 ```
 
 A copy of the schema is committed at [`backend/openapi.json`](../backend/openapi.json)
-and checked in CI, so it always matches the code in the same commit.
+and checked in CI, so it always matches the code in the same commit. The app
+generates its own types from that copy the same way, and CI fails a stale one,
+so the command above is a path this repository exercises on every pull request.
 
 ## Please be considerate
 

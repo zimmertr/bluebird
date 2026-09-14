@@ -12,6 +12,9 @@ LICENSE
 docker-compose.yml
 GitVersion.yml
 frontend/node_modules/
+# The API type generator runs in CI and on a developer's machine; the image
+# build has no use for it and its dependency tree is large.
+frontend/tools/
 frontend/dist/
 __pycache__/
 *.pyc
