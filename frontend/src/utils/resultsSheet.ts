@@ -69,8 +69,10 @@ export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
  * The sheet's header bar, which is also the sheet's collapsed height.
  *
  * Measured at 402x874 on a coarse pointer, 2026-09-13: 12px of padding, a
- * 19.5px title row, the 4px gap, the 44px a coarse pointer gives the mode
- * segment, the 1px rule, and the sheet's own 1px top border. Rounded up.
+ * 19.5px title row, the 4px gap, then 66px of actions — the mode segment at the
+ * 44px a coarse pointer gives it, and the three links wrapping under it, which
+ * they do at this width now that they read at the size of every other control —
+ * then the 1px rule and the sheet's own 1px top border. Rounded up from 103.5.
  *
  * This is an ESTIMATE and is used only where an estimate is the right answer:
  * the resting reserve the panel clamp takes, and the camera padding, both of
@@ -79,7 +81,7 @@ export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
  * because an estimate that was 20px out put a different gap under the player in
  * every results mode. Re-measure if a member joins or leaves the bar.
  */
-export const SHEET_HEADER_PX = 84
+export const SHEET_HEADER_PX = 104
 
 /**
  * One drag grip, of which the sheet carries one or two. `h-2` is 8px, but

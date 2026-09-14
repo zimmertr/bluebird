@@ -219,7 +219,7 @@ describe('the resting height', () => {
     })
     expect(chart).toBe(0)
     expect(table).toBe(120)
-    expect(VIEWPORT - sheetHeightPx({ collapsed: false, gripCount: 1, panelsPx: table })).toBe(439)
+    expect(VIEWPORT - sheetHeightPx({ collapsed: false, gripCount: 1, panelsPx: table })).toBe(419)
   })
 })
 
@@ -293,7 +293,7 @@ describe('the camera padding', () => {
         availPx: 874,
         ...defaults,
       }),
-    ).toBe(388)
+    ).toBe(403)
   })
 
   it('takes only the reserve on a viewport too short for the whole table', () => {

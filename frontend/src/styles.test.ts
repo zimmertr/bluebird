@@ -914,6 +914,16 @@ describe('shared recipes', () => {
     expect(LINK).toContain('hover:text-sky-400')
   })
 
+  // The results bar's four links — Columns, Removed, Download CSV, and the
+  // Open-Meteo credit beside them — are controls the reader presses, so they
+  // read at the size every other control in the app reads at. The micro step
+  // below is for text that is present but never first, and a 10px button in a
+  // bar of 12px text read as a footnote rather than as a control.
+  it('reads the results bar at the size of every other control', () => {
+    expect((appSource.match(/\$\{TEXT\.control\} \$\{LINK\}/g) ?? []).length).toBe(4)
+    expect(appSource).not.toMatch(/\$\{TEXT\.micro\}/)
+  })
+
   // The map's Open-Meteo credit is a link *and* a 10px caption, so it wears
   // both roles at once. Two color utilities in one class list are decided by
   // stylesheet order, not by the order they were written, so composing them is

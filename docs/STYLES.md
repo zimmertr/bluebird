@@ -224,7 +224,9 @@ and a truncated reason is worse than a second line.
 
 ### Results bar fold point
 
-The results bar is one line when its container is 896px or wider, and exactly two lines below that: the title row (ranking summary, window, collapse chevron) and the actions row (mode switch, Columns, Download CSV, Open-Meteo.com). It never stacks further.
+The results bar is one line when its container is 896px or wider, and two lines below that: the title row (ranking summary, window, collapse chevron) and the actions row (mode switch, Columns, Download CSV, Open-Meteo.com). The column never stacks further, but the actions row itself wraps on a narrow phone: measured at 402px on a coarse pointer, the mode switch takes 136px of the 378px available and the three links need 232px more with their gaps, so the last of them folds under. That makes the bar 102.5px tall there, which `SHEET_HEADER_PX` in `frontend/src/utils/resultsSheet.ts` mirrors — re-measure both together.
+
+The three links read at `TEXT.control`, the size of every other control in the app. They are buttons the reader presses; the micro step is for text that is present but never first.
 
 The mode switch wears `SEGMENT_FLUID`, not `SEGMENT`: the panel's segment role bakes in the sidebar's 144px column, which three icon-plus-label halves cannot fit — that mismatch is how the switch once shipped clipped by its own `overflow-hidden`.
 

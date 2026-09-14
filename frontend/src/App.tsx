@@ -2613,13 +2613,19 @@ export default function App() {
                   {/* Columns button opens picker popover. Present from the
                       first pending row, not only once a report exists: the
                       bar keeping its full membership is what makes it read
-                      as one control surface (#242 review). */}
+                      as one control surface (#242 review).
+
+                      This and the three beside it read at `TEXT.control`, the
+                      size of every other control in the app. The micro step is
+                      for text that is present but never first — a credit, a
+                      timestamp, an overflow count — and these are buttons the
+                      reader is meant to press. */}
                   {showTable && (
                     <button
                       ref={columnsButtonRef}
                       onClick={() => setColumnsOpen(!columnsOpen)}
                       aria-label="Choose which columns to display"
-                      className={`${TEXT.micro} ${LINK} cursor-pointer whitespace-nowrap`}
+                      className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
                     >
                       Columns
                     </button>
@@ -2633,7 +2639,7 @@ export default function App() {
                       ref={removedButtonRef}
                       onClick={() => setRemovedOpen(!removedOpen)}
                       aria-label={`Restore removed rows (${removed.size} removed)`}
-                      className={`${TEXT.micro} ${LINK} cursor-pointer whitespace-nowrap`}
+                      className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
                     >
                       Removed ({removed.size})
                     </button>
@@ -2642,7 +2648,7 @@ export default function App() {
                     <button
                       onClick={handleDownloadCsv}
                       aria-label="Download these results as a CSV file"
-                      className={`${TEXT.micro} ${LINK} cursor-pointer whitespace-nowrap`}
+                      className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
                     >
                       Download CSV
                     </button>
@@ -2651,7 +2657,7 @@ export default function App() {
                     href="https://open-meteo.com/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`${TEXT.micro} ${LINK} whitespace-nowrap`}
+                    className={`${TEXT.control} ${LINK} whitespace-nowrap`}
                   >
                     Open-Meteo.com
                   </a>
