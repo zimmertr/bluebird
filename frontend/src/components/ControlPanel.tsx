@@ -1069,12 +1069,13 @@ export default function ControlPanel({
             for a single-hour window, where every aggregate is the same number,
             and each label spans the empty column so the row keeps one gap.
 
-            The last two rows never rank: elevation gates the fetch rather than
-            the display, and the results cap trims what is shown. Nothing is
-            drawn between them and the rows above. A rule there read as a break
-            the size of the one between whole sections, which is the only thing
-            that weight is allowed to say (TJ, 2026-09-14); what marks them
-            instead is the empty radio column their labels start in. */}
+            The section reads in three blocks, and nothing is drawn between
+            them. A rule there read as a break the size of the one between whole
+            sections, which is the only thing that weight is allowed to say (TJ,
+            2026-09-14). The blocks are told apart by shape instead: two wide
+            controls saying how the list is ordered and how far down it goes,
+            then the two headings, then the table of bounds — elevation first
+            with no radio, then the five the ranking can use. */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
             Metrics
@@ -1108,6 +1109,39 @@ export default function ControlPanel({
                 </button>
               ))}
             </div>
+            {/* How many of that order to show, directly under the direction
+                that orders it: the two finish one sentence — "the 200 lowest by
+                total precipitation" — and neither is a bound, so they sit above
+                the table of bounds rather than in it (TJ, 2026-09-14). Being
+                the pair of wide controls over a table of narrow ones is what
+                separates them; nothing is drawn.
+
+                The ceiling is the live analysis cap from /api/capabilities. The
+                default rides as a placeholder, like the boxes below, so
+                changing it is one keystroke rather than a select-and-erase.
+                Empty means the DEFAULT here, not "no cap" as it does for a
+                bound: this knob always has a value, and the row count in the
+                table's header says what it is doing. */}
+            <label
+              htmlFor="max-results"
+              className={`${TEXT.control} col-span-2 truncate`}
+              title={LIMIT_NOTE}
+            >
+              {AGGREGATE.maximum} results
+            </label>
+            <input
+              id="max-results"
+              type="number"
+              min={1}
+              max={maxLimit}
+              placeholder={String(DEFAULT_LIMIT)}
+              value={limit === DEFAULT_LIMIT ? '' : limit}
+              onChange={(e) =>
+                setLimit(clampLimit(parseInt(e.target.value) || DEFAULT_LIMIT, maxLimit))
+              }
+              title={LIMIT_NOTE}
+              className={`${METRIC_BOX_WIDE} col-span-2`}
+            />
             {/* The box columns' headings, the two aggregate names: for most
                 rows that is literally what a box bounds (see BOUNDS). The
                 unit moved from the label into each box's placeholder, because
@@ -1119,6 +1153,43 @@ export default function ControlPanel({
                 {aggregate}
               </span>
             ))}
+            {/* Elevation leads the table: it is a bound like the five under it
+                and reads against the same two headings, but the ranking cannot
+                use it, so it takes no radio and its label starts where the
+                radios do. First rather than in its alphabetical place, because
+                a row with no radio inside that run would break the column the
+                five share (TJ, 2026-09-14).
+
+                The tooltip is on the label AND both boxes, so the note is
+                reachable from anywhere in the row rather than from a third of
+                it. Tooltips are otherwise not used here and need explicit
+                approval — see docs/STYLES.md. */}
+            <label
+              htmlFor="elevation-lower"
+              className={`${TEXT.control} col-span-2 truncate`}
+              title={ELEVATION_NOTE}
+            >
+              Elevation
+            </label>
+            {EDGES.map(([edge, aggregate], i) => {
+              const [value, set] = edge === 'lower'
+                ? ([minElevationFt, setMinElevationFt] as const)
+                : ([maxElevationFt, setMaxElevationFt] as const)
+              return (
+                <input
+                  key={edge}
+                  id={`elevation-${edge}`}
+                  title={ELEVATION_NOTE}
+                  type="number"
+                  step={100}
+                  placeholder={ELEVATION_UNIT}
+                  aria-label={`Elevation ${aggregate}. ${ELEVATION_HINT[i]}`}
+                  value={value ?? ''}
+                  onChange={(e) => set(e.target.value === '' ? null : Number(e.target.value))}
+                  className={METRIC_BOX}
+                />
+              )
+            })}
             {RANKED_FAMILIES.map((family) => {
               const rowKey = rowKeys[family]
               const isActive = familyOf(sortBy) === family
@@ -1195,66 +1266,6 @@ export default function ControlPanel({
                 </Fragment>
               )
             })}
-            {/* On the label AND both boxes, so the note is reachable from
-                anywhere in the row rather than from a third of it. Tooltips
-                are otherwise not used here and need explicit approval — see
-                docs/STYLES.md. */}
-            <label
-              htmlFor="elevation-lower"
-              className={`${TEXT.control} col-span-2 truncate`}
-              title={ELEVATION_NOTE}
-            >
-              Elevation
-            </label>
-            {EDGES.map(([edge, aggregate], i) => {
-              const [value, set] = edge === 'lower'
-                ? ([minElevationFt, setMinElevationFt] as const)
-                : ([maxElevationFt, setMaxElevationFt] as const)
-              return (
-                <input
-                  key={edge}
-                  id={`elevation-${edge}`}
-                  title={ELEVATION_NOTE}
-                  type="number"
-                  step={100}
-                  placeholder={ELEVATION_UNIT}
-                  aria-label={`Elevation ${aggregate}. ${ELEVATION_HINT[i]}`}
-                  value={value ?? ''}
-                  onChange={(e) => set(e.target.value === '' ? null : Number(e.target.value))}
-                  className={METRIC_BOX}
-                />
-              )
-            })}
-            {/* How many of that order to show. It sits with elevation because
-                neither ranks: the rows above say WHICH order, and this says how
-                far down it to go — "the 200 lowest by total precipitation" is
-                one thought. It is not a bound either: it trims what is shown
-                and never what is analyzed. The ceiling is the live analysis
-                cap from /api/capabilities. The default rides as a placeholder,
-                like the boxes above, so changing it is one keystroke rather
-                than a select-and-erase. Empty means the DEFAULT here, not "no
-                cap" as it does for a bound: this knob always has a value, and
-                the row count in the table's header says what it is doing. */}
-            <label
-              htmlFor="max-results"
-              className={`${TEXT.control} col-span-2 truncate`}
-              title={LIMIT_NOTE}
-            >
-              {AGGREGATE.maximum} results
-            </label>
-            <input
-              id="max-results"
-              type="number"
-              min={1}
-              max={maxLimit}
-              placeholder={String(DEFAULT_LIMIT)}
-              value={limit === DEFAULT_LIMIT ? '' : limit}
-              onChange={(e) =>
-                setLimit(clampLimit(parseInt(e.target.value) || DEFAULT_LIMIT, maxLimit))
-              }
-              title={LIMIT_NOTE}
-              className={`${METRIC_BOX_WIDE} col-span-2`}
-            />
             {filtersActive && (
               /* Under the two box columns, on their outer edges, so the one
                  control with no label sits where every bound it clears does. */

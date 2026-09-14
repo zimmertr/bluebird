@@ -126,7 +126,7 @@ The calendar is fully keyboard operable: arrow keys move by day, Page Up and Pag
 
 ## Metrics
 
-Once you have set your destinations and forecast window, one table shapes the report. Each row is a metric: its radio and its dropdown say how the row ranks, and its Min and Max boxes say who qualifies. One **Rank by** switch above the rows picks Lowest or Highest for whichever metric ranks. The rows read alphabetically. The last two, the elevation range and Max results, have boxes of their own but rank nothing, so their labels start where the others' radios do.
+Once you have set your destinations and forecast window, one table shapes the report. Two controls at the top say how the list is ordered: **Rank by** picks Lowest or Highest, and **Max results** says how far down it to go. Under them, one row per metric: its radio and its dropdown say how the row ranks, and its Min and Max boxes say who qualifies. Elevation leads that table because the ranking cannot use it, so it carries boxes but no radio. The five the ranking can use follow, in alphabetical order.
 
 ### Ranking
 
@@ -142,7 +142,7 @@ Wind is reported at each destination's own elevation, not at the standard 10 met
 
 ### Bounds
 
-The Min and Max boxes say which destinations you would consider at all: on AQI, the freezing level, precipitation, temperature and wind, and on elevation. An empty box shows its unit and bounds nothing. **Clear filters** appears as soon as any box holds a number, and it empties every one of them, the results cap included.
+The Min and Max boxes say which destinations you would consider at all: on elevation, and on AQI, the freezing level, precipitation, temperature and wind. An empty box shows its unit and bounds nothing. **Clear filters** appears as soon as any box holds a number, and it empties every one of them, the results cap included.
 
 **A ceiling is a promise about every hour**, not an average: a 20 mph wind ceiling excludes a destination that gusts to 45 at noon even if it averages 8. A floor is the opposite: a 15 mph wind floor asks for somewhere whose *calmest* hour still blows 15, which almost nowhere satisfies. For elevation, wind, temperature and the freezing level the bounds are exactly the table's Min and Max columns, so a freezing-level floor of 6,000 asks for somewhere the level never dropped below 6,000 ft. Precipitation is bounded on its window total in both columns, because a per-hour minimum would read 0.000 almost everywhere.
 
