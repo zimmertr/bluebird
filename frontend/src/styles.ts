@@ -1448,15 +1448,6 @@ export const SLIDER_OVERLAY =
   SLIDER_BAR_THUMB
 
 /**
- * The coverage slider's in-track wordmark: `TEXT.overline`'s shape without its
- * color. The line renders twice — muted on the recessed well, and white where
- * the accent fill has reached (the fill layer is `ACCENT.fill`, whose label
- * color is not separable from it) — so the color belongs to the layer, never
- * to this shape.
- */
-export const SLIDER_WORDMARK = `${MICRO_SIZE} font-semibold uppercase tracking-wider`
-
-/**
  * Control-size text with NO color of its own, for spans whose color is a
  * separate role's to supply: the coverage slider's two-layer value, and the
  * grid legend's value, which wears `STATUS.warn` while transient and
@@ -1468,6 +1459,26 @@ export const CONTROL_SIZE = 'text-xs'
 
 /** The slider's value readout: the colorless control size above. */
 export const SLIDER_VALUE = CONTROL_SIZE
+
+/**
+ * The other half of the same line: the slider's in-track wordmark.
+ *
+ * The same size as the value beside it (`CONTROL_SIZE`) and in sentence case,
+ * so the slider reads as one line of one control rather than two labels of
+ * different ranks — and so it matches the Blocks/Smooth segment directly above
+ * it, which is the app's rule everywhere (TJ, 2026-09-14). It used to wear
+ * `TEXT.overline`'s shape, a 10px uppercase with letter-spacing, which is the
+ * shape of a heading OVER a group rather than of a label inside a control.
+ *
+ * The weight is what still separates the two halves: `font-semibold` names the
+ * control where the value states its number, at one size and one color.
+ *
+ * Colorless, like `CONTROL_SIZE` itself. The line renders twice — muted on the
+ * recessed well, and white where the accent fill has reached (the fill layer is
+ * `ACCENT.fill`, whose label color is not separable from it) — so the color
+ * belongs to the layer, never to this shape.
+ */
+export const SLIDER_WORDMARK = `${CONTROL_SIZE} font-semibold`
 
 /**
  * The coverage slider's un-filled text layer: the same idle slate the resting

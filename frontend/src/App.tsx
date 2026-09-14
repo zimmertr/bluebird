@@ -2672,7 +2672,15 @@ export default function App() {
                           whatever is open. The popover is as wide as the legend
                           boxes below it (`MAP_BOX_W`), so these take the fluid
                           segment rather than the panel's fixed 144px column —
-                          the same reason the results bar's mode switch does. */}
+                          the same reason the results bar's mode switch does.
+
+                          They are ONE block, set off from the list by the same
+                          gap on both sides: `mt-1.5` under the checkbox row it
+                          belongs to, and `mb-1.5` under the last of them. The
+                          slider used to end flush against the next layer's row,
+                          so the block read as belonging to that row as much as
+                          to the grid's — a group is bounded by its gaps, and
+                          one gap bounds nothing. */}
                       {layer.key === 'grid' && gridOn && (
                         <>
                           <div className={`${SEGMENT_FLUID_LIFTED} mt-1.5 w-full`}>
@@ -2699,7 +2707,7 @@ export default function App() {
                               and commits on release, because each committed value
                               is a refetch and a drag must not fetch per pixel. */}
                           <div
-                            className={`relative mt-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${LIFTED_EDGE} ${RECESSED_FILL}`}
+                            className={`relative mt-1.5 mb-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${LIFTED_EDGE} ${RECESSED_FILL}`}
                           >
                             {(() => {
                               const shown = gridReachDraft ?? gridReachFrac
