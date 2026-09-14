@@ -370,7 +370,7 @@ Hovering a row reveals a × at its end (always visible on touch screens) that re
 
 | Column | Description |
 |---|---|
-| Name | Destination name, links to Windy |
+| Name | Destination name. Click it to center the map on the destination, before or after an analysis; the ↗ beside it opens the destination on Peakbagger or OpenStreetMap |
 | Elevation (ft) | Elevation in feet, from the OSM `ele` tag |
 | Precipitation · Total (in) | Sum of hourly precipitation over the window, in inches |
 | Precipitation · Avg (in/hr) | Average hourly precipitation rate |
@@ -433,12 +433,23 @@ What lands in the file:
   column is always present: its cells tick while the check runs, then show
   ⚠️ and the distance where a fire is within 10 miles, a dash where the
   check ran and cleared the row, and `N/A` where the row has no answer.
-  Hovering an `N/A` says which of its two causes applies: the destination
-  sits outside the fire data's US coverage, or NIFC is unreachable and the
-  whole check failed. The file writes the same answers with the distance
+  A warned cell is a link to that fire on the NIFC map, the same map a fire
+  on Bluebird's own map opens. Hovering an `N/A` says which of its two
+  causes applies: the destination sits outside the fire data's US coverage,
+  or NIFC is unreachable and the whole check failed. The file writes the same answers with the distance
   bare and the cleared cell empty; a coverage `N/A` carries over as written.
 - Nothing a removed row would have contributed. Removals and the max-results
   cut apply first, exactly as on screen.
+
+**Every metric cell is a link to Windy**, opened on the same spot, the same
+overlay, and the same forecast model the row was analyzed with. Where models
+are compared, each row links to its own model. A **Min** or **Max** cell also
+opens on the hour that produced it. Three things Windy does with that, measured
+rather than assumed: it snaps the hour to the model's own step, so a
+three-hourly model lands on the nearest frame; it clamps an hour past that
+model's reach; and it ignores a time in the past, opening at the current hour
+instead. Windy carries only some agencies' regional models, and where it has none for
+your destination it falls back to its own default.
 
 A blank cell means no value, never a zero. AQI is blank past its forecast
 horizon, and elevation is blank where OpenStreetMap has no `ele` tag. The

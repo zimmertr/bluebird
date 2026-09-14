@@ -3308,6 +3308,9 @@ export default function App() {
                         onRemove={handleRemoveResult}
                         onRemovePending={(d) => searched.removePlace(d.latitude, d.longitude)}
                         onFocusResult={(row) => mapRef.current?.focusResult(row)}
+                        onFocusPending={(at) => mapRef.current?.focusPoint(at)}
+                        modelId={analyzed?.forecastModel ?? forecastModel}
+                        times={response?.times ?? []}
                         onToggleChart={chart.toggle}
                         isCharted={chart.isSelected}
                         chartColor={rowChartColor}

@@ -275,7 +275,7 @@ describe('quoting', () => {
 
 describe('the wildfire column', () => {
   const near = new Map<string, FireWarning>([
-    [fireKey(46.8523, -121.7603), { miles: 5.28, name: 'Sourdough Fire' }],
+    [fireKey(46.8523, -121.7603), { miles: 5.28, name: 'Sourdough Fire', latitude: 0, longitude: 0 }],
   ])
 
   it('reports the distance for a flagged row', () => {

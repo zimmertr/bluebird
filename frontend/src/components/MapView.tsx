@@ -76,6 +76,11 @@ export interface MapViewHandle {
   flyToPlace: (place: Place) => void
   fitToPoints: (points: { latitude: number; longitude: number }[]) => void
   focusResult: (result: DestinationResult) => void
+  // The same camera move for a destination with no forecast yet, and nothing
+  // else: no popup, because the one `focusResult` opens is a forecast card and
+  // this destination has no forecast. Clicking the dot still says what is
+  // known about it (TJ, 2026-09-14).
+  focusPoint: (at: { latitude: number; longitude: number }) => void
 }
 
 interface Props {
@@ -908,6 +913,20 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // Center on a result (clicked from its rank in the table) and open the
       // same popup a marker click gives. Rank is the analyzed order the markers
       // are labeled with, so the popup matches the marker it lands on.
+      focusPoint(at: { latitude: number; longitude: number }) {
+        const map = mapRef.current
+        if (!map || !loadedRef.current) return
+        cameraCommittedRef.current = true
+        map.flyTo({
+          center: [at.longitude, at.latitude],
+          zoom: Math.max(map.getZoom(), 10),
+          duration: 800,
+          // The offset `focusResult` explains below: a padding handed to flyTo
+          // is interpolated onto the transform and stays there.
+          offset: [0, -cameraPadBottomPx / 2],
+        })
+        closeAllPopups()
+      },
       focusResult(result: DestinationResult) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return

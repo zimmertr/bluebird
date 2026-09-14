@@ -26,14 +26,14 @@ describe('resultPopupHtml fire warning', () => {
   })
 
   it('renders the ⚠️ and the proximity text when a fire is near', () => {
-    const warning: FireWarning = { miles: 3.2, name: 'Sourdough' }
+    const warning: FireWarning = { miles: 3.2, name: 'Sourdough', latitude: 0, longitude: 0 }
     const html = resultPopupHtml({ ...base, warning })
     expect(html).toContain('⚠️')
     expect(html).toContain('3.2 mi from an active wildfire (Sourdough)')
   })
 
   it('phrases an inside-the-perimeter warning without a mileage', () => {
-    const warning: FireWarning = { miles: 0, name: 'Bolt Creek' }
+    const warning: FireWarning = { miles: 0, name: 'Bolt Creek', latitude: 0, longitude: 0 }
     const html = resultPopupHtml({ ...base, warning })
     expect(html).toContain('Inside an active wildfire perimeter (Bolt Creek)')
   })
@@ -41,7 +41,7 @@ describe('resultPopupHtml fire warning', () => {
   // NIFC incident names are third-party strings rendered via setHTML, so the
   // warning line must escape them rather than inject raw markup.
   it('escapes HTML in a third-party incident name', () => {
-    const warning: FireWarning = { miles: 0, name: '<img src=x> "&' }
+    const warning: FireWarning = { miles: 0, name: '<img src=x> "&', latitude: 0, longitude: 0 }
     const html = resultPopupHtml({ ...base, warning })
     expect(html).toContain('&lt;img src=x&gt; &quot;&amp;')
     expect(html).not.toContain('<img src=x>')

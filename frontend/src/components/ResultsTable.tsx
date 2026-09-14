@@ -35,6 +35,8 @@ import {
 import type { FireProximityStatus } from '../hooks/useFireProximity'
 import { FREEZE_UNAVAILABLE_NOTE, freezeCellText, isFreezeKey } from '../utils/freezingLevel'
 import { destinationUrl } from '../utils/destinationUrl'
+import { extremeHourMs, windyUrl } from '../utils/windy'
+import { nifcFireUrl } from '../utils/wildfires'
 import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
 import { pinKey } from '../utils/customList'
@@ -52,9 +54,10 @@ import {
 } from '../styles'
 import { createPortal } from 'react-dom'
 
-function windyUrl(lat: number, lon: number, layer: string): string {
-  return `https://www.windy.com/?${layer},${lat.toFixed(4)},${lon.toFixed(4)},11`
-}
+// How close the NIFC map opens on a fire linked from the table. The map's own
+// popup passes whatever zoom the reader is at; a table cell has no map to ask,
+// so it picks one that frames a whole fire without losing the country around it.
+const FIRE_LINK_ZOOM = 10
 
 function ExternalLinkIcon() {
   return (
@@ -138,6 +141,17 @@ interface Props {
   // (it is in the Columns picker), and a dash there would say the row came
   // from nowhere.
   modelFallbackLabel?: string | null
+  // Center the map on a destination that has no forecast yet. Separate from
+  // `onFocusResult` because there is no result to pass: a pending row is a
+  // coordinate and a name, and the popup the ranked version opens is built
+  // from numbers this row does not have.
+  onFocusPending?: (at: { latitude: number; longitude: number }) => void
+  // Which forecast model the rows came from, so a metric cell can ask Windy
+  // for the same one. A compared row carries its own and wins over this.
+  modelId?: string | null
+  // The hourly grid the rows' series are aligned to, epoch ms. A floor or a
+  // ceiling names one hour of it, and the Windy link opens on that hour.
+  times?: readonly number[]
   // Move one column to where another sits. Absent means the header does not
   // reorder — the CSV-only and pre-analysis renders pass nothing.
   onColumnMove?: (fromKey: string, toKey: string) => void
@@ -190,6 +204,9 @@ export default function ResultsTable({
   pointSample = false,
   columns,
   modelFallbackLabel,
+  onFocusPending,
+  modelId,
+  times,
   onColumnMove,
   fireWarnings,
   fireUncovered,
@@ -516,7 +533,28 @@ export default function ResultsTable({
               col.key,
               fireLoading ? (
                 <span className={TEXT.caption}>{fireLoadingFrame(fireTick)}</span>
+              ) : warning ? (
+                // A warned cell links to the fire it is warning about, the same
+                // NIFC map a clicked fire on the map opens (TJ, 2026-09-14).
+                // The hover text goes with it: the link is the better answer to
+                // "what is this", and a tooltip does not exist on touch anyway.
+                <a
+                  href={nifcFireUrl(warning.longitude, warning.latitude, FIRE_LINK_ZOOM)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  // The cell reads "⚠️ 3.2", which unlabelled announces as
+                  // "link, warning three point two". The label names the fire
+                  // and where it goes, in the shape every other link in this
+                  // table uses (accessibility.test.ts pins the tail).
+                  aria-label={`Open ${warning.name} on the NIFC map. Opens in a new tab.`}
+                  className="hover:underline cursor-pointer"
+                >
+                  {text}
+                </a>
               ) : note ? (
+                // The two unlinked states keep theirs: N/A means either "never
+                // checked here" or "the check failed", and the hover text is
+                // the only thing that says which.
                 <span title={note} aria-label={note} className="cursor-help">
                   {text}
                 </span>
@@ -602,12 +640,27 @@ export default function ResultsTable({
       }
 
       if (col.windyLayer) {
+        // The model this row's numbers came from, and the hour this cell's
+        // number came from. A compared row names its own model, which is the
+        // whole point of the Model column beside it.
+        const rowModel = (row as ModelRow).modelId ?? modelId
+        const at = extremeHourMs(
+          col.key as string,
+          row.series,
+          row.series_times ?? times ?? [],
+        )
         return (
           <td key={col.key} className={cellClass} style={colorSty}>
             {sized(
               col.key as string,
               <a
-                href={windyUrl(row.latitude, row.longitude, col.windyLayer)}
+                href={windyUrl({
+                  latitude: row.latitude,
+                  longitude: row.longitude,
+                  layer: col.windyLayer,
+                  modelId: rowModel,
+                  atMs: at,
+                })}
                 target="_blank"
                 rel="noopener noreferrer"
                 // The link text is the measurement itself, so unlabelled this
@@ -730,7 +783,22 @@ export default function ResultsTable({
                       {sized(
                         'name',
                         <span className="flex min-w-0 items-center gap-1.5">
-                          <span className="min-w-0 truncate">{d.name}</span>
+                          {/* The same fly-to a ranked row's name gives, and
+                              for the same reason: the dot is already on the
+                              map, so there is nothing an analysis adds to the
+                              ability to look at it (TJ, 2026-09-14). No popup
+                              follows it, unlike a ranked row's: a popup here
+                              would be a forecast card with no forecast in it,
+                              and clicking the dot already says what is known. */}
+                          <button
+                            onClick={() =>
+                              onFocusPending?.({ latitude: d.latitude, longitude: d.longitude })
+                            }
+                            aria-label={`Center map on ${d.name}`}
+                            className={`${LINK_ACTION} min-w-0 cursor-pointer truncate text-left`}
+                          >
+                            {d.name}
+                          </button>
                         <a
                           href={destinationUrl({
                             name: d.name,
