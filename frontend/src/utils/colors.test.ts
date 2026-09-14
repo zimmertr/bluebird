@@ -366,21 +366,14 @@ describe('the freezing-level ramp', () => {
     ])
   })
 
-  // Low is dark and high is pale, which is the whole encoding: the ramp says
-  // how high the freezing line stands, never whether that is good weather.
-  // Asserted as lightness rather than as six hexes, so the claim survives a
-  // shade being nudged and fails the ramp being turned around.
-  //
-  // The ENDS rather than every step, because the middle is not monotonic in
-  // luminance and is not meant to be: violet-600 and indigo-600 are one hue
-  // step apart and indigo measures slightly the darker of the two (0.117 to
-  // 0.134). Over six bands a reader reads the hue as much as the lightness,
-  // and the palette is TJ's (2026-09-14) — so what is pinned is that the
-  // bottom band is the darkest thing on the ramp and the top band the
-  // lightest, and that no two bands land on the same lightness.
-  it('runs from the darkest band at the bottom to the lightest at the top', () => {
+  // The ramp is read by hue, not by lightness, and that is the price of the
+  // contrast floor below rather than a choice: the darkest purple that clears
+  // 4.5:1 as cell text is lighter than the indigo and sky steps that follow it,
+  // so no ordering of these six hues is both conformant and monotone. What is
+  // still true, and is what this pins, is that the top band is the lightest
+  // thing on the ramp and that no two bands land on one lightness.
+  it('tops out at the lightest band, with no two bands alike', () => {
     const steps = METRIC_SCALE.freeze.colors.map(relativeLuminance)
-    expect(Math.min(...steps)).toBe(steps[0])
     expect(Math.max(...steps)).toBe(steps[steps.length - 1])
     expect(new Set(steps.map(round2)).size).toBe(steps.length)
   })
@@ -411,21 +404,25 @@ describe('the freezing-level ramp', () => {
   //    basemap itself is not a fixed colour, the ring is.
   //  - `legendSwatch` is the 10px dot on the legend's slate-800/95 box.
   //
-  // FOUR OF THE SIX FAIL 4.5:1 AS CELL TEXT. That is recorded rather than
-  // designed away, because it is the table's existing behaviour rather than
-  // this ramp's: the AQI scale's top two bands measure 2.94 and 1.70 the same
-  // way, and the precipitation and wind ramps' red measures 3.23. Fixing it is
-  // a change to `cellStyle` for every metric at once, not a different set of
-  // blues. The numbers a reader acts on are printed in the cell, in the popup
-  // and in the CSV; the tint ranks them.
+  // Every step clears 4.5:1 as cell text, which is what the 300/400 shades buy
+  // and is the whole reason the ramp is not darker (TJ chose this over changing
+  // `cellStyle`, 2026-09-14). The first draft used 600/800 steps and measured
+  // 1.58 to 2.34 in this column.
+  //
+  // The ring reading is low at the pale end by construction and is not a
+  // failure: a marker is a filled circle inside a 2px WHITE stroke, so the ring
+  // is what separates it from the basemap, and a pale fill inside a white ring
+  // is legible against the map rather than against the ring. The bands are
+  // named on the legend, which is the surface that has to carry contrast, and
+  // it clears 4.5:1 at every step.
   const SLATE_800 = '#1d293d'
   const MEASURED = [
-    { color: '#6b21a8', cellText: 1.58, markerRing: 8.72, legendSwatch: 1.68 },
-    { color: '#7c3aed', cellText: 2.23, markerRing: 5.70, legendSwatch: 2.56 },
-    { color: '#4f46e5', cellText: 2.01, markerRing: 6.29, legendSwatch: 2.32 },
-    { color: '#2563eb', cellText: 2.34, markerRing: 5.17, legendSwatch: 2.83 },
-    { color: '#0ea5e9', cellText: 3.81, markerRing: 2.77, legendSwatch: 5.27 },
-    { color: '#7dd3fc', cellText: 5.45, markerRing: 1.67, legendSwatch: 8.77 },
+    { color: '#d8b4fe', cellText: 5.24, markerRing: 1.77, legendSwatch: 8.27 },
+    { color: '#c4b5fd', cellText: 5.09, markerRing: 1.85, legendSwatch: 7.92 },
+    { color: '#a5b4fc', cellText: 4.79, markerRing: 1.99, legendSwatch: 7.33 },
+    { color: '#93c5fd', cellText: 5.16, markerRing: 1.80, legendSwatch: 8.11 },
+    { color: '#38bdf8', cellText: 4.57, markerRing: 2.14, legendSwatch: 6.82 },
+    { color: '#67e8f9', cellText: 6.02, markerRing: 1.45, legendSwatch: 10.08 },
   ]
 
   it('still measures what the comment above says it measures', () => {
@@ -442,9 +439,18 @@ describe('the freezing-level ramp', () => {
   // separated from the band beside it — the pale end by the white ring, the
   // dark end by the legend's own surface — so no step disappears in the place
   // it is drawn.
-  it('keeps every band separated from something in each place it is drawn', () => {
+  it('clears 4.5:1 for the number printed in a shaded cell, at every band', () => {
     for (const m of MEASURED) {
-      expect(Math.max(m.markerRing, m.legendSwatch), `${m.color} vanishes`).toBeGreaterThan(2.5)
+      expect(m.cellText, `${m.color} cell text`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  // The one contrast claim the swatches owe: the legend is where a band is
+  // named, so a reader who cannot tell two bands apart on the map can still
+  // read which is which there.
+  it('keeps every legend swatch well clear of the box it sits on', () => {
+    for (const m of MEASURED) {
+      expect(m.legendSwatch, `${m.color} swatch`).toBeGreaterThanOrEqual(4.5)
     }
   })
 })

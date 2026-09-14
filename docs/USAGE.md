@@ -350,7 +350,7 @@ Marker colors follow total precipitation:
 | Orange | 0.25" to 0.50" |
 | Red | more than 0.50" |
 
-Click a marker for a popup with rank, precipitation, wind, temperature, the freezing level, and AQI. The freezing-level line reads `N/A` under a model that publishes none, the same mark the table's cells carry. Click a destination name in the table to open Windy centered on that spot with the rain overlay. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300). When you sort by the freezing level they switch again, to six bands of 4,000 ft apiece running deep purple for the lowest freezing line through to pale sky for the highest. That ramp is deliberately not the green-to-red the other metrics use: a freezing level is a height rather than a verdict, and a skier and a rock climber want opposite ends of it. The map's colour key always names the bands it is drawing.
+Click a marker for a popup with rank, precipitation, wind, temperature, the freezing level, and AQI. The freezing-level line reads `N/A` under a model that publishes none, the same mark the table's cells carry. Click a destination name in the table to open Windy centered on that spot with the rain overlay. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300). When you sort by the freezing level they switch again, to six bands of 4,000 ft apiece running purple for the lowest freezing line, through indigo and blue, to cyan for the highest. That ramp is deliberately not the green-to-red the other metrics use: a freezing level is a height rather than a verdict, and a skier and a rock climber want opposite ends of it. The map's colour key always names the bands it is drawing.
 
 ## Results Table
 
@@ -385,9 +385,11 @@ The freezing-level columns are shaded on a scale of their own, and it is the one
 scale in the app that does not run green to red. A height is not a verdict:
 9,000 ft is a solid night below a 9,500 ft summit and a wasted one below an
 8,000 ft col, so a ramp with a bad end would have picked a side. The colours say
-only how high the freezing line stands, running deep purple at the bottom
-through indigo and blue to pale sky at the top, in even steps of 4,000 ft. Read
-them against the **Elevation (ft)** column, which is the comparison the number
+only how high the freezing line stands, running purple at the bottom through
+indigo and blue to cyan at the top, in even steps of 4,000 ft. It is read by
+hue rather than by how dark a band is: every shade is light enough that the
+number printed in the cell stays legible on it. Read them against the
+**Elevation (ft)** column, which is the comparison the number
 exists for. Rank by one of them and the markers, the map's colour key and the
 forecast grid all read the same six bands.
 

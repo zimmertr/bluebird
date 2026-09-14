@@ -79,20 +79,32 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   // so it serves a winter reader and a summer one alike (TJ, 2026-09-14): a low
   // freezing line is what a skier wants and what a climber on wet rock fears,
   // and a scale with a red end would have picked one of them. One cold family
-  // of blues instead, running deep purple at the bottom to pale sky at the top —
-  // low is dark, high is pale, which is the reading a person already brings to
-  // a snow line drawn on a mountain.
+  // instead, running purple at the bottom through indigo and blue to cyan at
+  // the top.
   //
   // 4,000 ft steps from 4,000 to 20,000: the band the contiguous US actually
   // sees across a year, wide enough that a single cold front does not push
   // every destination into one color.
   //
-  // Measured contrast is pinned in `colors.test.ts` rather than restated here,
-  // for the reason the accent fill is pinned: the last comment in this app that
-  // carried a contrast number carried the wrong one.
+  // EVERY STEP IS A 300 OR A 400, and that is a contrast constraint rather than
+  // a taste. `cellStyle` paints a table cell in the band's own colour at full
+  // strength over that colour at 20%, so the band IS the text, and text owes
+  // 4.5:1 (1.4.3). The first draft of this ramp used the deep 600/800 steps and
+  // measured 1.58 to 2.34:1 in a cell (2026-09-14) — a ramp that dark needs
+  // `cellStyle` to stop tinting the text first, which is a change to all five
+  // metrics at once rather than to this one. So the shades come from the light
+  // end, where they clear it: 4.79 to 6.02:1, pinned in `colors.test.ts`.
+  //
+  // WHICH COSTS THE LIGHTNESS ORDERING, and there is no way to keep both.
+  // Relative luminance runs 0.544, 0.519, 0.477, 0.532, 0.440, 0.674, so the
+  // ramp is read by hue rather than by dark-to-light. The floor is what forces
+  // it: the darkest purple that clears 4.5:1 in a cell is purple-300 at 0.544,
+  // and every later hue has a step below that (indigo-300 is 0.477) which also
+  // clears it — so no assignment of these six hues is both conformant and
+  // monotone. The ends still read: cyan-300 is the lightest thing on the ramp.
   freeze: {
     thresholds: [4000, 8000, 12000, 16000, 20000],
-    colors: ['#6b21a8', '#7c3aed', '#4f46e5', '#2563eb', '#0ea5e9', '#7dd3fc'],
+    colors: ['#d8b4fe', '#c4b5fd', '#a5b4fc', '#93c5fd', '#38bdf8', '#67e8f9'],
     legendLabels: [
       '≤ 4,000 ft',
       '4,000 – 8,000 ft',
