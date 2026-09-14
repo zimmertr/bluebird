@@ -9,24 +9,48 @@
 // the node-env Vitest and these are the numbers that decide whether a legend is
 // on screen at all.
 //
-// Desktop is unaffected: the panel is docked below the map there, nothing is
-// covered, and every function here is asked for a lift of 0.
+// Desktop is mostly unaffected: the panel is docked below the map there,
+// nothing is covered, and every lift here is 0. The one number it does take is
+// `dockedMapFloorPx` — the map floor. A docked panel does not cover the map,
+// but it does take its height out of the same column, so "enough map for the
+// legend stack" is the same question at both widths and is answered from the
+// same three constants.
 
 import { resolvePanelHeights } from './layout'
 
 /**
  * The legend stack's own top inset (`top-28` in `App.tsx`), which clears the
  * Controls/search/Layers column at every width.
+ *
+ * Sized by the column at its TALLEST, which is a coarse pointer rather than a
+ * narrow window: the search row and the Layers button under it each take the
+ * 44px target `TAP` gives every button, so the column ends at
+ * 12 + 44 + 8 + 44 = 108. A mouse keeps today's density and ends at 92
+ * (measured in Chrome at 1440x1000, 2026-09-14), so the same inset leaves a
+ * 4px gap under a finger and 20px under a pointer. One number for both,
+ * because the stack is anchored rather than laid out: the alternative is a
+ * second inset in a media query and a second `LEGEND_TOP_PX` for everything
+ * below to disagree about.
+ *
+ * `App.tsx` spells the class and this states the number; `App.test.ts` reads
+ * the component as text and fails if the two ever drift.
  */
 export const LEGEND_TOP_PX = 112
 
 /**
  * What the legend stack needs to render with no scrolling: four layer rows in
- * one box plus the five-band colour key in a second, with the gap between them.
- * Measured at 402x874 with every layer on and a report held (issue #249).
- * Re-measure if a layer row or a colour band joins.
+ * one box plus the six-band colour key in a second, with the gap between them.
+ * Measured in Chrome 2026-09-14 with every layer on, the forecast grid drawn
+ * and a freezing-level ranking held: 94px of layer rows, the 8px gap, and
+ * 163px of key. The same number at both widths, because the boxes are one
+ * fixed width (`MAP_BOX_W`) and a legend row is read rather than operated, so
+ * no part of it takes the coarse-pointer target the buttons above it do.
+ *
+ * It was 245 while the tallest key had five bands. The freezing level's key has
+ * six (2026-09-14), which is the second time a band has joined — re-measure if
+ * a layer row or a colour band joins again.
  */
-export const LEGEND_STACK_PX = 245
+export const LEGEND_STACK_PX = 265
 
 /** The gap the legend keeps below itself when no timeline is on (`bottom-8`). */
 export const LEGEND_GAP_PX = 32
@@ -124,6 +148,42 @@ export const RESTING_MAP_PX = LEGEND_TOP_PX + LEGEND_STACK_PX + TRANSPORT_BAND_P
  * results may be.
  */
 export const DRAGGED_MAP_PX = LEGEND_TOP_PX + TRANSPORT_BAND_PX
+
+/**
+ * The results bar above the docked panels: the mode segment, the row count and
+ * the export links. Measured in Chrome at 1440x1000, 2026-09-14 (35px) and
+ * rounded up. The sheet's own header is taller and is `SHEET_HEADER_PX`; this
+ * is the docked half of the same bar, with no grab handle and no sheet border.
+ */
+export const RESULTS_BAR_PX = 36
+
+/**
+ * One drag grip as the docked panel draws it (`h-2`). The sheet's grips are
+ * floored at 24 by `TAP.grip`, and this is the same control on a pointer.
+ */
+const DOCKED_GRIP_PX = 8
+
+/**
+ * The map floor the panel clamp takes where the results are DOCKED below the
+ * map rather than parked over it.
+ *
+ * Same question as `restingMapFloorPx`, same three constants: the stack's
+ * inset, the stack itself, and the band the timeline stands in — counted
+ * whether or not a bar is on screen, because a map overlay must never decide
+ * how tall the results may be.
+ *
+ * What differs is the chrome. A docked panel covers nothing, but its bar and
+ * its grips come out of the same column as the map, and `resolvePanelHeights`
+ * clamps only the two panel heights. So they are part of the floor here, or
+ * the map ends up short of it by exactly their height — which is what put the
+ * bottom of the legend stack under the results bar before this existed.
+ *
+ * It replaces the fixed 280 `resolvePanelHeights` defaults to: that number
+ * predated the legend stack and was under half of what the stack now needs.
+ */
+export function dockedMapFloorPx(gripCount: number): number {
+  return RESTING_MAP_PX + RESULTS_BAR_PX + gripCount * DOCKED_GRIP_PX
+}
 
 /** The sheet's own chrome: the header bar plus each grip it renders. */
 export function sheetChromePx(gripCount: number): number {

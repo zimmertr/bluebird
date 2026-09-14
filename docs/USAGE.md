@@ -186,9 +186,9 @@ it on fetches a forecast for every square, after your results have landed and ne
 in front of them; leave it on and each later analysis grids itself the same way. Once
 the points are in hand everything else is free: changing the ranking recolors the
 field without asking for anything new, and so does the timeline. It fills in as it
-arrives rather than appearing all at once. The one ranking it cannot draw is the
-freezing level, which carries no colours to paint with: the squares stay empty
-until you rank by something else.
+arrives rather than appearing all at once. A square stays empty only where the
+model published no number for it, which for a freezing-level ranking is the five
+models that carry no freezing level at all.
 
 After a very large analysis it can take a while to start, because it shares a
 per-minute allowance with the analysis you just ran and has to wait its turn. The
@@ -350,7 +350,7 @@ Marker colors follow total precipitation:
 | Orange | 0.25" to 0.50" |
 | Red | more than 0.50" |
 
-Click a marker for a popup with rank, precipitation, wind, temperature, the freezing level, and AQI. The freezing-level line reads `N/A` under a model that publishes none, the same mark the table's cells carry. Click a destination name in the table to open Windy centered on that spot with the rain overlay. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300).
+Click a marker for a popup with rank, precipitation, wind, temperature, the freezing level, and AQI. The freezing-level line reads `N/A` under a model that publishes none, the same mark the table's cells carry. Click a destination name in the table to open Windy centered on that spot with the rain overlay. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300). When you sort by the freezing level they switch again, to six bands of 4,000 ft apiece running deep purple for the lowest freezing line through to pale sky for the highest. That ramp is deliberately not the green-to-red the other metrics use: a freezing level is a height rather than a verdict, and a skier and a rock climber want opposite ends of it. The map's colour key always names the bands it is drawing.
 
 ## Results Table
 
@@ -381,16 +381,21 @@ cell is shaded by its own number** rather than by the ranking. So a destination
 with a low precipitation total and one violent hour inside it shows a green
 total beside a red peak, which is the spread those extra columns exist to show.
 
-The freezing-level columns carry no shading at all. A fixed scale would have to
-call one height good and another bad, and the reading is relative to the
-destination standing under it: 9,000 ft is a solid night below a 9,500 ft summit
-and a wasted one below an 8,000 ft col. Read them against the **Elevation (ft)**
-column, which is the comparison the number exists for. Ranking by one of them
-therefore leaves the markers in the neutral grey the map uses for "no answer",
-and the map's colour key is not drawn.
+The freezing-level columns are shaded on a scale of their own, and it is the one
+scale in the app that does not run green to red. A height is not a verdict:
+9,000 ft is a solid night below a 9,500 ft summit and a wasted one below an
+8,000 ft col, so a ramp with a bad end would have picked a side. The colours say
+only how high the freezing line stands, running deep purple at the bottom
+through indigo and blue to pale sky at the top, in even steps of 4,000 ft. Read
+them against the **Elevation (ft)** column, which is the comparison the number
+exists for. Rank by one of them and the markers, the map's colour key and the
+forecast grid all read the same six bands.
 
 Only three of the eight forecast models publish the freezing level, and a cell
 answered by one of the other five reads `N/A` with a note saying which three do.
+Rank by the freezing level under one of those five and every row reads `N/A`,
+the markers stay the neutral grey the map uses for "no answer", and the map's
+colour key is not drawn: there is nothing on screen for it to explain.
 Zero is a reading rather than a gap: it means the freezing level reached sea
 level, so everything above it was below freezing. What the number can and cannot
 tell you about an overnight refreeze is in [DATA.md](DATA.md#open-meteo).

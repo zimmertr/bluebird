@@ -23,7 +23,7 @@ import {
 // tree the node-env Vitest cannot mount, so what it wires is asserted as source.
 import appSource from '../App.tsx?raw'
 import mapViewSource from '../components/MapView.tsx?raw'
-import { resultsFeatureCollection } from './resultFeatures'
+import { NO_VALUE, fillColor, resultsFeatureCollection } from './resultFeatures'
 import type { DestinationResult } from '../types'
 import type { AqiResult, WeatherResult } from './openMeteo'
 
@@ -599,6 +599,36 @@ describe('pairCells', () => {
     expect(cells[0].row.series!.precip_in).toEqual([null, 0.1, 0.2])
     // And the bearings come along, or the arrows silently vanish.
     expect(cells[0].row.series!.wind_dir_deg).toEqual([null, 90, 270])
+  })
+
+  // The grid asks Open-Meteo for one set of variables and the freezing level is
+  // one of them (`HOURLY_VARIABLES` in openMeteo.ts), which is why ranking by it
+  // paints the field with no second fetch and no key on `sortBy` here. The
+  // sample carries the window aggregates AND the hourly series, so the field
+  // paints at rest and follows the playhead.
+  it('carries the freezing level onto the lattice, so a freeze ranking paints', () => {
+    const cells = pairCells(spec, [0, 1], [wx([0.1, 0.2]), null], noAqi, [1000, 2000])
+    expect(cells[0].row.freeze_min_ft).toBe(9000)
+    expect(cells[0].row.series!.freeze_ft).toEqual([9000, 9500])
+    expect(fillColor(cells[0].row, 'freeze_min_ft', null)).not.toBe(NO_VALUE)
+    expect(fillColor(cells[0].row, 'freeze_min_ft', 1)).not.toBe(NO_VALUE)
+  })
+
+  // The five models that publish no freezing level reach here as nulls, and a
+  // sample with no number goes transparent rather than grey: a marker has to
+  // stay on screen, a lattice cell has nothing to assert.
+  it('paints nothing where the model published no freezing level', () => {
+    const base = wx([0, 0])!
+    const empty: WeatherResult = {
+      ...base,
+      freeze_min_ft: null,
+      freeze_max_ft: null,
+      freeze_avg_ft: null,
+      series: { ...base.series!, freeze_ft: [null, null] },
+    }
+    const cells = pairCells(spec, [0], [empty], [null], [1000, 2000])
+    expect(fillColor(cells[0].row, 'freeze_min_ft', null)).toBe(NO_VALUE)
+    expect(fillColor(cells[0].row, 'freeze_min_ft', 1)).toBe(NO_VALUE)
   })
 
   it('leaves no stale series_times on an aligned sample', () => {

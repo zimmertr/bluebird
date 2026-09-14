@@ -31,22 +31,25 @@ export type ColorScale = {
 export type LabelledScale = ColorScale & { legendLabels: string[] }
 
 /**
- * The families whose numbers carry a color, which is not all of them.
+ * The families whose numbers carry a color, which is every one of them.
  *
- * The freezing level ships uncolored (#295): a fixed band scale would have to
- * assert that some height is good and another bad, and the reading is
- * relative — 9,000 ft is a fine night under a 9,500 ft summit and a ruined one
- * under an 8,000 ft col. So the family has no entry here, the type says so,
- * and every consumer of a scale handles its absence: `rankedScale` and
- * `hourlyScale` answer null, `markerColor` answers null and the marker takes
- * the neutral no-value fill, the map's band legend is not drawn at all, the
- * grid paints nothing, and a table cell prints its number unshaded.
+ * The freezing level was the one exception until #295 was reversed (TJ,
+ * 2026-09-14). The objection was that a band scale has to call one height good
+ * and another bad, and the reading is relative — 9,000 ft is a fine night under
+ * a 9,500 ft summit and a ruined one under an 8,000 ft col. The scale below
+ * answers that by encoding the air column's HEIGHT rather than a verdict: the
+ * ramp runs cold to warm through one family of blues, so it says how high the
+ * freezing line stands and never how good that is. So the alias is now the
+ * whole union, and it is kept as a name rather than deleted because
+ * `METRIC_SCALE` reads better keyed by what the key means.
  */
-export type ColoredFamily = Exclude<MetricFamily, 'freeze'>
+export type ColoredFamily = MetricFamily
 
-// Scales are anchored to absolute conditions (green = dry/calm/cold/clean),
-// not to the chosen ranking direction — ranking "highest" simply surfaces the
-// red end of the same scale first.
+// Scales are anchored to absolute conditions, not to the chosen ranking
+// direction — ranking "highest" simply surfaces the far end of the same scale
+// first. Four of the five run green (dry/calm/cold/clean) to red, because they
+// measure something a hiker wants less of. The freezing level does not, and
+// says why on its own entry.
 //
 // Keyed by family rather than by ranking key (#291): a family's aggregates
 // share one scale (a windy hour is windy whether it was the average or the
@@ -69,6 +72,35 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
     thresholds: [30, 45, 55, 65],
     colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
     legendLabels: ['≤ 30°F', '30 – 45°F', '45 – 55°F', '55 – 65°F', '> 65°F'],
+  },
+  // The one scale that is not green-to-red, because it is not a verdict.
+  //
+  // The hue encodes the air column's HEIGHT, not whether the weather is good,
+  // so it serves a winter reader and a summer one alike (TJ, 2026-09-14): a low
+  // freezing line is what a skier wants and what a climber on wet rock fears,
+  // and a scale with a red end would have picked one of them. One cold family
+  // of blues instead, running deep purple at the bottom to pale sky at the top —
+  // low is dark, high is pale, which is the reading a person already brings to
+  // a snow line drawn on a mountain.
+  //
+  // 4,000 ft steps from 4,000 to 20,000: the band the contiguous US actually
+  // sees across a year, wide enough that a single cold front does not push
+  // every destination into one color.
+  //
+  // Measured contrast is pinned in `colors.test.ts` rather than restated here,
+  // for the reason the accent fill is pinned: the last comment in this app that
+  // carried a contrast number carried the wrong one.
+  freeze: {
+    thresholds: [4000, 8000, 12000, 16000, 20000],
+    colors: ['#6b21a8', '#7c3aed', '#4f46e5', '#2563eb', '#0ea5e9', '#7dd3fc'],
+    legendLabels: [
+      '≤ 4,000 ft',
+      '4,000 – 8,000 ft',
+      '8,000 – 12,000 ft',
+      '12,000 – 16,000 ft',
+      '16,000 – 20,000 ft',
+      '> 20,000 ft',
+    ],
   },
   // All six US EPA AQI categories — Good / Moderate / Sensitive / Unhealthy /
   // Very Unhealthy / Hazardous — in the app's hues. The purple/maroon top
@@ -124,8 +156,8 @@ const PRECIP_RATE: LabelledScale = {
  * Which scale scores a given column, derived from the scales above crossed
  * with each family's own column list rather than restated: every colorable
  * column is already named in exactly one `FAMILY_KEYS` entry, and a second
- * list here would be a second answer. A family with no scale contributes no
- * columns, which is what leaves a freezing-level cell unshaded.
+ * list here would be a second answer. A family with no scale would contribute
+ * no columns; every family carries one now, so every metric column is shaded.
  */
 const COLUMN_SCALE: Record<string, LabelledScale> = {
   ...Object.fromEntries(
