@@ -32,10 +32,23 @@ export interface AnalyzeGate {
   polygonReady: boolean
   hasCustom: boolean
   hasPins: boolean
+  // The two ways a model selection and a ranking can contradict each other.
+  // Both veto rather than warn, because the report they would buy cannot
+  // answer the question the panel is set to ask, and a reader who has picked
+  // several models has said what they want compared.
+  //
+  // Air quality comes from one source whatever model ranks the field, so a
+  // comparison there could only draw one answer several times.
+  compareAqi: boolean
+  // Five of the eight models publish no freezing level, so a comparison there
+  // draws most of its lines as columns of nulls. `freezingLevel.ts` owns which
+  // ones, and why that has to be a list rather than read off the data.
+  compareFreeze: boolean
 }
 
 export function canAnalyze(g: AnalyzeGate): boolean {
   if (g.hasWindowWarning || g.datesPending || g.loading || g.areaTooLarge) return false
+  if (g.compareAqi || g.compareFreeze) return false
   return g.polygonReady || g.hasCustom || g.hasPins
 }
 
@@ -65,7 +78,15 @@ export function canAnalyze(g: AnalyzeGate): boolean {
  * produce, because "unreachable" is a claim about a caller and this function
  * should not depend on one.
  */
-export type AnalyzeBlocker = 'area' | 'window' | 'dates' | 'destinations' | 'polygon' | 'types'
+export type AnalyzeBlocker =
+  | 'area'
+  | 'window'
+  | 'dates'
+  | 'compare-aqi'
+  | 'compare-freeze'
+  | 'destinations'
+  | 'polygon'
+  | 'types'
 
 export function analyzeBlockers(g: AnalyzeGate & { drawPointCount: number }): AnalyzeBlocker[] {
   // Mid-analysis the button is disabled because it is busy, which the button
@@ -75,6 +96,11 @@ export function analyzeBlockers(g: AnalyzeGate & { drawPointCount: number }): An
   if (g.areaTooLarge) blockers.push('area')
   if (g.hasWindowWarning) blockers.push('window')
   if (g.datesPending) blockers.push('dates')
+  // With the vetoes about work already done, and before the missing-input
+  // lines: a contradiction between the models picked and the metric ranked is
+  // a setting the reader made, not an input they have yet to give.
+  if (g.compareAqi) blockers.push('compare-aqi')
+  if (g.compareFreeze) blockers.push('compare-freeze')
   if (!g.polygonReady && !g.hasCustom && !g.hasPins) {
     if (g.drawPointCount > 0 && g.drawPointCount < 3) blockers.push('polygon')
     // A finished polygon with nothing checked is not an unfinished polygon

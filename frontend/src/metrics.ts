@@ -38,16 +38,24 @@ import { SortBy } from './types'
 export type MetricFamily = 'precip' | 'temp' | 'wind' | 'freeze' | 'aqi'
 
 /**
- * The metric rows of the ranking picker, in the order they render — the
- * order the ranking radios have always used, with the freezing level beside
- * the temperature it is a reading of (#295).
+ * The metric rows of the Metrics table, in the order they render: alphabetical
+ * by the noun each one shows (TJ, 2026-09-14). Five rows that all read the same
+ * way have no natural sequence, so the order a reader can predict beats one
+ * they have to learn — which is what the old order asked of them, having grown
+ * out of the ranking radios and then kept the freezing level beside the
+ * temperature it is a reading of (#295).
+ *
+ * `NOUN` is what the order is taken from, not these keys: the reader sorts by
+ * what the row says, so `freeze` sits under `Freezing level`. `metrics.test.ts`
+ * checks the list against `NOUN` rather than against a second hand-written
+ * list, so a renamed noun moves its row.
  */
 export const RANKED_FAMILIES: readonly MetricFamily[] = [
-  'precip',
-  'wind',
-  'temp',
-  'freeze',
   'aqi',
+  'freeze',
+  'precip',
+  'temp',
+  'wind',
 ]
 
 /**

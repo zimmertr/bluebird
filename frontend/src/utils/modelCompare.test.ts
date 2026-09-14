@@ -1,4 +1,8 @@
 import { describe, it, expect } from 'vitest'
+import appSource from '../App.tsx?raw'
+import modelCompareSource from './modelCompare.ts?raw'
+import type { DestinationResult } from '../types'
+import type { WeatherAggregates, WeatherResult } from './openMeteo'
 import type { ForecastModelOption } from '../hooks/useCapabilities'
 import { allocateColors } from './chartColors'
 import { normalizeWindow } from './forecastWindow'
@@ -10,7 +14,9 @@ import {
   compareEndMs,
   compareSeries,
   isBlend,
+  modelRowsFor,
   modelSeriesOnGrid,
+  pairColor,
   pairKey,
 } from './modelCompare'
 
@@ -353,5 +359,160 @@ describe('compareSeries', () => {
 
   it('draws nothing when no model is on the chart', () => {
     expect(compareSeries(DESTINATIONS, [], everyPair(), TIMES, null, pairColors())).toEqual([])
+  })
+
+})
+
+describe('one table row per model', () => {
+  const ROW: DestinationResult = {
+    name: 'East Tiger Mountain',
+    type: 'peak',
+    latitude: 47.44,
+    longitude: -121.93,
+    elevation_ft: 3004,
+    osm_id: 'node/1',
+    precip_total_in: 0.5,
+    precip_avg_in_hr: 0.1,
+    precip_min_in_hr: 0,
+    precip_max_in_hr: 0.2,
+    temp_min_f: 40,
+    temp_max_f: 60,
+    temp_avg_f: 50,
+    wind_min_mph: 2,
+    wind_max_mph: 9,
+    wind_avg_mph: 5,
+    freeze_min_ft: 7000,
+    freeze_max_ft: 9000,
+    freeze_avg_ft: 8000,
+    aqi_avg: 21,
+    aqi_min: 12,
+    aqi_max: 30,
+  }
+  const MODELS = [
+    { id: 'gfs_seamless', label: 'NOAA GFS' },
+    { id: 'ecmwf_ifs025', label: 'ECMWF IFS' },
+  ]
+  const keyOf = (r: DestinationResult) => `${r.latitude},${r.longitude}`
+
+  function answer(over: Partial<WeatherAggregates> = {}): WeatherResult {
+    return {
+      precip_total_in: 1.5,
+      precip_avg_in_hr: 0.3,
+      precip_min_in_hr: 0,
+      precip_max_in_hr: 0.6,
+      temp_min_f: 30,
+      temp_max_f: 50,
+      temp_avg_f: 40,
+      wind_min_mph: 4,
+      wind_max_mph: 18,
+      wind_avg_mph: 10,
+      freeze_min_ft: null,
+      freeze_max_ft: null,
+      freeze_avg_ft: null,
+      series: null,
+      ...over,
+    }
+  }
+
+  it('gives one row per model, grouped by destination', () => {
+    const held = { [pairKey('ecmwf_ifs025', keyOf(ROW))]: answer({}) }
+    const out = modelRowsFor([ROW], MODELS, 'gfs_seamless', held, keyOf)
+    expect(out.map((r) => r.modelLabel)).toEqual(['NOAA GFS', 'ECMWF IFS'])
+    expect(out.map((r) => r.name)).toEqual([ROW.name, ROW.name])
+  })
+
+  // The ranking model's row is the report's own. Re-deriving it from a second
+  // fetch could only disagree with the ranking it already produced.
+  it('takes the ranking model row from the report unchanged', () => {
+    const held = { [pairKey('ecmwf_ifs025', keyOf(ROW))]: answer({}) }
+    const [ranked] = modelRowsFor([ROW], MODELS, 'gfs_seamless', held, keyOf)
+    expect(ranked.precip_total_in).toBe(ROW.precip_total_in)
+    expect(ranked.modelId).toBe('gfs_seamless')
+  })
+
+  it('takes a compared row weather from that model', () => {
+    const held = { [pairKey('ecmwf_ifs025', keyOf(ROW))]: answer({}) }
+    const [, compared] = modelRowsFor([ROW], MODELS, 'gfs_seamless', held, keyOf)
+    expect(compared.precip_total_in).toBe(1.5)
+    expect(compared.wind_max_mph).toBe(18)
+  })
+
+  // The destination is the same place whichever model answered.
+  it('keeps the destination identity on every row', () => {
+    const held = { [pairKey('ecmwf_ifs025', keyOf(ROW))]: answer({}) }
+    for (const row of modelRowsFor([ROW], MODELS, 'gfs_seamless', held, keyOf)) {
+      expect(row.name).toBe(ROW.name)
+      expect(row.latitude).toBe(ROW.latitude)
+      expect(row.elevation_ft).toBe(ROW.elevation_ft)
+    }
+  })
+
+  // Air quality comes from one source whatever model ranks, so a compared row
+  // carries the report's numbers rather than a blank.
+  it('carries the same air quality on every row', () => {
+    const held = { [pairKey('ecmwf_ifs025', keyOf(ROW))]: answer({}) }
+    for (const row of modelRowsFor([ROW], MODELS, 'gfs_seamless', held, keyOf)) {
+      expect(row.aqi_avg).toBe(21)
+      expect(row.aqi_max).toBe(30)
+    }
+  })
+
+  // A model outside its domain has no numbers. A row of zeros there would read
+  // as a forecast of calm, so it contributes no row at all.
+  it('drops a pair nothing was fetched for', () => {
+    const out = modelRowsFor([ROW], MODELS, 'gfs_seamless', {}, keyOf)
+    expect(out.map((r) => r.modelId)).toEqual(['gfs_seamless'])
+  })
+
+  it('drops a pair that answered with nothing', () => {
+    const held = { [pairKey('ecmwf_ifs025', keyOf(ROW))]: null }
+    const out = modelRowsFor([ROW], MODELS, 'gfs_seamless', held, keyOf)
+    expect(out.map((r) => r.modelId)).toEqual(['gfs_seamless'])
+  })
+
+  // The number down the # column is the destination's, not the row's: eight
+  // rows for one place counting off 1 to 8 would read as eight places.
+  it('shares one rank across a destination model rows', () => {
+    const held = { [pairKey('ecmwf_ifs025', keyOf(ROW))]: answer() }
+    const second = { ...ROW, name: 'Mount Si', latitude: 47.49, longitude: -121.72 }
+    const held2 = { ...held, [pairKey('ecmwf_ifs025', keyOf(second))]: answer() }
+    const out = modelRowsFor([ROW, second], MODELS, 'gfs_seamless', held2, keyOf)
+    expect(out.map((r) => r.rank)).toEqual([1, 1, 2, 2])
+  })
+
+  it('leaves a single-model report one row per destination', () => {
+    const out = modelRowsFor([ROW], MODELS.slice(0, 1), 'gfs_seamless', {}, keyOf)
+    expect(out).toHaveLength(1)
+  })
+})
+
+// A colour identifies a LINE, and a line is a (destination, model) pair. The
+// chart draws those lines and the table's chart checkbox stands beside the row
+// that produces one, so both read this and neither indexes the map itself.
+describe('the pair colour', () => {
+  const COLORS = { 'ecmwf_ifs025|46.85,-121.76': '#00ff00' }
+
+  it('gives a pair its own colour', () => {
+    expect(pairColor(COLORS, 'ecmwf_ifs025', '46.85,-121.76', '#aaaaaa')).toBe('#00ff00')
+  })
+
+  // A report with one model selected, and the frame before the allocator runs.
+  it('falls back to the destination colour with no pair colour', () => {
+    expect(pairColor(COLORS, 'gfs_seamless', '46.85,-121.76', '#aaaaaa')).toBe('#aaaaaa')
+    expect(pairColor(COLORS, undefined, '46.85,-121.76', '#aaaaaa')).toBe('#aaaaaa')
+  })
+
+  // The guardrail the chart/table split needs: neither surface may spell the
+  // key itself, or the two are one spelling away from two answers.
+  it('is the only place either surface reads the colour map', () => {
+    // Exactly one indexing of the map in this module, and it is the line
+    // inside `pairColor`. A second would be a second answer.
+    expect(modelCompareSource.match(/colors\[/g) ?? []).toHaveLength(1)
+    expect(modelCompareSource).toContain('return colors[pairKey(modelId, destinationKey)]')
+    // And none at all in the component that colours the table rows.
+    expect(appSource.match(/[Cc]olors\[pairKey/g) ?? []).toHaveLength(0)
+    // Both surfaces go through the function.
+    expect(appSource).toContain('pairColor(')
+    expect(modelCompareSource).toContain('pairColor(colors, model.id, destination.key')
   })
 })

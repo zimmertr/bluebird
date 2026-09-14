@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { FREEZE_UNAVAILABLE_NOTE, freezeCellText, isFreezeKey } from './freezingLevel'
+import {
+  FREEZE_MODEL_IDS,
+  FREEZE_UNAVAILABLE_NOTE,
+  freezeCellText,
+  isFreezeKey,
+  modelsWithoutFreeze,
+} from './freezingLevel'
 import { COLUMNS } from './tableColumns'
 import { FAMILY_KEYS, NOUN } from '../metrics'
 
@@ -49,5 +55,48 @@ describe('FREEZE_UNAVAILABLE_NOTE', () => {
     expect(FREEZE_UNAVAILABLE_NOTE).not.toContain('\n')
     expect(FREEZE_UNAVAILABLE_NOTE).not.toContain('—')
     expect(FREEZE_UNAVAILABLE_NOTE.length).toBeLessThanOrEqual(80)
+  })
+})
+
+// The one place the emptiness is decided from a list rather than from the
+// data, because the panel has to answer it BEFORE an analysis is bought.
+describe('which models can answer a freezing-level ranking', () => {
+  const MODELS = [
+    { id: 'gfs_seamless', label: 'NOAA GFS' },
+    { id: 'gfs_hrrr', label: 'NOAA HRRR' },
+    { id: 'icon_seamless', label: 'DWD ICON' },
+    { id: 'ecmwf_ifs025', label: 'ECMWF IFS' },
+    { id: 'meteofrance_seamless', label: 'Meteo-France ARPEGE' },
+  ]
+
+  it('names the picked models that carry no freezing level', () => {
+    expect(modelsWithoutFreeze(MODELS).map((m) => m.label)).toEqual([
+      'ECMWF IFS',
+      'Meteo-France ARPEGE',
+    ])
+  })
+
+  it('returns nothing when every picked model carries it', () => {
+    expect(modelsWithoutFreeze(MODELS.slice(0, 3))).toEqual([])
+    expect(modelsWithoutFreeze([])).toEqual([])
+  })
+
+  // Measured at #295: three of the eight. A model that starts publishing the
+  // variable is one id added here, and this is the assertion that says so.
+  it('holds the three models measured at #295', () => {
+    expect([...FREEZE_MODEL_IDS].sort()).toEqual([
+      'gfs_hrrr',
+      'gfs_seamless',
+      'icon_seamless',
+    ])
+  })
+
+  // The list and the sentence that names the same three models must not
+  // drift: the note is what a reader sees, the set is what the panel acts on.
+  it('agrees with the note that names them', () => {
+    expect(FREEZE_MODEL_IDS.size).toBe(3)
+    for (const word of ['GFS Seamless', 'HRRR', 'ICON']) {
+      expect(FREEZE_UNAVAILABLE_NOTE).toContain(word)
+    }
   })
 })

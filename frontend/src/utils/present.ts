@@ -3,24 +3,18 @@
 // The Analyze button is a spend boundary, not ceremony (#177). A knob that
 // needs new upstream data keeps its explicit commit; a knob that only re-reads
 // data the browser already holds applies live. Since #187 the browser holds
-// the whole ranked field before the `limit` cut, so sort, limit, and NARROWING
-// the elevation band are all pure re-presentation. This module is that
-// derivation, extracted from App.tsx so it can be tested directly rather than
-// through component wiring.
+// the whole ranked field before the `limit` cut, so sort, limit and every
+// forecast bound are pure re-presentation. This module is that derivation,
+// extracted from App.tsx so it can be tested directly rather than through
+// component wiring.
 //
 // It is deliberately the only place that answers "which rows are displayed",
 // so the map markers, the results table, the header copy, and the "showing N
 // of M" count cannot drift from each other.
 
 import { DestinationResult, SortBy } from '../types'
-import { Constraints, filterConstraints, filterElevation, rankComparator } from './clientAnalyze'
+import { Constraints, filterConstraints, rankComparator } from './clientAnalyze'
 import { pinKey } from './customList'
-
-/** An elevation band. `null` on either end means unbounded, as in the API. */
-export interface Band {
-  min: number | null
-  max: number | null
-}
 
 /**
  * The knobs that decide presentation rather than what gets fetched.
@@ -32,49 +26,24 @@ export interface PresentationKnobs {
   sortBy: SortBy
   sortDesc: boolean
   limit: number
-  band: Band
   /**
-   * The forecast bounds. Unlike the band, these have no narrowing predicate and
-   * need none: elevation gates the fetch, so widening it asks for destinations
-   * the browser never fetched, while a precipitation ceiling can only ever
-   * re-read rows already in hand. Loosening one is as live as tightening it.
+   * The forecast bounds. They need no narrowing predicate: every one of them
+   * can only re-read rows already in hand, so loosening one is as live as
+   * tightening it. No knob here gates a fetch, which is what makes the whole
+   * derivation answerable from the held field.
    */
   constraints: Constraints
 }
 
 /**
- * The knobs an analysis was run under, plus the one fact about it that decides
- * whether a wider band can be answered from what came back.
+ * The knobs an analysis was run under, for comparison against the live ones.
  *
- * Elevation gates DISCOVERY, and only polygon discovery: a custom list is
- * resolved coordinate by coordinate and the band never touches it, so a
- * custom-only report holds every row it ever had and a widen re-presents it
- * for free. Without this the cue fired on exactly the reports that did not
- * need it, asking for an Analyze whose answer was already on screen — the same
- * false alarm `rankingStale` used to raise for sort.
+ * Nothing beyond the presentation knobs: no knob the panel offers decides
+ * what gets fetched, so a snapshot never has to be compared value by value.
  */
-export interface AnalyzedSnapshot extends PresentationKnobs {
-  bandGated: boolean
-}
-
-/**
- * Is `panel` a subset of `analyzed` — i.e. would every destination inside the
- * panel's band already be inside the analyzed one?
- *
- * This is what separates a live narrow from an Analyze-requiring widen. The
- * held field was discovered under `analyzed`, so a subset band is answerable
- * by filtering it and a wider one genuinely has rows we never fetched. `null`
- * is unbounded, so an absent analyzed edge admits any panel edge and an absent
- * panel edge is admitted only when the analyzed edge was absent too.
- */
-export function bandNarrows(analyzed: Band, panel: Band): boolean {
-  const minOk = analyzed.min === null || (panel.min !== null && panel.min >= analyzed.min)
-  const maxOk = analyzed.max === null || (panel.max !== null && panel.max <= analyzed.max)
-  return minOk && maxOk
-}
+export type AnalyzedSnapshot = PresentationKnobs
 
 export type CommitReason =
-  | 'elevation-widened'
   | 'window-changed'
   | 'model-changed'
   | 'polygon-changed'
@@ -161,7 +130,11 @@ export function discoveryChanges(
  * that cue is not merely redundant, it is wrong: it would ask for an Analyze
  * that changes nothing. What survives is the honest inverse — the cue appears
  * exactly where a knob has stopped being live, so a user is never left
- * wondering why the table went quiet:
+ * wondering why the table went quiet.
+ *
+ * Every reason is a CHANGE the caller reports rather than a comparison made
+ * here, which is why the live knobs are not a parameter. The snapshot is still
+ * taken because a null one means nothing has committed yet:
  *
  * - `'model-changed'`: a different weather model is behind the panel than behind
  *   the rows. Always a commit, and for a stronger reason than the window: the
@@ -171,8 +144,6 @@ export function discoveryChanges(
  *   Always a commit — the browser holds no forecasts for days it never fetched —
  *   and worth naming since the calendar made changing it a click (#166), where
  *   typing two datetimes was hard to do by accident.
- * - `'elevation-widened'`: see `bandNarrows`, and `bandGated` for the reports
- *   this cannot apply to.
  * - `'polygon-changed'`: a complete polygon is drawn and it is not the ring
  *   the report's discovery searched — including when that report searched no
  *   ring at all. Silent while no complete polygon exists: mid-draw the
@@ -196,7 +167,6 @@ export function discoveryChanges(
  */
 export function commitNeeded(
   analyzed: AnalyzedSnapshot | null,
-  panel: PresentationKnobs,
   changed: CommitChanges,
 ): CommitReason[] {
   // Nothing on screen yet, so nothing to be out of date with. Since #240
@@ -206,9 +176,6 @@ export function commitNeeded(
   const reasons: CommitReason[] = []
   if (changed.model) reasons.push('model-changed')
   if (changed.window) reasons.push('window-changed')
-  if (analyzed.bandGated && !bandNarrows(analyzed.band, panel.band)) {
-    reasons.push('elevation-widened')
-  }
   if (changed.polygon) reasons.push('polygon-changed')
   if (changed.types) reasons.push('types-changed')
   if (changed.destinationAdded) reasons.push('destination-added')
@@ -219,20 +186,20 @@ export interface Presentation {
   /** The rows to display, in display order. */
   rows: DestinationResult[]
   /**
-   * How many destinations could appear in the table under the current band and
-   * forecast bounds, before the `limit` cut and before removals. This is the
-   * "of M" in "showing N of M destinations". Removals are excluded to match
+   * How many destinations could appear in the table under the current forecast
+   * bounds, before the `limit` cut and before removals. This is the "of M" in
+   * "showing N of M destinations". Removals are excluded to match
    * `total_queried`, which has never counted them either.
    *
    * Counted from the held field rather than taken from `total_queried`, because
-   * narrowing the band live has to move it or the count describes a field the
+   * a bound applied live has to move it or the count describes a field the
    * table no longer shows. The two differ by however many candidates came back
    * with no usable forecast, which is the honest number here: a row without a
    * forecast can never be one of the N.
    */
   eligible: number
   /**
-   * How many destinations the band admitted but the forecast bounds rejected.
+   * How many of the analyzed destinations the forecast bounds rejected.
    *
    * Reported separately rather than folded into `eligible` because they answer
    * different questions: `eligible` is how many rows the table could show, and
@@ -246,10 +213,9 @@ export interface Presentation {
 /**
  * Derive the displayed rows from the held field and the live knobs.
  *
- * Order matters. The band filter runs first because it decides which
- * destinations are candidates at all, then the forecast bounds, and `eligible`
- * is read between those and the removals so the count describes the area
- * rather than the user's edits. The `limit` cut runs last, after removals, so
+ * Order matters. The forecast bounds run first, and `eligible` is read between
+ * them and the removals so the count describes the area rather than the user's
+ * edits. The `limit` cut runs last, after removals, so
  * removing a row promotes the next one in rather than leaving a gap — and,
  * because both filters precede it, "the ten driest destinations that stay
  * under 20 mph" is literally what comes back rather than "whichever of the ten
@@ -272,14 +238,13 @@ export function presentResults(
     return { rows: [], eligible: 0, excluded: 0 }
   }
 
-  const inBand = filterElevation(universe, knobs.band.min, knobs.band.max)
-  const matching = filterConstraints(inBand, knobs.constraints)
+  const matching = filterConstraints(universe, knobs.constraints)
   const rows = kept(matching)
   rows.sort(rankComparator(knobs.sortBy, knobs.sortDesc))
   return {
     rows: rows.slice(0, knobs.limit),
     eligible: matching.length,
-    excluded: inBand.length - matching.length,
+    excluded: universe.length - matching.length,
   }
 }
 

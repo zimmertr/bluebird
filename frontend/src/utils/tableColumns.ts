@@ -21,7 +21,7 @@ import { FREEZE_UNAVAILABLE } from './freezingLevel'
  * statement and the one the screen already makes with its mark.
  */
 export type ColDef = {
-  key: keyof DestinationResult | typeof WILDFIRE_KEY
+  key: keyof DestinationResult | typeof WILDFIRE_KEY | typeof MODEL_KEY
   label: string
   format?: (v: unknown) => string
   csv?: (v: unknown) => string
@@ -42,12 +42,56 @@ export type ColDef = {
 export const WILDFIRE_KEY = 'wildfire_mi'
 export const WILDFIRE_COL: ColDef = { key: WILDFIRE_KEY, label: 'Wildfire (mi)' }
 
+/**
+ * Which model a row's numbers came from, when more than one is selected.
+ *
+ * Virtual like the wildfire column, and for the same reason: the value is
+ * something the browser knows about a row it is displaying rather than a field
+ * the API answered with, so every consumer branches on the key before indexing
+ * a `DestinationResult`. It rides on `ModelRow` (`modelCompare.ts`).
+ *
+ * Appears only while a comparison is up. With one model selected every row
+ * would carry the same name, which is a column that says nothing and costs the
+ * width of its widest label — and that label is a model name, the longest
+ * strings the panel has.
+ */
+export const MODEL_KEY = 'model'
+export const MODEL_COL: ColDef = { key: MODEL_KEY, label: 'Model' }
+
 /** The column a detail sort is keyed on, and which way it runs. */
 export type SortKey = ColDef['key']
 export type SortDir = 'asc' | 'desc'
 
 // Identity columns that always lead the table, ahead of any metric group.
-const LEAD_KEYS = new Set(['name', 'type', 'elevation_ft'])
+// Exported because the Model column is inserted directly after them: it says
+// which answer a row is, so it belongs with what identifies a row rather than
+// among the numbers it qualifies.
+export const LEAD_KEYS: ReadonlySet<string> = new Set(['name', 'type', 'elevation_ft'])
+
+/**
+ * The same columns with `Model` inserted, or unchanged when nothing is
+ * compared.
+ *
+ * One derivation for both surfaces. The table and the CSV are given the same
+ * ROWS — one per destination per model — so a file whose columns came from a
+ * second spelling would repeat every destination with nothing saying which
+ * answer each repeat is.
+ *
+ * Directly after `Name`, ahead of the rest of the identity columns (TJ,
+ * 2026-09-14). A comparison repeats a destination's name down consecutive
+ * rows, and the model is what tells those repeats apart, so it reads best
+ * against the name it qualifies rather than after two columns that repeat with
+ * it. Inserted here rather than declared in `COLUMNS` because it exists only
+ * while a comparison is up, and it is not in the Columns picker for the same
+ * reason — a column that cannot be turned off is one less thing to explain
+ * than a column that appears in the picker only sometimes.
+ */
+export function withModelColumn(cols: readonly ColDef[], comparing: boolean): ColDef[] {
+  if (!comparing) return [...cols]
+  const at = cols.findIndex((c) => c.key === 'name')
+  const cut = at === -1 ? 0 : at + 1
+  return [...cols.slice(0, cut), MODEL_COL, ...cols.slice(cut)]
+}
 
 /**
  * Every column a window-mode analysis can show, in canonical order.
@@ -179,4 +223,74 @@ export function visibleColumns(
   if (!visibleKeys) return allCols
   const group = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])
   return allCols.filter((c) => visibleKeys.has(c.key) || group.has(c.key))
+}
+
+/**
+ * The reader's own column order, applied to whatever columns a surface is
+ * showing.
+ *
+ * `order` is a list of keys, not a map of positions: a column the list does not
+ * name keeps its place relative to the columns that were already after it,
+ * which is what lets the automatic order add a column (a new metric, the
+ * wildfire column, Model appearing with a comparison) without the stored list
+ * needing to know about it.
+ *
+ * Named columns lead, in the list's order. Everything else follows in the order
+ * it arrived. `null` means the reader has not ordered anything, and the columns
+ * come back untouched.
+ */
+export function applyColumnOrder<T extends { key: string }>(
+  cols: readonly T[],
+  order: readonly string[] | null,
+): T[] {
+  if (!order || order.length === 0) return [...cols]
+  const rank = new Map(order.map((key, at) => [key, at]))
+  const named = cols.filter((c) => rank.has(c.key))
+  const rest = cols.filter((c) => !rank.has(c.key))
+  named.sort((a, b) => rank.get(a.key)! - rank.get(b.key)!)
+  return [...named, ...rest]
+}
+
+/**
+ * One column moved to where another one sits.
+ *
+ * Takes and returns the whole key list rather than a pair of indices, because
+ * the list is what is stored and a surface that computed indices would have to
+ * agree with this file about what it was indexing.
+ *
+ * A move onto a column's own place, or onto a key the list does not hold, is
+ * not a move: the same list comes back, so a caller can compare by reference
+ * and skip the write.
+ */
+export function moveColumn(
+  order: readonly string[],
+  fromKey: string,
+  toKey: string,
+): readonly string[] {
+  const from = order.indexOf(fromKey)
+  const to = order.indexOf(toKey)
+  if (from === -1 || to === -1 || from === to) return order
+  const next = [...order]
+  next.splice(from, 1)
+  next.splice(to, 0, fromKey)
+  return next
+}
+
+/**
+ * The same move by one step, which is what a keyboard sends.
+ *
+ * A step past either end is not a move, for the reason above: the list comes
+ * back unchanged rather than wrapping, because a column that jumps from the
+ * last place to the first reads as a bug rather than as a move.
+ */
+export function stepColumn(
+  order: readonly string[],
+  key: string,
+  delta: -1 | 1,
+): readonly string[] {
+  const at = order.indexOf(key)
+  if (at === -1) return order
+  const to = at + delta
+  if (to < 0 || to >= order.length) return order
+  return moveColumn(order, key, order[to])
 }

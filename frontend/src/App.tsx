@@ -16,7 +16,14 @@ import { modelForecastHours, useCapabilities } from './hooks/useCapabilities'
 import { useChartSelection } from './hooks/useChartSelection'
 import { useModelCompare } from './hooks/useModelCompare'
 import { allocateColors } from './utils/chartColors'
-import { compareAdded, drawnModelIds, pairKey } from './utils/modelCompare'
+import {
+  ModelRow,
+  compareAdded,
+  drawnModelIds,
+  modelRowsFor,
+  pairColor,
+  pairKey,
+} from './utils/modelCompare'
 import { modelRows, pruneHidden, shownModels, toggleHidden } from './utils/modelVisibility'
 import { useFireProximity } from './hooks/useFireProximity'
 import { fireKey } from './utils/fireProximity'
@@ -134,6 +141,7 @@ import { composeOverlay } from './utils/analyzeOverlay'
 import { Place, isPeakKind } from './utils/geocode'
 import {
   DEFAULT_LIMIT,
+  DEFAULT_SORT,
   encodeState,
   decodeState,
   classifyWindow,
@@ -166,7 +174,18 @@ import {
   recordRemoval,
   restorePlace,
 } from './utils/removals'
-import { SortDir, SortKey, WILDFIRE_COL, WILDFIRE_KEY, displayedColumns, visibleColumns } from './utils/tableColumns'
+import {
+  MODEL_KEY,
+  SortDir,
+  SortKey,
+  WILDFIRE_COL,
+  WILDFIRE_KEY,
+  applyColumnOrder,
+  displayedColumns,
+  moveColumn,
+  visibleColumns,
+  withModelColumn,
+} from './utils/tableColumns'
 import { NAME_DEFAULT_PX } from './utils/columnResize'
 import { compareValues } from './utils/sortResults'
 import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
@@ -299,8 +318,8 @@ export default function App() {
   const removedButtonRef = useRef<HTMLButtonElement>(null)
 
   // The discovery inputs behind the results currently on screen: `base` covers
-  // the user-authored inputs (polygon + type + CSV rows + elevation + limit +
-  // sort) and `searchedKeys` the searched places that competed. An Analyze
+  // the user-authored inputs (polygon + types + unnamed peaks + CSV rows) and
+  // `searchedKeys` the searched places that competed. An Analyze
   // whose base matches and whose searched list only SHRANK (row removals) skips
   // Overpass and just refreshes the surviving rows' weather; a NEW searched
   // place — which must compete against the full candidate field the refresh
@@ -321,7 +340,7 @@ export default function App() {
   // carrying what a restore needs (#241 — see utils/removals.ts). Scoped
   // to the user-authored discovery inputs (removalScopeRef): removing a row —
   // even a searched place, which shrinks the custom list — must not count as
-  // changing them. Only a polygon/type/elevation/CSV edit starts a clean slate
+  // changing them. Only a polygon/type/CSV edit starts a clean slate
   // where removed destinations may legitimately return. Each entry also records
   // the authored scope it was made under, which is what lets the live pending
   // preview expire one between analyses while the report keeps its snapshot.
@@ -505,7 +524,7 @@ export default function App() {
     () => authoredScope(destinationTypes, customCsv),
     [destinationTypes, customCsv],
   )
-  const [sortBy, setSortByRaw] = useState<SortBy>(() => restored?.sortBy ?? 'precip_total_in')
+  const [sortBy, setSortByRaw] = useState<SortBy>(() => restored?.sortBy ?? DEFAULT_SORT)
   const [sortDesc, setSortDesc] = useState(() => restored?.sortDesc ?? false)
   // What each metric row's aggregate dropdown holds (#291), the active row's
   // entry always equal to sortBy. One state for every row because a
@@ -519,14 +538,8 @@ export default function App() {
     setSortByRaw(key)
     setRowKeys((rows) => (rows[familyOf(key)] === key ? rows : { ...rows, [familyOf(key)]: key }))
   }, [])
-  const [minElevationFt, setMinElevationFt] = useState<number | null>(
-    () => restored?.minElevationFt ?? null,
-  )
-  const [maxElevationFt, setMaxElevationFt] = useState<number | null>(
-    () => restored?.maxElevationFt ?? null,
-  )
-  // The forecast bounds (#115). Unlike the elevation band above, these cannot
-  // gate a fetch — nothing knows a destination's precipitation before it has
+  // The forecast bounds (#115). None of them can gate a fetch — nothing knows
+  // a destination's precipitation before it has
   // been fetched — so they are pure presentation and every one of them applies
   // live, loosening as well as tightening.
   const [constraints, setConstraints] = useState<Constraints>(
@@ -678,6 +691,45 @@ export default function App() {
     }
     return null
   })
+  // The Model column's own switch, which is three-valued rather than two.
+  //
+  // It is in the Columns picker like every other column (TJ, 2026-09-14), but
+  // unlike every other column its DEFAULT depends on the report: with one model
+  // every row would carry the same name, and with several the column is what
+  // tells a destination's rows apart. So `null` means "follow the model count"
+  // and a boolean is the reader's own answer, which then stands whatever the
+  // count does. Folding it into `columnVisibility` instead would freeze the
+  // default the first time the reader touched ANY column, and a later
+  // comparison would then come up without the column that explains it.
+  const [modelColumn, setModelColumn] = useState<boolean | null>(() => {
+    if (typeof localStorage === 'undefined') return null
+    try {
+      const stored = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
+      return typeof stored.modelColumn === 'boolean' ? stored.modelColumn : null
+    } catch {
+      return null
+    }
+  })
+
+  // The order the reader dragged the columns into, or null for the automatic
+  // one (#360). A list of keys rather than positions, so a column the list
+  // predates keeps its place instead of vanishing; `applyColumnOrder` owns that
+  // rule.
+  //
+  // It is discarded whenever the ranking changes (TJ, 2026-09-14): `Rank by`
+  // pulls the ranked metric group to the front, and the maintainer chose to let
+  // it win rather than have a stored order suppress the one thing the ranking
+  // does to the columns.
+  const [columnOrder, setColumnOrder] = useState<readonly string[] | null>(() => {
+    if (typeof localStorage === 'undefined') return null
+    try {
+      const stored = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
+      return Array.isArray(stored.columnOrder) ? stored.columnOrder : null
+    } catch {
+      return null
+    }
+  })
+
   // Persist column visibility to localStorage when it changes.
   useEffect(() => {
     try {
@@ -689,12 +741,16 @@ export default function App() {
         JSON.stringify({
           ...current,
           columns3: columnVisibility ? [...columnVisibility] : undefined,
+          // Absent rather than null while the reader has not answered, so the
+          // count still decides after a reload.
+          modelColumn: modelColumn ?? undefined,
+          columnOrder: columnOrder ?? undefined,
         }),
       )
     } catch {
       // Ignore localStorage errors (SSR, quota, etc.)
     }
-  }, [columnVisibility])
+  }, [columnVisibility, modelColumn, columnOrder])
   // Column picker popover open/closed
   const [columnsOpen, setColumnsOpen] = useState(false)
   const [modelsOpen, setModelsOpen] = useState(false)
@@ -901,10 +957,9 @@ export default function App() {
       sortBy,
       sortDesc,
       limit,
-      band: { min: minElevationFt, max: maxElevationFt },
       constraints,
     }),
-    [sortBy, sortDesc, limit, minElevationFt, maxElevationFt, constraints],
+    [sortBy, sortDesc, limit, constraints],
   )
   const view =
     analyzed !== null
@@ -1013,8 +1068,6 @@ export default function App() {
       sortBy,
       sortDesc,
       rowKeys,
-      minElevationFt,
-      maxElevationFt,
       constraints,
       limit,
       customCsv,
@@ -1050,8 +1103,6 @@ export default function App() {
     sortBy,
     sortDesc,
     rowKeys,
-    minElevationFt,
-    maxElevationFt,
     constraints,
     limit,
     customCsv,
@@ -1124,12 +1175,9 @@ export default function App() {
   // the searched places, which are compared separately so removals stay
   // refresh-eligible.
   //
-  // Ranking and limit used to be in here, which is what made every sort or
-  // limit change a full rediscovery. They re-present the held field now
-  // (#188), so they never reach this function at all. The elevation band DOES
-  // stay: a narrowing is likewise handled live and never gets here, but a
-  // WIDENING needs candidates outside the held field, and letting it take the
-  // refresh path would echo the narrower field and silently ignore the request.
+  // Nothing that only re-presents the held field belongs here. Ranking, the
+  // cap and every bound are read off rows the browser already holds (#188), so
+  // none of them reaches this function and none of them re-buys a discovery.
   function discoveryBase(poly: GeoPolygon | null, csvRows: CustomDestination[]): string {
     return JSON.stringify({
       ring: poly?.coordinates[0] ?? null,
@@ -1138,8 +1186,6 @@ export default function App() {
       types: [...destinationTypes].sort(),
       unnamed: includeUnnamedPeaks,
       csv: csvRows,
-      minEl: minElevationFt,
-      maxEl: maxElevationFt,
     })
   }
 
@@ -1164,16 +1210,12 @@ export default function App() {
     const start = new Date(local.start).toISOString()
     const end = new Date(local.end).toISOString()
 
-    // Every bound the request carries. The elevation band gates discovery, so
-    // the server needs it; the forecast bounds stay on the request because it
-    // is the same shape POST /api/analyze documents for direct callers, but
-    // the browser holds the field and applies them live, so they go unused
-    // here.
-    const bounds = {
-      min_elevation_ft: minElevationFt,
-      max_elevation_ft: maxElevationFt,
-      ...constraintFields(constraints),
-    }
+    // Every bound the request carries. They stay on it because it is the same
+    // shape POST /api/analyze documents for direct callers, but the browser
+    // holds the field and applies them live, so they go unused here. The
+    // elevation band is the one the app no longer sends at all (#341); the API
+    // still accepts it from a direct caller.
+    const bounds = constraintFields(constraints)
 
     // Resolve the ranked inputs first. The custom side of the analysis is the
     // pasted CSV ∪ the searched places — with a *complete* polygon (>= 3
@@ -1189,13 +1231,9 @@ export default function App() {
     // Reset the removal set only when the user changed a discovery input —
     // searched places are deliberately absent (their list shrinks on removal).
     //
-    // The elevation band used to be in here as a special case: a widening threw
-    // the removals away, on the grounds that readmitting destinations this
-    // report never ranked starts a fresh report. That stopped being true when
-    // widening became incremental. The held field is no longer rebuilt, it is
-    // extended, so the rows a user struck out are the same rows they struck
-    // out, and losing them to a band nudge was an unexplained edit of their
-    // work. Only a genuine change of what gets discovered clears them now.
+    // A re-analysis extends the held field rather than rebuilding it, so the
+    // rows a user struck out stay struck out. Losing them to anything short of
+    // a genuine discovery change would be an unexplained edit of their work.
     const removalScope = JSON.stringify({
       ring: resolvedPolygon?.coordinates[0] ?? null,
       // The ring is this comparison's alone: it resolves only here, and it
@@ -1414,7 +1452,7 @@ export default function App() {
   // detail-column sort and read in the order the rows arrived in.
   //
   // Keyed on the report rather than on the rows, which are a new array on every
-  // live limit or elevation change and would otherwise throw away a sort the
+  // live cap or bound change and would otherwise throw away a sort the
   // user just asked for.
   useEffect(() => {
     setDetailSort({ key: view.sortBy, dir: view.sortDesc ? 'desc' : 'asc' })
@@ -1435,14 +1473,6 @@ export default function App() {
   // a pasted list numbered 1..100 reads in order. See compareValues. The
   // wildfire column's key is virtual: its value is the warning's mileage, so a
   // clear row and an uncovered row are both null and land last either way.
-  const tableRows = useMemo(() => {
-    const value = (r: DestinationResult) =>
-      detailSort.key === WILDFIRE_KEY
-        ? (fire.warnings.get(fireKey(r.latitude, r.longitude))?.miles ?? null)
-        : r[detailSort.key]
-    return [...results].sort((a, b) => compareValues(value(a), value(b), detailSort.dir))
-  }, [results, detailSort, fire.warnings])
-  // All columns for the CSV export (includes all columns, not filtered by visibility).
   const csvColumns = useMemo(
     () => displayedColumns(pointSample, view.sortBy),
     [pointSample, view.sortBy],
@@ -1454,18 +1484,6 @@ export default function App() {
     if (columnVisibility !== null) return columnVisibility
     return new Set([...csvColumns.map((c) => c.key as string), WILDFIRE_KEY])
   }, [columnVisibility, csvColumns])
-  // Columns displayed in the table (filtered by visibility). The wildfire
-  // column is last, shown by default, and toggleable in the Columns picker
-  // like everything else (TJ, 2026-08-21, reversing the #256-era always-on
-  // rule). While shown, its cells — not the column — say where the check
-  // stands (ticking while it runs, answered when it has; ResultsTable owns
-  // that). The CSV keeps the stricter rule and carries the column only once
-  // the check answered AND the column is shown, because a file's columns
-  // must not disagree with the screen's.
-  const tableColumns = useMemo(() => {
-    const cols = visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys)
-    return effectiveVisibleKeys.has(WILDFIRE_KEY) ? [...cols, WILDFIRE_COL] : cols
-  }, [pointSample, view.sortBy, effectiveVisibleKeys])
 
   // × on a table row. Removing a searched place also deregisters it — else the
   // next analysis would simply rediscover it from the searched list. The
@@ -1555,7 +1573,7 @@ export default function App() {
   // the dots cannot disagree about what an analysis has not covered.
   const commitReasons =
     !loading && response !== null
-      ? commitNeeded(analyzed, liveKnobs, {
+      ? commitNeeded(analyzed, {
           window: windowChanged,
           model: modelChanged,
           polygon: discoveryMoved.polygon,
@@ -1850,7 +1868,13 @@ export default function App() {
   function handleDownloadCsv() {
     const csv = buildResultsCsv(
       tableRows,
-      csvColumns,
+      // The same insertion the table makes. The file is given the same rows,
+      // so without it a comparison writes each destination once per model with
+      // nothing saying which model each line is.
+      // The same columns the table shows, in the same order: the file leaves
+      // in the order that is on screen (#125), and a reader's reorder is no
+      // different from a sort in that respect.
+      applyColumnOrder(withModelColumn(csvColumns, modelColumnOn), columnOrder),
       // Null also when the column is hidden: buildResultsCsv drops the
       // wildfire column on null, and a file must not carry a column the
       // screen does not show.
@@ -1869,6 +1893,7 @@ export default function App() {
           }) as DestinationResult,
       ),
       fire.uncovered,
+      analysisModelLabel,
     )
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a')
@@ -1915,6 +1940,21 @@ export default function App() {
   // the legend already read — not from `tableRows`, whose numbering follows a
   // detail-column sort that reorders the rows on screen without changing which
   // rows they are.
+  // Every DISPLAYED row as a point the comparison can fetch for. Wider than
+  // the charted set: the results table shows one row per model for everything
+  // on screen, so the numbers are bought for everything on screen. Keyed by
+  // `chartKey` like the charted ones, so one pair key serves both readers.
+  const comparePoints = useMemo(
+    () =>
+      results.map((r) => ({
+        key: chartKey(r),
+        latitude: r.latitude,
+        longitude: r.longitude,
+        elevationFt: r.elevation_ft,
+      })),
+    [results],
+  )
+
   const chartedDestinations = useMemo(() => {
     const rankByKey = new Map(results.map((r, i) => [chartKey(r), i + 1]))
     return chart.selectedRows
@@ -1999,6 +2039,7 @@ export default function App() {
   const compare = useModelCompare({
     enabled: chart.metric !== 'aqi',
     destinations: chartedDestinations,
+    rows: comparePoints,
     heldSeries: chartedSeries,
     analyzed,
     analysisSeq,
@@ -2009,6 +2050,144 @@ export default function App() {
     colors: chartedPairColors,
     times: chartTimes,
   })
+
+  // What colour a table row's chart checkbox wears.
+  //
+  // A colour identifies a LINE, and with a comparison up a line is a
+  // (destination, model) PAIR: two rows for one place draw two lines in two
+  // colours, so their checkboxes have to say which is which. Keyed off the same
+  // `chartedPairColors` the chart itself reads, so the swatch beside a row and
+  // the line it puts on the chart cannot be different colours.
+  //
+  // Falls back to the destination's own colour, which is the right answer
+  // everywhere a pair has none: a single-model report, and any row nobody has
+  // charted (whose swatch is uncoloured anyway until it is).
+  const rowChartColor = useCallback(
+    (row: DestinationResult) => {
+      return pairColor(
+        chartedPairColors,
+        (row as ModelRow).modelId,
+        chartKey(row),
+        chart.colorFor(row),
+      )
+    },
+    [chartedPairColors, chart],
+  )
+
+  // Whether the table shows one row per model. A single selected model is the
+  // report as it always was: every row would carry the same model name, which
+  // is a column that says nothing.
+  const comparingRows = compare.shown.length > 1
+
+  // Whether the Model column is drawn: the reader's answer if they gave one,
+  // and otherwise the model count. See `modelColumn` above for why the switch
+  // has three values rather than two.
+  const modelColumnOn = modelColumn ?? comparingRows
+  // What the Columns picker shows ticked. The Model column rides beside the
+  // visibility set rather than inside it, so it is added here, at the one place
+  // that draws the picker.
+  const pickerVisibleKeys = useMemo(() => {
+    const keys = new Set(effectiveVisibleKeys)
+    if (modelColumnOn) keys.add(MODEL_KEY)
+    else keys.delete(MODEL_KEY)
+    return keys
+  }, [effectiveVisibleKeys, modelColumnOn])
+
+  // The picker hands back one set for every column. The Model column's answer
+  // is pulled out of it and kept separately; the rest is the ordinary set.
+  function handleVisibilityChange(keys: Set<string>) {
+    const wanted = keys.has(MODEL_KEY)
+    if (wanted !== modelColumnOn) setModelColumn(wanted)
+    const rest = new Set(keys)
+    rest.delete(MODEL_KEY)
+    setColumnVisibility(rest)
+  }
+
+  // The ranking pulls its own metric group to the front, and the maintainer
+  // chose to let it win over an order the reader set (TJ, 2026-09-14). Keyed on
+  // the ranking alone: a live sort, a limit or a bound re-presents the same
+  // columns and must not throw the order away.
+  //
+  // Skipping the first run is what makes the order survive a reload: an effect
+  // keyed on a value fires on mount as well as on change, so without the ref
+  // the stored order was discarded by the very render that read it.
+  const rankedOnce = useRef(false)
+  useEffect(() => {
+    if (!rankedOnce.current) {
+      rankedOnce.current = true
+      return
+    }
+    setColumnOrder(null)
+  }, [view.sortBy])
+
+  // The model every row came from when only one did, so the column says
+  // something rather than a dash on a report with no comparison. The ANALYZED
+  // model, not the panel's: the numbers are the analysis's, and the picker can
+  // move after it.
+  const analysisModelLabel =
+    caps.forecastModels.find((m) => m.id === (analyzed?.forecastModel ?? forecastModel))?.label ??
+    null
+
+  // Every displayed row under every model that answered, grouped by
+  // destination. `modelRowsFor` owns the rules; this only decides whether to
+  // ask, and hands it the ranking model first so its row leads each group.
+  const comparedTableRows = useMemo(() => {
+    if (!comparingRows) return null
+    return modelRowsFor(
+      results,
+      compare.shown.map((m) => ({ id: m.id, label: m.label })),
+      forecastModel,
+      compare.results,
+      chartKey,
+    )
+  }, [comparingRows, results, compare.shown, compare.results, forecastModel])
+
+  const tableRows = useMemo(() => {
+    const value = (r: DestinationResult) =>
+      detailSort.key === WILDFIRE_KEY
+        ? (fire.warnings.get(fireKey(r.latitude, r.longitude))?.miles ?? null)
+        : detailSort.key === MODEL_KEY
+          ? ((r as ModelRow).modelLabel ?? null)
+          : r[detailSort.key]
+    const base = comparedTableRows ?? results
+    return [...base].sort((a, b) => compareValues(value(a), value(b), detailSort.dir))
+  }, [results, comparedTableRows, detailSort, fire.warnings])
+  // All columns for the CSV export (includes all columns, not filtered by visibility).
+  // Columns displayed in the table (filtered by visibility). The wildfire
+  // column is last, shown by default, and toggleable in the Columns picker
+  // like everything else (TJ, 2026-08-21, reversing the #256-era always-on
+  // rule). While shown, its cells — not the column — say where the check
+  // stands (ticking while it runs, answered when it has; ResultsTable owns
+  // that). The CSV keeps the stricter rule and carries the column only once
+  // the check answered AND the column is shown, because a file's columns
+  // must not disagree with the screen's.
+  const tableColumns = useMemo(() => {
+    const cols = visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys)
+    const withFire = effectiveVisibleKeys.has(WILDFIRE_KEY) ? [...cols, WILDFIRE_COL] : cols
+    return applyColumnOrder(withModelColumn(withFire, modelColumnOn), columnOrder)
+  }, [pointSample, view.sortBy, effectiveVisibleKeys, modelColumnOn, columnOrder])
+
+  // Every column there is, in the reader's order: what the Columns picker
+  // lists, and the list a move is made within.
+  //
+  // The baseline is this rather than the columns on screen, so a hidden column
+  // keeps its place. Ordering only the visible ones would send every hidden
+  // column to the end the moment it came back.
+  const allColumns = useMemo(
+    () => applyColumnOrder([...withModelColumn(csvColumns, true), WILDFIRE_COL], columnOrder),
+    [csvColumns, columnOrder],
+  )
+
+  // Both surfaces move a column by naming the column and the one it lands on.
+  // The key list is what is stored, so the move is made on that rather than on
+  // a pair of indices each surface would have to derive the same way.
+  const handleColumnMove = useCallback(
+    (fromKey: string, toKey: string) => {
+      const base = allColumns.map((c) => c.key as string)
+      setColumnOrder((prev) => moveColumn(prev ?? base, fromKey, toKey))
+    },
+    [allColumns],
+  )
 
   // A model put down and later selected again comes back DRAWN, so a flag
   // outlives its model by exactly nothing. Keyed on the panel's selection
@@ -2241,16 +2420,15 @@ export default function App() {
           setSortDesc={setSortDesc}
           rowKeys={rowKeys}
           pointSample={pointSample}
-          minElevationFt={minElevationFt}
-          setMinElevationFt={setMinElevationFt}
-          maxElevationFt={maxElevationFt}
-          setMaxElevationFt={setMaxElevationFt}
           constraints={constraints}
           setConstraints={setConstraints}
+          // Every knob the Metrics table's boxes hold, back to its default.
+          // The results cap is one of them (#341): it bounds nothing, but it is
+          // typed into the same column and the button that clears that column
+          // cannot skip one box.
           onClearFilters={() => {
-            setMinElevationFt(null)
-            setMaxElevationFt(null)
             setConstraints(NO_CONSTRAINTS)
+            setLimit(DEFAULT_LIMIT)
           }}
           includeUnnamedPeaks={includeUnnamedPeaks}
           setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}
@@ -2280,9 +2458,9 @@ export default function App() {
           onAnalyze={handleAnalyze}
           onRetry={retry}
           resultCount={response ? results.length : undefined}
-          // What the current elevation band admits, not what the analysis
-          // fetched: narrowing the band live has to move the "of M" or the
-          // count describes a field the table no longer shows.
+          // What the current bounds admit, not what the analysis fetched:
+          // a bound applies live, so it has to move the "of M" or the count
+          // describes a field the table no longer shows.
         />
       </aside>
 
@@ -2383,6 +2561,8 @@ export default function App() {
             onDrawUpdate={handleDrawUpdate}
             results={results}
             sortBy={view.sortBy}
+            modelId={analyzed?.forecastModel ?? forecastModel}
+            times={response?.times ?? []}
             fireWarnings={fire.warnings}
             showWildfires={showWildfires}
             showRadar={showRadar}
@@ -2396,8 +2576,6 @@ export default function App() {
             searchedPlaces={searched.places}
             onAddPoi={handleAddPoi}
             onRemovePoi={handleRemovePoi}
-            minElevationFt={minElevationFt}
-            maxElevationFt={maxElevationFt}
             cameraPadBottomPx={cameraPadBottomPx}
           />
           {/* The legends render BEFORE the button column below on purpose.
@@ -3123,6 +3301,8 @@ export default function App() {
                         columns={tableColumns}
                         columnWidths={tableColWidths}
                         onColumnWidthsChange={setTableColWidths}
+                        modelFallbackLabel={analysisModelLabel}
+                        onColumnMove={handleColumnMove}
                         fireWarnings={fire.warnings}
                         fireUncovered={fire.uncovered}
                         fireStatus={fire.status}
@@ -3130,9 +3310,12 @@ export default function App() {
                         onRemove={handleRemoveResult}
                         onRemovePending={(d) => searched.removePlace(d.latitude, d.longitude)}
                         onFocusResult={(row) => mapRef.current?.focusResult(row)}
+                        onFocusPending={(at) => mapRef.current?.focusPoint(at)}
+                        modelId={analyzed?.forecastModel ?? forecastModel}
+                        times={response?.times ?? []}
                         onToggleChart={chart.toggle}
                         isCharted={chart.isSelected}
-                        chartColor={chart.colorFor}
+                        chartColor={rowChartColor}
                         onChartRange={chart.setRange}
                       />
                     </div>
@@ -3147,10 +3330,13 @@ export default function App() {
         <ColumnsPicker
           open={columnsOpen}
           onOpenChange={setColumnsOpen}
-          columns={[...csvColumns, WILDFIRE_COL]}
+          // Model is always offered, whatever the report holds: a column a
+          // reader can never see is a column they cannot ask for.
+          columns={allColumns}
           sortBy={view.sortBy}
-          visibleKeys={effectiveVisibleKeys}
-          onVisibilityChange={setColumnVisibility}
+          visibleKeys={pickerVisibleKeys}
+          onVisibilityChange={handleVisibilityChange}
+          onColumnMove={handleColumnMove}
           triggerRef={columnsButtonRef}
         />
 

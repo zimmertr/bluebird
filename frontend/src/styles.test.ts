@@ -18,13 +18,16 @@ import {
   CHOICE_INPUT,
   CHOICE_ROW,
   DAY,
-  BOUNDS_GRID,
+  CHART_METRIC_W,
   CONTROL_W,
   FIELD,
   FIELD_NUMERIC,
   FOCUS_RING,
   ICON,
   ICON_ADORNMENT,
+  METRICS_GRID,
+  METRIC_BOX_W,
+  METRIC_HEAD_GAP,
   ICON_ACTION,
   ICON_BUTTON,
   NOTICE,
@@ -43,6 +46,7 @@ import {
   SEGMENT_ITEM,
   DISABLED,
   SELECT,
+  SEGMENT_FILL,
   SELECT_W_AGGREGATE,
   SPINNER,
   STATUS,
@@ -82,6 +86,18 @@ const mapCss: string = readFileSync(new URL('./map.css', import.meta.url), 'utf8
 // The arbitrary branch cannot carry a trailing \b: `text-[10px]` ends in `]`, a
 // non-word character, so a boundary there would require the *next* character to
 // be a word one — which it never is, mid-class-list.
+// Tailwind's spacing scale is 4px a step, so every width sum below reads its
+// numbers off the roles rather than restating them in a comment that rots.
+const stepPx = (cls: string, prefix: string): number =>
+  (Number(cls.match(new RegExp(`(?:^|\\s)${prefix}-(\\d+(?:\\.\\d+)?)(?:\\s|$)`))![1]) / 4) * 16
+// What SELECT keeps clear on the right: the arrow's own box and nothing more.
+const ICON_PX = stepPx(ICON, 'w')
+const selectArrowPx = (): number => stepPx(SELECT, 'pr')
+// The panel's control column, and the Metrics box pair it now measures.
+const controlWPx = (): number => Number(CONTROL_W.match(/w-\[(\d+)px\]/)![1])
+const metricPairPx = (): number =>
+  2 * stepPx(METRIC_BOX_W, 'w') + (Number(METRICS_GRID.match(/gap-x-([\d.]+)/)![1]) / 4) * 16
+
 const SIZE = /\btext-(?:xs|sm|base|lg|xl|2xl|3xl)\b|\btext-\[[^\]]+\]/g
 
 function sizes(classes: string): string[] {
@@ -293,8 +309,10 @@ describe('every component', () => {
     // The Light/Medium/Heavy chips in the map's layer legend, and why the
     // Forecast grid row is faded over a report carrying archive hours (#123).
     './App.tsx': 2,
-    // Max results (label + field), and the unknown-value note on the
-    // Elevation and AQI filter rows (label + both boxes, one `title` each).
+    // Max results (label + field), and the unknown-value note on the AQI row
+    // (label + both boxes). Four `title=` in the source for those two
+    // tooltips, because the AQI row is one of five the table maps and its
+    // note is spelled once for the label and once for the mapped box.
     './components/ControlPanel.tsx': 4,
     // What Hourly actually does to a multi-day window (label + segment).
     './components/ForecastCalendar.tsx': 2,
@@ -657,8 +675,8 @@ describe('shared recipes', () => {
   // cannot become a second kind of segment.
   it('gives the timeline axis halves room for a metric noun', () => {
     expect(TRANSPORT_AXIS_ITEM).toMatch(/(^|\s)px-3(\s|$)/)
-    expect(SEGMENT_ITEM).toMatch(/(^|\s)px-2(\s|$)/)
-    expect(TRANSPORT_AXIS_ITEM.replace('px-3', 'px-2')).toBe(SEGMENT_ITEM)
+    expect(SEGMENT_ITEM).toMatch(/(^|\s)px-1(\s|$)/)
+    expect(TRANSPORT_AXIS_ITEM.replace('px-3', 'px-1')).toBe(SEGMENT_ITEM)
     // And the bar wears it, or the role is a number nothing reads.
     expect(sources['./components/TimelineTransport.tsx']).toContain('TRANSPORT_AXIS_ITEM')
   })
@@ -711,7 +729,12 @@ describe('shared recipes', () => {
   // a long model name running underneath it.
   it('suppresses the platform chrome and keeps room for the arrow it replaces', () => {
     expect(SELECT).toContain('appearance-none')
-    expect(SELECT).toContain('pr-8')
+    // Exactly the arrow's own box: ICON_ADORNMENT puts a 16px glyph 8px from
+    // the edge, so it ends 24px in and a label may run to that line. More than
+    // that is room taken from every label in the app; less runs under the mark.
+    const reserve = (Number(SELECT.match(/pr-(\d+)/)![1]) / 4) * 16
+    const offset = (Number(ICON_ADORNMENT.match(/right-(\d+)/)![1]) / 4) * 16
+    expect(reserve).toBe(offset + ICON_PX)
   })
 
   // The disabled look is one role, not a pair of utilities re-spelled per call
@@ -732,66 +755,180 @@ describe('shared recipes', () => {
     expect(SEGMENT).toContain(CONTROL_W)
   })
 
-  // The bounds grid cannot compose CONTROL_W — it needs the width split across
-  // two boxes and a gap — so it is the one place the number is re-derived, and
-  // the derivation is checked rather than commented. Tailwind's scale is
-  // quarter-rem per step, which is what makes both sides comparable.
-  it('splits the shared control width across the two bounds boxes', () => {
-    const steps = (utility: string) => Number(utility.match(/-(\d+)$/)![1]) / 4
-    const boxes = [...BOUNDS_GRID.matchAll(/_(\d+(?:\.\d+)?)rem/g)].map((m) => Number(m[1]))
-    const gap = steps(BOUNDS_GRID.match(/gap-x-\d+/)![0])
-
-    expect(boxes).toHaveLength(2)
-    expect(boxes[0] + boxes[1] + gap).toBeCloseTo(steps(CONTROL_W))
+  // The panel is ONE column now (TJ, 2026-09-14). The Forecast section's model
+  // picker and its two segments stand on exactly the edges the Metrics bound
+  // boxes do, which is what the control width is: the two box columns plus the
+  // grid gap between them. Derived rather than restated, so moving a box moves
+  // the Forecast controls with it or fails here.
+  it('measures the control column as the Metrics box pair', () => {
+    expect(controlWPx()).toBe(metricPairPx())
   })
 
-  // The aggregate dropdown (#291) is the one control beside the shared column
-  // rather than in it, so its width is a budget the ranking row has to close:
-  // radio (14px) + label gap (10px) + the row's two gap-1.5 gaps (12px) +
-  // dropdown + segment must leave the label its longest noun, which measures
-  // exactly 72px at text-xs, inside the panel's measured 327px of content.
-  // The other bound is the dropdown's content: the widest aggregate word
-  // (28px) plus the field's 8px left padding plus the 32px the SELECT recipe
-  // reserves for its arrow. All numbers measured in the running app
-  // (2026-08-22); re-measure before moving this width, CONTROL_W, the row
-  // gap, or the nouns.
-  it('budgets the aggregate dropdown against the ranking row', () => {
+  // What that column costs the model picker, which is the control it binds.
+  // The trigger spends 8px of left padding, SELECT's arrow reserve, and its
+  // 2px border; the rest is label. The longest model label must fit, or the
+  // one control whose job is telling eight similar things apart truncates.
+  // Measured in Chrome on macOS at the panel's text-xs, 2026-09-14.
+  it('leaves the model picker room for its longest label', () => {
+    // `UK Met Office`: 79.69px. `Meteo-France ARPEGE` is 130.03px and fits no
+    // trigger the panel can offer — it truncated at the old 144px too, and
+    // shortening it is the maintainer's call, not this file's.
+    const UK_MET_OFFICE_PX = 80
+    expect(controlWPx() - 8 - selectArrowPx() - 2).toBeGreaterThanOrEqual(UK_MET_OFFICE_PX)
+  })
+
+  // The chart's metric select is the one control that borrowed CONTROL_W from
+  // outside the panel, and it cannot follow it down: it lines up with nothing
+  // above it, and its labels carry their units. `Freezing level (ft)` is
+  // 99.27px, where the panel column would leave 84px.
+  it('keeps the chart metric select off the panel column', () => {
+    const FREEZING_LEVEL_UNIT_PX = 100
+    const chartPx = stepPx(CHART_METRIC_W, 'w')
+    expect(chartPx - 8 - selectArrowPx() - 2).toBeGreaterThanOrEqual(FREEZING_LEVEL_UNIT_PX)
+    expect(sources['./components/TimeSeriesChart.tsx']).toContain('CHART_METRIC_W')
+    expect(sources['./components/TimeSeriesChart.tsx']).not.toContain('CONTROL_W')
+  })
+
+  // The Metrics grid (#341) sizes no control itself: its three control columns
+  // are `auto`, so the dropdown and the boxes are as wide as the roles they
+  // wear and nothing else. A rem in the template would be a second copy of
+  // METRIC_BOX_W or SELECT_W_AGGREGATE, and two spellings of one width drift
+  // apart the moment either moves.
+  it('sizes the Metrics grid columns by their controls, not by the grid', () => {
+    const template = METRICS_GRID.match(/grid-cols-\[([^\]]+)\]/)![1]
+    expect(template.split('_')).toEqual(['minmax(0,1fr)', 'auto', 'auto', 'auto'])
+    expect(METRICS_GRID).not.toMatch(/\drem/)
+  })
+
+  // The metric row is the panel's widest, and the label pays for everything
+  // else in it: radio (14px) + label gap (10px) + the grid's three gap-1.5
+  // gaps (18px) + the dropdown + two boxes must leave `Freezing level` its
+  // measured width at text-xs, inside the panel's measured 327px of content.
+  // The old Ranking row budgeted for "Precipitation" (72px) and shipped
+  // `Freezing le…` when the longer noun arrived, so the noun is named here.
+  // The dropdown's other bound is its content: the widest aggregate word
+  // (28px) plus the field's 8px left padding plus whatever the SELECT recipe
+  // reserves for its arrow. Measured in the running app (2026-08-22 and
+  // 2026-09-14); re-measure before moving either width, the gap, or the nouns.
+  it('leaves the metric label room for its longest noun', () => {
+    // `Freezing level` at text-xs: 78.03px in Chrome on macOS, 2026-09-14.
+    const FREEZING_LEVEL_PX = 79
     const rem = Number(SELECT_W_AGGREGATE.match(/\[(\d+(?:\.\d+)?)rem\]/)![1])
     const dropdownPx = rem * 16
-    const segmentPx = (Number(CONTROL_W.match(/-(\d+)$/)![1]) / 4) * 16
-    const labelPx = 327 - 14 - 10 - 12 - dropdownPx - segmentPx
+    const boxPx = (Number(METRIC_BOX_W.match(/-(\d+)$/)![1]) / 4) * 16
+    const gapPx = (Number(METRICS_GRID.match(/gap-x-([\d.]+)/)![1]) / 4) * 16
+    const labelPx = 327 - 14 - 10 - 3 * gapPx - dropdownPx - 2 * boxPx
 
-    expect(labelPx).toBeGreaterThanOrEqual(72)
-    expect(dropdownPx).toBeGreaterThanOrEqual(28 + 8 + 32)
+    expect(labelPx).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
+    expect(dropdownPx).toBeGreaterThanOrEqual(28 + 8 + selectArrowPx())
   })
 
-  // Every stacked control in the panel composes CONTROL_W, so none of them may
-  // spell a width in the range one would plausibly pick for itself. Scoped to
-  // ControlPanel because that is where the column of label-plus-control rows
-  // lives; the map legend's measured w-44 and the app icon's w-20 are not part
-  // of it. Written so no banned class appears verbatim: v4 scans this file as
-  // raw text and would emit its CSS.
-  it('lets no panel control pick its own width', () => {
-    const controlSized = new RegExp(`\\bw-(2[4-9]|3\\d|4[0-8])\\b`)
-    expect(controlPanelSource.match(controlSized)).toBeNull()
+  // The Metrics direction segment is the section's one control that is not a
+  // box, and it still shares the boxes' two edges: it spans the two box
+  // columns, so it wears the fill variant rather than SEGMENT's CONTROL_W.
+  // A CONTROL_W segment there hung 26px past the boxes on the left, which is
+  // what the maintainer sent the first build back for (2026-09-14).
+  it('sizes the fill segment by its container, never by the panel column', () => {
+    expect(SEGMENT_FILL).toContain('w-full')
+    expect(SEGMENT_FILL).not.toContain(CONTROL_W)
+    expect(controlPanelSource).toMatch(/\$\{SEGMENT_FILL\} col-span-2/)
   })
 
-  // Clear filters has no label row to push it into the control column, so it
-  // wears CONTROL_W itself and pushes itself flush right: both of its edges
-  // sit on the column the bounds boxes above it define. A content-sized
-  // button at the left margin was the one control off the grid.
-  it('keeps the clear-filters button in the control column', () => {
+  // What the column costs a segment half. Every segment in the panel is the
+  // control width now, less the 2px border and the 1px divider, split in two.
+  // The widest word in any of them must clear both insets inside that half.
+  // An 8px inset leaves 41.5px, which two of the four words overrun, and that
+  // is why there is one inset here rather than the panel's usual. Measured in
+  // Chrome on macOS, 2026-09-14; re-measure before moving the column, the
+  // inset, or the words.
+  it('leaves every segment half room for its longest word', () => {
+    // At text-xs: `Highest` 43.69px, `Current` 42.89px, `All day` 37.80px,
+    // `Lowest` 39.88px, `Dates` 32.75px, `Hourly` 37.13px.
+    const HIGHEST_PX = 44
+    const insetPx = stepPx(SEGMENT_ITEM, 'px')
+    const halfPx = (controlWPx() - 2 - 1) / 2
+
+    expect(halfPx - 2 * insetPx).toBeGreaterThanOrEqual(HIGHEST_PX)
+    expect(insetPx).toBeLessThan(8)
+  })
+
+  // Every numeric box in the section — the ten bounds and the results cap —
+  // comes off one shape, so a future box cannot pick its own height or inset
+  // and the rows under the rule line up with the bounds above. Only the width
+  // is allowed to differ, and only between one box column and two: the cap is
+  // a single number, so it spans the pair the way a bound spans one.
+  it('builds every numeric box in the Metrics section from one shape', () => {
+    const inputs = controlPanelSource.match(/type="number"/g) ?? []
+    const boxed = controlPanelSource.match(/METRIC_BOX(_WIDE)?\}/g) ?? []
+    expect(inputs.length).toBeGreaterThanOrEqual(2)
+    expect(boxed.length).toBe(inputs.length)
+    expect(controlPanelSource).toMatch(/const METRIC_BOX = `\$\{METRIC_BOX_SHAPE\} \$\{METRIC_BOX_W\}`/)
+    expect(controlPanelSource).toMatch(/const METRIC_BOX_WIDE = `\$\{METRIC_BOX_SHAPE\} w-full`/)
+    // The wide one spans the two box columns rather than spelling their sum,
+    // which would be a second copy of METRIC_BOX_W and the grid gap.
+    expect(controlPanelSource).toMatch(/\$\{METRIC_BOX_WIDE\} col-span-2/)
+  })
+
+  // Nothing is drawn inside the Metrics table. A rule there reads as a break
+  // the size of the one between whole sections, which is the only thing
+  // PANEL_RULE's weight is allowed to say, and a fainter one was tried and
+  // rejected as confusing (TJ, 2026-09-14). What separates the rows that rank
+  // from the two that do not is the empty radio column, nothing drawn.
+  it('draws no rule inside the Metrics table', () => {
+    const start = controlPanelSource.indexOf('METRICS_GRID}')
+    const grid = controlPanelSource.slice(start, controlPanelSource.indexOf('</section>', start))
+
+    expect(start).toBeGreaterThan(-1)
+    expect(grid).toContain('Rank by')
+    expect(grid).toContain('results')
+    expect(grid).not.toMatch(/border-t|border-b/)
+  })
+
+  // Clear filters has no label to push it into a column, so it spans the two
+  // box columns: both of its edges sit on the boxes it clears, which is what a
+  // CONTROL_W button no longer lines up with now that the boxes are narrower.
+  it('keeps the clear-filters button under the bound boxes', () => {
     const button = controlPanelSource.match(/onClick=\{onClearFilters\}[\s\S]*?>/)![0]
-    expect(button).toContain('CONTROL_W')
-    expect(button).toContain('ml-auto')
+    expect(button).toContain('col-span-2')
+    expect(button).toContain('col-start-3')
+    expect(button).not.toContain('CONTROL_W')
+  })
+
+  // Clear filters is ALWAYS drawn and disables when there is nothing to clear
+  // (TJ, 2026-09-14). A button that appears and disappears moves everything
+  // under it and has to be found again; a disabled one stays where the reader
+  // last saw it. The condition therefore reaches `disabled`, never a `&&`
+  // around the element.
+  it('always draws the clear-filters button and disables it instead', () => {
+    const button = controlPanelSource.match(/onClick=\{onClearFilters\}[\s\S]*?>/)![0]
+    expect(button).toContain('disabled={!filtersActive}')
+    expect(button).toContain('${DISABLED}')
+    expect(controlPanelSource).not.toContain('{filtersActive && (')
+  })
+
+  // The section's one deliberate break: space above the box headings, telling
+  // the two controls that order the list from the table of bounds below. It is
+  // padding on EVERY cell of that row, because the columns are grid tracks and
+  // a margin on one item would shift that item alone. Named in styles.ts
+  // because it is the only vertical space in the grid that `gap-y` does not
+  // set.
+  it('spaces the Metrics headings off the controls above them', () => {
+    expect(METRIC_HEAD_GAP).toMatch(/^pt-[\d.]+$/)
+
+    const start = controlPanelSource.indexOf('METRICS_GRID}')
+    const grid = controlPanelSource.slice(start, controlPanelSource.indexOf('</section>', start))
+    // One per heading cell: the spacer spanning the label and dropdown
+    // columns, plus the two headings the EDGES map draws.
+    expect(grid.match(/METRIC_HEAD_GAP/g)).toHaveLength(2)
+    expect(grid).toMatch(/col-span-2 \$\{METRIC_HEAD_GAP\}/)
   })
 
   // The chart's metric control (#348). It was five radios whose labels carry
   // their units, which at the panel's 12px type need 584px of row; a phone's
   // results sheet is the phone's width, so at 402px the row wrapped and AQI
   // sat alone on a second line. A control whose width its labels cannot move
-  // is what ends that: the select composes SELECT at CONTROL_W, and the row
-  // holding it never wraps, so a sixth metric cannot bring the line back.
+  // is what ends that: the select composes SELECT at CHART_METRIC_W, and the
+  // row holding it never wraps, so a sixth metric cannot bring the line back.
   it('keeps the chart metric control on one row at every width', () => {
     const chart = sources['./components/TimeSeriesChart.tsx']
     // Through the whole class template rather than to the closing bracket:
@@ -799,7 +936,7 @@ describe('shared recipes', () => {
     // interpolation is a `}` too.
     const select = chart.match(/<select[\s\S]*?className=\{`[^`]*`\}/)![0]
     expect(select).toContain('SELECT')
-    expect(select).toContain('CONTROL_W')
+    expect(select).toContain('CHART_METRIC_W')
     expect(chart).not.toMatch(/flex-wrap/)
   })
 

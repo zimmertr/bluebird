@@ -18,7 +18,6 @@ import {
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
   CHOICE_INPUT,
-  BOUNDS_GRID,
   CHOICE_ROW,
   CONTROL_W,
   DISABLED,
@@ -31,7 +30,10 @@ import {
   PANEL_EDGE,
   PANEL_RULE,
   ICON_ADORNMENT,
-  SEGMENT,
+  METRICS_GRID,
+  METRIC_HEAD_GAP,
+  METRIC_BOX_W,
+  SEGMENT_FILL,
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
@@ -46,15 +48,18 @@ import {
   MetricFamily,
   NOUN,
   RANKED_FAMILIES,
+  UNIT,
   familyOf,
-  metricLabel,
   windowAggregate,
 } from '../metrics'
 import { Constraints, hasConstraints } from '../utils/clientAnalyze'
 import type { CommitReason } from '../utils/present'
 import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analyzeGate'
+import { modelsWithoutFreeze } from '../utils/freezingLevel'
+import { selectedIds } from '../utils/modelSelection'
 import {
   BLOCKER_SEVERITY,
+  listPhrase,
   type FooterMessage,
   type NoticeSeverity,
   isDismissed,
@@ -88,7 +93,6 @@ import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabi
 // client), and only share the "Try again later." tail as a convention.
 const commitCue = (subject: string) => `A new ${subject} requires a new analysis.`
 const COMMIT_CUE: Record<CommitReason, string> = {
-  'elevation-widened': commitCue('elevation range'),
   'window-changed': commitCue('forecast range'),
   'model-changed': commitCue('forecast model'),
   'polygon-changed': commitCue('search area'),
@@ -108,7 +112,12 @@ const AQI_NOTE_KEY = 'aqi:none'
 // search area, paste custom coordinates, or search for a place"), which is the
 // panel's own table of contents read back to someone who is looking straight at
 // it; what they are missing is a destination, not a menu.
-function blockerText(blocker: AnalyzeBlocker, maxAreaKm2: number, pointsNeeded: number): string {
+function blockerText(
+  blocker: AnalyzeBlocker,
+  maxAreaKm2: number,
+  pointsNeeded: number,
+  freezeGaps: readonly string[],
+): string {
   switch (blocker) {
     case 'area':
       return `The polygon is too large. The maximum supported size is ${maxAreaKm2.toLocaleString()} km².`
@@ -122,15 +131,27 @@ function blockerText(blocker: AnalyzeBlocker, maxAreaKm2: number, pointsNeeded: 
       return `Add at least ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon to continue.`
     case 'types':
       return 'Select at least one destination type for the polygon search.'
+    case 'compare-aqi':
+      // Two lines, and the exception that proves the one-line rule: the
+      // reader needs both halves, that the data is one source and that the
+      // comparison is therefore off, and neither half stands alone (TJ,
+      // 2026-09-14). Measured at 69 characters against a 92-character
+      // two-line budget.
+      return `${NOUN.aqi} data is retrieved independently of the model and cannot be compared.`
+    case 'compare-freeze':
+      // Names the models rather than counting them, because a model is a
+      // control in the panel: the reader can see the one the sentence is
+      // about (TJ, 2026-09-14).
+      return `${NOUN.freeze} data is not available for ${listPhrase(freezeGaps)}.`
   }
 }
+
 
 // The two cells of a filter row, and what an empty one says it is for.
 //
 // The bounds label themselves rather than sitting under a heading row: that row
 // cost a line of vertical space and pushed the first control twice as far below
-// the section heading as every other section's, and the elevation band already
-// used this idiom before the grid existed. A filled cell drops its placeholder,
+// the section heading as every other section's. A filled cell drops its placeholder,
 // by which point its position has said the same thing four rows running.
 // Why raising this costs nothing: the cap trims what is LISTED, never what is
 // fetched. Every destination in the area is forecast either way, which is also
@@ -142,6 +163,106 @@ const EDGES = [
   ['lower', AGGREGATE.minimum],
   ['upper', AGGREGATE.maximum],
 ] as const
+
+// What each bound box compares, per ranked metric. The box columns are headed
+// with the two aggregate names because for most rows that is literally what
+// they are: the wind, temperature and freezing-level rows bound each row's own
+// extremes, so a ceiling of 20 on the wind row holds the table's gustiest-hour
+// column at or below 20. Two cells stretch that reading, deliberately.
+// Precipitation is bounded on the window TOTAL in both columns, because a
+// per-hour floor would be 0.000 almost everywhere and the noun already means
+// the total in its aggregate dropdown. And the air-quality floor reads the
+// worst hour too, there being no other aggregate to read.
+//
+// The hint is the accessible name's second sentence: a floor reads the window's
+// best hour and a ceiling its worst, which is the whole design and also the
+// thing that looks like a bug the first time a wind floor of 15 empties the
+// table — nowhere is continuously windy. The mapping is fixed for the life of
+// the app, so it is stated rather than computed.
+//
+// `note` is the tooltip on the one row whose value can genuinely be missing —
+// air quality past its ~5-day horizon. The absence is no evidence of bad
+// conditions, so the row is not filtered out. Read the tooltip note in
+// docs/STYLES.md before copying this pattern: an approved exception, not a
+// new tool.
+const BOUNDS: Record<
+  MetricFamily,
+  {
+    id: string
+    step: number
+    hint: readonly [string, string]
+    lower: keyof Constraints
+    upper: keyof Constraints
+    note?: string
+  }
+> = {
+  precip: {
+    id: 'precipitation',
+    step: 0.01,
+    hint: ['The total over the window must be at least this.', 'The total over the window must be at most this.'],
+    lower: 'minPrecipTotalIn',
+    upper: 'maxPrecipTotalIn',
+  },
+  wind: {
+    id: 'wind',
+    step: 1,
+    hint: ['The calmest hour must be at least this.', 'The gustiest hour must be at most this.'],
+    lower: 'minWindMph',
+    upper: 'maxWindMph',
+  },
+  temp: {
+    id: 'temperature',
+    step: 1,
+    hint: ['The coldest hour must be at least this.', 'The hottest hour must be at most this.'],
+    lower: 'minTempF',
+    upper: 'maxTempF',
+  },
+  freeze: {
+    id: 'freezing-level',
+    step: 100,
+    hint: ['The lowest hour must be at least this.', 'The highest hour must be at most this.'],
+    lower: 'minFreezeFt',
+    upper: 'maxFreezeFt',
+  },
+  aqi: {
+    id: 'air-quality',
+    note: 'Destinations with no air quality forecast are included.',
+    hint: ['The worst hour must be at least this.', 'The worst hour must be at most this.'],
+    step: 1,
+    lower: 'minAqi',
+    upper: 'maxAqi',
+  },
+}
+
+// Every numeric box in the Metrics grid, in one shape so a new box cannot pick
+// its own height or inset: py-0.5 matches the dropdown and the segment beside
+// it. Only the width differs, and only because the grid gives a box either one
+// column or two.
+const METRIC_BOX_SHAPE = `${FIELD_NUMERIC} px-2 py-0.5 text-center`
+/** A bound: one box column, paired with its opposite edge on the same row. */
+const METRIC_BOX = `${METRIC_BOX_SHAPE} ${METRIC_BOX_W}`
+/**
+ * The results cap: both box columns, because it is one number rather than a
+ * floor and a ceiling, and half a row of empty grid beside it read as a missing
+ * control (TJ, 2026-09-14). `w-full` rather than a width of its own, so it
+ * tracks the two columns and their gap however wide METRIC_BOX_W becomes.
+ */
+const METRIC_BOX_WIDE = `${METRIC_BOX_SHAPE} w-full`
+
+// What an empty box shows. It is the metric's unit for four of the five rows,
+// which is where the unit went when the labels lost the room to carry it.
+//
+// The US AQI has no unit: it is a dimensionless index, and `metrics.ts` says so
+// by giving it an empty string — a decision that belongs to the table headers,
+// which read `UNIT` through `metricLabel` and must not grow an `AQI (US)`
+// (#176). So the fallback lives here rather than there. An empty box in a
+// column of five filled ones read as a control that had lost its label, and the
+// metric's own name is what goes in it (TJ, 2026-09-14). Lower case like every
+// unit beside it, because in this column it is doing a unit's job.
+const BOX_PLACEHOLDER: Record<MetricFamily, string> = {
+  ...UNIT,
+  aqi: 'aqi',
+}
 
 // What polygon discovery finds. Custom (CSV) is no longer a mode here — the
 // always-visible Custom Destinations section below adds to any of these.
@@ -197,15 +318,10 @@ interface Props {
   // the same number — the same way the calendar's Hours row hides under a
   // selection that takes no hours.
   pointSample: boolean
-  minElevationFt: number | null
-  setMinElevationFt: (v: number | null) => void
-  maxElevationFt: number | null
-  setMaxElevationFt: (v: number | null) => void
   constraints: Constraints
   setConstraints: (c: Constraints) => void
-  // Clears the whole grid, elevation included. Elevation is the one row whose
-  // clearing widens rather than narrows, so this can leave the report needing
-  // an Analyze — which the commit cue above the button then says.
+  // Clears every bound and the results cap. No bound can widen past what the
+  // browser holds, so clearing is as live as typing and never needs an Analyze.
   onClearFilters: () => void
   // Summits OSM knows only by their height, discovered as `Peak 5961`.
   // A polygon knob rather than a map one, and off by default, because it
@@ -239,11 +355,11 @@ interface Props {
   // where the join falls.
   windowWarning: 'past' | 'future' | 'order' | null
   // Why a knob has stopped applying live, or null while they all do. Sort,
-  // limit and elevation-narrowing normally re-present the held field with no
-  // Analyze at all (#188), so this cue is the exception rather than the rule
-  // and has to say which exception it is.
+  // limit and every forecast bound re-present the held field with no Analyze
+  // at all (#188), so this cue is the exception rather than the rule and has
+  // to say which exception it is.
   // Every knob that has stopped applying live, in `commitNeeded`'s fixed
-  // order (model, window, elevation, polygon, types, destination). One warn
+  // order (model, window, polygon, types, destination). One warn
   // bullet each.
   commitReasons?: CommitReason[]
   // At least one place has been searched by name. Searched places are a ranked
@@ -257,7 +373,6 @@ interface Props {
   refusal: Refusal | null
   onAnalyze: () => void
   onRetry: () => void
-  // Remedies: re-run with the suggested elevation floor / elect the top-N cut.
   // Live ceiling for the results knob, from /api/capabilities (falls back to
   // the compiled analysis cap).
   maxLimit: number
@@ -392,10 +507,6 @@ export default function ControlPanel({
   setSortDesc,
   rowKeys,
   pointSample,
-  minElevationFt,
-  setMinElevationFt,
-  maxElevationFt,
-  setMaxElevationFt,
   constraints,
   setConstraints,
   onClearFilters,
@@ -449,6 +560,30 @@ export default function ControlPanel({
   const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > maxAreaKm2
 
   const polygonReady = drawPointCount >= 3 && !areaTooLarge && destinationTypes.length > 0
+
+  // Every model the analysis would fetch, the ranking one first. The two
+  // checks below are pre-flight: they read the picker rather than a report,
+  // because their whole point is to refuse to buy an analysis that cannot
+  // answer the question the panel is asking.
+  const selected = useMemo(
+    () =>
+      selectedIds(forecastModels, forecastModel, comparedModels).map((id) => ({
+        id,
+        label: forecastModels.find((m) => m.id === id)?.label ?? id,
+      })),
+    [forecastModels, forecastModel, comparedModels],
+  )
+  const rankFamily = familyOf(sortBy)
+  // Air quality comes from one source for every model, so a comparison on it
+  // would fetch the same numbers several times and draw one line where the
+  // picker shows several chips.
+  const compareAqi = rankFamily === 'aqi' && selected.length > 1
+  // Named rather than counted: the model is a control in this panel, so the
+  // reader can act on a name and cannot act on a fraction.
+  const freezeGaps = useMemo(
+    () => (rankFamily === 'freeze' ? modelsWithoutFreeze(selected).map((m) => m.label) : []),
+    [rankFamily, selected],
+  )
   const gate = {
     hasWindowWarning: windowWarning !== null,
     // The Dates arm is live with no day picked yet (#242 review): there is no
@@ -459,6 +594,8 @@ export default function ControlPanel({
     polygonReady,
     hasCustom,
     hasPins,
+    compareAqi,
+    compareFreeze: freezeGaps.length > 0,
   }
   const analyzeEnabled = canAnalyze(gate)
   const blockers = analyzeBlockers({ ...gate, drawPointCount })
@@ -563,6 +700,7 @@ export default function ControlPanel({
     // reassuring the reader that weather was unaffected — but the calendar
     // already dims the days past the horizon, so the only thing left to say is
     // where that edge is.
+    // What a comparison is actually drawing, where the chart cannot say it.
     ...(!windowWarning && aqiCoverage !== 'full'
       ? [
           {
@@ -608,7 +746,7 @@ export default function ControlPanel({
     ...windowMessages,
     ...blockers.map((blocker) => ({
       key: `blocker:${blocker}`,
-      text: blockerText(blocker, maxAreaKm2, pointsNeeded),
+      text: blockerText(blocker, maxAreaKm2, pointsNeeded, freezeGaps),
       severity: BLOCKER_SEVERITY[blocker],
     })),
     // The same sentence the N/A cells' hover text shows, from one constant,
@@ -659,105 +797,15 @@ export default function ControlPanel({
     footerMessages.filter((m) => !isDismissed(m.key, dismissed)),
   )
 
-  // The filter grid, one row per bounded thing.
-  //
-  // The columns are headed with the two aggregate names from `metrics.ts`,
-  // because for most of this grid that is literally what they are: the
-  // elevation, wind, temperature and freezing-level rows bound each row's own
-  // extremes, so a ceiling of 20 on the wind row holds the table's
-  // gustiest-hour column at or below 20. Two cells stretch that reading,
-  // deliberately. Precipitation is bounded on the window TOTAL in both
-  // columns, because a per-hour floor would be 0.000 almost everywhere and the
-  // noun already means the total in the Ranking section above. And the
-  // air-quality floor reads the worst hour too, there being no other aggregate
-  // to read. The cells anyone actually reaches for — a temperature band, a
-  // wind ceiling, an air-quality ceiling — land exactly on the column they
-  // name.
-  //
-  // Labels stay bare for the same reason. An aggregate in the label would
-  // collide with the column headings rather than clarify them, and it wrapped
-  // the longest row onto two lines.
-  //
-  // Elevation is deliberately first and deliberately not set apart. It is the
-  // one row that gates the fetch rather than the display, so loosening it
-  // needs an Analyze while the other four never do — but that difference has a
-  // cue of its own above the button, and a rule drawn here would claim a
-  // distinction the user cannot act on.
-  // What each box actually compares, in words, because the grid cannot show it.
-  // A floor reads the window's best hour and a ceiling its worst, which is the
-  // whole design and also the thing that looks like a bug the first time a wind
-  // floor of 15 empties the table: nowhere is continuously windy, so "the
-  // calmest hour is at least 15" is a question with almost no answers. The
-  // mapping is fixed for the life of the app, so it is stated rather than
-  // computed.
-  const bound = (key: keyof Constraints) =>
-    [
-      constraints[key],
-      (v: number | null) => setConstraints({ ...constraints, [key]: v }),
-    ] as const
-  // The two rows whose value can genuinely be missing: an OSM feature with no
-  // elevation, and air quality past its ~5-day horizon. Neither absence is
-  // evidence of bad conditions, so neither is filtered out — a fact that used
-  // to be one standing line under the grid and is now carried by the rows it is
-  // actually about, each naming the thing IT can be missing rather than sharing
-  // a sentence generic enough to cover both. Read the tooltip note in
-  // docs/STYLES.md before copying this pattern: an approved exception, not a
-  // new tool.
-
-  const filterRows = [
-    {
-      id: 'elevation',
-      note: 'Destinations with no elevation are included.',
-      hint: ['The elevation must be at least this.', 'The elevation must be at most this.'] as const,
-      label: 'Elevation (ft)',
-      step: 100,
-      lower: [minElevationFt, setMinElevationFt] as const,
-      upper: [maxElevationFt, setMaxElevationFt] as const,
-    },
-    {
-      id: 'precipitation',
-      hint: ['The total over the window must be at least this.', 'The total over the window must be at most this.'] as const,
-      label: metricLabel('precip'),
-      step: 0.01,
-      lower: bound('minPrecipTotalIn'),
-      upper: bound('maxPrecipTotalIn'),
-    },
-    {
-      id: 'wind',
-      hint: ['The calmest hour must be at least this.', 'The gustiest hour must be at most this.'] as const,
-      label: metricLabel('wind'),
-      step: 1,
-      lower: bound('minWindMph'),
-      upper: bound('maxWindMph'),
-    },
-    {
-      id: 'temperature',
-      hint: ['The coldest hour must be at least this.', 'The hottest hour must be at most this.'] as const,
-      label: metricLabel('temp'),
-      step: 1,
-      lower: bound('minTempF'),
-      upper: bound('maxTempF'),
-    },
-    {
-      id: 'freezing-level',
-      hint: ['The lowest hour must be at least this.', 'The highest hour must be at most this.'] as const,
-      label: metricLabel('freeze'),
-      step: 100,
-      lower: bound('minFreezeFt'),
-      upper: bound('maxFreezeFt'),
-    },
-    {
-      id: 'air-quality',
-      note: 'Destinations with no air quality forecast are included.',
-      hint: ['The worst hour must be at least this.', 'The worst hour must be at most this.'] as const,
-      label: metricLabel('aqi'),
-      step: 1,
-      lower: bound('minAqi'),
-      upper: bound('maxAqi'),
-    },
-  ]
-  const filtersActive =
-    minElevationFt !== null || maxElevationFt !== null || hasConstraints(constraints)
+  // What Clear filters offers to undo, and therefore whether it is enabled.
+  // The button is always drawn: a control that appears and disappears moves
+  // everything under it and has to be found again, where a disabled one stays
+  // where the reader last saw it (TJ, 2026-09-14). The results cap counts even
+  // though it bounds nothing: it is one of the seven knobs in the table, a
+  // reader who typed a number there looks for the same way back as for a
+  // bound, and leaving it out meant the one control the button skipped was the
+  // one sitting right above it.
+  const filtersActive = limit !== DEFAULT_LIMIT || hasConstraints(constraints)
 
   // The optional map overlays, as one list rather than three hand-written rows.
   // Ordered by how much of the map each one covers, lightest first: a fire is a
@@ -990,9 +1038,8 @@ export default function ControlPanel({
           {/* Above the calendar rather than in Options, because it bounds the
               calendar: the grid below redraws when this changes, and a control
               whose effect is the next control down belongs beside it. A data
-              knob either way — sort, limit and a narrowing elevation band
-              re-present held rows, while a different model is different
-              numbers. Ordered longest-reach-first by the server. */}
+              knob either way — sort, limit and the bounds re-present held
+              rows, while a different model is different numbers. Ordered longest-reach-first by the server. */}
           <div className="mb-3 flex items-center gap-2">
             {/* Label beside its control, like every other row in the panel.
                 The trigger is a button carrying its own aria-label, not an
@@ -1037,32 +1084,121 @@ export default function ControlPanel({
           <ForecastCalendar selection={selection} onChange={setSelection} band={band} />
         </section>
 
-        {/* Ranking — metric radio + aggregate dropdown + Lowest/Highest toggle
-            per row (#291). Dropdown and toggle stay clickable on inactive rows
-            so any ranking is one click: touching either activates its row, and
-            selecting a metric via its radio keeps the row's remembered
-            aggregate and the current direction. The dropdowns hide for a
-            single-hour window, where every aggregate is the same number — the
-            same disclosure the calendar's Hours row uses. */}
+        {/* Metrics — the ranking and the bounds in one table (#341). One row
+            per metric: its radio, its aggregate dropdown, and its floor and
+            ceiling boxes, so the two questions the panel used to ask in two
+            sections 50px apart in height — "order by what?" and "who
+            qualifies?" — are answered on the same line. The Lowest/Highest
+            choice is ONE segment above the rows rather than one per row: it is
+            a property of the ranking, not of each metric, and four of the five
+            per-row segments were disabled at any moment. The dropdowns hide
+            for a single-hour window, where every aggregate is the same number,
+            and each label spans the empty column so the row keeps one gap.
+
+            The section reads in two blocks, and nothing is drawn between
+            them. A rule there read as a break the size of the one between whole
+            sections, which is the only thing that weight is allowed to say (TJ,
+            2026-09-14). Shape and space tell them apart instead: two wide
+            controls saying how the list is ordered and how far down it goes,
+            then METRIC_HEAD_GAP above the two box headings, then the table
+            of the five bounds the ranking can use. */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
-            Ranking
+            Metrics
           </h2>
-          <div className="space-y-1.5">
+          <div className={METRICS_GRID}>
+            {/* The one direction. Pressing a half never changes WHICH metric
+                ranks; the radios own that. Two grid cells rather than a row of
+                its own: the label spans the label and dropdown columns like
+                Elevation below, and the segment spans the two box columns, so
+                it is the boxes' width in both states and every control in the
+                section shares their two edges. That is why it wears
+                SEGMENT_FILL rather than SEGMENT, whose CONTROL_W would hang
+                past the boxes on the left. */}
+            <span id="rank-by" className={`${TEXT.control} col-span-2 truncate`}>
+              Rank by
+            </span>
+            <div className={`${SEGMENT_FILL} col-span-2`} role="group" aria-labelledby="rank-by">
+              {[
+                { desc: false, label: 'Lowest' },
+                { desc: true, label: 'Highest' },
+              ].map((dir, i) => (
+                <button
+                  key={dir.label}
+                  aria-pressed={sortDesc === dir.desc}
+                  onClick={() => setSortDesc(dir.desc)}
+                  className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
+                    sortDesc === dir.desc ? ACCENT.fill : SEGMENT_IDLE
+                  }`}
+                >
+                  {dir.label}
+                </button>
+              ))}
+            </div>
+            {/* How many of that order to show, directly under the direction
+                that orders it: the two finish one sentence — "the 200 lowest by
+                total precipitation" — and neither is a bound, so they sit above
+                the table of bounds rather than in it (TJ, 2026-09-14). Being
+                the pair of wide controls over a table of narrow ones is what
+                separates them; nothing is drawn.
+
+                The ceiling is the live analysis cap from /api/capabilities. The
+                default rides as a placeholder, like the boxes below, so
+                changing it is one keystroke rather than a select-and-erase.
+                Empty means the DEFAULT here, not "no cap" as it does for a
+                bound: this knob always has a value, and the row count in the
+                table's header says what it is doing. */}
+            <label
+              htmlFor="max-results"
+              className={`${TEXT.control} col-span-2 truncate`}
+              title={LIMIT_NOTE}
+            >
+              {AGGREGATE.maximum} results
+            </label>
+            <input
+              id="max-results"
+              type="number"
+              min={1}
+              max={maxLimit}
+              placeholder={String(DEFAULT_LIMIT)}
+              value={limit === DEFAULT_LIMIT ? '' : limit}
+              onChange={(e) =>
+                setLimit(clampLimit(parseInt(e.target.value) || DEFAULT_LIMIT, maxLimit))
+              }
+              title={LIMIT_NOTE}
+              className={`${METRIC_BOX_WIDE} col-span-2`}
+            />
+            {/* The box columns' headings, the two aggregate names: for most
+                rows that is literally what a box bounds (see BOUNDS). The
+                unit moved from the label into each box's placeholder, because
+                `Freezing level (ft)` does not fit beside a dropdown and two
+                boxes; the heading is what says which box is which.
+
+                The row carries the section's one deliberate gap. Padding above
+                every cell of it, rather than a margin on one, keeps the four
+                columns of the grid in step; it is what tells the two wide
+                controls above from the table below now that no rule may (TJ,
+                2026-09-14). */}
+            <div className={`col-span-2 ${METRIC_HEAD_GAP}`} aria-hidden="true" />
+            {EDGES.map(([edge, aggregate]) => (
+              <span
+                key={edge}
+                className={`${TEXT.caption} ${METRIC_HEAD_GAP} text-center`}
+                aria-hidden="true"
+              >
+                {aggregate}
+              </span>
+            ))}
             {RANKED_FAMILIES.map((family) => {
               const rowKey = rowKeys[family]
               const isActive = familyOf(sortBy) === family
+              const bounds = BOUNDS[family]
               return (
-                // The label grows (flex-1) and the two controls keep fixed
-                // widths, so the dropdown column and the toggle column line up
-                // on every row — justify-between would instead split the spare
-                // width around the dropdown and let each label's length place
-                // it. gap-1.5 rather than the section's usual gap-2: this is
-                // the one three-control row, and at gap-2 the label measures
-                // 71px against the 72px its longest noun needs (see
-                // SELECT_W_AGGREGATE in styles.ts for the full budget).
-                <div key={family} className="flex items-center gap-1.5">
-                  <label className={`${CHOICE_ROW} min-w-0 flex-1`}>
+                <Fragment key={family}>
+                  <label
+                    className={`${CHOICE_ROW} min-w-0 ${pointSample ? 'col-span-2' : ''}`}
+                    title={bounds.note}
+                  >
                     <input
                       type="radio"
                       name="sort_metric"
@@ -1076,11 +1212,11 @@ export default function ControlPanel({
                     // flex, not block: an inline-level select in a block
                     // wrapper reserves baseline descender space below itself,
                     // which read as the dropdown sitting ~1px lower than the
-                    // toggle it must align with.
-                    <div className={`relative flex flex-shrink-0 ${isActive ? '' : 'opacity-50'}`}>
-                      {/* py-0.5 is SEGMENT_ITEM's own vertical padding, so the
-                          dropdown and the toggle beside it are the same
-                          height. */}
+                    // boxes it must align with.
+                    <div className={`relative flex ${isActive ? '' : 'opacity-50'}`}>
+                      {/* py-0.5 is SEGMENT_ITEM_SHAPE's own vertical padding, so the
+                          dropdown, the boxes and the segment above are the
+                          same height. */}
                       <select
                         aria-label={`${NOUN[family]} aggregate`}
                         value={rowKey}
@@ -1107,122 +1243,38 @@ export default function ControlPanel({
                       </svg>
                     </div>
                   )}
-                  <div
-                    className={`${SEGMENT} flex-shrink-0 ${isActive ? '' : 'opacity-50'}`}
-                  >
-                    {[
-                      { desc: false, label: 'Lowest' },
-                      { desc: true, label: 'Highest' },
-                    ].map((dir, i) => (
-                      <button
-                        key={dir.label}
-                        aria-pressed={isActive && sortDesc === dir.desc}
-                        onClick={() => {
-                          setSortBy(rowKey)
-                          setSortDesc(dir.desc)
-                        }}
-                        className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
-                          isActive && sortDesc === dir.desc
-                            ? ACCENT.fill
-                            : SEGMENT_IDLE
-                        }`}
-                      >
-                        {dir.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                  {EDGES.map(([edge, aggregate], i) => (
+                    <input
+                      key={edge}
+                      id={`${bounds.id}-${edge}`}
+                      title={bounds.note}
+                      type="number"
+                      step={bounds.step}
+                      placeholder={BOX_PLACEHOLDER[family]}
+                      aria-label={`${NOUN[family]} ${aggregate}. ${bounds.hint[i]}`}
+                      value={constraints[bounds[edge]] ?? ''}
+                      onChange={(e) =>
+                        setConstraints({
+                          ...constraints,
+                          [bounds[edge]]: e.target.value === '' ? null : Number(e.target.value),
+                        })
+                      }
+                      className={METRIC_BOX}
+                    />
+                  ))}
+                </Fragment>
               )
             })}
-          </div>
-          {/* How many of that order to show. It lives here rather than under a
-              general "options" heading because it finishes the sentence the
-              radios start: the rows above say WHICH order, and this says how
-              far down it to go — "the 200 lowest by total precipitation" is one
-              thought, not two. It is also not a filter: it trims what is shown
-              and never what is analyzed, so it belongs nowhere near a section
-              made of bounds on measured values. */}
-          {/* The ceiling is the live analysis cap from /api/capabilities. */}
-          <div className="mt-1.5 flex items-center gap-2">
-            <label
-              htmlFor="max-results"
-              className={`${TEXT.control} flex-1`}
-              title={LIMIT_NOTE}
-            >
-              {AGGREGATE.maximum} results
-            </label>
-            {/* The default rides as a placeholder, like the filter boxes below,
-                so changing it is one keystroke rather than a select-and-erase.
-                Empty means the DEFAULT here, not "no cap" as it does for a
-                filter: this knob always has a value, and the row count in the
-                table's header says what it is doing. */}
-            <input
-              id="max-results"
-              type="number"
-              min={1}
-              max={maxLimit}
-              placeholder={String(DEFAULT_LIMIT)}
-              value={limit === DEFAULT_LIMIT ? '' : limit}
-              onChange={(e) =>
-                setLimit(clampLimit(parseInt(e.target.value) || DEFAULT_LIMIT, maxLimit))
-              }
-              title={LIMIT_NOTE}
-              className={`${FIELD_NUMERIC} ${CONTROL_W} px-2 py-1.5 text-center`}
-            />
-          </div>
-        </section>
-
-        {/* Filters — one grid, two columns of bounds, one row per thing that
-            can be bounded, in the same order as the Ranking section above so
-            the two scan alike. */}
-        <section>
-          <h2 className={`${TEXT.section} mb-2.5`}>
-            Filters
-          </h2>
-          <div className={BOUNDS_GRID}>
-            {filterRows.map((row) => (
-              <Fragment key={row.id}>
-                {/* On the label AND both boxes, so the note is reachable from
-                    anywhere in the row rather than from a third of it.
-                    Tooltips are otherwise not used here and need explicit
-                    approval — see docs/STYLES.md. */}
-                <label
-                  htmlFor={`${row.id}-lower`}
-                  className={TEXT.control}
-                  title={'note' in row ? row.note : undefined}
-                >
-                  {row.label}
-                </label>
-                {EDGES.map(([edge, placeholder], i) => (
-                  <input
-                    key={edge}
-                    id={`${row.id}-${edge}`}
-                    title={'note' in row ? row.note : undefined}
-                    type="number"
-                    step={row.step}
-                    placeholder={placeholder}
-                    aria-label={`${row.label} ${placeholder}. ${row.hint[i]}`}
-                    value={row[edge][0] ?? ''}
-                    onChange={(e) =>
-                      row[edge][1](e.target.value === '' ? null : Number(e.target.value))
-                    }
-                    className={`${FIELD_NUMERIC} w-full px-2 py-1.5 text-center`}
-                  />
-                ))}
-              </Fragment>
-            ))}
-          </div>
-          {filtersActive && (
-            /* No label row forces this into the control column, so it wears
-               CONTROL_W itself, flush right — sharing both edges with the
-               boxes above the way every other panel control does. */
+            {/* Under the two box columns, on their outer edges, so the one
+                control with no label sits where every bound it clears does. */}
             <button
               onClick={onClearFilters}
-              className={`${BUTTON_SECONDARY} ${CONTROL_W} block ml-auto mt-2`}
+              disabled={!filtersActive}
+              className={`${BUTTON_SECONDARY} ${DISABLED} col-span-2 col-start-3 mt-0.5`}
             >
               Clear filters
             </button>
-          )}
+          </div>
         </section>
 
       </div>

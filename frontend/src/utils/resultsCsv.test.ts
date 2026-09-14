@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildResultsCsv, csvFilename } from './resultsCsv'
 import { DATA_SOURCES } from './dataSources'
-import { COLUMNS, WILDFIRE_COL, displayedColumns } from './tableColumns'
+import { COLUMNS, WILDFIRE_COL, displayedColumns, withModelColumn } from './tableColumns'
 import { FireWarning, fireKey } from './fireProximity'
 import { DestinationResult } from '../types'
 
@@ -275,7 +275,7 @@ describe('quoting', () => {
 
 describe('the wildfire column', () => {
   const near = new Map<string, FireWarning>([
-    [fireKey(46.8523, -121.7603), { miles: 5.28, name: 'Sourdough Fire' }],
+    [fireKey(46.8523, -121.7603), { miles: 5.28, name: 'Sourdough Fire', latitude: 0, longitude: 0 }],
   ])
 
   it('reports the distance for a flagged row', () => {
@@ -405,5 +405,62 @@ describe('house style', () => {
   it('uses no em or en dashes in any header', () => {
     const header = lines(buildResultsCsv([row()], COLUMNS, NO_FIRES))[0]
     expect(header).not.toMatch(/[—–]/)
+  })
+})
+
+// The file is handed the same rows as the table — one per destination per
+// model — so it has to say which model each row is, and it must not renumber
+// one destination's rows as though they were several places.
+describe('a comparison in the file', () => {
+  const MODEL_COLUMNS = withModelColumn(WINDOW_COLUMNS, true)
+  const modelRow = (label: string, rank: number, over: Partial<DestinationResult> = {}) =>
+    ({ ...row(over), modelId: label, modelLabel: label, rank }) as DestinationResult
+
+  it('writes the model each row came from', () => {
+    const csv = buildResultsCsv(
+      [modelRow('NOAA GFS', 1), modelRow('ECMWF IFS', 1)],
+      MODEL_COLUMNS,
+      NO_FIRES,
+    )
+    // Slice to the data rows: the file carries an attribution block below them.
+    const rows = lines(csv).slice(1, 3).map(cells)
+    const at = ['Rank', ...MODEL_COLUMNS.map((c) => c.label)].indexOf('Model')
+    expect(at).toBeGreaterThan(0)
+    expect(rows.map((r) => r[at])).toEqual(['NOAA GFS', 'ECMWF IFS'])
+  })
+
+  it('repeats a destination rank down its own rows rather than counting lines', () => {
+    const csv = buildResultsCsv(
+      [
+        modelRow('NOAA GFS', 1),
+        modelRow('ECMWF IFS', 1),
+        modelRow('NOAA GFS', 2, { name: 'Glacier Peak' }),
+      ],
+      MODEL_COLUMNS,
+      NO_FIRES,
+    )
+    expect(lines(csv).slice(1, 4).map((l) => cells(l)[0])).toEqual(['1', '1', '2'])
+  })
+
+  // The column is in the Columns picker, so a reader can show it on a report
+  // with no comparison at all. Then every row came from the analysis model.
+  it('falls back to the analysis model for rows no comparison tagged', () => {
+    const csv = buildResultsCsv([row()], MODEL_COLUMNS, NO_FIRES, [], new Set(), 'NOAA GFS')
+    const at = ['Rank', ...MODEL_COLUMNS.map((c) => c.label)].indexOf('Model')
+    expect(cells(lines(csv)[1])[at]).toBe('NOAA GFS')
+  })
+
+  // A pending row has no forecast at all, so no model answered it.
+  it('leaves the model blank on a row awaiting its first analysis', () => {
+    const csv = buildResultsCsv(
+      [],
+      MODEL_COLUMNS,
+      NO_FIRES,
+      [row({ name: 'Camp Muir' })],
+      new Set(),
+      'NOAA GFS',
+    )
+    const at = ['Rank', ...MODEL_COLUMNS.map((c) => c.label)].indexOf('Model')
+    expect(cells(lines(csv)[1])[at]).toBe('')
   })
 })

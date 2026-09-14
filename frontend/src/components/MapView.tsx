@@ -20,6 +20,7 @@ import '../map.css'
 import { GeoPolygon, DestinationResult, SortBy } from '../types'
 import { resultsFeatureCollection } from '../utils/resultFeatures'
 import { resultPopupHtml } from '../utils/resultPopup'
+import type { ModelRow } from '../utils/modelCompare'
 import { FireWarning, fireKey } from '../utils/fireProximity'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import { pointsWithinView } from '../utils/mapFraming'
@@ -76,6 +77,11 @@ export interface MapViewHandle {
   flyToPlace: (place: Place) => void
   fitToPoints: (points: { latitude: number; longitude: number }[]) => void
   focusResult: (result: DestinationResult) => void
+  // The same camera move for a destination with no forecast yet, and nothing
+  // else: no popup, because the one `focusResult` opens is a forecast card and
+  // this destination has no forecast. Clicking the dot still says what is
+  // known about it (TJ, 2026-09-14).
+  focusPoint: (at: { latitude: number; longitude: number }) => void
 }
 
 interface Props {
@@ -101,6 +107,11 @@ interface Props {
   onDrawUpdate: (count: number, areaKm2: number | null) => void
   results: DestinationResult[]
   sortBy: SortBy
+  // What a popup's Windy links carry, matching the results table's cells: the
+  // model every number came from, and the report's own hourly grid, which is
+  // what turns a row's series into the HOUR behind a floor or a ceiling.
+  modelId: string | null
+  times: number[]
   // Fire-proximity warnings keyed by fireKey(lat,lon), mirroring the results
   // table — a clicked point's popup surfaces the same ⚠️ when one applies.
   fireWarnings: Map<string, FireWarning>
@@ -140,8 +151,6 @@ interface Props {
   searchedPlaces: Place[]
   onAddPoi: (place: Place) => void
   onRemovePoi: (latitude: number, longitude: number) => void
-  minElevationFt: number | null
-  maxElevationFt: number | null
   // How much of the container's bottom edge the results sheet stands on, which
   // every framing move below has to leave empty (#249). On a phone the map
   // keeps the whole column and the sheet is over it, so a fit measured into the
@@ -149,34 +158,6 @@ interface Props {
   // results are docked beside the map and nothing is covered. It is the sheet's
   // RESTING lift, so a drag never re-frames the camera under the reader's hand.
   cameraPadBottomPx: number
-}
-
-// Build a filter for the basemap peak layer from the elevation knobs so the
-// mountains drawn on the map match the band an analysis would actually consider.
-// Peaks whose vector tiles carry no `ele_ft` pass through — the backend's
-// elevation filter keeps unknown-elevation candidates, so the map matches it.
-// Returns null to clear the filter (no band set).
-function peakElevationFilter(
-  minFt: number | null,
-  maxFt: number | null,
-): FilterSpecification | null {
-  // Written as three static cases (min, max, both) so the expressions type-check
-  // against FilterSpecification without a cast. `['!', ['has', 'ele_ft']]` keeps
-  // peaks whose tiles have no elevation.
-  if (minFt != null && maxFt != null) {
-    return [
-      'any',
-      ['!', ['has', 'ele_ft']],
-      ['all', ['>=', ['get', 'ele_ft'], minFt], ['<=', ['get', 'ele_ft'], maxFt]],
-    ]
-  }
-  if (minFt != null) {
-    return ['any', ['!', ['has', 'ele_ft']], ['>=', ['get', 'ele_ft'], minFt]]
-  }
-  if (maxFt != null) {
-    return ['any', ['!', ['has', 'ele_ft']], ['<=', ['get', 'ele_ft'], maxFt]]
-  }
-  return null
 }
 
 // A search result frames at least this much map around the hit; features with
@@ -730,6 +711,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onDrawUpdate,
       results,
       sortBy,
+      modelId,
+      times,
       fireWarnings,
       showWildfires,
       showRadar,
@@ -743,8 +726,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
       searchedPlaces,
       onAddPoi,
       onRemovePoi,
-      minElevationFt,
-      maxElevationFt,
       cameraPadBottomPx,
     },
     ref,
@@ -791,6 +772,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // in the load effect and would otherwise close over an empty map. focusResult
     // reads the live prop directly (its imperative handle re-runs every render).
     const fireWarningsRef = useRef(fireWarnings)
+    // The three inputs a popup's Windy links need, read by the marker-click
+    // listener, which is registered once on map load and therefore cannot see
+    // a prop. The rows are here rather than on the features themselves because
+    // a link needs the whole HOURLY SERIES behind a cell, which is not
+    // something to encode into a GeoJSON property per marker.
+    const windyRef = useRef({ results, modelId, times })
     // The sheet's share of the bottom edge, for the two framing calls that live
     // inside the mount effect — the resize refit and the opening frame — which
     // would otherwise hold the first render's value for the session. The
@@ -940,6 +927,20 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // Center on a result (clicked from its rank in the table) and open the
       // same popup a marker click gives. Rank is the analyzed order the markers
       // are labeled with, so the popup matches the marker it lands on.
+      focusPoint(at: { latitude: number; longitude: number }) {
+        const map = mapRef.current
+        if (!map || !loadedRef.current) return
+        cameraCommittedRef.current = true
+        map.flyTo({
+          center: [at.longitude, at.latitude],
+          zoom: Math.max(map.getZoom(), 10),
+          duration: 800,
+          // The offset `focusResult` explains below: a padding handed to flyTo
+          // is interpolated onto the transform and stays there.
+          offset: [0, -cameraPadBottomPx / 2],
+        })
+        closeAllPopups()
+      },
       focusResult(result: DestinationResult) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
@@ -976,6 +977,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
               longitude: result.longitude,
               latitude: result.latitude,
               warning: fireWarnings.get(fireKey(result.latitude, result.longitude)) ?? null,
+              // A per-model row names its own model; a single-model report has
+              // one for every row. Same rule as the table's cells.
+              modelId: (result as ModelRow).modelId ?? modelId,
+              series: result.series,
+              times: result.series_times ?? times,
             }),
           )
           .addTo(map)
@@ -1650,6 +1656,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
           // popup is ever open. Marker→marker already dismisses via the map's
           // closeOnClick, but a table-name click (focusResult) fires no map click,
           // so without a shared ref the marker popup would linger beside it.
+          // The row behind this marker, for the popup's Windy links. Matched on
+          // the exact coordinates the feature carries for the fire lookup above
+          // rather than on an index, so a source that has re-rendered since the
+          // ref last updated cannot pair a popup with the wrong row.
+          const live = windyRef.current
+          const row = live.results.find((r) => r.latitude === lat && r.longitude === lon) ?? null
           const pinned = isPinning(e)
           if (!pinned) closeAllPopups()
           // Never closeOnClick: it is fixed at construction, so an
@@ -1680,6 +1692,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
                 longitude: lon,
                 latitude: lat,
                 warning: fireWarningsRef.current.get(fireKey(lat, lon)) ?? null,
+                modelId: row ? ((row as ModelRow).modelId ?? live.modelId) : live.modelId,
+                series: row?.series ?? null,
+                times: row?.series_times ?? live.times,
               }),
             )
             .addTo(map)
@@ -2005,6 +2020,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
     }, [fireWarnings])
 
     useEffect(() => {
+      windyRef.current = { results, modelId, times }
+    }, [results, modelId, times])
+
+    useEffect(() => {
       cameraPadBottomRef.current = cameraPadBottomPx
     }, [cameraPadBottomPx])
 
@@ -2052,21 +2071,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
       if (!map || !mapReady) return
       setSource(map, 'pending-destinations', pendingFC(pending))
     }, [pending, mapReady])
-
-    // Filter the basemap peak layer by the elevation knobs so the mountains
-    // shown on the map track the band an analysis would consider. Runs on every
-    // knob change and once the layer exists (mapReady) so a restored min/max
-    // link applies on load too.
-    useEffect(() => {
-      const map = mapRef.current
-      if (!map || !mapReady || !map.getLayer('ofm-peaks')) return
-      const band = peakElevationFilter(minElevationFt, maxElevationFt)
-      // The halo follows the band too, or hovering the panel would light
-      // summits the band has already taken off the map.
-      for (const id of ['ofm-peaks', 'ofm-peaks-glow']) {
-        if (map.getLayer(id)) map.setFilter(id, band)
-      }
-    }, [minElevationFt, maxElevationFt, mapReady])
 
     // Toggle the NIFC wildfire overlay. On: fetch perimeters for the current
     // viewport and re-fetch (debounced) as the user pans/zooms. Off: clear it.

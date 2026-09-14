@@ -20,11 +20,14 @@ const MODELS = [
 ]
 
 describe('the chips', () => {
-  it('reads the selected models in the published order, whatever the tick order', () => {
+  // The ranking model leads, then the compared run in the published order
+  // whatever the tick order. The picker draws those two parts under headings
+  // of their own, so this is the reading order as well as the tab order.
+  it('leads with the ranking model, then the published order', () => {
     expect(selectedIds(MODELS, 'gfs_hrrr', ['ecmwf_ifs025', 'gfs_seamless'])).toEqual([
+      'gfs_hrrr',
       'gfs_seamless',
       'ecmwf_ifs025',
-      'gfs_hrrr',
     ])
   })
 
@@ -69,18 +72,19 @@ describe('ticking a row', () => {
     expect(next).toEqual({ ranking: 'gfs_hrrr', compared: [] })
   })
 
-  // The one case that moves the highlight. The neighbour on the RIGHT, because
-  // the chips read in the published order and that is the next model the list
+  // The one case that moves the highlight. The ranking model leads the chips,
+  // so the neighbour on the right is the first COMPARED model in the published
+  // order: the chip the reader's eye is already on, and the next model the list
   // itself would have offered.
-  it('passes the ranking to the next chip when the ranking model goes', () => {
+  it('passes the ranking to the first compared chip when the ranking model goes', () => {
     const next = toggleSelected(
       MODELS,
       'ecmwf_ifs025',
       ['gfs_seamless', 'gfs_hrrr'],
       'ecmwf_ifs025',
     )
-    expect(next.ranking).toBe('gfs_hrrr')
-    expect(next.compared).toEqual(['gfs_seamless'])
+    expect(next.ranking).toBe('gfs_seamless')
+    expect(next.compared).toEqual(['gfs_hrrr'])
   })
 
   it('wraps to the first chip when the last one was ranking', () => {
@@ -137,9 +141,9 @@ describe('tapping a chip', () => {
       'gfs_hrrr',
     )
     expect(selectedIds(MODELS, next.ranking, next.compared)).toEqual([
+      'gfs_hrrr',
       'gfs_seamless',
       'ecmwf_ifs025',
-      'gfs_hrrr',
     ])
   })
 

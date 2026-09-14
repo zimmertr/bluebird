@@ -13,7 +13,8 @@
 // not be unit-tested at all; the download itself is seven lines in App.tsx.
 
 import { DestinationResult } from '../types'
-import { ColDef, WILDFIRE_COL, WILDFIRE_KEY } from './tableColumns'
+import { ColDef, MODEL_KEY, WILDFIRE_COL, WILDFIRE_KEY } from './tableColumns'
+import type { ModelRow } from './modelCompare'
 import { DATA_SOURCES } from './dataSources'
 import { FireWarning, fireKey } from './fireProximity'
 
@@ -82,10 +83,15 @@ function escapeCell(value: string): string {
  * claim about the file's own columns and has to survive being read detached
  * from the app.
  */
-function cell(row: DestinationResult, col: ColDef): string {
+function cell(row: DestinationResult, col: ColDef, modelFallback?: string | null): string {
   // The wildfire column never reaches here (this module appends it with its
   // own cell), but its key is virtual and must not index a row.
   if (col.key === WILDFIRE_KEY) return ''
+  // The model column's key is virtual too, and its value rides beside the row
+  // rather than on it. A file carries it whenever the screen does, because a
+  // file of eight rows per destination that did not say which was which would
+  // be unreadable detached from the app.
+  if (col.key === MODEL_KEY) return (row as ModelRow).modelLabel ?? modelFallback ?? ''
   const raw = row[col.key]
   if (raw == null) return col.csvNull ?? ''
   const project = col.csv ?? col.format
@@ -180,6 +186,12 @@ export function buildResultsCsv(
   fireWarnings: ReadonlyMap<string, FireWarning> | null,
   pendingRows: readonly DestinationResult[] = [],
   fireUncovered: ReadonlySet<string> = new Set(),
+  // What the Model column reads for a row no comparison tagged: the model the
+  // analysis itself ran. The column can be shown with one model selected, and
+  // an empty cell there would say the row came from nowhere. Pending rows are
+  // deliberately left out of it — they have no forecast at all, so no model
+  // answered them.
+  modelLabel: string | null = null,
 ): string {
   const header = [RANK_HEADER, ...columns.map((c) => c.label)]
   if (fireWarnings) header.push(FIRE_HEADER)
@@ -193,7 +205,11 @@ export function buildResultsCsv(
     return cells
   })
   const body = rows.map((row, i) => {
-    const cells = [String(i + 1), ...columns.map((c) => cell(row, c))]
+    // The destination's rank, not the row's position. A comparison writes one
+    // row per model, so counting positions numbered one destination's rows as
+    // though they were several places — the defect the table's # column had.
+    const rank = (row as ModelRow).rank ?? i + 1
+    const cells = [String(rank), ...columns.map((c) => cell(row, c, modelLabel))]
     if (fireWarnings) cells.push(fireCell(row, fireWarnings, fireUncovered))
     return cells
   })

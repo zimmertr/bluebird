@@ -23,10 +23,10 @@ Ready to find your Bluebird day? https://bluebirdforecast.com
 
 1. **Destinations**: Choose where to search by drawing an area on the map, searching by name, or providing custom coordinates.
 2. **Forecast**: Choose a weather model, then pick a day on the calendar, drag across days for a range, or analyze the current hour.
-3. **Ranking**: Choose how destinations should be ranked: driest conditions, lowest winds, ideal temperatures, or cleanest air.
-4. **Options**: Apply constraints and enable additional features like wildfire visibility.
+3. **Metrics**: Choose how destinations should be ranked: driest conditions, lowest winds, ideal temperatures, or cleanest air. Set bounds to leave out the ones you would not consider.
+4. **Layers**: Enable additional map layers like wildfire perimeters, rain radar, and the forecast grid.
 5. **Analyze**: Generate ranked results, explore them on the map, and compare forecast data across your selected destinations.
-6. **Repeat**: Adjust your search area, forecast window, ranking, or options at any time to find a better window.
+6. **Repeat**: Adjust your search area, forecast window, ranking, or bounds at any time to find a better window.
 
 See [Usage](docs/USAGE.md) for the full walkthrough.
 

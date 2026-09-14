@@ -39,7 +39,14 @@ function editorialRank(models: readonly OrderedModel[], id: string): number {
 }
 
 /**
- * Every selected model, in editorial order: the chips, left to right.
+ * Every selected model: the chips, left to right and top to bottom.
+ *
+ * **The ranking model leads**, then every compared model in editorial order.
+ * The picker draws those two parts under headings of their own, so this order
+ * is also the reading order, and the roving tabindex that walks the row walks
+ * it in the order the eye does. Sorting the ranking model into the editorial
+ * run instead put it anywhere from first to last, which is what left the
+ * highlight as the only thing saying which model ranked (TJ, 2026-09-14).
  *
  * The ranking model is included, because a chip row that hid it would leave the
  * reader no way to say which model ranks now.
@@ -49,11 +56,14 @@ export function selectedIds(
   ranking: string,
   compared: readonly string[],
 ): string[] {
-  const unique = [...new Set([ranking, ...compared])]
-  return unique
-    .map((id, at) => ({ id, rank: editorialRank(models, id), at }))
-    .sort((a, b) => a.rank - b.rank || a.at - b.at)
-    .map((entry) => entry.id)
+  const rest = [...new Set(compared)].filter((id) => id !== ranking)
+  return [
+    ranking,
+    ...rest
+      .map((id, at) => ({ id, rank: editorialRank(models, id), at }))
+      .sort((a, b) => a.rank - b.rank || a.at - b.at)
+      .map((entry) => entry.id),
+  ]
 }
 
 /** The same order, minus the ranking model: what `compare=` carries. */
@@ -98,9 +108,10 @@ export function chipRemovable(
  * Tick or untick one row, which is also what a chip's × does.
  *
  * Unticking the ranking model is the one case that moves the ranking: it passes
- * to the next chip to the right, wrapping to the first. Right rather than left
- * because the chips read in editorial order, so the neighbour on the right is
- * the next model the list itself would have offered.
+ * to the next chip to the right, wrapping to the first. Since the ranking model
+ * leads the chips, that neighbour is the FIRST compared model in editorial
+ * order — the one the reader's eye is already on when the highlight has to go
+ * somewhere, and the next model the list itself would have offered.
  */
 export function toggleSelected(
   models: readonly OrderedModel[],

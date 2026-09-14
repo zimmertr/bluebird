@@ -36,9 +36,36 @@ export const VALUE_FACE = 'font-family:ui-monospace,SFMono-Regular,Menlo,Consola
  * by a "·" — the only line carrying two metrics, and the only one long enough
  * to wrap, so on a narrow map it broke at whatever character reached the edge
  * and the second label landed mid-line under the first one's number.
+ *
+ * `href` links the VALUE rather than the whole line, which is where the table
+ * puts its link too: the label names the metric and the number is the thing
+ * that has somewhere to go (TJ, 2026-09-14).
  */
-export function row(label: string, value: string): string {
-  return `<div>${label}: <span style="${VALUE_FACE}">${value}</span></div>`
+export function row(label: string, value: string, href?: string | null): string {
+  const shown = `<span style="${VALUE_FACE}">${value}</span>`
+  return `<div>${label}: ${href ? popupLink(href, shown) : shown}</div>`
+}
+
+/**
+ * The colour a link takes inside a popup.
+ *
+ * MapLibre draws a popup as black on white, and the roles in `styles.ts` are
+ * written for the app's own slate panels, so `LINK_ACTION`'s sky-400 lands at
+ * 2.1:1 here. Sky-700 measures 5.74:1 on white and clears AA for text. The
+ * title's link glyph keeps the lighter shade because an icon answers to the
+ * 3:1 rule instead.
+ */
+export const LINK_COLOR = '#0369a1'
+
+/**
+ * A link inside a popup body.
+ *
+ * `extra` is appended AFTER the colour, so a caller that owns its own colour —
+ * the fire warning, which is amber before it is a link — overrides it by
+ * declaring it again rather than by not using this.
+ */
+export function popupLink(href: string, inner: string, extra = ''): string {
+  return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color:${LINK_COLOR};text-decoration:underline;${extra}">${inner}</a>`
 }
 
 /**

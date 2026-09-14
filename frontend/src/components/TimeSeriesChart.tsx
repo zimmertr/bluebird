@@ -10,7 +10,7 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult } from '../types'
-import { CONTROL_W, ICON, ICON_ADORNMENT, RADIUS, SELECT, SURFACE_FLOATING, TEXT } from '../styles'
+import { CHART_METRIC_W, ICON, ICON_ADORNMENT, RADIUS, SELECT, SURFACE_FLOATING, TEXT } from '../styles'
 import {
   CHART_METRICS,
   ChartLine,
@@ -208,8 +208,11 @@ export default function TimeSeriesChart({
           their units, and five of them at the panel's 12px type need 584px of
           row, where a phone's results sheet is the phone's width: at 402px the
           radios wrapped and AQI sat alone on a second line. The select is
-          CONTROL_W wide whatever its labels say, so this row cannot wrap and a
-          sixth metric costs it nothing. The row itself does not wrap either:
+          CHART_METRIC_W wide whatever its labels say, so this row cannot wrap
+          and a sixth metric costs it nothing. It is the panel's old 144px
+          rather than the 118px column the sidebar came down to: this control
+          lines up with nothing above it, and `Freezing level (ft)` needs the
+          wider one. The row itself does not wrap either:
           the comparison note beside the control shrinks (`min-w-0`) rather
           than dropping under it. */}
       <div className="flex flex-shrink-0 items-center gap-x-4 px-3 py-1">
@@ -221,7 +224,7 @@ export default function TimeSeriesChart({
             aria-label="Chart metric"
             value={metric}
             onChange={(e) => onMetricChange(e.target.value as ChartMetric)}
-            className={`${SELECT} ${CONTROL_W} px-2 py-0.5`}
+            className={`${SELECT} ${CHART_METRIC_W} px-2 py-0.5`}
           >
             {CHART_METRICS.map((m) => (
               <option key={m.key} value={m.key}>

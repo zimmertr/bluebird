@@ -1,12 +1,17 @@
 import { describe, it, expect } from 'vitest'
 import {
   COLUMNS,
+  MODEL_KEY,
+  applyColumnOrder,
+  moveColumn,
+  stepColumn,
   WILDFIRE_COL,
   WILDFIRE_KEY,
   displayedColumns,
   pointModeColumns,
   orderColumns,
   visibleColumns,
+  withModelColumn,
 } from './tableColumns'
 import { SEP } from '../metrics'
 import { FREEZE_UNAVAILABLE } from './freezingLevel'
@@ -276,5 +281,134 @@ describe('WILDFIRE_COL', () => {
   it('is not part of the row-backed column set', () => {
     expect(COLUMNS.map((c) => c.key)).not.toContain(WILDFIRE_KEY)
     expect(displayedColumns(false, 'precip_total_in').map((c) => c.key)).not.toContain(WILDFIRE_KEY)
+  })
+})
+
+// The table and the CSV are handed the same rows — one per destination per
+// model — so the column that says which model a row is has to come from one
+// derivation or the file repeats every destination unexplained.
+describe('the Model column', () => {
+  const cols = displayedColumns(false, 'precip_total_in')
+
+  it('leaves the columns alone when nothing is compared', () => {
+    expect(withModelColumn(cols, false).map((c) => c.key)).toEqual(cols.map((c) => c.key))
+  })
+
+  // Against the name it qualifies: a comparison repeats one destination's name
+  // down consecutive rows and the model is what tells those repeats apart.
+  it('sits directly after Name', () => {
+    const keys = withModelColumn(cols, true).map((c) => c.key)
+    expect(keys.indexOf(MODEL_KEY)).toBe(keys.indexOf('name') + 1)
+    expect(keys[keys.indexOf(MODEL_KEY) + 1]).toBe('type')
+  })
+
+  it('adds the column once and drops nothing', () => {
+    const keys = withModelColumn(cols, true).map((c) => c.key)
+    expect(keys.filter((k) => k === MODEL_KEY)).toHaveLength(1)
+    expect(keys.length).toBe(cols.length + 1)
+    for (const col of cols) expect(keys).toContain(col.key)
+  })
+
+  // The wildfire column is appended last by the caller, so the insertion must
+  // not move it or trip over its virtual key.
+  it('keeps a trailing wildfire column last', () => {
+    const keys = withModelColumn([...cols, WILDFIRE_COL], true).map((c) => c.key)
+    expect(keys[keys.length - 1]).toBe(WILDFIRE_KEY)
+  })
+
+  // Name is hideable like every other column, and the insertion has to land
+  // somewhere rather than run off the end when it is off.
+  it('leads the columns when Name is not shown', () => {
+    const noName = cols.filter((c) => c.key !== 'name')
+    expect(withModelColumn(noName, true).map((c) => c.key)).toEqual([
+      MODEL_KEY,
+      ...noName.map((c) => c.key),
+    ])
+  })
+})
+
+// The reader's own column order (#360). Pure here, because Vitest runs this
+// repository in the node environment and a reorder left inside the table or
+// the picker could not be tested at all.
+describe('a column order the reader set', () => {
+  const cols = (...keys: string[]) => keys.map((key) => ({ key }))
+  const keys = (list: { key: string }[]) => list.map((c) => c.key)
+
+  it('leaves the columns alone when nothing has been ordered', () => {
+    const given = cols('name', 'type', 'wind')
+    expect(keys(applyColumnOrder(given, null))).toEqual(['name', 'type', 'wind'])
+    expect(keys(applyColumnOrder(given, []))).toEqual(['name', 'type', 'wind'])
+  })
+
+  it('puts the named columns in the order given', () => {
+    expect(keys(applyColumnOrder(cols('name', 'type', 'wind'), ['wind', 'name', 'type']))).toEqual([
+      'wind',
+      'name',
+      'type',
+    ])
+  })
+
+  // The stored list cannot know about a column that did not exist when it was
+  // written: a new metric, the wildfire column, Model arriving with a
+  // comparison. An unnamed column keeps its place after the named ones rather
+  // than disappearing or jumping to the front.
+  it('keeps a column the order does not name, after the ones it does', () => {
+    expect(keys(applyColumnOrder(cols('name', 'model', 'type'), ['type', 'name']))).toEqual([
+      'type',
+      'name',
+      'model',
+    ])
+  })
+
+  it('ignores a key the columns no longer hold', () => {
+    expect(keys(applyColumnOrder(cols('name', 'wind'), ['wind', 'gone', 'name']))).toEqual([
+      'wind',
+      'name',
+    ])
+  })
+
+  it('never drops or duplicates a column', () => {
+    const given = cols('a', 'b', 'c', 'd')
+    const out = keys(applyColumnOrder(given, ['d', 'b']))
+    expect(out.length).toBe(4)
+    expect(new Set(out).size).toBe(4)
+  })
+})
+
+describe('moving one column', () => {
+  const ORDER = ['name', 'type', 'elevation_ft', 'wind']
+
+  it('drops the column where the target sits, going right', () => {
+    expect(moveColumn(ORDER, 'name', 'elevation_ft')).toEqual([
+      'type',
+      'elevation_ft',
+      'name',
+      'wind',
+    ])
+  })
+
+  it('drops the column where the target sits, going left', () => {
+    expect(moveColumn(ORDER, 'wind', 'type')).toEqual(['name', 'wind', 'type', 'elevation_ft'])
+  })
+
+  // A caller compares by reference to decide whether to write, so a move that
+  // moves nothing has to return the list it was given.
+  it('returns the same list when nothing moved', () => {
+    expect(moveColumn(ORDER, 'name', 'name')).toBe(ORDER)
+    expect(moveColumn(ORDER, 'name', 'gone')).toBe(ORDER)
+    expect(moveColumn(ORDER, 'gone', 'name')).toBe(ORDER)
+  })
+
+  it('moves one step at a time for a keyboard', () => {
+    expect(stepColumn(ORDER, 'type', 1)).toEqual(['name', 'elevation_ft', 'type', 'wind'])
+    expect(stepColumn(ORDER, 'type', -1)).toEqual(['type', 'name', 'elevation_ft', 'wind'])
+  })
+
+  // A column that jumps from the last place to the first reads as a bug, not
+  // as a move.
+  it('does not wrap at either end', () => {
+    expect(stepColumn(ORDER, 'name', -1)).toBe(ORDER)
+    expect(stepColumn(ORDER, 'wind', 1)).toBe(ORDER)
+    expect(stepColumn(ORDER, 'gone', 1)).toBe(ORDER)
   })
 })

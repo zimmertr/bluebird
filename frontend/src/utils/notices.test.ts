@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import controlPanelSource from '../components/ControlPanel.tsx?raw'
 import {
   BLOCKER_SEVERITY,
   FooterMessage,
+  listPhrase,
   isDismissed,
   noticeBoxes,
   noticeKey,
@@ -127,12 +129,16 @@ describe('blocker severities', () => {
   // The severity table as decided (TJ, 2026-08-22): an oversized polygon
   // rejects finished work (error), and every other blocker reports an
   // unfinished input where nothing is wrong (info) — a drawing mid-stroke
-  // included.
+  // included. The two comparison blockers joined as warnings (TJ,
+  // 2026-09-14): nothing is unfinished there, so info would be wrong, and
+  // nothing was refused, so error would be too.
   it('pins each blocker to its box', () => {
     expect(BLOCKER_SEVERITY).toEqual({
       area: 'error',
       window: 'info',
       dates: 'info',
+      'compare-aqi': 'warn',
+      'compare-freeze': 'warn',
       destinations: 'info',
       polygon: 'info',
       types: 'info',
@@ -191,6 +197,57 @@ describe('noticeBoxes', () => {
     // A state problem alone summons no retry button.
     expect(noticeBoxes([msg('blocker:area', 'error')])[0].messages.some((m) => m.retry)).toBe(
       false,
+    )
+  })
+})
+
+describe('listPhrase', () => {
+  it('says one name plainly', () => {
+    expect(listPhrase(['ECMWF IFS'])).toBe('ECMWF IFS')
+  })
+
+  it('joins two with "and" and no comma', () => {
+    expect(listPhrase(['ECMWF IFS', 'JMA GSM'])).toBe('ECMWF IFS and JMA GSM')
+  })
+
+  it('commas three or more, with "and" before the last', () => {
+    expect(listPhrase(['ECMWF IFS', 'JMA GSM', 'ECCC GEM'])).toBe(
+      'ECMWF IFS, JMA GSM and ECCC GEM',
+    )
+  })
+
+  // The caller only ever passes a non-empty list, but a joiner that returns
+  // "undefined" into a sentence is the kind of defect a reader sees and a
+  // type does not.
+  it('yields nothing for an empty list', () => {
+    expect(listPhrase([])).toBe('')
+  })
+})
+
+// The two comparison blockers say what the report cannot answer, and both were
+// read and approved as written (TJ, 2026-09-14). Asserted against the source
+// text, like every other copy lint here, because the panel is wiring and
+// Vitest has no DOM to render it into.
+describe('the approved comparison blocker copy', () => {
+  it('reads the panel source it claims to lint', () => {
+    expect(controlPanelSource.length).toBeGreaterThan(500)
+  })
+
+  // Two lines rather than one, which is the standing rule's one exception:
+  // the reader needs the cause and the consequence, and neither half stands
+  // alone. Measured at 80 characters against a 92-character two-line budget.
+  it('says why air quality cannot be compared, and that it cannot', () => {
+    expect(controlPanelSource).toContain(
+      '`${NOUN.aqi} data is retrieved independently of the model and cannot be compared.`',
+    )
+  })
+
+  // Names the models rather than counting them: the model is a control in
+  // this panel, so a name is something the reader can act on. Composed from
+  // the metric vocabulary, never spelled.
+  it('names the models that carry no freezing level', () => {
+    expect(controlPanelSource).toContain(
+      '`${NOUN.freeze} data is not available for ${listPhrase(freezeGaps)}.`',
     )
   })
 })

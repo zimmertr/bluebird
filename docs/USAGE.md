@@ -47,7 +47,7 @@ The checkboxes under the buttons control what discovery looks for inside your po
 | Lakes | `natural=water` + `water=lake` (named nodes/ways/relations) | Implemented |
 | Trailheads | `highway=trailhead` (named nodes/ways) | Implemented |
 
-Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. **Include unnamed peaks**, in Options, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods below still work on their own, so an analysis of pasted coordinates or clicked destinations needs no polygon and no ticks at all.
+Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. **Include unnamed peaks**, under the type checkboxes, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods below still work on their own, so an analysis of pasted coordinates or clicked destinations needs no polygon and no ticks at all.
 
 ### d. Coordinates
 
@@ -93,7 +93,7 @@ Changing the model needs a new **Analyze**, like changing the polygon or the win
 A calendar, with a **When** toggle above the grid reading **Current** or **Dates**.
 
 - **Current** analyzes the hour you press Analyze. It is the default, so a fresh load can Analyze without touching this step at all.
-- **Pick a day** to analyze that whole day, midnight to 23:59 your local time; that also moves the toggle to **Dates**. By default precipitation ranks by the day's total and wind, temperature, and AQI by its average; the Ranking section's aggregate dropdowns change that.
+- **Pick a day** to analyze that whole day, midnight to 23:59 your local time; that also moves the toggle to **Dates**. By default precipitation ranks by the day's total, the freezing level by its minimum, and wind, temperature and AQI by their average; the Metrics section's aggregate dropdowns change that.
 - **Pick a second day** to extend to a range, or **drag across days** to choose one in a single gesture. Dragging either end of an existing range adjusts that end, and picking a day inside a range starts over from that day.
 - **Dates** on the toggle brings back the last range you had, so switching to Current to compare and back does not cost you the range. With no range yet the calendar opens empty — today is outlined, nothing is selected, and Analyze waits until you pick a day (one click for a single day, a second click or a drag for a range).
 - **Hours** appears under **When**, set to **All Day**. Switch it to **Hourly** for part of a day rather than all of it: it opens on the current hour through the end of the day, and runs from the first time on your first day to the second time on your last, as one continuous window. Two equal hours analyze that single hour, which is the finest question you can ask.
@@ -124,13 +124,13 @@ Days are your local calendar days, converted to UTC for the API, and the far edg
 
 The calendar is fully keyboard operable: arrow keys move by day, Page Up and Page Down by month, Enter or Space selects, and Escape abandons a half-made range.
 
-## Ranking, filters, and options
+## Metrics
 
-Once you have set your destinations and forecast window, three short sections shape the report: **Ranking** picks the order, **Filters** picks who qualifies, and **Options** holds the remaining knobs (max results, unnamed peaks, and the map layers).
+Once you have set your destinations and forecast window, one table shapes the report. Two controls at the top say how the list is ordered: **Rank by** picks Lowest or Highest, and **Max results** says how far down it to go. Under them, one row per metric: its radio and its dropdown say how the row ranks, and its Min and Max boxes say who qualifies. Elevation leads that table because the ranking cannot use it, so it carries boxes but no radio. The five the ranking can use follow, in alphabetical order.
 
 ### Ranking
 
-Sort destinations by any metric, and by any of that metric's aggregates. Each row pairs a metric with a dropdown naming how it is reduced over your window — Avg, Max, and Min for every metric, plus Total for precipitation — so "calmest peak wind" (`Wind · Max`, Lowest) is as askable as "calmest average wind". The defaults are total precipitation, the averages of the other weather metrics, and the minimum for the freezing level, which is the one that answers the overnight refreeze. Changing a dropdown, a radio, or Lowest/Highest re-ranks every destination in your analyzed area, not just the ones on screen, so the winners really are the extremes of the area; the markers and the map legend follow the chosen aggregate. For a single-hour window the dropdowns disappear: one hour has no minimum, average, or maximum to choose between. Clicking a column header in the table reorders the rows on screen only — the Ranking section is what re-ranks the whole field.
+Sort destinations by any metric, and by any of that metric's aggregates. Each row pairs a metric with a dropdown naming how it is reduced over your window — Avg, Max, and Min for every metric, plus Total for precipitation — so "calmest peak wind" (`Wind · Max`, Lowest) is as askable as "calmest average wind". The defaults are total precipitation, the averages of the other weather metrics, and the minimum for the freezing level, which is the one that answers the overnight refreeze. Changing a dropdown, a radio, or Lowest/Highest re-ranks every destination in your analyzed area, not just the ones on screen, so the winners really are the extremes of the area; the markers and the map legend follow the chosen aggregate. For a single-hour window the dropdowns disappear: one hour has no minimum, average, or maximum to choose between. Clicking a column header in the table reorders the rows on screen only — the Metrics table is what re-ranks the whole field.
 
 Ranking by a freezing level reads naturally in either direction: Highest
 `Freezing level · Min` finds the destinations whose coldest hour still froze high
@@ -140,7 +140,23 @@ does.
 
 Wind is reported at each destination's own elevation, not at the standard 10 meters above the model's terrain — on a summit the 10-meter value understates what you would feel, often by a factor of two. How the number is derived, and its limits, are in [DATA.md](DATA.md#open-meteo). Destinations with no known elevation show the plain near-ground wind.
 
-### Map layers
+### Bounds
+
+The Min and Max boxes say which destinations you would consider at all: on AQI, the freezing level, precipitation, temperature and wind. An empty box shows its unit and bounds nothing. **Clear filters** appears as soon as any box holds a number, and it empties every one of them, the results cap included.
+
+**A ceiling is a promise about every hour**, not an average: a 20 mph wind ceiling excludes a destination that gusts to 45 at noon even if it averages 8. A floor is the opposite: a 15 mph wind floor asks for somewhere whose *calmest* hour still blows 15, which almost nowhere satisfies. For wind, temperature and the freezing level the bounds are exactly the table's Min and Max columns, so a freezing-level floor of 6,000 asks for somewhere the level never dropped below 6,000 ft. Precipitation is bounded on its window total in both columns, because a per-hour minimum would read 0.000 almost everywhere.
+
+**Destinations with unknown AQI or freezing level are included.** Air quality is only forecast about five days out, and most forecast models publish no freezing level at all. Missing values are not evidence of bad conditions, so those rows ride along: the table shows a dash where a number is missing, and `N/A` where the model carries no freezing level.
+
+Every bound applies the instant you type, since the browser already holds forecasts for every destination it found. None of them can ever ask for a forecast the app does not have, so loosening one is as immediate as tightening it.
+
+Everything on screen follows a bound: the table, the map markers, the chart, and the row count in the header.
+
+### Max results
+
+The default is 200, sized to sit above the 100-row lists people usually paste so a first analysis does not open half-cut. The ceiling is what the running service reports. Raising this number costs nothing upstream: weather is fetched for *every* destination in your area, and the top N by your ranking come back. Lowering it shows you the extremes.
+
+## Map layers
 
 Four optional overlays, on the map's own **Layers** button rather than in the
 controls panel: they are the only controls in the app that change what you are
@@ -174,7 +190,7 @@ day, and it describes a column of air rather than the ground: a plume overhead c
 mean a hazy sky and clean air to breathe, or the opposite. The AQI columns in the
 table are what measure air.
 
-#### The forecast grid
+### The forecast grid
 
 The other three overlays draw somebody else's data. This one draws yours: the same
 metric your results are ranked by, asked for on a lattice of points across the area
@@ -276,19 +292,7 @@ on the chart puts it on the map.
 Playback costs nothing upstream. Every destination's hourly series is already in
 hand from the analysis; the timeline is a position in it.
 
-### Filtering
-
-Filters say which destinations you would consider at all. Set bounds on elevation, precipitation, wind, temperature, the freezing level, or AQI. The grid has a Min and a Max box on each row; leave a box empty and that side is unbounded.
-
-**A ceiling is a promise about every hour**, not an average: a 20 mph wind ceiling excludes a destination that gusts to 45 at noon even if it averages 8. A floor is the opposite: a 15 mph wind floor asks for somewhere whose *calmest* hour still blows 15, which almost nowhere satisfies. For elevation, wind, temperature and the freezing level the bounds are exactly the table's Min and Max columns, so a freezing-level floor of 6,000 asks for somewhere the level never dropped below 6,000 ft. Precipitation is bounded on its window total in both columns, because a per-hour minimum would read 0.000 almost everywhere.
-
-**Destinations with unknown elevation, AQI or freezing level are included.** Many peaks carry no elevation in the map data, air quality is only forecast about five days out, and most forecast models publish no freezing level at all. Missing values are not evidence of bad conditions, so those rows ride along: the table shows a dash where a number is missing, and `N/A` where the model carries no freezing level.
-
-Five of the six filters apply the instant you type, since the browser already holds forecasts for every destination it found. **Elevation is the exception:** it decides what gets fetched, so narrowing it is instant while widening it needs Analyze again, and the panel says so.
-
-Everything on screen follows a filter change: the table, the map markers, the chart, and the row count in the header.
-
-### Viewing the results
+## Viewing the results
 
 The results bar at the top of the report gives you three viewing modes. The report opens as a table; a desktop-sized window switches to Both when an analysis completes, and a mode you pick yourself sticks across visits. **Table** is the detailed breakdown you can sort, filter and download. **Chart** is a time series of the plotted destinations, one metric at a time: the dropdown above the plot picks it, and opens on the metric the report is ranked by. In Both, the table's checkbox column is the series picker; in Chart alone, a legend under the plot lists every destination — click one to hide or show its line, or its × to remove it from the report, and scroll the legend when two rows cannot hold them all. Every destination gets its line color the moment it appears — searched places included, before any analysis — and keeps it for the whole session no matter how the list changes; the first destination of a session wears Bluebird Forecast blue. **Both** stacks them. Each view has a drag handle to trade height with the map, and in Both the divider between the two trades their share. Double-press a handle to put its panel back.
 
@@ -298,13 +302,17 @@ Every column is resizable: drag the divider at a header's right edge, or double-
 
 **Columns** opens a picker for the columns the table shows. Every column starts on — the table scrolls sideways when it must — and unticking narrows the view for easier comparison. The downloaded CSV always carries every column regardless of what the table displays.
 
-#### Comparing models on the chart
+**Columns can be moved.** Drag a table header sideways and the column goes where you drop it; on a touch screen, hold it for a moment first, so a tap still sorts. The column you picked up rides under the pointer and a blue line shows the gap it will drop into, so nothing moves until you let go. The same order can be set in the **Columns** picker, by dragging a row's grip at its right edge, and the two are one order: move a column in either place and the other follows at once. The grip is also the keyboard route, since a drag needs a pointer — focus it and the up and down arrows move that column one place at a time. A column you have hidden keeps its place and comes back where you left it, and the downloaded CSV is written in the order on screen.
+
+Your order lasts until you change **Rank by**. Ranking pulls the metric you rank on to the front of the table, and it wins: a new ranking puts the columns back to the standard order with that metric leading. Short of that the order is yours and survives a reload. It rides in no link, so a report you share opens in the standard order for whoever opens it.
+
+### Comparing models on the chart
 
 The picker does two things, and each has its own half of the popover.
 
 The **list selects**. Every model carries a checkbox at its right edge; tick one, or click anywhere on its row, and that model joins the chart. Untick it and it leaves. The list stays open either way, so selecting three models is one visit rather than three.
 
-The **chips rank**. Under a header reading **Selected models**, a row of chips holds one chip per selected model, always in the list's own order. The highlighted chip is the model that **ranks** the field, which is the model the table, the markers and the downloaded file are built from. Tap another chip's name and the highlight moves to it; the model it replaces keeps its chip and gains an x. Tap a chip's x, or untick its row, and that model leaves the chart. The last remaining model has no x and its box is disabled, because a report has to come from some model.
+The **chips rank**. They sit in two labelled groups, so which model does which job is read off the layout rather than off a colour. Under **Ranking** is one chip, the model the field is ranked by, which is the model the table, the markers and the downloaded file are built from. Under **Comparing** are the rest, the models drawn on the chart beside it, in the list's own order. Tap a chip under **Comparing** and it moves up into **Ranking**; the model it replaces moves down and gains an x. Tap a chip's x, or untick its row, and that model leaves the chart. The chip under **Ranking** has no x, because a report has to come from some model. With nothing compared there is one group and one chip.
 
 Nothing inside the picker closes it. Press Escape, or click outside it, the way the Columns picker and the map's Layers popover close.
 
@@ -314,21 +322,21 @@ The chart then draws one line per destination per model: three destinations unde
 
 Nine lines is a lot to read at once, so **Models** in the results bar puts some of them down. It sits beside **Columns** and is there whenever **Columns** is. It opens the same kind of popover: one row per model you have selected in the picker, the ranking model first and the rest in the picker's order, each with a checkbox and the model's name. The rows carry no color, because a model has no single color to show you: its lines wear one color per destination. The hover box is where a line is named and its color shown. A model you have just selected has a row straight away, before the Analyze that buys its lines. Untick a model and its lines leave the chart; tick it back and they return, and a model unticked before an Analyze stays hidden when its lines arrive. Nothing else moves: the forecasts are bought either way, so this costs nothing, and it touches no ranking, no table, no file and no link. Unticking every box is allowed, and leaves an empty chart. A model you unselect in the picker and select again comes back showing.
 
-A comparison is a real fetch, so it is bought by **Analyze** like the ranking model itself: select a model and the panel says the report no longer answers what the panel asks. Unselecting one is free and takes effect at once, because its line is drawn from numbers already in hand. It costs about one weighted call per model per destination, against the hundred or more an analysis of a polygon spends, and nothing in it touches the ranking, the markers, the table or the downloaded CSV.
+A comparison is a real fetch, so it is bought by **Analyze** like the ranking model itself: select a model and the panel says the report no longer answers what the panel asks. Unselecting one is free and takes effect at once, because its line is drawn from numbers already in hand. It costs about one weighted call per model per destination, against the hundred or more an analysis of a polygon spends. It changes nothing about the ranking or the markers, which come from the ranking model alone.
+
+The results table carries the comparison too. With models compared it grows a **Model** column, sitting directly after **Name**, and every destination gets one row per model: two destinations under three models is six rows. The rank is the destination's, so the rows of one destination all read the same number, and the table can still be sorted by any column including **Model**. The downloaded CSV is the same table, so it carries the column and the rows as well. With one model selected the column is absent and every destination is one row, as it always was.
+
+**Model** is in the **Columns** picker like every other column, so you can show it on a report with no comparison, where every row names the model the analysis ran, or hide it on one with a comparison. It is the only column whose default depends on the report: off with one model, on with several. Tick or untick it once and your answer stands from then on, whatever the model count does.
 
 Every line on the chart stops at the shortest reach among the models on it, the analysis model's included, because ten days of one model beside three days of another compares nothing. A model Open-Meteo has no data for at that spot draws no line and says so in a note beside the chart's metric dropdown, which is never the same as drawing a flat one. A model you have hidden leaves no note, because its lines are missing by your own instruction.
 
-Air quality has no comparison: AQI comes from one model whatever forecast model ranks the field, so no compared lines are drawn on that metric and **Models** has nothing to take off the chart. See [Data Sources](DATA.md) for the rest of the caveats.
+Two metrics cannot be compared at all, and **Analyze** says so rather than selling you a report that cannot answer the question. Ranking by **AQI** with more than one model selected blocks it: `Air quality data is retrieved independently of the model and cannot be compared.` Ranking by **Freezing level** with any selected model that does not forecast one blocks it too, and names them: `Freezing level data is not available for ECMWF IFS.` Three of the eight models forecast a freezing level; the other five answer with nothing at all, which on a chart is indistinguishable from never having asked. Either way the remedy is yours to choose, rank on something else or change the models, so the message says what is wrong and leaves it there. See [Data Sources](DATA.md) for the rest of the caveats.
 
 The comparison travels in the link as `compare=`, a comma-separated list of model ids in the picker's own order, so the same set of models always reads the same way whoever built the link. A restored link reopens with the boxes ticked and buys the forecasts on your first Analyze, never on load.
 
-### Max results (in Options)
-
-The default is 200, sized to sit above the 100-row lists people usually paste so a first analysis does not open half-cut. The ceiling is what the running service reports. Raising this number costs nothing upstream: weather is fetched for *every* destination in your area, and the top N by your ranking come back. Lowering it shows you the extremes.
-
 ## Analyze
 
-The default is 200, chosen to sit above the 100-row lists people usually paste so a first analysis does not open with half of one cut off; the ceiling is whatever the running service reports as its analysis cap. The Forecast Table's header says how many rows you are seeing out of how many there are. Weather is fetched for *every* named destination in the polygon (after the optional elevation filter), and the top N by the selected ranking come back. There is no sampling, so the winners really are the extremes of the area. Raising this number therefore costs nothing upstream: it widens the view onto work already done. Past the cap on candidates the app asks you to draw a smaller polygon or narrow the elevation range rather than silently truncating. See [Limits](LIMITS.md) for why the caps exist and where to read their current values.
+Weather is fetched for *every* named destination in the polygon. There is no sampling, so the winners really are the extremes of the area, and the Forecast Table's header says how many rows you are seeing out of how many there are. Past the cap on candidates the app asks you to draw a smaller polygon or narrow the elevation range rather than truncating in silence. See [Limits](LIMITS.md) for why the caps exist and where to read their current values.
 
 Destinations you name yourself are candidates like any other. A searched place and every row of a pasted CSV are analyzed and then ranked against whatever the polygon found, so combining the two can push some of your own destinations below the cut, where they are simply not listed. Their forecasts were still fetched: raise max results and they appear, already filled in.
 
@@ -336,9 +344,9 @@ Destinations you name yourself are candidates like any other. A searched place a
 
 Click **Analyze**. Results appear in a sortable table below the map and as color-coded markers on the map itself.
 
-Once results are up, the knobs split in two. **Ranking, max results, every forecast filter, and narrowing the elevation range apply instantly**, with no second click: the browser keeps the forecast for every destination it found, not just the ones that fit on screen, so it can re-rank, re-filter and re-cut them for free. Changing the **destinations, the forecast window, the model, or widening the elevation range** needs Analyze again, because those need forecasts the app does not have yet, and the panel says which one is waiting. That is also why the numbers are exact rather than approximate: a new ranking reconsiders every destination in your area, not just the rows currently listed.
+Once results are up, the knobs split in two. **Ranking, max results and every forecast bound apply instantly**, with no second click: the browser keeps the forecast for every destination it found, not just the ones that fit on screen, so it can re-rank, re-filter and re-cut them for free. Changing the **destinations, the forecast window, the model, or widening the elevation range** needs Analyze again, because those need forecasts the app does not have yet, and the panel says which one is waiting. That is also why the numbers are exact rather than approximate: a new ranking reconsiders every destination in your area, not just the rows currently listed.
 
-If the weather service cannot be reached from your browser, Bluebird Forecast says so and retries through its own server. That path only receives the rows it shows, so on it every knob goes back to needing Analyze, and the app says which one is waiting.
+If Open-Meteo cannot be reached from your browser, the analysis stops and says so. There is no second path: the browser holds your forecasts, and rerouting the fetch through the server would spend a quota every visitor shares.
 
 Marker colors follow total precipitation:
 
@@ -350,7 +358,7 @@ Marker colors follow total precipitation:
 | Orange | 0.25" to 0.50" |
 | Red | more than 0.50" |
 
-Click a marker for a popup with rank, precipitation, wind, temperature, the freezing level, and AQI. The freezing-level line reads `N/A` under a model that publishes none, the same mark the table's cells carry. Click a destination name in the table to open Windy centered on that spot with the rain overlay. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300). When you sort by the freezing level they switch again, to six bands of 4,000 ft apiece running purple for the lowest freezing line, through indigo and blue, to cyan for the highest. That ramp is deliberately not the green-to-red the other metrics use: a freezing level is a height rather than a verdict, and a skier and a rock climber want opposite ends of it. The map's colour key always names the bands it is drawing.
+Click a marker for a popup with rank, precipitation, wind, temperature, the freezing level, and AQI. The freezing-level line reads `N/A` under a model that publishes none, the same mark the table's cells carry. Every one of those numbers is a link to Windy, on the same terms the table's cells use: the same overlay, the same forecast model, and for the freezing-level minimum and the AQI maximum the hour that produced the value. A wildfire warning in the popup links to that fire on the NIFC map. The elevation and the coordinates carry no link, because neither is a forecast. Click a destination name in the table to open Windy centered on that spot with the rain overlay. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300). When you sort by the freezing level they switch again, to six bands of 4,000 ft apiece running purple for the lowest freezing line, through indigo and blue, to cyan for the highest. That ramp is deliberately not the green-to-red the other metrics use: a freezing level is a height rather than a verdict, and a skier and a rock climber want opposite ends of it. The map's colour key always names the bands it is drawing.
 
 ## Results Table
 
@@ -362,7 +370,7 @@ Hovering a row reveals a × at its end (always visible on touch screens) that re
 
 | Column | Description |
 |---|---|
-| Name | Destination name, links to Windy |
+| Name | Destination name. Click it to center the map on the destination, before or after an analysis; the ↗ beside it opens the destination on Peakbagger or OpenStreetMap |
 | Elevation (ft) | Elevation in feet, from the OSM `ele` tag |
 | Precipitation · Total (in) | Sum of hourly precipitation over the window, in inches |
 | Precipitation · Avg (in/hr) | Average hourly precipitation rate |
@@ -425,12 +433,23 @@ What lands in the file:
   column is always present: its cells tick while the check runs, then show
   ⚠️ and the distance where a fire is within 10 miles, a dash where the
   check ran and cleared the row, and `N/A` where the row has no answer.
-  Hovering an `N/A` says which of its two causes applies: the destination
-  sits outside the fire data's US coverage, or NIFC is unreachable and the
-  whole check failed. The file writes the same answers with the distance
+  A warned cell is a link to that fire on the NIFC map, the same map a fire
+  on Bluebird's own map opens. Hovering an `N/A` says which of its two
+  causes applies: the destination sits outside the fire data's US coverage,
+  or NIFC is unreachable and the whole check failed. The file writes the same answers with the distance
   bare and the cleared cell empty; a coverage `N/A` carries over as written.
 - Nothing a removed row would have contributed. Removals and the max-results
   cut apply first, exactly as on screen.
+
+**Every metric cell is a link to Windy**, opened on the same spot, the same
+overlay, and the same forecast model the row was analyzed with. Where models
+are compared, each row links to its own model. A **Min** or **Max** cell also
+opens on the hour that produced it. Three things Windy does with that, measured
+rather than assumed: it snaps the hour to the model's own step, so a
+three-hourly model lands on the nearest frame; it clamps an hour past that
+model's reach; and it ignores a time in the past, opening at the current hour
+instead. Windy carries only some agencies' regional models, and where it has none for
+your destination it falls back to its own default.
 
 A blank cell means no value, never a zero. AQI is blank past its forecast
 horizon, and elevation is blank where OpenStreetMap has no `ele` tag. The

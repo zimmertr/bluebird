@@ -60,8 +60,6 @@ export interface ShareableState {
   // three inactive rows are real state a reload must not lose, per TJ's call
   // (2026-08-22) that every row's choice persists in the URL.
   rowKeys: Record<MetricFamily, SortBy>
-  minElevationFt: number | null
-  maxElevationFt: number | null
   // The forecast bounds, as one value rather than eight fields, because every
   // surface that touches them treats them as a set (present.ts filters by the
   // whole shape, the panel clears the whole shape).
@@ -131,7 +129,11 @@ const POLY_PRECISION = 5 // ~1 m; keeps the URL short without visible drift
 
 // Control defaults — must mirror the initial useState values in App.tsx. Used to
 // decide whether the user has changed anything worth persisting to the URL.
-const DEFAULT_SORT: SortBy = 'precip_total_in'
+//
+// The ranking opens on the FIRST row of the Metrics table, so the selected
+// radio is the one a reader's eye lands on rather than one four rows down
+// (TJ, 2026-09-14). The table is alphabetical, which is what puts AQI there.
+export const DEFAULT_SORT: SortBy = 'aqi_avg'
 // Nothing is checked by default. Discovery is the expensive input and the
 // one that needs a polygon, so a fresh session asks for none of it until the
 // user says otherwise.
@@ -266,10 +268,7 @@ function isValidDatetimeLocal(s: string): boolean {
 export function encodeState(state: ShareableState, defaultForecastModel: string): string {
   const hasPolygon = state.polygon !== null && (state.polygon.coordinates[0]?.length ?? 0) >= 3
   const hasCustom = state.customCsv.trim() !== ''
-  const hasConstraint =
-    state.minElevationFt !== null ||
-    state.maxElevationFt !== null ||
-    hasConstraints(state.constraints)
+  const hasConstraint = hasConstraints(state.constraints)
   const hasPins = state.pins.length > 0
   const nonDefaultControls =
     state.sortBy !== DEFAULT_SORT ||
@@ -344,8 +343,6 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
       p.set('h2', hours.end)
     }
   }
-  if (state.minElevationFt !== null) p.set('minel', String(state.minElevationFt))
-  if (state.maxElevationFt !== null) p.set('maxel', String(state.maxElevationFt))
   for (const [param, key] of CONSTRAINT_PARAMS) {
     const value = state.constraints[key]
     if (value !== null) p.set(param, String(value))
@@ -547,16 +544,9 @@ export function decodeState(search: string): Partial<ShareableState> | null {
     if (unique.length > 0) out.compareModels = unique
   }
 
-  const minel = params.get('minel')
-  if (minel !== null) {
-    const n = Number(minel)
-    if (Number.isFinite(n)) out.minElevationFt = n
-  }
-  const maxel = params.get('maxel')
-  if (maxel !== null) {
-    const n = Number(maxel)
-    if (Number.isFinite(n)) out.maxElevationFt = n
-  }
+  // `minel` and `maxel` are deliberately not read. They carried the elevation
+  // band the panel dropped in #341, so an old link still parses and simply
+  // analyzes the whole range — the reading every other retired parameter gets.
 
   // Written only when at least one bound survived, so a link carrying none
   // leaves `constraints` undefined and App keeps its own default rather than

@@ -4,8 +4,25 @@ import { DestinationResult, SortBy } from '../types'
 import { cellStyle, scaleFor } from '../utils/colors'
 import { FAMILY_KEYS, familyOf } from '../metrics'
 import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
-import { SortDir, SortKey, WILDFIRE_KEY, displayedColumns, ColDef } from '../utils/tableColumns'
+import {
+  SortDir,
+  SortKey,
+  MODEL_KEY,
+  WILDFIRE_KEY,
+  displayedColumns,
+  ColDef,
+} from '../utils/tableColumns'
+import type { ModelRow } from '../utils/modelCompare'
 import { autoFitWidth, dragWidth } from '../utils/columnResize'
+import {
+  GHOST_MAX_PX,
+  dragBegins,
+  dropEdge,
+  ghostLeft,
+  keyAtPosition,
+  travel,
+  type ColumnSpan,
+} from '../utils/columnDrag'
 import {
   FIRE_UNAVAILABLE_NOTE,
   FIRE_UNCOVERED_NOTE,
@@ -18,14 +35,24 @@ import {
 import type { FireProximityStatus } from '../hooks/useFireProximity'
 import { FREEZE_UNAVAILABLE_NOTE, freezeCellText, isFreezeKey } from '../utils/freezingLevel'
 import { destinationUrl } from '../utils/destinationUrl'
+import { extremeHourMs, windyUrl } from '../utils/windy'
+import { FIRE_LINK_ZOOM, nifcFireUrl } from '../utils/wildfires'
 import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
 import { pinKey } from '../utils/customList'
-import { ACCENT, CHOICE_INPUT, ICON_ACTION, LINK_ACTION, TABLE, TEXT } from '../styles'
-
-function windyUrl(lat: number, lon: number, layer: string): string {
-  return `https://www.windy.com/?${layer},${lat.toFixed(4)},${lon.toFixed(4)},11`
-}
+import {
+  ACCENT,
+  CHOICE_INPUT,
+  DRAG_GHOST,
+  DRAG_GRIP_ACTIVE,
+  DRAG_INSERT,
+  LAYER,
+  ICON_ACTION,
+  LINK_ACTION,
+  TABLE,
+  TEXT,
+} from '../styles'
+import { createPortal } from 'react-dom'
 
 function ExternalLinkIcon() {
   return (
@@ -104,6 +131,25 @@ interface Props {
   // Columns to display, filtered by user visibility choices. The file always
   // carries the full set via buildResultsCsv; only the screen narrows.
   columns?: ColDef[]
+  // What the Model column reads for a row no comparison tagged: the model the
+  // analysis itself ran. The column can be shown with one model selected
+  // (it is in the Columns picker), and a dash there would say the row came
+  // from nowhere.
+  modelFallbackLabel?: string | null
+  // Center the map on a destination that has no forecast yet. Separate from
+  // `onFocusResult` because there is no result to pass: a pending row is a
+  // coordinate and a name, and the popup the ranked version opens is built
+  // from numbers this row does not have.
+  onFocusPending?: (at: { latitude: number; longitude: number }) => void
+  // Which forecast model the rows came from, so a metric cell can ask Windy
+  // for the same one. A compared row carries its own and wins over this.
+  modelId?: string | null
+  // The hourly grid the rows' series are aligned to, epoch ms. A floor or a
+  // ceiling names one hour of it, and the Windy link opens on that hour.
+  times?: readonly number[]
+  // Move one column to where another sits. Absent means the header does not
+  // reorder — the CSV-only and pre-analysis renders pass nothing.
+  onColumnMove?: (fromKey: string, toKey: string) => void
   fireWarnings: Map<string, FireWarning>
   // Rows the fire dataset could not see (outside its US coverage, #256).
   // Their Wildfire (mi) cells read "N/A", where a cleared check prints the
@@ -152,6 +198,11 @@ export default function ResultsTable({
   onDetailSort,
   pointSample = false,
   columns,
+  modelFallbackLabel,
+  onFocusPending,
+  modelId,
+  times,
+  onColumnMove,
   fireWarnings,
   fireUncovered,
   fireStatus,
@@ -246,6 +297,94 @@ export default function ResultsTable({
     document.addEventListener('pointermove', onMove)
     document.addEventListener('pointerup', onUp)
     document.addEventListener('pointercancel', onUp)
+  }
+
+  // What a drag is carrying and where it would put it. Both are drawn — the
+  // ghost under the pointer and the line in the gap — so both are state.
+  //
+  // The move is made on release rather than on every frame. Reordering live
+  // means the columns shuffle under the reader's hand while they are still
+  // choosing, which on a wide table is a lot of movement to read; the ghost and
+  // the line say the same thing without moving anything until it is decided.
+  const [carry, setCarry] = useState<{
+    key: string
+    label: ReactNode
+    x: number
+    y: number
+  } | null>(null)
+  const [insert, setInsert] = useState<{ x: number; top: number; height: number } | null>(
+    null,
+  )
+  // Set while a drag is ending, and read by the click that may follow it: a
+  // pointerup on the cell the press began in still fires a click, and without
+  // this a reorder would sort the table as well as move the column.
+  //
+  // Cleared on a timeout rather than by that click, because the click only
+  // happens when the pointer went down and up on the SAME cell. A drag that
+  // ended anywhere else fires none, and a flag waiting to be consumed would sit
+  // there and swallow the reader's next real click instead.
+  const draggedRef = useRef(false)
+
+  // A press on a header. It is a sort until it has travelled far enough (a
+  // mouse) or been held long enough (a finger); `columnDrag.ts` owns which
+  // question each pointer is asked. The resize handle stops its own
+  // pointerdown, so a grab of the edge never reaches here.
+  function beginColumnDrag(e: React.PointerEvent, key: string) {
+    if (!onColumnMove) return
+    const th = e.currentTarget as HTMLElement
+    const startedAt = performance.now()
+    const startX = e.clientX
+    const startY = e.clientY
+    let live = false
+
+    const spans = (): ColumnSpan[] =>
+      [...(th.parentElement?.querySelectorAll('th[data-col]') ?? [])].map((cell) => {
+        const rect = cell.getBoundingClientRect()
+        return { key: (cell as HTMLElement).dataset.col as string, start: rect.left, end: rect.right }
+      })
+
+    const label = orderedColumns.find((c) => c.key === key)?.label ?? key
+    let landing: string | null = null
+
+    const move = (ev: PointerEvent) => {
+      if (!live) {
+        const far = travel(ev.clientX - startX, ev.clientY - startY)
+        if (!dragBegins(ev.pointerType, far, performance.now() - startedAt)) return
+        live = true
+        draggedRef.current = true
+      }
+      const here = spans()
+      landing = keyAtPosition(here, ev.clientX)
+      setCarry({ key, label, x: ev.clientX, y: ev.clientY })
+
+      const edge = dropEdge(here, key, ev.clientX)
+      const cell = edge && th.parentElement?.querySelector(`th[data-col="${edge.key}"]`)
+      if (cell) {
+        const rect = (cell as HTMLElement).getBoundingClientRect()
+        setInsert({ x: edge.after ? rect.right : rect.left, top: rect.top, height: rect.height })
+      }
+    }
+
+    const end = () => {
+      document.removeEventListener('pointermove', move)
+      document.removeEventListener('pointerup', end)
+      document.removeEventListener('pointercancel', end)
+      if (live) {
+        window.setTimeout(() => (draggedRef.current = false), 0)
+        if (landing && landing !== key) onColumnMove(key, landing)
+      }
+      setCarry(null)
+      setInsert(null)
+    }
+
+    // On document rather than on the header, which is what `beginColumnResize`
+    // above does and for the same reason: a drag leaves the cell it started in
+    // on its first frame, and a pointermove over a sibling cell never reaches
+    // it. Pointer capture would answer it too, but capturing before the press
+    // is known to be a drag changes where an ordinary click lands.
+    document.addEventListener('pointermove', move)
+    document.addEventListener('pointerup', end)
+    document.addEventListener('pointercancel', end)
   }
 
   // Double-click on a handle: fit the longest cell. scrollWidth alone cannot
@@ -389,7 +528,28 @@ export default function ResultsTable({
               col.key,
               fireLoading ? (
                 <span className={TEXT.caption}>{fireLoadingFrame(fireTick)}</span>
+              ) : warning ? (
+                // A warned cell links to the fire it is warning about, the same
+                // NIFC map a clicked fire on the map opens (TJ, 2026-09-14).
+                // The hover text goes with it: the link is the better answer to
+                // "what is this", and a tooltip does not exist on touch anyway.
+                <a
+                  href={nifcFireUrl(warning.longitude, warning.latitude, FIRE_LINK_ZOOM)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  // The cell reads "⚠️ 3.2", which unlabelled announces as
+                  // "link, warning three point two". The label names the fire
+                  // and where it goes, in the shape every other link in this
+                  // table uses (accessibility.test.ts pins the tail).
+                  aria-label={`Open ${warning.name} on the NIFC map. Opens in a new tab.`}
+                  className="hover:underline cursor-pointer"
+                >
+                  {text}
+                </a>
               ) : note ? (
+                // The two unlinked states keep theirs: N/A means either "never
+                // checked here" or "the check failed", and the hover text is
+                // the only thing that says which.
                 <span title={note} aria-label={note} className="cursor-help">
                   {text}
                 </span>
@@ -397,6 +557,15 @@ export default function ResultsTable({
                 text
               ),
             )}
+          </td>
+        )
+      }
+      // Which model answered this row, when more than one did. Virtual like
+      // the wildfire column: the value rides beside the row rather than on it.
+      if (col.key === MODEL_KEY) {
+        return (
+          <td key={col.key} className={`${TABLE.cell} whitespace-nowrap`}>
+            {sized(col.key, (row as ModelRow).modelLabel ?? modelFallbackLabel ?? '—')}
           </td>
         )
       }
@@ -466,12 +635,27 @@ export default function ResultsTable({
       }
 
       if (col.windyLayer) {
+        // The model this row's numbers came from, and the hour this cell's
+        // number came from. A compared row names its own model, which is the
+        // whole point of the Model column beside it.
+        const rowModel = (row as ModelRow).modelId ?? modelId
+        const at = extremeHourMs(
+          col.key as string,
+          row.series,
+          row.series_times ?? times ?? [],
+        )
         return (
           <td key={col.key} className={cellClass} style={colorSty}>
             {sized(
               col.key as string,
               <a
-                href={windyUrl(row.latitude, row.longitude, col.windyLayer)}
+                href={windyUrl({
+                  latitude: row.latitude,
+                  longitude: row.longitude,
+                  layer: col.windyLayer,
+                  modelId: rowModel,
+                  atMs: at,
+                })}
                 target="_blank"
                 rel="noopener noreferrer"
                 // The link text is the measurement itself, so unlabelled this
@@ -530,8 +714,15 @@ export default function ResultsTable({
                 scope="col"
                 data-col={col.key}
                 aria-sort={detailSortKey === col.key ? (detailSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                onClick={() => handleSort(col.key)}
-                className={`${TABLE.head} relative cursor-pointer whitespace-nowrap hover:text-white select-none`}
+                onPointerDown={(e) => beginColumnDrag(e, col.key as string)}
+                onClick={() => {
+                  // The click that ends a drag is not a sort.
+                  if (draggedRef.current) return
+                  handleSort(col.key)
+                }}
+                className={`${TABLE.head} relative cursor-pointer whitespace-nowrap hover:text-white select-none ${
+                  onColumnMove ? 'touch-none' : ''
+                } ${carry?.key === col.key ? `opacity-40 ${DRAG_GRIP_ACTIVE}` : ''}`}
               >
                 {sized(col.key as string, col.label, 'inline')}
                 {detailSortKey === col.key && (
@@ -587,7 +778,22 @@ export default function ResultsTable({
                       {sized(
                         'name',
                         <span className="flex min-w-0 items-center gap-1.5">
-                          <span className="min-w-0 truncate">{d.name}</span>
+                          {/* The same fly-to a ranked row's name gives, and
+                              for the same reason: the dot is already on the
+                              map, so there is nothing an analysis adds to the
+                              ability to look at it (TJ, 2026-09-14). No popup
+                              follows it, unlike a ranked row's: a popup here
+                              would be a forecast card with no forecast in it,
+                              and clicking the dot already says what is known. */}
+                          <button
+                            onClick={() =>
+                              onFocusPending?.({ latitude: d.latitude, longitude: d.longitude })
+                            }
+                            aria-label={`Center map on ${d.name}`}
+                            className={`${LINK_ACTION} min-w-0 cursor-pointer truncate text-left`}
+                          >
+                            {d.name}
+                          </button>
                         <a
                           href={destinationUrl({
                             name: d.name,
@@ -633,7 +839,10 @@ export default function ResultsTable({
             >
               {showChartCol && <td className={TABLE.cell}>{renderChartToggle(row)}</td>}
               <RankRemoveCell
-                rank={String(i + 1)}
+                // The destination's own rank when a comparison repeats it down
+                // several rows, and the display position otherwise, which is
+                // what the two are when a destination has one row.
+                rank={String((row as ModelRow).rank ?? i + 1)}
                 name={row.name}
                 onRemove={onRemove ? () => onRemove(row) : undefined}
               />
@@ -660,6 +869,36 @@ export default function ResultsTable({
           )}
         </tbody>
       </table>
+      {/* Both drawn into the body rather than into the table: they are placed
+          in viewport coordinates, and the table is inside a scroll container
+          that would otherwise clip them and offset their maths. */}
+      {carry &&
+        createPortal(
+          <>
+            <div
+              className={`${DRAG_GHOST} ${LAYER.popover}`}
+              style={{
+                left: ghostLeft(carry.x, window.innerWidth),
+                top: carry.y - 10,
+                maxWidth: GHOST_MAX_PX,
+              }}
+            >
+              {carry.label}
+            </div>
+            {insert && (
+              <div
+                className={`${DRAG_INSERT} ${LAYER.popover}`}
+                style={{
+                  left: insert.x - 1,
+                  top: insert.top,
+                  width: 2,
+                  height: insert.height,
+                }}
+              />
+            )}
+          </>,
+          document.body,
+        )}
     </div>
   )
 }

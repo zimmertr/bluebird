@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  DEFAULT_SORT,
   encodeState,
   decodeState,
   classifyWindow,
@@ -15,7 +16,7 @@ import {
   bandEnd,
 } from './calendar'
 import { GeoPolygon } from '../types'
-import { DEFAULT_FAMILY_KEY } from '../metrics'
+import { DEFAULT_FAMILY_KEY, RANKED_FAMILIES, RANKING_KEYS } from '../metrics'
 import { NO_CONSTRAINTS } from './clientAnalyze'
 
 const polygon: GeoPolygon = {
@@ -54,11 +55,9 @@ const base: ShareableState = {
   selection: DAYS,
   forecastModel: DEFAULT_MODEL,
   compareModels: [],
-  sortBy: 'precip_total_in',
+  sortBy: DEFAULT_SORT,
   sortDesc: false,
   rowKeys: { ...DEFAULT_FAMILY_KEY },
-  minElevationFt: null,
-  maxElevationFt: null,
   constraints: NO_CONSTRAINTS,
   limit: 10,
   customCsv: '',
@@ -84,11 +83,9 @@ const pristine: ShareableState = {
   selection: { kind: 'now' },
   forecastModel: DEFAULT_MODEL,
   compareModels: [],
-  sortBy: 'precip_total_in',
+  sortBy: DEFAULT_SORT,
   sortDesc: false,
   rowKeys: { ...DEFAULT_FAMILY_KEY },
-  minElevationFt: null,
-  maxElevationFt: null,
   constraints: NO_CONSTRAINTS,
   limit: 200,
   customCsv: '',
@@ -114,7 +111,7 @@ describe('encodeState / decodeState round-trip', () => {
     expect(out).not.toBeNull()
     expect(out!.destinationTypes).toEqual(['peak'])
     expect(out!.selection).toEqual(DAYS)
-    expect(out!.sortBy).toBe('precip_total_in')
+    expect(out!.sortBy).toBe(DEFAULT_SORT)
     expect(out!.limit).toBe(10)
     // Polygon ring is rebuilt closed with the same vertices.
     const ring = out!.polygon!.coordinates[0]
@@ -122,18 +119,24 @@ describe('encodeState / decodeState round-trip', () => {
     expect(ring[0]).toEqual(ring[ring.length - 1])
   })
 
-  it('restores elevation constraints and a non-default sort', () => {
-    const out = roundTrip({
-      ...base,
-      minElevationFt: 8000,
-      maxElevationFt: 12000,
-      sortBy: 'wind_avg_mph',
-      limit: 25,
-    })
-    expect(out!.minElevationFt).toBe(8000)
-    expect(out!.maxElevationFt).toBe(12000)
+  it('restores a non-default sort and limit', () => {
+    const out = roundTrip({ ...base, sortBy: 'wind_avg_mph', limit: 25 })
     expect(out!.sortBy).toBe('wind_avg_mph')
     expect(out!.limit).toBe(25)
+  })
+
+  // The elevation band left the panel in #341 and the API still accepts it, so
+  // a link written before that carries two keys nothing reads. It must parse
+  // as an ordinary link rather than throwing or resurrecting a control.
+  it('ignores the retired elevation band parameters', () => {
+    const params = new URLSearchParams(encodeState(base, DEFAULT_MODEL))
+    params.set('minel', '8000')
+    params.set('maxel', '12000')
+    const out = decodeState(params.toString())
+    expect(out).not.toBeNull()
+    expect(Object.keys(out!)).not.toContain('minElevationFt')
+    expect(Object.keys(out!)).not.toContain('maxElevationFt')
+    expect(out!.sortBy).toBe(base.sortBy)
   })
 
   it('restores every sortable metric', () => {
@@ -324,6 +327,21 @@ describe('encodeState / decodeState round-trip', () => {
   })
 })
 
+// The ranking opens on the FIRST row of the Metrics table, so the selected
+// radio is the one a reader's eye lands on rather than one four rows down
+// (TJ, 2026-09-14). The table is alphabetical, so this is derived rather than
+// asserted as a literal: reordering the rows moves the default with them, or
+// fails here instead of leaving the selection stranded mid-table.
+describe('the default ranking', () => {
+  it('opens on the first row of the Metrics table', () => {
+    expect(DEFAULT_SORT).toBe(DEFAULT_FAMILY_KEY[RANKED_FAMILIES[0]])
+  })
+
+  it('is one of the keys the URL accepts', () => {
+    expect(RANKING_KEYS).toContain(DEFAULT_SORT)
+  })
+})
+
 describe('encodeState gate — what triggers a URL update', () => {
   it('returns "" for a pristine session (nothing the user set)', () => {
     expect(encodeState(pristine, DEFAULT_MODEL)).toBe('')
@@ -342,11 +360,6 @@ describe('encodeState gate — what triggers a URL update', () => {
         selection: { kind: 'days', startDate: '2026-07-04', endDate: '2026-07-04' },
       }, DEFAULT_MODEL),
     ).not.toBe('')
-  })
-
-  it('syncs when only an elevation constraint is set', () => {
-    expect(encodeState({ ...pristine, minElevationFt: 8000 }, DEFAULT_MODEL)).not.toBe('')
-    expect(encodeState({ ...pristine, maxElevationFt: 12000 }, DEFAULT_MODEL)).not.toBe('')
   })
 
   it('syncs when a non-default sort, direction, limit, or type is chosen', () => {

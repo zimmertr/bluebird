@@ -11,6 +11,12 @@ export const FIRE_WARN_MILES = 10
 export interface FireWarning {
   miles: number // 0 when the point falls inside a perimeter
   name: string
+  // The middle of the fire's bounding box, for a link that centres a map on
+  // it. The MIDDLE rather than the nearest point on the perimeter, which is
+  // what the mileage above measures: a distance is asking how close the fire
+  // comes, and a link is asking to be shown the fire.
+  latitude: number
+  longitude: number
 }
 
 // One degree of latitude ≈ 69 mi. Longitude is scaled by cos(lat). Good to a
@@ -144,6 +150,28 @@ function distanceToFeatureMiles(lat: number, lon: number, geom: Geometry | null)
   return min
 }
 
+// The middle of a geometry's bounding box. Cheap, and stable in a way a
+// centroid is not: a ring winding the other way, or a multipolygon of scattered
+// islands, moves a centroid and leaves a bbox alone.
+function featureCenter(geom: Geometry | null): { latitude: number; longitude: number } {
+  let west = Infinity
+  let south = Infinity
+  let east = -Infinity
+  let north = -Infinity
+  for (const rings of polygonsOf(geom)) {
+    for (const ring of rings) {
+      for (const [lng, lat] of ring) {
+        if (lng < west) west = lng
+        if (lng > east) east = lng
+        if (lat < south) south = lat
+        if (lat > north) north = lat
+      }
+    }
+  }
+  if (!Number.isFinite(west)) return { latitude: 0, longitude: 0 }
+  return { latitude: (south + north) / 2, longitude: (west + east) / 2 }
+}
+
 function featureFireName(props: WildfireProps | null): string {
   const p = props ?? {}
   return (p.attr_IncidentName || p.poly_IncidentName || '').trim() || 'unnamed fire'
@@ -219,7 +247,11 @@ export function nearestFire(
     const d = distanceToFeatureMiles(lat, lon, f.geometry)
     if (!Number.isFinite(d)) continue
     if (best === null || d < best.miles) {
-      best = { miles: d, name: featureFireName(f.properties as WildfireProps | null) }
+      best = {
+        miles: d,
+        name: featureFireName(f.properties as WildfireProps | null),
+        ...featureCenter(f.geometry),
+      }
     }
   }
   return best

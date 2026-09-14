@@ -64,6 +64,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `CHOICE_ROW` | Radio or checkbox and its label as one strip |
 | `CHOICE_INPUT` | The box itself inside a choice row |
 | `SEGMENT` | Geometry of a panel segmented control (fixed to `CONTROL_W`) |
+| `SEGMENT_FILL` | Segmented control sized by the box it is placed in, for a row whose column is not the panel's (the Metrics direction row) |
 | `SEGMENT_FLUID` | Segmented control outside the panel column, sized by content |
 | `SEGMENT_FLUID_LIFTED` | The same segment on `SURFACE_POPOVER`, wearing the edge that surface needs |
 | `LIFTED_EDGE` | A well's boundary on `SURFACE_POPOVER`: slate-400, since slate-500 clears 3:1 only against the panel |
@@ -116,10 +117,25 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `TAP.row` | Left-aligned tap target: 44px height on coarse pointers |
 | `TAP.height` | Height-only tap target for already-laid-out content |
 | `TAP.grip` | Full-width drag handle: 24px height (AA floor, not 44) |
-| `CONTROL_W` | Single stacked panel control width: 144px (w-36) |
+| `CONTROL_W` | Single stacked panel control width: 118px, which is 2 x `METRIC_BOX_W` plus the Metrics grid gap, so the whole panel stands on the bound boxes' edges |
+| `CHART_METRIC_W` | The chart's metric select, 144px (w-36). The one control that borrowed `CONTROL_W` from outside the panel and cannot follow it down: `Freezing level (ft)` is 99.3px |
 | `MAP_BOX_W` | Width of every floating box under the Layers button: the popover and both legends, 192px (w-48), governed by the grid legend's longest row |
 | `MAP_EDGE` | How far anything floating on the map stands off its edge: 12px, published once as `--map-edge-inset` on the map wrapper and read by the button column, the legend stack and MapLibre's own control stack |
-| `BOUNDS_GRID` | Forecast bounds grid layout with label + two boxes |
+| `METRICS_GRID` | The Metrics table: label, aggregate dropdown, Min box, Max box; the control columns are `auto`, sized by the roles their controls wear |
+| `METRIC_BOX_W` | One bound box in the Metrics table: 56px (w-14), the widest the metric row's label budget allows. The results cap spans both box columns instead, so it wears `w-full` off the same shape |
+| `METRIC_HEAD_GAP` | The Metrics table's one deliberate break: 8px (pt-2) above the two box headings, on every cell of that row because the columns are grid tracks. The only vertical space in the grid that `gap-y` does not set |
+
+**Moving a column**
+
+One set of roles for both surfaces that reorder columns, the table header and the Columns picker, so a gesture that means "this moves" looks the same in either.
+
+| Role | Purpose |
+|---|---|
+| `DRAG_GRIP` | The handle itself. `cursor-grab` is the standing signal; `touch-none` is load-bearing, because without it the browser claims the gesture for scrolling and the drag never gets a second pointer event on a phone |
+| `DRAG_GRIP_ACTIVE` | The grip while its own column is the one being carried |
+| `DRAG_TARGET` | The column a drop would land on |
+| `DRAG_GHOST` | The column riding under the pointer. Portalled to the body and positioned in viewport coordinates, so it takes the app's top layer rather than the table's; `pointer-events-none` is load-bearing, or the ghost is what every hit test finds |
+| `DRAG_INSERT` | The bar marking the gap the column will drop into. The accent's fill without its label color, since the bar carries no text |
 
 **Map timeline**
 
@@ -241,19 +257,29 @@ The results bar is one line when its container is 896px or wider, and two lines 
 
 The three links read at `TEXT.control`, the size of every other control in the app. They are buttons the reader presses; the micro step is for text that is present but never first.
 
-The mode switch wears `SEGMENT_FLUID`, not `SEGMENT`: the panel's segment role bakes in the sidebar's 144px column, which three icon-plus-label halves cannot fit — that mismatch is how the switch once shipped clipped by its own `overflow-hidden`.
+The mode switch wears `SEGMENT_FLUID`, not `SEGMENT`: the panel's segment role bakes in the sidebar's column, which three icon-plus-label halves cannot fit — that mismatch is how the switch once shipped clipped by its own `overflow-hidden`.
 
 ### Control width
 
-Every stacked panel control composes `CONTROL_W = 'w-36'` = 144px.
+Every stacked panel control composes `CONTROL_W = 'w-[118px]'` = 118px.
 
 - The label takes the free space (flex-grow)
 - The control takes `CONTROL_W`
 - Both share a baseline in a flex row
 
-The bounds grid (two bounds boxes + label) derives from this: two boxes at 4.25rem (68px) each plus a 0.5rem (8px) gap = 144px total.
+118px is not a taste. It is 2 x `METRIC_BOX_W` + the Metrics grid's `gap-x-1.5`, so the Forecast section's model picker and its two segments stand on exactly the edges the bound boxes below them do. The panel is one column at 225 and 343, measured. It was 144px, set by the widest segment label, until the Metrics row's label budget forced the narrower boxes and left the two sections 26px apart. `styles.test.ts` derives the sum from the roles.
 
-**Arithmetic:** `4.25 + 4.25 + 0.5 = 9`, and `9 × 16px / 4 = 144px` (Tailwind's scale is quarter-rem). Checked in `styles.test.ts`.
+The Metrics table still sizes nothing by that token. Its row is the panel's widest — radio, label, aggregate dropdown (`SELECT_W_AGGREGATE`, 72px), Min box and Max box (`METRIC_BOX_W`, 56px each) — and the label has to hold `Freezing level` at text-xs inside the panel's 327px of content. The direction segment above the rows spans the two box columns and wears `SEGMENT_FILL`, because a fixed width in a grid cell states a number the tracks already decide.
+
+Four controls in that section share one pair of edges: the direction segment, the results cap box, the Clear filters button, and every bound pair. The three wide ones span the two box columns rather than spelling their sum, so the width lives in `METRIC_BOX_W` alone. Clear filters is always drawn and disables when there is nothing to clear, so the section's last row never moves.
+
+Nothing is drawn between the section's two blocks. `METRIC_HEAD_GAP` is the whole separation: 8px of padding above the heading row, which is what tells the two controls that order the list from the table of bounds under them.
+
+**Segment arithmetic:** 118px less the 2px border and the 1px divider is 57.5px a half. The longest words are `Highest` at 43.69px and `Current` at 42.89px, both at text-xs, so `SEGMENT_ITEM` carries a 4px inset leaving 49.5px. An 8px inset leaves 41.5px and clips them both, which is why there is one inset for every segment in the panel rather than two. Checked in `styles.test.ts`.
+
+**The select arrow:** `SELECT` reserves `pr-6` = 24px, which is the arrow's own box and nothing more — `ICON_ADORNMENT` puts a 16px glyph 8px from the edge. It reserved 32px until the column came down to 118px, where those 8px were the difference between `UK Met Office` (79.69px) fitting the model picker's 84px of label and truncating. `Meteo-France ARPEGE` at 130.03px fits no trigger the panel can offer and truncated at 144px too.
+
+**Arithmetic:** `327 − 14 (radio) − 10 (label gap) − 3 × 6 (grid gaps) − 72 − 2 × 56 = 101px` for the label. The noun's measured width is pinned beside that sum in `styles.test.ts`; re-measure before moving a width, the gap, or the nouns.
 
 ## Tailwind v4 facts
 

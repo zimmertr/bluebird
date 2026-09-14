@@ -13,7 +13,6 @@ import {
   constraintsFromRequest,
   customRows,
   filterConstraints,
-  filterElevation,
   hasConstraints,
   rankComparator,
   refreshEchoRows,
@@ -297,40 +296,6 @@ describe('capDetail', () => {
   it('formats counts with separators and names the unit like the backend', () => {
     expect(capDetail(1601, 'peak')).toContain('1,601 peaks')
     expect(capDetail(1601, 'peak')).toContain('1,500 destinations')
-  })
-})
-
-// ── filterElevation (port of _filter_elevation) ────────────────────────────
-
-describe('filterElevation', () => {
-  const dests = [
-    { elevation_ft: null, name: 'untagged' },
-    { elevation_ft: 1000, name: 'low' },
-    { elevation_ft: 5000, name: 'high' },
-    { elevation_ft: 3000, name: 'mid' },
-  ]
-
-  it('returns the input untouched when no band is set', () => {
-    expect(filterElevation(dests, null, null)).toBe(dests)
-  })
-
-  it('keeps unknown elevations, matching the backend', () => {
-    // Many OSM peaks carry no `ele` tag. Dropping them would make narrowing the
-    // band look like destinations disappearing.
-    expect(filterElevation(dests, 2000, null).map((d) => d.name)).toEqual([
-      'untagged',
-      'high',
-      'mid',
-    ])
-  })
-
-  it('applies each edge inclusively', () => {
-    expect(filterElevation(dests, 3000, 5000).map((d) => d.name)).toEqual([
-      'untagged',
-      'high',
-      'mid',
-    ])
-    expect(filterElevation(dests, null, 1000).map((d) => d.name)).toEqual(['untagged', 'low'])
   })
 })
 

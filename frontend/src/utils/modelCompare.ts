@@ -9,10 +9,15 @@
 // testable under the node-env Vitest. The fetching lives in
 // hooks/useModelCompare.ts and the drawing in the chart.
 
-import { HourlySeries } from '../types'
+import { DestinationResult, HourlySeries } from '../types'
 import type { ForecastModelOption } from '../hooks/useCapabilities'
-import { ChartLine, comparedLineLabel, cutSeriesAfter, gridRemapper } from './chartData'
-import type { WeatherSeries } from './openMeteo'
+import {
+  ChartLine,
+  comparedLineLabel,
+  cutSeriesAfter,
+  gridRemapper,
+} from './chartData'
+import type { WeatherResult, WeatherSeries } from './openMeteo'
 
 const HOUR_MS = 3_600_000
 
@@ -86,16 +91,53 @@ export function pairKey(modelId: string, destinationKey: string): string {
   return `${modelId}|${destinationKey}`
 }
 
-/** One charted destination, as the comparison needs it. */
-export interface CompareDestination {
-  /** `chartKey`: the coordinate identity a colour and a selection key by. */
+/**
+ * What colour one (destination, model) pair wears. **The one derivation.**
+ *
+ * A colour identifies a LINE, and a line is a pair: two places under two
+ * models is four lines in four colours. Two surfaces show that — the chart
+ * draws the lines, and the results table's chart checkbox stands beside the
+ * row that produces one — so both call THIS rather than each indexing the map
+ * their own way. Two lookups over one map is one spelling away from two
+ * answers, which is the class of bug `fillColor` is shared to prevent.
+ *
+ * `fallback` is the DESTINATION's own colour: the hue its marker and its table
+ * checkbox already wear. It is the right answer wherever a pair has none — a
+ * report with one model selected, a row nobody has charted, and the one frame
+ * before the allocator has run.
+ */
+export function pairColor(
+  colors: Readonly<Record<string, string>>,
+  modelId: string | undefined,
+  destinationKey: string,
+  fallback: string,
+): string {
+  if (!modelId) return fallback
+  return colors[pairKey(modelId, destinationKey)] ?? fallback
+}
+
+/**
+ * One place a compared model is fetched FOR: everything the request needs and
+ * nothing the chart does.
+ *
+ * Separate from `CompareDestination` because the fetch now covers every
+ * DISPLAYED row, where the chart draws only the charted ones. A row nobody has
+ * charted still needs its numbers, because the results table shows one row per
+ * model and a blank there would read as a forecast rather than as an absence.
+ */
+export interface ComparePoint {
+  /** `chartKey`: the coordinate identity a colour, a selection and a pair key by. */
   key: string
-  /** Its place in the ranking, which is what the label leads with. */
-  rank: number
-  name: string
   latitude: number
   longitude: number
   elevationFt: number | null
+}
+
+/** One charted destination, as the chart's lines need it. */
+export interface CompareDestination extends ComparePoint {
+  /** Its place in the ranking, which is what the label leads with. */
+  rank: number
+  name: string
   /** Its line colour, the one it already wears in the table and on the map. */
   color: string
 }
@@ -204,10 +246,98 @@ export function compareSeries(
         // which is a bare coordinate pair.
         key: `model:${pair}`,
         label: comparedLineLabel(destination.rank, destination.name, model.label),
-        color: colors[pair] ?? destination.color,
+        color: pairColor(colors, model.id, destination.key, destination.color),
         series: cutSeriesAfter(times, held, endMs),
       })
     }
   }
   return lines
+}
+
+/**
+ * One table row, tagged with the model its numbers came from.
+ *
+ * The tag rides beside `DestinationResult` rather than on it, because that
+ * type is the API's response shape and a model is a thing the browser knows
+ * about a row it is displaying. `tableColumns.ts` reads it through a virtual
+ * key, the way the wildfire distance does.
+ */
+export interface ModelRow extends DestinationResult {
+  modelId: string
+  modelLabel: string
+  /**
+   * Where the DESTINATION placed in the ranking, which every one of its model
+   * rows shares.
+   *
+   * The table numbers its rows by position when there is one row per
+   * destination and the two are the same thing. They stop being the same thing
+   * here: eight rows for one place would count off 1 to 8 and read as eight
+   * places. The number is the destination's, so it repeats down its group.
+   */
+  rank: number
+}
+
+/**
+ * Every displayed row under every selected model: the results table's rows
+ * when a comparison is up.
+ *
+ * **Grouped by destination, not by model.** A reader comparing models is
+ * asking "what do they say about THIS place", so the eight answers belong
+ * next to each other; sorting a metric column afterwards interleaves them,
+ * which is the reader's choice rather than the default.
+ *
+ * The ranking model's row is the report's own — it is already in hand, it
+ * already ranked, and re-deriving it from a second fetch could only disagree
+ * with the ranking. Every other row takes the destination's identity from the
+ * report and its weather from that model's own aggregates, which the compare
+ * fetch already computes and used to discard.
+ *
+ * **Air quality is copied, not fetched again.** It comes from one source
+ * whatever model ranks the field, so a compared row carries the same numbers
+ * as the report's, which is the truth rather than a blank.
+ *
+ * A pair with nothing fetched contributes NO row. A model outside its domain
+ * at that spot has no numbers, and a row of zeros there would read as a
+ * forecast of calm; the panel's own warning is what says a model came back
+ * empty. So a destination need not appear once per model — it appears once
+ * per model that answered.
+ */
+export function modelRowsFor(
+  rows: readonly DestinationResult[],
+  models: readonly CompareModel[],
+  rankingId: string,
+  fetched: Readonly<Record<string, WeatherResult>>,
+  keyOf: (row: DestinationResult) => string,
+): ModelRow[] {
+  const out: ModelRow[] = []
+  rows.forEach((row, at) => {
+    const rank = at + 1
+    for (const model of models) {
+      if (model.id === rankingId) {
+        out.push({ ...row, rank, modelId: model.id, modelLabel: model.label })
+        continue
+      }
+      const held = fetched[pairKey(model.id, keyOf(row))]
+      if (!held) continue
+      const { series, ...aggregates } = held
+      out.push({
+        ...row,
+        // The weather aggregates are this model's. Everything the spread above
+        // leaves standing is the destination's own — name, type, coordinates,
+        // elevation — plus the AQI aggregates, which are not in `aggregates`
+        // and must not be: one source answers them whatever model ranks.
+        ...aggregates,
+        // The hourly AQI column rides as nulls on the model's own grid, for
+        // the reason `modelSeriesOnGrid` gives: the numbers exist, but on the
+        // report's grid rather than this one, and re-indexing them here to
+        // carry a value no surface reads would be work in aid of a duplicate.
+        series: series ? { ...series, aqi: series.times.map(() => null) } : null,
+        series_times: series?.times,
+        rank,
+        modelId: model.id,
+        modelLabel: model.label,
+      })
+    }
+  })
+  return out
 }
