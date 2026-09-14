@@ -125,6 +125,18 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `METRIC_BOX_W` | One bound box in the Metrics table: 56px (w-14), the widest the metric row's label budget allows. The results cap spans both box columns instead, so it wears `w-full` off the same shape |
 | `METRIC_HEAD_GAP` | The Metrics table's one deliberate break: 8px (pt-2) above the two box headings, on every cell of that row because the columns are grid tracks. The only vertical space in the grid that `gap-y` does not set |
 
+**Moving a column**
+
+One set of roles for both surfaces that reorder columns, the table header and the Columns picker, so a gesture that means "this moves" looks the same in either.
+
+| Role | Purpose |
+|---|---|
+| `DRAG_GRIP` | The handle itself. `cursor-grab` is the standing signal; `touch-none` is load-bearing, because without it the browser claims the gesture for scrolling and the drag never gets a second pointer event on a phone |
+| `DRAG_GRIP_ACTIVE` | The grip while its own column is the one being carried |
+| `DRAG_TARGET` | The column a drop would land on |
+| `DRAG_GHOST` | The column riding under the pointer. Portalled to the body and positioned in viewport coordinates, so it takes the app's top layer rather than the table's; `pointer-events-none` is load-bearing, or the ghost is what every hit test finds |
+| `DRAG_INSERT` | The bar marking the gap the column will drop into. The accent's fill without its label color, since the bar carries no text |
+
 **Map timeline**
 
 | Role | Purpose |
