@@ -54,10 +54,14 @@ interface Props {
   // do nothing rather than something invisible.
   onPlayheadChange?: (ms: number) => void
   /**
-   * Lines that are not destinations: one model's answer for the destination
-   * already plotted (#232). They arrive ready to draw — aligned to `times`,
-   * coloured, and already clamped — because what a comparison covers is a
-   * decision about spend rather than about drawing.
+   * Lines that are not plain destinations: one per (destination, model) pair
+   * while a comparison is up (#232). They arrive ready to draw — aligned to
+   * `times`, coloured, named and already clamped — because what a comparison
+   * covers is a decision about spend rather than about drawing.
+   *
+   * A comparison supplies the ranking model's lines here too, and `rows` then
+   * arrives empty: every entry has to read alike, so all of them are composed
+   * in one place rather than half here and half there.
    */
   extraLines?: readonly ChartLine[]
   /**
@@ -103,9 +107,9 @@ export default function TimeSeriesChart({
     [rows, times, cutAfterMs],
   )
 
-  // Everything plotted, as lines rather than rows: with one destination on
-  // screen a line can be a model instead of a place (#232), and nothing below
-  // this point has any reason to know which it is drawing.
+  // Everything plotted, as lines rather than rows: under a comparison a line is
+  // a destination AND a model (#232), and nothing below this point has any
+  // reason to know which kind it is drawing.
   //
   // `colorFor` is deliberately not a dependency. It is a fresh closure every
   // render by construction, so including it would rebuild every line on every

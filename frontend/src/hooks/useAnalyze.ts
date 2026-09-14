@@ -85,6 +85,30 @@ export type AnalyzedView = AnalyzedSnapshot & {
   // the panel's keys explicitly instead.
   polygonKey: string
   typesKey: string
+  // The extra models the chart's comparison was bought for (#232). Recorded for
+  // the same reason as `forecastModel`: the panel's ticks can move afterwards,
+  // and a model ticked since is one the browser holds no forecasts for. Ticking
+  // therefore cues a commit and unticking applies at once, which is the same
+  // asymmetry `bandNarrows` draws for the elevation band.
+  compareModels: readonly string[]
+}
+
+/**
+ * What an analysis needs recording about it that its request cannot say.
+ *
+ * An object rather than two more positional arguments: both fields are
+ * optional and both are strings-or-arrays, so a caller that swapped them would
+ * type-check.
+ */
+export interface AnalyzeOptions {
+  /**
+   * The discovery identity this run answers for, when the request cannot say
+   * it: the weather-only refresh re-fetches a polygon report through the custom
+   * path, so its request carries no polygon.
+   */
+  discovery?: { polygonKey: string; typesKey: string }
+  /** The extra models the chart's comparison is buying forecasts for (#232). */
+  compareModels?: readonly string[]
 }
 
 // FastAPI validation errors (422) carry detail as an array of {msg, ...}
@@ -148,12 +172,16 @@ export function useAnalyze(
   const lastRequestRef = useRef<{
     request: AnalyzeRequest
     kind: SelectionKind
-    discovery: { polygonKey: string; typesKey: string }
+    options: AnalyzeOptions
   } | null>(null)
   // The discovery identity of the analysis in flight, for commit() to record.
   // A ref rather than a commit() parameter because commit is reached through
   // the client pipeline, and the identity is fixed the moment analyze() runs.
   const pendingDiscoveryRef = useRef(discoveryKeys(null, [], false))
+  // The comparison the analysis in flight is buying, for commit() to record —
+  // a ref for the same reason as the discovery identity above: it is fixed the
+  // moment analyze() runs, and commit is reached through the client pipeline.
+  const pendingCompareRef = useRef<readonly string[]>([])
   // The forecasts the last browser analysis fetched, kept so the next one only
   // pays for what it does not already have. Widening the elevation band is the
   // case this exists for: it readmits destinations this report never fetched
@@ -184,7 +212,7 @@ export function useAnalyze(
       analyze(
         lastRequestRef.current.request,
         lastRequestRef.current.kind,
-        lastRequestRef.current.discovery,
+        lastRequestRef.current.options,
       )
   }
 
@@ -239,6 +267,7 @@ export function useAnalyze(
       forecastModel: request.forecast_model,
       polygonKey: pendingDiscoveryRef.current.polygonKey,
       typesKey: pendingDiscoveryRef.current.typesKey,
+      compareModels: pendingCompareRef.current,
     })
     // A fresh report, which is not the same event as a fresh row array: live
     // knobs rebuild the rows constantly. Surfaces that reset per report (the
@@ -393,8 +422,9 @@ export function useAnalyze(
   async function analyze(
     request: AnalyzeRequest,
     kind: SelectionKind = 'days',
-    discovery?: { polygonKey: string; typesKey: string },
+    options: AnalyzeOptions = {},
   ) {
+    const { discovery, compareModels = [] } = options
     // The discovery identity this run answers for. Derived off the request
     // unless the caller says otherwise — the weather-only refresh re-fetches
     // a polygon report through the custom path, so its request carries no
@@ -404,7 +434,8 @@ export function useAnalyze(
       discovery ??
       discoveryKeys(request.polygon ?? null, request.destination_types, request.include_unnamed_peaks)
     pendingDiscoveryRef.current = disc
-    lastRequestRef.current = { request, kind, discovery: disc }
+    pendingCompareRef.current = compareModels
+    lastRequestRef.current = { request, kind, options }
 
     const controller = new AbortController()
     abortRef.current = controller

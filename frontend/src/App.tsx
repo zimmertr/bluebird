@@ -14,14 +14,22 @@ import { useAnalyze } from './hooks/useAnalyze'
 import { modelForecastHours, useCapabilities } from './hooks/useCapabilities'
 import { useChartSelection } from './hooks/useChartSelection'
 import { useModelCompare } from './hooks/useModelCompare'
-import { isBlend } from './utils/modelCompare'
+import { compareAdded } from './utils/modelCompare'
 import { useFireProximity } from './hooks/useFireProximity'
 import { fireKey } from './utils/fireProximity'
 import { useForecastGrid } from './hooks/useForecastGrid'
 import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
-import { CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy } from './types'
+import {
+  CustomDestination,
+  DestinationResult,
+  DiscoveryType,
+  GeoPolygon,
+  HourlySeries,
+  SortBy,
+} from './types'
+import { alignRowToGrid, chartKey } from './utils/chartData'
 import {
   ACCENT,
   BUTTON_FLOATING,
@@ -160,6 +168,11 @@ const MAP_BUTTON_W = 'w-32 justify-start'
 // A module constant rather than an inline `new Set()`, which would be a fresh
 // identity on every render and rebuild the pending list underneath the map.
 const NO_CUSTOM: ReadonlySet<string> = new Set()
+
+// What the chart draws for its rows while a model comparison is up: nothing,
+// because the comparison composes every line itself. A module constant so the
+// chart's line memo is not rebuilt by a fresh empty array on every render.
+const NO_CHART_ROWS: DestinationResult[] = []
 
 // Opening heights for the two docked panels, and where a double-click on a
 // resizer puts them back. A drag is easy to overshoot and there was no way
@@ -337,6 +350,13 @@ export default function App() {
     if (!untouchedModelRef.current) return
     setForecastModel(caps.defaultForecastModel)
   }, [caps.defaultForecastModel])
+  // The extra models the chart draws beside the ranking one (#232), in the
+  // order they were ticked. Panel state rather than chart state: the model
+  // picker is where it is chosen, and a comparison is bought by the next
+  // Analyze like every other model decision, never on load.
+  const [comparedModels, setComparedModels] = useState<string[]>(
+    () => restored?.compareModels ?? [],
+  )
   // The last model change trimmed the forecast window to fit the new model's
   // reach. Held rather than derived because a clamp leaves no trace: afterwards
   // the selection simply is inside the band, and nothing distinguishes a window
@@ -359,6 +379,10 @@ export default function App() {
   // the model bounded it, and leaves them to guess by how much to shorten it.
   function changeForecastModel(id: string) {
     untouchedModelRef.current = false
+    // A model is on the chart once, whichever way it got there. The model it
+    // replaces is deliberately not ticked on its way out: the reader asked for
+    // a different ranking, not for a comparison against the old one.
+    setComparedModels((prev) => prev.filter((k) => k !== id))
     const hours = modelForecastHours(caps.forecastModels, id)
     // A remembered pre-clamp window comes back the moment a model can serve
     // it whole (clampSelection returns null for "fits unchanged").
@@ -815,7 +839,14 @@ export default function App() {
   // A model change is a data knob for a stronger reason than the window: the
   // held rows are not missing days, every number in them came from a model the
   // panel no longer names.
-  const modelChanged = analyzed !== null && analyzed.forecastModel !== forecastModel
+  // A newly ticked comparison rides the same reason: it is the model row of the
+  // panel disagreeing with the model behind the rows, and the browser holds no
+  // forecasts for a model it never bought. Unticking one is not a change of this
+  // kind — its line is drawn from numbers already in hand, so it stops at once.
+  const modelChanged =
+    analyzed !== null &&
+    (analyzed.forecastModel !== forecastModel ||
+      compareAdded(analyzed.compareModels, comparedModels))
   const preview = usePreview()
 
   // Elapsed-time counter for phases with no countable progress (the OSM search,
@@ -865,6 +896,7 @@ export default function App() {
       includeUnnamedPeaks,
       selection,
       forecastModel,
+      compareModels: comparedModels,
       sortBy,
       sortDesc,
       rowKeys,
@@ -900,6 +932,7 @@ export default function App() {
     destinationTypes,
     includeUnnamedPeaks,
     selection,
+    comparedModels,
     sortBy,
     sortDesc,
     rowKeys,
@@ -1108,7 +1141,10 @@ export default function App() {
       // echoes, not the custom-shaped request it rides on: derived from the
       // request, the snapshot would say "no ring searched" and the panel's
       // unchanged polygon would falsely cue as new.
-      }, kind, discoveryKeys(resolvedPolygon, destinationTypes, includeUnnamedPeaks))
+      }, kind, {
+        discovery: discoveryKeys(resolvedPolygon, destinationTypes, includeUnnamedPeaks),
+        compareModels: comparedModels,
+      })
     } else if (resolvedPolygon) {
       // Discovery — with the custom list riding along so the backend ranks the
       // polygon ∪ CSV union as one report.
@@ -1124,7 +1160,7 @@ export default function App() {
         sort_desc: sortDesc,
         ...(custom.length > 0 ? { custom_destinations: custom } : {}),
         ...bounds,
-      }, kind)
+      }, kind, { compareModels: comparedModels })
       // Remember these discovery inputs so the next compatible Analyze refreshes.
       discoveryRef.current = { base, searchedKeys }
     } else if (custom.length > 0) {
@@ -1142,7 +1178,7 @@ export default function App() {
         sort_desc: sortDesc,
         custom_destinations: custom,
         ...bounds,
-      }, kind)
+      }, kind, { compareModels: comparedModels })
     }
 
     // Nothing to rank (unreachable through the gate, which requires an input,
@@ -1695,22 +1731,50 @@ export default function App() {
   }, [results, pending])
   const chart = useChartSelection(chartCandidates, view.sortBy)
 
-  // Comparing models at one destination (#232). A drill-down rather than a
-  // knob: it touches nothing the ranking reads, and it exists only while
-  // exactly ONE destination is charted, which is what frees colour to mean
-  // model — there is no second destination left for it to mean. Never on air
-  // quality, which comes from CAMS whatever forecast model ranked the field, so
-  // a comparison there could only draw the same line twice.
-  const soleChartedRow = chart.selectedRows.length === 1 ? chart.selectedRows[0] : null
-  const soleChartedColor = soleChartedRow ? chart.colorFor(soleChartedRow) : ''
+  // Comparing models across the charted destinations (#232). A drill-down rather
+  // than a knob: it touches nothing the ranking reads. Never on air quality,
+  // which comes from CAMS whatever forecast model ranked the field, so a
+  // comparison there could only draw the same line twice.
+  //
+  // The rank comes from `results`, which is the ranking order the markers and
+  // the legend already read — not from `tableRows`, whose numbering follows a
+  // detail-column sort that reorders the rows on screen without changing which
+  // rows they are.
+  const chartedDestinations = useMemo(() => {
+    const rankByKey = new Map(results.map((r, i) => [chartKey(r), i + 1]))
+    return chart.selectedRows
+      .filter((r) => rankByKey.has(chartKey(r)))
+      .map((r) => ({
+        key: chartKey(r),
+        rank: rankByKey.get(chartKey(r)) as number,
+        name: r.name,
+        latitude: r.latitude,
+        longitude: r.longitude,
+        elevationFt: r.elevation_ft,
+      }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chart.selectedRows, results])
+  // The ranking model's own numbers per destination, on the chart's grid: a
+  // pinned row carries its own stamps, so the alignment the chart does for its
+  // rows has to happen here too or a pin would compare against the wrong hours.
+  const chartedSeries = useMemo(() => {
+    const out: Record<string, HourlySeries | null> = {}
+    for (const row of chart.selectedRows) {
+      out[chartKey(row)] = alignRowToGrid(row, chartTimes).series ?? null
+    }
+    return out
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chart.selectedRows, chartTimes])
   const compare = useModelCompare({
-    enabled: soleChartedRow !== null && chart.metric !== 'aqi',
-    row: soleChartedRow,
+    enabled: chart.metric !== 'aqi',
+    destinations: chartedDestinations,
+    heldSeries: chartedSeries,
     analyzed,
     analysisSeq,
     models: caps.forecastModels,
+    picked: comparedModels,
+    fetchable: analyzed?.compareModels ?? [],
     times: chartTimes,
-    baseColor: soleChartedColor,
   })
 
   // A desktop-width window widens to Both when an analysis lands, so the first
@@ -1855,6 +1919,8 @@ export default function App() {
           error={error}
           refusal={refusal}
           forecastModel={forecastModel}
+          comparedModels={comparedModels}
+          setComparedModels={setComparedModels}
           setForecastModel={changeForecastModel}
           forecastModels={caps.forecastModels}
           defaultForecastModel={caps.defaultForecastModel}
@@ -2510,7 +2576,13 @@ export default function App() {
                       <div className="min-h-0 flex-1">
                         <TimeSeriesChart
                           times={chartTimes}
-                          rows={chart.selectedRows}
+                          // While a comparison is up every line on the chart is
+                          // a (destination, model) pair, composed once by the
+                          // hook so each one is named and coloured the same
+                          // way; the chart has no plain destination rows to
+                          // draw. With nothing compared it is the row list it
+                          // has always been.
+                          rows={compare.active ? NO_CHART_ROWS : chart.selectedRows}
                           metric={chart.metric}
                           onMetricChange={chart.setMetric}
                           colorFor={chart.colorFor}
@@ -2521,20 +2593,8 @@ export default function App() {
                           extraLines={compare.lines}
                           cutAfterMs={compare.endMs}
                           controls={
-                            compare.active && analyzed ? (
-                              <ModelCompare
-                                baseLabel={
-                                  caps.forecastModels.find(
-                                    (m) => m.id === analyzed.forecastModel,
-                                  )?.label ?? analyzed.forecastModel
-                                }
-                                baseBlend={isBlend(caps.forecastModels, analyzed.forecastModel)}
-                                baseColor={soleChartedColor}
-                                compared={compare.compared}
-                                addable={compare.addable}
-                                onAdd={compare.add}
-                                onRemove={compare.remove}
-                              />
+                            compare.active ? (
+                              <ModelCompare compared={compare.compared} />
                             ) : undefined
                           }
                         />

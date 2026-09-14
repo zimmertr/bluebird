@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 // `?raw` gives us each file's text without executing it, which is how a
 // component is linted under a Vitest that has no DOM (the trick styles.test.ts
 // and metrics.test.ts use).
+import modelCompareSource from './components/ModelCompare.tsx?raw'
 import modelPickerSource from './components/ModelPicker.tsx?raw'
 import resultsTableSource from './components/ResultsTable.tsx?raw'
 
@@ -43,5 +44,39 @@ describe('a listbox option id', () => {
 
   it('reads the file it claims to lint', () => {
     expect(modelPickerSource).toContain('aria-activedescendant')
+  })
+})
+
+describe('the model list’s two decisions', () => {
+  // One list picks the ranking model AND selects the models the chart compares
+  // (#232), so more than one row can be `aria-selected` at a time. Without this
+  // the second and later ticks are a state a screen reader is told nothing
+  // about, since the visible boxes are drawn rather than announced.
+  it('says it is multi-selectable', () => {
+    expect(modelPickerSource).toContain('aria-multiselectable')
+  })
+
+  // The boxes carry no semantics of their own for exactly that reason: a
+  // focusable input inside a `role="option"` would be a second tab stop in a
+  // list whose whole keyboard model is one element plus
+  // `aria-activedescendant`.
+  it('keeps the drawn checkboxes out of the accessibility tree', () => {
+    const boxes = modelPickerSource.match(/<input\s[^>]*type="checkbox"[^>]*>/gs) ?? []
+    expect(boxes.length).toBeGreaterThan(0)
+    for (const box of boxes) {
+      expect(box).toContain('aria-hidden="true"')
+      expect(box).toContain('tabIndex={-1}')
+    }
+  })
+})
+
+describe('the chart’s comparison key', () => {
+  // The #232 review moved every comparison control into the panel's model
+  // picker: the chart is a read-only key, so nothing on it spends or changes
+  // state. A control here would be a second place to do the same thing, and the
+  // one a reader meets while looking at results rather than choosing inputs.
+  it('carries no control of any kind', () => {
+    expect(modelCompareSource).not.toContain('<select')
+    expect(modelCompareSource).not.toContain('<button')
   })
 })
