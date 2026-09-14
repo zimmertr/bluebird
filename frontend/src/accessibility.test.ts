@@ -84,6 +84,17 @@ describe('the model picker’s two parts', () => {
     expect(modelPickerSource).toContain('aria-label={`Remove ${label}`}')
   })
 
+  // The slot is drawn on every chip and hidden with `invisible` rather than
+  // dropped, so moving the highlight cannot resize a chip and shuffle the row
+  // under the pointer that moved it. A conditional render here is the bug.
+  it('keeps the remove slot on the chip that ranks', () => {
+    const at = modelPickerSource.indexOf('CHIP.remove')
+    expect(at).toBeGreaterThan(0)
+    const open = modelPickerSource.lastIndexOf('<button', at)
+    expect(modelPickerSource.slice(open - 120, open)).not.toContain('&&')
+    expect(modelPickerSource).toContain('invisible')
+  })
+
   // Two parts, two gestures, and no third one. An action below the list would
   // be a control that is neither a row nor a chip, in a popover whose whole
   // design is that the list selects and the chips rank.

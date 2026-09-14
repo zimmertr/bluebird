@@ -4,6 +4,7 @@ import { PopoverBox, nextActiveIndex, nextToolbarIndex, optionDomId, popoverBox 
 import {
   canRemove,
   chipFocusAfterRemoval,
+  chipRemovable,
   rankWith,
   selectedIds,
   toggleSelected,
@@ -405,6 +406,7 @@ export default function ModelPicker({
                 const id = chipIds[at]
                 const label = model?.label ?? id
                 const isRanking = id === value
+                const canDrop = chipRemovable(value, compared, id)
                 return (
                   <span key={id} className={isRanking ? CHIP.active : CHIP.rest}>
                     <button
@@ -420,36 +422,44 @@ export default function ModelPicker({
                     >
                       {label}
                     </button>
-                    {!isRanking && removable && (
-                      <button
-                        type="button"
-                        // Out of the Tab order rather than out of the
-                        // accessibility tree: the chip row's own Delete does
-                        // this, so a second stop per chip would double the
-                        // presses a keyboard pays to cross the row, while a
-                        // screen reader still reaches and names the button.
-                        tabIndex={-1}
-                        aria-label={`Remove ${label}`}
-                        onClick={() => removeChip(id, at)}
-                        className={CHIP.remove}
+                    {/* Always drawn, and hidden with `invisible` rather than
+                        dropped, so the slot keeps its width: a chip that lost
+                        this box when the highlight reached it would resize
+                        two chips per tap and shuffle the row under the
+                        pointer that did it.
+
+                        Out of the Tab order rather than out of the
+                        accessibility tree while it can act: the chip row's own
+                        Delete does this, so a second stop per chip would double
+                        the presses a keyboard pays to cross the row, while a
+                        screen reader still reaches and names the button. While
+                        it cannot act it leaves the tree altogether, since a
+                        slot held open for alignment is not a control. */}
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      disabled={!canDrop}
+                      aria-hidden={canDrop ? undefined : 'true'}
+                      aria-label={`Remove ${label}`}
+                      onClick={() => removeChip(id, at)}
+                      className={`${CHIP.remove} ${canDrop ? '' : 'invisible'}`}
+                    >
+                      {/* A drawn cross rather than the "×" character, which
+                          centres on the font's maths where two lines in a
+                          square viewBox centre by construction. */}
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        className="h-2.5 w-2.5"
+                        aria-hidden="true"
                       >
-                        {/* A drawn cross rather than the "×" character, which
-                            centres on the font's maths where two lines in a
-                            square viewBox centre by construction. */}
-                        <svg
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          className="h-2.5 w-2.5"
-                          aria-hidden="true"
-                        >
-                          <line x1="6" y1="6" x2="18" y2="18" />
-                          <line x1="18" y1="6" x2="6" y2="18" />
-                        </svg>
-                      </button>
-                    )}
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                      </svg>
+                    </button>
                   </span>
                 )
               })}

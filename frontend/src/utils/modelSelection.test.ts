@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   canRemove,
   chipFocusAfterRemoval,
+  chipRemovable,
   orderCompared,
   rankWith,
   selectedIds,
@@ -100,6 +101,24 @@ describe('ticking a row', () => {
     expect(canRemove('gfs_seamless', ['gfs_hrrr'])).toBe(true)
     // A compared list that echoes the ranking model is still one model.
     expect(canRemove('gfs_seamless', ['gfs_seamless'])).toBe(false)
+  })
+})
+
+describe('a chip’s remove slot', () => {
+  // The slot is drawn on every chip so the row never resizes; this is what
+  // says which of them is a control rather than a held width.
+  it('acts on a compared chip', () => {
+    expect(chipRemovable('gfs_seamless', ['gfs_hrrr'], 'gfs_hrrr')).toBe(true)
+  })
+
+  // The highlight has to land somewhere, so the model in force leaves by its
+  // row rather than by a button that decides where the ranking goes silently.
+  it('never acts on the chip that ranks', () => {
+    expect(chipRemovable('gfs_seamless', ['gfs_hrrr'], 'gfs_seamless')).toBe(false)
+  })
+
+  it('never acts on the only chip', () => {
+    expect(chipRemovable('gfs_seamless', [], 'gfs_seamless')).toBe(false)
   })
 })
 

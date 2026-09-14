@@ -77,6 +77,24 @@ export function canRemove(ranking: string, compared: readonly string[]): boolean
 }
 
 /**
+ * May THIS chip's × act?
+ *
+ * Not on the ranking chip: the highlight has to land somewhere, so the model
+ * in force leaves by its row rather than by a button that would have to decide
+ * where the ranking goes without saying so. Not on the only chip either, for
+ * the reason above. The slot stays drawn in both cases — an × that came and
+ * went would resize two chips every time the highlight moved — so this is what
+ * separates a held slot from a control.
+ */
+export function chipRemovable(
+  ranking: string,
+  compared: readonly string[],
+  id: string,
+): boolean {
+  return id !== ranking && canRemove(ranking, compared)
+}
+
+/**
  * Tick or untick one row, which is also what a chip's × does.
  *
  * Unticking the ranking model is the one case that moves the ranking: it passes
