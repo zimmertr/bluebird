@@ -643,6 +643,37 @@ export const DRAG_GRIP_ACTIVE = 'text-slate-200'
 export const DRAG_TARGET = 'bg-slate-700/60'
 
 /**
+ * The column being carried, drawn under the pointer.
+ *
+ * Translucent and tilted a degree, which is the standing vocabulary for
+ * "picked up" — the same two signals a dragged card wears everywhere. It is
+ * portalled to the body and positioned in viewport coordinates, so it needs
+ * the app's top layer rather than the table's.
+ *
+ * `pointer-events-none` is load-bearing: the ghost follows the pointer, so
+ * without it the ghost is what every hit test finds and the drag can never see
+ * the column underneath.
+ */
+export const DRAG_GHOST =
+  `${TEXT.control} pointer-events-none fixed -rotate-1 opacity-80 ` +
+  `${SURFACE_CARD} px-2 py-1 whitespace-nowrap shadow-xl`
+
+/**
+ * Where the carried column will land: a line in the gap, not a fill on a
+ * column.
+ *
+ * A fill cannot say which SIDE of the column underneath the carried one ends
+ * up on, which is the whole question a drop answers. The accent because this
+ * is the app's one "here" mark; the bar's own thickness is the call site's,
+ * since the two surfaces draw it on different axes.
+ *
+ * The accent's FILL without its label color: `ACCENT.fill` pairs the two
+ * deliberately and this bar carries no label, so taking the pair would hand a
+ * text color to something with no text.
+ */
+export const DRAG_INSERT = `pointer-events-none fixed bg-sky-650 ${RADIUS.pill}`
+
+/**
  * A glyph drawn inside a field rather than beside it: the `SELECT` arrow.
  *
  * `pointer-events-none` is the load-bearing part — the arrow overlays the

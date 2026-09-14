@@ -93,3 +93,64 @@ export function dragBegins(
 export function travel(dx: number, dy: number): number {
   return Math.hypot(dx, dy)
 }
+
+/**
+ * Where the column would land, as an edge rather than as a column.
+ *
+ * A drop needs two pictures, and they are not the same picture: the ghost says
+ * WHAT is being carried, and this says WHERE it will go. A highlight on the
+ * column underneath cannot say the second — dropping "on" a column is
+ * ambiguous about which side of it the carried column ends up — which is why
+ * every application that does this well draws a line in the gap instead.
+ *
+ * `after` is read off the direction of travel: a column dragged right lands
+ * after the column it is over, and one dragged left lands before it. That is
+ * what makes the line appear on the side the reader is moving toward, and it
+ * is also exactly what `moveColumn` does when it puts the column at the
+ * target's index.
+ *
+ * Over its own column the answer is its own leading edge, so the line sits
+ * still at the place the column came from rather than flicking to one side.
+ */
+export interface DropEdge {
+  key: string
+  after: boolean
+}
+
+export function dropEdge(
+  spans: readonly ColumnSpan[],
+  fromKey: string,
+  pos: number,
+): DropEdge | null {
+  const over = keyAtPosition(spans, pos)
+  if (over === null) return null
+  if (over === fromKey) return { key: fromKey, after: false }
+  const from = spans.findIndex((s) => s.key === fromKey)
+  const to = spans.findIndex((s) => s.key === over)
+  if (from === -1 || to === -1) return { key: over, after: false }
+  return { key: over, after: to > from }
+}
+
+/** How far the ghost sits from the pointer, and the widest it is allowed to be. */
+export const GHOST_GAP_PX = 12
+export const GHOST_MAX_PX = 200
+
+/**
+ * Where the ghost goes, given where the pointer is.
+ *
+ * Beside the pointer rather than under it, so the pointer can still be seen
+ * against the line it is choosing; on whichever side has room, because the
+ * grips that start a drag sit at the right edge of the Columns picker, which
+ * itself sits at the right edge of the window — put the ghost to the right
+ * there and it is a label half off the screen.
+ *
+ * Takes the viewport width rather than reading `window`, for the reason
+ * everything in this file does: Vitest has no window, and a placement that
+ * cannot be tested is one that comes back wrong on the edge case it was
+ * written for.
+ */
+export function ghostLeft(pointerX: number, viewportWidth: number): number {
+  const right = pointerX + GHOST_GAP_PX
+  if (right + GHOST_MAX_PX <= viewportWidth) return right
+  return Math.max(4, pointerX - GHOST_GAP_PX - GHOST_MAX_PX)
+}

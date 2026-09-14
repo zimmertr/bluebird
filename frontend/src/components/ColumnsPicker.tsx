@@ -7,14 +7,23 @@ import { popoverBox, PopoverBox } from '../utils/listbox'
 import {
   CHOICE_INPUT,
   CHOICE_ROW,
+  DRAG_GHOST,
   DRAG_GRIP,
   DRAG_GRIP_ACTIVE,
-  DRAG_TARGET,
+  DRAG_INSERT,
   LAYER,
   TEXT,
   SURFACE_CARD,
 } from '../styles'
-import { dragBegins, keyAtPosition, travel, type ColumnSpan } from '../utils/columnDrag'
+import {
+  GHOST_MAX_PX,
+  dragBegins,
+  dropEdge,
+  ghostLeft,
+  keyAtPosition,
+  travel,
+  type ColumnSpan,
+} from '../utils/columnDrag'
 
 interface Props {
   open: boolean
@@ -49,10 +58,19 @@ export default function ColumnsPicker({
   // The row elements, so a drag can ask which one the pointer is over. A ref
   // rather than state: it is read during a pointer move and never rendered.
   const rowsRef = useRef(new Map<string, HTMLElement>())
-  // The column being dragged, and the one it would land on. Both are rendered,
-  // so both are state.
-  const [dragging, setDragging] = useState<string | null>(null)
-  const [target, setTarget] = useState<string | null>(null)
+  // What a drag is carrying and where it would put it, drawn as a ghost under
+  // the pointer and a line in the gap. The move itself lands on release, the
+  // same as the table's: reordering on every frame moves the list under the
+  // reader's hand while they are still choosing.
+  const [carry, setCarry] = useState<{
+    key: string
+    label: string
+    x: number
+    y: number
+  } | null>(null)
+  const [insert, setInsert] = useState<{ y: number; left: number; width: number } | null>(
+    null,
+  )
 
   // A press on a grip. It is not a drag until it has travelled far enough (a
   // mouse) or been held long enough (a finger) — `columnDrag.ts` owns which
@@ -66,6 +84,8 @@ export default function ColumnsPicker({
     const startedAt = performance.now()
     const startX = e.clientX
     const startY = e.clientY
+    const label = columns.find((c) => c.key === key)?.label ?? key
+    let landing: string | null = null
     let live = false
 
     const spans = (): ColumnSpan[] =>
@@ -79,19 +99,30 @@ export default function ColumnsPicker({
         const far = travel(ev.clientX - startX, ev.clientY - startY)
         if (!dragBegins(ev.pointerType, far, performance.now() - startedAt)) return
         live = true
-        setDragging(key)
       }
-      const over = keyAtPosition(spans(), ev.clientY)
-      setTarget(over)
-      if (over && over !== key) onColumnMove(key, over)
+      const here = spans()
+      landing = keyAtPosition(here, ev.clientY)
+      setCarry({ key, label, x: ev.clientX, y: ev.clientY })
+
+      const edge = dropEdge(here, key, ev.clientY)
+      const row = edge && rowsRef.current.get(edge.key)
+      if (row) {
+        const rect = row.getBoundingClientRect()
+        setInsert({
+          y: edge.after ? rect.bottom : rect.top,
+          left: rect.left,
+          width: rect.width,
+        })
+      }
     }
 
     const end = () => {
       grip.removeEventListener('pointermove', move)
       grip.removeEventListener('pointerup', end)
       grip.removeEventListener('pointercancel', end)
-      setDragging(null)
-      setTarget(null)
+      if (live && landing && landing !== key) onColumnMove(key, landing)
+      setCarry(null)
+      setInsert(null)
     }
 
     grip.addEventListener('pointermove', move)
@@ -195,7 +226,7 @@ export default function ColumnsPicker({
           const isRanked = rankedGroup.has(col.key)
           const isVisible = visibleKeys.has(col.key)
 
-          const isTarget = target === col.key && dragging !== col.key
+          const isCarried = carry?.key === col.key
 
           return (
             <label
@@ -204,7 +235,7 @@ export default function ColumnsPicker({
                 if (el) rowsRef.current.set(col.key, el)
                 else rowsRef.current.delete(col.key)
               }}
-              className={`${CHOICE_ROW} px-1 ${isTarget ? DRAG_TARGET : ''}`}
+              className={`${CHOICE_ROW} px-1 ${isCarried ? 'opacity-40' : ''}`}
             >
               <input
                 type="checkbox"
@@ -243,7 +274,7 @@ export default function ColumnsPicker({
                     }
                   }}
                   aria-label={`Move the ${col.label} column. Use the arrow keys.`}
-                  className={`${DRAG_GRIP} ${dragging === col.key ? DRAG_GRIP_ACTIVE : ''} px-1`}
+                  className={`${DRAG_GRIP} ${isCarried ? DRAG_GRIP_ACTIVE : ''} px-1`}
                 >
                   <GripIcon />
                 </button>
@@ -253,6 +284,26 @@ export default function ColumnsPicker({
         })}
       </div>
 
+      {carry && (
+        <>
+          <div
+            className={`${DRAG_GHOST} ${LAYER.popover}`}
+            style={{
+              left: ghostLeft(carry.x, window.innerWidth),
+              top: carry.y - 10,
+              maxWidth: GHOST_MAX_PX,
+            }}
+          >
+            {carry.label}
+          </div>
+          {insert && (
+            <div
+              className={`${DRAG_INSERT} ${LAYER.popover}`}
+              style={{ left: insert.left, top: insert.y - 1, width: insert.width, height: 2 }}
+            />
+          )}
+        </>
+      )}
     </div>,
     document.body,
   )

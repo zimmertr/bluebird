@@ -14,7 +14,15 @@ import {
 } from '../utils/tableColumns'
 import type { ModelRow } from '../utils/modelCompare'
 import { autoFitWidth, dragWidth } from '../utils/columnResize'
-import { dragBegins, keyAtPosition, travel, type ColumnSpan } from '../utils/columnDrag'
+import {
+  GHOST_MAX_PX,
+  dragBegins,
+  dropEdge,
+  ghostLeft,
+  keyAtPosition,
+  travel,
+  type ColumnSpan,
+} from '../utils/columnDrag'
 import {
   FIRE_UNAVAILABLE_NOTE,
   FIRE_UNCOVERED_NOTE,
@@ -33,13 +41,16 @@ import { pinKey } from '../utils/customList'
 import {
   ACCENT,
   CHOICE_INPUT,
+  DRAG_GHOST,
   DRAG_GRIP_ACTIVE,
-  DRAG_TARGET,
+  DRAG_INSERT,
+  LAYER,
   ICON_ACTION,
   LINK_ACTION,
   TABLE,
   TEXT,
 } from '../styles'
+import { createPortal } from 'react-dom'
 
 function windyUrl(lat: number, lon: number, layer: string): string {
   return `https://www.windy.com/?${layer},${lat.toFixed(4)},${lon.toFixed(4)},11`
@@ -276,9 +287,22 @@ export default function ResultsTable({
     document.addEventListener('pointercancel', onUp)
   }
 
-  // The column being dragged along the header, and the one it would land on.
-  const [draggingCol, setDraggingCol] = useState<string | null>(null)
-  const [dropCol, setDropCol] = useState<string | null>(null)
+  // What a drag is carrying and where it would put it. Both are drawn — the
+  // ghost under the pointer and the line in the gap — so both are state.
+  //
+  // The move is made on release rather than on every frame. Reordering live
+  // means the columns shuffle under the reader's hand while they are still
+  // choosing, which on a wide table is a lot of movement to read; the ghost and
+  // the line say the same thing without moving anything until it is decided.
+  const [carry, setCarry] = useState<{
+    key: string
+    label: ReactNode
+    x: number
+    y: number
+  } | null>(null)
+  const [insert, setInsert] = useState<{ x: number; top: number; height: number } | null>(
+    null,
+  )
   // Set while a drag is ending, and read by the click that may follow it: a
   // pointerup on the cell the press began in still fires a click, and without
   // this a reorder would sort the table as well as move the column.
@@ -307,26 +331,38 @@ export default function ResultsTable({
         return { key: (cell as HTMLElement).dataset.col as string, start: rect.left, end: rect.right }
       })
 
+    const label = orderedColumns.find((c) => c.key === key)?.label ?? key
+    let landing: string | null = null
+
     const move = (ev: PointerEvent) => {
       if (!live) {
         const far = travel(ev.clientX - startX, ev.clientY - startY)
         if (!dragBegins(ev.pointerType, far, performance.now() - startedAt)) return
         live = true
         draggedRef.current = true
-        setDraggingCol(key)
       }
-      const over = keyAtPosition(spans(), ev.clientX)
-      setDropCol(over)
-      if (over && over !== key) onColumnMove(key, over)
+      const here = spans()
+      landing = keyAtPosition(here, ev.clientX)
+      setCarry({ key, label, x: ev.clientX, y: ev.clientY })
+
+      const edge = dropEdge(here, key, ev.clientX)
+      const cell = edge && th.parentElement?.querySelector(`th[data-col="${edge.key}"]`)
+      if (cell) {
+        const rect = (cell as HTMLElement).getBoundingClientRect()
+        setInsert({ x: edge.after ? rect.right : rect.left, top: rect.top, height: rect.height })
+      }
     }
 
     const end = () => {
       document.removeEventListener('pointermove', move)
       document.removeEventListener('pointerup', end)
       document.removeEventListener('pointercancel', end)
-      if (live) window.setTimeout(() => (draggedRef.current = false), 0)
-      setDraggingCol(null)
-      setDropCol(null)
+      if (live) {
+        window.setTimeout(() => (draggedRef.current = false), 0)
+        if (landing && landing !== key) onColumnMove(key, landing)
+      }
+      setCarry(null)
+      setInsert(null)
     }
 
     // On document rather than on the header, which is what `beginColumnResize`
@@ -638,9 +674,7 @@ export default function ResultsTable({
                 }}
                 className={`${TABLE.head} relative cursor-pointer whitespace-nowrap hover:text-white select-none ${
                   onColumnMove ? 'touch-none' : ''
-                } ${dropCol === col.key && draggingCol !== col.key ? DRAG_TARGET : ''} ${
-                  draggingCol === col.key ? DRAG_GRIP_ACTIVE : ''
-                }`}
+                } ${carry?.key === col.key ? `opacity-40 ${DRAG_GRIP_ACTIVE}` : ''}`}
               >
                 {sized(col.key as string, col.label, 'inline')}
                 {detailSortKey === col.key && (
@@ -772,6 +806,36 @@ export default function ResultsTable({
           )}
         </tbody>
       </table>
+      {/* Both drawn into the body rather than into the table: they are placed
+          in viewport coordinates, and the table is inside a scroll container
+          that would otherwise clip them and offset their maths. */}
+      {carry &&
+        createPortal(
+          <>
+            <div
+              className={`${DRAG_GHOST} ${LAYER.popover}`}
+              style={{
+                left: ghostLeft(carry.x, window.innerWidth),
+                top: carry.y - 10,
+                maxWidth: GHOST_MAX_PX,
+              }}
+            >
+              {carry.label}
+            </div>
+            {insert && (
+              <div
+                className={`${DRAG_INSERT} ${LAYER.popover}`}
+                style={{
+                  left: insert.x - 1,
+                  top: insert.top,
+                  width: 2,
+                  height: insert.height,
+                }}
+              />
+            )}
+          </>,
+          document.body,
+        )}
     </div>
   )
 }
