@@ -6,7 +6,7 @@ import { normalizeWindow } from '../utils/forecastWindow'
 import {
   CompareDestination,
   CompareModel,
-  compareColors,
+  compareDashes,
   compareEndMs,
   compareSeries,
   modelSeriesOnGrid,
@@ -54,7 +54,8 @@ export interface ComparedModel {
   label: string
   /** A `*_seamless` product, which changes model partway along its own line. */
   blend: boolean
-  color: string
+  /** The line style its lines draw in; empty is solid. See `CHART_DASHES`. */
+  dash: string
   status: CompareStatus
   /** Why nothing is drawn, when there is something to say. */
   note: string | null
@@ -261,11 +262,12 @@ export function useModelCompare({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, analysisSeq, drawnKey, destinationsKey, window_])
 
-  // Colour means model while a comparison is up, ranking model first — see
-  // `compareColors`. Off the panel order, so a model keeps its colour as others
-  // are ticked on and off around it.
-  const colors = useMemo(
-    () => compareColors(rankingModel ? [rankingModel, ...drawnIds] : drawnIds),
+  // The model is the LINE STYLE, ranking model first and therefore solid — see
+  // `compareDashes`. Colour stays the destination's, which is the hue it
+  // already wears in the table and on the map, so the two facts a compared
+  // chart carries never share a channel.
+  const dashes = useMemo(
+    () => compareDashes(rankingModel ? [rankingModel, ...drawnIds] : drawnIds),
     [drawnIds, rankingModel],
   )
 
@@ -280,7 +282,7 @@ export function useModelCompare({
         id,
         label: model?.label ?? id,
         blend: model?.blend === true,
-        color: colors[id],
+        dash: dashes[id],
         status,
         note,
       }
@@ -293,7 +295,7 @@ export function useModelCompare({
         return chip(id, waiting ? 'loading' : drew ? 'ready' : 'absent', fetched.notes[id] ?? null)
       }),
     ]
-  }, [active, colors, destinations, drawnIds, fetched, models, rankingModel])
+  }, [active, dashes, destinations, drawnIds, fetched, models, rankingModel])
 
   /**
    * Where every line on the chart stops — the ranking model's lines included,
@@ -333,7 +335,7 @@ export function useModelCompare({
     const onChart: CompareModel[] = compared.map((m) => ({
       id: m.id,
       label: m.label,
-      color: m.color,
+      dash: m.dash,
     }))
     return compareSeries(destinations, onChart, series, times, endMs)
   }, [
