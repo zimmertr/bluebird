@@ -16,7 +16,7 @@
 // It also owns which Open-Meteo endpoint a window belongs to (`windowSource`,
 // issue #123), because that is the same question one level down: a window the
 // forecast endpoint has no data for is the archive's, and one that crosses
-// between them is nobody's.
+// between them belongs to both, fetched from each and joined at the seam.
 
 const HOUR_MS = 3_600_000
 const MINUTE_MS = 60_000
@@ -40,28 +40,37 @@ export const PAST_DATA_DAYS = 55
 // The boundary is an instant and a calendar day is not: west of Greenwich a
 // local day's last minute lands on the next UTC date, so a day the calendar
 // draws can straddle the boundary by up to 14 hours. Without the tolerance that
-// one day could not be analyzed in a single request — refused as spanning
-// although it is one day — which is the "offers a day it cannot answer" defect
-// #230 closed. Mirror of `ARCHIVE_STRADDLE_DAYS` in `backend/app/models.py`.
+// one day would be split across two datasets and joined at a seam 14 hours into
+// it, although the forecast endpoint holds the whole of it. Mirror of
+// `ARCHIVE_STRADDLE_DAYS` in `backend/app/models.py`.
 export const ARCHIVE_STRADDLE_DAYS = 1
 
-/** Which endpoint answers a window, or that neither can. */
+/** Which endpoint answers a window: one of them, or both across a seam. */
 export type WindowSource = 'forecast' | 'archive' | 'spanning'
 
-// Mirror of `SPANNING_WINDOW_MESSAGE` in `backend/app/models.py`, so a window
-// the panel blocks and a window the API refuses read the same sentence.
-export const SPANNING_WINDOW_MESSAGE = 'A window cannot cross the archive boundary.'
+/**
+ * The instant the archive's hours end and the forecast endpoint's begin.
+ *
+ * `now - PAST_DATA_DAYS`, floored to the UTC day, because every fetch sends UTC
+ * hour stamps. One definition for three readers: `windowSource` classifies a
+ * window against it, `fetchWeather` splits a spanning window at it, and the
+ * panel names the two days it falls between. A second spelling could put the
+ * seam an hour from where the classification believed it was.
+ *
+ * Mirror of `archive_boundary` in `backend/app/models.py`.
+ */
+export function archiveBoundaryMs(nowMs: number = Date.now()): number {
+  return Math.floor((nowMs - PAST_DATA_DAYS * DAY_MS) / DAY_MS) * DAY_MS
+}
 
 /**
- * Which Open-Meteo endpoint can answer this window, or neither.
+ * Which Open-Meteo endpoint answers this window, or that both do.
  *
- * One boundary, defined once: `now - PAST_DATA_DAYS`, floored to the UTC day,
- * because every fetch sends UTC hour stamps. A window entirely older than it is
- * the archive's; one starting at it — within a local day, see
+ * One boundary, defined once by `archiveBoundaryMs` above. A window entirely
+ * older than it is the archive's; one starting at it — within a local day, see
  * ARCHIVE_STRADDLE_DAYS — is the forecast endpoint's; one that starts before it
- * and ends after it is neither, and is refused rather than stitched, because the
- * two endpoints answer from different datasets and a ranking across the seam
- * would compare hours of one against hours of the other.
+ * and ends after it is both endpoints', fetched twice and joined at the seam
+ * before the aggregation sees it.
  *
  * The archive test comes first so the one-day overlap the straddle tolerance
  * opens resolves to the archive, which holds every hour in it rather than
@@ -75,8 +84,7 @@ export function windowSource(
   endMs: number,
   nowMs: number = Date.now(),
 ): WindowSource {
-  const boundary =
-    Math.floor((nowMs - PAST_DATA_DAYS * DAY_MS) / DAY_MS) * DAY_MS
+  const boundary = archiveBoundaryMs(nowMs)
   if (endMs < boundary) return 'archive'
   if (startMs >= boundary - ARCHIVE_STRADDLE_DAYS * DAY_MS) return 'forecast'
   return 'spanning'
@@ -169,14 +177,6 @@ export function resolveWindow(
       'end_datetime is beyond the ~16-day forecast horizon of the weather API. ' +
         'Move the window end closer to today.',
     )
-  }
-  // The client twin of the routes' own refusal, so a spanning window never
-  // reaches a fetch: the browser path would otherwise have to pick one of the
-  // two endpoints and answer half the window with nulls. Last, like the route's
-  // own check: the two horizons above are about a window no endpoint accepts,
-  // and this is about one that two of them would each half-answer.
-  if (windowSource(startMs, endMs, nowMs) === 'spanning') {
-    throw new Error(SPANNING_WINDOW_MESSAGE)
   }
   return { startMs, endMs }
 }

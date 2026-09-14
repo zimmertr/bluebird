@@ -8,6 +8,7 @@ import {
   ICON_ADORNMENT,
   LAYER,
   SELECT,
+  SR_ONLY,
   SURFACE_CARD,
   TEXT,
 } from '../styles'
@@ -21,6 +22,14 @@ const VIEWPORT_MARGIN_PX = 8
 
 // Namespaces this listbox's option ids inside the document.
 const LIST_ID = 'model'
+
+// Why the control is faded, for the one window it does not apply to. A disabled
+// control says that it cannot be used and never why, and "the model does not
+// apply to these hours" is not a thing the panel can be read off. Mounted twice
+// — as the trigger's `title` and as the hidden text `aria-describedby` names —
+// because a tooltip does not exist on touch or to a screen reader.
+const DISABLED_NOTE = 'Forecast models are not available for archival data.'
+const DISABLED_NOTE_ID = 'model-archive-note'
 
 interface Props {
   models: readonly ForecastModelOption[]
@@ -193,6 +202,8 @@ export default function ModelPicker({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`Forecast model: ${selected?.label ?? value}`}
+        title={disabled ? DISABLED_NOTE : undefined}
+        aria-describedby={disabled ? DISABLED_NOTE_ID : undefined}
         disabled={disabled}
         onClick={() => (open ? close(true) : openList())}
         onKeyDown={(e) => {
@@ -205,6 +216,11 @@ export default function ModelPicker({
       >
         {selected?.label ?? value}
       </button>
+      {disabled && (
+        <span id={DISABLED_NOTE_ID} className={SR_ONLY}>
+          {DISABLED_NOTE}
+        </span>
+      )}
       <svg
         className={`${ICON_ADORNMENT} h-4 w-4`}
         viewBox="0 0 20 20"

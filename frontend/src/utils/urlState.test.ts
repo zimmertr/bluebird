@@ -713,17 +713,17 @@ describe('classifyWindow', () => {
   })
 
   // The archive (#123). Both of these windows sit inside the band the calendar
-  // draws, which is what makes the spanning case worth a status of its own: the
-  // grid cannot stop a reader picking a pair of days that crosses the boundary.
+  // draws, and neither is a warning: the archive answers the first, and both
+  // endpoints answer the second, split at the boundary.
   it('is ok for a window wholly inside the archive range', () => {
     expect(classifyWindow(shift(-200), shift(-199), now, LONG)).toBe('ok')
   })
 
-  it('is spanning for a window that crosses the archive boundary', () => {
-    expect(classifyWindow(shift(-70), shift(-40), now, LONG)).toBe('spanning')
+  it('is ok for a window that crosses the archive boundary', () => {
+    expect(classifyWindow(shift(-70), shift(-40), now, LONG)).toBe('ok')
   })
 
-  it('prefers a horizon warning over the boundary, which is inside the band', () => {
+  it('still flags a window reaching past the archive itself', () => {
     expect(classifyWindow(shift(-(ARCHIVE_DAYS + 5)), shift(-40), now, LONG)).toBe('past')
   })
 

@@ -65,10 +65,11 @@ import { DEFAULT_LIMIT, classifyAqiCoverage, clampLimit } from '../utils/urlStat
 import {
   AQI_LIMIT_DAYS,
   ForecastSelection,
+  archiveSeamPhrase,
   hasDates,
   selectionLocalWindow,
 } from '../utils/calendar'
-import { SPANNING_WINDOW_MESSAGE, windowSource } from '../utils/forecastWindow'
+import { windowSource } from '../utils/forecastWindow'
 import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabilities'
 
 // The app's core question: "top N peaks by <metric's aggregate>, lowest or
@@ -227,10 +228,10 @@ interface Props {
   modelClamped: boolean
   // The selection is unservable, or its narrowed hours run backwards. A horizon
   // case only arrives through a shared link: the calendar draws those days
-  // disabled. 'spanning' is the one a pickable pair of days can still produce
-  // (#123): both ends are inside the band and only the span between them is
-  // unanswerable.
-  windowWarning: 'past' | 'future' | 'order' | 'spanning' | null
+  // disabled. A window crossing the archive boundary is NOT one of these since
+  // #123 — both endpoints answer it, and the seam notice below the button names
+  // where the join falls.
+  windowWarning: 'past' | 'future' | 'order' | null
   // Why a knob has stopped applying live, or null while they all do. Sort,
   // limit and elevation-narrowing normally re-present the held field with no
   // Analyze at all (#188), so this cue is the exception rather than the rule
@@ -474,17 +475,21 @@ export default function ControlPanel({
     selection.kind === 'now' || window === null
       ? 'full'
       : classifyAqiCoverage(window.start, window.end, new Date())
-  // A window the archive endpoint answers (#123), which names no model: its
-  // default is a reanalysis, one dataset everywhere, and the picker's models are
-  // forecast models that do not run over the past. So the picker does not apply
-  // and is disabled rather than left looking like an input to a fetch that
-  // ignores it.
-  const archiveWindow =
-    window !== null &&
-    windowSource(
-      new Date(window.start).getTime(),
-      new Date(window.end).getTime(),
-    ) === 'archive'
+  // Which endpoint answers the SELECTED window (#123), which decides two things
+  // in this panel. A window the archive answers names no model — its default is
+  // a reanalysis, one dataset everywhere, and the picker's models are forecast
+  // models that do not run over the past — so the picker does not apply and is
+  // disabled rather than left looking like an input to a fetch that ignores it.
+  // A window crossing the boundary keeps the picker: the forecast half is the
+  // chosen model's, and the seam notice says where that half begins.
+  const selectedSource =
+    window === null
+      ? null
+      : windowSource(
+          new Date(window.start).getTime(),
+          new Date(window.end).getTime(),
+        )
+  const archiveWindow = selectedSource === 'archive'
 
   const pointsNeeded = Math.max(0, 3 - drawPointCount)
 
@@ -501,6 +506,74 @@ export default function ControlPanel({
     !refusal &&
     Boolean(aqiAllNull) &&
     aqiCoverage !== 'none'
+
+  // Everything the Forecast section has to say, said below the button with
+  // every other message (#123 review). These used to render inside that section
+  // — one above the calendar, two beneath it — which put a warning about the
+  // window a screen away from the warnings about everything else, and made the
+  // panel's one notice block a half-truth. Their order here is the order they
+  // had there: the model's clamp, then the window's own problem, then what the
+  // window costs in air quality.
+  //
+  // Each keys on its CONDITION, like every other derived line: the seam notice
+  // re-arms when a window stops crossing the boundary and crosses it again,
+  // rather than on every recomputation of the same sentence.
+  const windowMessages: FooterMessage[] = [
+    ...(modelClamped
+      ? [
+          {
+            key: 'window:clamped',
+            text: `${modelLabel} shortened the window.`,
+            severity: 'warn' as const,
+          },
+        ]
+      : []),
+    ...(windowWarning
+      ? [
+          {
+            key: `window:${windowWarning}`,
+            text:
+              windowWarning === 'order'
+                ? 'The narrowed hours end before they start.'
+                : windowWarning === 'past'
+                  ? `Forecast range starts before the ${archiveDays}-day limit.`
+                  : `${modelLabel} does not reach that far.`,
+            severity: 'warn' as const,
+          },
+        ]
+      : []),
+    // Where a window crossing the archive boundary changes source (#123). Info
+    // rather than warn: nothing is wrong and nothing is blocked, but a report
+    // whose early hours are a reanalysis and whose later ones are a model run
+    // should say so rather than let the reader assume one dataset.
+    ...(selectedSource === 'spanning' && window !== null
+      ? [
+          {
+            key: 'window:spanning',
+            text: archiveSeamPhrase(
+              new Date(window.start).getTime(),
+              new Date(window.end).getTime(),
+              modelLabel,
+            ),
+            severity: 'info' as const,
+          },
+        ]
+      : []),
+    // One sentence for both the partial and the fully-past-horizon case. They
+    // used to be two, each spelling out which columns would be empty and
+    // reassuring the reader that weather was unaffected — but the calendar
+    // already dims the days past the horizon, so the only thing left to say is
+    // where that edge is.
+    ...(!windowWarning && aqiCoverage !== 'full'
+      ? [
+          {
+            key: 'window:aqi-horizon',
+            text: `${NOUN.aqi} forecasts only extend ${AQI_LIMIT_DAYS} days.`,
+            severity: 'info' as const,
+          },
+        ]
+      : []),
+  ]
 
   // Every message under the Analyze button, as one list feeding at most three
   // boxes — one per severity, in error, warning, info order (`noticeBoxes` in
@@ -533,6 +606,7 @@ export default function ControlPanel({
           severity: 'warn' as const,
         }))
       : []),
+    ...windowMessages,
     ...blockers.map((blocker) => ({
       key: `blocker:${blocker}`,
       text: blockerText(blocker, maxAreaKm2, pointsNeeded),
@@ -946,37 +1020,10 @@ export default function ControlPanel({
               />
             </div>
           </div>
-          {modelClamped && (
-            <p className={`mb-3 ${STATUS.warn} ${NOTICE.warn}`}>
-              {modelLabel} shortened the window.
-            </p>
-          )}
-
+          {/* Nothing between the model and the calendar, and nothing under it:
+              every message this section has to make lives in the one block
+              below the Analyze button (`windowMessages`). */}
           <ForecastCalendar selection={selection} onChange={setSelection} band={band} />
-
-          {windowWarning && (
-            <p className={`mt-2 ${STATUS.warn} ${NOTICE.warn}`}>
-              {windowWarning === 'order'
-                ? 'The narrowed hours end before they start.'
-                : windowWarning === 'spanning'
-                ? SPANNING_WINDOW_MESSAGE
-                : windowWarning === 'past'
-                ? `Forecast range starts before the ${archiveDays}-day limit.`
-                : `${modelLabel} does not reach that far.`}
-            </p>
-          )}
-          {/* One sentence for both the partial and the fully-past-horizon case.
-              They used to be two, each spelling out which columns would be
-              empty and reassuring the reader that weather was unaffected — but
-              the calendar above already dims the days past the horizon, so the
-              only thing left to say is where that edge is. `aqiCoverage` still
-              distinguishes the two states; the footer's "air quality
-              unavailable" line reads it. */}
-          {!windowWarning && aqiCoverage !== 'full' && (
-            <p className={`mt-2 ${STATUS.info} ${NOTICE.info}`}>
-              {NOUN.aqi} forecasts only extend {AQI_LIMIT_DAYS} days.
-            </p>
-          )}
         </section>
 
         {/* Ranking — metric radio + aggregate dropdown + Lowest/Highest toggle

@@ -202,6 +202,13 @@ export const FALLBACK_PITCH_KM = 13
  * honest pitch to substitute either, because the archive publishes no
  * per-model figure for `/api/capabilities` to carry.
  *
+ * A window that CROSSES the boundary is the same claim made over half a report:
+ * its early hours are that reanalysis, and one pitch cannot be honest about both
+ * halves. So the test is "is every hour a model's", not "is this the archive" —
+ * the model picker stays live for such a window, because the forecast half is
+ * genuinely the chosen model's, but a single stated pitch over the whole field is
+ * not.
+ *
  * Read off the ANALYZED snapshot rather than the panel, like every other input
  * this overlay takes: the calendar can move to a recent window while an archive
  * report still sits on screen, and the layer must follow the rows it draws
@@ -211,7 +218,7 @@ export const FALLBACK_PITCH_KM = 13
  * a standing preference, so the analysis decides when it commits.
  */
 export function gridAllowed(analyzed: { windowSource: WindowSource } | null): boolean {
-  return analyzed === null || analyzed.windowSource !== 'archive'
+  return analyzed === null || analyzed.windowSource === 'forecast'
 }
 
 // One degree of latitude, in km. Longitude shrinks by cos(lat), which is what

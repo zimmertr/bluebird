@@ -45,6 +45,7 @@ import {
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
+  SR_ONLY,
   SURFACE_CARD,
   SURFACE_FLOATING,
   SWATCH_CHIP,
@@ -1569,11 +1570,12 @@ export default function App() {
   // markers above it never saw. The pitch is the ANALYZED model's finest grid
   // for the same reason.
   //
-  // An archive report is the one it cannot draw over: that window names no
-  // model, so there is no pitch the lattice could honestly be sampled at
+  // A report carrying archive hours is the one it cannot draw over: those hours
+  // name no model, so there is no pitch the lattice could honestly be sampled at
   // (`gridAllowed`, #123). The layer is switched out of play rather than
   // switched off — the reader's preference survives, and the next forecast
-  // analysis grids itself the way it always did.
+  // analysis grids itself the way it always did. The row says why, since a
+  // disabled checkbox beside three live ones reads as broken.
   const gridAvailable = gridAllowed(analyzed)
   // The layer as it actually stands, which is what every surface below reads:
   // the checkbox holds a preference, and this is whether that preference is in
@@ -1590,6 +1592,9 @@ export default function App() {
       checked: showGrid,
       onChange: setShowGrid,
       disabled: !gridAvailable,
+      // Mounted twice, as the row's `title` and as the hidden text its checkbox
+      // points at: a tooltip does not exist on touch or to a screen reader.
+      note: 'The forecast grid is not available for archival data.',
     },
   ]
   const grid = useForecastGrid({
@@ -2217,16 +2222,26 @@ export default function App() {
               </button>
               {layersOpen && (
                 <div className={`${SURFACE_FLOATING} absolute left-0 mt-2 w-44 px-2.5 py-2`}>
-                  {MAP_LAYERS.map(({ key, label, checked, onChange, disabled }) => (
-                    <label key={key} className={CHOICE_ROW}>
+                  {MAP_LAYERS.map(({ key, label, checked, onChange, disabled, note }) => (
+                    <label
+                      key={key}
+                      className={CHOICE_ROW}
+                      title={disabled && note ? note : undefined}
+                    >
                       <input
                         type="checkbox"
                         checked={checked}
                         disabled={disabled}
+                        aria-describedby={disabled && note ? `layer-${key}-note` : undefined}
                         onChange={(e) => onChange(e.target.checked)}
                         className={CHOICE_INPUT}
                       />
                       <span>{label}</span>
+                      {disabled && note && (
+                        <span id={`layer-${key}-note`} className={SR_ONLY}>
+                          {note}
+                        </span>
+                      )}
                     </label>
                   ))}
                   {/* The grid's sub-choices, revealed by its own checkbox.

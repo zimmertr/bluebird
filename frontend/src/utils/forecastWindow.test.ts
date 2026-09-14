@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   PAST_DATA_DAYS,
-  SPANNING_WINDOW_MESSAGE,
   type WindowSource,
+  archiveBoundaryMs,
   hourlyStampCount,
   isPointSample,
   normalizeWindow,
@@ -206,6 +206,9 @@ describe('windowSource', () => {
     ['2026-07-01T00:00', '2026-09-12T18:00', 'spanning', 'crosses it by weeks'],
   ]
 
+  // Both 'spanning' rows describe a window that IS served: two fetches, one per
+  // endpoint, split at the boundary and joined before the aggregation.
+
   it.each(cases)('%s to %s is %s (%s)', (start, end, expected) => {
     expect(windowSource(at(start), at(end), SOURCE_NOW)).toBe(expected)
   })
@@ -217,10 +220,20 @@ describe('windowSource', () => {
     expect(windowSource(older, older, SOURCE_NOW)).toBe('archive')
   })
 
-  it('refuses a window that crosses the boundary, with the server wording', () => {
+  it('accepts a window that crosses the boundary, for both endpoints to answer', () => {
     const start = new Date(NOW - (PAST_DATA_DAYS + 10) * DAY).toISOString()
     const end = new Date(NOW - (PAST_DATA_DAYS - 10) * DAY).toISOString()
-    expect(() => resolveWindow(start, end, NOW)).toThrow(SPANNING_WINDOW_MESSAGE)
+    const w = resolveWindow(start, end, NOW)
+    expect(windowSource(w.startMs, w.endMs, NOW)).toBe('spanning')
+  })
+
+  it('reads the same boundary it classifies against', () => {
+    // One instant, one function: a second spelling could split a window an hour
+    // from where it was classified.
+    const boundary = archiveBoundaryMs(SOURCE_NOW)
+    expect(new Date(boundary).toISOString()).toBe('2026-07-19T00:00:00.000Z')
+    expect(windowSource(boundary - 1, boundary - 1, SOURCE_NOW)).toBe('archive')
+    expect(windowSource(boundary, boundary, SOURCE_NOW)).toBe('forecast')
   })
 
   it('accepts a window wholly inside the archive range', () => {

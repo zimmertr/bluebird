@@ -380,13 +380,12 @@ describe('gridAllowed', () => {
   // window names no model: that endpoint answers from a reanalysis on a coarser
   // grid, so the picture would state a pitch the numbers under it never had
   // (#123).
-  it('refuses an archive report and allows every other one', () => {
+  it('allows a report whose every hour came from a model, and no other', () => {
     expect(gridAllowed({ windowSource: 'archive' })).toBe(false)
     expect(gridAllowed({ windowSource: 'forecast' })).toBe(true)
-    // A spanning window is refused before it can commit, so no report ever
-    // carries it. Answered anyway rather than left to a `default`, because the
-    // grid's question is "is this the archive", not "is this one of two".
-    expect(gridAllowed({ windowSource: 'spanning' })).toBe(true)
+    // A window crossing the boundary is served now (#123), and half its hours
+    // are that reanalysis: one stated pitch cannot be honest about both halves.
+    expect(gridAllowed({ windowSource: 'spanning' })).toBe(false)
   })
 
   // The layer is a standing preference, so before the first analysis there is

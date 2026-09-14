@@ -17,6 +17,7 @@
 // a DST transition, and millisecond arithmetic would land on the wrong day.
 
 import { nowLocal } from './datetimeLocal'
+import { archiveBoundaryMs } from './forecastWindow'
 
 // The servable band, as day offsets from today. These live here rather than in
 // urlState.ts because the calendar is what makes them visible: they are the
@@ -572,8 +573,48 @@ function clockTime(ms: number): string {
   return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
 
-function namedDay(ms: number): string {
-  return new Date(ms).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+/**
+ * Does a window need its year spelled out?
+ *
+ * The archive reaches a year back (#123), so a report can describe last
+ * September while the panel sits in this one, and "Sat, Sep 13" is then a date
+ * the reader cannot place. The test is the WINDOW's years against the reader's,
+ * either end of it: a window that ends in this year still started in another.
+ *
+ * One predicate for the results header and the panel's seam notice, so the two
+ * can never disagree about whether a date carries its year.
+ */
+export function needsYear(startMs: number, endMs: number, now: Date): boolean {
+  const year = now.getFullYear()
+  return new Date(startMs).getFullYear() !== year || new Date(endMs).getFullYear() !== year
+}
+
+// The year sits after the day with no comma before it: `Intl` writes "Sep 13,
+// 2025" for `year: 'numeric'`, and inside a phrase that already separates its
+// parts with commas a third one reads as another field.
+function withYear(text: string, ms: number, year: boolean): string {
+  return year ? `${text} ${new Date(ms).getFullYear()}` : text
+}
+
+/** A month and day, as the seam notice names the two days it falls between. */
+export function monthDay(ms: number, year = false): string {
+  return withYear(
+    new Date(ms).toLocaleDateString([], { month: 'short', day: 'numeric' }),
+    ms,
+    year,
+  )
+}
+
+function namedDay(ms: number, year = false): string {
+  return withYear(
+    new Date(ms).toLocaleDateString([], {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    }),
+    ms,
+    year,
+  )
 }
 
 /**
@@ -583,15 +624,25 @@ function namedDay(ms: number): string {
  * The clock is left out exactly when it says nothing — a selection covering
  * whole calendar days — and the second date is left out when both ends land on
  * one. Written with "to" rather than a dash so it reads aloud.
+ *
+ * Both ends carry the year, or neither does (`needsYear`): one date wearing a
+ * year beside one without would read as a range that spans the New Year.
  */
-export function windowPhrase(startMs: number, endMs: number, pointSample: boolean): string {
-  if (pointSample) return `${namedDay(startMs)}, ${clockTime(startMs)}`
-  const sameDay = namedDay(startMs) === namedDay(endMs)
+export function windowPhrase(
+  startMs: number,
+  endMs: number,
+  pointSample: boolean,
+  now: Date = new Date(),
+): string {
+  const year = needsYear(startMs, endMs, now)
+  const day = (ms: number) => namedDay(ms, year)
+  if (pointSample) return `${day(startMs)}, ${clockTime(startMs)}`
+  const sameDay = day(startMs) === day(endMs)
   if (isWholeDaySpan(startMs, endMs)) {
-    return sameDay ? namedDay(startMs) : `${namedDay(startMs)} to ${namedDay(endMs)}`
+    return sameDay ? day(startMs) : `${day(startMs)} to ${day(endMs)}`
   }
-  if (sameDay) return `${namedDay(startMs)}, ${clockTime(startMs)} to ${clockTime(endMs)}`
-  return `${namedDay(startMs)}, ${clockTime(startMs)} to ${namedDay(endMs)}, ${clockTime(endMs)}`
+  if (sameDay) return `${day(startMs)}, ${clockTime(startMs)} to ${clockTime(endMs)}`
+  return `${day(startMs)}, ${clockTime(startMs)} to ${day(endMs)}, ${clockTime(endMs)}`
 }
 
 /**
@@ -609,9 +660,43 @@ export function windowCaption(
   startMs: number,
   endMs: number,
   pointSample: boolean,
+  now: Date = new Date(),
 ): string {
   if (kind === 'now') return `as of ${clockTime(startMs)}`
-  return windowPhrase(startMs, endMs, pointSample)
+  return windowPhrase(startMs, endMs, pointSample, now)
+}
+
+/**
+ * Where a window crossing the archive boundary is joined, in words (#123).
+ *
+ * The two dates are the archive's last full local day and the forecast
+ * endpoint's first, which are consecutive: the boundary is an instant, and the
+ * one-local-day straddle tolerance (`ARCHIVE_STRADDLE_DAYS`) is what makes the
+ * day it lands in wholly the forecast endpoint's. So the reader is told the
+ * truth about which day their report changes source on, in their own zone,
+ * rather than about a UTC instant.
+ *
+ * The year rule is the results header's, from `needsYear` above, keyed on the
+ * WINDOW rather than on the seam: a report of last September carries the year in
+ * both places or in neither.
+ */
+export function archiveSeamPhrase(
+  startMs: number,
+  endMs: number,
+  modelLabel: string,
+  now: Date = new Date(),
+): string {
+  // Through this module's own day helpers rather than millisecond arithmetic: a
+  // local day is 23 or 25 hours on a DST transition, and subtracting 86,400,000
+  // ms from a local midnight lands on the wrong date across one of them.
+  const boundaryDay = dayKey(new Date(archiveBoundaryMs(now.getTime())))
+  const firstForecastDay = dayDate(boundaryDay).getTime()
+  const lastArchiveDay = dayDate(addDays(boundaryDay, -1)).getTime()
+  const year = needsYear(startMs, endMs, now)
+  return (
+    `Archive data to ${monthDay(lastArchiveDay, year)}, ` +
+    `${modelLabel} from ${monthDay(firstForecastDay, year)}.`
+  )
 }
 
 /**

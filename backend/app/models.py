@@ -76,9 +76,9 @@ PAST_DATA_DAYS = 55
 # The boundary is an instant and a calendar day is not: west of Greenwich a
 # local day's last minute lands on the next UTC date, so a single day drawn in
 # the calendar can straddle the boundary by up to 14 hours. Without the
-# tolerance that one day would be unanalyzable in one request — refused as
-# spanning although it is one day — which is exactly the "offers a day it
-# cannot answer" defect #230 closed. It costs nothing in honesty: the forecast
+# tolerance that one day would be split across two datasets and joined at a seam
+# 14 hours into it, although the forecast endpoint holds the whole of it. It
+# costs nothing in honesty: the forecast
 # endpoint is measurably populated through 56 days back and ragged at 58 (see
 # PAST_DATA_DAYS), so the extra day sits inside the margin that floor already
 # carries.

@@ -27,7 +27,6 @@ import {
   isTimeOfDay,
   orderDays,
 } from './calendar'
-import { windowSource } from './forecastWindow'
 import { Place } from './geocode'
 
 // Fields that fully describe an analysis. Results are deliberately excluded —
@@ -579,10 +578,11 @@ export function decodeState(search: string): Partial<ShareableState> | null {
  * servable band: Open-Meteo rejects requests whose dates fall outside it, so
  * even a partial overhang would fail upstream. Returns 'order' when the end is
  * before the start, 'past' when the window starts before the history horizon,
- * 'future' when it ends beyond the forecast horizon, and 'spanning' when it
- * crosses the archive boundary — the one status a pickable pair of days can
- * still produce, since both of its ends are inside the band and only the span
- * between them is unanswerable (#123).
+ * and 'future' when it ends beyond the forecast horizon.
+ *
+ * Crossing the archive boundary is NOT one of these (#123). Both endpoints
+ * answer such a window, split at the seam, so nothing about it blocks an
+ * analysis — the panel names where the join falls instead (`archiveSeamPhrase`).
  *
  * Bounded by whole days rather than by an instant `now + N * 24h`, because that
  * is the granularity of everything it is standing in for: the API states its own
@@ -608,7 +608,7 @@ export function classifyWindow(
   endDatetime: string,
   now: Date,
   band: BandLimits,
-): 'ok' | 'order' | 'past' | 'future' | 'spanning' {
+): 'ok' | 'order' | 'past' | 'future' {
   if (!isValidDatetimeLocal(startDatetime) || !isValidDatetimeLocal(endDatetime)) {
     return 'ok' // incomplete window — nothing to warn about yet
   }
@@ -626,10 +626,6 @@ export function classifyWindow(
   if (end < start) return 'order'
   if (start < earliest) return 'past'
   if (end > latest) return 'future'
-  // Last, because it is the only one of these a window inside the band can hit:
-  // the horizon checks are about days the calendar cannot offer, and this is
-  // about a pair of days it can.
-  if (windowSource(start, end, now.getTime()) === 'spanning') return 'spanning'
   return 'ok'
 }
 

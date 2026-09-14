@@ -10,6 +10,7 @@ import {
   aqiSeries,
   callWeight,
   fetchAqi,
+  fetchSpans,
   fetchWeather,
   parseTs,
   resetOpenMeteoState,
@@ -17,6 +18,7 @@ import {
   weatherMetrics,
   weatherSeries,
 } from './openMeteo'
+import { archiveBoundaryMs, windowSource } from './forecastWindow'
 import vectors from './weather_vectors.json'
 
 // ── The shared-vector contract ─────────────────────────────────────────────
@@ -751,5 +753,131 @@ describe('a window older than the forecast endpoint holds', () => {
     expect(out[0]?.wind_avg_mph).toBe(6)
     expect(out[0]?.wind_max_mph).toBe(7)
     expect(out[0]?.series?.wind_mph).toEqual([5, 7])
+  })
+})
+
+// ── A window that crosses the boundary (issue #123) ────────────────────────
+//
+// Two fetches, one per endpoint, joined per location before the aggregation
+// runs — so the ranking sees one series and the shared vectors stay the only
+// definition of what an aggregate is.
+describe('a window that crosses the archive boundary', () => {
+  const coords = [{ latitude: 47.5, longitude: -121.9 }]
+  // NOW_MS puts the boundary at 2026-05-27T00:00:00Z. The window has to open
+  // more than a day before it to span at all: a window starting inside the last
+  // local day before the seam is the forecast endpoint's whole
+  // (ARCHIVE_STRADDLE_DAYS), which is the point of that tolerance.
+  const SEAM_MS = Date.parse('2026-05-27T00:00:00Z')
+  const SPANNING = {
+    startMs: Date.parse('2026-05-25T22:00:00Z'),
+    endMs: Date.parse('2026-05-27T01:00:00Z'),
+  }
+
+  function half(times: string[], precip: number[]) {
+    return {
+      hourly_units: { precipitation: 'inch' },
+      hourly: {
+        time: times,
+        precipitation: precip,
+        temperature_2m: times.map(() => 50.0),
+        wind_speed_10m: times.map(() => 5.0),
+      },
+    }
+  }
+
+  const archiveHalf = () => half(['2026-05-25T22:00', '2026-05-25T23:00'], [0.1, 0.2])
+  const forecastHalf = () => half(['2026-05-27T00:00', '2026-05-27T01:00'], [0.4, 0.8])
+
+  function bothHalves() {
+    const bodies = [archiveHalf(), forecastHalf()]
+    return vi.fn(async () => jsonResponse(bodies.shift()))
+  }
+
+  it('classifies the window as spanning at the pinned clock', () => {
+    expect(windowSource(SPANNING.startMs, SPANNING.endMs, NOW_MS)).toBe('spanning')
+    expect(archiveBoundaryMs(NOW_MS)).toBe(SEAM_MS)
+  })
+
+  it('asks each endpoint for its own hours, and names the model on one', async () => {
+    const fetchSpy = bothHalves()
+    vi.stubGlobal('fetch', fetchSpy)
+    await fetchWeather(coords, SPANNING.startMs, SPANNING.endMs, {
+      ...OPTS,
+      model: 'gfs_hrrr',
+    })
+
+    const urls = fetchSpy.mock.calls.map((c) => new URL(String((c as unknown[])[0])))
+    expect(urls).toHaveLength(2)
+    expect(`${urls[0].origin}${urls[0].pathname}`).toBe(ARCHIVE_URL)
+    expect(`${urls[1].origin}${urls[1].pathname}`).toBe(FORECAST_URL)
+    // Disjoint: the archive answers through the hour BEFORE the seam, because
+    // both bounds are inclusive and a repeated hour would be counted twice.
+    expect(urls[0].searchParams.get('start_hour')).toBe('2026-05-25T22:00')
+    expect(urls[0].searchParams.get('end_hour')).toBe('2026-05-26T23:00')
+    expect(urls[1].searchParams.get('start_hour')).toBe('2026-05-27T00:00')
+    expect(urls[1].searchParams.get('end_hour')).toBe('2026-05-27T01:00')
+    // The model rides only on the half a model answered.
+    expect(urls[0].searchParams.get('models')).toBeNull()
+    expect(urls[1].searchParams.get('models')).toBe('gfs_hrrr')
+  })
+
+  it('aggregates both halves as one series', async () => {
+    vi.stubGlobal('fetch', bothHalves())
+    const out = await fetchWeather(coords, SPANNING.startMs, SPANNING.endMs, OPTS)
+
+    // 0.1 + 0.2 + 0.4 + 0.8: every hour of both halves, counted once.
+    expect(out[0]?.precip_total_in).toBe(1.5)
+    expect(out[0]?.precip_max_in_hr).toBe(0.8)
+    expect(out[0]?.series?.times).toHaveLength(4)
+  })
+
+  it('drops a location whose halves disagree on units', async () => {
+    // A total of inches and millimetres is a number with no meaning, so the row
+    // degrades to no forecast the way every unreadable payload does.
+    const bodies = [archiveHalf(), { ...forecastHalf(), hourly_units: { precipitation: 'mm' } }]
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(bodies.shift())))
+    const out = await fetchWeather(coords, SPANNING.startMs, SPANNING.endMs, OPTS)
+
+    expect(out).toEqual([null])
+  })
+
+  it('counts a repeated hour once', async () => {
+    const bodies = [archiveHalf(), half(['2026-05-25T23:00', '2026-05-27T00:00'], [9.9, 0.4])]
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(bodies.shift())))
+    const out = await fetchWeather(coords, SPANNING.startMs, SPANNING.endMs, OPTS)
+
+    expect(out[0]?.precip_total_in).toBe(0.7) // 0.1 + 0.2 + 0.4
+    expect(out[0]?.series?.times).toHaveLength(3)
+  })
+
+  it('keys the joined series apart from either half alone', async () => {
+    const fetchSpy = vi.fn(async () => jsonResponse(archiveHalf()))
+    vi.stubGlobal('fetch', fetchSpy)
+
+    await fetchWeather(coords, SPANNING.startMs, SPANNING.endMs, OPTS)
+    // The same coordinates and window read as one endpoint's: a miss, not the
+    // joined row.
+    await fetchWeather(coords, SPANNING.startMs, SPANNING.endMs, {
+      ...OPTS,
+      nowMs: SPANNING.startMs + 60_000,
+    })
+    // And the spanning fetch itself repeats from the cache.
+    await fetchWeather(coords, SPANNING.startMs, SPANNING.endMs, OPTS)
+
+    expect(fetchSpy).toHaveBeenCalledTimes(3) // two for the split, one for the half
+  })
+
+  it('prices each half on its own hours', () => {
+    // Two requests are two answers, so a spanning window spends twice — and
+    // pricing it on the whole window would bill the archive half's months for
+    // the forecast half as well.
+    const spans = fetchSpans(SPANNING.startMs, SPANNING.endMs, NOW_MS)
+    expect(spans).toHaveLength(2)
+    const total = spans.reduce(
+      (sum, s) => sum + callWeight(50, s.startMs, s.endMs, 9, 1),
+      0,
+    )
+    expect(total).toBe(100)
+    expect(fetchSpans(WINDOW.startMs, WINDOW.endMs, NOW_MS)).toHaveLength(1)
   })
 })

@@ -1059,6 +1059,18 @@ export const SELECT = `${FIELD} appearance-none pr-8`
 export const DISABLED = 'disabled:opacity-40 disabled:cursor-not-allowed'
 
 /**
+ * Text that exists for assistive technology and takes no space on screen.
+ *
+ * The twin of an approved tooltip (#123 review). A `title` is a pointer's
+ * affordance: it does not exist on touch, and a screen reader is not promised it
+ * either — so where a disabled control's reason is worth a tooltip, the same
+ * sentence is also mounted here and pointed at by `aria-describedby`. One recipe
+ * rather than the utility spelled at each call site, for the reason every role
+ * here exists: the second spelling is where the two drift.
+ */
+export const SR_ONLY = 'sr-only'
+
+/**
  * The map timeline's scrubber (#121).
  *
  * A real `<input type="range">` rather than a div with a drag handler, and that

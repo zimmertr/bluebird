@@ -7,7 +7,7 @@
 // tests on both sides fail if either drifts. Change semantics there first,
 // regenerate the vectors, and mirror the change here.
 
-import { windowSource } from './forecastWindow'
+import { archiveBoundaryMs, windowSource } from './forecastWindow'
 
 export const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'
 // Where a window older than the forecast endpoint's retention goes (#123).
@@ -195,7 +195,9 @@ function cacheKey(
   // pressure-level winds, so its rows hold the 10 m wind where the forecast
   // endpoint's hold wind at elevation, and the boundary between the two moves
   // with the clock — so an entry is only ever read back for the endpoint that
-  // produced it.
+  // produced it. A window crossing the boundary keys on 'spanning', because its
+  // joined series is a third answer at the same coordinates and window rather
+  // than either half.
   return `${service}|${c.latitude}|${c.longitude}|${startMs}|${endMs}|${model}|${elevation}|${source}`
 }
 
@@ -337,6 +339,12 @@ interface HourlyPayload {
    * lattice point has no destination elevation, but it stands on real ground.
    */
   elevation?: number
+  /**
+   * What each array is measured in. Read only when two half-windows are joined
+   * (`joinHours`): the two hosts are sent the same unit parameters, so a
+   * disagreement means one of them answered in something else.
+   */
+  hourly_units?: Record<string, string>
   hourly?: {
     time?: unknown[]
     precipitation?: (number | null)[]
@@ -366,6 +374,109 @@ const WIND_LEVELS = [
   ['wind_speed_500hPa', 5574],
 ] as const
 const FT_TO_M = 0.3048
+
+// The nine hourly variables every weather request asks for — the backend's eight
+// plus the wind bearing the map's playback arrows read. Spelled once because it
+// is two things: what a request asks for, and which arrays a joined half-window
+// has to keep parallel (`joinHours`).
+const HOURLY_VARIABLES = [
+  'precipitation',
+  'temperature_2m',
+  'wind_speed_10m',
+  'wind_direction_10m',
+  ...WIND_LEVELS.map(([name]) => name),
+] as const
+
+const HOUR_MS = 3_600_000
+
+/** One leg of a fetch: which endpoint answers, and the hours it answers for. */
+interface FetchSpan {
+  archive: boolean
+  startMs: number
+  endMs: number
+}
+
+/**
+ * The one or two requests a window takes (#123).
+ *
+ * A forecast or archive window is one request. A window spanning the archive
+ * boundary is two, and this is the only place that split is computed, so the
+ * weighted spend and the requests themselves can never describe different
+ * halves.
+ *
+ * The halves are disjoint: the archive answers through the hour BEFORE the seam
+ * and the forecast endpoint from the seam on, because both bounds are inclusive
+ * and an hour arriving twice would be counted twice in a total. Unlike the
+ * backend's `_fetch_spans`, neither half can come out empty here: a window is
+ * already epoch milliseconds by the time it reaches this module, so the
+ * classification and the split measure the same instants rather than one reading
+ * a caller's wall clock.
+ */
+export function fetchSpans(
+  startMs: number,
+  endMs: number,
+  nowMs: number = Date.now(),
+): FetchSpan[] {
+  const source = windowSource(startMs, endMs, nowMs)
+  if (source !== 'spanning') {
+    return [{ archive: source === 'archive', startMs, endMs }]
+  }
+  const seam = archiveBoundaryMs(nowMs)
+  return [
+    { archive: true, startMs, endMs: seam - HOUR_MS },
+    { archive: false, startMs: seam, endMs },
+  ]
+}
+
+// Order-insensitive, the way the Python port compares two dicts.
+function unitsKey(payload: HourlyPayload | undefined): string {
+  const units = payload?.hourly_units
+  if (units === undefined) return ''
+  return Object.keys(units)
+    .sort()
+    .map((k) => `${k}=${units[k]}`)
+    .join('|')
+}
+
+/**
+ * One location's half-windows as a single hourly payload.
+ *
+ * The aggregation below is pinned byte-for-byte against the backend by the
+ * shared vectors, so a spanning window is made to look like every other window
+ * BEFORE it reaches `weatherMetrics`: the halves are concatenated in time order
+ * (the spans are disjoint and ordered, so appending them IS time order) and each
+ * array is padded to the stamp count, which keeps them parallel for the
+ * index-addressed reads the aggregation does.
+ *
+ * Two payloads are dropped rather than mixed. Disagreeing `hourly_units` means
+ * one host answered in units the other did not, and a total of inches and
+ * millimetres is a number with no meaning; a repeated stamp would count one hour
+ * twice. Both degrade to no metrics for that location, which is what every
+ * payload this module cannot read does.
+ *
+ * Mirror of `_join_hours` in `backend/app/services/weather.py`.
+ */
+export function joinHours(parts: readonly HourlyPayload[]): HourlyPayload {
+  if (parts.length === 1) return parts[0]
+  const units = parts.map(unitsKey)
+  if (units.some((u) => u !== units[0])) return {}
+  const joined: Record<string, unknown[]> = { time: [] }
+  for (const name of HOURLY_VARIABLES) joined[name] = []
+  const seen = new Set<unknown>()
+  for (const part of parts) {
+    const hourly = (part?.hourly ?? {}) as Record<string, unknown[] | undefined>
+    const times = hourly.time ?? []
+    for (let i = 0; i < times.length; i++) {
+      if (seen.has(times[i])) continue
+      seen.add(times[i])
+      joined.time.push(times[i])
+      for (const name of HOURLY_VARIABLES) {
+        joined[name].push(at(hourly[name] ?? [], i))
+      }
+    }
+  }
+  return { ...parts[0], hourly: joined as NonNullable<HourlyPayload['hourly']> }
+}
 
 // Port of weather._wind_at_elevation — line-for-line, because it feeds the
 // vector-pinned aggregates. Every gap degrades to the 10 m wind: no
@@ -883,14 +994,13 @@ export async function fetchWeather(
 ): Promise<WeatherResult[]> {
   if (destinations.length === 0) return []
 
-  // Which endpoint answers, decided once for the whole fetch so the URL, the
-  // `models=` decision and the cache key cannot disagree. A spanning window is
-  // refused before an analysis starts (`resolveWindow`), so what reaches here as
-  // 'spanning' is the boundary having advanced by seconds since that check —
-  // which is the forecast endpoint's window, measurably populated well past the
-  // floor PAST_DATA_DAYS sets.
-  const archive = windowSource(startMs, endMs, nowMs) === 'archive'
-  const source = archive ? 'archive' : 'forecast'
+  // Which endpoint answers, decided once for the whole fetch so the URLs, the
+  // `models=` decision and the cache key cannot disagree. A window crossing the
+  // archive boundary is two requests per batch, joined per location before the
+  // aggregation runs; `source` is part of the cache key, so its joined series is
+  // a third answer at the same coordinates rather than either half.
+  const source = windowSource(startMs, endMs, nowMs)
+  const spans = fetchSpans(startMs, endMs, nowMs)
 
   const results: WeatherResult[] = new Array(destinations.length).fill(null)
   const missIdx: number[] = []
@@ -909,49 +1019,56 @@ export async function fetchWeather(
   const chunks = chunked(misses, BATCH_SIZE)
 
   const tasks = chunks.map((chunk) => async (): Promise<WeatherResult[]> => {
-    // Nine variables, not the backend's eight: the browser also asks for wind
-    // direction, which only the map's playback arrows use. Still weight
-    // factor 1 — max(1, vars x models/10) — so the five level winds and the
-    // bearing all ride the budget the original three variables set. The model
-    // count is spelled here rather than defaulted, because this is where
-    // `models=` is built: a request naming more than one model returns a
-    // series per model and costs that multiple.
-    await weatherBudget.acquire(
-      callWeight(chunk.length, startMs, endMs, 9, 1),
-      signal,
-      onPace,
-    )
-    const data = await getJsonWithResume(
-      archive ? ARCHIVE_URL : FORECAST_URL,
-      {
-        ...coordParams(chunk),
-        // The model is named on the forecast endpoint and NEVER on the archive.
-        // The archive's default is a reanalysis — one dataset at every location,
-        // so nothing varies row to row the way `best_match` would — and it
-        // accepts an unknown `models=` with a 200 and plausible data (measured
-        // 2026-09-12), so forwarding the picker's model there would be answered
-        // silently by something else.
-        ...(archive ? {} : { models: model }),
-        hourly:
-          'precipitation,temperature_2m,wind_speed_10m,wind_direction_10m,' +
-          WIND_LEVELS.map(([name]) => name).join(','),
-        temperature_unit: 'fahrenheit',
-        wind_speed_unit: 'mph',
-        precipitation_unit: 'inch',
-        start_hour: utcHour(startMs),
-        end_hour: utcHour(endMs),
-        timezone: 'UTC',
-      },
-      signal,
-      onPace,
-    )
-    const items = asItems(data)
-    if (items.length !== chunk.length) {
-      throw new OpenMeteoUnreachable(
-        `Open-Meteo returned ${items.length} results for ${chunk.length} locations`,
+    const perSpan: HourlyPayload[][] = []
+    for (const span of spans) {
+      // Nine variables, not the backend's eight: the browser also asks for wind
+      // direction, which only the map's playback arrows use. Still weight
+      // factor 1 — max(1, vars x models/10) — so the five level winds and the
+      // bearing all ride the budget the original three variables set. The model
+      // count is spelled here rather than defaulted, because this is where
+      // `models=` is built: a request naming more than one model returns a
+      // series per model and costs that multiple.
+      //
+      // One acquire per SPAN, each priced on its own hours: two requests are two
+      // answers, so a spanning window spends twice, and pricing it on the whole
+      // window would bill the archive half's months for the forecast half too.
+      await weatherBudget.acquire(
+        callWeight(chunk.length, span.startMs, span.endMs, 9, 1),
+        signal,
+        onPace,
       )
+      const data = await getJsonWithResume(
+        span.archive ? ARCHIVE_URL : FORECAST_URL,
+        {
+          ...coordParams(chunk),
+          // The model is named on the forecast endpoint and NEVER on the archive.
+          // The archive's default is a reanalysis — one dataset at every location,
+          // so nothing varies row to row the way `best_match` would — and it
+          // accepts an unknown `models=` with a 200 and plausible data (measured
+          // 2026-09-12), so forwarding the picker's model there would be answered
+          // silently by something else.
+          ...(span.archive ? {} : { models: model }),
+          hourly: HOURLY_VARIABLES.join(','),
+          temperature_unit: 'fahrenheit',
+          wind_speed_unit: 'mph',
+          precipitation_unit: 'inch',
+          start_hour: utcHour(span.startMs),
+          end_hour: utcHour(span.endMs),
+          timezone: 'UTC',
+        },
+        signal,
+        onPace,
+      )
+      const items = asItems(data)
+      if (items.length !== chunk.length) {
+        throw new OpenMeteoUnreachable(
+          `Open-Meteo returned ${items.length} results for ${chunk.length} locations`,
+        )
+      }
+      perSpan.push(items)
     }
-    const chunkResults = items.map((item, j): WeatherResult => {
+    const chunkResults = chunk.map((_c, j): WeatherResult => {
+      const item = joinHours(perSpan.map((items) => items[j]))
       const elevationFt =
         chunk[j].elevation_ft ??
         (terrainElevation && typeof item.elevation === 'number'
