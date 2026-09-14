@@ -25,7 +25,7 @@ import {
   ICON,
   ICON_ADORNMENT,
   METRICS_GRID,
-  METRICS_RULE,
+  SECTION_SEAM,
   METRIC_BOX_W,
   ICON_ACTION,
   ICON_BUTTON,
@@ -821,12 +821,29 @@ describe('shared recipes', () => {
     expect(controlPanelSource).toMatch(/\$\{METRIC_BOX_WIDE\} col-span-2/)
   })
 
-  // The rule inside the section is drawn in the panel's own rule ink, one
-  // step down from the rule between sections, rather than a third grey.
-  it('draws the Metrics rule in the panel rule ink', () => {
-    const ink = PANEL_RULE.match(/border-(slate-[\d/]+)/)![1]
-    expect(METRICS_RULE).toContain(`border-${ink}`)
-    expect(METRICS_RULE).toContain('border-t')
+  // A rule inside a section must not carry a rule between sections' weight:
+  // that weight says a new section begins, and a seam only groups rows.
+  //
+  // Checked on BOTH terms a border's lightness comes from, because either one
+  // alone is defeatable: slate darkens as its step rises, so the seam takes the
+  // higher step, and it must not then hand the difference back by being more
+  // opaque. A solid slate-700 seam passed the step test and still measured
+  // brighter than slate-600/50 over the panel, which is what the pair catches.
+  it('draws a seam inside a section fainter than the rule between them', () => {
+    const step = (recipe: string) => Number(recipe.match(/border-slate-(\d+)/)![1])
+    const alpha = (recipe: string) => Number(recipe.match(/border-slate-\d+\/(\d+)/)?.[1] ?? 100)
+
+    expect(SECTION_SEAM).toContain('border-t')
+    expect(step(SECTION_SEAM)).toBeGreaterThan(step(PANEL_RULE))
+    expect(alpha(SECTION_SEAM)).toBeLessThanOrEqual(alpha(PANEL_RULE))
+  })
+
+  // Two seams, and both mark a change in what a row does: the direction segment
+  // above sets how the rows below are read, and the rows under the second one
+  // stop ranking. A third would be decoration.
+  it('draws exactly two seams in the Metrics table', () => {
+    const seams = controlPanelSource.match(/\$\{SECTION_SEAM\}/g) ?? []
+    expect(seams).toHaveLength(2)
   })
 
   // Clear filters has no label to push it into a column, so it spans the two

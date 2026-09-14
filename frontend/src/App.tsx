@@ -2247,10 +2247,15 @@ export default function App() {
           setMaxElevationFt={setMaxElevationFt}
           constraints={constraints}
           setConstraints={setConstraints}
+          // Every knob the Metrics table's boxes hold, back to its default.
+          // The results cap is one of them (#341): it bounds nothing, but it is
+          // typed into the same column and the button that clears that column
+          // cannot skip one box.
           onClearFilters={() => {
             setMinElevationFt(null)
             setMaxElevationFt(null)
             setConstraints(NO_CONSTRAINTS)
+            setLimit(DEFAULT_LIMIT)
           }}
           includeUnnamedPeaks={includeUnnamedPeaks}
           setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}

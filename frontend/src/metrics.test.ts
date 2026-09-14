@@ -63,6 +63,14 @@ describe('the rankable keys', () => {
     }
   })
 
+  // The rows are alphabetical by the noun each one shows, so the check reads
+  // NOUN rather than a second hand-written list: renaming a noun then moves its
+  // row instead of silently leaving the table out of order (#341).
+  it('keeps the metric rows alphabetical by their nouns', () => {
+    const nouns = RANKED_FAMILIES.map((f) => NOUN[f])
+    expect(nouns).toEqual([...nouns].sort((a, b) => a.localeCompare(b, 'en')))
+  })
+
   it('derives RANKING_KEYS from the family lists', () => {
     expect(RANKING_KEYS).toEqual(RANKED_FAMILIES.flatMap((f) => FAMILY_KEYS[f]))
     expect(RANKING_KEYS).toHaveLength(16)
@@ -93,25 +101,25 @@ describe('the rankable keys', () => {
 })
 
 describe('aggregateToken', () => {
+  // Every key yields the token of the aggregate it is built from. Asserted
+  // against the aggregate each key carries rather than against a hand-written
+  // list in row order, which only measured how the rows happen to be sorted:
+  // alphabetizing them (#341) failed this test while nothing about the tokens
+  // had changed.
   it('reads the reduction out of every ranking key', () => {
-    expect(RANKING_KEYS.map(aggregateToken)).toEqual([
-      'avg',
-      'max',
-      'min',
-      'total',
-      'avg',
-      'max',
-      'min',
-      'avg',
-      'max',
-      'min',
-      'avg',
-      'max',
-      'min',
-      'avg',
-      'max',
-      'min',
-    ])
+    const TOKENS: Record<string, string> = {
+      [AGGREGATE.total]: 'total',
+      [AGGREGATE.average]: 'avg',
+      [AGGREGATE.minimum]: 'min',
+      [AGGREGATE.maximum]: 'max',
+    }
+
+    expect(RANKING_KEYS).toHaveLength(16)
+    for (const key of RANKING_KEYS) {
+      expect(aggregateToken(key)).toBe(TOKENS[windowAggregate(key)])
+    }
+    // Precipitation is the one family with a fourth, and the only Total.
+    expect(RANKING_KEYS.filter((k) => aggregateToken(k) === 'total')).toEqual(['precip_total_in'])
   })
 
   it('throws on a key with no aggregate segment', () => {

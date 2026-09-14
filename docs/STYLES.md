@@ -123,7 +123,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `METRICS_GRID` | The Metrics table: label, aggregate dropdown, Min box, Max box; the control columns are `auto`, sized by the roles their controls wear |
 | `METRIC_BOX_W` | One bound box in the Metrics table: 56px (w-14), the widest the metric row's label budget allows. The results cap spans both box columns instead, so it wears `w-full` off the same shape |
 | `SEGMENT_ITEM_TIGHT` | One half of a `SEGMENT_FILL`: the 4px inset a 118px segment can afford |
-| `METRICS_RULE` | The rule between the five rows that rank and the two that never do, in `PANEL_RULE`'s ink |
+| `SECTION_SEAM` | A rule INSIDE a section, grouping its rows: `slate-700/50`, fainter than `PANEL_RULE` on both the slate step and the alpha, because `PANEL_RULE`'s `slate-600/50` already composites to about solid `slate-700` |
 
 **Map timeline**
 

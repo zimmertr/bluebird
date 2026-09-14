@@ -31,7 +31,7 @@ import {
   PANEL_RULE,
   ICON_ADORNMENT,
   METRICS_GRID,
-  METRICS_RULE,
+  SECTION_SEAM,
   METRIC_BOX_W,
   SEGMENT_FILL,
   SEGMENT_DIVIDER,
@@ -238,6 +238,21 @@ const METRIC_BOX = `${METRIC_BOX_SHAPE} ${METRIC_BOX_W}`
  * tracks the two columns and their gap however wide METRIC_BOX_W becomes.
  */
 const METRIC_BOX_WIDE = `${METRIC_BOX_SHAPE} w-full`
+
+// What an empty box shows. It is the metric's unit for four of the five rows,
+// which is where the unit went when the labels lost the room to carry it.
+//
+// The US AQI has no unit: it is a dimensionless index, and `metrics.ts` says so
+// by giving it an empty string — a decision that belongs to the table headers,
+// which read `UNIT` through `metricLabel` and must not grow an `AQI (US)`
+// (#176). So the fallback lives here rather than there. An empty box in a
+// column of five filled ones read as a control that had lost its label, and the
+// metric's own name is what goes in it (TJ, 2026-09-14). Lower case like every
+// unit beside it, because in this column it is doing a unit's job.
+const BOX_PLACEHOLDER: Record<MetricFamily, string> = {
+  ...UNIT,
+  aqi: 'aqi',
+}
 
 // What polygon discovery finds. Custom (CSV) is no longer a mode here — the
 // always-visible Custom Destinations section below adds to any of these.
@@ -755,8 +770,16 @@ export default function ControlPanel({
     footerMessages.filter((m) => !isDismissed(m.key, dismissed)),
   )
 
+  // What Clear filters offers to undo, and therefore what makes it appear. The
+  // results cap counts even though it bounds nothing: it is one of the seven
+  // knobs in the table, a reader who typed a number there looks for the same
+  // way back as for a bound, and leaving it out meant the one control the
+  // button skipped was the one sitting right above it (TJ, 2026-09-14).
   const filtersActive =
-    minElevationFt !== null || maxElevationFt !== null || hasConstraints(constraints)
+    minElevationFt !== null ||
+    maxElevationFt !== null ||
+    limit !== DEFAULT_LIMIT ||
+    hasConstraints(constraints)
 
   // The optional map overlays, as one list rather than three hand-written rows.
   // Ordered by how much of the map each one covers, lightest first: a fire is a
@@ -1084,6 +1107,7 @@ export default function ControlPanel({
                 </button>
               ))}
             </div>
+            <div className={`col-span-full ${SECTION_SEAM}`} aria-hidden="true" />
             {/* The box columns' headings, the two aggregate names: for most
                 rows that is literally what a box bounds (see BOUNDS). The
                 unit moved from the label into each box's placeholder, because
@@ -1156,7 +1180,7 @@ export default function ControlPanel({
                       title={bounds.note}
                       type="number"
                       step={bounds.step}
-                      placeholder={UNIT[family]}
+                      placeholder={BOX_PLACEHOLDER[family]}
                       aria-label={`${NOUN[family]} ${aggregate}. ${bounds.hint[i]}`}
                       value={constraints[bounds[edge]] ?? ''}
                       onChange={(e) =>
@@ -1171,7 +1195,7 @@ export default function ControlPanel({
                 </Fragment>
               )
             })}
-            <div className={`col-span-full ${METRICS_RULE}`} />
+            <div className={`col-span-full ${SECTION_SEAM}`} aria-hidden="true" />
             {/* On the label AND both boxes, so the note is reachable from
                 anywhere in the row rather than from a third of it. Tooltips
                 are otherwise not used here and need explicit approval — see
