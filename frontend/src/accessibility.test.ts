@@ -48,12 +48,12 @@ describe('a listbox option id', () => {
   })
 })
 
-describe('the model list’s two decisions', () => {
-  // One list picks the ranking model AND selects the models the chart compares
-  // (#232), so more than one row can be `aria-selected` at a time. Without this
-  // the second and later ticks are a state a screen reader is told nothing
-  // about, since the visible boxes are drawn rather than announced.
-  it('says it is multi-selectable', () => {
+describe('the model picker’s two parts', () => {
+  // The list SELECTS the models the chart draws (#232), so more than one row is
+  // `aria-selected` at a time. Without this the second and later ticks are a
+  // state a screen reader is told nothing about, since the visible boxes are
+  // drawn rather than announced.
+  it('says the list is multi-selectable', () => {
     expect(modelPickerSource).toContain('aria-multiselectable')
   })
 
@@ -68,6 +68,27 @@ describe('the model list’s two decisions', () => {
       expect(box).toContain('aria-hidden="true"')
       expect(box).toContain('tabIndex={-1}')
     }
+  })
+
+  // The chip row RANKS, and it is a toolbar rather than a second listbox: its
+  // chips are buttons that act, not options that are chosen, so the arrow keys
+  // that walk a selection stay with the one list below.
+  it('gives the chip row the toolbar role', () => {
+    expect(modelPickerSource).toContain('role="toolbar"')
+  })
+
+  // The one accessible name built rather than written. A bare × announces as
+  // "button" and nothing else, and a row of them announces as the same button
+  // repeated, which is the state a chip row is most likely to be read in.
+  it('names each chip’s remove button after its model', () => {
+    expect(modelPickerSource).toContain('aria-label={`Remove ${label}`}')
+  })
+
+  // Two parts, two gestures, and no third one. An action below the list would
+  // be a control that is neither a row nor a chip, in a popover whose whole
+  // design is that the list selects and the chips rank.
+  it('carries no action below the list', () => {
+    expect(modelPickerSource).not.toContain('Clear comparison')
   })
 })
 

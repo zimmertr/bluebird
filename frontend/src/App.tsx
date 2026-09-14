@@ -393,10 +393,10 @@ export default function App() {
   // the model bounded it, and leaves them to guess by how much to shorten it.
   function changeForecastModel(id: string) {
     untouchedModelRef.current = false
-    // A model is on the chart once, whichever way it got there. The model it
-    // replaces is deliberately not ticked on its way out: the reader asked for
-    // a different ranking, not for a comparison against the old one.
-    setComparedModels((prev) => prev.filter((k) => k !== id))
+    // The compared set is not touched here. A model is on the chart once
+    // whichever way it got there, and which models are selected is the
+    // picker's own answer (`utils/modelSelection.ts`), handed over beside this
+    // call rather than recomputed from a state this function cannot see.
     const hours = modelForecastHours(caps.forecastModels, id)
     // A remembered pre-clamp window comes back the moment a model can serve
     // it whole (clampSelection returns null for "fits unchanged").

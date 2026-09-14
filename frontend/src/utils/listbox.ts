@@ -150,12 +150,12 @@ export function popoverBox(
  * WAI-ARIA listbox pattern makes it optional; Home and End are the deliberate
  * way to reach the ends.
  *
- * `count` is the number of OPTIONS, and an action in the popover's footer is
- * not one of them. A listbox's arrow keys move a selection; a button that
- * clears one is a different kind of thing, and walking it as a ninth row would
- * mean `aria-activedescendant` pointing at something with no `role="option"`.
- * It is reached with Tab instead, which is what the pattern reserves for
- * leaving the list.
+ * `count` is the number of OPTIONS, and nothing else in the popover is one.
+ * The chip row above the list is a toolbar of buttons: its arrow keys move
+ * focus rather than a selection, and walking a chip as a ninth row would mean
+ * `aria-activedescendant` pointing at something with no `role="option"`. Tab
+ * is what crosses between them, which is what the pattern reserves for
+ * leaving a list.
  */
 export function nextActiveIndex(current: number, key: string, count: number): number | null {
   if (count === 0) return null
@@ -163,6 +163,33 @@ export function nextActiveIndex(current: number, key: string, count: number): nu
     case 'ArrowDown':
       return Math.min(current + 1, count - 1)
     case 'ArrowUp':
+      return Math.max(current - 1, 0)
+    case 'Home':
+      return 0
+    case 'End':
+      return count - 1
+    default:
+      return null
+  }
+}
+
+/**
+ * The same walk along a row rather than down a column: the chip toolbar above
+ * the list.
+ *
+ * A separate function rather than an axis flag, because the two keyboards are
+ * separate by design — the arrows that move the listbox's active option must
+ * not also move the chips, or one press would do two things while both are on
+ * screen. Left and right are the toolbar's axis; Home and End are shared, and
+ * are the deliberate way to reach the ends here too, since this walk does not
+ * wrap for the same reason the listbox's does not.
+ */
+export function nextToolbarIndex(current: number, key: string, count: number): number | null {
+  if (count === 0) return null
+  switch (key) {
+    case 'ArrowRight':
+      return Math.min(current + 1, count - 1)
+    case 'ArrowLeft':
       return Math.max(current - 1, 0)
     case 'Home':
       return 0

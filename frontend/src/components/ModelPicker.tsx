@@ -1,15 +1,21 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { PopoverBox, nextActiveIndex, optionDomId, popoverBox } from '../utils/listbox'
+import { PopoverBox, nextActiveIndex, nextToolbarIndex, optionDomId, popoverBox } from '../utils/listbox'
+import {
+  canRemove,
+  chipFocusAfterRemoval,
+  rankWith,
+  selectedIds,
+  toggleSelected,
+} from '../utils/modelSelection'
 import { gridLabel, reachLabel, type ForecastModelOption } from '../hooks/useCapabilities'
 import {
   BADGE_ACCENT,
+  CHIP,
   CHOICE_INPUT,
   DISABLED,
-  FOCUS_RING,
   ICON_ADORNMENT,
   LAYER,
-  LINK_ACTION,
   SELECT,
   SR_ONLY,
   SURFACE_CARD,
@@ -41,9 +47,9 @@ interface Props {
   defaultId: string
   onChange: (id: string) => void
   /**
-   * The EXTRA models the chart draws beside the ranking one (#232), in the order
-   * they were ticked. Never contains `value`: the ranking model is on the chart
-   * by being the report, which is why its own box is ticked and disabled.
+   * The EXTRA models the chart draws beside the ranking one (#232), in the
+   * list's editorial order. Never contains `value`: the ranking model is on the
+   * chart by being the report, which is why its chip leads the row instead.
    */
   compared: readonly string[]
   onComparedChange: (ids: string[]) => void
@@ -73,12 +79,22 @@ interface Props {
  * fixed, because the control panel is an `overflow-y-auto` column that would
  * otherwise clip it at the scroll boundary.
  *
- * It is also where the chart's model comparison is chosen (#232). One list, two
- * decisions, because they are the same reading: picking a row makes that model
- * the one that RANKS the field, and ticking a row's box adds it to the chart
- * beside it. The alternative — a second control over on the chart — put a spend
- * where the reader was looking at results rather than choosing inputs, which is
- * what the review rejected.
+ * It is also where the chart's model comparison is chosen (#232), because it is
+ * the same reading. Two parts, and each does ONE thing:
+ *
+ * - **The list SELECTS.** A row is ticked or unticked, and nothing about a row
+ *   changes which model ranks or closes the popover. Ticking three models is
+ *   one visit rather than three.
+ * - **The chip row RANKS.** One chip per selected model, and a tap on a chip's
+ *   label moves the highlight to it. That is the `model-changed` data knob.
+ *
+ * The split is the whole design. A row that both selected and ranked put two
+ * gestures a few pixels apart, one of which dismissed the list under the
+ * reader's hand.
+ *
+ * Which models are selected lives in `App.tsx` and the link; the rules that
+ * move between the two facts live in `utils/modelSelection.ts`, because Vitest
+ * has no DOM and a decision left in this file is untestable by construction.
  */
 export default function ModelPicker({
   models,
@@ -93,17 +109,25 @@ export default function ModelPicker({
   const [box, setBox] = useState<PopoverBox | null>(null)
   const selectedIndex = models.findIndex((m) => m.id === value)
   const [active, setActive] = useState(Math.max(selectedIndex, 0))
+  // Roving tabindex along the chip row: one chip is in the Tab order and the
+  // arrow keys move which. A toolbar of N buttons that were all tabbable would
+  // put N stops between the trigger and the list.
+  const [chipFocus, setChipFocus] = useState(0)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  // The popover is more than the listbox now — it has a header bar above it and
-  // an action below it, and a press on either must not read as a press outside.
+  // The popover is more than the listbox — the chip row sits above it — and a
+  // press on either must not read as a press outside.
   const popoverRef = useRef<HTMLDivElement>(null)
-  const footerRef = useRef<HTMLButtonElement>(null)
+  const chipRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  // Which chip to focus once the row has re-rendered without the removed one.
+  const wantChipFocus = useRef<number | null>(null)
 
   const selected = selectedIndex >= 0 ? models[selectedIndex] : null
-  // The action exists only while there is something for it to undo, so an
-  // ordinary open is the list it always was.
-  const hasFooter = compared.length > 0
+  // The chips, left to right. Every selected model in the list's editorial
+  // order, the ranking one included and highlighted rather than hidden.
+  const chipIds = selectedIds(models, value, compared)
+  const chips = chipIds.map((id) => models.find((m) => m.id === id) ?? null)
+  const removable = canRemove(value, compared)
 
   // Two passes, both before paint so neither is visible. The first asks for as
   // much room as the viewport can give, which lets the list lay out at its
@@ -129,6 +153,7 @@ export default function ModelPicker({
 
   function openList() {
     setActive(Math.max(selectedIndex, 0))
+    setChipFocus(Math.max(chipIds.indexOf(value), 0))
     place()
     setOpen(true)
   }
@@ -138,27 +163,25 @@ export default function ModelPicker({
     if (refocus) triggerRef.current?.focus()
   }
 
-  function choose(index: number) {
-    const model = models[index]
-    if (model) {
-      onChange(model.id)
-      // A model cannot be both the ranking and an extra: it is on the chart once
-      // either way. The model it replaces is NOT ticked on its way out — the
-      // reader asked for a different ranking, not for a comparison against the
-      // old one, and a spend nobody asked for is the thing this control exists
-      // to keep deliberate.
-      if (compared.includes(model.id)) {
-        onComparedChange(compared.filter((id) => id !== model.id))
-      }
-    }
-    close(true)
+  /** Apply one rule's answer. The ranking setter clamps the window, so it is
+      called only when the ranking actually moved. */
+  function apply(next: { ranking: string; compared: string[] }) {
+    if (next.ranking !== value) onChange(next.ranking)
+    onComparedChange(next.compared)
   }
 
-  function toggleCompared(id: string) {
-    if (id === value) return
-    onComparedChange(
-      compared.includes(id) ? compared.filter((k) => k !== id) : [...compared, id],
-    )
+  function toggle(id: string) {
+    apply(toggleSelected(models, value, compared, id))
+  }
+
+  function rank(id: string) {
+    apply(rankWith(models, value, compared, id))
+  }
+
+  function removeChip(id: string, at: number) {
+    if (!removable) return
+    wantChipFocus.current = chipFocusAfterRemoval(at, chipIds.length - 1)
+    toggle(id)
   }
 
   // Before paint, so the panel never renders at a stale position for a frame.
@@ -168,14 +191,14 @@ export default function ModelPicker({
   }, [open])
 
   // The measuring pass. `scrollHeight` rather than the bounding box, since the
-  // first pass may already have capped the box at the viewport. Re-measured when
-  // the footer appears or goes, since it is part of the height.
+  // first pass may already have capped the box at the viewport. Re-measured
+  // when the chip row gains or loses a line, since it is part of the height.
   useLayoutEffect(() => {
     if (!open) return
     const popover = popoverRef.current
     if (popover) place(popover.scrollHeight)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, models, hasFooter])
+  }, [open, models, chipIds.length])
 
   // The trigger moves whenever the panel scrolls or the window resizes, and a
   // fixed-position child does not follow it. Capture phase because the scroll
@@ -207,7 +230,9 @@ export default function ModelPicker({
   }, [open])
 
   // Focus the list itself rather than an option, so `aria-activedescendant`
-  // names the highlighted row and the arrow keys stay on one element.
+  // names the highlighted row and the arrow keys stay on one element. The list
+  // rather than the chip row, because the list is what an opened picker is for;
+  // Shift+Tab reaches the chips above it.
   useEffect(() => {
     if (open) listRef.current?.focus()
   }, [open])
@@ -219,6 +244,52 @@ export default function ModelPicker({
       ?.scrollIntoView({ block: 'nearest' })
   }, [open, active])
 
+  // A removed chip takes the keyboard with it unless focus is placed again
+  // after the row re-renders, which is why this waits for the render rather
+  // than running inside the handler.
+  useEffect(() => {
+    const wanted = wantChipFocus.current
+    if (wanted === null) return
+    wantChipFocus.current = null
+    const at = Math.min(wanted, chipIds.length - 1)
+    const id = chipIds[at]
+    if (id === undefined) return
+    setChipFocus(at)
+    chipRefs.current[id]?.focus()
+  })
+
+  function focusChip(at: number) {
+    setChipFocus(at)
+    const id = chipIds[at]
+    if (id !== undefined) chipRefs.current[id]?.focus()
+  }
+
+  function onChipKeyDown(e: React.KeyboardEvent, at: number, id: string) {
+    const moved = nextToolbarIndex(chipFocus, e.key, chipIds.length)
+    if (moved !== null) {
+      e.preventDefault()
+      focusChip(moved)
+      return
+    }
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault()
+      // The ranking chip has no × for the same reason this still works on it:
+      // unticking it is a real gesture, and the ranking passes to its
+      // neighbour rather than the set emptying.
+      if (removable) removeChip(id, at)
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      close(true)
+    } else if (e.key === 'Tab') {
+      // Tab moves along the popover's own order — chips, then the list — rather
+      // than the document's, which would send focus past everything else on the
+      // page first because the panel is portalled to the end of the body.
+      e.preventDefault()
+      if (e.shiftKey) close(true)
+      else listRef.current?.focus()
+    }
+  }
+
   function onListKeyDown(e: React.KeyboardEvent) {
     const moved = nextActiveIndex(active, e.key, models.length)
     if (moved !== null) {
@@ -226,37 +297,18 @@ export default function ModelPicker({
       setActive(moved)
       return
     }
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      choose(active)
-    } else if (e.key === ' ') {
-      // Space is the multi-select pattern's toggle, and the list stays open the
-      // way it does for a mouse: ticking three boxes is one visit, not three.
+    if (e.key === 'Enter' || e.key === ' ') {
+      // Both keys do the one thing a row does. The list stays open the way it
+      // does for a mouse: ticking three boxes is one visit, not three.
       e.preventDefault()
       const model = models[active]
-      if (model) toggleCompared(model.id)
+      if (model && !(model.id === value && !removable)) toggle(model.id)
     } else if (e.key === 'Escape') {
       e.preventDefault()
       close(true)
     } else if (e.key === 'Tab') {
-      // Tab is how the pattern leaves a listbox, so it lands on the action
-      // below when there is one and leaves the popover altogether when there is
-      // not. Moved here rather than left to the browser because the panel is
-      // portalled to the end of the body, so document order would send focus
-      // past everything else on the page first.
       e.preventDefault()
-      if (hasFooter) footerRef.current?.focus()
-      else close(true)
-    }
-  }
-
-  function onFooterKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      close(true)
-    } else if (e.key === 'Tab') {
-      e.preventDefault()
-      if (e.shiftKey) listRef.current?.focus()
+      if (e.shiftKey) focusChip(chipFocus)
       else close(true)
     }
   }
@@ -325,6 +377,67 @@ export default function ModelPicker({
             }}
             className={`${SURFACE_CARD} ${LAYER.popover} flex flex-col`}
           >
+            {/* The selected set, and which of it ranks. A toolbar rather than a
+                second listbox: these are buttons that act, not options that
+                are chosen, and the one listbox below already owns the arrow
+                keys that walk a selection. */}
+            <div
+              role="toolbar"
+              className="flex flex-shrink-0 flex-wrap items-center gap-1.5 border-b border-slate-700 px-3 py-2"
+            >
+              {chips.map((model, at) => {
+                const id = chipIds[at]
+                const label = model?.label ?? id
+                const isRanking = id === value
+                return (
+                  <span key={id} className={isRanking ? CHIP.active : CHIP.rest}>
+                    <button
+                      type="button"
+                      ref={(el) => {
+                        chipRefs.current[id] = el
+                      }}
+                      tabIndex={at === Math.min(chipFocus, chipIds.length - 1) ? 0 : -1}
+                      onClick={() => rank(id)}
+                      onFocus={() => setChipFocus(at)}
+                      onKeyDown={(e) => onChipKeyDown(e, at, id)}
+                      className={CHIP.label}
+                    >
+                      {label}
+                    </button>
+                    {!isRanking && removable && (
+                      <button
+                        type="button"
+                        // Out of the Tab order rather than out of the
+                        // accessibility tree: the chip row's own Delete does
+                        // this, so a second stop per chip would double the
+                        // presses a keyboard pays to cross the row, while a
+                        // screen reader still reaches and names the button.
+                        tabIndex={-1}
+                        aria-label={`Remove ${label}`}
+                        onClick={() => removeChip(id, at)}
+                        className={CHIP.remove}
+                      >
+                        {/* A drawn cross rather than the "×" character, which
+                            centres on the font's maths where two lines in a
+                            square viewBox centre by construction. */}
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          className="h-2.5 w-2.5"
+                          aria-hidden="true"
+                        >
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                        </svg>
+                      </button>
+                    )}
+                  </span>
+                )
+              })}
+            </div>
             {/* Names the right-hand column once instead of eight times. The
                 figures are two bare numbers otherwise, and "3 km" beside a
                 model called NOAA GFS invites reading it as GFS's own grid
@@ -346,9 +459,9 @@ export default function ModelPicker({
             <div
               ref={listRef}
               role="listbox"
-              // Two decisions in one list: a row is chosen as the ranking model,
-              // and any number of rows are selected onto the chart. Multi-select
-              // is what makes `aria-selected` on more than one row legal.
+              // One list, one decision, and more than one row answers it: every
+              // selected model is on the chart. Multi-select is what makes
+              // `aria-selected` on more than one row legal.
               aria-multiselectable="true"
               aria-label="Forecast model"
               aria-activedescendant={
@@ -360,28 +473,33 @@ export default function ModelPicker({
             >
             {models.map((model, i) => {
               const isRanking = model.id === value
-              const isCompared = compared.includes(model.id)
+              const isSelected = isRanking || compared.includes(model.id)
+              // The last selected model cannot be given up: a report has to
+              // come from some model, so the box is disabled rather than
+              // quietly doing nothing when pressed.
+              const locked = isRanking && !removable
               return (
                 <div
                   key={model.id}
                   id={optionDomId(LIST_ID, model.id)}
                   data-index={i}
                   role="option"
-                  // Ticked either way: the ranking model and a compared model
-                  // are both on the chart, which is what the box states.
-                  aria-selected={isRanking || isCompared}
+                  aria-selected={isSelected}
+                  aria-disabled={locked || undefined}
                   onPointerEnter={() => setActive(i)}
-                  onClick={() => choose(i)}
-                  className={`flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 ${
-                    i === active ? 'bg-slate-700' : ''
-                  }`}
+                  onClick={() => {
+                    if (!locked) toggle(model.id)
+                  }}
+                  className={`flex items-start gap-2 rounded px-2 py-1.5 ${
+                    locked ? 'cursor-default' : 'cursor-pointer'
+                  } ${i === active ? 'bg-slate-700' : ''}`}
                 >
                   <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="flex items-baseline gap-1.5">
-                      {/* Two roles that differ only in weight, so the chosen row
-                          reads as chosen without a second color competing with
-                          the active highlight behind it. */}
+                      {/* Two roles that differ only in weight, so the ranking
+                          row reads as the ranking one without a second color
+                          competing with the active highlight behind it. */}
                       <span className={isRanking ? TEXT.subheading : TEXT.control}>
                         {model.label}
                       </span>
@@ -409,42 +527,22 @@ export default function ModelPicker({
                       already carries this state, and a focusable input inside a
                       `role="option"` would be a second stop in a list whose
                       whole keyboard model is one element with
-                      `aria-activedescendant`. Space is the key that toggles it.
-                      The ranking model's box is ticked and disabled, since it is
-                      on the chart by being the report. */}
+                      `aria-activedescendant`. Enter and Space are the keys that
+                      toggle it. */}
                   <input
                     type="checkbox"
                     aria-hidden="true"
                     tabIndex={-1}
-                    checked={isRanking || isCompared}
-                    disabled={isRanking}
-                    onChange={() => toggleCompared(model.id)}
+                    checked={isSelected}
+                    disabled={locked}
+                    onChange={() => toggle(model.id)}
                     onClick={(e) => e.stopPropagation()}
-                    className={`${CHOICE_INPUT} mt-0.5`}
+                    className={`${CHOICE_INPUT} ${DISABLED} mt-0.5`}
                   />
                 </div>
               )
             })}
             </div>
-            {hasFooter && (
-              <div className="border-t border-slate-700 px-3 py-1.5 text-right">
-                <button
-                  ref={footerRef}
-                  type="button"
-                  // Unticks every box and leaves the list open, so the reader is
-                  // looking at the state they just cleared rather than at a
-                  // closed control they have to reopen to check.
-                  onClick={() => {
-                    onComparedChange([])
-                    listRef.current?.focus()
-                  }}
-                  onKeyDown={onFooterKeyDown}
-                  className={`${LINK_ACTION} ${TEXT.control} ${FOCUS_RING} cursor-pointer`}
-                >
-                  Clear comparison
-                </button>
-              </div>
-            )}
           </div>,
           document.body,
         )}

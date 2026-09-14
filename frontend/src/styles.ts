@@ -410,6 +410,46 @@ export const BADGE_ACCENT =
   `text-[10px] font-semibold uppercase tracking-wider ` +
   `${ACCENT.fill} ${RADIUS.pill} px-1.5 py-0.5`
 
+/** The box a chip sits in, which is the same box in either state. */
+const CHIP_SHAPE = `inline-flex max-w-full items-center ${RADIUS.control} text-xs`
+
+/**
+ * A chip naming one selected member of a set: the forecast models the picker
+ * has selected, of which exactly one is in force.
+ *
+ * Two states, and the pair is the point. `active` marks the member in force —
+ * the model that RANKS the field — and wears `ACCENT.fill`, the same fill the
+ * chosen half of a segmented control wears, because it states the same fact
+ * about the same kind of set. `rest` is every other selected member.
+ *
+ * Colour is not the only channel separating them, and it cannot be: the accent
+ * fill against the neutral chip beside it measures 2.2:1, under the 3:1 that
+ * WCAG 1.4.11 asks of a boundary carrying meaning on its own. A resting chip
+ * carries a remove × and an active one never does, so the state reads from
+ * shape as well. The labels are above the text floor in both states — white on
+ * `--color-sky-650` is 4.57:1 (the derivation is in `index.css`) and slate-200
+ * on slate-700 is 8.2:1.
+ *
+ * The size is spelled bare rather than composed from `TEXT.control`, for the
+ * reason `BADGE_ACCENT` above spells its own: that role carries slate-200,
+ * which would race `ACCENT.fill`'s white by stylesheet order rather than by
+ * class order, so the winner would not be decidable from this line.
+ */
+export const CHIP = {
+  /** A selected member that is not the one in force. */
+  rest: `${CHIP_SHAPE} bg-slate-700 text-slate-200`,
+  /** The member in force. */
+  active: `${CHIP_SHAPE} ${ACCENT.fill}`,
+  /** The label, which is also the control that puts that member in force. */
+  label: `min-w-0 cursor-pointer truncate px-2 py-1 ${FOCUS_RING}`,
+  /**
+   * The × that deselects it. 24px square — WCAG 2.5.8's AA floor — on every
+   * pointer rather than only on a coarse one, because the chip row takes its
+   * height from this box and a `touch:` variant here would make a phone's
+   * chips taller than a mouse's for no reading gain.
+   */
+  remove: `flex h-6 w-6 flex-shrink-0 cursor-pointer items-center justify-center ${FOCUS_RING}`,
+} as const
 
 /**
  * The destructive retry inside an error notice: "Try again".
