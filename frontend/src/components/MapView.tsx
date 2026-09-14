@@ -1918,7 +1918,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       const map = mapRef.current
       if (!map) return
-      const control = new maplibregl.AttributionControl({ compact: !isDesktop })
+      // The library's own defaults, with only `compact` decided here: its
+      // option object also carries the MapLibre credit, and constructing one
+      // with a bare `{compact}` would drop that credit rather than restate it.
+      const { options } = new maplibregl.AttributionControl()
+      const control = new maplibregl.AttributionControl({ ...options, compact: !isDesktop })
       map.addControl(control, 'bottom-right')
       return () => {
         if (mapRef.current === map) map.removeControl(control)
