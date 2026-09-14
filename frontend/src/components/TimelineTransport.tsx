@@ -107,10 +107,13 @@ export default function TimelineTransport({
       // scale here was the alternative and a bad trade: this box is CENTRED, so
       // every pixel left on one side costs two, and clearing a 95px scale on a
       // phone would have taken most of the bar.
-      className={`${SURFACE_FLOATING} ${LAYER.base} absolute bottom-10 left-1/2 -translate-x-1/2 flex w-[min(23rem,calc(100%-4rem))] items-center gap-2.5 px-3 py-2`}
-      // The class above is the docked case; where a sheet covers the map's
-      // bottom edge the same offset is measured from the sheet instead (#249).
-      style={liftPx > 0 ? { bottom: transportBottomPx(liftPx) } : undefined}
+      className={`${SURFACE_FLOATING} ${LAYER.base} absolute left-1/2 -translate-x-1/2 flex w-[min(23rem,calc(100%-4rem))] items-center gap-2.5 px-3 py-2`}
+      // The offset is a style rather than a class because it is derived, not
+      // chosen: it is the room MapLibre's scale bar and attribution need,
+      // measured from whatever the bar is standing on — the map's own bottom
+      // edge where the results are docked, the top of the sheet where they
+      // cover it (#249).
+      style={{ bottom: transportBottomPx(liftPx) }}
     >
       <button
         onClick={() => onPlayingChange(!playing)}

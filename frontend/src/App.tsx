@@ -108,6 +108,7 @@ import {
   mapCornerLiftPx,
   restingLiftPx,
   restingMapFloorPx,
+  resolveSheetLift,
   sheetHeightPx,
 } from './utils/resultsSheet'
 import { composeOverlay } from './utils/analyzeOverlay'
@@ -632,6 +633,14 @@ export default function App() {
   })
   // Chevron to collapse/expand the entire results area.
   const [resultsCollapsed, setResultsCollapsed] = useState(false)
+  // The results' own height as rendered, which on a phone is how much map the
+  // sheet covers. Observed rather than derived because everything anchored to
+  // the map's bottom edge measures from this one number, and a derivation has
+  // to guess a header bar whose height depends on the pointer and on what the
+  // bar is carrying. `null` until the first observation, and while the results
+  // are docked, where the number means nothing.
+  const [sheetMeasuredPx, setSheetMeasuredPx] = useState<number | null>(null)
+  const sheetRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   // Whether the reader has set a panel height themselves. It only matters on a
   // phone, where the results are a sheet standing on the map (#249): until they
@@ -1829,19 +1838,47 @@ export default function App() {
       mapMinPx: mapFloorPx,
     },
   )
+  // One observation of the results' real height, which is what the map's bottom
+  // chrome rides. A ResizeObserver rather than a layout effect: the height
+  // changes on a drag, on a mode switch, on the collapse chevron and on a
+  // rotation, and every one of those is the same question asked again. Cleared
+  // while the results are docked, where nothing covers the map's bottom edge.
+  useEffect(() => {
+    const el = sheetRef.current
+    if (!el || isDesktop) {
+      setSheetMeasuredPx(null)
+      return
+    }
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      // The BORDER box: the sheet's own top border is part of what covers the
+      // map, and `contentRect` leaves it out.
+      const box = entry.borderBoxSize?.[0]?.blockSize
+      setSheetMeasuredPx(box ?? entry.target.getBoundingClientRect().height)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [isDesktop, showTable])
+
   // How far the sheet reaches up the map, and therefore how far the map's own
-  // bottom chrome — the legend stack, the timeline, and MapLibre's attribution
-  // and scale — rides up to clear it. Zero wherever the results are docked below
-  // the map, which is every desktop width and the moment before the first
+  // bottom chrome — the legend stack, the timeline, and MapLibre's scale and
+  // attribution — rides up to clear it. Zero wherever the results are docked
+  // below the map, which is every desktop width and the moment before the first
   // analysis.
-  const sheetLiftPx =
-    isDesktop || !showTable
-      ? 0
-      : sheetHeightPx({
-          collapsed: resultsCollapsed,
-          gripCount,
-          panelsPx: chartPanelPx + tablePanelPx,
-        })
+  //
+  // The MEASURED height, not the derived one: the estimate has to guess a
+  // header and a grip, and a guess 20px out is 20px of gap the reader can see
+  // under the player. The estimate is what the first frame gets, before the
+  // observer below has reported.
+  const sheetLiftPx = resolveSheetLift({
+    docked: isDesktop || !showTable,
+    measuredPx: sheetMeasuredPx,
+    estimatePx: sheetHeightPx({
+      collapsed: resultsCollapsed,
+      gripCount,
+      panelsPx: chartPanelPx + tablePanelPx,
+    }),
+  })
   // Both of the library's bottom corners ride the same lift as the app's own
   // chrome, at every width: the scale bar bottom-left and the attribution
   // bottom-right sit in the band between the forecast player and the top of the
@@ -2144,18 +2181,13 @@ export default function App() {
               of the default. */}
           {(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar) && (
             <div
-              className={`absolute ${MAP_EDGE.left} top-28 z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0 ${
-                timelineAxis !== null ? 'bottom-28' : 'bottom-8'
-              }`}
-              // Where a sheet covers the map's bottom edge, the same two
-              // clearances are measured from the sheet's top edge instead
-              // (#249). The classes above stay the docked case, and this
-              // overrides them only while there is a sheet to clear.
-              style={
-                sheetLiftPx > 0
-                  ? { bottom: legendBottomPx(sheetLiftPx, timelineAxis !== null) }
-                  : undefined
-              }
+              className={`absolute ${MAP_EDGE.left} top-28 z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0`}
+              // The floor of the scroll box, derived rather than chosen: the
+              // transport's whole band while the bar is on screen and a plain
+              // gap otherwise, measured from whatever stands on the map's
+              // bottom edge — the edge itself where the results are docked, the
+              // top of the sheet where they cover it (#249).
+              style={{ bottom: legendBottomPx(sheetLiftPx, timelineAxis !== null) }}
             >
               {/* One row per layer: what it is, who it came from, and its key
                   on the right. The densities used to be three stacked rows
@@ -2472,6 +2504,7 @@ export default function App() {
           // height and its legends keep their room (#249). One surface either
           // way — only where it sits changes.
           <div
+            ref={sheetRef}
             className={
               isDesktop
                 ? 'flex flex-shrink-0 flex-col bg-slate-800'

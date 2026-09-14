@@ -32,28 +32,62 @@ export const LEGEND_STACK_PX = 245
 export const LEGEND_GAP_PX = 32
 
 /**
- * The band the timeline transport occupies, which the legend clears while the
- * bar is on screen (`bottom-28`).
+ * The gap between the top of the results and the bottom of the forecast player,
+ * which is exactly the room MapLibre's two bottom controls need and no more.
+ *
+ * Both of them ride `mapCornerLiftPx` into this band, one per corner, so it is
+ * sized by the taller: measured in Chrome on macOS 2026-09-13 against
+ * maplibre-gl's own stylesheet, the compact attribution a phone gets is a 20px
+ * line plus 2px of padding top and bottom and a 10px margin — 34px — where the
+ * scale bar is a 20px line plus its 2px rule and the same margin (32px) and the
+ * expanded attribution a desk gets is a bare 20px line with no margin at all.
+ * Re-measure if the library changes either control's box.
+ *
+ * The bar used to sit 40px up with no reason recorded for the number, which was
+ * both more room than the credits need and, because the lift under it was an
+ * ESTIMATE of the results' height rather than the height itself, a different
+ * gap in every results mode (#249 review).
  */
-export const TRANSPORT_BAND_PX = 112
+export const TRANSPORT_GAP_PX = 34
 
-/** The transport's own offset off the edge it sits on (`bottom-10`). */
-export const TRANSPORT_GAP_PX = 40
+/**
+ * The transport's own height, in its tallest state: the axis switch appears
+ * once two axes exist, and on a coarse pointer its halves take the 44px target
+ * every other button takes. Measured at 402x874 with radar and a multi-hour
+ * report, 2026-09-13; the one-axis bar is 62px and is left the same band.
+ */
+export const TRANSPORT_HEIGHT_PX = 80
+
+/**
+ * The band the timeline transport occupies, which the legend stack clears while
+ * the bar is on screen. Derived rather than measured, so the gap above cannot
+ * move without the clearance above the bar moving with it.
+ */
+export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
 
 /**
  * The sheet's header bar, which is also the sheet's collapsed height.
  *
- * At 402px the bar carries two rows and its actions row wraps: 12px of padding,
- * a 24px title row, the 4px gap, then the 44px a coarse pointer gives the mode
- * segment plus the wrapped row of links under it, and the 1px rule. Re-measure
- * it if a member joins or leaves the bar, and round UP rather than down: this is
- * what the map's bottom chrome clears, so an over-estimate leaves a gap and an
- * under-estimate hides a legend row behind the sheet.
+ * Measured at 402x874 on a coarse pointer, 2026-09-13: 12px of padding, a
+ * 19.5px title row, the 4px gap, the 44px a coarse pointer gives the mode
+ * segment, the 1px rule, and the sheet's own 1px top border. Rounded up.
+ *
+ * This is an ESTIMATE and is used only where an estimate is the right answer:
+ * the resting reserve the panel clamp takes, and the camera padding, both of
+ * which must be the same number before and after a drag. What the map's bottom
+ * chrome rides is the sheet's MEASURED height (`App.tsx` observes the element),
+ * because an estimate that was 20px out put a different gap under the player in
+ * every results mode. Re-measure if a member joins or leaves the bar.
  */
-export const SHEET_HEADER_PX = 104
+export const SHEET_HEADER_PX = 84
 
-/** One drag grip (`h-2`), of which the sheet carries one or two. */
-const GRIP_PX = 8
+/**
+ * One drag grip, of which the sheet carries one or two. `h-2` is 8px, but
+ * `TAP.grip` floors it at 24px on a coarse pointer, which is what a phone
+ * sheet actually carries — and under-counting it was half of why the estimate
+ * above drifted per results mode.
+ */
+const GRIP_PX = 24
 
 /**
  * Map that stays uncovered while the sheet rests: the legend stack, its top
@@ -133,6 +167,36 @@ export function sheetHeightPx({
 }): number {
   if (collapsed) return SHEET_HEADER_PX
   return sheetChromePx(gripCount) + panelsPx
+}
+
+/**
+ * How far the results cover the map, which is what every anchor below measures
+ * from.
+ *
+ * `measuredPx` is the sheet element's own height, observed in `App.tsx`. It is
+ * the answer wherever it exists, because the alternative — adding up a header,
+ * its grips and the panel heights — is an estimate, and an estimate that is
+ * 20px out puts the forecast player a different distance above the results in
+ * every results mode. It was: the header was over-counted by 20px and each grip
+ * under-counted by 16, so the four modes sat 44.5, 44.5, 28.5 and 60.5px clear
+ * of a panel they were all meant to clear by the same amount (#249 review).
+ *
+ * `estimatePx` covers the frame before the observer has reported, and `docked`
+ * is every width where the results are a sibling of the map rather than a sheet
+ * over it — there the map's own bottom edge IS the top of the results, so
+ * nothing rides anything.
+ */
+export function resolveSheetLift({
+  docked,
+  measuredPx,
+  estimatePx,
+}: {
+  docked: boolean
+  measuredPx: number | null
+  estimatePx: number
+}): number {
+  if (docked) return 0
+  return measuredPx ?? estimatePx
 }
 
 /**

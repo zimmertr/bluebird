@@ -9,10 +9,12 @@ import {
   SHEET_HEADER_PX,
   TRANSPORT_BAND_PX,
   TRANSPORT_GAP_PX,
+  TRANSPORT_HEIGHT_PX,
   draggedMapFloorPx,
   legendBottomPx,
   mapCornerLiftPx,
   maxSheetPx,
+  resolveSheetLift,
   restingLiftPx,
   restingMapFloorPx,
   sheetChromePx,
@@ -32,13 +34,17 @@ describe('sheetHeightPx', () => {
   })
 
   it('adds the grips and the panels when the results are open', () => {
+    // A grip is 24px on a coarse pointer, which is what a phone sheet carries:
+    // `h-2` with `TAP.grip`'s floor under it.
+    const grip = sheetChromePx(1) - SHEET_HEADER_PX
+    expect(grip).toBe(24)
     // One grip, a 280px table: the table-only sheet.
     expect(sheetHeightPx({ collapsed: false, gripCount: 1, panelsPx: 280 })).toBe(
-      SHEET_HEADER_PX + 8 + 280,
+      SHEET_HEADER_PX + grip + 280,
     )
     // Two grips, a chart and a table: Both mode.
     expect(sheetHeightPx({ collapsed: false, gripCount: 2, panelsPx: 400 })).toBe(
-      SHEET_HEADER_PX + 16 + 400,
+      SHEET_HEADER_PX + 2 * grip + 400,
     )
   })
 })
@@ -77,18 +83,52 @@ describe('the map chrome anchors', () => {
     expect(appSource).toContain('top-28')
   })
 
-  // These four numbers are the pixel values of classes `App.tsx` and
-  // `TimelineTransport.tsx` still spell, which is the only way a lift can be
-  // wrong without a test failing.
-  it('mirrors the offsets the components spell', () => {
+  // Every offset on this edge is derived here and applied as a style, so the
+  // one class left to mirror is the legend's top inset. A bottom spelled in
+  // either component would be a second opinion about the same edge — which is
+  // how the gap under the player came to differ per results mode.
+  it('leaves no bottom offset spelled in a component', () => {
     expect(appSource).toContain('top-28') // LEGEND_TOP_PX
-    expect(appSource).toContain('bottom-8') // LEGEND_GAP_PX
-    expect(appSource).toContain('bottom-28') // TRANSPORT_BAND_PX
-    expect(transportSource).toContain('bottom-10') // TRANSPORT_GAP_PX
     expect(LEGEND_TOP_PX).toBe(28 * 4)
-    expect(LEGEND_GAP_PX).toBe(8 * 4)
-    expect(TRANSPORT_BAND_PX).toBe(28 * 4)
-    expect(TRANSPORT_GAP_PX).toBe(10 * 4)
+    // `bottom-0` is exempt and is the sheet itself, which stands ON the edge
+    // rather than measuring off it.
+    expect(appSource).not.toMatch(/\bbottom-(?:[1-9]|\[)/)
+    expect(transportSource).not.toMatch(/\bbottom-(?:[1-9]|\[)/)
+    expect(appSource).toContain('legendBottomPx(sheetLiftPx')
+    expect(transportSource).toContain('transportBottomPx(liftPx)')
+  })
+
+  // The band above the results is exactly the room MapLibre's two bottom
+  // controls need, and the band the legend clears is that gap plus the bar
+  // standing in it. Derived rather than measured a second time, so the two
+  // cannot drift.
+  it('sizes the transport band from the gap and the bar', () => {
+    expect(TRANSPORT_GAP_PX).toBe(34)
+    expect(TRANSPORT_BAND_PX).toBe(TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX)
+    expect(legendBottomPx(0, true) - transportBottomPx(0)).toBe(TRANSPORT_HEIGHT_PX)
+  })
+
+  // The one gap the review is about: the distance from the top of the results
+  // to the bottom of the player, which must be the same number in every
+  // results mode and with the results collapsed.
+  it('keeps one gap under the player in every results state', () => {
+    // Four states as they render on a phone: table, chart, both, collapsed.
+    // The lift is the sheet's MEASURED height, so these are four different
+    // heights and one gap rather than four gaps.
+    for (const measuredPx of [387.5, 395.5, 416.5, 83.5]) {
+      const lift = resolveSheetLift({ docked: false, measuredPx, estimatePx: 392 })
+      expect(transportBottomPx(lift) - lift).toBe(TRANSPORT_GAP_PX)
+    }
+    // Docked, the map's own bottom edge is the top of the results.
+    expect(transportBottomPx(resolveSheetLift({ docked: true, measuredPx: 300, estimatePx: 392 })))
+      .toBe(TRANSPORT_GAP_PX)
+  })
+
+  // The estimate is the first frame's answer and nothing else's: it has to
+  // guess a header bar whose height depends on the pointer type.
+  it('prefers the measurement to the estimate', () => {
+    expect(resolveSheetLift({ docked: false, measuredPx: 387.5, estimatePx: 392 })).toBe(387.5)
+    expect(resolveSheetLift({ docked: false, measuredPx: null, estimatePx: 392 })).toBe(392)
   })
 })
 
@@ -179,7 +219,7 @@ describe('the resting height', () => {
     })
     expect(chart).toBe(0)
     expect(table).toBe(120)
-    expect(VIEWPORT - sheetHeightPx({ collapsed: false, gripCount: 1, panelsPx: table })).toBe(435)
+    expect(VIEWPORT - sheetHeightPx({ collapsed: false, gripCount: 1, panelsPx: table })).toBe(439)
   })
 })
 
@@ -195,9 +235,9 @@ describe('the drag cap', () => {
   })
 
   it('states both caps outright', () => {
-    expect(DRAGGED_MAP_PX).toBe(224)
-    expect(maxSheetPx(874)).toBe(650)
-    expect(maxSheetPx(757)).toBe(533)
+    expect(DRAGGED_MAP_PX).toBe(226)
+    expect(maxSheetPx(874)).toBe(648)
+    expect(maxSheetPx(757)).toBe(531)
   })
 
   // `clampPanelHeight` is given a map floor rather than a sheet height, and the
@@ -253,7 +293,7 @@ describe('the camera padding', () => {
         availPx: 874,
         ...defaults,
       }),
-    ).toBe(392)
+    ).toBe(388)
   })
 
   it('takes only the reserve on a viewport too short for the whole table', () => {
@@ -265,7 +305,7 @@ describe('the camera padding', () => {
       availPx: 757,
       ...defaults,
     })
-    expect(lift).toBe(288)
+    expect(lift).toBe(286)
     expect(757 - lift).toBe(RESTING_MAP_PX)
   })
 
