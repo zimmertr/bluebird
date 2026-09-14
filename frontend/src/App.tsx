@@ -21,7 +21,6 @@ import {
   compareAdded,
   drawnModelIds,
   modelRowsFor,
-  modelsWithoutMetric,
   pairColor,
   pairKey,
 } from './utils/modelCompare'
@@ -176,8 +175,6 @@ import {
   restorePlace,
 } from './utils/removals'
 import {
-  LEAD_KEYS,
-  MODEL_COL,
   MODEL_KEY,
   SortDir,
   SortKey,
@@ -185,6 +182,7 @@ import {
   WILDFIRE_KEY,
   displayedColumns,
   visibleColumns,
+  withModelColumn,
 } from './utils/tableColumns'
 import { NAME_DEFAULT_PX } from './utils/columnResize'
 import { compareValues } from './utils/sortResults'
@@ -1825,7 +1823,10 @@ export default function App() {
   function handleDownloadCsv() {
     const csv = buildResultsCsv(
       tableRows,
-      csvColumns,
+      // The same insertion the table makes. The file is given the same rows,
+      // so without it a comparison writes each destination once per model with
+      // nothing saying which model each line is.
+      withModelColumn(csvColumns, comparingRows),
       // Null also when the column is hidden: buildResultsCsv drops the
       // wildfire column on null, and a file must not carry a column the
       // screen does not show.
@@ -2065,33 +2066,8 @@ export default function App() {
   const tableColumns = useMemo(() => {
     const cols = visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys)
     const withFire = effectiveVisibleKeys.has(WILDFIRE_KEY) ? [...cols, WILDFIRE_COL] : cols
-    if (!comparingRows) return withFire
-    // Directly after the identity columns and before the first metric: it says
-    // WHICH ANSWER this row is, so it belongs with the things that identify a
-    // row rather than among the numbers it qualifies. Inserted here rather than
-    // in `COLUMNS` because it exists only while a comparison is up, and it is
-    // not in the Columns picker for the same reason — a column that cannot be
-    // turned off is one less thing to explain than a column that appears in the
-    // picker only sometimes.
-    const at = withFire.findIndex((c) => !LEAD_KEYS.has(c.key as string))
-    const cut = at === -1 ? withFire.length : at
-    return [...withFire.slice(0, cut), MODEL_COL, ...withFire.slice(cut)]
+    return withModelColumn(withFire, comparingRows)
   }, [pointSample, view.sortBy, effectiveVisibleKeys, comparingRows])
-
-  // Which selected models answered with nothing for the metric the report is
-  // ranked on. Read off the RANKED metric rather than the chart's, because the
-  // panel is where this is said and the ranking is the panel's own knob: a
-  // reader who switches the chart to precipitation has not stopped ranking on
-  // the freezing level. The lines carry every metric's array, so the answer
-  // does not move when the chart's select does.
-  //
-  // Empty on air quality, where there are no lines at all: the comparison is
-  // withdrawn on that metric rather than drawing one answer eight times, and
-  // that is a different sentence, said below.
-  const compareGaps = useMemo(
-    () => modelsWithoutMetric(compare.lines, familyOf(sortBy)),
-    [compare.lines, sortBy],
-  )
 
   // A model put down and later selected again comes back DRAWN, so a flag
   // outlives its model by exactly nothing. Keyed on the panel's selection
@@ -2318,9 +2294,6 @@ export default function App() {
           setCustomCsv={setCustomCsv}
           onCsvPasted={(points) => mapRef.current?.fitToPoints(points)}
           commitReasons={commitReasons}
-          compareGaps={compareGaps.length}
-          compareCount={compare.shown.length}
-          compareAqi={familyOf(sortBy) === 'aqi' && comparedModels.length > 0}
           sortBy={sortBy}
           setSortBy={setSortBy}
           sortDesc={sortDesc}

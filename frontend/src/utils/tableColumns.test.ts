@@ -1,12 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import {
   COLUMNS,
+  MODEL_KEY,
   WILDFIRE_COL,
   WILDFIRE_KEY,
   displayedColumns,
   pointModeColumns,
   orderColumns,
   visibleColumns,
+  withModelColumn,
 } from './tableColumns'
 import { SEP } from '../metrics'
 import { FREEZE_UNAVAILABLE } from './freezingLevel'
@@ -276,5 +278,48 @@ describe('WILDFIRE_COL', () => {
   it('is not part of the row-backed column set', () => {
     expect(COLUMNS.map((c) => c.key)).not.toContain(WILDFIRE_KEY)
     expect(displayedColumns(false, 'precip_total_in').map((c) => c.key)).not.toContain(WILDFIRE_KEY)
+  })
+})
+
+// The table and the CSV are handed the same rows — one per destination per
+// model — so the column that says which model a row is has to come from one
+// derivation or the file repeats every destination unexplained.
+describe('the Model column', () => {
+  const cols = displayedColumns(false, 'precip_total_in')
+
+  it('leaves the columns alone when nothing is compared', () => {
+    expect(withModelColumn(cols, false).map((c) => c.key)).toEqual(cols.map((c) => c.key))
+  })
+
+  it('sits after the identity columns and before the first metric', () => {
+    const keys = withModelColumn(cols, true).map((c) => c.key)
+    const at = keys.indexOf(MODEL_KEY)
+    expect(at).toBeGreaterThan(-1)
+    expect(keys.slice(0, at).every((k) => LEAD.has(k as string))).toBe(true)
+    expect(LEAD.has(keys[at + 1] as string)).toBe(false)
+  })
+
+  it('adds the column once and drops nothing', () => {
+    const keys = withModelColumn(cols, true).map((c) => c.key)
+    expect(keys.filter((k) => k === MODEL_KEY)).toHaveLength(1)
+    expect(keys.length).toBe(cols.length + 1)
+    for (const col of cols) expect(keys).toContain(col.key)
+  })
+
+  // The wildfire column is appended last by the caller, so the insertion must
+  // not move it or trip over its virtual key.
+  it('keeps a trailing wildfire column last', () => {
+    const keys = withModelColumn([...cols, WILDFIRE_COL], true).map((c) => c.key)
+    expect(keys[keys.length - 1]).toBe(WILDFIRE_KEY)
+  })
+
+  // A point-sample report collapses to identity columns plus one instant per
+  // metric; the insertion must still land rather than run off the end.
+  it('appends when every column is an identity column', () => {
+    const lead = cols.filter((c) => LEAD.has(c.key as string))
+    expect(withModelColumn(lead, true).map((c) => c.key)).toEqual([
+      ...lead.map((c) => c.key),
+      MODEL_KEY,
+    ])
   })
 })

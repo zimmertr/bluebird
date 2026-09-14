@@ -286,13 +286,28 @@ key instead of the suffixed pair, which is one model's numbers under no label.
 That is why each compared model is fetched as its own single-model request, and
 why an unsuffixed key is treated as absent wherever one appears.
 
+**A variable a model does not carry is silent, which is why two metrics refuse
+the comparison outright.** Three of the eight models forecast a freezing level;
+the other five answer HTTP 200 with a column of nulls, which is not an error and
+cannot be told from a forecast that was never asked for. Air quality is the
+mirror case: CAMS answers for every model alike, so a comparison there is the
+same numbers several times. Neither can be discovered before the fetch, because
+`GET /api/capabilities` publishes no per-variable flag on a model, so the panel
+carries a list of the three models that serve the freezing level and blocks
+**Analyze** on either contradiction rather than buying a report that cannot
+answer the ranking. Everywhere a CELL is concerned the emptiness is still read
+off the data, so a model that starts publishing the variable needs no code
+change there; the list is the one place a new model has to be added.
+
 The cost is real rather than free, which is why a comparison is bought by
 Analyze rather than as you browse. Open-Meteo prices a request at
 `locations × max(1, days/14) × max(1, variables × models/10)`, the browser asks
 for nine hourly variables, and the analysis model's numbers are already held: a
-comparison buys one model series per charted destination per added model,
+comparison buys one model series per displayed destination per added model,
 roughly one weighted call each, against the hundred or more an analysis of a
-polygon spends. Unticking a model buys nothing back and needs no Analyze, since
+polygon spends. Displayed rather than charted, because the results table shows
+one row per model and a blank cell there would read as a forecast rather than as
+a row nobody fetched. Unticking a model buys nothing back and needs no Analyze, since
 its line was drawn from numbers already in hand. Air quality is not part of it,
 because CAMS is a single model whatever forecast model ranks the field.
 

@@ -10,6 +10,8 @@ const READY_POLYGON: AnalyzeGate = {
   polygonReady: true,
   hasCustom: false,
   hasPins: false,
+  compareAqi: false,
+  compareFreeze: false,
 }
 
 describe('canAnalyze — ranked inputs', () => {
@@ -131,9 +133,9 @@ describe('analyzeBlockers', () => {
 
   // The two must agree, or the panel disables a button and gives no reason —
   // or gives a reason for a button that works. Exhaustive over every
-  // combination of the seven flags plus a representative point count each.
+  // combination of the eight flags plus a representative point count each.
   it('is non-empty exactly when canAnalyze is false', () => {
-    for (let bits = 0; bits < 64; bits++) {
+    for (let bits = 0; bits < 256; bits++) {
       for (const drawPointCount of [0, 2, 3]) {
         const gate: AnalyzeGate = {
           loading: false,
@@ -143,6 +145,8 @@ describe('analyzeBlockers', () => {
           hasCustom: (bits & 8) !== 0,
           hasPins: (bits & 16) !== 0,
           datesPending: (bits & 32) !== 0,
+          compareAqi: (bits & 64) !== 0,
+          compareFreeze: (bits & 128) !== 0,
         }
         const label = `${JSON.stringify(gate)} points=${drawPointCount}`
 
@@ -165,6 +169,8 @@ describe('a polygon with nothing checked', () => {
     hasCustom: false,
     hasPins: false,
     datesPending: false,
+    compareAqi: false,
+    compareFreeze: false,
     drawPointCount: 4,
   }
 
@@ -183,5 +189,49 @@ describe('a polygon with nothing checked', () => {
 
   it('still reports an unfinished polygon as unfinished', () => {
     expect(analyzeBlockers({ ...drawn, drawPointCount: 2 })).toEqual(['polygon'])
+  })
+})
+
+// Two settings the reader has already made can contradict each other, and the
+// report they would buy cannot answer the question the panel is asking. Both
+// veto Analyze rather than explaining themselves after the spend (TJ,
+// 2026-09-14).
+describe('a model selection the ranking cannot use', () => {
+  it('blocks a ready analysis ranked on air quality with models compared', () => {
+    const gate = { ...READY_POLYGON, compareAqi: true }
+    expect(canAnalyze(gate)).toBe(false)
+    expect(analyzeBlockers({ ...gate, drawPointCount: 4 })).toEqual(['compare-aqi'])
+  })
+
+  it('blocks a ranking on freezing level when a picked model has none', () => {
+    const gate = { ...READY_POLYGON, compareFreeze: true }
+    expect(canAnalyze(gate)).toBe(false)
+    expect(analyzeBlockers({ ...gate, drawPointCount: 4 })).toEqual(['compare-freeze'])
+  })
+
+  // The vetoes are about work already done, so they lead the missing-input
+  // lines and follow the window's own problems.
+  it('reports both contradictions and keeps them in order', () => {
+    expect(
+      analyzeBlockers({
+        ...READY_POLYGON,
+        drawPointCount: 4,
+        datesPending: true,
+        compareAqi: true,
+        compareFreeze: true,
+      }),
+    ).toEqual(['dates', 'compare-aqi', 'compare-freeze'])
+  })
+
+  // An input the reader has yet to give is still worth saying beside them.
+  it('says the analysis has no destination as well', () => {
+    expect(
+      analyzeBlockers({
+        ...READY_POLYGON,
+        polygonReady: false,
+        drawPointCount: 0,
+        compareFreeze: true,
+      }),
+    ).toEqual(['compare-freeze', 'destinations'])
   })
 })

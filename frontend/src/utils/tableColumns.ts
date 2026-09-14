@@ -69,6 +69,30 @@ export type SortDir = 'asc' | 'desc'
 export const LEAD_KEYS: ReadonlySet<string> = new Set(['name', 'type', 'elevation_ft'])
 
 /**
+ * The same columns with `Model` inserted, or unchanged when nothing is
+ * compared.
+ *
+ * One derivation for both surfaces. The table and the CSV are given the same
+ * ROWS — one per destination per model — so a file whose columns came from a
+ * second spelling would repeat every destination with nothing saying which
+ * answer each repeat is.
+ *
+ * Directly after the identity columns and before the first metric: the column
+ * says WHICH ANSWER this row is, so it belongs with what identifies a row
+ * rather than among the numbers it qualifies. Inserted here rather than
+ * declared in `COLUMNS` because it exists only while a comparison is up, and it
+ * is not in the Columns picker for the same reason — a column that cannot be
+ * turned off is one less thing to explain than a column that appears in the
+ * picker only sometimes.
+ */
+export function withModelColumn(cols: readonly ColDef[], comparing: boolean): ColDef[] {
+  if (!comparing) return [...cols]
+  const at = cols.findIndex((c) => !LEAD_KEYS.has(c.key as string))
+  const cut = at === -1 ? cols.length : at
+  return [...cols.slice(0, cut), MODEL_COL, ...cols.slice(cut)]
+}
+
+/**
  * Every column a window-mode analysis can show, in canonical order.
  *
  * Headers name the metric and then how it was reduced over the window, split by

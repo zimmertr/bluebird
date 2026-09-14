@@ -133,7 +133,7 @@ export default function ModelPicker({
   // the tab order still runs straight down the two groups.
   const CHIP_GROUPS: { heading: string; ids: string[] }[] = [
     { heading: 'Ranking', ids: chipIds.slice(0, 1) },
-    { heading: 'Compared', ids: chipIds.slice(1) },
+    { heading: 'Comparing', ids: chipIds.slice(1) },
   ]
 
   // Two passes, both before paint so neither is visible. The first asks for as
@@ -455,12 +455,12 @@ export default function ModelPicker({
                 headings of the same kind the list's own header below wears.
                 Two groups rather than one row of chips is the whole
                 explanation: the reader's model is under `Ranking` and the
-                others are under `Compared`, so the relationship is
+                others are under `Comparing`, so the relationship is
                 structural instead of something inferred from a highlight
                 (TJ, 2026-09-14). Promoting a compared chip then shows itself
                 — the chip moves up into the other group.
 
-                `Compared` is drawn only when something is compared. A reader
+                `Comparing` is drawn only when something is compared. A reader
                 with one model selected sees one heading and one chip, which
                 is the height the single header cost before.
 

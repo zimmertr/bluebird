@@ -52,3 +52,37 @@ export const FREEZE_UNAVAILABLE = 'N/A'
 export function freezeCellText(value: unknown): string | null {
   return value == null ? FREEZE_UNAVAILABLE : null
 }
+
+/**
+ * The forecast models that publish a freezing level at all.
+ *
+ * **This is a list, and a list can go stale.** Everywhere a CELL is concerned,
+ * the rule above still holds and the emptiness is read off the data. This
+ * exists for the one job the data cannot do: deciding, BEFORE an analysis is
+ * bought, whether the models the reader picked can answer the metric they are
+ * ranking on. `/api/capabilities` publishes no per-variable flag (only label,
+ * summary, grid, reach, regional, blend), so there is nothing to read instead.
+ *
+ * Measured at #295 and unchanged since: three of the eight. If a model starts
+ * publishing the variable, adding its id here is the whole change — and until
+ * someone does, the cost is that the panel blocks a comparison that would
+ * have worked, which is visible and complained about rather than silent.
+ */
+export const FREEZE_MODEL_IDS: ReadonlySet<string> = new Set([
+  'gfs_seamless',
+  'gfs_hrrr',
+  'icon_seamless',
+])
+
+/**
+ * Which of the selected models cannot answer a freezing-level ranking.
+ *
+ * Takes the models rather than ids alone so the caller gets labels back: the
+ * sentence names them, because the model is a control in the panel and naming
+ * it is what makes the sentence about something the reader can see.
+ */
+export function modelsWithoutFreeze<T extends { id: string; label: string }>(
+  selected: readonly T[],
+): T[] {
+  return selected.filter((m) => !FREEZE_MODEL_IDS.has(m.id))
+}

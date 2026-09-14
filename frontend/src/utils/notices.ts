@@ -67,6 +67,12 @@ export const BLOCKER_SEVERITY: Record<AnalyzeBlocker, NoticeSeverity> = {
   area: 'error',
   window: 'info',
   dates: 'info',
+  // Warn, not info: these two report a contradiction in settings the reader
+  // has already made, where every info line above reports an input they have
+  // yet to give. Nothing is unfinished — the models picked and the metric
+  // ranked cannot both be had (TJ, 2026-09-14).
+  'compare-aqi': 'warn',
+  'compare-freeze': 'warn',
   destinations: 'info',
   polygon: 'info',
   types: 'info',
@@ -112,4 +118,20 @@ export function pruneDismissals(
 /** Whether this notice's box should stay hidden. */
 export function isDismissed(key: string, dismissed: readonly string[]): boolean {
   return dismissed.includes(key)
+}
+
+/**
+ * A list of names as English reads it: one alone, two joined by `and`, more by
+ * commas with `and` before the last.
+ *
+ * Here rather than in `metrics.ts` because what it joins is model labels, which
+ * are the server's strings rather than the metric vocabulary's. Here rather
+ * than in the panel for the reason every derivation is: Vitest runs this repo
+ * in the node environment, so a helper left inside a component is untestable by
+ * construction.
+ */
+export function listPhrase(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? ''
+  if (names.length === 2) return `${names[0]} and ${names[1]}`
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
 }

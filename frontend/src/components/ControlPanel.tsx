@@ -55,8 +55,11 @@ import {
 import { Constraints, hasConstraints } from '../utils/clientAnalyze'
 import type { CommitReason } from '../utils/present'
 import { analyzeBlockers, canAnalyze, type AnalyzeBlocker } from '../utils/analyzeGate'
+import { modelsWithoutFreeze } from '../utils/freezingLevel'
+import { selectedIds } from '../utils/modelSelection'
 import {
   BLOCKER_SEVERITY,
+  listPhrase,
   type FooterMessage,
   type NoticeSeverity,
   isDismissed,
@@ -109,7 +112,12 @@ const AQI_NOTE_KEY = 'aqi:none'
 // search area, paste custom coordinates, or search for a place"), which is the
 // panel's own table of contents read back to someone who is looking straight at
 // it; what they are missing is a destination, not a menu.
-function blockerText(blocker: AnalyzeBlocker, maxAreaKm2: number, pointsNeeded: number): string {
+function blockerText(
+  blocker: AnalyzeBlocker,
+  maxAreaKm2: number,
+  pointsNeeded: number,
+  freezeGaps: readonly string[],
+): string {
   switch (blocker) {
     case 'area':
       return `The polygon is too large. The maximum supported size is ${maxAreaKm2.toLocaleString()} km².`
@@ -123,8 +131,21 @@ function blockerText(blocker: AnalyzeBlocker, maxAreaKm2: number, pointsNeeded: 
       return `Add at least ${pointsNeeded} more point${pointsNeeded !== 1 ? 's' : ''} to the polygon to continue.`
     case 'types':
       return 'Select at least one destination type for the polygon search.'
+    case 'compare-aqi':
+      // Two lines, and the exception that proves the one-line rule: the
+      // reader needs both halves, that the data is one source and that the
+      // comparison is therefore off, and neither half stands alone (TJ,
+      // 2026-09-14). Measured at 80 characters against a 92-character
+      // two-line budget.
+      return 'Air quality data is retrieved independently of the model and cannot be compared.'
+    case 'compare-freeze':
+      // Names the models rather than counting them, because a model is a
+      // control in the panel: the reader can see the one the sentence is
+      // about (TJ, 2026-09-14).
+      return `${NOUN.freeze} data is not available for ${listPhrase(freezeGaps)}.`
   }
 }
+
 
 // The two cells of a filter row, and what an empty one says it is for.
 //
@@ -341,16 +362,6 @@ interface Props {
   // order (model, window, polygon, types, destination). One warn
   // bullet each.
   commitReasons?: CommitReason[]
-  // How many models on the chart answered with nothing for the ranked metric,
-  // and how many are on it. Three of the eight publish a freezing level, so a
-  // comparison there draws most of its lines as columns of nulls, which on
-  // screen is indistinguishable from never having asked.
-  compareGaps?: number
-  compareCount?: number
-  // Ranked on air quality with models compared. Not a gap and not counted
-  // above: air quality comes from one source whatever model ranks the field,
-  // so the comparison is withdrawn rather than drawing one answer many times.
-  compareAqi?: boolean
   // At least one place has been searched by name. Searched places are a ranked
   // input like the CSV, so one alone enables Analyze with no polygon drawn.
   hasPins: boolean
@@ -510,9 +521,6 @@ export default function ControlPanel({
   modelClamped,
   windowWarning,
   commitReasons,
-  compareGaps = 0,
-  compareCount = 0,
-  compareAqi = false,
   hasPins,
   loading,
   error,
@@ -552,6 +560,30 @@ export default function ControlPanel({
   const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > maxAreaKm2
 
   const polygonReady = drawPointCount >= 3 && !areaTooLarge && destinationTypes.length > 0
+
+  // Every model the analysis would fetch, the ranking one first. The two
+  // checks below are pre-flight: they read the picker rather than a report,
+  // because their whole point is to refuse to buy an analysis that cannot
+  // answer the question the panel is asking.
+  const selected = useMemo(
+    () =>
+      selectedIds(forecastModels, forecastModel, comparedModels).map((id) => ({
+        id,
+        label: forecastModels.find((m) => m.id === id)?.label ?? id,
+      })),
+    [forecastModels, forecastModel, comparedModels],
+  )
+  const rankFamily = familyOf(sortBy)
+  // Air quality comes from one source for every model, so a comparison on it
+  // would fetch the same numbers several times and draw one line where the
+  // picker shows several chips.
+  const compareAqi = rankFamily === 'aqi' && selected.length > 1
+  // Named rather than counted: the model is a control in this panel, so the
+  // reader can act on a name and cannot act on a fraction.
+  const freezeGaps = useMemo(
+    () => (rankFamily === 'freeze' ? modelsWithoutFreeze(selected).map((m) => m.label) : []),
+    [rankFamily, selected],
+  )
   const gate = {
     hasWindowWarning: windowWarning !== null,
     // The Dates arm is live with no day picked yet (#242 review): there is no
@@ -562,6 +594,8 @@ export default function ControlPanel({
     polygonReady,
     hasCustom,
     hasPins,
+    compareAqi,
+    compareFreeze: freezeGaps.length > 0,
   }
   const analyzeEnabled = canAnalyze(gate)
   const blockers = analyzeBlockers({ ...gate, drawPointCount })
@@ -667,41 +701,6 @@ export default function ControlPanel({
     // already dims the days past the horizon, so the only thing left to say is
     // where that edge is.
     // What a comparison is actually drawing, where the chart cannot say it.
-    // A model that publishes no freezing level answers with a column of nulls
-    // rather than refusing, so its line is drawn and every point on it is
-    // absent: the reader sees three lines where they picked eight and has no
-    // way to tell a missing variable from a missing request. Warn, because the
-    // report no longer answers what the picker implies it does.
-    ...(compareGaps > 0
-      ? [
-          {
-            key: `compare:gaps:${compareGaps}:${familyOf(sortBy)}`,
-            // Says the problem rather than the symptom: most of the models
-            // picked do not forecast this at all, which is why the chart drew
-            // fewer lines than there are chips. Counted the positive way
-            // round, because the number a reader can act on is how many
-            // answers they are actually getting.
-            text: `Only ${compareCount - compareGaps} of ${compareCount} models forecast ${NOUN[
-              familyOf(sortBy)
-            ].toLowerCase()}.`,
-            severity: 'warn' as const,
-          },
-        ]
-      : []),
-    ...(compareAqi
-      ? [
-          {
-            key: 'compare:aqi',
-            // Not a failure, so it does not warn. Air quality comes from one
-            // source whatever model ranks the field, so every model would draw
-            // the same line and the app draws it once. Saying that the models
-            // share the data explains the single line without naming the
-            // source, which is an internal fact a reader cannot use.
-            text: 'Every model uses the same air quality data.',
-            severity: 'info' as const,
-          },
-        ]
-      : []),
     ...(!windowWarning && aqiCoverage !== 'full'
       ? [
           {
@@ -747,7 +746,7 @@ export default function ControlPanel({
     ...windowMessages,
     ...blockers.map((blocker) => ({
       key: `blocker:${blocker}`,
-      text: blockerText(blocker, maxAreaKm2, pointsNeeded),
+      text: blockerText(blocker, maxAreaKm2, pointsNeeded, freezeGaps),
       severity: BLOCKER_SEVERITY[blocker],
     })),
     // The same sentence the N/A cells' hover text shows, from one constant,
