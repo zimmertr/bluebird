@@ -1,7 +1,21 @@
 import { describe, it, expect } from 'vitest'
-import { markerColor, cellStyle, hourlyScale, rankedScale, scaleFor, METRIC_CONFIG } from './colors'
+import {
+  ColoredFamily,
+  METRIC_SCALE,
+  cellStyle,
+  hourlyScale,
+  markerColor,
+  rankedScale,
+  scaleFor,
+} from './colors'
 import { COLUMNS } from './tableColumns'
-import { RANKING_KEYS, familyOf } from '../metrics'
+import { FAMILY_KEYS, RANKED_FAMILIES, RANKING_KEYS, familyOf } from '../metrics'
+
+// Every column that carries a color: each colored family's own key list, which
+// is where the color table gets them from too.
+const COLORED_KEYS: string[] = (Object.keys(METRIC_SCALE) as ColoredFamily[]).flatMap(
+  (family) => [...FAMILY_KEYS[family]],
+)
 
 // Anchor hexes, lowest (green) → highest. Weather scales top out at red; the
 // AQI scale continues through the EPA Very Unhealthy / Hazardous bands.
@@ -59,7 +73,7 @@ describe('markerColor', () => {
 describe('cellStyle', () => {
   it('returns a translucent background and solid text of the same hue', () => {
     // Green anchor #22c55e === rgb(34, 197, 94).
-    expect(cellStyle(0, METRIC_CONFIG.precip)).toEqual({
+    expect(cellStyle(0, METRIC_SCALE.precip)).toEqual({
       backgroundColor: 'rgba(34,197,94,0.2)',
       color: 'rgb(34,197,94)',
     })
@@ -70,8 +84,8 @@ describe('cellStyle', () => {
   // out one flat color and the detail columns' own numbers said nothing. Two
   // numbers on one scale must produce two colors.
   it('colors two different numbers on one scale differently', () => {
-    const light = cellStyle(0.02, METRIC_CONFIG.precip)
-    const heavy = cellStyle(0.6, METRIC_CONFIG.precip)
+    const light = cellStyle(0.02, METRIC_SCALE.precip)
+    const heavy = cellStyle(0.6, METRIC_SCALE.precip)
 
     expect(light.color).not.toBe(heavy.color)
   })
@@ -82,8 +96,8 @@ describe('scaleFor', () => {
   // silently falls back to the table's base color and the reader reads a
   // missing signal as a benign one. Derived from the ranking groups rather
   // than a list here, so a column added to a group is covered on arrival.
-  it('resolves every column named in a ranked group', () => {
-    const grouped = Object.values(METRIC_CONFIG).flatMap((cfg) => cfg.group)
+  it('resolves every column of every colored family', () => {
+    const grouped = COLORED_KEYS
 
     expect(grouped.length).toBeGreaterThan(0)
     for (const key of grouped) {
@@ -95,6 +109,17 @@ describe('scaleFor', () => {
   it('leaves the identity columns uncolored', () => {
     expect(scaleFor('name', false)).toBeNull()
     expect(scaleFor('elevation_ft', false)).toBeNull()
+  })
+
+  // The freezing level ships uncolored (#295): a fixed band would have to call
+  // one height good and another bad, and the reading is relative to the
+  // destination standing under it. Null is the contract every consumer of a
+  // scale already handles, so it takes no special case anywhere.
+  it('leaves every freezing-level column uncolored', () => {
+    for (const key of FAMILY_KEYS.freeze) {
+      expect(scaleFor(key, false), `${key} is colored`).toBeNull()
+      expect(scaleFor(key, true), `${key} is colored`).toBeNull()
+    }
   })
 
   // The reason a second precipitation scale exists. Inches over a window and
@@ -115,7 +140,7 @@ describe('scaleFor', () => {
   it('gives the rate scale the same hues and band count as the total scale', () => {
     const rate = scaleFor('precip_avg_in_hr', false)
 
-    expect(rate?.colors).toEqual(METRIC_CONFIG.precip.colors)
+    expect(rate?.colors).toEqual(METRIC_SCALE.precip.colors)
     expect(rate?.thresholds).toHaveLength(rate!.colors.length - 1)
   })
 
@@ -125,21 +150,21 @@ describe('scaleFor', () => {
   // on the rate scale there would color a cell one thing and its own marker
   // another over an identical value.
   it('reads a point sample on the window-total scale', () => {
-    expect(scaleFor('precip_avg_in_hr', true)).toBe(METRIC_CONFIG.precip)
-    expect(scaleFor('precip_min_in_hr', true)).toBe(METRIC_CONFIG.precip)
-    expect(scaleFor('precip_max_in_hr', true)).toBe(METRIC_CONFIG.precip)
+    expect(scaleFor('precip_avg_in_hr', true)).toBe(METRIC_SCALE.precip)
+    expect(scaleFor('precip_min_in_hr', true)).toBe(METRIC_SCALE.precip)
+    expect(scaleFor('precip_max_in_hr', true)).toBe(METRIC_SCALE.precip)
   })
 
   it('leaves the other metrics on one scale per family either way', () => {
     for (const key of ['wind_min_mph', 'wind_max_mph', 'wind_avg_mph']) {
-      expect(scaleFor(key, false)).toBe(METRIC_CONFIG.wind)
-      expect(scaleFor(key, true)).toBe(METRIC_CONFIG.wind)
+      expect(scaleFor(key, false)).toBe(METRIC_SCALE.wind)
+      expect(scaleFor(key, true)).toBe(METRIC_SCALE.wind)
     }
     for (const key of ['temp_min_f', 'temp_max_f', 'temp_avg_f']) {
-      expect(scaleFor(key, false)).toBe(METRIC_CONFIG.temp)
+      expect(scaleFor(key, false)).toBe(METRIC_SCALE.temp)
     }
     for (const key of ['aqi_avg', 'aqi_min', 'aqi_max']) {
-      expect(scaleFor(key, false)).toBe(METRIC_CONFIG.aqi)
+      expect(scaleFor(key, false)).toBe(METRIC_SCALE.aqi)
     }
   })
 
@@ -149,21 +174,23 @@ describe('scaleFor', () => {
   it('names only columns the table has', () => {
     const columns = new Set<string>(COLUMNS.map((c) => c.key as string))
 
-    for (const cfg of Object.values(METRIC_CONFIG)) {
-      for (const key of cfg.group) {
-        expect(columns.has(key), `${key} is in a group but not in COLUMNS`).toBe(true)
+    for (const family of RANKED_FAMILIES) {
+      for (const key of FAMILY_KEYS[family]) {
+        expect(columns.has(key), `${key} is rankable but not in COLUMNS`).toBe(true)
       }
     }
   })
 })
 
-describe('METRIC_CONFIG', () => {
-  it('exposes exactly the four metric families', () => {
-    expect(Object.keys(METRIC_CONFIG).sort()).toEqual(['aqi', 'precip', 'temp', 'wind'])
+describe('METRIC_SCALE', () => {
+  // Four of the five families, because color is not universal: the freezing
+  // level has no entry here at all (#295), which is what the absence means.
+  it('exposes exactly the colored metric families', () => {
+    expect(Object.keys(METRIC_SCALE).sort()).toEqual(['aqi', 'precip', 'temp', 'wind'])
   })
 
   it('keeps thresholds strictly ascending with labels and colors aligned', () => {
-    for (const cfg of Object.values(METRIC_CONFIG)) {
+    for (const cfg of Object.values(METRIC_SCALE)) {
       for (let i = 1; i < cfg.thresholds.length; i++) {
         expect(cfg.thresholds[i - 1]).toBeLessThan(cfg.thresholds[i])
       }
@@ -174,13 +201,13 @@ describe('METRIC_CONFIG', () => {
   })
 
   it('gives AQI all six EPA bands and the weather metrics five', () => {
-    expect(METRIC_CONFIG.aqi.colors).toHaveLength(6)
-    expect(METRIC_CONFIG.aqi.thresholds).toEqual([50, 100, 150, 200, 300])
-    expect(METRIC_CONFIG.precip.colors).toHaveLength(5)
-    expect(METRIC_CONFIG.wind.colors).toHaveLength(5)
-    expect(METRIC_CONFIG.temp.colors).toHaveLength(5)
+    expect(METRIC_SCALE.aqi.colors).toHaveLength(6)
+    expect(METRIC_SCALE.aqi.thresholds).toEqual([50, 100, 150, 200, 300])
+    expect(METRIC_SCALE.precip.colors).toHaveLength(5)
+    expect(METRIC_SCALE.wind.colors).toHaveLength(5)
+    expect(METRIC_SCALE.temp.colors).toHaveLength(5)
     // Every AQI legend row carries its unit.
-    for (const label of METRIC_CONFIG.aqi.legendLabels) {
+    for (const label of METRIC_SCALE.aqi.legendLabels) {
       expect(label).toContain('AQI')
     }
   })
@@ -190,9 +217,9 @@ describe('METRIC_CONFIG', () => {
     // passed the whole suite. These are the switching points behind every
     // marker color on the map; they are a judgement about conditions, not an
     // implementation detail, so a change should be a deliberate edit here.
-    expect(METRIC_CONFIG.precip.thresholds).toEqual([0.01, 0.1, 0.25, 0.5])
-    expect(METRIC_CONFIG.wind.thresholds).toEqual([5, 15, 25, 35])
-    expect(METRIC_CONFIG.temp.thresholds).toEqual([30, 45, 55, 65])
+    expect(METRIC_SCALE.precip.thresholds).toEqual([0.01, 0.1, 0.25, 0.5])
+    expect(METRIC_SCALE.wind.thresholds).toEqual([5, 15, 25, 35])
+    expect(METRIC_SCALE.temp.thresholds).toEqual([30, 45, 55, 65])
   })
 
   it('advertises the same boundaries in the legend that it switches on', () => {
@@ -200,7 +227,7 @@ describe('METRIC_CONFIG', () => {
     // a threshold moved without its label ships a legend that lies about the
     // colors beside it. Reading the numbers back out of the captions is what
     // makes that unmissable.
-    for (const cfg of Object.values(METRIC_CONFIG)) {
+    for (const cfg of Object.values(METRIC_SCALE)) {
       const advertised = cfg.legendLabels.flatMap((label) =>
         (label.match(/\d+(?:\.\d+)?/g) ?? []).map(Number),
       )
@@ -213,10 +240,25 @@ describe('METRIC_CONFIG', () => {
 
 describe('rankedScale', () => {
   // Markers and the metric legend read the ranked value on this scale (#291).
-  it('resolves every rankable key', () => {
+  it('resolves every rankable key of a colored family, and no other', () => {
     for (const key of RANKING_KEYS) {
-      expect(rankedScale(key), `${key} has no ranked scale`).toBeDefined()
-      expect(rankedScale(key).legendLabels.length).toBeGreaterThan(0)
+      const scale = rankedScale(key)
+      if (familyOf(key) === 'freeze') {
+        expect(scale, `${key} carries a scale`).toBeNull()
+        continue
+      }
+      expect(scale, `${key} has no ranked scale`).not.toBeNull()
+      expect(scale!.legendLabels.length).toBeGreaterThan(0)
+    }
+  })
+
+  // What a ranking on an uncolored metric hands the map: no bands to draw, and
+  // no color for a marker, which then takes its own no-value fill.
+  it('answers null for a freezing-level ranking, at rest and in playback', () => {
+    for (const key of FAMILY_KEYS.freeze) {
+      expect(rankedScale(key)).toBeNull()
+      expect(hourlyScale(key)).toBeNull()
+      expect(markerColor(9000, key)).toBeNull()
     }
   })
 
@@ -225,9 +267,9 @@ describe('rankedScale', () => {
   // the number means downpour.
   it('reads the rate rankings on the rainfall-rate scale', () => {
     for (const key of ['precip_avg_in_hr', 'precip_min_in_hr', 'precip_max_in_hr'] as const) {
-      expect(rankedScale(key).thresholds).toEqual([0.01, 0.1, 0.3, 0.5])
+      expect(rankedScale(key)!.thresholds).toEqual([0.01, 0.1, 0.3, 0.5])
     }
-    expect(rankedScale('precip_total_in').thresholds).toEqual([0.01, 0.1, 0.25, 0.5])
+    expect(rankedScale('precip_total_in')!.thresholds).toEqual([0.01, 0.1, 0.25, 0.5])
   })
 
   it('shares one family scale across a family’s aggregates', () => {
@@ -263,18 +305,20 @@ describe('hourlyScale', () => {
       'aqi_min',
       'aqi_max',
     ] as const) {
-      expect(hourlyScale(key).thresholds).toEqual(METRIC_CONFIG[familyOf(key)].thresholds)
+      expect(hourlyScale(key)!.thresholds).toEqual(
+        METRIC_SCALE[familyOf(key) as ColoredFamily].thresholds,
+      )
     }
     // The rate rankings already read an hourly quantity too, on their own
     // scale — one hour of a peak is that hour's rate.
     for (const key of ['precip_avg_in_hr', 'precip_min_in_hr', 'precip_max_in_hr'] as const) {
-      expect(hourlyScale(key).thresholds).toEqual([0.01, 0.1, 0.3, 0.5])
+      expect(hourlyScale(key)!.thresholds).toEqual([0.01, 0.1, 0.3, 0.5])
     }
   })
 
   it('moves the window total off its scale onto the rainfall-rate one', () => {
-    const rate = hourlyScale('precip_total_in')
-    expect(rate.thresholds).not.toEqual(METRIC_CONFIG.precip.thresholds)
+    const rate = hourlyScale('precip_total_in')!
+    expect(rate.thresholds).not.toEqual(METRIC_SCALE.precip.thresholds)
     // The National Weather Service's own intensity classes, borrowed rather
     // than invented so a reader can look them up.
     expect(rate.thresholds).toEqual([0.01, 0.1, 0.3, 0.5])
@@ -284,13 +328,13 @@ describe('hourlyScale', () => {
     // The legend shows one scale or the other with nothing beside it to
     // compare against, so the unit is the only thing saying which reading it
     // is on.
-    for (const label of hourlyScale('precip_total_in').legendLabels) {
+    for (const label of hourlyScale('precip_total_in')!.legendLabels) {
       expect(label).toContain('in/hr')
     }
   })
 
   it('advertises the boundaries the rate scale actually switches on', () => {
-    const cfg = hourlyScale('precip_total_in')
+    const cfg = hourlyScale('precip_total_in')!
     const advertised = cfg.legendLabels.flatMap((label) =>
       (label.match(/\d+(?:\.\d+)?/g) ?? []).map(Number),
     )
@@ -298,7 +342,7 @@ describe('hourlyScale', () => {
   })
 
   it('gives every scale as many captions as colors', () => {
-    const scale = hourlyScale('precip_total_in')
+    const scale = hourlyScale('precip_total_in')!
     expect(scale.legendLabels).toHaveLength(scale.colors.length)
   })
 })

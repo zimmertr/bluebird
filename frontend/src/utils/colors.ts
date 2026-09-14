@@ -1,13 +1,14 @@
 import { SortBy } from '../types'
-import { MetricFamily } from '../metrics'
+import { FAMILY_KEYS, MetricFamily } from '../metrics'
 
 /**
  * A set of band boundaries and the colors they anchor.
  *
- * Split out of MetricConfig because a scale is no longer one-per-metric: the
- * table colors each cell by its own number, and two of precipitation's columns
- * are a rate where the third is a total (see PRECIP_RATE below). The `group`
- * field stays on MetricConfig, which is about the *ranked* metric.
+ * A scale is not one-per-metric: the table colors each cell by its own number,
+ * and two of precipitation's columns are a rate where the third is a total
+ * (see PRECIP_RATE below). Which columns belong to a metric is a different
+ * question and is answered by `FAMILY_KEYS` in metrics.ts, which every
+ * consumer reads directly rather than through a second list here.
  */
 export type ColorScale = {
   // Band boundaries — always one fewer than colors. Values at or below
@@ -29,9 +30,19 @@ export type ColorScale = {
  */
 export type LabelledScale = ColorScale & { legendLabels: string[] }
 
-type MetricConfig = LabelledScale & {
-  group: string[]
-}
+/**
+ * The families whose numbers carry a color, which is not all of them.
+ *
+ * The freezing level ships uncolored (#295): a fixed band scale would have to
+ * assert that some height is good and another bad, and the reading is
+ * relative — 9,000 ft is a fine night under a 9,500 ft summit and a ruined one
+ * under an 8,000 ft col. So the family has no entry here, the type says so,
+ * and every consumer of a scale handles its absence: `rankedScale` and
+ * `hourlyScale` answer null, `markerColor` answers null and the marker takes
+ * the neutral no-value fill, the map's band legend is not drawn at all, the
+ * grid paints nothing, and a table cell prints its number unshaded.
+ */
+export type ColoredFamily = Exclude<MetricFamily, 'freeze'>
 
 // Scales are anchored to absolute conditions (green = dry/calm/cold/clean),
 // not to the chosen ranking direction — ranking "highest" simply surfaces the
@@ -39,28 +50,25 @@ type MetricConfig = LabelledScale & {
 //
 // Keyed by family rather than by ranking key (#291): a family's aggregates
 // share one scale (a windy hour is windy whether it was the average or the
-// peak), so eleven rankable keys would be eleven copies of four scales. The
+// peak), so the rankable keys would be one copy of a scale each. The
 // exception is precipitation's rate columns, which measure a different
 // quantity and carry their own scale below (PRECIP_RATE); `rankedScale` is
 // the per-key reading that knows this.
-export const METRIC_CONFIG: Record<MetricFamily, MetricConfig> = {
+export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   precip: {
     thresholds: [0.01, 0.10, 0.25, 0.50],
     colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
     legendLabels: ['≤ 0.01"', '0.01 – 0.10"', '0.10 – 0.25"', '0.25 – 0.50"', '> 0.50"'],
-    group: ['precip_total_in', 'precip_avg_in_hr', 'precip_min_in_hr', 'precip_max_in_hr'],
   },
   wind: {
     thresholds: [5, 15, 25, 35],
     colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
     legendLabels: ['≤ 5 mph', '5 – 15 mph', '15 – 25 mph', '25 – 35 mph', '> 35 mph'],
-    group: ['wind_min_mph', 'wind_avg_mph', 'wind_max_mph'],
   },
   temp: {
     thresholds: [30, 45, 55, 65],
     colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'],
     legendLabels: ['≤ 30°F', '30 – 45°F', '45 – 55°F', '55 – 65°F', '> 65°F'],
-    group: ['temp_min_f', 'temp_avg_f', 'temp_max_f'],
   },
   // All six US EPA AQI categories — Good / Moderate / Sensitive / Unhealthy /
   // Very Unhealthy / Hazardous — in the app's hues. The purple/maroon top
@@ -76,7 +84,6 @@ export const METRIC_CONFIG: Record<MetricFamily, MetricConfig> = {
       '200 – 300 AQI',
       '> 300 AQI',
     ],
-    group: ['aqi_avg', 'aqi_min', 'aqi_max'],
   },
 }
 
@@ -114,14 +121,16 @@ const PRECIP_RATE: LabelledScale = {
 }
 
 /**
- * Which scale scores a given column, derived from the ranking scales rather
- * than restated: every colorable column is already named in exactly one
- * `group`, and a second list would be a second answer.
+ * Which scale scores a given column, derived from the scales above crossed
+ * with each family's own column list rather than restated: every colorable
+ * column is already named in exactly one `FAMILY_KEYS` entry, and a second
+ * list here would be a second answer. A family with no scale contributes no
+ * columns, which is what leaves a freezing-level cell unshaded.
  */
 const COLUMN_SCALE: Record<string, LabelledScale> = {
   ...Object.fromEntries(
-    (Object.keys(METRIC_CONFIG) as MetricFamily[]).flatMap((family) =>
-      METRIC_CONFIG[family].group.map((column) => [column, METRIC_CONFIG[family] as LabelledScale]),
+    (Object.keys(METRIC_SCALE) as ColoredFamily[]).flatMap((family) =>
+      FAMILY_KEYS[family].map((column) => [column, METRIC_SCALE[family]]),
     ),
   ),
   precip_avg_in_hr: PRECIP_RATE,
@@ -138,8 +147,8 @@ const COLUMN_SCALE: Record<string, LabelledScale> = {
  * precipitation peak and the markers, the legend, and the table cell all read
  * in/hr together.
  */
-export function rankedScale(sortBy: SortBy): LabelledScale {
-  return COLUMN_SCALE[sortBy]
+export function rankedScale(sortBy: SortBy): LabelledScale | null {
+  return COLUMN_SCALE[sortBy] ?? null
 }
 
 /**
@@ -160,8 +169,8 @@ export function rankedScale(sortBy: SortBy): LabelledScale {
  * playback exists only over a window of at least two stamps, so an hour is
  * never the whole window.
  */
-export function hourlyScale(sortBy: SortBy): LabelledScale {
-  return COLUMN_SCALE[sortBy === 'precip_total_in' ? 'precip_avg_in_hr' : sortBy]
+export function hourlyScale(sortBy: SortBy): LabelledScale | null {
+  return COLUMN_SCALE[sortBy === 'precip_total_in' ? 'precip_avg_in_hr' : sortBy] ?? null
 }
 
 /**
@@ -180,7 +189,7 @@ export function scaleFor(key: string, pointSample: boolean): ColorScale | null {
     pointSample &&
     (key === 'precip_avg_in_hr' || key === 'precip_min_in_hr' || key === 'precip_max_in_hr')
   ) {
-    return METRIC_CONFIG.precip
+    return METRIC_SCALE.precip
   }
   return COLUMN_SCALE[key] ?? null
 }
@@ -221,9 +230,14 @@ function interpolateRgb(value: number, scale: ColorScale): [number, number, numb
   return mix(anchors[n - 1], anchors[n], Math.min(1, (value - thresholds[n - 1]) / lastWidth))
 }
 
-/** A marker is colored by the ranked value, which is what the legend explains. */
-export function markerColor(value: number, sortBy: SortBy): string {
-  return colorOnScale(value, rankedScale(sortBy))
+/**
+ * A marker is colored by the ranked value, which is what the legend explains —
+ * or null where the ranked metric carries no color at all, which the caller
+ * answers with its own no-value fill rather than inventing a band here.
+ */
+export function markerColor(value: number, sortBy: SortBy): string | null {
+  const scale = rankedScale(sortBy)
+  return scale === null ? null : colorOnScale(value, scale)
 }
 
 /**

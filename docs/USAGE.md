@@ -124,7 +124,13 @@ Once you have set your destinations and forecast window, three short sections sh
 
 ### Ranking
 
-Sort destinations by any metric, and by any of that metric's aggregates. Each row pairs a metric with a dropdown naming how it is reduced over your window — Avg, Max, and Min for every metric, plus Total for precipitation — so "calmest peak wind" (`Wind · Max`, Lowest) is as askable as "calmest average wind". The defaults are total precipitation and the averages of the rest. Changing a dropdown, a radio, or Lowest/Highest re-ranks every destination in your analyzed area, not just the ones on screen, so the winners really are the extremes of the area; the markers and the map legend follow the chosen aggregate. For a single-hour window the dropdowns disappear: one hour has no minimum, average, or maximum to choose between. Clicking a column header in the table reorders the rows on screen only — the Ranking section is what re-ranks the whole field.
+Sort destinations by any metric, and by any of that metric's aggregates. Each row pairs a metric with a dropdown naming how it is reduced over your window — Avg, Max, and Min for every metric, plus Total for precipitation — so "calmest peak wind" (`Wind · Max`, Lowest) is as askable as "calmest average wind". The defaults are total precipitation, the averages of the other weather metrics, and the minimum for the freezing level, which is the one that answers the overnight refreeze. Changing a dropdown, a radio, or Lowest/Highest re-ranks every destination in your analyzed area, not just the ones on screen, so the winners really are the extremes of the area; the markers and the map legend follow the chosen aggregate. For a single-hour window the dropdowns disappear: one hour has no minimum, average, or maximum to choose between. Clicking a column header in the table reorders the rows on screen only — the Ranking section is what re-ranks the whole field.
+
+Ranking by a freezing level reads naturally in either direction: Highest
+`Freezing level · Min` finds the destinations whose coldest hour still froze high
+up, and Lowest finds the ones that froze deepest. A destination the model
+publishes no freezing level for ranks last either way, as every missing value
+does.
 
 Wind is reported at each destination's own elevation, not at the standard 10 meters above the model's terrain — on a summit the 10-meter value understates what you would feel, often by a factor of two. How the number is derived, and its limits, are in [DATA.md](DATA.md#open-meteo). Destinations with no known elevation show the plain near-ground wind.
 
@@ -174,7 +180,9 @@ it on fetches a forecast for every square, after your results have landed and ne
 in front of them; leave it on and each later analysis grids itself the same way. Once
 the points are in hand everything else is free: changing the ranking recolors the
 field without asking for anything new, and so does the timeline. It fills in as it
-arrives rather than appearing all at once.
+arrives rather than appearing all at once. The one ranking it cannot draw is the
+freezing level, which carries no colours to paint with: the squares stay empty
+until you rank by something else.
 
 After a very large analysis it can take a while to start, because it shares a
 per-minute allowance with the analysis you just ran and has to wait its turn. The
@@ -256,13 +264,13 @@ hand from the analysis; the timeline is a position in it.
 
 ### Filtering
 
-Filters say which destinations you would consider at all. Set bounds on elevation, precipitation, wind, temperature, or AQI. The grid has a Min and a Max box on each row; leave a box empty and that side is unbounded.
+Filters say which destinations you would consider at all. Set bounds on elevation, precipitation, wind, temperature, the freezing level, or AQI. The grid has a Min and a Max box on each row; leave a box empty and that side is unbounded.
 
-**A ceiling is a promise about every hour**, not an average: a 20 mph wind ceiling excludes a destination that gusts to 45 at noon even if it averages 8. A floor is the opposite: a 15 mph wind floor asks for somewhere whose *calmest* hour still blows 15, which almost nowhere satisfies. For elevation, wind and temperature the bounds are exactly the table's Min and Max columns. Precipitation is bounded on its window total in both columns, because a per-hour minimum would read 0.000 almost everywhere.
+**A ceiling is a promise about every hour**, not an average: a 20 mph wind ceiling excludes a destination that gusts to 45 at noon even if it averages 8. A floor is the opposite: a 15 mph wind floor asks for somewhere whose *calmest* hour still blows 15, which almost nowhere satisfies. For elevation, wind, temperature and the freezing level the bounds are exactly the table's Min and Max columns, so a freezing-level floor of 6,000 asks for somewhere the level never dropped below 6,000 ft. Precipitation is bounded on its window total in both columns, because a per-hour minimum would read 0.000 almost everywhere.
 
-**Destinations with unknown elevation or AQI are included.** Many peaks carry no elevation in the map data, and air quality is only forecast about five days out. Missing values are not evidence of bad conditions, so those rows ride along and the table shows a dash where the number would be.
+**Destinations with unknown elevation, AQI or freezing level are included.** Many peaks carry no elevation in the map data, air quality is only forecast about five days out, and most forecast models publish no freezing level at all. Missing values are not evidence of bad conditions, so those rows ride along: the table shows a dash where a number is missing, and `N/A` where the model carries no freezing level.
 
-Four of the five filters apply the instant you type, since the browser already holds forecasts for every destination it found. **Elevation is the exception:** it decides what gets fetched, so narrowing it is instant while widening it needs Analyze again, and the panel says so.
+Five of the six filters apply the instant you type, since the browser already holds forecasts for every destination it found. **Elevation is the exception:** it decides what gets fetched, so narrowing it is instant while widening it needs Analyze again, and the panel says so.
 
 Everything on screen follows a filter change: the table, the map markers, the chart, and the row count in the header.
 
@@ -304,7 +312,7 @@ Marker colors follow total precipitation:
 | Orange | 0.25" to 0.50" |
 | Red | more than 0.50" |
 
-Click a marker for a popup with rank, precipitation, wind, temperature, and AQI. Click a destination name in the table to open Windy centered on that spot with the rain overlay. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300).
+Click a marker for a popup with rank, precipitation, wind, temperature, the freezing level, and AQI. The freezing-level line reads `N/A` under a model that publishes none, the same mark the table's cells carry. Click a destination name in the table to open Windy centered on that spot with the rain overlay. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300).
 
 ## Results Table
 
@@ -323,6 +331,7 @@ Hovering a row reveals a × at its end (always visible on touch screens) that re
 | Precipitation · Max (in/hr) | Peak single-hour precipitation rate |
 | Temperature · Min/Max/Avg (°F) | Temperature range and average over the window |
 | Wind · Min/Max/Avg (mph) | Wind speed range and average over the window |
+| Freezing level · Min/Max/Avg (ft) | Height of the freezing level over the window, in feet above sea level. `N/A` on the five models that do not publish it |
 | AQI · Avg/Max | US AQI over the window, blank past the air quality horizon |
 
 A single-hour analysis ("now", or a chosen moment) collapses each of those
@@ -333,6 +342,20 @@ The columns belonging to whichever metric you ranked by are shaded, and **each
 cell is shaded by its own number** rather than by the ranking. So a destination
 with a low precipitation total and one violent hour inside it shows a green
 total beside a red peak, which is the spread those extra columns exist to show.
+
+The freezing-level columns carry no shading at all. A fixed scale would have to
+call one height good and another bad, and the reading is relative to the
+destination standing under it: 9,000 ft is a solid night below a 9,500 ft summit
+and a wasted one below an 8,000 ft col. Read them against the **Elevation (ft)**
+column, which is the comparison the number exists for. Ranking by one of them
+therefore leaves the markers in the neutral grey the map uses for "no answer",
+and the map's colour key is not drawn.
+
+Only three of the eight forecast models publish the freezing level, and a cell
+answered by one of the other five reads `N/A` with a note saying which three do.
+Zero is a reading rather than a gap: it means the freezing level reached sea
+level, so everything above it was below freezing. What the number can and cannot
+tell you about an overnight refreeze is in [DATA.md](DATA.md#open-meteo).
 
 The two per-hour precipitation columns are read on a rainfall-intensity scale
 rather than on the totals scale the markers and the map legend use, because
@@ -365,7 +388,11 @@ What lands in the file:
   cut apply first, exactly as on screen.
 
 A blank cell means no value, never a zero. AQI is blank past its forecast
-horizon, and elevation is blank where OpenStreetMap has no `ele` tag.
+horizon, and elevation is blank where OpenStreetMap has no `ele` tag. The
+freezing-level columns are the exception and write `N/A` rather than a blank,
+because there the absence is the model carrying no such variable rather than a
+number that came back empty, and a file is read with nothing around it to say
+which.
 
 The wildfire column is the one that can disappear from the file. If the fire
 check could not run, the column is left out entirely and a warning under

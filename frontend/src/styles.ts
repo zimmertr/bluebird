@@ -812,7 +812,7 @@ export const SEGMENT_DIVIDER = 'border-l border-slate-500'
 /**
  * A radio or checkbox and the words naming it, as one strip.
  *
- * The panel had four of these (destination type, the four ranking metrics,
+ * The panel had four of these (destination type, the ranking metrics,
  * Show Wildfires, the chart's metric radios) at three different gaps, and the
  * 14px box was the target in all four — the label beside it was clickable, but
  * only as tall as its own text. `TAP.row` grows the strip instead, which is

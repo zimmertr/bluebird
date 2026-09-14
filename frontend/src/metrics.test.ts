@@ -29,10 +29,17 @@ import colorsSource from './utils/colors.ts?raw'
 import resultPopupSource from './utils/resultPopup.ts?raw'
 import resultsCsvSource from './utils/resultsCsv.ts?raw'
 import tableColumnsSource from './utils/tableColumns.ts?raw'
+import freezingLevelSource from './utils/freezingLevel.ts?raw'
 import openMeteoSource from './utils/openMeteo.ts?raw'
 import presentSource from './utils/present.ts?raw'
 
-const SORTS: SortBy[] = ['precip_total_in', 'wind_avg_mph', 'temp_avg_f', 'aqi_avg']
+const SORTS: SortBy[] = [
+  'precip_total_in',
+  'wind_avg_mph',
+  'temp_avg_f',
+  'freeze_min_ft',
+  'aqi_avg',
+]
 
 describe('the rankable keys', () => {
   // Every aggregate column the table shows is rankable, and nothing else is:
@@ -48,6 +55,7 @@ describe('the rankable keys', () => {
     ])
     expect(FAMILY_KEYS.wind).toEqual(['wind_avg_mph', 'wind_max_mph', 'wind_min_mph'])
     expect(FAMILY_KEYS.temp).toEqual(['temp_avg_f', 'temp_max_f', 'temp_min_f'])
+    expect(FAMILY_KEYS.freeze).toEqual(['freeze_avg_ft', 'freeze_max_ft', 'freeze_min_ft'])
     expect(FAMILY_KEYS.aqi).toEqual(['aqi_avg', 'aqi_max', 'aqi_min'])
     for (const family of RANKED_FAMILIES) {
       const words = FAMILY_KEYS[family].map(windowAggregate)
@@ -57,16 +65,19 @@ describe('the rankable keys', () => {
 
   it('derives RANKING_KEYS from the family lists', () => {
     expect(RANKING_KEYS).toEqual(RANKED_FAMILIES.flatMap((f) => FAMILY_KEYS[f]))
-    expect(RANKING_KEYS).toHaveLength(13)
+    expect(RANKING_KEYS).toHaveLength(16)
   })
 
   // The pre-#291 rankable four: what each row holds until the user says
-  // otherwise, so a fresh session ranks exactly as it always has.
+  // otherwise, so a fresh session ranks exactly as it always has. The freezing
+  // level has no such history and defaults to its minimum instead, which is
+  // the overnight refreeze the metric was added to answer (#295).
   it('defaults every family to its historical representative key', () => {
     expect(DEFAULT_FAMILY_KEY).toEqual({
       precip: 'precip_total_in',
       wind: 'wind_avg_mph',
       temp: 'temp_avg_f',
+      freeze: 'freeze_min_ft',
       aqi: 'aqi_avg',
     })
     for (const family of RANKED_FAMILIES) {
@@ -97,6 +108,9 @@ describe('aggregateToken', () => {
       'avg',
       'max',
       'min',
+      'avg',
+      'max',
+      'min',
     ])
   })
 
@@ -107,10 +121,13 @@ describe('aggregateToken', () => {
 
 describe('the vocabulary', () => {
   it('names every metric in full, with no short form', () => {
-    expect(Object.keys(NOUN).sort()).toEqual(['aqi', 'precip', 'temp', 'wind'])
+    expect(Object.keys(NOUN).sort()).toEqual(['aqi', 'freeze', 'precip', 'temp', 'wind'])
     expect(NOUN.precip).toBe('Precipitation')
     expect(NOUN.temp).toBe('Temperature')
     expect(NOUN.wind).toBe('Wind')
+    // Sentence case, like every other string in the app: it is a noun phrase
+    // rather than a proper name, and the height it names is its second word.
+    expect(NOUN.freeze).toBe('Freezing level')
     // The one initialism: a word people read as a word, not a clipped noun.
     // Deliberately not "AQI (PM2.5)" — air_quality.py fetches Open-Meteo's
     // `us_aqi`, the EPA index combined across every pollutant, so naming one
@@ -130,12 +147,15 @@ describe('the vocabulary', () => {
       expect(typeof UNIT[family]).toBe('string')
     }
     expect(UNIT.aqi).toBe('')
+    // The same unit and datum as the elevation column, because the reading is
+    // the comparison between the two.
+    expect(UNIT.freeze).toBe('ft')
   })
 })
 
 describe('familyOf', () => {
   it('resolves every ranking key', () => {
-    expect(SORTS.map(familyOf)).toEqual(['precip', 'wind', 'temp', 'aqi'])
+    expect(SORTS.map(familyOf)).toEqual(['precip', 'wind', 'temp', 'freeze', 'aqi'])
   })
 
   // Every column the results table can show, so a new field cannot reach a
@@ -152,6 +172,9 @@ describe('familyOf', () => {
       'wind_min_mph',
       'wind_max_mph',
       'wind_avg_mph',
+      'freeze_min_ft',
+      'freeze_max_ft',
+      'freeze_avg_ft',
       'aqi_avg',
       'aqi_min',
       'aqi_max',
@@ -243,6 +266,10 @@ describe('no surface writes its own metric name', () => {
     // nothing around it says which app wrote the header.
     ['resultsCsv.ts', resultsCsvSource],
     ['tableColumns.ts', tableColumnsSource],
+    // The one file that writes a whole SENTENCE about a metric (#295), which
+    // is the same duty: it composes the noun from the vocabulary rather than
+    // spelling it, so a renamed metric renames its own note.
+    ['freezingLevel.ts', freezingLevelSource],
   ]
 
   // metrics.ts itself is absent on purpose: its doc comments quote these
