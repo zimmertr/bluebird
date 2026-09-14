@@ -15,6 +15,7 @@ import {
   AnalyzeResponse,
   CustomDestination,
   DestinationResult,
+  DestinationsRequest,
   DestinationsResponse,
   DiscoveredDestination,
   HourlySeries,
@@ -91,7 +92,7 @@ export function filterElevation<T extends { elevation_ft: number | null }>(
 }
 
 /**
- * The forecast bounds an analysis is narrowed by, mirroring the eight optional
+ * The forecast bounds an analysis is narrowed by, mirroring the ten optional
  * fields on `AnalyzeRequest`.
  *
  * Elevation is deliberately NOT in here. It is known before any forecast
@@ -107,6 +108,8 @@ export interface Constraints {
   maxTempF: number | null
   minWindMph: number | null
   maxWindMph: number | null
+  minFreezeFt: number | null
+  maxFreezeFt: number | null
   minAqi: number | null
   maxAqi: number | null
 }
@@ -118,6 +121,8 @@ export const NO_CONSTRAINTS: Constraints = {
   maxTempF: null,
   minWindMph: null,
   maxWindMph: null,
+  minFreezeFt: null,
+  maxFreezeFt: null,
   minAqi: null,
   maxAqi: null,
 }
@@ -128,6 +133,9 @@ export const NO_CONSTRAINTS: Constraints = {
 // A ceiling reads the window's worst hour and a floor its best, so a bound is
 // a promise about every hour rather than about an average that can hide a bad
 // afternoon: a 20 mph ceiling admits no destination that gusts to 45 at noon.
+// The freezing level reads the same way, in the one family where neither end
+// is the bad one: its floor asks that the level never dropped below the value
+// and its ceiling that it never rose above it.
 // Precipitation and AQI have no minimum aggregate to read — a per-hour
 // precipitation floor would be 0.000 almost everywhere — so both of their
 // bounds compare one field, and the panel labels those two rows with the table
@@ -136,6 +144,7 @@ const LOWER_BOUNDS = [
   ['minPrecipTotalIn', 'precip_total_in'],
   ['minTempF', 'temp_min_f'],
   ['minWindMph', 'wind_min_mph'],
+  ['minFreezeFt', 'freeze_min_ft'],
   ['minAqi', 'aqi_max'],
 ] as const satisfies readonly (readonly [keyof Constraints, keyof DestinationResult])[]
 
@@ -143,6 +152,7 @@ const UPPER_BOUNDS = [
   ['maxPrecipTotalIn', 'precip_total_in'],
   ['maxTempF', 'temp_max_f'],
   ['maxWindMph', 'wind_max_mph'],
+  ['maxFreezeFt', 'freeze_max_ft'],
   ['maxAqi', 'aqi_max'],
 ] as const satisfies readonly (readonly [keyof Constraints, keyof DestinationResult])[]
 
@@ -160,6 +170,8 @@ export function constraintsFromRequest(request: AnalyzeRequest): Constraints {
     maxTempF: request.max_temp_f ?? null,
     minWindMph: request.min_wind_mph ?? null,
     maxWindMph: request.max_wind_mph ?? null,
+    minFreezeFt: request.min_freeze_ft ?? null,
+    maxFreezeFt: request.max_freeze_ft ?? null,
     minAqi: request.min_aqi ?? null,
     maxAqi: request.max_aqi ?? null,
   }
@@ -174,6 +186,8 @@ export function constraintFields(c: Constraints) {
     max_temp_f: c.maxTempF,
     min_wind_mph: c.minWindMph,
     max_wind_mph: c.maxWindMph,
+    min_freeze_ft: c.minFreezeFt,
+    max_freeze_ft: c.maxFreezeFt,
     min_aqi: c.minAqi,
     max_aqi: c.maxAqi,
   }
@@ -182,12 +196,14 @@ export function constraintFields(c: Constraints) {
 /**
  * Port of _filter_constraints: drop rows outside the forecast bounds.
  *
- * A null value passes every bound. Only AQI can be null here, and a missing
- * AQI means the window outran the ~5-day air-quality horizon or a best-effort
- * fetch failed. Neither is evidence that the air is bad, and dropping those
- * rows would quietly empty every long-window analysis that set a ceiling — the
- * same call `filterElevation` makes for an untagged summit and `rankComparator`
- * makes for a nullable ranking key.
+ * A null value passes every bound. Two fields can be null here, and neither
+ * absence is evidence of anything. A missing AQI means the window outran the
+ * ~5-day air-quality horizon or a best-effort fetch failed; a missing freezing
+ * level means the chosen model publishes none at all, which is five of the
+ * eight, so dropping those rows would empty the table outright for anyone who
+ * set the bound under the wrong model. It is the same call `filterElevation`
+ * makes for an untagged summit and `rankComparator` makes for a nullable
+ * ranking key.
  */
 export function filterConstraints(
   rows: readonly DestinationResult[],
@@ -263,14 +279,15 @@ export async function resolveCustomOnly(
   // server at all, exactly as it did before this call existed. The server
   // makes the same check; this one keeps the round trip itself from happening.
   if (!rows.length || rows.every((r) => r.elevation_ft != null)) return rows
+  const resolveRequest: DestinationsRequest = {
+    destination_types: [],
+    custom_destinations: [...custom],
+  }
   try {
     const res = await fetch('/api/destinations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        destination_types: [],
-        custom_destinations: custom,
-      }),
+      body: JSON.stringify(resolveRequest),
       signal,
     })
     if (!res.ok) return rows
@@ -347,6 +364,7 @@ export function assemble(
         precip_in: wxSeries.precip_in,
         temp_f: wxSeries.temp_f,
         wind_mph: wxSeries.wind_mph,
+        freeze_ft: wxSeries.freeze_ft,
         aqi: alignAqi(wxSeries.times, aqi?.series ?? null),
         // Present only on the browser path, which is the only one that asks
         // Open-Meteo for it. Spread rather than assigned so a row from a

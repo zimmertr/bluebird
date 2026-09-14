@@ -45,8 +45,17 @@ cd frontend && npx tsc --noEmit
 docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine \
   sh -c "npm ci && npm test"
 
-# Backend unit tests (pytest)
-docker run --rm -v "$PWD/backend":/app -w /app python:3.14-slim \
+# Frontend API types still match the committed OpenAPI snapshot
+# (`npm run generate:api` rewrites them instead of checking them).
+# Mounts the repo root, because the generator reads backend/openapi.json.
+# The script installs the generator first, so this needs no `npm ci` of its own.
+docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
+  sh -c "npm run check:api"
+
+# Backend unit tests (pytest). The whole repository is mounted, not backend/
+# alone: one test reads frontend/src to check the CSP allowlist against the
+# hosts the browser actually fetches, and it skips where it cannot see them.
+docker run --rm -v "$PWD":/repo -w /repo/backend python:3.14-slim \
   sh -c "pip install -r requirements-dev.txt && pytest"
 
 # Backend lint
@@ -56,7 +65,17 @@ pip install ruff && ruff check backend/
 Two rules worth knowing before you send a change: any behavior change ships with
 a matching test in the same PR, and any change to a route or Pydantic model
 regenerates the committed OpenAPI snapshot with
-`cd backend && python scripts/generate_openapi.py` (CI fails the PR otherwise).
+`cd backend && python scripts/generate_openapi.py`, then the frontend types read
+off it with `cd frontend && npm run generate:api` (CI fails the PR otherwise, on
+both counts).
+
+The generator is not a frontend dependency. It lives in
+`frontend/tools/api-types`, a private package with its own lockfile, and the two
+frontend scripts only delegate to it. `openapi-typescript` loads the TypeScript
+compiler API at run time and peers on TypeScript 5, the app runs TypeScript 7,
+and npm resolves one version of a peer. A package rather than a version inside a
+script also gives Dependabot something to bump. It installs on demand, so
+`npm ci` in `frontend/` stays as fast as it was.
 
 ## Testing the browser path without spending quota
 
@@ -81,6 +100,7 @@ state and interaction, never for judging a forecast.
   const real = window.fetch
   const series = (lat, lon, start, end) => {
     const time = [], precipitation = [], temperature_2m = [], wind_speed_10m = [], wind_direction_10m = []
+    const freezing_level_height = []
     const t0 = Date.parse(start + 'Z'), t1 = Date.parse(end + 'Z')
     for (let h = 0; t0 + h * 3600000 <= t1; h++) {
       time.push(new Date(t0 + h * 3600000).toISOString().slice(0, 16))
@@ -88,8 +108,9 @@ state and interaction, never for judging a forecast.
       temperature_2m.push(52 - (lat - 46) * 3 + Math.sin(h / 4) * 9)
       wind_speed_10m.push(5 + Math.abs(Math.sin(h / 6)) * 10)
       wind_direction_10m.push((h * 17 + lat * 30) % 360)
+      freezing_level_height.push(9000 - (lat - 46) * 500 + Math.sin(h / 5) * 1200)
     }
-    return { time, precipitation, temperature_2m, wind_speed_10m, wind_direction_10m }
+    return { time, precipitation, temperature_2m, wind_speed_10m, wind_direction_10m, freezing_level_height }
   }
   window.fetch = function (...args) {
     const url = String(args[0]?.url ?? args[0])
@@ -109,6 +130,10 @@ state and interaction, never for judging a forecast.
         timezone: 'GMT',
         elevation: 1000,
         hourly: aqi ? { time: s.time, us_aqi: s.time.map(() => 35) } : s,
+        // The freezing level's unit follows `precipitation_unit`, so a real
+        // response to these requests quotes it in feet. Declared here too, or
+        // a stubbed session would exercise the meters branch alone.
+        hourly_units: aqi ? {} : { freezing_level_height: 'ft' },
       }
     })
     return Promise.resolve(

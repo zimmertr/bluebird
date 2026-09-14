@@ -4,8 +4,10 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from app import models
 from app.main import app
 from app.models import (
+    PAST_DATA_DAYS,
     AnalyzeRequest,
     DestinationResult,
     DestinationType,
@@ -73,6 +75,8 @@ def _result(
     wind_min=0.0,
     wind_max=0.0,
     wind_avg=0.0,
+    freeze_min=None,
+    freeze_max=None,
 ):
     return DestinationResult(
         name=name, type="peak", latitude=1.0, longitude=2.0,
@@ -80,6 +84,8 @@ def _result(
         precip_max_in_hr=0.0,
         temp_min_f=temp_min, temp_max_f=temp_max, temp_avg_f=temp_avg,
         wind_min_mph=wind_min, wind_max_mph=wind_max, wind_avg_mph=wind_avg,
+        freeze_min_ft=freeze_min, freeze_max_ft=freeze_max,
+        freeze_avg_ft=freeze_min,
         aqi_avg=aqi, aqi_min=aqi, aqi_max=aqi,
     )
 
@@ -182,6 +188,33 @@ def test_filter_constraints_wind_ceiling_reads_the_gustiest_hour():
     assert [r.name for r in kept] == ["calm"]
 
 
+def test_filter_constraints_freeze_bounds_read_the_window_low_and_high():
+    # The one family where neither end is the bad one: the floor asks that the
+    # level never dropped below the value, the ceiling that it never rose
+    # above it.
+    rows = [
+        _result("high", freeze_min=9000.0, freeze_max=11000.0),
+        _result("low", freeze_min=2000.0, freeze_max=4000.0),
+    ]
+    assert [r.name for r in _filter_constraints(rows, _bounded(min_freeze_ft=8000))] == ["high"]
+    assert [r.name for r in _filter_constraints(rows, _bounded(max_freeze_ft=5000))] == ["low"]
+
+
+def test_filter_constraints_null_freeze_passes_either_bound():
+    # Only some models publish a freezing level at all. A missing number says
+    # which model answered, not what the weather did, so dropping these rows
+    # would empty the whole result under every other model.
+    rows = [
+        _result("unknown"),
+        _result("low", freeze_min=2000.0, freeze_max=4000.0),
+    ]
+    assert [r.name for r in _filter_constraints(rows, _bounded(min_freeze_ft=8000))] == ["unknown"]
+    assert [r.name for r in _filter_constraints(rows, _bounded(max_freeze_ft=5000))] == [
+        "unknown",
+        "low",
+    ]
+
+
 def test_filter_constraints_aqi_bounds_compare_the_worst_hour():
     rows = [_result("clean", aqi=30), _result("smoky", aqi=140)]
     assert [r.name for r in _filter_constraints(rows, _bounded(max_aqi=100))] == ["clean"]
@@ -277,6 +310,22 @@ def test_summarize_request_union_includes_polygon_and_custom():
     assert "polygon=" in summary
 
 
+def test_summarize_request_names_a_dropped_series_only_when_dropped():
+    def summarize(include_series: bool) -> str:
+        return _summarize_request(
+            AnalyzeRequest(
+                destination_types=[],
+                start_datetime=datetime.now(timezone.utc),
+                end_datetime=datetime.now(timezone.utc) + timedelta(days=1),
+                custom_destinations=[{"name": "A", "latitude": 1.0, "longitude": 2.0}],
+                include_series=include_series,
+            )
+        )
+
+    assert "series=off" in summarize(False)
+    assert "series" not in summarize(True)
+
+
 # ── /api/analyze route (upstream services stubbed) ─────────────────────────
 
 
@@ -301,7 +350,7 @@ def stub_upstreams(monkeypatch):
 
     async def fake_wx(
         destinations, start, end, on_progress=None, on_pace=None, model=None,
-        api_key=None,
+        api_key=None, source="forecast", boundary=None,
     ):
         return [_wx(d["latitude"]) for d in destinations]
 
@@ -379,7 +428,10 @@ def test_analyze_aqi_bound_fetches_air_quality_for_every_candidate(monkeypatch):
     # are the observable difference.
     batches: list[int] = []
 
-    async def fake_wx(destinations, start, end, on_progress=None, on_pace=None, model=None, api_key=None):
+    async def fake_wx(
+        destinations, start, end, on_progress=None, on_pace=None, model=None,
+        api_key=None, source="forecast", boundary=None,
+    ):
         return [_wx(d["latitude"]) for d in destinations]
 
     async def fake_aqi(destinations, start, end, api_key=None):
@@ -423,7 +475,8 @@ def test_analyze_start_after_end_is_400(stub_upstreams):
     }
     resp = client.post("/api/analyze", json=body)
     assert resp.status_code == 400
-    assert "before" in resp.json()["detail"]
+    assert resp.json()["detail"] == "The start date must be before the end date."
+    assert resp.json()["error"] == {"code": "validation", "retryable": False}
 
 
 def test_analyze_equal_window_is_current_forecast(stub_upstreams):
@@ -463,7 +516,11 @@ def test_analyze_custom_without_destinations_is_400(stub_upstreams):
         "destination_types": [], "start_datetime": start, "end_datetime": end,
     })
     assert resp.status_code == 400
-    assert "Nothing to analyze" in resp.json()["detail"]
+    assert resp.json()["detail"] == (
+        "Nothing to analyze: send destination_types with a polygon, "
+        "custom_destinations, or both."
+    )
+    assert resp.json()["error"] == {"code": "validation", "retryable": False}
 
 
 def test_analyze_peak_without_polygon_is_400(stub_upstreams):
@@ -472,7 +529,10 @@ def test_analyze_peak_without_polygon_is_400(stub_upstreams):
         "destination_types": ["peak"], "start_datetime": start, "end_datetime": end,
     })
     assert resp.status_code == 400
-    assert "polygon is required" in resp.json()["detail"]
+    assert resp.json()["detail"] == (
+        "polygon is required when destination_types is non-empty"
+    )
+    assert resp.json()["error"] == {"code": "validation", "retryable": False}
 
 
 def test_analyze_elevation_band_can_empty_results(stub_upstreams):
@@ -515,6 +575,8 @@ def test_analyze_over_peak_cap_is_400(monkeypatch, stub_upstreams):
     resp = client.post("/api/analyze", json=body)
     assert resp.status_code == 400
     assert "analysis limit" in resp.json()["detail"]
+    # An over-cap refusal is the caller's to fix, so no retry is promised.
+    assert resp.json()["error"] == {"code": "refusal", "retryable": False}
 
 
 def test_analyze_stream_emits_error_event(stub_upstreams):
@@ -530,6 +592,9 @@ def test_analyze_stream_emits_error_event(stub_upstreams):
     assert "text/event-stream" in resp.headers["content-type"]
     events = [json.loads(line[len("data: "):]) for line in resp.text.splitlines() if line.startswith("data: ")]
     assert any(e["type"] == "error" and "before" in e["message"] for e in events)
+    error = next(e for e in events if e["type"] == "error")
+    assert error["message"] == "The start date must be before the end date."
+    assert error["error"] == {"code": "validation", "retryable": False}
 
 
 def test_analyze_stream_custom_happy_path_emits_result(stub_upstreams):
@@ -756,6 +821,7 @@ def test_analyze_union_counts_toward_cap(monkeypatch, stub_upstreams):
     # structured fields, never in the prose (TJ, 2026-08-22).
     assert "trim" not in detail.lower()
     assert "minimum elevation" not in detail
+    assert resp.json()["error"] == {"code": "refusal", "retryable": False}
 
 
 def test_analyze_union_elevation_filter_applies_to_custom_rows(monkeypatch, stub_upstreams):
@@ -814,9 +880,12 @@ def _dest(name, lat):
     return {"name": name, "latitude": lat, "longitude": 0.0, "elevation_ft": None, "osm_id": None}
 
 
-def _wx_series(precip_total, times, precip, temp, wind):
+def _wx_series(precip_total, times, precip, temp, wind, freeze=None):
     return {**_wx(precip_total), "series": {
         "times": times, "precip_in": precip, "temp_f": temp, "wind_mph": wind,
+        # All-null by default, which is what the models that do not publish
+        # the freezing level return — the series carries the key either way.
+        "freeze_ft": freeze if freeze is not None else [None] * len(times),
     }}
 
 
@@ -824,7 +893,7 @@ def test_assemble_bakes_series_and_shares_the_time_grid():
     times = [1000, 2000]
     dests = [_dest("a", 1.0), _dest("b", 2.0)]
     wx_list = [
-        _wx_series(0.1, times, [0.1, None], [50.0, 51.0], [5.0, 6.0]),
+        _wx_series(0.1, times, [0.1, None], [50.0, 51.0], [5.0, 6.0], [9000.0, None]),
         _wx_series(0.2, times, [0.2, 0.3], [40.0, 41.0], [7.0, 8.0]),
     ]
     aqi_list = [
@@ -838,6 +907,11 @@ def test_assemble_bakes_series_and_shares_the_time_grid():
     assert a.series.precip_in == [0.1, None]  # per-metric nulls survive as gaps
     assert a.series.temp_f == [50.0, 51.0]
     assert a.series.aqi == [40, None]         # AQI present at 1000, null past horizon
+    assert a.series.freeze_ft == [9000.0, None]
+    # The second row's model published no freezing level, which nulls that
+    # series alone and nothing else on the row.
+    assert results[1].series.freeze_ft == [None, None]
+    assert results[1].series.temp_f == [40.0, 41.0]
     assert a.aqi_avg == 40                    # aggregates still flow through
     # Second row had no AQI → all-null AQI series, but the row still has a series.
     assert results[1].series.aqi == [None, None]
@@ -863,6 +937,211 @@ def test_assemble_prefers_per_destination_type():
     dests = [_dest("pk", 1.0), {**_dest("cu", 2.0), "type": "custom"}]
     results, _ = _assemble(dests, [_wx(0.1), _wx(0.2)], [None, None], "peak")
     assert [(r.name, r.type) for r in results] == [("pk", "peak"), ("cu", "custom")]
+
+
+# ── include_series ─────────────────────────────────────────────────────────
+
+# Three stamps is enough to carry the two gaps that matter: a per-metric null
+# inside the weather series, and an AQI series that stops short of the grid.
+_STAMPS = [1_754_006_400_000 + 3_600_000 * i for i in range(3)]
+
+
+def _wx_hourly(precip):
+    """Stubbed weather carrying an hourly series, as the real fetch returns it.
+    The `stub_upstreams` fixture deliberately omits one."""
+    return _wx_series(
+        precip, _STAMPS, [precip, None, precip], [40.0, 50.0, 60.0], [1.0, 5.0, 9.0]
+    )
+
+
+@pytest.fixture
+def stub_hourly_upstreams(monkeypatch):
+    """Weather and AQI both answer with hourly series.
+
+    AQI covers only the first two stamps, which is the gap its shorter horizon
+    leaves behind a longer weather window.
+    """
+
+    async def fake_wx(
+        destinations, start, end, on_progress=None, on_pace=None, model=None,
+        api_key=None, source="forecast", boundary=None,
+    ):
+        return [_wx_hourly(d["latitude"]) for d in destinations]
+
+    async def fake_aqi(destinations, start, end, api_key=None):
+        return [
+            {
+                "aqi_avg": 40, "aqi_min": 30, "aqi_max": 55,
+                "series": {"times": _STAMPS[:2], "aqi": [40, 55]},
+            }
+            for _ in destinations
+        ]
+
+    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fake_wx)
+    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+
+
+def _hourly_body(**extra):
+    start, end = _window()
+    return {
+        "destination_types": [], "start_datetime": start, "end_datetime": end,
+        "custom_destinations": [
+            {"name": "a", "latitude": 1.0, "longitude": 0.0},
+            {"name": "b", "latitude": 2.0, "longitude": 0.0},
+        ],
+        **extra,
+    }
+
+
+def _minus_series(payload: dict) -> dict:
+    """The response with every row's hours removed, so two shapes can be
+    compared on everything the flag is not supposed to move."""
+    stripped = json.loads(json.dumps(payload))
+    for row in stripped["results"]:
+        row.pop("series")
+    return stripped
+
+
+def _stream_result(body: dict) -> dict:
+    resp = client.post("/api/analyze/stream", json=body)
+    events = [
+        json.loads(line[len("data: "):])
+        for line in resp.text.splitlines()
+        if line.startswith("data: ")
+    ]
+    return next(e["data"] for e in events if e["type"] == "result")
+
+
+def test_assemble_omits_series_when_the_caller_did_not_ask():
+    times = [1000, 2000]
+    wx_list = [_wx_series(0.1, times, [0.1, None], [50.0, 51.0], [5.0, 6.0])]
+    aqi_list = [
+        {"aqi_avg": 40, "aqi_min": 30, "aqi_max": 55,
+         "series": {"times": [1000], "aqi": [40]}}
+    ]
+    results, out_times = _assemble(
+        [_dest("a", 1.0)], wx_list, aqi_list, "custom", include_series=False
+    )
+    assert results[0].series is None
+    # The hours were still fetched and still reduced; only the carriage is gone.
+    assert results[0].precip_total_in == 0.1
+    assert results[0].aqi_avg == 40
+    assert out_times == times
+
+
+def test_analyze_sends_series_by_default(stub_hourly_upstreams):
+    data = client.post("/api/analyze", json=_hourly_body()).json()
+    assert data["times"] == _STAMPS
+    row = data["results"][0]
+    assert row["series"]["precip_in"] == [1.0, None, 1.0]  # the gap survives
+    assert row["series"]["temp_f"] == [40.0, 50.0, 60.0]
+    assert row["series"]["aqi"] == [40, 55, None]  # aligned, then past horizon
+
+
+def test_analyze_without_series_changes_nothing_else(stub_hourly_upstreams):
+    full = client.post("/api/analyze", json=_hourly_body()).json()
+    trimmed = client.post(
+        "/api/analyze", json=_hourly_body(include_series=False)
+    ).json()
+    assert all(r["series"] is None for r in trimmed["results"])
+    assert trimmed["times"] == full["times"] == _STAMPS
+    assert _minus_series(trimmed) == _minus_series(full)
+
+
+def test_analyze_without_series_degrades_aqi_the_same_way(
+    monkeypatch, stub_hourly_upstreams
+):
+    """A best-effort AQI fetch that came back with nothing reads identically in
+    both shapes: null aggregates, and an analysis that still succeeded."""
+
+    async def no_aqi(destinations, start, end, api_key=None):
+        return [None] * len(destinations)
+
+    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", no_aqi)
+    full = client.post("/api/analyze", json=_hourly_body()).json()
+    trimmed = client.post(
+        "/api/analyze", json=_hourly_body(include_series=False)
+    ).json()
+    assert full["results"][0]["series"]["aqi"] == [None, None, None]
+    assert trimmed["results"][0]["series"] is None
+    assert _minus_series(trimmed) == _minus_series(full)
+    for row in (*full["results"], *trimmed["results"]):
+        assert (row["aqi_avg"], row["aqi_min"], row["aqi_max"]) == (None, None, None)
+
+
+def test_analyze_stream_honors_include_series(stub_hourly_upstreams):
+    full = _stream_result(_hourly_body())
+    trimmed = _stream_result(_hourly_body(include_series=False))
+    assert full["results"][0]["series"]["aqi"] == [40, 55, None]
+    assert all(r["series"] is None for r in trimmed["results"])
+    assert trimmed["times"] == full["times"] == _STAMPS
+    assert _minus_series(trimmed) == _minus_series(full)
+
+
+def test_the_hours_are_most_of_a_maximal_response(monkeypatch):
+    """The measurement the flag was sized on (issue #78), through the route.
+
+    One analysis at the candidate cap across the longest window the API
+    accepts. The bounds are loose on purpose: the claim is the order of
+    magnitude between the two shapes, not an exact byte count, and a new field
+    on a row should be free to move the numbers without failing this.
+    """
+    from app.models import MAX_ANALYZE_PEAKS, MAX_LIMIT
+
+    stamps = [1_754_006_400_000 + 3_600_000 * i for i in range(384)]
+
+    async def at_the_cap(polygon, destination_types, on_status=None, **_):
+        return [
+            {"name": f"Some Mountain {i}", "latitude": 47.0 + i * 0.0001,
+             "longitude": -121.0 - i * 0.0001, "elevation_ft": 5961.0 + i,
+             "osm_id": f"node/{100000000 + i}"}
+            for i in range(MAX_ANALYZE_PEAKS)
+        ]
+
+    async def fake_wx(
+        destinations, start, end, on_progress=None, on_pace=None, model=None,
+        api_key=None, source="forecast", boundary=None,
+    ):
+        return [
+            _wx_series(
+                0.4567,
+                stamps,
+                [round(0.0123 + (h % 7) * 0.0011 + i * 0.0001, 4) for h in range(384)],
+                [round(45.6 + (h % 23) * 0.7 + i * 0.01, 1) for h in range(384)],
+                [round(12.3 + (h % 11) * 1.4 + i * 0.01, 1) for h in range(384)],
+            )
+            for i in range(len(destinations))
+        ]
+
+    async def fake_aqi(destinations, start, end, api_key=None):
+        # Five days of the sixteen, which is the real air-quality horizon.
+        return [
+            {"aqi_avg": 42, "aqi_min": 18, "aqi_max": 97,
+             "series": {"times": stamps[:120], "aqi": [40 + (h % 30) for h in range(120)]}}
+            for _ in destinations
+        ]
+
+    monkeypatch.setattr(analyze_mod.osm, "query_osm", at_the_cap)
+    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fake_wx)
+    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+
+    start, end = _window()
+    body = {
+        "destination_types": ["peak"], "start_datetime": start,
+        "end_datetime": end, "limit": MAX_LIMIT,
+        "polygon": {"type": "Polygon",
+                    "coordinates": [[[0, 0], [0.1, 0], [0.1, 0.1], [0, 0.1], [0, 0]]]},
+    }
+    # Identity encoding, so this measures the body rather than GZipMiddleware.
+    headers = {"accept-encoding": "identity"}
+    with_hours = client.post("/api/analyze", json=body, headers=headers)
+    without = client.post(
+        "/api/analyze", json={**body, "include_series": False}, headers=headers
+    )
+    assert len(with_hours.json()["results"]) == MAX_ANALYZE_PEAKS
+    assert len(with_hours.content) > 10_000_000  # measured 12.92 MB
+    assert len(without.content) < 1_000_000  # measured 0.61 MB
+    assert len(with_hours.content) > 15 * len(without.content)
 
 
 def test_analyze_maps_a_model_coverage_refusal_to_400_not_502(monkeypatch):
@@ -896,6 +1175,9 @@ def test_analyze_maps_a_model_coverage_refusal_to_400_not_502(monkeypatch):
     )
     assert resp.status_code == 400
     assert "NOAA HRRR" in resp.json()["detail"]
+    # Not upstream_unavailable: the upstream answered correctly and a retry of
+    # the same request gets the same answer.
+    assert resp.json()["error"] == {"code": "model_coverage", "retryable": False}
 
 
 def test_analyze_rejects_a_model_this_deployment_does_not_serve():
@@ -926,7 +1208,7 @@ def record_key(monkeypatch):
 
     async def fake_wx(
         destinations, start, end, on_progress=None, on_pace=None, model=None,
-        api_key=None,
+        api_key=None, source="forecast", boundary=None,
     ):
         seen["weather"].append(api_key)
         return [_wx(d["latitude"]) for d in destinations]
@@ -1011,6 +1293,7 @@ def test_a_refused_key_is_a_401_not_a_502(refuse_key):
     )
     assert resp.status_code == 401
     assert resp.json()["detail"] == "Open-Meteo rejected the API key."
+    assert resp.json()["error"] == {"code": "invalid_api_key", "retryable": False}
     assert "bad-key" not in resp.text
 
 
@@ -1029,6 +1312,7 @@ def test_a_refused_key_ends_the_stream_with_an_error_event(refuse_key):
     assert events[-1] == {
         "type": "error",
         "message": "Open-Meteo rejected the API key.",
+        "error": {"code": "invalid_api_key", "retryable": False},
     }
     assert "bad-key" not in resp.text
 
@@ -1046,3 +1330,115 @@ def test_the_key_reaches_no_log_record_from_the_route(record_key, caplog):
         assert "secret-key" not in record.getMessage()
     # And the answer itself says nothing about it.
     assert "secret-key" not in resp.text
+
+
+# ── The archive boundary (issue #123) ──────────────────────────────────────
+
+
+def _spanning_window():
+    """A window that starts in the archive's range and ends in the forecast's."""
+    now = datetime.now(timezone.utc)
+    return (
+        (now - timedelta(days=PAST_DATA_DAYS + 10)).isoformat(),
+        (now - timedelta(days=PAST_DATA_DAYS - 10)).isoformat(),
+    )
+
+
+def _archive_window():
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(days=PAST_DATA_DAYS + 30)
+    return start.isoformat(), (start + timedelta(hours=6)).isoformat()
+
+
+def test_analyze_serves_a_window_that_crosses_the_archive_boundary(stub_upstreams):
+    # Both endpoints answer it, split at the boundary and joined per location
+    # before the aggregation — so the caller sees one window, not a refusal.
+    start, end = _spanning_window()
+    resp = client.post("/api/analyze", json={
+        "destination_types": [], "start_datetime": start, "end_datetime": end,
+        "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 2.0}],
+    })
+    assert resp.status_code == 200
+
+
+def test_analyze_stream_serves_a_spanning_window_too(stub_upstreams):
+    start, end = _spanning_window()
+    resp = client.post("/api/analyze/stream", json={
+        "destination_types": [], "start_datetime": start, "end_datetime": end,
+        "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 2.0}],
+    })
+    events = [
+        json.loads(line[len("data: "):])
+        for line in resp.text.splitlines()
+        if line.startswith("data: ")
+    ]
+    assert not any(e["type"] == "error" for e in events)
+    assert any(e["type"] == "result" for e in events)
+
+
+def test_analyze_tells_the_weather_service_which_endpoint_answers(monkeypatch):
+    # The route classifies once and passes the answer down with the boundary it
+    # was classified against, so the fetch cannot split a window at an instant
+    # the classification never saw.
+    seen: list[str] = []
+
+    async def fake_wx(
+        destinations, start, end, on_progress=None, on_pace=None, model=None,
+        api_key=None, source="forecast", boundary=None,
+    ):
+        seen.append(source)
+        return [_wx(d["latitude"]) for d in destinations]
+
+    async def fake_aqi(destinations, start, end, api_key=None):
+        return [None] * len(destinations)
+
+    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fake_wx)
+    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+
+    body = {
+        "destination_types": [],
+        "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 2.0}],
+    }
+    start, end = _archive_window()
+    resp = client.post(
+        "/api/analyze",
+        json={**body, "start_datetime": start, "end_datetime": end},
+    )
+    assert resp.status_code == 200
+    recent_start, recent_end = _window()
+    client.post(
+        "/api/analyze",
+        json={**body, "start_datetime": recent_start, "end_datetime": recent_end},
+    )
+
+    assert seen == ["archive", "forecast"]
+
+
+def test_analyze_passes_the_boundary_it_classified_against(monkeypatch):
+    # Two values, one clock reading. A spanning window is cut at this instant,
+    # and the service is given it rather than working one out for itself.
+    seen: list[tuple[str, datetime | None]] = []
+
+    async def fake_wx(
+        destinations, start, end, on_progress=None, on_pace=None, model=None,
+        api_key=None, source="forecast", boundary=None,
+    ):
+        seen.append((source, boundary))
+        return [_wx(d["latitude"]) for d in destinations]
+
+    async def fake_aqi(destinations, start, end, api_key=None):
+        return [None] * len(destinations)
+
+    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fake_wx)
+    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+
+    start, end = _spanning_window()
+    resp = client.post("/api/analyze", json={
+        "destination_types": [],
+        "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 2.0}],
+        "start_datetime": start, "end_datetime": end,
+    })
+    assert resp.status_code == 200
+    source, boundary = seen[0]
+    assert source == "spanning"
+    assert boundary == models.archive_boundary(datetime.now(timezone.utc))

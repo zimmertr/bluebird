@@ -434,7 +434,7 @@ flowchart LR
 
     subgraph BB["zimmertr/bluebird"]
         pr["PR opened / updated"]
-        checks["pr.yml<br/>typecheck, Vitest, ruff, pytest, OpenAPI drift,<br/>hadolint, docker build + Trivy scan (sticky comment)"]
+        checks["pr.yml<br/>typecheck, Vitest, ruff, pytest, OpenAPI + API-type drift,<br/>hadolint, docker build + Trivy scan (sticky comment)"]
         preview["pr-preview.yml<br/>pull_request_target (same-repo gate)"]
         label["label: create pr container"]
         comment["sticky preview-URL comment"]
@@ -468,6 +468,15 @@ flowchart LR
   scripts/generate_openapi.py`. The script pins `APP_VERSION` to `dev` before
   importing the app, so `info.version` stays deterministic and a released build
   never reads as drift.
+- `pr.yml`'s frontend job runs `npm run check:api` before the typecheck. The
+  SPA's wire types are hand-written, and `frontend/src/api-schema.d.ts` —
+  generated from the committed snapshot above — is what the typecheck holds them
+  against, so the same contract change has to land on both sides of the repo in
+  one PR. Regenerate with `cd frontend && npm run generate:api`. The generator
+  is a package of its own (`frontend/tools/api-types`, with its own lockfile and
+  its own Dependabot entry) because it needs the TypeScript 5 compiler API while
+  the app runs TypeScript 7; the script installs it, so the job adds no step and
+  the node cache keys on both lockfiles.
 - `pr.yml`'s docker-build job loads the amd64 image into the runner and scans it
   with **Trivy** (`ignore-unfixed`: Debian/Alpine no-fix CVEs never gate). The
   report lands in the job step summary and as a **sticky PR comment** (matched by

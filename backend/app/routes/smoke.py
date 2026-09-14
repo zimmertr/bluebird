@@ -3,10 +3,11 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel, Field
 
 from app import ratelimit
+from app.error_codes import ApiError, ErrorCode
 from app.models import ErrorResponse
 from app.services import hms
 
@@ -109,9 +110,10 @@ async def smoke() -> Response:
         # than raising.
         retry_after = getattr(exc, "retry_after_s", 60)
         log.warning("event=smoke_unavailable error=%s", exc)
-        raise HTTPException(
+        raise ApiError(
             status_code=503,
             detail=hms.unavailable_message(exc),
+            code=ErrorCode.snapshot_unavailable,
             headers={"Retry-After": str(retry_after)},
         ) from exc
     # Returned as a Response so FastAPI passes the stored body through

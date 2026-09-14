@@ -7,6 +7,8 @@ from typing import Literal, NamedTuple
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.error_codes import ErrorCode, error_object
+
 # Bounds the Overpass query, not Open-Meteo spend (the count cap below does
 # that). Measured 2026-07-29 against overpass-api.de with the production peaks
 # query: a ~103,000 km2 sparse box (Iowa) answered in 25.8s; a ~151,000 km2 box
@@ -26,12 +28,24 @@ MAX_POLYGON_AREA_KM2 = 100_000
 # truncation only ever happens when the request explicitly opts in.
 MAX_ANALYZE_PEAKS = 1_500
 
-# Open-Meteo serves roughly the last ~90 days of history through ~16 days
-# ahead; the frontend blocks windows outside that band (urlState.ts). These
-# looser bounds are a backstop for direct API callers — enough slack that a
-# legitimate edge window never gets a false 422, while an egregious one (say,
-# a year ahead) fails fast with a clear message instead of an upstream 400.
-PAST_LIMIT_SLACK_DAYS = 95
+# How far back a window may reach, which is the ARCHIVE endpoint's reach rather
+# than the forecast endpoint's (issue #123). One year is a product choice, not a
+# limit of the data: the archive holds decades, and a calendar offering them
+# would page through forty years of months to reach last autumn. Probed
+# 2026-09-12 at 46.85,-121.76 — with no `models=` the archive answers a window
+# 365 days back with real precipitation, temperature and wind.
+#
+# GET /api/capabilities publishes this as `limits.archive_days`, so the calendar
+# reads the reach rather than compiling one.
+ARCHIVE_DATA_DAYS = 365
+
+# Open-Meteo serves a year of history (via the archive endpoint, see above)
+# through ~16 days ahead; the frontend blocks windows outside that band
+# (urlState.ts). These looser bounds are a backstop for direct API callers —
+# enough slack that a legitimate edge window never gets a false 422, while an
+# egregious one (say, a year ahead) fails fast with a clear message instead of
+# an upstream 400.
+PAST_LIMIT_SLACK_DAYS = ARCHIVE_DATA_DAYS + 10
 FUTURE_LIMIT_SLACK_DAYS = 17
 
 # How far back the forecast endpoint still holds *data*, as opposed to how far
@@ -50,7 +64,33 @@ FUTURE_LIMIT_SLACK_DAYS = 17
 # is one floor for all of them rather than another column in the table
 # below: the spread is two weeks of jitter around a single ~2-month retention,
 # not a per-model property worth modelling. Re-probe before raising it.
+#
+# Since #123 this is also the BOUNDARY between the two endpoints: a window older
+# than this is served from the archive instead (`window_source` below), so the
+# nulls it describes are no longer what a reader gets — they are what the
+# forecast endpoint would answer if it were still the one asked.
 PAST_DATA_DAYS = 55
+
+# One local calendar day of tolerance on the forecast side of that boundary.
+#
+# The boundary is an instant and a calendar day is not: west of Greenwich a
+# local day's last minute lands on the next UTC date, so a single day drawn in
+# the calendar can straddle the boundary by up to 14 hours. Without the
+# tolerance that one day would be split across two datasets and joined at a seam
+# 14 hours into it, although the forecast endpoint holds the whole of it. It
+# costs nothing in honesty: the forecast
+# endpoint is measurably populated through 56 days back and ragged at 58 (see
+# PAST_DATA_DAYS), so the extra day sits inside the margin that floor already
+# carries.
+ARCHIVE_STRADDLE_DAYS = 1
+
+# A window that starts before the archive boundary and ends after it. Served by
+# TWO fetches rather than refused: the hours before the boundary come from the
+# archive, the hours from it on from the forecast endpoint, and each location's
+# hourly arrays are concatenated in time order BEFORE the aggregation runs, so
+# one report ranks one series (`weather.fetch_weather_batch`). Where the seam
+# falls is stated on screen rather than left to be discovered.
+WindowSource = Literal["forecast", "archive", "spanning"]
 
 # Rows returned per analysis. Named rather than inline so the validator and
 # GET /api/capabilities cannot drift apart. The ceiling equals the analysis
@@ -66,6 +106,45 @@ def _as_utc(dt: datetime) -> datetime:
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
+def archive_boundary(now: datetime) -> datetime:
+    """The instant the archive's hours end and the forecast endpoint's begin.
+
+    `now - PAST_DATA_DAYS`, floored to the UTC day, because every fetch sends UTC
+    hour stamps. One definition for two readers: `window_source` classifies a
+    window against it, and `weather.fetch_weather_batch` splits a spanning window
+    at it. A second spelling could put the seam an hour from where the
+    classification believed it was.
+
+    Mirrored by `archiveBoundaryMs` in `frontend/src/utils/forecastWindow.ts`.
+    """
+    return (_as_utc(now) - timedelta(days=PAST_DATA_DAYS)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+
+
+def window_source(start: datetime, end: datetime, now: datetime) -> WindowSource:
+    """Which Open-Meteo endpoint answers this window, or that both do.
+
+    One boundary, defined once by `archive_boundary` above. A window entirely
+    older than it is the archive's; one starting at it — within a local day, see
+    ARCHIVE_STRADDLE_DAYS — is the forecast endpoint's; one that starts before it
+    and ends after it is both endpoints', fetched twice and joined at the seam.
+
+    The archive test comes first so the one-day overlap the straddle tolerance
+    opens resolves to the archive, which holds every hour in it rather than
+    relying on the forecast endpoint's ragged tail.
+
+    Mirrored by `windowSource` in `frontend/src/utils/forecastWindow.ts`, with
+    the same example table in both test suites.
+    """
+    boundary = archive_boundary(now)
+    if _as_utc(end) < boundary:
+        return "archive"
+    if _as_utc(start) >= boundary - timedelta(days=ARCHIVE_STRADDLE_DAYS):
+        return "forecast"
+    return "spanning"
+
+
 class DestinationType(str, Enum):
     peak = "peak"
     trailhead = "trailhead"
@@ -74,8 +153,9 @@ class DestinationType(str, Enum):
 
 
 class ForecastMode(str, Enum):
-    # `at` rather than `future` because the API serves roughly 90 days of
-    # history, so a single-moment sample is not necessarily ahead of now.
+    # `at` rather than `future` because a window may reach a year back (the
+    # archive, see ARCHIVE_DATA_DAYS), so a single-moment sample is not
+    # necessarily ahead of now.
     current = "current"
     at = "at"
     window = "window"
@@ -297,6 +377,9 @@ class SortBy(str, Enum):
     temp_min = "temp_min_f"
     temp_avg = "temp_avg_f"
     temp_max = "temp_max_f"
+    freeze_min = "freeze_min_ft"
+    freeze_avg = "freeze_avg_ft"
+    freeze_max = "freeze_max_ft"
     aqi_avg = "aqi_avg"
     aqi_min = "aqi_min"
     aqi_max = "aqi_max"
@@ -506,6 +589,19 @@ class AnalyzeRequest(BaseModel):
             "wettest, windiest, warmest, smokiest."
         ),
     )
+    include_series: bool = Field(
+        default=True,
+        description=(
+            "Send each row's hourly `series`. The hours are the bulk of the "
+            "body, by an order of magnitude on a long window, so a caller "
+            "that reads only the aggregates should set this false.\n\n"
+            "Nothing else changes. The aggregates are computed from the same "
+            "hours either way, `times` is still sent, and air quality is still "
+            "fetched and summarized under the same best-effort terms. "
+            "True by default, so an existing caller sees the shape it "
+            "always saw."
+        ),
+    )
     # Applied to candidates before the weather fetch, so a constrained analysis
     # costs fewer upstream calls, and the returned rows always fill `limit` when
     # enough candidates qualify.
@@ -533,7 +629,10 @@ class AnalyzeRequest(BaseModel):
     # compares the window's WORST hour and a floor its best, so a bound is a
     # promise about every hour in the window: `max_wind_mph = 20` admits no
     # destination that gusts to 45 at noon, which is the only reading a
-    # mountaineer can plan against. Precipitation and AQI have no minimum
+    # mountaineer can plan against. The freezing level reads the same way in
+    # the one family where neither end is the bad one: the floor asks that the
+    # level never dropped below the value, the ceiling that it never rose above
+    # it. Precipitation and AQI have no minimum
     # aggregate to bound (a per-hour precipitation floor would be 0.000 almost
     # everywhere), so their two bounds both compare one named field, and that
     # field is named in the description a caller reads.
@@ -573,6 +672,27 @@ class AnalyzeRequest(BaseModel):
         description=(
             "Drop rows whose `wind_max_mph` is above this, i.e. keep only "
             "destinations that never exceed it during the window."
+        ),
+    )
+    min_freeze_ft: float | None = Field(
+        default=None,
+        description=(
+            "Drop rows whose `freeze_min_ft` is below this, i.e. keep only "
+            "destinations whose freezing level never fell below it during the "
+            "window. Not bounded below: a freezing level of 0 is a reading, "
+            "not a gap."
+        ),
+    )
+    max_freeze_ft: float | None = Field(
+        default=None,
+        description=(
+            "Drop rows whose `freeze_max_ft` is above this, i.e. keep only "
+            "destinations whose freezing level never rose above it during the "
+            "window. A row with a null `freeze_max_ft` passes either bound: "
+            "only some forecast models publish a freezing level at all, so a "
+            "missing number says which model answered rather than what the "
+            "weather did, and dropping those rows would empty the whole "
+            "result under every other model."
         ),
     )
     min_aqi: float | None = Field(
@@ -739,7 +859,7 @@ class AnalyzeRequest(BaseModel):
         now = datetime.now(timezone.utc)
         if _as_utc(self.start_datetime) < now - timedelta(days=PAST_LIMIT_SLACK_DAYS):
             raise ValueError(
-                "start_datetime is beyond the ~90-day history limit of the "
+                "start_datetime is beyond the one-year history limit of the "
                 "weather API. Move the window start closer to today."
             )
         if _as_utc(self.end_datetime) > now + timedelta(days=FUTURE_LIMIT_SLACK_DAYS):
@@ -764,6 +884,13 @@ class HourlySeries(BaseModel):
         description=(
             "Wind speed at the destination's elevation, miles per hour. "
             "See `wind_avg_mph` on the result for how it is derived."
+        )
+    )
+    freeze_ft: list[float | None] = Field(
+        description=(
+            "Freezing level, feet above sea level. Null at every hour for the "
+            "models that do not publish the variable; see `freeze_avg_ft` on "
+            "the result."
         )
     )
     aqi: list[int | None] = Field(description="US AQI, all EPA pollutants combined.")
@@ -819,6 +946,26 @@ class DestinationResult(BaseModel):
             "reduce the same adjusted hourly values."
         )
     )
+    freeze_min_ft: float | None = Field(
+        default=None,
+        description=(
+            "Lowest freezing level in the window, feet above sea level. Read "
+            "against `elevation_ft`: below the destination, the whole "
+            "destination was below freezing at that hour. Zero means the "
+            "freezing level reached sea level, not that there is no value. "
+            "Null for every hour of a forecast model that does not publish "
+            "the variable, which is five of the eight; an absent freezing "
+            "level never affects the other figures on this row."
+        ),
+    )
+    freeze_max_ft: float | None = Field(
+        default=None,
+        description="Highest freezing level in the window. Null under the same terms.",
+    )
+    freeze_avg_ft: float | None = Field(
+        default=None,
+        description="Mean freezing level across the window. Null under the same terms.",
+    )
     aqi_avg: int | None = Field(
         default=None,
         description=(
@@ -837,10 +984,40 @@ class DestinationResult(BaseModel):
         default=None,
         description=(
             "Hourly detail behind the summary figures above, aligned to "
-            "`times`. Null only when the upstream forecast carried no hours "
-            "inside the window."
+            "`times`. Null when the upstream forecast carried no hours inside "
+            "the window, and on every row when the request set "
+            "`include_series: false`."
         ),
     )
+
+
+class ApiErrorInfo(BaseModel):
+    """The same failure as a code a program can branch on.
+
+    It rides beside `detail` rather than replacing it, because the two are
+    read by different audiences: the sentence by a person, the code by a
+    client deciding whether to retry.
+    """
+
+    code: ErrorCode = Field(
+        description=(
+            "Which kind of failure this is, from a closed vocabulary. Stable "
+            "contract: unlike `detail`, a code is not reworded."
+        )
+    )
+    retryable: bool = Field(
+        description=(
+            "Whether sending the identical request again is worth trying. "
+            "False means only the caller can change the outcome. On a 429 or "
+            "503 the `Retry-After` header says when."
+        )
+    )
+
+    @classmethod
+    def for_code(cls, code: ErrorCode) -> ApiErrorInfo:
+        """One spelling of the field, so a model body and a hand-built one
+        cannot disagree about `retryable`."""
+        return cls.model_validate(error_object(code))
 
 
 class ErrorResponse(BaseModel):
@@ -857,6 +1034,9 @@ class ErrorResponse(BaseModel):
             "to an end user unmodified."
         )
     )
+    error: ApiErrorInfo = Field(
+        description="The machine-readable half of the same failure."
+    )
 
 
 class AnalysisRefusal(BaseModel):
@@ -870,6 +1050,9 @@ class AnalysisRefusal(BaseModel):
 
     detail: str = Field(
         description="Plain-language refusal, shown to an end user unmodified."
+    )
+    error: ApiErrorInfo = Field(
+        description="The machine-readable half of the same refusal."
     )
     found: int | None = Field(
         default=None,
@@ -950,7 +1133,9 @@ class AnalyzeResponse(BaseModel):
         description=(
             "Shared hourly grid for every row's `series`, as epoch "
             "milliseconds UTC. Sent once because it is identical across "
-            "destinations for a given window."
+            "destinations for a given window, and sent in both shapes: under "
+            "`include_series: false` it is the only statement of which hours "
+            "the aggregates reduced."
         ),
     )
 

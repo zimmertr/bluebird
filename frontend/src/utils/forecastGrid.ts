@@ -41,6 +41,7 @@ import type { Coordinate, WeatherResult, AqiResult } from './openMeteo'
 import { assemble } from './clientAnalyze'
 import { alignRowToGrid } from './chartData'
 import { NO_VALUE, bearingAt, fillColor } from './resultFeatures'
+import type { WindowSource } from './forecastWindow'
 import { SEP } from '../metrics'
 
 /** One cell's extent: `[west, south, east, north]` in degrees. */
@@ -187,6 +188,38 @@ export const MAX_IMAGE_DIM = 2048
  * claimed.
  */
 export const FALLBACK_PITCH_KM = 13
+
+/**
+ * May this report be gridded at all?
+ *
+ * The pitch is the whole of what the picture claims: the legend states it, and
+ * it is the distance over which the drawing stops being a measurement. The
+ * lattice is sampled at the ANALYZED MODEL's finest pitch — but an archive
+ * window names no model (#123). That endpoint answers from a reanalysis, on a
+ * grid coarser than any forecast model's finest figure, so the same lattice
+ * would paint real numbers at a spacing far finer than anything that produced
+ * them and the legend would state a pitch the data never had. There is no
+ * honest pitch to substitute either, because the archive publishes no
+ * per-model figure for `/api/capabilities` to carry.
+ *
+ * A window that CROSSES the boundary is the same claim made over half a report:
+ * its early hours are that reanalysis, and one pitch cannot be honest about both
+ * halves. So the test is "is every hour a model's", not "is this the archive" —
+ * the model picker stays live for such a window, because the forecast half is
+ * genuinely the chosen model's, but a single stated pitch over the whole field is
+ * not.
+ *
+ * Read off the ANALYZED snapshot rather than the panel, like every other input
+ * this overlay takes: the calendar can move to a recent window while an archive
+ * report still sits on screen, and the layer must follow the rows it draws
+ * under.
+ *
+ * `null` is a report that does not exist yet, and forbids nothing. The layer is
+ * a standing preference, so the analysis decides when it commits.
+ */
+export function gridAllowed(analyzed: { windowSource: WindowSource } | null): boolean {
+  return analyzed === null || analyzed.windowSource === 'forecast'
+}
 
 // One degree of latitude, in km. Longitude shrinks by cos(lat), which is what
 // keeps a sample spacing roughly square on the ground rather than in degrees.

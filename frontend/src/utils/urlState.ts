@@ -16,6 +16,7 @@ import {
 import { Constraints, NO_CONSTRAINTS, hasConstraints } from './clientAnalyze'
 import { GRID_REACH_DEFAULT_FRAC, isGridStyle, type GridStyle } from './forecastGrid'
 import {
+  type BandLimits,
   DAY_END,
   DAY_START,
   DEFAULT_SELECTION,
@@ -96,7 +97,7 @@ const DISCOVERY_TYPES: DiscoveryType[] = ['peak', 'trailhead', 'lake']
 // ranking it named.
 
 // The forecast bounds' query params, spelled out rather than abbreviated the
-// way `minel`/`maxel` were: eight terse keys would be eight guesses in the
+// way `minel`/`maxel` were: ten terse keys would be ten guesses in the
 // address bar, and readability is what the URL convention buys (#210). The
 // param name reads as the control's label, not as the result field it compares
 // — `maxaqi` is the AQI ceiling, and which aggregate it reads is the app's
@@ -108,6 +109,8 @@ const CONSTRAINT_PARAMS = [
   ['maxtemp', 'maxTempF'],
   ['minwind', 'minWindMph'],
   ['maxwind', 'maxWindMph'],
+  ['minfreeze', 'minFreezeFt'],
+  ['maxfreeze', 'maxFreezeFt'],
   ['minaqi', 'minAqi'],
   ['maxaqi', 'maxAqi'],
 ] as const satisfies readonly (readonly [string, keyof Constraints])[]
@@ -629,6 +632,10 @@ export function resolveState(
  * before the start, 'past' when the window starts before the history horizon,
  * and 'future' when it ends beyond the forecast horizon.
  *
+ * Crossing the archive boundary is NOT one of these (#123). Both endpoints
+ * answer such a window, split at the seam, so nothing about it blocks an
+ * analysis — the panel names where the join falls instead (`archiveSeamPhrase`).
+ *
  * Bounded by whole days rather than by an instant `now + N * 24h`, because that
  * is the granularity of everything it is standing in for: the API states its own
  * far limit as a UTC date, and the calendar offers whole days. Measuring from the
@@ -652,19 +659,19 @@ export function classifyWindow(
   startDatetime: string,
   endDatetime: string,
   now: Date,
-  forecastHours: number,
+  band: BandLimits,
 ): 'ok' | 'order' | 'past' | 'future' {
   if (!isValidDatetimeLocal(startDatetime) || !isValidDatetimeLocal(endDatetime)) {
     return 'ok' // incomplete window — nothing to warn about yet
   }
   const start = new Date(startDatetime).getTime()
   const end = new Date(endDatetime).getTime()
-  const earliest = Date.parse(`${bandStart(now)}T${DAY_START}`)
+  const earliest = Date.parse(`${bandStart(now, band)}T${DAY_START}`)
   // Reads the same band the calendar draws, so a window the grid shows as
   // unpickable and a window this calls 'future' can never be different sets —
   // which is why the model's reach has to reach this function rather than only
   // the grid.
-  const latest = Date.parse(`${bandEnd(now, forecastHours)}T${DAY_END}`)
+  const latest = Date.parse(`${bandEnd(now, band)}T${DAY_END}`)
 
   // A reversed window is a user error, not a horizon problem — flag it first so
   // the message is about the hours the user just set, not the servable range.

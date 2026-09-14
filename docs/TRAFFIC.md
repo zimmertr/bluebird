@@ -139,6 +139,82 @@ not care who you claim to be. A caller already inside the cluster mesh can
 still set the header, which is why the buckets are one layer of several, not
 the whole defense.
 
+## Security response headers
+
+Every response the pod sends carries the set below, added by
+`backend/app/security_headers.py` as the outermost middleware, so a route, a
+static file and a `404` are all covered
+([#132](https://github.com/zimmertr/bluebird/issues/132)). The app owns them
+rather than the mesh because the interesting one is a list of the hosts the
+browser bundle fetches, and that list changes when a frontend overlay changes.
+Edge-owned headers would drift away from the code that defines them.
+
+| Header | Value | Why |
+| --- | --- | --- |
+| `X-Content-Type-Options` | `nosniff` | The static mount serves user-visible files by extension. |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | The full URL to this origin, the bare origin to anybody else. A shared link carries the analysis in its query string. |
+| `Permissions-Policy` | `geolocation=(self), camera=(), microphone=(), payment=()` | Geolocation is the one capability the app uses, for MapLibre's geolocate control. The rest are named rather than left to the default, so switching one on is a deliberate edit. |
+| `Content-Security-Policy` | see below | |
+
+**The app sends no `Strict-Transport-Security` header, on purpose.** Cloudflare
+terminates the TLS this header is about and sets it at the edge, which is the
+layer that knows the zone. The pod never sees an `https` scheme of its own, and
+a browser cannot be told to forget a `max-age` it has already read, so a second
+voice on the same claim adds nothing and makes a wrong value harder to withdraw.
+A self-hosted instance that terminates its own TLS sets the header at whatever
+terminates it, for the same reason.
+
+The policy for the app:
+
+```
+default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none';
+form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
+img-src 'self' data: blob: https://tiles.openfreemap.org https://mesonet.agron.iastate.edu;
+connect-src 'self' data: https://api.open-meteo.com https://air-quality-api.open-meteo.com
+  https://archive-api.open-meteo.com https://tiles.openfreemap.org https://mesonet.agron.iastate.edu;
+worker-src 'self' blob:; child-src 'self' blob:
+```
+
+Four points in it are measurements rather than habits.
+
+- **`connect-src` is the browser's third-party surface, and nothing else.**
+  The four origins are the ones in the "Outbound" table marked **browser**:
+  Open-Meteo's two services, the basemap, and the radar frames. Overpass,
+  Nominatim, NIFC and NOAA are absent because the pod fetches those, so for
+  them the browser talks to this origin only. The one origin covers every
+  basemap request, checked against the served style document rather than
+  assumed: the style JSON, its TileJSON, the vector tiles, the glyphs and the
+  sprites all resolve to `tiles.openfreemap.org`.
+- **`data:` in `connect-src` is the forecast grid.** MapLibre loads an image
+  source by *fetching* its URL, and that overlay's raster is a canvas
+  `data:` URL, so a strict `connect-src` blanks the layer. `blob:` in the
+  worker directives is MapLibre's own worker, which it builds from a Blob.
+- **`'unsafe-inline'` in `style-src` covers inline style attributes, not a
+  `<style>` block.** Map popups are built as HTML strings and handed to
+  MapLibre's `setHTML`, because a string passed to `setHTML` is not a class
+  list Tailwind's scanner ever sees. Those inline attributes are exactly what
+  `style-src` blocks otherwise, and a strict value renders every popup
+  unstyled. `style-src-attr` would carry it alone, but an engine that does not
+  know that directive falls back to `style-src`, which would break the popups
+  on the older browsers a CSP protects most. The script side stays strict,
+  which is where the XSS boundary sits: the built pages carry no inline
+  `<script>` at all, checked on the build output.
+- **`/docs` is the one path with its own policy**, and it is narrower
+  everywhere except one directive: no third-party origin reaches `img-src` or
+  `connect-src`, the page starts no worker, and Swagger UI's inline init
+  script is allowed by its SHA-256 hash. The hash is taken from the rendered
+  page rather than pinned, so a FastAPI upgrade that rewrites that script
+  cannot silently blank the page. A source checkout has no vendored assets and
+  falls back to a CDN for them, and the policy follows that fallback rather
+  than leaving the fallback broken.
+
+`backend/tests/test_security_headers.py` is what keeps the allowlist honest.
+It reads `frontend/src` as text and fails on any host there that is neither in
+`connect-src` nor in its list of link-only hosts, in both directions, so a new
+overlay's host is a decision somebody has to make rather than one that happens
+by omission. That check needs both trees, so it runs in CI and in any local run
+that mounts the repository rather than `backend/` alone.
+
 ## Outbound: what calls what
 
 | Provider | Called by | From | Policy | Governor |
@@ -146,6 +222,7 @@ the whole defense.
 | [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) | backend (`osm.py`), 1 query per discovery/analysis plus 1 to resolve a custom list's coordinates (batched, so one query covers a whole 100-row paste), 3-mirror failover | cluster egress IP | ~2 slots per IP **per mirror operator** (overpass-api.de documents 2) | `UPSTREAM_CONCURRENCY_OVERPASS=2` per pod **per mirror** — one budget per endpoint, slot held only while that mirror's request is in flight, released before failover |
 | [Open-Meteo forecast](https://open-meteo.com) | **browser** (`openMeteo.ts`) for the web app; backend (`weather.py`) only for unkeyed API callers | each visitor's own IP; cluster egress IP for the server path | **weighted calls** per IP: 600/min, 5,000/hr, 10,000/day (see accounting below), non-commercial | browser: a rolling ~550 weighted/min pacer on the visitor's own quota, a 15-min per-location result cache, one automatic minutely-429 resume, and abort-on-first-failure so nothing spends after the outcome is decided. Server path: `UPSTREAM_WEIGHT_PER_MINUTE_WEATHER=550` per pod — the full safe rate on **every** pod, not a per-replica share, because one analysis runs end to end on one pod and must cover its whole fan-out. The cluster can therefore exceed 550/min when several pods fetch at once; accepted, since this path is the exception and the per-minute pacer never bounded the hourly or daily quotas anyway (issue #65's shared store is the exact fix) + in-flight cap 4 + the same cache |
 | [Open-Meteo air quality](https://open-meteo.com/en/docs/air-quality-api) | same split, best-effort on both paths, fetched **lazily**: only for the displayed rows unless the ranking key is an AQI metric | same split | same accounting, metered separately | browser and server: same pacing shape (`UPSTREAM_WEIGHT_PER_MINUTE_AQI=550` per pod, undivided for the same reason), failures degrade to null, and the first 429 short-circuits the remaining AQI batches |
+| [Open-Meteo archive](https://open-meteo.com/en/docs/historical-weather-api) (`archive-api.open-meteo.com`, and `customer-archive-api` for a keyed caller) | the same two callers as the row above, for a window older than `limits.past_data_days` (issue #123). A window that crosses that boundary is fetched from both, one request per endpoint per batch, so it costs two calls where an ordinary window costs one | same split | same weighted accounting, and the same quota the forecast endpoint spends | identical to the row above: the same pacer, the same in-flight cap, and the same 15-min per-location cache, which keys on WHICH endpoint answered so the two cannot serve each other's rows |
 | [Open-Meteo forecast, customer host](https://open-meteo.com) (`customer-api.open-meteo.com`) | backend (`weather.py`) for an API caller that sent `X-Open-Meteo-Key`, same batching and cache as the free host | cluster egress IP, but the quota owner is the **caller** | the key's own plan, whatever the caller bought | no weighted pacer, because the pod's budget meters the pod's quota and this spends the caller's. The in-flight cap of 4 and the per-client analyze bucket still apply, and so does the 15-min per-location cache, which is shared with the free-tier path |
 | [Open-Meteo air quality, customer host](https://open-meteo.com/en/docs/air-quality-api) (`customer-air-quality-api.open-meteo.com`) | same, from `air_quality.py` | cluster egress IP, quota owner the **caller** | the key's own plan, metered separately from forecast | same as the row above; a refused key is the one AQI failure that does not degrade to null |
 | [Nominatim](https://operations.osmfoundation.org/policies/nominatim/) | backend (`geocode.py`) proxying the search box | cluster egress IP | absolute ~1 req/s per service, real User-Agent required | `NOMINATIM_MIN_INTERVAL_MS=3500` spacing per pod (~0.86/s aggregate at 3 replicas; the previous 2s ≈ 1.5/s quietly exceeded the policy) + per-client geocode bucket |
@@ -207,15 +284,19 @@ multiplexes over one HTTP/2 connection per origin already.
 Open-Meteo does not bill HTTP requests. Per their published accounting
 (pricing page and the official multi-location post):
 
-    weight = locations × max(1, days/14) × max(1, variables/10)
+    weight = locations × max(1, days/14) × max(1, variables × models/10)
 
 so a 50-location batch costs at least 50 calls, and the full 16-day window
 makes it 57. The per-factor floor is inferred from observed enforcement, not
 documented (issue #180 tracks the upstream confirmation); assuming it is the
-conservative choice. **Every capacity number in this file is written in this
-unit** — the 2026-07-29 incident happened because three layers of this
-system priced spend in HTTP requests and were consistently wrong by the
-batch factor of 50.
+conservative choice. The model count multiplies the variable count because a
+request naming several models returns one series per variable per model, and
+Open-Meteo prices what comes back; their own call calculator on the pricing
+page takes Models beside Variables and multiplies the two. Every request this
+service makes today names one model, so that term is 1. **Every capacity
+number in this file is written in this unit** — the 2026-07-29 incident
+happened because three layers of this system priced spend in HTTP requests
+and were consistently wrong by the batch factor of 50.
 
 ## Worst-case math
 

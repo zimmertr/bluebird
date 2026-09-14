@@ -27,6 +27,9 @@ export type SortBy =
   | 'temp_min_f'
   | 'temp_avg_f'
   | 'temp_max_f'
+  | 'freeze_min_ft'
+  | 'freeze_avg_ft'
+  | 'freeze_max_ft'
   | 'aqi_avg'
   | 'aqi_min'
   | 'aqi_max'
@@ -71,7 +74,8 @@ export interface AnalyzeRequest {
   // limit cut. A ceiling compares the window's worst hour and a floor its best,
   // so a bound holds for every hour rather than for an average; precipitation
   // and AQI have no minimum aggregate, so both of their bounds compare
-  // precip_total_in and aqi_max respectively. Null AQI passes either bound.
+  // precip_total_in and aqi_max respectively. A null AQI or freezing level
+  // passes either bound.
   //
   // Sent only on the SSE fallback path. The browser path holds the whole field
   // and applies these live through utils/present.ts, which is what makes them
@@ -82,12 +86,32 @@ export interface AnalyzeRequest {
   max_temp_f?: number | null
   min_wind_mph?: number | null
   max_wind_mph?: number | null
+  min_freeze_ft?: number | null
+  max_freeze_ft?: number | null
   min_aqi?: number | null
   max_aqi?: number | null
   // Explicit opt-in: an over-limit candidate set keeps its highest-elevation
   // rows up to the analysis cap instead of refusing. The response then says
   // truncated: true with the pre-cut count in total_found — never silent.
   top_by_elevation?: boolean
+}
+
+// The body POST /api/destinations takes: the discovery half of an analysis,
+// with nothing about forecasts on it.
+//
+// Spelled out rather than derived from AnalyzeRequest, and posted as a typed
+// value rather than a bare object literal, because an unannotated literal is
+// where a discovery knob goes missing without a word from the typecheck: a
+// field absent from an untyped body is not a type error anywhere. api-compat.ts
+// then binds this to the route's own schema.
+export interface DestinationsRequest {
+  polygon?: GeoPolygon | null
+  destination_types: DiscoveryType[]
+  include_unnamed_peaks?: boolean
+  min_elevation_ft?: number | null
+  max_elevation_ft?: number | null
+  top_by_elevation?: boolean
+  custom_destinations?: CustomDestination[]
 }
 
 // Per-hour values over the analyzed window, aligned index-for-index to
@@ -97,6 +121,9 @@ export interface HourlySeries {
   precip_in: (number | null)[]
   temp_f: (number | null)[]
   wind_mph: (number | null)[]
+  // Feet above sea level. All null for the forecast models that do not
+  // publish the variable, which is five of the eight (#295).
+  freeze_ft: (number | null)[]
   aqi: (number | null)[]
   // Wind bearing in degrees clockwise from north, the direction the wind blows
   // FROM. Client-populated only: the backend does not fetch it, because nothing
@@ -123,6 +150,15 @@ export interface DestinationResult {
   wind_min_mph: number
   wind_max_mph: number
   wind_avg_mph: number
+  // Freezing level in feet above sea level, read against elevation_ft: below
+  // the destination means the destination itself was below freezing that
+  // hour, and 0 means the freezing level reached sea level. Null for every
+  // row of an analysis run on a model that does not publish it (#295) — the
+  // aggregation keeps it independent, so a null here says nothing about the
+  // numbers above.
+  freeze_min_ft: number | null
+  freeze_max_ft: number | null
+  freeze_avg_ft: number | null
   // US AQI (all EPA pollutants combined) — null when the window is beyond the ~5-day air-quality
   // forecast horizon or the (best-effort) fetch failed
   aqi_avg: number | null
@@ -144,7 +180,7 @@ export interface AnalyzeResponse {
   // before the limit cut. Equal to total_queried when no bound was set, so the
   // footer can say "N of M matching" without knowing whether anything filtered.
   total_matched: number
-  error?: string
+  error?: string | null
   // Shared hourly grid for every row's `series`, epoch milliseconds (UTC),
   // rendered in the viewer's local time.
   times?: number[]

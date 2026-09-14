@@ -33,6 +33,7 @@ import {
   SEGMENT_FLUID,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
+  DISABLED,
   SELECT,
   SELECT_W_AGGREGATE,
   SPINNER,
@@ -268,16 +269,24 @@ describe('every component', () => {
   // The count is the point: a tooltip does not exist on touch, so each one is
   // a decision someone made and can defend, not a habit.
   const APPROVED_TOOLTIPS: Record<string, number> = {
-    // The Light/Medium/Heavy chips in the map's layer legend.
-    './App.tsx': 1,
+    // The Light/Medium/Heavy chips in the map's layer legend, and why the
+    // Forecast grid row is faded over a report carrying archive hours (#123).
+    './App.tsx': 2,
     // Max results (label + field), and the unknown-value note on the
     // Elevation and AQI filter rows (label + both boxes, one `title` each).
     './components/ControlPanel.tsx': 4,
     // What Hourly actually does to a multi-day window (label + segment).
     './components/ForecastCalendar.tsx': 2,
-    // The Wildfire (mi) cell's one `title`: the fire's name on a warned row,
-    // or which of its two causes an N/A carries (TJ, PR #275 review).
-    './components/ResultsTable.tsx': 1,
+    // Why the control is faded for an archive window (#123). Both of these
+    // tooltips carry the same sentence in a hidden twin `aria-describedby`
+    // names, because a tooltip does not exist on touch or to a screen reader.
+    './components/ModelPicker.tsx': 1,
+    // Two cells carry one each. The Wildfire (mi) cell: the fire's name on a
+    // warned row, or which of its two causes an N/A carries (TJ, PR #275
+    // review). And the freezing-level cell: why it reads N/A, which is the
+    // forecast model rather than the weather (TJ, 2026-09-12, asked for with
+    // the metric itself in #295).
+    './components/ResultsTable.tsx': 2,
   }
 
   it.each(Object.entries(sources))('%s carries only its approved tooltips', (path, source) => {
@@ -638,6 +647,16 @@ describe('shared recipes', () => {
     expect(SELECT).toContain('pr-8')
   })
 
+  // The disabled look is one role, not a pair of utilities re-spelled per call
+  // site, which is what it was in four places before the model picker needed a
+  // fifth (#123). It carries no color of its own, so it composes over any button
+  // or field role without racing that role's color by stylesheet order.
+  it('states the disabled look once, and in no colour of its own', () => {
+    expect(DISABLED).toContain('disabled:opacity-40')
+    expect(DISABLED).toContain('disabled:cursor-not-allowed')
+    expect(DISABLED).not.toMatch(/text-|bg-|border-/)
+  })
+
   // The panel's controls share a left edge as well as a right one. The segment
   // is where the width comes from, so it composes the token rather than
   // spelling a width that the model picker and Max Results would then have to
@@ -759,6 +778,50 @@ describe('shared recipes', () => {
   it('keeps size and colour on opposite halves of a notice', () => {
     for (const recipe of Object.values(NOTICE)) expect(sizes(recipe)).toContain('text-xs')
     for (const recipe of Object.values(STATUS)) expect(sizes(recipe)).toEqual([])
+  })
+
+  // Every notice in the panel renders in the ONE block under the Analyze
+  // button. The archive work (#123) shipped a window warning under the
+  // calendar, a screen away from every other message, and found two more
+  // already there — so this is the guardrail rather than a third fix.
+  //
+  // Enforced through the box: a notice IS a `NOTICE` role, only `FooterNotice`
+  // wears one, and `FooterNotice` is rendered once, below the button. A message
+  // put beside a control therefore has nowhere to live. Regexes are built by
+  // alternation rather than by quoting a class, so Tailwind's raw-text scan of
+  // this file finds nothing to emit.
+  const roleUses = (source: string, role: string): number[] =>
+    [...source.matchAll(new RegExp(String.raw`\b${role}\s*[.[]`, 'g'))].map(
+      (m) => m.index,
+    )
+
+  it('renders every notice box below the Analyze button', () => {
+    const footerNotice = controlPanelSource.indexOf('function FooterNotice(')
+    const panel = controlPanelSource.indexOf('export default function ControlPanel(')
+    const rendered = [...controlPanelSource.matchAll(/<FooterNotice\b/g)]
+    const analyze = controlPanelSource.indexOf('onClick={onAnalyze}')
+
+    expect(footerNotice).toBeGreaterThan(-1)
+    expect(analyze).toBeGreaterThan(-1)
+    // The box is built in one component and rendered in one place, after the
+    // button. Two call sites would let a second block open anywhere.
+    expect(rendered).toHaveLength(1)
+    expect(rendered[0].index).toBeGreaterThan(analyze)
+    for (const at of roleUses(controlPanelSource, 'NOTICE')) {
+      expect(at, 'a NOTICE box outside FooterNotice').toBeGreaterThan(footerNotice)
+      expect(at, 'a NOTICE box outside FooterNotice').toBeLessThan(panel)
+    }
+  })
+
+  it('colours nothing but a notice and the draw counter by status', () => {
+    const panel = controlPanelSource.indexOf('export default function ControlPanel(')
+    const outside = roleUses(controlPanelSource, 'STATUS').filter((at) => at > panel)
+    // The one exception, pinned by count the way the tooltip list is: the
+    // polygon's draw counter colours its captions by state (points placed, the
+    // ring closed, the area over the cap, a large area). Those are a field's own
+    // readout beside the field, not messages about the analysis — and a seventh
+    // is a notice that has wandered out of the footer.
+    expect(outside).toHaveLength(6)
   })
 
   // Three rules, none redundant: Firefox reads the appearance property, WebKit
@@ -1083,5 +1146,26 @@ describe('status and notices', () => {
     expect(NOTICE_DISMISS.row).toContain('hover:bg-white/')
     expect(NOTICE_DISMISS.row).not.toMatch(/(^|\s)text-/)
     expect(NOTICE_DISMISS.row).toContain(RADIUS.control)
+  })
+})
+
+// The rank cell trades its number for the remove × on hover. Both faces share
+// one grid cell, so the column is as wide as the wider face at all times;
+// toggling display instead let the # column grow on every hover and shove
+// every column to its right (#339).
+describe('the results table rank cell', () => {
+  const source = sources['./components/ResultsTable.tsx']
+
+  it('pins both faces of the rank cell to one grid cell', () => {
+    expect(STYLES.TABLE.rankFace.split(' ')).toEqual(['col-start-1', 'row-start-1'])
+    expect(STYLES.TABLE.rankStack.split(' ')).toContain('inline-grid')
+    expect((source.match(/TABLE\.rankFace/g) ?? []).length).toBe(2)
+  })
+
+  it('trades visibility, never display, on row hover', () => {
+    // Built from parts so the class name never appears in this file as text,
+    // which Tailwind would otherwise compile.
+    const displayToggle = new RegExp(['group-hover', '(hidden|inline|block|flex)\\b'].join(':'))
+    expect(source).not.toMatch(displayToggle)
   })
 })

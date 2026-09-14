@@ -45,16 +45,26 @@ import {
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
+  SR_ONLY,
   SURFACE_CARD,
   SURFACE_FLOATING,
   SWATCH_CHIP,
   TAP,
   TEXT,
 } from './styles'
-import { MetricFamily, NOUN, familyOf, rankedNoun } from './metrics'
+import {
+  DEFAULT_FAMILY_KEY,
+  FAMILY_KEYS,
+  MetricFamily,
+  NOUN,
+  familyOf,
+  rankedNoun,
+} from './metrics'
 import { hourlyScale, rankedScale } from './utils/colors'
 import {
   FALLBACK_PITCH_KM,
+  GRID_REACH_DEFAULT_FRAC,
+  gridAllowed,
   gridLegendLine,
   pitchLabel,
   reachKmFor,
@@ -126,7 +136,13 @@ import {
   discoveryKeys,
   presentResults,
 } from './utils/present'
-import { RemovedEntry, recordRemoval, restorePlace } from './utils/removals'
+import {
+  RemovedEntry,
+  activeRemovals,
+  authoredScope,
+  recordRemoval,
+  restorePlace,
+} from './utils/removals'
 import { SortDir, SortKey, WILDFIRE_COL, WILDFIRE_KEY, displayedColumns, visibleColumns } from './utils/tableColumns'
 import { NAME_DEFAULT_PX } from './utils/columnResize'
 import { compareValues } from './utils/sortResults'
@@ -238,8 +254,12 @@ export default function App() {
   // to the user-authored discovery inputs (removalScopeRef): removing a row —
   // even a searched place, which shrinks the custom list — must not count as
   // changing them. Only a polygon/type/elevation/CSV edit starts a clean slate
-  // where removed destinations may legitimately return.
+  // where removed destinations may legitimately return. Each entry also records
+  // the authored scope it was made under, which is what lets the live pending
+  // preview expire one between analyses while the report keeps its snapshot.
   const [removed, setRemoved] = useState<Map<string, RemovedEntry>>(new Map())
+  // Every key, for the two snapshot consumers: the displayed report and the
+  // refresh echo. The preview reads `activeRemovedKeys` instead.
   const removedKeys = useMemo(() => new Set(removed.keys()), [removed])
   const removalScopeRef = useRef<string | null>(null)
   // One debouncer for the whole component lifetime. It has to outlive the URL
@@ -354,7 +374,12 @@ export default function App() {
   // the selection simply is inside the band, and nothing distinguishes a window
   // that was shortened from one that always fitted.
   const [modelClamped, setModelClamped] = useState(false)
-  const forecastHours = modelForecastHours(caps.forecastModels, forecastModel)
+  // Both edges of the servable band, from /api/capabilities: the selected
+  // model's reach ahead, and the archive's reach back (#123).
+  const band = {
+    forecastHours: modelForecastHours(caps.forecastModels, forecastModel),
+    pastDays: caps.archiveDays,
+  }
 
   // The window a model clamp took away, held so switching back to a model
   // that can serve it restores it (#242 review). A clamp is the picker
@@ -375,14 +400,16 @@ export default function App() {
     // A remembered pre-clamp window comes back the moment a model can serve
     // it whole (clampSelection returns null for "fits unchanged").
     const remembered = preClampSelectionRef.current
-    if (remembered && clampSelection(remembered, new Date(), hours) === null) {
+    // The band as the NEW model leaves it: only the far edge moves with a model.
+    const nextBand = { ...band, forecastHours: hours }
+    if (remembered && clampSelection(remembered, new Date(), nextBand) === null) {
       preClampSelectionRef.current = null
       setSelection(remembered)
       setModelClamped(false)
       setForecastModel(id)
       return
     }
-    const clamped = clampSelection(selection, new Date(), hours)
+    const clamped = clampSelection(selection, new Date(), nextBand)
     if (clamped) {
       // Remember the FIRST window in a clamp chain: stepping HRRR → ICON →
       // GFS should restore the range the user picked, not the wreckage of
@@ -407,10 +434,17 @@ export default function App() {
   // Parsed once per edit and shared by the pending markers and the Analyze
   // request, so what the map shows and what gets ranked can't drift apart.
   const csvRows = useMemo(() => parseCustomCsv(customCsv), [customCsv])
+  // The destination inputs the user authored, in one spelling: the removal
+  // reset reads it (folding the polygon ring in) and so does every removal
+  // recorded while these inputs stand, so the two cannot drift apart.
+  const destinationScope = useMemo(
+    () => authoredScope(destinationTypes, customCsv),
+    [destinationTypes, customCsv],
+  )
   const [sortBy, setSortByRaw] = useState<SortBy>(() => initial.sortBy)
   const [sortDesc, setSortDesc] = useState(() => initial.sortDesc)
   // What each metric row's aggregate dropdown holds (#291), the active row's
-  // entry always equal to sortBy. One state for the four rows because a
+  // entry always equal to sortBy. One state for every row because a
   // dropdown choice IS a ranking choice — picking an aggregate activates its
   // row, the same one-click contract the direction toggle has always kept —
   // so the two could only ever disagree by a missed update.
@@ -470,12 +504,6 @@ export default function App() {
       document.removeEventListener('keydown', onKey)
     }
   }, [layersOpen])
-  const MAP_LAYERS = [
-    { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
-    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
-    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
-    { key: 'grid', label: 'Forecast grid', checked: showGrid, onChange: setShowGrid },
-  ]
   // Which drawing the grid's samples get. Blocks by default: it is the style
   // that cannot overstate what was sampled, since one square is one forecast
   // and a reader can count them. Purely presentation over held samples, so
@@ -554,13 +582,17 @@ export default function App() {
     if (typeof localStorage === 'undefined') return null
     try {
       const stored = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
-      // `columns2` is the set since the wildfire column joined the picker
-      // (#288). A set stored under the old key predates that choice and
-      // never contained the wildfire key, so reading it verbatim would hide
-      // the column for everyone with a stored preference — migrate it as
-      // "wildfire visible", which is what those users were seeing.
-      if (stored.columns2) return new Set(stored.columns2)
-      if (stored.columns) return new Set([...stored.columns, WILDFIRE_KEY])
+      // One key per generation of the column set, because a stored set cannot
+      // otherwise be told apart from a deliberate choice to hide the newest
+      // column: `columns` predates the wildfire column joining the picker
+      // (#288) and `columns2` predates the freezing level (#295), so reading
+      // either verbatim would hide a new column from everyone who has ever
+      // touched the picker. Each migrates with the new keys added, which is
+      // what those users were already seeing.
+      if (stored.columns3) return new Set(stored.columns3)
+      if (stored.columns2) return new Set([...stored.columns2, ...FAMILY_KEYS.freeze])
+      if (stored.columns)
+        return new Set([...stored.columns, WILDFIRE_KEY, ...FAMILY_KEYS.freeze])
     } catch {
       // Ignore localStorage errors
     }
@@ -571,11 +603,12 @@ export default function App() {
     try {
       const current = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
       delete current.columns
+      delete current.columns2
       localStorage.setItem(
         'bluebird_forecast_view',
         JSON.stringify({
           ...current,
-          columns2: columnVisibility ? [...columnVisibility] : undefined,
+          columns3: columnVisibility ? [...columnVisibility] : undefined,
         }),
       )
     } catch {
@@ -716,11 +749,22 @@ export default function App() {
 
   // Naming a destination — by search or by pasting CSV — opens the results
   // panel immediately: it appears as an un-forecasted row, so there's feedback
-  // before any analysis runs. Keyed on the inputs rather than the derived
+  // before any analysis runs. Read off the inputs rather than the derived
   // `pending` list, which is declared further down.
+  //
+  // The DEPENDENCY is the fact, never the two lists. `csvRows` is a fresh array
+  // per keystroke, so an effect keyed on it runs per character and calls
+  // setShowResults(true) against a panel that is already open. React skips a
+  // same-value setState only while the fiber has no work pending, which a
+  // typing hand never leaves it, so each of those no-op calls schedules a real
+  // update from inside a passive effect. Fifty in a row is React error #185,
+  // which is what a pasted coordinate list used to produce (issue #185;
+  // measured at the 61st character, the first ten being the row yet to parse).
+  // `src/App.test.ts` fails any effect here that takes `csvRows` again.
+  const destinationNamed = searched.places.length > 0 || csvRows.length > 0
   useEffect(() => {
-    if (searched.places.length > 0 || csvRows.length > 0) setShowResults(true)
-  }, [searched.places, csvRows])
+    if (destinationNamed) setShowResults(true)
+  }, [destinationNamed])
 
   // The selection resolved to the datetime-local pair the rest of the app reads:
   // the horizon and air-quality warnings, the staleness comparison below, and the
@@ -1001,7 +1045,7 @@ export default function App() {
   // upstream error. The calendar cannot pick an unservable day, so a horizon
   // warning now means a shared or hand-edited link brought one in.
   const windowStatus = panelWindow
-    ? classifyWindow(panelWindow.start, panelWindow.end, new Date(), forecastHours)
+    ? classifyWindow(panelWindow.start, panelWindow.end, new Date(), band)
     : // No dates picked yet: nothing to warn about, the dates blocker owns it.
       'ok'
   const windowWarning =
@@ -1122,8 +1166,10 @@ export default function App() {
     // work. Only a genuine change of what gets discovered clears them now.
     const removalScope = JSON.stringify({
       ring: resolvedPolygon?.coordinates[0] ?? null,
-      types: [...destinationTypes].sort(),
-      csv: customCsv.trim(),
+      // The ring is this comparison's alone: it resolves only here, and it
+      // never names a pending destination, which is what the shared scope
+      // serves.
+      authored: destinationScope,
     })
     if (removalScopeRef.current !== removalScope) {
       removalScopeRef.current = removalScope
@@ -1310,7 +1356,7 @@ export default function App() {
 
   // The detail-column sort, held here rather than inside ResultsTable (#125).
   //
-  // Clicking one of the four ranking columns re-cuts the whole field through
+  // Clicking one of the ranking columns re-cuts the whole field through
   // the panel knob and is already answered by `results` above. Clicking any
   // other column is a reading aid: it reorders the rows on screen without
   // changing which rows they are. That order used to be private to the table,
@@ -1390,7 +1436,7 @@ export default function App() {
   // next analysis would simply rediscover it from the searched list. The
   // backing place is captured first, so a restore can re-register it.
   function handleRemoveResult(row: DestinationResult) {
-    setRemoved((prev) => recordRemoval(prev, row, searched.places))
+    setRemoved((prev) => recordRemoval(prev, row, searched.places, destinationScope))
     searched.removePlace(row.latitude, row.longitude)
   }
 
@@ -1438,10 +1484,24 @@ export default function App() {
   // the top-`limit` rows, so asking them turned every added destination below
   // the cut back into an un-forecasted row (#205). Before the first analysis
   // there is no snapshot, so everything named is pending, which is the point.
+  //
+  // Reads the ACTIVE removals rather than the whole map (#158). The report and
+  // the refresh echo are snapshots of one analysis and keep the full map; this
+  // preview is live over a list the user is still typing, so a × made against
+  // an earlier list must stop hiding a line that is still pasted.
+  const activeRemovedKeys = useMemo(
+    () => activeRemovals(removed, destinationScope),
+    [removed, destinationScope],
+  )
   const pending = useMemo(
     () =>
-      pendingDestinations(csvRows, searched.places, analyzed?.customKeys ?? NO_CUSTOM, removedKeys),
-    [csvRows, searched.places, analyzed, removedKeys],
+      pendingDestinations(
+        csvRows,
+        searched.places,
+        analyzed?.customKeys ?? NO_CUSTOM,
+        activeRemovedKeys,
+      ),
+    [csvRows, searched.places, analyzed, activeRemovedKeys],
   )
   // Which discovery inputs the panel has moved since the analysis, in the
   // spelling the snapshot records. The comparison itself is `present.ts`'s, so
@@ -1608,6 +1668,9 @@ export default function App() {
   // one hour of it is a rate, so a legend still reading in inches beside
   // markers scored in inches per hour would be quietly wrong. The metric's NAME
   // does not change, so the legend's title does not either.
+  // Null where the ranked metric carries no color bands at all (#295). The
+  // markers then wear the neutral no-value fill and the key below is not
+  // drawn: a titled box with no swatches in it explains nothing.
   const markerScale = playbackIndex !== null ? hourlyScale(view.sortBy) : rankedScale(view.sortBy)
 
   const hasColoredMarkers = showResults && results.length > 0
@@ -1625,8 +1688,36 @@ export default function App() {
   // sits on screen, and a grid built from panel state would paint a window the
   // markers above it never saw. The pitch is the ANALYZED model's finest grid
   // for the same reason.
+  //
+  // A report carrying archive hours is the one it cannot draw over: those hours
+  // name no model, so there is no pitch the lattice could honestly be sampled at
+  // (`gridAllowed`, #123). The layer is switched out of play rather than
+  // switched off — the reader's preference survives, and the next forecast
+  // analysis grids itself the way it always did. The row says why, since a
+  // disabled checkbox beside three live ones reads as broken.
+  const gridAvailable = gridAllowed(analyzed)
+  // The layer as it actually stands, which is what every surface below reads:
+  // the checkbox holds a preference, and this is whether that preference is in
+  // effect. One flag rather than a pair repeated per surface, so the fetch, the
+  // sub-choices and the legend box cannot answer differently.
+  const gridOn = showGrid && gridAvailable
+  const MAP_LAYERS = [
+    { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
+    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
+    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
+    {
+      key: 'grid',
+      label: 'Forecast grid',
+      checked: showGrid,
+      onChange: setShowGrid,
+      disabled: !gridAvailable,
+      // Mounted twice, as the row's `title` and as the hidden text its checkbox
+      // points at: a tooltip does not exist on touch or to a screen reader.
+      note: 'The forecast grid is not available for archival data.',
+    },
+  ]
   const grid = useForecastGrid({
-    enabled: showGrid,
+    enabled: gridOn,
     field: universe,
     window: analyzed?.window ?? null,
     model: analyzed?.forecastModel ?? forecastModel,
@@ -1651,16 +1742,16 @@ export default function App() {
   // filling in has some, so the legend arrives with the first chunk rather than
   // with the last — a key to an empty map would be noise, but a key to a
   // quarter-painted one is exactly what a reader needs.
-  const gridPainted = showGrid && grid.cells.length > 0
+  const gridPainted = gridOn && grid.cells.length > 0
   // The legend also opens while the grid is still fetching, so its one line can
   // say the field is coming. That gap is the whole reason the cue exists: the
   // grid inherits the quota debt of the analysis that just ran, so after a big
   // one it is minutes before the first samples land.
-  const gridCued = showGrid && grid.status === 'loading'
+  const gridCued = gridOn && grid.status === 'loading'
   // The layer is on and could not draw. Said out loud for the same reason the
   // loading line exists: a switched-on layer with nothing under it and nothing
   // said reads as a broken app rather than as a failed fetch.
-  const gridFailed = showGrid && grid.status === 'failed'
+  const gridFailed = gridOn && grid.status === 'failed'
   // A one-second tick, only while the pacer is actually asleep, so the
   // countdown moves. Nothing else on screen needs it and it stops on its own.
   const [paceNow, setPaceNow] = useState(0)
@@ -1910,6 +2001,7 @@ export default function App() {
           modelClamped={modelClamped}
           maxLimit={caps.maxLimit}
           maxAreaKm2={caps.maxPolygonAreaKm2}
+          archiveDays={caps.archiveDays}
           aqiAllNull={
             response !== null &&
             results.length > 0 &&
@@ -2195,7 +2287,7 @@ export default function App() {
                   key are noise. One box serves both — they are scored on the
                   same scale by construction (#246), which is also why the grid
                   has no swatch of its own in the layer rows above. */}
-              {(hasColoredMarkers || gridPainted || gridCued) && (
+              {markerScale !== null && (hasColoredMarkers || gridPainted || gridCued) && (
                 <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} p-2.5`}>
                   {/* The bare metric only: which hour or window the colors
                       describe, and how it was reduced, is stated by the
@@ -2260,22 +2352,33 @@ export default function App() {
               </button>
               {layersOpen && (
                 <div className={`${SURFACE_FLOATING} absolute left-0 mt-2 w-44 px-2.5 py-2`}>
-                  {MAP_LAYERS.map(({ key, label, checked, onChange }) => (
-                    <label key={key} className={CHOICE_ROW}>
+                  {MAP_LAYERS.map(({ key, label, checked, onChange, disabled, note }) => (
+                    <label
+                      key={key}
+                      className={CHOICE_ROW}
+                      title={disabled && note ? note : undefined}
+                    >
                       <input
                         type="checkbox"
                         checked={checked}
+                        disabled={disabled}
+                        aria-describedby={disabled && note ? `layer-${key}-note` : undefined}
                         onChange={(e) => onChange(e.target.checked)}
                         className={CHOICE_INPUT}
                       />
                       <span>{label}</span>
+                      {disabled && note && (
+                        <span id={`layer-${key}-note`} className={SR_ONLY}>
+                          {note}
+                        </span>
+                      )}
                     </label>
                   ))}
                   {/* The grid's sub-choices, revealed by its own checkbox.
                       The popover is 176px, so these take the fluid segment
                       rather than the panel's fixed 144px column — the same
                       reason the results bar's mode switch does. */}
-                  {showGrid && (
+                  {gridOn && (
                     <>
                       <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
                         {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
@@ -2484,18 +2587,6 @@ export default function App() {
                       className={`${TEXT.micro} ${LINK} cursor-pointer whitespace-nowrap`}
                     >
                       Removed ({removed.size})
-                    </button>
-                  )}
-                  {/* Active filters chip */}
-                  {(minElevationFt !== null || maxElevationFt !== null || Object.values(constraints).some(v => v !== null)) && (
-                    <button
-                      onClick={() => {
-                        setSidebarOpen(true)
-                        document.querySelector('[data-filter-section]')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-                      }}
-                      className={BUTTON_SECONDARY}
-                    >
-                      Filters
                     </button>
                   )}
                   {(results.length > 0 || pending.length > 0) && (

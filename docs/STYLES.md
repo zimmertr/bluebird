@@ -57,6 +57,8 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `FIELD` | Text input, recessed fill with border |
 | `FIELD_NUMERIC` | Number input with browser spinners suppressed |
 | `SELECT` | Native dropdown, recessed fill with suppressed platform chrome |
+| `DISABLED` | The faded, unpressable look of a control that does not apply; composes over any button or field role and carries no color of its own |
+| `SR_ONLY` | Text for assistive technology only, the twin of an approved tooltip |
 | `CHOICE_ROW` | Radio or checkbox and its label as one strip |
 | `CHOICE_INPUT` | The box itself inside a choice row |
 | `SEGMENT` | Geometry of a panel segmented control (fixed to `CONTROL_W`) |
@@ -150,6 +152,8 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `SPINNER` | Indeterminate spinner |
 | `TABLE.cell` | Results table cell inset |
 | `TABLE.head` | Results table header cell |
+| `TABLE.rankStack` | Rank cell: number and remove × in one grid cell, so the column never changes width on hover |
+| `TABLE.rankFace` | One face of that stack, pinned to the shared cell |
 
 ## What is enforced
 
@@ -166,7 +170,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | Every focus-able control has focus ring | `styles.test.ts` | List per control type |
 | Segmented controls are built one way | `styles.test.ts` | Check `SEGMENT` / `SEGMENT_IDLE` / `SEGMENT_ITEM` composition |
 | Metric names are centralized | `metrics.test.ts` | Ban Precip/Temp/Avg/Min/Max/Elev abbreviations in nine files |
-| No `title=` attributes on JSX elements | `styles.test.ts` | Regex pattern on component sources |
+| Tooltips match the approved list, count for count | `styles.test.ts` | `title=` occurrences per component file |
 | No unsafe error message patterns | `styles.test.ts` & `metrics.test.ts` | Ban `failed: ${...}` and unsafe response copies |
 
 **NOT enforced:** custom radius, custom spacing between components (only recessed surface and controls are architected), component-specific layouts. These are decided per feature.
@@ -248,11 +252,37 @@ touch.** A phone has no hover, so anything a tooltip carries is simply gone for
 those readers. That is a real cost every time, and it is why the answer is
 usually to shorten the label, fix the control, or delete the sentence instead.
 
-The one in the tree today: the filter grid's *"Destinations with unknown values
-are included."* rides as a `title` on the Elevation and AQI rows — the two whose
-value can genuinely be missing — rather than as a standing line under the grid.
-That bought back the line of height that made the panel scroll, and the fact
-stays discoverable in the table (a dash) and in `docs/DATA.md`.
+The ones in the tree today, each approved on its own:
+
+- The filter grid's *"Destinations with unknown values are included."* rides as a
+  `title` on the Elevation and AQI rows — the two whose value can genuinely be
+  missing — rather than as a standing line under the grid. That bought back the
+  line of height that made the panel scroll, and the fact stays discoverable in
+  the table (a dash) and in `docs/DATA.md`.
+- Two disabled controls say why they are disabled: the model picker over an
+  archive window, and the Forecast grid row over a report carrying archive hours
+  (#123). A disabled control says that it cannot be used and never why, and
+  neither reason can be read off the panel.
+- The freezing-level cell's *"Freezing level is only available from the GFS
+  Seamless, HRRR and ICON models."* answers a question only that cell raises:
+  it reads `N/A` rather than a number, and without the note the reader cannot
+  tell a model that does not carry the variable from an app that failed to
+  fetch it. It is the same `N/A`-plus-`title` idiom the Wildfire (mi) column
+  uses for a row it could not check, so the table has one spelling of "no
+  answer here, and here is why" (TJ, 2026-09-12, asked for with the metric
+  itself in #295). What keeps the touch cost bounded is that the mark itself
+  is honest without the note, and `docs/DATA.md` carries the full explanation.
+- The Hourly segment, the smoke legend's density chips, and the table's
+  **Wildfire (mi)** cell, each documented where it is used.
+
+Every one of them is counted in `styles.test.ts`, which fails an unapproved
+addition and an accidental deletion alike.
+
+**A tooltip that carries a reason carries it twice.** Where the sentence is the
+only thing explaining a state, the same text is also mounted in a visually hidden
+element that `aria-describedby` names (`SR_ONLY` in `styles.ts`), because the
+touch argument above applies to a screen reader as well: a `title` is a pointer's
+affordance and is not promised to anything else.
 
 ### Sentence case
 

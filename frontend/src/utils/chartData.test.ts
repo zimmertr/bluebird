@@ -6,8 +6,10 @@ import {
   nowWithinGrid,
   tracksCursor,
   buildChartData,
+  candidateSetKey,
   chartKey,
   computeYDomain,
+  debutRows,
   formatMetricValue,
   metricForSort,
   nearestKey,
@@ -21,6 +23,7 @@ import {
   TOOLTIP_ROW_PX,
   tooltipCapacity,
 } from './chartData'
+import { RANKING_KEYS, familyOf } from '../metrics'
 
 function row(name: string, lat: number, series: Partial<HourlySeries>): DestinationResult {
   return {
@@ -40,10 +43,13 @@ function row(name: string, lat: number, series: Partial<HourlySeries>): Destinat
     wind_min_mph: 0,
     wind_max_mph: 0,
     wind_avg_mph: 0,
+    freeze_min_ft: null,
+    freeze_max_ft: null,
+    freeze_avg_ft: null,
     aqi_avg: null,
     aqi_min: null,
     aqi_max: null,
-    series: { precip_in: [], temp_f: [], wind_mph: [], aqi: [], ...series },
+    series: { precip_in: [], temp_f: [], wind_mph: [], freeze_ft: [], aqi: [], ...series },
   }
 }
 
@@ -52,7 +58,15 @@ describe('metricForSort', () => {
     expect(metricForSort('precip_total_in')).toBe('precip')
     expect(metricForSort('temp_avg_f')).toBe('temp')
     expect(metricForSort('wind_avg_mph')).toBe('wind')
+    expect(metricForSort('freeze_min_ft')).toBe('freeze')
     expect(metricForSort('aqi_avg')).toBe('aqi')
+  })
+
+  // EVERY rankable key, not one per family: since #291 a family has three or
+  // four of them, and a lookup naming one each opened the precipitation chart
+  // for the other two.
+  it('answers with the key’s own family for every rankable key', () => {
+    for (const key of RANKING_KEYS) expect(metricForSort(key)).toBe(familyOf(key))
   })
 })
 
@@ -148,6 +162,57 @@ describe('rowsBetween', () => {
   })
 })
 
+describe('candidateSetKey', () => {
+  const a = row('A', 1, {})
+  const b = row('B', 2, {})
+  const c = row('C', 3, {})
+
+  // The whole point: a rebuilt array of the same destinations is the same
+  // question, so the debut effect keyed on this string does not run again.
+  it('is the same for a rebuilt array of the same destinations', () => {
+    expect(candidateSetKey([a, b, c])).toBe(candidateSetKey([row('A', 1, {}), b, c]))
+  })
+
+  it('ignores order, so a live re-rank debuts nothing', () => {
+    expect(candidateSetKey([c, a, b])).toBe(candidateSetKey([a, b, c]))
+  })
+
+  it('changes when a destination joins or leaves', () => {
+    expect(candidateSetKey([a, b])).not.toBe(candidateSetKey([a, b, c]))
+    expect(candidateSetKey([a, b])).not.toBe(candidateSetKey([a]))
+  })
+
+  it('is empty for no destinations', () => {
+    expect(candidateSetKey([])).toBe('')
+  })
+})
+
+describe('debutRows', () => {
+  const a = row('A', 1, {})
+  const b = row('B', 2, {})
+  const c = row('C', 3, {})
+
+  it('returns every destination the chart has never seen, in list order', () => {
+    expect(debutRows([a, b, c], {}).map((r) => r.name)).toEqual(['A', 'B', 'C'])
+  })
+
+  // colorByKey is the "ever charted" memory. A key in it has had its debut, so
+  // a later report must not re-check a box the user deliberately unchecked.
+  it('skips a destination that already owns a color', () => {
+    expect(debutRows([a, b, c], { [chartKey(b)]: '#38bdf8' }).map((r) => r.name)).toEqual(['A', 'C'])
+  })
+
+  it('returns one row per coordinate key', () => {
+    const twin = row('A again', 1, {})
+    expect(debutRows([a, twin, b], {}).map((r) => r.name)).toEqual(['A', 'B'])
+  })
+
+  it('is empty when every destination is already charted', () => {
+    const charted = { [chartKey(a)]: '#38bdf8', [chartKey(b)]: '#f472b6' }
+    expect(debutRows([a, b], charted)).toEqual([])
+  })
+})
+
 describe('selectionState', () => {
   const a = row('A', 1, {})
   const b = row('B', 2, {})
@@ -197,6 +262,37 @@ describe('alignRowToGrid', () => {
     const bare = { ...row('D', 4, { precip_in: [5, 6] }), series_times: [2000, 3000] }
     expect(alignRowToGrid(bare, [1000, 2000, 3000]).series).not.toHaveProperty('wind_dir_deg')
   })
+
+  // Every array the series carries has to be remapped, and the remap is an
+  // object literal: a field left out of it is silently dropped rather than
+  // misaligned, which on the chart reads as a metric with no data at all.
+  it('remaps every series field onto the grid, not just the plotted three', () => {
+    const pin = {
+      ...row('E', 5, {
+        precip_in: [5, 6],
+        temp_f: [30, 31],
+        wind_mph: [10, 11],
+        freeze_ft: [9000, 9500],
+        aqi: [40, 41],
+      }),
+      series_times: [2000, 3000],
+    }
+    const aligned = alignRowToGrid(pin, [1000, 2000, 3000]).series!
+
+    expect(Object.keys(aligned).sort()).toEqual([
+      'aqi',
+      'freeze_ft',
+      'precip_in',
+      'temp_f',
+      'wind_mph',
+    ])
+    for (const field of Object.keys(aligned) as (keyof typeof aligned)[]) {
+      expect(aligned[field], `${field} was not remapped`).toHaveLength(3)
+      expect(aligned[field]![0], `${field} filled its gap`).toBeNull()
+    }
+    expect(aligned.freeze_ft).toEqual([null, 9000, 9500])
+  })
+
 })
 
 describe('axisTimeLabel', () => {

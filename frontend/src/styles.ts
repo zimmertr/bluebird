@@ -684,7 +684,7 @@ export const SEGMENT_DIVIDER = 'border-l border-slate-500'
 /**
  * A radio or checkbox and the words naming it, as one strip.
  *
- * The panel had four of these (destination type, the four ranking metrics,
+ * The panel had four of these (destination type, the ranking metrics,
  * Show Wildfires, the chart's metric radios) at three different gaps, and the
  * 14px box was the target in all four — the label beside it was clickable, but
  * only as tall as its own text. `TAP.row` grows the strip instead, which is
@@ -1060,6 +1060,30 @@ export const FIELD_NUMERIC =
 export const SELECT = `${FIELD} appearance-none pr-8`
 
 /**
+ * What a control looks like when it does not apply.
+ *
+ * One role rather than a pair of utilities re-spelled at each call site, which
+ * is what it was in four places before the model picker needed a fifth. Faded
+ * rather than hidden: a control that vanishes takes its label and its last value
+ * with it, and a reader who set that value is owed the sight of it. No color of
+ * its own, so it composes over any button or field role without racing it by
+ * stylesheet order.
+ */
+export const DISABLED = 'disabled:opacity-40 disabled:cursor-not-allowed'
+
+/**
+ * Text that exists for assistive technology and takes no space on screen.
+ *
+ * The twin of an approved tooltip (#123 review). A `title` is a pointer's
+ * affordance: it does not exist on touch, and a screen reader is not promised it
+ * either — so where a disabled control's reason is worth a tooltip, the same
+ * sentence is also mounted here and pointed at by `aria-describedby`. One recipe
+ * rather than the utility spelled at each call site, for the reason every role
+ * here exists: the second spelling is where the two drift.
+ */
+export const SR_ONLY = 'sr-only'
+
+/**
  * The map timeline's scrubber (#121).
  *
  * A real `<input type="range">` rather than a div with a drag handler, and that
@@ -1176,4 +1200,14 @@ export const SCRUBBER_TRACK = `h-2 ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.pi
 export const TABLE = {
   cell: 'px-2 py-1.5',
   head: `${TEXT.subheading} px-2 py-2 text-left`,
+  /**
+   * The rank cell's two faces, the number and the remove ×, laid in ONE grid
+   * cell so the column is as wide as the wider face at all times and a hover
+   * trades only visibility. Swapping them with display let the column grow by
+   * the icon's extra width on every hover and shove every column to its right
+   * (#339). Touch devices have no hover and place the × in a second column
+   * beside the number instead: the `.row-remove` rule in index.css.
+   */
+  rankStack: 'inline-grid items-center justify-items-center',
+  rankFace: 'col-start-1 row-start-1',
 } as const
