@@ -100,16 +100,37 @@ export interface CompareDestination {
   color: string
 }
 
-/** One model on the chart, with the colour its lines take. */
+/** One model on the chart. Its lines take a colour per DESTINATION, not per model. */
 export interface CompareModel {
   id: string
   label: string
-  /**
-   * One colour for this model across every destination it is drawn for, or
-   * null for the RANKING model, whose lines wear their destinations' colours
-   * the way the chart draws them with no comparison up. See `modelColor`.
-   */
-  color: string | null
+}
+
+/**
+ * The EXTRA models the chart is drawing: selected in the panel, bought by the
+ * last Analyze, published by this deployment, and never the ranking model,
+ * which is on the chart by being the report.
+ *
+ * Pure and shared, because two callers need the same answer from different
+ * places: the hook, which fetches and draws them, and `App.tsx`, which
+ * allocates a colour per (destination, model) pair before the hook composes a
+ * line. Two spellings of this filter would put a line on the chart with no
+ * colour allocated, or a colour allocated for a line nobody draws.
+ *
+ * Panel order, so the pairs are allocated in the order the picker reads.
+ */
+export function drawnModelIds(
+  picked: readonly string[],
+  fetchable: readonly string[],
+  published: readonly { id: string }[],
+  rankingModel: string | null,
+): string[] {
+  return picked.filter(
+    (id) =>
+      id !== rankingModel &&
+      fetchable.includes(id) &&
+      published.some((m) => m.id === id),
+  )
 }
 
 /**
@@ -147,14 +168,17 @@ export function modelSeriesOnGrid(
  * Every line a comparison draws: one per (destination, model) pair.
  *
  * Models outer and destinations inner, so the lines leave in the order the
- * chips read and the ranking model's lines lead. Colour says which of the two
- * facts a line is read by: the RANKING model's lines wear their destinations'
- * colours, as they do with no comparison up, and a COMPARED model's lines all
- * wear that model's one colour. Either way the label names rank, destination
- * and model, so the fact the colour does not carry is one read away. A pair
- * with no series draws nothing rather than a flat zero — a model Open-Meteo
- * has no data for at that spot must not look like a forecast of calm — and the
- * chip's own state is what says so.
+ * chips read and the ranking model's lines lead. **Every line has a colour of
+ * its own**: `colors` is keyed by `pairKey`, so nine lines are nine colours,
+ * and the pairs for the RANKING model are seeded with their destinations' own
+ * colours — the hue the marker and the table checkbox already wear — so a
+ * chart with nothing compared draws exactly as it always did. A pair with no
+ * colour yet falls back to its destination's, which is the closest true thing
+ * to say for the one frame before the allocator has run. The label names rank,
+ * destination and model on every entry, which is how a line is identified. A
+ * pair with no series draws nothing rather than a flat zero — a model
+ * Open-Meteo has no data for at that spot must not look like a forecast of
+ * calm — and the note beside the metric buttons is what says so.
  *
  * `series` is keyed by `pairKey`, which is what lets the ranking model ride
  * this same product: its numbers are already held per destination, so the
@@ -167,18 +191,20 @@ export function compareSeries(
   series: Readonly<Record<string, HourlySeries | null>>,
   times: readonly number[],
   endMs: number | null,
+  colors: Readonly<Record<string, string>>,
 ): ChartLine[] {
   const lines: ChartLine[] = []
   for (const model of models) {
     for (const destination of destinations) {
-      const held = series[pairKey(model.id, destination.key)]
+      const pair = pairKey(model.id, destination.key)
+      const held = series[pair]
       if (!held) continue
       lines.push({
         // Prefixed so a pair's key can never collide with a destination's,
         // which is a bare coordinate pair.
-        key: `model:${pairKey(model.id, destination.key)}`,
+        key: `model:${pair}`,
         label: comparedLineLabel(destination.rank, destination.name, model.label),
-        color: model.color ?? destination.color,
+        color: colors[pair] ?? destination.color,
         series: cutSeriesAfter(times, held, endMs),
       })
     }

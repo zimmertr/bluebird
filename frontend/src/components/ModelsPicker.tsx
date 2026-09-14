@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { popoverBox, PopoverBox } from '../utils/listbox'
 import { visibilityRows, type VisibilityModel } from '../utils/modelVisibility'
-import { CHOICE_INPUT, CHOICE_ROW, LAYER, RADIUS, SURFACE_CARD } from '../styles'
+import { CHOICE_INPUT, CHOICE_ROW, LAYER, SURFACE_CARD } from '../styles'
 
 interface Props {
   open: boolean
@@ -26,6 +26,12 @@ interface Props {
  * It hides lines and nothing else. Every forecast behind it is already bought,
  * so a box here spends nothing either way, and nothing it does reaches the
  * link, the ranking, the table or the file.
+ *
+ * A row is a checkbox and a name, with no colour on it. A compared model is
+ * not one colour on the chart — every (destination, model) pair has its own —
+ * so a square here could only name one line out of however many that model
+ * draws. The hover box is where a line is identified, by its colour dot and
+ * its full `1. Mount Rainier (ECMWF IFS)` name together.
  *
  * All the decisions are `utils/modelVisibility.ts`'s, because Vitest has no DOM.
  */
@@ -123,18 +129,6 @@ export default function ModelsPicker({
               checked={row.visible}
               onChange={() => onToggle(row.id)}
               className={CHOICE_INPUT}
-            />
-            {/* The swatch the chart's hover box gives a line. The RANKING
-                model's row keeps the slot and draws nothing in it: its lines
-                are not one colour, each wears its own destination's, so a
-                square here would name a colour no line is drawn in — and a
-                dropped slot would put its label 14px left of every other. */}
-            <span
-              aria-hidden="true"
-              className={`h-2.5 w-2.5 flex-shrink-0 ${RADIUS.control} ${
-                row.color === null ? 'invisible' : ''
-              }`}
-              style={row.color === null ? undefined : { backgroundColor: row.color }}
             />
             <span className="flex-1">{row.label}</span>
           </label>

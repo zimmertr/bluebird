@@ -171,10 +171,11 @@ export interface ChartLine extends SeriesHolder {
   key: string
   label: string
   /**
-   * Every line is solid and colour is the only channel it carries. With no
-   * comparison up that colour is the destination's; under one it is the
-   * destination's for the ranking model's lines and the model's for every
-   * other line, which `modelColor` in `chartColors.ts` keeps apart.
+   * Every line is solid and colour is the only channel it carries, so every
+   * line has one no other line is wearing. With no comparison up that is the
+   * destination's colour; under one the ranking model's lines keep it and
+   * every other (destination, model) pair takes its own from the session
+   * allocator (`allocateColors` in `chartColors.ts`).
    */
   color: string
 }

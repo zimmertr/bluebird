@@ -7,6 +7,7 @@ import {
   CompareDestination,
   CompareModel,
   compareEndMs,
+  drawnModelIds,
   compareSeries,
   modelSeriesOnGrid,
   pairKey,
@@ -50,11 +51,6 @@ import type { WeatherSeries } from '../utils/openMeteo'
 export interface ComparedModel {
   id: string
   label: string
-  /**
-   * The one colour its lines draw in, or null for the ranking model, whose
-   * lines wear their destinations' colours.
-   */
-  color: string | null
   /** Why nothing is drawn, when there is something to say. */
   note: string | null
 }
@@ -101,10 +97,12 @@ export interface ModelCompareOptions {
    */
   hidden?: ReadonlySet<string>
   /**
-   * One colour per COMPARED model, by id. Assigned once from the sidebar
-   * picker's SELECTION (`modelRows` in `utils/modelVisibility.ts`) and passed
-   * in rather than derived here, so the Models popover's swatches and the
-   * lines they key can never come from two different lists.
+   * One colour per (destination, model) PAIR, by `pairKey`, seeded with the
+   * ranking model's pairs pointing at their destinations' own colours.
+   * Allocated by `App.tsx` off the one session allocator the destinations
+   * themselves draw on (`allocateColors`), and passed in rather than derived
+   * here, because a second allocator could hand a line the colour a
+   * destination beside it is already wearing.
    */
   colors: Readonly<Record<string, string>>
   /** The chart's hourly grid, which compared series are re-indexed onto. */
@@ -174,13 +172,7 @@ export function useModelCompare({
   // (which is on the chart by being the report). Panel order, so the chips and
   // the link read alike.
   const drawnIds = useMemo(
-    () =>
-      picked.filter(
-        (id) =>
-          id !== rankingModel &&
-          fetchable.includes(id) &&
-          models.some((m) => m.id === id),
-      ),
+    () => drawnModelIds(picked, fetchable, models, rankingModel),
     [fetchable, models, picked, rankingModel],
   )
 
@@ -287,11 +279,10 @@ export function useModelCompare({
     const entry = (id: string, note: string | null): ComparedModel => ({
       id,
       label: models.find((m) => m.id === id)?.label ?? id,
-      color: id === rankingModel ? null : (colors[id] ?? null),
       note,
     })
     return [entry(rankingModel, null), ...drawnIds.map((id) => entry(id, fetched.notes[id] ?? null))]
-  }, [active, colors, drawnIds, fetched.notes, models, rankingModel])
+  }, [active, drawnIds, fetched.notes, models, rankingModel])
 
   // The models actually drawn: everything on the chart the reader has not put
   // down. Everything below reads THIS rather than `compared`, so a hidden
@@ -343,14 +334,11 @@ export function useModelCompare({
         series[pairKey(id, d.key)] = modelSeriesOnGrid(fetched.series[pairKey(id, d.key)], times)
       }
     }
-    const onChart: CompareModel[] = shown.map((m) => ({
-      id: m.id,
-      label: m.label,
-      color: m.color,
-    }))
-    return compareSeries(destinations, onChart, series, times, endMs)
+    const onChart: CompareModel[] = shown.map((m) => ({ id: m.id, label: m.label }))
+    return compareSeries(destinations, onChart, series, times, endMs, colors)
   }, [
     active,
+    colors,
     destinations,
     drawnIds,
     endMs,

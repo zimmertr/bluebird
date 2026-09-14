@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { colorForIndex, modelColor } from './chartColors'
 import {
   modelRows,
   pruneHidden,
@@ -12,9 +11,9 @@ import {
 // The chart's own list: the ranking model first, carrying no colour because
 // its lines wear their destinations', then every compared model with one.
 const ON_CHART: VisibilityModel[] = [
-  { id: 'gfs_seamless', label: 'NOAA GFS', color: null },
-  { id: 'ecmwf_ifs025', label: 'ECMWF IFS', color: '#fbbf24' },
-  { id: 'gfs_hrrr', label: 'NOAA HRRR', color: '#c084fc' },
+  { id: 'gfs_seamless', label: 'NOAA GFS' },
+  { id: 'ecmwf_ifs025', label: 'ECMWF IFS' },
+  { id: 'gfs_hrrr', label: 'NOAA HRRR' },
 ]
 
 const PUBLISHED = [
@@ -23,12 +22,9 @@ const PUBLISHED = [
   { id: 'ecmwf_ifs025', label: 'ECMWF IFS' },
   { id: 'gfs_hrrr', label: 'NOAA HRRR' },
 ]
-// Three destinations already wearing the first three palette entries.
-const CHARTED = [colorForIndex(0), colorForIndex(1), colorForIndex(2)]
-
 describe('the models the picker has selected', () => {
   it('leads with the ranking model and follows the selection order', () => {
-    const rows = modelRows(PUBLISHED, 'gfs_hrrr', ['ecmwf_ifs025', 'gem_seamless'], CHARTED)
+    const rows = modelRows(PUBLISHED, 'gfs_hrrr', ['ecmwf_ifs025', 'gem_seamless'])
     expect(rows.map((r) => r.id)).toEqual(['gfs_hrrr', 'ecmwf_ifs025', 'gem_seamless'])
   })
 
@@ -36,48 +32,29 @@ describe('the models the picker has selected', () => {
   // popover answers which models the reader wants to look at, and that
   // question does not wait on a fetch.
   it('gives one row per selected model whether or not its lines exist', () => {
-    expect(modelRows(PUBLISHED, 'gfs_seamless', [], CHARTED)).toHaveLength(1)
-    expect(modelRows(PUBLISHED, 'gfs_seamless', ['gfs_hrrr'], CHARTED)).toHaveLength(2)
+    expect(modelRows(PUBLISHED, 'gfs_seamless', [])).toHaveLength(1)
+    expect(modelRows(PUBLISHED, 'gfs_seamless', ['gfs_hrrr'])).toHaveLength(2)
   })
 
-  // The ranking model's lines are not one colour: each wears its own
-  // destination's, so a square here would name a colour no line is drawn in.
-  it('gives the ranking model no colour', () => {
-    expect(modelRows(PUBLISHED, 'gfs_seamless', ['gfs_hrrr'], CHARTED)[0].color).toBeNull()
-  })
 
-  // The same assignment the chart's lines take, by position in the SELECTION,
-  // so a swatch is the colour that model's lines wear once they exist.
-  it('colours a compared model by its place in the selection', () => {
-    const rows = modelRows(PUBLISHED, 'gfs_seamless', ['ecmwf_ifs025', 'gfs_hrrr'], CHARTED)
-    expect(rows[1].color).toBe(modelColor(CHARTED, 0))
-    expect(rows[2].color).toBe(modelColor(CHARTED, 1))
-  })
 
-  // The rule `modelColor` exists for, checked end to end: no model wears a
-  // colour a destination on the same chart is wearing.
-  it('never gives a model a charted destination’s colour', () => {
-    const rows = modelRows(PUBLISHED, 'gfs_seamless', ['ecmwf_ifs025', 'gfs_hrrr'], CHARTED)
-    for (const row of rows) expect(CHARTED).not.toContain(row.color)
-  })
 
   // A compared list that echoes the ranking model would otherwise draw it
   // twice and shift every colour after it.
   it('lists the ranking model once even when the compared set names it', () => {
-    const rows = modelRows(PUBLISHED, 'gfs_seamless', ['gfs_seamless', 'gfs_hrrr'], CHARTED)
+    const rows = modelRows(PUBLISHED, 'gfs_seamless', ['gfs_seamless', 'gfs_hrrr'])
     expect(rows.map((r) => r.id)).toEqual(['gfs_seamless', 'gfs_hrrr'])
-    expect(rows[1].color).toBe(modelColor(CHARTED, 0))
   })
 
   // Nothing will draw a model this deployment does not publish, and there is
   // no label to name its row with.
   it('skips a model the server does not publish', () => {
-    const rows = modelRows(PUBLISHED, 'gfs_seamless', ['nope_x', 'gfs_hrrr'], CHARTED)
+    const rows = modelRows(PUBLISHED, 'gfs_seamless', ['nope_x', 'gfs_hrrr'])
     expect(rows.map((r) => r.id)).toEqual(['gfs_seamless', 'gfs_hrrr'])
   })
 
   it('names each row with the published label', () => {
-    const rows = modelRows(PUBLISHED, 'gfs_seamless', ['gfs_hrrr'], CHARTED)
+    const rows = modelRows(PUBLISHED, 'gfs_seamless', ['gfs_hrrr'])
     expect(rows.map((r) => r.label)).toEqual(['NOAA GFS', 'NOAA HRRR'])
   })
 })
@@ -93,13 +70,6 @@ describe('the rows the popover lists', () => {
     expect(rows.map((r) => r.visible)).toEqual([true, false, true])
   })
 
-  // The swatch is the line's colour, and the ranking model has none: its lines
-  // are not one colour, each wears its own destination's.
-  it('carries each model’s line colour, and none for the ranking model', () => {
-    const rows = visibilityRows(ON_CHART, new Set())
-    expect(rows[0].color).toBeNull()
-    expect(rows[1].color).toBe('#fbbf24')
-  })
 })
 
 describe('which lines survive', () => {

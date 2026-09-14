@@ -15,8 +15,9 @@ import { useAnalyze } from './hooks/useAnalyze'
 import { modelForecastHours, useCapabilities } from './hooks/useCapabilities'
 import { useChartSelection } from './hooks/useChartSelection'
 import { useModelCompare } from './hooks/useModelCompare'
-import { compareAdded } from './utils/modelCompare'
-import { modelRows, pruneHidden, toggleHidden } from './utils/modelVisibility'
+import { allocateColors } from './utils/chartColors'
+import { compareAdded, drawnModelIds, pairKey } from './utils/modelCompare'
+import { modelRows, pruneHidden, shownModels, toggleHidden } from './utils/modelVisibility'
 import { useFireProximity } from './hooks/useFireProximity'
 import { fireKey } from './utils/fireProximity'
 import { useForecastGrid } from './hooks/useForecastGrid'
@@ -1825,20 +1826,58 @@ export default function App() {
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chart.selectedRows, chartTimes])
-  // Every model the panel has selected, ranking first, each with the colour its
-  // lines wear. One call, read by the Models popover AND by the chart, so a
-  // swatch and the lines it keys cannot be assigned from two different lists.
-  // Off the SELECTION rather than the chart: a model ticked before the next
-  // Analyze has a row, and its colour is settled before its first line.
+  // Every model the panel has selected, ranking first: the Models popover's
+  // rows. The SELECTION rather than the chart, so a model ticked before the
+  // next Analyze already has a row.
   const selectedModelRows = useMemo(
-    () => modelRows(caps.forecastModels, forecastModel, comparedModels, chartedDestinations.map((d) => d.color)),
-    [caps.forecastModels, chartedDestinations, comparedModels, forecastModel],
+    () => modelRows(caps.forecastModels, forecastModel, comparedModels),
+    [caps.forecastModels, comparedModels, forecastModel],
   )
-  const modelLineColors = useMemo(() => {
-    const out: Record<string, string> = {}
-    for (const row of selectedModelRows) if (row.color !== null) out[row.id] = row.color
-    return out
-  }, [selectedModelRows])
+
+  // A colour per LINE, which under a comparison means a colour per
+  // (destination, model) PAIR (#232). Three destinations under three models is
+  // nine lines and nine colours.
+  //
+  // The pairs for the ranking model are seeded with their destinations' own
+  // colours — the hue the marker and the table checkbox already wear — so a
+  // chart with nothing compared draws exactly as it always did. Every other
+  // pair takes the next colour from the ONE session allocator the destinations
+  // themselves draw on, which is what stops a line being handed the colour of
+  // a destination standing beside it.
+  //
+  // Allocated here rather than inside `useModelCompare` because the allocation
+  // has to happen BEFORE the lines are composed, and `drawnModelIds` is what
+  // lets both places agree about which pairs exist without the hook having to
+  // answer first.
+  const chartedPairKeys = useMemo(() => {
+    const drawn = shownModels(
+      drawnModelIds(
+        comparedModels,
+        analyzed?.compareModels ?? [],
+        caps.forecastModels,
+        analyzed?.forecastModel ?? null,
+      ).map((id) => ({ id })),
+      hiddenModels,
+    )
+    return drawn.flatMap((m) => chartedDestinations.map((d) => pairKey(m.id, d.key)))
+  }, [analyzed, caps.forecastModels, chartedDestinations, comparedModels, hiddenModels])
+  const chartedPairColors = useMemo(() => {
+    const allocated = allocateColors(chart.colorByKey, chartedPairKeys)
+    const seeded: Record<string, string> = { ...allocated }
+    const ranking = analyzed?.forecastModel
+    if (ranking) {
+      for (const d of chartedDestinations) seeded[pairKey(ranking, d.key)] = d.color
+    }
+    return seeded
+  }, [analyzed, chart.colorByKey, chartedDestinations, chartedPairKeys])
+  // The allocation above is for the frame that draws the lines; this is what
+  // makes it stick, so a pair hidden and shown again comes back the colour it
+  // was rather than taking the next one off the end.
+  const chartedPairsKey = chartedPairKeys.join('|')
+  useEffect(() => {
+    chart.rememberColors(chartedPairKeys)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chartedPairsKey])
   const compare = useModelCompare({
     enabled: chart.metric !== 'aqi',
     destinations: chartedDestinations,
@@ -1849,7 +1888,7 @@ export default function App() {
     picked: comparedModels,
     fetchable: analyzed?.compareModels ?? [],
     hidden: hiddenModels,
-    colors: modelLineColors,
+    colors: chartedPairColors,
     times: chartTimes,
   })
 

@@ -46,40 +46,34 @@ export function colorForIndex(index: number): string {
 }
 
 /**
- * The colour a COMPARED model's lines wear (#232).
+ * Give every key that has none a colour, continuing one session-long sequence.
  *
- * With no comparison up, colour on this chart means the destination and
- * nothing else. A comparison adds a second fact, and colour carries both: the
- * lines drawn from the RANKING model keep their destinations' colours, as the
- * chart always drew them, and every line from a compared model wears one
- * colour for that model across every destination it covers. The hover box and
- * the legend name rank, destination and model on every entry, which is what
- * keeps one model's line findable among the others.
+ * This is the app's ONE colour allocator and it hands out to two kinds of key:
+ * a charted destination (by `chartKey`), and a (destination, compared model)
+ * pair on the comparison chart (by `pairKey`). One counter for both is the
+ * whole point — two allocators over one palette would eventually hand the same
+ * colour to a destination and to a line standing beside it, which is exactly
+ * what a comparison must never do.
  *
- * That only holds while no model wears a colour a destination on the same
- * chart is already wearing, so this takes the destination colours THEMSELVES
- * rather than a count of them. A count is not enough: chart two destinations
- * and uncheck the first, and one destination is left on screen wearing palette
- * index 1, which is exactly the "next" index after a count of one.
+ * Monotonic in what is already assigned, so a colour is allocated once and
+ * kept: a line never changes hue because another was added or taken away, and
+ * a destination unselected and selected again comes back the colour it was.
+ * That memory is the caller's — it holds the map — and this only ever adds.
  *
- * The consequence worth knowing is that a model's colour is not a property of
- * the model: charting another destination can move it. That is the price of
- * never colliding, and it is the price the destinations' own ramp already pays.
+ * Returns the map it was given when every key already has one, so a caller can
+ * skip the write rather than setting state on a render that allocated nothing.
  */
-export function modelColor(
-  destinationColors: readonly string[],
-  modelIndex: number,
-): string {
-  const taken = new Set(destinationColors)
-  // At most `taken.size` of the indices below are skipped, so this window
-  // holds at least `modelIndex + 1` free colours. Bounded rather than "walk
-  // until there are enough", so a palette that ever repeated a value could not
-  // turn this into a hang.
-  const limit = taken.size + modelIndex + 1
-  const free: string[] = []
-  for (let index = 0; index < limit; index++) {
-    const color = colorForIndex(index)
-    if (!taken.has(color)) free.push(color)
+export function allocateColors(
+  assigned: Readonly<Record<string, string>>,
+  keys: readonly string[],
+): Record<string, string> {
+  const missing = keys.filter((key, i) => !assigned[key] && keys.indexOf(key) === i)
+  if (missing.length === 0) return assigned as Record<string, string>
+  const next = { ...assigned }
+  let n = Object.keys(next).length
+  for (const key of missing) {
+    next[key] = colorForIndex(n)
+    n++
   }
-  return free[modelIndex] ?? colorForIndex(limit)
+  return next
 }
