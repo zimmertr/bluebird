@@ -149,6 +149,13 @@ export function popoverBox(
  * Does not wrap. Wrapping reads as a jump rather than as movement, and the
  * WAI-ARIA listbox pattern makes it optional; Home and End are the deliberate
  * way to reach the ends.
+ *
+ * `count` is the number of OPTIONS, and an action in the popover's footer is
+ * not one of them. A listbox's arrow keys move a selection; a button that
+ * clears one is a different kind of thing, and walking it as a ninth row would
+ * mean `aria-activedescendant` pointing at something with no `role="option"`.
+ * It is reached with Tab instead, which is what the pattern reserves for
+ * leaving the list.
  */
 export function nextActiveIndex(current: number, key: string, count: number): number | null {
   if (count === 0) return null

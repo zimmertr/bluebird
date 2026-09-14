@@ -2,7 +2,17 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { PopoverBox, nextActiveIndex, optionDomId, popoverBox } from '../utils/listbox'
 import { gridLabel, reachLabel, type ForecastModelOption } from '../hooks/useCapabilities'
-import { BADGE_ACCENT, ICON_ADORNMENT, LAYER, SELECT, SURFACE_CARD, TEXT } from '../styles'
+import {
+  BADGE_ACCENT,
+  CHOICE_INPUT,
+  FOCUS_RING,
+  ICON_ADORNMENT,
+  LAYER,
+  LINK_ACTION,
+  SELECT,
+  SURFACE_CARD,
+  TEXT,
+} from '../styles'
 
 // Wide enough for a summary to sit on two lines rather than three: the longest
 // measures 512px, so it uses 72% of the 708px two lines buy. The sidebar is
@@ -20,6 +30,13 @@ interface Props {
   /** The model a request with no `forecast_model` lands on. Marked in the list. */
   defaultId: string
   onChange: (id: string) => void
+  /**
+   * The EXTRA models the chart draws beside the ranking one (#232), in the order
+   * they were ticked. Never contains `value`: the ranking model is on the chart
+   * by being the report, which is why its own box is ticked and disabled.
+   */
+  compared: readonly string[]
+  onComparedChange: (ids: string[]) => void
 }
 
 /**
@@ -36,19 +53,37 @@ interface Props {
  * the requirement. The panel is portalled to `document.body` and positioned
  * fixed, because the control panel is an `overflow-y-auto` column that would
  * otherwise clip it at the scroll boundary.
+ *
+ * It is also where the chart's model comparison is chosen (#232). One list, two
+ * decisions, because they are the same reading: picking a row makes that model
+ * the one that RANKS the field, and ticking a row's box adds it to the chart
+ * beside it. The alternative — a second control over on the chart — put a spend
+ * where the reader was looking at results rather than choosing inputs, which is
+ * what the review rejected.
  */
-export default function ModelPicker({ models, value, defaultId, onChange }: Props) {
+export default function ModelPicker({
+  models,
+  value,
+  defaultId,
+  onChange,
+  compared,
+  onComparedChange,
+}: Props) {
   const [open, setOpen] = useState(false)
   const [box, setBox] = useState<PopoverBox | null>(null)
   const selectedIndex = models.findIndex((m) => m.id === value)
   const [active, setActive] = useState(Math.max(selectedIndex, 0))
   const triggerRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  // The popover is more than the listbox now — it has a header bar above it,
-  // and a press there must not read as a press outside.
+  // The popover is more than the listbox now — it has a header bar above it and
+  // an action below it, and a press on either must not read as a press outside.
   const popoverRef = useRef<HTMLDivElement>(null)
+  const footerRef = useRef<HTMLButtonElement>(null)
 
   const selected = selectedIndex >= 0 ? models[selectedIndex] : null
+  // The action exists only while there is something for it to undo, so an
+  // ordinary open is the list it always was.
+  const hasFooter = compared.length > 0
 
   // Two passes, both before paint so neither is visible. The first asks for as
   // much room as the viewport can give, which lets the list lay out at its
@@ -85,8 +120,25 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
 
   function choose(index: number) {
     const model = models[index]
-    if (model) onChange(model.id)
+    if (model) {
+      onChange(model.id)
+      // A model cannot be both the ranking and an extra: it is on the chart once
+      // either way. The model it replaces is NOT ticked on its way out — the
+      // reader asked for a different ranking, not for a comparison against the
+      // old one, and a spend nobody asked for is the thing this control exists
+      // to keep deliberate.
+      if (compared.includes(model.id)) {
+        onComparedChange(compared.filter((id) => id !== model.id))
+      }
+    }
     close(true)
+  }
+
+  function toggleCompared(id: string) {
+    if (id === value) return
+    onComparedChange(
+      compared.includes(id) ? compared.filter((k) => k !== id) : [...compared, id],
+    )
   }
 
   // Before paint, so the panel never renders at a stale position for a frame.
@@ -96,13 +148,14 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
   }, [open])
 
   // The measuring pass. `scrollHeight` rather than the bounding box, since the
-  // first pass may already have capped the box at the viewport.
+  // first pass may already have capped the box at the viewport. Re-measured when
+  // the footer appears or goes, since it is part of the height.
   useLayoutEffect(() => {
     if (!open) return
     const popover = popoverRef.current
     if (popover) place(popover.scrollHeight)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, models])
+  }, [open, models, hasFooter])
 
   // The trigger moves whenever the panel scrolls or the window resizes, and a
   // fixed-position child does not follow it. Capture phase because the scroll
@@ -153,14 +206,42 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
       setActive(moved)
       return
     }
-    if (e.key === 'Enter' || e.key === ' ') {
+    if (e.key === 'Enter') {
       e.preventDefault()
       choose(active)
-    } else if (e.key === 'Escape' || e.key === 'Tab') {
+    } else if (e.key === ' ') {
+      // Space is the multi-select pattern's toggle, and the list stays open the
+      // way it does for a mouse: ticking three boxes is one visit, not three.
+      e.preventDefault()
+      const model = models[active]
+      if (model) toggleCompared(model.id)
+    } else if (e.key === 'Escape') {
       e.preventDefault()
       close(true)
+    } else if (e.key === 'Tab') {
+      // Tab is how the pattern leaves a listbox, so it lands on the action
+      // below when there is one and leaves the popover altogether when there is
+      // not. Moved here rather than left to the browser because the panel is
+      // portalled to the end of the body, so document order would send focus
+      // past everything else on the page first.
+      e.preventDefault()
+      if (hasFooter) footerRef.current?.focus()
+      else close(true)
     }
   }
+
+  function onFooterKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      close(true)
+    } else if (e.key === 'Tab') {
+      e.preventDefault()
+      if (e.shiftKey) listRef.current?.focus()
+      else close(true)
+    }
+  }
+
+  const comparedCount = compared.filter((id) => id !== value).length
 
   return (
     <>
@@ -169,7 +250,9 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label={`Forecast model: ${selected?.label ?? value}`}
+        aria-label={`Forecast model: ${selected?.label ?? value}${
+          comparedCount > 0 ? ` +${comparedCount}` : ''
+        }`}
         onClick={() => (open ? close(true) : openList())}
         onKeyDown={(e) => {
           if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
@@ -177,9 +260,16 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
             openList()
           }
         }}
-        className={`${SELECT} w-full px-2 py-1.5 text-left`}
+        className={`${SELECT} flex w-full items-baseline gap-1 px-2 py-1.5 text-left`}
       >
-        {selected?.label ?? value}
+        {/* The label gives way, never the count: `+2` is the only thing on the
+            trigger that a reader cannot otherwise see, so a long model name
+            ellipsizes rather than pushing it out of a control that must stay
+            CONTROL_W wide on both breakpoints. */}
+        <span className="min-w-0 truncate">{selected?.label ?? value}</span>
+        {comparedCount > 0 && (
+          <span className="flex-shrink-0 tabular-nums">+{comparedCount}</span>
+        )}
       </button>
       <svg
         className={`${ICON_ADORNMENT} h-4 w-4`}
@@ -228,6 +318,10 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
             <div
               ref={listRef}
               role="listbox"
+              // Two decisions in one list: a row is chosen as the ranking model,
+              // and any number of rows are selected onto the chart. Multi-select
+              // is what makes `aria-selected` on more than one row legal.
+              aria-multiselectable="true"
               aria-label="Forecast model"
               aria-activedescendant={
                 models[active] ? optionDomId(LIST_ID, models[active].id) : undefined
@@ -237,26 +331,30 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
               className="min-h-0 flex-1 overflow-y-auto p-1 focus:outline-none"
             >
             {models.map((model, i) => {
-              const isSelected = model.id === value
+              const isRanking = model.id === value
+              const isCompared = compared.includes(model.id)
               return (
                 <div
                   key={model.id}
                   id={optionDomId(LIST_ID, model.id)}
                   data-index={i}
                   role="option"
-                  aria-selected={isSelected}
+                  // Ticked either way: the ranking model and a compared model
+                  // are both on the chart, which is what the box states.
+                  aria-selected={isRanking || isCompared}
                   onPointerEnter={() => setActive(i)}
                   onClick={() => choose(i)}
-                  className={`cursor-pointer rounded px-2 py-1.5 ${
+                  className={`flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 ${
                     i === active ? 'bg-slate-700' : ''
                   }`}
                 >
+                  <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="flex items-baseline gap-1.5">
                       {/* Two roles that differ only in weight, so the chosen row
                           reads as chosen without a second color competing with
                           the active highlight behind it. */}
-                      <span className={isSelected ? TEXT.subheading : TEXT.control}>
+                      <span className={isRanking ? TEXT.subheading : TEXT.control}>
                         {model.label}
                       </span>
                       {model.id === defaultId && (
@@ -278,10 +376,47 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
                   {model.summary !== '' && (
                     <p className={TEXT.helper}>{model.summary}</p>
                   )}
+                  </div>
+                  {/* Drawn, not announced: `aria-selected` on the row above
+                      already carries this state, and a focusable input inside a
+                      `role="option"` would be a second stop in a list whose
+                      whole keyboard model is one element with
+                      `aria-activedescendant`. Space is the key that toggles it.
+                      The ranking model's box is ticked and disabled, since it is
+                      on the chart by being the report. */}
+                  <input
+                    type="checkbox"
+                    aria-hidden="true"
+                    tabIndex={-1}
+                    checked={isRanking || isCompared}
+                    disabled={isRanking}
+                    onChange={() => toggleCompared(model.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className={`${CHOICE_INPUT} mt-0.5`}
+                  />
                 </div>
               )
             })}
             </div>
+            {hasFooter && (
+              <div className="border-t border-slate-700 px-3 py-1.5 text-right">
+                <button
+                  ref={footerRef}
+                  type="button"
+                  // Unticks every box and leaves the list open, so the reader is
+                  // looking at the state they just cleared rather than at a
+                  // closed control they have to reopen to check.
+                  onClick={() => {
+                    onComparedChange([])
+                    listRef.current?.focus()
+                  }}
+                  onKeyDown={onFooterKeyDown}
+                  className={`${LINK_ACTION} ${TEXT.control} ${FOCUS_RING} cursor-pointer`}
+                >
+                  Clear comparison
+                </button>
+              </div>
+            )}
           </div>,
           document.body,
         )}

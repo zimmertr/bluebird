@@ -183,6 +183,16 @@ describe('nextActiveIndex', () => {
     expect(nextActiveIndex(2, 'End', 8)).toBe(7)
   })
 
+  // The popover grew an action below the list (`Clear comparison`, #232) and it
+  // is deliberately NOT an option: arrow keys move a selection, and walking a
+  // button as a ninth row would point `aria-activedescendant` at something with
+  // no `role="option"`. `count` stays the number of options, so the walk stops
+  // at the last one and Tab is what reaches the action.
+  it('never walks past the last option into the popover’s footer', () => {
+    expect(nextActiveIndex(7, 'ArrowDown', 8)).toBe(7)
+    expect(nextActiveIndex(7, 'End', 8)).toBe(7)
+  })
+
   // Null is what leaves Tab, Escape and a screen reader's own keys alone.
   it('claims no key it does not handle', () => {
     for (const key of ['Tab', 'Escape', 'a', 'PageDown', ' ']) {
