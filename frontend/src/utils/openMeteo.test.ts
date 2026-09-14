@@ -810,7 +810,7 @@ describe('a window older than the forecast endpoint holds', () => {
     expect(url.searchParams.get('models')).toBeNull()
     // Everything else about the request is unchanged.
     expect(url.searchParams.get('start_hour')).toBe('2026-01-02T00:00')
-    expect(url.searchParams.get('hourly')?.split(',')).toHaveLength(9)
+    expect(url.searchParams.get('hourly')?.split(',')).toHaveLength(10)
   })
 
   it('keeps a recent window on the forecast endpoint', async () => {
