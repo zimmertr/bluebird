@@ -7,9 +7,11 @@ interface Props {
 }
 
 // Five steps walking the panel top to bottom, then the Analyze button and what
-// comes after. Step three covers the Ranking, Filters, and Options sections in
-// one breath — a step per section would push the dialog past its no-scroll
-// budget (measured in STYLES.md).
+// comes after. Step three covers the whole Metrics section in one breath, the
+// ranking and the bounds alike — a step per question would push the dialog past
+// its no-scroll budget (measured in STYLES.md). Steps one and two are named for
+// the sections they describe, so step three's label has to track that section's
+// name; #341 renamed it and the maintainer approves any rewording here.
 const STEPS: [string, string][] = [
   ['Destinations', 'Search by name, draw a polygon, click the map, or paste coordinates. Each method finds what you want in its own way; they all work together.'],
   ['Forecast', 'Pick a weather model, then choose a day and time window. The calendar updates as the model changes, since different models reach different distances ahead.'],
