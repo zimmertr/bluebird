@@ -979,8 +979,8 @@ describe('shared recipes', () => {
     expect(LINK).toContain('hover:text-sky-400')
   })
 
-  // The results bar's four links — Columns, Removed, Download CSV, and the
-  // Open-Meteo credit beside them — are controls the reader presses, so they
+  // The results bar's five links — Columns, Models, Removed, Download CSV, and
+  // the Open-Meteo credit beside them — are controls the reader presses, so they
   // read at the size every other control in the app reads at. The micro step
   // below is for text that is present but never first, and a 10px button in a
   // bar of 12px text read as a footnote rather than as a control.
