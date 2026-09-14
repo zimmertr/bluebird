@@ -298,6 +298,30 @@ Every column is resizable: drag the divider at a header's right edge, or double-
 
 **Columns** opens a picker for the columns the table shows. Every column starts on — the table scrolls sideways when it must — and unticking narrows the view for easier comparison. The downloaded CSV always carries every column regardless of what the table displays.
 
+#### Comparing models on the chart
+
+The picker does two things, and each has its own half of the popover.
+
+The **list selects**. Every model carries a checkbox at its right edge; tick one, or click anywhere on its row, and that model joins the chart. Untick it and it leaves. The list stays open either way, so selecting three models is one visit rather than three.
+
+The **chips rank**. Under a header reading **Selected models**, a row of chips holds one chip per selected model, always in the list's own order. The highlighted chip is the model that **ranks** the field, which is the model the table, the markers and the downloaded file are built from. Tap another chip's name and the highlight moves to it; the model it replaces keeps its chip and gains an x. Tap a chip's x, or untick its row, and that model leaves the chart. The last remaining model has no x and its box is disabled, because a report has to come from some model.
+
+Nothing inside the picker closes it. Press Escape, or click outside it, the way the Columns picker and the map's Layers popover close.
+
+The closed control reads the ranking model's name followed by how many extra models are on the chart, as in **NOAA GFS +2**.
+
+The chart then draws one line per destination per model: three destinations under three models is nine lines. Every line is solid, and every line has a color of its own, so nine lines are nine colors. Lines from the model that ranks wear their destination's color, the same color it wears in the table and on the map, so those read as the destinations you already know, and a chart with nothing compared looks as it always did. Every other line takes a new color when it first appears and keeps it for as long as the tab is open, so hiding a model and showing it again draws it in the color you last saw. There is no key beside the chart: move the cursor over it, and every line in the hover box names all three things it is: rank, destination, model, as in **1. Mount Rainier (NOAA GFS)**. That is where you read which model a line came from. A model the picker marks **Blend** serves one agency's fine regional model for roughly the first two days and its coarse global model after that, so those lines change model partway along.
+
+Nine lines is a lot to read at once, so **Models** in the results bar puts some of them down. It sits beside **Columns** and is there whenever **Columns** is. It opens the same kind of popover: one row per model you have selected in the picker, the ranking model first and the rest in the picker's order, each with a checkbox and the model's name. The rows carry no color, because a model has no single color to show you: its lines wear one color per destination. The hover box is where a line is named and its color shown. A model you have just selected has a row straight away, before the Analyze that buys its lines. Untick a model and its lines leave the chart; tick it back and they return, and a model unticked before an Analyze stays hidden when its lines arrive. Nothing else moves: the forecasts are bought either way, so this costs nothing, and it touches no ranking, no table, no file and no link. Unticking every box is allowed, and leaves an empty chart. A model you unselect in the picker and select again comes back showing.
+
+A comparison is a real fetch, so it is bought by **Analyze** like the ranking model itself: select a model and the panel says the report no longer answers what the panel asks. Unselecting one is free and takes effect at once, because its line is drawn from numbers already in hand. It costs about one weighted call per model per destination, against the hundred or more an analysis of a polygon spends, and nothing in it touches the ranking, the markers, the table or the downloaded CSV.
+
+Every line on the chart stops at the shortest reach among the models on it, the analysis model's included, because ten days of one model beside three days of another compares nothing. A model Open-Meteo has no data for at that spot draws no line and says so in a note beside the chart's metric buttons, which is never the same as drawing a flat one. A model you have hidden leaves no note, because its lines are missing by your own instruction.
+
+Air quality has no comparison: AQI comes from one model whatever forecast model ranks the field, so no compared lines are drawn on that metric and **Models** has nothing to take off the chart. See [Data Sources](DATA.md) for the rest of the caveats.
+
+The comparison travels in the link as `compare=`, a comma-separated list of model ids in the picker's own order, so the same set of models always reads the same way whoever built the link. A restored link reopens with the boxes ticked and buys the forecasts on your first Analyze, never on load.
+
 ### Max results (in Options)
 
 The default is 200, sized to sit above the 100-row lists people usually paste so a first analysis does not open half-cut. The ceiling is what the running service reports. Raising this number costs nothing upstream: weather is fetched for *every* destination in your area, and the top N by your ranking come back. Lowering it shows you the extremes.

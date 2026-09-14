@@ -32,10 +32,11 @@ describe('parseCapabilities', () => {
         finest_grid_km: 3,
         forecast_hours: 384,
         regional: false,
+        blend: true,
         default: true,
       },
-      // No `summary`: a deployment on an older build publishes none, and the
-      // row has to render as a plain name rather than as a gap.
+      // No `summary` and no `blend`: a deployment on an older build publishes
+      // neither, and the row has to render as a plain name rather than as a gap.
       { id: 'gem_seamless', label: 'ECCC GEM', forecast_hours: 216, regional: false },
       { id: 'ecmwf_ifs025', label: 'ECMWF IFS', forecast_hours: 336, regional: false },
       { id: 'gfs_hrrr', label: 'NOAA HRRR', forecast_hours: 42, regional: true },
@@ -56,6 +57,7 @@ describe('parseCapabilities', () => {
           finestGridKm: 3,
           forecastHours: 384,
           regional: false,
+          blend: true,
         },
         {
           id: 'gem_seamless',
@@ -64,6 +66,7 @@ describe('parseCapabilities', () => {
           finestGridKm: 0,
           forecastHours: 216,
           regional: false,
+          blend: false,
         },
         {
           id: 'ecmwf_ifs025',
@@ -72,6 +75,7 @@ describe('parseCapabilities', () => {
           finestGridKm: 0,
           forecastHours: 336,
           regional: false,
+          blend: false,
         },
         {
           id: 'gfs_hrrr',
@@ -80,6 +84,7 @@ describe('parseCapabilities', () => {
           finestGridKm: 0,
           forecastHours: 42,
           regional: true,
+          blend: false,
         },
       ],
       defaultForecastModel: 'gfs_seamless',
@@ -111,6 +116,16 @@ describe('parseCapabilities', () => {
     expect(parsed.defaultForecastModel).toBe('good')
     // And a missing label reads as the id rather than as a gap.
     expect(parsed.forecastModels[0].label).toBe('good')
+  })
+
+  // The chart marks a blended line, because a blend changes model partway
+  // along. That mark is the server's claim, never an inference from the id:
+  // `gem_seamless` above publishes no flag and is a blend in reality, and a
+  // client that read the suffix would assert what it was never told.
+  it('reads the blend flag rather than the model id', () => {
+    const models = parseCapabilities(body).forecastModels
+    expect(models.find((m) => m.id === 'gfs_seamless')!.blend).toBe(true)
+    expect(models.find((m) => m.id === 'gem_seamless')!.blend).toBe(false)
   })
 
   // An unknown model is an old link or a dropped model, and the calendar has to

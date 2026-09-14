@@ -44,3 +44,36 @@ function generatedHex(index: number): string {
 export function colorForIndex(index: number): string {
   return index < BASE_PALETTE.length ? BASE_PALETTE[index] : generatedHex(index)
 }
+
+/**
+ * Give every key that has none a colour, continuing one session-long sequence.
+ *
+ * This is the app's ONE colour allocator and it hands out to two kinds of key:
+ * a charted destination (by `chartKey`), and a (destination, compared model)
+ * pair on the comparison chart (by `pairKey`). One counter for both is the
+ * whole point — two allocators over one palette would eventually hand the same
+ * colour to a destination and to a line standing beside it, which is exactly
+ * what a comparison must never do.
+ *
+ * Monotonic in what is already assigned, so a colour is allocated once and
+ * kept: a line never changes hue because another was added or taken away, and
+ * a destination unselected and selected again comes back the colour it was.
+ * That memory is the caller's — it holds the map — and this only ever adds.
+ *
+ * Returns the map it was given when every key already has one, so a caller can
+ * skip the write rather than setting state on a render that allocated nothing.
+ */
+export function allocateColors(
+  assigned: Readonly<Record<string, string>>,
+  keys: readonly string[],
+): Record<string, string> {
+  const missing = keys.filter((key, i) => !assigned[key] && keys.indexOf(key) === i)
+  if (missing.length === 0) return assigned as Record<string, string>
+  const next = { ...assigned }
+  let n = Object.keys(next).length
+  for (const key of missing) {
+    next[key] = colorForIndex(n)
+    n++
+  }
+  return next
+}
