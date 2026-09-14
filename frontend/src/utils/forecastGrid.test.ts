@@ -7,6 +7,7 @@ import {
   MAX_GRID_CELLS,
   MAX_IMAGE_DIM,
   buildGrid,
+  gridAllowed,
   gridView,
   reachKmFor,
   gridArrowFeatures,
@@ -18,6 +19,9 @@ import {
   type GridCell,
   type GridSpec,
 } from './forecastGrid'
+// `?raw` gives the file's text without executing it: App.tsx is a component
+// tree the node-env Vitest cannot mount, so what it wires is asserted as source.
+import appSource from '../App.tsx?raw'
 import { resultsFeatureCollection } from './resultFeatures'
 import type { DestinationResult } from '../types'
 import type { AqiResult, WeatherResult } from './openMeteo'
@@ -371,6 +375,56 @@ describe('pitchLabel', () => {
     expect(pitchLabel(3)).toBe('3 km')
     expect(pitchLabel(13.27)).toBe('13 km')
     expect(pitchLabel(25)).toBe('25 km')
+  })
+})
+
+describe('gridAllowed', () => {
+  // The lattice is sampled at the analyzed model's finest pitch, and an archive
+  // window names no model: that endpoint answers from a reanalysis on a coarser
+  // grid, so the picture would state a pitch the numbers under it never had
+  // (#123).
+  it('allows a report whose every hour came from a model, and no other', () => {
+    expect(gridAllowed({ windowSource: 'archive' })).toBe(false)
+    expect(gridAllowed({ windowSource: 'forecast' })).toBe(true)
+    // A window crossing the boundary is served now (#123), and half its hours
+    // are that reanalysis: one stated pitch cannot be honest about both halves.
+    expect(gridAllowed({ windowSource: 'spanning' })).toBe(false)
+  })
+
+  // The layer is a standing preference, so before the first analysis there is
+  // nothing to forbid and the checkbox stays live. The report decides when it
+  // commits.
+  it('forbids nothing before a report exists', () => {
+    expect(gridAllowed(null)).toBe(true)
+  })
+})
+
+// The decision has to be the one the map actually reads. App.tsx wires the
+// checkbox, the fetch, the sub-choices and the legend, and none of that is
+// reachable from the node-env Vitest — so the source is read as text, the same
+// drift-guard idiom useCapabilities.test.ts uses for the published caps.
+describe('the grid layer reads that decision rather than re-deriving one', () => {
+  it('gates the checkbox, the fetch and every grid surface on one flag', () => {
+    // One call, so there is one answer.
+    expect(appSource.match(/gridAllowed\(/g)).toHaveLength(1)
+    expect(appSource).toContain('const gridAvailable = gridAllowed(analyzed)')
+    // Derived from the analyzed snapshot, never from the panel's calendar: a
+    // report on screen keeps its own answer while the calendar moves.
+    expect(appSource).not.toMatch(/gridAllowed\((?!analyzed\))/)
+    // The checkbox carries the disabled state, and the popover's CHOICE_ROW
+    // fades the whole row off it.
+    expect(appSource).toContain("key: 'grid'")
+    expect(appSource).toContain('disabled: !gridAvailable')
+    // The fetch and every surface hang off the one composed flag.
+    expect(appSource).toContain('const gridOn = showGrid && gridAvailable')
+    expect(appSource).toContain('enabled: gridOn,')
+    for (const surface of [
+      'const gridPainted = gridOn &&',
+      'const gridCued = gridOn &&',
+      'const gridFailed = gridOn &&',
+    ]) {
+      expect(appSource).toContain(surface)
+    }
   })
 })
 

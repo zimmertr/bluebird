@@ -8,7 +8,7 @@ import {
   RefusalFields,
 } from '../types'
 import { SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
-import { resolveWindow } from '../utils/forecastWindow'
+import { resolveWindow, windowSource, type WindowSource } from '../utils/forecastWindow'
 import {
   AnalysisRefusalError,
   MAX_ANALYZE_DESTINATIONS,
@@ -67,6 +67,13 @@ export type AnalyzedView = AnalyzedSnapshot & {
   // label), and the range the results header states. Recorded off the request
   // like `customKeys` below, so it is path-independent.
   window: { startMs: number; endMs: number }
+  // Which Open-Meteo endpoint answered this report. Classified ONCE, here,
+  // beside the window it was classified from — the same discipline the routes
+  // follow on the server — because the boundary is relative to `now`: a report
+  // re-classified later could change endpoints while it sits on screen. The
+  // forecast grid reads it to decide whether it may sample at all, since an
+  // archive report has no model pitch to sample at (#123).
+  windowSource: WindowSource
   // The custom destinations this analysis covered — searched places and pasted
   // CSV rows, by pinKey. Recorded off the request rather than read back off the
   // results, which are cut to `limit` and so cannot answer "was this analyzed?"
@@ -213,6 +220,8 @@ export function useAnalyze(
   ) {
     setResponse(data)
     setUniverse(fullField)
+    const startMs = Date.parse(request.start_datetime)
+    const endMs = Date.parse(request.end_datetime)
     setAnalyzed({
       sortBy: request.sort_by ?? 'precip_total_in',
       sortDesc: request.sort_desc ?? false,
@@ -229,10 +238,8 @@ export function useAnalyze(
       // re-analyze would be asking for rows it never lost.
       bandGated: request.polygon != null && request.destination_types.length > 0,
       kind,
-      window: {
-        startMs: Date.parse(request.start_datetime),
-        endMs: Date.parse(request.end_datetime),
-      },
+      window: { startMs, endMs },
+      windowSource: windowSource(startMs, endMs),
       customKeys: new Set(
         (request.custom_destinations ?? []).map((d) => pinKey(d.latitude, d.longitude)),
       ),

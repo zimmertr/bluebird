@@ -4,6 +4,7 @@
 |---|---|---|---|
 | [OpenStreetMap](https://www.openstreetmap.org) via [Overpass API](https://overpass-api.de) | Destination names, coordinates, elevation | Free | None |
 | [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind, freezing level | Free (non-commercial) | None, or a caller's own key |
+| [Open-Meteo Historical Weather](https://open-meteo.com/en/docs/historical-weather-api) (reanalysis) | The same three variables for windows older than the forecast endpoint's own history | Free (non-commercial) | None, or a caller's own key |
 | [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly US AQI | Free (non-commercial) | None, or a caller's own key |
 | [OpenFreeMap](https://openfreemap.org) | Vector map tiles | Free | None |
 | [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
@@ -160,13 +161,60 @@ carry it leaves precipitation, temperature and wind untouched. Which models
 answer is decided from the data rather than from a list in the code, so a model
 that starts publishing it needs no change here.
 
-History reaches back only as far as the forecast endpoint's own archive, and
-that archive is shorter than the range of dates the endpoint will accept. Past
-roughly two months a request still succeeds and comes back with no numbers in
-it, so Bluebird Forecast's calendar stops well before the date the API stops accepting.
-Going further would mean the separate
-[Open-Meteo Historical API](https://open-meteo.com/en/docs/historical-weather-api),
-which is not wired up.
+### History, and the boundary inside it
+
+Two endpoints answer a window, and which one depends on how old the window is.
+
+The forecast endpoint holds its own short history, and that history is shorter
+than the range of dates it will accept: past roughly two months a request still
+succeeds and comes back with no numbers in it. `limits.past_data_days` on
+[`GET /api/capabilities`](API.md) is where that data stops, measured rather than
+read off the docs.
+
+Older windows go to the
+[Open-Meteo Historical API](https://open-meteo.com/en/docs/historical-weather-api)
+instead, and `limits.archive_days` is how far back that reaches here. The
+calendar offers exactly that, so every day it draws comes back with data.
+
+Three things are different about an archive answer, and all three are the
+archive's nature rather than a limitation of the wiring.
+
+- **It names no model.** Everywhere else Bluebird Forecast sends an explicit
+  `models=` (see below), and the archive is the documented exception: its default
+  is a reanalysis — ECMWF IFS HRES with ERA5 and ERA5-Land — which is one dataset
+  at every location, so there is no per-location pick to hide. The forecast
+  models the panel lists never ran over those hours at all, so the picker does
+  not apply and is disabled while an archive window is selected. Sending a model
+  name the archive does not serve is worse than useless: measured 2026-09-12, it
+  answers an unknown `models=` with a `200` and plausible data rather than an
+  error.
+- **Wind is the 10 m wind.** The archive accepts the five pressure levels the
+  elevation adjustment above is built on and answers every hour `null`, so an
+  archive row reports the plain 10 m wind for every destination, whatever its
+  elevation.
+- **It has no freezing level.** The archive accepts `freezing_level_height`
+  and answers every hour `null` under the unit `undefined` (measured
+  2026-09-13), so the three freezing-level columns read `N/A` over an
+  archive window, and over a crossing window they aggregate the forecast
+  hours only.
+- **A window may cross the boundary, and then it carries both.** A window that
+  starts in the archive's range and ends inside the forecast endpoint's is
+  fetched from each of them — the archive through the hour before the boundary,
+  the forecast endpoint from the boundary on — and the hours are joined in order
+  before anything is aggregated, so the report is one window rather than two
+  halves. What changes across that join is what the two bullets above describe:
+  the early hours are the reanalysis and name no model, the later hours are the
+  model you picked; the early hours carry the 10 m wind and the later hours wind
+  at the destination's elevation. Because the boundary moves with the clock, the
+  same window asked about next week may be wholly the archive's. Nothing hides
+  the seam: the panel names the day it falls on, and the forecast grid is out of
+  play over such a report for the reason
+  [the grid section](#the-forecast-grid) gives.
+
+Air quality is not part of that split. It has an archive of its own on the same
+endpoint — measured 2026-09-12, it answered a window 365 days back with real US
+AQI — so an old window is an ordinary air-quality fetch, and an hour it cannot
+answer degrades to `null` the way every other gap does.
 
 ## Choosing a model
 
@@ -418,6 +466,17 @@ two different answers. Over a large area the samples are spread further apart
 so a grid stays a few hundred requests rather than tens of thousands, and the
 legend always states the spacing actually used rather than the model's headline
 figure.
+
+**There is no grid over archive hours.** A window older than the forecast
+endpoint's own history is answered by the archive, which names no model and
+reports a reanalysis on a coarser grid than any forecast model's finest figure
+(see [History, and the boundary inside it](#history-and-the-boundary-inside-it)).
+Sampling that at a model's pitch would paint real numbers at a spacing nothing
+produced them at, and the legend would state that spacing as the claim. So the
+overlay is out of play while such a report is on screen: its switch is disabled
+rather than drawing a picture whose one stated number would be wrong. A window
+that crosses the boundary is the same problem over half a report, so it is out of
+play there too, and the row says why.
 
 **A model's finest grid is not its resolution everywhere.** The seamless models
 blend a fine regional grid into a coarse global one, so NOAA GFS is a 3 km model

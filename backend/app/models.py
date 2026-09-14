@@ -28,12 +28,24 @@ MAX_POLYGON_AREA_KM2 = 100_000
 # truncation only ever happens when the request explicitly opts in.
 MAX_ANALYZE_PEAKS = 1_500
 
-# Open-Meteo serves roughly the last ~90 days of history through ~16 days
-# ahead; the frontend blocks windows outside that band (urlState.ts). These
-# looser bounds are a backstop for direct API callers — enough slack that a
-# legitimate edge window never gets a false 422, while an egregious one (say,
-# a year ahead) fails fast with a clear message instead of an upstream 400.
-PAST_LIMIT_SLACK_DAYS = 95
+# How far back a window may reach, which is the ARCHIVE endpoint's reach rather
+# than the forecast endpoint's (issue #123). One year is a product choice, not a
+# limit of the data: the archive holds decades, and a calendar offering them
+# would page through forty years of months to reach last autumn. Probed
+# 2026-09-12 at 46.85,-121.76 — with no `models=` the archive answers a window
+# 365 days back with real precipitation, temperature and wind.
+#
+# GET /api/capabilities publishes this as `limits.archive_days`, so the calendar
+# reads the reach rather than compiling one.
+ARCHIVE_DATA_DAYS = 365
+
+# Open-Meteo serves a year of history (via the archive endpoint, see above)
+# through ~16 days ahead; the frontend blocks windows outside that band
+# (urlState.ts). These looser bounds are a backstop for direct API callers —
+# enough slack that a legitimate edge window never gets a false 422, while an
+# egregious one (say, a year ahead) fails fast with a clear message instead of
+# an upstream 400.
+PAST_LIMIT_SLACK_DAYS = ARCHIVE_DATA_DAYS + 10
 FUTURE_LIMIT_SLACK_DAYS = 17
 
 # How far back the forecast endpoint still holds *data*, as opposed to how far
@@ -52,7 +64,33 @@ FUTURE_LIMIT_SLACK_DAYS = 17
 # is one floor for all of them rather than another column in the table
 # below: the spread is two weeks of jitter around a single ~2-month retention,
 # not a per-model property worth modelling. Re-probe before raising it.
+#
+# Since #123 this is also the BOUNDARY between the two endpoints: a window older
+# than this is served from the archive instead (`window_source` below), so the
+# nulls it describes are no longer what a reader gets — they are what the
+# forecast endpoint would answer if it were still the one asked.
 PAST_DATA_DAYS = 55
+
+# One local calendar day of tolerance on the forecast side of that boundary.
+#
+# The boundary is an instant and a calendar day is not: west of Greenwich a
+# local day's last minute lands on the next UTC date, so a single day drawn in
+# the calendar can straddle the boundary by up to 14 hours. Without the
+# tolerance that one day would be split across two datasets and joined at a seam
+# 14 hours into it, although the forecast endpoint holds the whole of it. It
+# costs nothing in honesty: the forecast
+# endpoint is measurably populated through 56 days back and ragged at 58 (see
+# PAST_DATA_DAYS), so the extra day sits inside the margin that floor already
+# carries.
+ARCHIVE_STRADDLE_DAYS = 1
+
+# A window that starts before the archive boundary and ends after it. Served by
+# TWO fetches rather than refused: the hours before the boundary come from the
+# archive, the hours from it on from the forecast endpoint, and each location's
+# hourly arrays are concatenated in time order BEFORE the aggregation runs, so
+# one report ranks one series (`weather.fetch_weather_batch`). Where the seam
+# falls is stated on screen rather than left to be discovered.
+WindowSource = Literal["forecast", "archive", "spanning"]
 
 # Rows returned per analysis. Named rather than inline so the validator and
 # GET /api/capabilities cannot drift apart. The ceiling equals the analysis
@@ -68,6 +106,45 @@ def _as_utc(dt: datetime) -> datetime:
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
+def archive_boundary(now: datetime) -> datetime:
+    """The instant the archive's hours end and the forecast endpoint's begin.
+
+    `now - PAST_DATA_DAYS`, floored to the UTC day, because every fetch sends UTC
+    hour stamps. One definition for two readers: `window_source` classifies a
+    window against it, and `weather.fetch_weather_batch` splits a spanning window
+    at it. A second spelling could put the seam an hour from where the
+    classification believed it was.
+
+    Mirrored by `archiveBoundaryMs` in `frontend/src/utils/forecastWindow.ts`.
+    """
+    return (_as_utc(now) - timedelta(days=PAST_DATA_DAYS)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+
+
+def window_source(start: datetime, end: datetime, now: datetime) -> WindowSource:
+    """Which Open-Meteo endpoint answers this window, or that both do.
+
+    One boundary, defined once by `archive_boundary` above. A window entirely
+    older than it is the archive's; one starting at it — within a local day, see
+    ARCHIVE_STRADDLE_DAYS — is the forecast endpoint's; one that starts before it
+    and ends after it is both endpoints', fetched twice and joined at the seam.
+
+    The archive test comes first so the one-day overlap the straddle tolerance
+    opens resolves to the archive, which holds every hour in it rather than
+    relying on the forecast endpoint's ragged tail.
+
+    Mirrored by `windowSource` in `frontend/src/utils/forecastWindow.ts`, with
+    the same example table in both test suites.
+    """
+    boundary = archive_boundary(now)
+    if _as_utc(end) < boundary:
+        return "archive"
+    if _as_utc(start) >= boundary - timedelta(days=ARCHIVE_STRADDLE_DAYS):
+        return "forecast"
+    return "spanning"
+
+
 class DestinationType(str, Enum):
     peak = "peak"
     trailhead = "trailhead"
@@ -76,8 +153,9 @@ class DestinationType(str, Enum):
 
 
 class ForecastMode(str, Enum):
-    # `at` rather than `future` because the API serves roughly 90 days of
-    # history, so a single-moment sample is not necessarily ahead of now.
+    # `at` rather than `future` because a window may reach a year back (the
+    # archive, see ARCHIVE_DATA_DAYS), so a single-moment sample is not
+    # necessarily ahead of now.
     current = "current"
     at = "at"
     window = "window"
@@ -781,7 +859,7 @@ class AnalyzeRequest(BaseModel):
         now = datetime.now(timezone.utc)
         if _as_utc(self.start_datetime) < now - timedelta(days=PAST_LIMIT_SLACK_DAYS):
             raise ValueError(
-                "start_datetime is beyond the ~90-day history limit of the "
+                "start_datetime is beyond the one-year history limit of the "
                 "weather API. Move the window start closer to today."
             )
         if _as_utc(self.end_datetime) > now + timedelta(days=FUTURE_LIMIT_SLACK_DAYS):

@@ -45,6 +45,7 @@ import {
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
+  SR_ONLY,
   SURFACE_CARD,
   SURFACE_FLOATING,
   SWATCH_CHIP,
@@ -63,6 +64,7 @@ import { hourlyScale, rankedScale } from './utils/colors'
 import {
   FALLBACK_PITCH_KM,
   GRID_REACH_DEFAULT_FRAC,
+  gridAllowed,
   gridLegendLine,
   pitchLabel,
   reachKmFor,
@@ -346,7 +348,12 @@ export default function App() {
   // the selection simply is inside the band, and nothing distinguishes a window
   // that was shortened from one that always fitted.
   const [modelClamped, setModelClamped] = useState(false)
-  const forecastHours = modelForecastHours(caps.forecastModels, forecastModel)
+  // Both edges of the servable band, from /api/capabilities: the selected
+  // model's reach ahead, and the archive's reach back (#123).
+  const band = {
+    forecastHours: modelForecastHours(caps.forecastModels, forecastModel),
+    pastDays: caps.archiveDays,
+  }
 
   // The window a model clamp took away, held so switching back to a model
   // that can serve it restores it (#242 review). A clamp is the picker
@@ -367,14 +374,16 @@ export default function App() {
     // A remembered pre-clamp window comes back the moment a model can serve
     // it whole (clampSelection returns null for "fits unchanged").
     const remembered = preClampSelectionRef.current
-    if (remembered && clampSelection(remembered, new Date(), hours) === null) {
+    // The band as the NEW model leaves it: only the far edge moves with a model.
+    const nextBand = { ...band, forecastHours: hours }
+    if (remembered && clampSelection(remembered, new Date(), nextBand) === null) {
       preClampSelectionRef.current = null
       setSelection(remembered)
       setModelClamped(false)
       setForecastModel(id)
       return
     }
-    const clamped = clampSelection(selection, new Date(), hours)
+    const clamped = clampSelection(selection, new Date(), nextBand)
     if (clamped) {
       // Remember the FIRST window in a clamp chain: stepping HRRR → ICON →
       // GFS should restore the range the user picked, not the wreckage of
@@ -473,12 +482,6 @@ export default function App() {
       document.removeEventListener('keydown', onKey)
     }
   }, [layersOpen])
-  const MAP_LAYERS = [
-    { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
-    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
-    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
-    { key: 'grid', label: 'Forecast grid', checked: showGrid, onChange: setShowGrid },
-  ]
   // Which drawing the grid's samples get. Blocks by default: it is the style
   // that cannot overstate what was sampled, since one square is one forecast
   // and a reader can count them. Purely presentation over held samples, so
@@ -938,7 +941,7 @@ export default function App() {
   // upstream error. The calendar cannot pick an unservable day, so a horizon
   // warning now means a shared or hand-edited link brought one in.
   const windowStatus = panelWindow
-    ? classifyWindow(panelWindow.start, panelWindow.end, new Date(), forecastHours)
+    ? classifyWindow(panelWindow.start, panelWindow.end, new Date(), band)
     : // No dates picked yet: nothing to warn about, the dates blocker owns it.
       'ok'
   const windowWarning =
@@ -1581,8 +1584,36 @@ export default function App() {
   // sits on screen, and a grid built from panel state would paint a window the
   // markers above it never saw. The pitch is the ANALYZED model's finest grid
   // for the same reason.
+  //
+  // A report carrying archive hours is the one it cannot draw over: those hours
+  // name no model, so there is no pitch the lattice could honestly be sampled at
+  // (`gridAllowed`, #123). The layer is switched out of play rather than
+  // switched off — the reader's preference survives, and the next forecast
+  // analysis grids itself the way it always did. The row says why, since a
+  // disabled checkbox beside three live ones reads as broken.
+  const gridAvailable = gridAllowed(analyzed)
+  // The layer as it actually stands, which is what every surface below reads:
+  // the checkbox holds a preference, and this is whether that preference is in
+  // effect. One flag rather than a pair repeated per surface, so the fetch, the
+  // sub-choices and the legend box cannot answer differently.
+  const gridOn = showGrid && gridAvailable
+  const MAP_LAYERS = [
+    { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
+    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
+    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
+    {
+      key: 'grid',
+      label: 'Forecast grid',
+      checked: showGrid,
+      onChange: setShowGrid,
+      disabled: !gridAvailable,
+      // Mounted twice, as the row's `title` and as the hidden text its checkbox
+      // points at: a tooltip does not exist on touch or to a screen reader.
+      note: 'The forecast grid is not available for archival data.',
+    },
+  ]
   const grid = useForecastGrid({
-    enabled: showGrid,
+    enabled: gridOn,
     field: universe,
     window: analyzed?.window ?? null,
     model: analyzed?.forecastModel ?? forecastModel,
@@ -1607,16 +1638,16 @@ export default function App() {
   // filling in has some, so the legend arrives with the first chunk rather than
   // with the last — a key to an empty map would be noise, but a key to a
   // quarter-painted one is exactly what a reader needs.
-  const gridPainted = showGrid && grid.cells.length > 0
+  const gridPainted = gridOn && grid.cells.length > 0
   // The legend also opens while the grid is still fetching, so its one line can
   // say the field is coming. That gap is the whole reason the cue exists: the
   // grid inherits the quota debt of the analysis that just ran, so after a big
   // one it is minutes before the first samples land.
-  const gridCued = showGrid && grid.status === 'loading'
+  const gridCued = gridOn && grid.status === 'loading'
   // The layer is on and could not draw. Said out loud for the same reason the
   // loading line exists: a switched-on layer with nothing under it and nothing
   // said reads as a broken app rather than as a failed fetch.
-  const gridFailed = showGrid && grid.status === 'failed'
+  const gridFailed = gridOn && grid.status === 'failed'
   // A one-second tick, only while the pacer is actually asleep, so the
   // countdown moves. Nothing else on screen needs it and it stops on its own.
   const [paceNow, setPaceNow] = useState(0)
@@ -1855,6 +1886,7 @@ export default function App() {
           modelClamped={modelClamped}
           maxLimit={caps.maxLimit}
           maxAreaKm2={caps.maxPolygonAreaKm2}
+          archiveDays={caps.archiveDays}
           aqiAllNull={
             response !== null &&
             results.length > 0 &&
@@ -2205,22 +2237,33 @@ export default function App() {
               </button>
               {layersOpen && (
                 <div className={`${SURFACE_FLOATING} absolute left-0 mt-2 w-44 px-2.5 py-2`}>
-                  {MAP_LAYERS.map(({ key, label, checked, onChange }) => (
-                    <label key={key} className={CHOICE_ROW}>
+                  {MAP_LAYERS.map(({ key, label, checked, onChange, disabled, note }) => (
+                    <label
+                      key={key}
+                      className={CHOICE_ROW}
+                      title={disabled && note ? note : undefined}
+                    >
                       <input
                         type="checkbox"
                         checked={checked}
+                        disabled={disabled}
+                        aria-describedby={disabled && note ? `layer-${key}-note` : undefined}
                         onChange={(e) => onChange(e.target.checked)}
                         className={CHOICE_INPUT}
                       />
                       <span>{label}</span>
+                      {disabled && note && (
+                        <span id={`layer-${key}-note`} className={SR_ONLY}>
+                          {note}
+                        </span>
+                      )}
                     </label>
                   ))}
                   {/* The grid's sub-choices, revealed by its own checkbox.
                       The popover is 176px, so these take the fluid segment
                       rather than the panel's fixed 144px column — the same
                       reason the results bar's mode switch does. */}
-                  {showGrid && (
+                  {gridOn && (
                     <>
                       <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
                         {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (

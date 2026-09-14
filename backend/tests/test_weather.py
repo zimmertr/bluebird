@@ -1110,6 +1110,303 @@ async def test_a_keyed_and_an_unkeyed_request_share_one_cache_entry(monkeypatch)
     assert second[0]["precip_total_in"] == first[0]["precip_total_in"]
 
 
+# ── The archive endpoint (issue #123) ──────────────────────────────────────
+#
+# A window older than the forecast endpoint's retention is answered from the
+# archive instead. `source` says which, and the caller decides it — these tests
+# pass it the way the route does.
+
+
+async def test_an_archive_window_goes_to_the_archive_endpoint(monkeypatch):
+    urls: list[str] = []
+    _stub_openmeteo(monkeypatch, [_payload([0.1])], urls)
+    await fetch_weather_batch(_dests(1), START, END, source="archive")
+
+    assert urls == [weather.ARCHIVE_URL]
+
+
+async def test_an_archive_window_names_no_model(monkeypatch):
+    # The archive's default is a reanalysis, one dataset everywhere, so nothing
+    # varies row to row the way `best_match` would on the forecast endpoint.
+    # Forwarding the picker's model would be worse than useless: the archive
+    # accepts an unknown `models=` with a 200 and plausible data, so a name it
+    # does not serve would be answered silently by something else.
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    await fetch_weather_batch(
+        _dests(1), START, END, model=ForecastModel.gfs_hrrr, source="archive"
+    )
+
+    assert "models" not in calls[0]
+    # Everything else about the request is unchanged, hours included.
+    assert calls[0]["start_hour"] == "2026-07-21T00:00"
+    assert calls[0]["hourly"] == weather.HOURLY_VARIABLES
+
+
+async def test_a_forecast_window_still_names_its_model(monkeypatch):
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_hrrr)
+
+    assert calls[0]["models"] == "gfs_hrrr"
+
+
+async def test_a_keyed_archive_window_goes_to_the_customer_archive_host(monkeypatch):
+    urls: list[str] = []
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])], urls)
+    await fetch_weather_batch(
+        _dests(1), START, END, api_key="secret-key", source="archive"
+    )
+
+    assert urls == [weather.CUSTOMER_ARCHIVE_URL]
+    assert calls[0]["apikey"] == "secret-key"
+
+
+async def test_fetch_weather_batch_keys_the_cache_by_endpoint(monkeypatch):
+    # The two endpoints answer the same coordinates and window from different
+    # data, and the boundary between them moves with the clock — so a window
+    # that changes sides while an entry is live must miss rather than be served
+    # the other endpoint's numbers.
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1]), _payload([0.2])])
+
+    forecast = await fetch_weather_batch(_dests(1), START, END)
+    archive = await fetch_weather_batch(_dests(1), START, END, source="archive")
+
+    assert len(calls) == 2
+    assert forecast[0]["precip_total_in"] == 0.1
+    assert archive[0]["precip_total_in"] == 0.2
+
+
+async def test_an_archive_payload_with_no_level_winds_keeps_every_hour(monkeypatch):
+    # The archive accepts the five pressure levels and answers them all null
+    # (measured 2026-09-12). The elevation adjustment degrades to the 10 m wind
+    # — and, crucially, drops no hour doing it: the aggregation zips the four
+    # core arrays, so a null level can only ever change a wind number.
+    block = _one_location()
+    block["hourly"].update({name: [None] * 3 for name, _ in weather._WIND_LEVELS})
+    _stub_openmeteo(monkeypatch, [[block]])
+    dests = _dests(1)
+    dests[0]["elevation_ft"] = 14000.0
+
+    results = await fetch_weather_batch(dests, START, END, source="archive")
+
+    assert results[0]["wind_avg_mph"] == 7.0  # mean of the 10 m 5, 7, 9
+    assert results[0]["wind_max_mph"] == 9.0
+    assert results[0]["series"]["wind_mph"] == [5.0, 7.0, 9.0]
+    assert len(results[0]["series"]["times"]) == 3
+
+
+# ── A window that crosses the boundary (issue #123) ────────────────────────
+#
+# Two fetches, one per endpoint, joined per location before the aggregation
+# runs. The caller decides both the classification and the seam, so these pass
+# them the way the route does.
+
+SPAN_START = datetime(2026, 7, 18, 22, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
+SPAN_END = datetime(2026, 7, 19, 1, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
+SEAM = datetime(2026, 7, 19, 0, 0, tzinfo=timezone.utc)
+
+
+def _half(times, precip):
+    """One location's half-window, with the five levels answered null."""
+    block = _hourly(
+        times,
+        precip,
+        [50.0] * len(times),
+        [5.0] * len(times),
+    )
+    block["hourly"].update({name: [None] * len(times) for name, _ in weather._WIND_LEVELS})
+    block["hourly_units"] = {"precipitation": "inch"}
+    return [block]
+
+
+def _archive_half():
+    return _half(["2026-07-18T22:00", "2026-07-18T23:00"], [0.1, 0.2])
+
+
+def _forecast_half():
+    return _half(["2026-07-19T00:00", "2026-07-19T01:00"], [0.4, 0.8])
+
+
+async def test_a_spanning_window_asks_each_endpoint_for_its_own_hours(monkeypatch):
+    urls: list[str] = []
+    calls = _stub_openmeteo(monkeypatch, [_archive_half(), _forecast_half()], urls)
+    await fetch_weather_batch(
+        _dests(1),
+        SPAN_START,
+        SPAN_END,
+        model=ForecastModel.gfs_hrrr,
+        source="spanning",
+        boundary=SEAM,
+    )
+
+    assert urls == [weather.ARCHIVE_URL, weather.FORECAST_URL]
+    # Disjoint: the archive answers through the hour BEFORE the seam, and an
+    # hour arriving twice would be counted twice in the precipitation total.
+    assert calls[0]["start_hour"] == "2026-07-18T22:00"
+    assert calls[0]["end_hour"] == "2026-07-18T23:00"
+    assert calls[1]["start_hour"] == "2026-07-19T00:00"
+    assert calls[1]["end_hour"] == "2026-07-19T01:00"
+    # The model rides only on the half a model answered.
+    assert "models" not in calls[0]
+    assert calls[1]["models"] == "gfs_hrrr"
+
+
+async def test_a_spanning_window_aggregates_both_halves_as_one_series(monkeypatch):
+    _stub_openmeteo(monkeypatch, [_archive_half(), _forecast_half()])
+    results = await fetch_weather_batch(
+        _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
+    )
+
+    # 0.1 + 0.2 + 0.4 + 0.8: every hour of both halves, counted once.
+    assert results[0]["precip_total_in"] == 1.5
+    assert results[0]["precip_max_in_hr"] == 0.8
+    assert len(results[0]["series"]["times"]) == 4
+
+
+async def test_a_spanning_window_drops_a_location_whose_halves_disagree_on_units(
+    monkeypatch,
+):
+    # A total of inches and millimetres is a number with no meaning, so the row
+    # degrades to no forecast the way every unreadable payload here does.
+    other = _forecast_half()
+    other[0]["hourly_units"] = {"precipitation": "mm"}
+    _stub_openmeteo(monkeypatch, [_archive_half(), other])
+    results = await fetch_weather_batch(
+        _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
+    )
+
+    assert results == [None]
+
+
+async def test_a_spanning_window_joins_halves_whose_unserved_units_differ(
+    monkeypatch,
+):
+    # Measured 2026-09-13: the archive declares "undefined" for every
+    # pressure-level wind it does not serve, where the forecast endpoint says
+    # "mp/h". A column one side does not have is not a disagreement, and the
+    # window that crosses the boundary must not come back empty for it.
+    archive = _archive_half()
+    archive[0]["hourly_units"] = {
+        "precipitation": "inch",
+        "wind_speed_10m": "mp/h",
+        "wind_speed_500hPa": "undefined",
+    }
+    forecast = _forecast_half()
+    forecast[0]["hourly_units"] = {
+        "precipitation": "inch",
+        "wind_speed_10m": "mp/h",
+        "wind_speed_500hPa": "mp/h",
+    }
+    _stub_openmeteo(monkeypatch, [archive, forecast])
+    results = await fetch_weather_batch(
+        _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
+    )
+
+    assert results[0]["precip_total_in"] == 1.5
+
+
+async def test_a_spanning_window_reads_the_freezing_level_in_the_served_unit(
+    monkeypatch,
+):
+    # The archive answers the freezing level null under "undefined" (measured
+    # 2026-09-13); the forecast half answers feet. The joined payload must
+    # declare the served unit, or the reader refuses the forecast half's numbers
+    # and the row has no weather at all.
+    archive = _archive_half()
+    archive[0]["hourly_units"] = {"precipitation": "inch", weather._FREEZING_LEVEL: "undefined"}
+    archive[0]["hourly"][weather._FREEZING_LEVEL] = [None, None]
+    forecast = _forecast_half()
+    forecast[0]["hourly_units"] = {"precipitation": "inch", weather._FREEZING_LEVEL: "ft"}
+    forecast[0]["hourly"][weather._FREEZING_LEVEL] = [8000.0, 9000.0]
+    _stub_openmeteo(monkeypatch, [archive, forecast])
+    results = await fetch_weather_batch(
+        _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
+    )
+
+    assert results[0]["precip_total_in"] == 1.5
+    assert results[0]["freeze_min_ft"] == 8000.0
+    assert results[0]["freeze_max_ft"] == 9000.0
+
+
+async def test_a_spanning_window_counts_a_repeated_hour_once(monkeypatch):
+    # The spans are disjoint, so this cannot come from the request — but a host
+    # that answered one hour on both sides would otherwise double it.
+    _stub_openmeteo(
+        monkeypatch,
+        [_archive_half(), _half(["2026-07-18T23:00", "2026-07-19T00:00"], [9.9, 0.4])],
+    )
+    results = await fetch_weather_batch(
+        _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
+    )
+
+    assert results[0]["precip_total_in"] == 0.7  # 0.1 + 0.2 + 0.4
+    assert len(results[0]["series"]["times"]) == 3
+
+
+async def test_a_spanning_window_keys_the_cache_apart_from_either_half(monkeypatch):
+    # The joined series is a third answer at the same coordinates and window,
+    # and it must not be served from — or serve — either endpoint alone.
+    calls = _stub_openmeteo(
+        monkeypatch,
+        [_archive_half(), _forecast_half(), _archive_half(), _archive_half()],
+    )
+    await fetch_weather_batch(
+        _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
+    )
+    await fetch_weather_batch(_dests(1), SPAN_START, SPAN_END, source="archive")
+    # And the spanning fetch itself repeats from the cache.
+    await fetch_weather_batch(
+        _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
+    )
+
+    assert len(calls) == 3
+
+
+async def test_a_spanning_window_pays_for_both_halves(monkeypatch):
+    # Two requests, two answers, so the pod's weighted budget is acquired for
+    # each span on its own hours rather than once for the whole window.
+    spent: list[float] = []
+
+    class _Budget:
+        async def acquire(self, weight):
+            spent.append(weight)
+
+        def wait_estimate_s(self, weight):
+            return 0
+
+    monkeypatch.setattr(ratelimit, "WEATHER_WEIGHT", _Budget())
+    _stub_openmeteo(monkeypatch, [_archive_half(), _forecast_half()])
+    await fetch_weather_batch(
+        _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
+    )
+
+    assert len(spent) == 2
+
+
+async def test_a_spanning_window_needs_the_boundary_that_classified_it():
+    # The service never reads the clock: a boundary it worked out for itself
+    # could cut a window at an instant the classification never saw.
+    with pytest.raises(ValueError, match="boundary"):
+        await fetch_weather_batch(_dests(1), SPAN_START, SPAN_END, source="spanning")
+
+
+async def test_a_spanning_window_with_one_empty_half_is_one_request(monkeypatch):
+    # `window_source` compares real instants and a request carries wall-clock
+    # hours, so an offset-carrying caller can be spanning by instant and
+    # one-sided by wall clock. The empty half is dropped, never requested
+    # backwards.
+    urls: list[str] = []
+    _stub_openmeteo(monkeypatch, [_forecast_half()], urls)
+    await fetch_weather_batch(
+        _dests(1),
+        SEAM.replace(tzinfo=None),
+        SPAN_END,
+        source="spanning",
+        boundary=SEAM,
+    )
+
+    assert urls == [weather.FORECAST_URL]
+
+
 async def test_fetch_weather_batch_fails_on_an_unreadable_unit(monkeypatch):
     # The raise has to clear both aggregation functions' degrade-to-None
     # handlers and the chunk loop, or an unreadable unit would quietly drop

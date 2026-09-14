@@ -33,6 +33,9 @@ BROWSER_FETCH_ORIGINS = (
     "https://api.open-meteo.com",
     # frontend/src/utils/openMeteo.ts: US AQI, fetched beside the weather.
     "https://air-quality-api.open-meteo.com",
+    # frontend/src/utils/openMeteo.ts: reanalysis for a window older than the
+    # forecast endpoint holds (#123).
+    "https://archive-api.open-meteo.com",
     # frontend/src/components/MapView.tsx: the basemap style, and every tile,
     # glyph and sprite that style names.
     "https://tiles.openfreemap.org",
