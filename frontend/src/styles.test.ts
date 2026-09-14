@@ -1,3 +1,7 @@
+// Vitest runs on node; the project ships no node types, and this is the one
+// place in src/ that reads a file, so the suppression stays local to it.
+// @ts-expect-error node builtin, untyped in this project
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   ACCENT,
@@ -63,6 +67,11 @@ import * as STYLES from './styles'
 // work on index.css: vitest stubs CSS imports to an empty string.)
 import controlPanelSource from './components/ControlPanel.tsx?raw'
 import appSource from './App.tsx?raw'
+// The one stylesheet with a decision in it: the vendor's own controls have no
+// call site to hand a role to, so what they take is written there. Read off
+// the disk rather than imported — Vitest stubs a CSS import, `?raw` included,
+// to an empty string.
+const mapCss: string = readFileSync(new URL('./map.css', import.meta.url), 'utf8')
 
 // The arbitrary branch cannot carry a trailing \b: `text-[10px]` ends in `]`, a
 // non-word character, so a boundary there would require the *next* character to
@@ -1284,6 +1293,24 @@ describe('the map edge inset', () => {
   // them may do is spell an inset of its own — that is how the column came to
   // sit 4px right of the legends. Written as alternation so no banned class
   // appears verbatim: v4 scans this file as raw text.
+  // The library's top-right stack takes the same inset through `map.css`,
+  // which reads the property and spells no number of its own — the vendor's
+  // 10px is what put its buttons a step above the app's column opposite them.
+  it('is the one inset the vendor stack takes too', () => {
+    expect(mapCss).toContain('.maplibregl-ctrl-top-right .maplibregl-ctrl')
+    const rule = mapCss.slice(
+      mapCss.indexOf('.maplibregl-ctrl-top-right .maplibregl-ctrl'),
+    )
+    const body = rule.slice(rule.indexOf('{'), rule.indexOf('}'))
+    expect(body).toContain('var(--map-edge-inset)')
+    expect(body).not.toMatch(/\d+(?:px|rem)/)
+  })
+
+  it('leaves no top edge spelled at the app\'s own column', () => {
+    expect(appSource).toContain('${MAP_EDGE.top}')
+    expect(appSource).not.toMatch(/\btop-(?:3)\b/)
+  })
+
   it('leaves no left edge spelled at a call site', () => {
     expect(appSource).not.toMatch(/\bleft-(?:2|3)\b/)
     expect(appSource).not.toMatch(/\bleft-\[/)

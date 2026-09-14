@@ -2315,7 +2315,7 @@ export default function App() {
               chrome and across the sheet, and the layer has to sit on the
               cluster rather than on the popover inside it (see LAYER). It stays
               under the loading overlay and the mobile drawer backdrop. */}
-          <div className={`absolute top-3 ${MAP_EDGE.left} ${LAYER.mapControls} flex flex-col items-start gap-2`}>
+          <div className={`absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${LAYER.mapControls} flex flex-col items-start gap-2`}>
             {/* Raised above its later siblings so the search dropdown paints
                 over the Layers button below it — both live in the top-left
                 cluster, and DOM order alone put the button on top (#288

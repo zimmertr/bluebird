@@ -172,6 +172,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | No component sizes a tap target | `styles.test.ts` | Ban `touch:` utilities in component sources |
 | No component sizes radio/checkbox | `styles.test.ts` | Ban `accent-sky-500` duplication |
 | No component re-widths a segment | `styles.test.ts` | Check for `w-*` inside `SEGMENT` composition |
+| The map's edges are one inset | `styles.test.ts` | Ban a top or left inset at the map's chrome, in `App.tsx` and `map.css` alike |
 | No component dims a placeholder | `styles.test.ts` | Ban placeholder utilities below AA contrast |
 | Every radio/checkbox uses the shared recipe | `styles.test.ts` | Check `CHOICE_INPUT` composition |
 | Every focus-able control has focus ring | `styles.test.ts` | List per control type |

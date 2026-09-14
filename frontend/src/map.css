@@ -20,6 +20,25 @@
   font-family: inherit;
 }
 
+/* The library's own top-right stack — zoom, compass, geolocate — measured off
+ * the same edge as the app's Controls/Layers column opposite it.
+ *
+ * The vendor ships 10px here and the app's column stands at `MAP_EDGE`'s 12px,
+ * so the two rows of buttons started a step apart across the top of the map.
+ * The number is not spelled here: `--map-edge-inset` is published on the map
+ * wrapper by `styles.ts`, which is what keeps one inset in one place for
+ * markup the design system can reach and markup it cannot.
+ *
+ * Only the top and right sides take it, as the vendor's own rule does: the
+ * bottom margin is the gap BETWEEN two control groups, and the stack floats
+ * right, so a left margin would push it off the edge it is anchored to.
+ *
+ * Unlayered, like the rules below, so it beats the vendor's own margin in
+ * @layer base. */
+.maplibregl-ctrl-top-right .maplibregl-ctrl {
+  margin: var(--map-edge-inset) var(--map-edge-inset) 0 0;
+}
+
 /* Zoom and compass. The one set of controls the design system cannot reach:
    maplibre injects this markup itself through `map.addControl`, so there is no
    call site to hand a `TAP` role to, and the vendor ships them at 29px.
