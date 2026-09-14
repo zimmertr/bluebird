@@ -54,6 +54,9 @@ function result(overrides: Partial<DestinationResult> = {}): DestinationResult {
     wind_min_mph: 1,
     wind_max_mph: 10,
     wind_avg_mph: 6.4,
+    freeze_min_ft: null,
+    freeze_max_ft: null,
+    freeze_avg_ft: null,
     aqi_avg: 30,
     aqi_min: 40,
     aqi_max: 40,
@@ -528,11 +531,15 @@ describe('pairCells', () => {
     wind_min_mph: 1,
     wind_max_mph: 9,
     wind_avg_mph: 5,
+    freeze_min_ft: 9000,
+    freeze_max_ft: 9500,
+    freeze_avg_ft: 9250,
     series: {
       times: [1000, 2000],
       precip_in: precip,
       temp_f: [40, 60],
       wind_mph: [1, 9],
+      freeze_ft: [9000, 9500],
       wind_dir_deg: [90, 270],
     },
   })
@@ -689,7 +696,7 @@ describe('gridRaster', () => {
     // which read different scales.
     const row = result({
       precip_total_in: 0.3,
-      series: { precip_in: [0, 0.4], temp_f: [40, 60], wind_mph: [1, 9], aqi: [10, 20] },
+      series: { precip_in: [0, 0.4], temp_f: [40, 60], wind_mph: [1, 9], freeze_ft: [9000, 9500], aqi: [10, 20] },
     })
     const box: [number, number, number, number] = [-121.8, 46.3, -121.6, 46.5]
     for (const hour of [null, 0, 1]) {
@@ -902,6 +909,7 @@ describe('gridArrowFeatures', () => {
     precip_in: [0, 0],
     temp_f: [40, 60],
     wind_mph: [1, 9],
+    freeze_ft: [9000, 9500],
     aqi: [10, 20],
   }
   const box: [number, number, number, number] = [-121.8, 46.3, -121.6, 46.5]

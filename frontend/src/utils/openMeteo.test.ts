@@ -95,6 +95,90 @@ describe('parseTs', () => {
   })
 })
 
+// ── The freezing level's unit (issue #295 review) ──────────────────────────
+//
+// Open-Meteo quotes the height in the unit `precipitation_unit` selects and
+// names it in `hourly_units`. One hour over Rainier, measured 2026-09-13 for
+// 2026-09-15T12:00: 2560 with "m", 8398.95 with "ft", and both are 8,399 ft.
+// Every request this module sends carries `precipitation_unit=inch`, so feet
+// is the branch production takes.
+
+const RAINIER_WINDOW = {
+  startMs: Date.parse('2026-09-15T12:00:00Z'),
+  endMs: Date.parse('2026-09-15T12:01:00Z'),
+}
+
+function rainierPayload(freeze: (number | null)[], unit: string | null) {
+  return {
+    hourly: {
+      time: ['2026-09-15T12:00'],
+      precipitation: [0.0],
+      temperature_2m: [3.3],
+      wind_speed_10m: [10.0],
+      freezing_level_height: freeze,
+    },
+    ...(unit === null ? {} : { hourly_units: { freezing_level_height: unit } }),
+  }
+}
+
+function rainierMetrics(freeze: (number | null)[], unit: string | null) {
+  return weatherMetrics(
+    rainierPayload(freeze, unit) as never,
+    RAINIER_WINDOW.startMs,
+    RAINIER_WINDOW.endMs,
+  )
+}
+
+describe('freezing level unit', () => {
+  it('reads the unit the response declares', () => {
+    const meters = rainierMetrics([2560.0], 'm')
+    const feet = rainierMetrics([8398.95], 'ft')
+    expect(meters?.freeze_min_ft).toBe(8399)
+    expect(feet?.freeze_min_ft).toBe(8399)
+    expect(feet).toEqual(meters)
+  })
+
+  it('does not convert a response already in feet', () => {
+    // Dividing feet by 0.3048 reads 27,556 ft over a 14,409 ft summit, which
+    // looks like a forecast rather than a fault.
+    expect(rainierMetrics([8398.95], 'ft')?.freeze_max_ft).toBe(8399)
+  })
+
+  it('reads the unit in the series too', () => {
+    const series = (freeze: (number | null)[], unit: string | null) =>
+      weatherSeries(
+        rainierPayload(freeze, unit) as never,
+        RAINIER_WINDOW.startMs,
+        RAINIER_WINDOW.endMs,
+      )
+    expect(series([2560.0], 'm')?.freeze_ft).toEqual([8399])
+    expect(series([8398.95], 'ft')?.freeze_ft).toEqual([8399])
+  })
+
+  it('fails instead of guessing at an unknown unit', () => {
+    expect(() => rainierMetrics([2560.0], 'furlongs')).toThrow(OpenMeteoUnreachable)
+    expect(() =>
+      weatherSeries(
+        rainierPayload([2560.0], 'furlongs') as never,
+        RAINIER_WINDOW.startMs,
+        RAINIER_WINDOW.endMs,
+      ),
+    ).toThrow(OpenMeteoUnreachable)
+  })
+
+  it('fails when the column carries numbers and no unit', () => {
+    expect(() => rainierMetrics([2560.0], null)).toThrow(OpenMeteoUnreachable)
+  })
+
+  it('needs no unit when the column is all null', () => {
+    // The five models that publish no freezing level: no unit is needed and
+    // none is missing.
+    const m = rainierMetrics([null], null)
+    expect(m?.freeze_min_ft).toBeNull()
+    expect(m?.temp_min_f).toBe(3.3)
+  })
+})
+
 // ── Fetch orchestration ────────────────────────────────────────────────────
 
 const WINDOW = {
@@ -158,7 +242,7 @@ describe('fetchWeather', () => {
     expect(again[0]?.precip_total_in).toBe(0.3)
   })
 
-  it('requests the five level winds alongside the surface variables', async () => {
+  it('requests the level winds and the freezing level alongside the surface variables', async () => {
     const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
     vi.stubGlobal('fetch', fetchSpy)
     await fetchWeather(
@@ -174,12 +258,31 @@ describe('fetchWeather', () => {
       'wind_speed_700hPa',
       'wind_speed_600hPa',
       'wind_speed_500hPa',
+      'freezing_level_height',
     ]) {
       expect(hourly).toContain(name)
     }
-    // Nine variables stay at weight factor 1: max(1, vars x models/10)
+    // Ten variables stay at weight factor 1: max(1, vars x models/10)
     // with one model.
-    expect(hourly).toHaveLength(9)
+    expect(hourly).toHaveLength(10)
+  })
+
+  it('fails the fetch when the freezing level unit is unreadable', async () => {
+    // The throw has to clear both aggregation functions' degrade-to-null
+    // handlers, or an unreadable unit would quietly drop every row in the
+    // batch instead of saying anything.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(rainierPayload([2560.0], 'furlongs'))),
+    )
+    await expect(
+      fetchWeather(
+        [{ latitude: 46.85, longitude: -121.76 }],
+        RAINIER_WINDOW.startMs,
+        RAINIER_WINDOW.endMs,
+        { model: MODEL },
+      ),
+    ).rejects.toThrow(OpenMeteoUnreachable)
   })
 
   it('asks only for the hours the window needs (#212)', async () => {
@@ -853,6 +956,31 @@ describe('a window that crosses the archive boundary', () => {
     const out = await fetchWeather(coords, SPANNING.startMs, SPANNING.endMs, OPTS)
 
     expect(out[0]?.precip_total_in).toBe(1.5)
+  })
+
+  it('reads the freezing level in the served unit', async () => {
+    // The archive answers the freezing level null under "undefined" (measured
+    // 2026-09-13); the forecast half answers feet. The joined payload must
+    // declare the served unit, or the reader refuses the forecast half's
+    // numbers and the row has no weather at all.
+    const archive = archiveHalf()
+    const forecast = forecastHalf()
+    const bodies = [
+      {
+        hourly_units: { precipitation: 'inch', freezing_level_height: 'undefined' },
+        hourly: { ...archive.hourly, freezing_level_height: [null, null] },
+      },
+      {
+        hourly_units: { precipitation: 'inch', freezing_level_height: 'ft' },
+        hourly: { ...forecast.hourly, freezing_level_height: [8000, 9000] },
+      },
+    ]
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(bodies.shift())))
+    const out = await fetchWeather(coords, SPANNING.startMs, SPANNING.endMs, OPTS)
+
+    expect(out[0]?.precip_total_in).toBe(1.5)
+    expect(out[0]?.freeze_min_ft).toBe(8000)
+    expect(out[0]?.freeze_max_ft).toBe(9000)
   })
 
   it('counts a repeated hour once', async () => {

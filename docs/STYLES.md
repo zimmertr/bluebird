@@ -169,7 +169,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | Every focus-able control has focus ring | `styles.test.ts` | List per control type |
 | Segmented controls are built one way | `styles.test.ts` | Check `SEGMENT` / `SEGMENT_IDLE` / `SEGMENT_ITEM` composition |
 | Metric names are centralized | `metrics.test.ts` | Ban Precip/Temp/Avg/Min/Max/Elev abbreviations in nine files |
-| No `title=` attributes on JSX elements | `styles.test.ts` | Regex pattern on component sources |
+| Tooltips match the approved list, count for count | `styles.test.ts` | `title=` occurrences per component file |
 | No unsafe error message patterns | `styles.test.ts` & `metrics.test.ts` | Ban `failed: ${...}` and unsafe response copies |
 
 **NOT enforced:** custom radius, custom spacing between components (only recessed surface and controls are architected), component-specific layouts. These are decided per feature.
@@ -260,6 +260,15 @@ The ones in the tree today, each approved on its own:
   archive window, and the Forecast grid row over a report carrying archive hours
   (#123). A disabled control says that it cannot be used and never why, and
   neither reason can be read off the panel.
+- The freezing-level cell's *"Freezing level is only available from the GFS
+  Seamless, HRRR and ICON models."* answers a question only that cell raises:
+  it reads `N/A` rather than a number, and without the note the reader cannot
+  tell a model that does not carry the variable from an app that failed to
+  fetch it. It is the same `N/A`-plus-`title` idiom the Wildfire (mi) column
+  uses for a row it could not check, so the table has one spelling of "no
+  answer here, and here is why" (TJ, 2026-09-12, asked for with the metric
+  itself in #295). What keeps the touch cost bounded is that the mark itself
+  is honest without the note, and `docs/DATA.md` carries the full explanation.
 - The Hourly segment, the smoke legend's density chips, and the table's
   **Wildfire (mi)** cell, each documented where it is used.
 

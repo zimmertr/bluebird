@@ -205,6 +205,18 @@
             "description": "Drop candidates above this elevation.",
             "title": "Max Elevation Ft"
           },
+          "max_freeze_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop rows whose `freeze_max_ft` is above this, i.e. keep only destinations whose freezing level never rose above it during the window. A row with a null `freeze_max_ft` passes either bound: only some forecast models publish a freezing level at all, so a missing number says which model answered rather than what the weather did, and dropping those rows would empty the whole result under every other model.",
+            "title": "Max Freeze Ft"
+          },
           "max_precip_total_in": {
             "anyOf": [
               {
@@ -267,6 +279,18 @@
             ],
             "description": "Drop candidates below this elevation. Candidates with an unknown elevation always pass through rather than being silently dropped.",
             "title": "Min Elevation Ft"
+          },
+          "min_freeze_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop rows whose `freeze_min_ft` is below this, i.e. keep only destinations whose freezing level never fell below it during the window. Not bounded below: a freezing level of 0 is a reading, not a gap.",
+            "title": "Min Freeze Ft"
           },
           "min_precip_total_in": {
             "anyOf": [
@@ -620,6 +644,42 @@
             ],
             "description": "Elevation in feet, when known.",
             "title": "Elevation Ft"
+          },
+          "freeze_avg_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean freezing level across the window. Null under the same terms.",
+            "title": "Freeze Avg Ft"
+          },
+          "freeze_max_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Highest freezing level in the window. Null under the same terms.",
+            "title": "Freeze Max Ft"
+          },
+          "freeze_min_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Lowest freezing level in the window, feet above sea level. Read against `elevation_ft`: below the destination, the whole destination was below freezing at that hour. Zero means the freezing level reached sea level, not that there is no value. Null for every hour of a forecast model that does not publish the variable, which is five of the eight; an absent freezing level never affects the other figures on this row.",
+            "title": "Freeze Min Ft"
           },
           "latitude": {
             "description": "Latitude in decimal degrees.",
@@ -1095,6 +1155,21 @@
             "title": "Aqi",
             "type": "array"
           },
+          "freeze_ft": {
+            "description": "Freezing level, feet above sea level. Null at every hour for the models that do not publish the variable; see `freeze_avg_ft` on the result.",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Freeze Ft",
+            "type": "array"
+          },
           "precip_in": {
             "description": "Precipitation, inches.",
             "items": {
@@ -1145,6 +1220,7 @@
           "precip_in",
           "temp_f",
           "wind_mph",
+          "freeze_ft",
           "aqi"
         ],
         "title": "HourlySeries",
@@ -1378,6 +1454,9 @@
           "temp_min_f",
           "temp_avg_f",
           "temp_max_f",
+          "freeze_min_ft",
+          "freeze_avg_ft",
+          "freeze_max_ft",
           "aqi_avg",
           "aqi_min",
           "aqi_max"

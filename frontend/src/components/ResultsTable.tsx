@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { DestinationResult, SortBy } from '../types'
-import { cellStyle, scaleFor, METRIC_CONFIG } from '../utils/colors'
-import { familyOf } from '../metrics'
+import { cellStyle, scaleFor } from '../utils/colors'
+import { FAMILY_KEYS, familyOf } from '../metrics'
 import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
 import { SortDir, SortKey, WILDFIRE_KEY, displayedColumns, ColDef } from '../utils/tableColumns'
 import { autoFitWidth, dragWidth } from '../utils/columnResize'
@@ -16,6 +16,7 @@ import {
   fireWarningText,
 } from '../utils/fireProximity'
 import type { FireProximityStatus } from '../hooks/useFireProximity'
+import { FREEZE_UNAVAILABLE_NOTE, freezeCellText, isFreezeKey } from '../utils/freezingLevel'
 import { destinationUrl } from '../utils/destinationUrl'
 import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
@@ -165,7 +166,7 @@ export default function ResultsTable({
   columnWidths,
   onColumnWidthsChange,
 }: Props) {
-  const coloredGroup = new Set(METRIC_CONFIG[familyOf(sortBy)].group)
+  const coloredGroup = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])
   // The ranked metric's columns lead the table (right after #/Name/Elevation), so
   // the numbers the ranking was built from are the first thing read. Keyed on
   // the analyzed snapshot, like the cell colors — panel knob changes don't
@@ -400,6 +401,27 @@ export default function ResultsTable({
         )
       }
       const raw = row[col.key]
+      // The freezing level is the one metric a model can decline to publish,
+      // and five of the eight do. An empty cell there is not a gap in the
+      // weather, so it wears the wildfire column's N/A idiom — the mark plus
+      // hover text saying why — rather than the dash a missing AQI hour gets.
+      const freezeNote = isFreezeKey(col.key as string) ? freezeCellText(raw) : null
+      if (freezeNote !== null) {
+        return (
+          <td key={col.key} className={`${TABLE.cell} whitespace-nowrap font-mono`}>
+            {sized(
+              col.key as string,
+              <span
+                title={FREEZE_UNAVAILABLE_NOTE}
+                aria-label={FREEZE_UNAVAILABLE_NOTE}
+                className="cursor-help"
+              >
+                {freezeNote}
+              </span>,
+            )}
+          </td>
+        )
+      }
       const display = col.format ? col.format(raw) : String(raw ?? '—')
       // Each colored cell scores the number printed in it, against the scale
       // its own column is measured on. It used to score the *ranked* value

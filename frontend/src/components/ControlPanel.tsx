@@ -664,15 +664,16 @@ export default function ControlPanel({
   //
   // The columns are headed with the two aggregate names from `metrics.ts`,
   // because for most of this grid that is literally what they are: the
-  // elevation, wind and temperature rows bound each row's own extremes, so a
-  // ceiling of 20 on the wind row holds the table's gustiest-hour column at or
-  // below 20. Two cells stretch that reading, deliberately. Precipitation is
-  // bounded on the window TOTAL in both columns, because a per-hour floor
-  // would be 0.000 almost everywhere and the noun already means the total in
-  // the Ranking section above. And the air-quality floor reads the worst hour
-  // too, there being no other aggregate to read. The cells anyone actually
-  // reaches for — a temperature band, a wind ceiling, an air-quality ceiling —
-  // land exactly on the column they name.
+  // elevation, wind, temperature and freezing-level rows bound each row's own
+  // extremes, so a ceiling of 20 on the wind row holds the table's
+  // gustiest-hour column at or below 20. Two cells stretch that reading,
+  // deliberately. Precipitation is bounded on the window TOTAL in both
+  // columns, because a per-hour floor would be 0.000 almost everywhere and the
+  // noun already means the total in the Ranking section above. And the
+  // air-quality floor reads the worst hour too, there being no other aggregate
+  // to read. The cells anyone actually reaches for — a temperature band, a
+  // wind ceiling, an air-quality ceiling — land exactly on the column they
+  // name.
   //
   // Labels stay bare for the same reason. An aggregate in the label would
   // collide with the column headings rather than clarify them, and it wrapped
@@ -737,6 +738,14 @@ export default function ControlPanel({
       step: 1,
       lower: bound('minTempF'),
       upper: bound('maxTempF'),
+    },
+    {
+      id: 'freezing-level',
+      hint: ['The lowest hour must be at least this.', 'The highest hour must be at most this.'] as const,
+      label: metricLabel('freeze'),
+      step: 100,
+      lower: bound('minFreezeFt'),
+      upper: bound('maxFreezeFt'),
     },
     {
       id: 'air-quality',
@@ -1163,9 +1172,8 @@ export default function ControlPanel({
 
         {/* Filters — one grid, two columns of bounds, one row per thing that
             can be bounded, in the same order as the Ranking section above so
-            the two scan alike. data-filter-section is the anchor the results
-            bar's Filters chip scrolls to. */}
-        <section data-filter-section>
+            the two scan alike. */}
+        <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
             Filters
           </h2>

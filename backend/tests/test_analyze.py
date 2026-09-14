@@ -75,6 +75,8 @@ def _result(
     wind_min=0.0,
     wind_max=0.0,
     wind_avg=0.0,
+    freeze_min=None,
+    freeze_max=None,
 ):
     return DestinationResult(
         name=name, type="peak", latitude=1.0, longitude=2.0,
@@ -82,6 +84,8 @@ def _result(
         precip_max_in_hr=0.0,
         temp_min_f=temp_min, temp_max_f=temp_max, temp_avg_f=temp_avg,
         wind_min_mph=wind_min, wind_max_mph=wind_max, wind_avg_mph=wind_avg,
+        freeze_min_ft=freeze_min, freeze_max_ft=freeze_max,
+        freeze_avg_ft=freeze_min,
         aqi_avg=aqi, aqi_min=aqi, aqi_max=aqi,
     )
 
@@ -182,6 +186,33 @@ def test_filter_constraints_wind_ceiling_reads_the_gustiest_hour():
     ]
     kept = _filter_constraints(rows, _bounded(max_wind_mph=20.0))
     assert [r.name for r in kept] == ["calm"]
+
+
+def test_filter_constraints_freeze_bounds_read_the_window_low_and_high():
+    # The one family where neither end is the bad one: the floor asks that the
+    # level never dropped below the value, the ceiling that it never rose
+    # above it.
+    rows = [
+        _result("high", freeze_min=9000.0, freeze_max=11000.0),
+        _result("low", freeze_min=2000.0, freeze_max=4000.0),
+    ]
+    assert [r.name for r in _filter_constraints(rows, _bounded(min_freeze_ft=8000))] == ["high"]
+    assert [r.name for r in _filter_constraints(rows, _bounded(max_freeze_ft=5000))] == ["low"]
+
+
+def test_filter_constraints_null_freeze_passes_either_bound():
+    # Only some models publish a freezing level at all. A missing number says
+    # which model answered, not what the weather did, so dropping these rows
+    # would empty the whole result under every other model.
+    rows = [
+        _result("unknown"),
+        _result("low", freeze_min=2000.0, freeze_max=4000.0),
+    ]
+    assert [r.name for r in _filter_constraints(rows, _bounded(min_freeze_ft=8000))] == ["unknown"]
+    assert [r.name for r in _filter_constraints(rows, _bounded(max_freeze_ft=5000))] == [
+        "unknown",
+        "low",
+    ]
 
 
 def test_filter_constraints_aqi_bounds_compare_the_worst_hour():
@@ -849,9 +880,12 @@ def _dest(name, lat):
     return {"name": name, "latitude": lat, "longitude": 0.0, "elevation_ft": None, "osm_id": None}
 
 
-def _wx_series(precip_total, times, precip, temp, wind):
+def _wx_series(precip_total, times, precip, temp, wind, freeze=None):
     return {**_wx(precip_total), "series": {
         "times": times, "precip_in": precip, "temp_f": temp, "wind_mph": wind,
+        # All-null by default, which is what the models that do not publish
+        # the freezing level return — the series carries the key either way.
+        "freeze_ft": freeze if freeze is not None else [None] * len(times),
     }}
 
 
@@ -859,7 +893,7 @@ def test_assemble_bakes_series_and_shares_the_time_grid():
     times = [1000, 2000]
     dests = [_dest("a", 1.0), _dest("b", 2.0)]
     wx_list = [
-        _wx_series(0.1, times, [0.1, None], [50.0, 51.0], [5.0, 6.0]),
+        _wx_series(0.1, times, [0.1, None], [50.0, 51.0], [5.0, 6.0], [9000.0, None]),
         _wx_series(0.2, times, [0.2, 0.3], [40.0, 41.0], [7.0, 8.0]),
     ]
     aqi_list = [
@@ -873,6 +907,11 @@ def test_assemble_bakes_series_and_shares_the_time_grid():
     assert a.series.precip_in == [0.1, None]  # per-metric nulls survive as gaps
     assert a.series.temp_f == [50.0, 51.0]
     assert a.series.aqi == [40, None]         # AQI present at 1000, null past horizon
+    assert a.series.freeze_ft == [9000.0, None]
+    # The second row's model published no freezing level, which nulls that
+    # series alone and nothing else on the row.
+    assert results[1].series.freeze_ft == [None, None]
+    assert results[1].series.temp_f == [40.0, 41.0]
     assert a.aqi_avg == 40                    # aggregates still flow through
     # Second row had no AQI → all-null AQI series, but the row still has a series.
     assert results[1].series.aqi == [None, None]

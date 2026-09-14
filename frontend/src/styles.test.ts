@@ -280,9 +280,12 @@ describe('every component', () => {
     // tooltips carry the same sentence in a hidden twin `aria-describedby`
     // names, because a tooltip does not exist on touch or to a screen reader.
     './components/ModelPicker.tsx': 1,
-    // The Wildfire (mi) cell's one `title`: the fire's name on a warned row,
-    // or which of its two causes an N/A carries (TJ, PR #275 review).
-    './components/ResultsTable.tsx': 1,
+    // Two cells carry one each. The Wildfire (mi) cell: the fire's name on a
+    // warned row, or which of its two causes an N/A carries (TJ, PR #275
+    // review). And the freezing-level cell: why it reads N/A, which is the
+    // forecast model rather than the weather (TJ, 2026-09-12, asked for with
+    // the metric itself in #295).
+    './components/ResultsTable.tsx': 2,
   }
 
   it.each(Object.entries(sources))('%s carries only its approved tooltips', (path, source) => {

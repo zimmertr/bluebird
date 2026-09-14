@@ -96,7 +96,7 @@ const DISCOVERY_TYPES: DiscoveryType[] = ['peak', 'trailhead', 'lake']
 // ranking it named.
 
 // The forecast bounds' query params, spelled out rather than abbreviated the
-// way `minel`/`maxel` were: eight terse keys would be eight guesses in the
+// way `minel`/`maxel` were: ten terse keys would be ten guesses in the
 // address bar, and readability is what the URL convention buys (#210). The
 // param name reads as the control's label, not as the result field it compares
 // — `maxaqi` is the AQI ceiling, and which aggregate it reads is the app's
@@ -108,6 +108,8 @@ const CONSTRAINT_PARAMS = [
   ['maxtemp', 'maxTempF'],
   ['minwind', 'minWindMph'],
   ['maxwind', 'maxWindMph'],
+  ['minfreeze', 'minFreezeFt'],
+  ['maxfreeze', 'maxFreezeFt'],
   ['minaqi', 'minAqi'],
   ['maxaqi', 'maxAqi'],
 ] as const satisfies readonly (readonly [string, keyof Constraints])[]
