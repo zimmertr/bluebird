@@ -2431,18 +2431,6 @@ export default function App() {
                       Removed ({removed.size})
                     </button>
                   )}
-                  {/* Active filters chip */}
-                  {(minElevationFt !== null || maxElevationFt !== null || Object.values(constraints).some(v => v !== null)) && (
-                    <button
-                      onClick={() => {
-                        setSidebarOpen(true)
-                        document.querySelector('[data-filter-section]')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-                      }}
-                      className={BUTTON_SECONDARY}
-                    >
-                      Filters
-                    </button>
-                  )}
                   {(results.length > 0 || pending.length > 0) && (
                     <button
                       onClick={handleDownloadCsv}

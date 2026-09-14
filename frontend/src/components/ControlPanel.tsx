@@ -1102,9 +1102,8 @@ export default function ControlPanel({
 
         {/* Filters — one grid, two columns of bounds, one row per thing that
             can be bounded, in the same order as the Ranking section above so
-            the two scan alike. data-filter-section is the anchor the results
-            bar's Filters chip scrolls to. */}
-        <section data-filter-section>
+            the two scan alike. */}
+        <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
             Filters
           </h2>
