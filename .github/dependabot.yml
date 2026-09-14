@@ -12,6 +12,15 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
 
+  # The OpenAPI type generator is a package apart from the app because
+  # openapi-typescript needs the TypeScript 5 compiler API and the app runs
+  # TypeScript 7. Its own manifest is what makes it visible here.
+  - package-ecosystem: npm
+    directory: /frontend/tools/api-types
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

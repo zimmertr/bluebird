@@ -1,0 +1,15 @@
+{
+  "name": "bluebird-forecast-api-types",
+  "version": "0.0.0",
+  "private": true,
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "description": "Generates frontend/src/api-schema.d.ts from backend/openapi.json. A package of its own so Dependabot can see the generator, which a version inside an npm script is invisible to. It cannot join frontend/package.json: openapi-typescript loads the TypeScript compiler API at run time and peers on ^5.x, the app runs TypeScript 7, and npm resolves one version of a peer.",
+  "scripts": {
+    "generate": "openapi-typescript ../../../backend/openapi.json -o ../../src/api-schema.d.ts --default-non-nullable false",
+    "check": "npm run generate -- --check"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5.9.3"
+  }
+}

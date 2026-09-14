@@ -45,6 +45,13 @@ cd frontend && npx tsc --noEmit
 docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine \
   sh -c "npm ci && npm test"
 
+# Frontend API types still match the committed OpenAPI snapshot
+# (`npm run generate:api` rewrites them instead of checking them).
+# Mounts the repo root, because the generator reads backend/openapi.json.
+# The script installs the generator first, so this needs no `npm ci` of its own.
+docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
+  sh -c "npm run check:api"
+
 # Backend unit tests (pytest). The whole repository is mounted, not backend/
 # alone: one test reads frontend/src to check the CSP allowlist against the
 # hosts the browser actually fetches, and it skips where it cannot see them.
@@ -58,7 +65,17 @@ pip install ruff && ruff check backend/
 Two rules worth knowing before you send a change: any behavior change ships with
 a matching test in the same PR, and any change to a route or Pydantic model
 regenerates the committed OpenAPI snapshot with
-`cd backend && python scripts/generate_openapi.py` (CI fails the PR otherwise).
+`cd backend && python scripts/generate_openapi.py`, then the frontend types read
+off it with `cd frontend && npm run generate:api` (CI fails the PR otherwise, on
+both counts).
+
+The generator is not a frontend dependency. It lives in
+`frontend/tools/api-types`, a private package with its own lockfile, and the two
+frontend scripts only delegate to it. `openapi-typescript` loads the TypeScript
+compiler API at run time and peers on TypeScript 5, the app runs TypeScript 7,
+and npm resolves one version of a peer. A package rather than a version inside a
+script also gives Dependabot something to bump. It installs on demand, so
+`npm ci` in `frontend/` stays as fast as it was.
 
 ## Testing the browser path without spending quota
 
