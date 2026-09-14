@@ -579,8 +579,11 @@ the Hub dashboard; the cron's failure email is the push-based signal.
 
 ## Dependabot auto-merge
 
-Dependabot opens weekly PRs (`pip` in `/backend`, `npm` in `/frontend`,
-`github-actions` and `docker` base images in `/`). `dependabot-auto-merge.yml` enables **squash
+Dependabot opens weekly PRs (`pip` in `/backend`, `npm` in `/frontend` and in
+`/frontend/tools/api-types`, `github-actions` and `docker` base images in `/`).
+The type generator's package ignores TypeScript **major** bumps: it is pinned to
+5 because `openapi-typescript` loads the compiler API and peers on `^5.x`, which
+is why it is a package apart from the app in the first place. `dependabot-auto-merge.yml` enables **squash
 auto-merge for patch (bugfix) bumps only** — GitHub completes the merge once
 `main`'s required checks pass; **minor and major bumps wait for manual review**.
 When it arms auto-merge it also posts a marker-guarded comment on the PR saying
