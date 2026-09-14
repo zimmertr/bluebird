@@ -1,5 +1,5 @@
 import type { ComparedModel } from '../hooks/useModelCompare'
-import { CHART_SAMPLE_STROKE, RADIUS, SPINNER, STATUS, TEXT } from '../styles'
+import { RADIUS, SPINNER, STATUS, TEXT } from '../styles'
 
 // The comparison's key, beside the chart's metric radios (#232).
 //
@@ -12,10 +12,10 @@ import { CHART_SAMPLE_STROKE, RADIUS, SPINNER, STATUS, TEXT } from '../styles'
 // chart, what each line is worth and where it stops are `utils/modelCompare.ts`'s
 // and `useModelCompare`'s.
 //
-// Each chip carries a SAMPLE of its model's line rather than a colour swatch,
-// because colour on this chart belongs to the destination — the same hue the
-// table and the map already give it. The model is the line style, so the key to
-// the model has to be a line.
+// Each chip carries a filled SWATCH in its model's colour, the same shape the
+// chart's hover box gives a destination, because colour is the whole of what a
+// line says here: a compared model's lines all wear its colour, and the ranking
+// model's wear their destinations'.
 
 interface Props {
   /** The ranking model first, then every extra on the chart. */
@@ -30,7 +30,7 @@ export default function ModelCompare({ compared }: Props) {
       {compared.map((model) => (
         <Chip
           key={model.id}
-          dash={model.dash}
+          color={model.color}
           label={model.label}
           blend={model.blend}
           state={model.status}
@@ -51,17 +51,24 @@ export default function ModelCompare({ compared }: Props) {
 }
 
 interface ChipProps {
-  dash: string
+  color: string | null
   label: string
   blend: boolean
   state: ComparedModel['status']
 }
 
-// One model in the key. Three states, told apart by the sample alone: a spinner
-// while the forecast is in flight, the model's line once its lines are drawn,
-// and a faded line when nothing was drawn — which is why the note below the key
-// says what happened rather than leaving absent lines to be read as an answer.
-function Chip({ dash, label, blend, state }: ChipProps) {
+// One model in the key. Three states, told apart by the swatch alone: a spinner
+// while the forecast is in flight, the model's colour once its lines are drawn,
+// and a faded swatch when nothing was drawn — which is why the note below the
+// key says what happened rather than leaving absent lines to be read as an
+// answer.
+//
+// The RANKING model's chip carries no swatch at all. Its lines are not one
+// colour: each wears its own destination's, the hue that destination already
+// has in the table and on the map, so a single square here would name a colour
+// no line on the chart is drawn in. The bare chip surface is the honest key for
+// "these are the lines you already know".
+function Chip({ color, label, blend, state }: ChipProps) {
   return (
     <span className={`inline-flex max-w-56 items-center bg-slate-700 ${RADIUS.control}`}>
       <span
@@ -70,27 +77,12 @@ function Chip({ dash, label, blend, state }: ChipProps) {
         {state === 'loading' ? (
           <span className={`${SPINNER} h-2.5 w-2.5 flex-shrink-0`} />
         ) : (
-          // 24px is the shortest run that shows the longest pattern in the
-          // table whole, so no two chips can differ only in where the sample
-          // happened to be cut.
-          <svg
-            width="24"
-            height="8"
-            viewBox="0 0 24 8"
-            aria-hidden="true"
-            className="flex-shrink-0"
-          >
-            <line
-              x1="0"
-              y1="4"
-              x2="24"
-              y2="4"
-              stroke={CHART_SAMPLE_STROKE}
-              strokeWidth="1.5"
-              strokeDasharray={dash === '' ? undefined : dash}
-              opacity={state === 'ready' ? 1 : 0.4}
+          color !== null && (
+            <span
+              className={`h-2.5 w-2.5 flex-shrink-0 ${RADIUS.control}`}
+              style={{ backgroundColor: color, opacity: state === 'ready' ? 1 : 0.4 }}
             />
-          </svg>
+          )
         )}
         <span className="truncate">{label}</span>
         {blend && <span className={`${TEXT.overline} flex-shrink-0`}>Blend</span>}

@@ -2,12 +2,10 @@ import { describe, it, expect } from 'vitest'
 import type { ForecastModelOption } from '../hooks/useCapabilities'
 import { normalizeWindow } from './forecastWindow'
 import { callWeight } from './openMeteo'
-import { CHART_DASHES } from '../styles'
 import {
   CompareDestination,
   CompareModel,
   compareAdded,
-  compareDashes,
   compareEndMs,
   compareSeries,
   isBlend,
@@ -153,44 +151,6 @@ describe('compareAdded', () => {
   })
 })
 
-describe('compareDashes', () => {
-  it('gives each model on the chart its own line style', () => {
-    const dashes = compareDashes(['gfs_seamless', 'gfs_hrrr', 'ecmwf_ifs025'])
-    expect(new Set(Object.values(dashes)).size).toBe(3)
-  })
-
-  // The report's own lines are the plain ones, so the model that ranked the
-  // field takes the solid entry.
-  it('draws the ranking model solid', () => {
-    expect(compareDashes(['gfs_seamless', 'gfs_hrrr']).gfs_seamless).toBe('')
-    expect(compareDashes(['gfs_seamless', 'gfs_hrrr']).gfs_hrrr).not.toBe('')
-  })
-
-  // Tick order, so a model keeps its pattern as others are ticked on and off
-  // around it.
-  it('keeps a model’s pattern when another is added after it', () => {
-    const before = compareDashes(['gfs_seamless', 'gfs_hrrr'])
-    const after = compareDashes(['gfs_seamless', 'gfs_hrrr', 'ecmwf_ifs025'])
-    expect(after.gfs_seamless).toBe(before.gfs_seamless)
-    expect(after.gfs_hrrr).toBe(before.gfs_hrrr)
-  })
-
-  // No cap, so the table has to answer for more models than it holds. Cycling
-  // repeats a pattern rather than leaving a line with none, and the hover box's
-  // label is what separates the two.
-  it('cycles the table rather than running out', () => {
-    const many = Array.from({ length: CHART_DASHES.length + 2 }, (_, i) => `m${i}`)
-    const dashes = compareDashes(many)
-    expect(Object.keys(dashes)).toHaveLength(many.length)
-    expect(dashes[`m${CHART_DASHES.length}`]).toBe(dashes.m0)
-    expect(dashes[`m${CHART_DASHES.length + 1}`]).toBe(dashes.m1)
-  })
-
-  it('is stable for the same models in the same order', () => {
-    expect(compareDashes(['a', 'b'])).toEqual(compareDashes(['a', 'b']))
-  })
-})
-
 describe('modelSeriesOnGrid', () => {
   const fetched = {
     times: [2000, 3000],
@@ -236,10 +196,12 @@ describe('compareSeries', () => {
     destination('46.2,-121.49', 3, 'Mount Adams', '#cccccc'),
   ]
 
+  // The ranking model leads and carries no colour of its own: its lines wear
+  // their destinations'. Every other model carries one colour for all of them.
   const ON_CHART: CompareModel[] = [
-    { id: 'gfs_seamless', label: 'NOAA GFS', dash: '' },
-    { id: 'gfs_hrrr', label: 'NOAA HRRR', dash: '6 4' },
-    { id: 'ecmwf_ifs025', label: 'ECMWF IFS', dash: '1 4' },
+    { id: 'gfs_seamless', label: 'NOAA GFS', color: null },
+    { id: 'gfs_hrrr', label: 'NOAA HRRR', color: '#111111' },
+    { id: 'ecmwf_ifs025', label: 'ECMWF IFS', color: '#222222' },
   ]
 
   function series(values: number[]) {
@@ -277,34 +239,34 @@ describe('compareSeries', () => {
     expect(lines.map((l) => l.label)).toContain('3. Mount Adams (NOAA HRRR)')
   })
 
-  // Two facts, two channels. Colour is the destination's — the hue it already
-  // wears in the table and on the map — so the three lines of one destination
-  // share a colour whichever model drew them.
-  it('colours a line by its destination', () => {
+  // The ranking model's lines are the ones the chart always drew, so each
+  // wears its own destination's colour and three destinations read as three.
+  it('colours the ranking model’s lines by destination', () => {
     const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null)
     for (const d of DESTINATIONS) {
-      const mine = lines.filter((l) => l.label.includes(d.name))
-      expect(mine).toHaveLength(3)
-      for (const line of mine) expect(line.color).toBe(d.color)
+      const mine = lines.filter((l) => l.label === `${d.rank}. ${d.name} (NOAA GFS)`)
+      expect(mine).toHaveLength(1)
+      expect(mine[0].color).toBe(d.color)
     }
   })
 
-  // And the line style is the model's, so the three lines of one model share a
-  // pattern whichever destination they are.
-  it('styles a line by its model', () => {
+  // A compared model's lines are read as that model, so all three wear its one
+  // colour whichever destination they are. The label is what names the
+  // destination there.
+  it('colours a compared model’s lines by model', () => {
     const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null)
-    for (const m of ON_CHART) {
+    for (const m of ON_CHART.filter((m) => m.color !== null)) {
       const mine = lines.filter((l) => l.label.endsWith(`(${m.label})`))
       expect(mine).toHaveLength(3)
-      for (const line of mine) expect(line.dash).toBe(m.dash)
+      for (const line of mine) expect(line.color).toBe(m.color)
     }
   })
 
-  // The ranking model leads the list, and its entry is the solid one, so the
-  // lines the report was built from read as the plain ones.
-  it('leaves the ranking model’s lines solid', () => {
+  // Every line is solid now: colour is the only channel, so nothing here may
+  // grow a second one back.
+  it('gives no line a style of its own', () => {
     const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null)
-    expect(lines.slice(0, 3).every((l) => l.dash === '')).toBe(true)
+    for (const line of lines) expect('dash' in line).toBe(false)
   })
 
   // The chips read ranking model first, and the lines leave in that order so
@@ -324,7 +286,7 @@ describe('compareSeries', () => {
     const many: CompareModel[] = MODELS.map((m, i) => ({
       id: m.id,
       label: m.label,
-      dash: CHART_DASHES[i],
+      color: i === 0 ? null : `#${i}${i}${i}${i}${i}${i}`,
     }))
     const held: Record<string, ReturnType<typeof series>> = {}
     for (const model of many) {

@@ -11,7 +11,6 @@
 
 import { HourlySeries } from '../types'
 import type { ForecastModelOption } from '../hooks/useCapabilities'
-import { CHART_DASHES } from '../styles'
 import { ChartLine, comparedLineLabel, cutSeriesAfter, gridRemapper } from './chartData'
 import type { WeatherSeries } from './openMeteo'
 
@@ -77,31 +76,6 @@ export function compareAdded(
 }
 
 /**
- * A line style per model on the chart, the ranking model first.
- *
- * Colour is the DESTINATION's and stays the destination's — it is the same hue
- * the map marker and the table's checkbox wear, and the one the chart uses with
- * no comparison up — so the model rides the other channel. The ranking model
- * takes `CHART_DASHES[0]`, which is solid, so the lines the report was built
- * from read as the plain ones.
- *
- * The published order, which is the order the picker's chips read in, so one
- * set of models always draws the same patterns whoever assembled it and in
- * whatever order. The cost is that selecting a model ahead of another moves
- * the patterns after it; the gain is that a shared link cannot draw a chart
- * its sender never saw. Past the table's length it cycles rather than running
- * out, which repeats a pattern already on the chart; the hover box's label is
- * what separates those lines.
- */
-export function compareDashes(ids: readonly string[]): Record<string, string> {
-  const out: Record<string, string> = {}
-  ids.forEach((id, i) => {
-    out[id] = CHART_DASHES[i % CHART_DASHES.length]
-  })
-  return out
-}
-
-/**
  * The identity of one (model, destination) pair — how a fetched forecast is
  * filed and found again.
  *
@@ -126,12 +100,16 @@ export interface CompareDestination {
   color: string
 }
 
-/** One model on the chart, with the line style its lines take. */
+/** One model on the chart, with the colour its lines take. */
 export interface CompareModel {
   id: string
   label: string
-  /** An SVG `strokeDasharray`; empty is solid. See `CHART_DASHES`. */
-  dash: string
+  /**
+   * One colour for this model across every destination it is drawn for, or
+   * null for the RANKING model, whose lines wear their destinations' colours
+   * the way the chart draws them with no comparison up. See `modelColor`.
+   */
+  color: string | null
 }
 
 /**
@@ -169,12 +147,14 @@ export function modelSeriesOnGrid(
  * Every line a comparison draws: one per (destination, model) pair.
  *
  * Models outer and destinations inner, so the lines leave in the order the
- * chips read and the ranking model's lines lead. Each line is its
- * DESTINATION's colour and its MODEL's line style, which is the whole of how
- * the chart says two things at once. A pair with no series draws
- * nothing rather than a flat zero — a model Open-Meteo has no data for at that
- * spot must not look like a forecast of calm — and the chip's own state is what
- * says so.
+ * chips read and the ranking model's lines lead. Colour says which of the two
+ * facts a line is read by: the RANKING model's lines wear their destinations'
+ * colours, as they do with no comparison up, and a COMPARED model's lines all
+ * wear that model's one colour. Either way the label names rank, destination
+ * and model, so the fact the colour does not carry is one read away. A pair
+ * with no series draws nothing rather than a flat zero — a model Open-Meteo
+ * has no data for at that spot must not look like a forecast of calm — and the
+ * chip's own state is what says so.
  *
  * `series` is keyed by `pairKey`, which is what lets the ranking model ride
  * this same product: its numbers are already held per destination, so the
@@ -198,8 +178,7 @@ export function compareSeries(
         // which is a bare coordinate pair.
         key: `model:${pairKey(model.id, destination.key)}`,
         label: comparedLineLabel(destination.rank, destination.name, model.label),
-        color: destination.color,
-        dash: model.dash,
+        color: model.color ?? destination.color,
         series: cutSeriesAfter(times, held, endMs),
       })
     }

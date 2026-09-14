@@ -6,12 +6,12 @@ import { normalizeWindow } from '../utils/forecastWindow'
 import {
   CompareDestination,
   CompareModel,
-  compareDashes,
   compareEndMs,
   compareSeries,
   modelSeriesOnGrid,
   pairKey,
 } from '../utils/modelCompare'
+import { modelColor } from '../utils/chartColors'
 import { OpenMeteoModelCoverage, fetchWeather } from '../utils/openMeteo'
 import type { WeatherSeries } from '../utils/openMeteo'
 
@@ -54,8 +54,12 @@ export interface ComparedModel {
   label: string
   /** A `*_seamless` product, which changes model partway along its own line. */
   blend: boolean
-  /** The line style its lines draw in; empty is solid. See `CHART_DASHES`. */
-  dash: string
+  /**
+   * The one colour its lines draw in, or null for the ranking model, whose
+   * lines wear their destinations' colours. Null is also what the chip reads
+   * to draw no swatch.
+   */
+  color: string | null
   status: CompareStatus
   /** Why nothing is drawn, when there is something to say. */
   note: string | null
@@ -262,14 +266,18 @@ export function useModelCompare({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, analysisSeq, drawnKey, destinationsKey, window_])
 
-  // The model is the LINE STYLE, ranking model first and therefore solid — see
-  // `compareDashes`. Colour stays the destination's, which is the hue it
-  // already wears in the table and on the map, so the two facts a compared
-  // chart carries never share a channel.
-  const dashes = useMemo(
-    () => compareDashes(rankingModel ? [rankingModel, ...drawnIds] : drawnIds),
-    [drawnIds, rankingModel],
-  )
+  // One colour per COMPARED model, taken from the ramp past whatever the
+  // destinations on screen are wearing, so no line can be read as the wrong
+  // fact. The ranking model takes none: its lines keep their destinations'
+  // colours, which is how the chart draws with no comparison up.
+  const colors = useMemo(() => {
+    const destinationColors = destinations.map((d) => d.color)
+    const out: Record<string, string> = {}
+    drawnIds.forEach((id, i) => {
+      out[id] = modelColor(destinationColors, i)
+    })
+    return out
+  }, [destinations, drawnIds])
 
   // The chips: the ranking model first, then every extra on the chart. The
   // ranking model is always ready — its numbers are the report — so only the
@@ -282,7 +290,7 @@ export function useModelCompare({
         id,
         label: model?.label ?? id,
         blend: model?.blend === true,
-        dash: dashes[id],
+        color: id === rankingModel ? null : (colors[id] ?? null),
         status,
         note,
       }
@@ -295,7 +303,7 @@ export function useModelCompare({
         return chip(id, waiting ? 'loading' : drew ? 'ready' : 'absent', fetched.notes[id] ?? null)
       }),
     ]
-  }, [active, dashes, destinations, drawnIds, fetched, models, rankingModel])
+  }, [active, colors, destinations, drawnIds, fetched, models, rankingModel])
 
   /**
    * Where every line on the chart stops — the ranking model's lines included,
@@ -335,7 +343,7 @@ export function useModelCompare({
     const onChart: CompareModel[] = compared.map((m) => ({
       id: m.id,
       label: m.label,
-      dash: m.dash,
+      color: m.color,
     }))
     return compareSeries(destinations, onChart, series, times, endMs)
   }, [

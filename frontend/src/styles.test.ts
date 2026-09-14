@@ -10,8 +10,6 @@ import {
   BUTTON_FLOATING,
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
-  CHART_DASHES,
-  CHART_SAMPLE_STROKE,
   CHIP,
   CHOICE_INPUT,
   CHOICE_ROW,
@@ -967,45 +965,6 @@ describe('every role', () => {
 
   it('found the roles', () => {
     expect(recipes.length).toBeGreaterThan(30)
-  })
-})
-
-describe('the chart’s line styles', () => {
-  // Two facts on one chart (#232): which destination a line is, and which model
-  // drew it. Colour is the destination's everywhere else on screen — the
-  // marker, the table's checkbox, the chart with no comparison — so the model
-  // is the dash, and a repeated pattern would be a model with no way to be
-  // told from another.
-  it('gives no two models the same pattern', () => {
-    expect(new Set(CHART_DASHES).size).toBe(CHART_DASHES.length)
-  })
-
-  // The ranking model takes the first entry, so the lines the report was built
-  // from read as the plain ones.
-  it('leads with solid', () => {
-    expect(CHART_DASHES[0]).toBe('')
-    for (const dash of CHART_DASHES.slice(1)) expect(dash).not.toBe('')
-  })
-
-  // Every model /api/capabilities publishes today gets a pattern of its own.
-  // Past that the assignment cycles rather than running out, which is a
-  // deliberate repeat rather than an empty line — see compareDashes.
-  it('holds a pattern for every published model', () => {
-    expect(CHART_DASHES.length).toBeGreaterThanOrEqual(8)
-  })
-
-  // Real SVG dash arrays, since they are handed straight to a stroke: anything
-  // else renders as solid with no error anywhere.
-  it('spells every pattern as an SVG dash array', () => {
-    for (const dash of CHART_DASHES.slice(1)) {
-      expect(dash).toMatch(/^\d+(?: \d+)+$/)
-    }
-  })
-
-  // The sample in a chip keys the MODEL, so it may not wear any destination's
-  // hue. Slate is the surface family, which is what makes it the neutral one.
-  it('draws a line sample in a neutral stroke', () => {
-    expect(CHART_SAMPLE_STROKE).toMatch(/^#[0-9a-f]{6}$/)
   })
 })
 

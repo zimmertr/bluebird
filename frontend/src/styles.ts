@@ -545,52 +545,6 @@ export const SWATCH_CHIP =
   `inline-flex h-3.5 w-3.5 items-center justify-center ${RADIUS.control} border ` +
   `text-[9px] font-semibold text-slate-900`
 
-/**
- * Line styles for the chart's model comparison (#232), as SVG
- * `strokeDasharray` values.
- *
- * The chart carries two facts at once — which destination a line is, and which
- * model drew it — so each needs its own channel. Colour is the destination's,
- * everywhere it appears: the map marker, the table's checkbox, the chart with
- * no comparison up. That leaves the line style for the model, which is what
- * these are.
- *
- * Ordered by how quickly two of them can be told apart at a glance, because a
- * comparison of two or three models is the ordinary one and it should get the
- * easiest pairs. Solid leads and is always the analysis model's, so the line
- * the report is actually built from reads as the plain one. Then the two forms
- * furthest from solid and from each other, a medium dash and a dot; then the
- * length variants of each, which take a moment longer; then the composite
- * dash-dot patterns, which are the slowest to separate and are last for that
- * reason.
- *
- * Eight entries for the eight models `/api/capabilities` publishes, so every
- * model on one chart has a pattern of its own. A deployment publishing more
- * cycles back to the start rather than running out, and a cycled pattern
- * therefore repeats one already on the chart — the label in the hover box is
- * what separates those two lines.
- */
-export const CHART_DASHES = [
-  '', // solid: the model that ranked the field
-  '6 4',
-  '1 4',
-  '12 5',
-  '3 3',
-  '16 5',
-  '10 4 2 4',
-  '1 3 8 3',
-] as const
-
-/**
- * The stroke a line SAMPLE is drawn in — the chart's model-comparison chips.
- *
- * Deliberately neutral rather than the line's own colour: a sample keys the
- * MODEL, and one drawn in any destination's hue would claim to key that
- * destination too. slate-300 is the same reading weight as the chip's label
- * beside it, so the pattern and the name read as one thing.
- */
-export const CHART_SAMPLE_STROKE = '#cbd5e1'
-
 export const ICON_ACTION = `text-slate-500 ${ACCENT.hoverText}`
 
 /** A bare icon button in a header: the chart and table collapse chevrons. */

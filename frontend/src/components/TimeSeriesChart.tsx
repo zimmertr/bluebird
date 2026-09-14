@@ -56,10 +56,11 @@ interface Props {
   /**
    * Lines that are not plain destinations: one per (destination, model) pair
    * while a comparison is up (#232). They arrive ready to draw — aligned to
-   * `times`, coloured, dashed, named and already clamped — because what a
-   * comparison covers is a decision about spend rather than about drawing.
-   * Colour is still the destination's, as it is everywhere else on screen; the
-   * model is the dash.
+   * `times`, coloured, named and already clamped — because what a comparison
+   * covers is a decision about spend rather than about drawing. Every line is
+   * solid: colour is the one channel, the destination's on the ranking model's
+   * lines and the model's on every other, and `chartColors.ts` is what keeps
+   * the two sets apart.
    *
    * A comparison supplies the ranking model's lines here too, and `rows` then
    * arrives empty: every entry has to read alike, so all of them are composed
@@ -302,9 +303,6 @@ export default function TimeSeriesChart({
                         }
                       : false
                   }
-                  // Empty rather than undefined would draw nothing in some
-                  // engines, so a solid line has to carry no attribute at all.
-                  strokeDasharray={line.dash ? line.dash : undefined}
                   connectNulls={false}
                   isAnimationActive={false}
                   strokeWidth={focusedKey === key ? 2.5 : 1.5}
