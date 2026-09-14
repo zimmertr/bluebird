@@ -45,7 +45,7 @@ export interface paths {
          *     - `progress` — `processed`, `total`, and `percent` counters
          *     - `keepalive` — periodic no-op during quiet stretches (a paced analysis can wait most of a minute for quota); ignore it
          *     - `result` — the terminal success event, carrying a full `AnalyzeResponse` in `data`
-         *     - `error` — the terminal failure event, with the reason in `message`; an over-limit refusal also carries the `AnalysisRefusal` remedy fields, and an upstream rate limit carries `scope` and `retry_after_s`
+         *     - `error` — the terminal failure event, with the reason in `message` and the same machine-readable `error` object (`code`, `retryable`) the JSON routes answer with; an over-limit refusal also carries the `AnalysisRefusal` remedy fields, and an upstream rate limit carries `scope` and `retry_after_s`
          *
          *     Exactly one `result` or one `error` ends the stream.
          *
@@ -251,6 +251,8 @@ export interface components {
              * @description Plain-language refusal, shown to an end user unmodified.
              */
             detail: string;
+            /** @description The machine-readable half of the same refusal. */
+            error: components["schemas"]["ApiErrorInfo"];
             /**
              * Found
              * @description How many candidates the search actually found.
@@ -344,6 +346,14 @@ export interface components {
              */
             forecast_model?: components["schemas"]["ForecastModel"];
             /**
+             * Include Series
+             * @description Send each row's hourly `series`. The hours are the bulk of the body, by an order of magnitude on a long window, so a caller that reads only the aggregates should set this false.
+             *
+             *     Nothing else changes. The aggregates are computed from the same hours either way, `times` is still sent, and air quality is still fetched and summarized under the same best-effort terms. True by default, so an existing caller sees the shape it always saw.
+             * @default true
+             */
+            include_series?: boolean;
+            /**
              * Include Unnamed Peaks
              * @description Also discover summits OSM knows only by their height, named after it (`Peak 5961`). Off by default because it is not a small addition: measured over one 8x10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so this roughly triples the candidate count — every candidate being a weighted upstream call and a step closer to the analysis ceiling. Ignored unless `peak` is among `destination_types`.
              * @default false
@@ -365,6 +375,11 @@ export interface components {
              * @description Drop candidates above this elevation.
              */
             max_elevation_ft?: number | null;
+            /**
+             * Max Freeze Ft
+             * @description Drop rows whose `freeze_max_ft` is above this, i.e. keep only destinations whose freezing level never rose above it during the window. A row with a null `freeze_max_ft` passes either bound: only some forecast models publish a freezing level at all, so a missing number says which model answered rather than what the weather did, and dropping those rows would empty the whole result under every other model.
+             */
+            max_freeze_ft?: number | null;
             /**
              * Max Precip Total In
              * @description Drop rows whose `precip_total_in` is above this.
@@ -390,6 +405,11 @@ export interface components {
              * @description Drop candidates below this elevation. Candidates with an unknown elevation always pass through rather than being silently dropped.
              */
             min_elevation_ft?: number | null;
+            /**
+             * Min Freeze Ft
+             * @description Drop rows whose `freeze_min_ft` is below this, i.e. keep only destinations whose freezing level never fell below it during the window. Not bounded below: a freezing level of 0 is a reading, not a gap.
+             */
+            min_freeze_ft?: number | null;
             /**
              * Min Precip Total In
              * @description Drop rows whose `precip_total_in` is below this.
@@ -447,7 +467,7 @@ export interface components {
             results: components["schemas"]["DestinationResult"][];
             /**
              * Times
-             * @description Shared hourly grid for every row's `series`, as epoch milliseconds UTC. Sent once because it is identical across destinations for a given window.
+             * @description Shared hourly grid for every row's `series`, as epoch milliseconds UTC. Sent once because it is identical across destinations for a given window, and sent in both shapes: under `include_series: false` it is the only statement of which hours the aggregates reduced.
              * @default []
              */
             times?: number[];
@@ -474,6 +494,23 @@ export interface components {
             truncated?: boolean;
         };
         /**
+         * ApiErrorInfo
+         * @description The same failure as a code a program can branch on.
+         *
+         *     It rides beside `detail` rather than replacing it, because the two are
+         *     read by different audiences: the sentence by a person, the code by a
+         *     client deciding whether to retry.
+         */
+        ApiErrorInfo: {
+            /** @description Which kind of failure this is, from a closed vocabulary. Stable contract: unlike `detail`, a code is not reworded. */
+            code: components["schemas"]["ErrorCode"];
+            /**
+             * Retryable
+             * @description Whether sending the identical request again is worth trying. False means only the caller can change the outcome. On a 429 or 503 the `Retry-After` header says when.
+             */
+            retryable: boolean;
+        };
+        /**
          * CapabilitiesResponse
          * @description What this deployment can do, and the bounds it enforces.
          */
@@ -487,7 +524,7 @@ export interface components {
             data_sources: components["schemas"]["DataSource"][];
             /**
              * Destination Types
-             * @description Destination types this deployment can actually analyze. Narrower than the `DestinationType` enum, which also models types that are not yet discoverable.
+             * @description Destination types this deployment can discover, and exactly the values a request may send in `destination_types`. Narrower than the `DestinationType` enum, which also models types that are not yet discoverable, and `custom`, which names rows the caller supplies in `custom_destinations` rather than something to go and find.
              */
             destination_types: string[];
             /**
@@ -579,6 +616,21 @@ export interface components {
              */
             elevation_ft?: number | null;
             /**
+             * Freeze Avg Ft
+             * @description Mean freezing level across the window. Null under the same terms.
+             */
+            freeze_avg_ft?: number | null;
+            /**
+             * Freeze Max Ft
+             * @description Highest freezing level in the window. Null under the same terms.
+             */
+            freeze_max_ft?: number | null;
+            /**
+             * Freeze Min Ft
+             * @description Lowest freezing level in the window, feet above sea level. Read against `elevation_ft`: below the destination, the whole destination was below freezing at that hour. Zero means the freezing level reached sea level, not that there is no value. Null for every hour of a forecast model that does not publish the variable, which is five of the eight; an absent freezing level never affects the other figures on this row.
+             */
+            freeze_min_ft?: number | null;
+            /**
              * Latitude
              * @description Latitude in decimal degrees.
              */
@@ -618,7 +670,7 @@ export interface components {
              * @description Total precipitation across the window, inches.
              */
             precip_total_in: number;
-            /** @description Hourly detail behind the summary figures above, aligned to `times`. Null only when the upstream forecast carried no hours inside the window. */
+            /** @description Hourly detail behind the summary figures above, aligned to `times`. Null when the upstream forecast carried no hours inside the window, and on every row when the request set `include_series: false`. */
             series?: components["schemas"]["HourlySeries"] | null;
             /**
              * Temp Avg F
@@ -778,6 +830,12 @@ export interface components {
             type: string;
         };
         /**
+         * ErrorCode
+         * @description Why a request failed, in the caller's vocabulary rather than the implementation's.
+         * @enum {string}
+         */
+        ErrorCode: "validation" | "refusal" | "model_coverage" | "invalid_api_key" | "not_found" | "method_not_allowed" | "rate_limited" | "upstream_rate_limited" | "upstream_unavailable" | "busy" | "snapshot_unavailable" | "internal";
+        /**
          * ErrorResponse
          * @description Body of a hand-raised API error.
          *
@@ -791,6 +849,8 @@ export interface components {
              * @description Plain-language explanation of what went wrong, written to be shown to an end user unmodified.
              */
             detail: string;
+            /** @description The machine-readable half of the same failure. */
+            error: components["schemas"]["ApiErrorInfo"];
         };
         /**
          * ForecastMode
@@ -899,6 +959,11 @@ export interface components {
              */
             aqi: (number | null)[];
             /**
+             * Freeze Ft
+             * @description Freezing level, feet above sea level. Null at every hour for the models that do not publish the variable; see `freeze_avg_ft` on the result.
+             */
+            freeze_ft: (number | null)[];
+            /**
              * Precip In
              * @description Precipitation, inches.
              */
@@ -925,6 +990,11 @@ export interface components {
              */
             aqi_forecast_days: number;
             /**
+             * Archive Days
+             * @description How far back `start_datetime` may reach and still be answered with real numbers, through the archive endpoint. A deployment choice rather than a limit of the data, which runs decades deeper; the calendar in the app offers exactly this reach.
+             */
+            archive_days: number;
+            /**
              * Max Destinations
              * @description Ceiling on candidates in a single analysis, counting discovered and custom destinations together. Every candidate gets a real forecast, so this is what bounds upstream cost. Exceeding it fails loudly rather than silently truncating the ranking.
              */
@@ -941,7 +1011,7 @@ export interface components {
             max_limit: number;
             /**
              * Max Past Days
-             * @description How far back `start_datetime` may reach. The weather API serves roughly 90 days of history; this bound carries slack so a legitimate edge window is never falsely rejected.
+             * @description How far back `start_datetime` may reach. The archive endpoint serves the history past `past_data_days`; this bound is `archive_days` plus slack, so a legitimate edge window is never falsely rejected.
              */
             max_past_days: number;
             /**
@@ -956,7 +1026,7 @@ export interface components {
             min_limit: number;
             /**
              * Past Data Days
-             * @description How far back the weather API still holds data, as opposed to how far back it accepts a date. Past this, a request succeeds and returns an hourly array of nulls, so a window reaching further yields rows with no numbers rather than an error. Always well inside `max_past_days`, which is the accept bound.
+             * @description Where the forecast endpoint's own data ends, and therefore the boundary between the two weather endpoints. A window older than this is answered from the archive instead, which changes what a row can carry: the archive names no model and reports wind at 10 m rather than at the destination's elevation. A window that starts older than this and ends inside it is served by both endpoints, joined at this boundary.
              */
             past_data_days: number;
             /** @description Per-client request pacing. Unlike the bounds above, exceeding these is not a request error: the same request succeeds once `Retry-After` has elapsed. */
@@ -1080,7 +1150,7 @@ export interface components {
          * SortBy
          * @enum {string}
          */
-        SortBy: "precip_total_in" | "precip_avg_in_hr" | "precip_min_in_hr" | "precip_max_in_hr" | "wind_min_mph" | "wind_avg_mph" | "wind_max_mph" | "temp_min_f" | "temp_avg_f" | "temp_max_f" | "aqi_avg" | "aqi_min" | "aqi_max";
+        SortBy: "precip_total_in" | "precip_avg_in_hr" | "precip_min_in_hr" | "precip_max_in_hr" | "wind_min_mph" | "wind_avg_mph" | "wind_max_mph" | "temp_min_f" | "temp_avg_f" | "temp_max_f" | "freeze_min_ft" | "freeze_avg_ft" | "freeze_max_ft" | "aqi_avg" | "aqi_min" | "aqi_max";
         /** ValidationError */
         ValidationError: {
             /** Context */

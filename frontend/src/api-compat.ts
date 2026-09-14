@@ -225,7 +225,12 @@ export type CapabilitiesCarryLimitsAndModels = Assert<
 export type ParsedLimitsAreNumbers = Assert<
   Extends<
     Schema['Limits'],
-    { max_destinations: number; max_limit: number; max_polygon_area_km2: number }
+    {
+      max_destinations: number
+      max_limit: number
+      max_polygon_area_km2: number
+      archive_days: number
+    }
   >
 >
 
@@ -301,5 +306,10 @@ type Unmirrored =
   // Build identity, for humans and for the release probe. Nothing in the SPA
   // fetches it.
   | 'VersionResponse'
+  // The machine-readable half of a failure (#325): a code a client branches
+  // on and a retry hint. The SPA shows `detail`, the sentence written for a
+  // person, and never branches on the code, so nothing here mirrors it.
+  | 'ApiErrorInfo'
+  | 'ErrorCode'
 
 export type EverySchemaIsAccountedFor = Assert<Equal<keyof Schema, Mirrored | Unmirrored>>
