@@ -4,6 +4,7 @@ import {
   ChartLine,
   alignRowToGrid,
   axisTimeLabel,
+  comparedLineLabel,
   cutSeriesAfter,
   gridRemapper,
   nowWithinGrid,
@@ -460,5 +461,22 @@ describe('tooltipCapacity', () => {
       // above that the card must fit.
       if (rows > TOOLTIP_MIN_ROWS) expect(cardPx).toBeLessThanOrEqual(px)
     }
+  })
+})
+
+describe('comparedLineLabel', () => {
+  // Rank, destination, model. The #232 review's second finding was a key whose
+  // entries read differently from each other — a destination on one line, a
+  // model on the next — so this is the one spelling every entry takes.
+  it('reads rank, destination, then model', () => {
+    expect(comparedLineLabel(1, 'Mount Rainier', 'NOAA GFS')).toBe('1. Mount Rainier (NOAA GFS)')
+  })
+
+  // The ranking model's own lines take it too, which is what makes two entries
+  // for one destination comparable at a glance.
+  it('distinguishes two models at one destination', () => {
+    expect(comparedLineLabel(1, 'Mount Rainier', 'ECMWF IFS')).toBe(
+      '1. Mount Rainier (ECMWF IFS)',
+    )
   })
 })

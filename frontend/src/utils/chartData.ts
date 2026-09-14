@@ -166,13 +166,31 @@ export interface SeriesHolder {
  * draws in, and its values on the chart's grid.
  *
  * The key is the Recharts `dataKey`, so it has to be unique across everything
- * on the chart at once — destinations key by coordinate (`chartKey`), models by
- * a prefixed id, and the two namespaces cannot collide.
+ * on the chart at once — a destination keys by coordinate (`chartKey`), a
+ * (destination, model) pair by a prefixed pair id, and the two namespaces
+ * cannot collide.
  */
 export interface ChartLine extends SeriesHolder {
   key: string
   label: string
   color: string
+}
+
+/**
+ * One entry's name while a comparison is up: `1. Mount Rainier (NOAA GFS)`.
+ *
+ * Rank, destination, model, in that order, for EVERY line the chart draws —
+ * the ranking model's own included. A key that named the destination on one
+ * line and the model on the next was the #232 review's second finding: two
+ * entries a reader has to hold different things in mind to tell apart are not
+ * a comparison. The rank leads because it is what the table's first column
+ * says, so a line can be found in the ranking without reading the name twice.
+ *
+ * Composed here rather than in the hook or the chart so the tooltip, the lines
+ * and anything later cannot spell it three ways.
+ */
+export function comparedLineLabel(rank: number, name: string, modelLabel: string): string {
+  return `${rank}. ${name} (${modelLabel})`
 }
 
 export function valueAt(row: SeriesHolder, metric: ChartMetric, i: number): number | null {

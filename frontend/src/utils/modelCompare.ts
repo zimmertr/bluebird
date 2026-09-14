@@ -1,44 +1,19 @@
-// Several models' answers at ONE destination (issue #232).
+// Several models' answers over the charted destinations (issue #232).
 //
 // A drill-down rather than a knob: it changes nothing about the ranking, the
-// markers, the CSV or `present.ts`, and it exists only while exactly one
-// destination is charted — which is what frees colour to mean model instead of
-// destination, since there is only one destination left for it to mean.
+// markers, the CSV or `present.ts`. Every charted destination is drawn under
+// every picked model, so the chart holds one line per pair.
 //
-// Everything here is pure, so it is testable under the node-env Vitest. The
-// fetching lives in hooks/useModelCompare.ts and the drawing in the chart.
+// Which models are picked is panel state, held beside the ranking model in the
+// model picker and carried in the link. Everything here is pure, so it is
+// testable under the node-env Vitest. The fetching lives in
+// hooks/useModelCompare.ts and the drawing in the chart.
 
 import { HourlySeries } from '../types'
 import type { ForecastModelOption } from '../hooks/useCapabilities'
 import { colorForIndex } from './chartColors'
-import { gridRemapper } from './chartData'
+import { ChartLine, comparedLineLabel, cutSeriesAfter, gridRemapper } from './chartData'
 import type { WeatherSeries } from './openMeteo'
-
-/**
- * How many models one chart may compare, the analysis model included.
- *
- * Three is the maintainer's call, and the cost is small rather than free. The
- * issue's table read "three models are free", computed from three variables;
- * the browser sends nine, so the weight formula's variable factor —
- * max(1, variables x models / 10) — leaves the floor at two models:
- *
- *   models in one request   series   factor   weight for one location
- *   1                        9       1.00     1.00
- *   2                       18       1.80     1.80
- *   3                       27       2.70     2.70
- *
- * What Bluebird Forecast actually spends is less than that table, because the
- * analysis model's numbers are already held: a three-model comparison buys two
- * model series. It buys them as one single-model request each (see
- * `useModelCompare`), so the true cost is 2 weighted calls for one destination
- * over a window of 14 days or shorter, against the ~100 an ordinary analysis
- * spends on a polygon. One request naming both would cost 1.8 — the 0.2 it
- * gives up buys a per-model answer, which the multi-model response cannot
- * give: measured 2026-09-12 at 46.5,8.0, `models=gfs_hrrr,ecmwf_ifs025`
- * answers HTTP 200 with BARE `precipitation` keys and no suffixed pair at all,
- * so one model being outside its domain takes its companion's label with it.
- */
-export const MAX_COMPARE_MODELS = 3
 
 const HOUR_MS = 3_600_000
 
@@ -85,50 +60,74 @@ export function compareEndMs(
 }
 
 /**
- * The models that can still be added to a comparison.
+ * Has the panel picked a model the analysis never bought?
  *
- * Three exclusions, and the third is the one worth naming: a model whose reach
- * stops before the analyzed window even starts is not offered, because adding
- * it would clamp every line on the chart to nothing. The calendar already
- * refuses days past a model's reach for the same reason.
+ * The live/commit split the rest of the app already draws, applied to the
+ * comparison: DROPPING a model is pure re-presentation, because its line is
+ * drawn from numbers already in hand and unticking it only stops drawing them,
+ * while ADDING one is a fetch per charted destination. So a tick after an
+ * analysis reports through `commitNeeded` and an untick applies at once — the
+ * same asymmetry as narrowing versus widening the elevation band.
  */
-export function addableModels(
-  models: readonly ForecastModelOption[],
-  analysisModelId: string,
-  added: readonly string[],
-  window: { startMs: number; endMs: number },
-  nowMs: number,
-): ForecastModelOption[] {
-  if (added.length >= MAX_COMPARE_MODELS - 1) return []
-  return models.filter(
-    (m) =>
-      m.id !== analysisModelId &&
-      !added.includes(m.id) &&
-      compareEndMs(window.endMs, [m.forecastHours], nowMs) > window.startMs,
-  )
+export function compareAdded(
+  analyzed: readonly string[],
+  panel: readonly string[],
+): boolean {
+  return panel.some((id) => !analyzed.includes(id))
 }
 
 /**
- * A colour per compared model, from the same ramp destinations draw from.
+ * A colour per model on the chart, the ranking model first.
  *
- * The destination keeps the colour it was assigned when it was first charted —
- * that colour is also its swatch in the table, and a line that changed hue on
- * being compared would break the one identity the chart holds on to. So the
- * added models take the ramp from the top and skip the destination's own
- * colour, which is the only collision possible on one chart.
+ * While a comparison is up colour means MODEL, for every line, and the chips
+ * beside the metric radios are its key. It cannot mean both: with several
+ * destinations under several models there is no hue left over to carry the
+ * place, so the place rides the label instead (`comparedLineLabel`) and the
+ * table's own swatches keep answering "which destination" where they always
+ * have. With nothing picked the comparison is off entirely and the chart goes
+ * back to a colour per destination, so the two systems are never on screen at
+ * once.
+ *
+ * Straight off the same ramp the table draws from, so the first model wears the
+ * palette's first colour and a model keeps its colour as others are ticked on
+ * and off around it.
  */
-export function compareColors(
-  baseColor: string,
-  ids: readonly string[],
-): Record<string, string> {
+export function compareColors(ids: readonly string[]): Record<string, string> {
   const out: Record<string, string> = {}
-  let next = 0
-  for (const id of ids) {
-    let color = colorForIndex(next++)
-    while (color.toLowerCase() === baseColor.toLowerCase()) color = colorForIndex(next++)
-    out[id] = color
-  }
+  ids.forEach((id, i) => {
+    out[id] = colorForIndex(i)
+  })
   return out
+}
+
+/**
+ * The identity of one (model, destination) pair — how a fetched forecast is
+ * filed and found again.
+ *
+ * A pair rather than a location: the same destination is fetched once per
+ * picked model, and the same model once per charted destination.
+ */
+export function pairKey(modelId: string, destinationKey: string): string {
+  return `${modelId}|${destinationKey}`
+}
+
+/** One charted destination, as the comparison needs it. */
+export interface CompareDestination {
+  /** `chartKey`: the coordinate identity a colour and a selection key by. */
+  key: string
+  /** Its place in the ranking, which is what the label leads with. */
+  rank: number
+  name: string
+  latitude: number
+  longitude: number
+  elevationFt: number | null
+}
+
+/** One model on the chart, with the colour its lines take. */
+export interface CompareModel {
+  id: string
+  label: string
+  color: string
 }
 
 /**
@@ -142,10 +141,10 @@ export function compareColors(
  *
  * `aqi` is all nulls and that is not a gap: air quality comes from CAMS
  * whatever forecast model ranks the field, so there is no second answer to
- * compare. The chart withdraws the control on that metric rather than drawing
- * lines that could only be identical.
+ * compare. The chart withdraws the comparison on that metric rather than
+ * drawing lines that could only be identical.
  */
-export function compareSeries(
+export function modelSeriesOnGrid(
   fetched: WeatherSeries | null | undefined,
   times: readonly number[],
 ): HourlySeries | null {
@@ -157,4 +156,43 @@ export function compareSeries(
     wind_mph: remap(fetched.wind_mph),
     aqi: times.map(() => null),
   }
+}
+
+/**
+ * Every line a comparison draws: one per (destination, model) pair.
+ *
+ * Models outer and destinations inner, so the lines leave in the order the
+ * chips read and the ranking model's lines lead. A pair with no series draws
+ * nothing rather than a flat zero — a model Open-Meteo has no data for at that
+ * spot must not look like a forecast of calm — and the chip's own state is what
+ * says so.
+ *
+ * `series` is keyed by `pairKey`, which is what lets the ranking model ride
+ * this same product: its numbers are already held per destination, so the
+ * caller seeds them under its own id and nothing here has to know which pairs
+ * cost a fetch and which did not.
+ */
+export function compareSeries(
+  destinations: readonly CompareDestination[],
+  models: readonly CompareModel[],
+  series: Readonly<Record<string, HourlySeries | null>>,
+  times: readonly number[],
+  endMs: number | null,
+): ChartLine[] {
+  const lines: ChartLine[] = []
+  for (const model of models) {
+    for (const destination of destinations) {
+      const held = series[pairKey(model.id, destination.key)]
+      if (!held) continue
+      lines.push({
+        // Prefixed so a pair's key can never collide with a destination's,
+        // which is a bare coordinate pair.
+        key: `model:${pairKey(model.id, destination.key)}`,
+        label: comparedLineLabel(destination.rank, destination.name, model.label),
+        color: model.color,
+        series: cutSeriesAfter(times, held, endMs),
+      })
+    }
+  }
+  return lines
 }

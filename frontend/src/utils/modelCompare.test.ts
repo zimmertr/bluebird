@@ -3,12 +3,15 @@ import type { ForecastModelOption } from '../hooks/useCapabilities'
 import { normalizeWindow } from './forecastWindow'
 import { callWeight } from './openMeteo'
 import {
-  MAX_COMPARE_MODELS,
-  addableModels,
+  CompareDestination,
+  CompareModel,
+  compareAdded,
   compareColors,
   compareEndMs,
   compareSeries,
   isBlend,
+  modelSeriesOnGrid,
+  pairKey,
 } from './modelCompare'
 
 const HOUR = 3_600_000
@@ -64,8 +67,12 @@ describe('what a comparison costs', () => {
     expect(callWeight(1, start, long, 9, 1)).toBeCloseTo(16 / 14, 6)
   })
 
-  it('caps the comparison at three models', () => {
-    expect(MAX_COMPARE_MODELS).toBe(3)
+  // No cap. The review took the three-model ceiling out: it hid the control
+  // that set it, and the spend is already bounded by the Analyze click that
+  // buys it rather than by a number here.
+  it('prices a comparison of every published model', () => {
+    const all = MODELS.length * callWeight(1, start, end, 9, 1)
+    expect(all).toBeCloseTo(MODELS.length, 6)
   })
 })
 
@@ -122,78 +129,50 @@ describe('compareEndMs', () => {
   })
 })
 
-describe('addableModels', () => {
-  const window = { startMs: NOW, endMs: NOW + DAY }
-  const ids = (list: ForecastModelOption[]) => list.map((m) => m.id)
-
-  it('offers every other model that reaches the window', () => {
-    expect(ids(addableModels(MODELS, 'gfs_seamless', [], window, NOW))).toEqual([
-      'ecmwf_ifs025',
-      'gfs_hrrr',
-      'meteofrance_seamless',
-    ])
+describe('compareAdded', () => {
+  it('is a change when the panel names a model the analysis never bought', () => {
+    expect(compareAdded(['gfs_hrrr'], ['gfs_hrrr', 'ecmwf_ifs025'])).toBe(true)
   })
 
-  it('drops a model already on the chart', () => {
-    expect(ids(addableModels(MODELS, 'gfs_seamless', ['gfs_hrrr'], window, NOW))).toEqual([
-      'ecmwf_ifs025',
-      'meteofrance_seamless',
-    ])
+  // Unticking is pure re-presentation: the line is drawn from numbers already
+  // held, so dropping it needs no Analyze and must not ask for one.
+  it('is no change when the panel only dropped one', () => {
+    expect(compareAdded(['gfs_hrrr', 'ecmwf_ifs025'], ['gfs_hrrr'])).toBe(false)
+    expect(compareAdded(['gfs_hrrr'], [])).toBe(false)
   })
 
-  it('offers nothing once the cap is reached', () => {
-    expect(
-      addableModels(MODELS, 'gfs_seamless', ['gfs_hrrr', 'ecmwf_ifs025'], window, NOW),
-    ).toEqual([])
+  it('is no change when nothing moved', () => {
+    expect(compareAdded([], [])).toBe(false)
+    expect(compareAdded(['gfs_hrrr'], ['gfs_hrrr'])).toBe(false)
   })
 
-  // Adding one would clamp every line on the chart to nothing, so it is not
-  // offered — the same rule the calendar applies to a day past a model's reach.
-  it('drops a model whose reach stops before the window starts', () => {
-    // At five days out only ECMWF's 336 hours still reach: HRRR stops at 42
-    // and ARPEGE at 72.
-    const far = { startMs: NOW + 5 * DAY, endMs: NOW + 6 * DAY }
-    expect(ids(addableModels(MODELS, 'gfs_seamless', [], far, NOW))).toEqual(['ecmwf_ifs025'])
-  })
-
-  // A Current analysis is recorded as start equal to end, which describes no
-  // span: every model then fails the reach test and the Compare control never
-  // appears. `normalizeWindow` is what turns the moment into the hour it means,
-  // and the hook applies it before both this test and the fetch.
-  it('offers models for a Current window once it is resolved', () => {
-    const at = Date.UTC(2026, 8, 12, 18, 30)
-    expect(addableModels(MODELS, 'gfs_seamless', [], { startMs: at, endMs: at }, NOW)).toEqual([])
-    expect(ids(addableModels(MODELS, 'gfs_seamless', [], normalizeWindow(at, at), NOW))).toEqual([
-      'ecmwf_ifs025',
-      'gfs_hrrr',
-      'meteofrance_seamless',
-    ])
-  })
-
-  it('keeps the published order', () => {
-    const reordered = [...MODELS].reverse()
-    expect(ids(addableModels(reordered, 'gfs_seamless', [], window, NOW))).toEqual([
-      'meteofrance_seamless',
-      'gfs_hrrr',
-      'ecmwf_ifs025',
-    ])
+  // Unticking one and ticking another is still a purchase.
+  it('is a change when a swap brings in a model that was never bought', () => {
+    expect(compareAdded(['gfs_hrrr'], ['ecmwf_ifs025'])).toBe(true)
   })
 })
 
 describe('compareColors', () => {
-  it('gives each model a colour and skips the destination’s own', () => {
-    const first = compareColors('#000000', ['a', 'b'])
-    const colors = compareColors(first.a, ['a', 'b'])
-    expect(Object.values(colors)).not.toContain(first.a)
-    expect(colors.a).not.toBe(colors.b)
+  it('gives each model on the chart its own colour', () => {
+    const colors = compareColors(['gfs_seamless', 'gfs_hrrr', 'ecmwf_ifs025'])
+    expect(new Set(Object.values(colors)).size).toBe(3)
   })
 
-  it('is stable for the same destination and models', () => {
-    expect(compareColors('#000000', ['a', 'b'])).toEqual(compareColors('#000000', ['a', 'b']))
+  // The ranking model leads, so it keeps its colour as extras are ticked on and
+  // off around it.
+  it('keeps a model’s colour when another is added after it', () => {
+    const before = compareColors(['gfs_seamless', 'gfs_hrrr'])
+    const after = compareColors(['gfs_seamless', 'gfs_hrrr', 'ecmwf_ifs025'])
+    expect(after.gfs_seamless).toBe(before.gfs_seamless)
+    expect(after.gfs_hrrr).toBe(before.gfs_hrrr)
+  })
+
+  it('is stable for the same models in the same order', () => {
+    expect(compareColors(['a', 'b'])).toEqual(compareColors(['a', 'b']))
   })
 })
 
-describe('compareSeries', () => {
+describe('modelSeriesOnGrid', () => {
   const fetched = {
     times: [2000, 3000],
     precip_in: [0.1, 0.2],
@@ -202,7 +181,7 @@ describe('compareSeries', () => {
   }
 
   it('re-indexes a clamped fetch onto the chart’s grid', () => {
-    const series = compareSeries(fetched, [1000, 2000, 3000, 4000])!
+    const series = modelSeriesOnGrid(fetched, [1000, 2000, 3000, 4000])!
     expect(series.precip_in).toEqual([null, 0.1, 0.2, null])
     expect(series.temp_f).toEqual([null, 30, 31, null])
     expect(series.wind_mph).toEqual([null, 5, 6, null])
@@ -210,10 +189,129 @@ describe('compareSeries', () => {
 
   // Air quality has one model, so there is no second answer to draw.
   it('carries no air quality', () => {
-    expect(compareSeries(fetched, [2000, 3000])!.aqi).toEqual([null, null])
+    expect(modelSeriesOnGrid(fetched, [2000, 3000])!.aqi).toEqual([null, null])
   })
 
   it('has nothing to draw for a model that answered with nothing', () => {
-    expect(compareSeries(null, [1000])).toBeNull()
+    expect(modelSeriesOnGrid(null, [1000])).toBeNull()
+  })
+})
+
+describe('compareSeries', () => {
+  const TIMES = [1000, 2000, 3000]
+
+  function destination(key: string, rank: number, name: string): CompareDestination {
+    return { key, rank, name, latitude: 46, longitude: -121, elevationFt: 14_000 }
+  }
+
+  const DESTINATIONS = [
+    destination('46.85,-121.76', 1, 'Mount Rainier'),
+    destination('48.78,-121.11', 2, 'Mount Shuksan'),
+    destination('46.2,-121.49', 3, 'Mount Adams'),
+  ]
+
+  const ON_CHART: CompareModel[] = [
+    { id: 'gfs_seamless', label: 'NOAA GFS', color: '#111111' },
+    { id: 'gfs_hrrr', label: 'NOAA HRRR', color: '#222222' },
+    { id: 'ecmwf_ifs025', label: 'ECMWF IFS', color: '#333333' },
+  ]
+
+  function series(values: number[]) {
+    return {
+      precip_in: values,
+      temp_f: values,
+      wind_mph: values,
+      aqi: values.map(() => null),
+    }
+  }
+
+  // Every pair, so three destinations under three models is nine lines rather
+  // than the one destination the review found.
+  function everyPair() {
+    const held: Record<string, ReturnType<typeof series>> = {}
+    for (const model of ON_CHART) {
+      for (const d of DESTINATIONS) held[pairKey(model.id, d.key)] = series([1, 2, 3])
+    }
+    return held
+  }
+
+  it('draws one line per destination and model', () => {
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null)
+    expect(lines).toHaveLength(9)
+    expect(new Set(lines.map((l) => l.key)).size).toBe(9)
+  })
+
+  // Rank, destination, model, on every entry including the ranking model's, so
+  // a reader tells two lines apart by reading the same three things each time.
+  it('names every line the same way', () => {
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null)
+    expect(lines[0].label).toBe('1. Mount Rainier (NOAA GFS)')
+    expect(lines.map((l) => l.label)).toContain('1. Mount Rainier (ECMWF IFS)')
+    expect(lines.map((l) => l.label)).toContain('3. Mount Adams (NOAA HRRR)')
+  })
+
+  // Colour means model while a comparison is up, so the three lines of one
+  // model share a colour and no two models do.
+  it('colours a line by its model', () => {
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null)
+    const byModel = ON_CHART.map((m) => lines.filter((l) => l.color === m.color))
+    expect(byModel.map((group) => group.length)).toEqual([3, 3, 3])
+  })
+
+  // The chips read ranking model first, and the lines leave in that order so
+  // the key and the chart agree about which is which.
+  it('leads with the ranking model’s lines', () => {
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null)
+    expect(lines.slice(0, 3).map((l) => l.label)).toEqual([
+      '1. Mount Rainier (NOAA GFS)',
+      '2. Mount Shuksan (NOAA GFS)',
+      '3. Mount Adams (NOAA GFS)',
+    ])
+  })
+
+  // No cap: every published model may be on the chart at once, which is what
+  // the review asked for when it took the ceiling out.
+  it('has no ceiling on the models it will draw', () => {
+    const many: CompareModel[] = MODELS.map((m, i) => ({
+      id: m.id,
+      label: m.label,
+      color: `#00000${i}`,
+    }))
+    const held: Record<string, ReturnType<typeof series>> = {}
+    for (const model of many) {
+      for (const d of DESTINATIONS) held[pairKey(model.id, d.key)] = series([1, 2, 3])
+    }
+    expect(compareSeries(DESTINATIONS, many, held, TIMES, null)).toHaveLength(
+      MODELS.length * DESTINATIONS.length,
+    )
+  })
+
+  // A model with no data at one spot draws nothing there rather than a flat
+  // line, and its companion's lines are untouched.
+  it('skips a pair that came back with nothing', () => {
+    const held = everyPair() as Record<string, ReturnType<typeof series> | null>
+    held[pairKey('gfs_hrrr', DESTINATIONS[0].key)] = null
+    delete held[pairKey('ecmwf_ifs025', DESTINATIONS[1].key)]
+    const lines = compareSeries(DESTINATIONS, ON_CHART, held, TIMES, null)
+    expect(lines).toHaveLength(7)
+    expect(lines.map((l) => l.label)).not.toContain('1. Mount Rainier (NOAA HRRR)')
+    expect(lines.map((l) => l.label)).toContain('1. Mount Rainier (ECMWF IFS)')
+  })
+
+  // Every line stops together or their shapes are not answers to one question.
+  it('clamps every line to the shortest reach on the chart', () => {
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, 2000)
+    for (const line of lines) expect(line.series!.precip_in).toEqual([1, 2, null])
+  })
+
+  // A destination's key is a coordinate pair, so a pair's key has to be
+  // namespaced or a line could shadow one.
+  it('keys a pair where no destination can', () => {
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null)
+    for (const line of lines) expect(line.key.startsWith('model:')).toBe(true)
+  })
+
+  it('draws nothing when no model is on the chart', () => {
+    expect(compareSeries(DESTINATIONS, [], everyPair(), TIMES, null)).toEqual([])
   })
 })
