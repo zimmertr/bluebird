@@ -1140,6 +1140,7 @@ export default function App() {
     // the capabilities effect would overwrite it a moment later.
     untouchedModelRef.current = false
     setForecastModel(next.forecastModel)
+    setComparedModels(next.compareModels)
     setSortByRaw(next.sortBy)
     setSortDesc(next.sortDesc)
     setRowKeys(next.rowKeys)
@@ -1152,6 +1153,7 @@ export default function App() {
     setShowRadar(next.showRadar)
     setShowSmoke(next.showSmoke)
     setShowGrid(next.showGrid)
+    setShowPlayer(next.showPlayer)
     setGridStyle(next.gridStyle)
     setGridReachFrac(next.gridReachFrac)
     searched.restore(next.pins)
