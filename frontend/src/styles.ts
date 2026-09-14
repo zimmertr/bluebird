@@ -830,6 +830,37 @@ export const MAP_EDGE = {
   top: 'top-[var(--map-edge-inset)]',
 } as const
 
+/**
+ * Where the legend stack hangs: one row of the column's own gap under the
+ * Layers button, at both pointer sizes.
+ *
+ * The column above it is the inset, the search row (with the Controls button
+ * beside it), the gap, and the Layers button — and two of those three heights
+ * change with the pointer, because `TAP` floors a button at 44 for a finger.
+ * Measured in Chrome 2026-09-14:
+ *
+ *   pointer: 12 + 34 + 8 + 38 = 92,  + 8 = 100 (`top-25`)
+ *   finger:  12 + 44 + 8 + 44 = 108, + 8 = 116 (`top-29`)
+ *
+ * One inset for both was 112, which left 20px of dead space under the button
+ * on a desktop. Anything under the coarse number collides: at 76 the stack's
+ * first rows paint BEHIND the Layers button, which is opaque and paints after
+ * the legends by design (see the ordering note in `App.tsx`).
+ *
+ * Keyed on `touch` rather than on Tailwind's `pointer-coarse`, deliberately.
+ * The heights above are `TAP`'s, and `TAP` is floored by `touch`
+ * (`@media (hover: none)`, see index.css). A second query here would answer
+ * differently on the devices the two disagree about — a hover-capable stylus
+ * screen, a remote — and the inset would clear a column of a different height
+ * than the one on screen.
+ *
+ * `resultsSheet.ts` holds both numbers (`LEGEND_TOP_PX`, `LEGEND_TOP_FINE_PX`),
+ * because everything anchored below the stack measures off them, and
+ * `resultsSheet.test.ts` reads this file as text so the class and the constants
+ * cannot drift.
+ */
+export const LEGEND_TOP = 'top-25 touch:top-29'
+
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 
 /**
@@ -1417,15 +1448,6 @@ export const SLIDER_OVERLAY =
   SLIDER_BAR_THUMB
 
 /**
- * The coverage slider's in-track wordmark: `TEXT.overline`'s shape without its
- * color. The line renders twice — muted on the recessed well, and white where
- * the accent fill has reached (the fill layer is `ACCENT.fill`, whose label
- * color is not separable from it) — so the color belongs to the layer, never
- * to this shape.
- */
-export const SLIDER_WORDMARK = `${MICRO_SIZE} font-semibold uppercase tracking-wider`
-
-/**
  * Control-size text with NO color of its own, for spans whose color is a
  * separate role's to supply: the coverage slider's two-layer value, and the
  * grid legend's value, which wears `STATUS.warn` while transient and
@@ -1437,6 +1459,26 @@ export const CONTROL_SIZE = 'text-xs'
 
 /** The slider's value readout: the colorless control size above. */
 export const SLIDER_VALUE = CONTROL_SIZE
+
+/**
+ * The other half of the same line: the slider's in-track wordmark.
+ *
+ * The same size as the value beside it (`CONTROL_SIZE`) and in sentence case,
+ * so the slider reads as one line of one control rather than two labels of
+ * different ranks — and so it matches the Blocks/Smooth segment directly above
+ * it, which is the app's rule everywhere (TJ, 2026-09-14). It used to wear
+ * `TEXT.overline`'s shape, a 10px uppercase with letter-spacing, which is the
+ * shape of a heading OVER a group rather than of a label inside a control.
+ *
+ * The weight is what still separates the two halves: `font-semibold` names the
+ * control where the value states its number, at one size and one color.
+ *
+ * Colorless, like `CONTROL_SIZE` itself. The line renders twice — muted on the
+ * recessed well, and white where the accent fill has reached (the fill layer is
+ * `ACCENT.fill`, whose label color is not separable from it) — so the color
+ * belongs to the layer, never to this shape.
+ */
+export const SLIDER_WORDMARK = `${CONTROL_SIZE} font-semibold`
 
 /**
  * The coverage slider's un-filled text layer: the same idle slate the resting

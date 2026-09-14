@@ -33,6 +33,8 @@ import {
   SCRUBBER,
   SCRUBBER_TRACK,
   SLIDER_OVERLAY,
+  CONTROL_SIZE,
+  SLIDER_VALUE,
   SLIDER_WORDMARK,
   SEGMENT,
   SEGMENT_FLUID,
@@ -619,12 +621,24 @@ describe('shared recipes', () => {
     expect(SLIDER_OVERLAY).toContain('absolute inset-0')
   })
 
-  // The wordmark is the overline's shape with no color of its own: its line
-  // renders twice, muted on the well and white inside the accent fill, and a
-  // baked-in color would race the layer's by stylesheet order.
+  // The wordmark has no color of its own: its line renders twice, muted on the
+  // well and white inside the accent fill, and a baked-in color would race the
+  // layer's by stylesheet order.
   it('keeps the slider wordmark colorless so each layer supplies its own', () => {
-    expect(SLIDER_WORDMARK).toContain('uppercase')
     expect(SLIDER_WORDMARK).not.toMatch(/text-(slate|white)/)
+  })
+
+  // Both halves of the slider's one line are one size, and the wordmark is
+  // sentence case like the segment above it (TJ, 2026-09-14). It carried
+  // `TEXT.overline`'s 10px uppercase until then, which is the shape of a
+  // heading over a group rather than a label inside a control — and it made
+  // "COVERAGE" the one shouted word in the popover.
+  it('sets the wordmark at the value size, in sentence case', () => {
+    expect(SLIDER_WORDMARK).toContain(CONTROL_SIZE)
+    expect(SLIDER_VALUE).toContain(CONTROL_SIZE)
+    expect(SLIDER_WORDMARK).not.toMatch(/uppercase|tracking-/)
+    // The weight is the only thing left separating a label from its value.
+    expect(SLIDER_WORDMARK).toContain('font-semibold')
   })
 
   // The rail is a separate element rather than the input's own track

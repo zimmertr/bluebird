@@ -111,14 +111,16 @@ describe('scaleFor', () => {
     expect(scaleFor('elevation_ft', false)).toBeNull()
   })
 
-  // The freezing level ships uncolored (#295): a fixed band would have to call
-  // one height good and another bad, and the reading is relative to the
-  // destination standing under it. Null is the contract every consumer of a
-  // scale already handles, so it takes no special case anywhere.
-  it('leaves every freezing-level column uncolored', () => {
+  // The reversal of #295 (TJ, 2026-09-14). The freezing level was the one
+  // metric with no scale, on the argument that a band has to call one height
+  // good and another bad. It carries one now because the ramp encodes HEIGHT
+  // rather than a verdict, and the contract this asserts is that every
+  // freezing-level column shades like every other metric column — the table,
+  // the markers, the grid and the legend all read this same table.
+  it('colors every freezing-level column', () => {
     for (const key of FAMILY_KEYS.freeze) {
-      expect(scaleFor(key, false), `${key} is colored`).toBeNull()
-      expect(scaleFor(key, true), `${key} is colored`).toBeNull()
+      expect(scaleFor(key, false), `${key} is uncolored`).not.toBeNull()
+      expect(scaleFor(key, true), `${key} is uncolored`).not.toBeNull()
     }
   })
 
@@ -183,10 +185,10 @@ describe('scaleFor', () => {
 })
 
 describe('METRIC_SCALE', () => {
-  // Four of the five families, because color is not universal: the freezing
-  // level has no entry here at all (#295), which is what the absence means.
-  it('exposes exactly the colored metric families', () => {
-    expect(Object.keys(METRIC_SCALE).sort()).toEqual(['aqi', 'precip', 'temp', 'wind'])
+  // All five families. The freezing level joined on 2026-09-14, reversing
+  // #295, so an absence here is now a missing scale rather than a decision.
+  it('exposes every metric family', () => {
+    expect(Object.keys(METRIC_SCALE).sort()).toEqual(['aqi', 'freeze', 'precip', 'temp', 'wind'])
   })
 
   it('keeps thresholds strictly ascending with labels and colors aligned', () => {
@@ -200,8 +202,9 @@ describe('METRIC_SCALE', () => {
     }
   })
 
-  it('gives AQI all six EPA bands and the weather metrics five', () => {
+  it('gives AQI and the freezing level six bands, and the other three five', () => {
     expect(METRIC_SCALE.aqi.colors).toHaveLength(6)
+    expect(METRIC_SCALE.freeze.colors).toHaveLength(6)
     expect(METRIC_SCALE.aqi.thresholds).toEqual([50, 100, 150, 200, 300])
     expect(METRIC_SCALE.precip.colors).toHaveLength(5)
     expect(METRIC_SCALE.wind.colors).toHaveLength(5)
@@ -220,6 +223,7 @@ describe('METRIC_SCALE', () => {
     expect(METRIC_SCALE.precip.thresholds).toEqual([0.01, 0.1, 0.25, 0.5])
     expect(METRIC_SCALE.wind.thresholds).toEqual([5, 15, 25, 35])
     expect(METRIC_SCALE.temp.thresholds).toEqual([30, 45, 55, 65])
+    expect(METRIC_SCALE.freeze.thresholds).toEqual([4000, 8000, 12000, 16000, 20000])
   })
 
   it('advertises the same boundaries in the legend that it switches on', () => {
@@ -228,8 +232,11 @@ describe('METRIC_SCALE', () => {
     // colors beside it. Reading the numbers back out of the captions is what
     // makes that unmissable.
     for (const cfg of Object.values(METRIC_SCALE)) {
+      // Thousands separators come out first: the freezing level's captions
+      // group its digits the way every other number this app prints does, and
+      // "4,000" would otherwise read back as two boundaries.
       const advertised = cfg.legendLabels.flatMap((label) =>
-        (label.match(/\d+(?:\.\d+)?/g) ?? []).map(Number),
+        (label.replace(/,/g, '').match(/\d+(?:\.\d+)?/g) ?? []).map(Number),
       )
       // "≤ t0", then one pair per middle band, then "> tLast" — so each
       // boundary is named exactly twice, in order.
@@ -240,25 +247,22 @@ describe('METRIC_SCALE', () => {
 
 describe('rankedScale', () => {
   // Markers and the metric legend read the ranked value on this scale (#291).
-  it('resolves every rankable key of a colored family, and no other', () => {
+  it('resolves every rankable key, since every family carries a scale', () => {
     for (const key of RANKING_KEYS) {
       const scale = rankedScale(key)
-      if (familyOf(key) === 'freeze') {
-        expect(scale, `${key} carries a scale`).toBeNull()
-        continue
-      }
       expect(scale, `${key} has no ranked scale`).not.toBeNull()
       expect(scale!.legendLabels.length).toBeGreaterThan(0)
     }
   })
 
-  // What a ranking on an uncolored metric hands the map: no bands to draw, and
-  // no color for a marker, which then takes its own no-value fill.
-  it('answers null for a freezing-level ranking, at rest and in playback', () => {
+  // Playback colors a marker by one hour's own number. A freezing level is the
+  // same quantity by the hour as it is over a window — a height, not a rate —
+  // so its hourly scale is its own, unlike precipitation's.
+  it('reads a freezing-level ranking on one scale at rest and in playback', () => {
     for (const key of FAMILY_KEYS.freeze) {
-      expect(rankedScale(key)).toBeNull()
-      expect(hourlyScale(key)).toBeNull()
-      expect(markerColor(9000, key)).toBeNull()
+      expect(rankedScale(key)).toBe(METRIC_SCALE.freeze)
+      expect(hourlyScale(key)).toBe(METRIC_SCALE.freeze)
+      expect(markerColor(9000, key)).toMatch(/^#[0-9a-f]{6}$/)
     }
   })
 
@@ -346,3 +350,139 @@ describe('hourlyScale', () => {
     expect(scale.legendLabels).toHaveLength(scale.colors.length)
   })
 })
+
+describe('the freezing-level ramp', () => {
+  // The bands the map legend prints, and the numbers they switch on. Spelled
+  // out rather than derived, because these six captions are the approved copy
+  // (TJ, 2026-09-14) and a caption is the one thing in this file a reader sees.
+  it('captions each band with the height it covers', () => {
+    expect(METRIC_SCALE.freeze.legendLabels).toEqual([
+      '≤ 4,000 ft',
+      '4,000 – 8,000 ft',
+      '8,000 – 12,000 ft',
+      '12,000 – 16,000 ft',
+      '16,000 – 20,000 ft',
+      '> 20,000 ft',
+    ])
+  })
+
+  // The ramp is read by hue, not by lightness, and that is the price of the
+  // contrast floor below rather than a choice: the darkest purple that clears
+  // 4.5:1 as cell text is lighter than the indigo and sky steps that follow it,
+  // so no ordering of these six hues is both conformant and monotone. What is
+  // still true, and is what this pins, is that the top band is the lightest
+  // thing on the ramp and that no two bands land on one lightness.
+  it('tops out at the lightest band, with no two bands alike', () => {
+    const steps = METRIC_SCALE.freeze.colors.map(relativeLuminance)
+    expect(Math.max(...steps)).toBe(steps[steps.length - 1])
+    expect(new Set(steps.map(round2)).size).toBe(steps.length)
+  })
+
+  it('hits each anchor exactly at its threshold boundary', () => {
+    const [b0, b1, b2, b3, b4, b5] = METRIC_SCALE.freeze.colors
+    expect(markerColor(0, 'freeze_min_ft')).toBe(b0)
+    expect(markerColor(4000, 'freeze_min_ft')).toBe(b0)
+    expect(markerColor(8000, 'freeze_min_ft')).toBe(b1)
+    expect(markerColor(12000, 'freeze_min_ft')).toBe(b2)
+    expect(markerColor(16000, 'freeze_min_ft')).toBe(b3)
+    expect(markerColor(20000, 'freeze_min_ft')).toBe(b4)
+    // One more band of extrapolation past the last threshold, then clamped.
+    expect(markerColor(24000, 'freeze_min_ft')).toBe(b5)
+    expect(markerColor(90000, 'freeze_min_ft')).toBe(b5)
+  })
+
+  // Measured 2026-09-14, and pinned the way the accent fill is pinned in
+  // styles.test.ts: the numbers are recomputed from the constants below, so a
+  // shade that moves fails here and forces a re-measurement rather than
+  // inheriting a claim that has quietly gone stale.
+  //
+  // Three readings, because a band is drawn in three places:
+  //  - `cellText` is what `cellStyle` produces in the results table — the hue
+  //    at full strength over the same hue at 20% on the slate-800 panel.
+  //  - `markerRing` is the marker fill against the 2px white stroke every
+  //    marker wears, which is what separates a marker from the basemap: the
+  //    basemap itself is not a fixed colour, the ring is.
+  //  - `legendSwatch` is the 10px dot on the legend's slate-800/95 box.
+  //
+  // Every step clears 4.5:1 as cell text, which is what the 300/400 shades buy
+  // and is the whole reason the ramp is not darker (TJ chose this over changing
+  // `cellStyle`, 2026-09-14). The first draft used 600/800 steps and measured
+  // 1.58 to 2.34 in this column.
+  //
+  // The ring reading is low at the pale end by construction and is not a
+  // failure: a marker is a filled circle inside a 2px WHITE stroke, so the ring
+  // is what separates it from the basemap, and a pale fill inside a white ring
+  // is legible against the map rather than against the ring. The bands are
+  // named on the legend, which is the surface that has to carry contrast, and
+  // it clears 4.5:1 at every step.
+  const SLATE_800 = '#1d293d'
+  const MEASURED = [
+    { color: '#d8b4fe', cellText: 5.24, markerRing: 1.77, legendSwatch: 8.27 },
+    { color: '#c4b5fd', cellText: 5.09, markerRing: 1.85, legendSwatch: 7.92 },
+    { color: '#a5b4fc', cellText: 4.79, markerRing: 1.99, legendSwatch: 7.33 },
+    { color: '#93c5fd', cellText: 5.16, markerRing: 1.80, legendSwatch: 8.11 },
+    { color: '#38bdf8', cellText: 4.57, markerRing: 2.14, legendSwatch: 6.82 },
+    { color: '#67e8f9', cellText: 6.02, markerRing: 1.45, legendSwatch: 10.08 },
+  ]
+
+  it('still measures what the comment above says it measures', () => {
+    expect(MEASURED.map((m) => m.color)).toEqual(METRIC_SCALE.freeze.colors)
+    for (const m of MEASURED) {
+      const tinted = mixOver(m.color, SLATE_800, 0.2)
+      expect(round2(contrast(m.color, tinted)), `${m.color} cell text`).toBe(m.cellText)
+      expect(round2(contrast(m.color, '#ffffff')), `${m.color} marker ring`).toBe(m.markerRing)
+      expect(round2(contrast(m.color, SLATE_800)), `${m.color} legend swatch`).toBe(m.legendSwatch)
+    }
+  })
+
+  // The one contrast claim this ramp can make on its own terms. Every band is
+  // separated from the band beside it — the pale end by the white ring, the
+  // dark end by the legend's own surface — so no step disappears in the place
+  // it is drawn.
+  it('clears 4.5:1 for the number printed in a shaded cell, at every band', () => {
+    for (const m of MEASURED) {
+      expect(m.cellText, `${m.color} cell text`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  // The one contrast claim the swatches owe: the legend is where a band is
+  // named, so a reader who cannot tell two bands apart on the map can still
+  // read which is which there.
+  it('keeps every legend swatch well clear of the box it sits on', () => {
+    for (const m of MEASURED) {
+      expect(m.legendSwatch, `${m.color} swatch`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+})
+
+// WCAG relative luminance and contrast, used only to keep the measured table
+// above honest. Small enough to live here rather than become a shared helper
+// nothing else has asked for.
+function relativeLuminance(hex: string): number {
+  const [r, g, b] = toRgb(hex).map((v) => {
+    const c = v / 255
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+function contrast(a: string, b: string): number {
+  const [hi, lo] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+/** `cellStyle`'s own background: the hue at `alpha` over the panel beneath it. */
+function mixOver(hex: string, under: string, alpha: number): string {
+  const top = toRgb(hex)
+  const bottom = toRgb(under)
+  const mixed = top.map((v, i) => Math.round(alpha * v + (1 - alpha) * bottom[i]))
+  return `#${mixed.map((v) => v.toString(16).padStart(2, '0')).join('')}`
+}
+
+function toRgb(hex: string): number[] {
+  return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+}
+
+function round2(v: number): number {
+  return Math.round(v * 100) / 100
+}

@@ -282,3 +282,28 @@ export function presentResults(
     excluded: inBand.length - matching.length,
   }
 }
+
+/**
+ * Does anything on screen carry a number for the ranked metric?
+ *
+ * The map's colour key answers "what do these colours mean", and a key over a
+ * field that has no colours answers a question nobody asked. That case is real
+ * for one metric: five of the eight forecast models publish no freezing level,
+ * so a whole report can rank by it and every row read N/A. The markers are
+ * already right — each wears the neutral no-value fill — and the key is the
+ * only thing left asserting bands that nothing is drawn in.
+ *
+ * Read over the DISPLAYED rows rather than the held field, because the key
+ * explains what is on the map. Live filters are what make those two different.
+ *
+ * Nothing to do with which metric it is: a report whose rows all lack AQI, or
+ * one emptied by a bound, answers the same way. So there is no freezing-level
+ * special case here, and a model that starts publishing the variable needs no
+ * code change.
+ */
+export function fieldHasValue(
+  rows: readonly DestinationResult[],
+  sortBy: SortBy,
+): boolean {
+  return rows.some((row) => row[sortBy] != null)
+}

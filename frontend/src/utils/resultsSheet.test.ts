@@ -4,14 +4,17 @@ import {
   DRAGGED_MAP_PX,
   LEGEND_GAP_PX,
   LEGEND_STACK_PX,
+  LEGEND_TOP_FINE_PX,
   LEGEND_TOP_PX,
   RESTING_MAP_PX,
+  RESULTS_BAR_PX,
   SHEET_HEADER_PX,
   TRANSPORT_BAND_PX,
   CORNER_CONTROL_PX,
   CORNER_MARGIN_PX,
   TRANSPORT_GAP_PX,
   TRANSPORT_HEIGHT_PX,
+  dockedMapFloorPx,
   draggedMapFloorPx,
   legendBottomPx,
   mapCornerLiftPx,
@@ -28,6 +31,7 @@ import {
 // bundle because those files spell them; quoting one that is NOT would emit its
 // CSS, which is the trap `styles.test.ts` documents.
 import appSource from '../App.tsx?raw'
+import stylesSource from '../styles.ts?raw'
 import transportSource from '../components/TimelineTransport.tsx?raw'
 import mapViewSource from '../components/MapView.tsx?raw'
 
@@ -83,7 +87,7 @@ describe('the map chrome anchors', () => {
   it('anchors the legend stack at the top, not at the bottom', () => {
     expect(appSource).not.toMatch(/\bm[tb]-(?:auto)\b/)
     expect(appSource).not.toMatch(/\bjustify-(?:end)\b/)
-    expect(appSource).toContain('top-28')
+    expect(appSource).toContain('${LEGEND_TOP}')
   })
 
   // Every offset on this edge is derived here and applied as a style, so the
@@ -91,8 +95,16 @@ describe('the map chrome anchors', () => {
   // either component would be a second opinion about the same edge — which is
   // how the gap under the player came to differ per results mode.
   it('leaves no bottom offset spelled in a component', () => {
-    expect(appSource).toContain('top-28') // LEGEND_TOP_PX
-    expect(LEGEND_TOP_PX).toBe(28 * 4)
+    // The inset is a role now, because it is two numbers: the column it clears
+    // is 16px taller on a coarse pointer, where `TAP` floors the search row and
+    // the Layers button at 44 apiece. Both classes are asserted against both
+    // constants, so a shade of either cannot move alone.
+    expect(stylesSource).toContain("LEGEND_TOP = 'top-25 touch:top-29'")
+    expect(LEGEND_TOP_FINE_PX).toBe(25 * 4)
+    expect(LEGEND_TOP_PX).toBe(29 * 4)
+    // The coarse inset is the bigger of the two, which is what makes it the
+    // one every floor here is promised against.
+    expect(LEGEND_TOP_PX).toBeGreaterThan(LEGEND_TOP_FINE_PX)
     // `bottom-0` is exempt and is the sheet itself, which stands ON the edge
     // rather than measuring off it.
     expect(appSource).not.toMatch(/\bbottom-(?:[1-9]|\[)/)
@@ -200,14 +212,22 @@ describe('the resting height', () => {
   // measured, every legend section fits above the resting sheet with no
   // scrolling, in each results mode — with the timeline on, which is the tighter
   // of the two clearances.
+  //
+  // Both mode is the exception since the freezing level's six-band key made the
+  // stack 20px taller (2026-09-14). Its two panels floor at 120 each, so the
+  // sheet cannot give the map the extra 20px however the reserve is set: the
+  // band is 242 of the 265 the stack wants, and the last band scrolls. That is
+  // the degradation the stack was built for — it is a scroll box anchored at
+  // the top precisely so what gives is its tail — and the alternative is a
+  // 100px table.
   describe.each([
-    ['table only', { chartShown: false, tableShown: true }, 1],
-    ['chart only', { chartShown: true, tableShown: false }, 1],
-    ['chart and table', { chartShown: true, tableShown: true }, 2],
-  ])('at 402x874, %s', (_mode, shown, gripCount) => {
+    ['table only', { chartShown: false, tableShown: true }, 1, LEGEND_STACK_PX],
+    ['chart only', { chartShown: true, tableShown: false }, 1, LEGEND_STACK_PX],
+    ['chart and table', { chartShown: true, tableShown: true }, 2, 242],
+  ])('at 402x874, %s', (_mode, shown, gripCount, wanted) => {
     const VIEWPORT = 874
 
-    it('rests low enough for the whole legend stack', () => {
+    it('rests low enough for the legend stack it can hold', () => {
       const { chart, table } = resolvePanelHeights(288, 280, {
         ...shown,
         availPx: VIEWPORT,
@@ -216,7 +236,7 @@ describe('the resting height', () => {
       const sheet = sheetHeightPx({ collapsed: false, gripCount, panelsPx: chart + table })
       const visibleMap = VIEWPORT - sheet
       const legendBand = visibleMap - LEGEND_TOP_PX - legendBottomPx(0, true)
-      expect(legendBand).toBeGreaterThanOrEqual(LEGEND_STACK_PX)
+      expect(legendBand).toBeGreaterThanOrEqual(wanted)
       // The transport occupies the band's bottom 112px, so it clears the map's
       // button column — the collision the issue reports beside the legends.
       expect(visibleMap - TRANSPORT_BAND_PX).toBeGreaterThan(LEGEND_TOP_PX)
@@ -255,9 +275,9 @@ describe('the drag cap', () => {
   })
 
   it('states both caps outright', () => {
-    expect(DRAGGED_MAP_PX).toBe(236)
-    expect(maxSheetPx(874)).toBe(638)
-    expect(maxSheetPx(757)).toBe(521)
+    expect(DRAGGED_MAP_PX).toBe(240)
+    expect(maxSheetPx(874)).toBe(634)
+    expect(maxSheetPx(757)).toBe(517)
   })
 
   // `clampPanelHeight` is given a map floor rather than a sheet height, and the
@@ -313,7 +333,7 @@ describe('the camera padding', () => {
       availPx: 874,
       ...defaults,
     })
-    expect(lift).toBe(393)
+    expect(lift).toBe(369)
     expect(874 - lift).toBe(RESTING_MAP_PX)
   })
 
@@ -326,7 +346,7 @@ describe('the camera padding', () => {
       availPx: 757,
       ...defaults,
     })
-    expect(lift).toBe(276)
+    expect(lift).toBe(252)
     expect(757 - lift).toBe(RESTING_MAP_PX)
   })
 
@@ -351,3 +371,65 @@ describe('the camera padding', () => {
     expect(appSource).toContain('tablePx: DEFAULT_TABLE_HEIGHT')
   })
 })
+
+/** What `App.tsx` opens both panels at; asserted against the source below. */
+const DEFAULT_PANEL_PX = 220
+
+// The desktop half of the same question: the results are docked below the map
+// rather than parked over it, so nothing is covered — but the bar and the grips
+// come out of the same column, and `resolvePanelHeights` clamps only the panels.
+describe('dockedMapFloorPx', () => {
+  it('is the fine-pointer reserve plus the chrome the panels are stacked under', () => {
+    expect(dockedMapFloorPx(0)).toBe(
+      LEGEND_TOP_FINE_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX + RESULTS_BAR_PX,
+    )
+    // Lower than the phone's reserve by exactly the inset the two disagree on.
+    expect(RESTING_MAP_PX - (dockedMapFloorPx(0) - RESULTS_BAR_PX)).toBe(
+      LEGEND_TOP_PX - LEGEND_TOP_FINE_PX,
+    )
+    expect(dockedMapFloorPx(2) - dockedMapFloorPx(1)).toBe(dockedMapFloorPx(1) - dockedMapFloorPx(0))
+  })
+
+  // It replaces `resolvePanelHeights`' own default, which was 280 — a number
+  // that predates the legend stack and is under half of what the stack needs.
+  it('reserves far more than the fixed default it replaced', () => {
+    expect(dockedMapFloorPx(2)).toBeGreaterThan(280)
+  })
+
+  // The acceptance criterion for the desktop half, at the viewport the change
+  // was measured on: both panels open at their default height, and the map
+  // still holds the whole legend stack above the transport's band.
+  it('leaves the whole stack on screen at 1440x1000 in Both mode', () => {
+    const VIEWPORT = 1000
+    const gripCount = 2
+    const { chart, table } = resolvePanelHeights(DEFAULT_PANEL_PX, DEFAULT_PANEL_PX, {
+      chartShown: true,
+      tableShown: true,
+      availPx: VIEWPORT,
+      mapMinPx: dockedMapFloorPx(gripCount),
+    })
+    // Nothing is clamped: the defaults are chosen to fit this window.
+    expect({ chart, table }).toEqual({ chart: DEFAULT_PANEL_PX, table: DEFAULT_PANEL_PX })
+    const visibleMap = VIEWPORT - RESULTS_BAR_PX - gripCount * 8 - chart - table
+    // The FINE inset: a docked layout is the pointer case, which is the whole
+    // reason `dockedMapFloorPx` reads that one rather than the phone's.
+    const legendBand = visibleMap - LEGEND_TOP_FINE_PX - legendBottomPx(0, true)
+    expect(legendBand).toBeGreaterThanOrEqual(LEGEND_STACK_PX)
+  })
+})
+
+// The panel defaults, asserted against the component that holds them rather
+// than restated: they are one number now, and the number is what Both mode can
+// spend on a 1000px window under the floor above.
+describe('the default panel heights', () => {
+  it('open the chart and the table at the same height', () => {
+    expect(appSource).toContain('const DEFAULT_CHART_HEIGHT = DEFAULT_PANEL_HEIGHT')
+    expect(appSource).toContain('const DEFAULT_TABLE_HEIGHT = DEFAULT_PANEL_HEIGHT')
+    expect(appSource).toContain(`const DEFAULT_PANEL_HEIGHT = ${DEFAULT_PANEL_PX}`)
+  })
+
+  it('fit inside the docked floor on the window they were measured at', () => {
+    expect(2 * DEFAULT_PANEL_PX).toBeLessThanOrEqual(1000 - dockedMapFloorPx(2))
+  })
+})
+

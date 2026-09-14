@@ -44,6 +44,7 @@ import {
   ICON_ACTION,
   ICON_BUTTON,
   LAYER,
+  LEGEND_TOP,
   LINK,
   MAP_BOX_W,
   MAP_EDGE,
@@ -119,6 +120,7 @@ import { parseCustomCsv } from './utils/customDestinations'
 import { buildCustomList, pendingDestinations, pinKey } from './utils/customList'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
 import {
+  dockedMapFloorPx,
   draggedMapFloorPx,
   legendBottomPx,
   mapCornerLiftPx,
@@ -154,6 +156,7 @@ import {
   commitNeeded,
   discoveryChanges,
   discoveryKeys,
+  fieldHasValue,
   presentResults,
 } from './utils/present'
 import {
@@ -228,8 +231,24 @@ const NO_CHART_ROWS: DestinationResult[] = []
 // Opening heights for the two docked panels, and where a double-click on a
 // resizer puts them back. A drag is easy to overshoot and there was no way
 // back short of dragging until it looked right again.
-const DEFAULT_CHART_HEIGHT = 288
-const DEFAULT_TABLE_HEIGHT = 280
+/**
+ * The chart and the table open at the same height, and at the height that
+ * leaves the map its whole legend stack.
+ *
+ * One number for both, because they are two halves of one answer and an 8px
+ * difference between them read as a mistake. The value is what Both mode can
+ * spend on a 1000px-tall window: 1000 less the docked map floor
+ * (`dockedMapFloorPx`, 541 with two grips) is 459, and two panels of 220 fit
+ * inside it with the map a few pixels clear of its floor. They were 288 and
+ * 280, chosen before the legend stack had a number, and at those heights the
+ * bottom of the stack sat under the results bar on exactly this window.
+ *
+ * Shared with the phone, where the sheet's own floors take over; they are the
+ * starting heights either way, and the reader's drag replaces them.
+ */
+const DEFAULT_PANEL_HEIGHT = 220
+const DEFAULT_CHART_HEIGHT = DEFAULT_PANEL_HEIGHT
+const DEFAULT_TABLE_HEIGHT = DEFAULT_PANEL_HEIGHT
 
 // How close two presses must be to count as a double-click. The browser's own
 // dblclick never arrives on these grips: the resize begins on pointerdown and
@@ -1693,12 +1712,19 @@ export default function App() {
   // one hour of it is a rate, so a legend still reading in inches beside
   // markers scored in inches per hour would be quietly wrong. The metric's NAME
   // does not change, so the legend's title does not either.
-  // Null where the ranked metric carries no color bands at all (#295). The
-  // markers then wear the neutral no-value fill and the key below is not
-  // drawn: a titled box with no swatches in it explains nothing.
+  // Every metric has bands now, so this is null only if a ranking key ever
+  // arrives without a scale. The key below has its own reason to stay away
+  // (`fieldHasValue`): a box of bands over a field of N/A explains
+  // nothing.
   const markerScale = playbackIndex !== null ? hourlyScale(view.sortBy) : rankedScale(view.sortBy)
 
   const hasColoredMarkers = showResults && results.length > 0
+  // Whether the ranked metric has anything to colour AT ALL on the rows shown.
+  // False for a freezing-level ranking under one of the five models that
+  // publish no freezing level: every marker is then the neutral no-value fill,
+  // every cell reads N/A, and a key of six height bands beside them would be
+  // the only thing on screen claiming the field was measured.
+  const rankedFieldHasValue = fieldHasValue(results, view.sortBy)
   // A report stays on screen even when the knobs admit none of it. Collapsing
   // the panels would answer "why is nothing listed?" by removing the place the
   // answer goes, and the table's own empty row says which of the three reasons
@@ -2028,11 +2054,18 @@ export default function App() {
   // stack and lasts until the reader takes a grip, and the drag floor holds
   // however far they pull — it keeps the band the timeline needs to stay clear
   // of the map's button column, which is where the bar landed before the cap.
-  // Both are undefined on desktop, where the panel is docked below the map and
-  // `clampPanelHeight`'s own default holds.
+  // Desktop takes the same split, from the same three constants. A docked
+  // panel covers nothing, so there is no sheet to hold up — but its bar and
+  // grips come out of the map's own column, so the resting floor counts them
+  // (`dockedMapFloorPx`) and the map keeps the whole legend stack at the
+  // default heights. The DRAG floor stays `clampPanelHeight`'s own, as it was:
+  // a reader who pulls the panels up has chosen a shorter map, and the stack
+  // scrolls rather than the drag stopping short.
   const dragFloorPx = isDesktop ? undefined : draggedMapFloorPx(gripCount)
   const mapFloorPx = isDesktop
-    ? undefined
+    ? heightsChosen
+      ? undefined
+      : dockedMapFloorPx(gripCount)
     : heightsChosen
       ? dragFloorPx
       : restingMapFloorPx(gripCount)
@@ -2374,8 +2407,8 @@ export default function App() {
               with the legends last it opened underneath them. Pushing the
               legends further down instead only moved the collision, since a
               popover is as tall as its contents. */}
-          {/* Top-anchored legends: they hang under the Layers button at
-              `top-28` and grow downward, at EVERY width.
+          {/* Top-anchored legends: they hang one gap under the Layers button
+              (`LEGEND_TOP`) and grow downward, at EVERY width.
 
               A key belongs where the reader last looked for it. Anchored to
               the bottom instead, the stack rode up and down with every panel
@@ -2386,13 +2419,22 @@ export default function App() {
               and what gives when the map runs short is the tail of the stack
               rather than its position.
 
-              `top-28` is what clears the Controls/search/Layers column above.
+              The inset is what clears the Controls/search/Layers column above,
+              and it is two numbers rather than one because that column is two
+              heights: `TAP` floors the search row and the Layers button at 44
+              for a finger, so the column ends at 92 under a pointer and 108
+              under a finger. The role holds both with the arithmetic; the rule
+              is that the stack sits one of the column's own 8px gaps below
+              whichever it is. Anything shorter collides — at 76 the first rows
+              paint behind the Layers button, which is opaque and paints after
+              the legends (see the ordering note above) — and anything taller is
+              dead map.
+
               It used to lift at `lg`, on the reasoning that a desktop map has
               room to spare — but "top-auto" does not mean "as tall as it
               likes", it means the box starts wherever its content puts it,
               which on a wide map was 54px: straight through the Layers button
-              at 54-92. The button is opaque and paints above (see the ordering
-              note), so the legend's first row simply disappeared behind it.
+              at 54-92. Same collision, reached from the other side.
 
               The `bottom` offset is a ceiling on the scroll box, not an
               anchor: it stops the stack above the timeline's band while the
@@ -2407,7 +2449,7 @@ export default function App() {
               of the default. */}
           {(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar) && (
             <div
-              className={`absolute ${MAP_EDGE.left} top-28 z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0`}
+              className={`absolute ${MAP_EDGE.left} ${LEGEND_TOP} z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0`}
               // The floor of the scroll box, derived rather than chosen: the
               // transport's whole band while the bar is on screen and a plain
               // gap otherwise, measured from whatever stands on the map's
@@ -2547,7 +2589,9 @@ export default function App() {
                   key are noise. One box serves both — they are scored on the
                   same scale by construction (#246), which is also why the grid
                   has no swatch of its own in the layer rows above. */}
-              {markerScale !== null && (hasColoredMarkers || gridPainted || gridCued) && (
+              {markerScale !== null &&
+                rankedFieldHasValue &&
+                (hasColoredMarkers || gridPainted || gridCued) && (
                 <div className={`${SURFACE_FLOATING} ${MAP_BOX_W} p-2.5`}>
                   {/* The bare metric only: which hour or window the colors
                       describe, and how it was reduced, is stated by the
@@ -2628,7 +2672,15 @@ export default function App() {
                           whatever is open. The popover is as wide as the legend
                           boxes below it (`MAP_BOX_W`), so these take the fluid
                           segment rather than the panel's fixed 144px column —
-                          the same reason the results bar's mode switch does. */}
+                          the same reason the results bar's mode switch does.
+
+                          They are ONE block, set off from the list by the same
+                          gap on both sides: `mt-1.5` under the checkbox row it
+                          belongs to, and `mb-1.5` under the last of them. The
+                          slider used to end flush against the next layer's row,
+                          so the block read as belonging to that row as much as
+                          to the grid's — a group is bounded by its gaps, and
+                          one gap bounds nothing. */}
                       {layer.key === 'grid' && gridOn && (
                         <>
                           <div className={`${SEGMENT_FLUID_LIFTED} mt-1.5 w-full`}>
@@ -2655,7 +2707,7 @@ export default function App() {
                               and commits on release, because each committed value
                               is a refetch and a drag must not fetch per pixel. */}
                           <div
-                            className={`relative mt-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${LIFTED_EDGE} ${RECESSED_FILL}`}
+                            className={`relative mt-1.5 mb-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${LIFTED_EDGE} ${RECESSED_FILL}`}
                           >
                             {(() => {
                               const shown = gridReachDraft ?? gridReachFrac

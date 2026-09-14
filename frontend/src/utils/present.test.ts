@@ -10,6 +10,7 @@ import {
   commitNeeded,
   discoveryChanges,
   discoveryKeys,
+  fieldHasValue,
   presentResults,
 } from './present'
 
@@ -491,5 +492,33 @@ describe('presentResults', () => {
     const before = universe.map((r) => r.name)
     presentResults(universe, { ...KNOBS, sortDesc: true }, NONE)
     expect(universe.map((r) => r.name)).toEqual(before)
+  })
+})
+
+describe('fieldHasValue', () => {
+  // The case it exists for: five of the eight models publish no freezing
+  // level, so a report can rank by it with every row empty. The map's colour
+  // key is then bands over a field with no colours in it.
+  it('is false when every displayed row is empty for the ranked key', () => {
+    const rows = [row('A'), row('B')]
+    expect(fieldHasValue(rows, 'freeze_min_ft')).toBe(false)
+  })
+
+  it('is true as soon as one row carries a number', () => {
+    const rows = [row('A'), row('B', { freeze_min_ft: 9000 })]
+    expect(fieldHasValue(rows, 'freeze_min_ft')).toBe(true)
+  })
+
+  // Nothing metric-specific about it: a report emptied by a live bound has no
+  // colours either, whatever it ranks on.
+  it('is false for an empty table on any metric', () => {
+    expect(fieldHasValue([], 'precip_total_in')).toBe(false)
+    expect(fieldHasValue([row('A')], 'precip_total_in')).toBe(true)
+  })
+
+  // A zero is a number. Read as falsy it would hide the key on exactly the
+  // report the app is built to find: a dry window.
+  it('counts a zero as a value', () => {
+    expect(fieldHasValue([row('A', { precip_total_in: 0 })], 'precip_total_in')).toBe(true)
   })
 })

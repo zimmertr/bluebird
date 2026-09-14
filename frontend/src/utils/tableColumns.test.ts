@@ -141,8 +141,8 @@ describe('orderColumns', () => {
     ])
   })
 
-  // The uncolored family orders like every other one: the column order is a
-  // reading order and has nothing to do with whether a cell carries a color.
+  // The column order is a reading order and has nothing to do with the color a
+  // cell carries.
   it('moves the freezing-level trio up when ranking by it', () => {
     expect(keys('freeze_min_ft').slice(0, 6)).toEqual([
       'name',
