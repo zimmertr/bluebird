@@ -265,15 +265,19 @@ Every column is resizable: drag the divider at a header's right edge, or double-
 
 **Columns** opens a picker for the columns the table shows. Every column starts on — the table scrolls sideways when it must — and unticking narrows the view for easier comparison. The downloaded CSV always carries every column regardless of what the table displays.
 
-#### Comparing models at one destination
+#### Comparing models on the chart
 
-Plot exactly one destination and a **Compare** dropdown appears beside the chart's metric radios. Pick a model from it and that model's forecast for that one destination is fetched and drawn as a second line, up to three models on the chart at once including the one the analysis ran. Color then means model rather than destination: the destination keeps the color the table gave it, and each added model takes the next color on the same ramp. The × on a model's chip drops its line. A line marked **Blend** serves one agency's fine regional model for roughly the first two days and its coarse global model after that, so that line changes model partway along.
+Every model in the picker carries a checkbox at its right edge. Ticking one adds that model to the chart; the list stays open, so ticking three is one visit. Clicking a row's name still makes that model the one that **ranks** the field, and the list closes on that. The ranking model's own box is ticked and cannot be unticked, because its numbers are the report. The closed control reads the ranking model's name followed by how many extras are on the chart, as in **NOAA GFS +2**, and **Clear comparison** at the foot of the list unticks every box at once.
 
-Each added model is a real fetch, which is why it is a click rather than something that happens as you browse. It costs about one weighted call per model for one destination, against the hundred or more an analysis of a polygon spends. The comparison is dropped when you plot a different destination or run a new analysis, and nothing in it touches the ranking, the markers, the table or the downloaded CSV.
+The chart then draws one line per destination per model: three destinations under three models is nine lines. Color means model, and the chips beside the chart's metric radios are the key. Every line in the hover box names all three things it is — rank, destination, model — as in **1. Mount Rainier (NOAA GFS)**, so two lines for one destination read alike. A chip marked **Blend** serves one agency's fine regional model for roughly the first two days and its coarse global model after that, so those lines change model partway along.
 
-Every line on the chart stops at the shortest reach among the models on it, the analysis model's included, because ten days of one model beside three days of another compares nothing. A model that cannot reach the analyzed window at all is not offered. A model Open-Meteo has no data for at that spot draws no line and says so under the key, which is never the same as drawing a flat one.
+A comparison is a real fetch, so it is bought by **Analyze** like the ranking model itself: tick a box and the panel says the report no longer answers what the panel asks. Unticking one is free and takes effect at once, because its line is drawn from numbers already in hand. It costs about one weighted call per model per destination, against the hundred or more an analysis of a polygon spends, and nothing in it touches the ranking, the markers, the table or the downloaded CSV.
 
-Air quality has no comparison, so the control is absent on that metric: AQI comes from one model whatever forecast model ranks the field. See [Data Sources](DATA.md) for the rest of the caveats.
+Every line on the chart stops at the shortest reach among the models on it, the analysis model's included, because ten days of one model beside three days of another compares nothing. A model Open-Meteo has no data for at that spot draws no line and says so under the key, which is never the same as drawing a flat one.
+
+Air quality has no comparison, so the chips are absent on that metric: AQI comes from one model whatever forecast model ranks the field. See [Data Sources](DATA.md) for the rest of the caveats.
+
+The comparison travels in the link as `compare=`, a comma-separated list of model ids in the order they were ticked. A restored link reopens with the boxes ticked and buys the forecasts on your first Analyze, never on load.
 
 ### Max results (in Options)
 

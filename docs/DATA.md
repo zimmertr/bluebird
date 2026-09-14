@@ -180,10 +180,11 @@ row. Bluebird Forecast does not ship a copy of HRRR's domain to check against, b
 the grid is not a lat/lon rectangle and any copy would drift; Open-Meteo is the
 authority, and its refusal is reported as one, naming the model and the fix.
 
-### Comparing models at one destination
+### Comparing models on the chart
 
-The chart compares up to three models at one destination (issue #232). It is
-drawn rather than tabulated, deliberately, and three caveats come with it.
+The chart draws every charted destination under every model ticked in the model
+picker (issue #232), one line per pair and no ceiling on the models. It is drawn
+rather than tabulated, deliberately, and three caveats come with it.
 
 **Six of the eight are blends.** Each one serves an agency's fine regional model
 for roughly the first two days and its coarse global model afterwards, so a
@@ -195,8 +196,8 @@ their whole length.
 **Reaches are ragged, so the chart clamps.** The models stop at different hours,
 and an average over ten days of one model beside three days of another compares
 nothing. Every line on a comparison therefore stops at the shortest reach among
-the models on it, the analysis model's included, and a model that cannot reach
-the analyzed window at all is not offered.
+the models on it, the analysis model's included, so a model whose reach falls
+short of the analyzed window shortens every line beside it.
 
 **A model with nothing there says so.** Asked about one model, Open-Meteo
 answers HTTP 400 and names the problem, so a regional model outside its domain is
@@ -207,13 +208,15 @@ key instead of the suffixed pair, which is one model's numbers under no label.
 That is why each compared model is fetched as its own single-model request, and
 why an unsuffixed key is treated as absent wherever one appears.
 
-The cost is small rather than free. Open-Meteo prices a request at
+The cost is real rather than free, which is why a comparison is bought by
+Analyze rather than as you browse. Open-Meteo prices a request at
 `locations × max(1, days/14) × max(1, variables × models/10)`, the browser asks
 for nine hourly variables, and the analysis model's numbers are already held: a
-three-model comparison at one destination buys two more model series, roughly two
-weighted calls, against the hundred or more an analysis of a polygon spends. Air
-quality is not part of it, because CAMS is a single model whatever forecast model
-ranks the field.
+comparison buys one model series per charted destination per added model,
+roughly one weighted call each, against the hundred or more an analysis of a
+polygon spends. Unticking a model buys nothing back and needs no Analyze, since
+its line was drawn from numbers already in hand. Air quality is not part of it,
+because CAMS is a single model whatever forecast model ranks the field.
 
 ## Air quality
 
