@@ -377,13 +377,29 @@ export default function ModelPicker({
             }}
             className={`${SURFACE_CARD} ${LAYER.popover} flex flex-col`}
           >
+            {/* What the row is, and what its one visual encoding means. The
+                highlight is the only thing saying which model the report is
+                built from, and a fill is not self-explanatory; the list's own
+                column header below is the same device, so the two read as one
+                pattern rather than as a label bolted onto a chip.
+
+                Announced rather than `aria-hidden`: the list's header is
+                hidden because a `role="listbox"` may hold nothing but options,
+                which is not true of a toolbar, and hiding text needs a better
+                reason than the word "highlighted". */}
+            <div
+              className={`${TEXT.overline} flex flex-shrink-0 items-baseline justify-between gap-2 px-3 pt-2`}
+            >
+              <span>Selected models</span>
+              <span>Highlighted model ranks</span>
+            </div>
             {/* The selected set, and which of it ranks. A toolbar rather than a
                 second listbox: these are buttons that act, not options that
                 are chosen, and the one listbox below already owns the arrow
                 keys that walk a selection. */}
             <div
               role="toolbar"
-              className="flex flex-shrink-0 flex-wrap items-center gap-1.5 border-b border-slate-700 px-3 py-2"
+              className="flex flex-shrink-0 flex-wrap items-center gap-1.5 border-b border-slate-700 px-3 pb-2 pt-1.5"
             >
               {chips.map((model, at) => {
                 const id = chipIds[at]
