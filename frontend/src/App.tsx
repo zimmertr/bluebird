@@ -5,6 +5,7 @@ import SearchBox, { type SearchBoxHandle } from './components/SearchBox'
 import ResultsTable from './components/ResultsTable'
 import TimeSeriesChart from './components/TimeSeriesChart'
 import ColumnsPicker from './components/ColumnsPicker'
+import ModelsPicker from './components/ModelsPicker'
 import RemovedPicker from './components/RemovedPicker'
 import WelcomeModal from './components/WelcomeModal'
 import PreviewBanner from './components/PreviewBanner'
@@ -15,6 +16,7 @@ import { modelForecastHours, useCapabilities } from './hooks/useCapabilities'
 import { useChartSelection } from './hooks/useChartSelection'
 import { useModelCompare } from './hooks/useModelCompare'
 import { compareAdded } from './utils/modelCompare'
+import { pruneHidden, toggleHidden } from './utils/modelVisibility'
 import { useFireProximity } from './hooks/useFireProximity'
 import { fireKey } from './utils/fireProximity'
 import { useForecastGrid } from './hooks/useForecastGrid'
@@ -234,6 +236,7 @@ export default function App() {
   const mapRef = useRef<MapViewHandle>(null)
   const searchBoxRef = useRef<SearchBoxHandle>(null)
   const columnsButtonRef = useRef<HTMLButtonElement>(null)
+  const modelsButtonRef = useRef<HTMLButtonElement>(null)
   const removedButtonRef = useRef<HTMLButtonElement>(null)
 
   // The discovery inputs behind the results currently on screen: `base` covers
@@ -625,6 +628,12 @@ export default function App() {
   }, [columnVisibility])
   // Column picker popover open/closed
   const [columnsOpen, setColumnsOpen] = useState(false)
+  const [modelsOpen, setModelsOpen] = useState(false)
+  // Models whose lines the reader has put down (#232). Presentation and
+  // nothing else: the forecasts behind them are bought either way, so this
+  // rides in no link and no storage, and a reload comes back showing
+  // everything the comparison paid for.
+  const [hiddenModels, setHiddenModels] = useState<ReadonlySet<string>>(() => new Set())
   const [removedOpen, setRemovedOpen] = useState(false)
   // Column widths the user has set (px by key). Held here rather than in the
   // table so a mode switch or the collapse chevron — both of which unmount
@@ -1825,8 +1834,17 @@ export default function App() {
     models: caps.forecastModels,
     picked: comparedModels,
     fetchable: analyzed?.compareModels ?? [],
+    hidden: hiddenModels,
     times: chartTimes,
   })
+
+  // A model put down and later selected again comes back DRAWN, so a flag
+  // outlives its model by exactly nothing. Keyed on the panel's selection
+  // rather than on the chart's, because that is where a model leaves.
+  const selectedModelsKey = [forecastModel, ...comparedModels].join(',')
+  useEffect(() => {
+    setHiddenModels((prev) => pruneHidden(prev, selectedModelsKey.split(',')) ?? prev)
+  }, [selectedModelsKey])
 
   // A desktop-width window widens to Both when an analysis lands, so the first
   // report arrives with its chart — unless the user has ever explicitly picked
@@ -2552,6 +2570,20 @@ export default function App() {
                       Columns
                     </button>
                   )}
+                  {/* Which compared models the chart draws (#232). A bar
+                      member rather than a control on the chart, for the reason
+                      every other comparison control is in one place: the chart
+                      is read, not operated. Present only while there is a
+                      choice to make, which is more than one model on it. */}
+                  {compare.compared.length > 1 && (
+                    <button
+                      ref={modelsButtonRef}
+                      onClick={() => setModelsOpen(!modelsOpen)}
+                      className={`${TEXT.micro} ${LINK} cursor-pointer whitespace-nowrap`}
+                    >
+                      Models
+                    </button>
+                  )}
                   {/* Removed rows (#241): a removal's only undo, so it is a
                       standing bar member rather than a transient toast —
                       removals persist across live knobs and refreshes, and so
@@ -2645,7 +2677,7 @@ export default function App() {
                           cutAfterMs={compare.endMs}
                           controls={
                             compare.active ? (
-                              <ModelCompare compared={compare.compared} />
+                              <ModelCompare compared={compare.shown} />
                             ) : undefined
                           }
                         />
@@ -2776,6 +2808,16 @@ export default function App() {
           visibleKeys={effectiveVisibleKeys}
           onVisibilityChange={setColumnVisibility}
           triggerRef={columnsButtonRef}
+        />
+
+        {/* Model visibility popover */}
+        <ModelsPicker
+          open={modelsOpen}
+          onOpenChange={setModelsOpen}
+          models={compare.compared}
+          hidden={hiddenModels}
+          onToggle={(id) => setHiddenModels((prev) => toggleHidden(prev, id))}
+          triggerRef={modelsButtonRef}
         />
 
         {/* Removed rows popover */}

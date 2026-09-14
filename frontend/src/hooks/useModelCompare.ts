@@ -12,6 +12,7 @@ import {
   pairKey,
 } from '../utils/modelCompare'
 import { modelColor } from '../utils/chartColors'
+import { shownModels } from '../utils/modelVisibility'
 import { OpenMeteoModelCoverage, fetchWeather } from '../utils/openMeteo'
 import type { WeatherSeries } from '../utils/openMeteo'
 
@@ -71,6 +72,9 @@ interface Fetched {
 
 const NOTHING_FETCHED: Fetched = { series: {}, inFlight: {}, notes: {} }
 
+/** One identity for "nothing hidden", so a default does not re-run a memo. */
+const EMPTY_HIDDEN: ReadonlySet<string> = new Set()
+
 export interface ModelCompareOptions {
   /**
    * Off on air quality, which comes from CAMS whatever forecast model ranks the
@@ -90,6 +94,13 @@ export interface ModelCompareOptions {
   picked: readonly string[]
   /** Ticked when the analysis committed: which models may be FETCHED. */
   fetchable: readonly string[]
+  /**
+   * Models whose lines the reader has put down in the results bar's Models
+   * popover. Presentation only, and deliberately not part of `drawnIds`: the
+   * forecasts are already bought, so hiding must not cancel a fetch and
+   * showing must not start one.
+   */
+  hidden?: ReadonlySet<string>
   /** The chart's hourly grid, which compared series are re-indexed onto. */
   times: number[]
 }
@@ -103,6 +114,7 @@ export function useModelCompare({
   models,
   picked,
   fetchable,
+  hidden = EMPTY_HIDDEN,
   times,
 }: ModelCompareOptions) {
   const [fetched, setFetched] = useState<Fetched>(NOTHING_FETCHED)
@@ -287,6 +299,19 @@ export function useModelCompare({
     return [entry(rankingModel, null), ...drawnIds.map((id) => entry(id, fetched.notes[id] ?? null))]
   }, [active, colors, drawnIds, fetched.notes, models, rankingModel])
 
+  // The models actually drawn: everything on the chart the reader has not put
+  // down. Everything below reads THIS rather than `compared`, so a hidden
+  // model draws no line, bounds no clamp and explains no absence — it is
+  // absent because it was asked to be.
+  const shown: ComparedModel[] = useMemo(
+    () => shownModels(compared, hidden),
+    [compared, hidden],
+  )
+  const shownIds = useMemo(
+    () => new Set(shown.map((m) => m.id)),
+    [shown],
+  )
+
   /**
    * Where every line on the chart stops — the ranking model's lines included,
    * since a held line running past the models beside it is the ragged
@@ -299,8 +324,10 @@ export function useModelCompare({
    */
   const endMs = useMemo(() => {
     if (!active || !window_ || !rankingModel) return null
-    const drew = drawnIds.filter((id) =>
-      destinations.some((d) => fetched.series[pairKey(id, d.key)]),
+    if (!shownIds.has(rankingModel)) return null
+    const drew = drawnIds.filter(
+      (id) =>
+        shownIds.has(id) && destinations.some((d) => fetched.series[pairKey(id, d.key)]),
     )
     if (drew.length === 0) return null
     const reaches = [rankingModel, ...drew].map(
@@ -308,7 +335,7 @@ export function useModelCompare({
     )
     const end = compareEndMs(window_.endMs, reaches, nowRef.current)
     return end < window_.endMs ? end : null
-  }, [active, destinations, drawnIds, fetched.series, models, rankingModel, window_])
+  }, [active, destinations, drawnIds, fetched.series, models, rankingModel, shownIds, window_])
 
   const lines: ChartLine[] = useMemo(() => {
     if (!active || !rankingModel) return []
@@ -322,7 +349,7 @@ export function useModelCompare({
         series[pairKey(id, d.key)] = modelSeriesOnGrid(fetched.series[pairKey(id, d.key)], times)
       }
     }
-    const onChart: CompareModel[] = compared.map((m) => ({
+    const onChart: CompareModel[] = shown.map((m) => ({
       id: m.id,
       label: m.label,
       color: m.color,
@@ -330,15 +357,15 @@ export function useModelCompare({
     return compareSeries(destinations, onChart, series, times, endMs)
   }, [
     active,
-    compared,
     destinations,
     drawnIds,
     endMs,
     fetched.series,
     heldSeries,
     rankingModel,
+    shown,
     times,
   ])
 
-  return { active, compared, lines, endMs }
+  return { active, compared, shown, lines, endMs }
 }
