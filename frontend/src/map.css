@@ -95,20 +95,22 @@
 
 /* Where the library's own bottom controls go, which is not always the bottom.
  *
- * maplibre anchors the attribution and the scale bar to the map container's
- * bottom edge, and on a phone two of the app's own things stand on that edge:
- * the results sheet, which the map runs on behind (#249), and the forecast
- * player centred over it. The attribution is a licence term and cannot be
- * covered; the scale reads against the map rather than against a control. So the
- * whole corner steps up, rather than each control taking an offset of its own.
+ * maplibre anchors the scale bar and the attribution to the map container's
+ * bottom edge, and the app stands its results on that edge: docked below the
+ * map at a desk, and as a sheet the map runs on behind on a phone (#249). The
+ * attribution is a licence term and cannot be covered; the scale reads against
+ * the map rather than against a control. So both corners step up together,
+ * rather than each control taking an offset of its own.
  *
  * `--map-corner-lift` is that one step, published by App on the map wrapper and
  * derived in `utils/resultsSheet.ts` beside every other anchor on this edge. It
- * is absent wherever nothing stands there — every desktop width, and a phone
- * before the first report — which is what the 0px fallback covers.
+ * is absent wherever nothing stands there — a phone before the first report,
+ * and any width where the results are closed — which is what the 0px fallback
+ * covers.
  *
  * Unlayered like the rules above, so it beats the vendor's own `bottom: 0` in
  * @layer base. */
+.maplibregl-ctrl-bottom-left,
 .maplibregl-ctrl-bottom-right {
   bottom: var(--map-corner-lift, 0px);
 }

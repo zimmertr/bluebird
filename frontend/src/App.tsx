@@ -1842,12 +1842,11 @@ export default function App() {
           gripCount,
           panelsPx: chartPanelPx + tablePanelPx,
         })
-  // The library's own corner takes one more step than the rest: the forecast
-  // player is centred over the same bottom edge the attribution and the scale
-  // are anchored to, and on a narrow map the three meet. Only on a phone, where
-  // the bar is as wide as the map; a desktop map is wide enough that a centred
-  // bar and that corner never touch.
-  const mapCornerLift = mapCornerLiftPx(sheetLiftPx, !isDesktop && timelineAxis !== null)
+  // Both of the library's bottom corners ride the same lift as the app's own
+  // chrome, at every width: the scale bar bottom-left and the attribution
+  // bottom-right sit in the band between the forecast player and the top of the
+  // results, which is the one place on that edge nothing else stands.
+  const mapCornerLift = mapCornerLiftPx(sheetLiftPx)
   // What the map's camera must keep clear of the sheet. The RESTING lift, not
   // the live one above: a fit re-framed mid-drag would move the map under the
   // hand that is dragging it.

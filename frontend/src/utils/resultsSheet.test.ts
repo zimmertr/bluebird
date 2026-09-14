@@ -92,25 +92,21 @@ describe('the map chrome anchors', () => {
   })
 })
 
-// MapLibre's attribution and scale are the library's controls, anchored to the
-// map container's bottom edge — which on a phone carries the sheet and the
-// centred forecast player. The corner therefore steps over both.
+// MapLibre's scale bar and attribution are the library's controls, anchored to
+// the map container's bottom edge — which carries the results: docked below the
+// map at a desk, a sheet standing on it on a phone. Both corners therefore ride
+// the results' own height, which puts them in the band the transport's gap
+// keeps clear above them.
 describe('mapCornerLiftPx', () => {
-  it('leaves the corner on the bottom edge where nothing stands there', () => {
-    expect(mapCornerLiftPx(0, false)).toBe(0)
+  it('leaves the corners on the bottom edge where the results are docked', () => {
+    expect(mapCornerLiftPx(0)).toBe(0)
   })
 
-  it('steps over the player, over the sheet, and over both together', () => {
-    expect(mapCornerLiftPx(0, true)).toBe(TRANSPORT_BAND_PX)
-    expect(mapCornerLiftPx(392, false)).toBe(392)
-    expect(mapCornerLiftPx(392, true)).toBe(392 + TRANSPORT_BAND_PX)
-  })
-
-  // The corner and the legend stack read the transport the same way, so a bar
-  // cannot be clear of the legends on one side and under the licence line on the
-  // other.
-  it('keeps the clearance the legend stack keeps on the other side', () => {
-    expect(mapCornerLiftPx(392, true)).toBe(legendBottomPx(392, true))
+  it('rides the sheet, landing under the transport rather than over it', () => {
+    expect(mapCornerLiftPx(392)).toBe(392)
+    // The band between the results and the bar is the transport's own gap, and
+    // the corner sits inside it rather than taking a step of its own.
+    expect(transportBottomPx(392) - mapCornerLiftPx(392)).toBe(TRANSPORT_GAP_PX)
   })
 
   // map.css cannot be read as text here (vitest stubs a CSS import to an empty

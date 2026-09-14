@@ -37,6 +37,7 @@ import {
 import { POI_ACTION_ATTR, poiPopupHtml } from '../utils/poiPopup'
 import { Ring, widestPole } from '../utils/polylabel'
 import { popupWidth } from '../utils/popupChrome'
+import { useIsDesktop } from '../hooks/useIsDesktop'
 import {
   COARSE_TOLERANCE_DEG,
   fetchWildfires,
@@ -759,6 +760,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
     },
     ref,
   ) => {
+    // The same predicate the results sheet uses, so the map's bottom chrome and
+    // the thing it is standing clear of change shape at one width.
+    const isDesktop = useIsDesktop()
     const containerRef = useRef<HTMLDivElement>(null)
     const mapRef = useRef<maplibregl.Map | null>(null)
     const loadedRef = useRef(false)
@@ -997,6 +1001,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
         style: STYLE,
         center: [-120.5, 47.5],
         zoom: 7,
+        // The library adds its own attribution unless told not to, and the
+        // only way to decide `compact` is to construct the control. The effect
+        // below does, at the app's own breakpoint rather than the library's
+        // 640px one.
+        attributionControl: false,
       })
       mapRef.current = map
       // Shift is the pinning modifier for popups (isPinning below), and
@@ -1015,12 +1024,14 @@ const MapView = forwardRef<MapViewHandle, Props>(
         new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }),
         'top-right',
       )
-      // Bottom-right, beside the attribution. Bottom-left was tried and is
-      // worse: the attribution's box grows leftward as the map narrows until it
-      // reaches that corner too, so the scale only swapped which licence-term
-      // neighbour it collided with. Where it goes when it cannot fit beside the
-      // timeline is a CSS question, answered in map.css.
-      map.addControl(new maplibregl.ScaleControl(), 'bottom-right')
+      // A corner each, which is what lets both sit in the one band the map's
+      // bottom chrome reserves (`TRANSPORT_GAP_PX` in `utils/resultsSheet.ts`)
+      // rather than stacking into two. The scale takes the left, under the
+      // legend stack; the attribution takes the right, where the library puts
+      // it by default and where the OpenStreetMap guideline expects it. They
+      // shared the right corner before, the scale floating above the licence
+      // line, which made the pair as tall as both together.
+      map.addControl(new maplibregl.ScaleControl(), 'bottom-left')
 
       // Keep the canvas in sync with its container. MapLibre only tracks window
       // resizes, but our container also changes size when the results panel
@@ -1894,6 +1905,25 @@ const MapView = forwardRef<MapViewHandle, Props>(
         mapRef.current = null
       }
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // The attribution, collapsed behind the library's own (i) on a phone and
+    // spelled out at a desk. Both are what the OpenStreetMap attribution
+    // guideline allows, and which one a width gets is the sheet's own
+    // breakpoint rather than the library's 640px: between the two the map is
+    // wide enough for the line but the layout is the phone's, where the band
+    // this sits in is the one the results sheet and the forecast player leave.
+    //
+    // Re-added rather than updated, because `compact` is read once when the
+    // control is constructed.
+    useEffect(() => {
+      const map = mapRef.current
+      if (!map) return
+      const control = new maplibregl.AttributionControl({ compact: !isDesktop })
+      map.addControl(control, 'bottom-right')
+      return () => {
+        if (mapRef.current === map) map.removeControl(control)
+      }
+    }, [isDesktop])
 
     // Markers, and the hour they are colored for. `playbackIndex` joins the
     // deps because a scrub is a re-render of the same rows at a different hour:
