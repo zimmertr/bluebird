@@ -419,6 +419,7 @@ number or omitted, and they combine as an AND:
 | `min_precip_total_in` / `max_precip_total_in` | its `precip_total_in` is inside the range |
 | `min_temp_f` / `max_temp_f` | its `temp_min_f` is at or above the floor **and** its `temp_max_f` at or below the ceiling |
 | `min_wind_mph` / `max_wind_mph` | its `wind_min_mph` is at or above the floor **and** its `wind_max_mph` at or below the ceiling |
+| `min_freeze_ft` / `max_freeze_ft` | its `freeze_min_ft` is at or above the floor **and** its `freeze_max_ft` at or below the ceiling |
 | `min_aqi` / `max_aqi` | its `aqi_max` is inside the range |
 
 ```bash
@@ -446,17 +447,23 @@ Four things are worth knowing before relying on them.
 **A ceiling reads the worst hour, a floor the best.** `max_wind_mph: 20` does
 not mean "averages under 20", it means "never exceeds 20", so a destination
 that gusts to 45 at noon is gone. That is the only reading you can plan
-against. Precipitation and air quality have no minimum aggregate to read, so
-both of their bounds compare one field: the window total, and the worst hour.
+against. The freezing level is the one family where neither end is the bad
+one, and it reads straight: the floor asks that the level never dropped below
+the value, the ceiling that it never rose above it. Precipitation and air
+quality have no minimum aggregate to read, so both of their bounds compare one
+field: the window total, and the worst hour.
 
 **They run before the ranking and before `limit`.** So `limit: 10` with a wind
 ceiling returns the ten driest destinations that stay calm, not whichever of
 the ten driest happened to be calm.
 
-**A null passes every bound.** Only `aqi_max` can be null, and it is null
+**A null passes every bound.** Two fields can be null. `aqi_max` is null
 whenever the window outruns the roughly five-day air-quality horizon or the
-best-effort fetch failed. An absent number is not evidence of bad air, so those
-rows are kept, exactly as an untagged summit survives an elevation band.
+best-effort fetch failed. The three `freeze_*` fields are null under every
+model that publishes no freezing level, which is most of them. An absent
+number is not evidence of bad air, and a model that carries no freezing level
+says nothing about the weather, so those rows are kept, exactly as an untagged
+summit survives an elevation band.
 
 **An AQI bound costs more than the others.** Air quality is normally fetched
 only for the rows being returned. Bounding it forces the fetch for every
@@ -629,6 +636,19 @@ and each model's `forecast_hours`.
 Air quality deserves a note. Its horizon is far shorter than the weather
 forecast, so `aqi_avg` and `aqi_max` come back `null` for hours beyond it. That
 is expected, not an error, and an air-quality outage never fails an analysis.
+
+So does the freezing level. `freeze_min_ft`, `freeze_avg_ft` and `freeze_max_ft`
+are the window's freezing level in feet above sea level, and `series.freeze_ft`
+carries it per hour. They are `null` for every row of an analysis run on a model
+that does not publish the variable, which is five of the eight — only
+`gfs_seamless`, `gfs_hrrr` and `icon_seamless` answer it (measured 2026-09-12).
+Nothing else on the row is affected: the aggregation reduces it separately, so a
+model with no freezing level still returns complete precipitation, temperature
+and wind. A `0` is a value rather than a gap, meaning the freezing level reached
+sea level. Ranking by one of these keys sorts `null` last in either direction,
+exactly as the AQI keys do. [DATA.md's Open-Meteo
+section](DATA.md#open-meteo) has what the number can and cannot say about an
+overnight refreeze.
 
 Two things about the value itself, for anyone rendering it. It is sampled from
 a model grid measured in tens of kilometers, so nearby destinations often carry

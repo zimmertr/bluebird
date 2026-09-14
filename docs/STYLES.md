@@ -167,7 +167,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | Every focus-able control has focus ring | `styles.test.ts` | List per control type |
 | Segmented controls are built one way | `styles.test.ts` | Check `SEGMENT` / `SEGMENT_IDLE` / `SEGMENT_ITEM` composition |
 | Metric names are centralized | `metrics.test.ts` | Ban Precip/Temp/Avg/Min/Max/Elev abbreviations in nine files |
-| No `title=` attributes on JSX elements | `styles.test.ts` | Regex pattern on component sources |
+| Tooltips match the approved list, count for count | `styles.test.ts` | `title=` occurrences per component file |
 | No unsafe error message patterns | `styles.test.ts` & `metrics.test.ts` | Ban `failed: ${...}` and unsafe response copies |
 
 **NOT enforced:** custom radius, custom spacing between components (only recessed surface and controls are architected), component-specific layouts. These are decided per feature.
@@ -247,11 +247,25 @@ touch.** A phone has no hover, so anything a tooltip carries is simply gone for
 those readers. That is a real cost every time, and it is why the answer is
 usually to shorten the label, fix the control, or delete the sentence instead.
 
-The one in the tree today: the filter grid's *"Destinations with unknown values
-are included."* rides as a `title` on the Elevation and AQI rows — the two whose
-value can genuinely be missing — rather than as a standing line under the grid.
-That bought back the line of height that made the panel scroll, and the fact
-stays discoverable in the table (a dash) and in `docs/DATA.md`.
+The approved set is a LIST with a count per file, pinned in `styles.test.ts`:
+adding one without asking fails there, and so does losing one by accident. Two
+of them are worth reading as examples of what earns one.
+
+The filter grid's *"Destinations with unknown values are included."* rides as a
+`title` on the Elevation and AQI rows — the two whose value can genuinely be
+missing — rather than as a standing line under the grid. That bought back the
+line of height that made the panel scroll, and the fact stays discoverable in
+the table (a dash) and in `docs/DATA.md`.
+
+The freezing-level cell's *"Freezing level is only available from the GFS
+Seamless, HRRR and ICON models."* answers a question only that cell raises: it
+reads `N/A` rather than a number, and without the note the reader cannot tell a
+model that does not carry the variable from an app that failed to fetch it. It
+is the same `N/A`-plus-`title` idiom the Wildfire (mi) column uses for a row it
+could not check, so the table has one spelling of "no answer here, and here is
+why" (TJ, 2026-09-12, asked for with the metric itself in #295). What keeps the
+touch cost bounded is that the mark itself is honest without the note, and
+`docs/DATA.md` carries the full explanation.
 
 ### Sentence case
 

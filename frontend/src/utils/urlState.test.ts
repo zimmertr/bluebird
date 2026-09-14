@@ -346,7 +346,7 @@ describe('encodeState', () => {
 
   it('omits every forecast bound when unset', () => {
     const qs = encodeState(base, DEFAULT_MODEL)
-    for (const param of ['minprecip', 'maxprecip', 'mintemp', 'maxtemp', 'minwind', 'maxwind', 'minaqi', 'maxaqi']) {
+    for (const param of ['minprecip', 'maxprecip', 'mintemp', 'maxtemp', 'minwind', 'maxwind', 'minfreeze', 'maxfreeze', 'minaqi', 'maxaqi']) {
       expect(qs).not.toContain(param)
     }
   })
@@ -359,6 +359,8 @@ describe('encodeState', () => {
       maxTempF: 80,
       minWindMph: 1,
       maxWindMph: 20,
+      minFreezeFt: 6000,
+      maxFreezeFt: 12000,
       minAqi: 10,
       maxAqi: 100,
     }
@@ -366,6 +368,7 @@ describe('encodeState', () => {
     // Plain numbers under names you can guess, which is the whole convention:
     // a bound should be as editable in the address bar as it is in the panel.
     expect(new URLSearchParams(qs).get('maxaqi')).toBe('100')
+    expect(new URLSearchParams(qs).get('minfreeze')).toBe('6000')
     expect(new URLSearchParams(qs).get('maxprecip')).toBe('0.1')
     expect(decodeState(`?${qs}`)?.constraints).toEqual(constraints)
   })
@@ -551,6 +554,7 @@ describe('decodeState tolerance', () => {
         precip: 'precip_total_in',
         wind: 'wind_max_mph',
         temp: 'temp_min_f',
+        freeze: 'freeze_min_ft',
         aqi: 'aqi_avg',
       })
       expect(out!.sortBy).toBe('precip_total_in')
@@ -572,7 +576,25 @@ describe('decodeState tolerance', () => {
       expect(params.get('wind')).toBeNull()
       expect(params.get('precip')).toBeNull()
       expect(params.get('temp')).toBeNull()
+      expect(params.get('freeze')).toBeNull()
       expect(params.get('aqi')).toBeNull()
+    })
+
+    // The fifth family rides the same machinery and needs no reader of its
+    // own; what is worth pinning is the param NAME, which is the family key
+    // and therefore also a link people hand-edit (#295).
+    it('names the freezing-level row param after its family', () => {
+      const qs = encodeState(
+        {
+          ...base,
+          sortBy: 'precip_total_in',
+          rowKeys: { ...DEFAULT_FAMILY_KEY, freeze: 'freeze_max_ft' },
+        },
+        DEFAULT_MODEL,
+      )
+      expect(new URLSearchParams(qs).get('freeze')).toBe('max')
+      expect(decodeState('freeze=max')!.rowKeys!.freeze).toBe('freeze_max_ft')
+      expect(decodeState('sort=freeze_min_ft')!.sortBy).toBe('freeze_min_ft')
     })
 
     it('restores the active row from sort alone', () => {

@@ -25,6 +25,9 @@ function row(over: Partial<DestinationResult> = {}): DestinationResult {
     wind_min_mph: 4.1,
     wind_max_mph: 22.7,
     wind_avg_mph: 12.3,
+    freeze_min_ft: null,
+    freeze_max_ft: null,
+    freeze_avg_ft: null,
     aqi_avg: 31,
     aqi_min: 44,
     aqi_max: 44,
@@ -147,6 +150,44 @@ describe('values a spreadsheet can compute over', () => {
     expect(csv).not.toContain('14,411')
   })
 
+  // Same case as elevation, and for the same reason: a freezing level is a
+  // height in feet, grouped on screen and bare in the file.
+  it('writes the freezing level as a bare number too', () => {
+    const csv = buildResultsCsv(
+      [row({ freeze_min_ft: 9843, freeze_max_ft: 10171, freeze_avg_ft: 10007 })],
+      WINDOW_COLUMNS,
+      NO_FIRES,
+    )
+    expect(csv).toContain('9843')
+    expect(csv).not.toContain('10,171')
+  })
+
+  // The one column whose empty cell is not blank, and the same rule the
+  // wildfire column's N/A follows: a blank asserts something. Everywhere else
+  // it asserts "no value measured", which is true of a forecast that fell
+  // short; here it would assert that the freezing level was measured and came
+  // back empty, when the truth is that the chosen model publishes no such
+  // variable at all. The file is read detached from the app, with nothing
+  // around it to say which, so it carries the mark the screen shows.
+  it('writes the screen mark for a freezing level the model does not publish', () => {
+    const csv = buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES)
+    const freezeColumns = WINDOW_COLUMNS.filter((c) => c.key.startsWith('freeze_'))
+
+    expect(freezeColumns).toHaveLength(3)
+    expect(cells(lines(csv)[1]).filter((c) => c === 'N/A')).toHaveLength(3)
+  })
+
+  // A row the model DID answer writes numbers, so the mark above can only ever
+  // mean the absence it names.
+  it('writes no mark where the model answered', () => {
+    const csv = buildResultsCsv(
+      [row({ freeze_min_ft: 9843, freeze_max_ft: 10171, freeze_avg_ft: 10007 })],
+      WINDOW_COLUMNS,
+      NO_FIRES,
+    )
+    expect(csv).not.toContain('N/A')
+  })
+
   it('keeps the precision the table displays rather than the float behind it', () => {
     const csv = buildResultsCsv([row({ precip_total_in: 0.1 + 0.2 })], WINDOW_COLUMNS, NO_FIRES)
     expect(csv).toContain('0.300')
@@ -265,7 +306,10 @@ describe('the wildfire column', () => {
   it('still omits the whole column when the lookup itself never ran', () => {
     const uncovered = new Set([fireKey(53.1106, -119.2317)])
     const csv = buildResultsCsv([row()], WINDOW_COLUMNS, null, [], uncovered)
-    expect(csv).not.toContain('N/A')
+    // The row ends where the metric columns end, so no cell carries the fire
+    // check's answer at all. Counted rather than searched for the mark, which
+    // the freezing-level columns write for a reason of their own.
+    expect(cells(lines(csv)[1])).toHaveLength(WINDOW_COLUMNS.length + 1)
     expect(cells(lines(csv)[0])).not.toContain(WILDFIRE_COL.label)
   })
 

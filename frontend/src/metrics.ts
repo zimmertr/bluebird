@@ -1,9 +1,10 @@
 import { SortBy } from './types'
 
 /**
- * One vocabulary for the four things Bluebird Forecast measures.
+ * One vocabulary for the five things Bluebird Forecast measures.
  *
- * Bluebird Forecast measures precipitation, temperature, wind and air quality, and names
+ * Bluebird Forecast measures precipitation, temperature, wind, the freezing
+ * level and air quality, and names
  * them on six surfaces: the map legend, the ranking picker, the results header,
  * the results table, the forecast chart's radios, and a marker's popup. Before
  * this module each surface spelled them itself, so the same metric appeared as
@@ -25,30 +26,42 @@ import { SortBy } from './types'
  */
 
 /**
- * The four metrics, keyed the way the forecast chart already keyed them.
+ * The five metrics, keyed the way the forecast chart already keyed them.
  *
  * Reusing those keys is what lets `chartData.ts` alias this type instead of
  * maintaining a parallel union and a mapping between the two.
+ *
+ * Every key a row carries leads with its family and `familyOf` reads that
+ * prefix, so a family's name is also a reserved prefix: `freeze` can never be
+ * the head of a key belonging to anything else.
  */
-export type MetricFamily = 'precip' | 'temp' | 'wind' | 'aqi'
+export type MetricFamily = 'precip' | 'temp' | 'wind' | 'freeze' | 'aqi'
 
 /**
- * The four metric rows of the ranking picker, in the order they render — the
- * same order the ranking radios have always used.
+ * The metric rows of the ranking picker, in the order they render — the
+ * order the ranking radios have always used, with the freezing level beside
+ * the temperature it is a reading of (#295).
  */
-export const RANKED_FAMILIES: readonly MetricFamily[] = ['precip', 'wind', 'temp', 'aqi']
+export const RANKED_FAMILIES: readonly MetricFamily[] = [
+  'precip',
+  'wind',
+  'temp',
+  'freeze',
+  'aqi',
+]
 
 /**
  * Each family's rankable keys, in the order its aggregate picker offers them
  * (#291). One key per aggregate column the table shows, so the picker and the
  * table cannot disagree about what a metric's choices are. The order is
- * alphabetical by display word (Avg, Max, Min, Total; TJ, 2026-08-22), so all
- * four dropdowns open with the same word first.
+ * alphabetical by display word (Avg, Max, Min, Total; TJ, 2026-08-22), so
+ * every dropdown opens with the same word first.
  */
 export const FAMILY_KEYS: Record<MetricFamily, readonly SortBy[]> = {
   precip: ['precip_avg_in_hr', 'precip_max_in_hr', 'precip_min_in_hr', 'precip_total_in'],
   wind: ['wind_avg_mph', 'wind_max_mph', 'wind_min_mph'],
   temp: ['temp_avg_f', 'temp_max_f', 'temp_min_f'],
+  freeze: ['freeze_avg_ft', 'freeze_max_ft', 'freeze_min_ft'],
   aqi: ['aqi_avg', 'aqi_max', 'aqi_min'],
 }
 
@@ -62,6 +75,11 @@ export const DEFAULT_FAMILY_KEY: Record<MetricFamily, SortBy> = {
   precip: 'precip_total_in',
   wind: 'wind_avg_mph',
   temp: 'temp_avg_f',
+  // The one default that is not a historical carry-over. The question this
+  // metric was added to answer is the overnight refreeze (#295), and the
+  // freezing level almost always bottoms out at night, so the window minimum
+  // is the night's number without a local-night definition to get wrong.
+  freeze: 'freeze_min_ft',
   aqi: 'aqi_avg',
 }
 
@@ -90,6 +108,7 @@ export const NOUN: Record<MetricFamily, string> = {
   precip: 'Precipitation',
   temp: 'Temperature',
   wind: 'Wind',
+  freeze: 'Freezing level',
   aqi: 'AQI',
 }
 
@@ -104,6 +123,9 @@ export const UNIT: Record<MetricFamily, string> = {
   precip: 'in',
   temp: '°F',
   wind: 'mph',
+  // Feet above sea level, the same unit and datum the elevation column uses,
+  // because the whole reading is the comparison between the two.
+  freeze: 'ft',
   aqi: '',
 }
 
@@ -145,7 +167,14 @@ export const SEP = '·'
  */
 export function familyOf(key: string): MetricFamily {
   const head = key.split('_')[0]
-  if (head === 'precip' || head === 'temp' || head === 'wind' || head === 'aqi') return head
+  if (
+    head === 'precip' ||
+    head === 'temp' ||
+    head === 'wind' ||
+    head === 'freeze' ||
+    head === 'aqi'
+  )
+    return head
   throw new Error(`no metric family for "${key}"`)
 }
 

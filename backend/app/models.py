@@ -299,6 +299,9 @@ class SortBy(str, Enum):
     temp_min = "temp_min_f"
     temp_avg = "temp_avg_f"
     temp_max = "temp_max_f"
+    freeze_min = "freeze_min_ft"
+    freeze_avg = "freeze_avg_ft"
+    freeze_max = "freeze_max_ft"
     aqi_avg = "aqi_avg"
     aqi_min = "aqi_min"
     aqi_max = "aqi_max"
@@ -548,7 +551,10 @@ class AnalyzeRequest(BaseModel):
     # compares the window's WORST hour and a floor its best, so a bound is a
     # promise about every hour in the window: `max_wind_mph = 20` admits no
     # destination that gusts to 45 at noon, which is the only reading a
-    # mountaineer can plan against. Precipitation and AQI have no minimum
+    # mountaineer can plan against. The freezing level reads the same way in
+    # the one family where neither end is the bad one: the floor asks that the
+    # level never dropped below the value, the ceiling that it never rose above
+    # it. Precipitation and AQI have no minimum
     # aggregate to bound (a per-hour precipitation floor would be 0.000 almost
     # everywhere), so their two bounds both compare one named field, and that
     # field is named in the description a caller reads.
@@ -588,6 +594,27 @@ class AnalyzeRequest(BaseModel):
         description=(
             "Drop rows whose `wind_max_mph` is above this, i.e. keep only "
             "destinations that never exceed it during the window."
+        ),
+    )
+    min_freeze_ft: float | None = Field(
+        default=None,
+        description=(
+            "Drop rows whose `freeze_min_ft` is below this, i.e. keep only "
+            "destinations whose freezing level never fell below it during the "
+            "window. Not bounded below: a freezing level of 0 is a reading, "
+            "not a gap."
+        ),
+    )
+    max_freeze_ft: float | None = Field(
+        default=None,
+        description=(
+            "Drop rows whose `freeze_max_ft` is above this, i.e. keep only "
+            "destinations whose freezing level never rose above it during the "
+            "window. A row with a null `freeze_max_ft` passes either bound: "
+            "only some forecast models publish a freezing level at all, so a "
+            "missing number says which model answered rather than what the "
+            "weather did, and dropping those rows would empty the whole "
+            "result under every other model."
         ),
     )
     min_aqi: float | None = Field(
@@ -781,6 +808,13 @@ class HourlySeries(BaseModel):
             "See `wind_avg_mph` on the result for how it is derived."
         )
     )
+    freeze_ft: list[float | None] = Field(
+        description=(
+            "Freezing level, feet above sea level. Null at every hour for the "
+            "models that do not publish the variable; see `freeze_avg_ft` on "
+            "the result."
+        )
+    )
     aqi: list[int | None] = Field(description="US AQI, all EPA pollutants combined.")
 
 
@@ -833,6 +867,26 @@ class DestinationResult(BaseModel):
             "level (~762 m), report the 10 m wind. All three wind aggregates "
             "reduce the same adjusted hourly values."
         )
+    )
+    freeze_min_ft: float | None = Field(
+        default=None,
+        description=(
+            "Lowest freezing level in the window, feet above sea level. Read "
+            "against `elevation_ft`: below the destination, the whole "
+            "destination was below freezing at that hour. Zero means the "
+            "freezing level reached sea level, not that there is no value. "
+            "Null for every hour of a forecast model that does not publish "
+            "the variable, which is five of the eight; an absent freezing "
+            "level never affects the other figures on this row."
+        ),
+    )
+    freeze_max_ft: float | None = Field(
+        default=None,
+        description="Highest freezing level in the window. Null under the same terms.",
+    )
+    freeze_avg_ft: float | None = Field(
+        default=None,
+        description="Mean freezing level across the window. Null under the same terms.",
     )
     aqi_avg: int | None = Field(
         default=None,

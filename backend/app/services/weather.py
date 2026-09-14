@@ -71,13 +71,34 @@ _WIND_LEVELS: list[tuple[str, float]] = [
     ("wind_speed_500hPa", 5574.0),
 ]
 _FT_TO_M = 0.3048
-HOURLY_VARIABLES = "precipitation,temperature_2m,wind_speed_10m," + ",".join(
-    name for name, _ in _WIND_LEVELS
+# The height where the free-air temperature crosses freezing (issue #295).
+# Spring and winter travel turns on the overnight refreeze, and a destination's
+# own temperature answers that only at its own elevation — the freezing level
+# says where the supportable snow starts on the way up.
+#
+# Open-Meteo quotes the height in whatever unit `precipitation_unit` selects,
+# and names that unit in `hourly_units`: with `precipitation_unit=inch` (which
+# every request below sends) the column is FEET, and without the parameter it
+# is meters. Measured 2026-09-13 at Rainier, one hour reads 2560 with "m" and
+# 8398.95 with "ft". So the unit is read off each response rather than assumed:
+# the factor between them is 3.28, and a freezing level 3.28 times too high is
+# a plausible-looking altitude rather than an obvious fault.
+#
+# It clamps to 0.0 when the whole column is below freezing, so a zero means
+# "froze to sea level" rather than "no answer". Measured 2026-09-12, three of
+# the eight models serve it (gfs_seamless, gfs_hrrr, icon_seamless); the other
+# five answer HTTP 200 with a column of nulls. That is why its aggregates are
+# nullable on their own and are never reduced inside the precip/temp/wind zip
+# below.
+_FREEZING_LEVEL = "freezing_level_height"
+HOURLY_VARIABLES = ",".join(
+    ["precipitation", "temperature_2m", "wind_speed_10m", _FREEZING_LEVEL]
+    + [name for name, _ in _WIND_LEVELS]
 )
-# 8 stays at weight factor 1: Open-Meteo's factor is max(1, vars x models/10)
-# and a request names one model, so the five level winds ride the same weighted
-# budget the three originals did.
-N_VARIABLES = 8
+# 9 stays at weight factor 1: Open-Meteo's factor is max(1, vars x models/10)
+# and a request names one model, so the five level winds and the freezing
+# level ride the same weighted budget the three originals did.
+N_VARIABLES = 9
 PROVIDER = "Open-Meteo"
 
 # Called as each batch completes: (processed_destinations, total_destinations,
@@ -486,6 +507,59 @@ def _level_arrays(hourly: dict[str, Any]) -> list[list[Any]]:
     return [hourly.get(name, []) for name, _ in _WIND_LEVELS]
 
 
+def _freeze_unit(data: dict[str, Any]) -> str | None:
+    """The unit the response declared for the freezing level, or None.
+
+    None covers both a response with no `hourly_units` at all and one that
+    names no unit for this variable; `_freeze_to_ft` decides what that means,
+    because a column of nulls needs no unit and a column of numbers does.
+    """
+    units = data.get("hourly_units")
+    unit = units.get(_FREEZING_LEVEL) if isinstance(units, dict) else None
+    return unit if isinstance(unit, str) else None
+
+
+def _freeze_to_ft(v: float, unit: str | None) -> float:
+    """One freezing level reading in feet, per the unit the response declared.
+
+    A unit that is neither documented one leaves the number unreadable, and
+    assuming either would ship a reading 3.28 times out, so an unknown or
+    missing unit fails the batch the way any unusable body does.
+    """
+    if unit == "ft":
+        return v
+    if unit == "m":
+        return v / _FT_TO_M
+    log.warning("Open-Meteo declared freezing level unit %r", unit)
+    # The wording `classify_http_error` gives any other unusable Open-Meteo
+    # response, so one provider fault is not described two ways.
+    raise UpstreamError(f"{PROVIDER} request failed. Try again later.")
+
+
+def _freeze_ft_in_window(
+    hourly: dict[str, Any],
+    start: datetime,
+    end: datetime,
+    unit: str | None,
+) -> list[float]:
+    """Every in-window hour that HAS a freezing level, in feet.
+
+    Read against its own pair of arrays rather than inside `_metrics`'s zip,
+    which is the whole of how a model that does not serve the variable stays
+    harmless: an hour dropped for a null freezing level would take the
+    precipitation, temperature and wind of that same hour with it, so five of
+    the eight models would return no weather at all. The null skip and the
+    zip-of-shortest are the AQI aggregation's, for the same reason.
+    """
+    return [
+        _freeze_to_ft(v, unit)
+        for ts, v in zip(hourly.get("time", []), hourly.get(_FREEZING_LEVEL, []))
+        if v is not None
+        and (parsed := _parse_ts(ts)) is not None
+        and start <= parsed <= end
+    ]
+
+
 def _metrics(
     data: dict[str, Any],
     start_dt: datetime,
@@ -522,6 +596,7 @@ def _metrics(
             return None
 
         p_vals, t_vals, w_vals = zip(*filtered)
+        f_vals = _freeze_ft_in_window(hourly, start, end, _freeze_unit(data))
 
         return {
             "precip_total_in": round(sum(p_vals), 4),
@@ -536,7 +611,17 @@ def _metrics(
             "wind_min_mph": round(min(w_vals), 1),
             "wind_max_mph": round(max(w_vals), 1),
             "wind_avg_mph": round(sum(w_vals) / len(w_vals), 1),
+            # Whole feet: the models resolve this to hundreds of meters, so a
+            # decimal would be precision the number does not carry.
+            "freeze_min_ft": round(min(f_vals), 0) if f_vals else None,
+            "freeze_max_ft": round(max(f_vals), 0) if f_vals else None,
+            "freeze_avg_ft": round(sum(f_vals) / len(f_vals), 0) if f_vals else None,
         }
+    except UpstreamError:
+        # A unit nothing can read is not one bad hour to skip past: every
+        # number in the column would have to be invented, so it passes the
+        # degrade below and fails the analysis.
+        raise
     except Exception:  # noqa: BLE001 — malformed payload degrades to no metrics
         return None
 
@@ -547,14 +632,16 @@ def _series(
     end_dt: datetime,
     elevation_ft: float | None = None,
 ) -> dict[str, Any] | None:
-    """Per-hour precip/temp/wind over the window, aligned to a shared grid.
+    """Per-hour precip/temp/wind/freezing level over the window, on one grid.
 
     Unlike `_metrics` — which drops any hour missing a value and collapses the
     rest into aggregates — this keeps every in-window hour and preserves each
     metric's nulls independently (the chart renders them as line gaps). Returns
-    None only when the window contains no hours at all. Wind is adjusted to
-    the destination's elevation exactly as `_metrics` adjusts it, so the chart
-    and the playback recoloring draw the same quantity the table ranks.
+    None when the window contains no hours at all, or when the payload is
+    malformed — an unreadable freezing level unit is the one exception, and it
+    raises. Wind is adjusted to the destination's elevation exactly as
+    `_metrics` adjusts it, so the chart and the playback recoloring draw the
+    same quantity the table ranks.
     """
     try:
         hourly = data.get("hourly", {})
@@ -562,6 +649,8 @@ def _series(
         precip = hourly.get("precipitation", [])
         temp = hourly.get("temperature_2m", [])
         wind = hourly.get("wind_speed_10m", [])
+        freeze = hourly.get(_FREEZING_LEVEL, [])
+        freeze_unit = _freeze_unit(data)
         levels = _level_arrays(hourly)
 
         start = _naive(start_dt)
@@ -571,6 +660,7 @@ def _series(
         p_out: list[float | None] = []
         t_out: list[float | None] = []
         w_out: list[float | None] = []
+        f_out: list[float | None] = []
         for i, ts in enumerate(times):
             parsed = _parse_ts(ts)
             if parsed is None or not (start <= parsed <= end):
@@ -587,10 +677,27 @@ def _series(
                 )
             )
             w_out.append(_round_or_none(w_adj, 1))
+            f_raw = _at(freeze, i)
+            f_out.append(
+                _round_or_none(
+                    None if f_raw is None else _freeze_to_ft(f_raw, freeze_unit), 0
+                )
+            )
 
         if not grid:
             return None
-        return {"times": grid, "precip_in": p_out, "temp_f": t_out, "wind_mph": w_out}
+        return {
+            "times": grid,
+            "precip_in": p_out,
+            "temp_f": t_out,
+            "wind_mph": w_out,
+            "freeze_ft": f_out,
+        }
+    except UpstreamError:
+        # The one failure this function does not absorb, for the reason
+        # `_metrics` does not absorb it either: an unreadable unit is a number
+        # we would have to invent, not an hour we can leave blank.
+        raise
     except Exception:  # noqa: BLE001 — best-effort series degrades to None, never fails the analysis
         return None
 
