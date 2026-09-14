@@ -24,6 +24,7 @@ import {
   ICON_BUTTON,
   NOTICE,
   NOTICE_DISMISS,
+  NOTICE_DIVIDER,
   SCRUBBER,
   SCRUBBER_TRACK,
   SLIDER_OVERLAY,
@@ -1176,14 +1177,62 @@ describe('status and notices', () => {
     expect(NOTICE_DISMISS.row).toContain('group/notice')
   })
 
-  // The row's lift is the binding between a message and its X — in a bulleted
-  // list the X alone does not say which message it belongs to. Hue-free like
+  // The row's lift is the binding between a message and its X — in a stack of
+  // messages the X alone does not say which one it belongs to. Hue-free like
   // the pill, and one step quieter than it, so the resting pill still reads
   // as the control on the lifted row.
   it('binds the X to its message with a hue-free lift', () => {
     expect(NOTICE_DISMISS.row).toContain('hover:bg-white/')
     expect(NOTICE_DISMISS.row).not.toMatch(/(^|\s)text-/)
     expect(NOTICE_DISMISS.row).toContain(RADIUS.control)
+  })
+
+  // The rule between two messages is the box's own border tint. A divider in
+  // any other shade would read as a second decision inside a box that has
+  // already made one, so the two are keyed alike and pinned to each other.
+  it('rules between messages in the tint the box is bordered in', () => {
+    const tones = Object.keys(NOTICE) as (keyof typeof NOTICE)[]
+    expect(tones).toHaveLength(3)
+    for (const tone of tones) {
+      const border = NOTICE[tone].split(' ').find((c) => /^border-[a-z]+-\d/.test(c))
+      expect(border, `${tone} must state a border to mirror`).toBeDefined()
+      expect(NOTICE_DIVIDER[tone].split(' ')).toContain(
+        (border as string).replace('border-', 'divide-'),
+      )
+    }
+  })
+
+  // The 6px each side of that rule is padding on the rows, because a gap would
+  // only ever fall BETWEEN rows and the rule is drawn at a row's top edge. The
+  // container then cancels what the first and last rows would add to the box,
+  // so a box holding one message is exactly as tall as it was.
+  it('clears the rule on both sides without growing a one-message box', () => {
+    for (const tone of Object.keys(NOTICE_DIVIDER) as (keyof typeof NOTICE)[]) {
+      expect(NOTICE_DIVIDER[tone]).toContain('divide-y')
+      expect(NOTICE_DIVIDER[tone]).toContain('-my-1.5')
+    }
+    expect(NOTICE_DISMISS.row).toContain('py-1.5')
+  })
+
+  // The message and its X are centred against each other. On a coarse pointer
+  // the button is 44px and the message is one line, so the text sits level with
+  // the disc rather than at the top of a target three times its height; the
+  // offset that used to pin the X to a wrapped message's first line is gone
+  // with the wrap it existed for.
+  it('sets the message level with the X it carries', () => {
+    expect(NOTICE_DISMISS.row).toContain('items-center')
+    expect(NOTICE_DISMISS.button).not.toContain('self-start')
+    expect(NOTICE_DISMISS.button).not.toMatch(/(^|\s)-m[trblxy]?-/)
+  })
+
+  // Every message in this app is written to fit one line at 360px, and that
+  // budget is measured with the full text column. A list indent and its marker
+  // take 16px of it, which is what made the first message wrap as soon as a
+  // second joined it. Spelled from parts: v4 scans this file as raw text and
+  // would emit the CSS for a marker class quoted here.
+  it('gives the messages the whole text column', () => {
+    expect(controlPanelSource).not.toContain(['list', 'disc'].join('-'))
+    expect(controlPanelSource).not.toContain(['<', 'ul'].join(''))
   })
 })
 

@@ -97,6 +97,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `NOTICE.error` | Boxed error message |
 | `NOTICE.info` | Boxed info message |
 | `NOTICE_DISMISS` | The X that dismisses one footer message; hidden until its row is hovered, always visible on touch |
+| `NOTICE_DIVIDER` | The rule between two messages in one notice box: the box's own border tint, 6px clear on each side, and no rule at all under a lone message |
 
 **Spacing and sizing**
 
@@ -206,6 +207,12 @@ The panel is 360px on desktop (100vw − 2rem capped at 360 on phones).
 - Assumption: English; other languages will be tighter
 
 **Binding condition:** a 360px phone with English copy. If copy reaches ~47 chars without wrapping, it fits one line.
+
+**No indent:** the messages under the Analyze button are stacked rows
+separated by a 1px rule (`NOTICE_DIVIDER`), never a bulleted list. The
+budget above is measured with the whole text column, and a list indent
+plus its marker take 16px of it — enough to wrap a line that fit on its
+own before a second message joined it.
 
 **Line allowance:** messages in the panel body hold to one line. The area
 below the Analyze button — blockers, commit cues, refusals, provider

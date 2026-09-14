@@ -925,6 +925,33 @@ export const NOTICE = {
 } as const
 
 /**
+ * The stack of messages inside one notice box, and the rule between them.
+ *
+ * A box holding more than one message has to say where one ends and the next
+ * begins. A bulleted list did that and cost the text column 16px of indent and
+ * marker, which is more than the app's one-line message budget can spare: a
+ * line written to fit a 360px phone wrapped as soon as a second message joined
+ * it. A 1px rule separates them at no cost to the column.
+ *
+ * The rule is the box's OWN border tint, so the divider reads as part of the
+ * box rather than as a second decision — which is why this is keyed by severity
+ * beside `NOTICE` above, and why `styles.test.ts` fails a tint that stops
+ * matching its border.
+ *
+ * The rule sits 6px clear on both sides. That space is padding on each row
+ * (`NOTICE_DISMISS.row`) rather than a gap on this container, because a gap
+ * would only ever be BETWEEN rows and the rule is drawn at a row's top edge;
+ * the negative margin here cancels the padding the first and last rows would
+ * otherwise add to the box, so a box holding one message is exactly as tall as
+ * it was.
+ */
+export const NOTICE_DIVIDER = {
+  warn: '-my-1.5 divide-y divide-amber-800/60',
+  error: '-my-1.5 divide-y divide-red-800/60',
+  info: '-my-1.5 divide-y divide-sky-800/60',
+} as const
+
+/**
  * The X that dismisses one footer message (#253). Every message under the
  * Analyze button carries its own — a box dismisses line by line, not whole
  * (TJ, 2026-08-22); which dismissal it triggers, and when that dismissal
@@ -937,9 +964,13 @@ export const NOTICE = {
  * the Analyze button sits directly above, and an absolutely-positioned
  * square would cover its bottom edge. The `pill` inside it is what the eye
  * gets: a 20px disc, the panel close button's idiom at notice scale, so the
- * X reads as a control rather than a stray character. `-mt-0.5` drops the
- * disc's centre onto the first text line's centre (a 20px disc against a
- * 16px text-xs line box is otherwise 2px low).
+ * X reads as a control rather than a stray character.
+ *
+ * The row centres its two members against each other. On a coarse pointer the
+ * button is 44px tall and the message is one line, so the text sits level with
+ * the disc rather than at the top of a target three times its height; on a
+ * mouse the row is the text line itself and nothing moves. Every message is
+ * written to fit one line, so there is no first line for the X to align to.
  *
  * The fill is `white/5` at rest — a whisper of a disc, because at `/10` TJ
  * read it as too buttony for a passive notice — rising to `white/15` on
@@ -956,16 +987,19 @@ export const NOTICE = {
 export const NOTICE_DISMISS = {
   /**
    * One message inside a notice box, whether it is the box's only line or one
-   * bullet of several. The named group (`group/notice`) is what reveals the X:
-   * the button's own `group` is already taken by the pill's hover, and an
-   * unnamed group here would hand the pill every row hover in the box.
+   * of several. The named group (`group/notice`) is what reveals the X: the
+   * button's own `group` is already taken by the pill's hover, and an unnamed
+   * group here would hand the pill every row hover in the box.
    *
-   * The lift (`white/[0.04]`) exists to bind the X to its row: in a bulleted
-   * list the X alone does not say which message it belongs to. Arbitrary
+   * The lift (`white/[0.04]`) exists to bind the X to its row: in a stack of
+   * messages the X alone does not say which one it belongs to. Arbitrary
    * rather than `white/5` so the row reads one step quieter than the pill
    * resting on it.
+   *
+   * The padding is the 6px each side of the rule `NOTICE_DIVIDER` draws
+   * between two rows; the container cancels it at the box's own edges.
    */
-  row: `group/notice flex gap-2 ${RADIUS.control} hover:bg-white/[0.04]`,
+  row: `group/notice flex items-center gap-2 py-1.5 ${RADIUS.control} hover:bg-white/[0.04]`,
   /**
    * Hidden until asked for: the X appears when the pointer rests on its row,
    * on keyboard focus, and is always on where hover does not exist (`touch:`)
@@ -974,7 +1008,7 @@ export const NOTICE_DISMISS = {
    * reveal can fade and the row never reflows.
    */
   button:
-    `group ${TAP.action} self-start -mt-0.5 opacity-0 transition-[color,opacity] ` +
+    `group ${TAP.action} opacity-0 transition-[color,opacity] ` +
     `group-hover/notice:opacity-100 focus-visible:opacity-100 touch:opacity-100 ` +
     `hover:text-white ${FOCUS_RING}`,
   pill:
