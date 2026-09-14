@@ -25,6 +25,14 @@ export interface ForecastModelOption {
   forecastHours: number
   /** Run over part of the world, so some destinations are outside it. */
   regional: boolean
+  /**
+   * Serves a fine regional model for a day or two and a coarse global one
+   * after that, so one line changes model partway along. Read from the server
+   * rather than from the `_seamless` suffix, which is a naming habit rather
+   * than a contract. False when the server did not send it, which draws no
+   * mark rather than a wrong one.
+   */
+  blend: boolean
 }
 
 export interface Capabilities {
@@ -68,6 +76,7 @@ export const FALLBACK_FORECAST_MODEL: ForecastModelOption = {
   finestGridKm: 3,
   forecastHours: 384,
   regional: false,
+  blend: true,
 }
 
 const FALLBACK: Capabilities = {
@@ -113,6 +122,7 @@ function parseModels(body: unknown): Pick<
       finestGridKm: typeof e.finest_grid_km === 'number' ? e.finest_grid_km : 0,
       forecastHours: e.forecast_hours,
       regional: e.regional === true,
+      blend: e.blend === true,
     })
     if (e.default === true) fallbackDefault = e.id
   }

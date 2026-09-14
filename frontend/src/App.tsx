@@ -1,24 +1,38 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import MapView, { MapViewHandle } from './components/MapView'
 import ControlPanel from './components/ControlPanel'
 import SearchBox, { type SearchBoxHandle } from './components/SearchBox'
 import ResultsTable from './components/ResultsTable'
 import TimeSeriesChart from './components/TimeSeriesChart'
 import ColumnsPicker from './components/ColumnsPicker'
+import ModelsPicker from './components/ModelsPicker'
 import RemovedPicker from './components/RemovedPicker'
 import WelcomeModal from './components/WelcomeModal'
 import PreviewBanner from './components/PreviewBanner'
 import TimelineTransport from './components/TimelineTransport'
+import ModelCompare from './components/ModelCompare'
 import { useAnalyze } from './hooks/useAnalyze'
 import { modelForecastHours, useCapabilities } from './hooks/useCapabilities'
 import { useChartSelection } from './hooks/useChartSelection'
+import { useModelCompare } from './hooks/useModelCompare'
+import { allocateColors } from './utils/chartColors'
+import { compareAdded, drawnModelIds, pairKey } from './utils/modelCompare'
+import { modelRows, pruneHidden, shownModels, toggleHidden } from './utils/modelVisibility'
 import { useFireProximity } from './hooks/useFireProximity'
 import { fireKey } from './utils/fireProximity'
 import { useForecastGrid } from './hooks/useForecastGrid'
 import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
-import { CustomDestination, DestinationResult, DiscoveryType, GeoPolygon, SortBy } from './types'
+import {
+  CustomDestination,
+  DestinationResult,
+  DiscoveryType,
+  GeoPolygon,
+  HourlySeries,
+  SortBy,
+} from './types'
+import { alignRowToGrid, chartKey } from './utils/chartData'
 import {
   ACCENT,
   BUTTON_FLOATING,
@@ -31,11 +45,14 @@ import {
   ICON_BUTTON,
   LAYER,
   LINK,
+  MAP_BOX_W,
+  MAP_EDGE,
   PROSE,
   RADIUS,
-  RECESSED_EDGE,
+  LIFTED_EDGE,
   RECESSED_FILL,
   SEGMENT_FLUID,
+  SEGMENT_FLUID_LIFTED,
   CONTROL_SIZE,
   SLIDER_IDLE,
   STATUS,
@@ -48,6 +65,8 @@ import {
   SR_ONLY,
   SURFACE_CARD,
   SURFACE_FLOATING,
+  SURFACE_POPOVER,
+  SURFACE_SHEET,
   SWATCH_CHIP,
   TAP,
   TEXT,
@@ -85,6 +104,7 @@ import {
   frameHoldMs,
   initialIndex,
   nextFrame,
+  playerAvailable,
   resolveAxis,
 } from './utils/timeline'
 import {
@@ -106,6 +126,16 @@ import {
 } from './utils/savedSearches'
 import { buildCustomList, pendingDestinations, pinKey } from './utils/customList'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
+import {
+  draggedMapFloorPx,
+  legendBottomPx,
+  mapCornerLiftPx,
+  restingLiftPx,
+  restingMapFloorPx,
+  resolveSheetLift,
+  sheetHeightPx,
+  TRANSPORT_GAP_PX,
+} from './utils/resultsSheet'
 import { composeOverlay } from './utils/analyzeOverlay'
 import { Place, isPeakKind } from './utils/geocode'
 import {
@@ -146,23 +176,46 @@ import { NAME_DEFAULT_PX } from './utils/columnResize'
 import { compareValues } from './utils/sortResults'
 import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
 
-// Both map legends, sized as one: they stack in a single column, so differing
-// widths would read as a ragged edge rather than as two boxes. The step is a
-// measured magic number, and the governor moved when the fire credit folded up
-// into its swatch row — "Active Wildfire (NIFC)" is one 12px TEXT.control line
-// where it used to be a short label above a 10px credit, and it is now wider
-// than anything the metric box holds (the bare metric title ≤ 85px at
-// TEXT.overline, the widest band row 113px).
-//
-// Measured 2026-07-31 in Chrome on macOS, the widest face was then the fire
-// credit row at 140.1px. The governor moved again when the grid legend's wait
-// gained its countdown (#288): "Forecast grid" against "Waiting · 99s" is the
-// new widest row — measured 2026-08-21 in Chrome on macOS at 74.7 + 74.1 +
-// the 8px gap = 156.8px — and w-44's 154px wrapped the label by under three
-// pixels at two-digit seconds. w-48 leaves 172px, ~15px of slack; the
-// countdown switches to minutes past 99s so this row's widest case is
-// bounded. Re-measure before lengthening a line in either box.
-const LEGEND_WIDTH = 'w-48'
+// One row of the Layers popover: a checkbox and what it switches. The four
+// overlays and the forecast player share it, because they are the same kind of
+// choice — about what the map shows, never about what the analysis asks for.
+function layerRow({
+  key,
+  label,
+  checked,
+  onChange,
+  disabled,
+  note,
+}: {
+  key: string
+  label: string
+  checked: boolean
+  onChange: (on: boolean) => void
+  /** Out of play for this report; `note` says why, as the row's `title` and as
+   *  the hidden text its checkbox points at, since a tooltip does not exist on
+   *  touch or to a screen reader. */
+  disabled?: boolean
+  note?: string
+}) {
+  return (
+    <label key={key} className={CHOICE_ROW} title={disabled && note ? note : undefined}>
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        aria-describedby={disabled && note ? `layer-${key}-note` : undefined}
+        onChange={(e) => onChange(e.target.checked)}
+        className={CHOICE_INPUT}
+      />
+      <span>{label}</span>
+      {disabled && note && (
+        <span id={`layer-${key}-note`} className={SR_ONLY}>
+          {note}
+        </span>
+      )}
+    </label>
+  )
+}
 
 // The two map buttons are one pair and are sized as one: same width, same
 // height, stacked in a column where any difference between them reads as a
@@ -174,6 +227,11 @@ const MAP_BUTTON_W = 'w-32 justify-start'
 // A module constant rather than an inline `new Set()`, which would be a fresh
 // identity on every render and rebuild the pending list underneath the map.
 const NO_CUSTOM: ReadonlySet<string> = new Set()
+
+// What the chart draws for its rows while a model comparison is up: nothing,
+// because the comparison composes every line itself. A module constant so the
+// chart's line memo is not rebuilt by a fresh empty array on every render.
+const NO_CHART_ROWS: DestinationResult[] = []
 
 // Opening heights for the two docked panels, and where a double-click on a
 // resizer puts them back. A drag is easy to overshoot and there was no way
@@ -226,6 +284,7 @@ export default function App() {
   const mapRef = useRef<MapViewHandle>(null)
   const searchBoxRef = useRef<SearchBoxHandle>(null)
   const columnsButtonRef = useRef<HTMLButtonElement>(null)
+  const modelsButtonRef = useRef<HTMLButtonElement>(null)
   const removedButtonRef = useRef<HTMLButtonElement>(null)
 
   // The discovery inputs behind the results currently on screen: `base` covers
@@ -367,6 +426,14 @@ export default function App() {
     if (!untouchedModelRef.current) return
     setForecastModel(caps.defaultForecastModel)
   }, [caps.defaultForecastModel])
+  // The extra models the chart draws beside the ranking one (#232), in the
+  // published order — the picker normalizes it, so this never holds the
+  // ranking model and never holds a duplicate. Panel state rather than chart
+  // state: the model picker is where it is chosen, and a comparison is bought
+  // by the next Analyze like every other model decision, never on load.
+  const [comparedModels, setComparedModels] = useState<string[]>(
+    () => restored?.compareModels ?? [],
+  )
   // The last model change trimmed the forecast window to fit the new model's
   // reach. Held rather than derived because a clamp leaves no trace: afterwards
   // the selection simply is inside the band, and nothing distinguishes a window
@@ -394,6 +461,10 @@ export default function App() {
   // the model bounded it, and leaves them to guess by how much to shorten it.
   function changeForecastModel(id: string) {
     untouchedModelRef.current = false
+    // The compared set is not touched here. A model is on the chart once
+    // whichever way it got there, and which models are selected is the
+    // picker's own answer (`utils/modelSelection.ts`), handed over beside this
+    // call rather than recomputed from a state this function cannot see.
     const hours = modelForecastHours(caps.forecastModels, id)
     // A remembered pre-clamp window comes back the moment a model can serve
     // it whole (clampSelection returns null for "fits unchanged").
@@ -478,6 +549,16 @@ export default function App() {
   // on is standing consent for the next analysis to do the same. It still
   // changes nothing about the ranking, so it never touches `commitNeeded`.
   const [showGrid, setShowGrid] = useState(() => initial.showGrid)
+  // Whether the forecast player is on the map. `null` means "this device's
+  // default": on at a desktop width, off on a phone, where the bar is a band
+  // across a map that can be a third of the screen. A boolean means the reader
+  // has decided, and only a decision reaches the URL — in either direction, so
+  // a link can carry the player onto a phone or off a desktop.
+  //
+  // Not a knob. Switching it changes what is looked at and nothing about what
+  // was asked for: no ranking moves, nothing is fetched, and `commitNeeded`
+  // does not know it exists.
+  const [showPlayer, setShowPlayer] = useState<boolean | null>(() => restored?.showPlayer ?? null)
   // The map's own Layers popover, closed on load. Not persisted: it is a
   // disclosure, not a setting, and a link that reopened it would be sharing a
   // gesture rather than a picture.
@@ -615,6 +696,12 @@ export default function App() {
   }, [columnVisibility])
   // Column picker popover open/closed
   const [columnsOpen, setColumnsOpen] = useState(false)
+  const [modelsOpen, setModelsOpen] = useState(false)
+  // Models whose lines the reader has put down (#232). Presentation and
+  // nothing else: the forecasts behind them are bought either way, so this
+  // rides in no link and no storage, and a reload comes back showing
+  // everything the comparison paid for.
+  const [hiddenModels, setHiddenModels] = useState<ReadonlySet<string>>(() => new Set())
   const [removedOpen, setRemovedOpen] = useState(false)
   // Column widths the user has set (px by key). Held here rather than in the
   // table so a mode switch or the collapse chevron — both of which unmount
@@ -626,7 +713,22 @@ export default function App() {
   })
   // Chevron to collapse/expand the entire results area.
   const [resultsCollapsed, setResultsCollapsed] = useState(false)
+  // The results' own height as rendered, which on a phone is how much map the
+  // sheet covers. Observed rather than derived because everything anchored to
+  // the map's bottom edge measures from this one number, and a derivation has
+  // to guess a header bar whose height depends on the pointer and on what the
+  // bar is carrying. `null` until the first observation, and while the results
+  // are docked, where the number means nothing.
+  const [sheetMeasuredPx, setSheetMeasuredPx] = useState<number | null>(null)
+  const sheetRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
+  // Whether the reader has set a panel height themselves. It only matters on a
+  // phone, where the results are a sheet standing on the map (#249): until they
+  // drag, the sheet rests low enough for the whole legend stack to fit above it,
+  // and a drag hands the height over — the legends then scroll, the way they do
+  // on any map too short for them. A double press on a grip means "put it back",
+  // so it returns the resting height with the rest of the default.
+  const [heightsChosen, setHeightsChosen] = useState(false)
   // When each grip was last pressed, keyed by which one. A double press resets
   // that grip's own panel — the chart resizer restores the chart, the table
   // resizer the table — rather than both, since a drag only ever moved one.
@@ -648,6 +750,9 @@ export default function App() {
   // covers both map-borne methods, so its cue lights both controls at once.
   const [poisPointed, setPoisPointed] = useState(false)
   const isDesktop = useIsDesktop()
+  // Whether the player is on the map: the reader's decision where they have made
+  // one, this device's default otherwise.
+  const playerShown = showPlayer ?? isDesktop
 
   function dismissWelcome() {
     localStorage.setItem('bluebird_forecast_welcomed', '1')
@@ -661,6 +766,7 @@ export default function App() {
     e.preventDefault()
     const startY = e.clientY
     setIsDragging(true)
+    setHeightsChosen(true)
 
     function onMove(ev: PointerEvent) {
       onDrag(startY - ev.clientY)
@@ -845,7 +951,14 @@ export default function App() {
   // A model change is a data knob for a stronger reason than the window: the
   // held rows are not missing days, every number in them came from a model the
   // panel no longer names.
-  const modelChanged = analyzed !== null && analyzed.forecastModel !== forecastModel
+  // A newly ticked comparison rides the same reason: it is the model row of the
+  // panel disagreeing with the model behind the rows, and the browser holds no
+  // forecasts for a model it never bought. Unticking one is not a change of this
+  // kind — its line is drawn from numbers already in hand, so it stops at once.
+  const modelChanged =
+    analyzed !== null &&
+    (analyzed.forecastModel !== forecastModel ||
+      compareAdded(analyzed.compareModels, comparedModels))
   const preview = usePreview()
 
   // Elapsed-time counter for phases with no countable progress (the OSM search,
@@ -889,6 +1002,7 @@ export default function App() {
       includeUnnamedPeaks,
       selection,
       forecastModel,
+      compareModels: comparedModels,
       sortBy,
       sortDesc,
       rowKeys,
@@ -901,6 +1015,7 @@ export default function App() {
       showRadar,
       showSmoke,
       showGrid,
+      showPlayer,
       gridStyle,
       gridReachFrac,
       pins: searched.places,
@@ -1231,7 +1346,10 @@ export default function App() {
       // echoes, not the custom-shaped request it rides on: derived from the
       // request, the snapshot would say "no ring searched" and the panel's
       // unchanged polygon would falsely cue as new.
-      }, kind, discoveryKeys(resolvedPolygon, destinationTypes, includeUnnamedPeaks))
+      }, kind, {
+        discovery: discoveryKeys(resolvedPolygon, destinationTypes, includeUnnamedPeaks),
+        compareModels: comparedModels,
+      })
     } else if (resolvedPolygon) {
       // Discovery — with the custom list riding along so the backend ranks the
       // polygon ∪ CSV union as one report.
@@ -1247,7 +1365,7 @@ export default function App() {
         sort_desc: sortDesc,
         ...(custom.length > 0 ? { custom_destinations: custom } : {}),
         ...bounds,
-      }, kind)
+      }, kind, { compareModels: comparedModels })
       // Remember these discovery inputs so the next compatible Analyze refreshes.
       discoveryRef.current = { base, searchedKeys }
     } else if (custom.length > 0) {
@@ -1265,7 +1383,7 @@ export default function App() {
         sort_desc: sortDesc,
         custom_destinations: custom,
         ...bounds,
-      }, kind)
+      }, kind, { compareModels: comparedModels })
     }
 
     // Nothing to rank (unreachable through the gate, which requires an input,
@@ -1590,8 +1708,16 @@ export default function App() {
   // comes back on both analysis paths, so the axis does not care which one ran
   // — unlike the live presentation knobs, which need the held field.
   const forecastTimes = response?.times ?? []
-  const timelineAxes = availableAxes(showRadar, forecastTimes.length)
+  const timelineAxes = availableAxes(playerShown, showRadar, forecastTimes.length)
   const timelineAxis = resolveAxis(timelineAxes, chosenAxis)
+  // Whether the player has anything to play: radar contributes a past axis and
+  // a multi-hour report a forecast one, so with neither there is nothing for a
+  // transport to span. The row is then not in the popover at all, because a
+  // checkbox that switches nothing on is a control the reader has to test to
+  // learn is empty. `showPlayer` is untouched by that: the reader's own
+  // decision survives the row being absent, so turning radar off and on again
+  // never turns the player back on.
+  const playerOffered = playerAvailable(showRadar, forecastTimes.length)
   const frameCount = timelineAxis === 'radar' ? RADAR_FRAME_COUNT : forecastTimes.length
   const frameIndex = clampIndex(
     timelineAxis === 'radar' ? radarIndex : forecastIndex,
@@ -1654,6 +1780,7 @@ export default function App() {
   const timelineScale =
     timelineAxis === 'radar' ? radarScaleEnds() : forecastScaleMarks(forecastTimes)
 
+
   // Clicking the chart moves the map's playhead to that hour, and takes the
   // transport to the forecast axis if it was showing radar — the reader just
   // pointed at a forecast hour, so leaving the bar on the past would answer a
@@ -1708,10 +1835,17 @@ export default function App() {
   // effect. One flag rather than a pair repeated per surface, so the fetch, the
   // sub-choices and the legend box cannot answer differently.
   const gridOn = showGrid && gridAvailable
+  // Alphabetical by label, which is the only order a list of unrelated switches
+  // can be scanned in: these five have no ranking between them — no cost, no
+  // severity, no dependency — so any other order is one the reader has to
+  // learn. The grid's own segment and slider still render under its row,
+  // because they are that row's sub-choices rather than list members.
+  //
+  // The player is a list member like the other four even though it switches
+  // something OFF the map rather than a picture onto it: it answers the same
+  // question — what is on the map — and nothing about the report follows it,
+  // so it is no more a knob than the overlays beside it.
   const MAP_LAYERS = [
-    { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
-    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
-    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
     {
       key: 'grid',
       label: 'Forecast grid',
@@ -1722,6 +1856,12 @@ export default function App() {
       // points at: a tooltip does not exist on touch or to a screen reader.
       note: 'The forecast grid is not available for archival data.',
     },
+    ...(playerOffered
+      ? [{ key: 'player', label: 'Forecast player', checked: playerShown, onChange: setShowPlayer }]
+      : []),
+    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
+    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
+    { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
   ]
   const grid = useForecastGrid({
     enabled: gridOn,
@@ -1849,6 +1989,118 @@ export default function App() {
   }, [results, pending])
   const chart = useChartSelection(chartCandidates, view.sortBy)
 
+  // Comparing models across the charted destinations (#232). A drill-down rather
+  // than a knob: it touches nothing the ranking reads. Never on air quality,
+  // which comes from CAMS whatever forecast model ranked the field, so a
+  // comparison there could only draw the same line twice.
+  //
+  // The rank comes from `results`, which is the ranking order the markers and
+  // the legend already read — not from `tableRows`, whose numbering follows a
+  // detail-column sort that reorders the rows on screen without changing which
+  // rows they are.
+  const chartedDestinations = useMemo(() => {
+    const rankByKey = new Map(results.map((r, i) => [chartKey(r), i + 1]))
+    return chart.selectedRows
+      .filter((r) => rankByKey.has(chartKey(r)))
+      .map((r) => ({
+        key: chartKey(r),
+        rank: rankByKey.get(chartKey(r)) as number,
+        name: r.name,
+        latitude: r.latitude,
+        longitude: r.longitude,
+        elevationFt: r.elevation_ft,
+        // The colour it already wears in the table and on the map. A compared
+        // chart says two things at once, and this is the one it has always
+        // said; the model is the line style.
+        color: chart.colorFor(r),
+      }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chart.selectedRows, results])
+  // The ranking model's own numbers per destination, on the chart's grid: a
+  // pinned row carries its own stamps, so the alignment the chart does for its
+  // rows has to happen here too or a pin would compare against the wrong hours.
+  const chartedSeries = useMemo(() => {
+    const out: Record<string, HourlySeries | null> = {}
+    for (const row of chart.selectedRows) {
+      out[chartKey(row)] = alignRowToGrid(row, chartTimes).series ?? null
+    }
+    return out
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chart.selectedRows, chartTimes])
+  // Every model the panel has selected, ranking first: the Models popover's
+  // rows. The SELECTION rather than the chart, so a model ticked before the
+  // next Analyze already has a row.
+  const selectedModelRows = useMemo(
+    () => modelRows(caps.forecastModels, forecastModel, comparedModels),
+    [caps.forecastModels, comparedModels, forecastModel],
+  )
+
+  // A colour per LINE, which under a comparison means a colour per
+  // (destination, model) PAIR (#232). Three destinations under three models is
+  // nine lines and nine colours.
+  //
+  // The pairs for the ranking model are seeded with their destinations' own
+  // colours — the hue the marker and the table checkbox already wear — so a
+  // chart with nothing compared draws exactly as it always did. Every other
+  // pair takes the next colour from the ONE session allocator the destinations
+  // themselves draw on, which is what stops a line being handed the colour of
+  // a destination standing beside it.
+  //
+  // Allocated here rather than inside `useModelCompare` because the allocation
+  // has to happen BEFORE the lines are composed, and `drawnModelIds` is what
+  // lets both places agree about which pairs exist without the hook having to
+  // answer first.
+  const chartedPairKeys = useMemo(() => {
+    const drawn = shownModels(
+      drawnModelIds(
+        comparedModels,
+        analyzed?.compareModels ?? [],
+        caps.forecastModels,
+        analyzed?.forecastModel ?? null,
+      ).map((id) => ({ id })),
+      hiddenModels,
+    )
+    return drawn.flatMap((m) => chartedDestinations.map((d) => pairKey(m.id, d.key)))
+  }, [analyzed, caps.forecastModels, chartedDestinations, comparedModels, hiddenModels])
+  const chartedPairColors = useMemo(() => {
+    const allocated = allocateColors(chart.colorByKey, chartedPairKeys)
+    const seeded: Record<string, string> = { ...allocated }
+    const ranking = analyzed?.forecastModel
+    if (ranking) {
+      for (const d of chartedDestinations) seeded[pairKey(ranking, d.key)] = d.color
+    }
+    return seeded
+  }, [analyzed, chart.colorByKey, chartedDestinations, chartedPairKeys])
+  // The allocation above is for the frame that draws the lines; this is what
+  // makes it stick, so a pair hidden and shown again comes back the colour it
+  // was rather than taking the next one off the end.
+  const chartedPairsKey = chartedPairKeys.join('|')
+  useEffect(() => {
+    chart.rememberColors(chartedPairKeys)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chartedPairsKey])
+  const compare = useModelCompare({
+    enabled: chart.metric !== 'aqi',
+    destinations: chartedDestinations,
+    heldSeries: chartedSeries,
+    analyzed,
+    analysisSeq,
+    models: caps.forecastModels,
+    picked: comparedModels,
+    fetchable: analyzed?.compareModels ?? [],
+    hidden: hiddenModels,
+    colors: chartedPairColors,
+    times: chartTimes,
+  })
+
+  // A model put down and later selected again comes back DRAWN, so a flag
+  // outlives its model by exactly nothing. Keyed on the panel's selection
+  // rather than on the chart's, because that is where a model leaves.
+  const selectedModelsKey = [forecastModel, ...comparedModels].join(',')
+  useEffect(() => {
+    setHiddenModels((prev) => pruneHidden(prev, selectedModelsKey.split(',')) ?? prev)
+  }, [selectedModelsKey])
+
   // A desktop-width window widens to Both when an analysis lands, so the first
   // report arrives with its chart — unless the user has ever explicitly picked
   // a mode, which always wins. A phone stays on Table: the stacked pair leaves
@@ -1876,11 +2128,107 @@ export default function App() {
   // segment that says Chart while the table shows reads as broken.
   const chartShowing = !resultsCollapsed && (resultsMode === 'chart' || resultsMode === 'both')
   const tableShowing = !resultsCollapsed && (resultsMode === 'table' || resultsMode === 'both')
+  // One grip per panel on screen: the map│chart resizer, the chart│table divider.
+  const gripCount = resultsCollapsed ? 0 : resultsMode === 'both' ? 2 : 1
+  // On a phone the results stand ON the map rather than beside it, so the floor
+  // the panels leave is not "some map" but "enough map for the legend stack to
+  // sit above the sheet" (#249). Two of them, and the sheet is never taller
+  // than the looser one allows: the resting reserve holds the whole legend
+  // stack and lasts until the reader takes a grip, and the drag floor holds
+  // however far they pull — it keeps the band the timeline needs to stay clear
+  // of the map's button column, which is where the bar landed before the cap.
+  // Both are undefined on desktop, where the panel is docked below the map and
+  // `clampPanelHeight`'s own default holds.
+  const dragFloorPx = isDesktop ? undefined : draggedMapFloorPx(gripCount)
+  const mapFloorPx = isDesktop
+    ? undefined
+    : heightsChosen
+      ? dragFloorPx
+      : restingMapFloorPx(gripCount)
   const { chart: chartPanelPx, table: tablePanelPx } = resolvePanelHeights(
     chartHeight,
     tableHeight,
-    { chartShown: chartShowing, tableShown: tableShowing && showTable, availPx: viewportH - bannerPx },
+    {
+      chartShown: chartShowing,
+      tableShown: tableShowing && showTable,
+      availPx: viewportH - bannerPx,
+      mapMinPx: mapFloorPx,
+    },
   )
+  // The results' real height, which is what the map's bottom chrome rides.
+  //
+  // Two paths, because the height moves for two different kinds of reason.
+  // This one is the render: a mode switch, the collapse chevron, a drag and a
+  // rotation all re-render this component, so measuring after every render
+  // catches each of them in the frame it happens. It settles immediately —
+  // nothing downstream of this number changes the sheet's own height, so the
+  // re-render it causes measures the same value and stops.
+  //
+  // `null` while the results are docked below the map, where nothing covers the
+  // map's bottom edge and the number would mean nothing.
+  useLayoutEffect(() => {
+    const el = sheetRef.current
+    const next = !el || isDesktop ? null : el.getBoundingClientRect().height
+    setSheetMeasuredPx((prev) => (prev === next ? prev : next))
+  })
+
+  // And the second path: a resize that no render caused — a font landing, the
+  // on-screen keyboard, a scrollbar appearing inside the table. Rare, and the
+  // reason this is not left to the render alone.
+  useEffect(() => {
+    const el = sheetRef.current
+    if (!el || isDesktop) return
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      // The BORDER box: the sheet's own top border is part of what covers the
+      // map, and `contentRect` leaves it out.
+      const box = entry.borderBoxSize?.[0]?.blockSize
+      const next = box ?? entry.target.getBoundingClientRect().height
+      setSheetMeasuredPx((prev) => (prev === next ? prev : next))
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [isDesktop, showTable])
+
+  // How far the sheet reaches up the map, and therefore how far the map's own
+  // bottom chrome — the legend stack, the timeline, and MapLibre's scale and
+  // attribution — rides up to clear it. Zero wherever the results are docked
+  // below the map, which is every desktop width and the moment before the first
+  // analysis.
+  //
+  // The MEASURED height, not the derived one: the estimate has to guess a
+  // header and a grip, and a guess 20px out is 20px of gap the reader can see
+  // under the player. The estimate is what the first frame gets, before the
+  // observer below has reported.
+  const sheetLiftPx = resolveSheetLift({
+    docked: isDesktop || !showTable,
+    measuredPx: sheetMeasuredPx,
+    estimatePx: sheetHeightPx({
+      collapsed: resultsCollapsed,
+      gripCount,
+      panelsPx: chartPanelPx + tablePanelPx,
+    }),
+  })
+  // Both of the library's bottom corners ride the same lift as the app's own
+  // chrome, at every width: the scale bar bottom-left and the attribution
+  // bottom-right sit in the band between the forecast player and the top of the
+  // results, which is the one place on that edge nothing else stands.
+  const mapCornerLift = mapCornerLiftPx(sheetLiftPx)
+  // What the map's camera must keep clear of the sheet. The RESTING lift, not
+  // the live one above: a fit re-framed mid-drag would move the map under the
+  // hand that is dragging it.
+  const cameraPadBottomPx =
+    isDesktop || !showTable
+      ? 0
+      : restingLiftPx({
+          collapsed: resultsCollapsed,
+          gripCount,
+          chartShown: chartShowing,
+          tableShown: tableShowing,
+          chartPx: DEFAULT_CHART_HEIGHT,
+          tablePx: DEFAULT_TABLE_HEIGHT,
+          availPx: viewportH - bannerPx,
+        })
 
   return (
     <div className="flex flex-col h-dvh w-screen overflow-hidden bg-slate-900">
@@ -2002,6 +2350,8 @@ export default function App() {
           error={error}
           refusal={refusal}
           forecastModel={forecastModel}
+          comparedModels={comparedModels}
+          setComparedModels={setComparedModels}
           setForecastModel={changeForecastModel}
           forecastModels={caps.forecastModels}
           defaultForecastModel={caps.defaultForecastModel}
@@ -2023,12 +2373,29 @@ export default function App() {
         />
       </aside>
 
-      {/* Map + results column */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        {/* `data-timeline` is read by map.css, which steps the scale bar over
-            the transport on narrow screens — but only while there is a
-            transport to step over. */}
-        <div className="flex-1 relative" data-timeline={timelineAxis !== null ? 'on' : undefined}>
+      {/* Map + results column. On a phone the results leave the flow and stand
+          on the map as a sheet, so the column is what positions them; on
+          desktop nothing is positioned and the class list is the one it was. */}
+      <div className={`flex-1 flex flex-col overflow-hidden min-w-0${isDesktop ? '' : ' relative'}`}>
+        {/* `--map-corner-lift` and `--map-corner-band` are read by map.css:
+            how far MapLibre's own bottom controls rise off the container's
+            bottom edge, and the height of the band they are centred in. Both
+            controls have a reason to rise: the attribution is a licence term
+            that cannot be covered by the phone sheet, and the scale bar reads
+            against the map rather than against the forecast player centred over
+            the same edge. One number for the corner rather than an offset per
+            control, derived beside every other anchor in `resultsSheet.ts`. The
+            map area keeps the whole column, so the canvas runs on behind the
+            sheet and its ResizeObserver sees no change on a drag. */}
+        <div
+          className={`flex-1 relative ${MAP_EDGE.publish}`}
+          style={
+            {
+              '--map-corner-lift': `${mapCornerLift}px`,
+              '--map-corner-band': `${TRANSPORT_GAP_PX}px`,
+            } as React.CSSProperties
+          }
+        >
           {/* Above the drawer, not under it. The drawer now stays open for the
               length of a run, and an analysis with no visible progress is the
               thing this overlay exists to prevent — so it takes the layer that
@@ -2118,6 +2485,7 @@ export default function App() {
             onRemovePoi={handleRemovePoi}
             minElevationFt={minElevationFt}
             maxElevationFt={maxElevationFt}
+            cameraPadBottomPx={cameraPadBottomPx}
           />
           {/* The legends render BEFORE the button column below on purpose.
               Both are map chrome at the same layer, so paint order is DOM
@@ -2126,41 +2494,46 @@ export default function App() {
               with the legends last it opened underneath them. Pushing the
               legends further down instead only moved the collision, since a
               popover is as tall as its contents. */}
-          {/* Bottom-anchored legends, and two things about this stack that
-              were quietly broken until they were measured on a phone.
+          {/* Top-anchored legends: they hang under the Layers button at
+              `top-28` and grow downward, at EVERY width.
 
-              It is anchored with `mt-auto` on the first box rather than with
-              `justify-end`, which is the whole of why it can now be scrolled.
-              A flex column that justifies to the end pushes its overflow past
-              the START edge of the scroll container, and content overflowing
-              the start edge is unreachable: measured at 402x874 with all four
-              layers on and a table showing, four of the five boxes sat at
-              negative coordinates with `scrollTop` pinned at 0 and no way to
-              reach them. The auto margin collapses when there is no room, so
-              the overflow goes out of the bottom instead, where a scroll can
-              follow it.
+              A key belongs where the reader last looked for it. Anchored to
+              the bottom instead, the stack rode up and down with every panel
+              drag and every results mode, so a box that had said nothing new
+              appeared to be moving on its own — and on a phone the last box
+              ended up under the forecast player. Anchored here it is a fixed
+              landmark under the button that switches the layers it explains,
+              and what gives when the map runs short is the tail of the stack
+              rather than its position.
 
-              `top-28` clears the Controls/search/Layers column above, at EVERY
-              width. It used to lift at `lg`, on the reasoning that a desktop
-              map has room to spare — but "top-auto" does not mean "as tall as
-              it likes", it means the box starts wherever its content puts it,
+              `top-28` is what clears the Controls/search/Layers column above.
+              It used to lift at `lg`, on the reasoning that a desktop map has
+              room to spare — but "top-auto" does not mean "as tall as it
+              likes", it means the box starts wherever its content puts it,
               which on a wide map was 54px: straight through the Layers button
               at 54-92. The button is opaque and paints above (see the ordering
               note), so the legend's first row simply disappeared behind it.
-              The clamp is the only thing that keeps them apart, so it holds
-              everywhere. `mt-auto` still pins the stack to the bottom when
-              there is room, which is what the lift was reaching for.
 
-              The stack lifts clear of the timeline when the bar is on screen.
-              The bar is centred and the legends are left-anchored, so on a
-              desktop map they never meet — but a phone is narrow enough that
-              they would overlap, and a legend half under a control reads as a
-              layout fault rather than as two things sharing an edge. */}
+              The `bottom` offset is a ceiling on the scroll box, not an
+              anchor: it stops the stack above the timeline's band while the
+              bar is on screen, and above the sheet's top edge on a phone, so
+              no box is ever half under a control. Overflow leaves through the
+              bottom, which is the edge a scroll can follow — a stack that
+              overflowed its START edge would put boxes at negative
+              coordinates with `scrollTop` pinned at 0 and no way to reach
+              them, which is measured and is why the bottom anchoring is not
+              coming back. A sheet dragged tall closes the box to nothing, and
+              a double press on its grip brings the legends back with the rest
+              of the default. */}
           {(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar) && (
             <div
-              className={`absolute left-2 top-28 z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0 [&>*:first-child]:mt-auto ${
-                timelineAxis !== null ? 'bottom-28' : 'bottom-8'
-              }`}
+              className={`absolute ${MAP_EDGE.left} top-28 z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0`}
+              // The floor of the scroll box, derived rather than chosen: the
+              // transport's whole band while the bar is on screen and a plain
+              // gap otherwise, measured from whatever stands on the map's
+              // bottom edge — the edge itself where the results are docked, the
+              // top of the sheet where they cover it (#249).
+              style={{ bottom: legendBottomPx(sheetLiftPx, timelineAxis !== null) }}
             >
               {/* One row per layer: what it is, who it came from, and its key
                   on the right. The densities used to be three stacked rows
@@ -2175,7 +2548,7 @@ export default function App() {
                   a "Map layers" line above would be a label for four labels —
                   and on a phone it is a whole row of the little map left. */}
               {(showSmoke || showRadar || showWildfires || gridPainted || gridCued || gridFailed) && (
-                <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} px-2.5 py-2`}>
+                <div className={`${SURFACE_FLOATING} ${MAP_BOX_W} px-2.5 py-2`}>
                   <div className="flex flex-col gap-1">
                     {showSmoke && (
                       <div className="flex items-center justify-between gap-2">
@@ -2295,7 +2668,7 @@ export default function App() {
                   same scale by construction (#246), which is also why the grid
                   has no swatch of its own in the layer rows above. */}
               {markerScale !== null && (hasColoredMarkers || gridPainted || gridCued) && (
-                <div className={`${SURFACE_FLOATING} ${LEGEND_WIDTH} p-2.5`}>
+                <div className={`${SURFACE_FLOATING} ${MAP_BOX_W} p-2.5`}>
                   {/* The bare metric only: which hour or window the colors
                       describe, and how it was reduced, is stated by the
                       results header and the table's own column headers. */}
@@ -2315,9 +2688,12 @@ export default function App() {
             </div>
           )}
           {/* Top-left map cluster — reopen-controls button (only while the
-              panel is collapsed) + place search. z-10 keeps it under the
-              loading overlay (z-20) and the mobile drawer backdrop (z-30). */}
-          <div className="absolute top-3 left-3 z-10 flex flex-col items-start gap-2">
+              panel is collapsed) + place search + Layers. It takes its own
+              layer: what these buttons open hangs down across the map's bottom
+              chrome and across the sheet, and the layer has to sit on the
+              cluster rather than on the popover inside it (see LAYER). It stays
+              under the loading overlay and the mobile drawer backdrop. */}
+          <div className={`absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${LAYER.mapControls} flex flex-col items-start gap-2`}>
             {/* Raised above its later siblings so the search dropdown paints
                 over the Layers button below it — both live in the top-left
                 cluster, and DOM order alone put the button on top (#288
@@ -2357,101 +2733,91 @@ export default function App() {
                 </svg>
                 Layers
               </button>
+              {/* Zero from the button it hangs under, which is the same edge
+                  as `MAP_EDGE.left`: the popover's offset parent is the column,
+                  so an inset of its own would be that inset twice and the box
+                  would hang a step right of the legends it hangs over. */}
               {layersOpen && (
-                <div className={`${SURFACE_FLOATING} absolute left-0 mt-2 w-44 px-2.5 py-2`}>
-                  {MAP_LAYERS.map(({ key, label, checked, onChange, disabled, note }) => (
-                    <label
-                      key={key}
-                      className={CHOICE_ROW}
-                      title={disabled && note ? note : undefined}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={disabled}
-                        aria-describedby={disabled && note ? `layer-${key}-note` : undefined}
-                        onChange={(e) => onChange(e.target.checked)}
-                        className={CHOICE_INPUT}
-                      />
-                      <span>{label}</span>
-                      {disabled && note && (
-                        <span id={`layer-${key}-note`} className={SR_ONLY}>
-                          {note}
-                        </span>
-                      )}
-                    </label>
-                  ))}
-                  {/* The grid's sub-choices, revealed by its own checkbox.
-                      The popover is 176px, so these take the fluid segment
-                      rather than the panel's fixed 144px column — the same
-                      reason the results bar's mode switch does. */}
-                  {gridOn && (
-                    <>
-                      <div className={`${SEGMENT_FLUID} mt-1.5 w-full`}>
-                        {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
-                          <button
-                            key={value}
-                            type="button"
-                            aria-pressed={gridStyle === value}
-                            onClick={() => setGridStyle(value)}
-                            className={`${SEGMENT_ITEM} ${
-                              gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
-                            } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
-                          >
-                            {value === 'blocks' ? 'Blocks' : 'Smooth'}
-                          </button>
-                        ))}
-                      </div>
-                      {/* The coverage slider: how far from each destination
-                          the grid reaches. The value and wordmark render
-                          TWICE — muted on the well, white inside the accent
-                          fill — with the top copy clipped to the fill, so the
-                          line stays readable at any position without a color
-                          racing another. Drag previews live (`gridReachDraft`)
-                          and commits on release, because each committed value
-                          is a refetch and a drag must not fetch per pixel. */}
-                      <div
-                        className={`relative mt-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${RECESSED_EDGE} ${RECESSED_FILL}`}
-                      >
-                        {(() => {
-                          const shown = gridReachDraft ?? gridReachFrac
-                          const pct = shown * 100
-                          const line = (
-                            <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-2">
-                              <span className={SLIDER_VALUE}>
-                                {pitchLabel(reachKmFor(gridReachPitchKm, shown))}
-                              </span>
-                              <span className={SLIDER_WORDMARK}>Coverage</span>
-                            </div>
-                          )
-                          return (
-                            <>
-                              <div className={`absolute inset-0 ${SLIDER_IDLE}`}>{line}</div>
-                              <div
-                                className={`absolute inset-0 ${ACCENT.fill}`}
-                                style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}
+                <div className={`${SURFACE_POPOVER} ${MAP_BOX_W} absolute left-0 mt-2 px-2.5 py-2`}>
+                  {MAP_LAYERS.map((layer) => (
+                    <Fragment key={layer.key}>
+                      {layerRow(layer)}
+                      {/* The grid's sub-choices, revealed by its own checkbox
+                          and rendered under the row they belong to rather than
+                          after the list, so the alphabetical order above holds
+                          whatever is open. The popover is as wide as the legend
+                          boxes below it (`MAP_BOX_W`), so these take the fluid
+                          segment rather than the panel's fixed 144px column —
+                          the same reason the results bar's mode switch does. */}
+                      {layer.key === 'grid' && gridOn && (
+                        <>
+                          <div className={`${SEGMENT_FLUID_LIFTED} mt-1.5 w-full`}>
+                            {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
+                              <button
+                                key={value}
+                                type="button"
+                                aria-pressed={gridStyle === value}
+                                onClick={() => setGridStyle(value)}
+                                className={`${SEGMENT_ITEM} ${
+                                  gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
+                                } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
                               >
-                                {line}
-                              </div>
-                            </>
-                          )
-                        })()}
-                        <input
-                          type="range"
-                          aria-label="Coverage"
-                          min={0}
-                          max={100}
-                          step={5}
-                          value={Math.round((gridReachDraft ?? gridReachFrac) * 100)}
-                          onChange={(e) => setGridReachDraft(Number(e.target.value) / 100)}
-                          onPointerUp={commitGridReach}
-                          onKeyUp={commitGridReach}
-                          onBlur={commitGridReach}
-                          className={SLIDER_OVERLAY}
-                        />
-                      </div>
-                    </>
-                  )}
+                                {value === 'blocks' ? 'Blocks' : 'Smooth'}
+                              </button>
+                            ))}
+                          </div>
+                          {/* The coverage slider: how far from each destination
+                              the grid reaches. The value and wordmark render
+                              TWICE — muted on the well, white inside the accent
+                              fill — with the top copy clipped to the fill, so the
+                              line stays readable at any position without a color
+                              racing another. Drag previews live (`gridReachDraft`)
+                              and commits on release, because each committed value
+                              is a refetch and a drag must not fetch per pixel. */}
+                          <div
+                            className={`relative mt-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${LIFTED_EDGE} ${RECESSED_FILL}`}
+                          >
+                            {(() => {
+                              const shown = gridReachDraft ?? gridReachFrac
+                              const pct = shown * 100
+                              const line = (
+                                <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-2">
+                                  <span className={SLIDER_VALUE}>
+                                    {pitchLabel(reachKmFor(gridReachPitchKm, shown))}
+                                  </span>
+                                  <span className={SLIDER_WORDMARK}>Coverage</span>
+                                </div>
+                              )
+                              return (
+                                <>
+                                  <div className={`absolute inset-0 ${SLIDER_IDLE}`}>{line}</div>
+                                  <div
+                                    className={`absolute inset-0 ${ACCENT.fill}`}
+                                    style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}
+                                  >
+                                    {line}
+                                  </div>
+                                </>
+                              )
+                            })()}
+                            <input
+                              type="range"
+                              aria-label="Coverage"
+                              min={0}
+                              max={100}
+                              step={5}
+                              value={Math.round((gridReachDraft ?? gridReachFrac) * 100)}
+                              onChange={(e) => setGridReachDraft(Number(e.target.value) / 100)}
+                              onPointerUp={commitGridReach}
+                              onKeyUp={commitGridReach}
+                              onBlur={commitGridReach}
+                              className={SLIDER_OVERLAY}
+                            />
+                          </div>
+                        </>
+                      )}
+                    </Fragment>
+                  ))}
                 </div>
               )}
             </div>
@@ -2473,14 +2839,23 @@ export default function App() {
               readout={timelineReadout}
               scale={timelineScale}
               forecastLabel={NOUN[familyOf(view.sortBy)]}
+              liftPx={sheetLiftPx}
             />
           )}
         </div>
 
         {showTable && (
+          // Docked below the map on desktop; on a phone the same results stand
+          // on the map's bottom edge as a sheet, so the map keeps its full
+          // height and its legends keep their room (#249). One surface either
+          // way — only where it sits changes.
           <div
-            className="flex flex-shrink-0 flex-col bg-slate-800"
-            
+            ref={sheetRef}
+            className={
+              isDesktop
+                ? 'flex flex-shrink-0 flex-col bg-slate-800'
+                : `absolute inset-x-0 bottom-0 flex flex-col ${SURFACE_SHEET} ${LAYER.sheet}`
+            }
           >
             {/* Shared header bar for all results views. A container query, not
                 a viewport one: the bar's width is the viewport minus the docked
@@ -2571,15 +2946,38 @@ export default function App() {
                   {/* Columns button opens picker popover. Present from the
                       first pending row, not only once a report exists: the
                       bar keeping its full membership is what makes it read
-                      as one control surface (#242 review). */}
+                      as one control surface (#242 review).
+
+                      This and the three beside it read at `TEXT.control`, the
+                      size of every other control in the app. The micro step is
+                      for text that is present but never first — a credit, a
+                      timestamp, an overflow count — and these are buttons the
+                      reader is meant to press. */}
                   {showTable && (
                     <button
                       ref={columnsButtonRef}
                       onClick={() => setColumnsOpen(!columnsOpen)}
                       aria-label="Choose which columns to display"
-                      className={`${TEXT.micro} ${LINK} cursor-pointer whitespace-nowrap`}
+                      className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
                     >
                       Columns
+                    </button>
+                  )}
+                  {/* Which of the selected models the chart draws (#232). A
+                      bar member rather than a control on the chart, for the
+                      reason every other comparison control is in one place:
+                      the chart is read, not operated. Standing, under exactly
+                      the condition Columns stands under, because a bar that
+                      gains and loses members is a bar a reader has to look for
+                      (#242 review) — and the question it asks is about the
+                      panel's selection, which does not wait on a fetch. */}
+                  {showTable && (
+                    <button
+                      ref={modelsButtonRef}
+                      onClick={() => setModelsOpen(!modelsOpen)}
+                      className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
+                    >
+                      Models
                     </button>
                   )}
                   {/* Removed rows (#241): a removal's only undo, so it is a
@@ -2591,7 +2989,7 @@ export default function App() {
                       ref={removedButtonRef}
                       onClick={() => setRemovedOpen(!removedOpen)}
                       aria-label={`Restore removed rows (${removed.size} removed)`}
-                      className={`${TEXT.micro} ${LINK} cursor-pointer whitespace-nowrap`}
+                      className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
                     >
                       Removed ({removed.size})
                     </button>
@@ -2600,7 +2998,7 @@ export default function App() {
                     <button
                       onClick={handleDownloadCsv}
                       aria-label="Download these results as a CSV file"
-                      className={`${TEXT.micro} ${LINK} cursor-pointer whitespace-nowrap`}
+                      className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
                     >
                       Download CSV
                     </button>
@@ -2609,7 +3007,7 @@ export default function App() {
                     href="https://open-meteo.com/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`${TEXT.micro} ${LINK} whitespace-nowrap`}
+                    className={`${TEXT.control} ${LINK} whitespace-nowrap`}
                   >
                     Open-Meteo.com
                   </a>
@@ -2636,13 +3034,22 @@ export default function App() {
                         if (isDoublePress('chart', e.timeStamp)) {
                           if (resultsMode === 'both') setTableHeight(tablePanelPx)
                           setChartHeight(DEFAULT_CHART_HEIGHT)
+                          // "Put it back" includes the resting height a phone
+                          // sheet opens at, which a drag had handed over.
+                          setHeightsChosen(false)
                           return
                         }
                         const reserved = (resultsMode === 'both' ? tablePanelPx : 0) + bannerPx
                         if (resultsMode === 'both') setTableHeight(tablePanelPx)
                         beginResize(e, (up) =>
                           setChartHeight(
-                            clampPanelHeight(chartPanelPx, up, reserved, window.innerHeight),
+                            clampPanelHeight(
+                              chartPanelPx,
+                              up,
+                              reserved,
+                              window.innerHeight,
+                              dragFloorPx,
+                            ),
                           ),
                         )
                       }}
@@ -2657,13 +3064,26 @@ export default function App() {
                       <div className="min-h-0 flex-1">
                         <TimeSeriesChart
                           times={chartTimes}
-                          rows={chart.selectedRows}
+                          // While a comparison is up every line on the chart is
+                          // a (destination, model) pair, composed once by the
+                          // hook so each one is named and coloured the same
+                          // way; the chart has no plain destination rows to
+                          // draw. With nothing compared it is the row list it
+                          // has always been.
+                          rows={compare.active ? NO_CHART_ROWS : chart.selectedRows}
                           metric={chart.metric}
                           onMetricChange={chart.setMetric}
                           colorFor={chart.colorFor}
                           playheadMs={playbackIndex !== null ? chartTimes[playbackIndex] ?? null : null}
                           onPlayheadChange={
                             timelineAxes.includes('forecast') ? movePlayheadTo : undefined
+                          }
+                          extraLines={compare.lines}
+                          cutAfterMs={compare.endMs}
+                          controls={
+                            compare.active ? (
+                              <ModelCompare compared={compare.shown} />
+                            ) : undefined
                           }
                         />
                       </div>
@@ -2731,6 +3151,7 @@ export default function App() {
                         if (isDoublePress('table', e.timeStamp)) {
                           if (resultsMode === 'both') setChartHeight(chartPanelPx)
                           setTableHeight(DEFAULT_TABLE_HEIGHT)
+                          setHeightsChosen(false)
                           return
                         }
                         if (resultsMode === 'both') {
@@ -2742,7 +3163,13 @@ export default function App() {
                         } else {
                           beginResize(e, (up) =>
                             setTableHeight(
-                              clampPanelHeight(tablePanelPx, up, bannerPx, window.innerHeight),
+                              clampPanelHeight(
+                                tablePanelPx,
+                                up,
+                                bannerPx,
+                                window.innerHeight,
+                                dragFloorPx,
+                              ),
                             ),
                           )
                         }
@@ -2793,6 +3220,16 @@ export default function App() {
           visibleKeys={effectiveVisibleKeys}
           onVisibilityChange={setColumnVisibility}
           triggerRef={columnsButtonRef}
+        />
+
+        {/* Model visibility popover */}
+        <ModelsPicker
+          open={modelsOpen}
+          onOpenChange={setModelsOpen}
+          models={selectedModelRows}
+          hidden={hiddenModels}
+          onToggle={(id) => setHiddenModels((prev) => toggleHidden(prev, id))}
+          triggerRef={modelsButtonRef}
         />
 
         {/* Removed rows popover */}

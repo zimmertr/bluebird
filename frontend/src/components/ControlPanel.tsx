@@ -27,6 +27,7 @@ import {
   FIELD_NUMERIC,
   LINK,
   NOTICE,
+  NOTICE_DIVIDER,
   NOTICE_DISMISS,
   PANEL_EDGE,
   PANEL_RULE,
@@ -219,6 +220,11 @@ interface Props {
   forecastModel: string
   setForecastModel: (id: string) => void
   forecastModels: readonly ForecastModelOption[]
+  // The extra models the chart draws beside the ranking one (#232). Ticked in
+  // the same list the ranking model is chosen from, because it is the same
+  // reading: which model answers, and which others to see it against.
+  comparedModels: readonly string[]
+  setComparedModels: (ids: string[]) => void
   // Which of them the server would use if asked for none. Marked in the list so
   // a reader who has wandered off it can find the way back; the ordering alone
   // cannot say it, since best-first and default-first need not agree.
@@ -392,27 +398,18 @@ function FooterNotice({
 }) {
   return (
     <div className={`${NOTICE[severity]} ${STATUS[severity]} space-y-2`} role="status">
-      {messages.length > 1 ? (
-        // Bullets from two messages up, and not before. One reason Analyze
-        // is blocked is a sentence; two are a list, and without the marks
-        // they run together into one long complaint — worse when either of
-        // them wraps, which is when the reader most needs to see where one
-        // ends. A lone bullet is a list of one and just adds furniture.
-        //
-        // `list-outside` puts a wrapped line under its own text rather than
-        // under its bullet, so the marks stay a column the eye can scan.
-        <ul className="list-disc list-outside space-y-1.5 pl-4">
-          {messages.map((m) => (
-            <li key={m.key}>
-              <NoticeMessage text={m.text} onDismiss={() => onDismiss(m.key)} />
-            </li>
-          ))}
-        </ul>
-      ) : (
-        messages.map((m) => (
+      {/* Every message renders the same way, alone or one of several: a row
+          under a row, separated by the rule `NOTICE_DIVIDER` draws in the box's
+          own border tint. A bulleted list did the separating before and spent
+          16px of the text column on the indent and the marker, which is more
+          than a message written to fit one line at 360px can give up — so the
+          second message arriving used to wrap the first. A lone message gets no
+          rule, because there is nothing to separate it from. */}
+      <div className={NOTICE_DIVIDER[severity]}>
+        {messages.map((m) => (
           <NoticeMessage key={m.key} text={m.text} onDismiss={() => onDismiss(m.key)} />
-        ))
-      )}
+        ))}
+      </div>
       {children}
     </div>
   )
@@ -454,6 +451,8 @@ export default function ControlPanel({
   forecastModel,
   setForecastModel,
   forecastModels,
+  comparedModels,
+  setComparedModels,
   defaultForecastModel,
   modelClamped,
   windowWarning,
@@ -1099,6 +1098,7 @@ export default function ControlPanel({
                           finestGridKm: 0,
                           forecastHours: 0,
                           regional: false,
+                          blend: false,
                         },
                         ...forecastModels,
                       ]
@@ -1106,6 +1106,8 @@ export default function ControlPanel({
                 value={forecastModel}
                 defaultId={defaultForecastModel}
                 onChange={setForecastModel}
+                compared={comparedModels}
+                onComparedChange={setComparedModels}
                 disabled={archiveWindow}
               />
             </div>

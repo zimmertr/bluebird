@@ -73,14 +73,42 @@ export function clampIndex(index: number, count: number): number {
 }
 
 /**
- * Which axes the transport can offer right now.
+ * Does anything span time right now, whatever the player's own switch says?
+ *
+ * This is what decides whether the player EXISTS, where `availableAxes` below
+ * decides whether it is shown. The two are different questions: a checkbox
+ * offering to switch on a bar with nothing in it is a control the reader has to
+ * try in order to learn it is empty, so the row leaves the Layers popover
+ * entirely while this is false. The switch's own value is untouched by that —
+ * a reader who turned the player off does not find it back on after a radar
+ * toggle.
  *
  * `forecastStamps` is how many hourly stamps the displayed report covers. Two
  * is the floor and it is a real one rather than a guard: a Current analysis, or
  * a day narrowed to a single hour, is one instant, and a transport over one
  * instant is a control with nowhere to go.
  */
-export function availableAxes(radarOn: boolean, forecastStamps: number): TimelineAxis[] {
+export function playerAvailable(radarOn: boolean, forecastStamps: number): boolean {
+  return radarOn || forecastStamps >= 2
+}
+
+/**
+ * Which axes the transport can offer right now.
+ *
+ * `playerShown` is the Layers popover's own switch, and it answers first: the
+ * player is a band across the bottom of the map, which on a phone is a third of
+ * what there is to look at, so it is switched off there by default. Switched
+ * off, nothing spans time as far as the map is concerned — no bar, no playhead,
+ * and the markers keep the window aggregate colour they rank by. It is still an
+ * overlay switch rather than a knob: it changes what is looked at, never what
+ * was asked for, so no ranking and no fetch follows it.
+ */
+export function availableAxes(
+  playerShown: boolean,
+  radarOn: boolean,
+  forecastStamps: number,
+): TimelineAxis[] {
+  if (!playerShown || !playerAvailable(radarOn, forecastStamps)) return []
   const axes: TimelineAxis[] = []
   if (radarOn) axes.push('radar')
   if (forecastStamps >= 2) axes.push('forecast')

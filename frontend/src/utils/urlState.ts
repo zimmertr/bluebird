@@ -48,6 +48,12 @@ export interface ShareableState {
   // different answers under different models, so a link that dropped it would
   // reopen showing something other than what was shared.
   forecastModel: string
+  // The extra models the chart draws beside the ranking one (#232), in the
+  // published order. Part of the shared state for the same reason
+  // `forecastModel` is: the comparison is half of what a shared chart says.
+  // Only the extras — the ranking model is always on the chart and already has
+  // its own param, and a second spelling of it could disagree.
+  compareModels: string[]
   sortBy: SortBy
   sortDesc: boolean // false = lowest first (the historical behavior)
   // Which aggregate each metric's ranking-row dropdown holds (#291), active
@@ -77,6 +83,13 @@ export interface ShareableState {
   // control's state, and two params for it would let a link say the layer is
   // off while still carrying a style for it.
   gridStyle: GridStyle
+  // Whether the forecast player is on the map, which is NOT the same shape as
+  // the four overlays above: `null` means "whatever this device defaults to"
+  // (on at a desktop width, off on a phone, where the bar costs a third of a
+  // short map), and a boolean means the reader has decided. Only a decision is
+  // written to the URL, and it is written either way round, so a link can carry
+  // the player onto a phone or off a desktop.
+  showPlayer: boolean | null
   // The grid's coverage slider position, in [0, 1] of the bar — the
   // kilometres derive from the model's pitch, so the POSITION is what a link
   // must carry to mean the same thing under any model. Its own param
@@ -270,8 +283,13 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
     state.showRadar ||
     state.showSmoke ||
     state.showGrid ||
+    state.showPlayer !== null ||
     state.selection.kind !== 'now' ||
-    state.forecastModel !== defaultForecastModel
+    state.forecastModel !== defaultForecastModel ||
+    // Ticking a model onto the chart is a real edit, like choosing the model
+    // beside it: the one thing that differs from a fresh session must not share
+    // as a fresh session.
+    state.compareModels.length > 0
   if (!hasPolygon && !hasCustom && !hasConstraint && !hasPins && !nonDefaultControls)
     return ''
 
@@ -299,6 +317,11 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
   // that default moved. The id is Open-Meteo's own (`ecmwf_ifs025`,
   // `gfs_hrrr`), which keeps the param as hand-editable as the rest.
   p.set('model', state.forecastModel)
+  // Written only when something is selected, so an ordinary link carries
+  // nothing for a chart nobody is comparing on. Comma-joined ids in the
+  // published order, which is the order the picker's chips read, so the param
+  // is as hand-editable as `model` beside it.
+  if (state.compareModels.length > 0) p.set('compare', state.compareModels.join(','))
   // Always written, like type/sort/limit above, even at its default. Links used
   // to leave `mode` out for the then-default window mode and let the reader
   // infer it; that made every shared link hostage to the app's current default.
@@ -347,6 +370,12 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
       p.set('reach', String(Math.round(state.gridReachFrac * 100)))
     }
   }
+  // Written only once the reader has touched the switch, and then in both
+  // directions: the default is the device's, so `player=0` says "off even at a
+  // desktop width" as meaningfully as `player=1` says "on even on a phone". A
+  // link that left the default out is the link that keeps meaning what it said
+  // when the default moves.
+  if (state.showPlayer !== null) p.set('player', state.showPlayer ? '1' : '0')
   if (state.includeUnnamedPeaks) p.set('unnamed', '1')
   if (hasPins) p.set('pins', encodePins(state.pins))
 
@@ -505,6 +534,20 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   const model = params.get('model')
   if (model && /^[a-z0-9_]+$/.test(model)) out.forecastModel = model
 
+  // The compared models, filtered to the same shape `model` above accepts and
+  // deduplicated, so a hand-edited link cannot smuggle a second copy of one
+  // model onto the chart. Membership is the caller's to judge, exactly as it is
+  // for `model`: this module has no access to /api/capabilities, so an id this
+  // deployment does not publish survives here and is simply never drawn. An
+  // empty result leaves the field undefined rather than handing back an empty
+  // array, so App keeps its own default.
+  const compare = params.get('compare')
+  if (compare) {
+    const ids = compare.split(',').filter((id) => /^[a-z0-9_]+$/.test(id))
+    const unique = ids.filter((id, i) => ids.indexOf(id) === i)
+    if (unique.length > 0) out.compareModels = unique
+  }
+
   const minel = params.get('minel')
   if (minel !== null) {
     const n = Number(minel)
@@ -564,6 +607,11 @@ export function decodeState(search: string): Partial<ShareableState> | null {
       }
     }
   }
+  // Both values are read, and anything else is left to the device default: the
+  // param exists to carry a decision, so no value is not a decision.
+  const player = params.get('player')
+  if (player === '1') out.showPlayer = true
+  if (player === '0') out.showPlayer = false
   if (params.get('unnamed') === '1') out.includeUnnamedPeaks = true
 
   const pins = params.get('pins')

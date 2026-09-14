@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { ReactNode, useMemo, useRef, useState } from 'react'
 import {
   CartesianGrid,
   Line,
@@ -13,6 +13,7 @@ import { DestinationResult } from '../types'
 import { CHOICE_INPUT, CHOICE_ROW, RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
 import {
   CHART_METRICS,
+  ChartLine,
   ChartMetric,
   alignRowToGrid,
   axisTimeLabel,
@@ -20,6 +21,7 @@ import {
   buildChartData,
   chartKey,
   computeYDomain,
+  cutSeriesAfter,
   formatMetricValue,
   nearestKey,
   pixelToValue,
@@ -51,7 +53,33 @@ interface Props {
   // exists, which is what makes a click on a chart with no timeline behind it
   // do nothing rather than something invisible.
   onPlayheadChange?: (ms: number) => void
+  /**
+   * Lines that are not plain destinations: one per (destination, model) pair
+   * while a comparison is up (#232). They arrive ready to draw — aligned to
+   * `times`, coloured, named and already clamped — because what a comparison
+   * covers is a decision about spend rather than about drawing. Every line is
+   * solid: colour is the one channel, the destination's on the ranking model's
+   * lines and the model's on every other, and `chartColors.ts` is what keeps
+   * the two sets apart.
+   *
+   * A comparison supplies the ranking model's lines here too, and `rows` then
+   * arrives empty: every entry has to read alike, so all of them are composed
+   * in one place rather than half here and half there.
+   */
+  extraLines?: readonly ChartLine[]
+  /**
+   * Where every line on the chart stops, `rows` included. Null unless a
+   * comparison has clamped it: lines running to different hours cannot be read
+   * against each other, so the shortest reach on the chart bounds all of them.
+   */
+  cutAfterMs?: number | null
+  /** The comparison control, rendered beside the metric radios. */
+  controls?: ReactNode
 }
+
+// A stable empty default: a fresh `[]` per render would rebuild every line, and
+// with it every path Recharts strokes, on every hover.
+const NO_EXTRA_LINES: readonly ChartLine[] = []
 
 export default function TimeSeriesChart({
   times,
@@ -61,14 +89,49 @@ export default function TimeSeriesChart({
   colorFor,
   playheadMs = null,
   onPlayheadChange,
+  extraLines = NO_EXTRA_LINES,
+  cutAfterMs = null,
+  controls,
 }: Props) {
   const plotRef = useRef<HTMLDivElement>(null)
   const [focusedKey, setFocusedKey] = useState<string | null>(null)
   const [cursorValue, setCursorValue] = useState<number | null>(null)
 
   // Align each series onto the active grid by timestamp — a no-op for ranked
-  // rows; a pinned row may have been fetched for a different window.
-  const aligned = useMemo(() => rows.map((r) => alignRowToGrid(r, times)), [rows, times])
+  // rows; a pinned row may have been fetched for a different window — then stop
+  // it wherever a comparison says every line stops.
+  const aligned = useMemo(
+    () =>
+      rows.map((r) => {
+        const onGrid = alignRowToGrid(r, times)
+        if (cutAfterMs === null) return onGrid
+        return { ...onGrid, series: cutSeriesAfter(times, onGrid.series, cutAfterMs) }
+      }),
+    [rows, times, cutAfterMs],
+  )
+
+  // Everything plotted, as lines rather than rows: under a comparison a line is
+  // a destination AND a model (#232), and nothing below this point has any
+  // reason to know which kind it is drawing.
+  //
+  // `colorFor` is deliberately not a dependency. It is a fresh closure every
+  // render by construction, so including it would rebuild every line on every
+  // hover — the exact cost the `data` memo below exists to avoid — and it
+  // cannot answer differently for a row that has not changed: a colour is
+  // assigned once per coordinate and never reassigned.
+  const lines: ChartLine[] = useMemo(
+    () => [
+      ...aligned.map((row) => ({
+        key: chartKey(row),
+        label: row.name,
+        color: colorFor(row),
+        series: row.series,
+      })),
+      ...extraLines,
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [aligned, extraLines],
+  )
   // A point-sample analysis has a one-timestamp grid: there are no segments to
   // stroke, so each series must render as a dot or the chart would come up blank.
   const pointGrid = times.length === 1
@@ -83,7 +146,7 @@ export default function TimeSeriesChart({
   // the re-render rebuilds every line's path from every point, and the chart ends
   // up lagging seconds behind the pointer. It falls back to a plain shared
   // tooltip, and comes back on as soon as fewer lines are charted. See tracksCursor.
-  const followCursor = tracksCursor(times.length, aligned.length)
+  const followCursor = tracksCursor(times.length, lines.length)
   // Memoized because hovering re-renders: handleMove below stores the cursor's
   // value and the nearest line in state, so every mouse movement that changes
   // either one lands here again. Neither of these depends on that state, and
@@ -93,17 +156,17 @@ export default function TimeSeriesChart({
   // hover against a 16.7ms frame budget, and a continuous mousemove stream
   // queued faster than it could be serviced until the renderer stopped
   // answering. Both keys are already stable — `aligned` is itself memoized.
-  const data = useMemo(() => buildChartData(times, aligned, metric), [times, aligned, metric])
-  const [yMin, yMax] = useMemo(() => computeYDomain(aligned, metric), [aligned, metric])
+  const data = useMemo(() => buildChartData(times, lines, metric), [times, lines, metric])
+  const [yMin, yMax] = useMemo(() => computeYDomain(lines, metric), [lines, metric])
 
   // Render the focused line last (on top) with siblings dimmed. One nearest-line
   // computation feeds both the line emphasis and the tooltip ordering.
   const ordered = focusedKey
     ? [
-        ...aligned.filter((r) => chartKey(r) !== focusedKey),
-        ...aligned.filter((r) => chartKey(r) === focusedKey),
+        ...lines.filter((l) => l.key !== focusedKey),
+        ...lines.filter((l) => l.key === focusedKey),
       ]
-    : aligned
+    : lines
 
   function handleMove(state: any) {
     const idx = state?.activeTooltipIndex
@@ -117,7 +180,7 @@ export default function TimeSeriesChart({
     }
     const cv = pixelToValue(py, MARGIN.top, plotHeight, yMin, yMax)
     const valuesByKey: Record<string, number | null> = {}
-    for (const row of aligned) valuesByKey[chartKey(row)] = valueAt(row, metric, idx)
+    for (const line of lines) valuesByKey[line.key] = valueAt(line, metric, idx)
     setCursorValue(cv)
     setFocusedKey(nearestKey(valuesByKey, cv))
   }
@@ -153,6 +216,7 @@ export default function TimeSeriesChart({
             {m.label}
           </label>
         ))}
+        {controls}
       </div>
 
       <div ref={plotRef} className="min-h-0 flex-1 overflow-hidden">
@@ -208,9 +272,8 @@ export default function TimeSeriesChart({
               content={(props: any) => (
                 <ChartTooltip
                   {...props}
-                  rows={aligned}
+                  lines={lines}
                   metric={metric}
-                  colorFor={colorFor}
                   focusedKey={focusedKey}
                   cursorValue={cursorValue}
                   // Read at render rather than observed: this component
@@ -220,22 +283,22 @@ export default function TimeSeriesChart({
                 />
               )}
             />
-            {ordered.map((row) => {
-              const key = chartKey(row)
+            {ordered.map((line) => {
+              const key = line.key
               const dimmed = focusedKey != null && focusedKey !== key
               return (
                 <Line
                   key={key}
                   type="linear"
                   dataKey={key}
-                  name={row.name}
-                  stroke={colorFor(row)}
+                  name={line.label}
+                  stroke={line.color}
                   dot={
                     pointGrid
                       ? {
                           r: focusedKey === key ? 4.5 : 3.5,
                           strokeWidth: 0,
-                          fill: colorFor(row),
+                          fill: line.color,
                           fillOpacity: dimmed ? 0.25 : 1,
                         }
                       : false
@@ -268,16 +331,15 @@ function fmtTooltipTime(t: number): string {
 interface TooltipItem {
   key: string
   value: number
-  row: DestinationResult
+  line: ChartLine
 }
 
 interface ChartTooltipProps {
   active?: boolean
   payload?: { dataKey?: string; value?: number | null }[]
   label?: number
-  rows: DestinationResult[]
+  lines: readonly ChartLine[]
   metric: ChartMetric
-  colorFor: (row: DestinationResult) => string
   focusedKey: string | null
   cursorValue: number | null
   // How many series the card has room to list, from the plot area's current
@@ -292,9 +354,8 @@ function ChartTooltip({
   active,
   payload,
   label,
-  rows,
+  lines,
   metric,
-  colorFor,
   focusedKey,
   cursorValue,
   maxRows,
@@ -304,8 +365,8 @@ function ChartTooltip({
   const items: TooltipItem[] = []
   for (const p of payload) {
     if (p.value == null || p.dataKey == null) continue
-    const row = rows.find((r) => chartKey(r) === p.dataKey)
-    if (row) items.push({ key: p.dataKey, value: p.value, row })
+    const line = lines.find((l) => l.key === p.dataKey)
+    if (line) items.push({ key: p.dataKey, value: p.value, line })
   }
   items.sort((a, b) => {
     if (a.key === focusedKey) return -1
@@ -330,8 +391,8 @@ function ChartTooltip({
           }`}
         >
           <span className="flex items-center gap-1.5">
-            <span className={`h-2 w-2 ${RADIUS.control}`} style={{ backgroundColor: colorFor(it.row) }} />
-            {it.row.name}
+            <span className={`h-2 w-2 ${RADIUS.control}`} style={{ backgroundColor: it.line.color }} />
+            {it.line.label}
           </span>
           <span className="font-mono">{formatMetricValue(it.value, metric)}</span>
         </div>

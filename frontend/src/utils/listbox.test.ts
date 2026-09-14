@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextActiveIndex, optionDomId, popoverBox } from './listbox'
+import { nextActiveIndex, nextToolbarIndex, optionDomId, popoverBox } from './listbox'
 
 const VIEWPORT = { width: 1400, height: 900 }
 // Most cases pass a content height explicitly; this is the shared geometry.
@@ -183,6 +183,23 @@ describe('nextActiveIndex', () => {
     expect(nextActiveIndex(2, 'End', 8)).toBe(7)
   })
 
+  // The popover carries a chip row above the list (#232) and its chips are
+  // deliberately NOT options: arrow keys here move a selection, and walking a
+  // chip as a ninth row would point `aria-activedescendant` at something with
+  // no `role="option"`. `count` stays the number of options, so the walk stops
+  // at the last one and Tab is what crosses to the chips.
+  it('never walks past the last option into the popover’s chip row', () => {
+    expect(nextActiveIndex(7, 'ArrowDown', 8)).toBe(7)
+    expect(nextActiveIndex(7, 'End', 8)).toBe(7)
+  })
+
+  // The horizontal axis belongs to the chip row alone, or one press would move
+  // the list's active option and the chip focus at the same time.
+  it('claims neither horizontal arrow', () => {
+    expect(nextActiveIndex(2, 'ArrowLeft', 8)).toBeNull()
+    expect(nextActiveIndex(2, 'ArrowRight', 8)).toBeNull()
+  })
+
   // Null is what leaves Tab, Escape and a screen reader's own keys alone.
   it('claims no key it does not handle', () => {
     for (const key of ['Tab', 'Escape', 'a', 'PageDown', ' ']) {
@@ -213,5 +230,39 @@ describe('an option id', () => {
   it('is unique per option and per list', () => {
     const ids = ['a', 'b'].flatMap((list) => ['x', 'y'].map((key) => optionDomId(list, key)))
     expect(new Set(ids).size).toBe(ids.length)
+  })
+})
+
+describe('nextToolbarIndex', () => {
+  // The chip row's walk. Separate from the listbox's on purpose: both are on
+  // screen at once, so one arrow key may move exactly one of them.
+  it('steps along the row rather than down a column', () => {
+    expect(nextToolbarIndex(0, 'ArrowRight', 3)).toBe(1)
+    expect(nextToolbarIndex(2, 'ArrowLeft', 3)).toBe(1)
+  })
+
+  it('claims neither vertical arrow', () => {
+    expect(nextToolbarIndex(1, 'ArrowDown', 3)).toBeNull()
+    expect(nextToolbarIndex(1, 'ArrowUp', 3)).toBeNull()
+  })
+
+  // Same rule as the list: Home and End are the deliberate way to the ends.
+  it('stops at the ends rather than wrapping', () => {
+    expect(nextToolbarIndex(2, 'ArrowRight', 3)).toBe(2)
+    expect(nextToolbarIndex(0, 'ArrowLeft', 3)).toBe(0)
+    expect(nextToolbarIndex(2, 'Home', 3)).toBe(0)
+    expect(nextToolbarIndex(0, 'End', 3)).toBe(2)
+  })
+
+  // Delete, Backspace and Tab all mean something on a chip, so a walk that
+  // swallowed them would take the removal and the crossing to the list with it.
+  it('claims no key it does not handle', () => {
+    for (const key of ['Delete', 'Backspace', 'Tab', 'Escape', 'Enter', ' ']) {
+      expect(nextToolbarIndex(1, key, 3)).toBeNull()
+    }
+  })
+
+  it('handles an empty row', () => {
+    expect(nextToolbarIndex(0, 'ArrowRight', 0)).toBeNull()
   })
 })

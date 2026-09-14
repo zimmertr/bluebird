@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 // `?raw` gives us each file's text without executing it, which is how a
 // component is linted under a Vitest that has no DOM (the trick styles.test.ts
 // and metrics.test.ts use).
+import modelCompareSource from './components/ModelCompare.tsx?raw'
 import appSource from './App.tsx?raw'
 import modelPickerSource from './components/ModelPicker.tsx?raw'
 import resultsTableSource from './components/ResultsTable.tsx?raw'
@@ -44,6 +45,74 @@ describe('a listbox option id', () => {
 
   it('reads the file it claims to lint', () => {
     expect(modelPickerSource).toContain('aria-activedescendant')
+  })
+})
+
+describe('the model picker’s two parts', () => {
+  // The list SELECTS the models the chart draws (#232), so more than one row is
+  // `aria-selected` at a time. Without this the second and later ticks are a
+  // state a screen reader is told nothing about, since the visible boxes are
+  // drawn rather than announced.
+  it('says the list is multi-selectable', () => {
+    expect(modelPickerSource).toContain('aria-multiselectable')
+  })
+
+  // The boxes carry no semantics of their own for exactly that reason: a
+  // focusable input inside a `role="option"` would be a second tab stop in a
+  // list whose whole keyboard model is one element plus
+  // `aria-activedescendant`.
+  it('keeps the drawn checkboxes out of the accessibility tree', () => {
+    const boxes = modelPickerSource.match(/<input\s[^>]*type="checkbox"[^>]*>/gs) ?? []
+    expect(boxes.length).toBeGreaterThan(0)
+    for (const box of boxes) {
+      expect(box).toContain('aria-hidden="true"')
+      expect(box).toContain('tabIndex={-1}')
+    }
+  })
+
+  // The chip row RANKS, and it is a toolbar rather than a second listbox: its
+  // chips are buttons that act, not options that are chosen, so the arrow keys
+  // that walk a selection stay with the one list below.
+  it('gives the chip row the toolbar role', () => {
+    expect(modelPickerSource).toContain('role="toolbar"')
+  })
+
+  // The one accessible name built rather than written. A bare × announces as
+  // "button" and nothing else, and a row of them announces as the same button
+  // repeated, which is the state a chip row is most likely to be read in.
+  it('names each chip’s remove button after its model', () => {
+    expect(modelPickerSource).toContain('aria-label={`Remove ${label}`}')
+  })
+
+  // The slot is drawn on every chip and hidden with `invisible` rather than
+  // dropped, so moving the highlight cannot resize a chip and shuffle the row
+  // under the pointer that moved it. A conditional render here is the bug.
+  it('keeps the remove slot on the chip that ranks', () => {
+    const at = modelPickerSource.indexOf('CHIP.remove')
+    expect(at).toBeGreaterThan(0)
+    const open = modelPickerSource.lastIndexOf('<button', at)
+    expect(modelPickerSource.slice(open - 120, open)).not.toContain('&&')
+    expect(modelPickerSource).toContain('invisible')
+  })
+
+  // Two parts, two gestures, and no third one. An action below the list would
+  // be a control that is neither a row nor a chip, in a popover whose whole
+  // design is that the list selects and the chips rank.
+  it('carries no action below the list', () => {
+    expect(modelPickerSource).not.toContain('Clear comparison')
+  })
+})
+
+describe('the chart’s comparison notes', () => {
+  // The #232 review moved every comparison control into the panel's model
+  // picker, and then removed the chart's key as well: what is left beside the
+  // radios is a note when a model drew nothing, and nothing on it spends or
+  // changes state. A control here would be a second place to do the same
+  // thing, and the one a reader meets while looking at results rather than
+  // choosing inputs.
+  it('carries no control of any kind', () => {
+    expect(modelCompareSource).not.toContain('<select')
+    expect(modelCompareSource).not.toContain('<button')
   })
 })
 

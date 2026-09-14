@@ -45,7 +45,14 @@
 // shape without the color: its line renders twice, muted on the well and white
 // inside the accent fill, and a color baked into the shape would race the
 // layer's by stylesheet order.
-const MICRO_SIZE = 'text-[10px]'
+/**
+ * The ramp's smallest step, as a number, for the one place a stylesheet has to
+ * spell it: `map.css` sizes MapLibre's credit line from `--map-credit-size`,
+ * which `MAP_EDGE.publish` sets. `styles.test.ts` holds the class, the custom
+ * property and this number together.
+ */
+export const MICRO_PX = 10
+export const MICRO_SIZE = 'text-[10px]'
 const MICRO = `${MICRO_SIZE} text-slate-300`
 
 /**
@@ -225,6 +232,67 @@ export const SURFACE_FLOATING =
 /** Opaque cards that sit above a scrim: the dialogs and the analysis overlay. */
 export const SURFACE_CARD =
   `bg-slate-800 border border-slate-600 ${RADIUS.surface} shadow-xl`
+
+/**
+ * The results sheet on a phone: the panel parked over the map's bottom edge
+ * rather than docked below it (#249).
+ *
+ * The same slate-800 the docked panel wears, so the results do not change colour
+ * with the breakpoint, plus the two things that say it is standing on the map:
+ * the slate-600 edge every box floating over the map already carries, and the
+ * surface radius on the top corners only, since the bottom pair are off the
+ * screen and a curve nobody can see is not a curve.
+ *
+ * `overflow-hidden` is what makes the radius real — the header bar inside is a
+ * square slate-700 block and would paint straight over the corners without it.
+ *
+ * No shadow: Tailwind's shadows cast downward, where this surface has nothing to
+ * fall on, and the edge is already the strongest boundary on the screen.
+ */
+export const SURFACE_SHEET = 'bg-slate-800 border-t border-slate-600 rounded-t-lg overflow-hidden'
+
+/**
+ * The map's Layers popover: the one floating box that is a menu rather than a
+ * label, separated from the boxes around it by ELEVATION.
+ *
+ * `SURFACE_FLOATING` would make it byte-identical to the legend boxes a few
+ * hundred pixels below it, so a thing the reader acts in would look like a key
+ * the reader reads. What separates it here is the shadow and one step of fill;
+ * the border stays exactly the legends' slate-600 so the difference is
+ * elevation only.
+ *
+ * ## Why `shadow-2xl` rather than `shadow-xl`
+ *
+ * Tailwind's `xl` is two layers at 0.1 black alpha; `2xl` is one 50px blur at
+ * 0.25. Over the light basemap both register, but this popover also hangs over
+ * the dark results sheet at the phone breakpoint, where 0.1 alpha on a near
+ * black surface is nothing at all. 0.25 is the only one of the two that reads
+ * on both grounds. `SURFACE_CARD` keeps `xl` because a scrim does its
+ * separating; nothing sits behind this one.
+ *
+ * ## Why slate-700, and what still clears AA on it
+ *
+ * One step up from the legends' slate-800, measured on the v4 oklch steps:
+ * white 10.34:1, `TEXT.control`'s slate-200 8.40:1, `MICRO`'s slate-300
+ * 6.97:1 — every text role in the popover past the 4.5:1 of WCAG 1.4.3.
+ * `ACCENT.input`'s checked sky-500 fill reads 3.81:1 here (5.40:1 on
+ * slate-800), past the 3:1 a control boundary owes under 1.4.11.
+ *
+ * The border is 1.37:1 on this fill where it was 1.94:1 on slate-800, and that
+ * is fine for the same reason it was fine there: it has never been the boundary
+ * doing the work — the shadow is, more so now.
+ *
+ * The one thing the lift genuinely breaks is `RECESSED_EDGE`, which carries
+ * 3.07:1 on slate-800 and only 2.17:1 here, so the segment and the coverage
+ * well inside the popover would lose the outer half of their boundary.
+ * `LIFTED_EDGE` below re-derives it.
+ *
+ * Spelled out rather than composed onto `SURFACE_FLOATING`: two background
+ * utilities resolve by their order in the generated stylesheet, not by class
+ * order, so appending a lighter fill would be a bet rather than an override.
+ */
+export const SURFACE_POPOVER =
+  `bg-slate-700/95 border border-slate-600 ${RADIUS.surface} shadow-2xl backdrop-blur-sm`
 
 /**
  * The accent, named by the jobs it does, because it does six.
@@ -410,6 +478,65 @@ export const BADGE_ACCENT =
   `text-[10px] font-semibold uppercase tracking-wider ` +
   `${ACCENT.fill} ${RADIUS.pill} px-1.5 py-0.5`
 
+/**
+ * The box a chip sits in, which is the same box in either state.
+ *
+ * The right padding is the chip's rather than the label's: the label sits
+ * against the × with nothing between them but the glyph's own inset, so the
+ * gap a reader sees is 5px rather than the 16px two `px-2` halves put there.
+ */
+const CHIP_SHAPE = `inline-flex max-w-full items-center ${RADIUS.control} pr-1 text-xs`
+
+/**
+ * A chip naming one selected member of a set: the forecast models the picker
+ * has selected, of which exactly one is in force.
+ *
+ * Two states, and the pair is the point. `active` marks the member in force —
+ * the model that RANKS the field — and wears `ACCENT.fill`, the same fill the
+ * chosen half of a segmented control wears, because it states the same fact
+ * about the same kind of set. `rest` is every other selected member.
+ *
+ * Colour is not the only channel separating them, and it cannot be: the accent
+ * fill against the neutral chip beside it measures 2.2:1, under the 3:1 that
+ * WCAG 1.4.11 asks of a boundary carrying meaning on its own. A resting chip
+ * SHOWS its remove ×, an active one shows the same slot empty, and the row
+ * carries a header naming what the highlight means, so the state survives a
+ * reader the fill does not reach. The labels are above the text floor in both
+ * states — white on `--color-sky-650` is 4.57:1 (the derivation is in
+ * `index.css`) and slate-200 on slate-700 is 8.2:1.
+ *
+ * The size is spelled bare rather than composed from `TEXT.control`, for the
+ * reason `BADGE_ACCENT` above spells its own: that role carries slate-200,
+ * which would race `ACCENT.fill`'s white by stylesheet order rather than by
+ * class order, so the winner would not be decidable from this line.
+ */
+export const CHIP = {
+  /** A selected member that is not the one in force. */
+  rest: `${CHIP_SHAPE} bg-slate-700 text-slate-200`,
+  /** The member in force. */
+  active: `${CHIP_SHAPE} ${ACCENT.fill}`,
+  /**
+   * The label, which is also the control that puts that member in force. Left
+   * padding only: its right edge is the gap before the × and the shape above
+   * owns that, so a chip is as wide as its name plus its control rather than
+   * as wide as four paddings.
+   */
+  label: `min-w-0 cursor-pointer truncate py-1 pl-2 ${FOCUS_RING}`,
+  /**
+   * The × that deselects it: a 20x24 box, drawn on every chip whether or not
+   * it can act, so the row cannot resize when the highlight moves.
+   *
+   * 20 is narrower than the 24x24 WCAG 2.5.8 asks of a target, and the height
+   * is what keeps the chip a chip — a 24px-wide box put ~16px of nothing
+   * between the last letter and the glyph. So the BOX stays 20 and the TARGET
+   * grows on a coarse pointer instead: `touch:w-6` takes it to 24 and the
+   * negative margin takes the four pixels back out of the layout, which is the
+   * one way to buy a target without moving anything around it.
+   */
+  remove:
+    `flex h-6 w-5 flex-shrink-0 cursor-pointer items-center justify-center ` +
+    `touch:-mx-0.5 touch:w-6 ${FOCUS_RING}`,
+} as const
 
 /**
  * The destructive retry inside an error notice: "Try again".
@@ -534,6 +661,28 @@ export const SPINNER =
 export const LAYER = {
   /** Map chrome, the sticky table header, the docked panels. */
   base: 'z-10',
+  /**
+   * The results sheet on a phone, which stands on the map rather than beside it
+   * (#249). Above every piece of map chrome it covers — the legends, the
+   * timeline, the map buttons, all `base` — and below the scrim, because the
+   * drawer dims the whole screen behind it and the sheet is part of that screen.
+   */
+  sheet: 'z-[15]',
+  /**
+   * The map's own top-left cluster: Controls, the search box, Layers, and
+   * whatever they open.
+   *
+   * Above the sheet and above every piece of map chrome under it, because the
+   * Layers popover hangs down across both and a control the reader has just
+   * opened has to be whole while it is open — the lifted timeline used to paint
+   * over its last row. Below `overlay`, which speaks for the whole map while an
+   * analysis runs.
+   *
+   * The cluster wears it rather than the popover inside it: a positioned box
+   * with a z-index is a stacking context, so a bigger number on a child can
+   * only order that child against its own siblings.
+   */
+  mapControls: 'z-[18]',
   /** The analysis overlay, over the map while a run is in flight. */
   overlay: 'z-20',
   /** The scrim behind the mobile drawer, and the preview banner. */
@@ -572,6 +721,19 @@ export const LAYER = {
  */
 export const RECESSED_FILL = 'bg-slate-900'
 export const RECESSED_EDGE = 'border border-slate-500'
+
+/**
+ * The same boundary, re-derived for the one surface that is a step lighter than
+ * the panel: `SURFACE_POPOVER`.
+ *
+ * A recessed edge owes 3:1 on both sides, and slate-500 only manages that
+ * against slate-800. On the popover's slate-700 fill it falls to 2.17:1, so the
+ * segment and the coverage well would read as fills with no boundary. slate-400
+ * is 3.94:1 against that fill and 7.0:1 against the slate-900 well inside it, so
+ * both sides clear. The fill it closes is unchanged — only the line moves, and
+ * only where the surface behind it did.
+ */
+export const LIFTED_EDGE = 'border border-slate-400'
 
 /**
  * The idle half of a segmented choice: the ranking direction toggle's unchosen
@@ -617,6 +779,57 @@ export const SEGMENT_IDLE = `${RECESSED_FILL} text-slate-400 hover:text-slate-20
  */
 export const CONTROL_W = 'w-36'
 
+/**
+ * The width every floating box under the Layers button shares: the Layers
+ * popover itself, the map-layer legend, and the metric colour key.
+ *
+ * They sit in one column on the left of the map, a popover hanging into the
+ * space the legends occupy, so differing widths read as a ragged edge rather
+ * than as three boxes. The popover and the legends had drifted a step apart,
+ * which is why this is a role and not a constant beside one of them.
+ *
+ * The number is measured and the governor is the legend's longest row: the grid
+ * legend's wait line, "Forecast grid" against "Waiting · 99s", measured
+ * 2026-08-21 in Chrome on macOS at 74.7 + 74.1 + the 8px gap = 156.8px. One
+ * step down leaves 154px and wrapped that label by under three pixels at
+ * two-digit seconds; this leaves 172px, about 15px of slack, and the countdown
+ * switches to minutes past 99s so the row's widest case is bounded. The fire
+ * credit row governed before it ("Active wildfire (NIFC)", 140.1px measured
+ * 2026-07-31), and the popover's own rows are shorter than both. Re-measure
+ * before lengthening a line in any of the three.
+ */
+export const MAP_BOX_W = 'w-48'
+
+/**
+ * How far anything floating on the map stands off its edge.
+ *
+ * One number, published once as a custom property on the map wrapper, because
+ * the things that measure from these edges are not all the app's: the button
+ * column and the legend stack are ours, and MapLibre's zoom/compass/geolocate
+ * stack takes a margin the library spells for itself. Chosen separately they do
+ * not line up — the column sat 12px in with the legends at 8px, so an open
+ * popover hung 4px right of the boxes it hangs over, and the vendor's 10px left
+ * its stack a step higher than the Layers button opposite it.
+ *
+ * The value is declared here rather than in `map.css` so the design system
+ * still owns it: `map.css` reads the property and spells no number of its own.
+ * Everything that wears `left`/`top` below is inside the wrapper, so the
+ * property reaches all of them by inheritance — including the library's markup,
+ * which has no call site to hand a role to.
+ */
+export const MAP_EDGE = {
+  /**
+   * On the map wrapper: publishes the inset to the app's chrome and the
+   * vendor's, and the credit line's type size (`MICRO_PX`) to `map.css`, which
+   * has no call site to hand `TEXT.micro` to.
+   */
+  publish: '[--map-edge-inset:0.75rem] [--map-credit-size:10px]',
+  /** The left edge every floating box on the map's left shares. */
+  left: 'left-[var(--map-edge-inset)]',
+  /** The top edge the app's own button column takes. */
+  top: 'top-[var(--map-edge-inset)]',
+} as const
+
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 
 /**
@@ -650,7 +863,20 @@ export const SELECT_W_AGGREGATE = 'w-[4.5rem]'
  * rather than visibly. Anything segmented that does not sit in the panel's
  * control column wears this and takes the width its labels need.
  */
-export const SEGMENT_FLUID = `inline-flex ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
+const SEGMENT_FLUID_SHAPE = `inline-flex ${RADIUS.control} overflow-hidden`
+export const SEGMENT_FLUID = `${SEGMENT_FLUID_SHAPE} ${RECESSED_EDGE}`
+
+/**
+ * The same segment on `SURFACE_POPOVER`, which is a step lighter than the panel
+ * the recessed edge was derived against.
+ *
+ * Shape and edge are split so the two cannot drift into different controls: the
+ * only difference between them is `LIFTED_EDGE`, and `styles.test.ts` asserts
+ * that. The divider BETWEEN the halves is untouched, because both of its sides
+ * are well interior — the idle fill and the accent — so the surface behind the
+ * popover never reaches it.
+ */
+export const SEGMENT_FLUID_LIFTED = `${SEGMENT_FLUID_SHAPE} ${LIFTED_EDGE}`
 
 /**
  * The forecast-bounds grid: a label taking the free space, then a lower and an
@@ -677,7 +903,18 @@ export const BOUNDS_GRID =
  * rows of the same thing end up a quarter-rem apart.
  */
 export const BUTTON_ROW = 'flex flex-wrap gap-2'
-export const SEGMENT_ITEM = `${TAP.action} flex-1 px-2 py-0.5 text-xs transition-colors ${FOCUS_RING}`
+/**
+ * One half of a segmented control: the shape, and the inset the panel's own
+ * segments take.
+ *
+ * The two are split because the map timeline's halves need a wider inset and
+ * nothing else about them differs (`TRANSPORT_AXIS_ITEM` below). Two `px-*`
+ * utilities in one class list would resolve by stylesheet order rather than by
+ * intent, so the inset is part of the recipe rather than something a call site
+ * adds.
+ */
+const SEGMENT_ITEM_SHAPE = `${TAP.action} flex-1 py-0.5 text-xs transition-colors ${FOCUS_RING}`
+export const SEGMENT_ITEM = `${SEGMENT_ITEM_SHAPE} px-2`
 /** Between two halves, never before the first. */
 export const SEGMENT_DIVIDER = 'border-l border-slate-500'
 
@@ -797,6 +1034,33 @@ export const NOTICE = {
 } as const
 
 /**
+ * The stack of messages inside one notice box, and the rule between them.
+ *
+ * A box holding more than one message has to say where one ends and the next
+ * begins. A bulleted list did that and cost the text column 16px of indent and
+ * marker, which is more than the app's one-line message budget can spare: a
+ * line written to fit a 360px phone wrapped as soon as a second message joined
+ * it. A 1px rule separates them at no cost to the column.
+ *
+ * The rule is the box's OWN border tint, so the divider reads as part of the
+ * box rather than as a second decision — which is why this is keyed by severity
+ * beside `NOTICE` above, and why `styles.test.ts` fails a tint that stops
+ * matching its border.
+ *
+ * The rule sits 6px clear on both sides. That space is padding on each row
+ * (`NOTICE_DISMISS.row`) rather than a gap on this container: the rule is a
+ * border on a row's own edge, so a margin between rows would put the whole gap
+ * on one side of it. The negative margin here cancels the padding the first and
+ * last rows would otherwise add to the box, so a box holding one message is
+ * exactly as tall as it was.
+ */
+export const NOTICE_DIVIDER = {
+  warn: '-my-1.5 divide-y divide-amber-800/60',
+  error: '-my-1.5 divide-y divide-red-800/60',
+  info: '-my-1.5 divide-y divide-sky-800/60',
+} as const
+
+/**
  * The X that dismisses one footer message (#253). Every message under the
  * Analyze button carries its own — a box dismisses line by line, not whole
  * (TJ, 2026-08-22); which dismissal it triggers, and when that dismissal
@@ -809,9 +1073,13 @@ export const NOTICE = {
  * the Analyze button sits directly above, and an absolutely-positioned
  * square would cover its bottom edge. The `pill` inside it is what the eye
  * gets: a 20px disc, the panel close button's idiom at notice scale, so the
- * X reads as a control rather than a stray character. `-mt-0.5` drops the
- * disc's centre onto the first text line's centre (a 20px disc against a
- * 16px text-xs line box is otherwise 2px low).
+ * X reads as a control rather than a stray character.
+ *
+ * The row centres its two members against each other. On a coarse pointer the
+ * button is 44px tall and the message is one line, so the text sits level with
+ * the disc rather than at the top of a target three times its height; on a
+ * mouse the row is the text line itself and nothing moves. Every message is
+ * written to fit one line, so there is no first line for the X to align to.
  *
  * The fill is `white/5` at rest — a whisper of a disc, because at `/10` TJ
  * read it as too buttony for a passive notice — rising to `white/15` on
@@ -828,25 +1096,40 @@ export const NOTICE = {
 export const NOTICE_DISMISS = {
   /**
    * One message inside a notice box, whether it is the box's only line or one
-   * bullet of several. The named group (`group/notice`) is what reveals the X:
-   * the button's own `group` is already taken by the pill's hover, and an
-   * unnamed group here would hand the pill every row hover in the box.
+   * of several. The named group (`group/notice`) is what reveals the X: the
+   * button's own `group` is already taken by the pill's hover, and an unnamed
+   * group here would hand the pill every row hover in the box.
    *
-   * The lift (`white/[0.04]`) exists to bind the X to its row: in a bulleted
-   * list the X alone does not say which message it belongs to. Arbitrary
+   * The lift (`white/[0.04]`) exists to bind the X to its row: in a stack of
+   * messages the X alone does not say which one it belongs to. Arbitrary
    * rather than `white/5` so the row reads one step quieter than the pill
    * resting on it.
+   *
+   * The padding is the 6px each side of the rule `NOTICE_DIVIDER` draws
+   * between two rows; the container cancels it at the box's own edges.
    */
-  row: `group/notice flex gap-2 ${RADIUS.control} hover:bg-white/[0.04]`,
+  row: `group/notice flex items-center gap-2 py-1.5 ${RADIUS.control} hover:bg-white/[0.04]`,
   /**
    * Hidden until asked for: the X appears when the pointer rests on its row,
    * on keyboard focus, and is always on where hover does not exist (`touch:`)
    * — a hover-only control on a phone is a control that does not exist (the
    * tooltip rule, applied to a button). Opacity rather than `hidden`, so the
    * reveal can fade and the row never reflows.
+   *
+   * On a coarse pointer the target is 44px and the disc inside it is 20, and
+   * the difference used to come out of the message beside it: the text column
+   * was 257px on a 360px panel, where the longest commit cue needs 267. The
+   * negative left margin hands those 24px back. Nothing moves on screen — the
+   * button's box still ends at the row's right edge, so the centred disc sits
+   * exactly where it did — and the target simply reaches further left, over
+   * the tail of the text. That costs nothing, because the text is not a target
+   * and a press on it has never done anything; what it buys is the one-line
+   * budget every message in this app is written to, which is measured against
+   * the column rather than against the box. `gap-2` on the row stays the
+   * visible distance from the disc to the last word.
    */
   button:
-    `group ${TAP.action} self-start -mt-0.5 opacity-0 transition-[color,opacity] ` +
+    `group ${TAP.action} touch:-ml-6 opacity-0 transition-[color,opacity] ` +
     `group-hover/notice:opacity-100 focus-visible:opacity-100 touch:opacity-100 ` +
     `hover:text-white ${FOCUS_RING}`,
   pill:
@@ -1186,6 +1469,28 @@ export const SLIDER_IDLE = 'text-slate-400'
  * what the analysis progress bar already is.
  */
 export const SCRUBBER_TRACK = `h-2 ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.pill}`
+
+/**
+ * The timeline's axis halves: Radar beside the metric the report ranks by.
+ *
+ * The one segment whose labels this file does not choose. The right half is
+ * whatever metric the report ranks by, spelled by `metrics.ts` — the longest of
+ * them are "Precipitation" and "Temperature" — where every other segment in the
+ * app carries a word picked to fit the control. So it takes one step more
+ * horizontal inset than `SEGMENT_ITEM`.
+ *
+ * The inset is the slack that keeps a long noun clear of the clip. This segment
+ * is `SEGMENT_FLUID`, sized by its own content and `overflow-hidden` so the
+ * halves' corners follow the radius, which means a label that fills its half to
+ * the last pixel has nowhere to lose one: the longest nouns read as too wide for
+ * the half they sit in (TJ, 2026-09-13). Re-measure here before shortening it,
+ * and remember the widest case is a metric name rather than a string this file
+ * controls.
+ *
+ * Only the inset differs, and `styles.test.ts` asserts that, so the bar cannot
+ * become a second kind of segment.
+ */
+export const TRANSPORT_AXIS_ITEM = `${SEGMENT_ITEM_SHAPE} px-3`
 
 /**
  * The results grid's two cell insets, which had been spelled out ten times

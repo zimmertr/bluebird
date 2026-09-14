@@ -54,6 +54,7 @@ const base: ShareableState = {
   destinationTypes: ['peak'],
   selection: DAYS,
   forecastModel: DEFAULT_MODEL,
+  compareModels: [],
   sortBy: 'precip_total_in',
   sortDesc: false,
   rowKeys: { ...DEFAULT_FAMILY_KEY },
@@ -66,6 +67,7 @@ const base: ShareableState = {
   showRadar: false,
   showSmoke: false,
   showGrid: false,
+  showPlayer: null,
   gridStyle: 'blocks' as const,
   gridReachFrac: 0.5,
   includeUnnamedPeaks: false,
@@ -82,6 +84,7 @@ const pristine: ShareableState = {
   destinationTypes: [],
   selection: { kind: 'now' },
   forecastModel: DEFAULT_MODEL,
+  compareModels: [],
   sortBy: 'precip_total_in',
   sortDesc: false,
   rowKeys: { ...DEFAULT_FAMILY_KEY },
@@ -94,6 +97,7 @@ const pristine: ShareableState = {
   showRadar: false,
   showSmoke: false,
   showGrid: false,
+  showPlayer: null,
   gridStyle: 'blocks' as const,
   gridReachFrac: 0.5,
   includeUnnamedPeaks: false,
@@ -174,6 +178,34 @@ describe('encodeState / decodeState round-trip', () => {
     expect(clean).not.toContain('radar')
     expect(clean).not.toContain('smoke')
     expect(clean).not.toContain('grid')
+  })
+
+  it('writes the forecast player only once the reader has decided', () => {
+    // The default is the DEVICE's — on at a desktop width, off on a phone — so
+    // `null` is "not decided" and writes nothing at all. A link that spelled
+    // the default out would stop meaning what it said the moment that default
+    // moved, which is the opposite of what `model` is always written for: there
+    // the app's default is the thing that must not leak into a shared link.
+    expect(encodeState(base, DEFAULT_MODEL)).not.toContain('player')
+    expect(roundTrip(base)!.showPlayer).toBeUndefined()
+    // A decision is written in BOTH directions, because either can be the one
+    // the device would not have chosen.
+    expect(encodeState({ ...base, showPlayer: true }, DEFAULT_MODEL)).toContain('player=1')
+    expect(encodeState({ ...base, showPlayer: false }, DEFAULT_MODEL)).toContain('player=0')
+    expect(roundTrip({ ...base, showPlayer: true })!.showPlayer).toBe(true)
+    expect(roundTrip({ ...base, showPlayer: false })!.showPlayer).toBe(false)
+  })
+
+  it('gives a player-only session a URL, and reads both values of the param', () => {
+    // Switching the bar on is the whole of what some links say, so a pristine
+    // session that has touched nothing else still deserves one.
+    expect(encodeState({ ...pristine, showPlayer: true }, DEFAULT_MODEL)).toContain('player=1')
+    expect(encodeState({ ...pristine, showPlayer: false }, DEFAULT_MODEL)).toContain('player=0')
+    // Hand-editable like every other flag, and anything it cannot read is left
+    // to the device default rather than guessed at.
+    expect(decodeState('?player=1')).toEqual({ showPlayer: true })
+    expect(decodeState('?player=0')).toEqual({ showPlayer: false })
+    expect(decodeState('?player=yes')).toBeNull()
   })
 
   it('carries the grid style in the same param as the toggle', () => {
@@ -1064,6 +1096,50 @@ describe('unnamed peaks in a link', () => {
 
   it('alone is enough to make a session worth persisting', () => {
     expect(encodeState({ ...pristine, includeUnnamedPeaks: true }, DEFAULT_MODEL)).not.toBe('')
+  })
+})
+
+describe('the compared models in a link', () => {
+  it('round-trips the comparison in the order it was ticked', () => {
+    const restored = roundTrip({ ...base, compareModels: ['gfs_hrrr', 'ecmwf_ifs025'] })
+    expect(restored?.compareModels).toEqual(['gfs_hrrr', 'ecmwf_ifs025'])
+  })
+
+  // The order is the order the chips read, so it is not a set: reversing the
+  // ticks has to reopen reversed.
+  it('keeps the order rather than sorting it', () => {
+    expect(
+      encodeState({ ...base, compareModels: ['ecmwf_ifs025', 'gfs_hrrr'] }, DEFAULT_MODEL),
+    ).toContain('compare=ecmwf_ifs025%2Cgfs_hrrr')
+  })
+
+  // Unlike `model`, absent is the ordinary case: most links are of a chart
+  // nobody is comparing on.
+  it('writes no parameter for an empty comparison', () => {
+    expect(encodeState(base, DEFAULT_MODEL)).not.toContain('compare=')
+    expect(decodeState('?model=gfs_hrrr')?.compareModels).toBeUndefined()
+  })
+
+  // Shape only, exactly as for `model` above: the accepted set is the
+  // deployment's, from /api/capabilities, and this module cannot see it. A
+  // garbled entry is dropped and the rest of the list survives it.
+  it('drops an entry that could not be a model id', () => {
+    expect(decodeState('?compare=gfs_hrrr,not a model')?.compareModels).toEqual(['gfs_hrrr'])
+    expect(decodeState('?compare=not a model')?.compareModels).toBeUndefined()
+  })
+
+  // A hand-edited link must not put one model on the chart twice: it would
+  // take two colours and two chips for one line.
+  it('drops a repeated id', () => {
+    expect(decodeState('?compare=gfs_hrrr,gfs_hrrr')?.compareModels).toEqual(['gfs_hrrr'])
+  })
+
+  // Ticking a box is a real edit, like choosing the model beside it.
+  it('gives an otherwise pristine session a URL once a model is compared', () => {
+    expect(encodeState(pristine, DEFAULT_MODEL)).toBe('')
+    expect(
+      encodeState({ ...pristine, compareModels: ['gfs_hrrr'] }, DEFAULT_MODEL),
+    ).toContain('compare=gfs_hrrr')
   })
 })
 
