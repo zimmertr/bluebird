@@ -94,6 +94,31 @@ export function pairKey(modelId: string, destinationKey: string): string {
 }
 
 /**
+ * What colour one (destination, model) pair wears. **The one derivation.**
+ *
+ * A colour identifies a LINE, and a line is a pair: two places under two
+ * models is four lines in four colours. Two surfaces show that — the chart
+ * draws the lines, and the results table's chart checkbox stands beside the
+ * row that produces one — so both call THIS rather than each indexing the map
+ * their own way. Two lookups over one map is one spelling away from two
+ * answers, which is the class of bug `fillColor` is shared to prevent.
+ *
+ * `fallback` is the DESTINATION's own colour: the hue its marker and its table
+ * checkbox already wear. It is the right answer wherever a pair has none — a
+ * report with one model selected, a row nobody has charted, and the one frame
+ * before the allocator has run.
+ */
+export function pairColor(
+  colors: Readonly<Record<string, string>>,
+  modelId: string | undefined,
+  destinationKey: string,
+  fallback: string,
+): string {
+  if (!modelId) return fallback
+  return colors[pairKey(modelId, destinationKey)] ?? fallback
+}
+
+/**
  * One place a compared model is fetched FOR: everything the request needs and
  * nothing the chart does.
  *
@@ -223,7 +248,7 @@ export function compareSeries(
         // which is a bare coordinate pair.
         key: `model:${pair}`,
         label: comparedLineLabel(destination.rank, destination.name, model.label),
-        color: colors[pair] ?? destination.color,
+        color: pairColor(colors, model.id, destination.key, destination.color),
         series: cutSeriesAfter(times, held, endMs),
       })
     }

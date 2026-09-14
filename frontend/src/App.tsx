@@ -22,6 +22,7 @@ import {
   drawnModelIds,
   modelRowsFor,
   modelsWithoutMetric,
+  pairColor,
   pairKey,
 } from './utils/modelCompare'
 import { modelRows, pruneHidden, shownModels, toggleHidden } from './utils/modelVisibility'
@@ -2013,9 +2014,12 @@ export default function App() {
   // charted (whose swatch is uncoloured anyway until it is).
   const rowChartColor = useCallback(
     (row: DestinationResult) => {
-      const modelId = (row as ModelRow).modelId
-      const paired = modelId ? chartedPairColors[pairKey(modelId, chartKey(row))] : undefined
-      return paired ?? chart.colorFor(row)
+      return pairColor(
+        chartedPairColors,
+        (row as ModelRow).modelId,
+        chartKey(row),
+        chart.colorFor(row),
+      )
     },
     [chartedPairColors, chart],
   )
