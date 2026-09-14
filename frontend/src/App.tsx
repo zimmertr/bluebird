@@ -2855,7 +2855,7 @@ export default function App() {
                     <button
                       ref={modelsButtonRef}
                       onClick={() => setModelsOpen(!modelsOpen)}
-                      className={`${TEXT.micro} ${LINK} cursor-pointer whitespace-nowrap`}
+                      className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
                     >
                       Models
                     </button>

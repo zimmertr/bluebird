@@ -985,7 +985,7 @@ describe('shared recipes', () => {
   // below is for text that is present but never first, and a 10px button in a
   // bar of 12px text read as a footnote rather than as a control.
   it('reads the results bar at the size of every other control', () => {
-    expect((appSource.match(/\$\{TEXT\.control\} \$\{LINK\}/g) ?? []).length).toBe(4)
+    expect((appSource.match(/\$\{TEXT\.control\} \$\{LINK\}/g) ?? []).length).toBe(5)
     expect(appSource).not.toMatch(/\$\{TEXT\.micro\}/)
   })
 
