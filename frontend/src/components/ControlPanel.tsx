@@ -285,8 +285,9 @@ interface Props {
   onDeleteSearch: (name: string) => void
   // Why the last write was refused, or null: the browser's store would not
   // take it, or the name is already in use. Both are refusals the reader can
-  // act on, which is why they are the two this surface names.
-  saveRefusal: SaveRefusal | null
+  // act on, which is why they are the two this surface names. `attempt` is
+  // the identity the footer keys the line on, so each refusal shows again.
+  saveRefusal: { reason: SaveRefusal; attempt: number } | null
 }
 
 /**
@@ -365,6 +366,12 @@ function NoticeMessage({
       </button>
     </div>
   )
+}
+
+/** The two save refusals the panel has a sentence for. */
+const SAVE_REFUSAL_TEXT: Record<SaveRefusal, string> = {
+  exists: 'A search with this name exists.',
+  quota: 'Saved searches are full.',
 }
 
 function FooterNotice({
@@ -690,6 +697,19 @@ export default function ControlPanel({
     // answer — and it never coexists with the run error above.
     ...(refusal && refusalKey && !loading
       ? [{ key: refusalKey, text: refusal.message, severity: 'error' as const }]
+      : []),
+    // A refused save is an error like the area cap: finished work the app
+    // will not take. It speaks from the footer with everything else (#253),
+    // not beside the Save button, and it carries no `retry`: the reader
+    // changes the name or frees a slot, and saves again.
+    ...(saveRefusal !== null
+      ? [
+          {
+            key: `save:${saveRefusal.reason}#${saveRefusal.attempt}`,
+            text: SAVE_REFUSAL_TEXT[saveRefusal.reason],
+            severity: 'error' as const,
+          },
+        ]
       : []),
     ...(aqiNoteActive
       ? [
@@ -1310,13 +1330,6 @@ export default function ControlPanel({
               Save
             </button>
           </div>
-          {saveRefusal !== null && (
-            <p className={`mt-2 ${STATUS.error} ${NOTICE.error}`}>
-              {saveRefusal === 'exists'
-                ? 'A search with this name exists.'
-                : 'Saved searches are full.'}
-            </p>
-          )}
           {savedSearches.length > 0 && (
             <>
               {/* The one control in the panel whose value is a name the user

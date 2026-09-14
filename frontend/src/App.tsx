@@ -974,14 +974,23 @@ export default function App() {
   // here — the buttons that could ask for one are disabled while the field is
   // empty — so the two the panel has a sentence for are the store being
   // unwritable and the name being taken.
-  const [saveRefusal, setSaveRefusal] = useState<SaveRefusal | null>(null)
+  //
+  // `attempt` counts refusals, and it is what the footer keys the line's
+  // dismissal on: a dismissed notice stays dismissed while its key is active
+  // (`utils/notices.ts`), and a second save under the same taken name would
+  // otherwise change nothing and say nothing. Each refusal is a new fact.
+  const [saveRefusal, setSaveRefusal] = useState<{
+    reason: SaveRefusal
+    attempt: number
+  } | null>(null)
 
   function applyOutcome(outcome: SaveOutcome) {
     if (outcome.ok) {
       setSavedSearches(outcome.searches)
       setSaveRefusal(null)
     } else if (outcome.reason !== 'name') {
-      setSaveRefusal(outcome.reason)
+      const reason = outcome.reason
+      setSaveRefusal((prev) => ({ reason, attempt: (prev?.attempt ?? 0) + 1 }))
     }
   }
 
