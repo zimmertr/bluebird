@@ -112,6 +112,11 @@ interface Props {
   // Columns to display, filtered by user visibility choices. The file always
   // carries the full set via buildResultsCsv; only the screen narrows.
   columns?: ColDef[]
+  // What the Model column reads for a row no comparison tagged: the model the
+  // analysis itself ran. The column can be shown with one model selected
+  // (it is in the Columns picker), and a dash there would say the row came
+  // from nowhere.
+  modelFallbackLabel?: string | null
   fireWarnings: Map<string, FireWarning>
   // Rows the fire dataset could not see (outside its US coverage, #256).
   // Their Wildfire (mi) cells read "N/A", where a cleared check prints the
@@ -160,6 +165,7 @@ export default function ResultsTable({
   onDetailSort,
   pointSample = false,
   columns,
+  modelFallbackLabel,
   fireWarnings,
   fireUncovered,
   fireStatus,
@@ -413,7 +419,7 @@ export default function ResultsTable({
       if (col.key === MODEL_KEY) {
         return (
           <td key={col.key} className={`${TABLE.cell} whitespace-nowrap`}>
-            {sized(col.key, (row as ModelRow).modelLabel ?? '—')}
+            {sized(col.key, (row as ModelRow).modelLabel ?? modelFallbackLabel ?? '—')}
           </td>
         )
       }

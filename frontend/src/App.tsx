@@ -689,6 +689,26 @@ export default function App() {
     }
     return null
   })
+  // The Model column's own switch, which is three-valued rather than two.
+  //
+  // It is in the Columns picker like every other column (TJ, 2026-09-14), but
+  // unlike every other column its DEFAULT depends on the report: with one model
+  // every row would carry the same name, and with several the column is what
+  // tells a destination's rows apart. So `null` means "follow the model count"
+  // and a boolean is the reader's own answer, which then stands whatever the
+  // count does. Folding it into `columnVisibility` instead would freeze the
+  // default the first time the reader touched ANY column, and a later
+  // comparison would then come up without the column that explains it.
+  const [modelColumn, setModelColumn] = useState<boolean | null>(() => {
+    if (typeof localStorage === 'undefined') return null
+    try {
+      const stored = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
+      return typeof stored.modelColumn === 'boolean' ? stored.modelColumn : null
+    } catch {
+      return null
+    }
+  })
+
   // Persist column visibility to localStorage when it changes.
   useEffect(() => {
     try {
@@ -700,12 +720,15 @@ export default function App() {
         JSON.stringify({
           ...current,
           columns3: columnVisibility ? [...columnVisibility] : undefined,
+          // Absent rather than null while the reader has not answered, so the
+          // count still decides after a reload.
+          modelColumn: modelColumn ?? undefined,
         }),
       )
     } catch {
       // Ignore localStorage errors (SSR, quota, etc.)
     }
-  }, [columnVisibility])
+  }, [columnVisibility, modelColumn])
   // Column picker popover open/closed
   const [columnsOpen, setColumnsOpen] = useState(false)
   const [modelsOpen, setModelsOpen] = useState(false)
@@ -1826,7 +1849,7 @@ export default function App() {
       // The same insertion the table makes. The file is given the same rows,
       // so without it a comparison writes each destination once per model with
       // nothing saying which model each line is.
-      withModelColumn(csvColumns, comparingRows),
+      withModelColumn(csvColumns, modelColumnOn),
       // Null also when the column is hidden: buildResultsCsv drops the
       // wildfire column on null, and a file must not carry a column the
       // screen does not show.
@@ -1845,6 +1868,7 @@ export default function App() {
           }) as DestinationResult,
       ),
       fire.uncovered,
+      analysisModelLabel,
     )
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a')
@@ -2030,6 +2054,38 @@ export default function App() {
   // is a column that says nothing.
   const comparingRows = compare.shown.length > 1
 
+  // Whether the Model column is drawn: the reader's answer if they gave one,
+  // and otherwise the model count. See `modelColumn` above for why the switch
+  // has three values rather than two.
+  const modelColumnOn = modelColumn ?? comparingRows
+  // What the Columns picker shows ticked. The Model column rides beside the
+  // visibility set rather than inside it, so it is added here, at the one place
+  // that draws the picker.
+  const pickerVisibleKeys = useMemo(() => {
+    const keys = new Set(effectiveVisibleKeys)
+    if (modelColumnOn) keys.add(MODEL_KEY)
+    else keys.delete(MODEL_KEY)
+    return keys
+  }, [effectiveVisibleKeys, modelColumnOn])
+
+  // The picker hands back one set for every column. The Model column's answer
+  // is pulled out of it and kept separately; the rest is the ordinary set.
+  function handleVisibilityChange(keys: Set<string>) {
+    const wanted = keys.has(MODEL_KEY)
+    if (wanted !== modelColumnOn) setModelColumn(wanted)
+    const rest = new Set(keys)
+    rest.delete(MODEL_KEY)
+    setColumnVisibility(rest)
+  }
+
+  // The model every row came from when only one did, so the column says
+  // something rather than a dash on a report with no comparison. The ANALYZED
+  // model, not the panel's: the numbers are the analysis's, and the picker can
+  // move after it.
+  const analysisModelLabel =
+    caps.forecastModels.find((m) => m.id === (analyzed?.forecastModel ?? forecastModel))?.label ??
+    null
+
   // Every displayed row under every model that answered, grouped by
   // destination. `modelRowsFor` owns the rules; this only decides whether to
   // ask, and hands it the ranking model first so its row leads each group.
@@ -2066,8 +2122,8 @@ export default function App() {
   const tableColumns = useMemo(() => {
     const cols = visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys)
     const withFire = effectiveVisibleKeys.has(WILDFIRE_KEY) ? [...cols, WILDFIRE_COL] : cols
-    return withModelColumn(withFire, comparingRows)
-  }, [pointSample, view.sortBy, effectiveVisibleKeys, comparingRows])
+    return withModelColumn(withFire, modelColumnOn)
+  }, [pointSample, view.sortBy, effectiveVisibleKeys, modelColumnOn])
 
   // A model put down and later selected again comes back DRAWN, so a flag
   // outlives its model by exactly nothing. Keyed on the panel's selection
@@ -3179,6 +3235,7 @@ export default function App() {
                         columns={tableColumns}
                         columnWidths={tableColWidths}
                         onColumnWidthsChange={setTableColWidths}
+                        modelFallbackLabel={analysisModelLabel}
                         fireWarnings={fire.warnings}
                         fireUncovered={fire.uncovered}
                         fireStatus={fire.status}
@@ -3203,10 +3260,12 @@ export default function App() {
         <ColumnsPicker
           open={columnsOpen}
           onOpenChange={setColumnsOpen}
-          columns={[...csvColumns, WILDFIRE_COL]}
+          // Model is always offered, whatever the report holds: a column a
+          // reader can never see is a column they cannot ask for.
+          columns={[...withModelColumn(csvColumns, true), WILDFIRE_COL]}
           sortBy={view.sortBy}
-          visibleKeys={effectiveVisibleKeys}
-          onVisibilityChange={setColumnVisibility}
+          visibleKeys={pickerVisibleKeys}
+          onVisibilityChange={handleVisibilityChange}
           triggerRef={columnsButtonRef}
         />
 
