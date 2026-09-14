@@ -250,6 +250,15 @@ class ModelInfo(NamedTuple):
     # lets Open-Meteo be the authority (see `analyze.py`); this flag exists so
     # the picker can say the model is regional before a request is spent.
     regional: bool = False
+    # Serves a fine regional model for the first day or two and a coarse global
+    # one after that, so one line on a chart changes model partway along and has
+    # to say so.
+    #
+    # Published rather than derived from the `_seamless` suffix. The suffix is
+    # Open-Meteo's naming habit rather than a contract: a blended product under
+    # any other name would read as a single model everywhere the suffix is the
+    # test, and a client has no other way to learn which is which.
+    blend: bool = False
 
 
 # How many hours ahead of *now* each model still has data for, as a floor, and
@@ -310,6 +319,7 @@ MODEL_INFO: dict[ForecastModel, ModelInfo] = {
         "The longest reach, and fine detail across the US. Works anywhere."
         " Blends in the HRRR model.",
         3,
+        blend=True,
     ),
     ForecastModel.gem_seamless: ModelInfo(
         "ECCC GEM",
@@ -317,6 +327,7 @@ MODEL_INFO: dict[ForecastModel, ModelInfo] = {
         "The most detail over Canada and the northern US, and coarse"
         " elsewhere. Blends in the HRDPS and RDPS models.",
         2.5,
+        blend=True,
     ),
     ForecastModel.ecmwf_ifs025: ModelInfo(
         "ECMWF IFS",
@@ -339,6 +350,7 @@ MODEL_INFO: dict[ForecastModel, ModelInfo] = {
         "The most detail over the UK and Ireland, and coarse elsewhere."
         " Blends in the UKV model.",
         2,
+        blend=True,
     ),
     ForecastModel.icon_seamless: ModelInfo(
         "DWD ICON",
@@ -346,6 +358,7 @@ MODEL_INFO: dict[ForecastModel, ModelInfo] = {
         "The most detail over Germany and the Alps, and coarse"
         " elsewhere. Blends in the ICON-D2 and ICON-EU models.",
         2,
+        blend=True,
     ),
     ForecastModel.jma_seamless: ModelInfo(
         "JMA GSM",
@@ -353,6 +366,7 @@ MODEL_INFO: dict[ForecastModel, ModelInfo] = {
         "The most detail over Japan and Korea, and coarse elsewhere."
         " Blends in the MSM model.",
         5,
+        blend=True,
     ),
     ForecastModel.meteofrance_seamless: ModelInfo(
         "Meteo-France ARPEGE",
@@ -360,6 +374,7 @@ MODEL_INFO: dict[ForecastModel, ModelInfo] = {
         "The most detail over France, and coarse elsewhere. Blends in"
         " the AROME model.",
         2.5,
+        blend=True,
     ),
 }
 

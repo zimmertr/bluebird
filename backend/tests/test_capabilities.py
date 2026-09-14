@@ -184,6 +184,20 @@ def test_capabilities_publishes_every_selectable_model_with_its_reach():
         assert entry["finest_grid_km"] == info.finest_grid_km
         assert entry["forecast_hours"] == info.forecast_hours
         assert entry["regional"] == info.regional
+        assert entry["blend"] == info.blend
+
+
+def test_capabilities_says_which_models_are_blends():
+    # The chart marks a blended line, because it changes model partway along.
+    # It reads this flag rather than the `_seamless` suffix: the suffix is
+    # Open-Meteo's naming habit, so a blended product added under another name
+    # would be drawn as a single model with nothing saying otherwise.
+    published = {m["id"]: m["blend"] for m in _capabilities()["forecast_models"]}
+    blends = {i for i, flag in published.items() if flag}
+    assert blends == {i for i in published if i.endswith("_seamless")}
+    assert len(blends) == 6
+    assert published["ecmwf_ifs025"] is False
+    assert published["gfs_hrrr"] is False
 
 
 def test_every_model_carries_a_summary_the_picker_can_show():

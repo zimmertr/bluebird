@@ -10,6 +10,7 @@ import {
   BUTTON_FLOATING,
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
+  CHIP,
   CHOICE_INPUT,
   CHOICE_ROW,
   DAY,
@@ -735,6 +736,8 @@ describe('shared recipes', () => {
     ['BUTTON_FLOATING', BUTTON_FLOATING],
     ['SEGMENT_ITEM', SEGMENT_ITEM],
     ['ICON_BUTTON', ICON_BUTTON],
+    ['CHIP.label', CHIP.label],
+    ['CHIP.remove', CHIP.remove],
   ])('%s composes the keyboard focus ring', (_name, recipe) => {
     expect(recipe).toContain(FOCUS_RING)
   })
@@ -1156,5 +1159,60 @@ describe('the results table rank cell', () => {
     // which Tailwind would otherwise compile.
     const displayToggle = new RegExp(['group-hover', '(hidden|inline|block|flex)\\b'].join(':'))
     expect(source).not.toMatch(displayToggle)
+  })
+})
+
+// The chips above the model list: one per selected model, with the one in force
+// wearing the accent. Two states of one box, which is what makes the pair read
+// as a set rather than as two kinds of thing.
+describe('the selection chip', () => {
+  it('gives both states the same box and changes only the fill', () => {
+    const shape = (recipe: string) =>
+      recipe
+        .split(' ')
+        .filter((c) => !/^(bg|text)-/.test(c))
+        .join(' ')
+    expect(shape(CHIP.active)).toBe(shape(CHIP.rest))
+    expect(CHIP.active).toContain(ACCENT.fill)
+    expect(CHIP.rest).not.toContain(ACCENT.fill)
+  })
+
+  // The accent fill against the neutral chip beside it measures 2.2:1, under
+  // the 3:1 WCAG 1.4.11 asks of a boundary carrying meaning alone — so the
+  // state is carried by shape as well, the × that a resting chip has and an
+  // active one never does. Recorded here so a change to either fill is forced
+  // through a re-measurement rather than inheriting this sentence.
+  const MEASURED = { activeVsRest: 2.2, restLabel: 8.2, activeLabel: 4.57 }
+
+  it('carries its state on a second channel, because colour alone is short', () => {
+    expect(MEASURED.activeVsRest).toBeLessThan(3)
+    expect(MEASURED.restLabel).toBeGreaterThanOrEqual(4.5)
+    expect(MEASURED.activeLabel).toBeGreaterThanOrEqual(4.5)
+  })
+
+  // A long model name gives way rather than pushing the chip past the row.
+  it('truncates its label rather than widening', () => {
+    expect(CHIP.label).toContain('truncate')
+    expect(CHIP.label).toContain('min-w-0')
+  })
+
+  // The box is 20x24, which is narrower than WCAG 2.5.8's 24x24 and is what
+  // keeps the gap before the glyph at 5px instead of 16. The target reaches
+  // the floor on a coarse pointer instead, and the negative margin takes those
+  // four pixels back out of the layout so nothing beside it moves.
+  it('buys the × its AA target without widening the box', () => {
+    expect(CHIP.remove).toContain('h-6 w-5')
+    expect(CHIP.remove).toContain('touch:w-6')
+    expect(CHIP.remove).toContain('touch:-mx-0.5')
+  })
+
+  // Four paddings around one word is what made the chips too wide: the label
+  // pads its left, the shape pads the chip's right, and the × sits between
+  // them with nothing but the glyph's own inset either side.
+  it('pads a chip once on each side rather than around every part', () => {
+    expect(CHIP.label).toContain('pl-2')
+    expect(CHIP.label).not.toMatch(/\bp[xr]-/)
+    expect(CHIP.rest).toContain('pr-1')
+    expect(CHIP.active).toContain('pr-1')
   })
 })

@@ -410,6 +410,65 @@ export const BADGE_ACCENT =
   `text-[10px] font-semibold uppercase tracking-wider ` +
   `${ACCENT.fill} ${RADIUS.pill} px-1.5 py-0.5`
 
+/**
+ * The box a chip sits in, which is the same box in either state.
+ *
+ * The right padding is the chip's rather than the label's: the label sits
+ * against the × with nothing between them but the glyph's own inset, so the
+ * gap a reader sees is 5px rather than the 16px two `px-2` halves put there.
+ */
+const CHIP_SHAPE = `inline-flex max-w-full items-center ${RADIUS.control} pr-1 text-xs`
+
+/**
+ * A chip naming one selected member of a set: the forecast models the picker
+ * has selected, of which exactly one is in force.
+ *
+ * Two states, and the pair is the point. `active` marks the member in force —
+ * the model that RANKS the field — and wears `ACCENT.fill`, the same fill the
+ * chosen half of a segmented control wears, because it states the same fact
+ * about the same kind of set. `rest` is every other selected member.
+ *
+ * Colour is not the only channel separating them, and it cannot be: the accent
+ * fill against the neutral chip beside it measures 2.2:1, under the 3:1 that
+ * WCAG 1.4.11 asks of a boundary carrying meaning on its own. A resting chip
+ * SHOWS its remove ×, an active one shows the same slot empty, and the row
+ * carries a header naming what the highlight means, so the state survives a
+ * reader the fill does not reach. The labels are above the text floor in both
+ * states — white on `--color-sky-650` is 4.57:1 (the derivation is in
+ * `index.css`) and slate-200 on slate-700 is 8.2:1.
+ *
+ * The size is spelled bare rather than composed from `TEXT.control`, for the
+ * reason `BADGE_ACCENT` above spells its own: that role carries slate-200,
+ * which would race `ACCENT.fill`'s white by stylesheet order rather than by
+ * class order, so the winner would not be decidable from this line.
+ */
+export const CHIP = {
+  /** A selected member that is not the one in force. */
+  rest: `${CHIP_SHAPE} bg-slate-700 text-slate-200`,
+  /** The member in force. */
+  active: `${CHIP_SHAPE} ${ACCENT.fill}`,
+  /**
+   * The label, which is also the control that puts that member in force. Left
+   * padding only: its right edge is the gap before the × and the shape above
+   * owns that, so a chip is as wide as its name plus its control rather than
+   * as wide as four paddings.
+   */
+  label: `min-w-0 cursor-pointer truncate py-1 pl-2 ${FOCUS_RING}`,
+  /**
+   * The × that deselects it: a 20x24 box, drawn on every chip whether or not
+   * it can act, so the row cannot resize when the highlight moves.
+   *
+   * 20 is narrower than the 24x24 WCAG 2.5.8 asks of a target, and the height
+   * is what keeps the chip a chip — a 24px-wide box put ~16px of nothing
+   * between the last letter and the glyph. So the BOX stays 20 and the TARGET
+   * grows on a coarse pointer instead: `touch:w-6` takes it to 24 and the
+   * negative margin takes the four pixels back out of the layout, which is the
+   * one way to buy a target without moving anything around it.
+   */
+  remove:
+    `flex h-6 w-5 flex-shrink-0 cursor-pointer items-center justify-center ` +
+    `touch:-mx-0.5 touch:w-6 ${FOCUS_RING}`,
+} as const
 
 /**
  * The destructive retry inside an error notice: "Try again".

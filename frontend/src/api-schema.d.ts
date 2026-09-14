@@ -888,6 +888,11 @@ export interface components {
          */
         ForecastModelInfo: {
             /**
+             * Blend
+             * @description True for a model that serves a fine regional grid for the first day or two and a coarse global one after that, so one series changes model partway along. Published rather than left to be read off the `_seamless` suffix, which is a naming habit rather than a contract: this flag is the only reliable way to tell a blended product from a single-model one.
+             */
+            blend: boolean;
+            /**
              * Default
              * @description True for the model used when `forecast_model` is omitted.
              */

@@ -217,6 +217,11 @@ interface Props {
   forecastModel: string
   setForecastModel: (id: string) => void
   forecastModels: readonly ForecastModelOption[]
+  // The extra models the chart draws beside the ranking one (#232). Ticked in
+  // the same list the ranking model is chosen from, because it is the same
+  // reading: which model answers, and which others to see it against.
+  comparedModels: readonly string[]
+  setComparedModels: (ids: string[]) => void
   // Which of them the server would use if asked for none. Marked in the list so
   // a reader who has wandered off it can find the way back; the ordering alone
   // cannot say it, since best-first and default-first need not agree.
@@ -407,6 +412,8 @@ export default function ControlPanel({
   forecastModel,
   setForecastModel,
   forecastModels,
+  comparedModels,
+  setComparedModels,
   defaultForecastModel,
   modelClamped,
   windowWarning,
@@ -1018,6 +1025,7 @@ export default function ControlPanel({
                           finestGridKm: 0,
                           forecastHours: 0,
                           regional: false,
+                          blend: false,
                         },
                         ...forecastModels,
                       ]
@@ -1025,6 +1033,8 @@ export default function ControlPanel({
                 value={forecastModel}
                 defaultId={defaultForecastModel}
                 onChange={setForecastModel}
+                compared={comparedModels}
+                onComparedChange={setComparedModels}
                 disabled={archiveWindow}
               />
             </div>

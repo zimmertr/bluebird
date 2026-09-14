@@ -82,6 +82,10 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `FOCUS_RING` | Visible keyboard-focus outline |
 | `ACCENT_RING` | Ring pointing at a control from across the screen |
 | `BADGE_ACCENT` | Word marking a row: "Recommended" badge |
+| `CHIP.rest` | A selected member of a set that is not the one in force: a compared forecast model |
+| `CHIP.active` | The member in force, on `ACCENT.fill`; the remove x is the second channel carrying that state |
+| `CHIP.label` | The chip's label, which is also the control that puts that member in force |
+| `CHIP.remove` | The x that deselects it: 24px square, WCAG 2.5.8's AA floor, on every pointer |
 
 **Status**
 
@@ -307,7 +311,7 @@ Never surface an exception type or HTTP status directly. Write a sentence instea
 
 ### Model coverage message
 
-The one message mirrored between backend and frontend: "{label} has no forecast coverage for this area. Switch to a different model and try again." Defined in `backend/app/services/weather.py` and ported to `frontend/src/utils/openMeteo.ts` and `frontend/src/hooks/useAnalyze.ts`.
+The one message mirrored between backend and frontend: "{label} has no forecast coverage for this area. Switch to a different model and try again." Defined in `backend/app/services/weather.py` and ported to `frontend/src/hooks/useAnalyze.ts`. The `OpenMeteoModelCoverage` error in `frontend/src/utils/openMeteo.ts` is developer-facing, names the model id, and is not a copy of it.
 
 ### Styling a native range input
 

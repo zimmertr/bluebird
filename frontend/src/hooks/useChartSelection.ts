@@ -7,7 +7,7 @@ import {
   debutRows,
   metricForSort,
 } from '../utils/chartData'
-import { colorForIndex } from '../utils/chartColors'
+import { allocateColors } from '../utils/chartColors'
 
 // Chart selection for the results table and the chart-only legend: which
 // destinations are overlaid, their stable line colors, and the active metric.
@@ -66,12 +66,11 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
     setSelectedKeys((keys) =>
       keys.includes(key) ? keys.filter((k) => k !== key) : [...keys, key],
     )
-    // Assign a color the first time a destination is charted; monotonic in the
-    // number already assigned, so a line on the chart never changes hue when
-    // another is toggled.
-    setColorByKey((cbk) =>
-      cbk[key] ? cbk : { ...cbk, [key]: colorForIndex(Object.keys(cbk).length) },
-    )
+    // Assign a color the first time a destination is charted, from the one
+    // allocator the comparison's (destination, model) pairs also draw on, so a
+    // line on the chart never changes hue when another is toggled and no pair
+    // can be handed a colour a destination is already wearing.
+    setColorByKey((cbk) => allocateColors(cbk, [key]))
   }
 
   // Add or remove a run of rows in one shot (shift-click range select). New
@@ -83,17 +82,7 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
         const have = new Set(prev)
         return [...prev, ...keys.filter((k) => !have.has(k))]
       })
-      setColorByKey((cbk) => {
-        const next = { ...cbk }
-        let n = Object.keys(next).length
-        for (const k of keys) {
-          if (!next[k]) {
-            next[k] = colorForIndex(n)
-            n++
-          }
-        }
-        return next
-      })
+      setColorByKey((cbk) => allocateColors(cbk, keys))
     } else {
       const remove = new Set(keys)
       setSelectedKeys((prev) => prev.filter((k) => !remove.has(k)))
@@ -120,9 +109,34 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
     return colorByKey[chartKey(row)] ?? '#94a3b8'
   }
 
+  /**
+   * Keep the colours a comparison's (destination, model) pairs have been
+   * given (#232).
+   *
+   * The chart works out which pairs it is drawing and allocates their colours
+   * for the frame it draws them in; this is where that allocation is
+   * REMEMBERED, in the same map and off the same counter the destinations use.
+   * Without it a pair would be re-allocated from scratch every time the set
+   * moved, and a line would change hue because another was hidden.
+   */
+  function rememberColors(keys: readonly string[]) {
+    setColorByKey((cbk) => allocateColors(cbk, keys))
+  }
+
   function clear() {
     setSelectedKeys([])
   }
 
-  return { selectedRows, isSelected, toggle, setRange, colorFor, clear, metric, setMetric }
+  return {
+    selectedRows,
+    isSelected,
+    toggle,
+    setRange,
+    colorFor,
+    colorByKey,
+    rememberColors,
+    clear,
+    metric,
+    setMetric,
+  }
 }
