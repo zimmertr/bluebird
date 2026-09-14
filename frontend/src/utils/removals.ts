@@ -12,6 +12,24 @@ import { DestinationResult } from '../types'
 import { Place } from './geocode'
 import { pinKey } from './customList'
 
+/**
+ * The user-authored destination inputs, as one comparable string: the checked
+ * types and the pasted CSV. It is what a × is an edit of — the user struck a
+ * row out of a list they had authored — so re-authoring that list ends the
+ * strikeout's authority over the new list.
+ *
+ * The polygon ring is deliberately absent, and folding it in is the caller's
+ * job where a caller needs it (`handleAnalyze` does, for its reset). The ring
+ * resolves only mid-Analyze, out of the map's always-editable geometry, so
+ * between analyses there is no ring to compare; and a ring never names a
+ * pending destination, which is the one consumer this scope serves.
+ */
+export function authoredScope(types: readonly string[], csv: string): string {
+  // Sorted so checking peaks then lakes and lakes then peaks are one scope,
+  // matching the reset comparison and the order-independent cache key upstream.
+  return JSON.stringify({ types: [...types].sort(), csv: csv.trim() })
+}
+
 export interface RemovedEntry {
   /** The row as it read when removed: the restore list's label, and the
    * identity a place is rebuilt from when nothing held can re-present it. */
@@ -21,6 +39,9 @@ export interface RemovedEntry {
    * rediscover it), so restoring one must re-register this rather than merely
    * unhide the row. `null` for discovered and CSV rows. */
   place: Place | null
+  /** The `authoredScope` in force when the row was removed. Removals can
+   * straddle an edit, so each carries its own and they expire one by one. */
+  scope: string
 }
 
 /** The removal set plus this row, capturing what a later restore will need. */
@@ -28,14 +49,36 @@ export function recordRemoval(
   removed: ReadonlyMap<string, RemovedEntry>,
   row: DestinationResult,
   places: readonly Place[],
+  scope: string,
 ): Map<string, RemovedEntry> {
   const key = pinKey(row.latitude, row.longitude)
   const next = new Map(removed)
   next.set(key, {
     row,
     place: places.find((p) => pinKey(p.lat, p.lon) === key) ?? null,
+    scope,
   })
   return next
+}
+
+/**
+ * The removal keys still in force under the live authored scope (#158).
+ *
+ * Only the pending preview reads this. The preview is live by design — it
+ * answers "what have you named that no analysis has covered?" on every
+ * keystroke — so a removal recorded against a list the user has since rewritten
+ * must stop hiding a line that is plainly still pasted. The displayed report
+ * and the re-analysis echo read the full map instead: both are snapshots of one
+ * analysis, and expiring a removal under them would resurrect a struck-out row
+ * mid-typing, or send it back upstream.
+ */
+export function activeRemovals(
+  removed: ReadonlyMap<string, RemovedEntry>,
+  scope: string,
+): Set<string> {
+  const active = new Set<string>()
+  for (const [key, entry] of removed) if (entry.scope === scope) active.add(key)
+  return active
 }
 
 /**

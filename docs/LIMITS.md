@@ -1,8 +1,9 @@
 # Limits
 
-Bluebird Forecast caps four things: the area of a search polygon, how many destinations
-one analysis may forecast, how many rows a response returns, and how fast a
-single client may ask. Every one of those numbers is published as JSON by
+Bluebird Forecast caps five things: the area of a search polygon, how many
+destinations one analysis may forecast, how many rows a response returns, how
+far back in time a window may reach, and how fast a single client may ask. Every
+one of those numbers is published as JSON by
 `GET /api/capabilities`, read from the same constants the validators enforce,
 so it cannot drift from what the service actually does:
 
@@ -43,6 +44,20 @@ lowering it saves nothing. A shared link asking for more rows than the running
 service allows opens at the allowed number rather than having the request
 ignored, so the link still means what it says as far as the deployment permits.
 
+**How far back a window may reach.** Two published numbers rather than one, and
+the difference is which endpoint answers. `past_data_days` is where the forecast
+endpoint's own data stops; past it a window is served from the archive endpoint
+instead, and `archive_days` is how far back that reaches. The archive's real
+depth is decades, so what bounds this is a deployment choice about how far a
+calendar should page, not a limit of the data. `max_past_days` is the accept
+bound the validator enforces, which carries slack above `archive_days` so an
+edge window is never falsely refused. A window that starts older than
+`past_data_days` and ends inside it belongs to both endpoints: each batch is
+fetched twice and the hours are joined in order before anything is aggregated, so
+it costs two upstream requests rather than one and refuses nothing.
+[DATA.md](DATA.md#open-meteo) has what else is different about an archive
+answer.
+
 **Request pacing.** Analyze, discovery, search, wildfire perimeters, and smoke
 plumes hold separate per-address budgets, so a burst of map searches cannot
 starve somebody's analysis. Past one you get a `429` with `Retry-After`. They are sized
@@ -76,11 +91,15 @@ is and whether waiting helps:
 
 | Status | What happened |
 |---|---|
-| `400` | The request is runnable in shape but not as asked. Past the candidate cap it carries the remedies above; naming a regional forecast model for somewhere outside its grid is the other case, and there the fix is a different model rather than a smaller area. |
+| `400` | The request is runnable in shape but not as asked. Past the candidate cap it carries the remedies above; naming a regional forecast model for somewhere outside its grid is a second case, and there the fix is a different model rather than a smaller area. |
 | `401` | The weather service refused the API key an analyze request carried. Nothing here can fix it and no retry helps. |
 | `429` | Either you are asking faster than your per-address budget, or the weather service rate-limited this deployment mid-analysis. `Retry-After` is honest in both cases. |
 | `502` | An upstream failed outright. Every Overpass mirror was unreachable, or the weather service did not answer. Transient, worth retrying. |
 | `503` | This instance stayed at capacity long enough that it shed the request instead of queueing it forever. From `GET /api/wildfires` and `GET /api/smoke` it means something narrower: this instance has never once fetched that dataset successfully, so it has nothing to serve, not even stale. Transient either way, and carries `Retry-After`. |
+
+Each of these carries a machine-readable `error.code` beside the sentence, so a
+program can tell a failure it caused from one worth retrying without reading
+English. [API.md](API.md#branching-on-the-error) has the table.
 
 A load problem is never answered with a `500`, and Bluebird Forecast itself never
 returns a `504`. An upstream that times out on us surfaces as a `502`, since

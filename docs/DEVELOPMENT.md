@@ -52,8 +52,10 @@ docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine \
 docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
   sh -c "npm run check:api"
 
-# Backend unit tests (pytest)
-docker run --rm -v "$PWD/backend":/app -w /app python:3.14-slim \
+# Backend unit tests (pytest). The whole repository is mounted, not backend/
+# alone: one test reads frontend/src to check the CSP allowlist against the
+# hosts the browser actually fetches, and it skips where it cannot see them.
+docker run --rm -v "$PWD":/repo -w /repo/backend python:3.14-slim \
   sh -c "pip install -r requirements-dev.txt && pytest"
 
 # Backend lint
@@ -98,6 +100,7 @@ state and interaction, never for judging a forecast.
   const real = window.fetch
   const series = (lat, lon, start, end) => {
     const time = [], precipitation = [], temperature_2m = [], wind_speed_10m = [], wind_direction_10m = []
+    const freezing_level_height = []
     const t0 = Date.parse(start + 'Z'), t1 = Date.parse(end + 'Z')
     for (let h = 0; t0 + h * 3600000 <= t1; h++) {
       time.push(new Date(t0 + h * 3600000).toISOString().slice(0, 16))
@@ -105,8 +108,9 @@ state and interaction, never for judging a forecast.
       temperature_2m.push(52 - (lat - 46) * 3 + Math.sin(h / 4) * 9)
       wind_speed_10m.push(5 + Math.abs(Math.sin(h / 6)) * 10)
       wind_direction_10m.push((h * 17 + lat * 30) % 360)
+      freezing_level_height.push(9000 - (lat - 46) * 500 + Math.sin(h / 5) * 1200)
     }
-    return { time, precipitation, temperature_2m, wind_speed_10m, wind_direction_10m }
+    return { time, precipitation, temperature_2m, wind_speed_10m, wind_direction_10m, freezing_level_height }
   }
   window.fetch = function (...args) {
     const url = String(args[0]?.url ?? args[0])
@@ -126,6 +130,10 @@ state and interaction, never for judging a forecast.
         timezone: 'GMT',
         elevation: 1000,
         hourly: aqi ? { time: s.time, us_aqi: s.time.map(() => 35) } : s,
+        // The freezing level's unit follows `precipitation_unit`, so a real
+        // response to these requests quotes it in feet. Declared here too, or
+        // a stubbed session would exercise the meters branch alone.
+        hourly_units: aqi ? {} : { freezing_level_height: 'ft' },
       }
     })
     return Promise.resolve(

@@ -329,3 +329,25 @@ async def test_the_key_reaches_no_log_record_at_trace(monkeypatch, caplog):
     assert caplog.records
     for record in caplog.records:
         assert "secret-key" not in record.getMessage()
+
+
+async def test_an_archive_era_window_is_still_fetched(monkeypatch):
+    # The archive routing (issue #123) leaves this service alone, and the reason
+    # it can is that air quality has history of its own: measured 2026-09-12 at
+    # 46.85,-121.76, this endpoint answered a window 365 days back with real US
+    # AQI. So a window older than the weather boundary is an ordinary fetch —
+    # only the FUTURE clamp above skips one — and an hour the endpoint cannot
+    # answer degrades to null the way every other gap does.
+    old_start = (datetime.now(timezone.utc) - timedelta(days=200)).replace(
+        minute=0, second=0, microsecond=0
+    )
+    stamp = old_start.strftime("%Y-%m-%dT%H:00")
+    calls = _stub_openmeteo(monkeypatch, [[_hourly([stamp], [42])]])
+
+    results = await fetch_aqi_batch(
+        [{"latitude": 47.0, "longitude": -121.0}], old_start, old_start + timedelta(hours=1)
+    )
+
+    assert len(calls) == 1
+    assert calls[0]["start_hour"] == stamp
+    assert results[0]["aqi_max"] == 42

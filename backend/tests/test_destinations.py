@@ -67,7 +67,12 @@ def test_no_types_and_no_list_is_a_400(monkeypatch):
     _stub_osm(monkeypatch, [])
     resp = client.post("/api/destinations", json=_payload(destination_types=[]))
     assert resp.status_code == 400
-    assert "Nothing to do" in resp.json()["detail"]
+    assert resp.json()["detail"] == (
+        "Nothing to do: no destination_types to discover and no "
+        "custom_destinations to resolve. Pick types from "
+        "GET /api/capabilities, or send a custom list."
+    )
+    assert resp.json()["error"] == {"code": "validation", "retryable": False}
 
 
 def test_over_cap_refuses_with_the_analyze_wording(monkeypatch):
@@ -80,6 +85,7 @@ def test_over_cap_refuses_with_the_analyze_wording(monkeypatch):
     # fields, never in the prose (TJ, 2026-08-22).
     assert "smaller polygon" not in detail
     assert "minimum elevation" not in detail
+    assert resp.json()["error"] == {"code": "refusal", "retryable": False}
 
 
 def test_oversized_polygon_is_a_422():
@@ -100,6 +106,7 @@ def test_missing_polygon_is_a_400_naming_both_ways_to_ask():
     detail = resp.json()["detail"]
     assert "polygon is required" in detail
     assert "custom_destinations" in detail
+    assert resp.json()["error"] == {"code": "validation", "retryable": False}
 
 
 def test_upstream_failure_maps_to_502(monkeypatch):
@@ -107,6 +114,7 @@ def test_upstream_failure_maps_to_502(monkeypatch):
     resp = client.post("/api/destinations", json=_payload())
     assert resp.status_code == 502
     assert resp.json()["detail"] == "Overpass is down"
+    assert resp.json()["error"] == {"code": "upstream_unavailable", "retryable": True}
 
 
 def test_budget_exhaustion_maps_to_503_with_retry_after(monkeypatch):
@@ -115,6 +123,8 @@ def test_budget_exhaustion_maps_to_503_with_retry_after(monkeypatch):
     assert resp.status_code == 503
     assert resp.headers["retry-after"] == str(ratelimit.SHED_RETRY_AFTER_S)
     assert "busy" in resp.json()["detail"]
+    # The header and the flag must agree: a shed request is worth resending.
+    assert resp.json()["error"] == {"code": "busy", "retryable": True}
 
 
 def test_has_its_own_rate_limit_bucket(monkeypatch):
@@ -127,6 +137,7 @@ def test_has_its_own_rate_limit_bucket(monkeypatch):
     resp = client.post("/api/destinations", json=_payload())
     assert resp.status_code == 429
     assert resp.headers["retry-after"]
+    assert resp.json()["error"] == {"code": "rate_limited", "retryable": True}
     # The analyze bucket was never touched by either discovery request.
     assert ratelimit.ANALYZE_LIMITER.check("client")[0]
 
@@ -282,3 +293,4 @@ def test_over_cap_union_speaks_generically(monkeypatch):
     # carries no remedies (TJ, 2026-08-22).
     assert "destinations" in detail
     assert "trim" not in detail.lower()
+    assert resp.json()["error"] == {"code": "refusal", "retryable": False}

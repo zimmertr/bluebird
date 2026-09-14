@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { DestinationResult, SortBy } from '../types'
-import { cellStyle, scaleFor, METRIC_CONFIG } from '../utils/colors'
-import { familyOf } from '../metrics'
+import { cellStyle, scaleFor } from '../utils/colors'
+import { FAMILY_KEYS, familyOf } from '../metrics'
 import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
 import { SortDir, SortKey, WILDFIRE_KEY, displayedColumns, ColDef } from '../utils/tableColumns'
 import { autoFitWidth, dragWidth } from '../utils/columnResize'
@@ -16,6 +16,7 @@ import {
   fireWarningText,
 } from '../utils/fireProximity'
 import type { FireProximityStatus } from '../hooks/useFireProximity'
+import { FREEZE_UNAVAILABLE_NOTE, freezeCellText, isFreezeKey } from '../utils/freezingLevel'
 import { destinationUrl } from '../utils/destinationUrl'
 import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
@@ -47,23 +48,25 @@ function ExternalLinkIcon() {
 
 // The number cell that swaps to the remove × on row hover (touch devices show
 // both — the row-remove rule in index.css). `rank` is "—" for pending rows.
+// Both faces sit in one grid cell (TABLE.rankStack) so the column never
+// changes width when they trade places; see the role's comment.
 function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; onRemove?: () => void }) {
   return (
     <td className={`${TABLE.cell} tabular-nums whitespace-nowrap`}>
       {onRemove ? (
-        <>
-          <span className={`${TEXT.caption} group-hover:hidden`}>{rank}</span>
+        <span className={TABLE.rankStack}>
+          <span className={`${TEXT.caption} ${TABLE.rankFace} group-hover:invisible`}>{rank}</span>
           <button
             onClick={onRemove}
             aria-label={`Remove ${name}`}
-            className={`row-remove hidden group-hover:inline leading-none ${ICON_ACTION} cursor-pointer`}
+            className={`row-remove ${TABLE.rankFace} invisible group-hover:visible leading-none ${ICON_ACTION} cursor-pointer`}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
-        </>
+        </span>
       ) : (
         <span className={TEXT.caption}>{rank}</span>
       )}
@@ -163,7 +166,7 @@ export default function ResultsTable({
   columnWidths,
   onColumnWidthsChange,
 }: Props) {
-  const coloredGroup = new Set(METRIC_CONFIG[familyOf(sortBy)].group)
+  const coloredGroup = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])
   // The ranked metric's columns lead the table (right after #/Name/Elevation), so
   // the numbers the ranking was built from are the first thing read. Keyed on
   // the analyzed snapshot, like the cell colors — panel knob changes don't
@@ -398,6 +401,27 @@ export default function ResultsTable({
         )
       }
       const raw = row[col.key]
+      // The freezing level is the one metric a model can decline to publish,
+      // and five of the eight do. An empty cell there is not a gap in the
+      // weather, so it wears the wildfire column's N/A idiom — the mark plus
+      // hover text saying why — rather than the dash a missing AQI hour gets.
+      const freezeNote = isFreezeKey(col.key as string) ? freezeCellText(raw) : null
+      if (freezeNote !== null) {
+        return (
+          <td key={col.key} className={`${TABLE.cell} whitespace-nowrap font-mono`}>
+            {sized(
+              col.key as string,
+              <span
+                title={FREEZE_UNAVAILABLE_NOTE}
+                aria-label={FREEZE_UNAVAILABLE_NOTE}
+                className="cursor-help"
+              >
+                {freezeNote}
+              </span>,
+            )}
+          </td>
+        )
+      }
       const display = col.format ? col.format(raw) : String(raw ?? '—')
       // Each colored cell scores the number printed in it, against the scale
       // its own column is measured on. It used to score the *ranked* value
@@ -430,7 +454,7 @@ export default function ResultsTable({
                   href={destinationUrl(row)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label={`Open ${row.name} in an external map`}
+                  aria-label={`Open ${row.name} in an external map. Opens in a new tab.`}
                   className={`shrink-0 ${ICON_ACTION}`}
                 >
                   <ExternalLinkIcon />
@@ -450,6 +474,11 @@ export default function ResultsTable({
                 href={windyUrl(row.latitude, row.longitude, col.windyLayer)}
                 target="_blank"
                 rel="noopener noreferrer"
+                // The link text is the measurement itself, so unlabelled this
+                // announces as "link, 0.0000". The label names the destination
+                // and the site, never the layer: a layer name would be a metric
+                // spelled at a call site, which metrics.test.ts forbids.
+                aria-label={`Open ${row.name} on Windy. Opens in a new tab.`}
                 className={"hover:underline cursor-pointer"}
               >
                 {display}
@@ -569,7 +598,7 @@ export default function ResultsTable({
                           } as DestinationResult)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          aria-label={`Open ${d.name} in an external map`}
+                          aria-label={`Open ${d.name} in an external map. Opens in a new tab.`}
                           className={`shrink-0 ${ICON_ACTION}`}
                         >
                           <ExternalLinkIcon />

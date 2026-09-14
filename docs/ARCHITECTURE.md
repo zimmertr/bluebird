@@ -22,6 +22,14 @@ None of the external APIs need a key:
 - **Open-Meteo** provides the hourly forecast and air-quality data, batched up to 50 locations per request.
 - **OpenFreeMap** serves the vector map tiles.
 
+Every response leaves the pod carrying a Content-Security-Policy and the usual
+hardening headers, added by `app/security_headers.py` as the outermost
+middleware (issue #132). The policy is app-owned rather than mesh-owned because
+its allowlist is the set of hosts the browser bundle fetches, which changes when
+a frontend overlay changes; a pytest reads the frontend sources and fails when
+the two disagree. The header table and the reasoning behind each directive are
+in [TRAFFIC.md](TRAFFIC.md#security-response-headers).
+
 ## Metrics
 
 The service emits Prometheus metrics (issue #77): request rate, errors, and duration per route template; per-mirror Overpass latency and failover counts; Open-Meteo batch latency, 429s by quota scope, weighted-call spend, pace waits, and sheds; cache hits and misses; per-bucket throttle counts; degraded-AQI batches; and the size distributions of the analyses people actually run. The counters wrap what the code already counts — the pacers in `app/ratelimit.py`, the hit/miss tallies on `TTLCache` — rather than keeping parallel books. Labels are bounded by construction (route templates, mirror hosts, closed outcome sets) and never carry coordinates or client identity; `backend/tests/test_telemetry.py` fails any sample that grows a label outside the allowlist.

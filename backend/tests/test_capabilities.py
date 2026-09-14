@@ -6,6 +6,7 @@ import pytest
 from app import ratelimit
 from app.main import app
 from app.models import (
+    ARCHIVE_DATA_DAYS,
     DEFAULT_FORECAST_MODEL,
     FUTURE_LIMIT_SLACK_DAYS,
     MAX_ANALYZE_PEAKS,
@@ -16,6 +17,7 @@ from app.models import (
     PAST_DATA_DAYS,
     PAST_LIMIT_SLACK_DAYS,
     AnalyzeRequest,
+    DestinationsRequest,
     DestinationType,
     ForecastModel,
     SortBy,
@@ -48,6 +50,7 @@ def test_limits_mirror_the_constants_the_validators_enforce():
         "max_past_days": PAST_LIMIT_SLACK_DAYS,
         "max_future_days": FUTURE_LIMIT_SLACK_DAYS,
         "past_data_days": PAST_DATA_DAYS,
+        "archive_days": ARCHIVE_DATA_DAYS,
         "aqi_forecast_days": MAX_FORECAST_DAYS,
         # Rate limits come from the live limiter instances (patched off in
         # conftest), not env constants — value plumbing is asserted with real
@@ -67,10 +70,8 @@ def test_limits_mirror_the_constants_the_validators_enforce():
     }
 
 
-def test_destination_types_are_the_discoverable_ones_plus_custom():
-    assert set(_capabilities()["destination_types"]) == {
-        t.value for t in IMPLEMENTED_TYPES
-    } | {DestinationType.custom.value}
+def test_destination_types_are_the_discoverable_ones():
+    assert set(_capabilities()["destination_types"]) == {t.value for t in IMPLEMENTED_TYPES}
 
 
 def test_unimplemented_enum_members_are_not_advertised():
@@ -78,12 +79,45 @@ def test_unimplemented_enum_members_are_not_advertised():
     # would walk a caller straight into a 400, which is the exact confusion this
     # endpoint exists to remove.
     advertised = set(_capabilities()["destination_types"])
-    unimplemented = {
-        t.value
-        for t in DestinationType
-        if t not in IMPLEMENTED_TYPES and t is not DestinationType.custom
-    }
+    unimplemented = {t.value for t in DestinationType if t not in IMPLEMENTED_TYPES}
     assert advertised.isdisjoint(unimplemented)
+
+
+_POLYGON = {
+    "type": "Polygon",
+    "coordinates": [[[-121.5, 47.4], [-121.4, 47.4], [-121.4, 47.5], [-121.5, 47.5], [-121.5, 47.4]]],
+}
+
+
+def _with_types(model, types: list) -> dict:
+    """The smallest valid body of either request type, carrying `types`."""
+    body = {"polygon": _POLYGON, "destination_types": types}
+    if model is AnalyzeRequest:
+        now = datetime.now(timezone.utc)
+        body |= {"start_datetime": now, "end_datetime": now + timedelta(days=1)}
+    return body
+
+
+@pytest.mark.parametrize("model", [AnalyzeRequest, DestinationsRequest])
+def test_every_advertised_destination_type_is_accepted_back(model):
+    # The whole worth of this endpoint is that a client can send back what it
+    # was told. `custom` used to be published here and rejected by both
+    # validators, so the published list is checked against the validators
+    # themselves rather than against the constant they share.
+    advertised = _capabilities()["destination_types"]
+    assert advertised
+    accepted = model(**_with_types(model, advertised)).destination_types
+    assert [t.value for t in accepted] == advertised
+
+
+@pytest.mark.parametrize("model", [AnalyzeRequest, DestinationsRequest])
+def test_custom_is_not_advertised_because_a_request_refuses_it(model):
+    # The other half of the round trip: this value is absent from the list
+    # precisely because sending it fails, so the reason is pinned here rather
+    # than left as a comment.
+    assert DestinationType.custom.value not in _capabilities()["destination_types"]
+    with pytest.raises(ValidationError):
+        model(**_with_types(model, [DestinationType.custom]))
 
 
 def test_sort_keys_match_the_accepted_enum():
@@ -247,6 +281,16 @@ def test_past_data_days_sits_well_inside_the_date_the_api_merely_accepts():
     limits = _capabilities()["limits"]
     assert limits["past_data_days"] < limits["max_past_days"]
     assert limits["past_data_days"] == 55
+
+
+def test_it_publishes_the_archive_reach_the_calendar_offers():
+    # The calendar reads this rather than compiling a reach of its own (#123),
+    # so it has to be here, and it has to sit inside the accept bound the
+    # validator enforces the way every other published limit does.
+    limits = _capabilities()["limits"]
+    assert limits["archive_days"] == ARCHIVE_DATA_DAYS
+    assert limits["archive_days"] > limits["past_data_days"]
+    assert limits["archive_days"] < limits["max_past_days"]
 
 
 def test_it_publishes_the_api_key_header_the_route_reads():

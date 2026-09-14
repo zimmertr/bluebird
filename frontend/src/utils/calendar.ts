@@ -17,6 +17,7 @@
 // a DST transition, and millisecond arithmetic would land on the wrong day.
 
 import { nowLocal } from './datetimeLocal'
+import { archiveBoundaryMs } from './forecastWindow'
 
 // The servable band, as day offsets from today. These live here rather than in
 // urlState.ts because the calendar is what makes them visible: they are the
@@ -36,25 +37,18 @@ import { nowLocal } from './datetimeLocal'
 //
 // Note what that 400 does and does not prove. It is the edge past which the API
 // refuses a DATE, which is not the edge past which it has DATA — see
-// PAST_LIMIT_DAYS below, and each model's published `forecast_hours` for the
-// same distinction at the far end. Re-probe before changing it.
+// `PAST_DATA_DAYS` in `forecastWindow.ts`, and each model's published
+// `forecast_hours` for the same distinction at the far end. Re-probe before
+// changing it.
 export const FUTURE_LIMIT_DAYS = 15
 
-// How far back the API still holds data, as opposed to how far back it accepts
-// a date. This used to be one number (90, slack under the measured 93) on the
-// assumption that a request the API accepts is a request it can answer. It is
-// not: past roughly two months every model returns 200 with an hourly array of
-// nothing but nulls, so the calendar offered ~30 days of history that could
-// only ever come back empty, under every model alike.
-//
-// Probed 2026-08-01 at 47.42648,-120.85892, bisecting the last day back with
-// any non-null hour: jma 69, gfs/ukmo 64, gem 63, ecmwf 62,
-// meteofrance 60, hrrr/icon 58. Every model is fully populated
-// through 56 and ragged at 58, so this is one floor for all of them rather
-// than a per-model number: the spread is jitter around a single ~2-month
-// retention. `PAST_DATA_DAYS` in `backend/app/models.py` is the same measurement
-// and `/api/capabilities` publishes it. Re-probe before raising it.
-export const PAST_LIMIT_DAYS = 55
+// How far back the band reaches is no longer compiled here at all (#123). The
+// forecast endpoint's own data stops at `PAST_DATA_DAYS` (`forecastWindow.ts`,
+// mirroring the backend), and past that the archive endpoint answers — a year
+// back, which is a deployment choice rather than an API edge and therefore
+// published by `/api/capabilities`. So it arrives as `BandLimits.pastDays`
+// beside the model's reach, and `useCapabilities.ts` holds the fallback for the
+// moment before that answers.
 
 // The air-quality endpoint's CAMS model only publishes ~5 days of forecast —
 // well short of the weather horizon — so days past it are still analyzable but
@@ -201,15 +195,32 @@ export function orderDays(a: string, b: string): { startDate: string; endDate: s
 }
 
 /**
+ * The two edges of the servable band, as one value.
+ *
+ * One object rather than two number parameters because both edges now move: the
+ * far one with the selected model (`forecastHours`) and the near one with what
+ * `/api/capabilities` publishes as the archive's reach (`pastDays`). As bare
+ * numbers they are adjacent arguments of the same type and similar magnitude —
+ * a model's reach in hours against a year of days — so a transposed pair would
+ * compile and quietly redraw the grid.
+ */
+export interface BandLimits {
+  /** Hours ahead the selected model still holds data for. The far edge. */
+  forecastHours: number
+  /** Days back the archive reaches. The near edge. */
+  pastDays: number
+}
+
+/**
  * The earliest local day Open-Meteo will serve.
  *
- * No UTC correction needed here, unlike `bandEnd` below: the retention edge is
- * ragged over a day or two anyway (see `PAST_LIMIT_DAYS`), so the day a local
- * midnight can borrow from the previous UTC date is well inside the margin this
- * number already carries.
+ * No UTC correction needed here, unlike `bandEnd` below: the archive holds every
+ * hour of the day at its near edge, and the edge itself is a deployment choice
+ * rather than a cliff in the data, so a local midnight borrowing from the
+ * previous UTC date lands on a day the archive answers just as readily.
  */
-export function bandStart(now: Date): string {
-  return addDays(dayKey(now), -PAST_LIMIT_DAYS)
+export function bandStart(now: Date, band: BandLimits): string {
+  return addDays(dayKey(now), -band.pastDays)
 }
 
 /** The UTC calendar date an instant falls on, which is what the API is asked for. */
@@ -256,19 +267,19 @@ function modelEnd(now: Date, forecastHours: number): number {
  * model's reach lands *in*, partial or not — `monthGrid` marks it — rather than
  * the last one it covers end to end.
  */
-export function bandEnd(now: Date, forecastHours: number): string {
+export function bandEnd(now: Date, band: BandLimits): string {
   const utcLimit = utcDayKey(now.getTime() + FUTURE_LIMIT_DAYS * 86_400_000)
   let hard = addDays(dayKey(now), FUTURE_LIMIT_DAYS)
   while (utcDayKey(Date.parse(`${hard}T${DAY_END}`)) > utcLimit) {
     hard = addDays(hard, -1)
   }
-  const soft = dayKey(new Date(modelEnd(now, forecastHours)))
+  const soft = dayKey(new Date(modelEnd(now, band.forecastHours)))
   return soft < hard ? soft : hard
 }
 
 /** Is this day inside the servable band? String compare: keys sort as dates. */
-export function inBand(key: string, now: Date, forecastHours: number): boolean {
-  return key >= bandStart(now) && key <= bandEnd(now, forecastHours)
+export function inBand(key: string, now: Date, band: BandLimits): boolean {
+  return key >= bandStart(now, band) && key <= bandEnd(now, band)
 }
 
 /** The last day the air-quality model reaches. Days past it are marked. */
@@ -326,14 +337,14 @@ export interface DayCell {
  * (imperial units, the EPA air-quality index, NIFC wildfire perimeters), so a
  * locale-derived first weekday would be the one place it was not.
  */
-export function monthGrid(month: string, now: Date, forecastHours: number): DayCell[][] {
+export function monthGrid(month: string, now: Date, band: BandLimits): DayCell[][] {
   const first = dayDate(`${month}-01`)
   const daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()
   const weeks = Math.ceil((first.getDay() + daysInMonth) / 7)
   const gridStart = new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay())
   const today = dayKey(now)
   const horizon = aqiHorizon(now)
-  const modelLimit = modelEnd(now, forecastHours)
+  const modelLimit = modelEnd(now, band.forecastHours)
 
   return Array.from({ length: weeks }, (_, w) =>
     Array.from({ length: 7 }, (_, d) => {
@@ -355,7 +366,7 @@ export function monthGrid(month: string, now: Date, forecastHours: number): DayC
         inMonth: monthKey(key) === month,
         today: key === today,
         past: key < today,
-        availability: !inBand(key, now, forecastHours)
+        availability: !inBand(key, now, band)
           ? 'unservable'
           : key > horizon || !modelCovers
             ? 'partial'
@@ -366,8 +377,8 @@ export function monthGrid(month: string, now: Date, forecastHours: number): DayC
 }
 
 /** Does this month hold any servable day? Bounds the month navigation. */
-export function monthHasBandDay(month: string, now: Date, forecastHours: number): boolean {
-  return monthGrid(month, now, forecastHours)
+export function monthHasBandDay(month: string, now: Date, band: BandLimits): boolean {
+  return monthGrid(month, now, band)
     .flat()
     .some((c) => c.inMonth && c.availability !== 'unservable')
 }
@@ -476,11 +487,11 @@ export function applyDayClick(
 export function clampSelection(
   selection: ForecastSelection,
   now: Date,
-  forecastHours: number,
+  band: BandLimits,
 ): ForecastSelection | null {
   if (!hasDates(selection)) return null
-  const first = bandStart(now)
-  const last = bandEnd(now, forecastHours)
+  const first = bandStart(now, band)
+  const last = bandEnd(now, band)
   const clamp = (day: string): string => (day < first ? first : day > last ? last : day)
   const startDate = clamp(selection.startDate)
   const endDate = clamp(selection.endDate)
@@ -522,12 +533,12 @@ export function applyModeSwitch(
   current: ForecastSelection,
   remembered: DaysSelection | null,
   now: Date,
-  forecastHours: number,
+  band: BandLimits,
 ): ForecastSelection {
   if (kind === current.kind) return current
   if (kind === 'now') return { kind: 'now' }
   const next: ForecastSelection = remembered ?? { kind: 'days', startDate: null, endDate: null }
-  return clampSelection(next, now, forecastHours) ?? next
+  return clampSelection(next, now, band) ?? next
 }
 
 /**
@@ -562,8 +573,48 @@ function clockTime(ms: number): string {
   return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
 
-function namedDay(ms: number): string {
-  return new Date(ms).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+/**
+ * Does a window need its year spelled out?
+ *
+ * The archive reaches a year back (#123), so a report can describe last
+ * September while the panel sits in this one, and "Sat, Sep 13" is then a date
+ * the reader cannot place. The test is the WINDOW's years against the reader's,
+ * either end of it: a window that ends in this year still started in another.
+ *
+ * One predicate for the results header and the panel's seam notice, so the two
+ * can never disagree about whether a date carries its year.
+ */
+export function needsYear(startMs: number, endMs: number, now: Date): boolean {
+  const year = now.getFullYear()
+  return new Date(startMs).getFullYear() !== year || new Date(endMs).getFullYear() !== year
+}
+
+// The year sits after the day with no comma before it: `Intl` writes "Sep 13,
+// 2025" for `year: 'numeric'`, and inside a phrase that already separates its
+// parts with commas a third one reads as another field.
+function withYear(text: string, ms: number, year: boolean): string {
+  return year ? `${text} ${new Date(ms).getFullYear()}` : text
+}
+
+/** A month and day, as the seam notice names the two days it falls between. */
+export function monthDay(ms: number, year = false): string {
+  return withYear(
+    new Date(ms).toLocaleDateString([], { month: 'short', day: 'numeric' }),
+    ms,
+    year,
+  )
+}
+
+function namedDay(ms: number, year = false): string {
+  return withYear(
+    new Date(ms).toLocaleDateString([], {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    }),
+    ms,
+    year,
+  )
 }
 
 /**
@@ -573,15 +624,25 @@ function namedDay(ms: number): string {
  * The clock is left out exactly when it says nothing — a selection covering
  * whole calendar days — and the second date is left out when both ends land on
  * one. Written with "to" rather than a dash so it reads aloud.
+ *
+ * Both ends carry the year, or neither does (`needsYear`): one date wearing a
+ * year beside one without would read as a range that spans the New Year.
  */
-export function windowPhrase(startMs: number, endMs: number, pointSample: boolean): string {
-  if (pointSample) return `${namedDay(startMs)}, ${clockTime(startMs)}`
-  const sameDay = namedDay(startMs) === namedDay(endMs)
+export function windowPhrase(
+  startMs: number,
+  endMs: number,
+  pointSample: boolean,
+  now: Date = new Date(),
+): string {
+  const year = needsYear(startMs, endMs, now)
+  const day = (ms: number) => namedDay(ms, year)
+  if (pointSample) return `${day(startMs)}, ${clockTime(startMs)}`
+  const sameDay = day(startMs) === day(endMs)
   if (isWholeDaySpan(startMs, endMs)) {
-    return sameDay ? namedDay(startMs) : `${namedDay(startMs)} to ${namedDay(endMs)}`
+    return sameDay ? day(startMs) : `${day(startMs)} to ${day(endMs)}`
   }
-  if (sameDay) return `${namedDay(startMs)}, ${clockTime(startMs)} to ${clockTime(endMs)}`
-  return `${namedDay(startMs)}, ${clockTime(startMs)} to ${namedDay(endMs)}, ${clockTime(endMs)}`
+  if (sameDay) return `${day(startMs)}, ${clockTime(startMs)} to ${clockTime(endMs)}`
+  return `${day(startMs)}, ${clockTime(startMs)} to ${day(endMs)}, ${clockTime(endMs)}`
 }
 
 /**
@@ -599,9 +660,43 @@ export function windowCaption(
   startMs: number,
   endMs: number,
   pointSample: boolean,
+  now: Date = new Date(),
 ): string {
   if (kind === 'now') return `as of ${clockTime(startMs)}`
-  return windowPhrase(startMs, endMs, pointSample)
+  return windowPhrase(startMs, endMs, pointSample, now)
+}
+
+/**
+ * Where a window crossing the archive boundary is joined, in words (#123).
+ *
+ * The two dates are the archive's last full local day and the forecast
+ * endpoint's first, which are consecutive: the boundary is an instant, and the
+ * one-local-day straddle tolerance (`ARCHIVE_STRADDLE_DAYS`) is what makes the
+ * day it lands in wholly the forecast endpoint's. So the reader is told the
+ * truth about which day their report changes source on, in their own zone,
+ * rather than about a UTC instant.
+ *
+ * The year rule is the results header's, from `needsYear` above, keyed on the
+ * WINDOW rather than on the seam: a report of last September carries the year in
+ * both places or in neither.
+ */
+export function archiveSeamPhrase(
+  startMs: number,
+  endMs: number,
+  modelLabel: string,
+  now: Date = new Date(),
+): string {
+  // Through this module's own day helpers rather than millisecond arithmetic: a
+  // local day is 23 or 25 hours on a DST transition, and subtracting 86,400,000
+  // ms from a local midnight lands on the wrong date across one of them.
+  const boundaryDay = dayKey(new Date(archiveBoundaryMs(now.getTime())))
+  const firstForecastDay = dayDate(boundaryDay).getTime()
+  const lastArchiveDay = dayDate(addDays(boundaryDay, -1)).getTime()
+  const year = needsYear(startMs, endMs, now)
+  return (
+    `Archive data to ${monthDay(lastArchiveDay, year)}, ` +
+    `${modelLabel} from ${monthDay(firstForecastDay, year)}.`
+  )
 }
 
 /**

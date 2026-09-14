@@ -72,17 +72,22 @@ function escapeCell(value: string): string {
 /**
  * One cell, as text.
  *
- * The null check comes first so a missing value is an empty cell rather than
- * the dash the table draws or the "NaN" a formatter would produce. A blank cell
- * is what a spreadsheet reads as "no value"; anything else becomes text in a
- * numeric column and poisons every average computed over it.
+ * The null check comes first so a missing value is the column's own empty cell
+ * rather than the dash the table draws or the "NaN" a formatter would produce.
+ * That empty cell is blank for almost every column, because blank is what a
+ * spreadsheet reads as "no value" and anything else becomes text in a numeric
+ * column and poisons every average computed over it. The freezing level is the
+ * exception and declares its own mark (`csvNull`): its blank would not mean
+ * "no value measured" but "this model measures no such thing", which is a
+ * claim about the file's own columns and has to survive being read detached
+ * from the app.
  */
 function cell(row: DestinationResult, col: ColDef): string {
   // The wildfire column never reaches here (this module appends it with its
   // own cell), but its key is virtual and must not index a row.
   if (col.key === WILDFIRE_KEY) return ''
   const raw = row[col.key]
-  if (raw == null) return ''
+  if (raw == null) return col.csvNull ?? ''
   const project = col.csv ?? col.format
   return project ? project(raw) : String(raw)
 }

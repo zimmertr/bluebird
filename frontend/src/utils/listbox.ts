@@ -165,3 +165,17 @@ export function nextActiveIndex(current: number, key: string, count: number): nu
       return null
   }
 }
+
+/**
+ * The DOM id of one option, built from the option's own identity.
+ *
+ * `aria-activedescendant` is a promise that an id resolves to the highlighted
+ * row. An id built from an array position cannot keep it: the list here arrives
+ * from `/api/capabilities`, so it grows from one fallback entry to eight after
+ * the fetch answers, and every position then names a different option than it
+ * did a moment earlier. Arrow-key movement stays positional, which is what
+ * `nextActiveIndex` is; only the id has to be a name.
+ */
+export function optionDomId(listId: string, optionKey: string): string {
+  return `${listId}-option-${optionKey}`
+}

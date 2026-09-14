@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DestinationResult, SortBy } from '../types'
-import { ChartMetric, chartKey, metricForSort } from '../utils/chartData'
+import {
+  ChartMetric,
+  candidateSetKey,
+  chartKey,
+  debutRows,
+  metricForSort,
+} from '../utils/chartData'
 import { colorForIndex } from '../utils/chartColors'
 
 // Chart selection for the results table and the chart-only legend: which
@@ -31,20 +37,29 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
   // on the report, deliberately: since #188 a live ranking change can swap
   // every row on screen without a new analysis, and new rows still debut then.
   //
+  // The DEPENDENCY is the SET's identity, never the array holding it. The
+  // caller's `chartCandidates` is rebuilt whenever the displayed rows or the
+  // pending list are re-derived — once per keystroke in the coordinates box and
+  // once per live knob change — so keying on the array ran this scan for a set
+  // of destinations that had not changed at all (issue #185). `candidateSetKey`
+  // is a value, so React compares it and the scan runs once per real change.
+  // `src/App.test.ts` fails any effect here that takes the rows again.
+  //
   // Every destination the chart has NEVER seen — pending or analyzed — arrives
   // selected and colored, so the chart mirrors the table by default and a
   // searched place is charted from the moment it is searched. colorByKey is
   // the "ever charted" memory: a deliberately unchecked box has been charted,
   // stays in the map, and is therefore never re-checked by a later report.
-  const selectedKeysRef = useRef<string[]>([])
-  selectedKeysRef.current = selectedKeys
   const colorByKeyRef = useRef<Record<string, string>>({})
   colorByKeyRef.current = colorByKey
+  const resultsRef = useRef<DestinationResult[]>(results)
+  resultsRef.current = results
+  const candidatesKey = useMemo(() => candidateSetKey(results), [results])
   useEffect(() => {
-    const debut = results.filter((r) => !colorByKeyRef.current[chartKey(r)])
+    const debut = debutRows(resultsRef.current, colorByKeyRef.current)
     if (debut.length > 0) setRange(debut, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results])
+  }, [candidatesKey])
 
   function toggle(row: DestinationResult) {
     const key = chartKey(row)

@@ -84,15 +84,62 @@ which timestamps the request needs:
 ```
 
 Sending a timestamp a mode does not use is a `422` rather than something the
-server quietly ignores. `at` works for past hours too, not just future ones,
-though the archive behind it is shorter than the range of dates the request
-validator accepts — see `limits.past_data_days` below.
+server quietly ignores. `at` works for past hours too, not just future ones, and
+reaches back a year: past `limits.past_data_days` the window is answered from
+Open-Meteo's archive endpoint instead, which is described below.
 
 Omitting `forecast_mode` still works and is inferred: both timestamps mean
 `window`, neither means `current`. Sending exactly one without a mode is
 refused, because it reads equally as `at` or as a `window` missing its end, and
 guessing would turn a fat-fingered window into a one-hour sample without
 telling you.
+
+### Asking about last summer
+
+A window older than `limits.past_data_days` is answered from Open-Meteo's
+archive endpoint, back as far as `limits.archive_days`. Nothing in the request
+says so and nothing in the response shape changes:
+
+```bash
+curl -s -X POST https://bluebirdforecast.com/api/analyze \
+  -H 'Content-Type: application/json' \
+  -d '{"destination_types": [],
+       "custom_destinations": [{"name": "Mount Rainier",
+                                "latitude": 46.8523, "longitude": -121.7603}],
+       "start_datetime": "2025-09-12T00:00:00Z",
+       "end_datetime":   "2025-09-12T23:59:00Z"}' | jq '.results[0]'
+```
+
+Two things behave differently, both of them the archive's nature rather than a
+limitation here. `forecast_model` is ignored, because the archive answers from a
+reanalysis rather than from a forecast model, and the wind columns report the
+10 m wind rather than wind at the destination's elevation, because the archive
+carries no pressure-level winds.
+[DATA.md](DATA.md#open-meteo) has the detail.
+
+A window that starts older than `limits.past_data_days` and ends inside it is
+served by both endpoints. Nothing in the request or the response says so, and
+there is no `400` to handle: each batch is fetched twice, the archive answering
+the hours before the boundary and the forecast endpoint the hours from it on, and
+each location's hourly arrays are joined in time order before the aggregation
+runs. So the aggregates and the `series` describe one window, not two halves.
+
+Three things follow from where the seam falls, and all three are the archive's
+nature rather than a limitation here:
+
+- The boundary is `now - limits.past_data_days`, floored to the UTC day. The
+  archive answers through the hour before it; the forecast endpoint answers from
+  it. No hour is fetched twice, so no hour is counted twice in
+  `precip_total_in`.
+- `forecast_model` applies to the later half only. The archive names no model, so
+  its hours come from the reanalysis whatever the request asked for.
+- Wind is the 10 m wind for the archive's hours and wind at the destination's
+  elevation for the forecast endpoint's, because only the latter carries
+  pressure-level winds. A window crossing the seam therefore mixes the two
+  within one series.
+
+Because the boundary moves with the clock, the same window asked about twice on
+different days can be answered as one request or two.
 
 ## Choosing a forecast model
 
@@ -419,6 +466,7 @@ number or omitted, and they combine as an AND:
 | `min_precip_total_in` / `max_precip_total_in` | its `precip_total_in` is inside the range |
 | `min_temp_f` / `max_temp_f` | its `temp_min_f` is at or above the floor **and** its `temp_max_f` at or below the ceiling |
 | `min_wind_mph` / `max_wind_mph` | its `wind_min_mph` is at or above the floor **and** its `wind_max_mph` at or below the ceiling |
+| `min_freeze_ft` / `max_freeze_ft` | its `freeze_min_ft` is at or above the floor **and** its `freeze_max_ft` at or below the ceiling |
 | `min_aqi` / `max_aqi` | its `aqi_max` is inside the range |
 
 ```bash
@@ -446,17 +494,23 @@ Four things are worth knowing before relying on them.
 **A ceiling reads the worst hour, a floor the best.** `max_wind_mph: 20` does
 not mean "averages under 20", it means "never exceeds 20", so a destination
 that gusts to 45 at noon is gone. That is the only reading you can plan
-against. Precipitation and air quality have no minimum aggregate to read, so
-both of their bounds compare one field: the window total, and the worst hour.
+against. The freezing level is the one family where neither end is the bad
+one, and it reads straight: the floor asks that the level never dropped below
+the value, the ceiling that it never rose above it. Precipitation and air
+quality have no minimum aggregate to read, so both of their bounds compare one
+field: the window total, and the worst hour.
 
 **They run before the ranking and before `limit`.** So `limit: 10` with a wind
 ceiling returns the ten driest destinations that stay calm, not whichever of
 the ten driest happened to be calm.
 
-**A null passes every bound.** Only `aqi_max` can be null, and it is null
+**A null passes every bound.** Two fields can be null. `aqi_max` is null
 whenever the window outruns the roughly five-day air-quality horizon or the
-best-effort fetch failed. An absent number is not evidence of bad air, so those
-rows are kept, exactly as an untagged summit survives an elevation band.
+best-effort fetch failed. The three `freeze_*` fields are null under every
+model that publishes no freezing level, which is most of them. An absent
+number is not evidence of bad air, and a model that carries no freezing level
+says nothing about the weather, so those rows are kept, exactly as an untagged
+summit survives an elevation band.
 
 **An AQI bound costs more than the others.** Air quality is normally fetched
 only for the rows being returned. Bounding it forces the fetch for every
@@ -473,6 +527,70 @@ applied at discovery and a constrained analysis genuinely costs fewer upstream
 calls. Nothing here can do that: a destination's precipitation is unknowable
 until it has been fetched, so these shrink the answer, never the work.
 
+## Reading only the summary
+
+Every result row carries `series`: the hourly precipitation, temperature, wind
+and AQI behind its aggregates, aligned index-for-index to the shared `times`
+grid. Those hours are nearly the whole body. One analysis at the candidate cap
+across the longest window the API accepts measures 12.92 MB with them and
+0.61 MB without.
+
+Send `include_series: false` when you read only the aggregates:
+
+```bash
+curl -s https://bluebirdforecast.com/api/analyze \
+  -H 'Content-Type: application/json' \
+  -H "X-Open-Meteo-Key: $OPEN_METEO_KEY" \
+  -d '{
+    "destination_types": [],
+    "forecast_mode": "window",
+    "start_datetime": "2026-08-01T14:00:00Z",
+    "end_datetime":   "2026-08-02T02:00:00Z",
+    "include_series": false,
+    "custom_destinations": [
+      { "name": "Mt Rainier", "latitude": 46.8529, "longitude": -121.7604 }
+    ]
+  }' | jq '{hours: (.times | length), row: .results[0]}'
+```
+
+```json
+{
+  "hours": 13,
+  "row": {
+    "name": "Mt Rainier",
+    "type": "custom",
+    "latitude": 46.8529,
+    "longitude": -121.7604,
+    "elevation_ft": 14411,
+    "osm_id": "node/12345678",
+    "precip_total_in": 0.0157,
+    "precip_avg_in_hr": 0.0012,
+    "precip_min_in_hr": 0,
+    "precip_max_in_hr": 0.0079,
+    "temp_min_f": 18.3,
+    "temp_max_f": 27.1,
+    "temp_avg_f": 22.4,
+    "wind_min_mph": 12.6,
+    "wind_max_mph": 41.2,
+    "wind_avg_mph": 24.8,
+    "aqi_avg": 31,
+    "aqi_min": 18,
+    "aqi_max": 47,
+    "series": null
+  }
+}
+```
+
+Only the hours go. The aggregates are reduced from exactly the same hours, the
+forecast bounds and the ranking still read them, and air quality is still
+fetched and summarized under the same best-effort terms. `times` is still sent,
+and under this flag it is the only statement of which hours the aggregates
+cover. `POST /api/analyze/stream` takes the flag identically, on the `result`
+event's payload.
+
+The default is `true`, so a caller that never sends the field sees the shape it
+always saw.
+
 ## When a search finds too much
 
 Every candidate gets a real forecast, so analyses are capped at a candidate
@@ -480,8 +598,8 @@ count that `GET /api/capabilities` publishes. An over-limit search refuses
 with a `400` that carries remedies, not just
 words: `found`, `limit`, and — when one exists — a computed
 `suggested_min_elevation_ft` with `suggested_keeps`, the elevation floor
-that would bring the search under the cap. Prefer that filter: it keeps the
-ranking exact.
+that would bring the search under the cap, alongside the `error` object with
+`"code": "refusal"`. Prefer that filter: it keeps the ranking exact.
 
 If you would rather cut than filter, opt in explicitly with
 `"top_by_elevation": true` on `POST /api/analyze`, `/api/analyze/stream`, or
@@ -511,6 +629,8 @@ data: {"type": "status", "message": "Searching for Destinations…", "detail": "
 data: {"type": "progress", "processed": 50, "total": 120, "percent": 41}
 
 data: {"type": "result", "data": {"results": [...], "total_queried": 120, "total_matched": 120}}
+
+data: {"type": "error", "message": "Open-Meteo is rate-limiting. Try again later.", "error": {"code": "upstream_rate_limited", "retryable": true}, "scope": "minutely", "retry_after_s": 60}
 ```
 
 A `status` event may carry an optional `detail` line alongside `message`: a
@@ -519,10 +639,12 @@ estimate ("Weather service quota: resuming in about 34s"). `message` stays the
 stable phase heading, so a client can key its UI on it and show `detail` as
 secondary text. During quiet stretches — a paced analysis can legitimately
 wait most of a minute for quota — the stream emits `{"type": "keepalive"}`
-events; ignore them. A terminal `error` event carries the refusal remedy
-fields when the search was over-limit, or `scope` and `retry_after_s` when an
-upstream rate limit ended the analysis. A key Open-Meteo refuses ends it the
-same way, with `Open-Meteo rejected the API key.` in `message`.
+events; ignore them. A terminal `error` event carries the same `error` object
+the JSON routes answer with, since a stream that has already opened has no
+status code left to fail with. It also carries the refusal remedy fields when
+the search was over-limit, or `scope` and `retry_after_s` when an upstream rate
+limit ended the analysis. A key Open-Meteo refuses ends it the same way, with
+`Open-Meteo rejected the API key.` in `message`.
 
 One important catch: **check the status code first, then the stream.** A request
 that fails validation is rejected with a `422` before the stream opens, exactly
@@ -541,7 +663,8 @@ curl -s https://bluebirdforecast.com/api/capabilities | jq
 ```
 
 It reports the searchable destination types (narrower than the enum in the
-schema, since not every modelled type is discoverable yet), the sort keys, the
+schema, since not every modelled type is discoverable yet, and `custom` names
+rows you supply rather than something to find), the sort keys, the
 maximum polygon area, the cap on destinations per analysis, the accepted `limit`
 range, how far forward and back a window may reach, the selectable forecast
 models with each one's reach (under `forecast_models`), the header an
@@ -550,16 +673,30 @@ Open-Meteo key travels in (`api_key_header`), and (under
 values are read from the same constants the validators and limiters enforce, so
 they cannot drift.
 
-Two of the window limits look redundant and are not. `limits.max_past_days` is
-how far back a request is *accepted*; `limits.past_data_days` is how far back
-the weather API still *holds data*. Past the latter a request succeeds and comes
-back with nothing in it, so the second number is the one worth building a date
-picker against. The far end has the same split, between `limits.max_future_days`
-and each model's `forecast_hours`.
+Three of the window limits look redundant and are not. `limits.max_past_days` is
+how far back a request is *accepted*. `limits.past_data_days` is where the
+forecast endpoint's own data stops, which is the boundary between the two weather
+endpoints rather than a wall: past it a window is answered from the archive.
+`limits.archive_days` is how far back that reaches, and it is the number worth
+building a date picker against. The far end has the same split, between
+`limits.max_future_days` and each model's `forecast_hours`.
 
 Air quality deserves a note. Its horizon is far shorter than the weather
 forecast, so `aqi_avg` and `aqi_max` come back `null` for hours beyond it. That
 is expected, not an error, and an air-quality outage never fails an analysis.
+
+So does the freezing level. `freeze_min_ft`, `freeze_avg_ft` and `freeze_max_ft`
+are the window's freezing level in feet above sea level, and `series.freeze_ft`
+carries it per hour. They are `null` for every row of an analysis run on a model
+that does not publish the variable, which is five of the eight — only
+`gfs_seamless`, `gfs_hrrr` and `icon_seamless` answer it (measured 2026-09-12).
+Nothing else on the row is affected: the aggregation reduces it separately, so a
+model with no freezing level still returns complete precipitation, temperature
+and wind. A `0` is a value rather than a gap, meaning the freezing level reached
+sea level. Ranking by one of these keys sorts `null` last in either direction,
+exactly as the AQI keys do. [DATA.md's Open-Meteo
+section](DATA.md#open-meteo) has what the number can and cannot say about an
+overnight refreeze.
 
 Two things about the value itself, for anyone rendering it. It is sampled from
 a model grid measured in tens of kilometers, so nearby destinations often carry
@@ -570,16 +707,16 @@ the reasoning, along with the equivalent caveats for the other providers.
 
 ## When something goes wrong
 
-| Status | Meaning |
-| --- | --- |
-| `400` | The request parsed but does not describe a runnable analysis. Inverted window, undiscoverable destination type, missing `custom_destinations`, a regional `forecast_model` asked about somewhere outside its grid, or too many candidates — the over-limit case carries the structured remedy fields described above. |
-| `401` | Open-Meteo refused the `X-Open-Meteo-Key` this analyze request carried. Only the two analyze routes can answer it, and no retry helps. |
-| `404` | No such endpoint. The body names the path and points at `/docs`. On `bluebirdforecast.com` an analyze request with no `X-Open-Meteo-Key` header gets this from the gateway, so a `404` on a path that exists means the header was missing. |
-| `405` | Right path, wrong method. The `Allow` header lists what the path accepts. |
-| `422` | Request validation failed. Polygon too large, `limit` out of range, or a window outside the servable horizon. |
-| `429` | Either this client is sending faster than the per-address limit, or the upstream weather service rate-limited the deployment mid-analysis. The `Retry-After` header says how many seconds to wait in both cases. Analyze, destinations, and geocode have separate per-address buckets; `GET /api/capabilities` publishes them under `limits.rate`. |
-| `502` | An upstream failed. Every Overpass mirror was unreachable, or the weather API did not answer. Transient, and worth retrying. |
-| `503` | The instance is at capacity: its budget of in-flight upstream calls stayed saturated too long, so the request was shed instead of queued forever. Transient by nature; `Retry-After` says when a retry is worthwhile. |
+| Status | `error.code` | Meaning |
+| --- | --- | --- |
+| `400` | `validation`, `model_coverage`, `refusal` | The request parsed but does not describe a runnable analysis. Inverted window, undiscoverable destination type, missing `custom_destinations`, a regional `forecast_model` asked about somewhere outside its grid, or too many candidates — the over-limit case carries the structured remedy fields described above. |
+| `401` | `invalid_api_key` | Open-Meteo refused the `X-Open-Meteo-Key` this analyze request carried. Only the two analyze routes can answer it, and no retry helps. |
+| `404` | `not_found` | No such endpoint. The body names the path and points at `/docs`. On `bluebirdforecast.com` an analyze request with no `X-Open-Meteo-Key` header gets this from the gateway, so a `404` on a path that exists means the header was missing. |
+| `405` | `method_not_allowed` | Right path, wrong method. The `Allow` header lists what the path accepts. |
+| `422` | `validation`, or absent | Request validation failed. Polygon too large, `limit` out of range, or a window outside the servable horizon. |
+| `429` | `rate_limited`, `upstream_rate_limited` | Either this client is sending faster than the per-address limit, or the upstream weather service rate-limited the deployment mid-analysis. The `Retry-After` header says how many seconds to wait in both cases. Analyze, destinations, and geocode have separate per-address buckets; `GET /api/capabilities` publishes them under `limits.rate`. |
+| `502` | `upstream_unavailable` | An upstream failed. Every Overpass mirror was unreachable, or the weather API did not answer. Transient, and worth retrying. |
+| `503` | `busy`, `snapshot_unavailable` | The instance is at capacity, or a national overlay has nothing cached yet: a budget of in-flight upstream calls stayed saturated too long and the request was shed rather than queued forever, or this instance has never once completed its NIFC or NOAA fetch. Transient by nature; `Retry-After` says when a retry is worthwhile. |
 
 A `422` carries Pydantic's per-field `detail` list. Every other error carries a
 single plain-language `detail` string, written to be shown to a person as-is.
@@ -597,8 +734,47 @@ mid-analysis, though, arrives as an `error` event on the already-open `200`
 stream, exactly like any other upstream failure. A refused API key is one of
 those: the key is only tested when the first forecast batch goes out, which is
 after the stream has opened, so it arrives as
-`{"type": "error", "message": "Open-Meteo rejected the API key."}` rather than
-as the `401` the JSON route answers.
+`{"type": "error", "message": "Open-Meteo rejected the API key.", "error":
+{"code": "invalid_api_key", "retryable": false}}` rather than as the `401` the
+JSON route answers.
+
+### Branching on the error
+
+`detail` is written for a person and may be reworded at any time. Beside it
+every error but Pydantic's own `422` carries an `error` object that is
+contract:
+
+```json
+{
+  "detail": "OpenStreetMap is not available. Try again later.",
+  "error": { "code": "upstream_unavailable", "retryable": true }
+}
+```
+
+Branch on `code`, and read `retryable` for the one question worth asking of a
+failure: `true` means the identical request can succeed later, and on a `429`
+or `503` the `Retry-After` header says when. `false` means only you can change
+the outcome, so a retry loop will spin forever.
+
+| `error.code` | Status | `retryable` | Raised when |
+| --- | --- | --- | --- |
+| `validation` | `400`, `422` | `false` | The request does not describe runnable work: an inverted window, a type that is not discoverable, a polygon missing beside `destination_types`, a `bbox` that will not parse. |
+| `refusal` | `400` | `false` | The search covers more candidates than the analysis cap allows. Carries the remedy fields above. |
+| `model_coverage` | `400` | `false` | A regional `forecast_model` was asked about somewhere outside its grid. |
+| `invalid_api_key` | `401` | `false` | Open-Meteo refused the key in `X-Open-Meteo-Key`. |
+| `not_found` | `404` | `false` | No endpoint at that path. |
+| `method_not_allowed` | `405` | `false` | Right path, wrong verb. `Allow` lists the verbs it takes. |
+| `rate_limited` | `429` | `true` | This address is sending faster than the per-address bucket allows. |
+| `upstream_rate_limited` | `429` | `true` | Open-Meteo rate-limited the deployment mid-analysis. |
+| `upstream_unavailable` | `502` | `true` | An upstream failed or could not be reached. |
+| `busy` | `503` | `true` | An in-flight upstream budget stayed saturated, so the request was shed. |
+| `snapshot_unavailable` | `503` | `true` | This instance has never completed a fetch of the wildfire or smoke snapshot, so it has nothing to serve, not even stale. |
+| `internal` | stream only | `true` | An unexpected failure ended an SSE analysis. The JSON routes have no equivalent. |
+
+Pydantic's `422` is the one exception, and deliberately: its `detail` is a list
+of per-field objects rather than a sentence, and the field paths in it are
+already machine-readable. The `bbox` parameter on `GET /api/wildfires` is
+parsed by hand, so its `422` does carry `validation`.
 
 ## Generating a client
 

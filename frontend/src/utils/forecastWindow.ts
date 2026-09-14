@@ -8,17 +8,87 @@
 // Equal timestamps are a point sample — floored to the hour they land in and
 // spanned by one minute, so the hourly filter catches exactly one stamp (a
 // bare +1h span would catch two whenever the moment sits on an hour
-// boundary). The horizon slack (95/17 days) matches the backend constants
-// behind the advertised ~90-day / ~16-day limits, and the error strings are
+// boundary). The horizon slack (375/17 days) matches the backend constants
+// behind the advertised one-year / ~16-day limits, and the error strings are
 // the server's own so a client-refused window reads identically to a
 // server-refused one.
+//
+// It also owns which Open-Meteo endpoint a window belongs to (`windowSource`,
+// issue #123), because that is the same question one level down: a window the
+// forecast endpoint has no data for is the archive's, and one that crosses
+// between them belongs to both, fetched from each and joined at the seam.
 
 const HOUR_MS = 3_600_000
 const MINUTE_MS = 60_000
 const DAY_MS = 86_400_000
 
-export const PAST_LIMIT_SLACK_DAYS = 95
+// Mirror of `ARCHIVE_DATA_DAYS` + its slack and `FUTURE_LIMIT_SLACK_DAYS` in
+// `backend/app/models.py`. The past bound follows the ARCHIVE's reach rather
+// than the forecast endpoint's, because a window older than `PAST_DATA_DAYS` is
+// answered from the archive (see `windowSource`).
+export const PAST_LIMIT_SLACK_DAYS = 375
 export const FUTURE_LIMIT_SLACK_DAYS = 17
+
+// Where the forecast endpoint's own data stops, and therefore the boundary
+// between the two endpoints. Mirror of `PAST_DATA_DAYS` in
+// `backend/app/models.py`, which carries the per-model measurements behind it:
+// past ~58 days every model answers 200 with an hourly array of nulls, and 55 is
+// one conservative floor for all of them.
+export const PAST_DATA_DAYS = 55
+
+// One local calendar day of tolerance on the forecast side of that boundary.
+// The boundary is an instant and a calendar day is not: west of Greenwich a
+// local day's last minute lands on the next UTC date, so a day the calendar
+// draws can straddle the boundary by up to 14 hours. Without the tolerance that
+// one day would be split across two datasets and joined at a seam 14 hours into
+// it, although the forecast endpoint holds the whole of it. Mirror of
+// `ARCHIVE_STRADDLE_DAYS` in `backend/app/models.py`.
+export const ARCHIVE_STRADDLE_DAYS = 1
+
+/** Which endpoint answers a window: one of them, or both across a seam. */
+export type WindowSource = 'forecast' | 'archive' | 'spanning'
+
+/**
+ * The instant the archive's hours end and the forecast endpoint's begin.
+ *
+ * `now - PAST_DATA_DAYS`, floored to the UTC day, because every fetch sends UTC
+ * hour stamps. One definition for three readers: `windowSource` classifies a
+ * window against it, `fetchWeather` splits a spanning window at it, and the
+ * panel names the two days it falls between. A second spelling could put the
+ * seam an hour from where the classification believed it was.
+ *
+ * Mirror of `archive_boundary` in `backend/app/models.py`.
+ */
+export function archiveBoundaryMs(nowMs: number = Date.now()): number {
+  return Math.floor((nowMs - PAST_DATA_DAYS * DAY_MS) / DAY_MS) * DAY_MS
+}
+
+/**
+ * Which Open-Meteo endpoint answers this window, or that both do.
+ *
+ * One boundary, defined once by `archiveBoundaryMs` above. A window entirely
+ * older than it is the archive's; one starting at it — within a local day, see
+ * ARCHIVE_STRADDLE_DAYS — is the forecast endpoint's; one that starts before it
+ * and ends after it is both endpoints', fetched twice and joined at the seam
+ * before the aggregation sees it.
+ *
+ * The archive test comes first so the one-day overlap the straddle tolerance
+ * opens resolves to the archive, which holds every hour in it rather than
+ * relying on the forecast endpoint's ragged tail.
+ *
+ * Mirror of `window_source` in `backend/app/models.py`, with the same example
+ * table in both test suites.
+ */
+export function windowSource(
+  startMs: number,
+  endMs: number,
+  nowMs: number = Date.now(),
+): WindowSource {
+  const boundary = archiveBoundaryMs(nowMs)
+  if (endMs < boundary) return 'archive'
+  if (startMs >= boundary - ARCHIVE_STRADDLE_DAYS * DAY_MS) return 'forecast'
+  return 'spanning'
+}
 
 // Naive strings are read as UTC, exactly like the backend's parsing. The SPA
 // always sends zoned ISO, but the guard keeps hand-fed values honest.
@@ -98,7 +168,7 @@ export function resolveWindow(
   }
   if (startMs < nowMs - PAST_LIMIT_SLACK_DAYS * DAY_MS) {
     throw new Error(
-      'start_datetime is beyond the ~90-day history limit of the weather API. ' +
+      'start_datetime is beyond the one-year history limit of the weather API. ' +
         'Move the window start closer to today.',
     )
   }

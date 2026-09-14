@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import {
+  type BandLimits,
   DAY_END,
   DayCell,
   DaysSelection,
@@ -30,6 +31,7 @@ import {
   BUTTON_SECONDARY,
   CONTROL_W,
   DAY,
+  DISABLED,
   FIELD,
   RADIUS,
   SEGMENT,
@@ -44,11 +46,11 @@ import {
 interface Props {
   selection: ForecastSelection
   onChange: (selection: ForecastSelection) => void
-  // How far ahead the selected model still has data, from /api/capabilities.
-  // The far edge of this grid is the model's, not the app's: HRRR reaches about
-  // two days where ECMWF reaches fourteen, so the same calendar draws twelve
-  // more disabled days for one than for the other.
-  forecastHours: number
+  // Both edges of the band this grid draws, from /api/capabilities. The far one
+  // is the selected model's, not the app's: HRRR reaches about two days where
+  // ECMWF reaches fourteen, so the same calendar draws twelve more disabled days
+  // for one than for the other. The near one is the archive's reach (#123).
+  band: BandLimits
 }
 
 // What the Hours toggle opens on: this hour through the end of the day.
@@ -92,7 +94,7 @@ interface Drag {
 const HOURS_NOTE =
   'Hourly sets the start time on the first day and the end time on the last day. Forecast data is inclusive.'
 
-export default function ForecastCalendar({ selection, onChange, forecastHours }: Props) {
+export default function ForecastCalendar({ selection, onChange, band }: Props) {
   // Captured once: a grid that recomputed against a moving `now` would redraw
   // every render, and nothing here changes meaning within a session.
   const now = useMemo(() => new Date(), [])
@@ -122,10 +124,7 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
   // focus on mount would scroll the panel down to the calendar on every load.
   const keyboardNav = useRef(false)
 
-  const weeks = useMemo(
-    () => monthGrid(month, now, forecastHours),
-    [month, now, forecastHours],
-  )
+  const weeks = useMemo(() => monthGrid(month, now, band), [month, now, band])
   const weekdays = useMemo(() => weekdayInitials(), [])
 
   // The range being drawn: the drag in flight if there is one, else what is
@@ -153,7 +152,7 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
   }
 
   function switchMode(kind: SelectionKind) {
-    const next = applyModeSwitch(kind, selection, lastDays.current, now, forecastHours)
+    const next = applyModeSwitch(kind, selection, lastDays.current, now, band)
     if (next === selection) return
     // A half-made range does not survive leaving the arm it was being made in.
     setAnchor(null)
@@ -387,14 +386,14 @@ export default function ForecastCalendar({ selection, onChange, forecastHours }:
         <MonthButton
           label="Previous month"
           glyph="‹"
-          disabled={!monthHasBandDay(prevMonth, now, forecastHours)}
+          disabled={!monthHasBandDay(prevMonth, now, band)}
           onClick={() => setMonth(prevMonth)}
         />
         <span className={TEXT.subheading}>{monthLabel(month)}</span>
         <MonthButton
           label="Next month"
           glyph="›"
-          disabled={!monthHasBandDay(nextMonth, now, forecastHours)}
+          disabled={!monthHasBandDay(nextMonth, now, band)}
           onClick={() => setMonth(nextMonth)}
         />
       </div>
@@ -477,7 +476,7 @@ function MonthButton({
       // No padding of its own any more. It had been squeezed to a 16px-tall
       // sliver, which is smaller than anything else in the panel and is the
       // secondary action doing something the role does not do.
-      className={`${BUTTON_SECONDARY} disabled:cursor-not-allowed disabled:opacity-40`}
+      className={`${BUTTON_SECONDARY} ${DISABLED}`}
     >
       <span aria-hidden="true">{glyph}</span>
     </button>

@@ -1,5 +1,5 @@
 import { DestinationResult, HourlySeries, SortBy } from '../types'
-import { MetricFamily, metricLabel } from '../metrics'
+import { MetricFamily, familyOf, metricLabel } from '../metrics'
 
 export type ChartMetric = MetricFamily
 
@@ -7,33 +7,63 @@ const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
   precip: 'precip_in',
   temp: 'temp_f',
   wind: 'wind_mph',
+  freeze: 'freeze_ft',
   aqi: 'aqi',
 }
 
 // The chart's radios. No aggregate: these plot the raw hourly series, so a
 // point is that hour's own value rather than anything reduced over the window.
 export const CHART_METRICS: { key: ChartMetric; label: string }[] = (
-  ['precip', 'temp', 'wind', 'aqi'] as const
+  ['precip', 'temp', 'wind', 'freeze', 'aqi'] as const
 ).map((key) => ({ key, label: metricLabel(key) }))
 
 // The chart opens on whatever metric the results were ranked by.
+//
+// Read off the ranking key's own family rather than matched against a list of
+// keys: since #291 a family has three or four rankable keys, and a list
+// naming one of them each opened the precipitation chart for the other two.
 export function metricForSort(sortBy: SortBy): ChartMetric {
-  switch (sortBy) {
-    case 'temp_avg_f':
-      return 'temp'
-    case 'wind_avg_mph':
-      return 'wind'
-    case 'aqi_avg':
-      return 'aqi'
-    default:
-      return 'precip'
-  }
+  return familyOf(sortBy)
 }
 
 // Coordinate-based identity (same rationale as fireProximity's fireKey): it
 // survives the table's client-side re-sorting and keys a line to a destination.
 export function chartKey(row: DestinationResult): string {
   return `${row.latitude},${row.longitude}`
+}
+
+// Identity of the SET of destinations the chart tracks, order-independent — the
+// `pointsKey` idiom in fireProximity.ts, for the same reason.
+//
+// useChartSelection's debut effect keys on this string, never on the array that
+// holds the rows. `chartCandidates` in App.tsx is a fresh array whenever the
+// displayed rows or the pending list are re-derived, which is once per keystroke
+// in the coordinates box and once per live knob change, so an effect keyed on
+// the reference scanned for debuts over a set that had not changed at all.
+// Sorted because a live re-rank reorders the same destinations, and re-ordering
+// debuts nothing.
+export function candidateSetKey(rows: DestinationResult[]): string {
+  return rows.map(chartKey).sort().join('|')
+}
+
+// The rows the chart has never seen, in list order and at most one per
+// coordinate key. `charted` is the "ever charted" memory (useChartSelection's
+// colorByKey): a key in it already owns a color, so it never debuts twice, and a
+// box the user unchecked is never re-checked by a later report.
+//
+// Pure and separate from the hook because the node-env Vitest has no DOM to
+// render a hook in, so a decision left inside one is untestable by construction.
+export function debutRows(
+  rows: DestinationResult[],
+  charted: Record<string, string>,
+): DestinationResult[] {
+  const seen = new Set<string>()
+  return rows.filter((r) => {
+    const key = chartKey(r)
+    if (charted[key] || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 // The inclusive run of rows between two chart keys in the given display order —
@@ -73,6 +103,7 @@ export function alignRowToGrid(row: DestinationResult, times: number[]): Destina
       precip_in: remap(row.series.precip_in),
       temp_f: remap(row.series.temp_f),
       wind_mph: remap(row.series.wind_mph),
+      freeze_ft: remap(row.series.freeze_ft),
       aqi: remap(row.series.aqi),
       // Remapped rather than dropped, and spread so a row that never carried
       // bearings still carries no key. The chart does not read them, but the
@@ -107,7 +138,9 @@ export function valueAt(row: DestinationResult, metric: ChartMetric, i: number):
 
 export function formatMetricValue(v: number, metric: ChartMetric): string {
   if (metric === 'precip') return v.toFixed(3)
-  if (metric === 'aqi') return v.toFixed(0)
+  // Whole units: an AQI is an integer index, and a freezing level in feet
+  // carries no decimal the model could support.
+  if (metric === 'aqi' || metric === 'freeze') return v.toFixed(0)
   return v.toFixed(1)
 }
 

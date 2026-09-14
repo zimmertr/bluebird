@@ -1,8 +1,17 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { PopoverBox, nextActiveIndex, popoverBox } from '../utils/listbox'
+import { PopoverBox, nextActiveIndex, optionDomId, popoverBox } from '../utils/listbox'
 import { gridLabel, reachLabel, type ForecastModelOption } from '../hooks/useCapabilities'
-import { BADGE_ACCENT, ICON_ADORNMENT, LAYER, SELECT, SURFACE_CARD, TEXT } from '../styles'
+import {
+  BADGE_ACCENT,
+  DISABLED,
+  ICON_ADORNMENT,
+  LAYER,
+  SELECT,
+  SR_ONLY,
+  SURFACE_CARD,
+  TEXT,
+} from '../styles'
 
 // Wide enough for a summary to sit on two lines rather than three: the longest
 // measures 512px, so it uses 72% of the 708px two lines buy. The sidebar is
@@ -11,12 +20,32 @@ const PREFERRED_WIDTH_PX = 380
 const GAP_PX = 4
 const VIEWPORT_MARGIN_PX = 8
 
+// Namespaces this listbox's option ids inside the document.
+const LIST_ID = 'model'
+
+// Why the control is faded, for the one window it does not apply to. A disabled
+// control says that it cannot be used and never why, and "the model does not
+// apply to these hours" is not a thing the panel can be read off. Mounted twice
+// — as the trigger's `title` and as the hidden text `aria-describedby` names —
+// because a tooltip does not exist on touch or to a screen reader.
+const DISABLED_NOTE = 'Forecast models are not available for archival data.'
+const DISABLED_NOTE_ID = 'model-archive-note'
+
 interface Props {
   models: readonly ForecastModelOption[]
   value: string
   /** The model a request with no `forecast_model` lands on. Marked in the list. */
   defaultId: string
   onChange: (id: string) => void
+  /**
+   * The model does not apply to the selected window, so there is nothing to
+   * choose. True for an archive window (#123): that endpoint answers from a
+   * reanalysis, the same dataset at every location, and the models here are
+   * forecast models that never ran over those hours. Disabled rather than
+   * hidden, because the row still says which control the window has taken out
+   * of play.
+   */
+  disabled?: boolean
 }
 
 /**
@@ -34,7 +63,13 @@ interface Props {
  * fixed, because the control panel is an `overflow-y-auto` column that would
  * otherwise clip it at the scroll boundary.
  */
-export default function ModelPicker({ models, value, defaultId, onChange }: Props) {
+export default function ModelPicker({
+  models,
+  value,
+  defaultId,
+  onChange,
+  disabled = false,
+}: Props) {
   const [open, setOpen] = useState(false)
   const [box, setBox] = useState<PopoverBox | null>(null)
   const selectedIndex = models.findIndex((m) => m.id === value)
@@ -131,7 +166,7 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
   }, [open])
 
   // Focus the list itself rather than an option, so `aria-activedescendant`
-  // carries the position and the arrow keys stay on one element.
+  // names the highlighted row and the arrow keys stay on one element.
   useEffect(() => {
     if (open) listRef.current?.focus()
   }, [open])
@@ -167,6 +202,9 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`Forecast model: ${selected?.label ?? value}`}
+        title={disabled ? DISABLED_NOTE : undefined}
+        aria-describedby={disabled ? DISABLED_NOTE_ID : undefined}
+        disabled={disabled}
         onClick={() => (open ? close(true) : openList())}
         onKeyDown={(e) => {
           if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
@@ -174,10 +212,15 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
             openList()
           }
         }}
-        className={`${SELECT} w-full px-2 py-1.5 text-left`}
+        className={`${SELECT} ${DISABLED} w-full px-2 py-1.5 text-left`}
       >
         {selected?.label ?? value}
       </button>
+      {disabled && (
+        <span id={DISABLED_NOTE_ID} className={SR_ONLY}>
+          {DISABLED_NOTE}
+        </span>
+      )}
       <svg
         className={`${ICON_ADORNMENT} h-4 w-4`}
         viewBox="0 0 20 20"
@@ -226,7 +269,9 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
               ref={listRef}
               role="listbox"
               aria-label="Forecast model"
-              aria-activedescendant={`model-option-${active}`}
+              aria-activedescendant={
+                models[active] ? optionDomId(LIST_ID, models[active].id) : undefined
+              }
               tabIndex={-1}
               onKeyDown={onListKeyDown}
               className="min-h-0 flex-1 overflow-y-auto p-1 focus:outline-none"
@@ -236,7 +281,7 @@ export default function ModelPicker({ models, value, defaultId, onChange }: Prop
               return (
                 <div
                   key={model.id}
-                  id={`model-option-${i}`}
+                  id={optionDomId(LIST_ID, model.id)}
                   data-index={i}
                   role="option"
                   aria-selected={isSelected}

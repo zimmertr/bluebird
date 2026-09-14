@@ -1,13 +1,15 @@
 import { DestinationResult } from '../types'
-import { AGGREGATE, NOUN } from '../metrics'
+import { AGGREGATE, NOUN, UNIT } from '../metrics'
 import { destinationUrl } from './destinationUrl'
 import { FireWarning, fireWarningText } from './fireProximity'
+import { freezeCellText } from './freezingLevel'
 import { coordinateRow, escapeHtml, popupShell, row } from './popupChrome'
 
 // The popup reads as prose rather than as table headers, so it lowercases the
 // aggregate and skips metrics.ts's separator.
 const TOTAL = AGGREGATE.total.toLowerCase()
 const AVERAGE = AGGREGATE.average.toLowerCase()
+const MINIMUM = AGGREGATE.minimum.toLowerCase()
 const MAXIMUM = AGGREGATE.maximum.toLowerCase()
 
 // Popup body shared by a marker click and a table-rank click (focusResult), so
@@ -23,6 +25,10 @@ export function resultPopupHtml(d: {
   precipTotalIn: number
   windAvgMph: number
   tempAvgF: number
+  // The window's lowest freezing level, which is the aggregate this family
+  // ranks by (DEFAULT_FAMILY_KEY): the question it answers is the overnight
+  // refreeze, and the level almost always bottoms out at night.
+  freezeMinFt: number | null
   aqiAvg: number | null
   aqiMax: number | null
   longitude: number
@@ -50,6 +56,17 @@ export function resultPopupHtml(d: {
     row(`${NOUN.precip} ${TOTAL}`, `${Number(d.precipTotalIn).toFixed(3)}"`),
     row(`${NOUN.wind} ${AVERAGE}`, `${Number(d.windAvgMph).toFixed(1)} mph`),
     row(`${NOUN.temp} ${AVERAGE}`, `${Number(d.tempAvgF).toFixed(1)}°F`),
+    // Always drawn, unlike the two air-quality rows below it. A missing air
+    // quality is a gap in one forecast, so the row goes with it; a missing
+    // freezing level is the chosen MODEL publishing no such variable, and a
+    // row that vanished would look like the app had forgotten the metric.
+    // A popup has no hover to explain the mark with, so it carries the same
+    // mark the table's cell does and nothing more.
+    row(
+      `${NOUN.freeze} ${MINIMUM}`,
+      freezeCellText(d.freezeMinFt) ??
+        `${Number(d.freezeMinFt).toLocaleString()} ${UNIT.freeze}`,
+    ),
     d.aqiAvg != null ? row(`${NOUN.aqi} ${AVERAGE}`, String(d.aqiAvg)) : '',
     d.aqiAvg != null ? row(`${NOUN.aqi} ${MAXIMUM}`, String(d.aqiMax)) : '',
     coordinateRow(d.latitude, d.longitude),
