@@ -45,7 +45,14 @@
 // shape without the color: its line renders twice, muted on the well and white
 // inside the accent fill, and a color baked into the shape would race the
 // layer's by stylesheet order.
-const MICRO_SIZE = 'text-[10px]'
+/**
+ * The ramp's smallest step, as a number, for the one place a stylesheet has to
+ * spell it: `map.css` sizes MapLibre's credit line from `--map-credit-size`,
+ * which `MAP_EDGE.publish` sets. `styles.test.ts` holds the class, the custom
+ * property and this number together.
+ */
+export const MICRO_PX = 10
+export const MICRO_SIZE = 'text-[10px]'
 const MICRO = `${MICRO_SIZE} text-slate-300`
 
 /**
@@ -752,8 +759,12 @@ export const MAP_BOX_W = 'w-48'
  * which has no call site to hand a role to.
  */
 export const MAP_EDGE = {
-  /** On the map wrapper: publishes the inset to the app's chrome and the vendor's. */
-  publish: '[--map-edge-inset:0.75rem]',
+  /**
+   * On the map wrapper: publishes the inset to the app's chrome and the
+   * vendor's, and the credit line's type size (`MICRO_PX`) to `map.css`, which
+   * has no call site to hand `TEXT.micro` to.
+   */
+  publish: '[--map-edge-inset:0.75rem] [--map-credit-size:10px]',
   /** The left edge every floating box on the map's left shares. */
   left: 'left-[var(--map-edge-inset)]',
   /** The top edge the app's own button column takes. */

@@ -52,6 +52,8 @@ import {
   LINK,
   LINK_ACTION,
   MAP_BOX_W,
+  MICRO_PX,
+  MICRO_SIZE,
   MAP_EDGE,
   PROSE,
   RADIUS,
@@ -1365,7 +1367,7 @@ describe('the results table rank cell', () => {
 // and the library's alike.
 describe('the map edge inset', () => {
   it('publishes one number and reads it everywhere', () => {
-    expect(MAP_EDGE.publish).toBe('[--map-edge-inset:0.75rem]')
+    expect(MAP_EDGE.publish).toContain('[--map-edge-inset:0.75rem]')
     for (const side of [MAP_EDGE.left, MAP_EDGE.top]) {
       expect(side).toContain('var(--map-edge-inset)')
       // The number is published, never repeated: a fallback here would be a
@@ -1379,6 +1381,16 @@ describe('the map edge inset', () => {
   // site to hand a role to — inherits the same number.
   it('is published on the map wrapper', () => {
     expect(appSource).toContain('MAP_EDGE.publish')
+  })
+
+  // MapLibre's credit line is sized by map.css from a custom property, because
+  // the library builds that markup itself and there is no call site to hand
+  // `TEXT.micro` to. The number is the ramp's smallest step, spelled once as
+  // `MICRO_PX`; the class and the property are both pinned to it here so the
+  // stylesheet, which no test can read, cannot drift from the ramp.
+  it('publishes the credit size from the ramp', () => {
+    expect(MICRO_SIZE).toBe(`text-[${MICRO_PX}px]`)
+    expect(MAP_EDGE.publish).toContain(`[--map-credit-size:${MICRO_PX}px]`)
   })
 
   // The button column, the legend stack and the popover under them. The first

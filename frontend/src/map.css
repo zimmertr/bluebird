@@ -112,6 +112,18 @@
   padding-right: 2rem;
 }
 
+/* The attribution's type, one step down the app's ramp from the vendor's 12px:
+ * `--map-credit-size` is `MICRO_PX` in styles.ts, the size the app's own
+ * credit lines wear (`TEXT.micro`), published on the map wrapper by
+ * `MAP_EDGE.publish` the way the inset above is. The line-height stays the
+ * vendor's 20px, so the control's box stays `CORNER_CONTROL_PX` tall and the
+ * band above the results does not move. Smaller because on a phone the opened
+ * credit line and the scale bar at its widest share one edge, and at 12px they
+ * met (#249 review, round four). */
+.maplibregl-ctrl-attrib {
+  font-size: var(--map-credit-size);
+}
+
 /* Where the library's own bottom controls go, which is not always the bottom.
  *
  * maplibre anchors the scale bar and the attribution to the map container's
