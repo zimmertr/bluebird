@@ -774,8 +774,10 @@ export const SEGMENT_IDLE = `${RECESSED_FILL} text-slate-400 hover:text-slate-20
  * "All Day" and "Hourly" side by side — and everything beside it follows rather
  * than each row picking its own.
  *
- * The filters grid derives from it rather than repeating it: two boxes plus
- * their `gap-x-2` (0.5rem) must total this, which is why each is `4.25rem`.
+ * The Metrics grid is the one place a control is narrower than this: its
+ * bound boxes wear `METRIC_BOX_W`, sized by that row's label budget rather
+ * than by this column, and its one `CONTROL_W` control (the direction segment)
+ * sits in a row of its own above them.
  */
 export const CONTROL_W = 'w-36'
 
@@ -864,21 +866,20 @@ export const LEGEND_TOP = 'top-25 touch:top-29'
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 
 /**
- * The ranking rows' aggregate dropdown (#291): the one control that sits
+ * The metric rows' aggregate dropdown (#291): the one control that sits
  * BESIDE the shared control column rather than in it, so it takes its own
  * width and the metric label absorbs what is left.
  *
- * 4.5rem (72px) is a budget, not a taste. Measured in the running app
- * (2026-08-22): panel content is 327px, and a ranking row spends 14px on the
- * radio, 10px on its label gap, 12px on its two gap-1.5 row gaps and 144px on
- * the direction segment, leaving 75px for the label — whose longest nouns
- * measure exactly 72px at text-xs. That is also why the ranking row is the
- * panel's one gap-1.5 row: at the usual gap-2 the label gets 71px and
- * truncates. The dropdown's own floor is its content: the widest aggregate
- * word measures 28px, plus the field's 8px left padding and the 32px the
- * SELECT recipe reserves for its arrow — 68px. Re-measure both sums before
- * changing this, CONTROL_W, the row gap, or the nouns; styles.test.ts pins
- * the arithmetic.
+ * 4.5rem (72px) is a budget, not a taste. The row it sits in is the Metrics
+ * grid's (#341): panel content is 327px, and a metric row spends 14px on the
+ * radio, 10px on its label gap, 18px on its three gap-1.5 grid gaps, this
+ * width on the dropdown and two `METRIC_BOX_W` boxes, leaving the label what
+ * is left — and its longest noun, `Freezing level`, is measured at text-xs
+ * in `styles.test.ts`, which pins the sum. The dropdown's own floor is its
+ * content: the widest aggregate word measures 28px, plus the field's 8px
+ * left padding and the 32px the SELECT recipe reserves for its arrow — 68px
+ * (measured 2026-08-22). Re-measure both sums before changing this, the box
+ * width, the grid gap, or the nouns.
  */
 export const SELECT_W_AGGREGATE = 'w-[4.5rem]'
 
@@ -910,17 +911,45 @@ export const SEGMENT_FLUID = `${SEGMENT_FLUID_SHAPE} ${RECESSED_EDGE}`
 export const SEGMENT_FLUID_LIFTED = `${SEGMENT_FLUID_SHAPE} ${LIFTED_EDGE}`
 
 /**
- * The forecast-bounds grid: a label taking the free space, then a lower and an
- * upper box.
+ * The Metrics grid (#341): the ranking and the bounds in one table, one row
+ * per metric, so the two cannot disagree about which metrics exist or in what
+ * order, and the panel stops spending 484px on two sections that list the same
+ * six things.
  *
- * The two boxes plus the gap between them come to exactly `CONTROL_W`, so the
- * grid lines up with the model picker and the segmented controls on BOTH edges
- * rather than only on the right. That arithmetic is the whole reason the boxes
- * are `4.25rem` and not a round number, so `styles.test.ts` checks it instead of
- * trusting this sentence: change `CONTROL_W` and the sum has to be redone.
+ * Four columns: the label (with its radio, where the row can rank), the
+ * aggregate dropdown, the floor box and the ceiling box. The last three are
+ * `auto`, sized by the roles their controls wear — `SELECT_W_AGGREGATE` and
+ * `METRIC_BOX_W` — so the header row and every box line up without the grid
+ * restating a width. Under a single-hour window the dropdown column holds
+ * nothing and every label spans it, which keeps one gap between the label and
+ * the boxes rather than two. Anything wider than the three control columns
+ * (the `CONTROL_W` direction segment) lays itself out as a flex row inside a
+ * full-span cell, because a grid item wider than the auto tracks it spans
+ * stretches them and the boxes below stop lining up.
+ *
+ * This is the panel's widest row, and the budget is the label's: `Freezing
+ * level` must fit beside a dropdown and two boxes at the panel's 327px of
+ * content. `styles.test.ts` does that arithmetic from the measured noun, so a
+ * wider box or a longer noun fails there instead of as an ellipsis, which is
+ * how the old Ranking row shipped `Freezing le…` (#341).
  */
-export const BOUNDS_GRID =
-  'grid grid-cols-[minmax(0,1fr)_4.25rem_4.25rem] items-center gap-x-2 gap-y-2'
+export const METRICS_GRID =
+  'grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-x-1.5 gap-y-1.5'
+/**
+ * One box in the Metrics grid: a floor, a ceiling, or the Max results count.
+ * Every numeric box in the section wears it, so a new control cannot pick a
+ * width of its own and the two rows under the rule line up with the bounds
+ * above them. 56px is the widest the label budget above allows and holds five
+ * digits at text-xs inside the field's 8px insets, the spinner being off
+ * (`FIELD_NUMERIC`).
+ */
+export const METRIC_BOX_W = 'w-14'
+/**
+ * The rule between the five rows that rank and the two that never do
+ * (elevation, which gates the fetch, and Max results, which trims the view).
+ * The same ink as `PANEL_RULE`, one step inside it.
+ */
+export const METRICS_RULE = 'border-t border-slate-600/50'
 /**
  * One half of a segmented control: the shape, and the inset the panel's own
  * segments take.

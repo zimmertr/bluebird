@@ -119,7 +119,9 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `CONTROL_W` | Single stacked panel control width: 144px (w-36) |
 | `MAP_BOX_W` | Width of every floating box under the Layers button: the popover and both legends, 192px (w-48), governed by the grid legend's longest row |
 | `MAP_EDGE` | How far anything floating on the map stands off its edge: 12px, published once as `--map-edge-inset` on the map wrapper and read by the button column, the legend stack and MapLibre's own control stack |
-| `BOUNDS_GRID` | Forecast bounds grid layout with label + two boxes |
+| `METRICS_GRID` | The Metrics table: label, aggregate dropdown, Min box, Max box; the control columns are `auto`, sized by the roles their controls wear |
+| `METRIC_BOX_W` | Every numeric box in the Metrics table, bounds and Max results alike: 56px (w-14), the widest the metric row's label budget allows |
+| `METRICS_RULE` | The rule between the five rows that rank and the two that never do, in `PANEL_RULE`'s ink |
 
 **Map timeline**
 
@@ -251,9 +253,9 @@ Every stacked panel control composes `CONTROL_W = 'w-36'` = 144px.
 - The control takes `CONTROL_W`
 - Both share a baseline in a flex row
 
-The bounds grid (two bounds boxes + label) derives from this: two boxes at 4.25rem (68px) each plus a 0.5rem (8px) gap = 144px total.
+The Metrics table is the one place a control is narrower than this. Its row is the panel's widest — radio, label, aggregate dropdown (`SELECT_W_AGGREGATE`, 72px), Min box and Max box (`METRIC_BOX_W`, 56px each) — and the label has to hold `Freezing level` at text-xs inside the panel's 327px of content. The direction segment above the rows is the section's one `CONTROL_W` control.
 
-**Arithmetic:** `4.25 + 4.25 + 0.5 = 9`, and `9 × 16px / 4 = 144px` (Tailwind's scale is quarter-rem). Checked in `styles.test.ts`.
+**Arithmetic:** `327 − 14 (radio) − 10 (label gap) − 3 × 6 (grid gaps) − 72 − 2 × 56 = 101px` for the label. The noun's measured width is pinned beside that sum in `styles.test.ts`; re-measure before moving a width, the gap, or the nouns.
 
 ## Tailwind v4 facts
 
