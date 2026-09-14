@@ -134,6 +134,7 @@ import { composeOverlay } from './utils/analyzeOverlay'
 import { Place, isPeakKind } from './utils/geocode'
 import {
   DEFAULT_LIMIT,
+  DEFAULT_SORT,
   encodeState,
   decodeState,
   classifyWindow,
@@ -505,7 +506,7 @@ export default function App() {
     () => authoredScope(destinationTypes, customCsv),
     [destinationTypes, customCsv],
   )
-  const [sortBy, setSortByRaw] = useState<SortBy>(() => restored?.sortBy ?? 'precip_total_in')
+  const [sortBy, setSortByRaw] = useState<SortBy>(() => restored?.sortBy ?? DEFAULT_SORT)
   const [sortDesc, setSortDesc] = useState(() => restored?.sortDesc ?? false)
   // What each metric row's aggregate dropdown holds (#291), the active row's
   // entry always equal to sortBy. One state for every row because a

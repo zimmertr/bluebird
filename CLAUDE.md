@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project is
 
-Bluebird Forecast is a map-based weather window finder for hikers and mountaineers, live at `bluebirdforecast.com`. Users draw a polygon on a map, pick a destination type and forecast window, and get a ranked table of destinations sorted by precipitation. No API keys are required — all external APIs (Overpass/OSM, Open-Meteo, OpenFreeMap, and NIFC for the optional wildfire overlay) are free and unauthenticated.
+Bluebird Forecast is a map-based weather window finder for hikers and mountaineers, live at `bluebirdforecast.com`. Users draw a polygon on a map, pick a destination type and forecast window, and get a ranked table of destinations. The ranking opens on air quality, the first row of the panel's alphabetical Metrics table, and any metric can take over. No API keys are required — all external APIs (Overpass/OSM, Open-Meteo, OpenFreeMap, and NIFC for the optional wildfire overlay) are free and unauthenticated.
 
 ## Documentation
 

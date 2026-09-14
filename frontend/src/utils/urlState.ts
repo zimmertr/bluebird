@@ -129,7 +129,11 @@ const POLY_PRECISION = 5 // ~1 m; keeps the URL short without visible drift
 
 // Control defaults — must mirror the initial useState values in App.tsx. Used to
 // decide whether the user has changed anything worth persisting to the URL.
-const DEFAULT_SORT: SortBy = 'precip_total_in'
+//
+// The ranking opens on the FIRST row of the Metrics table, so the selected
+// radio is the one a reader's eye lands on rather than one four rows down
+// (TJ, 2026-09-14). The table is alphabetical, which is what puts AQI there.
+export const DEFAULT_SORT: SortBy = 'aqi_avg'
 // Nothing is checked by default. Discovery is the expensive input and the
 // one that needs a polygon, so a fresh session asks for none of it until the
 // user says otherwise.

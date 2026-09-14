@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  DEFAULT_SORT,
   encodeState,
   decodeState,
   classifyWindow,
@@ -15,7 +16,7 @@ import {
   bandEnd,
 } from './calendar'
 import { GeoPolygon } from '../types'
-import { DEFAULT_FAMILY_KEY } from '../metrics'
+import { DEFAULT_FAMILY_KEY, RANKED_FAMILIES, RANKING_KEYS } from '../metrics'
 import { NO_CONSTRAINTS } from './clientAnalyze'
 
 const polygon: GeoPolygon = {
@@ -54,7 +55,7 @@ const base: ShareableState = {
   selection: DAYS,
   forecastModel: DEFAULT_MODEL,
   compareModels: [],
-  sortBy: 'precip_total_in',
+  sortBy: DEFAULT_SORT,
   sortDesc: false,
   rowKeys: { ...DEFAULT_FAMILY_KEY },
   constraints: NO_CONSTRAINTS,
@@ -82,7 +83,7 @@ const pristine: ShareableState = {
   selection: { kind: 'now' },
   forecastModel: DEFAULT_MODEL,
   compareModels: [],
-  sortBy: 'precip_total_in',
+  sortBy: DEFAULT_SORT,
   sortDesc: false,
   rowKeys: { ...DEFAULT_FAMILY_KEY },
   constraints: NO_CONSTRAINTS,
@@ -110,7 +111,7 @@ describe('encodeState / decodeState round-trip', () => {
     expect(out).not.toBeNull()
     expect(out!.destinationTypes).toEqual(['peak'])
     expect(out!.selection).toEqual(DAYS)
-    expect(out!.sortBy).toBe('precip_total_in')
+    expect(out!.sortBy).toBe(DEFAULT_SORT)
     expect(out!.limit).toBe(10)
     // Polygon ring is rebuilt closed with the same vertices.
     const ring = out!.polygon!.coordinates[0]
@@ -323,6 +324,21 @@ describe('encodeState / decodeState round-trip', () => {
     const customz = params.get('customz')!
     expect(customz).toBeTruthy()
     expect(customz.length).toBeLessThan(csv.length * 0.6)
+  })
+})
+
+// The ranking opens on the FIRST row of the Metrics table, so the selected
+// radio is the one a reader's eye lands on rather than one four rows down
+// (TJ, 2026-09-14). The table is alphabetical, so this is derived rather than
+// asserted as a literal: reordering the rows moves the default with them, or
+// fails here instead of leaving the selection stranded mid-table.
+describe('the default ranking', () => {
+  it('opens on the first row of the Metrics table', () => {
+    expect(DEFAULT_SORT).toBe(DEFAULT_FAMILY_KEY[RANKED_FAMILIES[0]])
+  })
+
+  it('is one of the keys the URL accepts', () => {
+    expect(RANKING_KEYS).toContain(DEFAULT_SORT)
   })
 })
 
