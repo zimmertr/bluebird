@@ -291,6 +291,16 @@ function modelIdOf(lineKey: string): string | null {
 export interface ModelRow extends DestinationResult {
   modelId: string
   modelLabel: string
+  /**
+   * Where the DESTINATION placed in the ranking, which every one of its model
+   * rows shares.
+   *
+   * The table numbers its rows by position when there is one row per
+   * destination and the two are the same thing. They stop being the same thing
+   * here: eight rows for one place would count off 1 to 8 and read as eight
+   * places. The number is the destination's, so it repeats down its group.
+   */
+  rank: number
 }
 
 /**
@@ -326,10 +336,11 @@ export function modelRowsFor(
   keyOf: (row: DestinationResult) => string,
 ): ModelRow[] {
   const out: ModelRow[] = []
-  for (const row of rows) {
+  rows.forEach((row, at) => {
+    const rank = at + 1
     for (const model of models) {
       if (model.id === rankingId) {
-        out.push({ ...row, modelId: model.id, modelLabel: model.label })
+        out.push({ ...row, rank, modelId: model.id, modelLabel: model.label })
         continue
       }
       const held = fetched[pairKey(model.id, keyOf(row))]
@@ -348,10 +359,11 @@ export function modelRowsFor(
         // carry a value no surface reads would be work in aid of a duplicate.
         series: series ? { ...series, aqi: series.times.map(() => null) } : null,
         series_times: series?.times,
+        rank,
         modelId: model.id,
         modelLabel: model.label,
       })
     }
-  }
+  })
   return out
 }

@@ -650,7 +650,10 @@ export default function ResultsTable({
             >
               {showChartCol && <td className={TABLE.cell}>{renderChartToggle(row)}</td>}
               <RankRemoveCell
-                rank={String(i + 1)}
+                // The destination's own rank when a comparison repeats it down
+                // several rows, and the display position otherwise, which is
+                // what the two are when a destination has one row.
+                rank={String((row as ModelRow).rank ?? i + 1)}
                 name={row.name}
                 onRemove={onRemove ? () => onRemove(row) : undefined}
               />

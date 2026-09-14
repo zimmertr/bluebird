@@ -529,6 +529,16 @@ describe('one table row per model', () => {
     expect(out.map((r) => r.modelId)).toEqual(['gfs_seamless'])
   })
 
+  // The number down the # column is the destination's, not the row's: eight
+  // rows for one place counting off 1 to 8 would read as eight places.
+  it('shares one rank across a destination model rows', () => {
+    const held = { [pairKey('ecmwf_ifs025', keyOf(ROW))]: answer() }
+    const second = { ...ROW, name: 'Mount Si', latitude: 47.49, longitude: -121.72 }
+    const held2 = { ...held, [pairKey('ecmwf_ifs025', keyOf(second))]: answer() }
+    const out = modelRowsFor([ROW, second], MODELS, 'gfs_seamless', held2, keyOf)
+    expect(out.map((r) => r.rank)).toEqual([1, 1, 2, 2])
+  })
+
   it('leaves a single-model report one row per destination', () => {
     const out = modelRowsFor([ROW], MODELS.slice(0, 1), 'gfs_seamless', {}, keyOf)
     expect(out).toHaveLength(1)
