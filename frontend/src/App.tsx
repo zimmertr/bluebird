@@ -53,7 +53,6 @@ import {
   TEXT,
 } from './styles'
 import {
-  DEFAULT_FAMILY_KEY,
   FAMILY_KEYS,
   MetricFamily,
   NOUN,
@@ -63,7 +62,6 @@ import {
 import { hourlyScale, rankedScale } from './utils/colors'
 import {
   FALLBACK_PITCH_KM,
-  GRID_REACH_DEFAULT_FRAC,
   gridAllowed,
   gridLegendLine,
   pitchLabel,
