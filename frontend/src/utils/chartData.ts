@@ -11,8 +11,9 @@ const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
   aqi: 'aqi',
 }
 
-// The chart's radios. No aggregate: these plot the raw hourly series, so a
-// point is that hour's own value rather than anything reduced over the window.
+// The chart's metric select, in option order. No aggregate: these plot the raw
+// hourly series, so a point is that hour's own value rather than anything
+// reduced over the window.
 export const CHART_METRICS: { key: ChartMetric; label: string }[] = (
   ['precip', 'temp', 'wind', 'freeze', 'aqi'] as const
 ).map((key) => ({ key, label: metricLabel(key) }))

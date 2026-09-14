@@ -10,7 +10,7 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult } from '../types'
-import { CHOICE_INPUT, CHOICE_ROW, RADIUS, SURFACE_FLOATING, TEXT } from '../styles'
+import { CONTROL_W, ICON, ICON_ADORNMENT, RADIUS, SELECT, SURFACE_FLOATING, TEXT } from '../styles'
 import {
   CHART_METRICS,
   ChartLine,
@@ -73,7 +73,7 @@ interface Props {
    * against each other, so the shortest reach on the chart bounds all of them.
    */
   cutAfterMs?: number | null
-  /** The comparison control, rendered beside the metric radios. */
+  /** The comparison control, rendered beside the metric select. */
   controls?: ReactNode
 }
 
@@ -202,20 +202,46 @@ export default function TimeSeriesChart({
 
   return (
     <div className="flex h-full flex-col">
-      {/* Metric radios — one series at a time; default is the ranked metric. */}
-      <div className="flex flex-shrink-0 flex-wrap items-center gap-x-4 gap-y-1 px-3 py-1">
-        {CHART_METRICS.map((m) => (
-          <label key={m.key} className={CHOICE_ROW}>
-            <input
-              type="radio"
-              name="chart-metric"
-              checked={metric === m.key}
-              onChange={() => onMetricChange(m.key)}
-              className={CHOICE_INPUT}
+      {/* The metric, one series at a time; opens on the ranked metric.
+
+          A select rather than one radio per metric (#348). The labels carry
+          their units, and five of them at the panel's 12px type need 584px of
+          row, where a phone's results sheet is the phone's width: at 402px the
+          radios wrapped and AQI sat alone on a second line. The select is
+          CONTROL_W wide whatever its labels say, so this row cannot wrap and a
+          sixth metric costs it nothing. The row itself does not wrap either:
+          the comparison note beside the control shrinks (`min-w-0`) rather
+          than dropping under it. */}
+      <div className="flex flex-shrink-0 items-center gap-x-4 px-3 py-1">
+        {/* flex, not block, for the reason the ranking rows' dropdown gives:
+            an inline-level select in a block wrapper reserves descender space
+            below itself and sits a pixel low against what is beside it. */}
+        <div className="relative flex flex-shrink-0">
+          <select
+            aria-label="Chart metric"
+            value={metric}
+            onChange={(e) => onMetricChange(e.target.value as ChartMetric)}
+            className={`${SELECT} ${CONTROL_W} px-2 py-0.5`}
+          >
+            {CHART_METRICS.map((m) => (
+              <option key={m.key} value={m.key}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          <svg
+            className={`${ICON_ADORNMENT} ${ICON}`}
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              fillRule="evenodd"
+              d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
+              clipRule="evenodd"
             />
-            {m.label}
-          </label>
-        ))}
+          </svg>
+        </div>
         {controls}
       </div>
 
