@@ -830,6 +830,37 @@ export const MAP_EDGE = {
   top: 'top-[var(--map-edge-inset)]',
 } as const
 
+/**
+ * Where the legend stack hangs: one row of the column's own gap under the
+ * Layers button, at both pointer sizes.
+ *
+ * The column above it is the inset, the search row (with the Controls button
+ * beside it), the gap, and the Layers button — and two of those three heights
+ * change with the pointer, because `TAP` floors a button at 44 for a finger.
+ * Measured in Chrome 2026-09-14:
+ *
+ *   pointer: 12 + 34 + 8 + 38 = 92,  + 8 = 100 (`top-25`)
+ *   finger:  12 + 44 + 8 + 44 = 108, + 8 = 116 (`top-29`)
+ *
+ * One inset for both was 112, which left 20px of dead space under the button
+ * on a desktop. Anything under the coarse number collides: at 76 the stack's
+ * first rows paint BEHIND the Layers button, which is opaque and paints after
+ * the legends by design (see the ordering note in `App.tsx`).
+ *
+ * Keyed on `touch` rather than on Tailwind's `pointer-coarse`, deliberately.
+ * The heights above are `TAP`'s, and `TAP` is floored by `touch`
+ * (`@media (hover: none)`, see index.css). A second query here would answer
+ * differently on the devices the two disagree about — a hover-capable stylus
+ * screen, a remote — and the inset would clear a column of a different height
+ * than the one on screen.
+ *
+ * `resultsSheet.ts` holds both numbers (`LEGEND_TOP_PX`, `LEGEND_TOP_FINE_PX`),
+ * because everything anchored below the stack measures off them, and
+ * `resultsSheet.test.ts` reads this file as text so the class and the constants
+ * cannot drift.
+ */
+export const LEGEND_TOP = 'top-25 touch:top-29'
+
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 
 /**

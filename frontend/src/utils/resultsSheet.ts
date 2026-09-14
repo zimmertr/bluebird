@@ -19,23 +19,23 @@
 import { resolvePanelHeights } from './layout'
 
 /**
- * The legend stack's own top inset (`top-28` in `App.tsx`), which clears the
- * Controls/search/Layers column at every width.
+ * The legend stack's own top inset, in its two sizes (`LEGEND_TOP` in
+ * `styles.ts`, which spells the classes and carries the derivation).
  *
- * Sized by the column at its TALLEST, which is a coarse pointer rather than a
- * narrow window: the search row and the Layers button under it each take the
- * 44px target `TAP` gives every button, so the column ends at
- * 12 + 44 + 8 + 44 = 108. A mouse keeps today's density and ends at 92
- * (measured in Chrome at 1440x1000, 2026-09-14), so the same inset leaves a
- * 4px gap under a finger and 20px under a pointer. One number for both,
- * because the stack is anchored rather than laid out: the alternative is a
- * second inset in a media query and a second `LEGEND_TOP_PX` for everything
- * below to disagree about.
+ * Two numbers because the column it clears has two heights: the search row and
+ * the Layers button under it each take the 44px target `TAP` gives a finger,
+ * where a pointer keeps today's density. Measured in Chrome 2026-09-14 — the
+ * column ends at 92 under a pointer and 108 under a finger, and the stack hangs
+ * one 8px gap below either.
  *
- * `App.tsx` spells the class and this states the number; `App.test.ts` reads
- * the component as text and fails if the two ever drift.
+ * `LEGEND_TOP_PX` is the COARSE one, because everything derived from it here is
+ * the phone sheet's: a floor is a promise about the smallest map that will do,
+ * and the larger inset is the one that has to fit. The docked desktop floor
+ * takes the fine value instead, which is the pointer it is only ever asked
+ * about.
  */
-export const LEGEND_TOP_PX = 112
+export const LEGEND_TOP_PX = 116
+export const LEGEND_TOP_FINE_PX = 100
 
 /**
  * What the legend stack needs to render with no scrolling: four layer rows in
@@ -182,7 +182,11 @@ const DOCKED_GRIP_PX = 8
  * predated the legend stack and was under half of what the stack now needs.
  */
 export function dockedMapFloorPx(gripCount: number): number {
-  return RESTING_MAP_PX + RESULTS_BAR_PX + gripCount * DOCKED_GRIP_PX
+  // The FINE inset, not `RESTING_MAP_PX`'s coarse one: the results are docked
+  // beside a pointer, and a docked layout on a coarse pointer is a tablet wide
+  // enough that the 16px is noise either way.
+  const reserve = LEGEND_TOP_FINE_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX
+  return reserve + RESULTS_BAR_PX + gripCount * DOCKED_GRIP_PX
 }
 
 /** The sheet's own chrome: the header bar plus each grip it renders. */

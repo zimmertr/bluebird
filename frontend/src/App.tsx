@@ -44,6 +44,7 @@ import {
   ICON_ACTION,
   ICON_BUTTON,
   LAYER,
+  LEGEND_TOP,
   LINK,
   MAP_BOX_W,
   MAP_EDGE,
@@ -237,7 +238,7 @@ const NO_CHART_ROWS: DestinationResult[] = []
  * One number for both, because they are two halves of one answer and an 8px
  * difference between them read as a mistake. The value is what Both mode can
  * spend on a 1000px-tall window: 1000 less the docked map floor
- * (`dockedMapFloorPx`, 553 with two grips) is 447, and two panels of 220 fit
+ * (`dockedMapFloorPx`, 541 with two grips) is 459, and two panels of 220 fit
  * inside it with the map a few pixels clear of its floor. They were 288 and
  * 280, chosen before the legend stack had a number, and at those heights the
  * bottom of the stack sat under the results bar on exactly this window.
@@ -2406,8 +2407,8 @@ export default function App() {
               with the legends last it opened underneath them. Pushing the
               legends further down instead only moved the collision, since a
               popover is as tall as its contents. */}
-          {/* Top-anchored legends: they hang under the Layers button at
-              `top-28` and grow downward, at EVERY width.
+          {/* Top-anchored legends: they hang one gap under the Layers button
+              (`LEGEND_TOP`) and grow downward, at EVERY width.
 
               A key belongs where the reader last looked for it. Anchored to
               the bottom instead, the stack rode up and down with every panel
@@ -2418,13 +2419,22 @@ export default function App() {
               and what gives when the map runs short is the tail of the stack
               rather than its position.
 
-              `top-28` is what clears the Controls/search/Layers column above.
+              The inset is what clears the Controls/search/Layers column above,
+              and it is two numbers rather than one because that column is two
+              heights: `TAP` floors the search row and the Layers button at 44
+              for a finger, so the column ends at 92 under a pointer and 108
+              under a finger. The role holds both with the arithmetic; the rule
+              is that the stack sits one of the column's own 8px gaps below
+              whichever it is. Anything shorter collides — at 76 the first rows
+              paint behind the Layers button, which is opaque and paints after
+              the legends (see the ordering note above) — and anything taller is
+              dead map.
+
               It used to lift at `lg`, on the reasoning that a desktop map has
               room to spare — but "top-auto" does not mean "as tall as it
               likes", it means the box starts wherever its content puts it,
               which on a wide map was 54px: straight through the Layers button
-              at 54-92. The button is opaque and paints above (see the ordering
-              note), so the legend's first row simply disappeared behind it.
+              at 54-92. Same collision, reached from the other side.
 
               The `bottom` offset is a ceiling on the scroll box, not an
               anchor: it stops the stack above the timeline's band while the
@@ -2439,7 +2449,7 @@ export default function App() {
               of the default. */}
           {(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar) && (
             <div
-              className={`absolute ${MAP_EDGE.left} top-28 z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0`}
+              className={`absolute ${MAP_EDGE.left} ${LEGEND_TOP} z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0`}
               // The floor of the scroll box, derived rather than chosen: the
               // transport's whole band while the bar is on screen and a plain
               // gap otherwise, measured from whatever stands on the map's

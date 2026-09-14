@@ -4,6 +4,7 @@ import {
   DRAGGED_MAP_PX,
   LEGEND_GAP_PX,
   LEGEND_STACK_PX,
+  LEGEND_TOP_FINE_PX,
   LEGEND_TOP_PX,
   RESTING_MAP_PX,
   RESULTS_BAR_PX,
@@ -30,6 +31,7 @@ import {
 // bundle because those files spell them; quoting one that is NOT would emit its
 // CSS, which is the trap `styles.test.ts` documents.
 import appSource from '../App.tsx?raw'
+import stylesSource from '../styles.ts?raw'
 import transportSource from '../components/TimelineTransport.tsx?raw'
 import mapViewSource from '../components/MapView.tsx?raw'
 
@@ -85,7 +87,7 @@ describe('the map chrome anchors', () => {
   it('anchors the legend stack at the top, not at the bottom', () => {
     expect(appSource).not.toMatch(/\bm[tb]-(?:auto)\b/)
     expect(appSource).not.toMatch(/\bjustify-(?:end)\b/)
-    expect(appSource).toContain('top-28')
+    expect(appSource).toContain('${LEGEND_TOP}')
   })
 
   // Every offset on this edge is derived here and applied as a style, so the
@@ -93,8 +95,16 @@ describe('the map chrome anchors', () => {
   // either component would be a second opinion about the same edge — which is
   // how the gap under the player came to differ per results mode.
   it('leaves no bottom offset spelled in a component', () => {
-    expect(appSource).toContain('top-28') // LEGEND_TOP_PX
-    expect(LEGEND_TOP_PX).toBe(28 * 4)
+    // The inset is a role now, because it is two numbers: the column it clears
+    // is 16px taller on a coarse pointer, where `TAP` floors the search row and
+    // the Layers button at 44 apiece. Both classes are asserted against both
+    // constants, so a shade of either cannot move alone.
+    expect(stylesSource).toContain("LEGEND_TOP = 'top-25 touch:top-29'")
+    expect(LEGEND_TOP_FINE_PX).toBe(25 * 4)
+    expect(LEGEND_TOP_PX).toBe(29 * 4)
+    // The coarse inset is the bigger of the two, which is what makes it the
+    // one every floor here is promised against.
+    expect(LEGEND_TOP_PX).toBeGreaterThan(LEGEND_TOP_FINE_PX)
     // `bottom-0` is exempt and is the sheet itself, which stands ON the edge
     // rather than measuring off it.
     expect(appSource).not.toMatch(/\bbottom-(?:[1-9]|\[)/)
@@ -206,14 +216,14 @@ describe('the resting height', () => {
   // Both mode is the exception since the freezing level's six-band key made the
   // stack 20px taller (2026-09-14). Its two panels floor at 120 each, so the
   // sheet cannot give the map the extra 20px however the reserve is set: the
-  // band is 246 of the 265 the stack wants, and the last band scrolls. That is
+  // band is 242 of the 265 the stack wants, and the last band scrolls. That is
   // the degradation the stack was built for — it is a scroll box anchored at
   // the top precisely so what gives is its tail — and the alternative is a
   // 100px table.
   describe.each([
     ['table only', { chartShown: false, tableShown: true }, 1, LEGEND_STACK_PX],
     ['chart only', { chartShown: true, tableShown: false }, 1, LEGEND_STACK_PX],
-    ['chart and table', { chartShown: true, tableShown: true }, 2, 246],
+    ['chart and table', { chartShown: true, tableShown: true }, 2, 242],
   ])('at 402x874, %s', (_mode, shown, gripCount, wanted) => {
     const VIEWPORT = 874
 
@@ -265,9 +275,9 @@ describe('the drag cap', () => {
   })
 
   it('states both caps outright', () => {
-    expect(DRAGGED_MAP_PX).toBe(236)
-    expect(maxSheetPx(874)).toBe(638)
-    expect(maxSheetPx(757)).toBe(521)
+    expect(DRAGGED_MAP_PX).toBe(240)
+    expect(maxSheetPx(874)).toBe(634)
+    expect(maxSheetPx(757)).toBe(517)
   })
 
   // `clampPanelHeight` is given a map floor rather than a sheet height, and the
@@ -323,7 +333,7 @@ describe('the camera padding', () => {
       availPx: 874,
       ...defaults,
     })
-    expect(lift).toBe(373)
+    expect(lift).toBe(369)
     expect(874 - lift).toBe(RESTING_MAP_PX)
   })
 
@@ -336,7 +346,7 @@ describe('the camera padding', () => {
       availPx: 757,
       ...defaults,
     })
-    expect(lift).toBe(256)
+    expect(lift).toBe(252)
     expect(757 - lift).toBe(RESTING_MAP_PX)
   })
 
@@ -369,8 +379,14 @@ const DEFAULT_PANEL_PX = 220
 // rather than parked over it, so nothing is covered — but the bar and the grips
 // come out of the same column, and `resolvePanelHeights` clamps only the panels.
 describe('dockedMapFloorPx', () => {
-  it('is the resting reserve plus the chrome the panels are stacked under', () => {
-    expect(dockedMapFloorPx(0)).toBe(RESTING_MAP_PX + RESULTS_BAR_PX)
+  it('is the fine-pointer reserve plus the chrome the panels are stacked under', () => {
+    expect(dockedMapFloorPx(0)).toBe(
+      LEGEND_TOP_FINE_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX + RESULTS_BAR_PX,
+    )
+    // Lower than the phone's reserve by exactly the inset the two disagree on.
+    expect(RESTING_MAP_PX - (dockedMapFloorPx(0) - RESULTS_BAR_PX)).toBe(
+      LEGEND_TOP_PX - LEGEND_TOP_FINE_PX,
+    )
     expect(dockedMapFloorPx(2) - dockedMapFloorPx(1)).toBe(dockedMapFloorPx(1) - dockedMapFloorPx(0))
   })
 
@@ -395,7 +411,9 @@ describe('dockedMapFloorPx', () => {
     // Nothing is clamped: the defaults are chosen to fit this window.
     expect({ chart, table }).toEqual({ chart: DEFAULT_PANEL_PX, table: DEFAULT_PANEL_PX })
     const visibleMap = VIEWPORT - RESULTS_BAR_PX - gripCount * 8 - chart - table
-    const legendBand = visibleMap - LEGEND_TOP_PX - legendBottomPx(0, true)
+    // The FINE inset: a docked layout is the pointer case, which is the whole
+    // reason `dockedMapFloorPx` reads that one rather than the phone's.
+    const legendBand = visibleMap - LEGEND_TOP_FINE_PX - legendBottomPx(0, true)
     expect(legendBand).toBeGreaterThanOrEqual(LEGEND_STACK_PX)
   })
 })
