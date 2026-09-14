@@ -84,15 +84,62 @@ which timestamps the request needs:
 ```
 
 Sending a timestamp a mode does not use is a `422` rather than something the
-server quietly ignores. `at` works for past hours too, not just future ones,
-though the archive behind it is shorter than the range of dates the request
-validator accepts — see `limits.past_data_days` below.
+server quietly ignores. `at` works for past hours too, not just future ones, and
+reaches back a year: past `limits.past_data_days` the window is answered from
+Open-Meteo's archive endpoint instead, which is described below.
 
 Omitting `forecast_mode` still works and is inferred: both timestamps mean
 `window`, neither means `current`. Sending exactly one without a mode is
 refused, because it reads equally as `at` or as a `window` missing its end, and
 guessing would turn a fat-fingered window into a one-hour sample without
 telling you.
+
+### Asking about last summer
+
+A window older than `limits.past_data_days` is answered from Open-Meteo's
+archive endpoint, back as far as `limits.archive_days`. Nothing in the request
+says so and nothing in the response shape changes:
+
+```bash
+curl -s -X POST https://bluebirdforecast.com/api/analyze \
+  -H 'Content-Type: application/json' \
+  -d '{"destination_types": [],
+       "custom_destinations": [{"name": "Mount Rainier",
+                                "latitude": 46.8523, "longitude": -121.7603}],
+       "start_datetime": "2025-09-12T00:00:00Z",
+       "end_datetime":   "2025-09-12T23:59:00Z"}' | jq '.results[0]'
+```
+
+Two things behave differently, both of them the archive's nature rather than a
+limitation here. `forecast_model` is ignored, because the archive answers from a
+reanalysis rather than from a forecast model, and the wind columns report the
+10 m wind rather than wind at the destination's elevation, because the archive
+carries no pressure-level winds.
+[DATA.md](DATA.md#open-meteo) has the detail.
+
+A window that starts older than `limits.past_data_days` and ends inside it is
+served by both endpoints. Nothing in the request or the response says so, and
+there is no `400` to handle: each batch is fetched twice, the archive answering
+the hours before the boundary and the forecast endpoint the hours from it on, and
+each location's hourly arrays are joined in time order before the aggregation
+runs. So the aggregates and the `series` describe one window, not two halves.
+
+Three things follow from where the seam falls, and all three are the archive's
+nature rather than a limitation here:
+
+- The boundary is `now - limits.past_data_days`, floored to the UTC day. The
+  archive answers through the hour before it; the forecast endpoint answers from
+  it. No hour is fetched twice, so no hour is counted twice in
+  `precip_total_in`.
+- `forecast_model` applies to the later half only. The archive names no model, so
+  its hours come from the reanalysis whatever the request asked for.
+- Wind is the 10 m wind for the archive's hours and wind at the destination's
+  elevation for the forecast endpoint's, because only the latter carries
+  pressure-level winds. A window crossing the seam therefore mixes the two
+  within one series.
+
+Because the boundary moves with the clock, the same window asked about twice on
+different days can be answered as one request or two.
 
 ## Choosing a forecast model
 
@@ -626,12 +673,13 @@ Open-Meteo key travels in (`api_key_header`), and (under
 values are read from the same constants the validators and limiters enforce, so
 they cannot drift.
 
-Two of the window limits look redundant and are not. `limits.max_past_days` is
-how far back a request is *accepted*; `limits.past_data_days` is how far back
-the weather API still *holds data*. Past the latter a request succeeds and comes
-back with nothing in it, so the second number is the one worth building a date
-picker against. The far end has the same split, between `limits.max_future_days`
-and each model's `forecast_hours`.
+Three of the window limits look redundant and are not. `limits.max_past_days` is
+how far back a request is *accepted*. `limits.past_data_days` is where the
+forecast endpoint's own data stops, which is the boundary between the two weather
+endpoints rather than a wall: past it a window is answered from the archive.
+`limits.archive_days` is how far back that reaches, and it is the number worth
+building a date picker against. The far end has the same split, between
+`limits.max_future_days` and each model's `forecast_hours`.
 
 Air quality deserves a note. Its horizon is far shorter than the weather
 forecast, so `aqi_avg` and `aqi_max` come back `null` for hours beyond it. That

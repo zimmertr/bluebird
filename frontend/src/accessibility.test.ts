@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 // `?raw` gives us each file's text without executing it, which is how a
 // component is linted under a Vitest that has no DOM (the trick styles.test.ts
 // and metrics.test.ts use).
+import appSource from './App.tsx?raw'
 import modelPickerSource from './components/ModelPicker.tsx?raw'
 import resultsTableSource from './components/ResultsTable.tsx?raw'
 
@@ -43,5 +44,30 @@ describe('a listbox option id', () => {
 
   it('reads the file it claims to lint', () => {
     expect(modelPickerSource).toContain('aria-activedescendant')
+  })
+})
+
+// A disabled control says that it cannot be used and never why, so two of them
+// carry their reason (#123): the model picker over an archive window, and the
+// Layers popover's Forecast grid row over a report holding archive hours.
+//
+// A `title` alone would not reach the readers who need it most. It is a
+// pointer's affordance: no touch device shows one, and a screen reader is not
+// promised it either — which is the same argument the tooltip rule itself rests
+// on. So the sentence is mounted twice, and this is what keeps the second copy
+// from being dropped by an edit to the first. What it proves is that neither
+// file has an `aria-describedby` without hidden text to point at; that the two
+// carry the SAME sentence is kept true by naming it once at the call site.
+describe('a disabled control that says why', () => {
+  const withTooltips: Record<string, string> = {
+    './App.tsx': appSource,
+    './components/ModelPicker.tsx': modelPickerSource,
+  }
+
+  it.each(Object.entries(withTooltips))('%s gives its reason a hidden twin', (_path, source) => {
+    const described = (source.match(/aria-describedby=/g) ?? []).length
+    const hidden = (source.match(/className=\{SR_ONLY\}/g) ?? []).length
+    expect(described).toBeGreaterThan(0)
+    expect(hidden).toBe(described)
   })
 })
