@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import MapView, { MapViewHandle } from './components/MapView'
 import ControlPanel from './components/ControlPanel'
 import SearchBox, { type SearchBoxHandle } from './components/SearchBox'
@@ -1838,23 +1838,36 @@ export default function App() {
       mapMinPx: mapFloorPx,
     },
   )
-  // One observation of the results' real height, which is what the map's bottom
-  // chrome rides. A ResizeObserver rather than a layout effect: the height
-  // changes on a drag, on a mode switch, on the collapse chevron and on a
-  // rotation, and every one of those is the same question asked again. Cleared
-  // while the results are docked, where nothing covers the map's bottom edge.
+  // The results' real height, which is what the map's bottom chrome rides.
+  //
+  // Two paths, because the height moves for two different kinds of reason.
+  // This one is the render: a mode switch, the collapse chevron, a drag and a
+  // rotation all re-render this component, so measuring after every render
+  // catches each of them in the frame it happens. It settles immediately —
+  // nothing downstream of this number changes the sheet's own height, so the
+  // re-render it causes measures the same value and stops.
+  //
+  // `null` while the results are docked below the map, where nothing covers the
+  // map's bottom edge and the number would mean nothing.
+  useLayoutEffect(() => {
+    const el = sheetRef.current
+    const next = !el || isDesktop ? null : el.getBoundingClientRect().height
+    setSheetMeasuredPx((prev) => (prev === next ? prev : next))
+  })
+
+  // And the second path: a resize that no render caused — a font landing, the
+  // on-screen keyboard, a scrollbar appearing inside the table. Rare, and the
+  // reason this is not left to the render alone.
   useEffect(() => {
     const el = sheetRef.current
-    if (!el || isDesktop) {
-      setSheetMeasuredPx(null)
-      return
-    }
+    if (!el || isDesktop) return
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0]
       // The BORDER box: the sheet's own top border is part of what covers the
       // map, and `contentRect` leaves it out.
       const box = entry.borderBoxSize?.[0]?.blockSize
-      setSheetMeasuredPx(box ?? entry.target.getBoundingClientRect().height)
+      const next = box ?? entry.target.getBoundingClientRect().height
+      setSheetMeasuredPx((prev) => (prev === next ? prev : next))
     })
     observer.observe(el)
     return () => observer.disconnect()
