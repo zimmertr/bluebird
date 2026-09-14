@@ -2,11 +2,12 @@ import { describe, it, expect } from 'vitest'
 import type { ForecastModelOption } from '../hooks/useCapabilities'
 import { normalizeWindow } from './forecastWindow'
 import { callWeight } from './openMeteo'
+import { CHART_DASHES } from '../styles'
 import {
   CompareDestination,
   CompareModel,
   compareAdded,
-  compareColors,
+  compareDashes,
   compareEndMs,
   compareSeries,
   isBlend,
@@ -152,23 +153,41 @@ describe('compareAdded', () => {
   })
 })
 
-describe('compareColors', () => {
-  it('gives each model on the chart its own colour', () => {
-    const colors = compareColors(['gfs_seamless', 'gfs_hrrr', 'ecmwf_ifs025'])
-    expect(new Set(Object.values(colors)).size).toBe(3)
+describe('compareDashes', () => {
+  it('gives each model on the chart its own line style', () => {
+    const dashes = compareDashes(['gfs_seamless', 'gfs_hrrr', 'ecmwf_ifs025'])
+    expect(new Set(Object.values(dashes)).size).toBe(3)
   })
 
-  // The ranking model leads, so it keeps its colour as extras are ticked on and
-  // off around it.
-  it('keeps a model’s colour when another is added after it', () => {
-    const before = compareColors(['gfs_seamless', 'gfs_hrrr'])
-    const after = compareColors(['gfs_seamless', 'gfs_hrrr', 'ecmwf_ifs025'])
+  // The report's own lines are the plain ones, so the model that ranked the
+  // field takes the solid entry.
+  it('draws the ranking model solid', () => {
+    expect(compareDashes(['gfs_seamless', 'gfs_hrrr']).gfs_seamless).toBe('')
+    expect(compareDashes(['gfs_seamless', 'gfs_hrrr']).gfs_hrrr).not.toBe('')
+  })
+
+  // Tick order, so a model keeps its pattern as others are ticked on and off
+  // around it.
+  it('keeps a model’s pattern when another is added after it', () => {
+    const before = compareDashes(['gfs_seamless', 'gfs_hrrr'])
+    const after = compareDashes(['gfs_seamless', 'gfs_hrrr', 'ecmwf_ifs025'])
     expect(after.gfs_seamless).toBe(before.gfs_seamless)
     expect(after.gfs_hrrr).toBe(before.gfs_hrrr)
   })
 
+  // No cap, so the table has to answer for more models than it holds. Cycling
+  // repeats a pattern rather than leaving a line with none, and the hover box's
+  // label is what separates the two.
+  it('cycles the table rather than running out', () => {
+    const many = Array.from({ length: CHART_DASHES.length + 2 }, (_, i) => `m${i}`)
+    const dashes = compareDashes(many)
+    expect(Object.keys(dashes)).toHaveLength(many.length)
+    expect(dashes[`m${CHART_DASHES.length}`]).toBe(dashes.m0)
+    expect(dashes[`m${CHART_DASHES.length + 1}`]).toBe(dashes.m1)
+  })
+
   it('is stable for the same models in the same order', () => {
-    expect(compareColors(['a', 'b'])).toEqual(compareColors(['a', 'b']))
+    expect(compareDashes(['a', 'b'])).toEqual(compareDashes(['a', 'b']))
   })
 })
 
@@ -200,20 +219,25 @@ describe('modelSeriesOnGrid', () => {
 describe('compareSeries', () => {
   const TIMES = [1000, 2000, 3000]
 
-  function destination(key: string, rank: number, name: string): CompareDestination {
-    return { key, rank, name, latitude: 46, longitude: -121, elevationFt: 14_000 }
+  function destination(
+    key: string,
+    rank: number,
+    name: string,
+    color: string,
+  ): CompareDestination {
+    return { key, rank, name, color, latitude: 46, longitude: -121, elevationFt: 14_000 }
   }
 
   const DESTINATIONS = [
-    destination('46.85,-121.76', 1, 'Mount Rainier'),
-    destination('48.78,-121.11', 2, 'Mount Shuksan'),
-    destination('46.2,-121.49', 3, 'Mount Adams'),
+    destination('46.85,-121.76', 1, 'Mount Rainier', '#aaaaaa'),
+    destination('48.78,-121.11', 2, 'Mount Shuksan', '#bbbbbb'),
+    destination('46.2,-121.49', 3, 'Mount Adams', '#cccccc'),
   ]
 
   const ON_CHART: CompareModel[] = [
-    { id: 'gfs_seamless', label: 'NOAA GFS', color: '#111111' },
-    { id: 'gfs_hrrr', label: 'NOAA HRRR', color: '#222222' },
-    { id: 'ecmwf_ifs025', label: 'ECMWF IFS', color: '#333333' },
+    { id: 'gfs_seamless', label: 'NOAA GFS', dash: '' },
+    { id: 'gfs_hrrr', label: 'NOAA HRRR', dash: '6 4' },
+    { id: 'ecmwf_ifs025', label: 'ECMWF IFS', dash: '1 4' },
   ]
 
   function series(values: number[]) {
@@ -250,12 +274,34 @@ describe('compareSeries', () => {
     expect(lines.map((l) => l.label)).toContain('3. Mount Adams (NOAA HRRR)')
   })
 
-  // Colour means model while a comparison is up, so the three lines of one
-  // model share a colour and no two models do.
-  it('colours a line by its model', () => {
+  // Two facts, two channels. Colour is the destination's — the hue it already
+  // wears in the table and on the map — so the three lines of one destination
+  // share a colour whichever model drew them.
+  it('colours a line by its destination', () => {
     const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null)
-    const byModel = ON_CHART.map((m) => lines.filter((l) => l.color === m.color))
-    expect(byModel.map((group) => group.length)).toEqual([3, 3, 3])
+    for (const d of DESTINATIONS) {
+      const mine = lines.filter((l) => l.label.includes(d.name))
+      expect(mine).toHaveLength(3)
+      for (const line of mine) expect(line.color).toBe(d.color)
+    }
+  })
+
+  // And the line style is the model's, so the three lines of one model share a
+  // pattern whichever destination they are.
+  it('styles a line by its model', () => {
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null)
+    for (const m of ON_CHART) {
+      const mine = lines.filter((l) => l.label.endsWith(`(${m.label})`))
+      expect(mine).toHaveLength(3)
+      for (const line of mine) expect(line.dash).toBe(m.dash)
+    }
+  })
+
+  // The ranking model leads the list, and its entry is the solid one, so the
+  // lines the report was built from read as the plain ones.
+  it('leaves the ranking model’s lines solid', () => {
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null)
+    expect(lines.slice(0, 3).every((l) => l.dash === '')).toBe(true)
   })
 
   // The chips read ranking model first, and the lines leave in that order so
@@ -275,7 +321,7 @@ describe('compareSeries', () => {
     const many: CompareModel[] = MODELS.map((m, i) => ({
       id: m.id,
       label: m.label,
-      color: `#00000${i}`,
+      dash: CHART_DASHES[i],
     }))
     const held: Record<string, ReturnType<typeof series>> = {}
     for (const model of many) {

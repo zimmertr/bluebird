@@ -1751,6 +1751,10 @@ export default function App() {
         latitude: r.latitude,
         longitude: r.longitude,
         elevationFt: r.elevation_ft,
+        // The colour it already wears in the table and on the map. A compared
+        // chart says two things at once, and this is the one it has always
+        // said; the model is the line style.
+        color: chart.colorFor(r),
       }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chart.selectedRows, results])

@@ -1,5 +1,5 @@
 import type { ComparedModel } from '../hooks/useModelCompare'
-import { RADIUS, SPINNER, STATUS, TEXT } from '../styles'
+import { CHART_SAMPLE_STROKE, RADIUS, SPINNER, STATUS, TEXT } from '../styles'
 
 // The comparison's key, beside the chart's metric radios (#232).
 //
@@ -11,6 +11,11 @@ import { RADIUS, SPINNER, STATUS, TEXT } from '../styles'
 // It reads the chips the hook composes and draws them. Which models are on the
 // chart, what each line is worth and where it stops are `utils/modelCompare.ts`'s
 // and `useModelCompare`'s.
+//
+// Each chip carries a SAMPLE of its model's line rather than a colour swatch,
+// because colour on this chart belongs to the destination — the same hue the
+// table and the map already give it. The model is the line style, so the key to
+// the model has to be a line.
 
 interface Props {
   /** The ranking model first, then every extra on the chart. */
@@ -25,7 +30,7 @@ export default function ModelCompare({ compared }: Props) {
       {compared.map((model) => (
         <Chip
           key={model.id}
-          color={model.color}
+          dash={model.dash}
           label={model.label}
           blend={model.blend}
           state={model.status}
@@ -46,18 +51,17 @@ export default function ModelCompare({ compared }: Props) {
 }
 
 interface ChipProps {
-  color: string
+  dash: string
   label: string
   blend: boolean
   state: ComparedModel['status']
 }
 
-// One model in the key. Three states, told apart by the swatch alone: a
-// spinner while the forecast is in flight, the model's colour once its lines
-// are drawn, and a hollow swatch when nothing was drawn — which is why the note
-// below the key says what happened rather than leaving absent lines to be read
-// as an answer.
-function Chip({ color, label, blend, state }: ChipProps) {
+// One model in the key. Three states, told apart by the sample alone: a spinner
+// while the forecast is in flight, the model's line once its lines are drawn,
+// and a faded line when nothing was drawn — which is why the note below the key
+// says what happened rather than leaving absent lines to be read as an answer.
+function Chip({ dash, label, blend, state }: ChipProps) {
   return (
     <span className={`inline-flex max-w-56 items-center bg-slate-700 ${RADIUS.control}`}>
       <span
@@ -66,14 +70,27 @@ function Chip({ color, label, blend, state }: ChipProps) {
         {state === 'loading' ? (
           <span className={`${SPINNER} h-2.5 w-2.5 flex-shrink-0`} />
         ) : (
-          <span
-            className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill}`}
-            style={
-              state === 'ready'
-                ? { backgroundColor: color }
-                : { border: `1px solid ${color}`, opacity: 0.5 }
-            }
-          />
+          // 24px is the shortest run that shows the longest pattern in the
+          // table whole, so no two chips can differ only in where the sample
+          // happened to be cut.
+          <svg
+            width="24"
+            height="8"
+            viewBox="0 0 24 8"
+            aria-hidden="true"
+            className="flex-shrink-0"
+          >
+            <line
+              x1="0"
+              y1="4"
+              x2="24"
+              y2="4"
+              stroke={CHART_SAMPLE_STROKE}
+              strokeWidth="1.5"
+              strokeDasharray={dash === '' ? undefined : dash}
+              opacity={state === 'ready' ? 1 : 0.4}
+            />
+          </svg>
         )}
         <span className="truncate">{label}</span>
         {blend && <span className={`${TEXT.overline} flex-shrink-0`}>Blend</span>}

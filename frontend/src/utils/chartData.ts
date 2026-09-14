@@ -174,6 +174,13 @@ export interface ChartLine extends SeriesHolder {
   key: string
   label: string
   color: string
+  /**
+   * An SVG `strokeDasharray`, for a line whose colour is already saying
+   * something else: under a model comparison the colour is the destination's,
+   * so the model is the dash (`CHART_DASHES` in `styles.ts`). Absent or empty
+   * is solid, which is every line with no comparison up.
+   */
+  dash?: string
 }
 
 /**
