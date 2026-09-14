@@ -804,15 +804,21 @@ describe('shared recipes', () => {
     expect(insetPx).toBeLessThan(8)
   })
 
-  // Every numeric box in the section — ten bounds and Max results — wears the
-  // one METRIC_BOX recipe, so a future box cannot pick its own width or
-  // height and the two rows under the rule line up with the bounds above.
-  it('puts every numeric box in the Metrics section on the shared box width', () => {
+  // Every numeric box in the section — the ten bounds and the results cap —
+  // comes off one shape, so a future box cannot pick its own height or inset
+  // and the rows under the rule line up with the bounds above. Only the width
+  // is allowed to differ, and only between one box column and two: the cap is
+  // a single number, so it spans the pair the way a bound spans one.
+  it('builds every numeric box in the Metrics section from one shape', () => {
     const inputs = controlPanelSource.match(/type="number"/g) ?? []
-    const boxed = controlPanelSource.match(/className=\{METRIC_BOX\}/g) ?? []
+    const boxed = controlPanelSource.match(/METRIC_BOX(_WIDE)?\}/g) ?? []
     expect(inputs.length).toBeGreaterThanOrEqual(3)
     expect(boxed.length).toBe(inputs.length)
-    expect(controlPanelSource).toMatch(/const METRIC_BOX = `\$\{FIELD_NUMERIC\} \$\{METRIC_BOX_W\}/)
+    expect(controlPanelSource).toMatch(/const METRIC_BOX = `\$\{METRIC_BOX_SHAPE\} \$\{METRIC_BOX_W\}`/)
+    expect(controlPanelSource).toMatch(/const METRIC_BOX_WIDE = `\$\{METRIC_BOX_SHAPE\} w-full`/)
+    // The wide one spans the two box columns rather than spelling their sum,
+    // which would be a second copy of METRIC_BOX_W and the grid gap.
+    expect(controlPanelSource).toMatch(/\$\{METRIC_BOX_WIDE\} col-span-2/)
   })
 
   // The rule inside the section is drawn in the panel's own rule ink, one

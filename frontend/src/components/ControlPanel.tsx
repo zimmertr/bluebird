@@ -224,10 +224,20 @@ const ELEVATION_UNIT = 'ft'
 const ELEVATION_NOTE = 'Destinations with no elevation are included.'
 const ELEVATION_HINT = ['The elevation must be at least this.', 'The elevation must be at most this.'] as const
 
-// Every numeric box in the Metrics grid: the ten bounds and the results cap. One
-// recipe so a new box cannot pick its own width or height; py-0.5 matches the
-// dropdown and the segment beside it.
-const METRIC_BOX = `${FIELD_NUMERIC} ${METRIC_BOX_W} px-2 py-0.5 text-center`
+// Every numeric box in the Metrics grid, in one shape so a new box cannot pick
+// its own height or inset: py-0.5 matches the dropdown and the segment beside
+// it. Only the width differs, and only because the grid gives a box either one
+// column or two.
+const METRIC_BOX_SHAPE = `${FIELD_NUMERIC} px-2 py-0.5 text-center`
+/** A bound: one box column, paired with its opposite edge on the same row. */
+const METRIC_BOX = `${METRIC_BOX_SHAPE} ${METRIC_BOX_W}`
+/**
+ * The results cap: both box columns, because it is one number rather than a
+ * floor and a ceiling, and half a row of empty grid beside it read as a missing
+ * control (TJ, 2026-09-14). `w-full` rather than a width of its own, so it
+ * tracks the two columns and their gap however wide METRIC_BOX_W becomes.
+ */
+const METRIC_BOX_WIDE = `${METRIC_BOX_SHAPE} w-full`
 
 // What polygon discovery finds. Custom (CSV) is no longer a mode here — the
 // always-visible Custom Destinations section below adds to any of these.
@@ -1204,7 +1214,7 @@ export default function ControlPanel({
                 the row count in the table's header says what it is doing. */}
             <label
               htmlFor="max-results"
-              className={`${TEXT.control} col-span-3 truncate`}
+              className={`${TEXT.control} col-span-2 truncate`}
               title={LIMIT_NOTE}
             >
               {AGGREGATE.maximum} results
@@ -1220,7 +1230,7 @@ export default function ControlPanel({
                 setLimit(clampLimit(parseInt(e.target.value) || DEFAULT_LIMIT, maxLimit))
               }
               title={LIMIT_NOTE}
-              className={METRIC_BOX}
+              className={`${METRIC_BOX_WIDE} col-span-2`}
             />
             {filtersActive && (
               /* Under the two box columns, on their outer edges, so the one

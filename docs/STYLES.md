@@ -121,7 +121,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `MAP_BOX_W` | Width of every floating box under the Layers button: the popover and both legends, 192px (w-48), governed by the grid legend's longest row |
 | `MAP_EDGE` | How far anything floating on the map stands off its edge: 12px, published once as `--map-edge-inset` on the map wrapper and read by the button column, the legend stack and MapLibre's own control stack |
 | `METRICS_GRID` | The Metrics table: label, aggregate dropdown, Min box, Max box; the control columns are `auto`, sized by the roles their controls wear |
-| `METRIC_BOX_W` | Every numeric box in the Metrics table, bounds and the results cap alike: 56px (w-14), the widest the metric row's label budget allows |
+| `METRIC_BOX_W` | One bound box in the Metrics table: 56px (w-14), the widest the metric row's label budget allows. The results cap spans both box columns instead, so it wears `w-full` off the same shape |
 | `SEGMENT_ITEM_TIGHT` | One half of a `SEGMENT_FILL`: the 4px inset a 118px segment can afford |
 | `METRICS_RULE` | The rule between the five rows that rank and the two that never do, in `PANEL_RULE`'s ink |
 
@@ -256,6 +256,8 @@ Every stacked panel control composes `CONTROL_W = 'w-36'` = 144px.
 - Both share a baseline in a flex row
 
 The Metrics table is the one section that uses none of it. Its row is the panel's widest — radio, label, aggregate dropdown (`SELECT_W_AGGREGATE`, 72px), Min box and Max box (`METRIC_BOX_W`, 56px each) — and the label has to hold `Freezing level` at text-xs inside the panel's 327px of content. The direction segment above the rows spans the two box columns and wears `SEGMENT_FILL`, so every control in the section shares the boxes' two edges rather than the sidebar's.
+
+Four controls in that section share one pair of edges: the direction segment, the results cap box, the Clear filters button, and every bound pair. The three wide ones span the two box columns rather than spelling their sum, so the width lives in `METRIC_BOX_W` alone.
 
 **Segment arithmetic:** 2 x 56px + the 6px grid gap = 118px, less the 2px border and the 1px divider, is 57.5px a half. `Highest` measures 43.69px at text-xs, so the halves wear `SEGMENT_ITEM_TIGHT` (4px) and not `SEGMENT_ITEM` (8px, which leaves 41.5px and clips the word). Checked in `styles.test.ts`.
 
