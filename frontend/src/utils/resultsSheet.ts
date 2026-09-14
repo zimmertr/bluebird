@@ -32,23 +32,32 @@ export const LEGEND_STACK_PX = 245
 export const LEGEND_GAP_PX = 32
 
 /**
- * The gap between the top of the results and the bottom of the forecast player,
- * which is exactly the room MapLibre's two bottom controls need and no more.
+ * The gap between the top of the results and the bottom of the forecast player:
+ * the band MapLibre's two bottom controls stand in, one per corner, each
+ * centred in it by `map.css`.
  *
- * Both of them ride `mapCornerLiftPx` into this band, one per corner, so it is
- * sized by the taller: measured in Chrome on macOS 2026-09-13 against
- * maplibre-gl's own stylesheet, the compact attribution a phone gets is a 20px
- * line plus 2px of padding top and bottom and a 10px margin — 34px — where the
- * scale bar is a 20px line plus its 2px rule and the same margin (32px) and the
- * expanded attribution a desk gets is a bare 20px line with no margin at all.
- * Re-measure if the library changes either control's box.
+ * Sized by the taller control plus the library's own margin on BOTH sides of
+ * it. Measured in Chrome on macOS 2026-09-13 against maplibre-gl's stylesheet:
+ * the compact attribution a phone gets is a 20px line plus 2px of padding top
+ * and bottom (`CORNER_CONTROL_PX`), the scale bar is a 20px line plus its 2px
+ * rule, and the expanded attribution a desk gets is a bare 20px line. The
+ * library keeps 10px between a control and the container's edge
+ * (`CORNER_MARGIN_PX`), and the band keeps that same 10px between the control
+ * and the player above it, so a control is exactly as far from the player as
+ * it is from the results — and stands exactly where the library would put it
+ * with no player on screen at all. Re-measure if the library changes either
+ * control's box.
  *
+ * A band of the control plus ONE margin was tried first (#249 review, round
+ * two): it sat the attribution's top edge against the player's bottom edge.
  * The bar used to sit 40px up with no reason recorded for the number, which was
  * both more room than the credits need and, because the lift under it was an
  * ESTIMATE of the results' height rather than the height itself, a different
  * gap in every results mode (#249 review).
  */
-export const TRANSPORT_GAP_PX = 34
+export const CORNER_CONTROL_PX = 24
+export const CORNER_MARGIN_PX = 10
+export const TRANSPORT_GAP_PX = CORNER_CONTROL_PX + 2 * CORNER_MARGIN_PX
 
 /**
  * The transport's own height, in its tallest state: the axis switch appears
@@ -263,6 +272,8 @@ export function transportBottomPx(liftPx: number): number {
  * sheet's own height, which lands them in the band between the top of the
  * results and the forecast player above it — the band `TRANSPORT_GAP_PX`
  * exists to keep clear, and the one place on this edge nothing else stands.
+ * The band's height is published beside the lift (`--map-corner-band`) so the
+ * stylesheet can centre each control in it rather than stand it on the edge.
  *
  * One number for both corners, at every width. On a desktop the results are
  * docked, the container ends where they begin, and the lift is 0 — which is

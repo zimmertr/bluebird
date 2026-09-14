@@ -1924,6 +1924,16 @@ const MapView = forwardRef<MapViewHandle, Props>(
       const { options } = new maplibregl.AttributionControl()
       const control = new maplibregl.AttributionControl({ ...options, compact: !isDesktop })
       map.addControl(control, 'bottom-right')
+      // The library adds a compact attribution OPEN and folds it on the first
+      // drag (maplibre-gl 6.8, `_updateCompact` and `_updateCompactMinimize`
+      // in attribution_control.ts), so until the reader moved the map the
+      // whole licence line ran across the band the (i) exists to keep small.
+      // Fold it on add. This is the library's own folded state: the class is
+      // the one its toggle removes, and `open` stays set as its toggle leaves
+      // it, so the (i) opens and closes it exactly as before.
+      map.getContainer()
+        .querySelector('.maplibregl-ctrl-attrib.maplibregl-compact-show')
+        ?.classList.remove('maplibregl-compact-show')
       return () => {
         if (mapRef.current === map) map.removeControl(control)
       }

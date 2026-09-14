@@ -127,9 +127,37 @@
  * and any width where the results are closed — which is what the 0px fallback
  * covers.
  *
- * Unlayered like the rules above, so it beats the vendor's own `bottom: 0` in
- * @layer base. */
+ * The step lands the corners in the band between the results and the forecast
+ * player (`TRANSPORT_GAP_PX`, published beside the lift as `--map-corner-band`),
+ * and each control is centred in that band rather than stood on its bottom
+ * edge: the vendor's 10px bottom margin put a 24px attribution's top edge
+ * against the player's bottom edge (#249 review, round two). The band is the
+ * flex column, the vendor's vertical margins go (the band already holds that
+ * air on both sides), and the horizontal ones stay so each control keeps its
+ * inset from the side edge. The vendor floats these children; a flex item
+ * ignores the float.
+ *
+ * Unlayered like the rules above, so it beats the vendor's own `bottom: 0` and
+ * its margins in @layer base. */
 .maplibregl-ctrl-bottom-left,
 .maplibregl-ctrl-bottom-right {
   bottom: var(--map-corner-lift, 0px);
+  height: var(--map-corner-band);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.maplibregl-ctrl-bottom-left {
+  align-items: flex-start;
+}
+
+.maplibregl-ctrl-bottom-right {
+  align-items: flex-end;
+}
+
+.maplibregl-ctrl-bottom-left .maplibregl-ctrl,
+.maplibregl-ctrl-bottom-right .maplibregl-ctrl {
+  margin-top: 0;
+  margin-bottom: 0;
 }

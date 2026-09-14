@@ -112,6 +112,7 @@ import {
   restingMapFloorPx,
   resolveSheetLift,
   sheetHeightPx,
+  TRANSPORT_GAP_PX,
 } from './utils/resultsSheet'
 import { composeOverlay } from './utils/analyzeOverlay'
 import { Place, isPeakKind } from './utils/geocode'
@@ -2092,21 +2093,23 @@ export default function App() {
           on the map as a sheet, so the column is what positions them; on
           desktop nothing is positioned and the class list is the one it was. */}
       <div className={`flex-1 flex flex-col overflow-hidden min-w-0${isDesktop ? '' : ' relative'}`}>
-        {/* `--map-corner-lift` is read by map.css: it is how far MapLibre's own
-            bottom-right controls rise off the container's bottom edge, and both
-            of them have a reason to. The attribution is a licence term that
-            cannot be covered by the phone sheet, and the scale bar reads against
-            the map rather than against the forecast player centred over the same
-            edge. One number for the corner rather than an offset per control,
-            derived beside every other anchor in `resultsSheet.ts`. The map area
-            keeps the whole column, so the canvas runs on behind the sheet and
-            its ResizeObserver sees no change on a drag. */}
+        {/* `--map-corner-lift` and `--map-corner-band` are read by map.css:
+            how far MapLibre's own bottom controls rise off the container's
+            bottom edge, and the height of the band they are centred in. Both
+            controls have a reason to rise: the attribution is a licence term
+            that cannot be covered by the phone sheet, and the scale bar reads
+            against the map rather than against the forecast player centred over
+            the same edge. One number for the corner rather than an offset per
+            control, derived beside every other anchor in `resultsSheet.ts`. The
+            map area keeps the whole column, so the canvas runs on behind the
+            sheet and its ResizeObserver sees no change on a drag. */}
         <div
           className={`flex-1 relative ${MAP_EDGE.publish}`}
           style={
-            mapCornerLift > 0
-              ? ({ '--map-corner-lift': `${mapCornerLift}px` } as React.CSSProperties)
-              : undefined
+            {
+              '--map-corner-lift': `${mapCornerLift}px`,
+              '--map-corner-band': `${TRANSPORT_GAP_PX}px`,
+            } as React.CSSProperties
           }
         >
           {/* Above the drawer, not under it. The drawer now stays open for the

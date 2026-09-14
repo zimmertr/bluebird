@@ -8,6 +8,8 @@ import {
   RESTING_MAP_PX,
   SHEET_HEADER_PX,
   TRANSPORT_BAND_PX,
+  CORNER_CONTROL_PX,
+  CORNER_MARGIN_PX,
   TRANSPORT_GAP_PX,
   TRANSPORT_HEIGHT_PX,
   draggedMapFloorPx,
@@ -27,6 +29,7 @@ import {
 // CSS, which is the trap `styles.test.ts` documents.
 import appSource from '../App.tsx?raw'
 import transportSource from '../components/TimelineTransport.tsx?raw'
+import mapViewSource from '../components/MapView.tsx?raw'
 
 describe('sheetHeightPx', () => {
   it('is the header alone while the results are collapsed', () => {
@@ -98,12 +101,16 @@ describe('the map chrome anchors', () => {
     expect(transportSource).toContain('transportBottomPx(liftPx)')
   })
 
-  // The band above the results is exactly the room MapLibre's two bottom
-  // controls need, and the band the legend clears is that gap plus the bar
-  // standing in it. Derived rather than measured a second time, so the two
-  // cannot drift.
+  // The band above the results holds the taller of MapLibre's two bottom
+  // controls with the library's own margin on BOTH sides of it (one margin
+  // stood the attribution against the player), and the band the legend clears
+  // is that gap plus the bar standing in it. Derived rather than measured a
+  // second time, so the three cannot drift.
   it('sizes the transport band from the gap and the bar', () => {
-    expect(TRANSPORT_GAP_PX).toBe(34)
+    expect(CORNER_CONTROL_PX).toBe(24)
+    expect(CORNER_MARGIN_PX).toBe(10)
+    expect(TRANSPORT_GAP_PX).toBe(CORNER_CONTROL_PX + 2 * CORNER_MARGIN_PX)
+    expect(TRANSPORT_GAP_PX).toBe(44)
     expect(TRANSPORT_BAND_PX).toBe(TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX)
     expect(legendBottomPx(0, true) - transportBottomPx(0)).toBe(TRANSPORT_HEIGHT_PX)
   })
@@ -150,9 +157,22 @@ describe('mapCornerLiftPx', () => {
   })
 
   // map.css cannot be read as text here (vitest stubs a CSS import to an empty
-  // string), so what is pinned is the name App publishes it under.
-  it('is published under the name the stylesheet reads', () => {
+  // string), so what is pinned is the names App publishes under, and that the
+  // band's height is the gap itself rather than a second number.
+  it('is published under the names the stylesheet reads', () => {
     expect(appSource).toContain('--map-corner-lift')
+    expect(appSource).toMatch(/'--map-corner-band': `\$\{TRANSPORT_GAP_PX\}px`/)
+  })
+
+  // maplibre-gl adds a compact attribution open and folds it on the first
+  // drag, so the phone's (i) is a licence line until the reader pans. The map
+  // folds it as soon as it is added, with the class the library's own toggle
+  // removes.
+  it('folds the compact attribution on add', () => {
+    const add = mapViewSource.indexOf("map.addControl(control, 'bottom-right')")
+    expect(add).toBeGreaterThan(-1)
+    const after = mapViewSource.slice(add, add + 800)
+    expect(after).toContain("classList.remove('maplibregl-compact-show')")
   })
 })
 
@@ -235,9 +255,9 @@ describe('the drag cap', () => {
   })
 
   it('states both caps outright', () => {
-    expect(DRAGGED_MAP_PX).toBe(226)
-    expect(maxSheetPx(874)).toBe(648)
-    expect(maxSheetPx(757)).toBe(531)
+    expect(DRAGGED_MAP_PX).toBe(236)
+    expect(maxSheetPx(874)).toBe(638)
+    expect(maxSheetPx(757)).toBe(521)
   })
 
   // `clampPanelHeight` is given a map floor rather than a sheet height, and the
@@ -282,18 +302,19 @@ describe('the camera padding', () => {
   const defaults = { chartPx: 288, tablePx: 280 }
 
   it('is the lift the sheet reserves at 402x874', () => {
-    // The sheet's chrome plus a default-height table, which fits inside the
-    // resting reserve whole: the same 392 the anchors above ride.
-    expect(
-      restingLiftPx({
-        collapsed: false,
-        gripCount: 1,
-        chartShown: false,
-        tableShown: true,
-        availPx: 874,
-        ...defaults,
-      }),
-    ).toBe(403)
+    // The sheet's chrome plus a default-height table (104 + 24 + 280) is more
+    // than the resting reserve leaves at this height, so the lift is what the
+    // reserve leaves: 874 less `RESTING_MAP_PX`.
+    const lift = restingLiftPx({
+      collapsed: false,
+      gripCount: 1,
+      chartShown: false,
+      tableShown: true,
+      availPx: 874,
+      ...defaults,
+    })
+    expect(lift).toBe(393)
+    expect(874 - lift).toBe(RESTING_MAP_PX)
   })
 
   it('takes only the reserve on a viewport too short for the whole table', () => {
@@ -305,7 +326,7 @@ describe('the camera padding', () => {
       availPx: 757,
       ...defaults,
     })
-    expect(lift).toBe(286)
+    expect(lift).toBe(276)
     expect(757 - lift).toBe(RESTING_MAP_PX)
   })
 
