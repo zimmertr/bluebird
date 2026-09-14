@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest'
 import {
   COLUMNS,
   MODEL_KEY,
+  applyColumnOrder,
+  moveColumn,
+  stepColumn,
   WILDFIRE_COL,
   WILDFIRE_KEY,
   displayedColumns,
@@ -321,5 +324,91 @@ describe('the Model column', () => {
       MODEL_KEY,
       ...noName.map((c) => c.key),
     ])
+  })
+})
+
+// The reader's own column order (#360). Pure here, because Vitest runs this
+// repository in the node environment and a reorder left inside the table or
+// the picker could not be tested at all.
+describe('a column order the reader set', () => {
+  const cols = (...keys: string[]) => keys.map((key) => ({ key }))
+  const keys = (list: { key: string }[]) => list.map((c) => c.key)
+
+  it('leaves the columns alone when nothing has been ordered', () => {
+    const given = cols('name', 'type', 'wind')
+    expect(keys(applyColumnOrder(given, null))).toEqual(['name', 'type', 'wind'])
+    expect(keys(applyColumnOrder(given, []))).toEqual(['name', 'type', 'wind'])
+  })
+
+  it('puts the named columns in the order given', () => {
+    expect(keys(applyColumnOrder(cols('name', 'type', 'wind'), ['wind', 'name', 'type']))).toEqual([
+      'wind',
+      'name',
+      'type',
+    ])
+  })
+
+  // The stored list cannot know about a column that did not exist when it was
+  // written: a new metric, the wildfire column, Model arriving with a
+  // comparison. An unnamed column keeps its place after the named ones rather
+  // than disappearing or jumping to the front.
+  it('keeps a column the order does not name, after the ones it does', () => {
+    expect(keys(applyColumnOrder(cols('name', 'model', 'type'), ['type', 'name']))).toEqual([
+      'type',
+      'name',
+      'model',
+    ])
+  })
+
+  it('ignores a key the columns no longer hold', () => {
+    expect(keys(applyColumnOrder(cols('name', 'wind'), ['wind', 'gone', 'name']))).toEqual([
+      'wind',
+      'name',
+    ])
+  })
+
+  it('never drops or duplicates a column', () => {
+    const given = cols('a', 'b', 'c', 'd')
+    const out = keys(applyColumnOrder(given, ['d', 'b']))
+    expect(out.length).toBe(4)
+    expect(new Set(out).size).toBe(4)
+  })
+})
+
+describe('moving one column', () => {
+  const ORDER = ['name', 'type', 'elevation_ft', 'wind']
+
+  it('drops the column where the target sits, going right', () => {
+    expect(moveColumn(ORDER, 'name', 'elevation_ft')).toEqual([
+      'type',
+      'elevation_ft',
+      'name',
+      'wind',
+    ])
+  })
+
+  it('drops the column where the target sits, going left', () => {
+    expect(moveColumn(ORDER, 'wind', 'type')).toEqual(['name', 'wind', 'type', 'elevation_ft'])
+  })
+
+  // A caller compares by reference to decide whether to write, so a move that
+  // moves nothing has to return the list it was given.
+  it('returns the same list when nothing moved', () => {
+    expect(moveColumn(ORDER, 'name', 'name')).toBe(ORDER)
+    expect(moveColumn(ORDER, 'name', 'gone')).toBe(ORDER)
+    expect(moveColumn(ORDER, 'gone', 'name')).toBe(ORDER)
+  })
+
+  it('moves one step at a time for a keyboard', () => {
+    expect(stepColumn(ORDER, 'type', 1)).toEqual(['name', 'elevation_ft', 'type', 'wind'])
+    expect(stepColumn(ORDER, 'type', -1)).toEqual(['type', 'name', 'elevation_ft', 'wind'])
+  })
+
+  // A column that jumps from the last place to the first reads as a bug, not
+  // as a move.
+  it('does not wrap at either end', () => {
+    expect(stepColumn(ORDER, 'name', -1)).toBe(ORDER)
+    expect(stepColumn(ORDER, 'wind', 1)).toBe(ORDER)
+    expect(stepColumn(ORDER, 'gone', 1)).toBe(ORDER)
   })
 })

@@ -619,6 +619,30 @@ export const ICON_ACTION = `text-slate-500 ${ACCENT.hoverText}`
 export const ICON_BUTTON = `px-1 text-slate-400 hover:text-white transition-colors ${FOCUS_RING}`
 
 /**
+ * The grip a column is dragged by, in the table header and in the Columns
+ * picker alike (#360).
+ *
+ * A grip rather than the whole row, because both rows already answer a press:
+ * a header sorts and a picker row toggles a checkbox. A dedicated handle is
+ * also the only visible affordance either surface can carry, since neither has
+ * room for a word.
+ *
+ * `cursor-grab` is the standing signal for "this moves", and `touch-none` is
+ * load-bearing: without it the browser claims the gesture for scrolling and
+ * the drag never gets a second pointer event on a phone. It is the same reason
+ * the resize handle wears it.
+ */
+export const DRAG_GRIP =
+  `cursor-grab touch-none text-slate-500 hover:text-slate-200 active:cursor-grabbing ` +
+  `transition-colors ${FOCUS_RING}`
+
+/** The grip while its column is the one being moved. */
+export const DRAG_GRIP_ACTIVE = 'text-slate-200'
+
+/** The column a drag would drop onto, in either surface. */
+export const DRAG_TARGET = 'bg-slate-700/60'
+
+/**
  * A glyph drawn inside a field rather than beside it: the `SELECT` arrow.
  *
  * `pointer-events-none` is the load-bearing part — the arrow overlays the

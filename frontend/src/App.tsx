@@ -180,7 +180,9 @@ import {
   SortKey,
   WILDFIRE_COL,
   WILDFIRE_KEY,
+  applyColumnOrder,
   displayedColumns,
+  moveColumn,
   visibleColumns,
   withModelColumn,
 } from './utils/tableColumns'
@@ -709,6 +711,25 @@ export default function App() {
     }
   })
 
+  // The order the reader dragged the columns into, or null for the automatic
+  // one (#360). A list of keys rather than positions, so a column the list
+  // predates keeps its place instead of vanishing; `applyColumnOrder` owns that
+  // rule.
+  //
+  // It is discarded whenever the ranking changes (TJ, 2026-09-14): `Rank by`
+  // pulls the ranked metric group to the front, and the maintainer chose to let
+  // it win rather than have a stored order suppress the one thing the ranking
+  // does to the columns.
+  const [columnOrder, setColumnOrder] = useState<readonly string[] | null>(() => {
+    if (typeof localStorage === 'undefined') return null
+    try {
+      const stored = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
+      return Array.isArray(stored.columnOrder) ? stored.columnOrder : null
+    } catch {
+      return null
+    }
+  })
+
   // Persist column visibility to localStorage when it changes.
   useEffect(() => {
     try {
@@ -723,12 +744,13 @@ export default function App() {
           // Absent rather than null while the reader has not answered, so the
           // count still decides after a reload.
           modelColumn: modelColumn ?? undefined,
+          columnOrder: columnOrder ?? undefined,
         }),
       )
     } catch {
       // Ignore localStorage errors (SSR, quota, etc.)
     }
-  }, [columnVisibility, modelColumn])
+  }, [columnVisibility, modelColumn, columnOrder])
   // Column picker popover open/closed
   const [columnsOpen, setColumnsOpen] = useState(false)
   const [modelsOpen, setModelsOpen] = useState(false)
@@ -1849,7 +1871,10 @@ export default function App() {
       // The same insertion the table makes. The file is given the same rows,
       // so without it a comparison writes each destination once per model with
       // nothing saying which model each line is.
-      withModelColumn(csvColumns, modelColumnOn),
+      // The same columns the table shows, in the same order: the file leaves
+      // in the order that is on screen (#125), and a reader's reorder is no
+      // different from a sort in that respect.
+      applyColumnOrder(withModelColumn(csvColumns, modelColumnOn), columnOrder),
       // Null also when the column is hidden: buildResultsCsv drops the
       // wildfire column on null, and a file must not carry a column the
       // screen does not show.
@@ -2078,6 +2103,23 @@ export default function App() {
     setColumnVisibility(rest)
   }
 
+  // The ranking pulls its own metric group to the front, and the maintainer
+  // chose to let it win over an order the reader set (TJ, 2026-09-14). Keyed on
+  // the ranking alone: a live sort, a limit or a bound re-presents the same
+  // columns and must not throw the order away.
+  //
+  // Skipping the first run is what makes the order survive a reload: an effect
+  // keyed on a value fires on mount as well as on change, so without the ref
+  // the stored order was discarded by the very render that read it.
+  const rankedOnce = useRef(false)
+  useEffect(() => {
+    if (!rankedOnce.current) {
+      rankedOnce.current = true
+      return
+    }
+    setColumnOrder(null)
+  }, [view.sortBy])
+
   // The model every row came from when only one did, so the column says
   // something rather than a dash on a report with no comparison. The ANALYZED
   // model, not the panel's: the numbers are the analysis's, and the picker can
@@ -2122,8 +2164,30 @@ export default function App() {
   const tableColumns = useMemo(() => {
     const cols = visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys)
     const withFire = effectiveVisibleKeys.has(WILDFIRE_KEY) ? [...cols, WILDFIRE_COL] : cols
-    return withModelColumn(withFire, modelColumnOn)
-  }, [pointSample, view.sortBy, effectiveVisibleKeys, modelColumnOn])
+    return applyColumnOrder(withModelColumn(withFire, modelColumnOn), columnOrder)
+  }, [pointSample, view.sortBy, effectiveVisibleKeys, modelColumnOn, columnOrder])
+
+  // Every column there is, in the reader's order: what the Columns picker
+  // lists, and the list a move is made within.
+  //
+  // The baseline is this rather than the columns on screen, so a hidden column
+  // keeps its place. Ordering only the visible ones would send every hidden
+  // column to the end the moment it came back.
+  const allColumns = useMemo(
+    () => applyColumnOrder([...withModelColumn(csvColumns, true), WILDFIRE_COL], columnOrder),
+    [csvColumns, columnOrder],
+  )
+
+  // Both surfaces move a column by naming the column and the one it lands on.
+  // The key list is what is stored, so the move is made on that rather than on
+  // a pair of indices each surface would have to derive the same way.
+  const handleColumnMove = useCallback(
+    (fromKey: string, toKey: string) => {
+      const base = allColumns.map((c) => c.key as string)
+      setColumnOrder((prev) => moveColumn(prev ?? base, fromKey, toKey))
+    },
+    [allColumns],
+  )
 
   // A model put down and later selected again comes back DRAWN, so a flag
   // outlives its model by exactly nothing. Keyed on the panel's selection
@@ -3236,6 +3300,7 @@ export default function App() {
                         columnWidths={tableColWidths}
                         onColumnWidthsChange={setTableColWidths}
                         modelFallbackLabel={analysisModelLabel}
+                        onColumnMove={handleColumnMove}
                         fireWarnings={fire.warnings}
                         fireUncovered={fire.uncovered}
                         fireStatus={fire.status}
@@ -3262,10 +3327,11 @@ export default function App() {
           onOpenChange={setColumnsOpen}
           // Model is always offered, whatever the report holds: a column a
           // reader can never see is a column they cannot ask for.
-          columns={[...withModelColumn(csvColumns, true), WILDFIRE_COL]}
+          columns={allColumns}
           sortBy={view.sortBy}
           visibleKeys={pickerVisibleKeys}
           onVisibilityChange={handleVisibilityChange}
+          onColumnMove={handleColumnMove}
           triggerRef={columnsButtonRef}
         />
 

@@ -302,6 +302,10 @@ Every column is resizable: drag the divider at a header's right edge, or double-
 
 **Columns** opens a picker for the columns the table shows. Every column starts on — the table scrolls sideways when it must — and unticking narrows the view for easier comparison. The downloaded CSV always carries every column regardless of what the table displays.
 
+**Columns can be moved.** Drag a table header sideways and the column goes where you drop it; on a touch screen, hold it for a moment first, so a tap still sorts. The same order can be set in the **Columns** picker, by dragging a row's grip at its right edge, and the two are one order: move a column in either place and the other follows at once. The grip is also the keyboard route, since a drag needs a pointer — focus it and the up and down arrows move that column one place at a time. A column you have hidden keeps its place and comes back where you left it, and the downloaded CSV is written in the order on screen.
+
+Your order lasts until you change **Rank by**. Ranking pulls the metric you rank on to the front of the table, and it wins: a new ranking puts the columns back to the standard order with that metric leading. Short of that the order is yours and survives a reload. It rides in no link, so a report you share opens in the standard order for whoever opens it.
+
 ### Comparing models on the chart
 
 The picker does two things, and each has its own half of the popover.

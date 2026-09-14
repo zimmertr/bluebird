@@ -14,6 +14,7 @@ import {
 } from '../utils/tableColumns'
 import type { ModelRow } from '../utils/modelCompare'
 import { autoFitWidth, dragWidth } from '../utils/columnResize'
+import { dragBegins, keyAtPosition, travel, type ColumnSpan } from '../utils/columnDrag'
 import {
   FIRE_UNAVAILABLE_NOTE,
   FIRE_UNCOVERED_NOTE,
@@ -29,7 +30,16 @@ import { destinationUrl } from '../utils/destinationUrl'
 import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
 import { pinKey } from '../utils/customList'
-import { ACCENT, CHOICE_INPUT, ICON_ACTION, LINK_ACTION, TABLE, TEXT } from '../styles'
+import {
+  ACCENT,
+  CHOICE_INPUT,
+  DRAG_GRIP_ACTIVE,
+  DRAG_TARGET,
+  ICON_ACTION,
+  LINK_ACTION,
+  TABLE,
+  TEXT,
+} from '../styles'
 
 function windyUrl(lat: number, lon: number, layer: string): string {
   return `https://www.windy.com/?${layer},${lat.toFixed(4)},${lon.toFixed(4)},11`
@@ -117,6 +127,9 @@ interface Props {
   // (it is in the Columns picker), and a dash there would say the row came
   // from nowhere.
   modelFallbackLabel?: string | null
+  // Move one column to where another sits. Absent means the header does not
+  // reorder — the CSV-only and pre-analysis renders pass nothing.
+  onColumnMove?: (fromKey: string, toKey: string) => void
   fireWarnings: Map<string, FireWarning>
   // Rows the fire dataset could not see (outside its US coverage, #256).
   // Their Wildfire (mi) cells read "N/A", where a cleared check prints the
@@ -166,6 +179,7 @@ export default function ResultsTable({
   pointSample = false,
   columns,
   modelFallbackLabel,
+  onColumnMove,
   fireWarnings,
   fireUncovered,
   fireStatus,
@@ -260,6 +274,69 @@ export default function ResultsTable({
     document.addEventListener('pointermove', onMove)
     document.addEventListener('pointerup', onUp)
     document.addEventListener('pointercancel', onUp)
+  }
+
+  // The column being dragged along the header, and the one it would land on.
+  const [draggingCol, setDraggingCol] = useState<string | null>(null)
+  const [dropCol, setDropCol] = useState<string | null>(null)
+  // Set while a drag is ending, and read by the click that may follow it: a
+  // pointerup on the cell the press began in still fires a click, and without
+  // this a reorder would sort the table as well as move the column.
+  //
+  // Cleared on a timeout rather than by that click, because the click only
+  // happens when the pointer went down and up on the SAME cell. A drag that
+  // ended anywhere else fires none, and a flag waiting to be consumed would sit
+  // there and swallow the reader's next real click instead.
+  const draggedRef = useRef(false)
+
+  // A press on a header. It is a sort until it has travelled far enough (a
+  // mouse) or been held long enough (a finger); `columnDrag.ts` owns which
+  // question each pointer is asked. The resize handle stops its own
+  // pointerdown, so a grab of the edge never reaches here.
+  function beginColumnDrag(e: React.PointerEvent, key: string) {
+    if (!onColumnMove) return
+    const th = e.currentTarget as HTMLElement
+    const startedAt = performance.now()
+    const startX = e.clientX
+    const startY = e.clientY
+    let live = false
+
+    const spans = (): ColumnSpan[] =>
+      [...(th.parentElement?.querySelectorAll('th[data-col]') ?? [])].map((cell) => {
+        const rect = cell.getBoundingClientRect()
+        return { key: (cell as HTMLElement).dataset.col as string, start: rect.left, end: rect.right }
+      })
+
+    const move = (ev: PointerEvent) => {
+      if (!live) {
+        const far = travel(ev.clientX - startX, ev.clientY - startY)
+        if (!dragBegins(ev.pointerType, far, performance.now() - startedAt)) return
+        live = true
+        draggedRef.current = true
+        setDraggingCol(key)
+      }
+      const over = keyAtPosition(spans(), ev.clientX)
+      setDropCol(over)
+      if (over && over !== key) onColumnMove(key, over)
+    }
+
+    const end = () => {
+      document.removeEventListener('pointermove', move)
+      document.removeEventListener('pointerup', end)
+      document.removeEventListener('pointercancel', end)
+      if (live) window.setTimeout(() => (draggedRef.current = false), 0)
+      setDraggingCol(null)
+      setDropCol(null)
+    }
+
+    // On document rather than on the header, which is what `beginColumnResize`
+    // above does and for the same reason: a drag leaves the cell it started in
+    // on its first frame, and a pointermove over a sibling cell never reaches
+    // it. Pointer capture would answer it too, but capturing before the press
+    // is known to be a drag changes where an ordinary click lands.
+    document.addEventListener('pointermove', move)
+    document.addEventListener('pointerup', end)
+    document.addEventListener('pointercancel', end)
   }
 
   // Double-click on a handle: fit the longest cell. scrollWidth alone cannot
@@ -553,8 +630,17 @@ export default function ResultsTable({
                 scope="col"
                 data-col={col.key}
                 aria-sort={detailSortKey === col.key ? (detailSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                onClick={() => handleSort(col.key)}
-                className={`${TABLE.head} relative cursor-pointer whitespace-nowrap hover:text-white select-none`}
+                onPointerDown={(e) => beginColumnDrag(e, col.key as string)}
+                onClick={() => {
+                  // The click that ends a drag is not a sort.
+                  if (draggedRef.current) return
+                  handleSort(col.key)
+                }}
+                className={`${TABLE.head} relative cursor-pointer whitespace-nowrap hover:text-white select-none ${
+                  onColumnMove ? 'touch-none' : ''
+                } ${dropCol === col.key && draggingCol !== col.key ? DRAG_TARGET : ''} ${
+                  draggingCol === col.key ? DRAG_GRIP_ACTIVE : ''
+                }`}
               >
                 {sized(col.key as string, col.label, 'inline')}
                 {detailSortKey === col.key && (

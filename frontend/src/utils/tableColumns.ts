@@ -224,3 +224,73 @@ export function visibleColumns(
   const group = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])
   return allCols.filter((c) => visibleKeys.has(c.key) || group.has(c.key))
 }
+
+/**
+ * The reader's own column order, applied to whatever columns a surface is
+ * showing.
+ *
+ * `order` is a list of keys, not a map of positions: a column the list does not
+ * name keeps its place relative to the columns that were already after it,
+ * which is what lets the automatic order add a column (a new metric, the
+ * wildfire column, Model appearing with a comparison) without the stored list
+ * needing to know about it.
+ *
+ * Named columns lead, in the list's order. Everything else follows in the order
+ * it arrived. `null` means the reader has not ordered anything, and the columns
+ * come back untouched.
+ */
+export function applyColumnOrder<T extends { key: string }>(
+  cols: readonly T[],
+  order: readonly string[] | null,
+): T[] {
+  if (!order || order.length === 0) return [...cols]
+  const rank = new Map(order.map((key, at) => [key, at]))
+  const named = cols.filter((c) => rank.has(c.key))
+  const rest = cols.filter((c) => !rank.has(c.key))
+  named.sort((a, b) => rank.get(a.key)! - rank.get(b.key)!)
+  return [...named, ...rest]
+}
+
+/**
+ * One column moved to where another one sits.
+ *
+ * Takes and returns the whole key list rather than a pair of indices, because
+ * the list is what is stored and a surface that computed indices would have to
+ * agree with this file about what it was indexing.
+ *
+ * A move onto a column's own place, or onto a key the list does not hold, is
+ * not a move: the same list comes back, so a caller can compare by reference
+ * and skip the write.
+ */
+export function moveColumn(
+  order: readonly string[],
+  fromKey: string,
+  toKey: string,
+): readonly string[] {
+  const from = order.indexOf(fromKey)
+  const to = order.indexOf(toKey)
+  if (from === -1 || to === -1 || from === to) return order
+  const next = [...order]
+  next.splice(from, 1)
+  next.splice(to, 0, fromKey)
+  return next
+}
+
+/**
+ * The same move by one step, which is what a keyboard sends.
+ *
+ * A step past either end is not a move, for the reason above: the list comes
+ * back unchanged rather than wrapping, because a column that jumps from the
+ * last place to the first reads as a bug rather than as a move.
+ */
+export function stepColumn(
+  order: readonly string[],
+  key: string,
+  delta: -1 | 1,
+): readonly string[] {
+  const at = order.indexOf(key)
+  if (at === -1) return order
+  const to = at + delta
+  if (to < 0 || to >= order.length) return order
+  return moveColumn(order, key, order[to])
+}
