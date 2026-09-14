@@ -36,7 +36,7 @@ import {
   SEGMENT_FILL,
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
-  SEGMENT_ITEM_TIGHT,
+  SEGMENT_ITEM,
   SELECT,
   SELECT_W_AGGREGATE,
   STATUS,
@@ -1079,7 +1079,7 @@ export default function ControlPanel({
                   key={dir.label}
                   aria-pressed={sortDesc === dir.desc}
                   onClick={() => setSortDesc(dir.desc)}
-                  className={`${SEGMENT_ITEM_TIGHT} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
+                  className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
                     sortDesc === dir.desc ? ACCENT.fill : SEGMENT_IDLE
                   }`}
                 >

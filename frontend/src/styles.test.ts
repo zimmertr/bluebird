@@ -18,6 +18,7 @@ import {
   CHOICE_INPUT,
   CHOICE_ROW,
   DAY,
+  CHART_METRIC_W,
   CONTROL_W,
   FIELD,
   FIELD_NUMERIC,
@@ -46,7 +47,6 @@ import {
   DISABLED,
   SELECT,
   SEGMENT_FILL,
-  SEGMENT_ITEM_TIGHT,
   SELECT_W_AGGREGATE,
   SPINNER,
   STATUS,
@@ -86,6 +86,18 @@ const mapCss: string = readFileSync(new URL('./map.css', import.meta.url), 'utf8
 // The arbitrary branch cannot carry a trailing \b: `text-[10px]` ends in `]`, a
 // non-word character, so a boundary there would require the *next* character to
 // be a word one — which it never is, mid-class-list.
+// Tailwind's spacing scale is 4px a step, so every width sum below reads its
+// numbers off the roles rather than restating them in a comment that rots.
+const stepPx = (cls: string, prefix: string): number =>
+  (Number(cls.match(new RegExp(`(?:^|\\s)${prefix}-(\\d+(?:\\.\\d+)?)(?:\\s|$)`))![1]) / 4) * 16
+// What SELECT keeps clear on the right: the arrow's own box and nothing more.
+const ICON_PX = stepPx(ICON, 'w')
+const selectArrowPx = (): number => stepPx(SELECT, 'pr')
+// The panel's control column, and the Metrics box pair it now measures.
+const controlWPx = (): number => Number(CONTROL_W.match(/w-\[(\d+)px\]/)![1])
+const metricPairPx = (): number =>
+  2 * stepPx(METRIC_BOX_W, 'w') + (Number(METRICS_GRID.match(/gap-x-([\d.]+)/)![1]) / 4) * 16
+
 const SIZE = /\btext-(?:xs|sm|base|lg|xl|2xl|3xl)\b|\btext-\[[^\]]+\]/g
 
 function sizes(classes: string): string[] {
@@ -537,7 +549,6 @@ describe('shared recipes', () => {
     ['BUTTON_DANGER', BUTTON_DANGER],
     ['CHOICE_ROW', CHOICE_ROW],
     ['SEGMENT_ITEM', SEGMENT_ITEM],
-    ['SEGMENT_ITEM_TIGHT', SEGMENT_ITEM_TIGHT],
     ['FIELD', FIELD],
     ['SELECT', SELECT],
     ['DAY.cell', DAY.cell],
@@ -664,8 +675,8 @@ describe('shared recipes', () => {
   // cannot become a second kind of segment.
   it('gives the timeline axis halves room for a metric noun', () => {
     expect(TRANSPORT_AXIS_ITEM).toMatch(/(^|\s)px-3(\s|$)/)
-    expect(SEGMENT_ITEM).toMatch(/(^|\s)px-2(\s|$)/)
-    expect(TRANSPORT_AXIS_ITEM.replace('px-3', 'px-2')).toBe(SEGMENT_ITEM)
+    expect(SEGMENT_ITEM).toMatch(/(^|\s)px-1(\s|$)/)
+    expect(TRANSPORT_AXIS_ITEM.replace('px-3', 'px-1')).toBe(SEGMENT_ITEM)
     // And the bar wears it, or the role is a number nothing reads.
     expect(sources['./components/TimelineTransport.tsx']).toContain('TRANSPORT_AXIS_ITEM')
   })
@@ -718,7 +729,12 @@ describe('shared recipes', () => {
   // a long model name running underneath it.
   it('suppresses the platform chrome and keeps room for the arrow it replaces', () => {
     expect(SELECT).toContain('appearance-none')
-    expect(SELECT).toContain('pr-8')
+    // Exactly the arrow's own box: ICON_ADORNMENT puts a 16px glyph 8px from
+    // the edge, so it ends 24px in and a label may run to that line. More than
+    // that is room taken from every label in the app; less runs under the mark.
+    const reserve = (Number(SELECT.match(/pr-(\d+)/)![1]) / 4) * 16
+    const offset = (Number(ICON_ADORNMENT.match(/right-(\d+)/)![1]) / 4) * 16
+    expect(reserve).toBe(offset + ICON_PX)
   })
 
   // The disabled look is one role, not a pair of utilities re-spelled per call
@@ -739,6 +755,40 @@ describe('shared recipes', () => {
     expect(SEGMENT).toContain(CONTROL_W)
   })
 
+  // The panel is ONE column now (TJ, 2026-09-14). The Forecast section's model
+  // picker and its two segments stand on exactly the edges the Metrics bound
+  // boxes do, which is what the control width is: the two box columns plus the
+  // grid gap between them. Derived rather than restated, so moving a box moves
+  // the Forecast controls with it or fails here.
+  it('measures the control column as the Metrics box pair', () => {
+    expect(controlWPx()).toBe(metricPairPx())
+  })
+
+  // What that column costs the model picker, which is the control it binds.
+  // The trigger spends 8px of left padding, SELECT's arrow reserve, and its
+  // 2px border; the rest is label. The longest model label must fit, or the
+  // one control whose job is telling eight similar things apart truncates.
+  // Measured in Chrome on macOS at the panel's text-xs, 2026-09-14.
+  it('leaves the model picker room for its longest label', () => {
+    // `UK Met Office`: 79.69px. `Meteo-France ARPEGE` is 130.03px and fits no
+    // trigger the panel can offer — it truncated at the old 144px too, and
+    // shortening it is the maintainer's call, not this file's.
+    const UK_MET_OFFICE_PX = 80
+    expect(controlWPx() - 8 - selectArrowPx() - 2).toBeGreaterThanOrEqual(UK_MET_OFFICE_PX)
+  })
+
+  // The chart's metric select is the one control that borrowed CONTROL_W from
+  // outside the panel, and it cannot follow it down: it lines up with nothing
+  // above it, and its labels carry their units. `Freezing level (ft)` is
+  // 99.27px, where the panel column would leave 84px.
+  it('keeps the chart metric select off the panel column', () => {
+    const FREEZING_LEVEL_UNIT_PX = 100
+    const chartPx = stepPx(CHART_METRIC_W, 'w')
+    expect(chartPx - 8 - selectArrowPx() - 2).toBeGreaterThanOrEqual(FREEZING_LEVEL_UNIT_PX)
+    expect(sources['./components/TimeSeriesChart.tsx']).toContain('CHART_METRIC_W')
+    expect(sources['./components/TimeSeriesChart.tsx']).not.toContain('CONTROL_W')
+  })
+
   // The Metrics grid (#341) sizes no control itself: its three control columns
   // are `auto`, so the dropdown and the boxes are as wide as the roles they
   // wear and nothing else. A rem in the template would be a second copy of
@@ -757,7 +807,7 @@ describe('shared recipes', () => {
   // The old Ranking row budgeted for "Precipitation" (72px) and shipped
   // `Freezing le…` when the longer noun arrived, so the noun is named here.
   // The dropdown's other bound is its content: the widest aggregate word
-  // (28px) plus the field's 8px left padding plus the 32px the SELECT recipe
+  // (28px) plus the field's 8px left padding plus whatever the SELECT recipe
   // reserves for its arrow. Measured in the running app (2026-08-22 and
   // 2026-09-14); re-measure before moving either width, the gap, or the nouns.
   it('leaves the metric label room for its longest noun', () => {
@@ -770,7 +820,7 @@ describe('shared recipes', () => {
     const labelPx = 327 - 14 - 10 - 3 * gapPx - dropdownPx - 2 * boxPx
 
     expect(labelPx).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
-    expect(dropdownPx).toBeGreaterThanOrEqual(28 + 8 + 32)
+    expect(dropdownPx).toBeGreaterThanOrEqual(28 + 8 + selectArrowPx())
   })
 
   // The Metrics direction segment is the section's one control that is not a
@@ -784,19 +834,19 @@ describe('shared recipes', () => {
     expect(controlPanelSource).toMatch(/\$\{SEGMENT_FILL\} col-span-2/)
   })
 
-  // What the narrower segment costs its halves. It is as wide as the two bound
-  // boxes and the gap between them, less the 2px border and the 1px divider,
-  // split in two. `Highest` is the longer word and must clear both insets
-  // inside that half. At SEGMENT_ITEM's 8px the word sits on the divider,
-  // which is why the tight variant exists. Measured in Chrome on macOS,
-  // 2026-09-14; re-measure before moving the box width, the gap, or the words.
-  it('leaves the fill segment half room for its longer word', () => {
-    // `Highest` at text-xs: 43.69px in Chrome on macOS, 2026-09-14.
+  // What the column costs a segment half. Every segment in the panel is the
+  // control width now, less the 2px border and the 1px divider, split in two.
+  // The widest word in any of them must clear both insets inside that half.
+  // An 8px inset leaves 41.5px, which two of the four words overrun, and that
+  // is why there is one inset here rather than the panel's usual. Measured in
+  // Chrome on macOS, 2026-09-14; re-measure before moving the column, the
+  // inset, or the words.
+  it('leaves every segment half room for its longest word', () => {
+    // At text-xs: `Highest` 43.69px, `Current` 42.89px, `All day` 37.80px,
+    // `Lowest` 39.88px, `Dates` 32.75px, `Hourly` 37.13px.
     const HIGHEST_PX = 44
-    const boxPx = (Number(METRIC_BOX_W.match(/-(\d+)$/)![1]) / 4) * 16
-    const gapPx = (Number(METRICS_GRID.match(/gap-x-([\d.]+)/)![1]) / 4) * 16
-    const insetPx = (Number(SEGMENT_ITEM_TIGHT.match(/px-([\d.]+)/)![1]) / 4) * 16
-    const halfPx = (2 * boxPx + gapPx - 2 - 1) / 2
+    const insetPx = stepPx(SEGMENT_ITEM, 'px')
+    const halfPx = (controlWPx() - 2 - 1) / 2
 
     expect(halfPx - 2 * insetPx).toBeGreaterThanOrEqual(HIGHEST_PX)
     expect(insetPx).toBeLessThan(8)
@@ -877,8 +927,8 @@ describe('shared recipes', () => {
   // their units, which at the panel's 12px type need 584px of row; a phone's
   // results sheet is the phone's width, so at 402px the row wrapped and AQI
   // sat alone on a second line. A control whose width its labels cannot move
-  // is what ends that: the select composes SELECT at CONTROL_W, and the row
-  // holding it never wraps, so a sixth metric cannot bring the line back.
+  // is what ends that: the select composes SELECT at CHART_METRIC_W, and the
+  // row holding it never wraps, so a sixth metric cannot bring the line back.
   it('keeps the chart metric control on one row at every width', () => {
     const chart = sources['./components/TimeSeriesChart.tsx']
     // Through the whole class template rather than to the closing bracket:
@@ -886,7 +936,7 @@ describe('shared recipes', () => {
     // interpolation is a `}` too.
     const select = chart.match(/<select[\s\S]*?className=\{`[^`]*`\}/)![0]
     expect(select).toContain('SELECT')
-    expect(select).toContain('CONTROL_W')
+    expect(select).toContain('CHART_METRIC_W')
     expect(chart).not.toMatch(/flex-wrap/)
   })
 
@@ -906,7 +956,6 @@ describe('shared recipes', () => {
     ['BUTTON_DANGER', BUTTON_DANGER],
     ['BUTTON_FLOATING', BUTTON_FLOATING],
     ['SEGMENT_ITEM', SEGMENT_ITEM],
-    ['SEGMENT_ITEM_TIGHT', SEGMENT_ITEM_TIGHT],
     ['ICON_BUTTON', ICON_BUTTON],
     ['CHIP.label', CHIP.label],
     ['CHIP.remove', CHIP.remove],

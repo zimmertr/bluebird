@@ -770,16 +770,35 @@ export const SEGMENT_IDLE = `${RECESSED_FILL} text-slate-400 hover:text-slate-20
  *
  * The panel is a column of label-plus-control rows, so the controls line up on
  * both edges or the column looks ragged. They already shared a right edge; this
- * is the left one. The segmented control set it — two halves need room for
- * "All Day" and "Hourly" side by side — and everything beside it follows rather
- * than each row picking its own.
+ * is the left one.
  *
- * The Metrics grid is the one section that uses none of it: its bound boxes
- * wear `METRIC_BOX_W`, sized by the metric row's label budget rather than by
- * this column, and its direction segment wears `SEGMENT_FILL` across the two
- * box columns, so that section lines up on the boxes' edges instead.
+ * It is 118px because that is 2 x `METRIC_BOX_W` + the Metrics grid's
+ * `gap-x-1.5`, so the Forecast section's controls stand on exactly the edges
+ * the bound boxes below them do and the whole panel reads as one column (TJ,
+ * 2026-09-14). `styles.test.ts` does that sum from the roles rather than
+ * trusting this sentence. It was 144px, set by the widest segment label, until
+ * the Metrics table's label budget forced the narrower boxes and left the two
+ * sections 26px apart.
+ *
+ * Nothing here is sized to its own content, which is the point: a control that
+ * picks its own width cannot line up with the one above it. What that costs is
+ * written down where it lands — see `SELECT`, which had to give the arrow's
+ * slack back to make the model picker fit, and `SEGMENT_ITEM`'s inset.
  */
-export const CONTROL_W = 'w-36'
+export const CONTROL_W = 'w-[118px]'
+
+/**
+ * The chart's metric select, the one control that borrowed `CONTROL_W` from
+ * outside the panel and cannot follow it down to 118px.
+ *
+ * It lives in the results sheet, not the sidebar, so it lines up with nothing
+ * above it and its labels carry their units: `Freezing level (ft)` measures
+ * 99.3px at text-xs, where 118px of `SELECT` offers 84px of label. 144px
+ * offers 110px, which clears it by 10.7px. Fixed rather than content-sized for
+ * the reason #348 gave: a select that grows with its labels lets a sixth
+ * metric wrap the row a phone can barely fit.
+ */
+export const CHART_METRIC_W = 'w-36'
 
 /**
  * The width every floating box under the Layers button shares: the Layers
@@ -871,13 +890,14 @@ export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RE
  * The third width a segment can have, and the three are exhaustive: `SEGMENT`
  * takes the panel's control column, `SEGMENT_FLUID` takes its own content, and
  * this one takes whatever it is given. It exists for the Metrics table's
- * direction row (#341), where the control column is the two bound boxes and
- * their gap rather than `CONTROL_W` — a `SEGMENT` there would hang 26px past
- * the boxes on the left, which is the misalignment TJ sent it back for
- * (2026-09-14). Anything else in a grid cell or a flex row that must match its
- * neighbours rather than the sidebar wears this.
+ * direction row (#341), where the column is two grid tracks and the gap between
+ * them rather than a width this file names. `CONTROL_W` now measures the same
+ * 118px, but a fixed width in a grid cell states a number the tracks already
+ * decide, and the two would drift the moment a box changed. Anything else in a
+ * grid cell or a flex row that must match its neighbours rather than a named
+ * column wears this.
  *
- * Its halves wear `SEGMENT_ITEM_TIGHT`, not `SEGMENT_ITEM`: a narrower segment
+ * Its halves wear `SEGMENT_ITEM`, whose inset
  * has less room to spend on insets. See that recipe for the arithmetic.
  */
 export const SEGMENT_FILL = `flex w-full ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
@@ -894,9 +914,12 @@ export const SEGMENT_FILL = `flex w-full ${RADIUS.control} overflow-hidden ${REC
  * is left — and its longest noun, `Freezing level`, is measured at text-xs
  * in `styles.test.ts`, which pins the sum. The dropdown's own floor is its
  * content: the widest aggregate word measures 28px, plus the field's 8px
- * left padding and the 32px the SELECT recipe reserves for its arrow — 68px
- * (measured 2026-08-22). Re-measure both sums before changing this, the box
- * width, the grid gap, or the nouns.
+ * left padding and the 24px the SELECT recipe reserves for its arrow — 60px
+ * (measured 2026-08-22, re-derived 2026-09-14 when SELECT gave 8px back).
+ * The 12px of slack that leaves is deliberate: this width also sets a grid
+ * track, so shrinking it to the floor would only widen a label that already
+ * fits. Re-measure both sums before changing this, the box width, the grid
+ * gap, or the nouns.
  */
 export const SELECT_W_AGGREGATE = 'w-[4.5rem]'
 
@@ -986,19 +1009,18 @@ export const METRIC_BOX_W = 'w-14'
  * adds.
  */
 const SEGMENT_ITEM_SHAPE = `${TAP.action} flex-1 py-0.5 text-xs transition-colors ${FOCUS_RING}`
-export const SEGMENT_ITEM = `${SEGMENT_ITEM_SHAPE} px-2`
 /**
- * One half of a `SEGMENT_FILL`, where the inset has to come down a step.
+ * One half of any segment in the panel.
  *
- * The Metrics direction segment is as wide as the two bound boxes and their
- * gap: 2 x METRIC_BOX_W + gap-x-1.5 = 118px, less the 2px border and the 1px
- * divider, is 57.5px a half. `Highest` measures 43.7px at text-xs, so
- * `SEGMENT_ITEM`'s 8px inset leaves 41.5px, two pixels short of the word.
- * 4px leaves 49.5px, so the slack is 5.8px. `styles.test.ts` does that
- * sum from the roles rather than trusting this sentence, so a wider word or a
- * narrower box fails there instead of on screen.
+ * Every one of them is 118px now, so there is one inset rather than two: less
+ * the 2px border and the 1px divider, a half is 57.5px, and an 8px inset
+ * leaves 41.5px. `Current` measures 42.9px at text-xs and `Highest` 43.7px, so
+ * both overrun it. 4px leaves 49.5px, clearing the wider of the two by 5.8px.
+ * `styles.test.ts` does that sum from the roles rather than trusting this
+ * sentence, so a wider word or a narrower segment fails there instead of on
+ * screen.
  */
-export const SEGMENT_ITEM_TIGHT = `${SEGMENT_ITEM_SHAPE} px-1`
+export const SEGMENT_ITEM = `${SEGMENT_ITEM_SHAPE} px-1`
 /** Between two halves, never before the first. */
 export const SEGMENT_DIVIDER = 'border-l border-slate-500'
 
@@ -1415,16 +1437,22 @@ export const FIELD_NUMERIC =
  *   render dark-on-light inside a dark panel. Suppressing it costs the arrow,
  *   which the call site draws back as an inline SVG in `ICON_ADORNMENT` — one
  *   glyph we control on every platform, rather than one we control on none.
- * - `pr-8`, reserving the room that arrow sits in. It belongs here and not at
+ * - `pr-6`, reserving the room that arrow sits in. It belongs here and not at
  *   the call site because it is not decoration: without it a long option label
- *   runs underneath the arrow.
+ *   runs underneath the arrow. 24px is the arrow's own box and nothing more:
+ *   `ICON_ADORNMENT` puts a 16px glyph 8px from the edge, so it occupies 8px
+ *   to 24px and a label may run to that line. It reserved 32px until the panel
+ *   column came down to 118px, where the spare 8px was the difference between
+ *   `UK Met Office` (79.7px) fitting the model picker and truncating (TJ,
+ *   2026-09-14). The glyph is drawn inside its box with its own margin, so the
+ *   text does not touch the mark.
  *
  * `<option>` elements are deliberately left alone. Their rendering is the
  * platform's — several browsers ignore author styles on them outright — so
  * styling them would produce a control that matched the design system on some
  * machines and not others, which is worse than one that consistently does not.
  */
-export const SELECT = `${FIELD} appearance-none pr-8`
+export const SELECT = `${FIELD} appearance-none pr-6`
 
 /**
  * What a control looks like when it does not apply.
