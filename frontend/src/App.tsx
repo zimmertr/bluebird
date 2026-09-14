@@ -2561,6 +2561,8 @@ export default function App() {
             onDrawUpdate={handleDrawUpdate}
             results={results}
             sortBy={view.sortBy}
+            modelId={analyzed?.forecastModel ?? forecastModel}
+            times={response?.times ?? []}
             fireWarnings={fire.warnings}
             showWildfires={showWildfires}
             showRadar={showRadar}

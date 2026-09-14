@@ -38,6 +38,15 @@ export interface WildfireResponse extends FeatureCollection {
 const NIFC_EXPLORE_URL =
   'https://data-nifc.opendata.arcgis.com/datasets/nifc::wfigs-current-interagency-fire-perimeters/explore'
 
+/**
+ * How close the NIFC map opens on a fire linked from a surface that has no map
+ * of its own to ask. A clicked fire on Bluebird's own map passes the reader's
+ * current zoom instead; a table cell and a marker popup have none, so they
+ * share this one, which frames a whole fire without losing the country around
+ * it.
+ */
+export const FIRE_LINK_ZOOM = 10
+
 // Deep-link the NIFC explore map, centered on a clicked/hovered fire. Coords are
 // rounded to ~1 m and zoom to 2 dp; order is lat,lon,zoom per the Hub param.
 export function nifcFireUrl(lng: number, lat: number, zoom: number): string {

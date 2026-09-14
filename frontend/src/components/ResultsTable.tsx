@@ -36,7 +36,7 @@ import type { FireProximityStatus } from '../hooks/useFireProximity'
 import { FREEZE_UNAVAILABLE_NOTE, freezeCellText, isFreezeKey } from '../utils/freezingLevel'
 import { destinationUrl } from '../utils/destinationUrl'
 import { extremeHourMs, windyUrl } from '../utils/windy'
-import { nifcFireUrl } from '../utils/wildfires'
+import { FIRE_LINK_ZOOM, nifcFireUrl } from '../utils/wildfires'
 import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
 import { pinKey } from '../utils/customList'
@@ -53,11 +53,6 @@ import {
   TEXT,
 } from '../styles'
 import { createPortal } from 'react-dom'
-
-// How close the NIFC map opens on a fire linked from the table. The map's own
-// popup passes whatever zoom the reader is at; a table cell has no map to ask,
-// so it picks one that frames a whole fire without losing the country around it.
-const FIRE_LINK_ZOOM = 10
 
 function ExternalLinkIcon() {
   return (

@@ -20,6 +20,7 @@ import '../map.css'
 import { GeoPolygon, DestinationResult, SortBy } from '../types'
 import { resultsFeatureCollection } from '../utils/resultFeatures'
 import { resultPopupHtml } from '../utils/resultPopup'
+import type { ModelRow } from '../utils/modelCompare'
 import { FireWarning, fireKey } from '../utils/fireProximity'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import { pointsWithinView } from '../utils/mapFraming'
@@ -106,6 +107,11 @@ interface Props {
   onDrawUpdate: (count: number, areaKm2: number | null) => void
   results: DestinationResult[]
   sortBy: SortBy
+  // What a popup's Windy links carry, matching the results table's cells: the
+  // model every number came from, and the report's own hourly grid, which is
+  // what turns a row's series into the HOUR behind a floor or a ceiling.
+  modelId: string | null
+  times: number[]
   // Fire-proximity warnings keyed by fireKey(lat,lon), mirroring the results
   // table — a clicked point's popup surfaces the same ⚠️ when one applies.
   fireWarnings: Map<string, FireWarning>
@@ -705,6 +711,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onDrawUpdate,
       results,
       sortBy,
+      modelId,
+      times,
       fireWarnings,
       showWildfires,
       showRadar,
@@ -764,6 +772,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // in the load effect and would otherwise close over an empty map. focusResult
     // reads the live prop directly (its imperative handle re-runs every render).
     const fireWarningsRef = useRef(fireWarnings)
+    // The three inputs a popup's Windy links need, read by the marker-click
+    // listener, which is registered once on map load and therefore cannot see
+    // a prop. The rows are here rather than on the features themselves because
+    // a link needs the whole HOURLY SERIES behind a cell, which is not
+    // something to encode into a GeoJSON property per marker.
+    const windyRef = useRef({ results, modelId, times })
     // The sheet's share of the bottom edge, for the two framing calls that live
     // inside the mount effect — the resize refit and the opening frame — which
     // would otherwise hold the first render's value for the session. The
@@ -963,6 +977,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
               longitude: result.longitude,
               latitude: result.latitude,
               warning: fireWarnings.get(fireKey(result.latitude, result.longitude)) ?? null,
+              // A per-model row names its own model; a single-model report has
+              // one for every row. Same rule as the table's cells.
+              modelId: (result as ModelRow).modelId ?? modelId,
+              series: result.series,
+              times: result.series_times ?? times,
             }),
           )
           .addTo(map)
@@ -1637,6 +1656,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
           // popup is ever open. Marker→marker already dismisses via the map's
           // closeOnClick, but a table-name click (focusResult) fires no map click,
           // so without a shared ref the marker popup would linger beside it.
+          // The row behind this marker, for the popup's Windy links. Matched on
+          // the exact coordinates the feature carries for the fire lookup above
+          // rather than on an index, so a source that has re-rendered since the
+          // ref last updated cannot pair a popup with the wrong row.
+          const live = windyRef.current
+          const row = live.results.find((r) => r.latitude === lat && r.longitude === lon) ?? null
           const pinned = isPinning(e)
           if (!pinned) closeAllPopups()
           // Never closeOnClick: it is fixed at construction, so an
@@ -1667,6 +1692,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
                 longitude: lon,
                 latitude: lat,
                 warning: fireWarningsRef.current.get(fireKey(lat, lon)) ?? null,
+                modelId: row ? ((row as ModelRow).modelId ?? live.modelId) : live.modelId,
+                series: row?.series ?? null,
+                times: row?.series_times ?? live.times,
               }),
             )
             .addTo(map)
@@ -1990,6 +2018,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       fireWarningsRef.current = fireWarnings
     }, [fireWarnings])
+
+    useEffect(() => {
+      windyRef.current = { results, modelId, times }
+    }, [results, modelId, times])
 
     useEffect(() => {
       cameraPadBottomRef.current = cameraPadBottomPx
