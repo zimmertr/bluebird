@@ -39,6 +39,8 @@ export interface Capabilities {
   maxDestinations: number
   maxLimit: number
   maxPolygonAreaKm2: number
+  /** Days back the calendar may offer, which is the archive endpoint's reach. */
+  archiveDays: number
   /** Best first, in the order the server ranked them. Render as given. */
   forecastModels: readonly ForecastModelOption[]
   defaultForecastModel: string
@@ -52,6 +54,13 @@ export interface Capabilities {
 // Sized to where Cascades-density terrain starts timing Overpass out
 // (measured: ~103k km2 answered in ~26s, ~151k km2 drew a 504).
 const FALLBACK_POLYGON_AREA_KM2 = 100_000
+
+// Fallback for the calendar's near edge, and the same kind of stand-in: nothing
+// computes with it, it only holds the band until /api/capabilities answers with
+// the reach this deployment actually validates. A year, matching
+// `ARCHIVE_DATA_DAYS` in backend/app/models.py — the archive holds decades, and
+// the reach is a product choice about how far a calendar should page (#123).
+const FALLBACK_ARCHIVE_DAYS = 365
 
 // Fallback for the model picker. One entry, not a compiled copy of the server's
 // list: this stands in only for the moment before /api/capabilities answers,
@@ -74,6 +83,7 @@ const FALLBACK: Capabilities = {
   maxDestinations: MAX_ANALYZE_DESTINATIONS,
   maxLimit: MAX_ANALYZE_DESTINATIONS,
   maxPolygonAreaKm2: FALLBACK_POLYGON_AREA_KM2,
+  archiveDays: FALLBACK_ARCHIVE_DAYS,
   forecastModels: [FALLBACK_FORECAST_MODEL],
   defaultForecastModel: FALLBACK_FORECAST_MODEL.id,
 }
@@ -188,6 +198,7 @@ export function parseCapabilities(body: unknown): Capabilities {
     maxDestinations: num('max_destinations', FALLBACK.maxDestinations),
     maxLimit: num('max_limit', FALLBACK.maxLimit),
     maxPolygonAreaKm2: num('max_polygon_area_km2', FALLBACK.maxPolygonAreaKm2),
+    archiveDays: num('archive_days', FALLBACK.archiveDays),
     ...parseModels(body),
   }
 }

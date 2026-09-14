@@ -5,11 +5,13 @@ import { gridLabel, reachLabel, type ForecastModelOption } from '../hooks/useCap
 import {
   BADGE_ACCENT,
   CHOICE_INPUT,
+  DISABLED,
   FOCUS_RING,
   ICON_ADORNMENT,
   LAYER,
   LINK_ACTION,
   SELECT,
+  SR_ONLY,
   SURFACE_CARD,
   TEXT,
 } from '../styles'
@@ -24,6 +26,14 @@ const VIEWPORT_MARGIN_PX = 8
 // Namespaces this listbox's option ids inside the document.
 const LIST_ID = 'model'
 
+// Why the control is faded, for the one window it does not apply to. A disabled
+// control says that it cannot be used and never why, and "the model does not
+// apply to these hours" is not a thing the panel can be read off. Mounted twice
+// — as the trigger's `title` and as the hidden text `aria-describedby` names —
+// because a tooltip does not exist on touch or to a screen reader.
+const DISABLED_NOTE = 'Forecast models are not available for archival data.'
+const DISABLED_NOTE_ID = 'model-archive-note'
+
 interface Props {
   models: readonly ForecastModelOption[]
   value: string
@@ -37,6 +47,15 @@ interface Props {
    */
   compared: readonly string[]
   onComparedChange: (ids: string[]) => void
+  /**
+   * The model does not apply to the selected window, so there is nothing to
+   * choose. True for an archive window (#123): that endpoint answers from a
+   * reanalysis, the same dataset at every location, and the models here are
+   * forecast models that never ran over those hours. Disabled rather than
+   * hidden, because the row still says which control the window has taken out
+   * of play.
+   */
+  disabled?: boolean
 }
 
 /**
@@ -68,6 +87,7 @@ export default function ModelPicker({
   onChange,
   compared,
   onComparedChange,
+  disabled = false,
 }: Props) {
   const [open, setOpen] = useState(false)
   const [box, setBox] = useState<PopoverBox | null>(null)
@@ -253,6 +273,9 @@ export default function ModelPicker({
         aria-label={`Forecast model: ${selected?.label ?? value}${
           comparedCount > 0 ? ` +${comparedCount}` : ''
         }`}
+        title={disabled ? DISABLED_NOTE : undefined}
+        aria-describedby={disabled ? DISABLED_NOTE_ID : undefined}
+        disabled={disabled}
         onClick={() => (open ? close(true) : openList())}
         onKeyDown={(e) => {
           if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
@@ -260,7 +283,7 @@ export default function ModelPicker({
             openList()
           }
         }}
-        className={`${SELECT} flex w-full items-baseline gap-1 px-2 py-1.5 text-left`}
+        className={`${SELECT} ${DISABLED} flex w-full items-baseline gap-1 px-2 py-1.5 text-left`}
       >
         {/* The label gives way, never the count: `+2` is the only thing on the
             trigger that a reader cannot otherwise see, so a long model name
@@ -271,6 +294,11 @@ export default function ModelPicker({
           <span className="flex-shrink-0 tabular-nums">+{comparedCount}</span>
         )}
       </button>
+      {disabled && (
+        <span id={DISABLED_NOTE_ID} className={SR_ONLY}>
+          {DISABLED_NOTE}
+        </span>
+      )}
       <svg
         className={`${ICON_ADORNMENT} h-4 w-4`}
         viewBox="0 0 20 20"

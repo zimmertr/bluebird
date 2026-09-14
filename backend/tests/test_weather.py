@@ -25,15 +25,25 @@ from app.services.weather import (
 )
 
 
-def _hourly(times, precip, temp, wind):
-    return {
-        "hourly": {
-            "time": times,
-            "precipitation": precip,
-            "temperature_2m": temp,
-            "wind_speed_10m": wind,
-        }
+def _hourly(times, precip, temp, wind, freeze=None, freeze_unit="m"):
+    hourly = {
+        "time": times,
+        "precipitation": precip,
+        "temperature_2m": temp,
+        "wind_speed_10m": wind,
     }
+    # Omitted rather than nulled by default: a payload with no
+    # `freezing_level_height` key at all is what five of the eight models
+    # return, so it is the shape most of these tests should exercise.
+    payload: dict[str, Any] = {"hourly": hourly}
+    if freeze is not None:
+        hourly["freezing_level_height"] = freeze
+        # A real response always declares the unit, so the payload carries it
+        # whenever it carries the column. `freeze_unit=None` is the malformed
+        # body the aggregation must refuse rather than guess at.
+        if freeze_unit is not None:
+            payload["hourly_units"] = {"freezing_level_height": freeze_unit}
+    return payload
 
 
 START = datetime(2026, 7, 21, 0, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
@@ -59,6 +69,11 @@ def test_metrics_aggregates_full_window():
         "wind_min_mph": 5.0,
         "wind_max_mph": 9.0,
         "wind_avg_mph": 7.0,
+        # This payload carries no freezing level, which is what the five
+        # models that do not publish it amount to.
+        "freeze_min_ft": None,
+        "freeze_max_ft": None,
+        "freeze_avg_ft": None,
     }
 
 
@@ -140,6 +155,144 @@ def test_metrics_rounding_precision():
 def test_metrics_malformed_payload_returns_none():
     # A completely unexpected shape is swallowed to None, never raised.
     assert _metrics({"unexpected": True}, START, END) is None
+
+
+# ── Freezing level (issue #295) ────────────────────────────────────────────
+#
+# The variable is served by three of the eight models, so its aggregates are
+# nullable on their own and are reduced outside the precip/temp/wind zip. What
+# these pin is that separation: a model that answers a column of nulls must
+# leave every other number on the row exactly as it was.
+
+_TIMES_3H = ["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00"]
+
+
+def test_metrics_converts_the_freezing_level_to_whole_feet():
+    data = _hourly(
+        _TIMES_3H, [0.0, 0.0, 0.0], [30.0, 31.0, 32.0], [5.0, 5.0, 5.0],
+        freeze=[3000.0, 3100.0, 3050.0],
+    )
+    m = _metrics(data, START, END)
+    assert m["freeze_min_ft"] == round(3000.0 / 0.3048, 0)
+    assert m["freeze_max_ft"] == round(3100.0 / 0.3048, 0)
+    assert m["freeze_avg_ft"] == round(3050.0 / 0.3048, 0)
+
+
+def test_metrics_all_null_freezing_level_leaves_the_other_aggregates():
+    # The five-model response shape: identical payloads but for the freezing
+    # level, and every other figure must come out identical too.
+    args = (_TIMES_3H, [0.1, 0.2, 0.0], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0])
+    nulled = _metrics(_hourly(*args, freeze=[None, None, None]), START, END)
+    absent = _metrics(_hourly(*args), START, END)
+
+    assert nulled == absent
+    assert nulled["freeze_avg_ft"] is None
+    assert nulled["precip_total_in"] == 0.3
+    assert nulled["temp_min_f"] == 50.0
+    assert nulled["wind_avg_mph"] == 7.0
+
+
+def test_metrics_skips_a_null_freezing_hour_without_dropping_it():
+    # Contrast with the core metrics above, where a null drops the whole hour:
+    # the middle hour's precipitation still counts.
+    data = _hourly(
+        _TIMES_3H, [0.1, 0.2, 0.3], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0],
+        freeze=[2000.0, None, 2200.0],
+    )
+    m = _metrics(data, START, END)
+    assert m["precip_total_in"] == 0.6
+    assert m["freeze_min_ft"] == round(2000.0 / 0.3048, 0)
+    assert m["freeze_max_ft"] == round(2200.0 / 0.3048, 0)
+
+
+def test_metrics_freezing_level_zero_is_a_value_not_a_gap():
+    # Open-Meteo clamps to 0.0 when the whole column is below freezing.
+    data = _hourly(
+        ["2026-07-21T00:00"], [0.0], [10.0], [5.0], freeze=[0.0]
+    )
+    m = _metrics(data, START, END)
+    assert m["freeze_min_ft"] == 0.0
+    assert m["freeze_avg_ft"] == 0.0
+    assert m["freeze_max_ft"] == 0.0
+
+
+def test_series_carries_the_freezing_level_and_its_gaps():
+    data = _hourly(
+        _TIMES_3H, [0.1, 0.2, 0.3], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0],
+        freeze=[3000.0, None, 3100.0],
+    )
+    s = _series(data, START, END)
+    assert s["freeze_ft"] == [round(3000.0 / 0.3048, 0), None, round(3100.0 / 0.3048, 0)]
+
+
+def test_series_freezing_level_is_all_nulls_when_the_model_omits_it():
+    data = _hourly(_TIMES_3H, [0.1, 0.2, 0.3], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0])
+    s = _series(data, START, END)
+    assert s["freeze_ft"] == [None, None, None]
+    assert s["precip_in"] == [0.1, 0.2, 0.3]
+
+
+# ── The freezing level's unit (issue #295 review) ──────────────────────────
+#
+# Open-Meteo quotes the height in the unit `precipitation_unit` selects and
+# names it in `hourly_units`. One hour over Rainier, measured 2026-09-13 for
+# 2026-09-15T12:00: 2560 with "m", 8398.95 with "ft", and both are 8,399 ft.
+# Every request the app sends carries `precipitation_unit=inch`, so feet is
+# the branch production takes.
+_RAINIER_HOUR = "2026-09-15T12:00"
+_RAINIER_START = datetime(2026, 9, 15, 12, 0)  # noqa: DTZ001 — naive, like the API's stamps
+_RAINIER_END = datetime(2026, 9, 15, 12, 1)  # noqa: DTZ001 — naive, like the API's stamps
+
+
+def _rainier(freeze, freeze_unit="m"):
+    return _hourly(
+        [_RAINIER_HOUR], [0.0], [3.3], [10.0], freeze=freeze, freeze_unit=freeze_unit
+    )
+
+
+def test_metrics_reads_the_unit_the_response_declares():
+    meters = _metrics(_rainier([2560.0]), _RAINIER_START, _RAINIER_END)
+    feet = _metrics(_rainier([8398.95], "ft"), _RAINIER_START, _RAINIER_END)
+    assert meters["freeze_min_ft"] == 8399.0
+    assert feet["freeze_min_ft"] == 8399.0
+    assert feet == meters
+
+
+def test_metrics_does_not_convert_a_response_already_in_feet():
+    # The whole failure this guards: dividing feet by 0.3048 reads 27,556 ft
+    # over a 14,409 ft summit, which looks like a forecast rather than a fault.
+    m = _metrics(_rainier([8398.95], "ft"), _RAINIER_START, _RAINIER_END)
+    assert m["freeze_max_ft"] == 8399.0
+
+
+def test_series_reads_the_unit_the_response_declares():
+    meters = _series(_rainier([2560.0]), _RAINIER_START, _RAINIER_END)
+    feet = _series(_rainier([8398.95], "ft"), _RAINIER_START, _RAINIER_END)
+    assert meters["freeze_ft"] == [8399.0]
+    assert feet["freeze_ft"] == [8399.0]
+
+
+def test_metrics_unknown_unit_fails_instead_of_guessing():
+    with pytest.raises(UpstreamError):
+        _metrics(_rainier([2560.0], "furlongs"), _RAINIER_START, _RAINIER_END)
+
+
+def test_series_unknown_unit_fails_instead_of_guessing():
+    with pytest.raises(UpstreamError):
+        _series(_rainier([2560.0], "furlongs"), _RAINIER_START, _RAINIER_END)
+
+
+def test_metrics_missing_unit_fails_when_the_column_carries_numbers():
+    with pytest.raises(UpstreamError):
+        _metrics(_rainier([2560.0], None), _RAINIER_START, _RAINIER_END)
+
+
+def test_metrics_missing_unit_is_harmless_when_the_column_is_all_null():
+    # The five models that publish no freezing level need no unit, and a
+    # response that declares none for an empty column is not malformed.
+    m = _metrics(_rainier([None], None), _RAINIER_START, _RAINIER_END)
+    assert m["freeze_min_ft"] is None
+    assert m["temp_min_f"] == 3.3
 
 
 # One hour's free-air winds at the five levels, weakest to strongest, so an
@@ -407,7 +560,8 @@ async def test_fetch_weather_batch_requests_the_level_winds(monkeypatch):
     hourly = calls[0]["hourly"].split(",")
     for name, _ in weather._WIND_LEVELS:
         assert name in hourly
-    # Still at weight factor 1: max(1, vars x models/10) with 8 variables
+    assert weather._FREEZING_LEVEL in hourly
+    # Still at weight factor 1: max(1, vars x models/10) with 9 variables
     # and one model.
     assert len(hourly) == weather.N_VARIABLES
 
@@ -954,3 +1108,309 @@ async def test_a_keyed_and_an_unkeyed_request_share_one_cache_entry(monkeypatch)
 
     assert len(calls) == 1
     assert second[0]["precip_total_in"] == first[0]["precip_total_in"]
+
+
+# ── The archive endpoint (issue #123) ──────────────────────────────────────
+#
+# A window older than the forecast endpoint's retention is answered from the
+# archive instead. `source` says which, and the caller decides it — these tests
+# pass it the way the route does.
+
+
+async def test_an_archive_window_goes_to_the_archive_endpoint(monkeypatch):
+    urls: list[str] = []
+    _stub_openmeteo(monkeypatch, [_payload([0.1])], urls)
+    await fetch_weather_batch(_dests(1), START, END, source="archive")
+
+    assert urls == [weather.ARCHIVE_URL]
+
+
+async def test_an_archive_window_names_no_model(monkeypatch):
+    # The archive's default is a reanalysis, one dataset everywhere, so nothing
+    # varies row to row the way `best_match` would on the forecast endpoint.
+    # Forwarding the picker's model would be worse than useless: the archive
+    # accepts an unknown `models=` with a 200 and plausible data, so a name it
+    # does not serve would be answered silently by something else.
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    await fetch_weather_batch(
+        _dests(1), START, END, model=ForecastModel.gfs_hrrr, source="archive"
+    )
+
+    assert "models" not in calls[0]
+    # Everything else about the request is unchanged, hours included.
+    assert calls[0]["start_hour"] == "2026-07-21T00:00"
+    assert calls[0]["hourly"] == weather.HOURLY_VARIABLES
+
+
+async def test_a_forecast_window_still_names_its_model(monkeypatch):
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    await fetch_weather_batch(_dests(1), START, END, model=ForecastModel.gfs_hrrr)
+
+    assert calls[0]["models"] == "gfs_hrrr"
+
+
+async def test_a_keyed_archive_window_goes_to_the_customer_archive_host(monkeypatch):
+    urls: list[str] = []
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1])], urls)
+    await fetch_weather_batch(
+        _dests(1), START, END, api_key="secret-key", source="archive"
+    )
+
+    assert urls == [weather.CUSTOMER_ARCHIVE_URL]
+    assert calls[0]["apikey"] == "secret-key"
+
+
+async def test_fetch_weather_batch_keys_the_cache_by_endpoint(monkeypatch):
+    # The two endpoints answer the same coordinates and window from different
+    # data, and the boundary between them moves with the clock — so a window
+    # that changes sides while an entry is live must miss rather than be served
+    # the other endpoint's numbers.
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1]), _payload([0.2])])
+
+    forecast = await fetch_weather_batch(_dests(1), START, END)
+    archive = await fetch_weather_batch(_dests(1), START, END, source="archive")
+
+    assert len(calls) == 2
+    assert forecast[0]["precip_total_in"] == 0.1
+    assert archive[0]["precip_total_in"] == 0.2
+
+
+async def test_an_archive_payload_with_no_level_winds_keeps_every_hour(monkeypatch):
+    # The archive accepts the five pressure levels and answers them all null
+    # (measured 2026-09-12). The elevation adjustment degrades to the 10 m wind
+    # — and, crucially, drops no hour doing it: the aggregation zips the four
+    # core arrays, so a null level can only ever change a wind number.
+    block = _one_location()
+    block["hourly"].update({name: [None] * 3 for name, _ in weather._WIND_LEVELS})
+    _stub_openmeteo(monkeypatch, [[block]])
+    dests = _dests(1)
+    dests[0]["elevation_ft"] = 14000.0
+
+    results = await fetch_weather_batch(dests, START, END, source="archive")
+
+    assert results[0]["wind_avg_mph"] == 7.0  # mean of the 10 m 5, 7, 9
+    assert results[0]["wind_max_mph"] == 9.0
+    assert results[0]["series"]["wind_mph"] == [5.0, 7.0, 9.0]
+    assert len(results[0]["series"]["times"]) == 3
+
+
+# ── A window that crosses the boundary (issue #123) ────────────────────────
+#
+# Two fetches, one per endpoint, joined per location before the aggregation
+# runs. The caller decides both the classification and the seam, so these pass
+# them the way the route does.
+
+SPAN_START = datetime(2026, 7, 18, 22, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
+SPAN_END = datetime(2026, 7, 19, 1, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
+SEAM = datetime(2026, 7, 19, 0, 0, tzinfo=timezone.utc)
+
+
+def _half(times, precip):
+    """One location's half-window, with the five levels answered null."""
+    block = _hourly(
+        times,
+        precip,
+        [50.0] * len(times),
+        [5.0] * len(times),
+    )
+    block["hourly"].update({name: [None] * len(times) for name, _ in weather._WIND_LEVELS})
+    block["hourly_units"] = {"precipitation": "inch"}
+    return [block]
+
+
+def _archive_half():
+    return _half(["2026-07-18T22:00", "2026-07-18T23:00"], [0.1, 0.2])
+
+
+def _forecast_half():
+    return _half(["2026-07-19T00:00", "2026-07-19T01:00"], [0.4, 0.8])
+
+
+async def test_a_spanning_window_asks_each_endpoint_for_its_own_hours(monkeypatch):
+    urls: list[str] = []
+    calls = _stub_openmeteo(monkeypatch, [_archive_half(), _forecast_half()], urls)
+    await fetch_weather_batch(
+        _dests(1),
+        SPAN_START,
+        SPAN_END,
+        model=ForecastModel.gfs_hrrr,
+        source="spanning",
+        boundary=SEAM,
+    )
+
+    assert urls == [weather.ARCHIVE_URL, weather.FORECAST_URL]
+    # Disjoint: the archive answers through the hour BEFORE the seam, and an
+    # hour arriving twice would be counted twice in the precipitation total.
+    assert calls[0]["start_hour"] == "2026-07-18T22:00"
+    assert calls[0]["end_hour"] == "2026-07-18T23:00"
+    assert calls[1]["start_hour"] == "2026-07-19T00:00"
+    assert calls[1]["end_hour"] == "2026-07-19T01:00"
+    # The model rides only on the half a model answered.
+    assert "models" not in calls[0]
+    assert calls[1]["models"] == "gfs_hrrr"
+
+
+async def test_a_spanning_window_aggregates_both_halves_as_one_series(monkeypatch):
+    _stub_openmeteo(monkeypatch, [_archive_half(), _forecast_half()])
+    results = await fetch_weather_batch(
+        _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
+    )
+
+    # 0.1 + 0.2 + 0.4 + 0.8: every hour of both halves, counted once.
+    assert results[0]["precip_total_in"] == 1.5
+    assert results[0]["precip_max_in_hr"] == 0.8
+    assert len(results[0]["series"]["times"]) == 4
+
+
+async def test_a_spanning_window_drops_a_location_whose_halves_disagree_on_units(
+    monkeypatch,
+):
+    # A total of inches and millimetres is a number with no meaning, so the row
+    # degrades to no forecast the way every unreadable payload here does.
+    other = _forecast_half()
+    other[0]["hourly_units"] = {"precipitation": "mm"}
+    _stub_openmeteo(monkeypatch, [_archive_half(), other])
+    results = await fetch_weather_batch(
+        _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
+    )
+
+    assert results == [None]
+
+
+async def test_a_spanning_window_joins_halves_whose_unserved_units_differ(
+    monkeypatch,
+):
+    # Measured 2026-09-13: the archive declares "undefined" for every
+    # pressure-level wind it does not serve, where the forecast endpoint says
+    # "mp/h". A column one side does not have is not a disagreement, and the
+    # window that crosses the boundary must not come back empty for it.
+    archive = _archive_half()
+    archive[0]["hourly_units"] = {
+        "precipitation": "inch",
+        "wind_speed_10m": "mp/h",
+        "wind_speed_500hPa": "undefined",
+    }
+    forecast = _forecast_half()
+    forecast[0]["hourly_units"] = {
+        "precipitation": "inch",
+        "wind_speed_10m": "mp/h",
+        "wind_speed_500hPa": "mp/h",
+    }
+    _stub_openmeteo(monkeypatch, [archive, forecast])
+    results = await fetch_weather_batch(
+        _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
+    )
+
+    assert results[0]["precip_total_in"] == 1.5
+
+
+async def test_a_spanning_window_reads_the_freezing_level_in_the_served_unit(
+    monkeypatch,
+):
+    # The archive answers the freezing level null under "undefined" (measured
+    # 2026-09-13); the forecast half answers feet. The joined payload must
+    # declare the served unit, or the reader refuses the forecast half's numbers
+    # and the row has no weather at all.
+    archive = _archive_half()
+    archive[0]["hourly_units"] = {"precipitation": "inch", weather._FREEZING_LEVEL: "undefined"}
+    archive[0]["hourly"][weather._FREEZING_LEVEL] = [None, None]
+    forecast = _forecast_half()
+    forecast[0]["hourly_units"] = {"precipitation": "inch", weather._FREEZING_LEVEL: "ft"}
+    forecast[0]["hourly"][weather._FREEZING_LEVEL] = [8000.0, 9000.0]
+    _stub_openmeteo(monkeypatch, [archive, forecast])
+    results = await fetch_weather_batch(
+        _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
+    )
+
+    assert results[0]["precip_total_in"] == 1.5
+    assert results[0]["freeze_min_ft"] == 8000.0
+    assert results[0]["freeze_max_ft"] == 9000.0
+
+
+async def test_a_spanning_window_counts_a_repeated_hour_once(monkeypatch):
+    # The spans are disjoint, so this cannot come from the request — but a host
+    # that answered one hour on both sides would otherwise double it.
+    _stub_openmeteo(
+        monkeypatch,
+        [_archive_half(), _half(["2026-07-18T23:00", "2026-07-19T00:00"], [9.9, 0.4])],
+    )
+    results = await fetch_weather_batch(
+        _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
+    )
+
+    assert results[0]["precip_total_in"] == 0.7  # 0.1 + 0.2 + 0.4
+    assert len(results[0]["series"]["times"]) == 3
+
+
+async def test_a_spanning_window_keys_the_cache_apart_from_either_half(monkeypatch):
+    # The joined series is a third answer at the same coordinates and window,
+    # and it must not be served from — or serve — either endpoint alone.
+    calls = _stub_openmeteo(
+        monkeypatch,
+        [_archive_half(), _forecast_half(), _archive_half(), _archive_half()],
+    )
+    await fetch_weather_batch(
+        _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
+    )
+    await fetch_weather_batch(_dests(1), SPAN_START, SPAN_END, source="archive")
+    # And the spanning fetch itself repeats from the cache.
+    await fetch_weather_batch(
+        _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
+    )
+
+    assert len(calls) == 3
+
+
+async def test_a_spanning_window_pays_for_both_halves(monkeypatch):
+    # Two requests, two answers, so the pod's weighted budget is acquired for
+    # each span on its own hours rather than once for the whole window.
+    spent: list[float] = []
+
+    class _Budget:
+        async def acquire(self, weight):
+            spent.append(weight)
+
+        def wait_estimate_s(self, weight):
+            return 0
+
+    monkeypatch.setattr(ratelimit, "WEATHER_WEIGHT", _Budget())
+    _stub_openmeteo(monkeypatch, [_archive_half(), _forecast_half()])
+    await fetch_weather_batch(
+        _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
+    )
+
+    assert len(spent) == 2
+
+
+async def test_a_spanning_window_needs_the_boundary_that_classified_it():
+    # The service never reads the clock: a boundary it worked out for itself
+    # could cut a window at an instant the classification never saw.
+    with pytest.raises(ValueError, match="boundary"):
+        await fetch_weather_batch(_dests(1), SPAN_START, SPAN_END, source="spanning")
+
+
+async def test_a_spanning_window_with_one_empty_half_is_one_request(monkeypatch):
+    # `window_source` compares real instants and a request carries wall-clock
+    # hours, so an offset-carrying caller can be spanning by instant and
+    # one-sided by wall clock. The empty half is dropped, never requested
+    # backwards.
+    urls: list[str] = []
+    _stub_openmeteo(monkeypatch, [_forecast_half()], urls)
+    await fetch_weather_batch(
+        _dests(1),
+        SEAM.replace(tzinfo=None),
+        SPAN_END,
+        source="spanning",
+        boundary=SEAM,
+    )
+
+    assert urls == [weather.FORECAST_URL]
+
+
+async def test_fetch_weather_batch_fails_on_an_unreadable_unit(monkeypatch):
+    # The raise has to clear both aggregation functions' degrade-to-None
+    # handlers and the chunk loop, or an unreadable unit would quietly drop
+    # every row in the batch instead of saying anything.
+    _stub_openmeteo(monkeypatch, [[_rainier([2560.0], "furlongs")]])
+    with pytest.raises(UpstreamError):
+        await fetch_weather_batch(_dests(1), _RAINIER_START, _RAINIER_END)

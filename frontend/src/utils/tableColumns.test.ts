@@ -9,7 +9,12 @@ import {
   visibleColumns,
 } from './tableColumns'
 import { SEP } from '../metrics'
+import { FREEZE_UNAVAILABLE } from './freezingLevel'
 import { SortBy } from '../types'
+
+// The identity columns, which describe the destination rather than its
+// weather and so have no weather layer to open.
+const LEAD = new Set(['name', 'type', 'elevation_ft'])
 
 // The real column set, not a copy of its keys. The list used to be declared in
 // ResultsTable and restated here, which meant this suite could pass against a
@@ -19,7 +24,13 @@ const KEYS = COLUMNS.map((c) => c.key)
 
 const keys = (sortBy: SortBy) => orderColumns(COLUMNS, sortBy).map((c) => c.key)
 
-const METRICS: SortBy[] = ['precip_total_in', 'wind_avg_mph', 'temp_avg_f', 'aqi_avg']
+const METRICS: SortBy[] = [
+  'precip_total_in',
+  'wind_avg_mph',
+  'temp_avg_f',
+  'freeze_min_ft',
+  'aqi_avg',
+]
 
 describe('COLUMNS', () => {
   it('leads with the identity columns and names every one of them', () => {
@@ -33,8 +44,47 @@ describe('COLUMNS', () => {
   // keeps OSM's own word, lower-case, because a caller re-importing it wants
   // the value the API uses rather than the one the table title-cases for
   // reading. Adding a third means a file cell changed shape.
+  // Elevation is the first case — a grouped number puts a comma inside a
+  // comma-separated cell — and the three freezing-level columns are the same
+  // case for the same reason, being heights in feet formatted the same way.
   it('overrides the display formatter for exactly the columns that need it', () => {
-    expect(COLUMNS.filter((c) => c.csv).map((c) => c.key)).toEqual(['type', 'elevation_ft'])
+    expect(COLUMNS.filter((c) => c.csv).map((c) => c.key)).toEqual([
+      'type',
+      'elevation_ft',
+      'freeze_min_ft',
+      'freeze_max_ft',
+      'freeze_avg_ft',
+    ])
+  })
+
+  // A blank cell is how a spreadsheet spells "no value", which is the truth
+  // for every metric but this one: a freezing level is absent because the
+  // model carries no such variable, and the file is read detached from the
+  // app that could say so. So the three declare the mark the screen uses and
+  // nothing else does.
+  it('declares a file mark for exactly the freezing-level columns', () => {
+    expect(COLUMNS.filter((c) => c.csvNull).map((c) => c.key)).toEqual([
+      'freeze_min_ft',
+      'freeze_max_ft',
+      'freeze_avg_ft',
+    ])
+    for (const col of COLUMNS.filter((c) => c.csvNull)) {
+      expect(col.csvNull).toBe(FREEZE_UNAVAILABLE)
+    }
+  })
+
+  // Every metric column opens the same map at the same place, on the layer
+  // that shows what the column measures. `deg0` is Windy's own id for the
+  // zero-degree isotherm, which is the freezing level under another name.
+  it('points every metric column at its own Windy layer', () => {
+    const layers = new Map(COLUMNS.map((c) => [c.key, c.windyLayer]))
+    expect(layers.get('freeze_min_ft')).toBe('deg0')
+    expect(layers.get('freeze_max_ft')).toBe('deg0')
+    expect(layers.get('freeze_avg_ft')).toBe('deg0')
+    for (const col of COLUMNS) {
+      if (LEAD.has(col.key as string)) continue
+      expect(col.windyLayer, `${col.key} links to no layer`).toBeTruthy()
+    }
   })
 })
 
@@ -61,6 +111,9 @@ describe('orderColumns', () => {
       'wind_min_mph',
       'wind_max_mph',
       'wind_avg_mph',
+      'freeze_min_ft',
+      'freeze_max_ft',
+      'freeze_avg_ft',
     ])
   })
 
@@ -79,10 +132,27 @@ describe('orderColumns', () => {
       'wind_min_mph',
       'wind_max_mph',
       'wind_avg_mph',
+      'freeze_min_ft',
+      'freeze_max_ft',
+      'freeze_avg_ft',
       'aqi_avg',
       'aqi_min',
       'aqi_max',
     ])
+  })
+
+  // The uncolored family orders like every other one: the column order is a
+  // reading order and has nothing to do with whether a cell carries a color.
+  it('moves the freezing-level trio up when ranking by it', () => {
+    expect(keys('freeze_min_ft').slice(0, 6)).toEqual([
+      'name',
+      'type',
+      'elevation_ft',
+      'freeze_min_ft',
+      'freeze_max_ft',
+      'freeze_avg_ft',
+    ])
+    expect(keys('freeze_min_ft')).toHaveLength(KEYS.length)
   })
 
   it('always leads with the identity columns, for every metric', () => {
@@ -102,6 +172,7 @@ describe('pointModeColumns', () => {
       'precip_avg_in_hr',
       'temp_avg_f',
       'wind_avg_mph',
+      'freeze_avg_ft',
       'aqi_avg',
     ])
   })
@@ -111,6 +182,7 @@ describe('pointModeColumns', () => {
     expect(labels.get('precip_avg_in_hr')).toBe('Precipitation (in/hr)')
     expect(labels.get('temp_avg_f')).toBe('Temperature (°F)')
     expect(labels.get('wind_avg_mph')).toBe('Wind (mph)')
+    expect(labels.get('freeze_avg_ft')).toBe('Freezing level (ft)')
     expect(labels.get('aqi_avg')).toBe('AQI')
     // No aggregate means no separator to hang one off.
     for (const label of labels.values()) expect(label).not.toContain(SEP)
@@ -127,6 +199,7 @@ describe('pointModeColumns', () => {
       'precip_avg_in_hr',
       'temp_avg_f',
       'wind_avg_mph',
+      'freeze_avg_ft',
     ])
   })
 })
@@ -144,7 +217,7 @@ describe('displayedColumns', () => {
   // Measured rather than named: the collapse is keyed on the window covering one
   // hourly stamp, not on a mode, so "a day narrowed to one hour" collapses too.
   it('collapses a point sample and nothing else', () => {
-    expect(displayedColumns(true, 'precip_total_in')).toHaveLength(7)
+    expect(displayedColumns(true, 'precip_total_in')).toHaveLength(8)
     expect(displayedColumns(false, 'precip_total_in')).toHaveLength(KEYS.length)
   })
 })

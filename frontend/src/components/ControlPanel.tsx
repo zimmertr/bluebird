@@ -21,6 +21,7 @@ import {
   BOUNDS_GRID,
   CHOICE_ROW,
   CONTROL_W,
+  DISABLED,
   FIELD,
   FIELD_NUMERIC,
   LINK,
@@ -64,10 +65,11 @@ import { DEFAULT_LIMIT, classifyAqiCoverage, clampLimit } from '../utils/urlStat
 import {
   AQI_LIMIT_DAYS,
   ForecastSelection,
-  PAST_LIMIT_DAYS,
+  archiveSeamPhrase,
   hasDates,
   selectionLocalWindow,
 } from '../utils/calendar'
+import { windowSource } from '../utils/forecastWindow'
 import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabilities'
 
 // The app's core question: "top N peaks by <metric's aggregate>, lowest or
@@ -231,7 +233,9 @@ interface Props {
   modelClamped: boolean
   // The selection is unservable, or its narrowed hours run backwards. A horizon
   // case only arrives through a shared link: the calendar draws those days
-  // disabled.
+  // disabled. A window crossing the archive boundary is NOT one of these since
+  // #123 — both endpoints answer it, and the seam notice below the button names
+  // where the join falls.
   windowWarning: 'past' | 'future' | 'order' | null
   // Why a knob has stopped applying live, or null while they all do. Sort,
   // limit and elevation-narrowing normally re-present the held field with no
@@ -259,6 +263,9 @@ interface Props {
   // Live polygon-area gate from /api/capabilities, same contract as maxLimit
   // above: the deployment's number, with a compiled fallback behind it.
   maxAreaKm2: number
+  // How far back the calendar may reach, from /api/capabilities: the archive
+  // endpoint's reach, same contract as the two ceilings above.
+  archiveDays: number
   // Whether a report is on screen at all — the counts themselves moved to the
   // table's own header bar.
   resultCount?: number
@@ -419,6 +426,7 @@ export default function ControlPanel({
   onRetry,
   maxLimit,
   maxAreaKm2,
+  archiveDays,
   resultCount,
   aqiAllNull,
   wildfireCheckFailed,
@@ -431,6 +439,12 @@ export default function ControlPanel({
   const modelLabel =
     forecastModels.find((m) => m.id === forecastModel)?.label ?? forecastModel
   const forecastHours = modelForecastHours(forecastModels, forecastModel)
+  // Memoized because the calendar's grid hangs off it: a new object on every
+  // render would rebuild the month grid on every keystroke in the panel.
+  const band = useMemo(
+    () => ({ forecastHours, pastDays: archiveDays }),
+    [forecastHours, archiveDays],
+  )
   const parsedCustom = useMemo(() => parseCustomCsv(customCsv), [customCsv])
   const hasCustom = parsedCustom.length > 0
   // True between a paste into the CSV box and the change event it produces —
@@ -468,6 +482,21 @@ export default function ControlPanel({
     selection.kind === 'now' || window === null
       ? 'full'
       : classifyAqiCoverage(window.start, window.end, new Date())
+  // Which endpoint answers the SELECTED window (#123), which decides two things
+  // in this panel. A window the archive answers names no model — its default is
+  // a reanalysis, one dataset everywhere, and the picker's models are forecast
+  // models that do not run over the past — so the picker does not apply and is
+  // disabled rather than left looking like an input to a fetch that ignores it.
+  // A window crossing the boundary keeps the picker: the forecast half is the
+  // chosen model's, and the seam notice says where that half begins.
+  const selectedSource =
+    window === null
+      ? null
+      : windowSource(
+          new Date(window.start).getTime(),
+          new Date(window.end).getTime(),
+        )
+  const archiveWindow = selectedSource === 'archive'
 
   const pointsNeeded = Math.max(0, 3 - drawPointCount)
 
@@ -484,6 +513,74 @@ export default function ControlPanel({
     !refusal &&
     Boolean(aqiAllNull) &&
     aqiCoverage !== 'none'
+
+  // Everything the Forecast section has to say, said below the button with
+  // every other message (#123 review). These used to render inside that section
+  // — one above the calendar, two beneath it — which put a warning about the
+  // window a screen away from the warnings about everything else, and made the
+  // panel's one notice block a half-truth. Their order here is the order they
+  // had there: the model's clamp, then the window's own problem, then what the
+  // window costs in air quality.
+  //
+  // Each keys on its CONDITION, like every other derived line: the seam notice
+  // re-arms when a window stops crossing the boundary and crosses it again,
+  // rather than on every recomputation of the same sentence.
+  const windowMessages: FooterMessage[] = [
+    ...(modelClamped
+      ? [
+          {
+            key: 'window:clamped',
+            text: `${modelLabel} shortened the window.`,
+            severity: 'warn' as const,
+          },
+        ]
+      : []),
+    ...(windowWarning
+      ? [
+          {
+            key: `window:${windowWarning}`,
+            text:
+              windowWarning === 'order'
+                ? 'The narrowed hours end before they start.'
+                : windowWarning === 'past'
+                  ? `Forecast range starts before the ${archiveDays}-day limit.`
+                  : `${modelLabel} does not reach that far.`,
+            severity: 'warn' as const,
+          },
+        ]
+      : []),
+    // Where a window crossing the archive boundary changes source (#123). Info
+    // rather than warn: nothing is wrong and nothing is blocked, but a report
+    // whose early hours are a reanalysis and whose later ones are a model run
+    // should say so rather than let the reader assume one dataset.
+    ...(selectedSource === 'spanning' && window !== null
+      ? [
+          {
+            key: 'window:spanning',
+            text: archiveSeamPhrase(
+              new Date(window.start).getTime(),
+              new Date(window.end).getTime(),
+              modelLabel,
+            ),
+            severity: 'info' as const,
+          },
+        ]
+      : []),
+    // One sentence for both the partial and the fully-past-horizon case. They
+    // used to be two, each spelling out which columns would be empty and
+    // reassuring the reader that weather was unaffected — but the calendar
+    // already dims the days past the horizon, so the only thing left to say is
+    // where that edge is.
+    ...(!windowWarning && aqiCoverage !== 'full'
+      ? [
+          {
+            key: 'window:aqi-horizon',
+            text: `${NOUN.aqi} forecasts only extend ${AQI_LIMIT_DAYS} days.`,
+            severity: 'info' as const,
+          },
+        ]
+      : []),
+  ]
 
   // Every message under the Analyze button, as one list feeding at most three
   // boxes — one per severity, in error, warning, info order (`noticeBoxes` in
@@ -516,6 +613,7 @@ export default function ControlPanel({
           severity: 'warn' as const,
         }))
       : []),
+    ...windowMessages,
     ...blockers.map((blocker) => ({
       key: `blocker:${blocker}`,
       text: blockerText(blocker, maxAreaKm2, pointsNeeded),
@@ -573,15 +671,16 @@ export default function ControlPanel({
   //
   // The columns are headed with the two aggregate names from `metrics.ts`,
   // because for most of this grid that is literally what they are: the
-  // elevation, wind and temperature rows bound each row's own extremes, so a
-  // ceiling of 20 on the wind row holds the table's gustiest-hour column at or
-  // below 20. Two cells stretch that reading, deliberately. Precipitation is
-  // bounded on the window TOTAL in both columns, because a per-hour floor
-  // would be 0.000 almost everywhere and the noun already means the total in
-  // the Ranking section above. And the air-quality floor reads the worst hour
-  // too, there being no other aggregate to read. The cells anyone actually
-  // reaches for — a temperature band, a wind ceiling, an air-quality ceiling —
-  // land exactly on the column they name.
+  // elevation, wind, temperature and freezing-level rows bound each row's own
+  // extremes, so a ceiling of 20 on the wind row holds the table's
+  // gustiest-hour column at or below 20. Two cells stretch that reading,
+  // deliberately. Precipitation is bounded on the window TOTAL in both
+  // columns, because a per-hour floor would be 0.000 almost everywhere and the
+  // noun already means the total in the Ranking section above. And the
+  // air-quality floor reads the worst hour too, there being no other aggregate
+  // to read. The cells anyone actually reaches for — a temperature band, a
+  // wind ceiling, an air-quality ceiling — land exactly on the column they
+  // name.
   //
   // Labels stay bare for the same reason. An aggregate in the label would
   // collide with the column headings rather than clarify them, and it wrapped
@@ -646,6 +745,14 @@ export default function ControlPanel({
       step: 1,
       lower: bound('minTempF'),
       upper: bound('maxTempF'),
+    },
+    {
+      id: 'freezing-level',
+      hint: ['The lowest hour must be at least this.', 'The highest hour must be at most this.'] as const,
+      label: metricLabel('freeze'),
+      step: 100,
+      lower: bound('minFreezeFt'),
+      upper: bound('maxFreezeFt'),
     },
     {
       id: 'air-quality',
@@ -778,7 +885,7 @@ export default function ControlPanel({
                 <button
                   onClick={onFinishDrawing}
                   disabled={drawPointCount < 3}
-                  className={`${BUTTON_ACCENT} disabled:opacity-40 disabled:cursor-not-allowed`}
+                  className={`${BUTTON_ACCENT} ${DISABLED}`}
                 >
                   Done
                 </button>
@@ -928,42 +1035,14 @@ export default function ControlPanel({
                 onChange={setForecastModel}
                 compared={comparedModels}
                 onComparedChange={setComparedModels}
+                disabled={archiveWindow}
               />
             </div>
           </div>
-          {modelClamped && (
-            <p className={`mb-3 ${STATUS.warn} ${NOTICE.warn}`}>
-              {modelLabel} shortened the window.
-            </p>
-          )}
-
-          <ForecastCalendar
-            selection={selection}
-            onChange={setSelection}
-            forecastHours={forecastHours}
-          />
-
-          {windowWarning && (
-            <p className={`mt-2 ${STATUS.warn} ${NOTICE.warn}`}>
-              {windowWarning === 'order'
-                ? 'The narrowed hours end before they start.'
-                : windowWarning === 'past'
-                ? `Forecast range starts before the ${PAST_LIMIT_DAYS}-day limit.`
-                : `${modelLabel} does not reach that far.`}
-            </p>
-          )}
-          {/* One sentence for both the partial and the fully-past-horizon case.
-              They used to be two, each spelling out which columns would be
-              empty and reassuring the reader that weather was unaffected — but
-              the calendar above already dims the days past the horizon, so the
-              only thing left to say is where that edge is. `aqiCoverage` still
-              distinguishes the two states; the footer's "air quality
-              unavailable" line reads it. */}
-          {!windowWarning && aqiCoverage !== 'full' && (
-            <p className={`mt-2 ${STATUS.info} ${NOTICE.info}`}>
-              {NOUN.aqi} forecasts only extend {AQI_LIMIT_DAYS} days.
-            </p>
-          )}
+          {/* Nothing between the model and the calendar, and nothing under it:
+              every message this section has to make lives in the one block
+              below the Analyze button (`windowMessages`). */}
+          <ForecastCalendar selection={selection} onChange={setSelection} band={band} />
         </section>
 
         {/* Ranking — metric radio + aggregate dropdown + Lowest/Highest toggle
@@ -1103,9 +1182,8 @@ export default function ControlPanel({
 
         {/* Filters — one grid, two columns of bounds, one row per thing that
             can be bounded, in the same order as the Ranking section above so
-            the two scan alike. data-filter-section is the anchor the results
-            bar's Filters chip scrolls to. */}
-        <section data-filter-section>
+            the two scan alike. */}
+        <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
             Filters
           </h2>
@@ -1162,7 +1240,7 @@ export default function ControlPanel({
         <button
           onClick={onAnalyze}
           disabled={!analyzeEnabled}
-          className={`${BUTTON_PRIMARY} disabled:opacity-40 disabled:cursor-not-allowed`}
+          className={`${BUTTON_PRIMARY} ${DISABLED}`}
         >
           {loading ? 'Analyzing…' : 'Analyze'}
         </button>

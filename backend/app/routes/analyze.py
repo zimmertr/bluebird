@@ -3,6 +3,7 @@ import json
 import logging
 import math
 from collections.abc import Sequence
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Security
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -20,7 +21,10 @@ from app.models import (
     DestinationType,
     ErrorResponse,
     HourlySeries,
+    WindowSource,
+    archive_boundary,
     bbox_area_km2,
+    window_source,
 )
 from app.services import air_quality, osm, weather
 from app.services.errors import (
@@ -52,6 +56,26 @@ open_meteo_key = APIKeyHeader(
 )
 
 
+def _window_split(request: AnalyzeRequest) -> tuple[WindowSource, datetime]:
+    """Which weather endpoint answers this request, and where the seam falls.
+
+    One reading of the clock for both answers (issue #123). The boundary moves,
+    so classifying in one place and splitting in another would let a window be
+    classified as spanning and then cut at an instant the classification never
+    saw — which is why the weather service takes both as arguments rather than
+    working either out for itself.
+
+    A window that crosses the boundary is served rather than refused: the archive
+    answers the hours before the seam, the forecast endpoint the hours from it on,
+    and the two are joined per location before the aggregation runs.
+    """
+    now = datetime.now(timezone.utc)
+    return (
+        window_source(request.start_datetime, request.end_datetime, now),
+        archive_boundary(now),
+    )
+
+
 def _filter_elevation(destinations, min_ft, max_ft):
     """Drop candidates outside the requested elevation band.
 
@@ -77,6 +101,9 @@ def _filter_elevation(destinations, min_ft, max_ft):
 # A ceiling reads the window's worst hour and a floor its best, so a bound is a
 # promise about every hour rather than about an average that can hide a bad
 # afternoon: max_wind_mph=20 admits no destination that gusts to 45 at noon.
+# The freezing level reads the same way in the one family where neither end is
+# the bad one: its floor asks that the level never dropped below the value and
+# its ceiling that it never rose above it.
 # Precipitation and AQI have no minimum aggregate to read — a per-hour
 # precipitation floor would be 0.000 almost everywhere — so both of their
 # bounds compare a single field, the window total and the worst hour.
@@ -84,12 +111,14 @@ _LOWER_BOUNDS = (
     ("min_precip_total_in", "precip_total_in"),
     ("min_temp_f", "temp_min_f"),
     ("min_wind_mph", "wind_min_mph"),
+    ("min_freeze_ft", "freeze_min_ft"),
     ("min_aqi", "aqi_max"),
 )
 _UPPER_BOUNDS = (
     ("max_precip_total_in", "precip_total_in"),
     ("max_temp_f", "temp_max_f"),
     ("max_wind_mph", "wind_max_mph"),
+    ("max_freeze_ft", "freeze_max_ft"),
     ("max_aqi", "aqi_max"),
 )
 
@@ -115,11 +144,13 @@ def _filter_constraints(
     that already matches: "the ten driest destinations that stay under 20 mph",
     never "whichever of the ten driest happened to be calm".
 
-    A null value passes every bound. Only AQI can be null here, and a missing
+    A null value passes every bound. Two fields can be null here. A missing
     AQI means the window outran the ~5-day air-quality horizon or a best-effort
-    fetch failed. Neither is evidence that the air is bad, and dropping those
+    fetch failed; a missing freezing level means the chosen model publishes
+    none at all. Neither is evidence about the weather, and dropping those
     rows would quietly empty every long-window analysis that set an AQI
-    ceiling. It is the same call `_filter_elevation` makes for an untagged
+    ceiling, or every analysis under a model that carries no freezing level.
+    It is the same call `_filter_elevation` makes for an untagged
     summit and `_sort_key` makes for a nullable ranking key.
     """
     lower = [(f, v) for attr, f in _LOWER_BOUNDS if (v := getattr(request, attr)) is not None]
@@ -489,6 +520,7 @@ def _assemble(
                 precip_in=wx_series["precip_in"],
                 temp_f=wx_series["temp_f"],
                 wind_mph=wx_series["wind_mph"],
+                freeze_ft=wx_series["freeze_ft"],
                 aqi=_aligned_aqi(wx_series["times"], aqi.get("series")),
             )
         results.append(
@@ -594,6 +626,7 @@ async def analyze_stream(
             if request.start_datetime >= request.end_datetime:
                 yield _sse_error("The start date must be before the end date.", ErrorCode.validation)
                 return
+            source, boundary = _window_split(request)
 
             # A union (polygon + custom list) is a mixed set, so its messages
             # say "destinations" rather than any one type's noun.
@@ -738,6 +771,8 @@ async def analyze_stream(
                         on_pace,
                         request.forecast_model,
                         api_key=api_key,
+                        source=source,
+                        boundary=boundary,
                     )
                 finally:
                     await progress_queue.put(_STREAM_DONE)
@@ -932,6 +967,7 @@ async def analyze(
             detail="The start date must be before the end date.",
             code=ErrorCode.validation,
         )
+    source, boundary = _window_split(request)
 
     # Resolve destinations
     if not request.destination_types:
@@ -1035,6 +1071,8 @@ async def analyze(
             request.end_datetime,
             model=request.forecast_model,
             api_key=api_key,
+            source=source,
+            boundary=boundary,
         )
     except ratelimit.BudgetExhausted as e:
         if aqi_task is not None:

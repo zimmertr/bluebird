@@ -3,14 +3,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Awaitable, Callable
-from datetime import datetime, timezone
-from typing import Any
+from collections.abc import Awaitable, Callable, Sequence
+from datetime import datetime, timedelta, timezone
+from typing import Any, NamedTuple
 
 import httpx
 
 from app import ratelimit, telemetry
-from app.models import DEFAULT_FORECAST_MODEL, MODEL_INFO, ForecastModel
+from app.models import DEFAULT_FORECAST_MODEL, MODEL_INFO, ForecastModel, WindowSource
 from app.services import cache, http
 from app.services.errors import (
     InvalidApiKeyError,
@@ -32,6 +32,11 @@ FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 # the free host redirect: it answers a request carrying `apikey` with a 303 to
 # this URL, and a redirect the provider can retire is not a transport.
 CUSTOMER_FORECAST_URL = "https://customer-api.open-meteo.com/v1/forecast"
+# Where a window older than the forecast endpoint's retention goes (issue #123).
+# A separate endpoint rather than a parameter, and `models.window_source` is the
+# one thing that decides which of the two a window belongs to.
+ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
+CUSTOMER_ARCHIVE_URL = "https://customer-archive-api.open-meteo.com/v1/archive"
 # Measured 2026-07-31 (issue #182), not guessed. Upstream accepts far more than
 # 50 per request, but raising this buys nothing and costs headroom:
 #   - Weight is per LOCATION, so the pacer caps locations/min identically at any
@@ -62,7 +67,11 @@ MAX_CONCURRENT_BATCHES = 4
 # move a few percent with weather, and fetching them would double the
 # variable count for a correction smaller than the model's own grid error.
 # All eight models Bluebird Forecast offers answered all five levels (probed
-# 2026-08-21).
+# 2026-08-21). The ARCHIVE endpoint accepts all five and answers every hour
+# null (measured 2026-09-12), which the null-level path below already handles by
+# degrading to the 10 m wind — so both endpoints are asked for one variable list
+# rather than each getting its own, and the aggregation stays the one the shared
+# vectors pin.
 _WIND_LEVELS: list[tuple[str, float]] = [
     ("wind_speed_925hPa", 762.0),
     ("wind_speed_850hPa", 1457.0),
@@ -71,13 +80,34 @@ _WIND_LEVELS: list[tuple[str, float]] = [
     ("wind_speed_500hPa", 5574.0),
 ]
 _FT_TO_M = 0.3048
-HOURLY_VARIABLES = "precipitation,temperature_2m,wind_speed_10m," + ",".join(
-    name for name, _ in _WIND_LEVELS
+# The height where the free-air temperature crosses freezing (issue #295).
+# Spring and winter travel turns on the overnight refreeze, and a destination's
+# own temperature answers that only at its own elevation — the freezing level
+# says where the supportable snow starts on the way up.
+#
+# Open-Meteo quotes the height in whatever unit `precipitation_unit` selects,
+# and names that unit in `hourly_units`: with `precipitation_unit=inch` (which
+# every request below sends) the column is FEET, and without the parameter it
+# is meters. Measured 2026-09-13 at Rainier, one hour reads 2560 with "m" and
+# 8398.95 with "ft". So the unit is read off each response rather than assumed:
+# the factor between them is 3.28, and a freezing level 3.28 times too high is
+# a plausible-looking altitude rather than an obvious fault.
+#
+# It clamps to 0.0 when the whole column is below freezing, so a zero means
+# "froze to sea level" rather than "no answer". Measured 2026-09-12, three of
+# the eight models serve it (gfs_seamless, gfs_hrrr, icon_seamless); the other
+# five answer HTTP 200 with a column of nulls. That is why its aggregates are
+# nullable on their own and are never reduced inside the precip/temp/wind zip
+# below.
+_FREEZING_LEVEL = "freezing_level_height"
+HOURLY_VARIABLES = ",".join(
+    ["precipitation", "temperature_2m", "wind_speed_10m", _FREEZING_LEVEL]
+    + [name for name, _ in _WIND_LEVELS]
 )
-# 8 stays at weight factor 1: Open-Meteo's factor is max(1, vars x models/10)
-# and a request names one model, so the five level winds ride the same weighted
-# budget the three originals did.
-N_VARIABLES = 8
+# 9 stays at weight factor 1: Open-Meteo's factor is max(1, vars x models/10)
+# and a request names one model, so the five level winds and the freezing
+# level ride the same weighted budget the three originals did.
+N_VARIABLES = 9
 PROVIDER = "Open-Meteo"
 
 # Called as each batch completes: (processed_destinations, total_destinations,
@@ -145,6 +175,128 @@ def hour_param(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:00")
 
 
+class _Span(NamedTuple):
+    """One leg of a fetch: which endpoint answers, and the hours it answers for."""
+
+    archive: bool
+    start: datetime
+    end: datetime
+
+
+def _fetch_spans(
+    source: WindowSource,
+    start_dt: datetime,
+    end_dt: datetime,
+    boundary: datetime | None,
+) -> list[_Span]:
+    """The one or two requests a window takes, as hour ranges.
+
+    A forecast or archive window is one request. A window spanning the archive
+    boundary is two, and this is the only place that split is computed, so the
+    weighted spend and the requests themselves can never describe different
+    halves.
+
+    The halves are disjoint: the archive answers through the hour BEFORE the
+    boundary and the forecast endpoint from the boundary on, because both bounds
+    are inclusive and an hour arriving twice would be counted twice in a total.
+
+    Either half can come out empty, and that is not a contradiction of the
+    classification. `window_source` compares real instants while a request
+    carries wall-clock hours read as UTC (see `hour_param`), so a caller sending
+    an offset can be spanning by instant and one-sided by wall clock. An empty
+    half is dropped rather than requested backwards.
+    """
+    if source != "spanning":
+        return [_Span(source == "archive", start_dt, end_dt)]
+    if boundary is None:
+        raise ValueError("a spanning window needs the boundary that classified it")
+    seam = boundary.replace(tzinfo=start_dt.tzinfo)
+    if seam <= start_dt:
+        return [_Span(False, start_dt, end_dt)]
+    if seam > end_dt:
+        return [_Span(True, start_dt, end_dt)]
+    return [
+        _Span(True, start_dt, seam - timedelta(hours=1)),
+        _Span(False, seam, end_dt),
+    ]
+
+
+_JOIN_KEYS: tuple[str, ...] = ("time", *HOURLY_VARIABLES.split(","))
+
+
+# What the archive endpoint writes in `hourly_units` for a variable it does not
+# serve. The column beside it is all nulls, so the unit carries no information.
+_UNIT_UNSERVED = "undefined"
+
+
+def _units_agree(declared: Sequence[dict[str, Any]]) -> bool:
+    """True when no variable is declared in two different real units."""
+    keys = set().union(*(d.keys() for d in declared))
+    for key in keys:
+        seen = {d[key] for d in declared if key in d and d[key] != _UNIT_UNSERVED}
+        if len(seen) > 1:
+            return False
+    return True
+
+
+def _join_units(declared: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """The joined payload's `hourly_units`: each variable's served unit.
+
+    The halves agree wherever both serve a variable (`_units_agree`), so the
+    only choice is between a real unit and the archive's "undefined", and the
+    real one wins: the freezing level's reader converts by the declared unit,
+    and a joined window that kept the archive's "undefined" over the forecast
+    half's "ft" would refuse the very numbers it carries.
+    """
+    joined: dict[str, Any] = {}
+    for units in declared:
+        for key, unit in units.items():
+            if joined.get(key, _UNIT_UNSERVED) == _UNIT_UNSERVED:
+                joined[key] = unit
+    return joined
+
+
+def _join_hours(parts: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """One location's half-windows as a single hourly payload.
+
+    The aggregation is pinned byte-for-byte against the browser port by the
+    shared vectors, so a spanning window is made to look like every other window
+    BEFORE it reaches `_metrics`: the halves are concatenated in time order (the
+    spans are disjoint and ordered, so appending them IS time order) and each
+    array is padded to the stamp count, which keeps them parallel for the
+    index-addressed reads below.
+
+    Two payloads are dropped rather than mixed. Disagreeing `hourly_units` means
+    one host answered in units the other did not, and a total of inches and
+    millimetres is a number with no meaning; a repeated stamp would count one
+    hour twice. Both degrade to no metrics, which is what every payload this
+    module cannot read does.
+
+    A unit is compared only where both hosts declare one. The archive serves no
+    pressure-level winds and answers their unit as the literal string
+    "undefined" beside a column of nulls (measured 2026-09-13), where the
+    forecast endpoint says "mp/h"; that is a column one side does not have, not
+    a disagreement about what a number means.
+    """
+    if len(parts) == 1:
+        return parts[0]
+    declared = [part.get("hourly_units") or {} for part in parts]
+    if not _units_agree(declared):
+        return {}
+    joined: dict[str, list[Any]] = {key: [] for key in _JOIN_KEYS}
+    seen: set[Any] = set()
+    for part in parts:
+        hourly = part.get("hourly") or {}
+        for i, ts in enumerate(hourly.get("time") or []):
+            if ts in seen:
+                continue
+            seen.add(ts)
+            joined["time"].append(ts)
+            for key in _JOIN_KEYS[1:]:
+                joined[key].append(_at(hourly.get(key) or [], i))
+    return {**parts[0], "hourly_units": _join_units(declared), "hourly": joined}
+
+
 async def fetch_weather_batch(
     destinations: list[dict[str, Any]],
     start_dt: datetime,
@@ -153,9 +305,23 @@ async def fetch_weather_batch(
     on_pace: PaceCallback | None = None,
     model: ForecastModel = DEFAULT_FORECAST_MODEL,
     api_key: str | None = None,
+    source: WindowSource = "forecast",
+    boundary: datetime | None = None,
 ) -> list[dict[str, Any] | None]:
+    """Fetch each destination's windowed weather from the endpoint(s) `source` names.
+
+    `source` and `boundary` are the CALLER's decision (`models.window_source` and
+    `models.archive_boundary`), not this function's, because both come from one
+    reading of the clock: the boundary moves, so a window classified here a second
+    time could be split at an instant the classification never saw.
+
+    A spanning window is two requests per batch, joined per location before the
+    aggregation runs (`_fetch_spans`, `_join_hours`).
+    """
     if not destinations:
         return []
+
+    spans = _fetch_spans(source, start_dt, end_dt, boundary)
 
     total = len(destinations)
 
@@ -168,6 +334,13 @@ async def fetch_weather_batch(
     # same model the same way for the same location and window, so keying on
     # the key would split one cache into a copy per caller and buy nothing
     # except upstream spend.
+    #
+    # `source` IS part of it. The two endpoints answer the same question from
+    # different data — the archive carries no pressure-level winds, so its rows
+    # hold the 10 m wind where the forecast endpoint's hold wind at elevation —
+    # and the boundary between them moves with the clock, so a window can change
+    # sides while an entry is still live. Keying on it means an entry is only
+    # ever read back for the endpoint that produced it.
     results: list[dict[str, Any] | None] = [None] * total
     miss_indices: list[int] = []
     for i, dest in enumerate(destinations):
@@ -179,6 +352,7 @@ async def fetch_weather_batch(
             end_dt.isoformat(),
             model.value,
             dest.get("elevation_ft") or "",
+            source,
         )
         hit = cache.FORECAST_CACHE.get(key)
         if hit is None:
@@ -214,7 +388,7 @@ async def fetch_weather_batch(
     tasks = [
         asyncio.create_task(
             _fetch_chunk_indexed(
-                i, chunk, start_dt, end_dt, sem, on_pace, model, api_key
+                i, chunk, start_dt, end_dt, sem, spans, on_pace, model, api_key
             )
         )
         for i, chunk in enumerate(chunks)
@@ -244,6 +418,7 @@ async def fetch_weather_batch(
             end_dt.isoformat(),
             model.value,
             dest.get("elevation_ft") or "",
+            source,
         )
         cache.FORECAST_CACHE.put(key, cache.NO_DATA if result is None else result)
     for i, result in zip(miss_indices, fetched):
@@ -257,6 +432,7 @@ async def _fetch_chunk_indexed(
     start_dt: datetime,
     end_dt: datetime,
     sem: asyncio.Semaphore,
+    spans: list[_Span],
     on_pace: PaceCallback | None = None,
     model: ForecastModel = DEFAULT_FORECAST_MODEL,
     api_key: str | None = None,
@@ -274,25 +450,31 @@ async def _fetch_chunk_indexed(
     # concurrency rather than anybody's quota.
     async with sem:
         if api_key is None:
+            # One acquire per SPAN, each priced on its own hours: a spanning
+            # window is two requests and two answers, so it spends twice, and
+            # pricing it on the whole window would bill the archive's months for
+            # the forecast half's days as well.
+            #
             # The model count is spelled here rather than defaulted, because
             # this is where `models=` is built: a request that ever names
             # more than one model returns a series per model and costs that
             # multiple, so the two must move together.
-            weight = call_weight(
-                len(destinations),
-                start_dt.date(),
-                end_dt.date(),
-                N_VARIABLES,
-                n_models=1,
-            )
-            if on_pace is not None:
-                estimate = ratelimit.WEATHER_WEIGHT.wait_estimate_s(weight)
-                if estimate > 3:
-                    await on_pace(int(estimate) + 1)
-            await ratelimit.WEATHER_WEIGHT.acquire(weight)
+            for span in spans:
+                weight = call_weight(
+                    len(destinations),
+                    span.start.date(),
+                    span.end.date(),
+                    N_VARIABLES,
+                    n_models=1,
+                )
+                if on_pace is not None:
+                    estimate = ratelimit.WEATHER_WEIGHT.wait_estimate_s(weight)
+                    if estimate > 3:
+                        await on_pace(int(estimate) + 1)
+                await ratelimit.WEATHER_WEIGHT.acquire(weight)
         async with ratelimit.WEATHER_BUDGET.slot():
             return index, await _fetch_chunk(
-                destinations, start_dt, end_dt, model, api_key
+                destinations, start_dt, end_dt, spans, model, api_key
             )
 
 
@@ -308,29 +490,67 @@ async def _fetch_chunk(
     destinations: list[dict[str, Any]],
     start_dt: datetime,
     end_dt: datetime,
+    spans: list[_Span],
     model: ForecastModel = DEFAULT_FORECAST_MODEL,
     api_key: str | None = None,
 ) -> list[dict[str, Any] | None]:
+    """One batch of locations, fetched over every span and aggregated once.
+
+    A spanning window arrives here as two spans. Their hourly arrays are joined
+    per location first, so `_metrics` and `_series` see the one series the report
+    ranks rather than learning that some windows come in halves.
+    """
+    per_span = [
+        _as_items(await _fetch_span(destinations, span, model, api_key))
+        for span in spans
+    ]
+
+    results: list[dict[str, Any] | None] = []
+    # zip truncates to the shortest, which is the tolerance this loop has always
+    # had for a host returning fewer locations than were asked about.
+    for dest, parts in zip(destinations, zip(*per_span)):
+        elevation_ft = dest.get("elevation_ft")
+        item = _join_hours(parts)
+        m = _metrics(item, start_dt, end_dt, elevation_ft)
+        if m is not None:
+            # Carry the raw hourly series alongside the aggregates so the route
+            # can bake it into the response for the chart — one upstream fetch,
+            # no re-query. The aggregates in `_metrics` stay byte-for-byte.
+            m = {**m, "series": _series(item, start_dt, end_dt, elevation_ft)}
+        results.append(m)
+    log.trace("Open-Meteo batch returned %d result(s)", sum(1 for r in results if r is not None))  # type: ignore[attr-defined]
+    return results
+
+
+def _as_items(data: Any) -> list[dict[str, Any]]:
+    """Open-Meteo's two response shapes as one: a single location answers an object."""
+    return data if isinstance(data, list) else [data]
+
+
+async def _fetch_span(
+    destinations: list[dict[str, Any]],
+    span: _Span,
+    model: ForecastModel = DEFAULT_FORECAST_MODEL,
+    api_key: str | None = None,
+) -> Any:
+    """One request: these locations, these hours, from the span's own endpoint."""
     lats = ",".join(str(d["latitude"]) for d in destinations)
     lons = ",".join(str(d["longitude"]) for d in destinations)
     quota = quota_label(api_key)
+    archive = span.archive
+    start_dt, end_dt = span.start, span.end
 
     log.info(
         "Open-Meteo batch: %d location(s), %s → %s, model %s",
         len(destinations),
         hour_param(start_dt),
         hour_param(end_dt),
-        model.value,
+        "archive blend" if archive else model.value,
     )
 
     params = {
         "latitude": lats,
         "longitude": lons,
-        # Always named, never omitted. Sending no `models=` takes Open-Meteo's
-        # `best_match` blend, which picks per location and never reports what
-        # it picked — so two adjacent peaks in one response could come from two
-        # different models with nothing saying so.
-        "models": model.value,
         "hourly": HOURLY_VARIABLES,
         "temperature_unit": "fahrenheit",
         "wind_speed_unit": "mph",
@@ -339,11 +559,26 @@ async def _fetch_chunk(
         "end_hour": hour_param(end_dt),
         "timezone": "UTC",
     }
+    if not archive:
+        # On the forecast endpoint the model is always named, never omitted.
+        # Sending no `models=` there takes Open-Meteo's `best_match` blend,
+        # which picks per location and never reports what it picked — so two
+        # adjacent peaks in one response could come from two different models
+        # with nothing saying so.
+        #
+        # The archive is the one exception, and the reason it is safe is that it
+        # is not that blend: the archive's default is a reanalysis (IFS HRES with
+        # ERA5 and ERA5-Land), the same dataset at every location, so nothing
+        # varies row to row. Forwarding the picker's model there would be worse
+        # than useless — an unknown `models=` value is accepted with a 200 and
+        # plausible data (measured 2026-09-12), so a wrong name would be silently
+        # answered by something else. Never send one.
+        params["models"] = model.value
     # The key rides as a query parameter because that is the only place
     # Open-Meteo reads it, and only the paid host accepts it at all.
-    url = FORECAST_URL
+    url = ARCHIVE_URL if archive else FORECAST_URL
     if api_key is not None:
-        url = CUSTOMER_FORECAST_URL
+        url = CUSTOMER_ARCHIVE_URL if archive else CUSTOMER_FORECAST_URL
         params["apikey"] = api_key
 
     # One automatic resume for a minutely 429: that quota refills within the
@@ -428,20 +663,7 @@ async def _fetch_chunk(
             log.warning("Open-Meteo request failed: %s", redacted_error(exc, api_key))
             raise UpstreamError(classify_http_error(exc, PROVIDER)) from exc
 
-    # Single location → object; multiple → array
-    items = data if isinstance(data, list) else [data]
-    results: list[dict[str, Any] | None] = []
-    for dest, item in zip(destinations, items):
-        elevation_ft = dest.get("elevation_ft")
-        m = _metrics(item, start_dt, end_dt, elevation_ft)
-        if m is not None:
-            # Carry the raw hourly series alongside the aggregates so the route
-            # can bake it into the response for the chart — one upstream fetch,
-            # no re-query. The aggregates in `_metrics` stay byte-for-byte.
-            m = {**m, "series": _series(item, start_dt, end_dt, elevation_ft)}
-        results.append(m)
-    log.trace("Open-Meteo batch returned %d result(s)", sum(1 for r in results if r is not None))  # type: ignore[attr-defined]
-    return results
+    return data
 
 
 def _wind_at_elevation(
@@ -486,6 +708,59 @@ def _level_arrays(hourly: dict[str, Any]) -> list[list[Any]]:
     return [hourly.get(name, []) for name, _ in _WIND_LEVELS]
 
 
+def _freeze_unit(data: dict[str, Any]) -> str | None:
+    """The unit the response declared for the freezing level, or None.
+
+    None covers both a response with no `hourly_units` at all and one that
+    names no unit for this variable; `_freeze_to_ft` decides what that means,
+    because a column of nulls needs no unit and a column of numbers does.
+    """
+    units = data.get("hourly_units")
+    unit = units.get(_FREEZING_LEVEL) if isinstance(units, dict) else None
+    return unit if isinstance(unit, str) else None
+
+
+def _freeze_to_ft(v: float, unit: str | None) -> float:
+    """One freezing level reading in feet, per the unit the response declared.
+
+    A unit that is neither documented one leaves the number unreadable, and
+    assuming either would ship a reading 3.28 times out, so an unknown or
+    missing unit fails the batch the way any unusable body does.
+    """
+    if unit == "ft":
+        return v
+    if unit == "m":
+        return v / _FT_TO_M
+    log.warning("Open-Meteo declared freezing level unit %r", unit)
+    # The wording `classify_http_error` gives any other unusable Open-Meteo
+    # response, so one provider fault is not described two ways.
+    raise UpstreamError(f"{PROVIDER} request failed. Try again later.")
+
+
+def _freeze_ft_in_window(
+    hourly: dict[str, Any],
+    start: datetime,
+    end: datetime,
+    unit: str | None,
+) -> list[float]:
+    """Every in-window hour that HAS a freezing level, in feet.
+
+    Read against its own pair of arrays rather than inside `_metrics`'s zip,
+    which is the whole of how a model that does not serve the variable stays
+    harmless: an hour dropped for a null freezing level would take the
+    precipitation, temperature and wind of that same hour with it, so five of
+    the eight models would return no weather at all. The null skip and the
+    zip-of-shortest are the AQI aggregation's, for the same reason.
+    """
+    return [
+        _freeze_to_ft(v, unit)
+        for ts, v in zip(hourly.get("time", []), hourly.get(_FREEZING_LEVEL, []))
+        if v is not None
+        and (parsed := _parse_ts(ts)) is not None
+        and start <= parsed <= end
+    ]
+
+
 def _metrics(
     data: dict[str, Any],
     start_dt: datetime,
@@ -522,6 +797,7 @@ def _metrics(
             return None
 
         p_vals, t_vals, w_vals = zip(*filtered)
+        f_vals = _freeze_ft_in_window(hourly, start, end, _freeze_unit(data))
 
         return {
             "precip_total_in": round(sum(p_vals), 4),
@@ -536,7 +812,17 @@ def _metrics(
             "wind_min_mph": round(min(w_vals), 1),
             "wind_max_mph": round(max(w_vals), 1),
             "wind_avg_mph": round(sum(w_vals) / len(w_vals), 1),
+            # Whole feet: the models resolve this to hundreds of meters, so a
+            # decimal would be precision the number does not carry.
+            "freeze_min_ft": round(min(f_vals), 0) if f_vals else None,
+            "freeze_max_ft": round(max(f_vals), 0) if f_vals else None,
+            "freeze_avg_ft": round(sum(f_vals) / len(f_vals), 0) if f_vals else None,
         }
+    except UpstreamError:
+        # A unit nothing can read is not one bad hour to skip past: every
+        # number in the column would have to be invented, so it passes the
+        # degrade below and fails the analysis.
+        raise
     except Exception:  # noqa: BLE001 — malformed payload degrades to no metrics
         return None
 
@@ -547,14 +833,16 @@ def _series(
     end_dt: datetime,
     elevation_ft: float | None = None,
 ) -> dict[str, Any] | None:
-    """Per-hour precip/temp/wind over the window, aligned to a shared grid.
+    """Per-hour precip/temp/wind/freezing level over the window, on one grid.
 
     Unlike `_metrics` — which drops any hour missing a value and collapses the
     rest into aggregates — this keeps every in-window hour and preserves each
     metric's nulls independently (the chart renders them as line gaps). Returns
-    None only when the window contains no hours at all. Wind is adjusted to
-    the destination's elevation exactly as `_metrics` adjusts it, so the chart
-    and the playback recoloring draw the same quantity the table ranks.
+    None when the window contains no hours at all, or when the payload is
+    malformed — an unreadable freezing level unit is the one exception, and it
+    raises. Wind is adjusted to the destination's elevation exactly as
+    `_metrics` adjusts it, so the chart and the playback recoloring draw the
+    same quantity the table ranks.
     """
     try:
         hourly = data.get("hourly", {})
@@ -562,6 +850,8 @@ def _series(
         precip = hourly.get("precipitation", [])
         temp = hourly.get("temperature_2m", [])
         wind = hourly.get("wind_speed_10m", [])
+        freeze = hourly.get(_FREEZING_LEVEL, [])
+        freeze_unit = _freeze_unit(data)
         levels = _level_arrays(hourly)
 
         start = _naive(start_dt)
@@ -571,6 +861,7 @@ def _series(
         p_out: list[float | None] = []
         t_out: list[float | None] = []
         w_out: list[float | None] = []
+        f_out: list[float | None] = []
         for i, ts in enumerate(times):
             parsed = _parse_ts(ts)
             if parsed is None or not (start <= parsed <= end):
@@ -587,10 +878,27 @@ def _series(
                 )
             )
             w_out.append(_round_or_none(w_adj, 1))
+            f_raw = _at(freeze, i)
+            f_out.append(
+                _round_or_none(
+                    None if f_raw is None else _freeze_to_ft(f_raw, freeze_unit), 0
+                )
+            )
 
         if not grid:
             return None
-        return {"times": grid, "precip_in": p_out, "temp_f": t_out, "wind_mph": w_out}
+        return {
+            "times": grid,
+            "precip_in": p_out,
+            "temp_f": t_out,
+            "wind_mph": w_out,
+            "freeze_ft": f_out,
+        }
+    except UpstreamError:
+        # The one failure this function does not absorb, for the reason
+        # `_metrics` does not absorb it either: an unreadable unit is a number
+        # we would have to invent, not an hour we can leave blank.
+        raise
     except Exception:  # noqa: BLE001 — best-effort series degrades to None, never fails the analysis
         return None
 

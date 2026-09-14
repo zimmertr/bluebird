@@ -142,6 +142,7 @@ def forecast_key(
     end_iso: str,
     model: str = "",
     elevation: Any = "",
+    source: str = "",
 ) -> tuple:
     """Cache key for one location's windowed result from one Open-Meteo
     service (``service`` distinguishes weather from air quality).
@@ -156,6 +157,13 @@ def forecast_key(
     destination's own height, issue #257): the same coordinates asked at a
     different claimed elevation are a different question. Empty for air
     quality, which does not adjust by elevation.
+
+    ``source`` is which Open-Meteo endpoint answered (issue #123): the archive
+    carries no pressure-level winds, so its rows hold the 10 m wind where the
+    forecast endpoint's hold wind at elevation, and the boundary between the two
+    moves with the clock. Without it in the key, a window that changed sides
+    while an entry was still live would be served the other endpoint's numbers.
+    Empty for air quality, which has one endpoint.
     """
     return (
         CACHE_VERSION,
@@ -166,6 +174,7 @@ def forecast_key(
         end_iso,
         model,
         str(elevation),
+        source,
     )
 
 

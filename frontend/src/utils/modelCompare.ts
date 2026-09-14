@@ -155,6 +155,9 @@ export function modelSeriesOnGrid(
     precip_in: remap(fetched.precip_in),
     temp_f: remap(fetched.temp_f),
     wind_mph: remap(fetched.wind_mph),
+    // The freezing level rides too: three of the eight models publish it, and a
+    // compared line under one that does not is a line of nulls, drawn as nothing.
+    freeze_ft: remap(fetched.freeze_ft),
     aqi: times.map(() => null),
   }
 }

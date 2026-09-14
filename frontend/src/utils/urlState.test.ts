@@ -9,9 +9,9 @@ import {
 } from './urlState'
 import {
   AQI_LIMIT_DAYS,
+  type BandLimits,
   FUTURE_LIMIT_DAYS,
   ForecastSelection,
-  PAST_LIMIT_DAYS,
   bandEnd,
 } from './calendar'
 import { GeoPolygon } from '../types'
@@ -43,8 +43,10 @@ const DAYS: ForecastSelection = {
 const DEFAULT_MODEL = 'ecmwf_ifs025'
 
 // A reach long enough that the API's hard date edge binds first, so the horizon
-// assertions below test that edge rather than a model's.
-const LONG_HOURS = 384
+// assertions below test that edge rather than a model's. The near edge is the
+// archive's published reach (#123), here at the fallback the hook compiles.
+const ARCHIVE_DAYS = 365
+const LONG: BandLimits = { forecastHours: 384, pastDays: ARCHIVE_DAYS }
 
 const base: ShareableState = {
   polygon,
@@ -348,7 +350,7 @@ describe('encodeState', () => {
 
   it('omits every forecast bound when unset', () => {
     const qs = encodeState(base, DEFAULT_MODEL)
-    for (const param of ['minprecip', 'maxprecip', 'mintemp', 'maxtemp', 'minwind', 'maxwind', 'minaqi', 'maxaqi']) {
+    for (const param of ['minprecip', 'maxprecip', 'mintemp', 'maxtemp', 'minwind', 'maxwind', 'minfreeze', 'maxfreeze', 'minaqi', 'maxaqi']) {
       expect(qs).not.toContain(param)
     }
   })
@@ -361,6 +363,8 @@ describe('encodeState', () => {
       maxTempF: 80,
       minWindMph: 1,
       maxWindMph: 20,
+      minFreezeFt: 6000,
+      maxFreezeFt: 12000,
       minAqi: 10,
       maxAqi: 100,
     }
@@ -368,6 +372,7 @@ describe('encodeState', () => {
     // Plain numbers under names you can guess, which is the whole convention:
     // a bound should be as editable in the address bar as it is in the panel.
     expect(new URLSearchParams(qs).get('maxaqi')).toBe('100')
+    expect(new URLSearchParams(qs).get('minfreeze')).toBe('6000')
     expect(new URLSearchParams(qs).get('maxprecip')).toBe('0.1')
     expect(decodeState(`?${qs}`)?.constraints).toEqual(constraints)
   })
@@ -553,6 +558,7 @@ describe('decodeState tolerance', () => {
         precip: 'precip_total_in',
         wind: 'wind_max_mph',
         temp: 'temp_min_f',
+        freeze: 'freeze_min_ft',
         aqi: 'aqi_avg',
       })
       expect(out!.sortBy).toBe('precip_total_in')
@@ -574,7 +580,25 @@ describe('decodeState tolerance', () => {
       expect(params.get('wind')).toBeNull()
       expect(params.get('precip')).toBeNull()
       expect(params.get('temp')).toBeNull()
+      expect(params.get('freeze')).toBeNull()
       expect(params.get('aqi')).toBeNull()
+    })
+
+    // The fifth family rides the same machinery and needs no reader of its
+    // own; what is worth pinning is the param NAME, which is the family key
+    // and therefore also a link people hand-edit (#295).
+    it('names the freezing-level row param after its family', () => {
+      const qs = encodeState(
+        {
+          ...base,
+          sortBy: 'precip_total_in',
+          rowKeys: { ...DEFAULT_FAMILY_KEY, freeze: 'freeze_max_ft' },
+        },
+        DEFAULT_MODEL,
+      )
+      expect(new URLSearchParams(qs).get('freeze')).toBe('max')
+      expect(decodeState('freeze=max')!.rowKeys!.freeze).toBe('freeze_max_ft')
+      expect(decodeState('sort=freeze_min_ft')!.sortBy).toBe('freeze_min_ft')
     })
 
     it('restores the active row from sort alone', () => {
@@ -633,27 +657,27 @@ describe('classifyWindow', () => {
   const shift = (days: number) => iso(new Date(now.getTime() + days * 86_400_000))
 
   it('is ok for a near-future window', () => {
-    expect(classifyWindow(shift(1), shift(4), now, LONG_HOURS)).toBe('ok')
+    expect(classifyWindow(shift(1), shift(4), now, LONG)).toBe('ok')
   })
 
   it('is ok for a recent-past window still within the history horizon', () => {
-    expect(classifyWindow(shift(-10), shift(-8), now, LONG_HOURS)).toBe('ok')
+    expect(classifyWindow(shift(-10), shift(-8), now, LONG)).toBe('ok')
   })
 
   it('is past when the window ends before the history horizon', () => {
     expect(
       classifyWindow(
-        shift(-(PAST_LIMIT_DAYS + 5)),
-        shift(-(PAST_LIMIT_DAYS + 2)),
+        shift(-(ARCHIVE_DAYS + 5)),
+        shift(-(ARCHIVE_DAYS + 2)),
         now,
-        LONG_HOURS,
+        LONG,
       ),
     ).toBe('past')
   })
 
   it('is past when the window merely starts before the history horizon', () => {
     // Open-Meteo rejects out-of-range start dates, so a partial overhang fails too.
-    expect(classifyWindow(shift(-(PAST_LIMIT_DAYS + 5)), shift(-10), now, LONG_HOURS)).toBe(
+    expect(classifyWindow(shift(-(ARCHIVE_DAYS + 5)), shift(-10), now, LONG)).toBe(
       'past',
     )
   })
@@ -665,15 +689,15 @@ describe('classifyWindow', () => {
   it('accepts a window ending at the last minute of the last servable day', () => {
     // Read from the calendar's own far edge rather than computed here, so this
     // pins the two agreeing: whatever the grid offers, the guard must accept.
-    expect(classifyWindow(iso(now), `${bandEnd(now, LONG_HOURS)}T23:59`, now, LONG_HOURS)).toBe('ok')
+    expect(classifyWindow(iso(now), `${bandEnd(now, LONG)}T23:59`, now, LONG)).toBe('ok')
   })
 
   it('refuses a window reaching the day after the last servable one', () => {
-    expect(classifyWindow(iso(now), shift(FUTURE_LIMIT_DAYS + 1), now, LONG_HOURS)).toBe('future')
+    expect(classifyWindow(iso(now), shift(FUTURE_LIMIT_DAYS + 1), now, LONG)).toBe('future')
   })
 
   it('is future when the window starts beyond the forecast horizon', () => {
-    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 2), shift(FUTURE_LIMIT_DAYS + 5), now, LONG_HOURS)).toBe(
+    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 2), shift(FUTURE_LIMIT_DAYS + 5), now, LONG)).toBe(
       'future',
     )
   })
@@ -681,21 +705,21 @@ describe('classifyWindow', () => {
   it('is future when the window merely ends beyond the forecast horizon', () => {
     // Starts within the horizon but ends past it — Open-Meteo would 400 the
     // request, so this must warn rather than pass as ok.
-    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS - 1), shift(FUTURE_LIMIT_DAYS + 5), now, LONG_HOURS)).toBe(
+    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS - 1), shift(FUTURE_LIMIT_DAYS + 5), now, LONG)).toBe(
       'future',
     )
   })
 
   it('is future for an absurdly long window (start now, end next year)', () => {
-    expect(classifyWindow(shift(0), shift(365), now, LONG_HOURS)).toBe('future')
+    expect(classifyWindow(shift(0), shift(365), now, LONG)).toBe('future')
   })
 
   it('is ok when the window is incomplete', () => {
-    expect(classifyWindow('', '', now, LONG_HOURS)).toBe('ok')
+    expect(classifyWindow('', '', now, LONG)).toBe('ok')
   })
 
   it('is order when the end is before the start', () => {
-    expect(classifyWindow(shift(3), shift(1), now, LONG_HOURS)).toBe('order')
+    expect(classifyWindow(shift(3), shift(1), now, LONG)).toBe('order')
   })
 
   // Equal ends used to be a status of their own, pointing the user at one of the
@@ -703,19 +727,34 @@ describe('classifyWindow', () => {
   // you ask for a single hour, so flagging them would refuse the thing the
   // control exists for.
   it('accepts an equal start and end — a single hour is a legitimate window', () => {
-    expect(classifyWindow(shift(1), shift(1), now, LONG_HOURS)).toBe('ok')
+    expect(classifyWindow(shift(1), shift(1), now, LONG)).toBe('ok')
   })
 
   it('still flags an equal window that falls outside the horizon', () => {
-    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 5), shift(FUTURE_LIMIT_DAYS + 5), now, LONG_HOURS)).toBe(
+    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 5), shift(FUTURE_LIMIT_DAYS + 5), now, LONG)).toBe(
       'future',
     )
+  })
+
+  // The archive (#123). Both of these windows sit inside the band the calendar
+  // draws, and neither is a warning: the archive answers the first, and both
+  // endpoints answer the second, split at the boundary.
+  it('is ok for a window wholly inside the archive range', () => {
+    expect(classifyWindow(shift(-200), shift(-199), now, LONG)).toBe('ok')
+  })
+
+  it('is ok for a window that crosses the archive boundary', () => {
+    expect(classifyWindow(shift(-70), shift(-40), now, LONG)).toBe('ok')
+  })
+
+  it('still flags a window reaching past the archive itself', () => {
+    expect(classifyWindow(shift(-(ARCHIVE_DAYS + 5)), shift(-40), now, LONG)).toBe('past')
   })
 
   it('prefers the order warning over a horizon warning when both apply', () => {
     // End far in the future but before the start — ordering is the actionable
     // problem, so it wins over the "future" classification.
-    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 10), shift(FUTURE_LIMIT_DAYS + 5), now, LONG_HOURS)).toBe(
+    expect(classifyWindow(shift(FUTURE_LIMIT_DAYS + 10), shift(FUTURE_LIMIT_DAYS + 5), now, LONG)).toBe(
       'order',
     )
   })
@@ -1118,7 +1157,7 @@ describe('the forecast model in a link', () => {
     const now = new Date(2026, 6, 15, 12, 0)
     const start = '2026-07-20T00:00'
     const end = '2026-07-20T23:59'
-    expect(classifyWindow(start, end, now, LONG_HOURS)).toBe('ok')
-    expect(classifyWindow(start, end, now, 42)).toBe('future')
+    expect(classifyWindow(start, end, now, LONG)).toBe('ok')
+    expect(classifyWindow(start, end, now, { ...LONG, forecastHours: 42 })).toBe('future')
   })
 })

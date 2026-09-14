@@ -1,5 +1,5 @@
 import { DestinationResult, HourlySeries, SortBy } from '../types'
-import { MetricFamily, metricLabel } from '../metrics'
+import { MetricFamily, familyOf, metricLabel } from '../metrics'
 
 export type ChartMetric = MetricFamily
 
@@ -7,27 +7,23 @@ const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
   precip: 'precip_in',
   temp: 'temp_f',
   wind: 'wind_mph',
+  freeze: 'freeze_ft',
   aqi: 'aqi',
 }
 
 // The chart's radios. No aggregate: these plot the raw hourly series, so a
 // point is that hour's own value rather than anything reduced over the window.
 export const CHART_METRICS: { key: ChartMetric; label: string }[] = (
-  ['precip', 'temp', 'wind', 'aqi'] as const
+  ['precip', 'temp', 'wind', 'freeze', 'aqi'] as const
 ).map((key) => ({ key, label: metricLabel(key) }))
 
 // The chart opens on whatever metric the results were ranked by.
+//
+// Read off the ranking key's own family rather than matched against a list of
+// keys: since #291 a family has three or four rankable keys, and a list
+// naming one of them each opened the precipitation chart for the other two.
 export function metricForSort(sortBy: SortBy): ChartMetric {
-  switch (sortBy) {
-    case 'temp_avg_f':
-      return 'temp'
-    case 'wind_avg_mph':
-      return 'wind'
-    case 'aqi_avg':
-      return 'aqi'
-    default:
-      return 'precip'
-  }
+  return familyOf(sortBy)
 }
 
 // Coordinate-based identity (same rationale as fireProximity's fireKey): it
@@ -123,6 +119,7 @@ export function alignRowToGrid(row: DestinationResult, times: number[]): Destina
       precip_in: remap(row.series.precip_in),
       temp_f: remap(row.series.temp_f),
       wind_mph: remap(row.series.wind_mph),
+      freeze_ft: remap(row.series.freeze_ft),
       aqi: remap(row.series.aqi),
       // Remapped rather than dropped, and spread so a row that never carried
       // bearings still carries no key. The chart does not read them, but the
@@ -230,6 +227,7 @@ export function cutSeriesAfter(
     precip_in: keep(series.precip_in),
     temp_f: keep(series.temp_f),
     wind_mph: keep(series.wind_mph),
+    freeze_ft: keep(series.freeze_ft),
     aqi: keep(series.aqi),
     ...(series.wind_dir_deg ? { wind_dir_deg: keep(series.wind_dir_deg) } : {}),
   }
@@ -237,7 +235,9 @@ export function cutSeriesAfter(
 
 export function formatMetricValue(v: number, metric: ChartMetric): string {
   if (metric === 'precip') return v.toFixed(3)
-  if (metric === 'aqi') return v.toFixed(0)
+  // Whole units: an AQI is an integer index, and a freezing level in feet
+  // carries no decimal the model could support.
+  if (metric === 'aqi' || metric === 'freeze') return v.toFixed(0)
   return v.toFixed(1)
 }
 

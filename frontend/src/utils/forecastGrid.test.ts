@@ -7,6 +7,7 @@ import {
   MAX_GRID_CELLS,
   MAX_IMAGE_DIM,
   buildGrid,
+  gridAllowed,
   gridView,
   reachKmFor,
   gridArrowFeatures,
@@ -18,6 +19,9 @@ import {
   type GridCell,
   type GridSpec,
 } from './forecastGrid'
+// `?raw` gives the file's text without executing it: App.tsx is a component
+// tree the node-env Vitest cannot mount, so what it wires is asserted as source.
+import appSource from '../App.tsx?raw'
 import { resultsFeatureCollection } from './resultFeatures'
 import type { DestinationResult } from '../types'
 import type { AqiResult, WeatherResult } from './openMeteo'
@@ -50,6 +54,9 @@ function result(overrides: Partial<DestinationResult> = {}): DestinationResult {
     wind_min_mph: 1,
     wind_max_mph: 10,
     wind_avg_mph: 6.4,
+    freeze_min_ft: null,
+    freeze_max_ft: null,
+    freeze_avg_ft: null,
     aqi_avg: 30,
     aqi_min: 40,
     aqi_max: 40,
@@ -371,6 +378,56 @@ describe('pitchLabel', () => {
   })
 })
 
+describe('gridAllowed', () => {
+  // The lattice is sampled at the analyzed model's finest pitch, and an archive
+  // window names no model: that endpoint answers from a reanalysis on a coarser
+  // grid, so the picture would state a pitch the numbers under it never had
+  // (#123).
+  it('allows a report whose every hour came from a model, and no other', () => {
+    expect(gridAllowed({ windowSource: 'archive' })).toBe(false)
+    expect(gridAllowed({ windowSource: 'forecast' })).toBe(true)
+    // A window crossing the boundary is served now (#123), and half its hours
+    // are that reanalysis: one stated pitch cannot be honest about both halves.
+    expect(gridAllowed({ windowSource: 'spanning' })).toBe(false)
+  })
+
+  // The layer is a standing preference, so before the first analysis there is
+  // nothing to forbid and the checkbox stays live. The report decides when it
+  // commits.
+  it('forbids nothing before a report exists', () => {
+    expect(gridAllowed(null)).toBe(true)
+  })
+})
+
+// The decision has to be the one the map actually reads. App.tsx wires the
+// checkbox, the fetch, the sub-choices and the legend, and none of that is
+// reachable from the node-env Vitest — so the source is read as text, the same
+// drift-guard idiom useCapabilities.test.ts uses for the published caps.
+describe('the grid layer reads that decision rather than re-deriving one', () => {
+  it('gates the checkbox, the fetch and every grid surface on one flag', () => {
+    // One call, so there is one answer.
+    expect(appSource.match(/gridAllowed\(/g)).toHaveLength(1)
+    expect(appSource).toContain('const gridAvailable = gridAllowed(analyzed)')
+    // Derived from the analyzed snapshot, never from the panel's calendar: a
+    // report on screen keeps its own answer while the calendar moves.
+    expect(appSource).not.toMatch(/gridAllowed\((?!analyzed\))/)
+    // The checkbox carries the disabled state, and the popover's CHOICE_ROW
+    // fades the whole row off it.
+    expect(appSource).toContain("key: 'grid'")
+    expect(appSource).toContain('disabled: !gridAvailable')
+    // The fetch and every surface hang off the one composed flag.
+    expect(appSource).toContain('const gridOn = showGrid && gridAvailable')
+    expect(appSource).toContain('enabled: gridOn,')
+    for (const surface of [
+      'const gridPainted = gridOn &&',
+      'const gridCued = gridOn &&',
+      'const gridFailed = gridOn &&',
+    ]) {
+      expect(appSource).toContain(surface)
+    }
+  })
+})
+
 describe('gridLegendLine', () => {
   it('reads as one row in every state: same label, always a value', () => {
     // The label names the LAYER, not the value, and matches the checkbox that
@@ -474,11 +531,15 @@ describe('pairCells', () => {
     wind_min_mph: 1,
     wind_max_mph: 9,
     wind_avg_mph: 5,
+    freeze_min_ft: 9000,
+    freeze_max_ft: 9500,
+    freeze_avg_ft: 9250,
     series: {
       times: [1000, 2000],
       precip_in: precip,
       temp_f: [40, 60],
       wind_mph: [1, 9],
+      freeze_ft: [9000, 9500],
       wind_dir_deg: [90, 270],
     },
   })
@@ -635,7 +696,7 @@ describe('gridRaster', () => {
     // which read different scales.
     const row = result({
       precip_total_in: 0.3,
-      series: { precip_in: [0, 0.4], temp_f: [40, 60], wind_mph: [1, 9], aqi: [10, 20] },
+      series: { precip_in: [0, 0.4], temp_f: [40, 60], wind_mph: [1, 9], freeze_ft: [9000, 9500], aqi: [10, 20] },
     })
     const box: [number, number, number, number] = [-121.8, 46.3, -121.6, 46.5]
     for (const hour of [null, 0, 1]) {
@@ -848,6 +909,7 @@ describe('gridArrowFeatures', () => {
     precip_in: [0, 0],
     temp_f: [40, 60],
     wind_mph: [1, 9],
+    freeze_ft: [9000, 9500],
     aqi: [10, 20],
   }
   const box: [number, number, number, number] = [-121.8, 46.3, -121.6, 46.5]

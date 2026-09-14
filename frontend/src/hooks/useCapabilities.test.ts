@@ -12,10 +12,16 @@ import {
 import appSource from '../App.tsx?raw'
 import controlPanelSource from '../components/ControlPanel.tsx?raw'
 import mapViewSource from '../components/MapView.tsx?raw'
+import calendarSource from '../utils/calendar.ts?raw'
 
 describe('parseCapabilities', () => {
   const body = {
-    limits: { max_destinations: 900, max_limit: 800, max_polygon_area_km2: 70_000 },
+    limits: {
+      max_destinations: 900,
+      max_limit: 800,
+      max_polygon_area_km2: 70_000,
+      archive_days: 200,
+    },
     // Deliberately NOT in reach order: the server ranks these for mountain
     // terrain, and a client that re-sorted would undo the ranking.
     forecast_models: [
@@ -42,6 +48,7 @@ describe('parseCapabilities', () => {
       maxDestinations: 900,
       maxLimit: 800,
       maxPolygonAreaKm2: 70_000,
+      archiveDays: 200,
       forecastModels: [
         {
           id: 'gfs_seamless',
@@ -145,9 +152,11 @@ describe('parseCapabilities', () => {
   it('falls back per field, so an older deployment keeps the rest', () => {
     const partial = parseCapabilities({ limits: { max_limit: 800 } })
     expect(partial.maxLimit).toBe(800)
-    // Not undefined: these feed Math.min and a polygon comparison.
+    // Not undefined: these feed Math.min, a polygon comparison, and the
+    // calendar's near edge.
     expect(partial.maxDestinations).toBeGreaterThan(0)
     expect(partial.maxPolygonAreaKm2).toBeGreaterThan(0)
+    expect(partial.archiveDays).toBeGreaterThan(0)
   })
 
   it('falls back whole when the body is missing, empty, or the wrong shape', () => {
@@ -181,6 +190,27 @@ describe('the polygon-area cap has one source', () => {
         'MAX_AREA_KM2',
       )
     }
+  })
+})
+
+// The same rule one edge over (#123). The archive's reach is published, so the
+// calendar reads it off the band it is handed; a number compiled into the
+// calendar or the panel would be the mirrored constant #152 removed, reborn.
+describe('the archive reach has one source', () => {
+  it('is not spelled out in the calendar or in the panel', () => {
+    for (const [name, source] of [
+      ['calendar.ts', calendarSource],
+      ['ControlPanel.tsx', controlPanelSource],
+    ] as const) {
+      expect(source, `${name} must read the reach from /api/capabilities`).not.toMatch(
+        /365/,
+      )
+    }
+  })
+
+  it('reaches the panel as a prop, and the calendar as the band it draws', () => {
+    expect(controlPanelSource).toMatch(/archiveDays: number/)
+    expect(calendarSource).toMatch(/pastDays: number/)
   })
 })
 
