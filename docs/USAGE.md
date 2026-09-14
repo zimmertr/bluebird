@@ -47,7 +47,7 @@ The checkboxes under the buttons control what discovery looks for inside your po
 | Lakes | `natural=water` + `water=lake` (named nodes/ways/relations) | Implemented |
 | Trailheads | `highway=trailhead` (named nodes/ways) | Implemented |
 
-Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. **Include unnamed peaks**, in Options, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods below still work on their own, so an analysis of pasted coordinates or clicked destinations needs no polygon and no ticks at all.
+Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. **Include unnamed peaks**, under the same checkboxes, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods below still work on their own, so an analysis of pasted coordinates or clicked destinations needs no polygon and no ticks at all.
 
 ### d. Coordinates
 
@@ -124,9 +124,9 @@ Days are your local calendar days, converted to UTC for the API, and the far edg
 
 The calendar is fully keyboard operable: arrow keys move by day, Page Up and Page Down by month, Enter or Space selects, and Escape abandons a half-made range.
 
-## Ranking, filters, and options
+## Ranking and filters
 
-Once you have set your destinations and forecast window, three short sections shape the report: **Ranking** picks the order, **Filters** picks who qualifies, and **Options** holds the remaining knobs (max results, unnamed peaks, and the map layers).
+Once you have set your destinations and forecast window, two short panel sections shape the report: **Ranking** picks the order and how many rows you see, and **Filters** picks who qualifies. The map overlays are not in the panel at all: they sit on the map's own **Layers** button, because they change what you are looking at rather than what you are asking for.
 
 ### Ranking
 
@@ -296,7 +296,7 @@ On a phone the report is a sheet standing on the map rather than a panel beside 
 
 Every column is resizable: drag the divider at a header's right edge, or double-click it to fit the column to its longest value. Name opens wide enough for a 25-character name so more numbers fit on a phone — widen it whenever a longer name is cut off. Widths hold for the session.
 
-**Columns** opens a picker for the columns the table shows. Every column starts on — the table scrolls sideways when it must — and unticking narrows the view for easier comparison. The downloaded CSV always carries every column regardless of what the table displays.
+**Columns** opens a picker for the columns the table shows. Every column starts on, **Wildfire (mi)** included — the table scrolls sideways when it must — and unticking narrows the view for easier comparison. What you pick is remembered across visits. The downloaded CSV still carries every column regardless of what the table displays, with one exception: unticking **Wildfire (mi)** takes it out of the file too.
 
 #### Comparing models on the chart
 
@@ -322,9 +322,13 @@ Air quality has no comparison: AQI comes from one model whatever forecast model 
 
 The comparison travels in the link as `compare=`, a comma-separated list of model ids in the picker's own order, so the same set of models always reads the same way whoever built the link. A restored link reopens with the boxes ticked and buys the forecasts on your first Analyze, never on load.
 
-### Max results (in Options)
+## Saved searches
 
-The default is 200, sized to sit above the 100-row lists people usually paste so a first analysis does not open half-cut. The ceiling is what the running service reports. Raising this number costs nothing upstream: weather is fetched for *every* destination in your area, and the top N by your ranking come back. Lowering it shows you the extremes.
+Everything the panel holds — the polygon, the destination types, the coordinates you pasted, the forecast window and model, the ranking, and every filter — can be kept under a name. Type a name and press **Save**. The saved names appear in the list below the field, where **Load** puts one back on the panel, **Rename** gives the selected one the name in the field, and **Delete** removes it.
+
+A save is a named copy of the link in your address bar, so loading one does exactly what opening that link does: it refills the controls and nothing else. No forecast is fetched, and the report already on screen stays as it is until you press Analyze — which the panel then asks you to do, naming what has changed under it. A name already in the list is refused, for a save and for a rename alike, and the panel says so: nothing on that list is overwritten, because a name is the only handle a save has and there is no undo.
+
+Saves live in this browser, on this device. They are not an account: another browser, another machine and a private window each have their own list, and clearing the site's data clears them. To carry a search to someone else, or to another device, copy the address bar instead.
 
 ## Analyze
 
@@ -337,8 +341,6 @@ Destinations you name yourself are candidates like any other. A searched place a
 Click **Analyze**. Results appear in a sortable table below the map and as color-coded markers on the map itself.
 
 Once results are up, the knobs split in two. **Ranking, max results, every forecast filter, and narrowing the elevation range apply instantly**, with no second click: the browser keeps the forecast for every destination it found, not just the ones that fit on screen, so it can re-rank, re-filter and re-cut them for free. Changing the **destinations, the forecast window, the model, or widening the elevation range** needs Analyze again, because those need forecasts the app does not have yet, and the panel says which one is waiting. That is also why the numbers are exact rather than approximate: a new ranking reconsiders every destination in your area, not just the rows currently listed.
-
-If the weather service cannot be reached from your browser, Bluebird Forecast says so and retries through its own server. That path only receives the rows it shows, so on it every knob goes back to needing Analyze, and the app says which one is waiting.
 
 Marker colors follow total precipitation:
 
@@ -412,10 +414,14 @@ What lands in the file:
 
 - The rows in the order you are reading them, ranking or detail-column sort
   alike, numbered by a leading **Rank** column.
-- The columns the table is showing, under the same headers, which means a
-  single-hour analysis exports the collapsed set.
-- The **Wildfire (mi)** column, once the fire check answers. On screen the
-  column is always present: its cells tick while the check runs, then show
+- Every column the report has, under the same headers the table uses, which
+  means a single-hour analysis exports the collapsed set. Unticking a column
+  in **Columns** narrows the screen rather than the file.
+- The **Wildfire (mi)** column, once the fire check answers and while the
+  table is showing it. That column is the one exception to the line above,
+  because a file is read away from the app and a column of blanks there
+  would claim every row was checked and cleared. On screen the column starts
+  on and unticks like any other: its cells tick while the check runs, then show
   ⚠️ and the distance where a fire is within 10 miles, a dash where the
   check ran and cleared the row, and `N/A` where the row has no answer.
   Hovering an `N/A` says which of its two causes applies: the destination

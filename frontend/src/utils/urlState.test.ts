@@ -5,6 +5,7 @@ import {
   classifyWindow,
   classifyAqiCoverage,
   clampLimit,
+  resolveState,
   ShareableState,
 } from './urlState'
 import {
@@ -1189,5 +1190,37 @@ describe('the forecast model in a link', () => {
     const end = '2026-07-20T23:59'
     expect(classifyWindow(start, end, now, LONG)).toBe('ok')
     expect(classifyWindow(start, end, now, { ...LONG, forecastHours: 42 })).toBe('future')
+  })
+})
+
+// `resolveState` is what both restore paths read a link through — the mount
+// that decodes `location.search`, and a saved search being loaded (#124) —
+// so every input it does not carry has to come back as the app's default
+// rather than as `undefined`.
+describe('resolveState', () => {
+  const DEPLOYMENT = { maxLimit: 500, defaultForecastModel: DEFAULT_MODEL }
+
+  it('fills an empty link out into a pristine session', () => {
+    expect(resolveState(null, DEPLOYMENT)).toEqual(pristine)
+  })
+
+  it('takes the deployment default only where the link named no model', () => {
+    expect(resolveState(null, DEPLOYMENT).forecastModel).toBe(DEFAULT_MODEL)
+    expect(resolveState({ forecastModel: 'gfs_hrrr' }, DEPLOYMENT).forecastModel).toBe('gfs_hrrr')
+  })
+
+  // The ceiling is the running service's, so a link asking for more rows
+  // than it allows opens at the maximum rather than being refused.
+  it('holds the row count inside the deployment ceiling', () => {
+    expect(resolveState({ limit: 5000 }, DEPLOYMENT).limit).toBe(500)
+    expect(resolveState({ limit: 0 }, DEPLOYMENT).limit).toBe(1)
+  })
+
+  // A hand-edited link can name a ranking and an aggregate row that
+  // disagree. The ranking on screen wins, or the panel shows one thing and
+  // applies another.
+  it('repairs a row map that disagrees with the ranking', () => {
+    const out = resolveState({ sortBy: 'wind_max_mph' }, DEPLOYMENT)
+    expect(out.rowKeys.wind).toBe('wind_max_mph')
   })
 })

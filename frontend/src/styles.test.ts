@@ -13,6 +13,7 @@ import {
   BUTTON_DANGER,
   BUTTON_FLOATING,
   BUTTON_PRIMARY,
+  BUTTON_ROW,
   BUTTON_SECONDARY,
   CHIP,
   CHOICE_INPUT,
@@ -760,6 +761,16 @@ describe('shared recipes', () => {
   it('lets no panel control pick its own width', () => {
     const controlSized = new RegExp(`\\bw-(2[4-9]|3\\d|4[0-8])\\b`)
     expect(controlPanelSource.match(controlSized)).toBeNull()
+  })
+
+  // The panel now has two rows of inline actions — Done beside Clear, and the
+  // saved-search list's three (#124) — and a layout spelled twice is one that
+  // drifts. Built from the role's own text rather than by quoting the classes,
+  // which v4 would scan out of this file and re-emit.
+  it('composes both panel button rows from one row recipe', () => {
+    expect(BUTTON_ROW).toContain('flex-wrap')
+    expect(controlPanelSource).not.toContain(`"${BUTTON_ROW}"`)
+    expect((controlPanelSource.match(/BUTTON_ROW/g) ?? []).length).toBeGreaterThan(1)
   })
 
   // Clear filters has no label row to push it into the control column, so it

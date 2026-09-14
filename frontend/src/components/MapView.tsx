@@ -71,6 +71,7 @@ import {
 
 export interface MapViewHandle {
   framePolygon: () => void
+  loadPolygon: (polygon: GeoPolygon | null) => void
   finishDrawing: () => GeoPolygon | null
   cancelDrawing: () => void
   flyToPlace: (place: Place) => void
@@ -853,47 +854,72 @@ const MapView = forwardRef<MapViewHandle, Props>(
       if (map) map.getCanvas().style.cursor = drawingRef.current ? 'crosshair' : ''
     }
 
+    // Bring the drawn ring back into view. Editing a polygon you cannot see
+    // is the one gesture the draw/idle split made possible: you finish, pan
+    // away to read the results, and then press Edit Polygon with the shape
+    // off screen. Only ever pulls the camera *to* the user's own polygon,
+    // and does nothing when there is no ring to frame.
+    //
+    // Two bounds on the move, both there to keep it from reading as a yank.
+    // A ring already on screen is left alone entirely: the camera the user
+    // parked at answers the question better than any recomputed one, and a
+    // jolt that bought nothing is the most jarring kind. And the move never
+    // tightens — `maxZoom` at the current zoom still lets a fit pull back for
+    // a ring too big to show, while a pan to one merely off screen holds the
+    // scale the user was reading at. The zoom change is the disorienting
+    // part, not the pan.
+    function frameRing() {
+      const map = mapRef.current
+      const pts = ptsRef.current
+      if (!map || !loadedRef.current || pts.length < 3) return
+      const canvas = map.getCanvas()
+      const framed = pointsWithinView(
+        pts.map((p) => map.project(p)),
+        canvas.clientWidth,
+        // The canvas the reader can see, which on a phone stops at the
+        // sheet's top edge: a vertex behind the sheet is off screen as far as
+        // this question is concerned, or the move that would reveal it is
+        // skipped.
+        canvas.clientHeight - cameraPadBottomPx,
+        FIT_PADDING_PX,
+      )
+      if (framed) return
+      const bounds = pts.reduce(
+        (b, p) => b.extend(p),
+        new maplibregl.LngLatBounds(pts[0], pts[0]),
+      )
+      cameraCommittedRef.current = true
+      map.fitBounds(bounds, {
+        padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx),
+        duration: 600,
+        maxZoom: map.getZoom(),
+      })
+    }
+
     useImperativeHandle(ref, () => ({
-      // Bring the drawn ring back into view. Editing a polygon you cannot see
-      // is the one gesture the draw/idle split made possible: you finish, pan
-      // away to read the results, and then press Edit Polygon with the shape
-      // off screen. Only ever pulls the camera *to* the user's own polygon,
-      // and does nothing when there is no ring to frame.
+      framePolygon: frameRing,
+      // Put a ring on the map that arrived after mount: a saved search being
+      // loaded (#124). The `polygon` prop is read once, by the load handler,
+      // so a ring that changes later has no other way onto the canvas — and
+      // the points it hydrates are the same array the draw handlers edit, so
+      // a loaded ring is adjustable the moment Edit polygon is pressed, like
+      // a restored one.
       //
-      // Two bounds on the move, both there to keep it from reading as a yank.
-      // A ring already on screen is left alone entirely: the camera the user
-      // parked at answers the question better than any recomputed one, and a
-      // jolt that bought nothing is the most jarring kind. And the move never
-      // tightens — `maxZoom` at the current zoom still lets a fit pull back for
-      // a ring too big to show, while a pan to one merely off screen holds the
-      // scale the user was reading at. The zoom change is the disorienting
-      // part, not the pan.
-      framePolygon() {
+      // The React state stays the caller's: it holds the polygon this was
+      // called with, and a second commit from here could only disagree with
+      // it. The count and area are this map's to report, the way every edit
+      // reports them.
+      loadPolygon(next: GeoPolygon | null) {
+        const pts = next ? ringToPts(next) : []
+        ptsRef.current = pts
+        vertexPopupRef.current?.remove()
+        vertexPopupRef.current = null
         const map = mapRef.current
-        const pts = ptsRef.current
-        if (!map || !loadedRef.current || pts.length < 3) return
-        const canvas = map.getCanvas()
-        const framed = pointsWithinView(
-          pts.map((p) => map.project(p)),
-          canvas.clientWidth,
-          // The canvas the reader can see, which on a phone stops at the
-          // sheet's top edge: a vertex behind the sheet is off screen as far as
-          // this question is concerned, or the move that would reveal it is
-          // skipped.
-          canvas.clientHeight - cameraPadBottomPx,
-          FIT_PADDING_PX,
-        )
-        if (framed) return
-        const bounds = pts.reduce(
-          (b, p) => b.extend(p),
-          new maplibregl.LngLatBounds(pts[0], pts[0]),
-        )
-        cameraCommittedRef.current = true
-        map.fitBounds(bounds, {
-          padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx),
-          duration: 600,
-          maxZoom: map.getZoom(),
-        })
+        if (map && loadedRef.current) {
+          setSource(map, 'draw', pts.length > 0 ? makeDrawData(pts) : emptyFC)
+        }
+        onDrawUpdate(pts.length, pts.length > 0 ? bboxAreaKm2(pts) : null)
+        frameRing()
       },
       // Snapshot the current ring as a GeoPolygon. The points stay editable —
       // the user iterates by dragging vertices and clicking Analyze again.
