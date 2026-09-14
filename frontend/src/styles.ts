@@ -1068,7 +1068,9 @@ export const METRIC_BOX_W = 'w-14'
  * be spaced from. It is the results bar's three halves that need it, where an
  * icon sits against its label (TJ, 2026-09-14).
  */
-const SEGMENT_ITEM_SHAPE = `${TAP.action} flex-1 gap-1.5 py-0.5 text-xs transition-colors ${FOCUS_RING}`
+const segmentHalf = (flex: string) =>
+  `${TAP.action} ${flex} gap-1.5 py-0.5 text-xs transition-colors ${FOCUS_RING}`
+const SEGMENT_ITEM_SHAPE = segmentHalf('flex-1')
 /**
  * One half of any segment in the panel.
  *
@@ -1654,13 +1656,50 @@ export const SLIDER_IDLE = 'text-slate-400'
 export const SCRUBBER_TRACK = `h-2 ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.pill}`
 
 /**
+ * The floor under a timeline axis half: what `Radar` takes, so the metric
+ * beside it is never the narrower of the two.
+ *
+ * `Radar` measures 33.02px at text-xs and the half spends 12px of inset on
+ * each side, so the half is 57.02px and 58px is that rounded up. The right
+ * half spends one of those pixels on the divider between them, which is the
+ * whole difference between the two at rest. Both halves wear the floor, so a
+ * one-word metric — `AQI` is 20.14px, `Wind` 28.95px — stands as a matching
+ * pair beside Radar rather than as the short half of a lopsided one (measured
+ * in Chrome on macOS, 2026-09-14).
+ *
+ * Spelled twice on purpose. `TAP.action` carries `touch:min-w-11` for the
+ * icon-only buttons that have no width of their own, Tailwind v4 resolves
+ * competing utilities by stylesheet order rather than by class list, and the
+ * variant's rule is the later one — so on a coarse pointer a single plain
+ * `min-w` here would be overridden and the floor would drop to 44px, which is
+ * under `Radar`. The value is one number in one role either way.
+ */
+export const TRANSPORT_AXIS_W = 'min-w-[58px] touch:min-w-[58px]'
+
+/**
  * The timeline's axis halves: Radar beside the metric the report ranks by.
  *
  * The one segment whose labels this file does not choose. The right half is
  * whatever metric the report ranks by, spelled by `metrics.ts` — the longest of
- * them are "Precipitation" and "Temperature" — where every other segment in the
- * app carries a word picked to fit the control. So it takes one step more
- * horizontal inset than `SEGMENT_ITEM`.
+ * them are "Freezing level", "Temperature" and "Precipitation" — where every
+ * other segment in the app carries a word picked to fit the control. So it
+ * takes one step more horizontal inset than `SEGMENT_ITEM`, and it is the one
+ * half that sizes itself to the label it was handed.
+ *
+ * Three things follow from that, and only those three. `whitespace-nowrap`,
+ * because a half whose label is a phrase wraps where a half whose label is one
+ * word cannot: `Freezing level` broke over two lines and made the bar taller
+ * than the strings it was carrying. `flex-none` in place of the panel half's
+ * `flex-1`, because a segment of two equal halves is a segment sized to its
+ * longer label twice over — the metric half has to take the width its own
+ * label needs and leave Radar the width of `Radar`. And `TRANSPORT_AXIS_W`,
+ * the floor that keeps a one-word metric from being the runt beside it.
+ *
+ * The flex value and the floor are one decision, not two. An explicit
+ * `min-width` REPLACES the automatic content floor a flex item otherwise has,
+ * so a floored half that could still shrink squeezed `Freezing level` to 81px
+ * of a label that needs 103 and spilled it over its own insets — measured in
+ * the running app, 2026-09-14. `flex-none` is what makes the floor a floor.
  *
  * The inset is the slack that keeps a long noun clear of the clip. This segment
  * is `SEGMENT_FLUID`, sized by its own content and `overflow-hidden` so the
@@ -1670,10 +1709,10 @@ export const SCRUBBER_TRACK = `h-2 ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.pi
  * and remember the widest case is a metric name rather than a string this file
  * controls.
  *
- * Only the inset differs, and `styles.test.ts` asserts that, so the bar cannot
- * become a second kind of segment.
+ * Everything else is `SEGMENT_ITEM`, and `styles.test.ts` asserts that, so the
+ * bar cannot become a second kind of segment.
  */
-export const TRANSPORT_AXIS_ITEM = `${SEGMENT_ITEM_SHAPE} px-3`
+export const TRANSPORT_AXIS_ITEM = `${segmentHalf('flex-none')} px-3 whitespace-nowrap ${TRANSPORT_AXIS_W}`
 
 /**
  * The results grid's two cell insets, which had been spelled out ten times
