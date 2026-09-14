@@ -32,6 +32,7 @@ import {
   LAYER,
   LINK,
   MAP_BOX_W,
+  MAP_EDGE,
   PROSE,
   RADIUS,
   LIFTED_EDGE,
@@ -2006,7 +2007,7 @@ export default function App() {
             keeps the whole column, so the canvas runs on behind the sheet and
             its ResizeObserver sees no change on a drag. */}
         <div
-          className="flex-1 relative"
+          className={`flex-1 relative ${MAP_EDGE.publish}`}
           style={
             mapCornerLift > 0
               ? ({ '--map-corner-lift': `${mapCornerLift}px` } as React.CSSProperties)
@@ -2144,7 +2145,7 @@ export default function App() {
               of the default. */}
           {(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar) && (
             <div
-              className={`absolute left-2 top-28 z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0 ${
+              className={`absolute ${MAP_EDGE.left} top-28 z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0 ${
                 timelineAxis !== null ? 'bottom-28' : 'bottom-8'
               }`}
               // Where a sheet covers the map's bottom edge, the same two
@@ -2315,7 +2316,7 @@ export default function App() {
               chrome and across the sheet, and the layer has to sit on the
               cluster rather than on the popover inside it (see LAYER). It stays
               under the loading overlay and the mobile drawer backdrop. */}
-          <div className={`absolute top-3 left-3 ${LAYER.mapControls} flex flex-col items-start gap-2`}>
+          <div className={`absolute top-3 ${MAP_EDGE.left} ${LAYER.mapControls} flex flex-col items-start gap-2`}>
             {/* Raised above its later siblings so the search dropdown paints
                 over the Layers button below it — both live in the top-left
                 cluster, and DOM order alone put the button on top (#288
@@ -2355,6 +2356,10 @@ export default function App() {
                 </svg>
                 Layers
               </button>
+              {/* Zero from the button it hangs under, which is the same edge
+                  as `MAP_EDGE.left`: the popover's offset parent is the column,
+                  so an inset of its own would be that inset twice and the box
+                  would hang a step right of the legends it hangs over. */}
               {layersOpen && (
                 <div className={`${SURFACE_POPOVER} ${MAP_BOX_W} absolute left-0 mt-2 px-2.5 py-2`}>
                   {MAP_LAYERS.map((layer) => (

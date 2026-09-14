@@ -47,6 +47,7 @@ import {
   LINK,
   LINK_ACTION,
   MAP_BOX_W,
+  MAP_EDGE,
   PROSE,
   RADIUS,
   SURFACE_CARD,
@@ -1254,6 +1255,39 @@ describe('the results table rank cell', () => {
     // which Tailwind would otherwise compile.
     const displayToggle = new RegExp(['group-hover', '(hidden|inline|block|flex)\\b'].join(':'))
     expect(source).not.toMatch(displayToggle)
+  })
+})
+
+// One inset for everything that stands off the map's edges, the app's chrome
+// and the library's alike.
+describe('the map edge inset', () => {
+  it('publishes one number and reads it everywhere', () => {
+    expect(MAP_EDGE.publish).toBe('[--map-edge-inset:0.75rem]')
+    for (const side of [MAP_EDGE.left, MAP_EDGE.top]) {
+      expect(side).toContain('var(--map-edge-inset)')
+      // The number is published, never repeated: a fallback here would be a
+      // second copy of it, and the two would drift.
+      expect(side).not.toMatch(/rem|px/)
+    }
+  })
+
+  // The map wrapper is what carries the property, so everything inside it —
+  // the app's floating chrome and MapLibre's own markup, which has no call
+  // site to hand a role to — inherits the same number.
+  it('is published on the map wrapper', () => {
+    expect(appSource).toContain('MAP_EDGE.publish')
+  })
+
+  // The button column, the legend stack and the popover under them. The first
+  // two wear the role; the popover's offset parent IS the column, so it takes
+  // zero from the button it hangs under, which is the same edge. What none of
+  // them may do is spell an inset of its own — that is how the column came to
+  // sit 4px right of the legends. Written as alternation so no banned class
+  // appears verbatim: v4 scans this file as raw text.
+  it('leaves no left edge spelled at a call site', () => {
+    expect(appSource).not.toMatch(/\bleft-(?:2|3)\b/)
+    expect(appSource).not.toMatch(/\bleft-\[/)
+    expect((appSource.match(/\$\{MAP_EDGE\.left\}/g) ?? []).length).toBe(2)
   })
 })
 

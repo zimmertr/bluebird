@@ -734,6 +734,32 @@ export const CONTROL_W = 'w-36'
  */
 export const MAP_BOX_W = 'w-48'
 
+/**
+ * How far anything floating on the map stands off its edge.
+ *
+ * One number, published once as a custom property on the map wrapper, because
+ * the things that measure from these edges are not all the app's: the button
+ * column and the legend stack are ours, and MapLibre's zoom/compass/geolocate
+ * stack takes a margin the library spells for itself. Chosen separately they do
+ * not line up — the column sat 12px in with the legends at 8px, so an open
+ * popover hung 4px right of the boxes it hangs over, and the vendor's 10px left
+ * its stack a step higher than the Layers button opposite it.
+ *
+ * The value is declared here rather than in `map.css` so the design system
+ * still owns it: `map.css` reads the property and spells no number of its own.
+ * Everything that wears `left`/`top` below is inside the wrapper, so the
+ * property reaches all of them by inheritance — including the library's markup,
+ * which has no call site to hand a role to.
+ */
+export const MAP_EDGE = {
+  /** On the map wrapper: publishes the inset to the app's chrome and the vendor's. */
+  publish: '[--map-edge-inset:0.75rem]',
+  /** The left edge every floating box on the map's left shares. */
+  left: 'left-[var(--map-edge-inset)]',
+  /** The top edge the app's own button column takes. */
+  top: 'top-[var(--map-edge-inset)]',
+} as const
+
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 
 /**
