@@ -1007,8 +1007,13 @@ export const METRIC_BOX_W = 'w-14'
  * utilities in one class list would resolve by stylesheet order rather than by
  * intent, so the inset is part of the recipe rather than something a call site
  * adds.
+ *
+ * The gap is here rather than at a call site for the same reason, and it costs
+ * the panel's segments nothing: a half carrying one word has no second child to
+ * be spaced from. It is the results bar's three halves that need it, where an
+ * icon sits against its label (TJ, 2026-09-14).
  */
-const SEGMENT_ITEM_SHAPE = `${TAP.action} flex-1 py-0.5 text-xs transition-colors ${FOCUS_RING}`
+const SEGMENT_ITEM_SHAPE = `${TAP.action} flex-1 gap-1.5 py-0.5 text-xs transition-colors ${FOCUS_RING}`
 /**
  * One half of any segment in the panel.
  *
