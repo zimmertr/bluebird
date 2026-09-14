@@ -89,6 +89,7 @@ import {
   frameHoldMs,
   initialIndex,
   nextFrame,
+  playerAvailable,
   resolveAxis,
 } from './utils/timeline'
 import {
@@ -662,23 +663,6 @@ export default function App() {
   // Whether the player is on the map: the reader's decision where they have made
   // one, this device's default otherwise.
   const playerShown = showPlayer ?? isDesktop
-  // Alphabetical by label, which is the only order a list of unrelated switches
-  // can be scanned in: these five have no ranking between them — no cost, no
-  // severity, no dependency — so any other order is one the reader has to
-  // learn. The grid's own segment and slider still render under its row,
-  // because they are that row's sub-choices rather than list members.
-  //
-  // The player is a list member like the other four even though it switches
-  // something OFF the map rather than a picture onto it: it answers the same
-  // question — what is on the map — and nothing about the report follows it,
-  // so it is no more a knob than the overlays beside it.
-  const MAP_LAYERS = [
-    { key: 'grid', label: 'Forecast grid', checked: showGrid, onChange: setShowGrid },
-    { key: 'player', label: 'Forecast player', checked: playerShown, onChange: setShowPlayer },
-    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
-    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
-    { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
-  ]
 
   function dismissWelcome() {
     localStorage.setItem('bluebird_forecast_welcomed', '1')
@@ -1533,6 +1517,14 @@ export default function App() {
   const forecastTimes = response?.times ?? []
   const timelineAxes = availableAxes(playerShown, showRadar, forecastTimes.length)
   const timelineAxis = resolveAxis(timelineAxes, chosenAxis)
+  // Whether the player has anything to play: radar contributes a past axis and
+  // a multi-hour report a forecast one, so with neither there is nothing for a
+  // transport to span. The row is then not in the popover at all, because a
+  // checkbox that switches nothing on is a control the reader has to test to
+  // learn is empty. `showPlayer` is untouched by that: the reader's own
+  // decision survives the row being absent, so turning radar off and on again
+  // never turns the player back on.
+  const playerOffered = playerAvailable(showRadar, forecastTimes.length)
   const frameCount = timelineAxis === 'radar' ? RADAR_FRAME_COUNT : forecastTimes.length
   const frameIndex = clampIndex(
     timelineAxis === 'radar' ? radarIndex : forecastIndex,
@@ -1594,6 +1586,26 @@ export default function App() {
       : forecastStampLabel(forecastTimes[frameIndex] ?? forecastTimes[0] ?? Date.now())
   const timelineScale =
     timelineAxis === 'radar' ? radarScaleEnds() : forecastScaleMarks(forecastTimes)
+
+  // Alphabetical by label, which is the only order a list of unrelated switches
+  // can be scanned in: these five have no ranking between them — no cost, no
+  // severity, no dependency — so any other order is one the reader has to
+  // learn. The grid's own segment and slider still render under its row,
+  // because they are that row's sub-choices rather than list members.
+  //
+  // The player is a list member like the other four even though it switches
+  // something OFF the map rather than a picture onto it: it answers the same
+  // question — what is on the map — and nothing about the report follows it,
+  // so it is no more a knob than the overlays beside it.
+  const MAP_LAYERS = [
+    { key: 'grid', label: 'Forecast grid', checked: showGrid, onChange: setShowGrid },
+    ...(playerOffered
+      ? [{ key: 'player', label: 'Forecast player', checked: playerShown, onChange: setShowPlayer }]
+      : []),
+    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
+    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
+    { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
+  ]
 
   // Clicking the chart moves the map's playhead to that hour, and takes the
   // transport to the forecast axis if it was showing radar — the reader just

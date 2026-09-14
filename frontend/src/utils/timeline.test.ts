@@ -11,6 +11,7 @@ import {
   frameHoldMs,
   initialIndex,
   nextFrame,
+  playerAvailable,
   resolveAxis,
 } from './timeline'
 
@@ -42,6 +43,45 @@ describe('availableAxes', () => {
     expect(availableAxes(false, true, 0)).toEqual([])
     expect(availableAxes(false, false, 24)).toEqual([])
     expect(resolveAxis(availableAxes(false, true, 24), 'forecast')).toBeNull()
+  })
+})
+
+// Whether the player EXISTS, which is a different question from whether it is
+// shown: the Layers row is absent while this is false, because a checkbox that
+// switches on an empty bar is one the reader has to try to learn it is empty.
+describe('playerAvailable', () => {
+  it('is false with neither radar nor a multi-hour report', () => {
+    expect(playerAvailable(false, 0)).toBe(false)
+    // A Current window is one instant, so it contributes no axis.
+    expect(playerAvailable(false, 1)).toBe(false)
+  })
+
+  it('is true on radar alone, before any analysis', () => {
+    expect(playerAvailable(true, 0)).toBe(true)
+  })
+
+  it('is true on a report covering more than one hour', () => {
+    expect(playerAvailable(false, 2)).toBe(true)
+  })
+
+  // The row's presence and the switch's value are independent. Nothing here
+  // reads the switch, so a reader who turned the player off keeps that decision
+  // while the row is away, and a radar toggle cannot hand it back on.
+  it('says nothing about the switch itself', () => {
+    for (const shown of [true, false]) {
+      expect(availableAxes(shown, false, 1)).toEqual([])
+      expect(playerAvailable(false, 1)).toBe(false)
+    }
+    expect(availableAxes(false, true, 24)).toEqual([])
+    expect(playerAvailable(true, 24)).toBe(true)
+  })
+
+  // One predicate, two consumers: the row and the axis list. If they could
+  // disagree, the popover would offer a player the bar refuses to draw.
+  it('is what leaves the axis list empty', () => {
+    for (const [radar, stamps] of [[false, 0], [false, 1], [true, 0], [false, 24]] as const) {
+      expect(availableAxes(true, radar, stamps).length > 0).toBe(playerAvailable(radar, stamps))
+    }
   })
 })
 
