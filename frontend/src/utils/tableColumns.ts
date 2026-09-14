@@ -77,18 +77,19 @@ export const LEAD_KEYS: ReadonlySet<string> = new Set(['name', 'type', 'elevatio
  * second spelling would repeat every destination with nothing saying which
  * answer each repeat is.
  *
- * Directly after the identity columns and before the first metric: the column
- * says WHICH ANSWER this row is, so it belongs with what identifies a row
- * rather than among the numbers it qualifies. Inserted here rather than
- * declared in `COLUMNS` because it exists only while a comparison is up, and it
- * is not in the Columns picker for the same reason — a column that cannot be
- * turned off is one less thing to explain than a column that appears in the
- * picker only sometimes.
+ * Directly after `Name`, ahead of the rest of the identity columns (TJ,
+ * 2026-09-14). A comparison repeats a destination's name down consecutive
+ * rows, and the model is what tells those repeats apart, so it reads best
+ * against the name it qualifies rather than after two columns that repeat with
+ * it. Inserted here rather than declared in `COLUMNS` because it exists only
+ * while a comparison is up, and it is not in the Columns picker for the same
+ * reason — a column that cannot be turned off is one less thing to explain
+ * than a column that appears in the picker only sometimes.
  */
 export function withModelColumn(cols: readonly ColDef[], comparing: boolean): ColDef[] {
   if (!comparing) return [...cols]
-  const at = cols.findIndex((c) => !LEAD_KEYS.has(c.key as string))
-  const cut = at === -1 ? cols.length : at
+  const at = cols.findIndex((c) => c.key === 'name')
+  const cut = at === -1 ? 0 : at + 1
   return [...cols.slice(0, cut), MODEL_COL, ...cols.slice(cut)]
 }
 

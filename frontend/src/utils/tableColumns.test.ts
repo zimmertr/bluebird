@@ -291,12 +291,12 @@ describe('the Model column', () => {
     expect(withModelColumn(cols, false).map((c) => c.key)).toEqual(cols.map((c) => c.key))
   })
 
-  it('sits after the identity columns and before the first metric', () => {
+  // Against the name it qualifies: a comparison repeats one destination's name
+  // down consecutive rows and the model is what tells those repeats apart.
+  it('sits directly after Name', () => {
     const keys = withModelColumn(cols, true).map((c) => c.key)
-    const at = keys.indexOf(MODEL_KEY)
-    expect(at).toBeGreaterThan(-1)
-    expect(keys.slice(0, at).every((k) => LEAD.has(k as string))).toBe(true)
-    expect(LEAD.has(keys[at + 1] as string)).toBe(false)
+    expect(keys.indexOf(MODEL_KEY)).toBe(keys.indexOf('name') + 1)
+    expect(keys[keys.indexOf(MODEL_KEY) + 1]).toBe('type')
   })
 
   it('adds the column once and drops nothing', () => {
@@ -313,13 +313,13 @@ describe('the Model column', () => {
     expect(keys[keys.length - 1]).toBe(WILDFIRE_KEY)
   })
 
-  // A point-sample report collapses to identity columns plus one instant per
-  // metric; the insertion must still land rather than run off the end.
-  it('appends when every column is an identity column', () => {
-    const lead = cols.filter((c) => LEAD.has(c.key as string))
-    expect(withModelColumn(lead, true).map((c) => c.key)).toEqual([
-      ...lead.map((c) => c.key),
+  // Name is hideable like every other column, and the insertion has to land
+  // somewhere rather than run off the end when it is off.
+  it('leads the columns when Name is not shown', () => {
+    const noName = cols.filter((c) => c.key !== 'name')
+    expect(withModelColumn(noName, true).map((c) => c.key)).toEqual([
       MODEL_KEY,
+      ...noName.map((c) => c.key),
     ])
   })
 })
