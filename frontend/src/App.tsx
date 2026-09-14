@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import MapView, { MapViewHandle } from './components/MapView'
 import ControlPanel from './components/ControlPanel'
 import SearchBox, { type SearchBoxHandle } from './components/SearchBox'
@@ -504,12 +504,6 @@ export default function App() {
       document.removeEventListener('keydown', onKey)
     }
   }, [layersOpen])
-  const MAP_LAYERS = [
-    { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
-    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
-    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
-    { key: 'grid', label: 'Forecast grid', checked: showGrid, onChange: setShowGrid },
-  ]
   // Which drawing the grid's samples get. Blocks by default: it is the style
   // that cannot overstate what was sampled, since one square is one forecast
   // and a reader can count them. Purely presentation over held samples, so
@@ -668,6 +662,23 @@ export default function App() {
   // Whether the player is on the map: the reader's decision where they have made
   // one, this device's default otherwise.
   const playerShown = showPlayer ?? isDesktop
+  // Alphabetical by label, which is the only order a list of unrelated switches
+  // can be scanned in: these five have no ranking between them — no cost, no
+  // severity, no dependency — so any other order is one the reader has to
+  // learn. The grid's own segment and slider still render under its row,
+  // because they are that row's sub-choices rather than list members.
+  //
+  // The player is a list member like the other four even though it switches
+  // something OFF the map rather than a picture onto it: it answers the same
+  // question — what is on the map — and nothing about the report follows it,
+  // so it is no more a knob than the overlays beside it.
+  const MAP_LAYERS = [
+    { key: 'grid', label: 'Forecast grid', checked: showGrid, onChange: setShowGrid },
+    { key: 'player', label: 'Forecast player', checked: playerShown, onChange: setShowPlayer },
+    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
+    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
+    { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
+  ]
 
   function dismissWelcome() {
     localStorage.setItem('bluebird_forecast_welcomed', '1')
@@ -2334,93 +2345,85 @@ export default function App() {
               </button>
               {layersOpen && (
                 <div className={`${SURFACE_POPOVER} ${MAP_BOX_W} absolute left-0 mt-2 px-2.5 py-2`}>
-                  {MAP_LAYERS.map((layer) => layerRow(layer))}
-                  {/* The grid's sub-choices, revealed by its own checkbox.
-                      The popover is as wide as the legend boxes below it
-                      (`MAP_BOX_W`), so these take the fluid segment rather
-                      than the panel's fixed 144px column — the same reason
-                      the results bar's mode switch does. */}
-                  {showGrid && (
-                    <>
-                      <div className={`${SEGMENT_FLUID_LIFTED} mt-1.5 w-full`}>
-                        {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
-                          <button
-                            key={value}
-                            type="button"
-                            aria-pressed={gridStyle === value}
-                            onClick={() => setGridStyle(value)}
-                            className={`${SEGMENT_ITEM} ${
-                              gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
-                            } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
-                          >
-                            {value === 'blocks' ? 'Blocks' : 'Smooth'}
-                          </button>
-                        ))}
-                      </div>
-                      {/* The coverage slider: how far from each destination
-                          the grid reaches. The value and wordmark render
-                          TWICE — muted on the well, white inside the accent
-                          fill — with the top copy clipped to the fill, so the
-                          line stays readable at any position without a color
-                          racing another. Drag previews live (`gridReachDraft`)
-                          and commits on release, because each committed value
-                          is a refetch and a drag must not fetch per pixel. */}
-                      <div
-                        className={`relative mt-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${LIFTED_EDGE} ${RECESSED_FILL}`}
-                      >
-                        {(() => {
-                          const shown = gridReachDraft ?? gridReachFrac
-                          const pct = shown * 100
-                          const line = (
-                            <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-2">
-                              <span className={SLIDER_VALUE}>
-                                {pitchLabel(reachKmFor(gridReachPitchKm, shown))}
-                              </span>
-                              <span className={SLIDER_WORDMARK}>Coverage</span>
-                            </div>
-                          )
-                          return (
-                            <>
-                              <div className={`absolute inset-0 ${SLIDER_IDLE}`}>{line}</div>
-                              <div
-                                className={`absolute inset-0 ${ACCENT.fill}`}
-                                style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}
+                  {MAP_LAYERS.map((layer) => (
+                    <Fragment key={layer.key}>
+                      {layerRow(layer)}
+                      {/* The grid's sub-choices, revealed by its own checkbox
+                          and rendered under the row they belong to rather than
+                          after the list, so the alphabetical order above holds
+                          whatever is open. The popover is as wide as the legend
+                          boxes below it (`MAP_BOX_W`), so these take the fluid
+                          segment rather than the panel's fixed 144px column —
+                          the same reason the results bar's mode switch does. */}
+                      {layer.key === 'grid' && showGrid && (
+                        <>
+                          <div className={`${SEGMENT_FLUID_LIFTED} mt-1.5 w-full`}>
+                            {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
+                              <button
+                                key={value}
+                                type="button"
+                                aria-pressed={gridStyle === value}
+                                onClick={() => setGridStyle(value)}
+                                className={`${SEGMENT_ITEM} ${
+                                  gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
+                                } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
                               >
-                                {line}
-                              </div>
-                            </>
-                          )
-                        })()}
-                        <input
-                          type="range"
-                          aria-label="Coverage"
-                          min={0}
-                          max={100}
-                          step={5}
-                          value={Math.round((gridReachDraft ?? gridReachFrac) * 100)}
-                          onChange={(e) => setGridReachDraft(Number(e.target.value) / 100)}
-                          onPointerUp={commitGridReach}
-                          onKeyUp={commitGridReach}
-                          onBlur={commitGridReach}
-                          className={SLIDER_OVERLAY}
-                        />
-                      </div>
-                    </>
-                  )}
-                  {/* Last, and the one row here that switches something OFF the
-                      map rather than a picture onto it. It belongs with the
-                      layers because it answers the same question — what is on
-                      the map — and it is the only one of them that a phone
-                      cannot afford by default: the bar is a band across a map
-                      that the results sheet already stands on. Nothing about
-                      the report follows it, so it is no more a knob than the
-                      four above. */}
-                  {layerRow({
-                    key: 'player',
-                    label: 'Forecast player',
-                    checked: playerShown,
-                    onChange: setShowPlayer,
-                  })}
+                                {value === 'blocks' ? 'Blocks' : 'Smooth'}
+                              </button>
+                            ))}
+                          </div>
+                          {/* The coverage slider: how far from each destination
+                              the grid reaches. The value and wordmark render
+                              TWICE — muted on the well, white inside the accent
+                              fill — with the top copy clipped to the fill, so the
+                              line stays readable at any position without a color
+                              racing another. Drag previews live (`gridReachDraft`)
+                              and commits on release, because each committed value
+                              is a refetch and a drag must not fetch per pixel. */}
+                          <div
+                            className={`relative mt-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${LIFTED_EDGE} ${RECESSED_FILL}`}
+                          >
+                            {(() => {
+                              const shown = gridReachDraft ?? gridReachFrac
+                              const pct = shown * 100
+                              const line = (
+                                <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-2">
+                                  <span className={SLIDER_VALUE}>
+                                    {pitchLabel(reachKmFor(gridReachPitchKm, shown))}
+                                  </span>
+                                  <span className={SLIDER_WORDMARK}>Coverage</span>
+                                </div>
+                              )
+                              return (
+                                <>
+                                  <div className={`absolute inset-0 ${SLIDER_IDLE}`}>{line}</div>
+                                  <div
+                                    className={`absolute inset-0 ${ACCENT.fill}`}
+                                    style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}
+                                  >
+                                    {line}
+                                  </div>
+                                </>
+                              )
+                            })()}
+                            <input
+                              type="range"
+                              aria-label="Coverage"
+                              min={0}
+                              max={100}
+                              step={5}
+                              value={Math.round((gridReachDraft ?? gridReachFrac) * 100)}
+                              onChange={(e) => setGridReachDraft(Number(e.target.value) / 100)}
+                              onPointerUp={commitGridReach}
+                              onKeyUp={commitGridReach}
+                              onBlur={commitGridReach}
+                              className={SLIDER_OVERLAY}
+                            />
+                          </div>
+                        </>
+                      )}
+                    </Fragment>
+                  ))}
                 </div>
               )}
             </div>

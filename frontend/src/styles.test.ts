@@ -1207,3 +1207,26 @@ describe('the results table rank cell', () => {
     expect(source).not.toMatch(displayToggle)
   })
 })
+
+// The map's Layers popover: the one list in the app whose members have no
+// ranking between them.
+describe('the map layer rows', () => {
+  // Read out of the source rather than out of a render, for the reason every
+  // other check here is: Vitest has no DOM, and the order is a property of the
+  // literal the popover maps over.
+  const labels = (() => {
+    const block = appSource.match(/const MAP_LAYERS = \[[\s\S]*?\n {2}\]/)?.[0] ?? ''
+    return [...block.matchAll(/label: '([^']+)'/g)].map((m) => m[1])
+  })()
+
+  it('found every row', () => {
+    expect(labels).toHaveLength(5)
+  })
+
+  // Alphabetical, because nothing else orders these: no cost, no severity and
+  // no dependency separates one switch from another, so any other order is one
+  // the reader has to learn rather than one they can scan.
+  it('lists the layers in alphabetical order', () => {
+    expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)))
+  })
+})
