@@ -16,7 +16,12 @@ import { modelForecastHours, useCapabilities } from './hooks/useCapabilities'
 import { useChartSelection } from './hooks/useChartSelection'
 import { useModelCompare } from './hooks/useModelCompare'
 import { allocateColors } from './utils/chartColors'
-import { compareAdded, drawnModelIds, pairKey } from './utils/modelCompare'
+import {
+  compareAdded,
+  drawnModelIds,
+  modelsWithoutMetric,
+  pairKey,
+} from './utils/modelCompare'
 import { modelRows, pruneHidden, shownModels, toggleHidden } from './utils/modelVisibility'
 import { useFireProximity } from './hooks/useFireProximity'
 import { fireKey } from './utils/fireProximity'
@@ -1987,6 +1992,21 @@ export default function App() {
     times: chartTimes,
   })
 
+  // Which selected models answered with nothing for the metric the report is
+  // ranked on. Read off the RANKED metric rather than the chart's, because the
+  // panel is where this is said and the ranking is the panel's own knob: a
+  // reader who switches the chart to precipitation has not stopped ranking on
+  // the freezing level. The lines carry every metric's array, so the answer
+  // does not move when the chart's select does.
+  //
+  // Empty on air quality, where there are no lines at all: the comparison is
+  // withdrawn on that metric rather than drawing one answer eight times, and
+  // that is a different sentence, said below.
+  const compareGaps = useMemo(
+    () => modelsWithoutMetric(compare.lines, familyOf(sortBy)),
+    [compare.lines, sortBy],
+  )
+
   // A model put down and later selected again comes back DRAWN, so a flag
   // outlives its model by exactly nothing. Keyed on the panel's selection
   // rather than on the chart's, because that is where a model leaves.
@@ -2212,6 +2232,9 @@ export default function App() {
           setCustomCsv={setCustomCsv}
           onCsvPasted={(points) => mapRef.current?.fitToPoints(points)}
           commitReasons={commitReasons}
+          compareGaps={compareGaps.length}
+          compareCount={compare.shown.length}
+          compareAqi={familyOf(sortBy) === 'aqi' && comparedModels.length > 0}
           sortBy={sortBy}
           setSortBy={setSortBy}
           sortDesc={sortDesc}

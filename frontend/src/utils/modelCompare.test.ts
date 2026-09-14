@@ -11,6 +11,7 @@ import {
   compareSeries,
   isBlend,
   modelSeriesOnGrid,
+  modelsWithoutMetric,
   pairKey,
 } from './modelCompare'
 
@@ -353,5 +354,67 @@ describe('compareSeries', () => {
 
   it('draws nothing when no model is on the chart', () => {
     expect(compareSeries(DESTINATIONS, [], everyPair(), TIMES, null, pairColors())).toEqual([])
+  })
+
+  // Three of the eight models publish a freezing level (#295). The other five
+  // answer with a column of nulls rather than refusing, so their lines ARE
+  // drawn and every point on them is absent: on the chart that is
+  // indistinguishable from never having asked, which is what the panel's
+  // warning exists to say.
+  describe('models that answered with nothing', () => {
+    // One model's pairs carry the metric, the rest are null throughout.
+    function heldWithout(missing: readonly string[], field: 'freeze_ft' | 'precip_in') {
+      const held: Record<string, ReturnType<typeof series>> = {}
+      for (const model of ON_CHART) {
+        for (const d of DESTINATIONS) {
+          const s = series([1, 2, 3])
+          if (missing.includes(model.id)) s[field] = [null, null, null] as never
+          held[pairKey(model.id, d.key)] = s
+        }
+      }
+      return held
+    }
+
+    const linesFor = (held: ReturnType<typeof everyPair>) =>
+      compareSeries(DESTINATIONS, ON_CHART, held, TIMES, null, pairColors())
+
+    it('names every model with no value for the metric', () => {
+      const lines = linesFor(heldWithout(['gfs_hrrr', 'ecmwf_ifs025'], 'freeze_ft'))
+      expect(modelsWithoutMetric(lines, 'freeze').sort()).toEqual([
+        'ecmwf_ifs025',
+        'gfs_hrrr',
+      ])
+    })
+
+    // The metric is the question. A model missing the freezing level is not
+    // missing the precipitation, and the same lines answer both.
+    it('answers per metric, off the one set of lines', () => {
+      const lines = linesFor(heldWithout(['gfs_hrrr'], 'freeze_ft'))
+      expect(modelsWithoutMetric(lines, 'freeze')).toEqual(['gfs_hrrr'])
+      expect(modelsWithoutMetric(lines, 'precip')).toEqual([])
+    })
+
+    // One destination outside a regional model's domain is a gap in a line,
+    // not a statement about the model, so a model counts only when EVERY
+    // destination under it came back empty.
+    it('does not name a model that answered for one destination', () => {
+      const held = heldWithout(['gfs_hrrr'], 'freeze_ft')
+      held[pairKey('gfs_hrrr', DESTINATIONS[0].key)] = series([1, 2, 3])
+      expect(modelsWithoutMetric(linesFor(held), 'freeze')).toEqual([])
+    })
+
+    // Air quality is all nulls on every compared line by construction, because
+    // it comes from one source whatever model ranks the field. The comparison
+    // is withdrawn on that metric, so this is never asked there — and if it
+    // were, naming all three would be true rather than useful.
+    it('reads the AQI column as empty for every model', () => {
+      expect(modelsWithoutMetric(linesFor(everyPair()), 'aqi').sort()).toEqual(
+        ON_CHART.map((m) => m.id).sort(),
+      )
+    })
+
+    it('names nothing when there are no lines', () => {
+      expect(modelsWithoutMetric([], 'freeze')).toEqual([])
+    })
   })
 })

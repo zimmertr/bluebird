@@ -11,7 +11,14 @@
 
 import { HourlySeries } from '../types'
 import type { ForecastModelOption } from '../hooks/useCapabilities'
-import { ChartLine, comparedLineLabel, cutSeriesAfter, gridRemapper } from './chartData'
+import {
+  ChartLine,
+  ChartMetric,
+  SERIES_FIELD,
+  comparedLineLabel,
+  cutSeriesAfter,
+  gridRemapper,
+} from './chartData'
 import type { WeatherSeries } from './openMeteo'
 
 const HOUR_MS = 3_600_000
@@ -210,4 +217,53 @@ export function compareSeries(
     }
   }
   return lines
+}
+
+/**
+ * The models on the chart that answered with nothing for the metric on screen.
+ *
+ * Three of the eight models publish a freezing level (#295), so a comparison
+ * on that metric can come back with most of its lines empty. Those lines are
+ * not missing — they are drawn, and every point on them is null — so the chart
+ * looks as though the models were never asked. This is what lets a surface say
+ * otherwise.
+ *
+ * A model counts as empty only when EVERY charted destination under it has no
+ * value. One destination outside a regional model's domain is a gap in that
+ * line, not a statement about the model, and the existing coverage note
+ * already speaks for an outright refusal.
+ *
+ * Read off the DATA rather than off a list of which models carry what: a model
+ * that starts publishing a variable then works with no change here. That rule
+ * is `freezingLevel.ts`'s and it holds for the same reason.
+ */
+export function modelsWithoutMetric(
+  lines: readonly ChartLine[],
+  metric: ChartMetric,
+): string[] {
+  const field = SERIES_FIELD[metric]
+  const answered = new Map<string, boolean>()
+  for (const line of lines) {
+    const id = modelIdOf(line.key)
+    if (id === null) continue
+    const values = line.series?.[field]
+    const has = Array.isArray(values) && values.some((v) => v != null)
+    answered.set(id, (answered.get(id) ?? false) || has)
+  }
+  return [...answered].filter(([, has]) => !has).map(([id]) => id)
+}
+
+/**
+ * The model a compared line belongs to, back out of its key.
+ *
+ * `compareSeries` builds `model:${modelId}|${destinationKey}`, and a model id
+ * carries no `|`, so the first segment is unambiguous. Parsed rather than
+ * carried as a field because `ChartLine` is the chart's own shape and every
+ * other consumer of it plots rather than groups.
+ */
+function modelIdOf(lineKey: string): string | null {
+  if (!lineKey.startsWith('model:')) return null
+  const rest = lineKey.slice('model:'.length)
+  const bar = rest.indexOf('|')
+  return bar === -1 ? null : rest.slice(0, bar)
 }

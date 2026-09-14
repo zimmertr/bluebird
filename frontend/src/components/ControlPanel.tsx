@@ -341,6 +341,16 @@ interface Props {
   // order (model, window, polygon, types, destination). One warn
   // bullet each.
   commitReasons?: CommitReason[]
+  // How many models on the chart answered with nothing for the ranked metric,
+  // and how many are on it. Three of the eight publish a freezing level, so a
+  // comparison there draws most of its lines as columns of nulls, which on
+  // screen is indistinguishable from never having asked.
+  compareGaps?: number
+  compareCount?: number
+  // Ranked on air quality with models compared. Not a gap and not counted
+  // above: air quality comes from one source whatever model ranks the field,
+  // so the comparison is withdrawn rather than drawing one answer many times.
+  compareAqi?: boolean
   // At least one place has been searched by name. Searched places are a ranked
   // input like the CSV, so one alone enables Analyze with no polygon drawn.
   hasPins: boolean
@@ -500,6 +510,9 @@ export default function ControlPanel({
   modelClamped,
   windowWarning,
   commitReasons,
+  compareGaps = 0,
+  compareCount = 0,
+  compareAqi = false,
   hasPins,
   loading,
   error,
@@ -653,6 +666,32 @@ export default function ControlPanel({
     // reassuring the reader that weather was unaffected — but the calendar
     // already dims the days past the horizon, so the only thing left to say is
     // where that edge is.
+    // What a comparison is actually drawing, where the chart cannot say it.
+    // A model that publishes no freezing level answers with a column of nulls
+    // rather than refusing, so its line is drawn and every point on it is
+    // absent: the reader sees three lines where they picked eight and has no
+    // way to tell a missing variable from a missing request. Warn, because the
+    // report no longer answers what the picker implies it does.
+    ...(compareGaps > 0
+      ? [
+          {
+            key: `compare:gaps:${compareGaps}:${familyOf(sortBy)}`,
+            text: `${compareGaps} of ${compareCount} models carry no ${NOUN[
+              familyOf(sortBy)
+            ].toLowerCase()}.`,
+            severity: 'warn' as const,
+          },
+        ]
+      : []),
+    ...(compareAqi
+      ? [
+          {
+            key: 'compare:aqi',
+            text: `Models cannot be compared on ${NOUN.aqi}.`,
+            severity: 'info' as const,
+          },
+        ]
+      : []),
     ...(!windowWarning && aqiCoverage !== 'full'
       ? [
           {

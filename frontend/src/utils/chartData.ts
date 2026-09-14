@@ -3,7 +3,7 @@ import { MetricFamily, familyOf, metricLabel } from '../metrics'
 
 export type ChartMetric = MetricFamily
 
-const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
+export const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
   precip: 'precip_in',
   temp: 'temp_f',
   wind: 'wind_mph',
