@@ -103,11 +103,13 @@ describe('the model picker’s two parts', () => {
   })
 })
 
-describe('the chart’s comparison key', () => {
+describe('the chart’s comparison notes', () => {
   // The #232 review moved every comparison control into the panel's model
-  // picker: the chart is a read-only key, so nothing on it spends or changes
-  // state. A control here would be a second place to do the same thing, and the
-  // one a reader meets while looking at results rather than choosing inputs.
+  // picker, and then removed the chart's key as well: what is left beside the
+  // radios is a note when a model drew nothing, and nothing on it spends or
+  // changes state. A control here would be a second place to do the same
+  // thing, and the one a reader meets while looking at results rather than
+  // choosing inputs.
   it('carries no control of any kind', () => {
     expect(modelCompareSource).not.toContain('<select')
     expect(modelCompareSource).not.toContain('<button')

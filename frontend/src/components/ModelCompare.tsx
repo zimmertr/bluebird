@@ -1,21 +1,17 @@
 import type { ComparedModel } from '../hooks/useModelCompare'
-import { RADIUS, SPINNER, STATUS, TEXT } from '../styles'
+import { STATUS, TEXT } from '../styles'
 
-// The comparison's key, beside the chart's metric radios (#232).
+// What the comparison has to say beside the chart's metric radios, which is
+// only ever why a model's lines are missing (#232).
 //
-// A key and nothing else: every control that shapes a comparison lives in the
-// panel's model picker, which is where the ranking model is already chosen (TJ,
-// #232 review). Nothing here is clickable, so the chart cannot become a second
-// place that spends.
+// There is no key. A row of chips naming each model in its colour was drawn
+// here and removed (TJ, #232 review): a reader who wants to know which model a
+// line belongs to moves the cursor over the chart, and the hover box names
+// rank, destination and model on every entry. The chips were a second place
+// listing the models the panel's picker already lists.
 //
-// It reads the chips the hook composes and draws them. Which models are on the
-// chart, what each line is worth and where it stops are `utils/modelCompare.ts`'s
-// and `useModelCompare`'s.
-//
-// Each chip carries a filled SWATCH in its model's colour, the same shape the
-// chart's hover box gives a destination, because colour is the whole of what a
-// line says here: a compared model's lines all wear its colour, and the ranking
-// model's wear their destinations'.
+// Nothing here is clickable, so the chart cannot become a second place that
+// spends: every control that shapes a comparison lives in the panel's picker.
 
 interface Props {
   /** The ranking model first, then every extra on the chart. */
@@ -24,69 +20,13 @@ interface Props {
 
 export default function ModelCompare({ compared }: Props) {
   const notes = compared.filter((m) => m.note !== null)
+  if (notes.length === 0) return null
 
   return (
-    <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1">
-      {compared.map((model) => (
-        <Chip
-          key={model.id}
-          color={model.color}
-          label={model.label}
-          blend={model.blend}
-          state={model.status}
-        />
+    <div className={`ml-auto min-w-0 text-right ${TEXT.micro} ${STATUS.warn}`}>
+      {notes.map((model) => (
+        <div key={model.id}>{model.note}</div>
       ))}
-      {notes.length > 0 && (
-        // Its own line under the key rather than inside a chip: a chip is 26px
-        // of a panel that can be 120px tall, and a sentence in one would set
-        // the whole row's height.
-        <div className={`w-full text-right ${TEXT.micro} ${STATUS.warn}`}>
-          {notes.map((model) => (
-            <div key={model.id}>{model.note}</div>
-          ))}
-        </div>
-      )}
     </div>
-  )
-}
-
-interface ChipProps {
-  color: string | null
-  label: string
-  blend: boolean
-  state: ComparedModel['status']
-}
-
-// One model in the key. Three states, told apart by the swatch alone: a spinner
-// while the forecast is in flight, the model's colour once its lines are drawn,
-// and a faded swatch when nothing was drawn — which is why the note below the
-// key says what happened rather than leaving absent lines to be read as an
-// answer.
-//
-// The RANKING model's chip carries no swatch at all. Its lines are not one
-// colour: each wears its own destination's, the hue that destination already
-// has in the table and on the map, so a single square here would name a colour
-// no line on the chart is drawn in. The bare chip surface is the honest key for
-// "these are the lines you already know".
-function Chip({ color, label, blend, state }: ChipProps) {
-  return (
-    <span className={`inline-flex max-w-56 items-center bg-slate-700 ${RADIUS.control}`}>
-      <span
-        className={`${TEXT.control} inline-flex min-w-0 items-center gap-1.5 px-2 py-1`}
-      >
-        {state === 'loading' ? (
-          <span className={`${SPINNER} h-2.5 w-2.5 flex-shrink-0`} />
-        ) : (
-          color !== null && (
-            <span
-              className={`h-2.5 w-2.5 flex-shrink-0 ${RADIUS.control}`}
-              style={{ backgroundColor: color, opacity: state === 'ready' ? 1 : 0.4 }}
-            />
-          )
-        )}
-        <span className="truncate">{label}</span>
-        {blend && <span className={`${TEXT.overline} flex-shrink-0`}>Blend</span>}
-      </span>
-    </span>
   )
 }

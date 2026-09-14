@@ -47,20 +47,14 @@ import type { WeatherSeries } from '../utils/openMeteo'
  * drawn by no line and cued by `commitNeeded` instead — see `compareAdded`.
  */
 
-export type CompareStatus = 'loading' | 'ready' | 'absent'
-
 export interface ComparedModel {
   id: string
   label: string
-  /** A `*_seamless` product, which changes model partway along its own line. */
-  blend: boolean
   /**
    * The one colour its lines draw in, or null for the ranking model, whose
-   * lines wear their destinations' colours. Null is also what the chip reads
-   * to draw no swatch.
+   * lines wear their destinations' colours.
    */
   color: string | null
-  status: CompareStatus
   /** Why nothing is drawn, when there is something to say. */
   note: string | null
 }
@@ -279,31 +273,19 @@ export function useModelCompare({
     return out
   }, [destinations, drawnIds])
 
-  // The chips: the ranking model first, then every extra on the chart. The
-  // ranking model is always ready — its numbers are the report — so only the
-  // extras can be loading or empty-handed.
+  // The models on the chart: the ranking model first, then every extra. The
+  // ranking model carries no note — its numbers are the report — so only an
+  // extra can have something to say about why its lines are missing.
   const compared: ComparedModel[] = useMemo(() => {
     if (!active || !rankingModel) return []
-    const chip = (id: string, status: CompareStatus, note: string | null): ComparedModel => {
-      const model = models.find((m) => m.id === id)
-      return {
-        id,
-        label: model?.label ?? id,
-        blend: model?.blend === true,
-        color: id === rankingModel ? null : (colors[id] ?? null),
-        status,
-        note,
-      }
-    }
-    return [
-      chip(rankingModel, 'ready', null),
-      ...drawnIds.map((id) => {
-        const waiting = (fetched.inFlight[id] ?? 0) > 0
-        const drew = destinations.some((d) => fetched.series[pairKey(id, d.key)])
-        return chip(id, waiting ? 'loading' : drew ? 'ready' : 'absent', fetched.notes[id] ?? null)
-      }),
-    ]
-  }, [active, colors, destinations, drawnIds, fetched, models, rankingModel])
+    const entry = (id: string, note: string | null): ComparedModel => ({
+      id,
+      label: models.find((m) => m.id === id)?.label ?? id,
+      color: id === rankingModel ? null : (colors[id] ?? null),
+      note,
+    })
+    return [entry(rankingModel, null), ...drawnIds.map((id) => entry(id, fetched.notes[id] ?? null))]
+  }, [active, colors, drawnIds, fetched.notes, models, rankingModel])
 
   /**
    * Where every line on the chart stops — the ranking model's lines included,
