@@ -142,13 +142,13 @@ Wind is reported at each destination's own elevation, not at the standard 10 met
 
 ### Bounds
 
-The Min and Max boxes say which destinations you would consider at all: on elevation, and on AQI, the freezing level, precipitation, temperature and wind. An empty box shows its unit and bounds nothing. **Clear filters** appears as soon as any box holds a number, and it empties every one of them, the results cap included.
+The Min and Max boxes say which destinations you would consider at all: on AQI, the freezing level, precipitation, temperature and wind. An empty box shows its unit and bounds nothing. **Clear filters** appears as soon as any box holds a number, and it empties every one of them, the results cap included.
 
-**A ceiling is a promise about every hour**, not an average: a 20 mph wind ceiling excludes a destination that gusts to 45 at noon even if it averages 8. A floor is the opposite: a 15 mph wind floor asks for somewhere whose *calmest* hour still blows 15, which almost nowhere satisfies. For elevation, wind, temperature and the freezing level the bounds are exactly the table's Min and Max columns, so a freezing-level floor of 6,000 asks for somewhere the level never dropped below 6,000 ft. Precipitation is bounded on its window total in both columns, because a per-hour minimum would read 0.000 almost everywhere.
+**A ceiling is a promise about every hour**, not an average: a 20 mph wind ceiling excludes a destination that gusts to 45 at noon even if it averages 8. A floor is the opposite: a 15 mph wind floor asks for somewhere whose *calmest* hour still blows 15, which almost nowhere satisfies. For wind, temperature and the freezing level the bounds are exactly the table's Min and Max columns, so a freezing-level floor of 6,000 asks for somewhere the level never dropped below 6,000 ft. Precipitation is bounded on its window total in both columns, because a per-hour minimum would read 0.000 almost everywhere.
 
-**Destinations with unknown elevation, AQI or freezing level are included.** Many peaks carry no elevation in the map data, air quality is only forecast about five days out, and most forecast models publish no freezing level at all. Missing values are not evidence of bad conditions, so those rows ride along: the table shows a dash where a number is missing, and `N/A` where the model carries no freezing level.
+**Destinations with unknown AQI or freezing level are included.** Air quality is only forecast about five days out, and most forecast models publish no freezing level at all. Missing values are not evidence of bad conditions, so those rows ride along: the table shows a dash where a number is missing, and `N/A` where the model carries no freezing level.
 
-Five of the six bounds apply the instant you type, since the browser already holds forecasts for every destination it found. **Elevation is the exception:** it decides what gets fetched, so narrowing it is instant while widening it needs Analyze again, and the panel says so.
+Every bound applies the instant you type, since the browser already holds forecasts for every destination it found. None of them can ever ask for a forecast the app does not have, so loosening one is as immediate as tightening it.
 
 Everything on screen follows a bound: the table, the map markers, the chart, and the row count in the header.
 
@@ -328,7 +328,7 @@ The comparison travels in the link as `compare=`, a comma-separated list of mode
 
 ## Analyze
 
-Weather is fetched for *every* named destination in the polygon, after the optional elevation range. There is no sampling, so the winners really are the extremes of the area, and the Forecast Table's header says how many rows you are seeing out of how many there are. Past the cap on candidates the app asks you to draw a smaller polygon or narrow the elevation range rather than truncating in silence. See [Limits](LIMITS.md) for why the caps exist and where to read their current values.
+Weather is fetched for *every* named destination in the polygon. There is no sampling, so the winners really are the extremes of the area, and the Forecast Table's header says how many rows you are seeing out of how many there are. Past the cap on candidates the app asks you to draw a smaller polygon or narrow the elevation range rather than truncating in silence. See [Limits](LIMITS.md) for why the caps exist and where to read their current values.
 
 Destinations you name yourself are candidates like any other. A searched place and every row of a pasted CSV are analyzed and then ranked against whatever the polygon found, so combining the two can push some of your own destinations below the cut, where they are simply not listed. Their forecasts were still fetched: raise max results and they appear, already filled in.
 
@@ -336,7 +336,7 @@ Destinations you name yourself are candidates like any other. A searched place a
 
 Click **Analyze**. Results appear in a sortable table below the map and as color-coded markers on the map itself.
 
-Once results are up, the knobs split in two. **Ranking, max results, every forecast filter, and narrowing the elevation range apply instantly**, with no second click: the browser keeps the forecast for every destination it found, not just the ones that fit on screen, so it can re-rank, re-filter and re-cut them for free. Changing the **destinations, the forecast window, the model, or widening the elevation range** needs Analyze again, because those need forecasts the app does not have yet, and the panel says which one is waiting. That is also why the numbers are exact rather than approximate: a new ranking reconsiders every destination in your area, not just the rows currently listed.
+Once results are up, the knobs split in two. **Ranking, max results and every forecast bound apply instantly**, with no second click: the browser keeps the forecast for every destination it found, not just the ones that fit on screen, so it can re-rank, re-filter and re-cut them for free. Changing the **destinations, the forecast window, the model, or widening the elevation range** needs Analyze again, because those need forecasts the app does not have yet, and the panel says which one is waiting. That is also why the numbers are exact rather than approximate: a new ranking reconsiders every destination in your area, not just the rows currently listed.
 
 If Open-Meteo cannot be reached from your browser, the analysis stops and says so. There is no second path: the browser holds your forecasts, and rerouting the fetch through the server would spend a quota every visitor shares.
 

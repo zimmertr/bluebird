@@ -26,6 +26,7 @@ import {
   ICON_ADORNMENT,
   METRICS_GRID,
   METRIC_BOX_W,
+  METRIC_HEAD_GAP,
   ICON_ACTION,
   ICON_BUTTON,
   NOTICE,
@@ -296,12 +297,11 @@ describe('every component', () => {
     // The Light/Medium/Heavy chips in the map's layer legend, and why the
     // Forecast grid row is faded over a report carrying archive hours (#123).
     './App.tsx': 2,
-    // Max results (label + field), and the unknown-value note on the
-    // Elevation and AQI rows of the Metrics table (label + both boxes). Six
-    // `title=` in the source for those three tooltips: the AQI row is one of
-    // five metric rows the table maps, and the elevation row is its own
-    // markup under the rule, so each note is spelled twice (#341).
-    './components/ControlPanel.tsx': 6,
+    // Max results (label + field), and the unknown-value note on the AQI row
+    // (label + both boxes). Four `title=` in the source for those two
+    // tooltips, because the AQI row is one of five the table maps and its
+    // note is spelled once for the label and once for the mapped box.
+    './components/ControlPanel.tsx': 4,
     // What Hourly actually does to a multi-day window (label + segment).
     './components/ForecastCalendar.tsx': 2,
     // Why the control is faded for an archive window (#123). Both of these
@@ -810,7 +810,7 @@ describe('shared recipes', () => {
   it('builds every numeric box in the Metrics section from one shape', () => {
     const inputs = controlPanelSource.match(/type="number"/g) ?? []
     const boxed = controlPanelSource.match(/METRIC_BOX(_WIDE)?\}/g) ?? []
-    expect(inputs.length).toBeGreaterThanOrEqual(3)
+    expect(inputs.length).toBeGreaterThanOrEqual(2)
     expect(boxed.length).toBe(inputs.length)
     expect(controlPanelSource).toMatch(/const METRIC_BOX = `\$\{METRIC_BOX_SHAPE\} \$\{METRIC_BOX_W\}`/)
     expect(controlPanelSource).toMatch(/const METRIC_BOX_WIDE = `\$\{METRIC_BOX_SHAPE\} w-full`/)
@@ -842,6 +842,35 @@ describe('shared recipes', () => {
     expect(button).toContain('col-span-2')
     expect(button).toContain('col-start-3')
     expect(button).not.toContain('CONTROL_W')
+  })
+
+  // Clear filters is ALWAYS drawn and disables when there is nothing to clear
+  // (TJ, 2026-09-14). A button that appears and disappears moves everything
+  // under it and has to be found again; a disabled one stays where the reader
+  // last saw it. The condition therefore reaches `disabled`, never a `&&`
+  // around the element.
+  it('always draws the clear-filters button and disables it instead', () => {
+    const button = controlPanelSource.match(/onClick=\{onClearFilters\}[\s\S]*?>/)![0]
+    expect(button).toContain('disabled={!filtersActive}')
+    expect(button).toContain('${DISABLED}')
+    expect(controlPanelSource).not.toContain('{filtersActive && (')
+  })
+
+  // The section's one deliberate break: space above the box headings, telling
+  // the two controls that order the list from the table of bounds below. It is
+  // padding on EVERY cell of that row, because the columns are grid tracks and
+  // a margin on one item would shift that item alone. Named in styles.ts
+  // because it is the only vertical space in the grid that `gap-y` does not
+  // set.
+  it('spaces the Metrics headings off the controls above them', () => {
+    expect(METRIC_HEAD_GAP).toMatch(/^pt-[\d.]+$/)
+
+    const start = controlPanelSource.indexOf('METRICS_GRID}')
+    const grid = controlPanelSource.slice(start, controlPanelSource.indexOf('</section>', start))
+    // One per heading cell: the spacer spanning the label and dropdown
+    // columns, plus the two headings the EDGES map draws.
+    expect(grid.match(/METRIC_HEAD_GAP/g)).toHaveLength(2)
+    expect(grid).toMatch(/col-span-2 \$\{METRIC_HEAD_GAP\}/)
   })
 
   // The chart's metric control (#348). It was five radios whose labels carry

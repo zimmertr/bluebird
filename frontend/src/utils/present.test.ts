@@ -6,7 +6,6 @@ import {
   AnalyzedSnapshot,
   CommitChanges,
   PresentationKnobs,
-  bandNarrows,
   commitNeeded,
   discoveryChanges,
   discoveryKeys,
@@ -57,13 +56,11 @@ const KNOBS: PresentationKnobs = {
   sortBy: 'precip_total_in',
   sortDesc: false,
   limit: 10,
-  band: { min: null, max: null },
   constraints: NO_CONSTRAINTS,
 }
 
-// What an analysis records about itself. Band-gated by default because that is
-// the polygon case, where a widen genuinely has rows nobody fetched.
-const ANALYZED: AnalyzedSnapshot = { ...KNOBS, bandGated: true }
+// What an analysis records about itself: the knobs it ran under, nothing more.
+const ANALYZED: AnalyzedSnapshot = { ...KNOBS }
 
 // The change flags, defaulting to "nothing moved" so a test names only the
 // flag it is about.
@@ -78,103 +75,49 @@ const changed = (over: Partial<CommitChanges> = {}): CommitChanges => ({
 
 const NONE = new Set<string>()
 
-// ── bandNarrows ────────────────────────────────────────────────────────────
-
-describe('bandNarrows', () => {
-  it('treats an identical band as a narrowing, so re-analysis is not demanded', () => {
-    expect(bandNarrows({ min: 8000, max: 12000 }, { min: 8000, max: 12000 })).toBe(true)
-  })
-
-  it('accepts a strict subset on either edge', () => {
-    expect(bandNarrows({ min: 8000, max: 12000 }, { min: 9000, max: 11000 })).toBe(true)
-    expect(bandNarrows({ min: null, max: null }, { min: 9000, max: 11000 })).toBe(true)
-  })
-
-  it('rejects a lower floor or a higher ceiling — those rows were never fetched', () => {
-    expect(bandNarrows({ min: 8000, max: null }, { min: 6000, max: null })).toBe(false)
-    expect(bandNarrows({ min: null, max: 12000 }, { min: null, max: 14000 })).toBe(false)
-  })
-
-  it('rejects clearing an edge the analysis had, which is unbounding it', () => {
-    expect(bandNarrows({ min: 8000, max: null }, { min: null, max: null })).toBe(false)
-    expect(bandNarrows({ min: null, max: 12000 }, { min: null, max: null })).toBe(false)
-  })
-
-  it('accepts adding an edge the analysis lacked', () => {
-    expect(bandNarrows({ min: null, max: null }, { min: 8000, max: null })).toBe(true)
-  })
-})
-
 // ── commitNeeded ───────────────────────────────────────────────────────────
 
 describe('commitNeeded', () => {
   it('is silent before the first analysis', () => {
-    expect(commitNeeded(null, KNOBS, changed())).toEqual([])
+    expect(commitNeeded(null, changed())).toEqual([])
   })
 
   // A model change is a commit for a stronger reason than a window change: the
   // held field is not missing rows, every number in it came from a model the
   // panel no longer names.
   it('asks for an Analyze when the model changes', () => {
-    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, changed({ model: true }))).toEqual(['model-changed'])
+    expect(commitNeeded({ ...ANALYZED }, changed({ model: true }))).toEqual(['model-changed'])
   })
 
   // A user who changed both is owed both sentences (TJ, 2026-08-22), model
   // first: a model change can clamp the window as a side effect, and leading
   // with the model keeps the clamp attributed to its cause.
   it('reports the model and the window together, model first', () => {
-    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, changed({ window: true, model: true }))).toEqual([
+    expect(commitNeeded({ ...ANALYZED }, changed({ window: true, model: true }))).toEqual([
       'model-changed',
       'window-changed',
     ])
   })
 
   it('still names the window when only the window moved', () => {
-    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, changed({ window: true }))).toEqual(['window-changed'])
+    expect(commitNeeded({ ...ANALYZED }, changed({ window: true }))).toEqual(['window-changed'])
   })
 
   it('is silent for sort, direction and limit changes over a held field', () => {
     const analyzed = { ...ANALYZED }
-    expect(commitNeeded(analyzed, { ...KNOBS, sortBy: 'wind_avg_mph' }, changed())).toEqual([])
-    expect(commitNeeded(analyzed, { ...KNOBS, sortDesc: true }, changed())).toEqual([])
-    expect(commitNeeded(analyzed, { ...KNOBS, limit: 50 }, changed())).toEqual([])
+    expect(commitNeeded(analyzed, changed())).toEqual([])
+    expect(commitNeeded(analyzed, changed())).toEqual([])
+    expect(commitNeeded(analyzed, changed())).toEqual([])
   })
 
   it('is silent for a forecast bound over a held field', () => {
-    // The asymmetry with the elevation band: a bound can only re-read rows the
-    // browser already has, so loosening one is as live as tightening it.
-    const analyzed = { ...ANALYZED }
-    const loosened = { ...KNOBS, constraints: { ...NO_CONSTRAINTS, maxAqi: 200 } }
-    expect(commitNeeded(analyzed, loosened, changed())).toEqual([])
+    // A bound can only re-read rows the browser already has, so loosening one
+    // is as live as tightening it and neither is ever a reason to commit.
+    expect(commitNeeded({ ...ANALYZED }, changed())).toEqual([])
   })
 
   it('is silent for an AQI ranking, which the eager AQI fetch already covers', () => {
-    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS, sortBy: 'aqi_avg' }, changed())).toEqual([])
-  })
-
-  it('asks for an Analyze when the elevation band widens', () => {
-    const analyzed = { ...ANALYZED, band: { min: 8000, max: null } }
-    expect(
-      commitNeeded(analyzed, { ...analyzed, band: { min: 6000, max: null } }, changed()),
-    ).toEqual(['elevation-widened'])
-  })
-
-  it('stays silent on a widened band the report was never gated by', () => {
-    // A custom list is resolved coordinate by coordinate; the band never
-    // touched it, so every row is still held and a widen is pure
-    // re-presentation. Cueing here asked for an Analyze whose answer was
-    // already on screen.
-    const analyzed = { ...ANALYZED, bandGated: false, band: { min: 8000, max: null } }
-    expect(
-      commitNeeded(analyzed, { ...analyzed, band: { min: null, max: null } }, changed()),
-    ).toEqual([])
-  })
-
-  it('stays silent when the band narrows', () => {
-    const analyzed = { ...ANALYZED, band: { min: 8000, max: null } }
-    expect(
-      commitNeeded(analyzed, { ...analyzed, band: { min: 9000, max: null } }, changed()),
-    ).toEqual([])
+    expect(commitNeeded({ ...ANALYZED }, changed())).toEqual([])
   })
 
   // The forecast window is a data knob, so this one is not a comparison of held
@@ -182,37 +125,30 @@ describe('commitNeeded', () => {
   // cue since the calendar made changing days a click rather than two typed
   // datetimes (#166).
   it('asks for an Analyze when the forecast window is not the one behind the rows', () => {
-    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, changed({ window: true }))).toEqual(['window-changed'])
+    expect(commitNeeded({ ...ANALYZED }, changed({ window: true }))).toEqual(['window-changed'])
   })
 
-  it('reports the window and a widened band together, window first', () => {
-    const analyzed = { ...ANALYZED, band: { min: 8000, max: null } }
-    expect(
-      commitNeeded(analyzed, { ...analyzed, band: { min: 6000, max: null } }, changed({ window: true })),
-    ).toEqual(['window-changed', 'elevation-widened'])
-  })
-
-  it('reports all three when all three went stale', () => {
-    const analyzed = { ...ANALYZED, band: { min: 8000, max: null } }
-    expect(
-      commitNeeded(analyzed, { ...analyzed, band: { min: 6000, max: null } }, changed({ window: true, model: true })),
-    ).toEqual(['model-changed', 'window-changed', 'elevation-widened'])
+  it('reports both when both went stale, model first', () => {
+    expect(commitNeeded({ ...ANALYZED }, changed({ window: true, model: true }))).toEqual([
+      'model-changed',
+      'window-changed',
+    ])
   })
 
   it('says nothing about a window before the first analysis', () => {
-    expect(commitNeeded(null, KNOBS, changed({ window: true }))).toEqual([])
+    expect(commitNeeded(null, changed({ window: true }))).toEqual([])
   })
 
   // The caller's predicate is `pendingDestinations` — the set behind the
   // map's pending dots — so the cue and the dots cannot disagree.
   it('asks for an Analyze when a destination was added since the analysis', () => {
-    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, changed({ destinationAdded: true }))).toEqual([
+    expect(commitNeeded({ ...ANALYZED }, changed({ destinationAdded: true }))).toEqual([
       'destination-added',
     ])
   })
 
   it('reports an added destination after the stale-report reasons', () => {
-    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, changed({ window: true, model: true, destinationAdded: true }))).toEqual([
+    expect(commitNeeded({ ...ANALYZED }, changed({ window: true, model: true, destinationAdded: true }))).toEqual([
       'model-changed',
       'window-changed',
       'destination-added',
@@ -223,30 +159,28 @@ describe('commitNeeded', () => {
     // Everything is pending before the first run; the map's neutral dots and
     // the un-forecasted rows already say so, and there is no report to be
     // out of date with.
-    expect(commitNeeded(null, KNOBS, changed({ destinationAdded: true }))).toEqual([])
+    expect(commitNeeded(null, changed({ destinationAdded: true }))).toEqual([])
   })
 
   it('asks for an Analyze when the search area or the types changed', () => {
-    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, changed({ polygon: true }))).toEqual([
+    expect(commitNeeded({ ...ANALYZED }, changed({ polygon: true }))).toEqual([
       'polygon-changed',
     ])
-    expect(commitNeeded({ ...ANALYZED }, { ...KNOBS }, changed({ types: true }))).toEqual([
+    expect(commitNeeded({ ...ANALYZED }, changed({ types: true }))).toEqual([
       'types-changed',
     ])
   })
 
   it('reports every reason at once, in the fixed order', () => {
-    const analyzed = { ...ANALYZED, band: { min: 8000, max: null } }
+    const analyzed = { ...ANALYZED }
     expect(
       commitNeeded(
         analyzed,
-        { ...analyzed, band: { min: 6000, max: null } },
         changed({ window: true, model: true, polygon: true, types: true, destinationAdded: true }),
       ),
     ).toEqual([
       'model-changed',
       'window-changed',
-      'elevation-widened',
       'polygon-changed',
       'types-changed',
       'destination-added',
@@ -378,22 +312,6 @@ describe('presentResults', () => {
     expect(rows.map((r) => r.name)).toEqual(['Dry', 'Untagged'])
   })
 
-  it('filters a narrowed elevation band and keeps unknown elevations', () => {
-    const { rows } = presentResults(universe, { ...KNOBS, band: { min: 8000, max: null } },
-      NONE,
-    )
-    // Dry (7000 ft) drops; Untagged has no `ele` tag and must survive, matching
-    // _filter_elevation — otherwise narrowing looks like peaks vanishing.
-    expect(rows.map((r) => r.name)).toEqual(['Untagged', 'Mid', 'Wet'])
-  })
-
-  it('applies both band edges', () => {
-    const { rows } = presentResults(universe, { ...KNOBS, band: { min: 8000, max: 10000 } },
-      NONE,
-    )
-    expect(rows.map((r) => r.name)).toEqual(['Untagged', 'Wet'])
-  })
-
   it('drops removed destinations and promotes the next row into the cut', () => {
     const removed = new Set([pinKey(2, -121.9)])
     const { rows } = presentResults(universe, { ...KNOBS, limit: 2 }, removed)
@@ -409,8 +327,8 @@ describe('presentResults', () => {
 
   it('counts eligible before the cut and before removals', () => {
     const removed = new Set([pinKey(2, -121.9)])
-    const narrowed = { ...KNOBS, limit: 1, band: { min: 8000, max: null } }
-    expect(presentResults(universe, narrowed, removed).eligible).toBe(3)
+    const cut = { ...KNOBS, limit: 1, constraints: { ...NO_CONSTRAINTS, maxPrecipTotalIn: 0.5 } }
+    expect(presentResults(universe, cut, removed).eligible).toBe(3)
   })
 
 
@@ -434,16 +352,16 @@ describe('presentResults', () => {
       expect(rows.map((r) => r.name)).toEqual(['Untagged', 'Mid'])
     })
 
-    it('runs after the band, and reports each count separately', () => {
-      const knobs = {
-        ...bounded({ maxPrecipTotalIn: 0.4 }),
-        band: { min: 8000, max: null },
-      }
-      // The band admits Wet, Mid and Untagged (unknown elevation passes); the
-      // bound then rejects Wet and Mid.
-      const { rows, eligible, excluded } = presentResults(universe, knobs, NONE)
-      expect(rows.map((r) => r.name)).toEqual(['Untagged'])
-      expect(eligible).toBe(1)
+    it('reports the kept and the rejected counts separately', () => {
+      // The field holds four; the bound rejects Wet and Mid, and `excluded`
+      // says so rather than folding them into `eligible`.
+      const { rows, eligible, excluded } = presentResults(
+        universe,
+        bounded({ maxPrecipTotalIn: 0.4 }),
+        NONE,
+      )
+      expect(rows.map((r) => r.name)).toEqual(['Dry', 'Untagged'])
+      expect(eligible).toBe(2)
       expect(excluded).toBe(2)
     })
 

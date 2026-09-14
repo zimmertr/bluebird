@@ -96,8 +96,8 @@ export type AnalyzedView = AnalyzedSnapshot & {
   // The extra models the chart's comparison was bought for (#232). Recorded for
   // the same reason as `forecastModel`: the panel's ticks can move afterwards,
   // and a model ticked since is one the browser holds no forecasts for. Ticking
-  // therefore cues a commit and unticking applies at once, which is the same
-  // asymmetry `bandNarrows` draws for the elevation band.
+  // therefore cues a commit and unticking applies at once: the held field can
+  // always answer a smaller question and never a larger one.
   compareModels: readonly string[]
 }
 
@@ -161,7 +161,7 @@ export function useAnalyze(
   // The wildfire check's field, published the moment discovery settles so the
   // NIFC lookup runs concurrently with the weather fetch instead of after it
   // (TJ, PR #275 review). It is the candidate list, a superset of the
-  // committed universe (the cap and the elevation filter cut later), which is
+  // committed universe (the bounds and the cap cut later), which is
   // safe: warnings are keyed by coordinate, so an extra point's warning never
   // matches a row. `fireSeq` is the check's own refetch trigger, bumped when
   // the field is published — keying the check on analysisSeq would abort the
@@ -191,12 +191,11 @@ export function useAnalyze(
   // moment analyze() runs, and commit is reached through the client pipeline.
   const pendingCompareRef = useRef<readonly string[]>([])
   // The forecasts the last browser analysis fetched, kept so the next one only
-  // pays for what it does not already have. Widening the elevation band is the
-  // case this exists for: it readmits destinations this report never fetched
-  // without invalidating the ones in hand, and before this it re-bought every
-  // forecast on screen to add a few. It helps any re-analysis at the same
-  // window and model — a pasted destination, a toggled unnamed-peaks — since
-  // reuse is decided per destination rather than per reason.
+  // pays for what it does not already have. It helps any re-analysis at the
+  // same window and model — a pasted destination, a toggled unnamed-peaks, a
+  // redrawn ring that still covers most of the old one — because reuse is
+  // decided per destination rather than per reason, and re-buying a forecast
+  // already on screen spends the visitor's Open-Meteo quota to learn nothing.
   const heldForecastsRef = useRef<{
     rows: DestinationResult[]
     times: number[]
@@ -255,17 +254,7 @@ export function useAnalyze(
       sortBy: request.sort_by ?? 'precip_total_in',
       sortDesc: request.sort_desc ?? false,
       limit: request.limit,
-      band: {
-        min: request.min_elevation_ft ?? null,
-        max: request.max_elevation_ft ?? null,
-      },
       constraints: constraintsFromRequest(request),
-      // Did the elevation band actually gate what came back? Only polygon
-      // discovery reads it; a custom list is resolved coordinate by coordinate
-      // and keeps every row whatever the band says. So a custom-only report can
-      // answer a wider band from what it already holds, and asking it to
-      // re-analyze would be asking for rows it never lost.
-      bandGated: request.polygon != null && request.destination_types.length > 0,
       kind,
       window: { startMs, endMs },
       windowSource: windowSource(startMs, endMs),

@@ -122,6 +122,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `MAP_EDGE` | How far anything floating on the map stands off its edge: 12px, published once as `--map-edge-inset` on the map wrapper and read by the button column, the legend stack and MapLibre's own control stack |
 | `METRICS_GRID` | The Metrics table: label, aggregate dropdown, Min box, Max box; the control columns are `auto`, sized by the roles their controls wear |
 | `METRIC_BOX_W` | One bound box in the Metrics table: 56px (w-14), the widest the metric row's label budget allows. The results cap spans both box columns instead, so it wears `w-full` off the same shape |
+| `METRIC_HEAD_GAP` | The Metrics table's one deliberate break: 8px (pt-2) above the two box headings, on every cell of that row because the columns are grid tracks. The only vertical space in the grid that `gap-y` does not set |
 | `SEGMENT_ITEM_TIGHT` | One half of a `SEGMENT_FILL`: the 4px inset a 118px segment can afford |
 
 **Map timeline**
@@ -256,7 +257,9 @@ Every stacked panel control composes `CONTROL_W = 'w-36'` = 144px.
 
 The Metrics table is the one section that uses none of it. Its row is the panel's widest — radio, label, aggregate dropdown (`SELECT_W_AGGREGATE`, 72px), Min box and Max box (`METRIC_BOX_W`, 56px each) — and the label has to hold `Freezing level` at text-xs inside the panel's 327px of content. The direction segment above the rows spans the two box columns and wears `SEGMENT_FILL`, so every control in the section shares the boxes' two edges rather than the sidebar's.
 
-Four controls in that section share one pair of edges: the direction segment, the results cap box, the Clear filters button, and every bound pair. The three wide ones span the two box columns rather than spelling their sum, so the width lives in `METRIC_BOX_W` alone.
+Four controls in that section share one pair of edges: the direction segment, the results cap box, the Clear filters button, and every bound pair. The three wide ones span the two box columns rather than spelling their sum, so the width lives in `METRIC_BOX_W` alone. Clear filters is always drawn and disables when there is nothing to clear, so the section's last row never moves.
+
+Nothing is drawn between the section's two blocks. `METRIC_HEAD_GAP` is the whole separation: 8px of padding above the heading row, which is what tells the two controls that order the list from the table of bounds under them.
 
 **Segment arithmetic:** 2 x 56px + the 6px grid gap = 118px, less the 2px border and the 1px divider, is 57.5px a half. `Highest` measures 43.69px at text-xs, so the halves wear `SEGMENT_ITEM_TIGHT` (4px) and not `SEGMENT_ITEM` (8px, which leaves 41.5px and clips the word). Checked in `styles.test.ts`.
 

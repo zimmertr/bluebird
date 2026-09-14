@@ -953,6 +953,20 @@ export const SEGMENT_FLUID_LIFTED = `${SEGMENT_FLUID_SHAPE} ${LIFTED_EDGE}`
 export const METRICS_GRID =
   'grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-x-1.5 gap-y-1.5'
 /**
+ * The one deliberate break inside the Metrics grid: the space above the two box
+ * headings, separating the controls that order the list from the table of
+ * bounds below them.
+ *
+ * Padding on every cell of the heading row rather than a margin on one of them,
+ * because the four columns are grid tracks and a margin on a single item would
+ * shift that item alone. It is deliberately not a rule: a rule of any weight in
+ * this section read as a break the size of the one between whole sections,
+ * which is the only thing that weight may say (TJ, 2026-09-14). It is also the
+ * only vertical space in the grid that `gap-y` does not set, which is why it is
+ * named here rather than spelled at the call site.
+ */
+export const METRIC_HEAD_GAP = 'pt-2'
+/**
  * One box in the Metrics grid: a floor, a ceiling, or the Max results count.
  * Every numeric box in the section wears it, so a new control cannot pick a
  * width of its own and the two rows under the rule line up with the bounds

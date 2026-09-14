@@ -31,6 +31,7 @@ import {
   PANEL_RULE,
   ICON_ADORNMENT,
   METRICS_GRID,
+  METRIC_HEAD_GAP,
   METRIC_BOX_W,
   SEGMENT_FILL,
   SEGMENT_DIVIDER,
@@ -89,7 +90,6 @@ import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabi
 // client), and only share the "Try again later." tail as a convention.
 const commitCue = (subject: string) => `A new ${subject} requires a new analysis.`
 const COMMIT_CUE: Record<CommitReason, string> = {
-  'elevation-widened': commitCue('elevation range'),
   'window-changed': commitCue('forecast range'),
   'model-changed': commitCue('forecast model'),
   'polygon-changed': commitCue('search area'),
@@ -130,8 +130,7 @@ function blockerText(blocker: AnalyzeBlocker, maxAreaKm2: number, pointsNeeded: 
 //
 // The bounds label themselves rather than sitting under a heading row: that row
 // cost a line of vertical space and pushed the first control twice as far below
-// the section heading as every other section's, and the elevation band already
-// used this idiom before the grid existed. A filled cell drops its placeholder,
+// the section heading as every other section's. A filled cell drops its placeholder,
 // by which point its position has said the same thing four rows running.
 // Why raising this costs nothing: the cap trims what is LISTED, never what is
 // fetched. Every destination in the area is forecast either way, which is also
@@ -213,15 +212,6 @@ const BOUNDS: Record<
     upper: 'maxAqi',
   },
 }
-
-// The elevation band is the one bound that is not a Constraints key: it gates
-// discovery rather than the display, so it rides on its own props. Same unit
-// and datum as the freezing level, because the whole reading is the comparison
-// between the two. The note is the other genuinely-missing case: an OSM
-// feature with no elevation.
-const ELEVATION_UNIT = 'ft'
-const ELEVATION_NOTE = 'Destinations with no elevation are included.'
-const ELEVATION_HINT = ['The elevation must be at least this.', 'The elevation must be at most this.'] as const
 
 // Every numeric box in the Metrics grid, in one shape so a new box cannot pick
 // its own height or inset: py-0.5 matches the dropdown and the segment beside
@@ -307,15 +297,10 @@ interface Props {
   // the same number — the same way the calendar's Hours row hides under a
   // selection that takes no hours.
   pointSample: boolean
-  minElevationFt: number | null
-  setMinElevationFt: (v: number | null) => void
-  maxElevationFt: number | null
-  setMaxElevationFt: (v: number | null) => void
   constraints: Constraints
   setConstraints: (c: Constraints) => void
-  // Clears the whole grid, elevation included. Elevation is the one row whose
-  // clearing widens rather than narrows, so this can leave the report needing
-  // an Analyze — which the commit cue above the button then says.
+  // Clears every bound and the results cap. No bound can widen past what the
+  // browser holds, so clearing is as live as typing and never needs an Analyze.
   onClearFilters: () => void
   // Summits OSM knows only by their height, discovered as `Peak 5961`.
   // A polygon knob rather than a map one, and off by default, because it
@@ -349,11 +334,11 @@ interface Props {
   // where the join falls.
   windowWarning: 'past' | 'future' | 'order' | null
   // Why a knob has stopped applying live, or null while they all do. Sort,
-  // limit and elevation-narrowing normally re-present the held field with no
-  // Analyze at all (#188), so this cue is the exception rather than the rule
-  // and has to say which exception it is.
+  // limit and every forecast bound re-present the held field with no Analyze
+  // at all (#188), so this cue is the exception rather than the rule and has
+  // to say which exception it is.
   // Every knob that has stopped applying live, in `commitNeeded`'s fixed
-  // order (model, window, elevation, polygon, types, destination). One warn
+  // order (model, window, polygon, types, destination). One warn
   // bullet each.
   commitReasons?: CommitReason[]
   // At least one place has been searched by name. Searched places are a ranked
@@ -367,7 +352,6 @@ interface Props {
   refusal: Refusal | null
   onAnalyze: () => void
   onRetry: () => void
-  // Remedies: re-run with the suggested elevation floor / elect the top-N cut.
   // Live ceiling for the results knob, from /api/capabilities (falls back to
   // the compiled analysis cap).
   maxLimit: number
@@ -502,10 +486,6 @@ export default function ControlPanel({
   setSortDesc,
   rowKeys,
   pointSample,
-  minElevationFt,
-  setMinElevationFt,
-  maxElevationFt,
-  setMaxElevationFt,
   constraints,
   setConstraints,
   onClearFilters,
@@ -769,16 +749,15 @@ export default function ControlPanel({
     footerMessages.filter((m) => !isDismissed(m.key, dismissed)),
   )
 
-  // What Clear filters offers to undo, and therefore what makes it appear. The
-  // results cap counts even though it bounds nothing: it is one of the seven
-  // knobs in the table, a reader who typed a number there looks for the same
-  // way back as for a bound, and leaving it out meant the one control the
-  // button skipped was the one sitting right above it (TJ, 2026-09-14).
-  const filtersActive =
-    minElevationFt !== null ||
-    maxElevationFt !== null ||
-    limit !== DEFAULT_LIMIT ||
-    hasConstraints(constraints)
+  // What Clear filters offers to undo, and therefore whether it is enabled.
+  // The button is always drawn: a control that appears and disappears moves
+  // everything under it and has to be found again, where a disabled one stays
+  // where the reader last saw it (TJ, 2026-09-14). The results cap counts even
+  // though it bounds nothing: it is one of the seven knobs in the table, a
+  // reader who typed a number there looks for the same way back as for a
+  // bound, and leaving it out meant the one control the button skipped was the
+  // one sitting right above it.
+  const filtersActive = limit !== DEFAULT_LIMIT || hasConstraints(constraints)
 
   // The optional map overlays, as one list rather than three hand-written rows.
   // Ordered by how much of the map each one covers, lightest first: a fire is a
@@ -1011,9 +990,8 @@ export default function ControlPanel({
           {/* Above the calendar rather than in Options, because it bounds the
               calendar: the grid below redraws when this changes, and a control
               whose effect is the next control down belongs beside it. A data
-              knob either way — sort, limit and a narrowing elevation band
-              re-present held rows, while a different model is different
-              numbers. Ordered longest-reach-first by the server. */}
+              knob either way — sort, limit and the bounds re-present held
+              rows, while a different model is different numbers. Ordered longest-reach-first by the server. */}
           <div className="mb-3 flex items-center gap-2">
             {/* Label beside its control, like every other row in the panel.
                 The trigger is a button carrying its own aria-label, not an
@@ -1069,13 +1047,13 @@ export default function ControlPanel({
             for a single-hour window, where every aggregate is the same number,
             and each label spans the empty column so the row keeps one gap.
 
-            The section reads in three blocks, and nothing is drawn between
+            The section reads in two blocks, and nothing is drawn between
             them. A rule there read as a break the size of the one between whole
             sections, which is the only thing that weight is allowed to say (TJ,
-            2026-09-14). The blocks are told apart by shape instead: two wide
+            2026-09-14). Shape and space tell them apart instead: two wide
             controls saying how the list is ordered and how far down it goes,
-            then the two headings, then the table of bounds — elevation first
-            with no radio, then the five the ranking can use. */}
+            then METRIC_HEAD_GAP above the two box headings, then the table
+            of the five bounds the ranking can use. */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
             Metrics
@@ -1146,50 +1124,23 @@ export default function ControlPanel({
                 rows that is literally what a box bounds (see BOUNDS). The
                 unit moved from the label into each box's placeholder, because
                 `Freezing level (ft)` does not fit beside a dropdown and two
-                boxes; the heading is what says which box is which. */}
-            <div className="col-span-2" aria-hidden="true" />
+                boxes; the heading is what says which box is which.
+
+                The row carries the section's one deliberate gap. Padding above
+                every cell of it, rather than a margin on one, keeps the four
+                columns of the grid in step; it is what tells the two wide
+                controls above from the table below now that no rule may (TJ,
+                2026-09-14). */}
+            <div className={`col-span-2 ${METRIC_HEAD_GAP}`} aria-hidden="true" />
             {EDGES.map(([edge, aggregate]) => (
-              <span key={edge} className={`${TEXT.caption} text-center`} aria-hidden="true">
+              <span
+                key={edge}
+                className={`${TEXT.caption} ${METRIC_HEAD_GAP} text-center`}
+                aria-hidden="true"
+              >
                 {aggregate}
               </span>
             ))}
-            {/* Elevation leads the table: it is a bound like the five under it
-                and reads against the same two headings, but the ranking cannot
-                use it, so it takes no radio and its label starts where the
-                radios do. First rather than in its alphabetical place, because
-                a row with no radio inside that run would break the column the
-                five share (TJ, 2026-09-14).
-
-                The tooltip is on the label AND both boxes, so the note is
-                reachable from anywhere in the row rather than from a third of
-                it. Tooltips are otherwise not used here and need explicit
-                approval — see docs/STYLES.md. */}
-            <label
-              htmlFor="elevation-lower"
-              className={`${TEXT.control} col-span-2 truncate`}
-              title={ELEVATION_NOTE}
-            >
-              Elevation
-            </label>
-            {EDGES.map(([edge, aggregate], i) => {
-              const [value, set] = edge === 'lower'
-                ? ([minElevationFt, setMinElevationFt] as const)
-                : ([maxElevationFt, setMaxElevationFt] as const)
-              return (
-                <input
-                  key={edge}
-                  id={`elevation-${edge}`}
-                  title={ELEVATION_NOTE}
-                  type="number"
-                  step={100}
-                  placeholder={ELEVATION_UNIT}
-                  aria-label={`Elevation ${aggregate}. ${ELEVATION_HINT[i]}`}
-                  value={value ?? ''}
-                  onChange={(e) => set(e.target.value === '' ? null : Number(e.target.value))}
-                  className={METRIC_BOX}
-                />
-              )
-            })}
             {RANKED_FAMILIES.map((family) => {
               const rowKey = rowKeys[family]
               const isActive = familyOf(sortBy) === family
@@ -1266,16 +1217,15 @@ export default function ControlPanel({
                 </Fragment>
               )
             })}
-            {filtersActive && (
-              /* Under the two box columns, on their outer edges, so the one
-                 control with no label sits where every bound it clears does. */
-              <button
-                onClick={onClearFilters}
-                className={`${BUTTON_SECONDARY} col-span-2 col-start-3 mt-0.5`}
-              >
-                Clear filters
-              </button>
-            )}
+            {/* Under the two box columns, on their outer edges, so the one
+                control with no label sits where every bound it clears does. */}
+            <button
+              onClick={onClearFilters}
+              disabled={!filtersActive}
+              className={`${BUTTON_SECONDARY} ${DISABLED} col-span-2 col-start-3 mt-0.5`}
+            >
+              Clear filters
+            </button>
           </div>
         </section>
 

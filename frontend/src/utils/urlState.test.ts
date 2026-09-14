@@ -57,8 +57,6 @@ const base: ShareableState = {
   sortBy: 'precip_total_in',
   sortDesc: false,
   rowKeys: { ...DEFAULT_FAMILY_KEY },
-  minElevationFt: null,
-  maxElevationFt: null,
   constraints: NO_CONSTRAINTS,
   limit: 10,
   customCsv: '',
@@ -87,8 +85,6 @@ const pristine: ShareableState = {
   sortBy: 'precip_total_in',
   sortDesc: false,
   rowKeys: { ...DEFAULT_FAMILY_KEY },
-  minElevationFt: null,
-  maxElevationFt: null,
   constraints: NO_CONSTRAINTS,
   limit: 200,
   customCsv: '',
@@ -122,18 +118,24 @@ describe('encodeState / decodeState round-trip', () => {
     expect(ring[0]).toEqual(ring[ring.length - 1])
   })
 
-  it('restores elevation constraints and a non-default sort', () => {
-    const out = roundTrip({
-      ...base,
-      minElevationFt: 8000,
-      maxElevationFt: 12000,
-      sortBy: 'wind_avg_mph',
-      limit: 25,
-    })
-    expect(out!.minElevationFt).toBe(8000)
-    expect(out!.maxElevationFt).toBe(12000)
+  it('restores a non-default sort and limit', () => {
+    const out = roundTrip({ ...base, sortBy: 'wind_avg_mph', limit: 25 })
     expect(out!.sortBy).toBe('wind_avg_mph')
     expect(out!.limit).toBe(25)
+  })
+
+  // The elevation band left the panel in #341 and the API still accepts it, so
+  // a link written before that carries two keys nothing reads. It must parse
+  // as an ordinary link rather than throwing or resurrecting a control.
+  it('ignores the retired elevation band parameters', () => {
+    const params = new URLSearchParams(encodeState(base, DEFAULT_MODEL))
+    params.set('minel', '8000')
+    params.set('maxel', '12000')
+    const out = decodeState(params.toString())
+    expect(out).not.toBeNull()
+    expect(Object.keys(out!)).not.toContain('minElevationFt')
+    expect(Object.keys(out!)).not.toContain('maxElevationFt')
+    expect(out!.sortBy).toBe(base.sortBy)
   })
 
   it('restores every sortable metric', () => {
@@ -342,11 +344,6 @@ describe('encodeState gate — what triggers a URL update', () => {
         selection: { kind: 'days', startDate: '2026-07-04', endDate: '2026-07-04' },
       }, DEFAULT_MODEL),
     ).not.toBe('')
-  })
-
-  it('syncs when only an elevation constraint is set', () => {
-    expect(encodeState({ ...pristine, minElevationFt: 8000 }, DEFAULT_MODEL)).not.toBe('')
-    expect(encodeState({ ...pristine, maxElevationFt: 12000 }, DEFAULT_MODEL)).not.toBe('')
   })
 
   it('syncs when a non-default sort, direction, limit, or type is chosen', () => {

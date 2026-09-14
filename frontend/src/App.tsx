@@ -299,8 +299,8 @@ export default function App() {
   const removedButtonRef = useRef<HTMLButtonElement>(null)
 
   // The discovery inputs behind the results currently on screen: `base` covers
-  // the user-authored inputs (polygon + type + CSV rows + elevation + limit +
-  // sort) and `searchedKeys` the searched places that competed. An Analyze
+  // the user-authored inputs (polygon + types + unnamed peaks + CSV rows) and
+  // `searchedKeys` the searched places that competed. An Analyze
   // whose base matches and whose searched list only SHRANK (row removals) skips
   // Overpass and just refreshes the surviving rows' weather; a NEW searched
   // place — which must compete against the full candidate field the refresh
@@ -321,7 +321,7 @@ export default function App() {
   // carrying what a restore needs (#241 — see utils/removals.ts). Scoped
   // to the user-authored discovery inputs (removalScopeRef): removing a row —
   // even a searched place, which shrinks the custom list — must not count as
-  // changing them. Only a polygon/type/elevation/CSV edit starts a clean slate
+  // changing them. Only a polygon/type/CSV edit starts a clean slate
   // where removed destinations may legitimately return. Each entry also records
   // the authored scope it was made under, which is what lets the live pending
   // preview expire one between analyses while the report keeps its snapshot.
@@ -519,14 +519,8 @@ export default function App() {
     setSortByRaw(key)
     setRowKeys((rows) => (rows[familyOf(key)] === key ? rows : { ...rows, [familyOf(key)]: key }))
   }, [])
-  const [minElevationFt, setMinElevationFt] = useState<number | null>(
-    () => restored?.minElevationFt ?? null,
-  )
-  const [maxElevationFt, setMaxElevationFt] = useState<number | null>(
-    () => restored?.maxElevationFt ?? null,
-  )
-  // The forecast bounds (#115). Unlike the elevation band above, these cannot
-  // gate a fetch — nothing knows a destination's precipitation before it has
+  // The forecast bounds (#115). None of them can gate a fetch — nothing knows
+  // a destination's precipitation before it has
   // been fetched — so they are pure presentation and every one of them applies
   // live, loosening as well as tightening.
   const [constraints, setConstraints] = useState<Constraints>(
@@ -901,10 +895,9 @@ export default function App() {
       sortBy,
       sortDesc,
       limit,
-      band: { min: minElevationFt, max: maxElevationFt },
       constraints,
     }),
-    [sortBy, sortDesc, limit, minElevationFt, maxElevationFt, constraints],
+    [sortBy, sortDesc, limit, constraints],
   )
   const view =
     analyzed !== null
@@ -1013,8 +1006,6 @@ export default function App() {
       sortBy,
       sortDesc,
       rowKeys,
-      minElevationFt,
-      maxElevationFt,
       constraints,
       limit,
       customCsv,
@@ -1050,8 +1041,6 @@ export default function App() {
     sortBy,
     sortDesc,
     rowKeys,
-    minElevationFt,
-    maxElevationFt,
     constraints,
     limit,
     customCsv,
@@ -1124,12 +1113,9 @@ export default function App() {
   // the searched places, which are compared separately so removals stay
   // refresh-eligible.
   //
-  // Ranking and limit used to be in here, which is what made every sort or
-  // limit change a full rediscovery. They re-present the held field now
-  // (#188), so they never reach this function at all. The elevation band DOES
-  // stay: a narrowing is likewise handled live and never gets here, but a
-  // WIDENING needs candidates outside the held field, and letting it take the
-  // refresh path would echo the narrower field and silently ignore the request.
+  // Nothing that only re-presents the held field belongs here. Ranking, the
+  // cap and every bound are read off rows the browser already holds (#188), so
+  // none of them reaches this function and none of them re-buys a discovery.
   function discoveryBase(poly: GeoPolygon | null, csvRows: CustomDestination[]): string {
     return JSON.stringify({
       ring: poly?.coordinates[0] ?? null,
@@ -1138,8 +1124,6 @@ export default function App() {
       types: [...destinationTypes].sort(),
       unnamed: includeUnnamedPeaks,
       csv: csvRows,
-      minEl: minElevationFt,
-      maxEl: maxElevationFt,
     })
   }
 
@@ -1164,16 +1148,12 @@ export default function App() {
     const start = new Date(local.start).toISOString()
     const end = new Date(local.end).toISOString()
 
-    // Every bound the request carries. The elevation band gates discovery, so
-    // the server needs it; the forecast bounds stay on the request because it
-    // is the same shape POST /api/analyze documents for direct callers, but
-    // the browser holds the field and applies them live, so they go unused
-    // here.
-    const bounds = {
-      min_elevation_ft: minElevationFt,
-      max_elevation_ft: maxElevationFt,
-      ...constraintFields(constraints),
-    }
+    // Every bound the request carries. They stay on it because it is the same
+    // shape POST /api/analyze documents for direct callers, but the browser
+    // holds the field and applies them live, so they go unused here. The
+    // elevation band is the one the app no longer sends at all (#341); the API
+    // still accepts it from a direct caller.
+    const bounds = constraintFields(constraints)
 
     // Resolve the ranked inputs first. The custom side of the analysis is the
     // pasted CSV ∪ the searched places — with a *complete* polygon (>= 3
@@ -1189,13 +1169,9 @@ export default function App() {
     // Reset the removal set only when the user changed a discovery input —
     // searched places are deliberately absent (their list shrinks on removal).
     //
-    // The elevation band used to be in here as a special case: a widening threw
-    // the removals away, on the grounds that readmitting destinations this
-    // report never ranked starts a fresh report. That stopped being true when
-    // widening became incremental. The held field is no longer rebuilt, it is
-    // extended, so the rows a user struck out are the same rows they struck
-    // out, and losing them to a band nudge was an unexplained edit of their
-    // work. Only a genuine change of what gets discovered clears them now.
+    // A re-analysis extends the held field rather than rebuilding it, so the
+    // rows a user struck out stay struck out. Losing them to anything short of
+    // a genuine discovery change would be an unexplained edit of their work.
     const removalScope = JSON.stringify({
       ring: resolvedPolygon?.coordinates[0] ?? null,
       // The ring is this comparison's alone: it resolves only here, and it
@@ -1414,7 +1390,7 @@ export default function App() {
   // detail-column sort and read in the order the rows arrived in.
   //
   // Keyed on the report rather than on the rows, which are a new array on every
-  // live limit or elevation change and would otherwise throw away a sort the
+  // live cap or bound change and would otherwise throw away a sort the
   // user just asked for.
   useEffect(() => {
     setDetailSort({ key: view.sortBy, dir: view.sortDesc ? 'desc' : 'asc' })
@@ -1555,7 +1531,7 @@ export default function App() {
   // the dots cannot disagree about what an analysis has not covered.
   const commitReasons =
     !loading && response !== null
-      ? commitNeeded(analyzed, liveKnobs, {
+      ? commitNeeded(analyzed, {
           window: windowChanged,
           model: modelChanged,
           polygon: discoveryMoved.polygon,
@@ -2241,10 +2217,6 @@ export default function App() {
           setSortDesc={setSortDesc}
           rowKeys={rowKeys}
           pointSample={pointSample}
-          minElevationFt={minElevationFt}
-          setMinElevationFt={setMinElevationFt}
-          maxElevationFt={maxElevationFt}
-          setMaxElevationFt={setMaxElevationFt}
           constraints={constraints}
           setConstraints={setConstraints}
           // Every knob the Metrics table's boxes hold, back to its default.
@@ -2252,8 +2224,6 @@ export default function App() {
           // typed into the same column and the button that clears that column
           // cannot skip one box.
           onClearFilters={() => {
-            setMinElevationFt(null)
-            setMaxElevationFt(null)
             setConstraints(NO_CONSTRAINTS)
             setLimit(DEFAULT_LIMIT)
           }}
@@ -2285,9 +2255,9 @@ export default function App() {
           onAnalyze={handleAnalyze}
           onRetry={retry}
           resultCount={response ? results.length : undefined}
-          // What the current elevation band admits, not what the analysis
-          // fetched: narrowing the band live has to move the "of M" or the
-          // count describes a field the table no longer shows.
+          // What the current bounds admit, not what the analysis fetched:
+          // a bound applies live, so it has to move the "of M" or the count
+          // describes a field the table no longer shows.
         />
       </aside>
 
@@ -2401,8 +2371,6 @@ export default function App() {
             searchedPlaces={searched.places}
             onAddPoi={handleAddPoi}
             onRemovePoi={handleRemovePoi}
-            minElevationFt={minElevationFt}
-            maxElevationFt={maxElevationFt}
             cameraPadBottomPx={cameraPadBottomPx}
           />
           {/* The legends render BEFORE the button column below on purpose.

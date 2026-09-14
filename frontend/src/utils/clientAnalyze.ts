@@ -68,38 +68,16 @@ export function capDetail(
   )
 }
 
-// Port of _filter_elevation. Unknown elevations pass through: many OSM peaks
-// carry no `ele` tag, and dropping them would make narrowing the band look
-// like destinations were vanishing.
-//
-// The band is normally applied server-side at discovery, so this exists for
-// the one case the server cannot answer: narrowing the band over a field the
-// browser already holds, which is a subset of it and needs no refetch (#188).
-// Keeping it a port rather than a lookalike is what makes that subset match
-// what the server would have returned for the narrower band.
-export function filterElevation<T extends { elevation_ft: number | null }>(
-  destinations: readonly T[],
-  minFt: number | null,
-  maxFt: number | null,
-): readonly T[] {
-  if (minFt === null && maxFt === null) return destinations
-  return destinations.filter((d) => {
-    const elev = d.elevation_ft
-    if (elev == null) return true
-    if (minFt !== null && elev < minFt) return false
-    return !(maxFt !== null && elev > maxFt)
-  })
-}
-
 /**
  * The forecast bounds an analysis is narrowed by, mirroring the ten optional
  * fields on `AnalyzeRequest`.
  *
- * Elevation is deliberately NOT in here. It is known before any forecast
- * exists, so it gates what gets fetched and widening it needs a new analysis
- * (`Band` and `bandNarrows` in present.ts). Nothing in this shape can gate a
- * fetch — a destination's precipitation is unknowable until it has been
- * fetched — which is exactly what makes every one of these live.
+ * Elevation is deliberately NOT in here, and the app sends no elevation bound
+ * at all. It is the one bound known before any forecast exists, so it gates
+ * what gets fetched and widening it needs a new analysis; the API still
+ * accepts it for direct callers. Nothing in this shape can gate a fetch — a
+ * destination's precipitation is unknowable until it has been fetched — which
+ * is exactly what makes every one of these live.
  */
 export interface Constraints {
   minPrecipTotalIn: number | null
@@ -201,9 +179,8 @@ export function constraintFields(c: Constraints) {
  * ~5-day air-quality horizon or a best-effort fetch failed; a missing freezing
  * level means the chosen model publishes none at all, which is five of the
  * eight, so dropping those rows would empty the table outright for anyone who
- * set the bound under the wrong model. It is the same call `filterElevation`
- * makes for an untagged summit and `rankComparator` makes for a nullable
- * ranking key.
+ * set the bound under the wrong model. It is the same call `rankComparator`
+ * makes for a nullable ranking key.
  */
 export function filterConstraints(
   rows: readonly DestinationResult[],
@@ -262,9 +239,9 @@ export function customRows(custom: readonly CustomDestination[]): DiscoveredDest
 // these coordinates? A pasted CSV row carries a name and a point and nothing
 // else, so this is the only way it can learn its elevation (issue #207).
 //
-// Deliberately a nicety rather than a dependency. The elevation band and the
-// destination cap both run client-side already, so nothing here is load
-// bearing, and every failure path returns the rows unresolved — which is
+// Deliberately a nicety rather than a dependency. The destination cap runs
+// client-side already, so nothing here is load bearing, and every failure path
+// returns the rows unresolved — which is
 // exactly how this path behaved before, when it made no server call at all.
 // An abort is the exception: that is the user's own doing and has to
 // propagate rather than masquerade as a resolved-nothing result.
@@ -402,10 +379,9 @@ export interface ClientAnalysisCallbacks {
   // the fallback so a failed capabilities fetch never blocks analyzing.
   maxDestinations?: number
   // Forecasts the browser already holds, to be reused for any candidate that
-  // appears in both. Widening the elevation band is the case this exists for:
-  // it readmits destinations this report never fetched, but it does not
-  // invalidate the ones already in hand, and re-fetching those spent the
-  // visitor's Open-Meteo quota to learn what was already on screen.
+  // appears in both. A re-analysis that readmits destinations this report never
+  // fetched does not invalidate the ones already in hand, and re-fetching those
+  // spends the visitor's Open-Meteo quota to learn what was already on screen.
   //
   // The CALLER owns the question of whether reuse is legal — identical window
   // and model, and recent enough — because it is the only layer that knows
@@ -423,8 +399,8 @@ export interface ClientAnalysis {
   // cut. Weather is fetched for the whole field anyway (exact ranking demands
   // it), so this costs nothing to keep and is what makes a later window change
   // exact instead of a re-rank of whatever happened to be on screen (#177),
-  // and what lets sort/limit/elevation-narrowing re-present the field with no
-  // second Analyze (#188, `utils/present.ts`).
+  // and what lets sort, limit and every forecast bound re-present the field
+  // with no second Analyze (#188, `utils/present.ts`).
   //
   // Every row carries every metric, air quality included, so any of the four
   // rankings can be applied to the whole field later. The first `limit`

@@ -14,7 +14,7 @@ interface Props {
 const STEPS: [string, string][] = [
   ['Destinations', 'Search by name, draw a polygon, click the map, or paste coordinates. Each method finds what you want in its own way; they all work together.'],
   ['Forecast', 'Pick a weather model, then choose a day and time window. The calendar updates as the model changes, since different models reach different distances ahead.'],
-  ['Metrics', 'Rank by air quality, precipitation, temperature, or wind. Bound elevation or those same metrics, and cap how many results to list.'],
+  ['Metrics', 'Rank by air quality, precipitation, temperature, or wind. Bound those same metrics, and cap how many results to list.'],
   ['Analyze', 'Generate ranked results, see them on the map as color-coded markers, and inspect forecasts across your destinations.'],
   ['Repeat', 'Adjust any control to refine your window. Changing destinations, the forecast window, or the model needs a new Analyze; everything else updates live.'],
 ]

@@ -140,8 +140,6 @@ interface Props {
   searchedPlaces: Place[]
   onAddPoi: (place: Place) => void
   onRemovePoi: (latitude: number, longitude: number) => void
-  minElevationFt: number | null
-  maxElevationFt: number | null
   // How much of the container's bottom edge the results sheet stands on, which
   // every framing move below has to leave empty (#249). On a phone the map
   // keeps the whole column and the sheet is over it, so a fit measured into the
@@ -149,34 +147,6 @@ interface Props {
   // results are docked beside the map and nothing is covered. It is the sheet's
   // RESTING lift, so a drag never re-frames the camera under the reader's hand.
   cameraPadBottomPx: number
-}
-
-// Build a filter for the basemap peak layer from the elevation knobs so the
-// mountains drawn on the map match the band an analysis would actually consider.
-// Peaks whose vector tiles carry no `ele_ft` pass through — the backend's
-// elevation filter keeps unknown-elevation candidates, so the map matches it.
-// Returns null to clear the filter (no band set).
-function peakElevationFilter(
-  minFt: number | null,
-  maxFt: number | null,
-): FilterSpecification | null {
-  // Written as three static cases (min, max, both) so the expressions type-check
-  // against FilterSpecification without a cast. `['!', ['has', 'ele_ft']]` keeps
-  // peaks whose tiles have no elevation.
-  if (minFt != null && maxFt != null) {
-    return [
-      'any',
-      ['!', ['has', 'ele_ft']],
-      ['all', ['>=', ['get', 'ele_ft'], minFt], ['<=', ['get', 'ele_ft'], maxFt]],
-    ]
-  }
-  if (minFt != null) {
-    return ['any', ['!', ['has', 'ele_ft']], ['>=', ['get', 'ele_ft'], minFt]]
-  }
-  if (maxFt != null) {
-    return ['any', ['!', ['has', 'ele_ft']], ['<=', ['get', 'ele_ft'], maxFt]]
-  }
-  return null
 }
 
 // A search result frames at least this much map around the hit; features with
@@ -743,8 +713,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
       searchedPlaces,
       onAddPoi,
       onRemovePoi,
-      minElevationFt,
-      maxElevationFt,
       cameraPadBottomPx,
     },
     ref,
@@ -2052,21 +2020,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
       if (!map || !mapReady) return
       setSource(map, 'pending-destinations', pendingFC(pending))
     }, [pending, mapReady])
-
-    // Filter the basemap peak layer by the elevation knobs so the mountains
-    // shown on the map track the band an analysis would consider. Runs on every
-    // knob change and once the layer exists (mapReady) so a restored min/max
-    // link applies on load too.
-    useEffect(() => {
-      const map = mapRef.current
-      if (!map || !mapReady || !map.getLayer('ofm-peaks')) return
-      const band = peakElevationFilter(minElevationFt, maxElevationFt)
-      // The halo follows the band too, or hovering the panel would light
-      // summits the band has already taken off the map.
-      for (const id of ['ofm-peaks', 'ofm-peaks-glow']) {
-        if (map.getLayer(id)) map.setFilter(id, band)
-      }
-    }, [minElevationFt, maxElevationFt, mapReady])
 
     // Toggle the NIFC wildfire overlay. On: fetch perimeters for the current
     // viewport and re-fetch (debounced) as the user pans/zooms. Off: clear it.
