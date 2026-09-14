@@ -118,13 +118,28 @@ carries no pressure-level winds.
 [DATA.md](DATA.md#open-meteo) has the detail.
 
 A window that starts older than `limits.past_data_days` and ends inside it is
-refused with a `400`, because the two endpoints answer from different datasets
-and a ranking across the seam would compare hours of one against hours of the
-other:
+served by both endpoints. Nothing in the request or the response says so, and
+there is no `400` to handle: each batch is fetched twice, the archive answering
+the hours before the boundary and the forecast endpoint the hours from it on, and
+each location's hourly arrays are joined in time order before the aggregation
+runs. So the aggregates and the `series` describe one window, not two halves.
 
-```json
-{ "detail": "A window cannot cross the archive boundary." }
-```
+Three things follow from where the seam falls, and all three are the archive's
+nature rather than a limitation here:
+
+- The boundary is `now - limits.past_data_days`, floored to the UTC day. The
+  archive answers through the hour before it; the forecast endpoint answers from
+  it. No hour is fetched twice, so no hour is counted twice in
+  `precip_total_in`.
+- `forecast_model` applies to the later half only. The archive names no model, so
+  its hours come from the reanalysis whatever the request asked for.
+- Wind is the 10 m wind for the archive's hours and wind at the destination's
+  elevation for the forecast endpoint's, because only the latter carries
+  pressure-level winds. A window crossing the seam therefore mixes the two
+  within one series.
+
+Because the boundary moves with the clock, the same window asked about twice on
+different days can be answered as one request or two.
 
 ## Choosing a forecast model
 

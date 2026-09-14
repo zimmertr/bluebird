@@ -162,11 +162,19 @@ archive's nature rather than a limitation of the wiring.
   elevation adjustment above is built on and answers every hour `null`, so an
   archive row reports the plain 10 m wind for every destination, whatever its
   elevation.
-- **A window may not cross the boundary.** A window that starts in the archive's
-  range and ends inside the forecast endpoint's is refused rather than stitched:
-  the two answer from different datasets, so a ranking across the seam would
-  compare hours of one against hours of the other with nothing saying where the
-  seam fell. Move either end to one side of it.
+- **A window may cross the boundary, and then it carries both.** A window that
+  starts in the archive's range and ends inside the forecast endpoint's is
+  fetched from each of them — the archive through the hour before the boundary,
+  the forecast endpoint from the boundary on — and the hours are joined in order
+  before anything is aggregated, so the report is one window rather than two
+  halves. What changes across that join is what the two bullets above describe:
+  the early hours are the reanalysis and name no model, the later hours are the
+  model you picked; the early hours carry the 10 m wind and the later hours wind
+  at the destination's elevation. Because the boundary moves with the clock, the
+  same window asked about next week may be wholly the archive's. Nothing hides
+  the seam: the panel names the day it falls on, and the forecast grid is out of
+  play over such a report for the reason
+  [the grid section](#the-forecast-grid) gives.
 
 Air quality is not part of that split. It has an archive of its own on the same
 endpoint — measured 2026-09-12, it answered a window 365 days back with real US
@@ -424,14 +432,16 @@ so a grid stays a few hundred requests rather than tens of thousands, and the
 legend always states the spacing actually used rather than the model's headline
 figure.
 
-**There is no grid over an archive window.** A window older than the forecast
+**There is no grid over archive hours.** A window older than the forecast
 endpoint's own history is answered by the archive, which names no model and
 reports a reanalysis on a coarser grid than any forecast model's finest figure
 (see [History, and the boundary inside it](#history-and-the-boundary-inside-it)).
 Sampling that at a model's pitch would paint real numbers at a spacing nothing
 produced them at, and the legend would state that spacing as the claim. So the
-overlay is out of play while an archive report is on screen: its switch is
-disabled rather than drawing a picture whose one stated number would be wrong.
+overlay is out of play while such a report is on screen: its switch is disabled
+rather than drawing a picture whose one stated number would be wrong. A window
+that crosses the boundary is the same problem over half a report, so it is out of
+play there too, and the row says why.
 
 **A model's finest grid is not its resolution everywhere.** The seamless models
 blend a fine regional grid into a coarse global one, so NOAA GFS is a 3 km model

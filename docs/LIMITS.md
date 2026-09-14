@@ -52,9 +52,9 @@ depth is decades, so what bounds this is a deployment choice about how far a
 calendar should page, not a limit of the data. `max_past_days` is the accept
 bound the validator enforces, which carries slack above `archive_days` so an
 edge window is never falsely refused. A window that starts older than
-`past_data_days` and ends inside it belongs to neither endpoint and refuses with
-a `400`: the two answer from different datasets, so a ranking across the seam
-would compare hours of one against hours of the other.
+`past_data_days` and ends inside it belongs to both endpoints: each batch is
+fetched twice and the hours are joined in order before anything is aggregated, so
+it costs two upstream requests rather than one and refuses nothing.
 [DATA.md](DATA.md#open-meteo) has what else is different about an archive
 answer.
 
@@ -91,7 +91,7 @@ is and whether waiting helps:
 
 | Status | What happened |
 |---|---|
-| `400` | The request is runnable in shape but not as asked. Past the candidate cap it carries the remedies above; naming a regional forecast model for somewhere outside its grid is a second case, and there the fix is a different model rather than a smaller area; a window crossing the archive boundary is the third, and there the fix is moving either end to one side of it. |
+| `400` | The request is runnable in shape but not as asked. Past the candidate cap it carries the remedies above; naming a regional forecast model for somewhere outside its grid is a second case, and there the fix is a different model rather than a smaller area. |
 | `401` | The weather service refused the API key an analyze request carried. Nothing here can fix it and no retry helps. |
 | `429` | Either you are asking faster than your per-address budget, or the weather service rate-limited this deployment mid-analysis. `Retry-After` is honest in both cases. |
 | `502` | An upstream failed outright. Every Overpass mirror was unreachable, or the weather service did not answer. Transient, worth retrying. |
