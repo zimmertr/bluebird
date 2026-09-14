@@ -25,7 +25,6 @@ import {
   ICON,
   ICON_ADORNMENT,
   METRICS_GRID,
-  SECTION_SEAM,
   METRIC_BOX_W,
   ICON_ACTION,
   ICON_BUTTON,
@@ -45,7 +44,6 @@ import {
   SEGMENT_ITEM,
   DISABLED,
   SELECT,
-  PANEL_RULE,
   SEGMENT_FILL,
   SEGMENT_ITEM_TIGHT,
   SELECT_W_AGGREGATE,
@@ -821,29 +819,19 @@ describe('shared recipes', () => {
     expect(controlPanelSource).toMatch(/\$\{METRIC_BOX_WIDE\} col-span-2/)
   })
 
-  // A rule inside a section must not carry a rule between sections' weight:
-  // that weight says a new section begins, and a seam only groups rows.
-  //
-  // Checked on BOTH terms a border's lightness comes from, because either one
-  // alone is defeatable: slate darkens as its step rises, so the seam takes the
-  // higher step, and it must not then hand the difference back by being more
-  // opaque. A solid slate-700 seam passed the step test and still measured
-  // brighter than slate-600/50 over the panel, which is what the pair catches.
-  it('draws a seam inside a section fainter than the rule between them', () => {
-    const step = (recipe: string) => Number(recipe.match(/border-slate-(\d+)/)![1])
-    const alpha = (recipe: string) => Number(recipe.match(/border-slate-\d+\/(\d+)/)?.[1] ?? 100)
+  // Nothing is drawn inside the Metrics table. A rule there reads as a break
+  // the size of the one between whole sections, which is the only thing
+  // PANEL_RULE's weight is allowed to say, and a fainter one was tried and
+  // rejected as confusing (TJ, 2026-09-14). What separates the rows that rank
+  // from the two that do not is the empty radio column, nothing drawn.
+  it('draws no rule inside the Metrics table', () => {
+    const start = controlPanelSource.indexOf('METRICS_GRID}')
+    const grid = controlPanelSource.slice(start, controlPanelSource.indexOf('</section>', start))
 
-    expect(SECTION_SEAM).toContain('border-t')
-    expect(step(SECTION_SEAM)).toBeGreaterThan(step(PANEL_RULE))
-    expect(alpha(SECTION_SEAM)).toBeLessThanOrEqual(alpha(PANEL_RULE))
-  })
-
-  // Two seams, and both mark a change in what a row does: the direction segment
-  // above sets how the rows below are read, and the rows under the second one
-  // stop ranking. A third would be decoration.
-  it('draws exactly two seams in the Metrics table', () => {
-    const seams = controlPanelSource.match(/\$\{SECTION_SEAM\}/g) ?? []
-    expect(seams).toHaveLength(2)
+    expect(start).toBeGreaterThan(-1)
+    expect(grid).toContain('Rank by')
+    expect(grid).toContain('results')
+    expect(grid).not.toMatch(/border-t|border-b/)
   })
 
   // Clear filters has no label to push it into a column, so it spans the two

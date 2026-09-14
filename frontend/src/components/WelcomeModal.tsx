@@ -7,15 +7,14 @@ interface Props {
 }
 
 // Five steps walking the panel top to bottom, then the Analyze button and what
-// comes after. Step three covers the whole Metrics section in one breath, the
+// comes after. Step three covers the whole Metrics table in one breath, the
 // ranking and the bounds alike — a step per question would push the dialog past
-// its no-scroll budget (measured in STYLES.md). Steps one and two are named for
-// the sections they describe, so step three's label has to track that section's
-// name; #341 renamed it and the maintainer approves any rewording here.
+// its no-scroll budget (measured in STYLES.md). Every step is named for the
+// panel section it describes, so a renamed section renames its step.
 const STEPS: [string, string][] = [
   ['Destinations', 'Search by name, draw a polygon, click the map, or paste coordinates. Each method finds what you want in its own way; they all work together.'],
   ['Forecast', 'Pick a weather model, then choose a day and time window. The calendar updates as the model changes, since different models reach different distances ahead.'],
-  ['Rank and filter', 'Rank by precipitation, wind, temperature, or air quality. Filter by elevation or those same metrics, and cap how many results to list.'],
+  ['Metrics', 'Rank by air quality, precipitation, temperature, or wind. Bound elevation or those same metrics, and cap how many results to list.'],
   ['Analyze', 'Generate ranked results, see them on the map as color-coded markers, and inspect forecasts across your destinations.'],
   ['Repeat', 'Adjust any control to refine your window. Changing destinations, the forecast window, or the model needs a new Analyze; everything else updates live.'],
 ]

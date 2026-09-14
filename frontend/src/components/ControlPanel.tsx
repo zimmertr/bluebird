@@ -31,7 +31,6 @@ import {
   PANEL_RULE,
   ICON_ADORNMENT,
   METRICS_GRID,
-  SECTION_SEAM,
   METRIC_BOX_W,
   SEGMENT_FILL,
   SEGMENT_DIVIDER,
@@ -1070,10 +1069,12 @@ export default function ControlPanel({
             for a single-hour window, where every aggregate is the same number,
             and each label spans the empty column so the row keeps one gap.
 
-            The two rows under the rule never rank: elevation gates the fetch
-            rather than the display, and the results cap trims what is shown. They
-            keep the left edge the radio rows' labels start from, and their
-            boxes wear the same METRIC_BOX_W as every bound above. */}
+            The last two rows never rank: elevation gates the fetch rather than
+            the display, and the results cap trims what is shown. Nothing is
+            drawn between them and the rows above. A rule there read as a break
+            the size of the one between whole sections, which is the only thing
+            that weight is allowed to say (TJ, 2026-09-14); what marks them
+            instead is the empty radio column their labels start in. */}
         <section>
           <h2 className={`${TEXT.section} mb-2.5`}>
             Metrics
@@ -1107,7 +1108,6 @@ export default function ControlPanel({
                 </button>
               ))}
             </div>
-            <div className={`col-span-full ${SECTION_SEAM}`} aria-hidden="true" />
             {/* The box columns' headings, the two aggregate names: for most
                 rows that is literally what a box bounds (see BOUNDS). The
                 unit moved from the label into each box's placeholder, because
@@ -1195,7 +1195,6 @@ export default function ControlPanel({
                 </Fragment>
               )
             })}
-            <div className={`col-span-full ${SECTION_SEAM}`} aria-hidden="true" />
             {/* On the label AND both boxes, so the note is reachable from
                 anywhere in the row rather than from a third of it. Tooltips
                 are otherwise not used here and need explicit approval — see

@@ -962,26 +962,6 @@ export const METRICS_GRID =
  */
 export const METRIC_BOX_W = 'w-14'
 /**
- * A rule INSIDE a section, grouping its rows.
- *
- * Deliberately fainter than `PANEL_RULE`: that weight says "a new section
- * begins", and spending it again inside one claimed a break as big as the one
- * between Destinations and Forecast (TJ, 2026-09-14).
- *
- * It has to be fainter in what LANDS, not in what it is spelled as, and the two
- * come apart here: `PANEL_RULE` is slate-600 at half alpha, which composites
- * over the panel's slate-800 to about the lightness of solid slate-700. So a
- * solid slate-700 seam measured a hair BRIGHTER than the rule it was meant to
- * sit under. Taking the darker step AND the same half alpha is what actually
- * drops it, to roughly halfway between the rule and the ground. `styles.test.ts`
- * compares the two on both terms rather than trusting this paragraph.
- *
- * The Metrics table draws two: under the direction segment, which sets how the
- * rows below are read, and above the elevation range, where the rows stop
- * ranking. Both mark a change in what a row does, never a decorative break.
- */
-export const SECTION_SEAM = 'border-t border-slate-700/50'
-/**
  * One half of a segmented control: the shape, and the inset the panel's own
  * segments take.
  *
