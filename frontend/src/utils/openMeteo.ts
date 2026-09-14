@@ -428,14 +428,23 @@ export function fetchSpans(
   ]
 }
 
-// Order-insensitive, the way the Python port compares two dicts.
-function unitsKey(payload: HourlyPayload | undefined): string {
-  const units = payload?.hourly_units
-  if (units === undefined) return ''
-  return Object.keys(units)
-    .sort()
-    .map((k) => `${k}=${units[k]}`)
-    .join('|')
+// What the archive endpoint writes in `hourly_units` for a variable it does not
+// serve. The column beside it is all nulls, so the unit carries no information.
+const UNIT_UNSERVED = 'undefined'
+
+// Port of weather._units_agree: no variable declared in two different real
+// units. A unit is compared only where both hosts declare one; the archive
+// answers "undefined" for the pressure-level winds it does not serve
+// (measured 2026-09-13) where the forecast endpoint says "mp/h".
+function unitsAgree(declared: readonly Record<string, string>[]): boolean {
+  const keys = new Set(declared.flatMap((d) => Object.keys(d)))
+  for (const key of keys) {
+    const seen = new Set(
+      declared.filter((d) => key in d && d[key] !== UNIT_UNSERVED).map((d) => d[key]),
+    )
+    if (seen.size > 1) return false
+  }
+  return true
 }
 
 /**
@@ -452,14 +461,14 @@ function unitsKey(payload: HourlyPayload | undefined): string {
  * one host answered in units the other did not, and a total of inches and
  * millimetres is a number with no meaning; a repeated stamp would count one hour
  * twice. Both degrade to no metrics for that location, which is what every
- * payload this module cannot read does.
+ * payload this module cannot read does. A unit is compared only where both
+ * hosts declare one (`unitsAgree`).
  *
  * Mirror of `_join_hours` in `backend/app/services/weather.py`.
  */
 export function joinHours(parts: readonly HourlyPayload[]): HourlyPayload {
   if (parts.length === 1) return parts[0]
-  const units = parts.map(unitsKey)
-  if (units.some((u) => u !== units[0])) return {}
+  if (!unitsAgree(parts.map((p) => p?.hourly_units ?? {}))) return {}
   const joined: Record<string, unknown[]> = { time: [] }
   for (const name of HOURLY_VARIABLES) joined[name] = []
   const seen = new Set<unknown>()

@@ -1123,6 +1123,33 @@ async def test_a_spanning_window_drops_a_location_whose_halves_disagree_on_units
     assert results == [None]
 
 
+async def test_a_spanning_window_joins_halves_whose_unserved_units_differ(
+    monkeypatch,
+):
+    # Measured 2026-09-13: the archive declares "undefined" for every
+    # pressure-level wind it does not serve, where the forecast endpoint says
+    # "mp/h". A column one side does not have is not a disagreement, and the
+    # window that crosses the boundary must not come back empty for it.
+    archive = _archive_half()
+    archive[0]["hourly_units"] = {
+        "precipitation": "inch",
+        "wind_speed_10m": "mp/h",
+        "wind_speed_500hPa": "undefined",
+    }
+    forecast = _forecast_half()
+    forecast[0]["hourly_units"] = {
+        "precipitation": "inch",
+        "wind_speed_10m": "mp/h",
+        "wind_speed_500hPa": "mp/h",
+    }
+    _stub_openmeteo(monkeypatch, [archive, forecast])
+    results = await fetch_weather_batch(
+        _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
+    )
+
+    assert results[0]["precip_total_in"] == 1.5
+
+
 async def test_a_spanning_window_counts_a_repeated_hour_once(monkeypatch):
     # The spans are disjoint, so this cannot come from the request — but a host
     # that answered one hour on both sides would otherwise double it.

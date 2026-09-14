@@ -203,6 +203,21 @@ def _fetch_spans(
 _JOIN_KEYS: tuple[str, ...] = ("time", *HOURLY_VARIABLES.split(","))
 
 
+# What the archive endpoint writes in `hourly_units` for a variable it does not
+# serve. The column beside it is all nulls, so the unit carries no information.
+_UNIT_UNSERVED = "undefined"
+
+
+def _units_agree(declared: Sequence[dict[str, Any]]) -> bool:
+    """True when no variable is declared in two different real units."""
+    keys = set().union(*(d.keys() for d in declared))
+    for key in keys:
+        seen = {d[key] for d in declared if key in d and d[key] != _UNIT_UNSERVED}
+        if len(seen) > 1:
+            return False
+    return True
+
+
 def _join_hours(parts: Sequence[dict[str, Any]]) -> dict[str, Any]:
     """One location's half-windows as a single hourly payload.
 
@@ -218,11 +233,16 @@ def _join_hours(parts: Sequence[dict[str, Any]]) -> dict[str, Any]:
     millimetres is a number with no meaning; a repeated stamp would count one
     hour twice. Both degrade to no metrics, which is what every payload this
     module cannot read does.
+
+    A unit is compared only where both hosts declare one. The archive serves no
+    pressure-level winds and answers their unit as the literal string
+    "undefined" beside a column of nulls (measured 2026-09-13), where the
+    forecast endpoint says "mp/h"; that is a column one side does not have, not
+    a disagreement about what a number means.
     """
     if len(parts) == 1:
         return parts[0]
-    units = [part.get("hourly_units") for part in parts]
-    if any(unit != units[0] for unit in units[1:]):
+    if not _units_agree([part.get("hourly_units") or {} for part in parts]):
         return {}
     joined: dict[str, list[Any]] = {key: [] for key in _JOIN_KEYS}
     seen: set[Any] = set()

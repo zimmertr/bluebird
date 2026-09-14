@@ -841,6 +841,20 @@ describe('a window that crosses the archive boundary', () => {
     expect(out).toEqual([null])
   })
 
+  it('joins halves whose unserved units differ', async () => {
+    // Measured 2026-09-13: the archive declares "undefined" for every
+    // pressure-level wind it does not serve, where the forecast endpoint says
+    // "mp/h". A column one side does not have is not a disagreement.
+    const bodies = [
+      { ...archiveHalf(), hourly_units: { precipitation: 'inch', wind_speed_500hPa: 'undefined' } },
+      { ...forecastHalf(), hourly_units: { precipitation: 'inch', wind_speed_500hPa: 'mp/h' } },
+    ]
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(bodies.shift())))
+    const out = await fetchWeather(coords, SPANNING.startMs, SPANNING.endMs, OPTS)
+
+    expect(out[0]?.precip_total_in).toBe(1.5)
+  })
+
   it('counts a repeated hour once', async () => {
     const bodies = [archiveHalf(), half(['2026-05-25T23:00', '2026-05-27T00:00'], [9.9, 0.4])]
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(bodies.shift())))
