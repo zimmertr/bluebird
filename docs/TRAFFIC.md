@@ -234,10 +234,22 @@ self-hosted instance would keep the defect.
 The middleware sets the header only where the response has none, so a route
 keeps a value of its own.
 
-The edge is what made the defect visible. Cloudflare adds its own
-`max-age=14400` to the cacheable extensions when the origin sends nothing, and
-it strips the `ETag` from HTML, so the document's revalidation rides on
-`Last-Modified`, which survives. A response with a `Last-Modified` and no
+The edge is what made the defect visible, and it then took a zone change to let
+the header reach a browser. Cloudflare's Browser Cache TTL is a floor, not a
+fallback: the zone held 4 hours, and any shorter freshness the origin sent was
+replaced on the cacheable extensions. `no-cache` is shorter, so `/favicon-32.png`,
+`static/swagger-ui/`, and an error under `/assets/` all arrived as
+`max-age=14400`, while the hashed bundles kept their year because a year is
+longer. The document and `/docs` were never affected: they answer `DYNAMIC` at
+the edge, which the browser TTL does not touch. The zone is now **Respect
+Existing Headers**
+([#357](https://github.com/zimmertr/bluebird/issues/357)), measured on
+2026-09-14, so the table above holds end to end. That setting lives in the
+Cloudflare dashboard and in no repository today, which is one of the cases
+[#314](https://github.com/zimmertr/bluebird/issues/314) tracks.
+
+Cloudflare also strips the `ETag` from HTML, so the document's revalidation
+rides on `Last-Modified`, which survives. A response with a `Last-Modified` and no
 freshness of its own is one a browser may reuse without asking (RFC 9111
 §4.2.2, heuristic freshness). On 2026-09-14 a returning browser ran the
 superseded bundle for exactly that reason while `/api/version` reported the new
