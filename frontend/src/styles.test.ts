@@ -89,6 +89,9 @@ import searchBoxSource from './components/SearchBox.tsx?raw'
 // the disk rather than imported — Vitest stubs a CSS import, `?raw` included,
 // to an empty string.
 const mapCss: string = readFileSync(new URL('./map.css', import.meta.url), 'utf8')
+// The other stylesheet with a decision in it, read the same way and for the
+// same reason.
+const indexCss: string = readFileSync(new URL('./index.css', import.meta.url), 'utf8')
 
 // The arbitrary branch cannot carry a trailing \b: `text-[10px]` ends in `]`, a
 // non-word character, so a boundary there would require the *next* character to
@@ -210,6 +213,15 @@ const sources: Record<string, string> = {
 describe('every component', () => {
   it('found the sources', () => {
     expect(Object.keys(sources).length).toBeGreaterThan(6)
+  })
+
+  // The ESLint config and the fixtures beside it spell classes verbatim, which
+  // is only safe while Tailwind cannot see them. v4 auto-detects sources BESIDE
+  // the config's `content` list, so the exclusion is the load-bearing line:
+  // without it the fixtures emitted five real utilities into the text-page
+  // bundle. A build is the only thing that would otherwise notice.
+  it('keeps the linter fixtures out of Tailwind\'s reach', () => {
+    expect(indexCss).toMatch(/@source not ["']\.\.\/tools["']/)
   })
 
   // Derived from the scale rather than blocking a list of names, so a utility

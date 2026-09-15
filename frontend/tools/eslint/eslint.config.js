@@ -6,11 +6,13 @@ import tseslint from 'typescript-eslint'
 // cannot tell a class list from a sentence about one, and it only speaks on
 // `npm test`; these speak in the editor, on the node the violation is on.
 //
-// Unlike styles.test.ts, this file may spell a class verbatim: Tailwind's
-// content globs are `src/**` plus the HTML entries (tailwind.config.js), and
-// tools/ is in neither, so nothing here can emit CSS. The hue rule is still
-// built from alternation, because that way it forbids utilities nobody thought
-// to list.
+// Unlike styles.test.ts, this file may spell a class verbatim — but not for the
+// reason it looks like. Tailwind v4 auto-detects sources BESIDE the config's
+// `content` list, and it was scanning tools/ until `@source not "../tools"`
+// went into src/index.css (measured: the fixtures beside this file emitted five
+// real utilities without it). That line is what makes the spellings here inert,
+// and styles.test.ts pins it. The hue rule is still built from alternation,
+// because that way it forbids utilities nobody thought to list.
 //
 // Each ban is checked against string literals and template chunks rather than
 // the whole file, which is the one thing the text tests could not do: a class
@@ -20,7 +22,7 @@ const ban = (pattern, message) => ({
   message,
 })
 
-const CLASS_BANS = [
+export const CLASS_BANS = [
   // Arbitrary sizes are how a 10px and an 11px treatment ended up inside one
   // 160px legend box. The ramp owns the two steps Tailwind has no name for;
   // nothing else may invent one.
@@ -62,7 +64,7 @@ const CLASS_BANS = [
 // used for padding re-spaced its rows on desktop windows that had not changed
 // size, while leaving large tablets with mouse-tight rows. Nothing catches a
 // relapse at build time: a `lg:py-*` reads as ordinary responsive code.
-const PANEL_BANS = [
+export const PANEL_BANS = [
   ban(
     String.raw`\b(sm|md|lg|xl|2xl):(p[xytrbl]?|space-[xy]|gap|min-h|h)-`,
     'The panel is one width at every breakpoint. Size it by pointer, not by viewport.',
@@ -83,7 +85,7 @@ const PANEL_BANS = [
 // type-checks fine. Capitalisation is what keeps this off code — field
 // identifiers are lowercase or camel, and the abbreviations only ever appeared
 // in display copy with a leading capital.
-const METRIC_BAN = ban(
+export const METRIC_BAN = ban(
   String.raw`\b(Precip(?!itation)|Temp(?!erature)|Avg|Min(?!imum)|Max(?!imum)|Elev(?!ation))\b`,
   'Compose a metric name from src/metrics.ts rather than spelling it here.',
 )

@@ -243,8 +243,12 @@ than a file's bytes, so a class name written in a COMMENT is prose about the
 rule instead of a violation of it, and a violation is now underlined in the
 editor rather than reported by `npm test`.
 
-`npm run lint` in `frontend/` runs it. CI runs the same script in the
-`Frontend Typecheck & Tests` job.
+`npm run lint` in `frontend/` runs it, then runs the rules against
+`frontend/tools/eslint/fixtures/` — one file per ban, each of which must report
+its own ban and no other, plus one file carrying `Precipitation`, `Minimum` and
+`Maximum` that must report nothing. A selector that matches nothing reports
+nothing, which reads exactly like a clean tree; the self-test is what tells the
+two apart. CI runs the same script in the `Frontend Typecheck & Tests` job.
 
 ## Measured numbers
 
@@ -325,7 +329,7 @@ Nothing is drawn between the section's two blocks. `METRIC_HEAD_GAP` is the whol
 
 **Color resolution:** competing color utilities resolve by their order in the generated stylesheet, not their order in the class list. So a role's color cannot be overridden at a call site — the role always wins. This is why every hue is centralized: a component cannot brighten or dim a color it was handed.
 
-**Raw text scanning:** the build step scans source files as raw text to find class names, so a class quoted in a comment or a test emits its CSS. For example, writing `// don't use rounded-xl` in a component file would add `rounded-xl` to the bundle even though it's commented out. The lints and role definitions avoid this by building patterns that don't form the literal class name — e.g., using regex alternation instead of quoting the exact string. The scanned set is the `content` list in `tailwind.config.js`: `src/**` plus the four HTML entries. `frontend/tools/eslint/` is in neither, which is why the ESLint rules may spell a class where `styles.test.ts` may not.
+**Raw text scanning:** the build step scans source files as raw text to find class names, so a class quoted in a comment or a test emits its CSS. For example, writing `// don't use rounded-xl` in a component file would add `rounded-xl` to the bundle even though it's commented out. The lints and role definitions avoid this by building patterns that don't form the literal class name — e.g., using regex alternation instead of quoting the exact string. The `content` list in `tailwind.config.js` is not the whole scanned set: v4 auto-detects sources beside it, and `frontend/tools/` was being scanned until `@source not "../tools"` went into `src/index.css`. Measured on 2026-09-15: without that line the ESLint fixtures emitted five real utilities into the text-page bundle, and a stray `.lowercase` had already been leaking from `tools/` before they existed. That exclusion is what lets the ESLint rules spell a class where `styles.test.ts` may not, and `styles.test.ts` pins the line.
 
 ## Copy rules
 

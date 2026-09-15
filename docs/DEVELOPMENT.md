@@ -41,8 +41,9 @@ CI runs all of these on every PR, so run the ones your change touches first:
 # Frontend typecheck
 cd frontend && npx tsc --noEmit
 
-# Frontend lint (ESLint). The linter installs itself, so this needs no
-# `npm ci` of its own. See the note below for why it is a package apart.
+# Frontend lint (ESLint), then the self-test that proves the rules are not
+# vacuous. The linter installs itself, so this needs no `npm ci` of its own.
+# See the note below for why it is a package apart.
 docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
   sh -c "npm run lint"
 
