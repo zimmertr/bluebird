@@ -1712,7 +1712,10 @@ export default function App() {
   // The report's own hourly grid, which is what the forecast axis plays. It
   // comes back on both analysis paths, so the axis does not care which one ran
   // — unlike the live presentation knobs, which need the held field.
-  const forecastTimes = response?.times ?? []
+  // Memoized for its IDENTITY rather than its cost: the empty fallback was a
+  // fresh array on every render before an analysis, which gave `movePlayheadTo`
+  // below a new identity per render and re-rendered the chart that holds it.
+  const forecastTimes = useMemo(() => response?.times ?? [], [response?.times])
   const timelineAxes = availableAxes(playerShown, showRadar, forecastTimes.length)
   const timelineAxis = resolveAxis(timelineAxes, chosenAxis)
   // Whether the player has anything to play: radar contributes a past axis and
