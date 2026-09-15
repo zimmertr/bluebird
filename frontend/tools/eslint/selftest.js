@@ -1,22 +1,17 @@
 // Proof that the bans in eslint.config.js are not vacuous (issue #379 review).
-//
-// A `no-restricted-syntax` selector that matches nothing reports nothing, which
-// is indistinguishable from a clean tree. metrics.test.ts guarded its own text
-// checks against that by failing when a `?raw` import came back empty; the port
-// would have lost the guard without this.
-//
-// Each fixture must trip exactly the bans named below and no others, and
-// clean.tsx must trip none — it carries `Precipitation`, `Minimum` and
-// `Maximum`, so a metric ban that lost its negative lookaheads fails here.
+// A selector matching nothing reports nothing, which reads exactly like a clean
+// tree; metrics.test.ts guarded its own text checks against that by failing on
+// an empty `?raw` import, and the port would have lost the guard. Each fixture
+// must trip exactly the bans named below, and clean.tsx must trip none — it
+// carries the words the metric ban's negative lookaheads have to let through.
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ESLint } from 'eslint'
 import tseslint from 'typescript-eslint'
 import { CLASS_BANS, METRIC_BAN, PANEL_BANS } from './eslint.config.js'
 
-// Two fixtures trip a second ban by construction: a dimmed placeholder and the
-// restated segment recipe both spell a slate text colour. Listing both is the
-// point — the table is what a fixture tripping the WRONG ban fails against.
+// Two fixtures trip a second ban by construction: a dimmed placeholder and a
+// restated recipe both spell a slate text colour. Listing both is the point.
 const SLATE = 'Take slate text from a role'
 const EXPECTED = {
   'clean.tsx': [],
