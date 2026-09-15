@@ -470,68 +470,99 @@ method is written beside each figure so it can be repeated.
 
 ### The pull request path
 
-`pr.yml`, 40 successful runs. All six jobs start within ~3 s of each other, so
-the run is `Docker Build` plus about four seconds of overhead — every other job
-finishes while it is still building.
+`pr.yml`, 15 successful runs carrying `Lighthouse Budgets` (that job landed in
+#367; runs before it had a 62 s median, and the older figure is not comparable).
 
 | Job | Median | Range |
 | --- | --- | --- |
-| `Docker Build` | 58 s | 38–94 s |
-| `Backend Tests` | 28 s | 22–40 s |
-| `Frontend Typecheck & Tests` | 20 s | 15–30 s |
-| `Python Lint` | 9 s | 5–11 s |
-| `Aggregation vectors in sync` | 5 s | 3–7 s |
-| **whole run** | **62 s** | 41–147 s (p90 92 s) |
+| `Lighthouse Budgets` | 92 s | 81–124 s |
+| `Docker Build` | 57 s | 38–63 s |
+| `Backend Tests` | 29 s | 27–33 s |
+| `Frontend Typecheck & Tests` | 21 s | 19–26 s |
+| `Python Lint` | 9 s | 6–10 s |
+| `Aggregation vectors in sync` | 6 s | 3–6 s |
+| **whole run** | **147 s** | 140–193 s |
+
+**The critical path is two jobs long**, and only two. Five jobs start within
+about 3 s of each other; four of them finish while `Docker Build` is still
+building. `Lighthouse Budgets` `needs` it, so it starts at about 63 s and adds
+its own 92 s. Everything else is free.
 
 Inside `Docker Build`, by median: the image build 21 s, the Trivy scan 11 s,
 building the hadolint **Docker action** 5.5 s, `setup-buildx` 4 s, job setup
 3 s, the smoke test 3 s.
 
-Two consequences follow, and both are reasons *not* to optimise here:
+Inside `Lighthouse Budgets`: the audit itself 52 s, then **24 s of getting back
+to an image that already existed** — `setup-buildx` 8 s and a cache-replay
+build 16 s. That hand-off was chosen over passing a 200 MB image between jobs
+and has never been timed against the alternative; 24 s is what it costs, and it
+is now on the path a person waits on.
 
-- **`Backend Tests` and `Python Lint` are not on the critical path.** Nothing
-  done to them moves the run's wall clock, because `Docker Build` is still
-  running when they finish.
-- **Caching pip measured as no effect, and it is in place anyway.** On a warm
-  cache `pip install -r requirements-dev.txt` drops from 8 s to 6 s and
-  `setup-python` grows by 2–3 s restoring the 25 MB it saved, so `Backend
-  Tests` lands in the same 26–29 s it took before. The wheels are small and
-  already local to the runner's network; the cache is not paying for a download
-  that was ever slow. It stays because the alternative is re-fetching wheels
-  for no reason, but do not expect it to show up in a job time.
+Three consequences, and two of them are reasons *not* to optimise:
+
+- **Nothing done to the three short jobs moves the wall clock.** They finish
+  inside `Docker Build`. This is why caching pip in the Python jobs was measured
+  and then removed rather than kept: see the `setup-python` comments in
+  `pr.yml`.
 - **The Trivy database is already cached.** `trivy-action` wraps its own
   `actions/cache` around both the pinned binary (42 MB, 2.1 s to restore) and
   the vulnerability DB (80 MB, 3.7 s), keyed `cache-trivy-<date>` with
   `restore-keys: cache-trivy-`. `image-scan.yml` uses the same action and
   therefore the same key, so the two already share one copy. There is nothing
   to add.
+- **The npm cache was costing more than it saved.** `npm ci` measured 4 s on a
+  cold cache and 4–5 s on a warm one, while restoring the cache cost 2 s inside
+  `setup-node`. It also held 50 entries and 2.80 GB. Removed.
 
-**The repository's Actions cache is over its limit and evicting.** Measured
-2026-09-15: **10.88 GB across 1,236 entries**, against GitHub's 10 GB per
-repository, so the service is dropping least-recently-used entries
-continuously. The largest holders are the buildx `type=gha` layers (1,099
-entries, 3.28 GB, one scope per PR from `pr-preview.yml`) and setup-node's npm
-caches (50 entries, 2.80 GB, one per branch at ~56 MB). This is the most
-plausible explanation for the width of the two build numbers above —
-`Docker Build` 38–94 s and `Build & Push` 36–142 s are what a layer cache that
-is sometimes there and sometimes evicted looks like. Nothing in this repository
-prunes them; entries expire on their own after 7 days unread.
+**`pr.yml` triggers on `pull_request` only.** It used to carry a `push` trigger
+as well, and ran the whole workflow twice per commit: the two events name
+different refs, so the `concurrency` group could not collapse them, and all 20
+sampled runs were such a pair. They ran in parallel, so nobody waited longer —
+the cost was a second set of runners per commit and two races to write the same
+cache keys, which fed straight into the budget problem below. The trade is that
+a branch pushed with no pull request open gets no checks until one is opened.
+Every check branch protection requires is a `pull_request` check anyway.
 
-**Every commit on a pull request branch runs `pr.yml` twice.** The workflow
-triggers on both `push` (any branch but `main`) and `pull_request`, and the
-`concurrency` group is `pr-${{ github.ref }}`, which is `refs/heads/<branch>`
-for one and `refs/pull/<n>/merge` for the other. Different groups, so neither
-cancels the other: 20 of 20 sampled runs were such a pair, started within
-seconds. They run in parallel, so **a person waits the same 62 s** — the cost is
-about two minutes of runner time per commit, and two sets of cache writes that
-race each other to save the same key.
+Branch protection requires five contexts: `Python Lint`, `Docker Build`,
+`Frontend Typecheck & Tests`, `Backend Tests`, and — since 2026-09-15 —
+`Aggregation vectors in sync`, which had been passing on every pull request
+while being free to go red without blocking one. **A job here cannot be
+renamed**: branch protection matches the name exactly, and a rename strands
+every open pull request on a check that never reports.
 
-Unifying them is a one-line change to the `concurrency` group
-(`github.head_ref || github.ref_name` names the same branch under both events),
-but it works by letting the later run **cancel** the earlier one, which leaves
-cancelled check runs under the names branch protection requires. That is a
-gate question rather than a performance one, so it is written down here rather
-than changed.
+### The repository's Actions cache
+
+Measured 2026-09-15, and the single largest source of variance in every build
+number on this page: **10.73 GB across 1,297 entries**, against GitHub's 10 GB
+per repository. Over the limit means evicting least-recently-used entries
+continuously, and what gets evicted is the buildx layer cache that `Docker
+Build`, `Lighthouse Budgets` and `Build & Push` all read. A layer cache that is
+sometimes there is what `Docker Build` ranging 38–63 s and `Build & Push`
+ranging 36–142 s look like.
+
+Where it was going:
+
+| Holder | Entries | Size |
+| --- | --- | --- |
+| caches on **closed** pull requests' merge refs | 428 | 3.40 GB |
+| `setup-node` npm caches, one ~56 MB copy per branch | 50 | 2.80 GB |
+| everything else, mostly live buildx scopes | 819 | 4.53 GB |
+
+GitHub scopes a cache to the ref that wrote it and **never reclaims a closed
+pull request's** — 18 closed, merged pull requests were still holding 32% of
+the whole budget. `cache-cleanup.yml` now deletes a pull request's caches when
+it closes, and the npm cache is gone, which together is about 6.2 GB that stops
+competing with the Docker layers.
+
+Caches expire on their own after 7 days unread, so the cleanup only removes
+entries that were going to die anyway; it removes them on the day the pull
+request closes instead. To reclaim an existing backlog by hand, from a token
+with `actions: write`:
+
+```bash
+gh cache list --limit 100 --json id,ref --jq '.[] | select(.ref | startswith("refs/pull/")) | .id' \
+  | xargs -n1 gh cache delete
+```
 
 ### The release path
 
@@ -594,8 +625,17 @@ Two segments are larger than anything else and neither is a workflow:
   defaults, `timeout.reconciliation: 120s` with
   `timeout.reconciliation.jitter: 60s`, which is exactly the 0–180 s window the
   nine observations fall in. Shortening the interval shortens the segment
-  proportionally; a webhook would cut it to about a second, and that is a
-  Cloudflare and cluster change rather than a workflow one.
+  proportionally and a webhook would cut it to about a second, but both are
+  cluster changes rather than workflow ones, and 43 s sits next to the 120 s
+  gate that follows it. Left at the chart defaults deliberately (TJ,
+  2026-09-15).
+
+One more thing the canary log says, and the reason the numbers above exclude
+revision 209: that release was promoted by hand. The controller logged
+`Rollout completed update to revision 209: Full promotion requested`, and
+`error-rate` was terminated after 1 of its 3 readings, 12 s into its 120 s.
+Revisions 206 and 207 ran the full gate, which is why they are the ones
+measured.
 
 ## PR preview environments
 

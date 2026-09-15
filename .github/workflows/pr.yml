@@ -1,9 +1,15 @@
 name: PR Checks
 
+# `pull_request` only. A `push` trigger alongside it ran this whole workflow
+# TWICE per commit: the two events name different refs (`refs/heads/<branch>`
+# and `refs/pull/<n>/merge`), so the concurrency group below could not collapse
+# them, and all 20 sampled runs were such a pair (issue #368). They ran in
+# parallel, so nobody waited longer, but each commit burned a second set of
+# runners and raced the first set to write the same cache keys. The cost of
+# dropping it: a branch pushed with no pull request open gets no checks until
+# one is opened. Every check branch protection requires is a `pull_request`
+# check anyway.
 on:
-  push:
-    branches-ignore:
-      - main
   pull_request:
     branches:
       - main
@@ -24,16 +30,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # No `cache: npm`. Measured on 2026-09-15: `npm ci` takes 4 s on a cold
+      # cache and 4-5 s on a warm one, while restoring the cache costs 2 s in
+      # `setup-node` — so the cache was net negative on time. It was also 50
+      # entries and 2.80 GB, one ~56 MB copy per branch, in a repository cache
+      # already over GitHub's 10 GB limit and evicting the Docker layers that
+      # do pay for themselves (issue #368).
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
-          cache: npm
-          # Both lockfiles: the generator behind `check:api` is a package of its
-          # own (frontend/tools/api-types), and a cache keyed on the app's
-          # lockfile alone would miss every bump of it.
-          cache-dependency-path: |
-            frontend/package-lock.json
-            frontend/tools/api-types/package-lock.json
       - run: npm ci
         working-directory: frontend
       # src/api-schema.d.ts is generated from the committed OpenAPI snapshot,
@@ -70,12 +75,6 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.14'
-          cache: pip
-          # This job installs exactly one pinned package and has no requirements
-          # file, so the thing the cache key must track is the pin itself, which
-          # lives in this workflow. Hashing this file busts the cache whenever
-          # the pin moves, which is the only time a stale wheel would be wrong.
-          cache-dependency-path: .github/workflows/pr.yml
       # Pin ruff: its default rule set changes between releases, so an unpinned
       # install can turn a green lint red with no code change on our side.
       - run: pip install ruff==0.16.0
@@ -88,17 +87,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # No `cache: pip`, and that is a measurement rather than an oversight.
+      # With it, the install drops 8 s to 6 s and `setup-python` grows 2-3 s
+      # restoring the 25 MB it saved, so this job lands in the same 26-29 s it
+      # takes without it. The wheels are small and already close to the runner;
+      # the cache was never paying for a slow download (issue #368).
       - uses: actions/setup-python@v7
         with:
           python-version: '3.14'
-          cache: pip
-          # Both files: requirements-dev.txt is `-r requirements.txt` plus two
-          # test packages, and setup-python hashes only the paths it is given,
-          # so naming the dev file alone would serve a stale wheel set after a
-          # runtime-dependency bump.
-          cache-dependency-path: |
-            backend/requirements.txt
-            backend/requirements-dev.txt
       - run: pip install -r requirements-dev.txt
         working-directory: backend
       - run: pytest -q
