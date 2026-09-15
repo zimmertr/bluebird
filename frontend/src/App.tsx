@@ -2073,7 +2073,6 @@ export default function App() {
       out[chartKey(row)] = alignRowToGrid(row, chartTimes).series ?? null
     }
     return out
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chart.selectedRows, chartTimes])
   // Every model the panel has selected, ranking first: the Models popover's
   // rows. The SELECTION rather than the chart, so a model ticked before the
