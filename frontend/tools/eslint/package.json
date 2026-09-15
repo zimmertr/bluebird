@@ -1,0 +1,14 @@
+{
+  "name": "bluebird-forecast-eslint",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "description": "Lints frontend/src. A package of its own for the reason tools/api-types is one: typescript-eslint reads the TypeScript compiler API at run time and refuses TS >= 7 outright, the app runs TypeScript 7, and the TS 7 npm package no longer ships that JS API at all. A nested install is the side-by-side arrangement TypeScript documents for exactly this. It also gives Dependabot four packages to bump.",
+  "devDependencies": {
+    "eslint": "^10.10.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.0"
+  }
+}
