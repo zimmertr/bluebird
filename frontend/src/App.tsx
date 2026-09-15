@@ -2124,6 +2124,9 @@ export default function App() {
   const chartedPairsKey = chartedPairKeys.join('|')
   useEffect(() => {
     chart.rememberColors(chartedPairKeys)
+    // Kept: `chartedPairsKey` is the joined VALUE of `chartedPairKeys`, which
+    // is a new array whenever anything above it re-derives. Listing the array
+    // and the hook object would re-run this on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartedPairsKey])
   const compare = useModelCompare({
@@ -2366,6 +2369,11 @@ export default function App() {
   //
   // `null` while the results are docked below the map, where nothing covers the
   // map's bottom edge and the number would mean nothing.
+  //
+  // Kept: no list is the point. The rule offers `[isDesktop]`, which would miss
+  // the mode switch, the chevron, the drag and the rotation this exists to
+  // catch. The same-value guard below is what stops the update chain.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     const el = sheetRef.current
     const next = !el || isDesktop ? null : el.getBoundingClientRect().height
