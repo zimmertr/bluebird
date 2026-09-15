@@ -1745,6 +1745,8 @@ export default function App() {
   // Desktop is unaffected: the panel is docked there and never closes.
   useEffect(() => {
     if (analysisSeq > 0 && !isDesktop) setSidebarOpen(false)
+    // Kept: listing `isDesktop` would close the drawer when a window crossed
+    // the breakpoint, which is a resize rather than a committed report.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analysisSeq])
 
