@@ -140,6 +140,12 @@ does.
 
 Wind is reported at each destination's own elevation, not at the standard 10 meters above the model's terrain — on a summit the 10-meter value understates what you would feel, often by a factor of two. How the number is derived, and its limits, are in [DATA.md](DATA.md#open-meteo). Destinations with no known elevation show the plain near-ground wind.
 
+**The wind columns say which of the two you are reading.** Their headers name the datum behind the number, so a downloaded file says it as plainly as the screen does, and so does a marker's popup and the map legend when the ranking is wind:
+
+- `Wind at elevation` over an ordinary forecast window.
+- `Wind at 10 meters` over an archive window, where the pressure levels the adjustment needs are not published and every destination reports the near-ground wind whatever its height.
+- A plain `Wind` over a window that crosses between the two. Such a report averages both into a single number, so neither name would be true of it; the line under the Analyze button names the day the join falls on.
+
 ### Bounds
 
 The Min and Max boxes say which destinations you would consider at all: on AQI, the freezing level, precipitation, temperature and wind. An empty box shows its unit and bounds nothing. **Clear filters** appears as soon as any box holds a number, and it empties every one of them, the results cap included.

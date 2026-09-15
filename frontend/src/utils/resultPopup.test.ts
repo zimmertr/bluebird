@@ -247,3 +247,36 @@ describe('resultPopupHtml links out', () => {
     expect(html.match(/target="_blank"/g)?.length).toBe(8)
   })
 })
+
+// #361: a marker's wind row names the same datum the table's column header
+// does, so a point clicked on the map cannot describe its number differently
+// from the row it came from.
+describe('resultPopupHtml wind datum', () => {
+  it('names the elevation datum over a forecast window', () => {
+    const html = resultPopupHtml({ ...base, warning: null, windowSource: 'forecast' })
+    expect(html).toContain('Wind at elevation')
+  })
+
+  it('names the surface datum over an archive window', () => {
+    const html = resultPopupHtml({ ...base, warning: null, windowSource: 'archive' })
+    expect(html).toContain('Wind at 10 meters')
+  })
+
+  // Both silent states, and the reason the popup takes the source at all
+  // rather than a boolean.
+  it('claims no datum over a spanning window or without one', () => {
+    for (const source of ['spanning', null, undefined] as const) {
+      const html = resultPopupHtml({ ...base, warning: null, windowSource: source })
+      expect(html).not.toContain('at elevation')
+      expect(html).not.toContain('at 10 meters')
+    }
+  })
+
+  // The row is still a row: the datum joins the label, never the value, and the
+  // Windy link the cell carries is untouched by it.
+  it('leaves the value and the link alone', () => {
+    const html = resultPopupHtml({ ...base, warning: null, windowSource: 'forecast' })
+    expect(html).toContain('5.4 mph')
+    expect(html).toContain('windy.com')
+  })
+})

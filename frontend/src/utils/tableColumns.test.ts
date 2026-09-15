@@ -13,7 +13,7 @@ import {
   visibleColumns,
   withModelColumn,
 } from './tableColumns'
-import { SEP } from '../metrics'
+import { FAMILY_KEYS, SEP } from '../metrics'
 import { FREEZE_UNAVAILABLE } from './freezingLevel'
 import { SortBy } from '../types'
 
@@ -410,5 +410,75 @@ describe('moving one column', () => {
     expect(stepColumn(ORDER, 'name', -1)).toBe(ORDER)
     expect(stepColumn(ORDER, 'wind', 1)).toBe(ORDER)
     expect(stepColumn(ORDER, 'gone', 1)).toBe(ORDER)
+  })
+})
+
+// #361: the three wind columns name the datum their numbers came from, and the
+// file's headers must say the same as the screen's — a CSV is read detached
+// from the app, where an unqualified header is the exact claim the issue is
+// about.
+describe('wind datum on the displayed columns', () => {
+  const windKeys = FAMILY_KEYS.wind as readonly string[]
+  const labelOf = (cols: { key: string; label: string }[], key: string) =>
+    cols.find((c) => c.key === key)!.label
+
+  it('qualifies every wind column over a forecast window', () => {
+    const cols = displayedColumns(false, 'precip_total_in', 'forecast')
+    for (const key of windKeys) expect(labelOf(cols, key)).toContain('at elevation')
+  })
+
+  it('qualifies every wind column over an archive window', () => {
+    const cols = displayedColumns(false, 'precip_total_in', 'archive')
+    for (const key of windKeys) expect(labelOf(cols, key)).toContain('at 10 meters')
+  })
+
+  // The state that must stay silent, and the one most likely to regress: a
+  // spanning report averages both datums into one number.
+  it('leaves the columns untouched over a spanning window', () => {
+    expect(displayedColumns(false, 'precip_total_in', 'spanning')).toEqual(
+      displayedColumns(false, 'precip_total_in'),
+    )
+  })
+
+  it('leaves the columns untouched with no report', () => {
+    expect(displayedColumns(false, 'precip_total_in', null)).toEqual(
+      displayedColumns(false, 'precip_total_in'),
+    )
+  })
+
+  // Only wind. A datum leaking onto another family would be a false claim
+  // about a number the adjustment never touched.
+  it('touches no column outside the wind family', () => {
+    const plain = displayedColumns(false, 'precip_total_in')
+    const qualified = displayedColumns(false, 'precip_total_in', 'forecast')
+    for (const col of plain) {
+      if (windKeys.includes(col.key as string)) continue
+      expect(labelOf(qualified, col.key as string)).toBe(col.label)
+    }
+  })
+
+  // A relabel, never a different column set: same keys, same order, same
+  // formatters, so nothing downstream of the label can tell the difference.
+  it('changes only the labels, never the columns themselves', () => {
+    const plain = displayedColumns(false, 'wind_avg_mph')
+    const qualified = displayedColumns(false, 'wind_avg_mph', 'forecast')
+    expect(qualified.map((c) => c.key)).toEqual(plain.map((c) => c.key))
+    expect(qualified.map((c) => c.format)).toEqual(plain.map((c) => c.format))
+  })
+
+  // The collapsed single column carries no aggregate, so the qualifier has to
+  // land without one rather than being dropped with it.
+  it('qualifies the collapsed column of a point-sample report', () => {
+    const cols = displayedColumns(true, 'wind_avg_mph', 'forecast')
+    expect(labelOf(cols, 'wind_avg_mph')).toContain('at elevation')
+    expect(labelOf(cols, 'wind_avg_mph')).not.toContain(SEP)
+  })
+
+  // The picker and the table read one derivation, so a visible-column set
+  // cannot disagree with the full one about what a column is called.
+  it('qualifies the visible columns the same way', () => {
+    const keys = new Set<string>(['name', 'wind_avg_mph'])
+    const visible = visibleColumns(false, 'precip_total_in', keys, 'archive')
+    expect(labelOf(visible, 'wind_avg_mph')).toContain('at 10 meters')
   })
 })

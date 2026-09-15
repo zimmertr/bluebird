@@ -1,5 +1,6 @@
 import { DestinationResult, HourlySeries } from '../types'
-import { AGGREGATE, NOUN, UNIT } from '../metrics'
+import { AGGREGATE, NOUN, UNIT, windDatum } from '../metrics'
+import { WindowSource } from './forecastWindow'
 import { destinationUrl } from './destinationUrl'
 import { FireWarning, fireWarningText } from './fireProximity'
 import { freezeCellText } from './freezingLevel'
@@ -45,6 +46,11 @@ export function resultPopupHtml(d: {
   modelId?: string | null
   series?: HourlySeries | null
   times?: readonly number[]
+  // Which endpoint answered the report this marker belongs to, so the wind row
+  // names its datum the way the table's column header does (#361). Optional
+  // like the three above, and absent means the row reads the bare noun — which
+  // is also what a spanning report gets, because neither datum is true of it.
+  windowSource?: WindowSource | null
 }): string {
   const url = destinationUrl({
     type: d.type,
@@ -83,13 +89,22 @@ export function resultPopupHtml(d: {
       modelId: d.modelId,
       atMs: extremeHourMs(columnKey, d.series, d.times ?? []),
     })
+  // The wind row's noun, with the datum this report's window source implies.
+  // Resolved once rather than at the row, which asked metrics.ts the same
+  // question twice on one line.
+  const datum = windDatum(d.windowSource)
+  const windNoun = datum ? `${NOUN.wind} ${datum}` : NOUN.wind
+
   const title = `${d.rank ? `#${escapeHtml(String(d.rank))} ` : ''}${escapeHtml(d.name)}`
 
   const body = [
     fire,
     d.elevationFt != null ? row('Elevation', `${Number(d.elevationFt).toLocaleString()} ft`) : '',
     row(`${NOUN.precip} ${TOTAL}`, `${Number(d.precipTotalIn).toFixed(3)}"`, windy('rain', 'precip_total_in')),
-    row(`${NOUN.wind} ${AVERAGE}`, `${Number(d.windAvgMph).toFixed(1)} mph`, windy('wind', 'wind_avg_mph')),
+    // "Wind at elevation avg", composed rather than spelled: the datum comes
+    // from metrics.ts like the noun beside it, and the popup lower-cases the
+    // aggregate here the way it does for every other row.
+    row(`${windNoun} ${AVERAGE}`, `${Number(d.windAvgMph).toFixed(1)} mph`, windy('wind', 'wind_avg_mph')),
     row(`${NOUN.temp} ${AVERAGE}`, `${Number(d.tempAvgF).toFixed(1)}°F`, windy('temp', 'temp_avg_f')),
     // Always drawn, unlike the two air-quality rows below it. A missing air
     // quality is a gap in one forecast, so the row goes with it; a missing

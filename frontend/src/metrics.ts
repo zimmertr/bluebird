@@ -1,4 +1,5 @@
 import { SortBy } from './types'
+import { WindowSource } from './utils/forecastWindow'
 
 /**
  * One vocabulary for the five things Bluebird Forecast measures.
@@ -138,6 +139,69 @@ export const UNIT: Record<MetricFamily, string> = {
 }
 
 /**
+ * How the wind number was measured, where a surface has room to say so (#361).
+ *
+ * Every wind figure this app shows is the free-air wind interpolated between
+ * the two ISA pressure levels bracketing the destination's elevation, floored
+ * at the 10 m value — and nothing on screen said so, which is the whole of
+ * that issue. The column header is where a reader meets the number, so that is
+ * where it is said.
+ *
+ * **Three states, because two of them would be a lie.** The archive endpoint
+ * accepts the five pressure levels and answers every hour `null`, so an
+ * archive report is the plain 10 m wind for every row whatever its elevation,
+ * and a report SPANNING the boundary carries both inside one averaged number.
+ * The spanning case therefore claims nothing: it is the one state with no
+ * datum, and its silence is the honest answer rather than an omission. That is
+ * also why this takes a `WindowSource` rather than a boolean.
+ *
+ * The 10 m floor is NOT a fourth state. A destination below the lowest level
+ * (~762 m, which is 2,500 ft) or with no known elevation reports the 10 m wind
+ * on a forecast report too — but that is the method working, not failing: a
+ * valley really is sheltered. A header describes a column's method, not each
+ * cell's outcome, so `at elevation` stays true over a trailhead.
+ *
+ * "10 meters" is spelled out rather than written `10 m`. Two reasons, and the
+ * second is the one that decided it. A spelled-out unit NAME is ordinary
+ * English, so the SI space rule for unit SYMBOLS (BIPM §5.4.3) cannot be got
+ * wrong here and no non-breaking space has to be kept out of the CSV header.
+ * And the two phrases then measure within 4.7px of each other, so the table's
+ * wind columns do not visibly resize when a window crosses the archive
+ * boundary — the symbol form moved them 25.6px (measured in Chrome, 2026-09-14).
+ */
+const WIND_DATUM: Record<'forecast' | 'archive', string> = {
+  forecast: 'at elevation',
+  archive: 'at 10 meters',
+}
+
+/**
+ * The datum as it reads INSIDE a noun phrase: "Wind at elevation · Avg (mph)".
+ *
+ * `null` for a spanning window, and for a report that does not exist yet —
+ * before the first analysis the table shows pending rows with no numbers in
+ * them, and a datum there would describe figures nobody has fetched.
+ */
+export function windDatum(source: WindowSource | null | undefined): string | null {
+  if (source === 'forecast' || source === 'archive') return WIND_DATUM[source]
+  return null
+}
+
+/**
+ * The same datum as it reads AFTER the separator: "WIND · At elevation".
+ *
+ * Capitalized here rather than at the call site, the way `resultPopup.ts`
+ * lower-cases `AGGREGATE` for its prose rows: the surfaces compose a metric's
+ * words, they never perform surgery on them. The map legend is the only
+ * caller — it joins the bare noun to the datum with `SEP`, which is the same
+ * separator the table headers use to join a metric to its aggregate, so the
+ * legend is not inventing a second way to put two facts on one line.
+ */
+export function windDatumCaption(source: WindowSource | null | undefined): string | null {
+  const datum = windDatum(source)
+  return datum === null ? null : datum[0].toUpperCase() + datum.slice(1)
+}
+
+/**
  * How a value was reduced over the analysis window.
  *
  * The nouns above spell out because they are the identity of what's measured;
@@ -245,12 +309,20 @@ export function rankedNoun(sortBy: SortBy, pointSample: boolean): string {
  * The unit defaults to the metric's own but is overridable, because a column
  * can report a rate rather than the base quantity: precipitation is inches in
  * a window total and inches per hour in the average and peak columns.
+ *
+ * The qualifier sits INSIDE the noun phrase rather than beside it — "Wind at
+ * elevation · Avg (mph)", never "Wind · Avg (mph) at elevation" — because it
+ * says what was measured, not how it was reduced, and the separator's whole
+ * job is to mark the seam between those two. Only the wind family has one
+ * (`windDatum`), and only where a report's window source says which.
  */
 export function metricLabel(
   family: MetricFamily,
   aggregate?: string,
   unit: string = UNIT[family],
+  qualifier?: string | null,
 ): string {
-  const named = aggregate ? `${NOUN[family]} ${SEP} ${aggregate}` : NOUN[family]
+  const noun = qualifier ? `${NOUN[family]} ${qualifier}` : NOUN[family]
+  const named = aggregate ? `${noun} ${SEP} ${aggregate}` : noun
   return unit ? `${named} (${unit})` : named
 }
