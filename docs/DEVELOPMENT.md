@@ -104,6 +104,17 @@ and mirror the change in the TypeScript port in `frontend/src/utils/openMeteo.ts
 Pytest fails on a stale backend copy, Vitest fails on a drifted port, and the
 `vectors` CI job fails if the two copies differ.
 
+A fourth, for what a vector cannot express: the numbers and the one sentence
+the browser copies from the backend ride
+`backend/tests/data/mirrored_constants.json`. Change a listed value on the
+backend first, then
+`cd backend && python scripts/generate_mirrored_constants.py`, copy
+`tests/data/mirrored_constants.json` to
+`../frontend/src/utils/mirrored_constants.json`, and change the browser's half.
+Pytest fails on a stale manifest, Vitest fails on a browser copy that no longer
+matches, and the `mirrors` CI job fails if the two copies differ. `CLAUDE.md`
+lists every mirrored pair and what enforces it.
+
 The generator is not a frontend dependency. It lives in
 `frontend/tools/api-types`, a private package with its own lockfile, and the two
 frontend scripts only delegate to it. `openapi-typescript` loads the TypeScript

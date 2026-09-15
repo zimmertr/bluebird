@@ -439,10 +439,6 @@ const WIND_LEVELS = [
 ] as const
 const FT_TO_M = 0.3048
 
-// The nine hourly variables every weather request asks for — the backend's eight
-// plus the wind bearing the map's playback arrows read. Spelled once because it
-// is two things: what a request asks for, and which arrays a joined half-window
-// has to keep parallel (`joinHours`).
 // Port of weather._FREEZING_LEVEL: the height where the free-air temperature
 // crosses freezing, clamped to 0 when the whole column is below freezing.
 // Three of the eight models publish it (issue #295). Its unit follows
@@ -452,7 +448,12 @@ const FT_TO_M = 0.3048
 // a plausible-looking altitude rather than an obvious fault.
 const FREEZING_LEVEL = 'freezing_level_height'
 
-const HOURLY_VARIABLES = [
+// The hourly variables every weather request asks for. Spelled once because it
+// is three things: what a request asks for, which arrays a joined half-window
+// has to keep parallel (`joinHours`), and the count the weighted-call
+// accounting is priced on — which is why the list is exported and why
+// `mirroredConstants.test.ts` measures it against the backend's N_VARIABLES.
+export const HOURLY_VARIABLES = [
   'precipitation',
   'temperature_2m',
   'wind_speed_10m',
@@ -1219,19 +1220,22 @@ export async function fetchWeather(
   const tasks = chunks.map((chunk, chunkIndex) => async (): Promise<WeatherResult[]> => {
     const perSpan: HourlyPayload[][] = []
     for (const span of spans) {
-      // Ten variables, not the backend's nine: the browser also asks for wind
-      // direction, which only the map's playback arrows use. Still weight
-      // factor 1 — max(1, vars x models/10) — so the five level winds, the
-      // freezing level and the bearing all ride the budget the original three
-      // variables set. The model count is spelled here rather than defaulted,
-      // because this is where `models=` is built: a request naming more than
-      // one model returns a series per model and costs that multiple.
+      // One more variable than the backend asks for: the browser also fetches
+      // `wind_direction_10m`, which only the map's playback arrows use. The
+      // count is read off `HOURLY_VARIABLES` rather than spelled, so a variable
+      // added to the list is a variable the pacer prices; a number written here
+      // would be right until the next one. Both sides still floor to weight
+      // factor 1 — max(1, vars x models/10) — so the level winds, the freezing
+      // level and the bearing all ride the budget the original three variables
+      // set. The model count is spelled here rather than defaulted, because
+      // this is where `models=` is built: a request naming more than one model
+      // returns a series per model and costs that multiple.
       //
       // One acquire per SPAN, each priced on its own hours: two requests are two
       // answers, so a spanning window spends twice, and pricing it on the whole
       // window would bill the archive half's months for the forecast half too.
       await weatherBudget.acquire(
-        callWeight(chunk.length, span.startMs, span.endMs, 10, 1),
+        callWeight(chunk.length, span.startMs, span.endMs, HOURLY_VARIABLES.length, 1),
         signal,
         onPace,
       )
