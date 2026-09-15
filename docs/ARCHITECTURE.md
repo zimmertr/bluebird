@@ -33,6 +33,17 @@ None of the external APIs need a key:
 - **Open-Meteo** provides the hourly forecast and air-quality data, batched up to 50 locations per request.
 - **OpenFreeMap** serves the vector map tiles.
 
+The two national overlays decode their snapshots on a worker thread rather than
+on the event loop (`asyncio.to_thread` in `app/services/nifc.py` and
+`app/services/hms.py`, issue #337). The fire payload is 16.5 MB of JSON holding
+861k coordinates, and `app/services/snapshot.py` already keeps that refresh off
+the request that triggered it. What it cannot do is keep an `async` function
+that never awaits from holding the loop, which blocks every other request on
+the pod for the length of the parse. Responses are compressed at gzip level 6
+rather than Starlette's default of 9, measured on the largest body this service
+sends: level 9 costs 124 ms more event-loop CPU per request and saves 0.4% of
+the bytes.
+
 Every response leaves the pod carrying a Content-Security-Policy and the usual
 hardening headers, added by `app/security_headers.py` as the outermost
 middleware (issue #132). The policy is app-owned rather than mesh-owned because

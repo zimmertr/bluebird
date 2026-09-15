@@ -230,9 +230,13 @@ self-hosted instance would keep the defect.
 | Everything outside `/assets/`: the document, the legal pages, `/docs`, `swagger-ui/`, the icons, `/api/*`, and errors | `no-cache` | Always revalidate. The document names the hashed chunks, so a stale one asks for files the new image does not hold. Starlette answers `If-None-Match` and `If-Modified-Since` with a `304` and no body, so the cost is one small round trip per page load. The unhashed files change with a version bump and need the same rule. |
 | A response under `/assets/` with a status below 400 | `public, max-age=31536000, immutable` | The file name carries the content hash, so the URL never changes meaning. |
 | An error under `/assets/` | `no-cache` | A cached `404` for a year outlasts the release that would have corrected it. |
+| `GET /api/capabilities` | `public, max-age=60` | Every visitor fetches it once on load, and it answers the same bytes to all of them until a deploy changes a constant ([#337](https://github.com/zimmertr/bluebird/issues/337)). Staleness costs nothing: the numbers only bound what a client offers, the server enforces the real ones on every request, and a client that cannot fetch it at all falls back to compiled constants ([#152](https://github.com/zimmertr/bluebird/issues/152)). |
 
 The middleware sets the header only where the response has none, so a route
-keeps a value of its own.
+keeps a value of its own. `GET /api/capabilities` is the one route that takes
+that up. `GET /api/version` deliberately does not: the SPA never calls it, so
+there is no round trip to save, and its one reader is a person asking which
+build is live right now.
 
 The edge is what made the defect visible, and it then took a zone change to let
 the header reach a browser. Cloudflare's Browser Cache TTL is a floor, not a

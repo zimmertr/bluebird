@@ -9,7 +9,10 @@ once, so an unrecognized value must still draw rather than vanish.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import threading
+import time
 from datetime import date, datetime, timezone
 
 import httpx
@@ -216,6 +219,40 @@ async def test_fetch_uses_todays_file(served_kml):
     assert asked == [hms.kml_url(today)]
     assert snapshot.analysis_date == "2026-08-04"
     assert snapshot.plumes == 1
+
+
+async def test_the_kml_parse_runs_off_the_event_loop(served_kml, monkeypatch):
+    """Same rule as the fire snapshot: an XML walk must not hold the loop.
+
+    Smaller than NIFC's payload (a busy day measures under half a megabyte),
+    and the same failure: while it runs, every other request on the pod waits
+    (#337, finding 10).
+    """
+    parsed_on: list[str] = []
+
+    def slow_parse(text: str):
+        parsed_on.append(threading.current_thread().name)
+        time.sleep(0.2)
+        return []
+
+    monkeypatch.setattr(hms, "parse_kml", slow_parse)
+
+    ticks = 0
+
+    async def heartbeat() -> None:
+        nonlocal ticks
+        while True:
+            await asyncio.sleep(0.005)
+            ticks += 1
+
+    today = date(2026, 8, 4)
+    served_kml({hms.kml_url(today): httpx.Response(200, text=_kml(_placemark()))})
+    beat = asyncio.create_task(heartbeat())
+    await hms.fetch_snapshot(datetime(2026, 8, 4, 20, 0, tzinfo=timezone.utc))
+    beat.cancel()
+
+    assert parsed_on and parsed_on[0] != threading.main_thread().name
+    assert ticks >= 5, f"the loop stalled during the parse ({ticks} ticks)"
 
 
 async def test_fetch_falls_back_a_day_before_the_first_pass_lands(served_kml):

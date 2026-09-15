@@ -231,6 +231,23 @@ def _to_fire(feature: dict[str, Any]) -> Fire | None:
     )
 
 
+def _parse_page(payload: bytes) -> tuple[list[Fire], bool, int]:
+    """One page of the ArcGIS answer, decoded and reduced to stored fires.
+
+    Pure and synchronous so ``_fetch_layer`` can hand it to a thread: it takes
+    the bytes off the wire and returns what the caller needs to continue paging
+    (the fires, whether ArcGIS truncated the page, and how many features it
+    actually sent, which is the offset step).
+    """
+    body = json.loads(payload)
+    _raise_for_arcgis_error(body)
+    features = body.get("features") if isinstance(body, dict) else None
+    if not isinstance(features, list):
+        raise UpstreamError("Wildfire data could not be read.")
+    fires = [fire for fire in map(_to_fire, features) if fire is not None]
+    return fires, bool(body.get("exceededTransferLimit")), len(features)
+
+
 def _raise_for_arcgis_error(body: Any) -> None:
     """Surface an error ArcGIS reported inside an HTTP 200.
 
@@ -284,15 +301,20 @@ async def _fetch_layer(client: httpx.AsyncClient, simplify_deg: float | None) ->
             params["maxAllowableOffset"] = simplify_deg
         response = await client.get(QUERY_URL, params=params)
         response.raise_for_status()
-        body = response.json()
-        _raise_for_arcgis_error(body)
-        features = body.get("features") if isinstance(body, dict) else None
-        if not isinstance(features, list):
-            raise UpstreamError("Wildfire data could not be read.")
-        fires.extend(fire for fire in map(_to_fire, features) if fire is not None)
-        if not body.get("exceededTransferLimit") or not features:
+        # Off the event loop, because this is the one genuinely expensive piece
+        # of CPU work the pod does. The full-resolution copy is 16.5 MB of JSON
+        # holding 861k coordinates, and `json.dumps` runs again per feature to
+        # store it. `snapshot.py` already keeps the refresh off the request that
+        # triggered it, but an `async` function holding the loop blocks every
+        # OTHER request on the pod for as long as it runs, which is the likely
+        # cause of the 4.1 s answer #337 measured from a warm in-memory
+        # snapshot. A thread is enough: both halves are pure, and the GIL is
+        # released around the decode.
+        page_fires, more, count = await asyncio.to_thread(_parse_page, response.content)
+        fires.extend(page_fires)
+        if not more or not count:
             return tuple(fires)
-        offset += len(features)
+        offset += count
     log.warning(
         "NIFC paging hit the %d page backstop at %d features; serving what arrived",
         MAX_PAGES,
