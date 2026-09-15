@@ -1129,11 +1129,18 @@ export default function App() {
     // No cleanup here on purpose: flushing once per effect run would write on
     // every keystroke and collapse nothing, which is the trap debounceUrlWrite
     // documents. Unmount is handled by its own effect below.
+    // `forecastModel` and `caps.defaultForecastModel` belong here because
+    // `encodeState` reads both: the model writes to the URL only when it
+    // differs from the published default. They were missing, so a model change
+    // with no other edit left the address bar on the old model and a link
+    // copied at that moment shared it (#292).
   }, [
     polygon,
     destinationTypes,
     includeUnnamedPeaks,
     selection,
+    forecastModel,
+    caps.defaultForecastModel,
     comparedModels,
     sortBy,
     sortDesc,
