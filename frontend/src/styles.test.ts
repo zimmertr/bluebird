@@ -59,6 +59,8 @@ import {
   LINK,
   LINK_ACTION,
   CAPTION_LIFTED,
+  MAP_COL_GAP,
+  MAP_COL_GAP_T,
   MAP_COL_W,
   MAP_ROW_H,
   MICRO_PX,
@@ -1097,26 +1099,45 @@ describe('shared recipes', () => {
   // member of the column wears it.
   it('gives every member of the map column one width', () => {
     expect(MAP_COL_W).toBe('w-46')
-    // Five in App.tsx — two legends, the popover, both buttons — and two in
-    // SearchBox: the field's wrapper and the result list under it. A width
-    // spelled beside the role could not even be relied on to win: two width
-    // utilities resolve by stylesheet order rather than by class order.
+    // Five in App.tsx — two legends, the popover, both buttons — and one in
+    // SearchBox, the field's wrapper. A width spelled beside the role could not
+    // even be relied on to win: two width utilities resolve by stylesheet order
+    // rather than by class order.
     const rides = (src: string) => src.match(/\$\{MAP_COL_W\}[^`]*/g) ?? []
     expect(rides(appSource)).toHaveLength(5)
-    expect(rides(searchBoxSource)).toHaveLength(2)
+    expect(rides(searchBoxSource)).toHaveLength(1)
     for (const ride of [...rides(appSource), ...rides(searchBoxSource)]) {
       expect(ride).not.toMatch(/(^|\s)w-\S+/)
     }
     // And neither file picks its own width in the range a member of this
     // column would plausibly take. Written as a range rather than as a list of
     // names so a step nobody thought of still fails, and with the leading
-    // guard so `max-w-*` is not read as a width of its own. SearchBox is held
-    // to every two-digit step, because every width it used to spell (w-36,
-    // w-64, w-72, w-80) was the field or the dropdown sizing itself — the
-    // single-digit steps it keeps are icons, which are square and sized with
-    // their own height beside them.
+    // guard so `max-w-*` is not read as a width of its own.
     expect(appSource).not.toMatch(/(?<![-\w])w-(?:4\d|5\d)\b/)
-    expect(searchBoxSource).not.toMatch(/(?<![-\w])w-\d\d/)
+    // SearchBox has ONE deliberate exception, and this is it: the result list
+    // is wider than the column on purpose (TJ, 2026-09-14), because bound to
+    // it, every second line clipped away the county and state that tell four
+    // places of the same name apart. Nothing else in the file spells a width —
+    // the single-digit steps left are icons, square and sized with their own
+    // height beside them.
+    const searchWidths = searchBoxSource.match(/(?<![-\w])w-\d\S*/g) ?? []
+    // In source order: the spinner's square, then the list at each breakpoint.
+    expect(searchWidths).toEqual(['w-4', 'w-72', 'w-80'])
+  })
+
+  // The third part of the same decision: one gap between members, so the
+  // column's height and the inset that clears it are built from one number.
+  it('gives the column one gap, in both of the forms it takes', () => {
+    expect(MAP_COL_GAP).toBe('gap-1.5')
+    expect(MAP_COL_GAP_T).toBe('mt-1.5')
+    // The cluster, the legend stack, and the popover that hangs rather than
+    // sits. A gap spelled beside any of them would move the column's height
+    // without moving `LEGEND_TOP`, which is derived from this number.
+    expect(appSource.match(/\$\{MAP_COL_GAP\}/g) ?? []).toHaveLength(2)
+    expect(appSource.match(/\$\{MAP_COL_GAP_T\}/g) ?? []).toHaveLength(1)
+    for (const ride of appSource.match(/\$\{MAP_COL_GAP(?:_T)?\}[^`]*/g) ?? []) {
+      expect(ride).not.toMatch(/(^|\s)(?:gap-|mt-)/)
+    }
   })
 
   // The other half of the same decision: one row height, so the field and the

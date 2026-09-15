@@ -216,11 +216,16 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           // field wears (TJ, 2026-09-14): this is a menu the reader acts in,
           // hanging over the buttons and legends below, and one step of fill
           // plus the heavier shadow is what says so — the same separation the
-          // Layers popover takes against the same legends. It is the column's
-          // width like everything else in it, which clips a long place name to
-          // one line; the name leads, so what a clipped line loses is the tail
-          // of an address the reader can still see on the map.
-          className={`${SURFACE_POPOVER} ${MAP_COL_W} absolute left-0 top-full mt-1 overflow-hidden divide-y divide-slate-600`}
+          // Layers popover takes against the same legends.
+          //
+          // It is the ONE thing in this column wider than `MAP_COL_W`, and
+          // deliberately so: bound to the column it clipped every second line,
+          // and a result reads "Mount Baker, Whatcom County, Washington" — the
+          // half that disambiguates it from the other three Mount Bakers is
+          // exactly the half that went (TJ, 2026-09-14, reversing the bind).
+          // It hangs past the column's right edge the way the model picker's
+          // listbox hangs past the panel's.
+          className={`${SURFACE_POPOVER} w-72 sm:w-80 absolute left-0 top-full mt-1 overflow-hidden divide-y divide-slate-600`}
         >
           {places.map((p, i) => (
             <li key={`${p.lat},${p.lon},${i}`} role="option" aria-selected={i === highlight}>

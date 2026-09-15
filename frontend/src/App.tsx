@@ -53,6 +53,8 @@ import {
   LAYER,
   LEGEND_TOP,
   LINK,
+  MAP_COL_GAP,
+  MAP_COL_GAP_T,
   MAP_COL_W,
   MAP_EDGE,
   MAP_ROW_H,
@@ -2629,7 +2631,7 @@ export default function App() {
               // screen.
               className={`absolute ${MAP_EDGE.left} ${
                 sidebarOpen ? LEGEND_TOP.compact : LEGEND_TOP.full
-              } z-10 flex flex-col gap-2 overflow-y-auto [&>*]:flex-shrink-0`}
+              } z-10 flex flex-col ${MAP_COL_GAP} overflow-y-auto [&>*]:flex-shrink-0`}
               // The floor of the scroll box, derived rather than chosen: the
               // transport's whole band while the bar is on screen and a plain
               // gap otherwise, measured from whatever stands on the map's
@@ -2797,7 +2799,7 @@ export default function App() {
               chrome and across the sheet, and the layer has to sit on the
               cluster rather than on the popover inside it (see LAYER). It stays
               under the loading overlay and the mobile drawer backdrop. */}
-          <div className={`absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${LAYER.mapControls} flex flex-col items-start gap-2`}>
+          <div className={`absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${LAYER.mapControls} flex flex-col items-start ${MAP_COL_GAP}`}>
             {/* The search field is the column's first row rather than a
                 neighbour of the Controls button (TJ, 2026-09-14). Beside it,
                 the two of them at the column's shared width needed 400px of a
@@ -2847,7 +2849,7 @@ export default function App() {
                   so an inset of its own would be that inset twice and the box
                   would hang a step right of the legends it hangs over. */}
               {layersOpen && (
-                <div className={`${SURFACE_POPOVER} ${MAP_COL_W} absolute left-0 mt-2 px-2.5 py-2`}>
+                <div className={`${SURFACE_POPOVER} ${MAP_COL_W} ${MAP_COL_GAP_T} absolute left-0 px-2.5 py-2`}>
                   {MAP_LAYERS.map((layer) => (
                     <Fragment key={layer.key}>
                       {layerRow(layer)}
