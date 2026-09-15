@@ -75,3 +75,61 @@ describe('the effects useChartSelection.ts runs', () => {
     expect(deps).toContainEqual(['candidatesKey'])
   })
 })
+
+// ── What keeps the memoized children memoized (#337, finding 8) ────────────
+//
+// `ResultsTable`, `TimeSeriesChart` and `MapView` are wrapped in `React.memo`,
+// which is worth exactly nothing if App.tsx hands them a fresh value on every
+// render. Measured 2026-09-14 on a 946-destination analysis: toggling a map
+// overlay, which cannot change a row or a ranking, cost 311 to 392 ms of
+// synchronous React work before this.
+describe('the props the memoized children get', () => {
+  const memoized = ['ResultsTable', 'TimeSeriesChart', 'MapView']
+
+  function propsOf(name: string): string[] {
+    // The tag, not a type argument: `useRef<MapViewHandle>` starts with
+    // `<MapView` too, and matching it read the wrong region of the file.
+    const open = appSource.search(new RegExp(`<${name}\\s`))
+    if (open < 0) return []
+    const close = appSource.indexOf('\n', appSource.indexOf('/>', open))
+    return appSource
+      .slice(open, close)
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => /^[a-zA-Z]+=\{/.test(line))
+  }
+
+  it.each(memoized)('%s is actually memoized', (name) => {
+    const source = import.meta.glob('./components/*.tsx', {
+      query: '?raw',
+      import: 'default',
+      eager: true,
+    }) as Record<string, string>
+    expect(source[`./components/${name}.tsx`]).toContain(`export default memo(${name})`)
+  })
+
+  it.each(memoized)('%s gets no inline function or literal', (name) => {
+    const props = propsOf(name)
+    // A regex that stopped matching would otherwise make this test pass by
+    // finding nothing at all.
+    expect(props.length, `found no props on <${name}>`).toBeGreaterThan(5)
+    const offenders = props.filter(
+      (line) => line.includes('=>') || /=\{\[\]\}|\?\? \[\]|\?\? \{\}/.test(line),
+    )
+    expect(offenders, `wrap these in useCallback or hoist them: ${offenders.join(' | ')}`).toEqual(
+      [],
+    )
+  })
+})
+
+// The chart's selected rows are looked up through an index, not scanned for.
+// `selectedKeys.map(k => results.find(...))` is a scan of every row for every
+// row: 895,000 key builds for a 946-destination report, measured at 44 ms, and
+// it runs on every keystroke in the coordinates box because the `results` the
+// hook is given is rebuilt with the pending list (#337).
+describe('the chart selection lookup', () => {
+  it('indexes the rows instead of scanning them', () => {
+    expect(chartSelectionSource).not.toMatch(/results\.find\(/)
+    expect(chartSelectionSource).toContain('byKey.get(k)')
+  })
+})

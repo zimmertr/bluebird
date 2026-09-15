@@ -16,6 +16,15 @@ The whole thing builds as a single multi-stage Docker image:
 - Stage 1 runs `node:26-alpine` to `npm run build` the SPA, and vendors Swagger UI's assets so `/docs` renders without reaching out to a CDN.
 - Stage 2 runs `python:3.14-alpine` with uvicorn, serving the API and the built SPA together.
 
+The browser holds each location's forecast for 15 minutes, and since issue #337
+that cache survives a reload: what fits in a 2 MB budget is mirrored into
+`sessionStorage` when the page is hidden and read back when it loads
+(`frontend/src/utils/forecastStore.ts`). Quota is the scarcest thing the app
+spends, and before this a refresh re-bought coordinates the browser had already
+paid for. Every stamp on the wire is whole seconds rather than ISO text
+(`timeformat=unixtime`), which is 11 bytes instead of 18 and a multiply instead
+of a regex.
+
 None of the external APIs need a key:
 
 - **Overpass** handles the OSM feature queries. Three public endpoints are tried in order: `overpass-api.de`, then `maps.mail.ru`, then `overpass.kumi.systems` (ordered by measured latency; see the dated table in `osm.py`).

@@ -193,6 +193,11 @@ import { NAME_DEFAULT_PX } from './utils/columnResize'
 import { compareValues } from './utils/sortResults'
 import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
 
+// The empty case of `response?.times`, hoisted. `?? []` inside JSX hands a
+// memoized child a new array on every render, which is enough to re-render it
+// for a state change that has nothing to do with it (#337, finding 8).
+const NO_TIMES: number[] = []
+
 // One row of the Layers popover: a checkbox and what it switches. The four
 // overlays and the forecast player share it, because they are the same kind of
 // choice — about what the map shows, never about what the analysis asks for.
@@ -1485,10 +1490,33 @@ export default function App() {
   // × on a table row. Removing a searched place also deregisters it — else the
   // next analysis would simply rediscover it from the searched list. The
   // backing place is captured first, so a restore can re-register it.
-  function handleRemoveResult(row: DestinationResult) {
-    setRemoved((prev) => recordRemoval(prev, row, searched.places, destinationScope))
-    searched.removePlace(row.latitude, row.longitude)
-  }
+  // Stable identities for the table's callbacks, for the reason `NO_TIMES`
+  // exists: an inline arrow is a new prop on every render.
+  const handleDetailSort = useCallback(
+    (key: SortKey, dir: SortDir) => setDetailSort({ key, dir }),
+    [],
+  )
+  const handleRemovePending = useCallback(
+    (d: { latitude: number; longitude: number }) =>
+      searched.removePlace(d.latitude, d.longitude),
+    [searched],
+  )
+  const handleFocusResult = useCallback(
+    (row: DestinationResult) => mapRef.current?.focusResult(row),
+    [],
+  )
+  const handleFocusPending = useCallback(
+    (at: { latitude: number; longitude: number }) => mapRef.current?.focusPoint(at),
+    [],
+  )
+
+  const handleRemoveResult = useCallback(
+    (row: DestinationResult) => {
+      setRemoved((prev) => recordRemoval(prev, row, searched.places, destinationScope))
+      searched.removePlace(row.latitude, row.longitude)
+    },
+    [searched, destinationScope],
+  )
 
   // What the browser still holds a forecast row for — the field on the client
   // path, the trimmed rows on the server path. Decides whether a restore is a
@@ -1712,15 +1740,18 @@ export default function App() {
   // question they did not ask. The nearest stamp rather than an exact match:
   // Recharts hands back the x value under the pointer, which on a wide chart is
   // an interpolated instant between two hourly points.
-  function movePlayheadTo(ms: number) {
-    if (forecastTimes.length === 0) return
-    let nearest = 0
-    for (let i = 1; i < forecastTimes.length; i++) {
-      if (Math.abs(forecastTimes[i] - ms) < Math.abs(forecastTimes[nearest] - ms)) nearest = i
-    }
-    setForecastIndex(nearest)
-    setChosenAxis('forecast')
-  }
+  const movePlayheadTo = useCallback(
+    (ms: number) => {
+      if (forecastTimes.length === 0) return
+      let nearest = 0
+      for (let i = 1; i < forecastTimes.length; i++) {
+        if (Math.abs(forecastTimes[i] - ms) < Math.abs(forecastTimes[nearest] - ms)) nearest = i
+      }
+      setForecastIndex(nearest)
+      setChosenAxis('forecast')
+    },
+    [forecastTimes],
+  )
 
   // The bands the markers are actually colored on, which playback moves.
   // Precipitation is the reason it has to: the ranking bins a window total and
@@ -2559,7 +2590,7 @@ export default function App() {
             results={results}
             sortBy={view.sortBy}
             modelId={analyzed?.forecastModel ?? forecastModel}
-            times={response?.times ?? []}
+            times={response?.times ?? NO_TIMES}
             fireWarnings={fire.warnings}
             showWildfires={showWildfires}
             showRadar={showRadar}
@@ -3305,7 +3336,7 @@ export default function App() {
                         sortBy={view.sortBy}
                         detailSortKey={detailSort.key}
                         detailSortDir={detailSort.dir}
-                        onDetailSort={(key, dir) => setDetailSort({ key, dir })}
+                        onDetailSort={handleDetailSort}
                         pointSample={pointSample}
                         columns={tableColumns}
                         columnWidths={tableColWidths}
@@ -3317,11 +3348,11 @@ export default function App() {
                         fireStatus={fire.status}
                         pending={pending}
                         onRemove={handleRemoveResult}
-                        onRemovePending={(d) => searched.removePlace(d.latitude, d.longitude)}
-                        onFocusResult={(row) => mapRef.current?.focusResult(row)}
-                        onFocusPending={(at) => mapRef.current?.focusPoint(at)}
+                        onRemovePending={handleRemovePending}
+                        onFocusResult={handleFocusResult}
+                        onFocusPending={handleFocusPending}
                         modelId={analyzed?.forecastModel ?? forecastModel}
-                        times={response?.times ?? []}
+                        times={response?.times ?? NO_TIMES}
                         onToggleChart={chart.toggle}
                         isCharted={chart.isSelected}
                         chartColor={rowChartColor}
