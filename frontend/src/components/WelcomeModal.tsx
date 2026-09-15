@@ -1,6 +1,7 @@
 import { useDialog } from '../hooks/useDialog'
 import SafetyNotice from './SafetyNotice'
 import { BADGE_STEP, BUTTON_PRIMARY, LAYER, PROSE, RADIUS, SURFACE_CARD } from '../styles'
+import { logoUrl } from '../logo'
 
 interface Props {
   onDismiss: () => void
@@ -33,7 +34,13 @@ export default function WelcomeModal({ onDismiss }: Props) {
       >
         {/* Header */}
         <div className="flex items-center gap-3 px-6 pt-6 pb-4 border-b border-slate-700">
-          <img src="/icon.png" alt="" className={`w-12 h-12 ${RADIUS.surface} object-cover flex-shrink-0`} />
+          <img
+            src={logoUrl}
+            alt=""
+            width={256}
+            height={256}
+            className={`w-12 h-12 ${RADIUS.surface} object-cover flex-shrink-0`}
+          />
           <div>
             <h1 id="welcome-title" className={PROSE.title}>Welcome to Bluebird Forecast</h1>
             <p className={PROSE.subtitle}>The Weather Window Finder</p>

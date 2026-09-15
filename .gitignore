@@ -27,3 +27,6 @@ venv/
 
 # Keys
 *.pem
+
+# Lighthouse CI report output, written by a local audit run (#337).
+.lighthouseci/
