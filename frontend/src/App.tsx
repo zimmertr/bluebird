@@ -931,6 +931,8 @@ export default function App() {
   )
   const handleRemovePoi = useCallback((latitude: number, longitude: number) => {
     searched.removePlace(latitude, longitude)
+    // Kept for the reason `registerPlace` above keeps its own: `searched` is
+    // rebuilt every render, and this handler is a prop of the memoized map.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
