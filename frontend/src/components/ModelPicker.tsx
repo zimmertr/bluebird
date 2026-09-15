@@ -18,7 +18,6 @@ import {
   ICON_ADORNMENT,
   LAYER,
   SELECT,
-  SR_ONLY,
   SURFACE_CARD,
   TEXT,
 } from '../styles'
@@ -33,13 +32,12 @@ const VIEWPORT_MARGIN_PX = 8
 // Namespaces this listbox's option ids inside the document.
 const LIST_ID = 'model'
 
-// Why the control is faded, for the one window it does not apply to. A disabled
-// control says that it cannot be used and never why, and "the model does not
-// apply to these hours" is not a thing the panel can be read off. Mounted twice
-// — as the trigger's `title` and as the hidden text `aria-describedby` names —
-// because a tooltip does not exist on touch or to a screen reader.
-const DISABLED_NOTE = 'Forecast models are not available for archival data.'
-const DISABLED_NOTE_ID = 'model-archive-note'
+// Why the control is faded is NOT said here (TJ, 2026-09-14). It was a `title`
+// plus hidden `aria-describedby` text, which put one of the panel's messages
+// somewhere no phone could reach and no other message lives. It is now an info
+// line in the block under the Analyze button, where every other message about
+// the window already is — so the panel has one place that explains itself, and
+// this control is free to be nothing but disabled.
 
 interface Props {
   models: readonly ForecastModelOption[]
@@ -399,8 +397,6 @@ export default function ModelPicker({
         aria-label={`Forecast model: ${selected?.label ?? value}${
           comparedCount > 0 ? ` +${comparedCount}` : ''
         }`}
-        title={disabled ? DISABLED_NOTE : undefined}
-        aria-describedby={disabled ? DISABLED_NOTE_ID : undefined}
         disabled={disabled}
         onClick={() => (open ? close(true) : openList())}
         onKeyDown={(e) => {
@@ -425,11 +421,6 @@ export default function ModelPicker({
           <span className="flex-shrink-0 tabular-nums">+{comparedCount}</span>
         )}
       </button>
-      {disabled && (
-        <span id={DISABLED_NOTE_ID} className={SR_ONLY}>
-          {DISABLED_NOTE}
-        </span>
-      )}
       <svg
         className={`${ICON_ADORNMENT} h-4 w-4`}
         viewBox="0 0 20 20"

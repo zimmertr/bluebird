@@ -14,15 +14,20 @@
 // without pulling maplibre-gl into a node test.
 
 /**
- * The face a value is set in, so the label and the number separate at a glance
- * rather than on a re-read.
+ * The face a value is set in. Monospace, because that is what the results table
+ * already does — every metric cell is mono there and only the name is sans — so
+ * the same numbers look the same in both places, and a column of them lines up
+ * on the decimal.
  *
- * Weight is not available for this: the popup's one <strong> is its title, and
- * a second bold would stop the title being the emphasis. A face change carries
- * the same separation without spending any. Monospace specifically, because
- * that is what the results table already does — every metric cell is mono there
- * and only the name is sans — so the same numbers look the same in both places,
- * and a column of them lines up on the decimal.
+ * It is no longer the whole of the label/value split. The face alone was too
+ * quiet to read as a split (TJ, 2026-09-14), so the LABEL now carries weight
+ * as well and the two separate on both axes.
+ *
+ * That does not reopen what the "one bold" rule was for. The rule came from
+ * two VALUES wearing <strong> by no rule at all — precipitation's total and
+ * the AQI average, singled out since the original implementation. A bold on
+ * every label is systematic: it marks a kind of text, not a favourite row, and
+ * the title keeps its emphasis by size and by the rule drawn under it.
  *
  * The stack is spelled out rather than left to a bare `monospace` keyword
  * because this markup is handed to MapLibre's setHTML.
@@ -43,7 +48,44 @@ export const VALUE_FACE = 'font-family:ui-monospace,SFMono-Regular,Menlo,Consola
  */
 export function row(label: string, value: string, href?: string | null): string {
   const shown = `<span style="${VALUE_FACE}">${value}</span>`
-  return `<div>${label}: ${href ? popupLink(href, shown) : shown}</div>`
+  return `<div>${rowLabel(label)}: ${href ? popupLink(href, shown) : shown}</div>`
+}
+
+/**
+ * The colour a row's label takes, so it reads as a label rather than as the
+ * first half of the value (TJ, 2026-09-14).
+ *
+ * **Colour rather than weight, and that is a measurement rather than a taste.**
+ * The obvious answer was a lighter weight than the title's 700. It does not
+ * work here: this markup declares `font-family:sans-serif`, and under the
+ * generic keyword Chrome on macOS resolves exactly TWO faces — 400 and 500
+ * render identically, 600 and 700 render identically (measured 2026-09-14:
+ * 126.73px for the first pair, 133.27px for the second). So every weight
+ * available is either invisible or the title's own. Pointing the popup at the
+ * app's stack instead gave four widths, but evenly spaced ones — the signature
+ * of synthetic emboldening rather than four drawn faces — and the pairs still
+ * read alike.
+ *
+ * Colour has no such dependency: it renders the same wherever the card opens,
+ * and it is the axis the app's own panels already use to step text back.
+ * Slate-600 measures 7.4:1 on the white MapLibre draws a popup on, well past
+ * AA for text, so the label recedes without becoming hard to read. Anything
+ * lighter starts to: slate-500 is 4.76:1, which is a pass for text you glance
+ * at and thin for text you read.
+ *
+ * The popup's one <strong> therefore stays where it was, on the title.
+ */
+export const LABEL_COLOR = 'color:#475569'
+
+/**
+ * A row's label.
+ *
+ * The colon stays outside it: it is punctuation joining the two halves rather
+ * than part of the name, and it reads better light between a weighted label
+ * and a mono value than swept into either.
+ */
+export function rowLabel(label: string): string {
+  return `<span style="${LABEL_COLOR}">${label}</span>`
 }
 
 /**
@@ -78,7 +120,7 @@ export function popupLink(href: string, inner: string, extra = ''): string {
  * so the room comes from the width ceiling below instead.
  */
 export function coordinateRow(latitude: number, longitude: number): string {
-  return `<div style="white-space:nowrap">Coordinates: <span style="${VALUE_FACE}">${Number(
+  return `<div style="white-space:nowrap">${rowLabel('Coordinates')}: <span style="${VALUE_FACE}">${Number(
     latitude,
   ).toFixed(5)}, ${Number(longitude).toFixed(5)}</span></div>`
 }
