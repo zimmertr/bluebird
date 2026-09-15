@@ -51,7 +51,7 @@ an approved message, and one shared helper handles every request.
 
 ---
 
-## Problem Summary
+## Problem
 ```
 
 ## Step 4: use the six sections, in this order
@@ -59,7 +59,7 @@ an approved message, and one shared helper handles every request.
 This list is the skeleton; write the sections from it directly. Every issue
 carries at least:
 
-1. **Problem Summary**: what is wrong or missing, with verified facts. State
+1. **Problem**: what is wrong or missing, with verified facts. State
    what was measured and how.
 2. **Proposed Solutions**: lettered options, each with Good and Bad bullets,
    ending in one recommendation line. State a settled decision as settled,
