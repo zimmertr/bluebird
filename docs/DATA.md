@@ -191,7 +191,10 @@ archive's nature rather than a limitation of the wiring.
 - **Wind is the 10 m wind.** The archive accepts the five pressure levels the
   elevation adjustment above is built on and answers every hour `null`, so an
   archive row reports the plain 10 m wind for every destination, whatever its
-  elevation.
+  elevation. The app says so rather than leaving it here: the wind columns read
+  `Wind at 10 meters` over such a window, against `Wind at elevation` over a
+  forecast one, and a window crossing the boundary drops the qualifier because
+  it averages both.
 - **It has no freezing level.** The archive accepts `freezing_level_height`
   and answers every hour `null` under the unit `undefined` (measured
   2026-09-13), so the three freezing-level columns read `N/A` over an

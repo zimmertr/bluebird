@@ -116,9 +116,15 @@ describe('the chart’s comparison notes', () => {
   })
 })
 
-// A disabled control says that it cannot be used and never why, so two of them
-// carry their reason (#123): the model picker over an archive window, and the
-// Layers popover's Forecast grid row over a report holding archive hours.
+// A disabled control says that it cannot be used and never why, so it carries
+// its reason (#123): the Layers popover's Forecast grid row, over a report
+// holding archive hours.
+//
+// The model picker was the second, until TJ moved its sentence into the
+// panel's message block (2026-09-14) — which is the better answer wherever a
+// message HAS somewhere to live. This suite is for the ones that do not: the
+// Layers popover has no notice block of its own, so its reason stays mounted
+// on the control and this is what keeps the accessible copy attached to it.
 //
 // A `title` alone would not reach the readers who need it most. It is a
 // pointer's affordance: no touch device shows one, and a screen reader is not
@@ -130,7 +136,6 @@ describe('the chart’s comparison notes', () => {
 describe('a disabled control that says why', () => {
   const withTooltips: Record<string, string> = {
     './App.tsx': appSource,
-    './components/ModelPicker.tsx': modelPickerSource,
   }
 
   it.each(Object.entries(withTooltips))('%s gives its reason a hidden twin', (_path, source) => {
