@@ -87,10 +87,8 @@ import {
   FAMILY_KEYS,
   MetricFamily,
   NOUN,
-  SEP,
   familyOf,
   rankedNoun,
-  windDatumCaption,
 } from './metrics'
 import { hourlyScale, rankedScale } from './utils/colors'
 import {
@@ -977,17 +975,11 @@ export default function App() {
   const pointSample = isPointSample(view.window.startMs, view.window.endMs)
   // Which endpoint answered the report on screen, for the surfaces that name
   // the wind's datum (#361): the table's headers, the file's, the Columns
-  // picker's, a marker's popup and the map legend. Read off the analysed
-  // snapshot rather than the panel's selection, because these describe numbers
-  // already fetched — a panel moved since is a stale question, not a relabel.
-  // Null until the first analysis, which is one of the two states with no
-  // datum to name.
+  // picker's and a marker's popup. Read off the analysed snapshot rather than
+  // the panel's selection, because these describe numbers already fetched — a
+  // panel moved since is a stale question, not a relabel. Null until the first
+  // analysis, which is one of the two states with no datum to name.
   const windDatumSource = analyzed?.windowSource ?? null
-  // The map legend's half of the same sentence, and null unless the legend is
-  // actually keyed to wind — every other metric's colours have one datum, so
-  // there is nothing to qualify. Null is also both silent window states.
-  const legendDatum =
-    familyOf(view.sortBy) === 'wind' ? windDatumCaption(windDatumSource) : null
   // A point-sample flip relabels the metric columns under the SAME keys —
   // the collapsed bare-noun header and the windowed aggregate header both
   // live at one key — so a width fitted under one regime clips the other
@@ -2798,26 +2790,12 @@ export default function App() {
                 rankedFieldHasValue &&
                 (hasColoredMarkers || gridPainted || gridCued) && (
                 <div className={`${SURFACE_FLOATING} ${MAP_COL_W} p-2.5`}>
-                  {/* The metric, and for wind the datum behind it (#361) —
-                      but never the aggregate or the window, which the results
-                      header and the table's own column headers state.
-
-                      Joined with metrics.ts's own SEP, the separator the table
-                      headers already use to put two facts on one line, rather
-                      than a second way of doing the same thing. The caption is
-                      sentence case and unbolded so the overline stays the
-                      title and the datum reads as its qualifier; `nowrap`
-                      because the pair is one line or it is wrong, and at
-                      117.1px of the column's 164px it has the room (measured
-                      2026-09-14, after #364 took MAP_COL_W to 184px). */}
-                  <p className="mb-1.5 flex items-baseline gap-1.5 whitespace-nowrap">
-                    <span className={TEXT.overline}>{NOUN[familyOf(view.sortBy)]}</span>
-                    {legendDatum !== null && (
-                      <>
-                        <span className={TEXT.caption}>{SEP}</span>
-                        <span className={TEXT.caption}>{legendDatum}</span>
-                      </>
-                    )}
+                  {/* The bare metric only: which hour or window the colors
+                      describe, how it was reduced, and — for wind — which
+                      datum produced it (#361) are all stated by the results
+                      header and the table's own column headers. */}
+                  <p className={`${TEXT.overline} mb-1.5`}>
+                    {NOUN[familyOf(view.sortBy)]}
                   </p>
                   {markerScale.colors.map((color, i) => (
                     <div key={i} className="flex items-center gap-1.5 py-0.5">

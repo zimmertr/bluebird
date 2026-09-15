@@ -140,7 +140,7 @@ does.
 
 Wind is reported at each destination's own elevation, not at the standard 10 meters above the model's terrain — on a summit the 10-meter value understates what you would feel, often by a factor of two. How the number is derived, and its limits, are in [DATA.md](DATA.md#open-meteo). Destinations with no known elevation show the plain near-ground wind.
 
-**The wind columns say which of the two you are reading.** Their headers name the datum behind the number, so a downloaded file says it as plainly as the screen does, and so does a marker's popup and the map legend when the ranking is wind:
+**The wind columns say which of the two you are reading.** Their headers name the datum behind the number, so a downloaded file says it as plainly as the screen does, and so does a marker's popup:
 
 - `Wind at elevation` over an ordinary forecast window.
 - `Wind at 10 meters` over an archive window, where the pressure levels the adjustment needs are not published and every destination reports the near-ground wind whatever its height.

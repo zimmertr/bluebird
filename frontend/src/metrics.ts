@@ -180,25 +180,15 @@ const WIND_DATUM: Record<'forecast' | 'archive', string> = {
  * `null` for a spanning window, and for a report that does not exist yet —
  * before the first analysis the table shows pending rows with no numbers in
  * them, and a datum there would describe figures nobody has fetched.
+ *
+ * The map legend deliberately does NOT say this (TJ, 2026-09-14). It was built
+ * there first and removed: the column headers carry it on every surface that
+ * shows a number, and a legend that repeated them spent a line of the map's
+ * narrowest box saying what the table beside it already said.
  */
 export function windDatum(source: WindowSource | null | undefined): string | null {
   if (source === 'forecast' || source === 'archive') return WIND_DATUM[source]
   return null
-}
-
-/**
- * The same datum as it reads AFTER the separator: "WIND · At elevation".
- *
- * Capitalized here rather than at the call site, the way `resultPopup.ts`
- * lower-cases `AGGREGATE` for its prose rows: the surfaces compose a metric's
- * words, they never perform surgery on them. The map legend is the only
- * caller — it joins the bare noun to the datum with `SEP`, which is the same
- * separator the table headers use to join a metric to its aggregate, so the
- * legend is not inventing a second way to put two facts on one line.
- */
-export function windDatumCaption(source: WindowSource | null | undefined): string | null {
-  const datum = windDatum(source)
-  return datum === null ? null : datum[0].toUpperCase() + datum.slice(1)
 }
 
 /**

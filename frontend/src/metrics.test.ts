@@ -14,7 +14,6 @@ import {
   metricLabel,
   rankedNoun,
   windDatum,
-  windDatumCaption,
   windowAggregate,
 } from './metrics'
 import { SortBy } from './types'
@@ -379,20 +378,6 @@ describe('wind datum', () => {
   it('spells the unit as a word, never as a symbol', () => {
     expect(windDatum('archive')).not.toMatch(/\b10\s?m\b/)
     expect(windDatum('archive')).toContain('meters')
-  })
-
-  // The legend joins the bare noun to the datum with SEP, so its half of the
-  // phrase is capitalized the way every other post-separator word is. The
-  // capitalization lives here rather than at the call site, the way the popup
-  // lower-cases AGGREGATE: surfaces compose a metric's words, never edit them.
-  it('capitalizes the caption the legend shows after the separator', () => {
-    expect(windDatumCaption('forecast')).toBe('At elevation')
-    expect(windDatumCaption('archive')).toBe('At 10 meters')
-  })
-
-  it('leaves the caption silent wherever the datum is', () => {
-    expect(windDatumCaption('spanning')).toBeNull()
-    expect(windDatumCaption(null)).toBeNull()
   })
 
   // The qualifier belongs INSIDE the noun phrase, ahead of the separator: it
