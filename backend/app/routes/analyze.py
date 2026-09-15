@@ -20,6 +20,7 @@ from app.models import (
     DestinationResult,
     DestinationType,
     ErrorResponse,
+    GeoPolygon,
     HourlySeries,
     WindowSource,
     archive_boundary,
@@ -370,6 +371,54 @@ def _summarize_request(request: AnalyzeRequest) -> str:
     return " ".join(parts)
 
 
+async def discover(
+    polygon: GeoPolygon,
+    destination_types: Sequence[DestinationType],
+    *,
+    include_unnamed_peaks: bool = False,
+    on_status: osm.StatusCallback | None = None,
+) -> list[dict]:
+    """Overpass discovery, with the one mapping from its failures to API errors.
+
+    Four causes, four answers, and the sentence an unrecognized failure gives a
+    caller is as much the contract as the code beside it. Every route that
+    discovers raises them identically, so the ladder lives here rather than
+    once per route, where a fifth cause would have to be remembered three times
+    (issue #384).
+
+    `on_status` is Overpass's only progress signal — mirror failover — and is
+    passed straight through: a route that has nowhere to show it leaves it
+    None.
+    """
+    try:
+        return await osm.query_osm(
+            polygon,
+            destination_types,
+            on_status,
+            include_unnamed_peaks=include_unnamed_peaks,
+        )
+    except NotImplementedError as e:
+        raise ApiError(status_code=400, detail=str(e), code=ErrorCode.validation) from e
+    except ratelimit.BudgetExhausted as e:
+        raise ApiError(
+            status_code=503,
+            detail=e.message,
+            code=ErrorCode.busy,
+            headers={"Retry-After": str(e.retry_after_s)},
+        ) from e
+    except UpstreamError as e:
+        raise ApiError(
+            status_code=502, detail=e.message, code=ErrorCode.upstream_unavailable
+        ) from e
+    except Exception as e:
+        log.exception("Destination search failed")
+        raise ApiError(
+            status_code=502,
+            detail="OpenStreetMap is not available. Try again later.",
+            code=ErrorCode.upstream_unavailable,
+        ) from e
+
+
 def _sse(event_type: str, **kwargs) -> str:
     return f"data: {json.dumps({'type': event_type, **kwargs})}\n\n"
 
@@ -658,11 +707,11 @@ async def analyze_stream(
 
                 async def run_osm():
                     try:
-                        return await osm.query_osm(
+                        return await discover(
                             request.polygon,
                             request.destination_types,
-                            on_status,
                             include_unnamed_peaks=request.include_unnamed_peaks,
+                            on_status=on_status,
                         )
                     finally:
                         await osm_queue.put(_STREAM_DONE)
@@ -672,18 +721,12 @@ async def analyze_stream(
                     async for event in _drain(osm_queue):
                         yield event
                     destinations = await osm_task
-                except NotImplementedError as e:
-                    yield _sse_error(str(e), ErrorCode.validation)
-                    return
-                except ratelimit.BudgetExhausted as e:
-                    yield _sse_error(e.message, ErrorCode.busy)
-                    return
-                except UpstreamError as e:
-                    yield _sse_error(e.message, ErrorCode.upstream_unavailable)
-                    return
-                except Exception:
-                    log.exception("Destination search failed")
-                    yield _sse_error("OpenStreetMap is not available. Try again later.", ErrorCode.upstream_unavailable)
+                except ApiError as e:
+                    # The stream is open, so its status is already 200 and the
+                    # error's own status code has nowhere to go. The sentence
+                    # and the coded member are what an event can carry, and
+                    # they are what a consumer reads.
+                    yield _sse_error(e.detail, e.code)
                     return
                 finally:
                     if not osm_task.done():
@@ -988,32 +1031,11 @@ async def analyze(
                 detail="polygon is required when destination_types is non-empty",
                 code=ErrorCode.validation,
             )
-        try:
-            destinations = await osm.query_osm(
-                request.polygon,
-                request.destination_types,
-                include_unnamed_peaks=request.include_unnamed_peaks,
-            )
-        except NotImplementedError as e:
-            raise ApiError(status_code=400, detail=str(e), code=ErrorCode.validation)
-        except ratelimit.BudgetExhausted as e:
-            raise ApiError(
-                status_code=503,
-                detail=e.message,
-                code=ErrorCode.busy,
-                headers={"Retry-After": str(e.retry_after_s)},
-            )
-        except UpstreamError as e:
-            raise ApiError(
-                status_code=502, detail=e.message, code=ErrorCode.upstream_unavailable
-            )
-        except Exception:
-            log.exception("Destination search failed")
-            raise ApiError(
-                status_code=502,
-                detail="OpenStreetMap is not available. Try again later.",
-                code=ErrorCode.upstream_unavailable,
-            )
+        destinations = await discover(
+            request.polygon,
+            request.destination_types,
+            include_unnamed_peaks=request.include_unnamed_peaks,
+        )
 
         # The user's own list rides along with whatever discovery found — the
         # union proceeds even when the polygon itself found nothing.

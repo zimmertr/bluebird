@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from app import models
+from app import models, ratelimit
 from app.main import app
 from app.models import (
     PAST_DATA_DAYS,
@@ -26,7 +26,7 @@ from app.routes.analyze import (
     _sse,
     _summarize_request,
 )
-from app.services.errors import InvalidApiKeyError, ModelCoverageError
+from app.services.errors import InvalidApiKeyError, ModelCoverageError, UpstreamError
 from fastapi.testclient import TestClient
 
 client = TestClient(app)
@@ -1442,3 +1442,82 @@ def test_analyze_passes_the_boundary_it_classified_against(monkeypatch):
     source, boundary = seen[0]
     assert source == "spanning"
     assert boundary == models.archive_boundary(datetime.now(timezone.utc))
+
+
+# ── One discovery failure, three routes, one answer (issue #384) ───────────
+
+
+_DISCOVERY_POLY = {
+    "type": "Polygon",
+    "coordinates": [[[0, 0], [0.1, 0], [0.1, 0.1], [0, 0.1], [0, 0]]],
+}
+
+# Cause, status, code, and the sentence a caller is given. The last row is the
+# unrecognized failure: the route substitutes its own sentence rather than
+# handing an internal exception message to a caller.
+_DISCOVERY_FAILURES = [
+    (NotImplementedError("Lake analysis is not implemented yet."), 400, "validation",
+     "Lake analysis is not implemented yet."),
+    (ratelimit.BudgetExhausted("OpenStreetMap (Overpass)"), 503, "busy",
+     "Bluebird Forecast is busy. Try again later."),
+    (UpstreamError("Every Overpass mirror failed."), 502, "upstream_unavailable",
+     "Every Overpass mirror failed."),
+    (RuntimeError("a parser bug nobody planned for"), 502, "upstream_unavailable",
+     "OpenStreetMap is not available. Try again later."),
+]
+
+
+@pytest.fixture
+def _failing_discovery(request, monkeypatch):
+    async def fail(polygon, destination_types, on_status=None, **_):
+        raise request.param
+
+    monkeypatch.setattr(analyze_mod.osm, "query_osm", fail)
+
+
+@pytest.mark.parametrize(
+    "_failing_discovery,status,code,detail", _DISCOVERY_FAILURES, indirect=["_failing_discovery"]
+)
+def test_discovery_failure_answers_the_same_on_analyze(_failing_discovery, status, code, detail):
+    start, end = _window()
+    resp = client.post("/api/analyze", json={
+        "destination_types": ["peak"], "polygon": _DISCOVERY_POLY,
+        "start_datetime": start, "end_datetime": end,
+    })
+    assert resp.status_code == status
+    assert resp.json()["detail"] == detail
+    assert resp.json()["error"]["code"] == code
+    # A shed budget is the one cause that can say when a retry is worthwhile.
+    assert bool(resp.headers.get("retry-after")) is (status == 503)
+
+
+@pytest.mark.parametrize(
+    "_failing_discovery,status,code,detail", _DISCOVERY_FAILURES, indirect=["_failing_discovery"]
+)
+def test_discovery_failure_answers_the_same_on_destinations(_failing_discovery, status, code, detail):
+    resp = client.post("/api/destinations", json={
+        "destination_types": ["peak"], "polygon": _DISCOVERY_POLY,
+    })
+    assert resp.status_code == status
+    assert resp.json()["detail"] == detail
+    assert resp.json()["error"]["code"] == code
+    # A shed budget is the one cause that can say when a retry is worthwhile.
+    assert bool(resp.headers.get("retry-after")) is (status == 503)
+
+
+@pytest.mark.parametrize(
+    "_failing_discovery,status,code,detail", _DISCOVERY_FAILURES, indirect=["_failing_discovery"]
+)
+def test_discovery_failure_answers_the_same_on_the_stream(_failing_discovery, status, code, detail):
+    # The stream is already open, so the status code says nothing about the
+    # failure: the same sentence and the same coded member ride the event.
+    start, end = _window()
+    resp = client.post("/api/analyze/stream", json={
+        "destination_types": ["peak"], "polygon": _DISCOVERY_POLY,
+        "start_datetime": start, "end_datetime": end,
+    })
+    assert resp.status_code == 200
+    events = [json.loads(line[len("data: "):]) for line in resp.text.splitlines() if line.startswith("data: ")]
+    assert events[-1]["type"] == "error"
+    assert events[-1]["message"] == detail
+    assert events[-1]["error"]["code"] == code
