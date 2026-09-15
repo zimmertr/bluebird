@@ -11,7 +11,7 @@
 
 It's Friday evening. Rain is moving in from the west, smoke is drifting from the east, and strong winds are building to the south. You want to get outside this weekend, but where should you go?
 
-Bluebird Forecast helps you find out. Search for destinations, provide a list of coordinates, or draw a polygon and discover the best peaks, trails, lakes, and other destinations for your next adventure. Bluebird Forecast analyzes upcoming weather and ranks destinations by precipitation, wind, temperature, and air quality so you can quickly find the best objective.
+Bluebird Forecast helps you find out. Search for destinations, provide a list of coordinates, or draw a polygon and discover the best peaks, trailheads, lakes, and other destinations for your next adventure. Bluebird Forecast analyzes the weather for your window, up to a year back or sixteen days ahead, and ranks destinations by precipitation, wind, temperature, freezing level, and air quality so you can quickly find the best objective.
 
 Ready to find your Bluebird day? https://bluebirdforecast.com
 
@@ -23,8 +23,8 @@ Ready to find your Bluebird day? https://bluebirdforecast.com
 
 1. **Destinations**: Choose where to search by drawing an area on the map, searching by name, or providing custom coordinates.
 2. **Forecast**: Choose a weather model, then pick a day on the calendar, drag across days for a range, or analyze the current hour.
-3. **Metrics**: Choose how destinations should be ranked: driest conditions, lowest winds, ideal temperatures, or cleanest air. Set bounds to leave out the ones you would not consider.
-4. **Layers**: Enable additional map layers like wildfire perimeters, rain radar, and the forecast grid.
+3. **Metrics**: Choose how destinations should be ranked: driest conditions, lowest winds, ideal temperatures, freezing level, or cleanest air. Set bounds to leave out the ones you would not consider.
+4. **Layers**: Enable additional map layers like wildfire perimeters, smoke, rain radar, and the forecast grid.
 5. **Analyze**: Generate ranked results, explore them on the map, and compare forecast data across your selected destinations.
 6. **Repeat**: Adjust your search area, forecast window, ranking, or bounds at any time to find a better window.
 
@@ -51,7 +51,7 @@ Then open `http://localhost:8000`.
 | Doc | What it covers |
 |---|---|
 | [Usage](docs/USAGE.md) | Drawing polygons, forecast windows, and reading the results |
-| [Limits](docs/LIMITS.md) | The four caps, why each exists, and what hitting one looks like |
+| [Limits](docs/LIMITS.md) | The five caps, why each exists, and what hitting one looks like |
 | [Data Sources](docs/DATA.md) | What each source can tell you, and what it cannot |
 | [API](docs/API.md) | The full HTTP API: no accounts, and an Open-Meteo key only for forecasts |
 | [Configuration](docs/CONFIGURATION.md) | Environment variables and log levels |
@@ -59,7 +59,8 @@ Then open `http://localhost:8000`.
 | [Development](docs/DEVELOPMENT.md) | Hot-reload setup and the test suites |
 | [Traffic](docs/TRAFFIC.md) | Rate limiting and the budgets protecting the upstream APIs |
 | [CI/CD](docs/CICD.md) | The pipeline from merge to production, with diagrams |
-| [Contributing](CONTRIBUTING.md) | How this project accepts work: an issue first, then code |
+| [Styles](docs/STYLES.md) | The design system: roles, what enforces them, and the measured numbers |
+| [Contributing](CONTRIBUTING.md) | How this project accepts work: one maintainer, an issue first for anything large |
 
 <hr>
 

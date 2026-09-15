@@ -69,6 +69,8 @@ Frontend (npm), bundled into the served JavaScript:
 | recharts | MIT |
 | lz-string | MIT |
 
+The stylesheet is generated at build time by [tailwindcss](https://www.npmjs.com/package/tailwindcss) (MIT), whose preflight rules ship in it.
+
 Backend (pip), installed into the image:
 
 | Package | License |
@@ -89,7 +91,7 @@ and `typing_extensions` (PSF-2.0). The base image's OS packages are covered
 by the SBOM rather than listed here. To regenerate the full listing:
 
 ```bash
-docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine \
+docker run --rm -v "$PWD/frontend":/app -w /app node:26-alpine \
   sh -c "npm ci && npx --yes license-checker --production --csv"
 
 docker run --rm -v "$PWD/backend":/app -w /app python:3.14-slim \

@@ -2,8 +2,8 @@
 
 Everything the web app does, it does through this API. There are no accounts and
 no authentication. Discovery, geocoding, the limits endpoint, the build
-endpoint, and the two cached map overlays are open to anyone, with nothing to
-send but the request.
+endpoint, and the two cached map overlays are open to anyone. `/api/smoke`
+takes nothing but the request; `/api/wildfires` takes a bounding box.
 
 Forecasts are the exception. On `bluebirdforecast.com` the two analyze routes
 need an Open-Meteo API key in the `X-Open-Meteo-Key` header. One analysis can
@@ -103,6 +103,7 @@ says so and nothing in the response shape changes:
 ```bash
 curl -s -X POST https://bluebirdforecast.com/api/analyze \
   -H 'Content-Type: application/json' \
+  -H "X-Open-Meteo-Key: $OPEN_METEO_KEY" \
   -d '{"destination_types": [],
        "custom_destinations": [{"name": "Mount Rainier",
                                 "latitude": 46.8523, "longitude": -121.7603}],
@@ -110,15 +111,18 @@ curl -s -X POST https://bluebirdforecast.com/api/analyze \
        "end_datetime":   "2025-09-12T23:59:00Z"}' | jq '.results[0]'
 ```
 
-Two things behave differently, both of them the archive's nature rather than a
+Three things behave differently, all of them the archive's nature rather than a
 limitation here. `forecast_model` is ignored, because the archive answers from a
-reanalysis rather than from a forecast model, and the wind columns report the
+reanalysis rather than from a forecast model. The wind columns report the
 10 m wind rather than wind at the destination's elevation, because the archive
-carries no pressure-level winds.
-[DATA.md](DATA.md#open-meteo) has the detail.
+carries no pressure-level winds. And the three `freeze_*` fields and
+`series.freeze_ft` are null, because the archive carries no freezing level
+either. [DATA.md](DATA.md#open-meteo) has the detail.
 
 A window that starts older than `limits.past_data_days` and ends inside it is
-served by both endpoints. Nothing in the request or the response says so, and
+served by both endpoints, with one day of tolerance: a window that starts less
+than a day before the boundary is served by the forecast endpoint alone, whose
+tail is populated that far back. Nothing in the request or the response says so, and
 there is no `400` to handle: each batch is fetched twice, the archive answering
 the hours before the boundary and the forecast endpoint the hours from it on, and
 each location's hourly arrays are joined in time order before the aggregation
@@ -135,8 +139,9 @@ nature rather than a limitation here:
   its hours come from the reanalysis whatever the request asked for.
 - Wind is the 10 m wind for the archive's hours and wind at the destination's
   elevation for the forecast endpoint's, because only the latter carries
-  pressure-level winds. A window crossing the seam therefore mixes the two
-  within one series.
+  pressure-level winds. The freezing level is null for the archive's hours for
+  the same reason. A window crossing the seam therefore mixes the two within
+  one series.
 
 Because the boundary moves with the clock, the same window asked about twice on
 different days can be answered as one request or two.
@@ -213,6 +218,9 @@ meant to prevent.
 | `GET /api/version` | Which build is running: version, commit, build time. |
 | `GET /api/geocode` | Place lookup by name, proxied to Nominatim. |
 | `GET /api/wildfires` | Active US wildfire perimeters in a bounding box, cached from NIFC. |
+| `GET /api/smoke` | Smoke plumes over North America, cached from NOAA's Hazard Mapping System. |
+| `GET /api/config` | Deployment-specific UI settings. Internal to the web app. |
+| `GET /healthz` | Liveness probe. Answers `GET` and `HEAD`. |
 
 On `bluebirdforecast.com` the gateway publishes the API by **allowlist**
 (#240): it forwards exactly the endpoints the web app itself calls, plus
@@ -229,9 +237,24 @@ which comes back as a `401` (see the error table below).
 An unkeyed analyze request still works from inside the deployment's own network
 and on a self-hosted instance, because the gate is the gateway rather than the
 code.
-| `GET /api/smoke` | Smoke plumes over North America, cached from NOAA's Hazard Mapping System. |
-| `GET /api/config` | Deployment-specific UI settings. Internal to the web app. |
-| `GET /healthz` | Liveness probe. Answers `GET` and `HEAD`. |
+
+### Place lookup
+
+`GET /api/geocode?q=Mount%20Rainier` is a thin proxy to Nominatim. `q` is
+required (1 to 200 characters) and `limit` takes 1 to 10, default 5. The
+response is Nominatim's `jsonv2` list, verbatim: each row carries `lat`, `lon`,
+`display_name`, and `extratags`, where a summit's `ele` lives. The proxy exists
+because Nominatim's usage policy asks for a real User-Agent, which a browser
+fetch cannot set. That policy also forbids autocomplete, so call it on an
+explicit search action, never per keystroke. The pod paces its own calls to
+Nominatim's rate; when that queue is full the route answers `503` with
+`error.code` `busy`.
+
+### Which build is running
+
+`GET /api/version` answers `{version, commit, built_at}`: the semantic version
+of the release, the git SHA it was built from, and the ISO 8601 UTC build time.
+All three read `"dev"` outside a released image.
 
 ### Discovery without forecasts
 
@@ -409,7 +432,9 @@ coordinate pair cannot carry. Send them without a polygon (leaving
       "osm_id": "node/3055500576"
     }
   ],
-  "total": 1
+  "total": 1,
+  "total_found": null,
+  "truncated": false
 }
 ```
 
@@ -512,8 +537,8 @@ ceiling returns the ten driest destinations that stay calm, not whichever of
 the ten driest happened to be calm.
 
 **A null passes every bound.** Two fields can be null. `aqi_max` is null
-whenever the window outruns the roughly five-day air-quality horizon or the
-best-effort fetch failed. The three `freeze_*` fields are null under every
+whenever the window outruns the air-quality horizon (`limits.aqi_forecast_days`
+in `GET /api/capabilities`) or the best-effort fetch failed. The three `freeze_*` fields are null under every
 model that publishes no freezing level, which is most of them. An absent
 number is not evidence of bad air, and a model that carries no freezing level
 says nothing about the weather, so those rows are kept, exactly as an untagged
@@ -536,9 +561,9 @@ until it has been fetched, so these shrink the answer, never the work.
 
 ## Reading only the summary
 
-Every result row carries `series`: the hourly precipitation, temperature, wind
-and AQI behind its aggregates, aligned index-for-index to the shared `times`
-grid. Those hours are nearly the whole body. One analysis at the candidate cap
+Every result row carries `series`: the hourly precipitation, temperature, wind,
+freezing level and AQI behind its aggregates, aligned index-for-index to the
+shared `times` grid. Those hours are nearly the whole body. One analysis at the candidate cap
 across the longest window the API accepts measures 12.92 MB with them and
 0.61 MB without.
 
@@ -580,6 +605,9 @@ curl -s https://bluebirdforecast.com/api/analyze \
     "wind_min_mph": 12.6,
     "wind_max_mph": 41.2,
     "wind_avg_mph": 24.8,
+    "freeze_min_ft": 9800,
+    "freeze_max_ft": 11400,
+    "freeze_avg_ft": 10650,
     "aqi_avg": 31,
     "aqi_min": 18,
     "aqi_max": 47,
@@ -596,7 +624,13 @@ cover. `POST /api/analyze/stream` takes the flag identically, on the `result`
 event's payload.
 
 The default is `true`, so a caller that never sends the field sees the shape it
-always saw.
+always saw. The other request defaults a caller may lean on: `limit` is 10,
+`sort_by` is `precip_total_in`, and `sort_desc` is `false`, so an analysis with
+no ranking fields returns the ten driest destinations.
+
+The response also carries an `error` field that is always null on this route. A
+failed analysis answers a `4xx` or `5xx` with a `detail` message instead; the
+field exists because the streaming endpoint reuses the shape.
 
 ## When a search finds too much
 
@@ -633,7 +667,9 @@ data: {"type": "status", "message": "Searching for Destinations…"}
 
 data: {"type": "status", "message": "Searching for Destinations…", "detail": "Trying backup map server 2 of 3…"}
 
-data: {"type": "progress", "processed": 50, "total": 120, "percent": 41}
+data: {"type": "progress", "processed": 0, "total": 120, "percent": 0}
+
+data: {"type": "progress", "processed": 50, "total": 120, "percent": 42, "batches_done": 1, "total_batches": 3, "message": "Retrieving forecasts: 50 of 120 peaks…"}
 
 data: {"type": "result", "data": {"results": [...], "total_queried": 120, "total_matched": 120}}
 
@@ -642,7 +678,9 @@ data: {"type": "error", "message": "Open-Meteo is rate-limiting. Try again later
 
 A `status` event may carry an optional `detail` line alongside `message`: a
 fall-over to a backup map server, or a weather-quota pace wait with its resume
-estimate ("Weather service quota: resuming in about 34s"). `message` stays the
+estimate ("Open-Meteo quota: resuming in about 34s"). The first `progress`
+event carries the three counters alone; every per-batch one after it adds
+`batches_done`, `total_batches`, and a `message` line. `message` stays the
 stable phase heading, so a client can key its UI on it and show `detail` as
 secondary text. During quiet stretches — a paced analysis can legitimately
 wait most of a minute for quota — the stream emits `{"type": "keepalive"}`
@@ -675,11 +713,13 @@ rows you supply rather than something to find), the sort keys, the
 maximum polygon area, the cap on destinations per analysis, the accepted `limit`
 range, how far forward and back a window may reach, the selectable forecast
 models with each one's reach and whether it blends two grids (under
-`forecast_models`), the header an
-Open-Meteo key travels in (`api_key_header`), and (under
-`limits.rate`) the per-address request pacing behind `429` responses. Those
-values are read from the same constants the validators and limiters enforce, so
-they cannot drift.
+`forecast_models`), how far ahead air quality reaches
+(`limits.aqi_forecast_days`), the header an Open-Meteo key travels in
+(`api_key_header`), the per-address request pacing behind `429` responses
+(under `limits.rate`), and the data providers behind every answer (under
+`data_sources`, one `{name, url, provides}` entry each). Those values are read
+from the same constants the validators and limiters enforce, so they cannot
+drift.
 
 Three of the window limits look redundant and are not. `limits.max_past_days` is
 how far back a request is *accepted*. `limits.past_data_days` is where the
@@ -718,11 +758,11 @@ the reasoning, along with the equivalent caveats for the other providers.
 | Status | `error.code` | Meaning |
 | --- | --- | --- |
 | `400` | `validation`, `model_coverage`, `refusal` | The request parsed but does not describe a runnable analysis. Inverted window, undiscoverable destination type, missing `custom_destinations`, a regional `forecast_model` asked about somewhere outside its grid, or too many candidates — the over-limit case carries the structured remedy fields described above. |
-| `401` | `invalid_api_key` | Open-Meteo refused the `X-Open-Meteo-Key` this analyze request carried. Only the two analyze routes can answer it, and no retry helps. |
+| `401` | `invalid_api_key` | Open-Meteo refused the `X-Open-Meteo-Key` this analyze request carried. Only `POST /api/analyze` answers it as a status; on the stream the same failure arrives as a terminal `error` event. No retry helps. |
 | `404` | `not_found` | No such endpoint. The body names the path and points at `/docs`. On `bluebirdforecast.com` an analyze request with no `X-Open-Meteo-Key` header gets this from the gateway, so a `404` on a path that exists means the header was missing. |
 | `405` | `method_not_allowed` | Right path, wrong method. The `Allow` header lists what the path accepts. |
 | `422` | `validation`, or absent | Request validation failed. Polygon too large, `limit` out of range, or a window outside the servable horizon. |
-| `429` | `rate_limited`, `upstream_rate_limited` | Either this client is sending faster than the per-address limit, or the upstream weather service rate-limited the deployment mid-analysis. The `Retry-After` header says how many seconds to wait in both cases. Analyze, destinations, and geocode have separate per-address buckets; `GET /api/capabilities` publishes them under `limits.rate`. |
+| `429` | `rate_limited`, `upstream_rate_limited` | Either this client is sending faster than the per-address limit, or the upstream weather service rate-limited the deployment mid-analysis. The `Retry-After` header says how many seconds to wait in both cases. Analyze (both analyze routes share one), destinations, geocode, wildfires and smoke each have their own per-address bucket; `GET /api/capabilities` publishes them under `limits.rate`. |
 | `502` | `upstream_unavailable` | An upstream failed. Every Overpass mirror was unreachable, or the weather API did not answer. Transient, and worth retrying. |
 | `503` | `busy`, `snapshot_unavailable` | The instance is at capacity, or a national overlay has nothing cached yet: a budget of in-flight upstream calls stayed saturated too long and the request was shed rather than queued forever, or this instance has never once completed its NIFC or NOAA fetch. Transient by nature; `Retry-After` says when a retry is worthwhile. |
 

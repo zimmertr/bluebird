@@ -14,7 +14,7 @@ three repositories and the supporting services that automate the path.
 | System | Role |
 | --- | --- |
 | **`zimmertr/bluebird`** | Application monorepo (FastAPI backend + React SPA), built into a single Docker image. |
-| **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`), published as an **OCI** artifact. |
+| **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact. Its `pr.yml` runs `Lint & render` and, on a same-repo chart PR, `Publish prerelease chart`, which pushes `<version>-pr<N>.g<sha>` to the same OCI repo with `artifacthub.io/prerelease` set so Artifact Hub never ranks a PR build as latest. |
 | **`zimmertr/Kubernetes-Manifests`** | GitOps repo Argo CD watches. `public/bluebird/` is the stable app; `public/bluebird-pr/` is the per-PR preview `ApplicationSet`. `main` forbids direct commits; every write lands via a PR gated on the `Validate manifests` check. |
 | **Docker Hub** | `zimmertr/bluebird` (release images), `zimmertr/bluebird-pr` (preview images), and the OCI chart at `oci://registry-1.docker.io/zimmertr/bluebird-helm`. |
 | **Artifact Hub** | Indexes the published OCI chart and security-scans its rendered **default image** (why the chart's `appVersion` must always name a real, published image tag). |
@@ -157,7 +157,7 @@ concurrency-serialized):
    [Writes into Kubernetes-Manifests](#writes-into-kubernetes-manifests).
 
 **Path 2 — Chart release** (`bluebird-helm/release.yml`, on merge to `main`
-touching `charts/**`):
+touching `charts/**`, `artifacthub-repo.yml`, or the workflow itself):
 
 1. GitVersion computes the **chart** SemVer. **Immutability guard:** `helm show
    chart oci://…` — skip if that chart version was already published.
@@ -217,12 +217,19 @@ writes above go through a PR, and the thing they wait on is `pr.yml` /
 **`Validate manifests`**, a required check in that repo which:
 
 1. YAML-parses every changed `.yml`/`.yaml`. This is the failure mode the bump
-   jobs can actually cause — they rewrite version lines with targeted `sed`, and
-   a regex matching more than intended corrupts the file.
+   jobs can actually cause — the two chart bumps rewrite version lines with
+   targeted `sed` (the image bump uses `kustomize edit set image`), and a regex
+   matching more than intended corrupts the file.
 2. Renders every kustomization affected by the PR with `kustomize build
    --enable-helm` (nearest-ancestor mapping from changed files, skipping
    `deprecated/` and `*.disable*`). A chart version or image tag that doesn't
-   resolve fails the PR instead of failing an Argo CD sync.
+   resolve fails the PR instead of failing an Argo CD sync. A PR that touches
+   `pr.yml` itself adds `public/bluebird` to its own render list, so a tool bump
+   cannot pass green on an empty target list.
+
+A fourth writer into that repo is not one of these jobs: Renovate
+(`.github/renovate.json`) auto-merges minor and patch updates after a seven-day
+release age, gated on the same `Validate manifests` check.
 
 Three constraints hold this together, and breaking any one of them silently
 strands the automation:
@@ -230,8 +237,10 @@ strands the automation:
 - **Auto-merge needs something to wait on.** `gh pr merge --auto` is rejected on
   a PR with nothing blocking it (`Pull request is in clean status`). The
   required check is what makes the queue non-empty; without it, arming
-  auto-merge errors out. Each job falls back to a plain `gh pr merge --squash`
-  to cover the narrow window where the check already went green.
+  auto-merge errors out. Each Kubernetes-Manifests writer falls back to a plain
+  `gh pr merge --squash` to cover the narrow window where the check already went
+  green; Path 1's `bluebird-helm` appVersion PR is the exception and arms
+  `--auto` only.
 - **Auto-merge is re-armed on every release**, on the update path as well as
   the create path, because GitHub disables it on any force-push to the head
   branch — and every one of these jobs force-pushes its fixed branch each
@@ -294,7 +303,7 @@ The moving parts ("KM" = `Kubernetes-Manifests/public/bluebird/`):
 | --- | --- | --- |
 | `Rollout bluebird` | chart `workload.yaml`; strategy, steps, and history limits from KM `values.yml` | the workload — `useRollout: true` turns the chart's Deployment into a Rollout |
 | `Service bluebird` / `bluebird-canary` | chart | stable/canary endpoints; the controller injects `rollouts-pod-template-hash` selectors so each always tracks the right ReplicaSet |
-| `VirtualService bluebird` | chart | the weighted route `bluebird-stable`, whose two destination weights the controller owns |
+| `VirtualService bluebird` | chart | the weighted routes `bluebird-stable` and `bluebird-api-public`, whose destination weights the controller owns; the keyed analyze route is not in KM's route list, so it stays 100/0 stable |
 | `AnalysisTemplate version-check` | KM `resources/analysisTemplate-versionCheck.yml` | identity gate — the canary must serve the exact image being rolled out |
 | `AnalysisTemplate api-test` | KM `resources/analysisTemplate-apiTest.yml` | functional gate — a real `/api/analyze` through Overpass and Open-Meteo |
 | `AnalysisTemplate error-rate` | KM `resources/analysisTemplate-errorRate.yml` | soak gate — the canary's 5xx share read from Prometheus, three times a minute apart |
@@ -306,9 +315,11 @@ pods and mounts no scripts.
 ### The data plane
 
 cert-manager terminates TLS at the Istio ingress gateway, which routes by the
-`bluebird` VirtualService. Its named route `bluebird-stable` carries two
-weighted destinations — the stable and canary Services — and the Rollouts
-controller owns those weights while a release is in flight:
+`bluebird` VirtualService. Its named routes `bluebird-stable` (the SPA) and
+`bluebird-api-public` (the API allowlist) each carry two weighted destinations —
+the stable and canary Services — and the Rollouts controller owns those weights
+while a release is in flight. The public hostnames reach the gateway through a
+Cloudflare Tunnel; [TRAFFIC.md](TRAFFIC.md) has that half:
 
 ```mermaid
 flowchart LR
@@ -316,7 +327,7 @@ flowchart LR
     gw["Istio ingress gateway<br/>TLS: cert-manager"]
 
     subgraph NS["namespace bluebird-system"]
-        vs["VirtualService bluebird<br/>route bluebird-stable"]
+        vs["VirtualService bluebird<br/>routes bluebird-stable, bluebird-api-public"]
         ssvc["Service bluebird<br/>(stable)"]
         csvc["Service bluebird-canary"]
         srs["stable ReplicaSet<br/>pods labeled role=stable"]
@@ -337,7 +348,8 @@ block and left the step behind.
 
 ### The four steps
 
-Prod runs `replicas: 3`. The canary is pinned to a single pod for the whole
+Prod runs an HPA, `minReplicas: 3` to `maxReplicas: 10`, and the chart omits
+`spec.replicas` so Argo CD never fights it. The canary is pinned to a single pod for the whole
 gate, so a release adds one pod rather than a second full set, and it adds it
 without moving any user traffic onto it.
 
@@ -422,7 +434,7 @@ than flaking.
 
 **Promotion.** There is no weighted soak: once step 3 passes, the step index
 moves past the end of the list, which lifts the `setCanaryScale` pin. The canary
-ReplicaSet scales to the full `replicas: 3`, *becomes* stable — the controller
+ReplicaSet scales up to whatever the HPA asks for, three at the floor, *becomes* stable — the controller
 repoints the `bluebird` Service's hash selector at it and returns the route to
 100/0 against the new pods — and the old ReplicaSet scales down. The cutover is
 therefore all-at-once after the gate rather than gradual. History is kept
@@ -452,7 +464,8 @@ and **`selfHeal`** — which would instantly revert the controller's weight
 edits mid-rollout. The ApplicationSet therefore carries an
 `ignoreDifferences` jq rule matching exactly the destination weights on any
 `*-stable` VirtualService route, so live weight drift is invisible to the
-diff. Argo CD's health assessment understands Rollouts natively: the app shows
+diff. That rule does not match `bluebird-api-public`, the second weighted
+route, so `selfHeal` can still put that route's weights back mid-rollout. Argo CD's health assessment understands Rollouts natively: the app shows
 *Progressing* during a canary, *Healthy* at promotion, and *Degraded* after an
 abort **while still being Synced** — an aborted rollout is Rollouts state, not
 git drift, so `selfHeal` won't retry it. Remediation flows through git like
@@ -648,7 +661,7 @@ flowchart LR
 
     subgraph BB["zimmertr/bluebird"]
         pr["PR opened / updated"]
-        checks["pr.yml<br/>typecheck, Vitest, ruff, pytest, OpenAPI + API-type drift,<br/>hadolint, docker build + Trivy scan (sticky comment),<br/>Lighthouse budgets"]
+        checks["pr.yml<br/>typecheck, Vitest, ruff, pytest, OpenAPI + API-type drift,<br/>aggregation vectors diff, hadolint, docker build + Trivy scan (sticky comment),<br/>Lighthouse budgets"]
         preview["pr-preview.yml<br/>pull_request_target (same-repo gate)"]
         label["label: create pr container"]
         comment["sticky preview-URL comment"]
@@ -689,8 +702,7 @@ flowchart LR
   one PR. Regenerate with `cd frontend && npm run generate:api`. The generator
   is a package of its own (`frontend/tools/api-types`, with its own lockfile and
   its own Dependabot entry) because it needs the TypeScript 5 compiler API while
-  the app runs TypeScript 7; the script installs it, so the job adds no step and
-  the node cache keys on both lockfiles.
+  the app runs TypeScript 7; the script installs it, so the job adds no step.
 - `pr.yml`'s docker-build job loads the amd64 image into the runner and scans it
   with **Trivy** (`ignore-unfixed`: Debian/Alpine no-fix CVEs never gate). The
   report lands in the job step summary and as a **sticky PR comment** (matched by
@@ -719,9 +731,12 @@ flowchart LR
   build an image but get no label, so no preview pod spins up.
 - Argo CD's `bluebird-pr` `ApplicationSet` uses a `pullRequest` generator that
   polls GitHub for the label every 150s and templates `bluebird-pr-<N>` from the
-  OCI chart, overriding the image tag and injecting the `PREVIEW_BANNER` /
-  `PREVIEW_PR` / `PREVIEW_COMMIT` env (surfaced by `/api/config` → the SPA
-  banner). Closing the PR prunes the environment.
+  OCI chart, overriding the image tag, setting `publishFullApi: true` (the #240
+  allowlist is off in a preview, so its analyze routes need no key), and
+  injecting the `PREVIEW_BANNER` / `PREVIEW_PR` / `PREVIEW_COMMIT` env
+  (surfaced by `/api/config` → the SPA banner) plus `LOG_LEVEL=TRACE`. Closing
+  the PR prunes the environment, and `cache-cleanup.yml` deletes that PR's
+  Actions caches.
 
 ## Unattended maintenance
 
@@ -814,14 +829,16 @@ When it arms auto-merge it also posts a marker-guarded comment on the PR saying
 so (and how to stop it), so the self-merge is visible from the PR page rather
 than something to infer from the merge timeline.
 
-In practice only `pip`/`npm` patches auto-merge: the GitHub Actions are
-major-pinned (`@v7`), so Dependabot raises them as *major* bumps that wait for
-review anyway. The Dockerfile's base tags float at the minor (`python:3.14-alpine`,
+In practice only `pip`/`npm` patches auto-merge, plus three exactly pinned
+actions (hadolint, trivy-action, lighthouse-ci-action) whose patch bumps do
+auto-merge: every other GitHub Action is major-pinned (`@v7`, `@v4`, `@v3`), so
+Dependabot raises them as *major* bumps that wait for review anyway. The Dockerfile's base tags float at the minor (`python:3.14-alpine`,
 `node:26-alpine`), so docker-ecosystem PRs are minor/major runtime bumps that
 also wait for review — base-OS *patch* fixes arrive without any PR, picked up
 by whatever build happens next. The merge PAT is intentionally scoped to Contents + Pull requests
-(not `Workflows`), so if an action is ever repinned to a full version, its patch
-bumps stay manual by design rather than failing the merge.
+(not `Workflows`), so a workflow-file edit is not something it can land on its
+own, and those three actions' patch bumps still wait for a person even though
+the job arms auto-merge on them.
 
 The merge step runs with a PAT (`AUTO_MERGE_PAT`, stored as a **Dependabot**
 secret — Actions secrets are empty in Dependabot-triggered runs), *not* the

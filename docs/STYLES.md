@@ -36,8 +36,9 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | Role | Purpose |
 |---|---|
 | `SURFACE_CARD` | Opaque cards above a scrim: dialogs, analysis overlay |
-| `SURFACE_FLOATING` | Boxes floating over the map: search field, legends, chart tooltip |
-| `SURFACE_POPOVER` | The map's Layers popover: the floating box that is a menu rather than a key, lifted off the legends by one step of fill and a heavier shadow |
+| `SURFACE_FLOATING` | Boxes floating over the map: search field, legends, chart tooltip, the forecast player's transport bar |
+| `RECESSED_FILL` / `RECESSED_EDGE` | The well every recessed surface composes: slate-900 fill and a slate-500 border, which clears 3:1 against the panel. Fields, selects, segments and the legends all start here |
+| `SURFACE_POPOVER` | A floating box that is a menu rather than a key: the map's Layers popover and the search result list, lifted off the legends by one step of fill and a heavier shadow |
 | `SURFACE_SHEET` | The results on a phone, standing on the map's bottom edge: the docked panel's fill, the map's floating edge, the surface radius on the top corners only |
 | `SURFACE_GROUP` | Bordered region grouping controls: the calendar |
 | `SURFACE_GROUP_BLEED` | Cancels a well's inset so its contents sit on the panel's control column |
@@ -50,7 +51,8 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `BUTTON_SECONDARY` | Secondary action beside something else |
 | `BUTTON_ACCENT` | Leading action in a pair: Done button in draw mode |
 | `BUTTON_DANGER` | Destructive retry inside an error notice |
-| `BUTTON_FLOATING` | Pressable floating box: reopen controls button |
+| `BUTTON_FLOATING` | Pressable floating box: the Controls and Layers buttons, the map's only two |
+| `BANNER_PREVIEW` | The preview-deployment banner, the one surface that is deliberately loud: white on red-600, 4.76:1 |
 
 **Fields and controls**
 
@@ -70,7 +72,14 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `LIFTED_EDGE` | A well's boundary on `SURFACE_POPOVER`: slate-400, since slate-500 clears 3:1 only against the panel |
 | `SEGMENT_IDLE` | Unchosen half of segmented control |
 | `SEGMENT_ITEM` | Individual segment half with padding and transitions |
-| `CUE` | Unboxed status line: commit-needed messages |
+| `SEGMENT_DIVIDER` | The rule between two segment halves |
+| `CONTROL_SIZE` | The one type size every control reads at (`text-xs`); `SLIDER_VALUE` and `SLIDER_WORDMARK` compose it |
+| `SELECT_W_AGGREGATE` | The aggregate dropdown in a Metrics row: 72px (w-[4.5rem]), the widest aggregate word (28px) plus the field's 8px padding and the 24px `SELECT` reserves for its arrow, with 12px of deliberate slack because the width also sets a grid track |
+| `CAPTION_LIFTED` | `TEXT.caption` re-derived for `SURFACE_POPOVER`: a search result's description, slate-300 because slate-400 falls under 4.5:1 on that fill |
+| `SLIDER_OVERLAY` / `SLIDER_VALUE` / `SLIDER_WORDMARK` / `SLIDER_IDLE` | The coverage slider in the Layers popover: the transparent range input laid over the drawn track, the value readout at `CONTROL_SIZE`, the in-track wordmark at the same size in sentence case, and the idle tint |
+| `PANEL_EDGE` / `PANEL_RULE` | The panel's own border tint, and the rule between the panel's sections, drawn from the stack so a section added later cannot forget its line |
+| `BADGE_STEP` | The step-number badge in the welcome modal, derived from `ACCENT.fill` |
+| `SWATCH_CHIP` | A legend swatch that carries a letter: the smoke legend's three density chips, side by side so the opacity ramp reads against itself |
 
 **Accent and intent**
 
@@ -90,7 +99,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `CHIP.rest` | A selected member of a set that is not the one in force: a compared forecast model |
 | `CHIP.active` | The member in force, on `ACCENT.fill`; the remove x is the second channel carrying that state |
 | `CHIP.label` | The chip's label, which is also the control that puts that member in force |
-| `CHIP.remove` | The x that deselects it: 24px square, WCAG 2.5.8's AA floor, on every pointer |
+| `CHIP.remove` | The x that deselects it: a 20x24 box, widened to WCAG 2.5.8's 24x24 target on a coarse pointer, with the four pixels taken back out of the layout |
 
 **Status**
 
@@ -122,8 +131,9 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `MAP_COL_W` | Width of everything in the map's left column but one: the search field, the Controls and Layers buttons, the Layers popover and both legends. 184px (w-46), governed within a pixel by two rows, the grid legend's wait line (176.8px) and the search field at rest (177.6px). The exception is the search RESULT list, deliberately wider (w-72/w-80): bound to the column it clipped the county and state that tell four places of one name apart |
 | `MAP_ROW_H` | Height of one row in that column: 36px, floored at 44px on a finger. Fixed, because the search field and the two buttons each solved for their own height and came out 34, 38 and 38 |
 | `MAP_COL_GAP` | The gap between members of that column: 4px, half the 8px they took before. A role rather than four call sites, because `LEGEND_TOP`'s arithmetic is built from it. `MAP_COL_GAP_T` is the same gap as a top margin, for a popover that hangs rather than sits |
-| `LEGEND_TOP` | Where the legend stack hangs under that column, in four numbers: two pointer sizes, each with and without the Controls button, which stands in the column only while the panel is collapsed |
-| `MAP_EDGE` | How far anything floating on the map stands off its edge: 12px, published once as `--map-edge-inset` on the map wrapper and read by the button column, the legend stack and MapLibre's own control stack |
+| `LEGEND_TOP` | Where the legend stack hangs under that column, in four numbers: two pointer sizes, each with and without the Controls button, which stands in the column only while the panel is collapsed. `resultsSheet.ts` mirrors two of them as `LEGEND_TOP_PX` and `LEGEND_TOP_FINE_PX`, and `resultsSheet.test.ts` reads `styles.ts` as text to hold the pairs together |
+| `MAP_EDGE` | How far anything floating on the map stands off its edge: 12px, published once as `--map-edge-inset` on the map wrapper and read by the button column, the legend stack and MapLibre's own control stack. The same publisher carries `--map-credit-size` at `MICRO_PX`, so `map.css` can size the library's credit line from the ramp |
+| `MICRO_PX` / `MICRO_SIZE` | The ramp's smallest step as a number (10) and as a utility, for the one line the library draws and the app cannot class |
 | `METRICS_GRID` | The Metrics table: label, aggregate dropdown, Min box, Max box; the control columns are `auto`, sized by the roles their controls wear |
 | `METRIC_BOX_W` | One bound box in the Metrics table: 56px (w-14), the widest the metric row's label budget allows. The results cap spans both box columns instead, so it wears `w-full` off the same shape |
 | `METRIC_HEAD_GAP` | The Metrics table's one deliberate break: 8px (pt-2) above the two box headings, on every cell of that row because the columns are grid tracks. The only vertical space in the grid that `gap-y` does not set |
@@ -192,7 +202,7 @@ One set of roles for both surfaces that reorder columns, the table header and th
 
 | What | Where | How |
 |---|---|---|
-| Every role is unique | `styles.test.ts` | Assertion per role group (TEXT, PROSE, etc.) |
+| Every text role is unique, and no recipe sets two competing colours | `styles.test.ts` | Uniqueness over `TEXT` and `PROSE`; a resting-colour count over every exported role |
 | No component invents a size | `styles.test.ts` | Ban `text-[` utilities in component sources |
 | No component names a hue | `styles.test.ts` | Pattern match on non-slate color utilities |
 | No component sizes a tap target | `styles.test.ts` | Ban `touch:` utilities in component sources |
@@ -203,17 +213,25 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | Every radio/checkbox uses the shared recipe | `styles.test.ts` | Check `CHOICE_INPUT` composition |
 | Every focus-able control has focus ring | `styles.test.ts` | List per control type |
 | Segmented controls are built one way | `styles.test.ts` | Check `SEGMENT` / `SEGMENT_IDLE` / `SEGMENT_ITEM` composition |
-| Metric names are centralized | `metrics.test.ts` | Ban Precip/Temp/Avg/Min/Max/Elev abbreviations in nine files |
+| Metric names are centralized | `metrics.test.ts` | Ban Precip/Temp/Avg/Min/Max/Elev abbreviations in twelve consumer files |
 | Tooltips match the approved list, count for count | `styles.test.ts` | `title=` occurrences per component file |
-| No unsafe error message patterns | `styles.test.ts` & `metrics.test.ts` | Ban `failed: ${...}` and unsafe response copies |
+| No unsafe error message patterns | `metrics.test.ts` | Ban `failed: ${...}` and unsafe response copies |
+| Every radius is on the scale | `styles.test.ts` | Any `rounded*` in a component source must be a `RADIUS` value |
+| Every notice renders in one block below Analyze | `styles.test.ts` | A notice is a `NOTICE` role, only `FooterNotice` wears one, and it is rendered exactly once, after the button; the polygon draw counter is the one bare `STATUS` use, pinned by count |
+| A disabled control's reason has a hidden twin | `accessibility.test.ts` | Every `aria-describedby` in `App.tsx` matches a `SR_ONLY` element |
+| The Layers rows are alphabetical | `styles.test.ts` | The five row labels equal their own sorted order |
+| The map column is one width, gap, height and type size | `styles.test.ts` | `MAP_COL_W`, `MAP_COL_GAP`, `MAP_ROW_H` and `CONTROL_SIZE` composition at every member |
+| The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
+| No bottom offset is spelled in a component | `resultsSheet.test.ts` | Ban `bottom-*` in `App.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
+| The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure |
 
-**NOT enforced:** custom radius, custom spacing between components (only recessed surface and controls are architected), component-specific layouts. These are decided per feature.
+**NOT enforced:** custom spacing between components (only recessed surface and controls are architected), component-specific layouts. These are decided per feature.
 
 ## Measured numbers
 
 ### The accent fill custom shade
 
-The accent appears in six places and must pass WCAG AA on all of them. On a white-on-blue design, those constraints are tight.
+The accent fill answers four measured constraints at once and must pass WCAG AA on each. On a white-on-blue design, those constraints are tight.
 
 - `--color-sky-650` is defined in `frontend/src/index.css` and used throughout as the custom token
 - White on `sky-650` measures **4.57:1** against 4.5:1 WCAG 1.4.3 (text contrast)
@@ -222,7 +240,7 @@ The accent appears in six places and must pass WCAG AA on all of them. On a whit
 - On the segment track it measures **3.91:1**
 - The hover state (`sky-600`, white label) is **4.02:1** — deliberate exception, documented below
 
-**Why this shade?** No Tailwind scale step fits. The surviving window for both constraints is 0.0067 of relative luminance wide, and `sky-650` is the midpoint. Two roads not taken: dark labels clear both constraints with far more room (rejected for brand reasons), and documenting 4.02:1 as a conformance exception was considered (rejected because 4.02 is no longer below AA at the resting state). The hover at 4.02:1 is kept because with a white label every lightening costs contrast — a conformant hover would have to darken, making the app's primary action the only control that dims on pointer-over.
+**Why this shade?** No Tailwind scale step fits. The surviving window for both constraints is 0.0067 of relative luminance wide, and `sky-650` is the midpoint: sky-600 sits above it (white reads 4.02:1) and sky-700 below it (the fill drops to 2.37:1 on the range band, so the ends of a selected range sink into it). Two roads not taken: dark labels clear both constraints with far more room (rejected for brand reasons), and documenting 4.02:1 as a conformance exception was considered (rejected: 4.02 is below AA, and the resting state is the one a reader looks at, so the custom shade lifts it to 4.57 and leaves only the hover short). The hover at 4.02:1 is kept because with a white label every lightening costs contrast — a conformant hover would have to darken, making the app's primary action the only control that dims on pointer-over.
 
 **Re-measure condition:** if `DAY.range` ever changes, re-derive this shade. The binding edge is `DAY.range` at 3.04:1, so the selected day must still be findable against the range band beside it.
 
@@ -231,10 +249,9 @@ The accent appears in six places and must pass WCAG AA on all of them. On a whit
 The panel is 360px on desktop (100vw − 2rem capped at 360 on phones).
 
 - Boxed status messages: ~47 characters per line (floor of 360px minus padding and margins)
-- Unboxed status messages: ~50 characters per line (narrower because bare, not in a box)
 - Assumption: English; other languages will be tighter
 
-**Binding condition:** a 360px phone with English copy. If copy reaches ~47 chars without wrapping, it fits one line.
+**Binding condition:** a 360px phone with English copy. If copy reaches ~47 chars without wrapping, it fits one line. Nothing pins the ~47 in a test; the number that is pinned is the 281px column against the 267.3px cue below.
 
 **No indent:** the messages under the Analyze button are stacked rows
 separated by a 1px rule (`NOTICE_DIVIDER`), never a bulleted list. The
@@ -257,9 +274,9 @@ and a truncated reason is worse than a second line.
 
 ### Results bar fold point
 
-The results bar is one line when its container is 896px or wider, and two lines below that: the title row (ranking summary, window, collapse chevron) and the actions row (mode switch, Columns, Download CSV, Open-Meteo.com). The column never stacks further, but the actions row itself wraps on a narrow phone: measured at 402px on a coarse pointer, the mode switch takes 136px of the 378px available and the three links need 232px more with their gaps, so the last of them folds under. That makes the bar 102.5px tall there, which `SHEET_HEADER_PX` in `frontend/src/utils/resultsSheet.ts` mirrors — re-measure both together.
+The results bar is one line when its container is 896px or wider, and two lines below that: the title row (ranking summary, window, collapse chevron) and the actions row (mode switch, Columns, Models, Removed, Download CSV, Open-Meteo.com). The column never stacks further, but the actions row itself wraps on a narrow phone: measured at 402px on a coarse pointer, the mode switch at its 44px height and the five links do not fit one row of the 378px available, so the last of them fold under. That makes the bar 103.5px tall there, which `SHEET_HEADER_PX` in `frontend/src/utils/resultsSheet.ts` rounds up to 104 — re-measure both together.
 
-The three links read at `TEXT.control`, the size of every other control in the app. They are buttons the reader presses; the micro step is for text that is present but never first.
+The five links read at `TEXT.control`, the size of every other control in the app. They are buttons the reader presses; the micro step is for text that is present but never first.
 
 The mode switch wears `SEGMENT_FLUID`, not `SEGMENT`: the panel's segment role bakes in the sidebar's column, which three icon-plus-label halves cannot fit — that mismatch is how the switch once shipped clipped by its own `overflow-hidden`.
 
@@ -311,15 +328,21 @@ usually to shorten the label, fix the control, or delete the sentence instead.
 
 The ones in the tree today, each approved on its own:
 
-- The filter grid's *"Destinations with unknown values are included."* rides as a
-  `title` on the Elevation and AQI rows — the two whose value can genuinely be
-  missing — rather than as a standing line under the grid. That bought back the
-  line of height that made the panel scroll, and the fact stays discoverable in
-  the table (a dash) and in `docs/DATA.md`.
-- Two disabled controls say why they are disabled: the model picker over an
-  archive window, and the Forecast grid row over a report carrying archive hours
-  (#123). A disabled control says that it cannot be used and never why, and
-  neither reason can be read off the panel.
+- The Metrics table's *"Destinations with no air quality forecast are
+  included."* rides as a `title` on the air-quality row — its label and both
+  bound boxes, the one row whose value can genuinely be missing — rather than as
+  a standing line under the table. That bought back the line of height that made
+  the panel scroll, and the fact stays discoverable in the table (a dash) and in
+  `docs/DATA.md`.
+- The Max results row's *"Only limits how many destinations are added to the
+  results. All destinations are still forecasted."*, on its label and its field,
+  because the control reads as a cap on the work and is a cap on the rows.
+- One disabled control says why it is disabled: the Forecast grid row over a
+  report carrying archive hours (#123). A disabled control says that it cannot
+  be used and never why, and the reason cannot be read off the panel. The model
+  picker's reason over an archive window was a tooltip here until it moved into
+  the panel's message block (2026-09-14), which is why `ModelPicker.tsx`'s
+  approved count is pinned at zero.
 - The freezing-level cell's *"Freezing level is only available from the GFS
   Seamless, HRRR and ICON models."* answers a question only that cell raises:
   it reads `N/A` rather than a number, and without the note the reader cannot
@@ -339,7 +362,8 @@ addition and an accidental deletion alike.
 only thing explaining a state, the same text is also mounted in a visually hidden
 element that `aria-describedby` names (`SR_ONLY` in `styles.ts`), because the
 touch argument above applies to a screen reader as well: a `title` is a pointer's
-affordance and is not promised to anything else.
+affordance and is not promised to anything else. `accessibility.test.ts` fails an
+`aria-describedby` in `App.tsx` with no `SR_ONLY` twin.
 
 ### Sentence case
 
@@ -356,14 +380,28 @@ Remedies only work where they work. A generic "try again" for a network error do
 
 The over-cap refusal states the problem only ("This search covers N peaks. The analysis limit is M destinations."). Its machine-readable remedies live in the API's structured fields, never in the prose (TJ, 2026-08-22).
 
-### Boxed vs. unboxed messages
+### Every message is a box
 
-- **Boxed** = about the analysis (what you asked for, what came back)
-- **Unboxed** = about the controls (what you can do to fix it)
+There is no unboxed message. Every line under the Analyze button is one of the
+three `NOTICE` boxes, and severity is the only thing that varies. A `CUE` role once held a centred, borderless
+variant for the commit cues, and the footer showed a cue in amber text directly
+above a blocker in an amber box, saying the same kind of thing in two shapes.
+The one bare `STATUS` text left in the panel is the polygon's draw counter,
+which is a field's own readout beside the field rather than a message about the
+analysis; `styles.test.ts` pins it by count.
 
 ### No raw exceptions or status
 
 Never surface an exception type or HTTP status directly. Write a sentence instead.
+
+### Where the data hues live
+
+The no-hue lint scans `components/` and `App.tsx`. The app's data colours, the
+band ramps a marker, a grid cell and the legend all read, are `METRIC_SCALE` in
+`frontend/src/utils/colors.ts`, one scale per metric family, the freezing level
+included since #295 was reversed (2026-09-14). That file is the one place
+outside `styles.ts` allowed to name a hue, because a band's colour is what the
+number means rather than what the surface is.
 
 ### Model coverage message
 
