@@ -107,9 +107,15 @@ export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
  *
  * Measured at 402x874 on a coarse pointer, 2026-09-13: 12px of padding, a
  * 19.5px title row, the 4px gap, then 66px of actions — the mode segment at the
- * 44px a coarse pointer gives it, and the links (five today) wrapping under it, which
+ * 44px a coarse pointer gives it, and the bar's links wrapping under it, which
  * they do at this width now that they read at the size of every other control —
  * then the 1px rule and the sheet's own 1px top border. Rounded up from 103.5.
+ *
+ * The links wrap onto ONE row under the segment, so the actions block is 66px
+ * with three links, with the four that always stand (Columns, Models,
+ * Download CSV, Open-Meteo.com) and with Removed beside them: re-measured
+ * 2026-09-15 at 402x874 in every state, 104 each time. Re-measure when the bar
+ * gains a member or a label grows, because a third row moves this number.
  *
  * This is an ESTIMATE and is used only where an estimate is the right answer:
  * the resting reserve the panel clamp takes, and the camera padding, both of
