@@ -544,6 +544,11 @@ while being free to go red without blocking one. **A job here cannot be
 renamed**: branch protection matches the name exactly, and a rename strands
 every open pull request on a check that never reports.
 
+`Mirrored constants in sync` joined `pr.yml` in #380 and is the same shape as
+the vectors check: a checkout and a `diff`, with no measured timing here yet.
+It is not a required context. The maintainer decides whether it becomes one,
+the way the vectors check did.
+
 ### The repository's Actions cache
 
 Measured 2026-09-15, and the single largest source of variance in every build
@@ -662,7 +667,7 @@ flowchart LR
 
     subgraph BB["zimmertr/bluebird"]
         pr["PR opened / updated"]
-        checks["pr.yml<br/>typecheck, Vitest, ruff, pytest, OpenAPI + API-type drift,<br/>aggregation vectors diff, hadolint, docker build + Trivy scan (sticky comment),<br/>Lighthouse budgets"]
+        checks["pr.yml<br/>typecheck, Vitest, ruff, pytest, OpenAPI + API-type drift,<br/>aggregation vectors diff, mirrored constants diff,<br/>hadolint, docker build + Trivy scan (sticky comment), Lighthouse budgets"]
         preview["pr-preview.yml<br/>pull_request_target (same-repo gate)"]
         label["label: create pr container"]
         comment["sticky preview-URL comment"]

@@ -66,6 +66,17 @@ jobs:
       - uses: actions/checkout@v7
       - run: diff backend/tests/data/weather_vectors.json frontend/src/utils/weather_vectors.json
 
+  # The same split, for the constants a vector cannot express: a number or a
+  # sentence the browser reimplements. The backend writes the manifest, both
+  # suites assert against their own copy, and this check is what makes the two
+  # copies one contract (issue #380).
+  mirrors:
+    name: Mirrored constants in sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: diff backend/tests/data/mirrored_constants.json frontend/src/utils/mirrored_constants.json
+
   # Catch Python style and logic issues
   lint:
     name: Python Lint
