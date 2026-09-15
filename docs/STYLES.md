@@ -203,17 +203,21 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | What | Where | How |
 |---|---|---|
 | Every text role is unique, and no recipe sets two competing colours | `styles.test.ts` | Uniqueness over `TEXT` and `PROSE`; a resting-colour count over every exported role |
-| No component invents a size | `styles.test.ts` | Ban `text-[` utilities in component sources |
-| No component names a hue | `styles.test.ts` | Pattern match on non-slate color utilities |
-| No component sizes a tap target | `styles.test.ts` | Ban `touch:` utilities in component sources |
-| No component sizes radio/checkbox | `styles.test.ts` | Ban `accent-sky-500` duplication |
+| No component invents a size | `eslint.config.js` | Ban a ramp step or an arbitrary size in a string or template in component sources |
+| No component names a hue | `eslint.config.js` | Pattern match on non-slate color utilities, built from alternation so an unlisted one still fails |
+| No component sizes a tap target | `eslint.config.js` | Ban `touch:` utilities in component sources |
+| No component sizes radio/checkbox | `eslint.config.js` | Covered by the hue ban, which reaches `accent-*` |
 | No component re-widths a segment | `styles.test.ts` | Check for `w-*` inside `SEGMENT` composition |
+| No component sets a slate text colour | `eslint.config.js` | Slate is the surface system, already covered by `TEXT`, `SURFACE_*` and `FIELD` |
+| No component restates a shared recipe | `eslint.config.js` | Ban the three class lists a role already composes |
+| The panel sizes by pointer, not by viewport | `eslint.config.js` | Ban a breakpoint variant on padding, gap or height in `ControlPanel.tsx` |
+| A panel heading takes a role | `eslint.config.js` | Ban a quoted class list on an `h1`-`h3` in `ControlPanel.tsx` |
 | The map's edges are one inset | `styles.test.ts` | Ban a top or left inset at the map's chrome, in `App.tsx` and `map.css` alike |
-| No component dims a placeholder | `styles.test.ts` | Ban placeholder utilities below AA contrast |
+| No component dims a placeholder | `eslint.config.js` | Ban placeholder utilities below AA contrast |
 | Every radio/checkbox uses the shared recipe | `styles.test.ts` | Check `CHOICE_INPUT` composition |
 | Every focus-able control has focus ring | `styles.test.ts` | List per control type |
 | Segmented controls are built one way | `styles.test.ts` | Check `SEGMENT` / `SEGMENT_IDLE` / `SEGMENT_ITEM` composition |
-| Metric names are centralized | `metrics.test.ts` | Ban Precip/Temp/Avg/Min/Max/Elev abbreviations in twelve consumer files |
+| Metric names are centralized | `eslint.config.js` | Ban the six abbreviations in strings and templates across twelve consumer files |
 | Tooltips match the approved list, count for count | `styles.test.ts` | `title=` occurrences per component file |
 | No unsafe error message patterns | `metrics.test.ts` | Ban `failed: ${...}` and unsafe response copies |
 | Every radius is on the scale | `styles.test.ts` | Any `rounded*` in a component source must be a `RADIUS` value |
@@ -226,6 +230,21 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure |
 
 **NOT enforced:** custom spacing between components (only recessed surface and controls are architected), component-specific layouts. These are decided per feature.
+
+### Two enforcers, split by what they know
+
+`eslint.config.js` (in `frontend/tools/eslint/`, for the TypeScript-version
+reason recorded there) carries the **syntactic** bans: the ones a pattern over
+class names can answer on its own. `styles.test.ts` carries the **measured**
+ones: a contrast ratio, a pixel sum, a width read off a role, a count of
+approved tooltips. Nothing was dropped in the move (issue #379); the
+`no-restricted-syntax` rules read string literals and template chunks rather
+than a file's bytes, so a class name written in a COMMENT is prose about the
+rule instead of a violation of it, and a violation is now underlined in the
+editor rather than reported by `npm test`.
+
+`npm run lint` in `frontend/` runs it. CI runs the same script in the
+`Frontend Typecheck & Tests` job.
 
 ## Measured numbers
 
@@ -306,7 +325,7 @@ Nothing is drawn between the section's two blocks. `METRIC_HEAD_GAP` is the whol
 
 **Color resolution:** competing color utilities resolve by their order in the generated stylesheet, not their order in the class list. So a role's color cannot be overridden at a call site — the role always wins. This is why every hue is centralized: a component cannot brighten or dim a color it was handed.
 
-**Raw text scanning:** the build step scans source files as raw text to find class names, so a class quoted in a comment or a test emits its CSS. For example, writing `// don't use rounded-xl` in a component file would add `rounded-xl` to the bundle even though it's commented out. The lints and role definitions avoid this by building patterns that don't form the literal class name — e.g., using regex alternation instead of quoting the exact string.
+**Raw text scanning:** the build step scans source files as raw text to find class names, so a class quoted in a comment or a test emits its CSS. For example, writing `// don't use rounded-xl` in a component file would add `rounded-xl` to the bundle even though it's commented out. The lints and role definitions avoid this by building patterns that don't form the literal class name — e.g., using regex alternation instead of quoting the exact string. The scanned set is the `content` list in `tailwind.config.js`: `src/**` plus the four HTML entries. `frontend/tools/eslint/` is in neither, which is why the ESLint rules may spell a class where `styles.test.ts` may not.
 
 ## Copy rules
 
@@ -396,7 +415,7 @@ Never surface an exception type or HTTP status directly. Write a sentence instea
 
 ### Where the data hues live
 
-The no-hue lint scans `components/` and `App.tsx`. The app's data colours, the
+The no-hue lint is an ESLint rule and scans `components/` and `App.tsx`. The app's data colours, the
 band ramps a marker, a grid cell and the legend all read, are `METRIC_SCALE` in
 `frontend/src/utils/colors.ts`, one scale per metric family, the freezing level
 included since #295 was reversed (2026-09-14). That file is the one place
@@ -432,5 +451,8 @@ not swallow the drag that belongs to the input above.
 1. Write the role in `styles.ts` with a rationale comment explaining what it is for
 2. Add an assertion in `styles.test.ts` that pins the role's properties (size, color, weight, etc.)
 3. Ship both in the same PR
+
+A ban on a call site is the other file: a rule that a pattern over class names
+can decide belongs in `eslint.config.js`, not in a test.
 
 The assertion is what makes a change to a role visible in code review rather than buried in a stylesheet.

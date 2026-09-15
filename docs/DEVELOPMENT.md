@@ -41,6 +41,11 @@ CI runs all of these on every PR, so run the ones your change touches first:
 # Frontend typecheck
 cd frontend && npx tsc --noEmit
 
+# Frontend lint (ESLint). The linter installs itself, so this needs no
+# `npm ci` of its own. See the note below for why it is a package apart.
+docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
+  sh -c "npm run lint"
+
 # Frontend unit tests (Vitest)
 docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine \
   sh -c "npm ci && npm test"
@@ -58,8 +63,12 @@ docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
 docker run --rm -v "$PWD":/repo -w /repo/backend python:3.14-slim \
   sh -c "pip install -r requirements-dev.txt && pytest"
 
-# Backend lint, at the version CI pins: ruff's default rule set changes between releases
-pip install ruff==0.16.0 && ruff check backend/
+# Backend lint, at the version CI pins: ruff's default rule set changes between
+# releases. Run it from the REPO ROOT, which is what CI does. The rules live in
+# backend/ruff.toml, and `known-first-party = ["app"]` there is what makes the
+# import order the same from either working directory.
+docker run --rm -v "$PWD":/repo -w /repo python:3.14-slim \
+  sh -c "pip install ruff==0.16.0 && ruff check backend/"
 ```
 
 ### The cold-load budgets
@@ -103,6 +112,17 @@ shared test vectors. Change the backend first, then
 and mirror the change in the TypeScript port in `frontend/src/utils/openMeteo.ts`.
 Pytest fails on a stale backend copy, Vitest fails on a drifted port, and the
 `vectors` CI job fails if the two copies differ.
+
+ESLint is not a frontend dependency either, and for a sharper version of the
+same reason. It lives in `frontend/tools/eslint`, a private package with its own
+lockfile, and `npm run lint` delegates to it. typescript-eslint reads the
+TypeScript compiler API at run time and **refuses TS 7 outright**; the TS 7 npm
+package no longer ships that JS API at all, so the linter carries its own
+TypeScript 6. This is the side-by-side arrangement TypeScript documents for the
+case. The config is `frontend/tools/eslint/eslint.config.js`, and its paths are
+written for a run whose working directory is `frontend/` — ESLint reads a
+`--config` file's patterns against the working directory rather than against the
+file's own folder.
 
 The generator is not a frontend dependency. It lives in
 `frontend/tools/api-types`, a private package with its own lockfile, and the two
