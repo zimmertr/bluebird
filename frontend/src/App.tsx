@@ -890,6 +890,8 @@ export default function App() {
   // as pending dots until the user runs an Analyze — nothing fetches on load.
   useEffect(() => {
     if (restored?.pins?.length) searched.restore(restored.pins)
+    // Kept: `searched` is a fresh object every render, so a complete list would
+    // re-seed the pins over whatever the reader has added since.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
