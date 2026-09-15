@@ -90,6 +90,21 @@ export const TEXT = {
 } as const
 
 /**
+ * Control-size text with NO color of its own, for spans whose color is a
+ * separate role's to supply: the coverage slider's two-layer value, the grid
+ * legend's value, which wears `STATUS.warn` while transient and `ACCENT.text`
+ * once settled, and the two map buttons, whose label is white. `TEXT.control`
+ * cannot serve these — its color is baked in, and a second color class beside
+ * it would resolve by stylesheet order rather than by intent.
+ *
+ * It is declared up here with the ramp rather than beside the slider it was
+ * written for, because `BUTTON_FLOATING` below needs it: a const used before
+ * its declaration at module scope is a temporal-dead-zone throw, not a
+ * hoisted value.
+ */
+export const CONTROL_SIZE = 'text-xs'
+
+/**
  * The reading tier: the two dialogs and the analysis overlay card.
  *
  * A step up from the compact tier, for surfaces wide enough to hold a
@@ -563,11 +578,19 @@ export const BUTTON_DANGER =
  * Both wear it, deliberately. They are the app's only two map buttons and they
  * stack in one column, so a size difference between them reads as a mistake
  * rather than as a hierarchy — which is exactly how it read when Layers was
- * given a quieter role of its own. `TEXT.cta` is also the right size for the
- * job: these sit over a busy map and get pressed outdoors at arm's length,
- * where the panel's 12px body would be the wrong bet. The search field beside
- * them stays at its own size because it is a field, and its text is the user's
- * rather than a label of ours.
+ * given a quieter role of its own.
+ *
+ * ## Why the label is `CONTROL_SIZE` and not `TEXT.cta`
+ *
+ * It was `text-sm` on the argument that a map button is pressed outdoors at
+ * arm's length. What that missed is that these two buttons are not alone: they
+ * stand in one column with the search field, its results, and the legends,
+ * every one of which reads at 12px, and a 14px label in that column read as a
+ * different kind of object rather than as a louder one (TJ, 2026-09-14). The
+ * column now has ONE type size, and `CONTROL_SIZE` is it — colorless, so the
+ * white label below does not race it by stylesheet order. Reach is bought by
+ * the target instead: `MAP_ROW_H` floors every row in the column at 44px on a
+ * finger, which is the dimension a glove actually needs.
  *
  * It is `SURFACE_FLOATING` that has become pressable, so it takes the surface
  * whole and adds only what pressability needs — the accent on hover, and a
@@ -575,7 +598,7 @@ export const BUTTON_DANGER =
  * site, the way `FIELD` leaves padding to the control that wears it.
  */
 export const BUTTON_FLOATING =
-  `${SURFACE_FLOATING} ${TEXT.cta} text-white transition-colors ` +
+  `${SURFACE_FLOATING} ${CONTROL_SIZE} font-semibold text-white transition-colors ` +
   `${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-slate-700 ${FOCUS_RING}`
 
 /**
@@ -791,6 +814,18 @@ export const RECESSED_EDGE = 'border border-slate-500'
 export const LIFTED_EDGE = 'border border-slate-400'
 
 /**
+ * `TEXT.caption` re-derived for that same fill: a search result's description.
+ *
+ * The caption tier is slate-400, which is 5.7:1 on the panel and 3.94:1 on the
+ * popover — under the 4.5:1 WCAG 1.4.3 asks of text. slate-300 is 6.97:1 on
+ * the fill and 5.89:1 on a highlighted row (`bg-slate-600/50`), so it clears on
+ * both grounds a result line is ever drawn on. Measured on the v4 oklch steps
+ * 2026-09-14; the search dropdown is the only surface that needs it, and the
+ * reason it does is that it moved from `SURFACE_FLOATING` to the popover.
+ */
+export const CAPTION_LIFTED = 'text-xs text-slate-300'
+
+/**
  * The idle half of a segmented choice: the ranking direction toggle's unchosen
  * side, and the calendar's Hours toggle.
  *
@@ -856,25 +891,63 @@ export const CONTROL_W = 'w-[118px]'
 export const CHART_METRIC_W = 'w-36'
 
 /**
- * The width every floating box under the Layers button shares: the Layers
- * popover itself, the map-layer legend, and the metric colour key.
+ * The width of the map's left column, which EVERYTHING in it wears: the search
+ * field, the list of results under it, the Controls and Layers buttons, the
+ * Layers popover, the map-layer legend and the metric colour key.
  *
- * They sit in one column on the left of the map, a popover hanging into the
- * space the legends occupy, so differing widths read as a ragged edge rather
- * than as three boxes. The popover and the legends had drifted a step apart,
- * which is why this is a role and not a constant beside one of them.
+ * They sit in one column on the left of the map, so differing widths read as a
+ * ragged edge rather than as a column. It covered the three boxes first (the
+ * popover and the legends had drifted a step apart); the buttons and the search
+ * field were still sizing themselves — 128px, 128px and 301px against the
+ * boxes' 192 — which is the edge TJ measured with a red line across a
+ * screenshot on 2026-09-14.
  *
- * The number is measured and the governor is the legend's longest row: the grid
- * legend's wait line, "Forecast grid" against "Waiting · 99s", measured
- * 2026-08-21 in Chrome on macOS at 74.7 + 74.1 + the 8px gap = 156.8px. One
- * step down leaves 154px and wrapped that label by under three pixels at
- * two-digit seconds; this leaves 172px, about 15px of slack, and the countdown
- * switches to minutes past 99s so the row's widest case is bounded. The fire
- * credit row governed before it ("Active wildfire (NIFC)", 140.1px measured
- * 2026-07-31), and the popover's own rows are shorter than both. Re-measure
- * before lengthening a line in any of the three.
+ * ## The number
+ *
+ * Measured in Chrome on macOS 2026-09-14 at the app's own type sizes, and TWO
+ * things govern it within a pixel of each other:
+ *
+ *   - the grid legend's wait line, "Forecast grid" against "Waiting · 99s":
+ *     74.7 + 8 + 74.1 = 156.8px of content, so 176.8px with the 20px of side
+ *     padding a legend box carries. The countdown switches to minutes past 99s,
+ *     so that row's widest case is bounded.
+ *   - the search field at rest: 15px of icon, the 8px gap, and 134.6px of
+ *     "Search for a destination" — 177.6px with the same 20px of padding.
+ *
+ * 184 leaves 6.4px over the wider of the two. It is 8px narrower than the
+ * `w-48` it replaced, which is all the slack there was: at 176 (`w-44`) the
+ * wait line wraps and the placeholder clips. Everything else in the column has
+ * room to spare — the widest popover row, "Wildfires (US only)", needs 148.9px,
+ * and the Controls button 107.6px. Re-measure before lengthening a line in any
+ * of them.
  */
-export const MAP_BOX_W = 'w-48'
+export const MAP_COL_W = 'w-46'
+
+/**
+ * The height of one row in that column: the search field and the two buttons.
+ *
+ * Fixed rather than derived from each row's contents, because the contents
+ * differ — an 18px icon beside a 12px label, a 15px icon beside an input — and
+ * three rows that each solved for their own height came out 34, 38 and 38. One
+ * number instead, floored at the 44px target on a finger the way `TAP` floors
+ * every other control, and 36 on a pointer, which is the size the column's own
+ * inset was already derived against (`LEGEND_TOP`).
+ */
+export const MAP_ROW_H = 'h-9 touch:h-11'
+
+/**
+ * The gap between members of that column: the field, the buttons, the legend
+ * boxes, and the popover under the button it hangs from.
+ *
+ * 4px, half the 8px every one of them took before: a quarter off first, then
+ * the same again once the tighter column was on screen (TJ, 2026-09-14).
+ * It is a role rather than a `gap-1.5` at four call sites because
+ * `LEGEND_TOP`'s arithmetic is built out of it: a gap changed in one of the
+ * four would move the column's height without moving the inset that clears it.
+ */
+export const MAP_COL_GAP = 'gap-1'
+/** The same gap as a top margin, for the popover that hangs rather than sits. */
+export const MAP_COL_GAP_T = 'mt-1'
 
 /**
  * How far anything floating on the map stands off its edge.
@@ -907,35 +980,51 @@ export const MAP_EDGE = {
 } as const
 
 /**
- * Where the legend stack hangs: one row of the column's own gap under the
- * Layers button, at both pointer sizes.
+ * Where the legend stack hangs: one row of the column's own gap under the last
+ * button, at both pointer sizes, in the column's two heights.
  *
- * The column above it is the inset, the search row (with the Controls button
- * beside it), the gap, and the Layers button — and two of those three heights
- * change with the pointer, because `TAP` floors a button at 44 for a finger.
- * Measured in Chrome 2026-09-14:
+ * Every row above it is `MAP_ROW_H` — 36 on a pointer, 44 on a finger — and
+ * they are separated by `MAP_COL_GAP`'s 4px, so the arithmetic is the inset,
+ * then a row and a gap per member:
  *
- *   pointer: 12 + 34 + 8 + 38 = 92,  + 8 = 100 (`top-25`)
- *   finger:  12 + 44 + 8 + 44 = 108, + 8 = 116 (`top-29`)
+ *   search + Layers:            12 + 36 + 4 + 36 + 4 =  92
+ *                               12 + 44 + 4 + 44 + 4 = 108
+ *   search + Controls + Layers: + 36 + 4 = 132
+ *                               + 44 + 4 = 156
  *
- * One inset for both was 112, which left 20px of dead space under the button
- * on a desktop. Anything under the coarse number collides: at 76 the stack's
- * first rows paint BEHIND the Layers button, which is opaque and paints after
- * the legends by design (see the ordering note in `App.tsx`).
+ * Spelled in pixels rather than on Tailwind's 4px spacing scale. Three of the
+ * four land on it, but writing one of them as `top-33` and its neighbour as
+ * `top-[132px]` would hide which numbers share a derivation. One form for all
+ * four keeps the class and the sum above one thing rather than two.
+ *
+ * TWO heights because the Controls button exists only while the panel is
+ * collapsed, and since the search field moved out of its row and above it
+ * (TJ, 2026-09-14) that is a whole row rather than a neighbour. One inset for
+ * both would leave 44px of dead space under the button whenever the panel is
+ * open, which is the state a desktop is in by default — the same objection
+ * that split the pointer sizes in the first place. Anything under the height
+ * on screen collides: the stack's first rows paint BEHIND the buttons, which
+ * are opaque and paint after the legends by design (see the ordering note in
+ * `App.tsx`).
  *
  * Keyed on `touch` rather than on Tailwind's `pointer-coarse`, deliberately.
- * The heights above are `TAP`'s, and `TAP` is floored by `touch`
+ * The heights above are `MAP_ROW_H`'s, and it is floored by `touch`
  * (`@media (hover: none)`, see index.css). A second query here would answer
  * differently on the devices the two disagree about — a hover-capable stylus
  * screen, a remote — and the inset would clear a column of a different height
  * than the one on screen.
  *
- * `resultsSheet.ts` holds both numbers (`LEGEND_TOP_PX`, `LEGEND_TOP_FINE_PX`),
+ * `resultsSheet.ts` holds the numbers (`LEGEND_TOP_PX`, `LEGEND_TOP_FINE_PX`),
  * because everything anchored below the stack measures off them, and
- * `resultsSheet.test.ts` reads this file as text so the class and the constants
- * cannot drift.
+ * `resultsSheet.test.ts` reads this file as text so the classes and the
+ * constants cannot drift.
  */
-export const LEGEND_TOP = 'top-25 touch:top-29'
+export const LEGEND_TOP = {
+  /** The panel is open, so the column is the search field and Layers. */
+  compact: 'top-[92px] touch:top-[108px]',
+  /** The panel is collapsed and the Controls button stands between them. */
+  full: 'top-[132px] touch:top-[156px]',
+} as const
 
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 /**
@@ -1602,16 +1691,6 @@ export const SLIDER_OVERLAY =
   'absolute inset-0 h-full w-full appearance-none cursor-pointer bg-transparent ' +
   `${FOCUS_RING} ` +
   SLIDER_BAR_THUMB
-
-/**
- * Control-size text with NO color of its own, for spans whose color is a
- * separate role's to supply: the coverage slider's two-layer value, and the
- * grid legend's value, which wears `STATUS.warn` while transient and
- * `ACCENT.text` once settled. `TEXT.control` cannot serve these — its color
- * is baked in, and a second color class beside it would resolve by
- * stylesheet order rather than by intent.
- */
-export const CONTROL_SIZE = 'text-xs'
 
 /** The slider's value readout: the colorless control size above. */
 export const SLIDER_VALUE = CONTROL_SIZE

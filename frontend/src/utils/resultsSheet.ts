@@ -19,23 +19,27 @@
 import { resolvePanelHeights } from './layout'
 
 /**
- * The legend stack's own top inset, in its two sizes (`LEGEND_TOP` in
- * `styles.ts`, which spells the classes and carries the derivation).
+ * The legend stack's own top inset (`LEGEND_TOP` in `styles.ts`, which spells
+ * the classes and carries the derivation).
  *
- * Two numbers because the column it clears has two heights: the search row and
- * the Layers button under it each take the 44px target `TAP` gives a finger,
- * where a pointer keeps today's density. Measured in Chrome 2026-09-14 — the
- * column ends at 92 under a pointer and 108 under a finger, and the stack hangs
- * one 8px gap below either.
+ * `LEGEND_TOP` has FOUR numbers: two pointer sizes, each with and without the
+ * Controls button, which stands in the column only while the panel is
+ * collapsed. These two are the pair a FLOOR is about, and they are not the same
+ * arm of that table:
  *
- * `LEGEND_TOP_PX` is the COARSE one, because everything derived from it here is
- * the phone sheet's: a floor is a promise about the smallest map that will do,
- * and the larger inset is the one that has to fit. The docked desktop floor
- * takes the fine value instead, which is the pointer it is only ever asked
- * about.
+ *   - `LEGEND_TOP_PX` is the coarse inset with the Controls button (156), which
+ *     is the phone at rest: the drawer is closed, so the button is up, and the
+ *     sheet covers the map's bottom whatever the drawer is doing. Everything
+ *     derived from it here is the sheet's, and a floor is a promise about the
+ *     smallest map that will do — so it takes the taller column.
+ *   - `LEGEND_TOP_FINE_PX` is the fine inset WITHOUT it (92), which is the
+ *     desktop a docked floor is asked about: the panel is docked, so the
+ *     Controls button is not there. When it is, the panel is collapsed and the
+ *     map has that whole panel back, so the floor is the slacker constraint
+ *     rather than the binding one.
  */
-export const LEGEND_TOP_PX = 116
-export const LEGEND_TOP_FINE_PX = 100
+export const LEGEND_TOP_PX = 156
+export const LEGEND_TOP_FINE_PX = 92
 
 /**
  * What the legend stack needs to render with no scrolling: four layer rows in
@@ -43,7 +47,7 @@ export const LEGEND_TOP_FINE_PX = 100
  * Measured in Chrome 2026-09-14 with every layer on, the forecast grid drawn
  * and a freezing-level ranking held: 94px of layer rows, the 8px gap, and
  * 163px of key. The same number at both widths, because the boxes are one
- * fixed width (`MAP_BOX_W`) and a legend row is read rather than operated, so
+ * fixed width (`MAP_COL_W`) and a legend row is read rather than operated, so
  * no part of it takes the coarse-pointer target the buttons above it do.
  *
  * It was 245 while the tallest key had five bands. The freezing level's key has

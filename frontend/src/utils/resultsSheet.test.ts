@@ -87,7 +87,8 @@ describe('the map chrome anchors', () => {
   it('anchors the legend stack at the top, not at the bottom', () => {
     expect(appSource).not.toMatch(/\bm[tb]-(?:auto)\b/)
     expect(appSource).not.toMatch(/\bjustify-(?:end)\b/)
-    expect(appSource).toContain('${LEGEND_TOP}')
+    expect(appSource).toContain('LEGEND_TOP.compact')
+    expect(appSource).toContain('LEGEND_TOP.full')
   })
 
   // Every offset on this edge is derived here and applied as a style, so the
@@ -95,15 +96,19 @@ describe('the map chrome anchors', () => {
   // either component would be a second opinion about the same edge — which is
   // how the gap under the player came to differ per results mode.
   it('leaves no bottom offset spelled in a component', () => {
-    // The inset is a role now, because it is two numbers: the column it clears
-    // is 16px taller on a coarse pointer, where `TAP` floors the search row and
-    // the Layers button at 44 apiece. Both classes are asserted against both
-    // constants, so a shade of either cannot move alone.
-    expect(stylesSource).toContain("LEGEND_TOP = 'top-25 touch:top-29'")
-    expect(LEGEND_TOP_FINE_PX).toBe(25 * 4)
-    expect(LEGEND_TOP_PX).toBe(29 * 4)
-    // The coarse inset is the bigger of the two, which is what makes it the
-    // one every floor here is promised against.
+    // The inset is a role with four numbers: two pointer sizes, each with and
+    // without the Controls button, which stands in the column only while the
+    // panel is collapsed. The two a floor is about are asserted against the
+    // classes, so a shade of either cannot move alone.
+    expect(stylesSource).toContain("compact: 'top-[92px] touch:top-[108px]'")
+    expect(stylesSource).toContain("full: 'top-[132px] touch:top-[156px]'")
+    // Fine and compact: a docked desktop, which is the only pointer the docked
+    // floor is asked about.
+    expect(LEGEND_TOP_FINE_PX).toBe(92)
+    // Coarse and full: a phone at rest, where the drawer is closed, the
+    // Controls button is up, and the sheet covers the map's bottom regardless.
+    expect(LEGEND_TOP_PX).toBe(156)
+    // The sheet's floor is promised against the taller column of the two.
     expect(LEGEND_TOP_PX).toBeGreaterThan(LEGEND_TOP_FINE_PX)
     // `bottom-0` is exempt and is the sheet itself, which stands ON the edge
     // rather than measuring off it.
@@ -213,17 +218,19 @@ describe('the resting height', () => {
   // scrolling, in each results mode — with the timeline on, which is the tighter
   // of the two clearances.
   //
-  // Both mode is the exception since the freezing level's six-band key made the
-  // stack 20px taller (2026-09-14). Its two panels floor at 120 each, so the
-  // sheet cannot give the map the extra 20px however the reserve is set: the
-  // band is 242 of the 265 the stack wants, and the last band scrolls. That is
-  // the degradation the stack was built for — it is a scroll box anchored at
-  // the top precisely so what gives is its tail — and the alternative is a
-  // 100px table.
+  // Both mode is the exception, and it lost ground twice. The freezing level's
+  // six-band key made the stack 20px taller (2026-09-14), and the search field
+  // moving out of the Controls button's row and above it made the column it
+  // hangs under 52px taller in the same week. Its two panels floor at 120 each,
+  // so the sheet cannot hand the map either amount however the reserve is set:
+  // the band is 202 of the 265 the stack wants, and the key's last bands
+  // scroll. That is the degradation the stack was built for — it is a scroll
+  // box anchored at the top precisely so what gives is its tail — and the
+  // alternative is a 100px table.
   describe.each([
     ['table only', { chartShown: false, tableShown: true }, 1, LEGEND_STACK_PX],
     ['chart only', { chartShown: true, tableShown: false }, 1, LEGEND_STACK_PX],
-    ['chart and table', { chartShown: true, tableShown: true }, 2, 242],
+    ['chart and table', { chartShown: true, tableShown: true }, 2, 202],
   ])('at 402x874, %s', (_mode, shown, gripCount, wanted) => {
     const VIEWPORT = 874
 
@@ -275,9 +282,9 @@ describe('the drag cap', () => {
   })
 
   it('states both caps outright', () => {
-    expect(DRAGGED_MAP_PX).toBe(240)
-    expect(maxSheetPx(874)).toBe(634)
-    expect(maxSheetPx(757)).toBe(517)
+    expect(DRAGGED_MAP_PX).toBe(280)
+    expect(maxSheetPx(874)).toBe(594)
+    expect(maxSheetPx(757)).toBe(477)
   })
 
   // `clampPanelHeight` is given a map floor rather than a sheet height, and the
@@ -333,11 +340,17 @@ describe('the camera padding', () => {
       availPx: 874,
       ...defaults,
     })
-    expect(lift).toBe(369)
+    expect(lift).toBe(329)
     expect(874 - lift).toBe(RESTING_MAP_PX)
   })
 
-  it('takes only the reserve on a viewport too short for the whole table', () => {
+  // The other side of the same clamp: a viewport short enough that the reserve
+  // asks for more map than is left once the table holds its own floor. The
+  // panel floors win there, as they do in `clampPanelHeight`, and the lift is
+  // the sheet's own smallest height rather than the reserve. 757 crossed that
+  // line when the column above the legends grew by a row (2026-09-14) — it used
+  // to answer with the reserve, at 252.
+  it('falls back to the sheet floor on a viewport the reserve cannot have', () => {
     const lift = restingLiftPx({
       collapsed: false,
       gripCount: 1,
@@ -346,8 +359,9 @@ describe('the camera padding', () => {
       availPx: 757,
       ...defaults,
     })
-    expect(lift).toBe(252)
-    expect(757 - lift).toBe(RESTING_MAP_PX)
+    expect(lift).toBe(sheetChromePx(1) + 120)
+    expect(lift).toBe(248)
+    expect(757 - lift).toBeLessThan(RESTING_MAP_PX)
   })
 
   it('is the header alone while the results are collapsed', () => {

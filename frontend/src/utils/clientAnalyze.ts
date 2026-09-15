@@ -515,6 +515,14 @@ export async function runClientAnalysis(
         signal: internal.signal,
         onPace,
         model: request.forecast_model,
+        // The same clock the air-quality fetch above is given. `nowMs` is what
+        // decides which Open-Meteo endpoint answers a window (`windowSource`:
+        // older than `PAST_DATA_DAYS` is the archive's), so weather reading the
+        // real clock while air quality reads the caller's put the two on
+        // different sides of that boundary. It was invisible until a test's
+        // fixed window aged past 55 days and the weather half silently moved to
+        // the archive endpoint (2026-09-14).
+        nowMs,
         onProgress: (processed, total) =>
           onProgress?.(
             processed,

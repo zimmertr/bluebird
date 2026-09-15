@@ -59,7 +59,11 @@ import {
   SURFACE_GROUP_BLEED,
   LINK,
   LINK_ACTION,
-  MAP_BOX_W,
+  CAPTION_LIFTED,
+  MAP_COL_GAP,
+  MAP_COL_GAP_T,
+  MAP_COL_W,
+  MAP_ROW_H,
   MICRO_PX,
   MICRO_SIZE,
   MAP_EDGE,
@@ -78,6 +82,7 @@ import * as STYLES from './styles'
 // work on index.css: vitest stubs CSS imports to an empty string.)
 import controlPanelSource from './components/ControlPanel.tsx?raw'
 import appSource from './App.tsx?raw'
+import searchBoxSource from './components/SearchBox.tsx?raw'
 // The one stylesheet with a decision in it: the vendor's own controls have no
 // call site to hand a role to, so what they take is written there. Read off
 // the disk rather than imported — Vitest stubs a CSS import, `?raw` included,
@@ -1140,23 +1145,119 @@ describe('shared recipes', () => {
     expect(SURFACE_SHEET).not.toMatch(/\bshadow-/)
   })
 
-  // The three boxes in the map's left column are one width: the Layers popover
-  // and the two legends below it. The popover shipped a step narrower than the
-  // legends it hangs into, which read as a ragged edge rather than as three
-  // boxes, so the width is a role and every one of them wears it.
-  it('gives every box under the Layers button one width', () => {
-    expect(MAP_BOX_W).toBe('w-48')
-    // The call sites are the two legends and the popover. A width spelled
-    // beside the role could not even be relied on to win: two width utilities
-    // resolve by stylesheet order rather than by class order.
-    const rides = appSource.match(/\$\{MAP_BOX_W\}[^`]*/g) ?? []
-    expect(rides).toHaveLength(3)
-    expect(rides.filter((r) => /(^|\s)w-\S+/.test(r))).toEqual([])
-    // And nothing in the file picks its own width in the range one of these
-    // boxes would plausibly take. Written as a range rather than as a list of
+  // Everything in the map's left column is one width: the search field, its
+  // results, the Controls and Layers buttons, the Layers popover and the two
+  // legends. They shipped as 301, 184, 128, 128, 192 and 192, which read as a
+  // ragged edge rather than as a column, so the width is one role and every
+  // member of the column wears it.
+  it('gives every member of the map column one width', () => {
+    expect(MAP_COL_W).toBe('w-46')
+    // Five in App.tsx — two legends, the popover, both buttons — and one in
+    // SearchBox, the field's wrapper. A width spelled beside the role could not
+    // even be relied on to win: two width utilities resolve by stylesheet order
+    // rather than by class order.
+    const rides = (src: string) => src.match(/\$\{MAP_COL_W\}[^`]*/g) ?? []
+    expect(rides(appSource)).toHaveLength(5)
+    expect(rides(searchBoxSource)).toHaveLength(1)
+    for (const ride of [...rides(appSource), ...rides(searchBoxSource)]) {
+      expect(ride).not.toMatch(/(^|\s)w-\S+/)
+    }
+    // And neither file picks its own width in the range a member of this
+    // column would plausibly take. Written as a range rather than as a list of
     // names so a step nobody thought of still fails, and with the leading
     // guard so `max-w-*` is not read as a width of its own.
     expect(appSource).not.toMatch(/(?<![-\w])w-(?:4\d|5\d)\b/)
+    // SearchBox has ONE deliberate exception, and this is it: the result list
+    // is wider than the column on purpose (TJ, 2026-09-14), because bound to
+    // it, every second line clipped away the county and state that tell four
+    // places of the same name apart. Nothing else in the file spells a width —
+    // the single-digit steps left are icons, square and sized with their own
+    // height beside them.
+    const searchWidths = searchBoxSource.match(/(?<![-\w])w-\d\S*/g) ?? []
+    // The dropdown at each breakpoint, and the spinner's square.
+    expect([...new Set(searchWidths)].sort()).toEqual(['w-4', 'w-72', 'w-80'])
+  })
+
+  // The third part of the same decision: one gap between members, so the
+  // column's height and the inset that clears it are built from one number.
+  it('gives the column one gap, in both of the forms it takes', () => {
+    expect(MAP_COL_GAP).toBe('gap-1')
+    expect(MAP_COL_GAP_T).toBe('mt-1')
+    // The cluster, the legend stack, and the popover that hangs rather than
+    // sits. A gap spelled beside any of them would move the column's height
+    // without moving `LEGEND_TOP`, which is derived from this number.
+    expect(appSource.match(/\$\{MAP_COL_GAP\}/g) ?? []).toHaveLength(2)
+    expect(appSource.match(/\$\{MAP_COL_GAP_T\}/g) ?? []).toHaveLength(1)
+    for (const ride of appSource.match(/\$\{MAP_COL_GAP(?:_T)?\}[^`]*/g) ?? []) {
+      expect(ride).not.toMatch(/(^|\s)(?:gap-|mt-)/)
+    }
+  })
+
+  // The other half of the same decision: one row height, so the field and the
+  // two buttons do not each solve for their own (34, 38 and 38 before this).
+  it('gives every row in that column one height', () => {
+    expect(MAP_ROW_H).toBe('h-9 touch:h-11')
+    const rows = [
+      ...(appSource.match(/\$\{MAP_ROW_H\}/g) ?? []),
+      ...(searchBoxSource.match(/\$\{MAP_ROW_H\}/g) ?? []),
+    ]
+    // Both buttons and the search field.
+    expect(rows).toHaveLength(3)
+    // A row that sets its own height, or pads its way to one, is the drift
+    // this replaces: `py-*` on the row box would grow it past the role.
+    for (const ride of appSource.match(/\$\{MAP_ROW_H\}[^`]*/g) ?? []) {
+      expect(ride).not.toMatch(/(^|\s)(?:h-|min-h-|py-)/)
+    }
+  })
+
+  // One type size for the whole column, which is what `CONTROL_SIZE` is doing
+  // on a map button: a 14px label beside the 12px field, results and legends
+  // read as a different kind of object rather than as a louder one
+  // (TJ, 2026-09-14).
+  it('reads the whole map column at one size', () => {
+    expect(sizes(BUTTON_FLOATING)).toEqual([CONTROL_SIZE])
+    expect(sizes(BUTTON_FLOATING)).toEqual(sizes(TEXT.control))
+    // Colorless on purpose: the label is white, and a second color utility
+    // beside `TEXT.control`'s slate-200 would resolve by stylesheet order.
+    expect(BUTTON_FLOATING).toContain('text-white')
+    expect(BUTTON_FLOATING).not.toContain(TEXT.cta)
+    // And no call site in the column reaches past it. The buttons carry no
+    // size of their own beside the role, and nothing in SearchBox does either.
+    for (const ride of appSource.match(/\$\{BUTTON_FLOATING\}[^`]*/g) ?? []) {
+      expect(sizes(ride)).toEqual([])
+    }
+    expect(searchBoxSource).not.toMatch(/\btext-(?:sm|base|lg|xl)\b/)
+  })
+
+  // The search results moved onto the popover's fill, which is a step lighter
+  // than the surface the caption tier was derived against.
+  it('lifts the search results and the caption inside them together', () => {
+    expect(searchBoxSource).toContain('${SURFACE_POPOVER}')
+    expect(searchBoxSource).toContain('${CAPTION_LIFTED}')
+    // slate-400 is 3.94:1 on that fill, under the 4.5:1 AA asks of text.
+    expect(CAPTION_LIFTED).not.toContain('slate-400')
+    expect(sizes(CAPTION_LIFTED)).toEqual(sizes(TEXT.caption))
+  })
+
+  // The slot under the field has two states and one box. The message state wore
+  // `NOTICE.warn`, a panel role: a 40% amber tint over whatever is behind it,
+  // which over the map is the map and the Layers button (TJ, 2026-09-14).
+  it('draws both states of the search dropdown on one opaque surface', () => {
+    const dropdown = searchBoxSource.match(/const DROPDOWN = `([^`]*)`/)![1]
+    expect(dropdown).toContain('${SURFACE_POPOVER}')
+    // Both the list and the message ride it, and neither spells a surface of
+    // its own beside it.
+    const rides = searchBoxSource.match(/\$\{DROPDOWN\}[^`]*/g) ?? []
+    expect(rides).toHaveLength(2)
+    for (const ride of rides) expect(ride).not.toMatch(/(^|\s)bg-/)
+    // A panel notice box on a floating surface is the bug this replaced: its
+    // fill is a tint, and a tint over the map is the map. Severity comes from
+    // STATUS instead, which is color only — amber-300 is 7.15:1 on the
+    // popover's fill, measured 2026-09-14.
+    // The interpolated form, not the bare word: the file explains in a comment
+    // which role it stopped wearing, and a comment is not a class list.
+    expect(searchBoxSource).not.toContain('${NOTICE')
+    expect(searchBoxSource).toContain('${STATUS.warn}')
   })
 
   // The Layers popover, separated from the legend boxes by elevation rather
