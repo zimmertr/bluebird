@@ -91,7 +91,7 @@ describe('resultPopupHtml layout', () => {
     // itself, not a property counted off the flattened text.
     for (const line of lines) {
       expect(line, 'not a single label/value pair').toMatch(
-        /^<div>[^<>:]+: (<a href="[^"]*"[^<>]*>)?<span style="[^"]*">[^<>]*<\/span>(<\/a>)?<\/div>$/,
+        /^<div><strong>[^<>:]+<\/strong>: (<a href="[^"]*"[^<>]*>)?<span style="[^"]*">[^<>]*<\/span>(<\/a>)?<\/div>$/,
       )
     }
     // A separator may only join a metric to its aggregate, so it always sits
@@ -111,10 +111,11 @@ describe('resultPopupHtml layout', () => {
     expect(html.match(/<div>[^]*?<\/div>/g) ?? []).toHaveLength(5)
   })
 
-  // The label/value split is carried by a face change rather than by weight,
-  // because the popup's one bold is its title (see the emphasis suite below).
-  // Every value wears it; no label does.
-  it('sets values in a monospace face and labels in the popup default', () => {
+  // The label/value split is carried on two axes since TJ's 2026-09-14 call:
+  // the label is weighted and the value is monospace. The face alone was too
+  // quiet to read as a split. Every value wears the face; no label does, and
+  // no value wears the weight (the emphasis suite below pins that half).
+  it('sets values in a monospace face and labels in a weight', () => {
     const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
     const values = html.match(/<span style="font-family:ui-monospace[^"]*">[^<]*<\/span>/g) ?? []
 
@@ -124,7 +125,7 @@ describe('resultPopupHtml layout', () => {
     for (const value of values) {
       expect(value.replace(/^<span style="[^"]*">/, '')).not.toContain(':')
     }
-    expect(html).toContain('Elevation: <span')
+    expect(html).toContain('<strong>Elevation</strong>: <span')
     expect(html).toContain('mph</span>')
   })
 
@@ -135,7 +136,7 @@ describe('resultPopupHtml layout', () => {
   // stages and had drifted into two kinds of card.
   it('keeps the coordinate pair on one line, under a rule', () => {
     const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
-    expect(html).toMatch(/<div style="white-space:nowrap[^"]*">Coordinates: /)
+    expect(html).toMatch(/<div style="white-space:nowrap[^"]*"><strong>Coordinates<\/strong>: /)
     expect(html).toContain('<hr')
   })
 })
@@ -146,7 +147,7 @@ describe('resultPopupHtml layout', () => {
 describe('resultPopupHtml freezing level', () => {
   it('reads the height in feet, grouped like the elevation above it', () => {
     const html = resultPopupHtml({ ...base, freezeMinFt: 9843, warning: null })
-    expect(html).toMatch(/Freezing level · min: <a [^>]*><span[^>]*>9,843 ft<\/span>/)
+    expect(html).toMatch(/Freezing level · min<\/strong>: <a [^>]*><span[^>]*>9,843 ft<\/span>/)
   })
 
   it('marks the line rather than dropping it when the model publishes none', () => {
@@ -154,7 +155,7 @@ describe('resultPopupHtml freezing level', () => {
     // as the app forgetting the metric, where a missing air quality is one
     // forecast falling short and takes its rows with it.
     const html = resultPopupHtml({ ...base, freezeMinFt: null, warning: null })
-    expect(html).toMatch(/Freezing level · min: <span[^>]*>N\/A<\/span>/)
+    expect(html).toMatch(/Freezing level · min<\/strong>: <span[^>]*>N\/A<\/span>/)
   })
 })
 
@@ -171,14 +172,29 @@ describe('resultPopupHtml escaping', () => {
 })
 
 describe('resultPopupHtml emphasis', () => {
-  // The popup's only bold is its title. Precip-total and AQI-avg wore
-  // <strong> from the original implementation onward, singling out two values
-  // by no rule — not the ranked metric (that varies; the markup didn't), not
-  // line position (wind led its line unbolded).
-  it('bolds the name and nothing else', () => {
+  // What the old "one bold" rule was actually for: precipitation's total and
+  // the AQI average wore <strong> from the original implementation onward,
+  // singling out two VALUES by no rule at all — not the ranked metric (that
+  // varies; the markup didn't), not line position (wind led its line
+  // unbolded).
+  //
+  // Weight now marks the labels (TJ, 2026-09-14), which is systematic: it says
+  // "this is a label", not "this row matters more". So the rule survives as
+  // the half that meant something — no value is ever bold — and the title
+  // keeps its emphasis through size and the rule drawn beneath it.
+  it('bolds the title and every label, and no value', () => {
     const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
-    expect(html.match(/<strong>/g)).toHaveLength(1)
+    // The title, plus one per row: elevation, precipitation, wind,
+    // temperature, the freezing level, air quality twice, and the coordinates.
+    expect(html.match(/<strong>/g)).toHaveLength(9)
     expect(html.indexOf('<strong>')).toBeLessThan(html.indexOf('Mount Rainier'))
+    // A bold that reached a value would be the old bug returning under a new
+    // name, so this reads the structure rather than counting: every <strong>
+    // outside the title closes before its row's colon.
+    for (const line of html.match(/<div>[^]*?<\/div>/g) ?? []) {
+      expect(line.indexOf('</strong>')).toBeLessThan(line.indexOf(': '))
+      expect(line.slice(line.indexOf(': '))).not.toContain('<strong>')
+    }
   })
 })
 

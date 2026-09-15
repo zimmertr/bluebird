@@ -666,7 +666,7 @@ export default function ControlPanel({
       ? [
           {
             key: 'window:archive-model',
-            text: 'Forecast models are not available for archival data.',
+            text: 'Archive data uses no forecast model.',
             severity: 'info' as const,
           },
         ]

@@ -1092,7 +1092,7 @@ describe('shared recipes', () => {
   // this is the other half: it is in the panel, in the list that feeds the one
   // notice block, and it is not on the control it describes.
   it('says why the model control is faded in the message block, not on it', () => {
-    const sentence = 'Forecast models are not available for archival data.'
+    const sentence = 'Archive data uses no forecast model.'
     expect(modelPickerSource).not.toContain(sentence)
     expect(controlPanelSource).toContain(sentence)
     const messages = controlPanelSource.indexOf('const windowMessages')
