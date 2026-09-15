@@ -111,18 +111,91 @@ export function popupLink(href: string, inner: string, extra = ''): string {
 }
 
 /**
- * The coordinate line, which is the one row that cannot be allowed to wrap.
+ * The colour a separator takes between two values on one line.
+ *
+ * Slate-500, which measures 4.76:1 on the white MapLibre draws a popup on. It
+ * is a pass for text and a step lighter than `LABEL_COLOR`, which is what the
+ * pipe wants to be: present enough to part two numbers, quiet enough that a
+ * row of them does not read as a third column of content.
+ */
+export const SEPARATOR_COLOR = '#64748b'
+
+/**
+ * The band between the title and the rule: what the destination IS, ahead of
+ * what the forecast says about it (TJ, 2026-09-14).
+ *
+ * The coordinates moved here from the foot of the card, and the type and the
+ * model came with them, because all three identify the point rather than
+ * measure it. It carries no labels. A latitude/longitude pair under a place
+ * name reads as coordinates without being told, and labelling three facts that
+ * are each one word would cost more width than the facts.
+ *
+ * Every line sets in `LABEL_COLOR` rather than black, so the band reads as the
+ * title's subtitle instead of as the first row of data.
+ */
+export function metaBand(lines: string[]): string {
+  const shown = lines.filter(Boolean)
+  if (shown.length === 0) return ''
+  return `<div style="font-size:12px;${LABEL_COLOR}">${shown.join('\n    ')}</div>`
+}
+
+/**
+ * The coordinate line, which is the one line that cannot be allowed to wrap.
  *
  * A latitude and a longitude are one value in two halves, and breaking between
  * them leaves a bare negative number on its own line looking like a third
- * figure. It stays at the popup's own size — a row that shrank to fit would be
- * the only line in the card set differently, which reads as an afterthought —
+ * figure. It stays at the popup's own size — a line that shrank to fit would be
+ * the only one in the card set differently, which reads as an afterthought —
  * so the room comes from the width ceiling below instead.
  */
 export function coordinateRow(latitude: number, longitude: number): string {
-  return `<div style="white-space:nowrap">${rowLabel('Coordinates')}: <span style="${VALUE_FACE}">${Number(
-    latitude,
-  ).toFixed(5)}, ${Number(longitude).toFixed(5)}</span></div>`
+  return `<div style="white-space:nowrap;${VALUE_FACE}">${Number(latitude).toFixed(5)}, ${Number(
+    longitude,
+  ).toFixed(5)}</div>`
+}
+
+/**
+ * A metric family: a heading line, then its values indented under it.
+ *
+ * Two lines rather than one (TJ, 2026-09-14). A family's three aggregates and
+ * their noun do not fit the card's 280px ceiling on one line — the temperature
+ * runs past it and the freezing level's comma-grouped feet run further — and a
+ * wrapped line breaks between a label and the number it names. Splitting the
+ * noun off puts every values line inside the ceiling and costs one line per
+ * family against the four it saves.
+ *
+ * The indent is what binds the values to their heading rather than to the
+ * family above them, and it is the only structure the card needs: the heading
+ * already sits in the label colour and the values already sit in the mono face.
+ */
+export function groupBlock(label: string, values: string[], first: boolean): string {
+  const joined = values.join(
+    `<span style="color:${SEPARATOR_COLOR}"> | </span>`,
+  )
+  return `<div style="${first ? '' : 'margin-top:4px'}">${rowLabel(label)}</div>
+    <div style="padding-left:8px">${joined}</div>`
+}
+
+/**
+ * One measurement inside a values line: how it was reduced, then the number.
+ *
+ * The aggregate wears the label colour and the value wears the mono face, the
+ * same split every "label: value" row uses, so a values line is legible as
+ * pairs rather than as a run of numbers.
+ *
+ * The pair is `nowrap`, which leaves the separators between pairs as the only
+ * places a values line may break. Precipitation is what proved it necessary:
+ * it is the one family whose values carry their own units, so its line is long
+ * enough to wrap, and unprotected it broke between "0.0000" and "in/hr" and
+ * left a bare unit on the next line. That is the same failure that split the
+ * old shared wind-and-temperature row, and the rule is the same one the
+ * coordinate line already states: a value and what names it are one thing.
+ */
+export function groupValue(aggregate: string | null, value: string, href?: string | null): string {
+  const shown = `<span style="${VALUE_FACE}">${value}</span>`
+  const linked = href ? popupLink(href, shown) : shown
+  const pair = aggregate ? `${rowLabel(aggregate)}: ${linked}` : linked
+  return `<span style="white-space:nowrap">${pair}</span>`
 }
 
 /**
@@ -178,13 +251,18 @@ export function linkIcon(url: string): string {
  * everything under it describes it, and the separation should be visible
  * rather than inferred from weight alone.
  */
-export function popupShell(title: string, url: string, body: string): string {
+export function popupShell(title: string, url: string, body: string, meta = ''): string {
   // The name stays at the reading size and everything under it steps down one.
   // Setting both the same made the details compete with the thing they
   // describe, and the step also narrows the widest row, which is what lets the
   // card itself be narrower.
+  //
+  // `meta` sits between the title and the rule, so the rule separates what the
+  // destination IS from what the forecast says about it. It is optional: the
+  // basemap POI popup shares this shell and has no analysis behind it.
   return `<div style="font-family:sans-serif;line-height:1.5">
     <div style="display:flex;align-items:center;gap:6px;font-size:13px"><strong>${title}</strong>${linkIcon(url)}</div>
+    ${meta}
     <hr style="border:none;border-top:1px solid #cbd5e1;margin:5px 0" />
     <div style="font-size:12px">${body}</div>
   </div>`

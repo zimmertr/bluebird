@@ -2574,7 +2574,8 @@ export default function App() {
             sortBy={view.sortBy}
             modelId={analyzed?.forecastModel ?? forecastModel}
             times={response?.times ?? []}
-            windowSource={windDatumSource}
+            popupColumns={tableColumns}
+            modelFallbackLabel={analysisModelLabel}
             fireWarnings={fire.warnings}
             showWildfires={showWildfires}
             showRadar={showRadar}

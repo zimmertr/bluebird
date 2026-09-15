@@ -13,7 +13,7 @@ import {
   visibleColumns,
   withModelColumn,
 } from './tableColumns'
-import { FAMILY_KEYS, SEP } from '../metrics'
+import { FAMILY_KEYS, RANKED_FAMILIES, familyOf, NOUN, SEP } from '../metrics'
 import { FREEZE_UNAVAILABLE } from './freezingLevel'
 import { SortBy } from '../types'
 
@@ -480,5 +480,48 @@ describe('wind datum on the displayed columns', () => {
     const keys = new Set<string>(['name', 'wind_avg_mph'])
     const visible = visibleColumns(false, 'precip_total_in', keys, 'archive')
     expect(labelOf(visible, 'wind_avg_mph')).toContain('at 10 meters')
+  })
+})
+
+
+// The whole column set is derived from the metric vocabulary, so adding a
+// metric to `metrics.ts` and to `COLUMNS` is meant to be the whole job: it then
+// reaches the table, the CSV and a marker's popup without any of the three
+// naming it (TJ, 2026-09-14). These guard the two places where a new family
+// could still be dropped on the floor in silence.
+describe('a new metric family needs no second list', () => {
+  it('gives every family a column per rankable aggregate', () => {
+    const byFamily = new Map<string, string[]>()
+    for (const col of COLUMNS) {
+      const key = col.key as string
+      if (key === 'name' || key === 'type' || key === 'elevation_ft') continue
+      const family = familyOf(key)
+      byFamily.set(family, [...(byFamily.get(family) ?? []), key])
+    }
+    // Read off RANKED_FAMILIES rather than a list written here, so a family
+    // added there and not to COLUMNS fails this rather than shipping a metric
+    // with no column.
+    expect([...byFamily.keys()].sort()).toEqual([...RANKED_FAMILIES].sort())
+    for (const family of RANKED_FAMILIES) {
+      expect(byFamily.get(family)!.sort()).toEqual([...FAMILY_KEYS[family]].sort())
+    }
+  })
+
+  // `pointModeColumns` keeps the columns it has a collapsed label for, so a
+  // family with no entry does not merely lose its aggregate word — it vanishes
+  // from a Current lookup entirely, on the screen, in the file and in the card.
+  it('collapses every family to exactly one column for a point sample', () => {
+    const collapsed = pointModeColumns(COLUMNS).filter(
+      (c) => !['name', 'type', 'elevation_ft'].includes(c.key as string),
+    )
+    expect(collapsed).toHaveLength(RANKED_FAMILIES.length)
+    expect(collapsed.map((c) => familyOf(c.key as string)).sort()).toEqual(
+      [...RANKED_FAMILIES].sort(),
+    )
+    // And the collapsed label is the family's own noun, composed rather than
+    // spelled, so a renamed metric renames its column here too.
+    for (const col of collapsed) {
+      expect(col.label.startsWith(NOUN[familyOf(col.key as string)])).toBe(true)
+    }
   })
 })
