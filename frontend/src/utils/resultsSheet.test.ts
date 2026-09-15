@@ -100,14 +100,14 @@ describe('the map chrome anchors', () => {
     // without the Controls button, which stands in the column only while the
     // panel is collapsed. The two a floor is about are asserted against the
     // classes, so a shade of either cannot move alone.
-    expect(stylesSource).toContain("compact: 'top-[96px] touch:top-[112px]'")
-    expect(stylesSource).toContain("full: 'top-[138px] touch:top-[162px]'")
+    expect(stylesSource).toContain("compact: 'top-[92px] touch:top-[108px]'")
+    expect(stylesSource).toContain("full: 'top-[132px] touch:top-[156px]'")
     // Fine and compact: a docked desktop, which is the only pointer the docked
     // floor is asked about.
-    expect(LEGEND_TOP_FINE_PX).toBe(96)
+    expect(LEGEND_TOP_FINE_PX).toBe(92)
     // Coarse and full: a phone at rest, where the drawer is closed, the
     // Controls button is up, and the sheet covers the map's bottom regardless.
-    expect(LEGEND_TOP_PX).toBe(162)
+    expect(LEGEND_TOP_PX).toBe(156)
     // The sheet's floor is promised against the taller column of the two.
     expect(LEGEND_TOP_PX).toBeGreaterThan(LEGEND_TOP_FINE_PX)
     // `bottom-0` is exempt and is the sheet itself, which stands ON the edge
@@ -223,14 +223,14 @@ describe('the resting height', () => {
   // moving out of the Controls button's row and above it made the column it
   // hangs under 52px taller in the same week. Its two panels floor at 120 each,
   // so the sheet cannot hand the map either amount however the reserve is set:
-  // the band is 196 of the 265 the stack wants, and the key's last bands
+  // the band is 202 of the 265 the stack wants, and the key's last bands
   // scroll. That is the degradation the stack was built for — it is a scroll
   // box anchored at the top precisely so what gives is its tail — and the
   // alternative is a 100px table.
   describe.each([
     ['table only', { chartShown: false, tableShown: true }, 1, LEGEND_STACK_PX],
     ['chart only', { chartShown: true, tableShown: false }, 1, LEGEND_STACK_PX],
-    ['chart and table', { chartShown: true, tableShown: true }, 2, 196],
+    ['chart and table', { chartShown: true, tableShown: true }, 2, 202],
   ])('at 402x874, %s', (_mode, shown, gripCount, wanted) => {
     const VIEWPORT = 874
 
@@ -282,9 +282,9 @@ describe('the drag cap', () => {
   })
 
   it('states both caps outright', () => {
-    expect(DRAGGED_MAP_PX).toBe(286)
-    expect(maxSheetPx(874)).toBe(588)
-    expect(maxSheetPx(757)).toBe(471)
+    expect(DRAGGED_MAP_PX).toBe(280)
+    expect(maxSheetPx(874)).toBe(594)
+    expect(maxSheetPx(757)).toBe(477)
   })
 
   // `clampPanelHeight` is given a map floor rather than a sheet height, and the
@@ -340,7 +340,7 @@ describe('the camera padding', () => {
       availPx: 874,
       ...defaults,
     })
-    expect(lift).toBe(323)
+    expect(lift).toBe(329)
     expect(874 - lift).toBe(RESTING_MAP_PX)
   })
 

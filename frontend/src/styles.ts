@@ -939,14 +939,15 @@ export const MAP_ROW_H = 'h-9 touch:h-11'
  * The gap between members of that column: the field, the buttons, the legend
  * boxes, and the popover under the button it hangs from.
  *
- * 6px, a quarter off the 8px every one of them took before (TJ, 2026-09-14).
+ * 4px, half the 8px every one of them took before: a quarter off first, then
+ * the same again once the tighter column was on screen (TJ, 2026-09-14).
  * It is a role rather than a `gap-1.5` at four call sites because
  * `LEGEND_TOP`'s arithmetic is built out of it: a gap changed in one of the
  * four would move the column's height without moving the inset that clears it.
  */
-export const MAP_COL_GAP = 'gap-1.5'
+export const MAP_COL_GAP = 'gap-1'
 /** The same gap as a top margin, for the popover that hangs rather than sits. */
-export const MAP_COL_GAP_T = 'mt-1.5'
+export const MAP_COL_GAP_T = 'mt-1'
 
 /**
  * How far anything floating on the map stands off its edge.
@@ -983,18 +984,18 @@ export const MAP_EDGE = {
  * button, at both pointer sizes, in the column's two heights.
  *
  * Every row above it is `MAP_ROW_H` — 36 on a pointer, 44 on a finger — and
- * they are separated by `MAP_COL_GAP`'s 6px, so the arithmetic is the inset,
+ * they are separated by `MAP_COL_GAP`'s 4px, so the arithmetic is the inset,
  * then a row and a gap per member:
  *
- *   search + Layers:            12 + 36 + 6 + 36 + 6 =  96
- *                               12 + 44 + 6 + 44 + 6 = 112
- *   search + Controls + Layers: + 36 + 6 = 138
- *                               + 44 + 6 = 162
+ *   search + Layers:            12 + 36 + 4 + 36 + 4 =  92
+ *                               12 + 44 + 4 + 44 + 4 = 108
+ *   search + Controls + Layers: + 36 + 4 = 132
+ *                               + 44 + 4 = 156
  *
- * Spelled in pixels rather than on Tailwind's 4px spacing scale, which two of
- * the four no longer land on: a 36px row plus a 6px gap is 42, and the scale
- * has no step there. An arbitrary value for all four keeps the class and the
- * sum above one thing rather than two.
+ * Spelled in pixels rather than on Tailwind's 4px spacing scale. Three of the
+ * four land on it, but writing one of them as `top-33` and its neighbour as
+ * `top-[132px]` would hide which numbers share a derivation. One form for all
+ * four keeps the class and the sum above one thing rather than two.
  *
  * TWO heights because the Controls button exists only while the panel is
  * collapsed, and since the search field moved out of its row and above it
@@ -1020,9 +1021,9 @@ export const MAP_EDGE = {
  */
 export const LEGEND_TOP = {
   /** The panel is open, so the column is the search field and Layers. */
-  compact: 'top-[96px] touch:top-[112px]',
+  compact: 'top-[92px] touch:top-[108px]',
   /** The panel is collapsed and the Controls button stands between them. */
-  full: 'top-[138px] touch:top-[162px]',
+  full: 'top-[132px] touch:top-[156px]',
 } as const
 
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`

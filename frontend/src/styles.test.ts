@@ -1121,15 +1121,15 @@ describe('shared recipes', () => {
     // the single-digit steps left are icons, square and sized with their own
     // height beside them.
     const searchWidths = searchBoxSource.match(/(?<![-\w])w-\d\S*/g) ?? []
-    // In source order: the spinner's square, then the list at each breakpoint.
-    expect(searchWidths).toEqual(['w-4', 'w-72', 'w-80'])
+    // The dropdown at each breakpoint, and the spinner's square.
+    expect([...new Set(searchWidths)].sort()).toEqual(['w-4', 'w-72', 'w-80'])
   })
 
   // The third part of the same decision: one gap between members, so the
   // column's height and the inset that clears it are built from one number.
   it('gives the column one gap, in both of the forms it takes', () => {
-    expect(MAP_COL_GAP).toBe('gap-1.5')
-    expect(MAP_COL_GAP_T).toBe('mt-1.5')
+    expect(MAP_COL_GAP).toBe('gap-1')
+    expect(MAP_COL_GAP_T).toBe('mt-1')
     // The cluster, the legend stack, and the popover that hangs rather than
     // sits. A gap spelled beside any of them would move the column's height
     // without moving `LEGEND_TOP`, which is derived from this number.
@@ -1184,6 +1184,27 @@ describe('shared recipes', () => {
     // slate-400 is 3.94:1 on that fill, under the 4.5:1 AA asks of text.
     expect(CAPTION_LIFTED).not.toContain('slate-400')
     expect(sizes(CAPTION_LIFTED)).toEqual(sizes(TEXT.caption))
+  })
+
+  // The slot under the field has two states and one box. The message state wore
+  // `NOTICE.warn`, a panel role: a 40% amber tint over whatever is behind it,
+  // which over the map is the map and the Layers button (TJ, 2026-09-14).
+  it('draws both states of the search dropdown on one opaque surface', () => {
+    const dropdown = searchBoxSource.match(/const DROPDOWN = `([^`]*)`/)![1]
+    expect(dropdown).toContain('${SURFACE_POPOVER}')
+    // Both the list and the message ride it, and neither spells a surface of
+    // its own beside it.
+    const rides = searchBoxSource.match(/\$\{DROPDOWN\}[^`]*/g) ?? []
+    expect(rides).toHaveLength(2)
+    for (const ride of rides) expect(ride).not.toMatch(/(^|\s)bg-/)
+    // A panel notice box on a floating surface is the bug this replaced: its
+    // fill is a tint, and a tint over the map is the map. Severity comes from
+    // STATUS instead, which is color only — amber-300 is 7.15:1 on the
+    // popover's fill, measured 2026-09-14.
+    // The interpolated form, not the bare word: the file explains in a comment
+    // which role it stopped wearing, and a comment is not a class list.
+    expect(searchBoxSource).not.toContain('${NOTICE')
+    expect(searchBoxSource).toContain('${STATUS.warn}')
   })
 
   // The Layers popover, separated from the legend boxes by elevation rather

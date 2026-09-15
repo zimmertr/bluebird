@@ -27,19 +27,19 @@ import { resolvePanelHeights } from './layout'
  * collapsed. These two are the pair a FLOOR is about, and they are not the same
  * arm of that table:
  *
- *   - `LEGEND_TOP_PX` is the coarse inset with the Controls button (162), which
+ *   - `LEGEND_TOP_PX` is the coarse inset with the Controls button (156), which
  *     is the phone at rest: the drawer is closed, so the button is up, and the
  *     sheet covers the map's bottom whatever the drawer is doing. Everything
  *     derived from it here is the sheet's, and a floor is a promise about the
  *     smallest map that will do — so it takes the taller column.
- *   - `LEGEND_TOP_FINE_PX` is the fine inset WITHOUT it (96), which is the
+ *   - `LEGEND_TOP_FINE_PX` is the fine inset WITHOUT it (92), which is the
  *     desktop a docked floor is asked about: the panel is docked, so the
  *     Controls button is not there. When it is, the panel is collapsed and the
  *     map has that whole panel back, so the floor is the slacker constraint
  *     rather than the binding one.
  */
-export const LEGEND_TOP_PX = 162
-export const LEGEND_TOP_FINE_PX = 96
+export const LEGEND_TOP_PX = 156
+export const LEGEND_TOP_FINE_PX = 92
 
 /**
  * What the legend stack needs to render with no scrolling: four layer rows in

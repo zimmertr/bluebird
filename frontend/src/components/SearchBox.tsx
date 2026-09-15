@@ -4,18 +4,33 @@ import {
   ACCENT,
   ACCENT_RING,
   CAPTION_LIFTED,
+  CONTROL_SIZE,
   ICON_ACTION,
   ICON_BUTTON,
   MAP_COL_W,
   MAP_ROW_H,
-  NOTICE,
   RADIUS,
   SPINNER,
+  STATUS,
   SURFACE_FLOATING,
   SURFACE_POPOVER,
   TAP,
   TEXT,
 } from '../styles'
+
+// The panel under the field, in both of the states it has: the list of places,
+// and the line that says why there is no list. One recipe, because they are one
+// slot — a reader who searches twice should not be shown two different boxes
+// there — and because the state that carries bad news is the one that has to be
+// legible over a busy basemap.
+//
+// The notice used to wear `NOTICE.warn`, which is a panel role: an amber tint at
+// 40% over whatever is behind it. Behind it here is the map and the Layers
+// button, which showed straight through the box (TJ, 2026-09-14). The popover's
+// fill is opaque enough to stand on anything, and `STATUS.warn` keeps the
+// severity the tint used to carry — amber-300 reads 7.15:1 on that fill,
+// measured 2026-09-14, where AA asks 4.5:1.
+const DROPDOWN = `${SURFACE_POPOVER} w-72 sm:w-80 absolute left-0 top-full mt-1`
 
 interface Props {
   onSelect: (place: Place) => void
@@ -203,7 +218,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
       </div>
 
       {error && (
-        <div className={`${NOTICE.warn} absolute left-0 top-full mt-1 w-full`}>
+        <div className={`${DROPDOWN} ${CONTROL_SIZE} ${STATUS.warn} px-2.5 py-2`}>
           {error}
         </div>
       )}
@@ -212,11 +227,10 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
         <ul
           role="listbox"
           aria-label="Search results"
-          // Lifted onto `SURFACE_POPOVER` rather than the floating surface the
-          // field wears (TJ, 2026-09-14): this is a menu the reader acts in,
-          // hanging over the buttons and legends below, and one step of fill
-          // plus the heavier shadow is what says so — the same separation the
-          // Layers popover takes against the same legends.
+          // `DROPDOWN` (above) is the surface and the width. This is a menu the
+          // reader acts in, hanging over the buttons and legends below, and one
+          // step of fill plus the heavier shadow is what says so — the same
+          // separation the Layers popover takes against the same legends.
           //
           // It is the ONE thing in this column wider than `MAP_COL_W`, and
           // deliberately so: bound to the column it clipped every second line,
@@ -225,7 +239,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           // exactly the half that went (TJ, 2026-09-14, reversing the bind).
           // It hangs past the column's right edge the way the model picker's
           // listbox hangs past the panel's.
-          className={`${SURFACE_POPOVER} w-72 sm:w-80 absolute left-0 top-full mt-1 overflow-hidden divide-y divide-slate-600`}
+          className={`${DROPDOWN} overflow-hidden divide-y divide-slate-600`}
         >
           {places.map((p, i) => (
             <li key={`${p.lat},${p.lon},${i}`} role="option" aria-selected={i === highlight}>
