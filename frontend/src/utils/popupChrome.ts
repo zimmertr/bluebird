@@ -52,20 +52,30 @@ export function row(label: string, value: string, href?: string | null): string 
 }
 
 /**
- * The weight a row's label carries.
+ * The colour a row's label takes, so it reads as a label rather than as the
+ * first half of the value (TJ, 2026-09-14).
  *
- * A step under the title's, not level with it (TJ, 2026-09-14). `<strong>`
- * renders at 700 and so does the title, so labelling with the tag put eight
- * lines at the title's own weight and the card had no single emphasis left.
- * 500 is the lightest step that still separates from the value's 400 at 12px,
- * which is what "subtle" has to mean here: enough to mark a kind of text,
- * never enough to compete with the name above it.
+ * **Colour rather than weight, and that is a measurement rather than a taste.**
+ * The obvious answer was a lighter weight than the title's 700. It does not
+ * work here: this markup declares `font-family:sans-serif`, and under the
+ * generic keyword Chrome on macOS resolves exactly TWO faces — 400 and 500
+ * render identically, 600 and 700 render identically (measured 2026-09-14:
+ * 126.73px for the first pair, 133.27px for the second). So every weight
+ * available is either invisible or the title's own. Pointing the popup at the
+ * app's stack instead gave four widths, but evenly spaced ones — the signature
+ * of synthetic emboldening rather than four drawn faces — and the pairs still
+ * read alike.
  *
- * A span rather than `<strong>`, which also keeps the popup's one <strong>
- * where it was — on the title — so that rule survives unchanged rather than
- * being restated with a bigger number.
+ * Colour has no such dependency: it renders the same wherever the card opens,
+ * and it is the axis the app's own panels already use to step text back.
+ * Slate-600 measures 7.4:1 on the white MapLibre draws a popup on, well past
+ * AA for text, so the label recedes without becoming hard to read. Anything
+ * lighter starts to: slate-500 is 4.76:1, which is a pass for text you glance
+ * at and thin for text you read.
+ *
+ * The popup's one <strong> therefore stays where it was, on the title.
  */
-export const LABEL_WEIGHT = 'font-weight:500'
+export const LABEL_COLOR = 'color:#475569'
 
 /**
  * A row's label.
@@ -75,7 +85,7 @@ export const LABEL_WEIGHT = 'font-weight:500'
  * and a mono value than swept into either.
  */
 export function rowLabel(label: string): string {
-  return `<span style="${LABEL_WEIGHT}">${label}</span>`
+  return `<span style="${LABEL_COLOR}">${label}</span>`
 }
 
 /**

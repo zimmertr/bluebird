@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { resultPopupHtml } from './resultPopup'
 import type { FireWarning } from './fireProximity'
 import { NOUN, SEP } from '../metrics'
-import { LABEL_WEIGHT } from './popupChrome'
+import { LABEL_COLOR } from './popupChrome'
 
 // A fully-populated popup input; individual tests override `warning`.
 const base = {
@@ -113,10 +113,10 @@ describe('resultPopupHtml layout', () => {
   })
 
   // The label/value split is carried on two axes since TJ's 2026-09-14 call:
-  // the label is weighted and the value is monospace. The face alone was too
-  // quiet to read as a split. Every value wears the face; no label does, and
-  // no value wears the weight (the emphasis suite below pins that half).
-  it('sets values in a monospace face and labels in a weight', () => {
+  // the label is stepped back in colour and the value is monospace. The face
+  // alone was too quiet to read as a split. Every value wears the face; no
+  // label does, and no value wears the colour.
+  it('sets values in a monospace face and labels in a stepped-back colour', () => {
     const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
     const values = html.match(/<span style="font-family:ui-monospace[^"]*">[^<]*<\/span>/g) ?? []
 
@@ -126,7 +126,7 @@ describe('resultPopupHtml layout', () => {
     for (const value of values) {
       expect(value.replace(/^<span style="[^"]*">/, '')).not.toContain(':')
     }
-    expect(html).toContain(`<span style="${LABEL_WEIGHT}">Elevation</span>: <span`)
+    expect(html).toContain(`<span style="${LABEL_COLOR}">Elevation</span>: <span`)
     expect(html).toContain('mph</span>')
   })
 
@@ -187,19 +187,20 @@ describe('resultPopupHtml emphasis', () => {
     expect(html.indexOf('<strong>')).toBeLessThan(html.indexOf('Mount Rainier'))
   })
 
-  // The label's weight has to stay below the title's, which is what "subtle"
-  // meant: a label marks a kind of text, it does not compete with the name.
-  it('weights a label under the title and over its value', () => {
-    const weight = Number(LABEL_WEIGHT.split(':')[1])
-    expect(weight).toBeGreaterThan(400)
-    expect(weight).toBeLessThan(700)
+  // Colour rather than weight, because under this card's `sans-serif` only two
+  // faces exist and both are wrong: one is invisible against the value, the
+  // other is the title's own. See LABEL_COLOR for the measurement.
+  it('steps a label back in colour, and never a value', () => {
     const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
     // Every label carries it; the count is the rows, coordinates included.
-    expect(html.match(new RegExp(LABEL_WEIGHT, 'g'))).toHaveLength(8)
-    // And no value does: the weight always closes before its row's colon.
+    expect(html.match(new RegExp(LABEL_COLOR, 'g'))).toHaveLength(8)
+    // And no value does: it always closes before its row's colon.
     for (const line of html.match(/<div>[^]*?<\/div>/g) ?? []) {
-      expect(line.slice(line.indexOf(': '))).not.toContain(LABEL_WEIGHT)
+      expect(line.slice(line.indexOf(': '))).not.toContain(LABEL_COLOR)
     }
+    // No weight anywhere below the title, which is what the two-face
+    // measurement rules out rather than merely advises against.
+    expect(html).not.toContain('font-weight')
   })
 })
 
