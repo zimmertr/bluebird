@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { resultPopupHtml } from './resultPopup'
 import type { FireWarning } from './fireProximity'
 import { NOUN, SEP } from '../metrics'
+import { LABEL_WEIGHT } from './popupChrome'
 
 // A fully-populated popup input; individual tests override `warning`.
 const base = {
@@ -91,7 +92,7 @@ describe('resultPopupHtml layout', () => {
     // itself, not a property counted off the flattened text.
     for (const line of lines) {
       expect(line, 'not a single label/value pair').toMatch(
-        /^<div><strong>[^<>:]+<\/strong>: (<a href="[^"]*"[^<>]*>)?<span style="[^"]*">[^<>]*<\/span>(<\/a>)?<\/div>$/,
+        /^<div><span style="[^"]*">[^<>:]+<\/span>: (<a href="[^"]*"[^<>]*>)?<span style="[^"]*">[^<>]*<\/span>(<\/a>)?<\/div>$/,
       )
     }
     // A separator may only join a metric to its aggregate, so it always sits
@@ -125,7 +126,7 @@ describe('resultPopupHtml layout', () => {
     for (const value of values) {
       expect(value.replace(/^<span style="[^"]*">/, '')).not.toContain(':')
     }
-    expect(html).toContain('<strong>Elevation</strong>: <span')
+    expect(html).toContain(`<span style="${LABEL_WEIGHT}">Elevation</span>: <span`)
     expect(html).toContain('mph</span>')
   })
 
@@ -136,7 +137,7 @@ describe('resultPopupHtml layout', () => {
   // stages and had drifted into two kinds of card.
   it('keeps the coordinate pair on one line, under a rule', () => {
     const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
-    expect(html).toMatch(/<div style="white-space:nowrap[^"]*"><strong>Coordinates<\/strong>: /)
+    expect(html).toMatch(/<div style="white-space:nowrap[^"]*"><span style="[^"]*">Coordinates<\/span>: /)
     expect(html).toContain('<hr')
   })
 })
@@ -147,7 +148,7 @@ describe('resultPopupHtml layout', () => {
 describe('resultPopupHtml freezing level', () => {
   it('reads the height in feet, grouped like the elevation above it', () => {
     const html = resultPopupHtml({ ...base, freezeMinFt: 9843, warning: null })
-    expect(html).toMatch(/Freezing level · min<\/strong>: <a [^>]*><span[^>]*>9,843 ft<\/span>/)
+    expect(html).toMatch(/Freezing level · min<\/span>: <a [^>]*><span[^>]*>9,843 ft<\/span>/)
   })
 
   it('marks the line rather than dropping it when the model publishes none', () => {
@@ -155,7 +156,7 @@ describe('resultPopupHtml freezing level', () => {
     // as the app forgetting the metric, where a missing air quality is one
     // forecast falling short and takes its rows with it.
     const html = resultPopupHtml({ ...base, freezeMinFt: null, warning: null })
-    expect(html).toMatch(/Freezing level · min<\/strong>: <span[^>]*>N\/A<\/span>/)
+    expect(html).toMatch(/Freezing level · min<\/span>: <span[^>]*>N\/A<\/span>/)
   })
 })
 
@@ -172,28 +173,32 @@ describe('resultPopupHtml escaping', () => {
 })
 
 describe('resultPopupHtml emphasis', () => {
-  // What the old "one bold" rule was actually for: precipitation's total and
-  // the AQI average wore <strong> from the original implementation onward,
-  // singling out two VALUES by no rule at all — not the ranked metric (that
-  // varies; the markup didn't), not line position (wind led its line
-  // unbolded).
+  // The popup's only bold is its title. Precip-total and AQI-avg wore
+  // <strong> from the original implementation onward, singling out two values
+  // by no rule — not the ranked metric (that varies; the markup didn't), not
+  // line position (wind led its line unbolded).
   //
-  // Weight now marks the labels (TJ, 2026-09-14), which is systematic: it says
-  // "this is a label", not "this row matters more". So the rule survives as
-  // the half that meant something — no value is ever bold — and the title
-  // keeps its emphasis through size and the rule drawn beneath it.
-  it('bolds the title and every label, and no value', () => {
+  // Labels are weighted too since TJ's 2026-09-14 call, but a step UNDER this
+  // one and through a span, so the card keeps a single strongest thing and
+  // this rule needs no exception carved into it.
+  it('bolds the name and nothing else', () => {
     const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
-    // The title, plus one per row: elevation, precipitation, wind,
-    // temperature, the freezing level, air quality twice, and the coordinates.
-    expect(html.match(/<strong>/g)).toHaveLength(9)
+    expect(html.match(/<strong>/g)).toHaveLength(1)
     expect(html.indexOf('<strong>')).toBeLessThan(html.indexOf('Mount Rainier'))
-    // A bold that reached a value would be the old bug returning under a new
-    // name, so this reads the structure rather than counting: every <strong>
-    // outside the title closes before its row's colon.
+  })
+
+  // The label's weight has to stay below the title's, which is what "subtle"
+  // meant: a label marks a kind of text, it does not compete with the name.
+  it('weights a label under the title and over its value', () => {
+    const weight = Number(LABEL_WEIGHT.split(':')[1])
+    expect(weight).toBeGreaterThan(400)
+    expect(weight).toBeLessThan(700)
+    const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
+    // Every label carries it; the count is the rows, coordinates included.
+    expect(html.match(new RegExp(LABEL_WEIGHT, 'g'))).toHaveLength(8)
+    // And no value does: the weight always closes before its row's colon.
     for (const line of html.match(/<div>[^]*?<\/div>/g) ?? []) {
-      expect(line.indexOf('</strong>')).toBeLessThan(line.indexOf(': '))
-      expect(line.slice(line.indexOf(': '))).not.toContain('<strong>')
+      expect(line.slice(line.indexOf(': '))).not.toContain(LABEL_WEIGHT)
     }
   })
 })

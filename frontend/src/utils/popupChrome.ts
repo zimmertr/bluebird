@@ -48,18 +48,34 @@ export const VALUE_FACE = 'font-family:ui-monospace,SFMono-Regular,Menlo,Consola
  */
 export function row(label: string, value: string, href?: string | null): string {
   const shown = `<span style="${VALUE_FACE}">${value}</span>`
-  return `<div>${strongLabel(label)}: ${href ? popupLink(href, shown) : shown}</div>`
+  return `<div>${rowLabel(label)}: ${href ? popupLink(href, shown) : shown}</div>`
 }
 
 /**
- * A row's label, weighted.
+ * The weight a row's label carries.
+ *
+ * A step under the title's, not level with it (TJ, 2026-09-14). `<strong>`
+ * renders at 700 and so does the title, so labelling with the tag put eight
+ * lines at the title's own weight and the card had no single emphasis left.
+ * 500 is the lightest step that still separates from the value's 400 at 12px,
+ * which is what "subtle" has to mean here: enough to mark a kind of text,
+ * never enough to compete with the name above it.
+ *
+ * A span rather than `<strong>`, which also keeps the popup's one <strong>
+ * where it was — on the title — so that rule survives unchanged rather than
+ * being restated with a bigger number.
+ */
+export const LABEL_WEIGHT = 'font-weight:500'
+
+/**
+ * A row's label.
  *
  * The colon stays outside it: it is punctuation joining the two halves rather
- * than part of the name, and it reads better light between a bold label and a
- * mono value than swept into either.
+ * than part of the name, and it reads better light between a weighted label
+ * and a mono value than swept into either.
  */
-export function strongLabel(label: string): string {
-  return `<strong>${label}</strong>`
+export function rowLabel(label: string): string {
+  return `<span style="${LABEL_WEIGHT}">${label}</span>`
 }
 
 /**
@@ -94,7 +110,7 @@ export function popupLink(href: string, inner: string, extra = ''): string {
  * so the room comes from the width ceiling below instead.
  */
 export function coordinateRow(latitude: number, longitude: number): string {
-  return `<div style="white-space:nowrap">${strongLabel('Coordinates')}: <span style="${VALUE_FACE}">${Number(
+  return `<div style="white-space:nowrap">${rowLabel('Coordinates')}: <span style="${VALUE_FACE}">${Number(
     latitude,
   ).toFixed(5)}, ${Number(longitude).toFixed(5)}</span></div>`
 }
