@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
+import time
 
 import httpx
 import pytest
@@ -131,6 +133,69 @@ async def test_fetch_layer_follows_exceeded_transfer_limit():
         # The second request must resume where the first stopped, or paging
         # silently re-reads page one forever.
         assert "resultOffset=1" in str(client.recorded[1].url)
+
+
+async def test_the_page_parse_runs_off_the_event_loop(monkeypatch):
+    """The decode must not hold the loop while every other request waits.
+
+    The real payload is 16.5 MB of JSON holding 861k coordinates, and
+    ``_to_fire`` runs ``json.dumps`` again per feature. ``snapshot.py`` keeps
+    that work off the request that triggered it, but an ``async`` function that
+    never awaits blocks the whole pod for as long as it runs (#337, finding
+    10).
+
+    Stubbing the parse rather than building a 16 MB body keeps the test fast
+    and makes it assert the two things that actually matter: the parse runs on
+    another thread, and the loop keeps turning while it does.
+    """
+    parsed_on: list[str] = []
+
+    def slow_parse(payload: bytes):
+        parsed_on.append(threading.current_thread().name)
+        time.sleep(0.2)
+        return [], False, 0
+
+    monkeypatch.setattr(nifc, "_parse_page", slow_parse)
+
+    ticks = 0
+
+    async def heartbeat() -> None:
+        nonlocal ticks
+        while True:
+            await asyncio.sleep(0.005)
+            ticks += 1
+
+    page = [{"type": "FeatureCollection", "features": []}]
+    async with _client_returning(page) as client:
+        beat = asyncio.create_task(heartbeat())
+        await nifc._fetch_layer(client, None)
+        beat.cancel()
+
+    assert parsed_on and parsed_on[0] != threading.main_thread().name
+    # ~40 ticks are due in 200 ms. Anything above a handful proves the loop was
+    # free; on the event loop it would be zero.
+    assert ticks >= 5, f"the loop stalled during the parse ({ticks} ticks)"
+
+
+def test_parse_page_reads_a_page_the_way_the_pager_needs_it():
+    payload = json.dumps(
+        {
+            "type": "FeatureCollection",
+            "features": [
+                _polygon(-120.0, 45.0, -119.9, 45.1),
+                {"properties": {"IncidentName": "no shape"}},
+            ],
+            "exceededTransferLimit": True,
+        }
+    ).encode()
+
+    fires, more, count = nifc._parse_page(payload)
+
+    assert len(fires) == 1  # the shapeless feature is dropped
+    assert more is True
+    # The offset step counts what ArcGIS SENT, not what survived, or paging
+    # re-reads whatever the dropped features displaced.
+    assert count == 2
 
 
 async def test_fetch_layer_stops_at_the_page_backstop(monkeypatch, caplog):
