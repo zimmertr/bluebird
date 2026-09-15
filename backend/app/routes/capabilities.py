@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 from pydantic import BaseModel, Field
 
 from app import ratelimit
@@ -287,7 +287,22 @@ class CapabilitiesResponse(BaseModel):
         "behavior."
     ),
 )
-async def capabilities() -> CapabilitiesResponse:
+async def capabilities(response: Response) -> CapabilitiesResponse:
+    # Every visitor fetches this once on load, and it answers the same bytes to
+    # all of them until a deploy changes a constant. A minute of freshness is
+    # what turns that into one round trip per pod rather than one per visitor,
+    # at the edge as well as in the browser.
+    #
+    # Staleness costs nothing here: the numbers only ever bound what the client
+    # offers, the server enforces the real ones on every request anyway, and a
+    # deployment where this fetch fails outright already falls back to compiled
+    # constants (#152). `GET /api/version` deliberately does NOT take a header
+    # of its own — the SPA never calls it, so there is no round trip to save,
+    # and its one reader is a person asking which build is live right now.
+    #
+    # The cache middleware sets a header only where a response carries none
+    # (#354), so this value survives it.
+    response.headers["Cache-Control"] = "public, max-age=60"
     # Exactly IMPLEMENTED_TYPES, so every value published here round-trips: a
     # client that sends back what it was told is never refused. `custom` is
     # deliberately absent, because both request validators reject it — custom

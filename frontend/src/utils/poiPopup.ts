@@ -1,7 +1,8 @@
 import { BasemapPoi, LAKE_CLASS } from './basemapPoi'
 import { destinationUrl } from './destinationUrl'
 import { isPeakKind } from './geocode'
-import { coordinateRow, escapeHtml, popupShell, row } from './popupChrome'
+import { coordinateRow, escapeHtml, metaBand, popupShell, row } from './popupChrome'
+import { ELEVATION_COL } from './tableColumns'
 
 // The popup a clicked basemap peak or lake opens (#119).
 //
@@ -51,15 +52,24 @@ export function poiPopupHtml(poi: BasemapPoi, added: boolean): string {
 
   // The kind used to have a line of its own under the title. It said "Peak"
   // beneath the name of a peak, which the icon on the map had already said and
-  // the name usually says again.
+  // the name usually says again. The coordinates are NOT that: they identify
+  // the point rather than describe it, which is why they sit in the band above
+  // the rule here exactly as they do on a ranked result (TJ, 2026-09-14).
+  const meta = metaBand([coordinateRow(poi.lat, poi.lon)])
+
+  // The elevation reads off the results table's own column rather than being
+  // spelled here — same label, same thousands separator, unit in the label and
+  // not in the value. This card used to say "Elevation: 8,885 ft" beside a
+  // result card saying "Elevation (ft): 8,885" for the same mountain.
   const body = [
     poi.elevationFt !== undefined
-      ? row('Elevation', `${poi.elevationFt.toLocaleString()} ft`)
+      ? row(ELEVATION_COL.label, ELEVATION_COL.format!(poi.elevationFt))
       : '',
-    coordinateRow(poi.lat, poi.lon),
     action,
-  ].join('\n    ')
+  ]
+    .filter(Boolean)
+    .join('\n    ')
 
   // The name is OSM's, so it is third-party text on its way to setHTML.
-  return popupShell(escapeHtml(poi.name), poiUrl(poi), body)
+  return popupShell(escapeHtml(poi.name), poiUrl(poi), body, meta)
 }

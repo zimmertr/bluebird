@@ -62,6 +62,33 @@ docker run --rm -v "$PWD":/repo -w /repo/backend python:3.14-slim \
 pip install ruff && ruff check backend/
 ```
 
+### The cold-load budgets
+
+CI audits the first screen with Lighthouse and fails the PR when a byte or
+timing budget is crossed (issue #337). To run the same audit locally, build the
+image, serve it on a docker network, and point Lighthouse CI at it from a
+container that already carries Chromium:
+
+```bash
+docker build -t bluebird:lh .
+docker network create lh-net 2>/dev/null || true
+docker run -d --rm --name lh-target --network lh-net bluebird:lh
+
+docker run --rm --network lh-net -v "$PWD":/repo -w /repo \
+  -e CHROME_PATH=/usr/bin/chromium-browser \
+  --entrypoint sh zenika/alpine-chrome:with-node -c \
+  "npx -y @lhci/cli@0.15.x autorun --config=.github/lighthouserc.js \
+     --collect.url=http://lh-target:8000/"
+
+docker rm -f lh-target
+```
+
+The budgets themselves, and why the audit blocks every third-party host, are in
+`.github/lighthouserc.js`. Reports land in `.lighthouseci/` (git-ignored); the
+CI run keeps the same files as a workflow artifact. Measure before and after
+whenever a change could touch what the first screen loads, and put both numbers
+on the PR.
+
 Two rules worth knowing before you send a change: any behavior change ships with
 a matching test in the same PR, and any change to a route or Pydantic model
 regenerates the committed OpenAPI snapshot with

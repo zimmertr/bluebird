@@ -32,6 +32,7 @@ it does not even parse the same way.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -289,7 +290,12 @@ async def fetch_snapshot(now: datetime | None = None) -> Snapshot:
                 log.info("HMS has no analysis for %s yet; falling back a day", day.isoformat())
                 continue
             response.raise_for_status()
-            features = parse_kml(response.text)
+            # Off the event loop for the reason `nifc.py` states at more
+            # length: an ElementTree walk over a day's plumes is CPU work, and
+            # an `async` function holding the loop blocks every other request
+            # on the pod while it runs. Smaller than the fire snapshot (a busy
+            # day measured under half a megabyte), and the same shape.
+            features = await asyncio.to_thread(parse_kml, response.text)
             fetched_at_ms = int(time.time() * 1000)
             return Snapshot(
                 fetched_at_ms=fetched_at_ms,

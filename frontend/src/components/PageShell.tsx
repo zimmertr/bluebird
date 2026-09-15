@@ -1,5 +1,6 @@
 import { ReactNode } from 'react'
 import { LINK, PROSE, RADIUS, SURFACE_CARD } from '../styles'
+import { logoUrl } from '../logo'
 
 interface Props {
   heading: string
@@ -43,7 +44,9 @@ export default function PageShell({ heading, subtitle, children }: Props) {
         <div className="flex items-center gap-3 mb-6">
           <a href="/" aria-label="Back to Bluebird Forecast">
             <img
-              src="/icon.png"
+              src={logoUrl}
+              width={256}
+              height={256}
               alt=""
               className={`w-12 h-12 ${RADIUS.surface} object-cover flex-shrink-0`}
             />

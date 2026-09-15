@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { POI_ACTION_ATTR, poiPopupHtml } from './poiPopup'
+import { ELEVATION_COL } from './tableColumns'
 import { POPUP_MAX_WIDTH_PX, popupWidth } from './popupChrome'
 
 const RAINIER = { name: 'Mount Rainier', kind: 'volcano', lat: 46.8529, lon: -121.7604, elevationFt: 14410 }
@@ -8,7 +9,7 @@ describe('poiPopupHtml', () => {
   it('names the feature and its elevation', () => {
     const html = poiPopupHtml(RAINIER, false)
     expect(html).toContain('Mount Rainier')
-    expect(html).toContain('14,410 ft')
+    expect(html).toContain('14,410')
   })
 
   // The kind had a line of its own under the title, saying "Peak" beneath the
@@ -25,6 +26,25 @@ describe('poiPopupHtml', () => {
     expect(html).toContain('<hr')
     expect(html).toContain('peakbagger.com')
     expect(html).toContain('46.85290, -121.76040')
+  })
+
+  // The coordinates identify the point rather than describe it, so they ride in
+  // the band above the rule exactly as they do on a ranked result (TJ,
+  // 2026-09-14). Everything below the rule is what we know ABOUT the point.
+  it('puts the coordinates above the rule, with the title', () => {
+    const html = poiPopupHtml(RAINIER, false)
+    expect(html.indexOf('46.85290, -121.76040')).toBeLessThan(html.indexOf('<hr'))
+  })
+
+  // Both cards describe the same mountain, so they must not label its height
+  // two ways. This one said "Elevation: 8,885 ft" beside a result card saying
+  // "Elevation (ft): 8,885"; it now reads the results table's own column.
+  it('labels the elevation the way the results table does', () => {
+    const html = poiPopupHtml(RAINIER, false)
+    expect(html).toContain(`${ELEVATION_COL.label}</span>: `)
+    expect(html).toContain('14,410')
+    // The unit rides in the label now, so it must not also ride in the value.
+    expect(html).not.toContain('14,410 ft')
   })
 
   // A latitude and a longitude are one value in two halves; breaking between

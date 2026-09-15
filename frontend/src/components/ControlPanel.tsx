@@ -77,6 +77,7 @@ import {
 } from '../utils/calendar'
 import { windowSource } from '../utils/forecastWindow'
 import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabilities'
+import { logoUrl } from '../logo'
 
 // The app's core question: "top N peaks by <metric's aggregate>, lowest or
 // highest". Each row is a metric; which of its aggregate columns it ranks by
@@ -837,7 +838,13 @@ export default function ControlPanel({
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className={`border-b ${PANEL_EDGE} flex`}>
-        <img src="/icon.png" alt="" className="w-20 object-cover flex-shrink-0" />
+        <img
+          src={logoUrl}
+          alt=""
+          width={256}
+          height={256}
+          className="w-20 object-cover flex-shrink-0"
+        />
         <div className="px-3 py-4 flex flex-col justify-center">
           <h1 className={TEXT.appTitle}>Bluebird Forecast</h1>
           <p className={TEXT.caption}>Weather Window Finder</p>
