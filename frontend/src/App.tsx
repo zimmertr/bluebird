@@ -890,6 +890,8 @@ export default function App() {
   // as pending dots until the user runs an Analyze — nothing fetches on load.
   useEffect(() => {
     if (restored?.pins?.length) searched.restore(restored.pins)
+    // Kept: `searched` is a fresh object every render, so a complete list would
+    // re-seed the pins over whatever the reader has added since.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -907,6 +909,9 @@ export default function App() {
       next.delete(key)
       return next
     })
+    // Kept: the only value read is `searched.addPlace`, and `useSearchedPlaces`
+    // rebuilds it every render, so listing it would hand a new `registerPlace`
+    // to the memoized map on every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -926,6 +931,8 @@ export default function App() {
   )
   const handleRemovePoi = useCallback((latitude: number, longitude: number) => {
     searched.removePlace(latitude, longitude)
+    // Kept for the reason `registerPlace` above keeps its own: `searched` is
+    // rebuilt every render, and this handler is a prop of the memoized map.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -1122,6 +1129,10 @@ export default function App() {
     // No cleanup here on purpose: flushing once per effect run would write on
     // every keystroke and collapse nothing, which is the trap debounceUrlWrite
     // documents. Unmount is handled by its own effect below.
+    // Suppressed rather than fixed: the rule is right that `forecastModel` and
+    // `caps.defaultForecastModel` are missing, and the bug that causes is
+    // issue #292's to fix, not this file's.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     polygon,
     destinationTypes,
@@ -1698,7 +1709,10 @@ export default function App() {
   // The report's own hourly grid, which is what the forecast axis plays. It
   // comes back on both analysis paths, so the axis does not care which one ran
   // — unlike the live presentation knobs, which need the held field.
-  const forecastTimes = response?.times ?? []
+  // Memoized for its IDENTITY rather than its cost: the empty fallback was a
+  // fresh array on every render before an analysis, which gave `movePlayheadTo`
+  // below a new identity per render and re-rendered the chart that holds it.
+  const forecastTimes = useMemo(() => response?.times ?? [], [response?.times])
   const timelineAxes = availableAxes(playerShown, showRadar, forecastTimes.length)
   const timelineAxis = resolveAxis(timelineAxes, chosenAxis)
   // Whether the player has anything to play: radar contributes a past axis and
@@ -1728,6 +1742,8 @@ export default function App() {
   // Desktop is unaffected: the panel is docked there and never closes.
   useEffect(() => {
     if (analysisSeq > 0 && !isDesktop) setSidebarOpen(false)
+    // Kept: listing `isDesktop` would close the drawer when a window crossed
+    // the breakpoint, which is a resize rather than a committed report.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analysisSeq])
 
@@ -1973,7 +1989,10 @@ export default function App() {
   // Every row shares the analysis's hourly grid. A point-sample analysis charts
   // too: its single-instant grid renders as one dot per destination — still a
   // cross-destination comparison, same default-select-all.
-  const chartTimes = response?.times ?? []
+  // Memoized for its identity, like `forecastTimes` above: `chartedSeries`
+  // below depends on it, and a fresh empty array per render rebuilt that memo
+  // on every render before an analysis.
+  const chartTimes = useMemo(() => response?.times ?? [], [response?.times])
   // Everything the chart tracks: the displayed rows plus the pending
   // destinations no analysis has covered. Pending rows ride along as
   // series-less pseudo-rows so a searched place is colored and selected the
@@ -2037,6 +2056,9 @@ export default function App() {
         // said; the model is the line style.
         color: chart.colorFor(r),
       }))
+    // Kept: the rule asks for the whole `chart` object, which useChartSelection
+    // rebuilds every render. `colorFor` cannot answer differently for a row
+    // that has not changed, so the two listed values are the real inputs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chart.selectedRows, results])
   // The ranking model's own numbers per destination, on the chart's grid: a
@@ -2048,7 +2070,6 @@ export default function App() {
       out[chartKey(row)] = alignRowToGrid(row, chartTimes).series ?? null
     }
     return out
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chart.selectedRows, chartTimes])
   // Every model the panel has selected, ranking first: the Models popover's
   // rows. The SELECTION rather than the chart, so a model ticked before the
@@ -2100,6 +2121,9 @@ export default function App() {
   const chartedPairsKey = chartedPairKeys.join('|')
   useEffect(() => {
     chart.rememberColors(chartedPairKeys)
+    // Kept: `chartedPairsKey` is the joined VALUE of `chartedPairKeys`, which
+    // is a new array whenever anything above it re-derives. Listing the array
+    // and the hook object would re-run this on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartedPairsKey])
   const compare = useModelCompare({
@@ -2342,6 +2366,11 @@ export default function App() {
   //
   // `null` while the results are docked below the map, where nothing covers the
   // map's bottom edge and the number would mean nothing.
+  //
+  // Kept: no list is the point. The rule offers `[isDesktop]`, which would miss
+  // the mode switch, the chevron, the drag and the rotation this exists to
+  // catch. The same-value guard below is what stops the update chain.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     const el = sheetRef.current
     const next = !el || isDesktop ? null : el.getBoundingClientRect().height

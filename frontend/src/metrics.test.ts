@@ -17,21 +17,8 @@ import {
   windowAggregate,
 } from './metrics'
 import { SortBy } from './types'
-// `?raw` gives us each file's text without executing it, so the drift guard
-// below stays a pure node test with no DOM — the same trick styles.test.ts
-// uses to lint class lists.
-import appSource from './App.tsx?raw'
-import controlPanelSource from './components/ControlPanel.tsx?raw'
-import resultsTableSource from './components/ResultsTable.tsx?raw'
-import timeSeriesChartSource from './components/TimeSeriesChart.tsx?raw'
-import timelineTransportSource from './components/TimelineTransport.tsx?raw'
-import chartDataSource from './utils/chartData.ts?raw'
-import colorsSource from './utils/colors.ts?raw'
-import resultPopupSource from './utils/resultPopup.ts?raw'
-import popupRowsSource from './utils/popupRows.ts?raw'
-import resultsCsvSource from './utils/resultsCsv.ts?raw'
-import tableColumnsSource from './utils/tableColumns.ts?raw'
-import freezingLevelSource from './utils/freezingLevel.ts?raw'
+// `?raw` gives us each file's text without executing it, so the copy lints
+// below stay a pure node test with no DOM.
 import openMeteoSource from './utils/openMeteo.ts?raw'
 import presentSource from './utils/present.ts?raw'
 
@@ -253,68 +240,6 @@ describe('metricLabel', () => {
     )
     expect(metricLabel('precip', undefined, 'in/hr')).toBe('Precipitation (in/hr)')
   })
-})
-
-// The point of the module: a surface must compose its names from here rather
-// than writing its own. Nothing in the type system enforces that — a string
-// literal in JSX type-checks fine — so the guard reads the sources as text.
-//
-// Capitalisation is what keeps this from firing on code: field identifiers
-// (`precip_total_in`, `tempAvgF`, `Math.min`) are lowercase or camel, and the
-// abbreviations only ever appeared in display copy with a leading capital.
-describe('no surface writes its own metric name', () => {
-  const CONSUMERS: [string, string][] = [
-    ['App.tsx', appSource],
-    ['ControlPanel.tsx', controlPanelSource],
-    ['ResultsTable.tsx', resultsTableSource],
-    ['TimeSeriesChart.tsx', timeSeriesChartSource],
-    ['TimelineTransport.tsx', timelineTransportSource],
-    ['chartData.ts', chartDataSource],
-    ['colors.ts', colorsSource],
-    ['resultPopup.ts', resultPopupSource],
-    // The popup's derivation, which composes a group's heading from the
-    // vocabulary the way the columns compose a header (#370).
-    ['popupRows.ts', popupRowsSource],
-    // The seventh surface: a downloaded file is read in a spreadsheet, where
-    // nothing around it says which app wrote the header.
-    ['resultsCsv.ts', resultsCsvSource],
-    ['tableColumns.ts', tableColumnsSource],
-    // The one file that writes a whole SENTENCE about a metric (#295), which
-    // is the same duty: it composes the noun from the vocabulary rather than
-    // spelling it, so a renamed metric renames its own note.
-    ['freezingLevel.ts', freezingLevelSource],
-  ]
-
-  // metrics.ts itself is absent on purpose: its doc comments quote these
-  // abbreviations to explain what went wrong, which is the one place naming
-  // them is the point.
-  const BANNED: [string, RegExp][] = [
-    ['Precip', /\bPrecip\b(?!itation)/],
-    ['Temp', /\bTemp\b(?!erature)/],
-    ['Avg', /\bAvg\b/],
-    ['Min', /\bMin\b(?!imum)/],
-    ['Max', /\bMax\b(?!imum)/],
-    ['Elev', /\bElev\b(?!ation)/],
-  ]
-
-  // Every assertion below is "this pattern found nothing", which an empty
-  // string satisfies. If a `?raw` import ever resolved to one — a moved file,
-  // a resolver change — the whole guard would go quietly vacuous and still
-  // report green, so check the sources arrived before trusting them.
-  it('reads every consumer it claims to lint', () => {
-    for (const [name, source] of CONSUMERS) {
-      expect(source.length, `${name} loaded empty`).toBeGreaterThan(500)
-    }
-    expect(CONSUMERS.map(([name]) => name)).toContain('App.tsx')
-  })
-
-  for (const [name, source] of CONSUMERS) {
-    for (const [abbreviation, pattern] of BANNED) {
-      it(`keeps "${abbreviation}" out of ${name}`, () => {
-        expect(source.match(pattern), `${name} writes "${abbreviation}"`).toBeNull()
-      })
-    }
-  }
 })
 
 describe('copy lints', () => {

@@ -96,6 +96,8 @@ export function useFireProximity(
   // for a set of points that had not actually changed. Live knobs are exactly
   // that case: a re-rank hands over the same destinations in a new array.
   const contentKey = useMemo(() => pointsKey(field), [field])
+  // Kept: holding `field` behind its CONTENT key is the whole point, and the
+  // rule can only ask for the reference this is here to stop reading.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const points = useMemo(() => field, [contentKey])
 
