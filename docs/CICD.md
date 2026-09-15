@@ -489,16 +489,33 @@ building the hadolint **Docker action** 5.5 s, `setup-buildx` 4 s, job setup
 
 Two consequences follow, and both are reasons *not* to optimise here:
 
-- **`Backend Tests` and `Python Lint` are not on the critical path.** Caching
-  pip in those two jobs is still worth doing — a wheel download that adds
-  nothing is waste whether or not anyone waits on it — but it moves the run's
-  wall clock by zero.
+- **`Backend Tests` and `Python Lint` are not on the critical path.** Nothing
+  done to them moves the run's wall clock, because `Docker Build` is still
+  running when they finish.
+- **Caching pip measured as no effect, and it is in place anyway.** On a warm
+  cache `pip install -r requirements-dev.txt` drops from 8 s to 6 s and
+  `setup-python` grows by 2–3 s restoring the 25 MB it saved, so `Backend
+  Tests` lands in the same 26–29 s it took before. The wheels are small and
+  already local to the runner's network; the cache is not paying for a download
+  that was ever slow. It stays because the alternative is re-fetching wheels
+  for no reason, but do not expect it to show up in a job time.
 - **The Trivy database is already cached.** `trivy-action` wraps its own
   `actions/cache` around both the pinned binary (42 MB, 2.1 s to restore) and
   the vulnerability DB (80 MB, 3.7 s), keyed `cache-trivy-<date>` with
   `restore-keys: cache-trivy-`. `image-scan.yml` uses the same action and
   therefore the same key, so the two already share one copy. There is nothing
   to add.
+
+**The repository's Actions cache is over its limit and evicting.** Measured
+2026-09-15: **10.88 GB across 1,236 entries**, against GitHub's 10 GB per
+repository, so the service is dropping least-recently-used entries
+continuously. The largest holders are the buildx `type=gha` layers (1,099
+entries, 3.28 GB, one scope per PR from `pr-preview.yml`) and setup-node's npm
+caches (50 entries, 2.80 GB, one per branch at ~56 MB). This is the most
+plausible explanation for the width of the two build numbers above —
+`Docker Build` 38–94 s and `Build & Push` 36–142 s are what a layer cache that
+is sometimes there and sometimes evicted looks like. Nothing in this repository
+prunes them; entries expire on their own after 7 days unread.
 
 **Every commit on a pull request branch runs `pr.yml` twice.** The workflow
 triggers on both `push` (any branch but `main`) and `pull_request`, and the
