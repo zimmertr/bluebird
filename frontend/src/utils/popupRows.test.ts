@@ -7,7 +7,7 @@ import {
   displayedColumns,
   visibleColumns,
 } from './tableColumns'
-import { AGGREGATE, NOUN, UNIT } from '../metrics'
+import { AGGREGATE, FAMILY_KEYS, NOUN, RANKED_FAMILIES, UNIT, familyOf } from '../metrics'
 import type { DestinationResult } from '../types'
 
 // One fully-populated row. Every aggregate differs, so a test can tell which
@@ -227,5 +227,73 @@ describe('popupIdentity', () => {
     const compared = { ...row, modelId: 'ecmwf_ifs025', modelLabel: 'ECMWF' } as DestinationResult
     const cols = [...displayedColumns(false, 'precip_total_in'), MODEL_COL]
     expect(popupIdentity(compared, cols).model).toBe('ECMWF')
+  })
+})
+
+
+// TJ's standing expectation for this surface: add a ranking metric to Bluebird
+// Forecast and it appears in a marker's popup too, with nothing here edited
+// (2026-09-14). The popup walks the results table's columns and buckets them by
+// `familyOf`, so that holds by construction — these fail if it ever stops.
+describe('a new metric family reaches the popup on its own', () => {
+  it('gives every family a group over a date range', () => {
+    const groups = popupGroups(row, displayedColumns(false, 'precip_total_in'))
+    const metricGroups = groups.filter((g) => !g.label.startsWith('Elevation'))
+    // Derived from the vocabulary, never from a list written in this file.
+    expect(metricGroups).toHaveLength(RANKED_FAMILIES.length)
+    for (const family of RANKED_FAMILIES) {
+      expect(
+        metricGroups.some((g) => g.label.startsWith(NOUN[family])),
+        `no popup group for ${family}`,
+      ).toBe(true)
+    }
+  })
+
+  it('shows every rankable aggregate a family has', () => {
+    const cols = displayedColumns(false, 'precip_total_in')
+    const groups = popupGroups(row, cols)
+    for (const family of RANKED_FAMILIES) {
+      const group = groups.find((g) => g.label.startsWith(NOUN[family]))!
+      expect(group.values, `wrong count for ${family}`).toHaveLength(
+        FAMILY_KEYS[family].length,
+      )
+    }
+    // And nothing the table shows is left out: every metric column on screen
+    // has exactly one value on the card.
+    const shown = cols.filter((c) => !['name', 'type', 'elevation_ft'].includes(c.key as string))
+    const values = groups.filter((g) => !g.label.startsWith('Elevation')).flatMap((g) => g.values)
+    expect(values).toHaveLength(shown.length)
+  })
+
+  it('gives every family exactly one value over a Current lookup', () => {
+    const groups = popupGroups(row, displayedColumns(true, 'precip_total_in'))
+    const metricGroups = groups.filter((g) => !g.label.startsWith('Elevation'))
+    expect(metricGroups).toHaveLength(RANKED_FAMILIES.length)
+    for (const g of metricGroups) expect(g.values).toHaveLength(1)
+  })
+
+  // Every group heading is composed from the vocabulary, so renaming a metric
+  // or its unit in metrics.ts renames it here with no edit to the popup.
+  it('composes every heading from the metric vocabulary', () => {
+    const groups = popupGroups(row, displayedColumns(false, 'precip_total_in'))
+    for (const g of groups.filter((x) => !x.label.startsWith('Elevation'))) {
+      const family = RANKED_FAMILIES.find((f) => g.label.startsWith(NOUN[f]))!
+      const unit = UNIT[family]
+      // Either the noun with its shared unit, or the bare noun where the
+      // family's columns report in more than one (precipitation).
+      expect([NOUN[family], unit ? `${NOUN[family]} (${unit})` : NOUN[family]]).toContain(g.label)
+    }
+  })
+
+  // The ranking is what decides which family leads, and it reads the sort key's
+  // own family rather than a position written down anywhere.
+  it('leads with whichever family the report is ranked by', () => {
+    for (const family of RANKED_FAMILIES) {
+      const sortBy = FAMILY_KEYS[family][0]
+      const groups = popupGroups(row, displayedColumns(false, sortBy))
+      const first = groups.filter((g) => !g.label.startsWith('Elevation'))[0]
+      expect(familyOf(FAMILY_KEYS[family][0])).toBe(family)
+      expect(first.label.startsWith(NOUN[family]), `${family} did not lead`).toBe(true)
+    }
   })
 })

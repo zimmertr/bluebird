@@ -134,6 +134,22 @@ export function withModelColumn(cols: readonly ColDef[], comparing: boolean): Co
  * second copy of the list is a second answer to "what does the report contain".
  */
 /**
+ * How high a destination is.
+ *
+ * Pulled out of `COLUMNS` and named because a second surface needs it: the
+ * popup a clicked basemap peak opens has an elevation and no forecast, so it
+ * has no column list to read one from. It spelled its own label and put the
+ * unit in the value, which is how the two cards came to say the same fact two
+ * ways (#370).
+ */
+export const ELEVATION_COL: ColDef = {
+  key: 'elevation_ft',
+  label: 'Elevation (ft)',
+  format: (v) => (v != null ? Number(v).toLocaleString() : '—'),
+  csv: (v) => String(v),
+}
+
+/**
  * Precipitation's other unit.
  *
  * The family reports a window TOTAL in inches and its three other columns as a
@@ -157,12 +173,7 @@ export const COLUMNS: ColDef[] = [
     format: (v) => (typeof v === 'string' && v ? v[0].toUpperCase() + v.slice(1) : '—'),
     csv: (v) => (typeof v === 'string' ? v : ''),
   },
-  {
-    key: 'elevation_ft',
-    label: 'Elevation (ft)',
-    format: (v) => (v != null ? Number(v).toLocaleString() : '—'),
-    csv: (v) => String(v),
-  },
+  ELEVATION_COL,
   { key: 'precip_total_in', unit: UNIT.precip, label: metricLabel('precip', AGGREGATE.total, UNIT.precip), format: (v) => Number(v).toFixed(3), windyLayer: 'rain' },
   { key: 'precip_avg_in_hr', unit: PRECIP_RATE, label: metricLabel('precip', AGGREGATE.average, PRECIP_RATE), format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
   { key: 'precip_min_in_hr', unit: PRECIP_RATE, label: metricLabel('precip', AGGREGATE.minimum, PRECIP_RATE), format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
