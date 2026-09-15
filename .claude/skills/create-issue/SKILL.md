@@ -1,6 +1,6 @@
 ---
 name: create-issue
-description: File a GitHub issue on this repo in the board's six-section Simplified Technical English format, with the required labels. Use whenever asked to file, create, or open an issue (a bug, a feature, a decision, or a task), or to convert findings into issues.
+description: File a GitHub issue on this repo with a plain two-sentence summary on top, the board's six-section Simplified Technical English body, and the required labels. Use whenever asked to file, create, or open an issue (a bug, a feature, a decision, or a task), or to convert findings into issues.
 ---
 
 # Creating an issue
@@ -23,7 +23,30 @@ discovered mid-task.
 - Quote UI strings, commands, and code verbatim. STE applies to the prose
   around them.
 
-## Step 3: use the six sections, in this order
+## Step 3: open with a plain summary
+
+The first thing in the body, above every section heading, is a summary a
+reader can take in without opening the sections. It is the only part of the
+issue most readers see on the board, so it carries the whole point.
+
+- Two sentences, three at most. No heading, no bullets, no file paths, no
+  line numbers, no code spans.
+- Sentence one: what is wrong, in words a hiker who does not read code would
+  follow. Sentence two: what changes when the issue is closed. An optional
+  third: why it matters now.
+- Write it last, after the six sections, so it summarizes what is actually
+  in the issue. Then place it first.
+- Keep every STE rule from Step 2. The summary is the one place plain
+  language beats precision: say "the app shows the browser's own error text"
+  rather than naming the exception.
+
+Example, above the sections of an issue about a bare `fetch`:
+
+> When the server cannot be reached, the app shows the browser's own error
+> text instead of one of ours. After this change every network failure shows
+> an approved message, and one shared helper handles every request.
+
+## Step 4: use the six sections, in this order
 
 This list is the skeleton; write the sections from it directly. Every issue
 carries at least:
@@ -50,13 +73,13 @@ carries at least:
 Optional extra sections (for example, Out of scope or Measured) go between
 Acceptance Criteria and the Notes.
 
-## Step 4: title
+## Step 5: title
 
 One short STE statement of the problem or the task, with no
 conventional-commit prefix. Example: "A caller can defeat the per-client rate
 limit with one header".
 
-## Step 5: labels
+## Step 6: labels
 
 Always add labels when you create the issue:
 
@@ -66,7 +89,7 @@ Always add labels when you create the issue:
   `security`, `compliance`, `ux`, `infra`, `data-sources`, `docker`.
 - One type: `bug`, `enhancement`, `documentation`, or `question`.
 
-## Step 6: verify before you write
+## Step 7: verify before you write
 
 - Verify file references and measured numbers against a fresh clone before you
   state them. Write "near line N" only when just verified; otherwise name the
