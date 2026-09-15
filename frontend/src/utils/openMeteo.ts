@@ -1220,15 +1220,16 @@ export async function fetchWeather(
   const tasks = chunks.map((chunk, chunkIndex) => async (): Promise<WeatherResult[]> => {
     const perSpan: HourlyPayload[][] = []
     for (const span of spans) {
-      // Ten variables, one more than the backend's nine: the browser also asks
-      // for wind direction, which only the map's playback arrows use. Counted
-      // off the list rather than spelled, because a variable added to the list
-      // and not to the price is spend the pacer never sees. Still weight
-      // factor 1 — max(1, vars x models/10) — so the five level winds, the
-      // freezing level and the bearing all ride the budget the original three
-      // variables set. The model count is spelled here rather than defaulted,
-      // because this is where `models=` is built: a request naming more than
-      // one model returns a series per model and costs that multiple.
+      // One more variable than the backend asks for: the browser also fetches
+      // `wind_direction_10m`, which only the map's playback arrows use. The
+      // count is read off `HOURLY_VARIABLES` rather than spelled, so a variable
+      // added to the list is a variable the pacer prices; a number written here
+      // would be right until the next one. Both sides still floor to weight
+      // factor 1 — max(1, vars x models/10) — so the level winds, the freezing
+      // level and the bearing all ride the budget the original three variables
+      // set. The model count is spelled here rather than defaulted, because
+      // this is where `models=` is built: a request naming more than one model
+      // returns a series per model and costs that multiple.
       //
       // One acquire per SPAN, each priced on its own hours: two requests are two
       // answers, so a spanning window spends twice, and pricing it on the whole
