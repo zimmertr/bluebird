@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { resultPopupHtml } from './resultPopup'
 import type { FireWarning } from './fireProximity'
+import { NOUN, SEP } from '../metrics'
+import { LABEL_COLOR } from './popupChrome'
 
 // A fully-populated popup input; individual tests override `warning`.
 const base = {
@@ -66,6 +68,12 @@ describe('resultPopupHtml layout', () => {
   // carrying two metrics, and the only one long enough to wrap, so on a narrow
   // map it broke wherever the edge fell and the second label landed mid-line
   // under the first one's number.
+  //
+  // The separator is back, but doing the opposite job: since TJ's 2026-09-14
+  // call the popup wears the table's own `SEP` between a metric and its
+  // aggregate, INSIDE one label. So the assertion moved from "no separator
+  // anywhere" to where it may appear — left of the colon, joining one stat's
+  // two halves, never right of it joining two stats.
   it('gives every stat its own line', () => {
     const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
     const lines = html.match(/<div>[^]*?<\/div>/g) ?? []
@@ -84,10 +92,18 @@ describe('resultPopupHtml layout', () => {
     // itself, not a property counted off the flattened text.
     for (const line of lines) {
       expect(line, 'not a single label/value pair').toMatch(
-        /^<div>[^<>:]+: (<a href="[^"]*"[^<>]*>)?<span style="[^"]*">[^<>]*<\/span>(<\/a>)?<\/div>$/,
+        /^<div><span style="[^"]*">[^<>:]+<\/span>: (<a href="[^"]*"[^<>]*>)?<span style="[^"]*">[^<>]*<\/span>(<\/a>)?<\/div>$/,
       )
     }
-    expect(html).not.toContain('·')
+    // A separator may only join a metric to its aggregate, so it always sits
+    // in the label. One to the right of the colon would mean a line had gone
+    // back to carrying two stats.
+    for (const line of lines) {
+      const sep = line.indexOf(SEP)
+      if (sep === -1) continue
+      expect(sep, 'a separator right of the colon').toBeLessThan(line.indexOf(': '))
+    }
+    expect(html).toContain(`${NOUN.temp} ${SEP} `)
   })
 
   it('omits both air-quality lines together when there is no reading', () => {
@@ -96,10 +112,11 @@ describe('resultPopupHtml layout', () => {
     expect(html.match(/<div>[^]*?<\/div>/g) ?? []).toHaveLength(5)
   })
 
-  // The label/value split is carried by a face change rather than by weight,
-  // because the popup's one bold is its title (see the emphasis suite below).
-  // Every value wears it; no label does.
-  it('sets values in a monospace face and labels in the popup default', () => {
+  // The label/value split is carried on two axes since TJ's 2026-09-14 call:
+  // the label is stepped back in colour and the value is monospace. The face
+  // alone was too quiet to read as a split. Every value wears the face; no
+  // label does, and no value wears the colour.
+  it('sets values in a monospace face and labels in a stepped-back colour', () => {
     const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
     const values = html.match(/<span style="font-family:ui-monospace[^"]*">[^<]*<\/span>/g) ?? []
 
@@ -109,7 +126,7 @@ describe('resultPopupHtml layout', () => {
     for (const value of values) {
       expect(value.replace(/^<span style="[^"]*">/, '')).not.toContain(':')
     }
-    expect(html).toContain('Elevation: <span')
+    expect(html).toContain(`<span style="${LABEL_COLOR}">Elevation</span>: <span`)
     expect(html).toContain('mph</span>')
   })
 
@@ -120,7 +137,7 @@ describe('resultPopupHtml layout', () => {
   // stages and had drifted into two kinds of card.
   it('keeps the coordinate pair on one line, under a rule', () => {
     const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
-    expect(html).toMatch(/<div style="white-space:nowrap[^"]*">Coordinates: /)
+    expect(html).toMatch(/<div style="white-space:nowrap[^"]*"><span style="[^"]*">Coordinates<\/span>: /)
     expect(html).toContain('<hr')
   })
 })
@@ -131,7 +148,7 @@ describe('resultPopupHtml layout', () => {
 describe('resultPopupHtml freezing level', () => {
   it('reads the height in feet, grouped like the elevation above it', () => {
     const html = resultPopupHtml({ ...base, freezeMinFt: 9843, warning: null })
-    expect(html).toMatch(/Freezing level min: <a [^>]*><span[^>]*>9,843 ft<\/span>/)
+    expect(html).toMatch(/Freezing level · min<\/span>: <a [^>]*><span[^>]*>9,843 ft<\/span>/)
   })
 
   it('marks the line rather than dropping it when the model publishes none', () => {
@@ -139,7 +156,7 @@ describe('resultPopupHtml freezing level', () => {
     // as the app forgetting the metric, where a missing air quality is one
     // forecast falling short and takes its rows with it.
     const html = resultPopupHtml({ ...base, freezeMinFt: null, warning: null })
-    expect(html).toMatch(/Freezing level min: <span[^>]*>N\/A<\/span>/)
+    expect(html).toMatch(/Freezing level · min<\/span>: <span[^>]*>N\/A<\/span>/)
   })
 })
 
@@ -160,10 +177,30 @@ describe('resultPopupHtml emphasis', () => {
   // <strong> from the original implementation onward, singling out two values
   // by no rule — not the ranked metric (that varies; the markup didn't), not
   // line position (wind led its line unbolded).
+  //
+  // Labels are weighted too since TJ's 2026-09-14 call, but a step UNDER this
+  // one and through a span, so the card keeps a single strongest thing and
+  // this rule needs no exception carved into it.
   it('bolds the name and nothing else', () => {
     const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
     expect(html.match(/<strong>/g)).toHaveLength(1)
     expect(html.indexOf('<strong>')).toBeLessThan(html.indexOf('Mount Rainier'))
+  })
+
+  // Colour rather than weight, because under this card's `sans-serif` only two
+  // faces exist and both are wrong: one is invisible against the value, the
+  // other is the title's own. See LABEL_COLOR for the measurement.
+  it('steps a label back in colour, and never a value', () => {
+    const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
+    // Every label carries it; the count is the rows, coordinates included.
+    expect(html.match(new RegExp(LABEL_COLOR, 'g'))).toHaveLength(8)
+    // And no value does: it always closes before its row's colon.
+    for (const line of html.match(/<div>[^]*?<\/div>/g) ?? []) {
+      expect(line.slice(line.indexOf(': '))).not.toContain(LABEL_COLOR)
+    }
+    // No weight anywhere below the title, which is what the two-face
+    // measurement rules out rather than merely advises against.
+    expect(html).not.toContain('font-weight')
   })
 })
 
@@ -245,5 +282,38 @@ describe('resultPopupHtml links out', () => {
     expect(anchors.length).toBe(8)
     expect(html.match(/rel="noopener noreferrer"/g)?.length).toBe(8)
     expect(html.match(/target="_blank"/g)?.length).toBe(8)
+  })
+})
+
+// #361: a marker's wind row names the same datum the table's column header
+// does, so a point clicked on the map cannot describe its number differently
+// from the row it came from.
+describe('resultPopupHtml wind datum', () => {
+  it('names the elevation datum over a forecast window', () => {
+    const html = resultPopupHtml({ ...base, warning: null, windowSource: 'forecast' })
+    expect(html).toContain('Wind at elevation')
+  })
+
+  it('names the surface datum over an archive window', () => {
+    const html = resultPopupHtml({ ...base, warning: null, windowSource: 'archive' })
+    expect(html).toContain('Wind at 10 meters')
+  })
+
+  // Both silent states, and the reason the popup takes the source at all
+  // rather than a boolean.
+  it('claims no datum over a spanning window or without one', () => {
+    for (const source of ['spanning', null, undefined] as const) {
+      const html = resultPopupHtml({ ...base, warning: null, windowSource: source })
+      expect(html).not.toContain('at elevation')
+      expect(html).not.toContain('at 10 meters')
+    }
+  })
+
+  // The row is still a row: the datum joins the label, never the value, and the
+  // Windy link the cell carries is untouched by it.
+  it('leaves the value and the link alone', () => {
+    const html = resultPopupHtml({ ...base, warning: null, windowSource: 'forecast' })
+    expect(html).toContain('5.4 mph')
+    expect(html).toContain('windy.com')
   })
 })
