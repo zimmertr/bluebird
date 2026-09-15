@@ -51,6 +51,7 @@ import {
   SPINNER,
   STATUS,
   TRANSPORT_AXIS_ITEM,
+  TRANSPORT_AXIS_W,
   LIFTED_EDGE,
   RECESSED_EDGE,
   RECESSED_FILL,
@@ -676,14 +677,66 @@ describe('shared recipes', () => {
   // The timeline's axis halves are the one segment whose labels the design
   // system does not choose: the right one is the ranked metric's noun, and the
   // longest of them read as too wide for the half at the panel's inset. One
-  // step more, and only that: everything else is the same half, so the bar
-  // cannot become a second kind of segment.
+  // step more, the nowrap and the floor below, and only those: everything else
+  // is the same half, so the bar cannot become a second kind of segment.
   it('gives the timeline axis halves room for a metric noun', () => {
     expect(TRANSPORT_AXIS_ITEM).toMatch(/(^|\s)px-3(\s|$)/)
     expect(SEGMENT_ITEM).toMatch(/(^|\s)px-1(\s|$)/)
-    expect(TRANSPORT_AXIS_ITEM.replace('px-3', 'px-1')).toBe(SEGMENT_ITEM)
+    const shared = TRANSPORT_AXIS_ITEM.replace('px-3', 'px-1')
+      .replace('flex-none', 'flex-1')
+      .replace(TRANSPORT_AXIS_W, '')
+      .replace(['whitespace', 'nowrap'].join('-'), '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    expect(shared).toBe(SEGMENT_ITEM)
     // And the bar wears it, or the role is a number nothing reads.
     expect(sources['./components/TimelineTransport.tsx']).toContain('TRANSPORT_AXIS_ITEM')
+  })
+
+  // A metric noun is a phrase as readily as a word, and a phrase wraps: at the
+  // old recipe `Freezing level` broke over two lines and made the whole bar
+  // taller than the strings in it. The half holds one line and takes the width
+  // that line needs.
+  it('keeps an axis half on one line', () => {
+    // Spelled from parts: v4 scans this file as raw text and would compile the
+    // class for any utility quoted here.
+    expect(TRANSPORT_AXIS_ITEM).toContain(['whitespace', 'nowrap'].join('-'))
+  })
+
+  // What a half may not do is shrink under `Radar` when the metric is short,
+  // which is what sizing to the label alone would have done to `AQI`. The
+  // floor is Radar's own width, and both halves wear it, so the pair reads as
+  // one control rather than as a wide half beside a runt.
+  //
+  // The second spelling is the load-bearing one. `TAP.action` carries a
+  // `touch:` min-width for the buttons that have no width of their own, v4
+  // resolves competing utilities by stylesheet order, and the variant's rule
+  // is the later one — so a plain `min-w` alone would lose on a coarse pointer
+  // and the floor would drop to the tap target, which is under Radar.
+  // A half takes the width its own label needs: the panel's `flex-1` split the
+  // segment evenly, which is a box sized to the longer label twice over, and
+  // under the floor below it squeezed the longer label instead (an explicit
+  // min-width replaces the content floor a flex item has by default).
+  it('sizes each axis half to its own label', () => {
+    expect(TRANSPORT_AXIS_ITEM).toMatch(/(^|\s)flex-none(\s|$)/)
+    expect(SEGMENT_ITEM).toMatch(/(^|\s)flex-1(\s|$)/)
+  })
+
+  it('floors an axis half at the width Radar takes', () => {
+    // `Radar` at text-xs: 33.02px in Chrome on macOS, 2026-09-14, plus the
+    // half's two insets and the pixel the divider takes.
+    const RADAR_PX = 34
+    const floors = [...TRANSPORT_AXIS_W.matchAll(/min-w-\[(\d+)px\]/g)].map((m) => Number(m[1]))
+    const insetPx = stepPx(TRANSPORT_AXIS_ITEM, 'px')
+    const tapPx = Number(TAP.action.match(/touch:min-w-(\d+)/)![1]) * 4
+
+    expect(floors[0]).toBeGreaterThanOrEqual(RADAR_PX + 2 * insetPx)
+    // One number, under both pointers, and the coarse one still clears the tap
+    // target it is overriding.
+    expect(floors).toHaveLength(2)
+    expect(new Set(floors).size).toBe(1)
+    expect(TRANSPORT_AXIS_W).toContain(`touch:min-w-[${floors[0]}px]`)
+    expect(floors[0]).toBeGreaterThanOrEqual(tapPx)
   })
 
   // The segmented control had been built twice from scratch and matched only by
