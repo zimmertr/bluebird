@@ -1992,7 +1992,10 @@ export default function App() {
   // Every row shares the analysis's hourly grid. A point-sample analysis charts
   // too: its single-instant grid renders as one dot per destination — still a
   // cross-destination comparison, same default-select-all.
-  const chartTimes = response?.times ?? []
+  // Memoized for its identity, like `forecastTimes` above: `chartedSeries`
+  // below depends on it, and a fresh empty array per render rebuilt that memo
+  // on every render before an analysis.
+  const chartTimes = useMemo(() => response?.times ?? [], [response?.times])
   // Everything the chart tracks: the displayed rows plus the pending
   // destinations no analysis has covered. Pending rows ride along as
   // series-less pseudo-rows so a searched place is colored and selected the
