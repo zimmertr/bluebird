@@ -21,7 +21,10 @@ REVALIDATED = [
     pytest.param("/privacy", id="privacy"),
     pytest.param("/docs", id="docs"),
     pytest.param("/healthz", id="probe"),
-    pytest.param("/api/capabilities", id="api"),
+    # `/api/version` rather than `/api/capabilities`: the one API route that
+    # sets its own value is the exception below, and this list is about the
+    # default.
+    pytest.param("/api/version", id="api"),
     pytest.param("/api/not-a-route", id="api-404"),
     pytest.param("/assets/does-not-exist.js", id="asset-404"),
 ]
@@ -30,6 +33,14 @@ REVALIDATED = [
 @pytest.mark.parametrize("path", REVALIDATED)
 def test_everything_outside_the_asset_directory_revalidates(path):
     assert client.get(path).headers["Cache-Control"] == "no-cache"
+
+
+def test_a_route_keeps_the_freshness_it_sets_for_itself():
+    # `GET /api/capabilities` answers the same bytes to every visitor until a
+    # deploy changes a constant, so it takes a minute of freshness of its own
+    # (#337). The middleware must leave it alone: that is the whole meaning of
+    # "only where the response carries none".
+    assert client.get("/api/capabilities").headers["Cache-Control"] == "public, max-age=60"
 
 
 def _static_app(tmp_path):

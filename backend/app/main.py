@@ -193,10 +193,23 @@ app = FastAPI(
 # the production URL would make a local /docs fire real requests at the live
 # site.
 
-# A national wildfire viewport is the largest body this API serves: ~1.3 MB of
-# perimeter geometry that compresses to ~350 KB. Everything else here is small
-# enough that the 1 KB floor skips it, so this costs nothing on the common path.
-app.add_middleware(GZipMiddleware, minimum_size=1024)
+# A national wildfire viewport is the largest body this API serves: ~1.5 MB of
+# perimeter geometry. Everything else here is small enough that the 1 KB floor
+# skips it, so this costs nothing on the common path.
+#
+# Starlette's default `compresslevel` is 9, which is the wrong end of the curve
+# for JSON. Measured 2026-09-14 on the real national coarse body (1,550,397
+# bytes) with this image's Python:
+#
+#     level 1: 495,122 B    7 ms       level 6: 412,821 B    37 ms
+#     level 5: 415,668 B   21 ms       level 9: 411,260 B   161 ms
+#
+# Level 9 spends 124 ms more event-loop CPU per request than level 6 to save
+# 1,561 bytes, which is 0.4%. That CPU is not free time: it is the loop every
+# other request on the pod is waiting for. 6 is zlib's own default and is where
+# this body stops gaining size and starts costing latency. Re-measure on the
+# same body before moving it; the shape of the curve belongs to the data.
+app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 
 app.add_middleware(
     CORSMiddleware,

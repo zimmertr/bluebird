@@ -28,6 +28,7 @@ import timelineTransportSource from './components/TimelineTransport.tsx?raw'
 import chartDataSource from './utils/chartData.ts?raw'
 import colorsSource from './utils/colors.ts?raw'
 import resultPopupSource from './utils/resultPopup.ts?raw'
+import popupRowsSource from './utils/popupRows.ts?raw'
 import resultsCsvSource from './utils/resultsCsv.ts?raw'
 import tableColumnsSource from './utils/tableColumns.ts?raw'
 import freezingLevelSource from './utils/freezingLevel.ts?raw'
@@ -271,6 +272,9 @@ describe('no surface writes its own metric name', () => {
     ['chartData.ts', chartDataSource],
     ['colors.ts', colorsSource],
     ['resultPopup.ts', resultPopupSource],
+    // The popup's derivation, which composes a group's heading from the
+    // vocabulary the way the columns compose a header (#370).
+    ['popupRows.ts', popupRowsSource],
     // The seventh surface: a downloaded file is read in a spreadsheet, where
     // nothing around it says which app wrote the header.
     ['resultsCsv.ts', resultsCsvSource],
