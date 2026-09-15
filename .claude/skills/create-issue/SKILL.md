@@ -25,12 +25,12 @@ discovered mid-task.
 
 ## Step 3: open with a plain summary
 
-The first thing in the body, above every section heading, is a summary a
-reader can take in without opening the sections. It is the only part of the
-issue most readers see on the board, so it carries the whole point.
+The body opens with a `## Summary` heading, the summary, and a horizontal
+rule (`---`) that closes it off from the six sections below. It is the only
+part of the issue most readers see on the board, so it carries the whole point.
 
-- Two sentences, three at most. No heading, no bullets, no file paths, no
-  line numbers, no code spans.
+- Two sentences, three at most. No bullets, no file paths, no line numbers,
+  no code spans.
 - Sentence one: what is wrong, in words a hiker who does not read code would
   follow. Sentence two: what changes when the issue is closed. An optional
   third: why it matters now.
@@ -40,18 +40,26 @@ issue most readers see on the board, so it carries the whole point.
   language beats precision: say "the app shows the browser's own error text"
   rather than naming the exception.
 
-Example, above the sections of an issue about a bare `fetch`:
+Example, for an issue about a bare `fetch`:
 
-> When the server cannot be reached, the app shows the browser's own error
-> text instead of one of ours. After this change every network failure shows
-> an approved message, and one shared helper handles every request.
+```markdown
+## Summary
+
+When the server cannot be reached, the app shows the browser's own error
+text instead of one of ours. After this change every network failure shows
+an approved message, and one shared helper handles every request.
+
+---
+
+## Problem
+```
 
 ## Step 4: use the six sections, in this order
 
 This list is the skeleton; write the sections from it directly. Every issue
 carries at least:
 
-1. **Problem Summary**: what is wrong or missing, with verified facts. State
+1. **Problem**: what is wrong or missing, with verified facts. State
    what was measured and how.
 2. **Proposed Solutions**: lettered options, each with Good and Bad bullets,
    ending in one recommendation line. State a settled decision as settled,
