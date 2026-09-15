@@ -618,6 +618,52 @@ describe('runClientAnalysis', () => {
     expect(out.universe[1]).toBe(out.response.results[1])
   })
 
+  it('hands back the ranked field as each batch lands (#337)', async () => {
+    // 60 destinations is two batches of 50 and 10. Before this the reader saw
+    // a percentage and an empty table until the last one returned.
+    const many = Array.from({ length: 60 }, (_, i) => ({
+      name: `P${i}`,
+      latitude: i + 1,
+      longitude: i + 1,
+    }))
+    stubOpenMeteo(Array.from({ length: 60 }, (_, i) => (60 - i) / 100))
+    const startMs = Date.parse('2026-07-21T00:00:00Z')
+    const endMs = Date.parse('2026-07-21T02:00:00Z')
+    const rounds: Array<{ count: number; first: string }> = []
+    const out = await runClientAnalysis(REQUEST, customRows(many), startMs, endMs, {
+      nowMs: startMs,
+      onPartial: (rows) => rounds.push({ count: rows.length, first: rows[0].name }),
+    })
+
+    expect(rounds.map((r) => r.count)).toEqual([50, 60])
+    // Ranked, not merely collected: the partial field is in the order the
+    // finished report will use, so the table never shows an arbitrary list.
+    expect(rounds[1].first).toBe(out.universe[0].name)
+    expect(out.universe).toHaveLength(60)
+  })
+
+  it('announces nothing while ranking by air quality (#337)', async () => {
+    // Air quality resolves after the weather fetch, so a partial field ranked
+    // by it would be ranked on nulls.
+    const many = Array.from({ length: 60 }, (_, i) => ({
+      name: `P${i}`,
+      latitude: i + 1,
+      longitude: i + 1,
+    }))
+    stubOpenMeteo(Array.from({ length: 60 }, () => 0.1))
+    const startMs = Date.parse('2026-07-21T00:00:00Z')
+    const endMs = Date.parse('2026-07-21T02:00:00Z')
+    const rounds: number[] = []
+    await runClientAnalysis(
+      { ...REQUEST, sort_by: 'aqi_avg' },
+      customRows(many),
+      startMs,
+      endMs,
+      { nowMs: startMs, onPartial: (rows) => rounds.push(rows.length) },
+    )
+    expect(rounds).toEqual([])
+  })
+
   it('fetches air quality for every candidate, not just the rows it returns', async () => {
     const aqiCounts: number[] = []
     vi.stubGlobal(

@@ -133,3 +133,31 @@ describe('the chart selection lookup', () => {
     expect(chartSelectionSource).toContain('byKey.get(k)')
   })
 })
+
+// ── The one new string the arriving field needs (#337, finding 2) ──────────
+describe('the results bar while the field is arriving', () => {
+  it('marks the count "so far" and adds nothing else', () => {
+    // Approved by the maintainer on 2026-09-14 as two words on the count that
+    // already exists: "Lowest Precipitation · Total (48 of 312 so far)". No
+    // second line, no box, no tooltip. The count is what is provisional, so
+    // the count is what carries it.
+    expect(appSource).toContain("const tail = arriving ? ' so far' : ''")
+  })
+
+  it('opens the results area before awaiting the analysis', () => {
+    // Measured 2026-09-14 on a 946-destination analysis: the first ranked rows
+    // are on screen at 0.4 s and grow with each paced batch, where the whole
+    // run takes 43.6 s. Opening the area after the await would hide every one
+    // of them until the end, which is what this change exists to fix.
+    const openAt = appSource.indexOf('if (willRank) setShowResults(true)')
+    const firstAwait = appSource.indexOf('await analyze({')
+    expect(openAt).toBeGreaterThan(-1)
+    expect(openAt).toBeLessThan(firstAwait)
+  })
+
+  it('takes the flag from the hook rather than from `loading`', () => {
+    // `loading` is true from the click; `arriving` only once rows exist, which
+    // is the difference between "we are working" and "these rows are a floor".
+    expect(appSource).toMatch(/\n\s+arriving,\n/)
+  })
+})
