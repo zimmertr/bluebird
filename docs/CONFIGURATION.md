@@ -9,14 +9,14 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - LOG_LEVEL=WARNING   # bump to DEBUG or TRACE during development
+      - LOG_LEVEL=TRACE   # the repo's compose file runs verbose; production runs INFO
     restart: unless-stopped
 ```
 
 To override it without editing the file:
 
 ```bash
-LOG_LEVEL=DEBUG docker compose up -d
+LOG_LEVEL=WARNING docker compose up -d
 ```
 
 `LOG_LEVEL` is read at container startup, so changing it needs no rebuild.
@@ -24,7 +24,10 @@ LOG_LEVEL=DEBUG docker compose up -d
 The rate limiting and upstream budgets are tunable the same way. Per-client
 limits are enforced per backend instance, so behind a multi-replica deployment
 the effective ceiling is roughly the value times the replica count (documented
-in detail in [`TRAFFIC.md`](TRAFFIC.md)):
+in detail in [`TRAFFIC.md`](TRAFFIC.md)). The ten `RATE_LIMIT_*` defaults below
+repeat what a running deployment publishes under `limits.rate` in
+`GET /api/capabilities`; read the endpoint for the values in force, and this
+table for what each knob means:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
@@ -50,8 +53,10 @@ in detail in [`TRAFFIC.md`](TRAFFIC.md)):
 | `UPSTREAM_WEIGHT_PER_MINUTE_AQI` | `550` | Same budget for the air-quality API, which meters separately. |
 | `UPSTREAM_WEIGHT_MAX_WAIT_S` | `120` | A single paced batch that would wait longer than this sheds with a 503 instead: something is wedged, not merely busy. |
 | `UPSTREAM_CONCURRENCY_OVERPASS` | `2` | In-flight Overpass queries per instance **per mirror**, matching each mirror operator's own per-IP slot policy (overpass-api.de documents 2). |
-| `NOMINATIM_MIN_INTERVAL_MS` | `3500` | Minimum spacing between Nominatim calls per instance: 3 replicas at 3.5s ≈ 0.86 req/s aggregate, honoring their absolute ~1 req/s policy (2s per pod quietly exceeded it). |
-| `UPSTREAM_BUDGET_WAIT_S` | `30` | How long an analysis may queue for a saturated upstream budget before shedding with a 503. |
+| `NOMINATIM_MIN_INTERVAL_MS` | `3500` | Minimum spacing between Nominatim calls per instance: 3 replicas at 3.5s ≈ 0.86 req/s aggregate, honoring their absolute ~1 req/s policy (2s per pod quietly exceeded it). The gate is per pod, so production's autoscaled deployment exceeds the policy above 3 replicas. |
+| `UPSTREAM_BUDGET_WAIT_S` | `30` | How long an analysis may queue for a saturated upstream budget before shedding with a 503. The `Retry-After` a shed carries is a fixed 15 s and is not tunable. |
+| `APP_VERSION`, `APP_COMMIT`, `APP_BUILT_AT` | `dev` | Build identity, answered by `GET /api/version`. The release pipeline bakes them into the image as build args ([`CICD.md`](CICD.md)); a local build leaves all three at `dev`. |
+| `PREVIEW_BANNER`, `PREVIEW_PR`, `PREVIEW_COMMIT` | unset | The PR preview banner, published by `GET /api/config` and drawn by the web app. The preview `ApplicationSet` sets them; nothing else should. |
 
 ## Log Levels
 

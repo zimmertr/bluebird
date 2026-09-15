@@ -32,9 +32,12 @@ inside the polygon gets a real forecast, which is what makes the winners the
 genuine extremes of the area rather than the extremes of a sample. That
 exactness is also the cost, so the candidate count, not the polygon, is what
 actually bounds upstream spend. Past the cap an analysis refuses with a `400`
-carrying remedies rather than truncating quietly: an elevation floor computed
-to bring the search back under, or an explicit opt-in to analyze the highest
-candidates and say so in the response. Coordinates you paste yourself count
+rather than truncating quietly. The sentence states only what is wrong; the
+remedies ride as fields on the body: an elevation floor computed to bring the
+search back under, or an explicit opt-in to analyze the highest candidates and
+say so in the response. In the web app the same cap is enforced in the browser
+before anything is fetched, so the refusal arrives with no request made; the
+`400` is what a direct API caller sees. Coordinates you paste yourself count
 toward the same cap, because a pasted coordinate costs exactly what a
 discovered one costs.
 
@@ -66,7 +69,7 @@ them anyway, and can sidestep them entirely by running its own container, where
 every limit is tunable or off.
 
 An Open-Meteo key changes exactly one of these limits, and it is not one of
-the four. The deployment's weighted pacer, which spreads a large fan-out over
+the five. The deployment's weighted pacer, which spreads a large fan-out over
 minutes so the shared free-tier quota is never exhausted, does not meter a
 request that carries a caller's key: that request spends the key's quota, which
 the pacer knows nothing about and cannot protect. Everything else still applies
@@ -93,7 +96,8 @@ is and whether waiting helps:
 |---|---|
 | `400` | The request is runnable in shape but not as asked. Past the candidate cap it carries the remedies above; naming a regional forecast model for somewhere outside its grid is a second case, and there the fix is a different model rather than a smaller area. |
 | `401` | The weather service refused the API key an analyze request carried. Nothing here can fix it and no retry helps. |
-| `429` | Either you are asking faster than your per-address budget, or the weather service rate-limited this deployment mid-analysis. `Retry-After` is honest in both cases. |
+| `422` | A field would not parse or failed a bound: a polygon over the area cap, a `limit` out of range, a window outside the horizon, a malformed `bbox`. Only the caller can change the outcome. |
+| `429` | Either you are asking faster than your per-address budget, or the weather service rate-limited this deployment mid-analysis, or the edge rate rule in front of `bluebirdforecast.com` refused the request before the pod saw it (see [TRAFFIC.md](TRAFFIC.md)). `Retry-After` is honest in every case. |
 | `502` | An upstream failed outright. Every Overpass mirror was unreachable, or the weather service did not answer. Transient, worth retrying. |
 | `503` | This instance stayed at capacity long enough that it shed the request instead of queueing it forever. From `GET /api/wildfires` and `GET /api/smoke` it means something narrower: this instance has never once fetched that dataset successfully, so it has nothing to serve, not even stale. Transient either way, and carries `Retry-After`. |
 

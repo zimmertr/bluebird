@@ -13,9 +13,10 @@ description: Add a new destination type (the OSM feature kinds Bluebird Forecast
    to recognize the tags they match on, so a returned element is tagged with what it
    *is* rather than what was asked for. Finally add the type to `IMPLEMENTED_TYPES`,
    which `GET /api/capabilities` publishes, so nothing further is needed to advertise it.
-3. Add the corresponding checkbox in `frontend/src/components/ControlPanel.tsx` and add
-   the type to `DISCOVERY_TYPES` in `frontend/src/utils/urlState.ts`, which decides what
-   a `type=` link may name.
+3. Add the value to `DestinationType` in `frontend/src/types.ts` (`DiscoveryType` derives
+   from it), add the corresponding checkbox in `frontend/src/components/ControlPanel.tsx`,
+   and add the type to `DISCOVERY_TYPES` in `frontend/src/utils/urlState.ts`, which decides
+   what a `type=` link may name.
 
 ## Before you call it done
 
@@ -24,7 +25,8 @@ description: Add a new destination type (the OSM feature kinds Bluebird Forecast
   Both run in Docker; see [`docs/DEVELOPMENT.md`](../../../docs/DEVELOPMENT.md).
 - **Regenerate the OpenAPI snapshot**, since the enum is part of the request contract:
   `cd backend && python scripts/generate_openapi.py`, and commit `backend/openapi.json`.
-  `pr.yml` fails the PR otherwise.
+  Then `cd frontend && npm run generate:api` and commit `frontend/src/api-schema.d.ts`.
+  `pr.yml` fails the PR on a stale copy of either.
 - **Update [`docs/USAGE.md`](../../../docs/USAGE.md)**, which owns the destination-type
   walkthrough, and [`docs/DATA.md`](../../../docs/DATA.md) if the new type carries a
   provider caveat of its own.

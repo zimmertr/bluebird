@@ -23,7 +23,7 @@ npm install
 npm run dev
 ```
 
-The Vite dev server comes up on `http://localhost:5173` and proxies `/api` requests to the backend on `:8000`.
+The Vite dev server comes up on `http://localhost:5173` and proxies `/api` requests to the backend on `:8000`. `npm run build` produces `dist/` the way the image does, and `npm run preview` serves that build.
 
 To run the whole stack the way it ships instead, build the image and bring it up
 detached:
@@ -58,8 +58,8 @@ docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
 docker run --rm -v "$PWD":/repo -w /repo/backend python:3.14-slim \
   sh -c "pip install -r requirements-dev.txt && pytest"
 
-# Backend lint
-pip install ruff && ruff check backend/
+# Backend lint, at the version CI pins: ruff's default rule set changes between releases
+pip install ruff==0.16.0 && ruff check backend/
 ```
 
 ### The cold-load budgets
@@ -95,6 +95,14 @@ regenerates the committed OpenAPI snapshot with
 `cd backend && python scripts/generate_openapi.py`, then the frontend types read
 off it with `cd frontend && npm run generate:api` (CI fails the PR otherwise, on
 both counts).
+
+A third: any change to the weather or air-quality aggregation regenerates the
+shared test vectors. Change the backend first, then
+`cd backend && python scripts/generate_weather_vectors.py`, copy
+`tests/data/weather_vectors.json` to `../frontend/src/utils/weather_vectors.json`,
+and mirror the change in the TypeScript port in `frontend/src/utils/openMeteo.ts`.
+Pytest fails on a stale backend copy, Vitest fails on a drifted port, and the
+`vectors` CI job fails if the two copies differ.
 
 The generator is not a frontend dependency. It lives in
 `frontend/tools/api-types`, a private package with its own lockfile, and the two

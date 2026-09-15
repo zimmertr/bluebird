@@ -1727,7 +1727,7 @@
             "content": {
               "text/event-stream": {
                 "schema": {
-                  "example": "data: {\"type\": \"status\", \"message\": \"Searching for Destinations\u2026\"}\n\ndata: {\"type\": \"status\", \"message\": \"Searching for Destinations\u2026\", \"detail\": \"Trying backup map server 2 of 3\u2026\"}\n\ndata: {\"type\": \"progress\", \"processed\": 50, \"total\": 120, \"percent\": 41}\n\ndata: {\"type\": \"result\", \"data\": {\"results\": [], \"total_queried\": 0}}\n\n",
+                  "example": "data: {\"type\": \"status\", \"message\": \"Searching for Destinations\u2026\"}\n\ndata: {\"type\": \"status\", \"message\": \"Searching for Destinations\u2026\", \"detail\": \"Trying backup map server 2 of 3\u2026\"}\n\ndata: {\"type\": \"progress\", \"processed\": 50, \"total\": 120, \"percent\": 42}\n\ndata: {\"type\": \"result\", \"data\": {\"results\": [], \"total_queried\": 0}}\n\n",
                   "type": "string"
                 }
               }

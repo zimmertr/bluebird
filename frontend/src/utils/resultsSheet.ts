@@ -107,7 +107,7 @@ export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
  *
  * Measured at 402x874 on a coarse pointer, 2026-09-13: 12px of padding, a
  * 19.5px title row, the 4px gap, then 66px of actions — the mode segment at the
- * 44px a coarse pointer gives it, and the three links wrapping under it, which
+ * 44px a coarse pointer gives it, and the links (five today) wrapping under it, which
  * they do at this width now that they read at the size of every other control —
  * then the 1px rule and the sheet's own 1px top border. Rounded up from 103.5.
  *

@@ -123,10 +123,11 @@ python3 <SKILL_DIR>/scripts/verify_csv.py <lid> /path/to/examples/<slug>.csv \
   --bbox 45.5 49.1 -124.8 -116.9      # Washington State; adjust per region
 ```
 
-Exits non-zero and lists every problem. It cross-checks each row's **name and elevation against
-`peaks<lid>.json`** (not just the file's shape), so a coordinate bound to the wrong peak, a
-dropped row, or a mangled elevation is caught — plus row-count, 6-decimal formatting, gapless
-numbering, duplicate coordinate pairs, elevation ordering, and the optional bounding box.
+Exits non-zero and lists every problem. It cross-checks each row's **name against
+`peaks<lid>.json`** (not just the file's shape), so a coordinate bound to the wrong peak or a
+dropped row is caught, and uses the list page's own elevations to check that the rows run highest
+to lowest — plus row-count, 6-decimal formatting, gapless numbering, duplicate coordinate pairs,
+and the optional bounding box. The CSV itself carries no elevation to check.
 
 Then spot-check two or three peaks against their peak pages by eye. Sanity anchor: Mount
 Rainier is `46.851731, -121.760395`.
@@ -151,8 +152,9 @@ Rainier is `46.851731, -121.760395`.
 
 - **Number by row position, not peakbagger's rank column.** That column contains ties and gaps
   on some lists; `seq` in `peaks<lid>.json` is already the row position.
-- **Normalize elevation commas.** The list page prints `14,406` but `9419` — the CSV uses
-  comma-grouping throughout (`9,419 ft`). `build_csv.py` handles this.
+- **Elevation commas are the list page's, not the CSV's.** `peaks<lid>.json` stores `elev` as the
+  page's string (`14,406`); `verify_csv.py` strips the commas to check the ordering. The CSV carries
+  no elevation at all.
 - **Duplicate peak names are real.** Lists legitimately contain two "Granite Mountain" or two
   "Red Mountain" at different elevations and pids. The `N.` prefix disambiguates them; do not
   dedupe.

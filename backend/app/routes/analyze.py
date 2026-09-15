@@ -607,7 +607,7 @@ def _assemble(
                             'data: {"type": "status", "message": "Searching for Destinations…"}\n\n'
                             'data: {"type": "status", "message": "Searching for Destinations…", '
                             '"detail": "Trying backup map server 2 of 3…"}\n\n'
-                            'data: {"type": "progress", "processed": 50, "total": 120, "percent": 41}\n\n'
+                            'data: {"type": "progress", "processed": 50, "total": 120, "percent": 42}\n\n'
                             'data: {"type": "result", "data": {"results": [], "total_queried": 0}}\n\n'
                         ),
                     }

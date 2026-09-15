@@ -6,8 +6,8 @@ When a full server-side analysis runs (an API caller on the keyed path, a releas
 
 1. Validates the polygon area.
 2. Queries the Overpass API for named OSM features, falling back across three mirrors if the first is down.
-3. Batches the matched destinations into Open-Meteo weather and air-quality requests, all fired concurrently with `asyncio.gather`.
-4. Sorts by the requested metric and returns the top N.
+3. Batches the matched destinations into Open-Meteo weather requests, fetched concurrently under the pod's weighted budget. Air quality rides alongside only when the ranking key or a bound needs it before the cut; otherwise it is attached to the returned rows after the cut, because the quota on this path is the pod's and shared.
+4. Applies the request's metric bounds, ranks by `sort_by` and `sort_desc`, and returns the top `limit` rows, with `total_matched` beside `total_queried`.
 
 Because the browser talks to Open-Meteo itself, that service sees each visitor's IP address and the coordinates being analyzed — the same information the server would otherwise send on the visitor's behalf. Wildfire perimeters are the exception among the browser-side data sources: they are fetched by the server into a shared snapshot (`app/services/nifc.py`) and served from `GET /api/wildfires`, because NIFC's quota belongs to NIFC's ArcGIS organization and is shared with every other consumer of the public dataset, so per-visitor requests competed for a resource none of them could see. Smoke plumes are the same call for a different reason — NOAA publishes one dated file a day, so a per-visitor fetch would be thousands of requests for one document (`app/services/hms.py`, `GET /api/smoke`). Rain-radar tiles are the counter-example and stay in the browser: they are cached at Iowa Environmental Mesonet's own edge, and a viewport is a different set of tiles per visitor, so there is nothing shared for a snapshot to hold. See [DATA.md](DATA.md#wildfires).
 
@@ -36,11 +36,13 @@ paid for. Every stamp on the wire is whole seconds rather than ISO text
 (`timeformat=unixtime`), which is 11 bytes instead of 18 and a multiply instead
 of a regex.
 
-None of the external APIs need a key:
+None of the external APIs need a key. The three on the analysis path:
 
 - **Overpass** handles the OSM feature queries. Three public endpoints are tried in order: `overpass-api.de`, then `maps.mail.ru`, then `overpass.kumi.systems` (ordered by measured latency; see the dated table in `osm.py`).
-- **Open-Meteo** provides the hourly forecast and air-quality data, batched up to 50 locations per request.
+- **Open-Meteo** provides the hourly forecast and air-quality data, batched up to 50 locations per request, and the archive that answers a window older than the forecast endpoint's reach.
 - **OpenFreeMap** serves the vector map tiles.
+
+Nominatim (place search), NIFC (wildfire perimeters), NOAA HMS (smoke) and the Iowa Environmental Mesonet (radar) are keyless too; [DATA.md](DATA.md) covers every provider.
 
 The two national overlays decode their snapshots on a worker thread rather than
 on the event loop (`asyncio.to_thread` in `app/services/nifc.py` and
@@ -54,8 +56,9 @@ sends: level 9 costs 124 ms more event-loop CPU per request and saves 0.4% of
 the bytes.
 
 Every response leaves the pod carrying a Content-Security-Policy and the usual
-hardening headers, added by `app/security_headers.py` as the outermost
-middleware (issue #132). The policy is app-owned rather than mesh-owned because
+hardening headers, added by `app/security_headers.py` outside every route,
+static file and 404 (issue #132); the cache-header middleware sits beside it, and
+since the two read different headers the order between them carries nothing. The policy is app-owned rather than mesh-owned because
 its allowlist is the set of hosts the browser bundle fetches, which changes when
 a frontend overlay changes; a pytest reads the frontend sources and fails when
 the two disagree. The header table and the reasoning behind each directive are
@@ -69,7 +72,7 @@ The registry is served on its own port (`METRICS_PORT`, default 9464), never as 
 
 ## Kubernetes Deployment
 
-Manifests live in a separate repo, `zimmertr/Kubernetes-Manifests`, under `public/bluebird/`, and ArgoCD picks them up automatically. The stack runs an Argo Rollout with a canary strategy, an Istio VirtualService and Gateway, and a cert-manager `Certificate` for `bluebirdforecast.com`, all managed with Kustomize.
+Manifests live in a separate repo, `zimmertr/Kubernetes-Manifests`, under `public/bluebird/`, and ArgoCD picks them up automatically. That directory is a Kustomization that inflates the `bluebird-helm` OCI chart with a `values.yml` and adds the three Argo Rollouts analysis templates. The stack runs an Argo Rollout with a canary strategy behind an Istio VirtualService on the cluster's shared Gateway, autoscaled between three and ten replicas with a PodDisruptionBudget and one pod per worker node, and the PodMonitor above switched on. TLS is a cert-manager `Certificate` for `bluebirdforecast.com` that lives with the shared gateway, in `istio/istio-gateway/resources/certificate-bluebird.yml`. The public hostnames reach that gateway through a Cloudflare Tunnel (`public/cloudflared/`); nothing is port-forwarded from the internet. [TRAFFIC.md](TRAFFIC.md) follows a request the rest of the way.
 
 For the complete CI/CD picture — how a merge flows through GitHub Actions, Docker Hub, the `bluebird-helm` chart, Artifact Hub, and on to Argo CD, plus how per-PR preview environments spin up — see [`CICD.md`](CICD.md), which has Mermaid diagrams of each path.
 
@@ -88,13 +91,11 @@ images:
     newTag: v1.0.0
 ```
 
-To set the log level in the cluster, add the env var to the Rollout spec:
+To set the log level in the cluster, set the chart value in `values.yml`; the Rollout is chart-rendered, and Argo CD's `selfHeal` reverts a hand edit to the live object:
 
 ```yaml
-containers:
-  - name: bluebird
-    image: zimmertr/bluebird
-    env:
-      - name: LOG_LEVEL
-        value: "WARNING"
+# Kubernetes-Manifests/public/bluebird/values.yml
+extraEnv:
+  - name: LOG_LEVEL
+    value: "WARNING"
 ```

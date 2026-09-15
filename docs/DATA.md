@@ -3,8 +3,8 @@
 | Source | Usage | Cost | Auth |
 |---|---|---|---|
 | [OpenStreetMap](https://www.openstreetmap.org) via [Overpass API](https://overpass-api.de) | Destination names, coordinates, elevation | Free | None |
-| [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind, freezing level | Free (non-commercial) | None, or a caller's own key |
-| [Open-Meteo Historical Weather](https://open-meteo.com/en/docs/historical-weather-api) (reanalysis) | The same three variables for windows older than the forecast endpoint's own history | Free (non-commercial) | None, or a caller's own key |
+| [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind, freezing level, and (in the browser only) the wind bearing the map's playback arrows draw | Free (non-commercial) | None, or a caller's own key |
+| [Open-Meteo Historical Weather](https://open-meteo.com/en/docs/historical-weather-api) (reanalysis) | Hourly precipitation, temperature and 10 m wind for windows older than the forecast endpoint's own history | Free (non-commercial) | None, or a caller's own key |
 | [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly US AQI | Free (non-commercial) | None, or a caller's own key |
 | [OpenFreeMap](https://openfreemap.org) | Vector map tiles | Free | None |
 | [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
@@ -99,7 +99,8 @@ one stops the analysis and says so rather than retrying into the wall.
 
 An API caller can bring its own Open-Meteo key, and a keyed request reads the
 same models from the same data: it goes to Open-Meteo's customer hosts
-(`customer-api.open-meteo.com` and `customer-air-quality-api.open-meteo.com`),
+(`customer-api.open-meteo.com`, `customer-archive-api.open-meteo.com` and
+`customer-air-quality-api.open-meteo.com`),
 which answer the same models, the same variables, and the same response shape
 as the free hosts. Nothing about the aggregation or the numbers changes. What
 changes is whose quota pays, which is why the deployment's weighted pacer does
@@ -243,7 +244,7 @@ calendar gets the number rather than compiling its own.
 The list is ordered best first, and the order is an editorial judgement about
 mountain terrain rather than a sort on anything: grid spacing over the Cascades
 is weighted above forecast length, so it runs roughly opposite to ordering by
-reach. Two models are seamless blends and that is why they lead it. The default,
+reach. The two that lead it are seamless blends, which is why they do. The default,
 **NOAA GFS**, is HRRR's 3 km grid to about hour 45 and GFS's out to sixteen
 days. **ECCC GEM** is HRDPS at 2.5 km to about hour 45, RDPS at 10 km to hour
 81, then GEM global — finer than the default through the first three days, at
@@ -269,9 +270,9 @@ rather than tabulated, deliberately, and three caveats come with it.
 
 **Six of the eight are blends.** Each one serves an agency's fine regional model
 for roughly the first two days and its coarse global model afterwards, so a
-single line can change model partway along. The chart marks those lines as
-blends, reading the `blend` flag `GET /api/capabilities` publishes on each model
-rather than the model's name. Only ECMWF IFS and NOAA HRRR are one model for
+single line can change model partway along. `GET /api/capabilities` publishes a
+`blend` flag on each model, read off the model's definition rather than its
+name, and each model's summary in the picker says what it blends. Only ECMWF IFS and NOAA HRRR are one model for
 their whole length.
 
 **Reaches are ragged, so the chart clamps.** The models stop at different hours,
@@ -282,7 +283,7 @@ short of the analyzed window shortens every line beside it.
 
 **A model with nothing there says so.** Asked about one model, Open-Meteo
 answers HTTP 400 and names the problem, so a regional model outside its domain is
-reported as uncovered under the chart's key rather than drawn. Asked about several
+reported in a note beside the chart's metric dropdown rather than drawn. Asked about several
 models at once it does not: measured 2026-09-12 at 46.5,8.0,
 `models=gfs_hrrr,ecmwf_ifs025` answers HTTP 200 carrying a bare `precipitation`
 key instead of the suffixed pair, which is one model's numbers under no label.
@@ -305,7 +306,7 @@ change there; the list is the one place a new model has to be added.
 The cost is real rather than free, which is why a comparison is bought by
 Analyze rather than as you browse. Open-Meteo prices a request at
 `locations × max(1, days/14) × max(1, variables × models/10)`, the browser asks
-for nine hourly variables, and the analysis model's numbers are already held: a
+for ten hourly variables, and the analysis model's numbers are already held: a
 comparison buys one model series per displayed destination per added model,
 roughly one weighted call each, against the hundred or more an analysis of a
 polygon spends. Displayed rather than charted, because the results table shows
@@ -326,7 +327,8 @@ routinely return identical values because they land in the same model cell.
 
 **It is short.** The air-quality horizon runs a fraction of the weather
 horizon. Windows reaching past it still analyze normally: AQI columns come back
-blank for the hours beyond it, and the app says so next to the date inputs.
+blank for the hours beyond it, and the app says so under the Analyze button, in
+the one block where every notice renders.
 
 **It is American everywhere.** The `us_aqi` figure applies the US EPA's
 category boundaries worldwide, so a value for a peak in the Alps is still on
@@ -349,6 +351,17 @@ requires an identifying `User-Agent`, a header browsers refuse to let a page
 set, which is why this one lookup is proxied through Bluebird Forecast's server instead
 of running in your browser the way the weather fetch does.
 
+## Map tiles
+
+The basemap is OpenFreeMap's vector tiles, fetched straight from
+`tiles.openfreemap.org` by your browser: the style document, its TileJSON, the
+tiles, the glyphs and the sprites all resolve to that one host, which is the
+only basemap origin the page's Content-Security-Policy allows. OpenFreeMap
+publishes no quota and asks for nothing but the OpenStreetMap credit, which
+arrives through the tile server's own TileJSON and is drawn in the map's corner
+control rather than by the app. The tiles carry OpenStreetMap data under the
+ODbL, which is why that credit links to OpenStreetMap's copyright page.
+
 ## Wildfires
 
 The optional perimeter overlay and the proximity warnings on result rows both
@@ -364,7 +377,7 @@ hour no matter how many people are looking at maps, and no visitor's warning
 depends on a request of their own succeeding.
 
 That indirection exists because of how the upstream quota works. NIFC meters a
-**per-minute request quota belonging to its own ArcGIS organization**, shared by
+**request quota belonging to its own ArcGIS organization**, shared by
 every consumer of this public dataset, so it can be exhausted by traffic that
 has nothing to do with Bluebird Forecast. It rejects over-quota queries in an unusual
 way: HTTP 200, with the refusal in the response body, so nothing about the
@@ -557,3 +570,25 @@ the destinations an analysis found, plus a margin, and it fades out at that
 edge rather than stopping at a hard line. Panning away from your search area
 does not extend it, because every sample is a live request against a free
 service on your own quota rather than a pre-rendered tile.
+
+## Where the links go
+
+Two sites the app links out to are not data sources, since nothing is fetched
+from them, but a reader lands on them often enough to say what to expect.
+
+**Windy.** Every metric cell in the results table and every row of a map popup
+is a link to Windy, opened on the same coordinates, the same overlay, and the
+same forecast model the row was analyzed with; a **Min** or **Max** cell also
+opens on the hour that produced it. Windy's deep-link grammar is undocumented
+and was measured against the live site (2026-09-14): it snaps the hour to the
+model's own step, clamps an hour past that model's reach, ignores a time in the
+past, and where it carries no regional model for a destination it falls back to
+its own default. A Windy page is Windy's forecast, from its copy of the model,
+so its numbers can differ from the cell that linked to it.
+
+**Peakbagger and OpenStreetMap.** The arrow beside a peak's name opens
+Peakbagger's coordinate search centred on the summit, which lists the clicked
+peak first; Peakbagger has no mapping from OSM ids, and a name search there is
+ambiguous for a common name. Every other row links to the exact OpenStreetMap
+object it came from, and a row with no OSM id (a pasted coordinate) links to a
+map pin at its coordinates.

@@ -26,16 +26,19 @@ flowchart LR
   overwrites any value the client sent.
 - **The tunnel** is a `cloudflared` deployment in the cluster that dials out to
   Cloudflare ([#148](https://github.com/zimmertr/bluebird/issues/148)). The
-  origin holds no inbound port, so there is no direct-to-origin path: every
-  request reaches a pod only after passing Cloudflare, which is what makes
-  `CF-Connecting-IP` trustworthy (see "Client identity" below). cloudflared
+  origin holds no inbound port, so there is no direct-to-origin path from the
+  internet: every public request reaches a pod only after passing Cloudflare,
+  which is what makes `CF-Connecting-IP` trustworthy for public traffic (see
+  "Client identity" below). The internal `*.sol.milkyway` name still resolves
+  straight to the gateway on the LAN and never traverses the tunnel. cloudflared
   forwards each hostname to the shared Istio ingress gateway with the public
   hostname as SNI, so Istio serves the right certificate and routes by Host
   unchanged. Its config lives in `Kubernetes-Manifests` under
-  `misc/cloudflared/`.
+  `public/cloudflared/`.
 - **Istio** routes `bluebirdforecast.com` through the `bluebird`
   VirtualService to the stable/canary services managed by Argo Rollouts
-  (3 replicas stable; roughly double mid-rollout).
+  (autoscaled between 3 and 10 replicas; the canary adds one pod through its
+  analysis steps and a full set at promotion).
 
 There is deliberately **no Envoy/Istio rate limiting layer**. Istio still has
 no first-class rate-limit API; the mechanism is a raw `EnvoyFilter` wrapping
@@ -79,17 +82,23 @@ With R replicas the effective ceiling is about R times the configured number;
 that slop is accepted (the goal is a bound, not precision), and the shared
 datastore planned in [#65](https://github.com/zimmertr/bluebird/issues/65)
 can make both exact later. All knobs are env vars, documented in the
-[CONFIGURATION.md table](CONFIGURATION.md#configuration) and published to
-clients by `GET /api/capabilities`.
+[CONFIGURATION.md table](CONFIGURATION.md#configuration); the per-client
+buckets are also published to clients by `GET /api/capabilities`, under
+`limits.rate`.
 
 **Per-client token buckets** on the expensive routes only. Over the limit:
 `429` + `Retry-After`.
 
-| Bucket | Routes | Default |
-| --- | --- | --- |
-| analyze | `POST /api/analyze`, `POST /api/analyze/stream` | 12/min, burst 6 |
-| destinations | `POST /api/destinations` | 30/min, burst 10 |
-| geocode | `GET /api/geocode` | 30/min, burst 10 |
+| Bucket | Routes |
+| --- | --- |
+| analyze | `POST /api/analyze`, `POST /api/analyze/stream` |
+| destinations | `POST /api/destinations` |
+| geocode | `GET /api/geocode` |
+| wildfires | `GET /api/wildfires` |
+| smoke | `GET /api/smoke` |
+
+Each bucket's rate and burst are published under `limits.rate`; the two
+overlay buckets are the loosest, because a pan costs no upstream call.
 
 Destinations is deliberately its own bucket (issue #180): discovery is one
 map query with no forecasts, and sharing the analyze bucket let the browser
@@ -98,8 +107,10 @@ flow starve real analyses.
 The analyze bucket meters a route the internet reaches only with a key. The
 Istio VirtualService publishes the API by allowlist
 (`ingress.publicApiPrefixes` in the chart, #240): only the endpoints the web
-app itself calls are forwarded, and every other `/api` path answers the app's
-own JSON `404` at the edge. The analyze routes are a second, narrower rule
+app itself calls, plus `/api/version` for checking which build answers, are
+forwarded (`/api/destinations`, `/api/capabilities`, `/api/version`,
+`/api/geocode`, `/api/wildfires`, `/api/smoke`, `/api/config`), and every
+other `/api` path answers the app's own JSON `404` at the edge. The analyze routes are a second, narrower rule
 (`ingress.keyedApiPrefixes`, #317): the gateway forwards them when the request
 carries an `X-Open-Meteo-Key` header, and answers the same `404` when it does
 not. The header is what makes the request affordable, because a keyed batch
@@ -110,7 +121,15 @@ the key works is Open-Meteo's answer, which the pod returns as a `401`.
 
 In-cluster callers — the Argo Rollouts release probe, development against the
 Service — bypass the gateway, so they still reach the unkeyed path and still
-land in this bucket. So does a self-hosted instance.
+land in this bucket. So does a self-hosted instance. The allowlist has an off
+switch, `ingress.publishFullApi`, which publishes the whole `/api` surface; PR
+preview environments set it, so a preview's analyze routes need no key.
+
+The pod has one other inbound surface, and it is deliberately outside all of
+this: the Prometheus registry is served on its own port (`METRICS_PORT`, 9464)
+from the lifespan, never as a route on 8000. The chart keeps that port off the
+Service, so the gateway cannot reach it, and scrapes it in-cluster through a
+PodMonitor. That placement is what makes the `/api/*` allowlist sufficient.
 
 **Pod-wide upstream budgets** capping what all concurrent requests may have
 in flight against each provider. Saturation queues up to
@@ -142,8 +161,9 @@ the whole defense.
 ## Security response headers
 
 Every response the pod sends carries the set below, added by
-`backend/app/security_headers.py` as the outermost middleware, so a route, a
-static file and a `404` are all covered
+`backend/app/security_headers.py` outside every route, so a route, a static
+file and a `404` are all covered (the cache-header middleware sits beside it,
+and the order between the two carries nothing)
 ([#132](https://github.com/zimmertr/bluebird/issues/132)). The app owns them
 rather than the mesh because the interesting one is a list of the hosts the
 browser bundle fetches, and that list changes when a frontend overlay changes.
@@ -155,6 +175,7 @@ Edge-owned headers would drift away from the code that defines them.
 | `Referrer-Policy` | `strict-origin-when-cross-origin` | The full URL to this origin, the bare origin to anybody else. A shared link carries the analysis in its query string. |
 | `Permissions-Policy` | `geolocation=(self), camera=(), microphone=(), payment=()` | Geolocation is the one capability the app uses, for MapLibre's geolocate control. The rest are named rather than left to the default, so switching one on is a deliberate edit. |
 | `Content-Security-Policy` | see below | |
+| `Access-Control-Allow-Origin` | `*` | The API is public and keyless, so any page may call it from a browser; methods and headers are open the same way. `Retry-After` is the one header exposed to a cross-origin reader, so a throttled caller can see how long to back off. |
 
 **The app sends no `Strict-Transport-Security` header, on purpose.** Cloudflare
 terminates the TLS this header is about and sets it at the edge, which is the
@@ -178,8 +199,9 @@ worker-src 'self' blob:; child-src 'self' blob:
 Four points in it are measurements rather than habits.
 
 - **`connect-src` is the browser's third-party surface, and nothing else.**
-  The four origins are the ones in the "Outbound" table marked **browser**:
-  Open-Meteo's two services, the basemap, and the radar frames. Overpass,
+  The five origins are the ones in the "Outbound" table marked **browser**:
+  Open-Meteo's three services (forecast, air quality, and the archive that
+  answers the calendar's older windows), the basemap, and the radar frames. Overpass,
   Nominatim, NIFC and NOAA are absent because the pod fetches those, so for
   them the browser talks to this origin only. The one origin covers every
   basemap request, checked against the served style document rather than
@@ -263,15 +285,15 @@ release.
 
 | Provider | Called by | From | Policy | Governor |
 | --- | --- | --- | --- | --- |
-| [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) | backend (`osm.py`), 1 query per discovery/analysis plus 1 to resolve a custom list's coordinates (batched, so one query covers a whole 100-row paste), 3-mirror failover | cluster egress IP | ~2 slots per IP **per mirror operator** (overpass-api.de documents 2) | `UPSTREAM_CONCURRENCY_OVERPASS=2` per pod **per mirror** — one budget per endpoint, slot held only while that mirror's request is in flight, released before failover |
+| [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) (`overpass-api.de`, `maps.mail.ru`, `overpass.kumi.systems`) | backend (`osm.py`), 1 query per discovery/analysis plus 1 to resolve a custom list's coordinates (batched, so one query covers a whole 100-row paste), 3-mirror failover | cluster egress IP | ~2 slots per IP **per mirror operator** (overpass-api.de documents 2) | `UPSTREAM_CONCURRENCY_OVERPASS=2` per pod **per mirror** — one budget per endpoint, slot held only while that mirror's request is in flight, released before failover |
 | [Open-Meteo forecast](https://open-meteo.com) | **browser** (`openMeteo.ts`) for the web app; backend (`weather.py`) only for unkeyed API callers | each visitor's own IP; cluster egress IP for the server path | **weighted calls** per IP: 600/min, 5,000/hr, 10,000/day (see accounting below), non-commercial | browser: a rolling ~550 weighted/min pacer on the visitor's own quota, a 15-min per-location result cache, one automatic minutely-429 resume, and abort-on-first-failure so nothing spends after the outcome is decided. Server path: `UPSTREAM_WEIGHT_PER_MINUTE_WEATHER=550` per pod — the full safe rate on **every** pod, not a per-replica share, because one analysis runs end to end on one pod and must cover its whole fan-out. The cluster can therefore exceed 550/min when several pods fetch at once; accepted, since this path is the exception and the per-minute pacer never bounded the hourly or daily quotas anyway (issue #65's shared store is the exact fix) + in-flight cap 4 + the same cache |
-| [Open-Meteo air quality](https://open-meteo.com/en/docs/air-quality-api) | same split, best-effort on both paths, fetched **lazily**: only for the displayed rows unless the ranking key is an AQI metric | same split | same accounting, metered separately | browser and server: same pacing shape (`UPSTREAM_WEIGHT_PER_MINUTE_AQI=550` per pod, undivided for the same reason), failures degrade to null, and the first 429 short-circuits the remaining AQI batches |
+| [Open-Meteo air quality](https://open-meteo.com/en/docs/air-quality-api) | same split, best-effort on both paths. The **browser** fetches AQI for the whole field alongside the weather, because air quality is metered as its own per-visitor quota and an AQI ranking must be a live knob; the **server** path fetches it lazily, for the displayed rows only, unless the ranking key or a bound is an AQI metric | same split | same accounting, metered separately | browser and server: same pacing shape (`UPSTREAM_WEIGHT_PER_MINUTE_AQI=550` per pod, undivided for the same reason), failures degrade to null, and the first 429 short-circuits the remaining AQI batches |
 | [Open-Meteo archive](https://open-meteo.com/en/docs/historical-weather-api) (`archive-api.open-meteo.com`, and `customer-archive-api` for a keyed caller) | the same two callers as the row above, for a window older than `limits.past_data_days` (issue #123). A window that crosses that boundary is fetched from both, one request per endpoint per batch, so it costs two calls where an ordinary window costs one | same split | same weighted accounting, and the same quota the forecast endpoint spends | identical to the row above: the same pacer, the same in-flight cap, and the same 15-min per-location cache, which keys on WHICH endpoint answered so the two cannot serve each other's rows |
 | [Open-Meteo forecast, customer host](https://open-meteo.com) (`customer-api.open-meteo.com`) | backend (`weather.py`) for an API caller that sent `X-Open-Meteo-Key`, same batching and cache as the free host | cluster egress IP, but the quota owner is the **caller** | the key's own plan, whatever the caller bought | no weighted pacer, because the pod's budget meters the pod's quota and this spends the caller's. The in-flight cap of 4 and the per-client analyze bucket still apply, and so does the 15-min per-location cache, which is shared with the free-tier path |
 | [Open-Meteo air quality, customer host](https://open-meteo.com/en/docs/air-quality-api) (`customer-air-quality-api.open-meteo.com`) | same, from `air_quality.py` | cluster egress IP, quota owner the **caller** | the key's own plan, metered separately from forecast | same as the row above; a refused key is the one AQI failure that does not degrade to null |
-| [Nominatim](https://operations.osmfoundation.org/policies/nominatim/) | backend (`geocode.py`) proxying the search box | cluster egress IP | absolute ~1 req/s per service, real User-Agent required | `NOMINATIM_MIN_INTERVAL_MS=3500` spacing per pod (~0.86/s aggregate at 3 replicas; the previous 2s ≈ 1.5/s quietly exceeded the policy) + per-client geocode bucket |
-| [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) (wildfire overlay and proximity warnings) | backend (`nifc.py`), 2 queries per refresh (full-resolution and simplified copies of the whole country), on demand and never when idle | cluster egress IP | per-minute request-unit quota belonging to **NIFC's** ArcGIS organization, shared with every other consumer of the public dataset | `WILDFIRE_CACHE_TTL_S=600` per pod, one refresh at a time, refreshed behind the request rather than in front of it, last good snapshot served on failure, `WILDFIRE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client wildfires bucket |
-| [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) (smoke overlay) | backend (`hms.py`), 1 file per refresh (the whole day's national analysis), on demand and never when idle | cluster egress IP | none published; a static file server with no quota to exhaust | `SMOKE_CACHE_TTL_S=1800` per pod, one refresh at a time, refreshed behind the request, last good snapshot served on failure, `SMOKE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client smoke bucket |
+| [Nominatim](https://operations.osmfoundation.org/policies/nominatim/) (`nominatim.openstreetmap.org`) | backend (`geocode.py`) proxying the search box | cluster egress IP | absolute ~1 req/s per service, real User-Agent required | `NOMINATIM_MIN_INTERVAL_MS=3500` spacing per pod (~0.86/s aggregate at 3 replicas, and over the policy once the autoscaler passes 3, since the gate is per pod; the previous 2s ≈ 1.5/s quietly exceeded it at 3) + per-client geocode bucket |
+| [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) (`services3.arcgis.com`; wildfire overlay and proximity warnings) | backend (`nifc.py`), 2 queries per refresh (full-resolution and simplified copies of the whole country), on demand and never when idle | cluster egress IP | per-minute request-unit quota belonging to **NIFC's** ArcGIS organization, shared with every other consumer of the public dataset | `WILDFIRE_CACHE_TTL_S=600` per pod, one refresh at a time, refreshed behind the request rather than in front of it, last good snapshot served on failure, `WILDFIRE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client wildfires bucket |
+| [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) (`satepsanone.nesdis.noaa.gov`; smoke overlay) | backend (`hms.py`), 1 file per refresh (the whole day's national analysis), on demand and never when idle | cluster egress IP | none published; a static file server with no quota to exhaust | `SMOKE_CACHE_TTL_S=1800` per pod, one refresh at a time, refreshed behind the request, last good snapshot served on failure, `SMOKE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client smoke bucket |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) (rain radar overlay) | **browser**, raster tiles per visible frame | visitor IP | none published; IEM asks that applications with thousands of simultaneous users self-host | off by default, one frame's tiles on toggle and the rest only as the loop reaches them, plus IEM's own `max-age=300` edge cache |
 | Open-Meteo forecast + air quality (forecast grid overlay) | **browser** (`useForecastGrid.ts`), 1 lattice of ≤ 600 points per analysis while the layer is on, weather and AQI concurrently | visitor IP | same weighted accounting as the rows above, on the same per-visitor quota | off by default, and the toggle is the spend gate: nothing is fetched until it is on with an analysis held. Sequenced behind the ranked report by construction, so it can never delay a ranking; capped at 600 cells by coarsening the lattice; shares the ranked fetch's ~550 weighted/min pacer and its 15-min per-location cache, so a re-toggle or a second analysis over the same ground costs ~0 |
 
@@ -344,11 +366,14 @@ and were consistently wrong by the batch factor of 50.
 
 ## Worst-case math
 
-One analysis of 1,500 destinations (the `MAX_ANALYZE_PEAKS` cap) over the
-full 16-day window costs ~1,710 weighted weather calls (1,500 × 16/14), plus
-AQI for the displayed rows only (≤ the `limit`), against a 600/minute/IP
-budget — call it **~3 minutes of paced fetching, worst case**, narrated in
-the UI with a countdown. A repeat of the same analysis inside the cache TTL
+One analysis at the candidate cap (`limits.max_destinations`; 1,500 when this
+was written) over the full 16-day window costs ~1,710 weighted weather calls
+(1,500 × 16/14), against a 600/minute/IP budget — call it **~3 minutes of
+paced fetching, worst case**, narrated in the UI with a countdown. On the
+browser path the same ~1,710 weighted calls are spent again on air quality,
+against the separately metered air-quality quota, fetched concurrently so the
+two waits overlap rather than stack; on the server path AQI is lazy and costs
+at most the `limit`. A repeat of the same analysis inside the cache TTL
 costs ~0. For a browser analysis all of that lands on the visitor's own IP
 and the server pays 1 Overpass query (or 0, within the 10-minute discovery
 cache). The full spend lands on the cluster egress IP only for a direct API
@@ -365,8 +390,8 @@ never on the critical path — the fetch starts when the report commits — so
 the worst case above is unchanged for the numbers a user is waiting on.
 The overlay exists only in the browser, so it never lands on the cluster
 egress IP at all. The
-per-client buckets bound one address to 12 analyses + 30 discoveries per
-minute per pod; the in-flight caps (4+4+2-per-mirror) bound burst
+per-client buckets bound one address to the analyze and discovery rates
+`limits.rate` publishes, per pod; the in-flight caps (4+4+2-per-mirror) bound burst
 concurrency. Multiply by replicas for the cluster ceiling — and note that
 replica count is now autoscaled (3 to 10) rather than fixed, on top of a
 canary roughly doubling it for a rollout's duration, so the cluster ceiling is
