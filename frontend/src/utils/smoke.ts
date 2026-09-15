@@ -19,6 +19,7 @@
 // Coverage is North America, which is what HMS analyzes. Outside it an empty
 // answer means "not covered", not "clear".
 import type { FeatureCollection } from 'geojson'
+import { apiFetch } from './apiFetch'
 import { escapeHtml } from './popupChrome'
 
 const SMOKE_URL = '/api/smoke'
@@ -135,7 +136,7 @@ export function isRateLimited(err: unknown): boolean {
  * because in both cases the next thing to do is wait, not ask again.
  */
 export async function fetchSmoke(signal: AbortSignal): Promise<FeatureCollection> {
-  const res = await fetch(SMOKE_URL, { signal })
+  const res = await apiFetch(SMOKE_URL, { signal })
   if (!res.ok) {
     const err = new Error('Smoke data unavailable. Try again later.') as Error & {
       rateLimited?: boolean
