@@ -1,9 +1,18 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  Fragment,
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import MapView, { MapViewHandle } from './components/MapView'
 import ControlPanel from './components/ControlPanel'
 import SearchBox, { type SearchBoxHandle } from './components/SearchBox'
 import ResultsTable from './components/ResultsTable'
-import TimeSeriesChart from './components/TimeSeriesChart'
 import ColumnsPicker from './components/ColumnsPicker'
 import ModelsPicker from './components/ModelsPicker'
 import RemovedPicker from './components/RemovedPicker'
@@ -40,6 +49,7 @@ import {
   SortBy,
 } from './types'
 import { alignRowToGrid, chartKey } from './utils/chartData'
+import { logoUrl } from './logo'
 import {
   ACCENT,
   BUTTON_FLOATING,
@@ -192,6 +202,14 @@ import {
 import { NAME_DEFAULT_PX } from './utils/columnResize'
 import { compareValues } from './utils/sortResults'
 import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
+
+// Lazy, because `recharts` is the one large library the first screen does not
+// need: the map mounts before any chart exists, and a reader who never opens
+// one paid for it anyway. The fallback is `null` on purpose — the chart panel
+// already reserves its height, so an empty box is what the reader would see
+// during the fetch either way, and a word there would be a new string for a
+// wait measured in a hundred milliseconds off an already warm connection.
+const TimeSeriesChart = lazy(() => import('./components/TimeSeriesChart'))
 
 // One row of the Layers popover: a checkbox and what it switches. The four
 // overlays and the forecast player share it, because they are the same kind of
@@ -2493,7 +2511,9 @@ export default function App() {
             <div className={`absolute inset-0 bg-slate-900/60 ${LAYER.popover} flex items-center justify-center`}>
               <div className={`${SURFACE_CARD} px-6 py-5 text-center w-[280px]`}>
                 <img
-                  src="/icon.png"
+                  src={logoUrl}
+                  width={256}
+                  height={256}
                   alt=""
                   className={`w-12 h-12 ${RADIUS.surface} object-cover mx-auto mb-3 animate-pulse`}
                 />
@@ -3181,30 +3201,32 @@ export default function App() {
                       style={{ height: `${chartPanelPx}px` }}
                     >
                       <div className="min-h-0 flex-1">
-                        <TimeSeriesChart
-                          times={chartTimes}
-                          // While a comparison is up every line on the chart is
-                          // a (destination, model) pair, composed once by the
-                          // hook so each one is named and coloured the same
-                          // way; the chart has no plain destination rows to
-                          // draw. With nothing compared it is the row list it
-                          // has always been.
-                          rows={compare.active ? NO_CHART_ROWS : chart.selectedRows}
-                          metric={chart.metric}
-                          onMetricChange={chart.setMetric}
-                          colorFor={chart.colorFor}
-                          playheadMs={playbackIndex !== null ? chartTimes[playbackIndex] ?? null : null}
-                          onPlayheadChange={
-                            timelineAxes.includes('forecast') ? movePlayheadTo : undefined
-                          }
-                          extraLines={compare.lines}
-                          cutAfterMs={compare.endMs}
-                          controls={
-                            compare.active ? (
-                              <ModelCompare compared={compare.shown} />
-                            ) : undefined
-                          }
-                        />
+                        <Suspense fallback={null}>
+                          <TimeSeriesChart
+                            times={chartTimes}
+                            // While a comparison is up every line on the chart is
+                            // a (destination, model) pair, composed once by the
+                            // hook so each one is named and coloured the same
+                            // way; the chart has no plain destination rows to
+                            // draw. With nothing compared it is the row list it
+                            // has always been.
+                            rows={compare.active ? NO_CHART_ROWS : chart.selectedRows}
+                            metric={chart.metric}
+                            onMetricChange={chart.setMetric}
+                            colorFor={chart.colorFor}
+                            playheadMs={playbackIndex !== null ? chartTimes[playbackIndex] ?? null : null}
+                            onPlayheadChange={
+                              timelineAxes.includes('forecast') ? movePlayheadTo : undefined
+                            }
+                            extraLines={compare.lines}
+                            cutAfterMs={compare.endMs}
+                            controls={
+                              compare.active ? (
+                                <ModelCompare compared={compare.shown} />
+                              ) : undefined
+                            }
+                          />
+                        </Suspense>
                       </div>
                       {/* Chart-only legend. In Both mode the table's checkbox
                           column is the series picker and this would be a

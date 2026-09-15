@@ -16,6 +16,17 @@ The whole thing builds as a single multi-stage Docker image:
 - Stage 1 runs `node:26-alpine` to `npm run build` the SPA, and vendors Swagger UI's assets so `/docs` renders without reaching out to a CDN.
 - Stage 2 runs `python:3.14-alpine` with uvicorn, serving the API and the built SPA together.
 
+What the first screen costs is gated rather than assumed (issue #337). The
+entry document warms the three hosts a cold load and a first analysis cannot
+avoid (`preconnect` for the map style and both Open-Meteo services, each marked
+`crossorigin` because all three are read with `fetch`). The chart library is
+loaded on demand, so a reader who never opens a chart never downloads it. The
+logo the app draws is a 256px asset imported through the bundler, which is what
+gives it a content hash and therefore an `immutable` cache header; the 1024px
+`public/icon.png` is left unhashed for the Open Graph card and the iOS
+home-screen icon, and no page load fetches it. CI audits `/` against byte and
+timing budgets on every PR, described in [CICD.md](CICD.md#pr-preview-environments).
+
 None of the external APIs need a key:
 
 - **Overpass** handles the OSM feature queries. Three public endpoints are tried in order: `overpass-api.de`, then `maps.mail.ru`, then `overpass.kumi.systems` (ordered by measured latency; see the dated table in `osm.py`).

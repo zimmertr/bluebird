@@ -434,7 +434,7 @@ flowchart LR
 
     subgraph BB["zimmertr/bluebird"]
         pr["PR opened / updated"]
-        checks["pr.yml<br/>typecheck, Vitest, ruff, pytest, OpenAPI + API-type drift,<br/>hadolint, docker build + Trivy scan (sticky comment)"]
+        checks["pr.yml<br/>typecheck, Vitest, ruff, pytest, OpenAPI + API-type drift,<br/>hadolint, docker build + Trivy scan (sticky comment),<br/>Lighthouse budgets"]
         preview["pr-preview.yml<br/>pull_request_target (same-repo gate)"]
         label["label: create pr container"]
         comment["sticky preview-URL comment"]
@@ -487,6 +487,16 @@ flowchart LR
   admits an image and the gate that re-checks it later cannot disagree. Each
   entry there carries its reasoning; today the only one is pip's vendored-source
   SBOM, which Trivy would otherwise read as installed inventory.
+- `pr.yml`'s **Lighthouse Budgets** job runs after `docker-build`, rebuilds from
+  that job's warm Actions cache, serves the real image, and audits `/` three
+  times with **Lighthouse CI**. It fails the PR when the first screen crosses a
+  byte or timing budget. The budgets and the reasoning live in
+  **`.github/lighthouserc.js`**; two choices there make it a gate rather than a
+  weather report: every third-party host is blocked (a gate that goes red when
+  OpenFreeMap is slow teaches everyone to ignore it), and the default mobile
+  preset is used, whose throttling is a simulation and therefore reproducible to
+  the millisecond. It reports as `Lighthouse Budgets`, and adding it to branch
+  protection is a manual step in the repository settings.
 - `pr-preview.yml` runs under **`pull_request_target`** (so it can reach the base
   repo's secrets to push images) behind a **hard same-repo gate** — fork PRs
   never execute with secrets. It builds `zimmertr/bluebird-pr:pr-<N>-<head_sha>`.
