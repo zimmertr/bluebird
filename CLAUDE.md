@@ -88,7 +88,7 @@ The browser reimplements enough of the backend that the same decision is spelled
 | 20 | The wire models themselves | the Pydantic models | `types.ts` | `openapi.json`, `api-schema.d.ts`, `api-compat.ts`, and the `check:api` CI step |
 | 21 | The published limits | `/api/capabilities` | `useCapabilities.ts` | not a mirror by design: the browser reads them at runtime and the compiled numbers are only the fallback (#152) |
 
-Two of these are deliberately **not** mirrors and must not become ones. The calendar's own horizons (`FUTURE_LIMIT_DAYS`, `PAST_LIMIT_DAYS` in `calendar.ts`) are Open-Meteo's measured edges, which nothing publishes and the backend does not hold; and `wind_direction_10m` is the browser's alone, which is why row 7 is off by one rather than equal.
+Three things here are deliberately **not** mirrors and must not become ones. Row 21 is read at runtime rather than copied. `FUTURE_LIMIT_DAYS` in `calendar.ts` is Open-Meteo's own measured accept edge, which nothing publishes and the backend does not hold. And `wind_direction_10m` is the browser's alone, which is why row 7 is off by one rather than equal.
 
 ## Architecture
 
