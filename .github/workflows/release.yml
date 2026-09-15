@@ -134,10 +134,16 @@ jobs:
   # rapid releases collapse into one up-to-date PR rather than a pile of stale ones.
   #
   # GH_PAT must have contents + pull-requests write on zimmertr/Kubernetes-Manifests.
+  #
+  # Deliberately does NOT wait on create-release: the only thing this job needs
+  # to exist is the pushed image, and the release notes it links to are a URL
+  # that resolves by the time anyone opens the PR. Waiting on it put a measured
+  # 15 s of release-note generation in front of every production deploy (issue
+  # #368).
   update-manifests:
     name: Update Kubernetes Manifests
     runs-on: ubuntu-latest
-    needs: [determine-version, create-release]
+    needs: [determine-version, build-and-push]
     if: needs.determine-version.outputs.tagExists == 'false'
     steps:
       - uses: imranismail/setup-kustomize@v3
@@ -206,6 +212,11 @@ jobs:
   # open PR is ever kept, so rapid releases collapse into a single up-to-date PR
   # rather than a pile. GH_PAT must additionally carry contents + pull-requests
   # write on zimmertr/bluebird-helm (it already has them on Kubernetes-Manifests).
+  #
+  # Unlike update-manifests, this one really does wait on create-release:
+  # bluebird-helm's own release workflow resolves appVersion at package time
+  # from `repos/zimmertr/bluebird/releases/latest`, so opening this PR before
+  # the release exists races the resolver onto the PREVIOUS version.
   bump-chart-appversion:
     name: Bump Helm Chart appVersion
     runs-on: ubuntu-latest

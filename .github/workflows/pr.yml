@@ -70,6 +70,12 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.14'
+          cache: pip
+          # This job installs exactly one pinned package and has no requirements
+          # file, so the thing the cache key must track is the pin itself, which
+          # lives in this workflow. Hashing this file busts the cache whenever
+          # the pin moves, which is the only time a stale wheel would be wrong.
+          cache-dependency-path: .github/workflows/pr.yml
       # Pin ruff: its default rule set changes between releases, so an unpinned
       # install can turn a green lint red with no code change on our side.
       - run: pip install ruff==0.16.0
@@ -85,6 +91,14 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.14'
+          cache: pip
+          # Both files: requirements-dev.txt is `-r requirements.txt` plus two
+          # test packages, and setup-python hashes only the paths it is given,
+          # so naming the dev file alone would serve a stale wheel set after a
+          # runtime-dependency bump.
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
       - run: pip install -r requirements-dev.txt
         working-directory: backend
       - run: pytest -q
