@@ -7,9 +7,10 @@ the next one. Weather and air quality both fan out in batches of
 analysis. One client for the process turns that into one handshake per host
 that the rest of the batches ride on.
 
-One client covers both services because httpx keys its pool by host, so
-``api.open-meteo.com`` and ``air-quality-api.open-meteo.com`` get their own
-connections out of the same object.
+One client covers every service because httpx keys its pool by host, so
+``api.open-meteo.com``, ``archive-api.open-meteo.com``,
+``air-quality-api.open-meteo.com`` and their ``customer-*`` twins each get
+their own connections out of the same object.
 """
 
 from __future__ import annotations

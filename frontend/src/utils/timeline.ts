@@ -11,7 +11,7 @@
  * Two different things in this app span time, and neither is a special case of
  * the other:
  *
- * - **Radar** is the last 55 minutes of observed rain, in 12 fixed frames. It
+ * - **Radar** is the last 50 minutes of observed rain, in six fixed frames. It
  *   exists whenever the layer is on, analysis or no analysis.
  * - **Forecast** is the analyzed window's own hourly grid, and every
  *   destination already holds a value at every hour of it. It exists whenever a

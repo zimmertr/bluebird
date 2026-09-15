@@ -1133,7 +1133,7 @@ export default function ControlPanel({
             {/* The one direction. Pressing a half never changes WHICH metric
                 ranks; the radios own that. Two grid cells rather than a row of
                 its own: the label spans the label and dropdown columns like
-                Elevation below, and the segment spans the two box columns, so
+                each metric row's label below, and the segment spans the two box columns, so
                 it is the boxes' width in both states and every control in the
                 section shares their two edges. That is why it wears
                 SEGMENT_FILL rather than SEGMENT, whose CONTROL_W would hang

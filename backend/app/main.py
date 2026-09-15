@@ -326,9 +326,11 @@ async def swagger_ui() -> HTMLResponse:
     return HTMLResponse(_DOCS_HTML)
 
 
-# Added last, so it is the outermost layer and every response leaves with these
-# headers — a route's, a static file's, and one an inner middleware produced
-# without reaching a route at all.
+# Added after every route, so it wraps them all and every response leaves with
+# these headers — a route's, a static file's, and one an inner middleware
+# produced without reaching a route at all. The cache-header middleware below
+# is added after this one and so sits outside it; the two read different
+# headers, so the order between them carries nothing.
 app.add_middleware(
     security_headers.SecurityHeadersMiddleware,
     csp_by_path={DOCS_PATH: security_headers.docs_csp(_DOCS_HTML, _DOCS_ASSET_ORIGINS)},
