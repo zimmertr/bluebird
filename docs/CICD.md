@@ -500,6 +500,22 @@ Two consequences follow, and both are reasons *not* to optimise here:
   therefore the same key, so the two already share one copy. There is nothing
   to add.
 
+**Every commit on a pull request branch runs `pr.yml` twice.** The workflow
+triggers on both `push` (any branch but `main`) and `pull_request`, and the
+`concurrency` group is `pr-${{ github.ref }}`, which is `refs/heads/<branch>`
+for one and `refs/pull/<n>/merge` for the other. Different groups, so neither
+cancels the other: 20 of 20 sampled runs were such a pair, started within
+seconds. They run in parallel, so **a person waits the same 62 s** — the cost is
+about two minutes of runner time per commit, and two sets of cache writes that
+race each other to save the same key.
+
+Unifying them is a one-line change to the `concurrency` group
+(`github.head_ref || github.ref_name` names the same branch under both events),
+but it works by letting the later run **cancel** the earlier one, which leaves
+cancelled check runs under the names branch protection requires. That is a
+gate question rather than a performance one, so it is written down here rather
+than changed.
+
 ### The release path
 
 `release.yml`, 20 full releases. Jobs hand off in about 2 s.
