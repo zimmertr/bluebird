@@ -1102,6 +1102,16 @@ function asItems(data: unknown): HourlyPayload[] {
 export interface FetchWeatherOptions {
   signal?: AbortSignal
   onProgress?: (processed: number, total: number) => void
+  /**
+   * Every batch that has landed so far, as soon as it lands (#337, finding 2).
+   *
+   * `results` is the full-length array and `settled` says which of its entries
+   * are answers rather than holes: a `null` result means "no forecast for this
+   * location", which is a different thing from "not fetched yet", and a caller
+   * that could not tell them apart would rank a hole as a missing forecast.
+   * Both arrays are copies, so a caller may hold them.
+   */
+  onPartial?: (results: WeatherResult[], settled: boolean[]) => void
   // The pacer or a minutely resume is about to sleep this many seconds.
   onPace?: (seconds: number) => void
   // Which model answers. Named on every FORECAST request rather than defaulted
@@ -1159,6 +1169,7 @@ export async function fetchWeather(
   {
     signal,
     onProgress,
+    onPartial,
     onPace,
     model,
     nowMs = Date.now(),
@@ -1176,13 +1187,19 @@ export async function fetchWeather(
   const spans = fetchSpans(startMs, endMs, nowMs)
 
   const results: WeatherResult[] = new Array(destinations.length).fill(null)
+  // Which entries of `results` are answers. A cache hit is settled the moment
+  // it is read; a miss becomes settled when its batch lands.
+  const settled: boolean[] = new Array(destinations.length).fill(false)
   const missIdx: number[] = []
   destinations.forEach((c, i) => {
     const hit = cacheGet(
       cacheKey('weather', c, startMs, endMs, model, terrainElevation, source),
     )
     if (hit === undefined) missIdx.push(i)
-    else results[i] = hit === NO_DATA ? null : (hit as WeatherResult)
+    else {
+      results[i] = hit === NO_DATA ? null : (hit as WeatherResult)
+      settled[i] = true
+    }
   })
   const misses = missIdx.map((i) => destinations[i])
   let processed = destinations.length - misses.length
@@ -1190,8 +1207,16 @@ export async function fetchWeather(
   if (misses.length === 0) return results
 
   const chunks = chunked(misses, BATCH_SIZE)
+  // Where each chunk's rows belong in `results`. The chunks are contiguous
+  // slices of `misses`, and `missIdx` is what maps a miss back to its
+  // destination, so this is the one place the two are lined up.
+  const chunkStart: number[] = []
+  for (let i = 0, at = 0; i < chunks.length; i++) {
+    chunkStart.push(at)
+    at += chunks[i].length
+  }
 
-  const tasks = chunks.map((chunk) => async (): Promise<WeatherResult[]> => {
+  const tasks = chunks.map((chunk, chunkIndex) => async (): Promise<WeatherResult[]> => {
     const perSpan: HourlyPayload[][] = []
     for (const span of spans) {
       // Ten variables, not the backend's nine: the browser also asks for wind
@@ -1261,6 +1286,18 @@ export async function fetchWeather(
     })
     processed += chunk.length
     onProgress?.(processed, destinations.length)
+    // Land this batch in the full-length array before announcing it, so the
+    // caller sees rows rather than a count (#337, finding 2). The same writes
+    // used to happen after every batch had returned; doing them here is the
+    // whole change, because each index is written exactly once either way.
+    if (onPartial) {
+      chunkResults.forEach((r, j) => {
+        const at = missIdx[chunkStart[chunkIndex] + j]
+        results[at] = r
+        settled[at] = true
+      })
+      onPartial([...results], [...settled])
+    }
     return chunkResults
   })
 

@@ -20,6 +20,7 @@ import {
   DiscoveredDestination,
   HourlySeries,
 } from '../types'
+import { familyOf } from '../metrics'
 import { pinKey } from './customList'
 import {
   AqiResult,
@@ -389,6 +390,21 @@ export interface ClientAnalysisCallbacks {
   // Passing rows from a different window here would silently mix two
   // forecasts into one report.
   reuse?: { rows: readonly DestinationResult[]; times: readonly number[] } | null
+  /**
+   * The ranked field as it arrives, once per landed batch (#337, finding 2).
+   *
+   * A 1,500-destination analysis is 30 batches at 4 in flight, and the reader
+   * used to see a percentage and no rows until the last one returned. Each
+   * call carries every row forecast so far, ranked the way the finished report
+   * will be, plus the hourly grid if one is known yet.
+   *
+   * Two things it is NOT. It is not the finished report: the rows reorder as
+   * the field fills, and the count is a floor rather than a total. And it never
+   * fires for an air-quality ranking, because air quality rides alongside the
+   * weather fetch and resolves at the end, so a partial field ranked by it
+   * would be ranked on nulls.
+   */
+  onPartial?: (rows: DestinationResult[], times: number[]) => void
 }
 
 export interface ClientAnalysis {
@@ -419,7 +435,15 @@ export async function runClientAnalysis(
   destinations: readonly DiscoveredDestination[],
   startMs: number,
   endMs: number,
-  { signal, onProgress, onPace, nowMs, maxDestinations, reuse }: ClientAnalysisCallbacks = {},
+  {
+    signal,
+    onProgress,
+    onPartial,
+    onPace,
+    nowMs,
+    maxDestinations,
+    reuse,
+  }: ClientAnalysisCallbacks = {},
 ): Promise<ClientAnalysis> {
   if (destinations.length === 0) {
     return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [] }
@@ -511,9 +535,32 @@ export async function runClientAnalysis(
         // (or Cancel) triggers below. Swallow it here so it cannot surface as an
         // unhandled rejection once the caller has already taken the real error.
         .catch((): AqiResult[] => new Array(coords.length).fill(null))
+      // Air quality resolves at the end, so a partial field carries none. That
+      // is invisible for a weather ranking (the column fills in when the
+      // analysis commits) and meaningless for an air-quality one, which would
+      // be ranking nulls. So the announcements simply do not happen there.
+      const partialsWanted = onPartial != null && familyOf(sortBy) !== 'aqi'
       const wxList = await fetchWeather(coords, startMs, endMs, {
         signal: internal.signal,
         onPace,
+        onPartial: partialsWanted
+          ? (partial, settled) => {
+              // Only the destinations with an answer. A `null` in `partial` is
+              // "no forecast for this location", which the assembly keeps as a
+              // row; a hole is a location still in flight and must not appear.
+              const have: DiscoveredDestination[] = []
+              const wx: WeatherResult[] = []
+              for (let i = 0; i < unforecast.length; i++) {
+                if (!settled[i]) continue
+                have.push(unforecast[i])
+                wx.push(partial[i])
+              }
+              const grown = assemble(have, wx, new Array(have.length).fill(null))
+              const rows = [...reused, ...grown.results]
+              rows.sort(rankComparator(sortBy, request.sort_desc ?? false))
+              onPartial(rows, grown.times.length > 0 ? grown.times : [...(reuse?.times ?? [])])
+            }
+          : undefined,
         model: request.forecast_model,
         // The same clock the air-quality fetch above is given. `nowMs` is what
         // decides which Open-Meteo endpoint answers a window (`windowSource`:

@@ -588,6 +588,35 @@ describe('fetchWeather', () => {
     expect(seen[0][0]).toBeLessThan(seen[1][0])
     expect(seen[1][0]).toBe(60)
   })
+
+  it('hands back each batch as it lands, with the holes marked (#337)', async () => {
+    const dests = Array.from({ length: 60 }, (_, i) => ({ latitude: i, longitude: i }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const count = new URL(url).searchParams.get('latitude')!.split(',').length
+        return jsonResponse(Array.from({ length: count }, () => hourlyPayload()))
+      }),
+    )
+    const rounds: Array<{ answers: number; settled: number }> = []
+    const final = await fetchWeather(dests, WINDOW.startMs, WINDOW.endMs, {
+      ...OPTS,
+      onPartial: (results, settled) =>
+        rounds.push({
+          answers: results.filter((r) => r !== null).length,
+          settled: settled.filter(Boolean).length,
+        }),
+    })
+
+    // Two chunks, 50 then 10, each announced once.
+    expect(rounds).toHaveLength(2)
+    expect(rounds.map((r) => r.settled)).toEqual([50, 60])
+    // The settled flags are the point: a `null` result is "no forecast for
+    // this location" and a hole is "not fetched yet", and a caller that read
+    // one as the other would rank a location it has no answer for.
+    expect(rounds.map((r) => r.answers)).toEqual([50, 60])
+    expect(final.filter((r) => r !== null)).toHaveLength(60)
+  })
 })
 
 // The browser path is the one most analyses take, so the model reaching the

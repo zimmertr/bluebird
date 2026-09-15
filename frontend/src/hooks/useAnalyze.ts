@@ -148,6 +148,10 @@ export function useAnalyze(
   models: readonly ForecastModelOption[] = [],
 ) {
   const [loading, setLoading] = useState(false)
+  // True between the first batch landing and the analysis finishing: the rows
+  // on screen are a floor, not the report (#337, finding 2). The results bar
+  // says "so far" while it holds.
+  const [arriving, setArriving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [refusal, setRefusal] = useState<Refusal | null>(null)
   const [response, setResponse] = useState<AnalyzeResponse | null>(null)
@@ -229,6 +233,7 @@ export function useAnalyze(
   function reset() {
     setResponse(null)
     setUniverse(null)
+    setArriving(false)
     setAnalyzed(null)
     setError(null)
     setRefusal(null)
@@ -248,6 +253,38 @@ export function useAnalyze(
   ) {
     setResponse(data)
     setUniverse(fullField)
+    setArriving(false)
+    recordSnapshot(request, kind)
+    // A fresh report, which is not the same event as a fresh row array: live
+    // knobs rebuild the rows constantly. Surfaces that reset per report (the
+    // table's detail-column sort) key off this rather than off the rows.
+    //
+    // Deliberately NOT bumped by the arriving commits below. It restarts the
+    // forecast grid's fetch and resets the table's detail sort, and doing
+    // either thirty times over one analysis would be a different feature.
+    setAnalysisSeq((n) => n + 1)
+  }
+
+  /**
+   * The field so far, while the rest of it is still being fetched (#337).
+   *
+   * Everything a live knob reads is set: the rows, the held field, and the
+   * snapshot that says what was asked for. What is not set is `analysisSeq`,
+   * for the reason above.
+   */
+  function commitArriving(
+    data: AnalyzeResponse,
+    request: AnalyzeRequest,
+    kind: SelectionKind,
+    fieldSoFar: DestinationResult[],
+  ) {
+    setResponse(data)
+    setUniverse(fieldSoFar)
+    setArriving(true)
+    recordSnapshot(request, kind)
+  }
+
+  function recordSnapshot(request: AnalyzeRequest, kind: SelectionKind) {
     const startMs = Date.parse(request.start_datetime)
     const endMs = Date.parse(request.end_datetime)
     setAnalyzed({
@@ -266,10 +303,6 @@ export function useAnalyze(
       typesKey: pendingDiscoveryRef.current.typesKey,
       compareModels: pendingCompareRef.current,
     })
-    // A fresh report, which is not the same event as a fresh row array: live
-    // knobs rebuild the rows constantly. Surfaces that reset per report (the
-    // table's detail-column sort) key off this rather than off the rows.
-    setAnalysisSeq((n) => n + 1)
   }
 
   function handlePace(seconds: number) {
@@ -377,6 +410,22 @@ export function useAnalyze(
         maxDestinations,
         reuse: reuse && { rows: reuse.rows, times: reuse.times },
         onPace: handlePace,
+        // Each batch, ranked and on screen as it lands, instead of a
+        // percentage and an empty table until the thirtieth one returns. The
+        // counts are a floor: `total_queried` is what has been forecast so
+        // far, so the bar's "N of M" grows and is marked "so far" beside it.
+        onPartial: (rows, times) =>
+          commitArriving(
+            {
+              results: rows.slice(0, request.limit),
+              total_queried: rows.length,
+              total_matched: rows.length,
+              times,
+            },
+            request,
+            kind,
+            rows,
+          ),
         onProgress: (processed, total, message) => {
           setPaceEndMs(null)
           setStatusMessage(message)
@@ -481,6 +530,9 @@ export function useAnalyze(
     } finally {
       abortRef.current = null
       setLoading(false)
+      // A cancelled or failed run leaves whatever rows did land, but they are
+      // no longer arriving: nothing more is coming for them.
+      setArriving(false)
       setStatusMessage(null)
       setProgress(null)
       setPaceEndMs(null)
@@ -497,6 +549,8 @@ export function useAnalyze(
     fireField,
     fireSeq,
     loading,
+    // The rows on screen are a floor while this holds (#337).
+    arriving,
     error,
     refusal,
     response,

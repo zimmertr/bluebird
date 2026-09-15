@@ -871,6 +871,7 @@ export default function App() {
     fireField,
     fireSeq,
     loading,
+    arriving,
     error,
     refusal,
     response,
@@ -1293,6 +1294,12 @@ export default function App() {
 
     const willRank = resolvedPolygon !== null || custom.length > 0
 
+    // Before the await, not after it. The analysis now publishes ranked rows
+    // as each batch lands (#337, finding 2), and a results area that opens
+    // only once the whole run returns would hide every one of them until the
+    // end, which is the thing that change exists to fix.
+    if (willRank) setShowResults(true)
+
     if (isRefresh && response) {
       // Refresh: weather-only over the known destinations (no Overpass). They
       // come back as type "custom" with no osm_id; the results memo restores
@@ -1638,7 +1645,13 @@ export default function App() {
   // the pending-rows-only case.
   const rowCount = useMemo(() => {
     if (response === null) return null
-    const shown = `${results.length.toLocaleString()} of ${presented.eligible.toLocaleString()}`
+    // "so far" while the field is still arriving (#337): the rows are real and
+    // ranked, but both numbers are a floor and the order moves as the rest of
+    // the batches land. Two words on the count that is already there, rather
+    // than a second line or a box, because the count is the thing that is
+    // provisional.
+    const tail = arriving ? ' so far' : ''
+    const shown = `${results.length.toLocaleString()} of ${presented.eligible.toLocaleString()}${tail}`
     // Comma-joined rather than parenthesized: the bar already wraps the whole
     // thing in parentheses, and a nested pair reads as a typo.
     if (presented.excluded > 0) {
@@ -1649,7 +1662,7 @@ export default function App() {
       return `${shown}, ${response.total_found.toLocaleString()} found`
     }
     return shown
-  }, [response, results.length, presented.eligible, presented.excluded])
+  }, [response, results.length, presented.eligible, presented.excluded, arriving])
 
   // Why the table is empty, when it is. Three ways to get here and three
   // different next moves, and the newest one is the most easily mistaken for a
