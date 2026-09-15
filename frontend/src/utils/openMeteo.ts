@@ -8,6 +8,7 @@
 // regenerate the vectors, and mirror the change here.
 
 import { archiveBoundaryMs, windowSource } from './forecastWindow'
+import { buildSnapshot, loadSnapshot, readSnapshot, saveSnapshot } from './forecastStore'
 
 export const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'
 // Where a window older than the forecast endpoint's retention goes (#123).
@@ -213,6 +214,7 @@ function cacheGet(key: string): CacheEntry['value'] | undefined {
 
 function cachePut(key: string, value: CacheEntry['value']): void {
   forecastCache.set(key, { expires: performance.now() + CACHE_TTL_MS, value })
+  cacheDirty = true
   if (forecastCache.size > CACHE_MAX_ENTRIES) {
     for (const oldest of forecastCache.keys()) {
       forecastCache.delete(oldest)
@@ -221,9 +223,46 @@ function cachePut(key: string, value: CacheEntry['value']): void {
   }
 }
 
+// ── Surviving a reload ─────────────────────────────────────────────────────
+
+// The cache above dies with the page, so a reload re-spends the visitor's own
+// Open-Meteo quota on coordinates the browser already paid for (#337, finding
+// 3). `utils/forecastStore.ts` mirrors what fits into `sessionStorage`: one
+// entry measures about 10.5 KB, storage holds about 5 MB, so it is a budget of
+// the newest entries rather than a mirror of all of them. Every decision and
+// every measurement is in that file; this is the wiring.
+//
+// The write happens on the way out of the page rather than after each batch,
+// because serializing the budget costs about 6 ms and nothing about an
+// in-flight analysis needs it done sooner. `pagehide` is the event that
+// survives the back/forward cache; `visibilitychange` covers a phone whose
+// browser is backgrounded and then killed.
+let cacheDirty = false
+
+function persistForecastCache(): void {
+  if (!cacheDirty) return
+  cacheDirty = false
+  saveSnapshot(buildSnapshot(forecastCache, performance.now(), Date.now()))
+}
+
+function hydrateForecastCache(): void {
+  for (const [key, entry] of readSnapshot(loadSnapshot(), performance.now(), Date.now())) {
+    forecastCache.set(key, entry as CacheEntry)
+  }
+}
+
+if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
+  hydrateForecastCache()
+  window.addEventListener('pagehide', persistForecastCache)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') persistForecastCache()
+  })
+}
+
 // Test hook: budgets and cache are module state that must not leak between
 // unit tests.
 export function resetOpenMeteoState(): void {
+  cacheDirty = false
   forecastCache.clear()
   weatherBudget = new WeightedBudget(CLIENT_WEIGHT_PER_MINUTE)
   aqiBudget = new WeightedBudget(CLIENT_WEIGHT_PER_MINUTE)
@@ -279,11 +318,25 @@ function tieBreak(v: number, floor: number, digits: number): number {
   return floor % 2 === 0 ? floor : floor + 1
 }
 
-// Open-Meteo returns naive-UTC "YYYY-MM-DDTHH:MM" stamps (we request
-// timezone=UTC). A bare `new Date(...)` would read those as LOCAL time, so
-// re-stamp UTC before parsing — the exact counterpart of the backend's
-// parse-then-treat-as-UTC (`_parse_ts` + `_epoch_ms`).
+// A stamp arrives in one of two shapes, and both are UTC.
+//
+// Every request here sends `timeformat=unixtime`, so the wire carries whole
+// seconds: 1789430400 rather than "2026-09-15T00:00". That is 11 bytes instead
+// of 18, and a multiply instead of a regex and a `Date.parse`. Measured
+// 2026-09-14 over 540,000 stamps, which is a maximal 1,500-destination
+// analysis of a 15-day window: 63 ms of parsing became 4 ms, and the response
+// lost 11% of its raw bytes (2.9% after gzip, because repeated ISO text
+// compresses well).
+//
+// The string arm stays, and is not legacy. `weather_vectors.json` is written
+// by the backend's reference implementation and carries ISO stamps, so the
+// vectors that pin this port to Python feed strings through this function.
+// Open-Meteo returns naive-UTC "YYYY-MM-DDTHH:MM" there, and a bare
+// `new Date(...)` would read it as LOCAL time, so the stamp is re-zoned before
+// parsing — the exact counterpart of the backend's parse-then-treat-as-UTC
+// (`_parse_ts` + `_epoch_ms`).
 export function parseTs(s: unknown): number | null {
+  if (typeof s === 'number') return Number.isFinite(s) ? s * 1000 : null
   if (typeof s !== 'string') return null
   const zoned = /(?:[Zz]|[+-]\d\d:?\d\d)$/.test(s) ? s : `${s}Z`
   const t = Date.parse(zoned)
@@ -1049,6 +1102,16 @@ function asItems(data: unknown): HourlyPayload[] {
 export interface FetchWeatherOptions {
   signal?: AbortSignal
   onProgress?: (processed: number, total: number) => void
+  /**
+   * Every batch that has landed so far, as soon as it lands (#337, finding 2).
+   *
+   * `results` is the full-length array and `settled` says which of its entries
+   * are answers rather than holes: a `null` result means "no forecast for this
+   * location", which is a different thing from "not fetched yet", and a caller
+   * that could not tell them apart would rank a hole as a missing forecast.
+   * Both arrays are copies, so a caller may hold them.
+   */
+  onPartial?: (results: WeatherResult[], settled: boolean[]) => void
   // The pacer or a minutely resume is about to sleep this many seconds.
   onPace?: (seconds: number) => void
   // Which model answers. Named on every FORECAST request rather than defaulted
@@ -1106,6 +1169,7 @@ export async function fetchWeather(
   {
     signal,
     onProgress,
+    onPartial,
     onPace,
     model,
     nowMs = Date.now(),
@@ -1123,13 +1187,19 @@ export async function fetchWeather(
   const spans = fetchSpans(startMs, endMs, nowMs)
 
   const results: WeatherResult[] = new Array(destinations.length).fill(null)
+  // Which entries of `results` are answers. A cache hit is settled the moment
+  // it is read; a miss becomes settled when its batch lands.
+  const settled: boolean[] = new Array(destinations.length).fill(false)
   const missIdx: number[] = []
   destinations.forEach((c, i) => {
     const hit = cacheGet(
       cacheKey('weather', c, startMs, endMs, model, terrainElevation, source),
     )
     if (hit === undefined) missIdx.push(i)
-    else results[i] = hit === NO_DATA ? null : (hit as WeatherResult)
+    else {
+      results[i] = hit === NO_DATA ? null : (hit as WeatherResult)
+      settled[i] = true
+    }
   })
   const misses = missIdx.map((i) => destinations[i])
   let processed = destinations.length - misses.length
@@ -1137,8 +1207,16 @@ export async function fetchWeather(
   if (misses.length === 0) return results
 
   const chunks = chunked(misses, BATCH_SIZE)
+  // Where each chunk's rows belong in `results`. The chunks are contiguous
+  // slices of `misses`, and `missIdx` is what maps a miss back to its
+  // destination, so this is the one place the two are lined up.
+  const chunkStart: number[] = []
+  for (let i = 0, at = 0; i < chunks.length; i++) {
+    chunkStart.push(at)
+    at += chunks[i].length
+  }
 
-  const tasks = chunks.map((chunk) => async (): Promise<WeatherResult[]> => {
+  const tasks = chunks.map((chunk, chunkIndex) => async (): Promise<WeatherResult[]> => {
     const perSpan: HourlyPayload[][] = []
     for (const span of spans) {
       // Ten variables, not the backend's nine: the browser also asks for wind
@@ -1169,6 +1247,9 @@ export async function fetchWeather(
           // silently by something else.
           ...(span.archive ? {} : { models: model }),
           hourly: HOURLY_VARIABLES.join(','),
+          // Whole seconds rather than ISO text. See `parseTs` for the
+          // measurement and for why the string arm stays.
+          timeformat: 'unixtime',
           temperature_unit: 'fahrenheit',
           wind_speed_unit: 'mph',
           precipitation_unit: 'inch',
@@ -1205,6 +1286,18 @@ export async function fetchWeather(
     })
     processed += chunk.length
     onProgress?.(processed, destinations.length)
+    // Land this batch in the full-length array before announcing it, so the
+    // caller sees rows rather than a count (#337, finding 2). The same writes
+    // used to happen after every batch had returned; doing them here is the
+    // whole change, because each index is written exactly once either way.
+    if (onPartial) {
+      chunkResults.forEach((r, j) => {
+        const at = missIdx[chunkStart[chunkIndex] + j]
+        results[at] = r
+        settled[at] = true
+      })
+      onPartial([...results], [...settled])
+    }
     return chunkResults
   })
 
@@ -1278,6 +1371,7 @@ export async function fetchAqi(
         {
           ...coordParams(chunk),
           hourly: 'us_aqi',
+          timeformat: 'unixtime',
           start_hour: reqStart,
           end_hour: reqEnd,
           timezone: 'UTC',

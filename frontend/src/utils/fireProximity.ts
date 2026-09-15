@@ -252,6 +252,11 @@ export function nearestFire(
         name: featureFireName(f.properties as WildfireProps | null),
         ...featureCenter(f.geometry),
       }
+      // A destination inside a perimeter measures zero, and nothing in the
+      // rest of the snapshot can beat it. Rare, and the loop is not a
+      // bottleneck; it is here because "stop when the answer cannot improve"
+      // costs one line (#337, finding 5).
+      if (d === 0) break
     }
   }
   return best

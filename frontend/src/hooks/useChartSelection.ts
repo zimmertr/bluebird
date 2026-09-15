@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import {
   ChartMetric,
@@ -61,7 +61,10 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidatesKey])
 
-  function toggle(row: DestinationResult) {
+  // Every function below is a prop of a memoized component (ResultsTable and
+  // TimeSeriesChart), so a fresh identity per render would defeat the memo and
+  // re-render both on any state change at all (#337, finding 8).
+  const toggle = useCallback((row: DestinationResult) => {
     const key = chartKey(row)
     setSelectedKeys((keys) =>
       keys.includes(key) ? keys.filter((k) => k !== key) : [...keys, key],
@@ -71,11 +74,11 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
     // line on the chart never changes hue when another is toggled and no pair
     // can be handed a colour a destination is already wearing.
     setColorByKey((cbk) => allocateColors(cbk, [key]))
-  }
+  }, [])
 
   // Add or remove a run of rows in one shot (shift-click range select). New
   // additions get colors in list order, continuing the same monotonic sequence.
-  function setRange(rows: DestinationResult[], selected: boolean) {
+  const setRange = useCallback((rows: DestinationResult[], selected: boolean) => {
     const keys = rows.map(chartKey)
     if (selected) {
       setSelectedKeys((prev) => {
@@ -87,27 +90,34 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
       const remove = new Set(keys)
       setSelectedKeys((prev) => prev.filter((k) => !remove.has(k)))
     }
-  }
+  }, [])
 
   const selectedSet = useMemo(() => new Set(selectedKeys), [selectedKeys])
 
   // Selections are keyed by coordinate; a row that leaves the report (removed,
   // ranked out) simply drops off the chart.
-  const selectedRows = useMemo(
-    () =>
-      selectedKeys
-        .map((k) => results.find((r) => chartKey(r) === k))
-        .filter((r): r is DestinationResult => r != null),
-    [selectedKeys, results],
+  const selectedRows = useMemo(() => {
+    // Index once, then look up. This ran as a `find` per selected key, which is
+    // a scan of every row for every row: 895,000 `chartKey` calls for a
+    // 946-destination report, measured at 44 ms, and 104 ms at the 1,500 cap
+    // (#337). It runs on every keystroke in the coordinates box, because the
+    // `results` this hook is given is rebuilt whenever the pending list is.
+    const byKey = new Map<string, DestinationResult>()
+    for (const r of results) byKey.set(chartKey(r), r)
+    return selectedKeys
+      .map((k) => byKey.get(k))
+      .filter((r): r is DestinationResult => r != null)
+  }, [selectedKeys, results])
+
+  const isSelected = useCallback(
+    (row: DestinationResult): boolean => selectedSet.has(chartKey(row)),
+    [selectedSet],
   )
 
-  function isSelected(row: DestinationResult): boolean {
-    return selectedSet.has(chartKey(row))
-  }
-
-  function colorFor(row: DestinationResult): string {
-    return colorByKey[chartKey(row)] ?? '#94a3b8'
-  }
+  const colorFor = useCallback(
+    (row: DestinationResult): string => colorByKey[chartKey(row)] ?? '#94a3b8',
+    [colorByKey],
+  )
 
   /**
    * Keep the colours a comparison's (destination, model) pairs have been
@@ -119,13 +129,11 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
    * Without it a pair would be re-allocated from scratch every time the set
    * moved, and a line would change hue because another was hidden.
    */
-  function rememberColors(keys: readonly string[]) {
+  const rememberColors = useCallback((keys: readonly string[]) => {
     setColorByKey((cbk) => allocateColors(cbk, keys))
-  }
+  }, [])
 
-  function clear() {
-    setSelectedKeys([])
-  }
+  const clear = useCallback(() => setSelectedKeys([]), [])
 
   return {
     selectedRows,

@@ -1,4 +1,4 @@
-import { ReactNode, useMemo, useRef, useState } from 'react'
+import { ReactNode, memo, useMemo, useRef, useState } from 'react'
 import {
   CartesianGrid,
   Line,
@@ -81,7 +81,7 @@ interface Props {
 // with it every path Recharts strokes, on every hover.
 const NO_EXTRA_LINES: readonly ChartLine[] = []
 
-export default function TimeSeriesChart({
+function TimeSeriesChart({
   times,
   rows,
   metric,
@@ -430,3 +430,12 @@ function ChartTooltip({
     </div>
   )
 }
+
+// Memoized because App.tsx re-renders on any of its 50-odd pieces of state, and
+// most of them cannot change what this component draws. Measured 2026-09-14 on
+// a 946-destination analysis: toggling a map overlay, which touches neither the
+// ranking nor the rows, cost 311 to 392 ms of synchronous React work, because
+// the table and the chart both re-rendered for it. Every function prop this
+// takes is wrapped in `useCallback` at the call site or in its hook; a fresh
+// identity there puts the whole cost straight back (#337, finding 8).
+export default memo(TimeSeriesChart)

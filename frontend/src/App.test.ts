@@ -75,3 +75,89 @@ describe('the effects useChartSelection.ts runs', () => {
     expect(deps).toContainEqual(['candidatesKey'])
   })
 })
+
+// ── What keeps the memoized children memoized (#337, finding 8) ────────────
+//
+// `ResultsTable`, `TimeSeriesChart` and `MapView` are wrapped in `React.memo`,
+// which is worth exactly nothing if App.tsx hands them a fresh value on every
+// render. Measured 2026-09-14 on a 946-destination analysis: toggling a map
+// overlay, which cannot change a row or a ranking, cost 311 to 392 ms of
+// synchronous React work before this.
+describe('the props the memoized children get', () => {
+  const memoized = ['ResultsTable', 'TimeSeriesChart', 'MapView']
+
+  function propsOf(name: string): string[] {
+    // The tag, not a type argument: `useRef<MapViewHandle>` starts with
+    // `<MapView` too, and matching it read the wrong region of the file.
+    const open = appSource.search(new RegExp(`<${name}\\s`))
+    if (open < 0) return []
+    const close = appSource.indexOf('\n', appSource.indexOf('/>', open))
+    return appSource
+      .slice(open, close)
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => /^[a-zA-Z]+=\{/.test(line))
+  }
+
+  it.each(memoized)('%s is actually memoized', (name) => {
+    const source = import.meta.glob('./components/*.tsx', {
+      query: '?raw',
+      import: 'default',
+      eager: true,
+    }) as Record<string, string>
+    expect(source[`./components/${name}.tsx`]).toContain(`export default memo(${name})`)
+  })
+
+  it.each(memoized)('%s gets no inline function or literal', (name) => {
+    const props = propsOf(name)
+    // A regex that stopped matching would otherwise make this test pass by
+    // finding nothing at all.
+    expect(props.length, `found no props on <${name}>`).toBeGreaterThan(5)
+    const offenders = props.filter(
+      (line) => line.includes('=>') || /=\{\[\]\}|\?\? \[\]|\?\? \{\}/.test(line),
+    )
+    expect(offenders, `wrap these in useCallback or hoist them: ${offenders.join(' | ')}`).toEqual(
+      [],
+    )
+  })
+})
+
+// The chart's selected rows are looked up through an index, not scanned for.
+// `selectedKeys.map(k => results.find(...))` is a scan of every row for every
+// row: 895,000 key builds for a 946-destination report, measured at 44 ms, and
+// it runs on every keystroke in the coordinates box because the `results` the
+// hook is given is rebuilt with the pending list (#337).
+describe('the chart selection lookup', () => {
+  it('indexes the rows instead of scanning them', () => {
+    expect(chartSelectionSource).not.toMatch(/results\.find\(/)
+    expect(chartSelectionSource).toContain('byKey.get(k)')
+  })
+})
+
+// ── The one new string the arriving field needs (#337, finding 2) ──────────
+describe('the results bar while the field is arriving', () => {
+  it('marks the count "so far" and adds nothing else', () => {
+    // Approved by the maintainer on 2026-09-14 as two words on the count that
+    // already exists: "Lowest Precipitation · Total (48 of 312 so far)". No
+    // second line, no box, no tooltip. The count is what is provisional, so
+    // the count is what carries it.
+    expect(appSource).toContain("const tail = arriving ? ' so far' : ''")
+  })
+
+  it('opens the results area before awaiting the analysis', () => {
+    // Measured 2026-09-14 on a 946-destination analysis: the first ranked rows
+    // are on screen at 0.4 s and grow with each paced batch, where the whole
+    // run takes 43.6 s. Opening the area after the await would hide every one
+    // of them until the end, which is what this change exists to fix.
+    const openAt = appSource.indexOf('if (willRank) setShowResults(true)')
+    const firstAwait = appSource.indexOf('await analyze({')
+    expect(openAt).toBeGreaterThan(-1)
+    expect(openAt).toBeLessThan(firstAwait)
+  })
+
+  it('takes the flag from the hook rather than from `loading`', () => {
+    // `loading` is true from the click; `arriving` only once rows exist, which
+    // is the difference between "we are working" and "these rows are a floor".
+    expect(appSource).toMatch(/\n\s+arriving,\n/)
+  })
+})
