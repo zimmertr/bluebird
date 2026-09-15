@@ -13,6 +13,7 @@ import {
   familyOf,
   metricLabel,
   rankedNoun,
+  windDatum,
   windowAggregate,
 } from './metrics'
 import { SortBy } from './types'
@@ -339,5 +340,68 @@ describe('copy lints', () => {
   it('replaces generic retry prompts with the standing tail', () => {
     expect(openMeteoSource).not.toMatch(/Please try again|Try again shortly/i)
     expect(presentSource).not.toMatch(/Please try again|Try again shortly/i)
+  })
+})
+
+// #361: the wind number is measured at the destination's elevation, and until
+// now nothing on screen said so. These pin the THREE states, because the two
+// obvious ones would let a false label ship over an archive window.
+describe('wind datum', () => {
+  it('names the elevation datum over a forecast window', () => {
+    expect(windDatum('forecast')).toBe('at elevation')
+  })
+
+  // The archive endpoint answers every pressure level null, so the adjustment
+  // does not run and every row is the surface wind whatever its elevation.
+  it('names the surface datum over an archive window', () => {
+    expect(windDatum('archive')).toBe('at 10 meters')
+  })
+
+  // The one state that must stay silent: a spanning window carries both datums
+  // inside a single averaged number, so either label would be false. Claiming
+  // nothing is the honest answer, not a missing case.
+  it('claims no datum over a window spanning the archive boundary', () => {
+    expect(windDatum('spanning')).toBeNull()
+  })
+
+  // Before the first analysis the table shows pending rows with no numbers in
+  // them. A datum there would describe figures nobody has fetched.
+  it('claims no datum without a report', () => {
+    expect(windDatum(null)).toBeNull()
+    expect(windDatum(undefined)).toBeNull()
+  })
+
+  // The unit is spelled out rather than written as a symbol, which is what
+  // keeps the SI space rule out of play and the two phrases within a few
+  // pixels of each other. A symbol here would resize the table's wind columns
+  // every time a window crossed the boundary.
+  it('spells the unit as a word, never as a symbol', () => {
+    expect(windDatum('archive')).not.toMatch(/\b10\s?m\b/)
+    expect(windDatum('archive')).toContain('meters')
+  })
+
+  // The qualifier belongs INSIDE the noun phrase, ahead of the separator: it
+  // says what was measured, and the separator's job is to mark the seam
+  // between that and how it was reduced.
+  it('composes the qualifier into the noun, ahead of the separator', () => {
+    const label = metricLabel('wind', AGGREGATE.average, undefined, windDatum('forecast'))
+    expect(label).toBe(`${NOUN.wind} at elevation ${SEP} ${AGGREGATE.average} (${UNIT.wind})`)
+    expect(label.indexOf('at elevation')).toBeLessThan(label.indexOf(SEP))
+  })
+
+  // A point-sample report collapses its triplets to one column and carries no
+  // aggregate, so the qualifier has to survive without one.
+  it('composes the qualifier with no aggregate', () => {
+    expect(metricLabel('wind', undefined, undefined, windDatum('archive'))).toBe(
+      `${NOUN.wind} at 10 meters (${UNIT.wind})`,
+    )
+  })
+
+  // A null qualifier is the spanning and pre-analysis case reaching metricLabel,
+  // and it must produce exactly today's label rather than a stray space.
+  it('is byte-identical to the unqualified label when there is no datum', () => {
+    expect(metricLabel('wind', AGGREGATE.average, undefined, null)).toBe(
+      metricLabel('wind', AGGREGATE.average),
+    )
   })
 })

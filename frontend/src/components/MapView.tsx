@@ -22,6 +22,7 @@ import { resultsFeatureCollection } from '../utils/resultFeatures'
 import { resultPopupHtml } from '../utils/resultPopup'
 import type { ModelRow } from '../utils/modelCompare'
 import { FireWarning, fireKey } from '../utils/fireProximity'
+import { WindowSource } from '../utils/forecastWindow'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import { pointsWithinView } from '../utils/mapFraming'
 import type { PendingDestination } from '../utils/customList'
@@ -112,6 +113,11 @@ interface Props {
   // what turns a row's series into the HOUR behind a floor or a ceiling.
   modelId: string | null
   times: number[]
+  // Which endpoint answered the displayed report, so a marker's wind row names
+  // the datum behind its number exactly as the table's column header does
+  // (#361). Null before the first analysis, and over a window that spans the
+  // archive boundary — neither of which has one datum to name.
+  windowSource: WindowSource | null
   // Fire-proximity warnings keyed by fireKey(lat,lon), mirroring the results
   // table — a clicked point's popup surfaces the same ⚠️ when one applies.
   fireWarnings: Map<string, FireWarning>
@@ -713,6 +719,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       sortBy,
       modelId,
       times,
+      windowSource,
       fireWarnings,
       showWildfires,
       showRadar,
@@ -777,7 +784,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // a prop. The rows are here rather than on the features themselves because
     // a link needs the whole HOURLY SERIES behind a cell, which is not
     // something to encode into a GeoJSON property per marker.
-    const windyRef = useRef({ results, modelId, times })
+    const windyRef = useRef({ results, modelId, times, windowSource })
     // The sheet's share of the bottom edge, for the two framing calls that live
     // inside the mount effect — the resize refit and the opening frame — which
     // would otherwise hold the first render's value for the session. The
@@ -982,6 +989,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
               modelId: (result as ModelRow).modelId ?? modelId,
               series: result.series,
               times: result.series_times ?? times,
+              windowSource,
             }),
           )
           .addTo(map)
@@ -1695,6 +1703,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
                 modelId: row ? ((row as ModelRow).modelId ?? live.modelId) : live.modelId,
                 series: row?.series ?? null,
                 times: row?.series_times ?? live.times,
+                windowSource: live.windowSource,
               }),
             )
             .addTo(map)
@@ -2020,8 +2029,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
     }, [fireWarnings])
 
     useEffect(() => {
-      windyRef.current = { results, modelId, times }
-    }, [results, modelId, times])
+      windyRef.current = { results, modelId, times, windowSource }
+    }, [results, modelId, times, windowSource])
 
     useEffect(() => {
       cameraPadBottomRef.current = cameraPadBottomPx
