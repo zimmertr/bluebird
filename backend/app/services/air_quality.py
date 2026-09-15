@@ -19,6 +19,10 @@ from app.services.errors import (
 )
 from app.services.openmeteo_weight import call_weight
 from app.services.weather import (
+    BATCH_SIZE,
+    MAX_CONCURRENT_BATCHES,
+    _epoch_ms,
+    _parse_ts,
     hour_param,
     quota_label,
     redacted_error,
@@ -33,8 +37,6 @@ AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 CUSTOMER_AIR_QUALITY_URL = (
     "https://customer-air-quality-api.open-meteo.com/v1/air-quality"
 )
-BATCH_SIZE = 50  # same as the weather service; see the reasoning on its constant
-MAX_CONCURRENT_BATCHES = 4  # same in-flight gate as the weather service
 N_VARIABLES = 1  # us_aqi
 PROVIDER = "Open-Meteo (air quality)"
 
@@ -354,16 +356,3 @@ def _series(
         return {"times": grid, "aqi": out}
     except Exception:  # noqa: BLE001 — best-effort series degrades to None, never fails the analysis
         return None
-
-
-def _parse_ts(s: str) -> datetime | None:
-    try:
-        return datetime.fromisoformat(s).replace(tzinfo=None)
-    except Exception:  # noqa: BLE001 — unparseable timestamp degrades to None
-        return None
-
-
-def _epoch_ms(dt_naive: datetime) -> int:
-    # Times come back UTC (timezone=UTC) with tzinfo stripped by `_parse_ts`;
-    # re-stamp UTC for an unambiguous epoch aligned with the weather grid.
-    return int(dt_naive.replace(tzinfo=timezone.utc).timestamp() * 1000)
