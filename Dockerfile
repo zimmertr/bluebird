@@ -1,5 +1,14 @@
-# Stage 1: Build React frontend
-FROM node:26-alpine AS frontend-builder
+# Stage 1: Build React frontend.
+#
+# --platform=$BUILDPLATFORM pins this stage to the machine doing the building
+# rather than to each target architecture. Its output is a directory of static
+# JS/CSS, which is the same bytes whatever CPU produced it, so building it per
+# architecture buys nothing and costs everything: in the multi-arch release
+# build the arm64 half runs under QEMU, where `npm run build` measured 35.6 s
+# against 3.0 s native (release run 34916818009, 2026-09-15) and was the
+# longest step of the whole release. The amd64-only PR and preview builds are
+# unaffected, since there BUILDPLATFORM and TARGETPLATFORM are the same.
+FROM --platform=$BUILDPLATFORM node:26-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 # Cache mount keeps npm's download cache out of the layer but warm across

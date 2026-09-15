@@ -1,0 +1,48 @@
+name: Cache Cleanup
+
+# GitHub scopes an Actions cache to the ref that wrote it and never reclaims a
+# closed pull request's. Measured 2026-09-15 (issue #368): 428 entries and
+# 3.40 GB — 32% of the repository's whole 10 GB budget — belonged to pull
+# requests that were already closed and merged, while the budget was 10.73 GB
+# and therefore evicting. What it evicts is whatever was read least recently,
+# which is how a release build loses the Docker layer cache to a preview image
+# built for a pull request that no longer exists.
+#
+# Caches expire on their own after 7 days unread, so this only ever removes
+# entries that were going to die anyway. It removes them on the day the pull
+# request closes instead.
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    name: Drop this PR's caches
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write  # gh cache delete
+      contents: read
+    steps:
+      - name: Delete every cache scoped to this pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REF: refs/pull/${{ github.event.pull_request.number }}/merge
+        run: |
+          # `gh cache list` pages at 100 and `gh cache delete` takes one id, so
+          # loop until a page comes back empty. One pull request has held 149
+          # entries, so a single pass is not enough. Bounded at 20 passes so a
+          # listing that never drains cannot spin for six hours.
+          for _ in $(seq 1 20); do
+            ids=$(gh cache list --ref "$REF" --limit 100 --json id --jq '.[].id')
+            [ -n "$ids" ] || break
+            for id in $ids; do
+              # A cache can expire between the listing and the delete, which is
+              # not a failure of this job.
+              gh cache delete "$id" >/dev/null 2>&1 || true
+            done
+          done
+          echo "Remaining for ${REF}: $(gh cache list --ref "$REF" --limit 100 --json id --jq 'length')"

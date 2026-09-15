@@ -109,6 +109,12 @@ concurrency-serialized):
    serialize, a job hung on a registry timeout would otherwise dam every
    queued release for up to GitHub's 6-hour default.
 
+   Only the *backend* halves of the image are built per architecture. The
+   frontend stage carries `--platform=$BUILDPLATFORM`, so the SPA is compiled
+   once on the runner's own architecture and both images copy the same
+   `dist/` — see [Where the time goes](#where-the-time-goes) for what the
+   emulated version of that stage cost.
+
    **Build identity.** Three build args are passed here and baked into the
    image as env vars: `APP_VERSION` (the GitVersion SemVer), `APP_COMMIT`
    (`github.sha`), and `APP_BUILT_AT` (stamped by a `date -u` step, because
@@ -123,15 +129,22 @@ concurrency-serialized):
    before `USER`. `APP_BUILT_AT` changes on every build, so declaring them any
    earlier would invalidate the `pip install` layer every time and throw away
    the build cache.
-3. **Create GitHub Release** — auto-generated notes.
-4. **Update Kubernetes-Manifests** — a **self-merging PR** on the fixed
-   `chore/bluebird-image` branch sets `images.newTag: <semver>` in
+3. **Create GitHub Release** — auto-generated notes. Runs in parallel with
+   step 4, which does not depend on it.
+4. **Update Kubernetes-Manifests** — starts as soon as the image is pushed,
+   because nothing here needs the GitHub Release to exist. A **self-merging
+   PR** on the fixed `chore/bluebird-image` branch sets `images.newTag:
+   <semver>` in
    `public/bluebird/kustomization.yml`. Once `Validate manifests` goes green it
    squash-merges itself, Argo CD auto-syncs, and the new image rolls to prod. No
    human step. See [Writes into Kubernetes-Manifests](#writes-into-kubernetes-manifests)
    for why every write is shaped this way.
-5. **Bump Helm Chart appVersion** — force-pushes a fixed `chore/bump-appversion`
-   branch on `bluebird-helm` setting `Chart.yaml` `appVersion=<semver>`, opens
+5. **Bump Helm Chart appVersion** — waits on step 3, unlike step 4:
+   `bluebird-helm/release.yml` resolves `appVersion` at package time from this
+   repo's `releases/latest`, so opening this PR before the release exists races
+   the resolver onto the previous version. Force-pushes a fixed
+   `chore/bump-appversion` branch on `bluebird-helm` setting `Chart.yaml`
+   `appVersion=<semver>`, opens
    **or updates in place** a single PR (Dependabot-style dedup), then arms
    **squash auto-merge** so it lands itself once `Lint & render` passes. No human
    step. Requires `GH_PAT` with contents + pull-requests write on `bluebird-helm`,
@@ -179,8 +192,8 @@ touching `charts/**`):
 the image via `images.newTag`. The chart renders an **Argo Rollout** plus the
 Istio `VirtualService`/`Gateway`; cert-manager terminates TLS. The rollout
 itself is a three-step canary — one canary pod held at zero user traffic
-through two blocking analyses, then promoted in a single cutover — described in
-[Inside the prod canary](#inside-the-prod-canary-argo-rollouts) below.
+through three blocking analyses, then promoted in a single cutover — described
+in [Inside the prod canary](#inside-the-prod-canary-argo-rollouts) below.
 
 ### Two independent knobs reach prod
 
@@ -284,9 +297,11 @@ The moving parts ("KM" = `Kubernetes-Manifests/public/bluebird/`):
 | `VirtualService bluebird` | chart | the weighted route `bluebird-stable`, whose two destination weights the controller owns |
 | `AnalysisTemplate version-check` | KM `resources/analysisTemplate-versionCheck.yml` | identity gate — the canary must serve the exact image being rolled out |
 | `AnalysisTemplate api-test` | KM `resources/analysisTemplate-apiTest.yml` | functional gate — a real `/api/analyze` through Overpass and Open-Meteo |
+| `AnalysisTemplate error-rate` | KM `resources/analysisTemplate-errorRate.yml` | soak gate — the canary's 5xx share read from Prometheus, three times a minute apart |
 
-Both gates are Argo `web` providers, so the controller makes the calls itself:
-a release starts no Job pods and mounts no scripts.
+The first two gates are Argo `web` providers and the third is a `prometheus`
+provider, so the controller makes every call itself: a release starts no Job
+pods and mounts no scripts.
 
 ### The data plane
 
@@ -320,7 +335,7 @@ share from its replica count — the very dial `setCanaryScale` overrides. Prod
 sat `Degraded` on exactly that once, when a comment-trimming commit deleted the
 block and left the step behind.
 
-### The three steps
+### The four steps
 
 Prod runs `replicas: 3`. The canary is pinned to a single pod for the whole
 gate, so a release adds one pod rather than a second full set, and it adds it
@@ -331,10 +346,11 @@ flowchart TD
     apply["Argo CD applies a new pod template<br/>(image newTag via Path 1, chart/values via Path 2)"]
     detect["Rollouts controller detects the new revision"]
 
-    subgraph GATE["Steps 0–2 — the whole gate runs at 0% user traffic"]
+    subgraph GATE["Steps 0–3 — the whole gate runs at 0% user traffic"]
         scale["setCanaryScale: replicas 1<br/>one new-version pod behind Service bluebird-canary<br/>VirtualService still 100/0"]
         vc["AnalysisRun version-check (web provider)<br/>GET canary /api/version<br/>must match the image tag being rolled out"]
         at["AnalysisRun api-test (web provider)<br/>POST canary /api/analyze<br/>must return at least one ranked peak"]
+        er["AnalysisRun error-rate (prometheus provider)<br/>canary 5xx share below 5%<br/>count 3, interval 60s — 120 s of wall clock"]
     end
 
     done["Promoted — canary ReplicaSet scales to 3 and becomes stable,<br/>Service bluebird repointed at it, old ReplicaSet scaled down"]
@@ -343,9 +359,11 @@ flowchart TD
 
     apply --> detect --> scale --> vc
     vc -->|"passes"| at
-    at -->|"passes"| done
+    at -->|"passes"| er
+    er -->|"passes"| done
     vc -->|"fails"| abort
     at -->|"fails"| abort
+    er -->|"fails"| abort
     abort -.-> fix
 ```
 
@@ -382,7 +400,27 @@ which is why the controller needs no route back in through the gateway. The
 cost is that ingress and TLS are no longer on the gate path; they are covered by
 the stable traffic that never stopped flowing.
 
-**Promotion.** There is no weighted soak: once step 2 passes, the step index
+**Step 3 — `error-rate`, the soak gate.** A `prometheus` provider reads the
+canary pods' 5xx share —
+`bluebird_forecast_http_requests_total{role="canary",status=~"5.."}` over the
+same series without the status filter, both as a 2-minute rate — and requires
+it below `0.05`. `count: 3`, `interval: 60s`, `failureLimit: 1`: three readings
+a minute apart, of which one may fail. **This is 120 s of wall clock and the
+single largest segment of the whole merge-to-live path** (see [Where the time
+goes](#where-the-time-goes)).
+
+Two things about it are worth stating plainly, because they bound what the
+120 s buys. The `role` label is real — it reaches Prometheus through the
+Rollout's `canaryMetadata`, verified against the live series — so the query is
+not silently scoped to nothing. But the canary sits at **0% user traffic** for
+the entire gate, so the only requests in that window are the two analysis
+probes above plus the metrics scrape. What the gate therefore detects is a pod
+that 5xxs on its own, or on a scrape, rather than a pod that 5xxs under real
+load. `or vector(0)` / `clamp_min(…, 1e-9)` make the no-traffic case read as a
+clean `0` rather than as an error, which is why an idle canary passes rather
+than flaking.
+
+**Promotion.** There is no weighted soak: once step 3 passes, the step index
 moves past the end of the list, which lifts the `setCanaryScale` pin. The canary
 ReplicaSet scales to the full `replicas: 3`, *becomes* stable — the controller
 repoints the `bluebird` Service's hash selector at it and returns the route to
@@ -400,8 +438,8 @@ deletes a gate's run the instant it passes — which is what a former
 `successfulRunHistoryLimit: 1` did, leaving green releases looking like they
 had only ever run one gate.
 
-**Abort.** If either analysis fails — or someone runs `kubectl argo rollouts
-abort` — the canary ReplicaSet scales to zero and the Rollout reports
+**Abort.** If any of the three analyses fails — or someone runs `kubectl argo
+rollouts abort` — the canary ReplicaSet scales to zero and the Rollout reports
 **Degraded**. Nothing has to snap back: the stable ReplicaSet was never scaled
 down and the VirtualService never left 100% stable, so no user request was ever
 served by the version that failed.
@@ -422,6 +460,182 @@ everything else: ship a fixed patch release via Path 1 (or revert the `newTag`
 commit in `Kubernetes-Manifests`); the next pod-template change supersedes the
 aborted revision and starts a fresh canary. `kubectl argo rollouts retry`
 exists for one-off flakes, but the normal path is git.
+
+## Where the time goes
+
+Measured on 2026-09-15 from the GitHub Actions API, the Argo CD `Application`'s
+sync history, and the Argo Rollouts controller's own log (issue #368). Every
+number below is an observation, not a budget. Re-measure before citing one: the
+method is written beside each figure so it can be repeated.
+
+### The pull request path
+
+`pr.yml`, 15 successful runs carrying `Lighthouse Budgets` (that job landed in
+#367; runs before it had a 62 s median, and the older figure is not comparable).
+
+| Job | Median | Range |
+| --- | --- | --- |
+| `Lighthouse Budgets` | 92 s | 81–124 s |
+| `Docker Build` | 57 s | 38–63 s |
+| `Backend Tests` | 29 s | 27–33 s |
+| `Frontend Typecheck & Tests` | 21 s | 19–26 s |
+| `Python Lint` | 9 s | 6–10 s |
+| `Aggregation vectors in sync` | 6 s | 3–6 s |
+| **whole run** | **147 s** | 140–193 s |
+
+**The critical path is two jobs long**, and only two. Five jobs start within
+about 3 s of each other; four of them finish while `Docker Build` is still
+building. `Lighthouse Budgets` `needs` it, so it starts at about 63 s and adds
+its own 92 s. Everything else is free.
+
+Inside `Docker Build`, by median: the image build 21 s, the Trivy scan 11 s,
+building the hadolint **Docker action** 5.5 s, `setup-buildx` 4 s, job setup
+3 s, the smoke test 3 s.
+
+Inside `Lighthouse Budgets`: the audit itself 52 s, then **24 s of getting back
+to an image that already existed** — `setup-buildx` 8 s and a cache-replay
+build 16 s. That hand-off was chosen over passing a 200 MB image between jobs
+and has never been timed against the alternative; 24 s is what it costs, and it
+is now on the path a person waits on.
+
+Three consequences, and two of them are reasons *not* to optimise:
+
+- **Nothing done to the three short jobs moves the wall clock.** They finish
+  inside `Docker Build`. This is why caching pip in the Python jobs was measured
+  and then removed rather than kept: see the `setup-python` comments in
+  `pr.yml`.
+- **The Trivy database is already cached.** `trivy-action` wraps its own
+  `actions/cache` around both the pinned binary (42 MB, 2.1 s to restore) and
+  the vulnerability DB (80 MB, 3.7 s), keyed `cache-trivy-<date>` with
+  `restore-keys: cache-trivy-`. `image-scan.yml` uses the same action and
+  therefore the same key, so the two already share one copy. There is nothing
+  to add.
+- **The npm cache was costing more than it saved.** `npm ci` measured 4 s on a
+  cold cache and 4–5 s on a warm one, while restoring the cache cost 2 s inside
+  `setup-node`. It also held 50 entries and 2.80 GB. Removed.
+
+**`pr.yml` triggers on `pull_request` only.** It used to carry a `push` trigger
+as well, and ran the whole workflow twice per commit: the two events name
+different refs, so the `concurrency` group could not collapse them, and all 20
+sampled runs were such a pair. They ran in parallel, so nobody waited longer —
+the cost was a second set of runners per commit and two races to write the same
+cache keys, which fed straight into the budget problem below. The trade is that
+a branch pushed with no pull request open gets no checks until one is opened.
+Every check branch protection requires is a `pull_request` check anyway.
+
+Branch protection requires five contexts: `Python Lint`, `Docker Build`,
+`Frontend Typecheck & Tests`, `Backend Tests`, and — since 2026-09-15 —
+`Aggregation vectors in sync`, which had been passing on every pull request
+while being free to go red without blocking one. **A job here cannot be
+renamed**: branch protection matches the name exactly, and a rename strands
+every open pull request on a check that never reports.
+
+### The repository's Actions cache
+
+Measured 2026-09-15, and the single largest source of variance in every build
+number on this page: **10.73 GB across 1,297 entries**, against GitHub's 10 GB
+per repository. Over the limit means evicting least-recently-used entries
+continuously, and what gets evicted is the buildx layer cache that `Docker
+Build`, `Lighthouse Budgets` and `Build & Push` all read. A layer cache that is
+sometimes there is what `Docker Build` ranging 38–63 s and `Build & Push`
+ranging 36–142 s look like.
+
+Where it was going:
+
+| Holder | Entries | Size |
+| --- | --- | --- |
+| caches on **closed** pull requests' merge refs | 428 | 3.40 GB |
+| `setup-node` npm caches, one ~56 MB copy per branch | 50 | 2.80 GB |
+| everything else, mostly live buildx scopes | 819 | 4.53 GB |
+
+GitHub scopes a cache to the ref that wrote it and **never reclaims a closed
+pull request's** — 18 closed, merged pull requests were still holding 32% of
+the whole budget. `cache-cleanup.yml` now deletes a pull request's caches when
+it closes, and the npm cache is gone, which together is about 6.2 GB that stops
+competing with the Docker layers.
+
+Caches expire on their own after 7 days unread, so the cleanup only removes
+entries that were going to die anyway; it removes them on the day the pull
+request closes instead. To reclaim an existing backlog by hand, from a token
+with `actions: write`:
+
+```bash
+gh cache list --limit 100 --json id,ref --jq '.[] | select(.ref | startswith("refs/pull/")) | .id' \
+  | xargs -n1 gh cache delete
+```
+
+### The release path
+
+`release.yml`, 20 full releases. Jobs hand off in about 2 s.
+
+| Job | Median | Range |
+| --- | --- | --- |
+| `Determine Version` | 16 s | 12–31 s |
+| `Build & Push` | 92 s | 36–142 s |
+| `Create GitHub Release` | 13 s | 11–16 s |
+| `Update Kubernetes Manifests` | 11 s | 8–18 s |
+| `Bump Helm Chart appVersion` | 10 s | 8–13 s |
+| **whole run** | **151 s** | 88–311 s |
+
+`Build & Push` is the multi-arch build, and within it one step dominates.
+In release run `34916818009` the **arm64 `npm run build` took 35.6 s against
+3.0 s for the identical amd64 step** — the emulation penalty on the one stage
+whose output does not depend on the architecture at all. Everything else in the
+arm64 half was a cache hit. That is why the Dockerfile's frontend stage is
+pinned with `--platform=$BUILDPLATFORM`: the stage runs once, natively, and both
+images copy the same `dist/`. Verified output-neutral by building the frontend
+for amd64 and cross-building it from arm64 and hashing `/app/static` in each
+resulting image: identical, 21 files.
+
+`Update Kubernetes Manifests` does **not** wait on `Create GitHub Release`.
+Nothing it does needs the release to exist — it links to a URL that resolves by
+the time a human opens the PR — so waiting put 13 s of release-note generation
+in front of every production deploy. `Bump Helm Chart appVersion` still does
+wait, and must: `bluebird-helm/release.yml` resolves `appVersion` at package
+time from `repos/zimmertr/bluebird/releases/latest`, so opening that PR early
+races the resolver onto the previous version.
+
+### Merge to live
+
+The path a human actually waits on, end to end. Segment medians, from the
+sources named in the last column.
+
+| Segment | Median | Range | Measured from |
+| --- | --- | --- | --- |
+| squash-merge → image bump PR opened | 133 s | 88–168 s | `release.yml` run start → `Update Kubernetes Manifests` end (n=20) |
+| image bump PR open → merged | 20 s | 14–47 s | `chore/bluebird-image` PR `created_at` → `merged_at` (n=30) |
+| merged → Argo CD begins syncing | 43 s | 4–182 s | merge commit → `Application.status.history[].deployStartedAt` (n=9) |
+| Argo CD applies the sync | 4 s | 3–8 s | `deployStartedAt` → `deployedAt` (n=9) |
+| canary pod up (`setCanaryScale`) | 21 s | 21 s | Rollout step 0 → 1 (revisions 206, 207) |
+| `version-check` | 1 s | — | Rollout step 1 → 2 (revision 206) |
+| `api-test` | 13 s | 13–55 s | Rollout step 2 → 3 (revisions 206, 207) |
+| `error-rate` | **120 s** | fixed | Rollout step 3 → 4 (revisions 206, 207) |
+| promotion + service cutover | 23 s | 21–25 s | step 4 → `RolloutCompleted` |
+| stable scale-up, old ReplicaSet down | 30 s | 30–31 s | `RolloutCompleted` → `RolloutHealthy` |
+| **total** | **~6 min 50 s** | | |
+
+Two segments are larger than anything else and neither is a workflow:
+
+- **`error-rate`, 120 s.** `count: 3 × interval: 60s`, fixed by the template.
+  It is the biggest single segment of the path and it is a deliberate gate, not
+  a knob. Its limits are written up under [Step 3](#the-four-steps).
+- **Argo CD detection, 0–182 s.** There is **no webhook**: the Argo CD server is
+  a cluster-internal `LoadBalancer` with no public ingress, so `main` moving in
+  `Kubernetes-Manifests` is discovered by polling. The cluster runs the chart
+  defaults, `timeout.reconciliation: 120s` with
+  `timeout.reconciliation.jitter: 60s`, which is exactly the 0–180 s window the
+  nine observations fall in. Shortening the interval shortens the segment
+  proportionally and a webhook would cut it to about a second, but both are
+  cluster changes rather than workflow ones, and 43 s sits next to the 120 s
+  gate that follows it. Left at the chart defaults deliberately (TJ,
+  2026-09-15).
+
+One more thing the canary log says, and the reason the numbers above exclude
+revision 209: that release was promoted by hand. The controller logged
+`Rollout completed update to revision 209: Full promotion requested`, and
+`error-rate` was terminated after 1 of its 3 readings, 12 s into its 120 s.
+Revisions 206 and 207 ran the full gate, which is why they are the ones
+measured.
 
 ## PR preview environments
 
