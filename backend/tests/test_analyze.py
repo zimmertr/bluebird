@@ -26,7 +26,12 @@ from app.routes.analyze import (
     _sse,
     _summarize_request,
 )
-from app.services.errors import InvalidApiKeyError, ModelCoverageError, UpstreamError
+from app.services.errors import (
+    InvalidApiKeyError,
+    ModelCoverageError,
+    UpstreamError,
+    UpstreamRateLimited,
+)
 from fastapi.testclient import TestClient
 
 client = TestClient(app)
@@ -1521,3 +1526,129 @@ def test_discovery_failure_answers_the_same_on_the_stream(_failing_discovery, st
     assert events[-1]["type"] == "error"
     assert events[-1]["message"] == detail
     assert events[-1]["error"]["code"] == code
+
+
+# ── One weather failure, two routes, one answer (issue #384) ───────────────
+
+# The routes share one exception ladder, so the pair below is the whole of
+# what separates them: a JSON caller reads the status code and a stream caller
+# reads a member of the event, and the sentence and the code are the same.
+# `extra` is what a failure sends beyond those, which only the event can hold.
+_WEATHER_FAILURES = [
+    (ratelimit.BudgetExhausted("Open-Meteo (weather service)"), 503, "busy",
+     "Bluebird Forecast is busy. Try again later.", {}),
+    (InvalidApiKeyError(), 401, "invalid_api_key",
+     "Open-Meteo rejected the API key.", {}),
+    (UpstreamRateLimited("Open-Meteo", "minutely", 37, "Open-Meteo quota reached. Try again later."),
+     429, "upstream_rate_limited", "Open-Meteo quota reached. Try again later.",
+     {"scope": "minutely", "retry_after_s": 37}),
+    (ModelCoverageError("gfs_hrrr", "NOAA HRRR does not cover this area."),
+     400, "model_coverage", "NOAA HRRR does not cover this area.", {}),
+    (UpstreamError("Open-Meteo did not answer."), 502, "upstream_unavailable",
+     "Open-Meteo did not answer.", {}),
+    (RuntimeError("a parser bug nobody planned for"), 502, "upstream_unavailable",
+     "The weather search failed. Try again later.", {}),
+]
+
+
+@pytest.fixture
+def _failing_weather(request, monkeypatch):
+    async def fail(*args, **kwargs):
+        raise request.param
+
+    async def fake_aqi(destinations, start, end, api_key=None):
+        return [None] * len(destinations)
+
+    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fail)
+    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+
+
+def _weather_failure_body():
+    start, end = _window()
+    return {
+        "destination_types": [], "start_datetime": start, "end_datetime": end,
+        "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 0.0}],
+    }
+
+
+@pytest.mark.parametrize(
+    "_failing_weather,status,code,detail,extra", _WEATHER_FAILURES, indirect=["_failing_weather"]
+)
+def test_weather_failure_on_analyze(_failing_weather, status, code, detail, extra):
+    resp = client.post("/api/analyze", json=_weather_failure_body())
+    assert resp.status_code == status
+    assert resp.json()["detail"] == detail
+    assert resp.json()["error"]["code"] == code
+    # The two statuses that name a wait are the two that send the header.
+    if "retry_after_s" in extra:
+        assert resp.headers["retry-after"] == str(extra["retry_after_s"])
+    else:
+        assert bool(resp.headers.get("retry-after")) is (status == 503)
+
+
+@pytest.mark.parametrize(
+    "_failing_weather,status,code,detail,extra", _WEATHER_FAILURES, indirect=["_failing_weather"]
+)
+def test_weather_failure_on_the_stream(_failing_weather, status, code, detail, extra):
+    resp = client.post("/api/analyze/stream", json=_weather_failure_body())
+    assert resp.status_code == 200
+    events = [json.loads(line[len("data: "):]) for line in resp.text.splitlines() if line.startswith("data: ")]
+    assert events[-1]["type"] == "error"
+    assert events[-1]["message"] == detail
+    assert events[-1]["error"]["code"] == code
+    for key, value in extra.items():
+        assert events[-1][key] == value
+
+
+def test_the_over_cap_refusal_is_the_same_body_on_both_routes(monkeypatch, stub_upstreams):
+    # The stream spreads the refusal body into its error event with `detail`
+    # renamed to `message`, so the remedy fields a client prefills from must
+    # survive the trip. Nothing else about the two answers may differ.
+    from app.models import MAX_ANALYZE_PEAKS
+
+    async def flood(polygon, destination_types, on_status=None, **_):
+        return [
+            {"name": f"p{i}", "latitude": 1.0, "longitude": 2.0,
+             "elevation_ft": float(1000 + i), "osm_id": None, "type": "peak"}
+            for i in range(MAX_ANALYZE_PEAKS + 1)
+        ]
+
+    monkeypatch.setattr(analyze_mod.osm, "query_osm", flood)
+    start, end = _window()
+    body = {
+        "destination_types": ["peak"], "start_datetime": start, "end_datetime": end,
+        "polygon": _DISCOVERY_POLY,
+    }
+    plain = client.post("/api/analyze", json=body)
+    assert plain.status_code == 400
+
+    streamed = client.post("/api/analyze/stream", json=body)
+    events = [json.loads(line[len("data: "):]) for line in streamed.text.splitlines() if line.startswith("data: ")]
+    event = events[-1]
+    assert event["type"] == "error"
+    assert event.pop("type") == "error"
+    assert event.pop("message") == plain.json()["detail"]
+    assert event == {k: v for k, v in plain.json().items() if k != "detail"}
+
+
+def test_both_routes_rank_the_same_field_the_same_way(monkeypatch, stub_upstreams):
+    # The point of running one analysis behind two presenters: a caller who
+    # switches endpoints must not get a different report.
+    async def five_peaks(polygon, destination_types, on_status=None, **_):
+        return [
+            {"name": f"p{i}", "latitude": float(i), "longitude": 2.0,
+             "elevation_ft": float(1000 * i), "osm_id": f"node/{i}", "type": "peak"}
+            for i in range(1, 6)
+        ]
+
+    monkeypatch.setattr(analyze_mod.osm, "query_osm", five_peaks)
+    start, end = _window()
+    body = {
+        "destination_types": ["peak"], "start_datetime": start, "end_datetime": end,
+        "polygon": _DISCOVERY_POLY, "limit": 3, "sort_by": "precip_total_in",
+        "sort_desc": True, "max_precip_total_in": 4.0,
+    }
+    plain = client.post("/api/analyze", json=body).json()
+    streamed = client.post("/api/analyze/stream", json=body)
+    events = [json.loads(line[len("data: "):]) for line in streamed.text.splitlines() if line.startswith("data: ")]
+    assert next(e for e in events if e["type"] == "result")["data"] == plain
