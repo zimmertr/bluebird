@@ -2,6 +2,7 @@ import { DestinationResult, SortBy } from '../types'
 import {
   AGGREGATE,
   FAMILY_KEYS,
+  UNIT,
   familyOf,
   metricLabel,
   windDatum,
@@ -35,6 +36,25 @@ export type ColDef = {
   csv?: (v: unknown) => string
   csvNull?: string
   windyLayer?: string
+  /**
+   * The unit this column reports in, absent on the identity and virtual
+   * columns and empty on a metric that has none.
+   *
+   * It was already inside `label`, and only there. The popup groups a family's
+   * columns under one heading (#370), which needs the answer to "do these
+   * columns share a unit" before it can decide whether the unit belongs on the
+   * heading or on each value — and reading it back out of a finished label is
+   * the string surgery `applyWindDatum` already refuses to do. So the unit is
+   * declared, and the label is composed FROM it.
+   */
+  unit?: string
+  /**
+   * What sits inside the noun phrase ahead of the separator, which today is
+   * only the wind's datum (`windDatum`). Declared for the same reason `unit`
+   * is: the popup's group heading is the noun with no aggregate, and it has to
+   * compose one rather than cut an aggregate out of a finished label.
+   */
+  qualifier?: string | null
 }
 
 /**
@@ -113,6 +133,16 @@ export function withModelColumn(cols: readonly ColDef[], comparing: boolean): Co
  * the only surface that needs it: the CSV export writes the same columns, and a
  * second copy of the list is a second answer to "what does the report contain".
  */
+/**
+ * Precipitation's other unit.
+ *
+ * The family reports a window TOTAL in inches and its three other columns as a
+ * rate, so it is the one family whose columns do not share a unit. Named here
+ * because four column definitions and the popup's grouping rule all have to
+ * agree on the spelling.
+ */
+const PRECIP_RATE = 'in/hr'
+
 export const COLUMNS: ColDef[] = [
   { key: 'name', label: 'Name' },
   // What a row *is*, which stopped being obvious the moment one polygon
@@ -133,16 +163,16 @@ export const COLUMNS: ColDef[] = [
     format: (v) => (v != null ? Number(v).toLocaleString() : '—'),
     csv: (v) => String(v),
   },
-  { key: 'precip_total_in', label: metricLabel('precip', AGGREGATE.total), format: (v) => Number(v).toFixed(3), windyLayer: 'rain' },
-  { key: 'precip_avg_in_hr', label: metricLabel('precip', AGGREGATE.average, 'in/hr'), format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
-  { key: 'precip_min_in_hr', label: metricLabel('precip', AGGREGATE.minimum, 'in/hr'), format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
-  { key: 'precip_max_in_hr', label: metricLabel('precip', AGGREGATE.maximum, 'in/hr'), format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
-  { key: 'temp_min_f', label: metricLabel('temp', AGGREGATE.minimum), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
-  { key: 'temp_max_f', label: metricLabel('temp', AGGREGATE.maximum), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
-  { key: 'temp_avg_f', label: metricLabel('temp', AGGREGATE.average), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
-  { key: 'wind_min_mph', label: metricLabel('wind', AGGREGATE.minimum), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
-  { key: 'wind_max_mph', label: metricLabel('wind', AGGREGATE.maximum), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
-  { key: 'wind_avg_mph', label: metricLabel('wind', AGGREGATE.average), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
+  { key: 'precip_total_in', unit: UNIT.precip, label: metricLabel('precip', AGGREGATE.total, UNIT.precip), format: (v) => Number(v).toFixed(3), windyLayer: 'rain' },
+  { key: 'precip_avg_in_hr', unit: PRECIP_RATE, label: metricLabel('precip', AGGREGATE.average, PRECIP_RATE), format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
+  { key: 'precip_min_in_hr', unit: PRECIP_RATE, label: metricLabel('precip', AGGREGATE.minimum, PRECIP_RATE), format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
+  { key: 'precip_max_in_hr', unit: PRECIP_RATE, label: metricLabel('precip', AGGREGATE.maximum, PRECIP_RATE), format: (v) => Number(v).toFixed(4), windyLayer: 'rain' },
+  { key: 'temp_min_f', unit: UNIT.temp, label: metricLabel('temp', AGGREGATE.minimum), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
+  { key: 'temp_max_f', unit: UNIT.temp, label: metricLabel('temp', AGGREGATE.maximum), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
+  { key: 'temp_avg_f', unit: UNIT.temp, label: metricLabel('temp', AGGREGATE.average), format: (v) => Number(v).toFixed(1), windyLayer: 'temp' },
+  { key: 'wind_min_mph', unit: UNIT.wind, label: metricLabel('wind', AGGREGATE.minimum), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
+  { key: 'wind_max_mph', unit: UNIT.wind, label: metricLabel('wind', AGGREGATE.maximum), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
+  { key: 'wind_avg_mph', unit: UNIT.wind, label: metricLabel('wind', AGGREGATE.average), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
   // Feet above sea level, formatted like the elevation column above it,
   // because the reading IS the comparison between the two. Null is the
   // five-model case (#295) and both surfaces draw it as N/A — the table with
@@ -150,12 +180,12 @@ export const COLUMNS: ColDef[] = [
   // dash a genuine gap gets; the dash below is the fallback for a formatter
   // called on a null anywhere else. Windy's own name for the layer is its
   // zero-degree isotherm, `deg0`.
-  { key: 'freeze_min_ft', label: metricLabel('freeze', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: FREEZE_UNAVAILABLE, windyLayer: 'deg0' },
-  { key: 'freeze_max_ft', label: metricLabel('freeze', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: FREEZE_UNAVAILABLE, windyLayer: 'deg0' },
-  { key: 'freeze_avg_ft', label: metricLabel('freeze', AGGREGATE.average), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: FREEZE_UNAVAILABLE, windyLayer: 'deg0' },
-  { key: 'aqi_avg', label: metricLabel('aqi', AGGREGATE.average), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
-  { key: 'aqi_min', label: metricLabel('aqi', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
-  { key: 'aqi_max', label: metricLabel('aqi', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
+  { key: 'freeze_min_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: FREEZE_UNAVAILABLE, windyLayer: 'deg0' },
+  { key: 'freeze_max_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: FREEZE_UNAVAILABLE, windyLayer: 'deg0' },
+  { key: 'freeze_avg_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.average), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: FREEZE_UNAVAILABLE, windyLayer: 'deg0' },
+  { key: 'aqi_avg', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.average), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
+  { key: 'aqi_min', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
+  { key: 'aqi_max', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
 ]
 
 /**
@@ -178,7 +208,7 @@ export function orderColumns<T extends { key: string }>(columns: T[], sortBy: So
 // representative column and drop the window-total/aggregate labels from the
 // headers.
 const POINT_LABELS: Record<string, string> = {
-  precip_avg_in_hr: metricLabel('precip', undefined, 'in/hr'),
+  precip_avg_in_hr: metricLabel('precip', undefined, PRECIP_RATE),
   temp_avg_f: metricLabel('temp'),
   wind_avg_mph: metricLabel('wind'),
   freeze_avg_ft: metricLabel('freeze'),
@@ -229,6 +259,7 @@ function applyWindDatum(
     wind.has(col.key as string)
       ? {
           ...col,
+          qualifier: datum,
           label: metricLabel(
             'wind',
             pointSample ? undefined : windowAggregate(col.key as SortBy),

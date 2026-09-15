@@ -1,25 +1,44 @@
 import { describe, it, expect } from 'vitest'
 import { resultPopupHtml } from './resultPopup'
 import type { FireWarning } from './fireProximity'
+import type { DestinationResult } from '../types'
 import { NOUN, SEP } from '../metrics'
 import { LABEL_COLOR } from './popupChrome'
+import { displayedColumns } from './tableColumns'
 
-// A fully-populated popup input; individual tests override `warning`.
-const base = {
-  rank: 1,
+// One fully-populated row, with every aggregate a different number so a test
+// can tell which column a value came from.
+const row = {
   name: 'Mount Rainier',
   type: 'peak',
-  osmId: null,
-  elevationFt: 14406,
-  precipTotalIn: 0.123,
-  windAvgMph: 5.4,
-  tempAvgF: 41.2,
-  freezeMinFt: 9843,
-  aqiAvg: null,
-  aqiMax: null,
-  longitude: -121.760395,
+  osm_id: null,
   latitude: 46.851731,
-}
+  longitude: -121.760395,
+  elevation_ft: 14406,
+  precip_total_in: 0.123,
+  precip_avg_in_hr: 0.0041,
+  precip_min_in_hr: 0.0,
+  precip_max_in_hr: 0.0092,
+  temp_min_f: 21.4,
+  temp_max_f: 38.9,
+  temp_avg_f: 30.1,
+  wind_min_mph: 3.2,
+  wind_max_mph: 41.8,
+  wind_avg_mph: 5.4,
+  freeze_min_ft: 9843,
+  freeze_max_ft: 12100,
+  freeze_avg_ft: 10800,
+  aqi_avg: 24,
+  aqi_min: 11,
+  aqi_max: 31,
+} as unknown as DestinationResult
+
+// A date-range report with every column on, which is the app's own default.
+const WINDOW_COLS = displayedColumns(false, 'precip_total_in')
+// A Current lookup, where the table collapses each family to one column.
+const POINT_COLS = displayedColumns(true, 'precip_total_in')
+
+const base = { rank: 1, row, columns: WINDOW_COLS, warning: null as FireWarning | null }
 
 describe('resultPopupHtml fire warning', () => {
   it('omits the warning line when no fire is nearby', () => {
@@ -48,141 +67,150 @@ describe('resultPopupHtml fire warning', () => {
     expect(html).toContain('&lt;img src=x&gt; &quot;&amp;')
     expect(html).not.toContain('<img src=x>')
   })
+
+  // The wildfire flag is a safety statement, not a measurement, so it keeps its
+  // amber banner and is the one table column the popup does not mirror (TJ,
+  // 2026-09-14). A card that said it twice would be worse at saying it once.
+  it('never repeats the warning as a metric line', () => {
+    const warning: FireWarning = { miles: 3.2, name: 'Sourdough', latitude: 0, longitude: 0 }
+    const html = resultPopupHtml({ ...base, warning })
+    expect(html).not.toContain('Wildfire (mi)')
+    expect(html.match(/⚠️/g)).toHaveLength(1)
+  })
 })
 
 describe('resultPopupHtml rank prefix', () => {
   it('shows "#N name" for a ranked result', () => {
-    const html = resultPopupHtml({ ...base, rank: 3, warning: null })
+    const html = resultPopupHtml({ ...base, rank: 3 })
     expect(html).toContain('<strong>#3 Mount Rainier</strong>')
   })
 
   it('drops the "#" for an unranked (searched) destination', () => {
     // The title carries no rank prefix (hex colors elsewhere still use '#').
-    const html = resultPopupHtml({ ...base, rank: '', warning: null })
+    const html = resultPopupHtml({ ...base, rank: '' })
     expect(html).toContain('<strong>Mount Rainier</strong>')
   })
 })
 
-describe('resultPopupHtml layout', () => {
-  // Wind and temperature shared a line separated by a "·" — the only line
-  // carrying two metrics, and the only one long enough to wrap, so on a narrow
-  // map it broke wherever the edge fell and the second label landed mid-line
-  // under the first one's number.
-  //
-  // The separator is back, but doing the opposite job: since TJ's 2026-09-14
-  // call the popup wears the table's own `SEP` between a metric and its
-  // aggregate, INSIDE one label. So the assertion moved from "no separator
-  // anywhere" to where it may appear — left of the colon, joining one stat's
-  // two halves, never right of it joining two stats.
-  it('gives every stat its own line', () => {
-    const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
-    const lines = html.match(/<div>[^]*?<\/div>/g) ?? []
-
-    // Elevation, precipitation, wind, temperature, the freezing level, and
-    // air quality twice. The
-    // title row is a styled div, so it is not in this match, and neither is
-    // the coordinate pair — it carries a nowrap of its own now, asserted just
-    // below, because a latitude and a longitude are one value in two halves
-    // and breaking between them leaves a bare negative number on its own line.
-    expect(lines).toHaveLength(7)
-    // Matched whole rather than by stripping the tags out and counting colons,
-    // which is the same regex shape as a naive sanitizer and reads to CodeQL as
-    // one. It is also the better assertion: a label carries no colon of its own
-    // and neither does a value, so "one label, one value" is the structure
-    // itself, not a property counted off the flattened text.
-    for (const line of lines) {
-      expect(line, 'not a single label/value pair').toMatch(
-        /^<div><span style="[^"]*">[^<>:]+<\/span>: (<a href="[^"]*"[^<>]*>)?<span style="[^"]*">[^<>]*<\/span>(<\/a>)?<\/div>$/,
-      )
-    }
-    // A separator may only join a metric to its aggregate, so it always sits
-    // in the label. One to the right of the colon would mean a line had gone
-    // back to carrying two stats.
-    for (const line of lines) {
-      const sep = line.indexOf(SEP)
-      if (sep === -1) continue
-      expect(sep, 'a separator right of the colon').toBeLessThan(line.indexOf(': '))
-    }
-    expect(html).toContain(`${NOUN.temp} ${SEP} `)
+// #370: the card shows what the results table shows, in the table's order. It
+// used to hold six hard-coded rows, so a Current lookup printed "total",
+// "avg", "min" and "max" over four copies of one number and a date-range
+// report showed six of the sixteen values the table had.
+describe('resultPopupHtml mirrors the table', () => {
+  it('shows every aggregate the table shows over a date range', () => {
+    const html = resultPopupHtml({ ...base })
+    // Every one of the temperature family's three numbers, which the old card
+    // reduced to the average alone.
+    expect(html).toContain('21.4')
+    expect(html).toContain('38.9')
+    expect(html).toContain('30.1')
+    // And all three AQI numbers, where the old card showed two.
+    expect(html).toContain('>11<')
+    expect(html).toContain('>31<')
   })
 
-  it('omits both air-quality lines together when there is no reading', () => {
-    const html = resultPopupHtml({ ...base, aqiAvg: null, aqiMax: null, warning: null })
-
-    expect(html.match(/<div>[^]*?<\/div>/g) ?? []).toHaveLength(5)
+  it('collapses a Current lookup to one value per family', () => {
+    const html = resultPopupHtml({ ...base, columns: POINT_COLS })
+    // The table drops the aggregate word because every aggregate is the same
+    // hour, and the popup follows it.
+    expect(html).not.toContain(SEP)
+    expect(html).toContain(`${NOUN.temp} (°F)`)
+    // One line per family plus the elevation, each a plain label/value pair.
+    const pairs = html.match(/<div><span style="[^"]*">[^<>:]+<\/span>: /g) ?? []
+    expect(pairs).toHaveLength(6)
   })
 
-  // The label/value split is carried on two axes since TJ's 2026-09-14 call:
-  // the label is stepped back in colour and the value is monospace. The face
-  // alone was too quiet to read as a split. Every value wears the face; no
-  // label does, and no value wears the colour.
+  it('leads with the family the report is ranked by', () => {
+    const html = resultPopupHtml({ ...base, columns: displayedColumns(false, 'aqi_max') })
+    expect(html.indexOf(NOUN.aqi)).toBeLessThan(html.indexOf(NOUN.precip))
+  })
+
+  // A family's values sit on one line under one heading, which is what keeps a
+  // sixteen-value card inside the 280px width ceiling (TJ, 2026-09-14).
+  it('sets a family heading over an indented values line', () => {
+    const html = resultPopupHtml({ ...base })
+    // The heading is the family's noun and unit, alone on its line, and the
+    // values line under it is the indented one.
+    expect(html).toContain(`<span style="${LABEL_COLOR}">${NOUN.temp} (°F)</span></div>`)
+    expect(html).toMatch(/<div style="padding-left:8px">/)
+    // All five families are parted from what sits above them. None is the
+    // first block here: the elevation leads, as a plain label/value line.
+    expect((html.match(/margin-top:4px/g) ?? []).length).toBe(5)
+  })
+
+  // Precipitation is the one family whose columns do not share a unit, so the
+  // heading is the bare noun and each value carries its own.
+  it('spells a unit per value where a family mixes two', () => {
+    const html = resultPopupHtml({ ...base })
+    expect(html).toContain(`<span style="${LABEL_COLOR}">${NOUN.precip}</span>`)
+    expect(html).toContain('0.123 in<')
+    expect(html).toContain('0.0041 in/hr<')
+  })
+
+  // A values line may break between pairs and nowhere else. Unprotected, the
+  // precipitation line broke between "0.0000" and "in/hr" and left a bare unit
+  // on the next line, which is the failure that split the old shared
+  // wind-and-temperature row.
+  it('never breaks a line inside one measurement', () => {
+    const html = resultPopupHtml({ ...base })
+    const lines = html.match(/<div style="padding-left:8px">.*/g) ?? []
+    expect(lines).toHaveLength(5)
+    for (const line of lines) {
+      const pairs = line.match(/<span style="white-space:nowrap">/g) ?? []
+      const separators = line.match(/> \| </g) ?? []
+      // Every pair is protected, and the separators are the only gaps left.
+      expect(pairs.length).toBe(separators.length + 1)
+    }
+  })
+})
+
+// TJ moved these above the rule on 2026-09-14: all three identify the point
+// rather than measure it, so the rule now parts what a destination IS from what
+// the forecast says about it.
+describe('resultPopupHtml identity band', () => {
+  it('puts the type and the coordinates above the rule', () => {
+    const html = resultPopupHtml({ ...base })
+    const rule = html.indexOf('<hr')
+    expect(html.indexOf('Peak')).toBeLessThan(rule)
+    expect(html.indexOf('46.85173, -121.76040')).toBeLessThan(rule)
+  })
+
+  // A latitude and a longitude are one value in two halves, and breaking
+  // between them leaves a bare negative number on its own line looking like a
+  // third figure.
+  it('keeps the coordinate pair on one line, unlabelled', () => {
+    const html = resultPopupHtml({ ...base })
+    expect(html).toMatch(/<div style="white-space:nowrap;font-family:ui-monospace[^"]*">46\.85173, -121\.76040<\/div>/)
+    expect(html).not.toContain('Coordinates')
+  })
+
+  it('names no model while one model answered every row', () => {
+    const html = resultPopupHtml({ ...base, modelFallbackLabel: 'GFS Seamless' })
+    expect(html).not.toContain('GFS Seamless')
+  })
+})
+
+// The label/value split is carried on two axes since TJ's 2026-09-14 call: the
+// label is stepped back in colour and the value is monospace.
+describe('resultPopupHtml type', () => {
   it('sets values in a monospace face and labels in a stepped-back colour', () => {
-    const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
+    const html = resultPopupHtml({ ...base })
     const values = html.match(/<span style="font-family:ui-monospace[^"]*">[^<]*<\/span>/g) ?? []
-
-    expect(values).toHaveLength(8)
+    // Sixteen metric values plus the elevation.
+    expect(values).toHaveLength(17)
     // A label that wandered inside a value span would read as part of the
     // number and defeat the whole split.
     for (const value of values) {
       expect(value.replace(/^<span style="[^"]*">/, '')).not.toContain(':')
     }
-    expect(html).toContain(`<span style="${LABEL_COLOR}">Elevation</span>: <span`)
-    expect(html).toContain('mph</span>')
+    expect(html).toContain(`<span style="${LABEL_COLOR}">Elevation (ft)</span>: <span`)
   })
 
-  // The one row that must never break, and the rule that separates the title
-  // from what describes it. Both are shared with the popup a clicked basemap
-  // feature opens, which is the point of pulling them into popupChrome: a
-  // destination you clicked and the same one analyzed are one object at two
-  // stages and had drifted into two kinds of card.
-  it('keeps the coordinate pair on one line, under a rule', () => {
-    const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
-    expect(html).toMatch(/<div style="white-space:nowrap[^"]*"><span style="[^"]*">Coordinates<\/span>: /)
-    expect(html).toContain('<hr')
-  })
-})
-
-// The freezing level is the one metric a model can decline to publish, and
-// five of the eight do (#295). The popup has no hover to explain a mark with,
-// so the mark is all it carries.
-describe('resultPopupHtml freezing level', () => {
-  it('reads the height in feet, grouped like the elevation above it', () => {
-    const html = resultPopupHtml({ ...base, freezeMinFt: 9843, warning: null })
-    expect(html).toMatch(/Freezing level · min<\/span>: <a [^>]*><span[^>]*>9,843 ft<\/span>/)
-  })
-
-  it('marks the line rather than dropping it when the model publishes none', () => {
-    // The opposite of the air-quality pair above: a vanished line would read
-    // as the app forgetting the metric, where a missing air quality is one
-    // forecast falling short and takes its rows with it.
-    const html = resultPopupHtml({ ...base, freezeMinFt: null, warning: null })
-    expect(html).toMatch(/Freezing level · min<\/span>: <span[^>]*>N\/A<\/span>/)
-  })
-})
-
-// OSM supplies destination names, which makes them third-party text on its way
-// to setHTML exactly like the NIFC incident name the warning line carries. This
-// one had gone unescaped since the popup was written.
-describe('resultPopupHtml escaping', () => {
-  it('escapes HTML in a destination name', () => {
-    const html = resultPopupHtml({ ...base, name: '<img src=x> "&', warning: null })
-
-    expect(html).toContain('&lt;img src=x&gt; &quot;&amp;')
-    expect(html).not.toContain('<img src=x>')
-  })
-})
-
-describe('resultPopupHtml emphasis', () => {
   // The popup's only bold is its title. Precip-total and AQI-avg wore
   // <strong> from the original implementation onward, singling out two values
-  // by no rule — not the ranked metric (that varies; the markup didn't), not
-  // line position (wind led its line unbolded).
-  //
-  // Labels are weighted too since TJ's 2026-09-14 call, but a step UNDER this
-  // one and through a span, so the card keeps a single strongest thing and
-  // this rule needs no exception carved into it.
+  // by no rule.
   it('bolds the name and nothing else', () => {
-    const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
+    const html = resultPopupHtml({ ...base })
     expect(html.match(/<strong>/g)).toHaveLength(1)
     expect(html.indexOf('<strong>')).toBeLessThan(html.indexOf('Mount Rainier'))
   })
@@ -190,17 +218,18 @@ describe('resultPopupHtml emphasis', () => {
   // Colour rather than weight, because under this card's `sans-serif` only two
   // faces exist and both are wrong: one is invisible against the value, the
   // other is the title's own. See LABEL_COLOR for the measurement.
-  it('steps a label back in colour, and never a value', () => {
-    const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
-    // Every label carries it; the count is the rows, coordinates included.
-    expect(html.match(new RegExp(LABEL_COLOR, 'g'))).toHaveLength(8)
-    // And no value does: it always closes before its row's colon.
-    for (const line of html.match(/<div>[^]*?<\/div>/g) ?? []) {
-      expect(line.slice(line.indexOf(': '))).not.toContain(LABEL_COLOR)
-    }
-    // No weight anywhere below the title, which is what the two-face
-    // measurement rules out rather than merely advises against.
-    expect(html).not.toContain('font-weight')
+  it('never sets a weight below the title', () => {
+    expect(resultPopupHtml({ ...base })).not.toContain('font-weight')
+  })
+})
+
+// OSM supplies destination names, which makes them third-party text on its way
+// to setHTML exactly like the NIFC incident name the warning line carries.
+describe('resultPopupHtml escaping', () => {
+  it('escapes HTML in a destination name', () => {
+    const html = resultPopupHtml({ ...base, row: { ...row, name: '<img src=x> "&' } })
+    expect(html).toContain('&lt;img src=x&gt; &quot;&amp;')
+    expect(html).not.toContain('<img src=x>')
   })
 })
 
@@ -220,10 +249,15 @@ describe('resultPopupHtml links out', () => {
     freeze_ft: [9900, 9880, 9843, 9900],
     aqi: [31, 44, 58, 35],
   }
-  const linked = { ...base, aqiAvg: 42, aqiMax: 58, modelId: 'gfs_seamless', series, times: TIMES }
+  const linked = {
+    ...base,
+    row: { ...row, series } as DestinationResult,
+    modelId: 'gfs_seamless',
+    times: TIMES,
+  }
 
   it('sends every metric to its own Windy layer, on the analyzed model', () => {
-    const html = resultPopupHtml({ ...linked, warning: null })
+    const html = resultPopupHtml({ ...linked })
     expect(html).toContain('https://www.windy.com/?gfs,rain,')
     expect(html).toContain('https://www.windy.com/?gfs,wind,')
     expect(html).toContain('https://www.windy.com/?gfs,temp,')
@@ -234,25 +268,28 @@ describe('resultPopupHtml links out', () => {
   // The same split the table makes: a window total or an average is every hour
   // at once, so only a floor or a ceiling carries one.
   it('carries the hour behind a floor or a ceiling, and no other', () => {
-    const html = resultPopupHtml({ ...linked, warning: null })
+    const html = resultPopupHtml({ ...linked })
     expect(html).toContain('gfs,deg0,2026-09-16-14,')
-    expect(html).toContain('gfs,pm2p5,2026-09-16-14,')
+    expect(html).toContain('gfs,temp,2026-09-16-13,')
     expect(html).toContain('gfs,rain,46.8517')
-    expect(html).toContain('gfs,wind,46.8517')
-    expect(html).toContain('gfs,temp,46.8517')
   })
 
-  // The freezing-level row is drawn whatever the model publishes, so the mark
+  // The freezing-level line is drawn whatever the model publishes, so the mark
   // standing in for a missing number must not be a link to nothing.
   it('leaves an absent freezing level unlinked', () => {
-    const html = resultPopupHtml({ ...linked, freezeMinFt: null, warning: null })
+    const bare = {
+      ...linked,
+      row: { ...row, series, freeze_min_ft: null, freeze_max_ft: null, freeze_avg_ft: null },
+    } as typeof linked
+    const html = resultPopupHtml(bare)
     expect(html).not.toContain('deg0')
+    expect(html).toContain('N/A')
   })
 
   // A popup built before an analysis knows a model still links the way it
   // always did: a coordinate and a layer.
   it('falls back to the coordinate and the layer with no model', () => {
-    const html = resultPopupHtml({ ...base, warning: null })
+    const html = resultPopupHtml({ ...base })
     expect(html).toContain('https://www.windy.com/?rain,46.8517,-121.7604,11')
   })
 
@@ -265,55 +302,59 @@ describe('resultPopupHtml links out', () => {
     expect(html).toContain('color:#f59e0b')
   })
 
-  // Neither is a forecast, and the table links neither.
+  // Neither is a forecast, and the table links neither. Matched as whole
+  // lines: the title's own link-out glyph carries the coordinates inside its
+  // href, so a substring search for them finds the one anchor that is correct.
   it('leaves the elevation and the coordinates unlinked', () => {
-    const html = resultPopupHtml({ ...linked, warning: null })
-    for (const line of html.split('<div')) {
-      if (line.includes('Elevation:') || line.includes('Coordinates:')) {
-        expect(line).not.toContain('<a ')
-      }
-    }
+    const html = resultPopupHtml({ ...linked })
+    const elevation = html.match(/<div><span style="[^"]*">Elevation \(ft\)<\/span>:[^\n]*/)![0]
+    expect(elevation).not.toContain('<a ')
+    const coordinates = html.match(/<div style="white-space:nowrap[^"]*">[^<]*<\/div>/)![0]
+    expect(coordinates).not.toContain('<a ')
   })
 
   it('opens every link in a new tab, with no window handle back', () => {
     const warning: FireWarning = { miles: 1, name: 'Sourdough', latitude: 48.8, longitude: -121.1 }
     const html = resultPopupHtml({ ...linked, warning })
     const anchors = html.match(/<a /g) ?? []
-    expect(anchors.length).toBe(8)
-    expect(html.match(/rel="noopener noreferrer"/g)?.length).toBe(8)
-    expect(html.match(/target="_blank"/g)?.length).toBe(8)
+    // Sixteen metric values, the warning, and the title's link-out glyph.
+    expect(anchors.length).toBe(18)
+    expect(html.match(/rel="noopener noreferrer"/g)?.length).toBe(18)
+    expect(html.match(/target="_blank"/g)?.length).toBe(18)
   })
 })
 
-// #361: a marker's wind row names the same datum the table's column header
+// #361: a marker's wind values name the same datum the table's column header
 // does, so a point clicked on the map cannot describe its number differently
-// from the row it came from.
+// from the row it came from. It arrives inside the columns now, rather than
+// being derived a second time here.
 describe('resultPopupHtml wind datum', () => {
   it('names the elevation datum over a forecast window', () => {
-    const html = resultPopupHtml({ ...base, warning: null, windowSource: 'forecast' })
+    const html = resultPopupHtml({
+      ...base,
+      columns: displayedColumns(false, 'precip_total_in', 'forecast'),
+    })
     expect(html).toContain('Wind at elevation')
   })
 
   it('names the surface datum over an archive window', () => {
-    const html = resultPopupHtml({ ...base, warning: null, windowSource: 'archive' })
+    const html = resultPopupHtml({
+      ...base,
+      columns: displayedColumns(false, 'precip_total_in', 'archive'),
+    })
     expect(html).toContain('Wind at 10 meters')
   })
 
-  // Both silent states, and the reason the popup takes the source at all
-  // rather than a boolean.
+  // Both silent states, and the reason the columns take a source at all rather
+  // than a boolean.
   it('claims no datum over a spanning window or without one', () => {
     for (const source of ['spanning', null, undefined] as const) {
-      const html = resultPopupHtml({ ...base, warning: null, windowSource: source })
+      const html = resultPopupHtml({
+        ...base,
+        columns: displayedColumns(false, 'precip_total_in', source),
+      })
       expect(html).not.toContain('at elevation')
       expect(html).not.toContain('at 10 meters')
     }
-  })
-
-  // The row is still a row: the datum joins the label, never the value, and the
-  // Windy link the cell carries is untouched by it.
-  it('leaves the value and the link alone', () => {
-    const html = resultPopupHtml({ ...base, warning: null, windowSource: 'forecast' })
-    expect(html).toContain('5.4 mph')
-    expect(html).toContain('windy.com')
   })
 })

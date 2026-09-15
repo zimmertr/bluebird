@@ -20,9 +20,9 @@ import '../map.css'
 import { GeoPolygon, DestinationResult, SortBy } from '../types'
 import { resultsFeatureCollection } from '../utils/resultFeatures'
 import { resultPopupHtml } from '../utils/resultPopup'
+import { ColDef } from '../utils/tableColumns'
 import type { ModelRow } from '../utils/modelCompare'
 import { FireWarning, fireKey } from '../utils/fireProximity'
-import { WindowSource } from '../utils/forecastWindow'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import { pointsWithinView } from '../utils/mapFraming'
 import type { PendingDestination } from '../utils/customList'
@@ -113,11 +113,14 @@ interface Props {
   // what turns a row's series into the HOUR behind a floor or a ceiling.
   modelId: string | null
   times: number[]
-  // Which endpoint answered the displayed report, so a marker's wind row names
-  // the datum behind its number exactly as the table's column header does
-  // (#361). Null before the first analysis, and over a window that spans the
-  // archive boundary — neither of which has one datum to name.
-  windowSource: WindowSource | null
+  // The results table's own resolved columns (#370). A marker popup shows what
+  // the table shows, in the table's order, so it reads this list rather than
+  // holding a second one: the point-sample collapse, the ranked family, the
+  // Columns picker and the reader's column order all arrive with it — as does
+  // the wind datum the header names (#361), baked into the labels upstream.
+  popupColumns: readonly ColDef[]
+  // The model name a row falls back to while one model answered every row.
+  modelFallbackLabel: string | null
   // Fire-proximity warnings keyed by fireKey(lat,lon), mirroring the results
   // table — a clicked point's popup surfaces the same ⚠️ when one applies.
   fireWarnings: Map<string, FireWarning>
@@ -164,6 +167,36 @@ interface Props {
   // results are docked beside the map and nothing is covered. It is the sheet's
   // RESTING lift, so a drag never re-frames the camera under the reader's hand.
   cameraPadBottomPx: number
+}
+
+/**
+ * A clicked marker's properties read back as a row.
+ *
+ * Only reached when the click cannot be matched to a row in the report, which
+ * `results-circles` being the popup's one layer makes close to unreachable —
+ * it is the guard rather than the path. The feature carries the handful of
+ * values the markers themselves need, so every other column reads undefined,
+ * and `popupRows.ts` draws those as the dash it draws any missing value as.
+ */
+function featureRow(
+  p: Record<string, unknown>,
+  latitude: number,
+  longitude: number,
+): DestinationResult {
+  return {
+    name: p.name as string,
+    type: p.type as DestinationResult['type'],
+    osm_id: (p.osm_id as string) ?? null,
+    latitude,
+    longitude,
+    elevation_ft: (p.elevation_ft as number) ?? null,
+    precip_total_in: p.precip as number,
+    wind_avg_mph: p.wind_avg as number,
+    temp_avg_f: p.temp_avg as number,
+    freeze_min_ft: (p.freeze_min as number) ?? null,
+    aqi_avg: (p.aqi_avg as number) ?? null,
+    aqi_max: (p.aqi_max as number) ?? null,
+  } as DestinationResult
 }
 
 // A search result frames at least this much map around the hit; features with
@@ -719,7 +752,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
       sortBy,
       modelId,
       times,
-      windowSource,
+      popupColumns,
+      modelFallbackLabel,
       fireWarnings,
       showWildfires,
       showRadar,
@@ -784,7 +818,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // a prop. The rows are here rather than on the features themselves because
     // a link needs the whole HOURLY SERIES behind a cell, which is not
     // something to encode into a GeoJSON property per marker.
-    const windyRef = useRef({ results, modelId, times, windowSource })
+    const windyRef = useRef({ results, modelId, times, popupColumns, modelFallbackLabel })
     // The sheet's share of the bottom edge, for the two framing calls that live
     // inside the mount effect — the resize refit and the opening frame — which
     // would otherwise hold the first render's value for the session. The
@@ -971,25 +1005,14 @@ const MapView = forwardRef<MapViewHandle, Props>(
           .setHTML(
             resultPopupHtml({
               rank: results.indexOf(result) + 1,
-              name: result.name,
-              type: result.type,
-              osmId: result.osm_id ?? null,
-              elevationFt: result.elevation_ft,
-              precipTotalIn: result.precip_total_in,
-              windAvgMph: result.wind_avg_mph,
-              tempAvgF: result.temp_avg_f,
-              freezeMinFt: result.freeze_min_ft,
-              aqiAvg: result.aqi_avg,
-              aqiMax: result.aqi_max,
-              longitude: result.longitude,
-              latitude: result.latitude,
+              row: result,
+              columns: popupColumns,
               warning: fireWarnings.get(fireKey(result.latitude, result.longitude)) ?? null,
               // A per-model row names its own model; a single-model report has
               // one for every row. Same rule as the table's cells.
               modelId: (result as ModelRow).modelId ?? modelId,
-              series: result.series,
               times: result.series_times ?? times,
-              windowSource,
+              modelFallbackLabel,
             }),
           )
           .addTo(map)
@@ -1687,23 +1710,17 @@ const MapView = forwardRef<MapViewHandle, Props>(
             .setHTML(
               resultPopupHtml({
                 rank: p.rank,
-                name: p.name,
-                type: p.type,
-                osmId: p.osm_id ?? null,
-                elevationFt: p.elevation_ft ?? null,
-                precipTotalIn: p.precip,
-                windAvgMph: p.wind_avg,
-                tempAvgF: p.temp_avg,
-                freezeMinFt: p.freeze_min ?? null,
-                aqiAvg: p.aqi_avg ?? null,
-                aqiMax: p.aqi_max ?? null,
-                longitude: lon,
-                latitude: lat,
+                // The matched row is the popup's subject. The feature's own
+                // properties are the fallback for the case the match cannot
+                // happen — they carry no aggregates, so those columns draw the
+                // dash a missing value draws anywhere else rather than a
+                // number nobody fetched.
+                row: row ?? featureRow(p, lat, lon),
+                columns: live.popupColumns,
                 warning: fireWarningsRef.current.get(fireKey(lat, lon)) ?? null,
                 modelId: row ? ((row as ModelRow).modelId ?? live.modelId) : live.modelId,
-                series: row?.series ?? null,
                 times: row?.series_times ?? live.times,
-                windowSource: live.windowSource,
+                modelFallbackLabel: live.modelFallbackLabel,
               }),
             )
             .addTo(map)
@@ -2029,8 +2046,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
     }, [fireWarnings])
 
     useEffect(() => {
-      windyRef.current = { results, modelId, times, windowSource }
-    }, [results, modelId, times, windowSource])
+      windyRef.current = { results, modelId, times, popupColumns, modelFallbackLabel }
+    }, [results, modelId, times, popupColumns, modelFallbackLabel])
 
     useEffect(() => {
       cameraPadBottomRef.current = cameraPadBottomPx
