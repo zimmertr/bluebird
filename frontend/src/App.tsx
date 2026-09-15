@@ -909,6 +909,9 @@ export default function App() {
       next.delete(key)
       return next
     })
+    // Kept: the only value read is `searched.addPlace`, and `useSearchedPlaces`
+    // rebuilds it every render, so listing it would hand a new `registerPlace`
+    // to the memoized map on every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
