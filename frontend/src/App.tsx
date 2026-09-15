@@ -2059,6 +2059,9 @@ export default function App() {
         // said; the model is the line style.
         color: chart.colorFor(r),
       }))
+    // Kept: the rule asks for the whole `chart` object, which useChartSelection
+    // rebuilds every render. `colorFor` cannot answer differently for a row
+    // that has not changed, so the two listed values are the real inputs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chart.selectedRows, results])
   // The ranking model's own numbers per destination, on the chart's grid: a
