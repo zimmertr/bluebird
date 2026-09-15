@@ -81,6 +81,7 @@ import * as STYLES from './styles'
 // node test with no DOM, matching vitest.config.ts. (The same trick does not
 // work on index.css: vitest stubs CSS imports to an empty string.)
 import controlPanelSource from './components/ControlPanel.tsx?raw'
+import modelPickerSource from './components/ModelPicker.tsx?raw'
 import appSource from './App.tsx?raw'
 import searchBoxSource from './components/SearchBox.tsx?raw'
 // The one stylesheet with a decision in it: the vendor's own controls have no
@@ -322,10 +323,12 @@ describe('every component', () => {
     './components/ControlPanel.tsx': 4,
     // What Hourly actually does to a multi-day window (label + segment).
     './components/ForecastCalendar.tsx': 2,
-    // Why the control is faded for an archive window (#123). Both of these
-    // tooltips carry the same sentence in a hidden twin `aria-describedby`
-    // names, because a tooltip does not exist on touch or to a screen reader.
-    './components/ModelPicker.tsx': 1,
+    // None. Why the control is faded for an archive window (#123) was a
+    // tooltip here until TJ moved it into the panel's message block
+    // (2026-09-14): a sentence no phone could reach, sitting away from the one
+    // place this panel explains itself. The zero is pinned like every count
+    // above — a tooltip coming BACK here is as much a decision as one leaving.
+    './components/ModelPicker.tsx': 0,
     // Two cells carry one each. The Wildfire (mi) cell: the fire's name on a
     // warned row, or which of its two causes an N/A carries (TJ, PR #275
     // review). And the freezing-level cell: why it reads N/A, which is the
@@ -1082,6 +1085,19 @@ describe('shared recipes', () => {
       expect(at, 'a NOTICE box outside FooterNotice').toBeGreaterThan(footerNotice)
       expect(at, 'a NOTICE box outside FooterNotice').toBeLessThan(panel)
     }
+  })
+
+  // The move that emptied ModelPicker's tooltip count above (TJ, 2026-09-14).
+  // The count alone would pass if the sentence had simply been deleted, so
+  // this is the other half: it is in the panel, in the list that feeds the one
+  // notice block, and it is not on the control it describes.
+  it('says why the model control is faded in the message block, not on it', () => {
+    const sentence = 'Forecast models are not available for archival data.'
+    expect(modelPickerSource).not.toContain(sentence)
+    expect(controlPanelSource).toContain(sentence)
+    const messages = controlPanelSource.indexOf('const windowMessages')
+    expect(messages).toBeGreaterThan(-1)
+    expect(controlPanelSource.indexOf(sentence)).toBeGreaterThan(messages)
   })
 
   it('colours nothing but a notice and the draw counter by status', () => {

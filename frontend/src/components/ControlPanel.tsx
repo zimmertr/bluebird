@@ -655,6 +655,22 @@ export default function ControlPanel({
   // re-arms when a window stops crossing the boundary and crosses it again,
   // rather than on every recomputation of the same sentence.
   const windowMessages: FooterMessage[] = [
+    // Why the model control is faded, for the one window it does not apply to
+    // (TJ, 2026-09-14). It was a tooltip on the control until this PR, which
+    // put it out of reach of every touch reader and sat it away from the one
+    // block that explains this panel. Info rather than warn for the reason the
+    // seam line below is: nothing is wrong and nothing is blocked. It leads the
+    // list because it is a statement about the model, and the clamp under it is
+    // the other one.
+    ...(archiveWindow
+      ? [
+          {
+            key: 'window:archive-model',
+            text: 'Forecast models are not available for archival data.',
+            severity: 'info' as const,
+          },
+        ]
+      : []),
     ...(modelClamped
       ? [
           {

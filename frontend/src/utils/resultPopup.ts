@@ -1,5 +1,5 @@
 import { DestinationResult, HourlySeries } from '../types'
-import { AGGREGATE, NOUN, UNIT, windDatum } from '../metrics'
+import { AGGREGATE, NOUN, SEP, UNIT, windDatum } from '../metrics'
 import { WindowSource } from './forecastWindow'
 import { destinationUrl } from './destinationUrl'
 import { FireWarning, fireWarningText } from './fireProximity'
@@ -8,8 +8,12 @@ import { coordinateRow, escapeHtml, popupLink, popupShell, row } from './popupCh
 import { FIRE_LINK_ZOOM, nifcFireUrl } from './wildfires'
 import { extremeHourMs, windyUrl } from './windy'
 
-// The popup reads as prose rather than as table headers, so it lowercases the
-// aggregate and skips metrics.ts's separator.
+// The popup wears the table's separator (TJ, 2026-09-14) but keeps its own
+// lower-cased aggregate. It reads as prose — "Wind at elevation · avg:" ahead
+// of a value, not a column head — yet it is naming exactly what a header
+// names, and spelling that seam two ways across two surfaces was the drift
+// metrics.ts exists to stop. The lower case stays because these are sentences
+// with a colon, not headings.
 const TOTAL = AGGREGATE.total.toLowerCase()
 const AVERAGE = AGGREGATE.average.toLowerCase()
 const MINIMUM = AGGREGATE.minimum.toLowerCase()
@@ -100,12 +104,12 @@ export function resultPopupHtml(d: {
   const body = [
     fire,
     d.elevationFt != null ? row('Elevation', `${Number(d.elevationFt).toLocaleString()} ft`) : '',
-    row(`${NOUN.precip} ${TOTAL}`, `${Number(d.precipTotalIn).toFixed(3)}"`, windy('rain', 'precip_total_in')),
+    row(`${NOUN.precip} ${SEP} ${TOTAL}`, `${Number(d.precipTotalIn).toFixed(3)}"`, windy('rain', 'precip_total_in')),
     // "Wind at elevation avg", composed rather than spelled: the datum comes
     // from metrics.ts like the noun beside it, and the popup lower-cases the
     // aggregate here the way it does for every other row.
-    row(`${windNoun} ${AVERAGE}`, `${Number(d.windAvgMph).toFixed(1)} mph`, windy('wind', 'wind_avg_mph')),
-    row(`${NOUN.temp} ${AVERAGE}`, `${Number(d.tempAvgF).toFixed(1)}°F`, windy('temp', 'temp_avg_f')),
+    row(`${windNoun} ${SEP} ${AVERAGE}`, `${Number(d.windAvgMph).toFixed(1)} mph`, windy('wind', 'wind_avg_mph')),
+    row(`${NOUN.temp} ${SEP} ${AVERAGE}`, `${Number(d.tempAvgF).toFixed(1)}°F`, windy('temp', 'temp_avg_f')),
     // Always drawn, unlike the two air-quality rows below it. A missing air
     // quality is a gap in one forecast, so the row goes with it; a missing
     // freezing level is the chosen MODEL publishing no such variable, and a
@@ -116,16 +120,16 @@ export function resultPopupHtml(d: {
     // one that can carry no link: a mark saying the model publishes no freezing
     // level has nothing for Windy to show.
     row(
-      `${NOUN.freeze} ${MINIMUM}`,
+      `${NOUN.freeze} ${SEP} ${MINIMUM}`,
       freezeCellText(d.freezeMinFt) ??
         `${Number(d.freezeMinFt).toLocaleString()} ${UNIT.freeze}`,
       d.freezeMinFt != null ? windy('deg0', 'freeze_min_ft') : null,
     ),
     d.aqiAvg != null
-      ? row(`${NOUN.aqi} ${AVERAGE}`, String(d.aqiAvg), windy('pm2p5', 'aqi_avg'))
+      ? row(`${NOUN.aqi} ${SEP} ${AVERAGE}`, String(d.aqiAvg), windy('pm2p5', 'aqi_avg'))
       : '',
     d.aqiAvg != null
-      ? row(`${NOUN.aqi} ${MAXIMUM}`, String(d.aqiMax), windy('pm2p5', 'aqi_max'))
+      ? row(`${NOUN.aqi} ${SEP} ${MAXIMUM}`, String(d.aqiMax), windy('pm2p5', 'aqi_max'))
       : '',
     coordinateRow(d.latitude, d.longitude),
   ]

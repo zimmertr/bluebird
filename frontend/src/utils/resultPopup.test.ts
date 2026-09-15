@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { resultPopupHtml } from './resultPopup'
 import type { FireWarning } from './fireProximity'
+import { NOUN, SEP } from '../metrics'
 
 // A fully-populated popup input; individual tests override `warning`.
 const base = {
@@ -66,6 +67,12 @@ describe('resultPopupHtml layout', () => {
   // carrying two metrics, and the only one long enough to wrap, so on a narrow
   // map it broke wherever the edge fell and the second label landed mid-line
   // under the first one's number.
+  //
+  // The separator is back, but doing the opposite job: since TJ's 2026-09-14
+  // call the popup wears the table's own `SEP` between a metric and its
+  // aggregate, INSIDE one label. So the assertion moved from "no separator
+  // anywhere" to where it may appear — left of the colon, joining one stat's
+  // two halves, never right of it joining two stats.
   it('gives every stat its own line', () => {
     const html = resultPopupHtml({ ...base, aqiAvg: 24, aqiMax: 31, warning: null })
     const lines = html.match(/<div>[^]*?<\/div>/g) ?? []
@@ -87,7 +94,15 @@ describe('resultPopupHtml layout', () => {
         /^<div>[^<>:]+: (<a href="[^"]*"[^<>]*>)?<span style="[^"]*">[^<>]*<\/span>(<\/a>)?<\/div>$/,
       )
     }
-    expect(html).not.toContain('·')
+    // A separator may only join a metric to its aggregate, so it always sits
+    // in the label. One to the right of the colon would mean a line had gone
+    // back to carrying two stats.
+    for (const line of lines) {
+      const sep = line.indexOf(SEP)
+      if (sep === -1) continue
+      expect(sep, 'a separator right of the colon').toBeLessThan(line.indexOf(': '))
+    }
+    expect(html).toContain(`${NOUN.temp} ${SEP} `)
   })
 
   it('omits both air-quality lines together when there is no reading', () => {
@@ -131,7 +146,7 @@ describe('resultPopupHtml layout', () => {
 describe('resultPopupHtml freezing level', () => {
   it('reads the height in feet, grouped like the elevation above it', () => {
     const html = resultPopupHtml({ ...base, freezeMinFt: 9843, warning: null })
-    expect(html).toMatch(/Freezing level min: <a [^>]*><span[^>]*>9,843 ft<\/span>/)
+    expect(html).toMatch(/Freezing level · min: <a [^>]*><span[^>]*>9,843 ft<\/span>/)
   })
 
   it('marks the line rather than dropping it when the model publishes none', () => {
@@ -139,7 +154,7 @@ describe('resultPopupHtml freezing level', () => {
     // as the app forgetting the metric, where a missing air quality is one
     // forecast falling short and takes its rows with it.
     const html = resultPopupHtml({ ...base, freezeMinFt: null, warning: null })
-    expect(html).toMatch(/Freezing level min: <span[^>]*>N\/A<\/span>/)
+    expect(html).toMatch(/Freezing level · min: <span[^>]*>N\/A<\/span>/)
   })
 })
 
