@@ -409,7 +409,7 @@ async def fetch_weather_batch(
         raise
 
     fetched = [item for sublist in chunk_results_by_index for item in sublist]
-    for dest, result in zip(misses, fetched):
+    for dest, result in zip(misses, fetched, strict=False):
         key = cache.forecast_key(
             "weather",
             dest["latitude"],
@@ -421,7 +421,7 @@ async def fetch_weather_batch(
             source,
         )
         cache.FORECAST_CACHE.put(key, cache.NO_DATA if result is None else result)
-    for i, result in zip(miss_indices, fetched):
+    for i, result in zip(miss_indices, fetched, strict=False):
         results[i] = result
     return results
 
@@ -508,7 +508,7 @@ async def _fetch_chunk(
     results: list[dict[str, Any] | None] = []
     # zip truncates to the shortest, which is the tolerance this loop has always
     # had for a host returning fewer locations than were asked about.
-    for dest, parts in zip(destinations, zip(*per_span)):
+    for dest, parts in zip(destinations, zip(*per_span, strict=False), strict=False):
         elevation_ft = dest.get("elevation_ft")
         item = _join_hours(parts)
         m = _metrics(item, start_dt, end_dt, elevation_ft)
@@ -754,7 +754,7 @@ def _freeze_ft_in_window(
     """
     return [
         _freeze_to_ft(v, unit)
-        for ts, v in zip(hourly.get("time", []), hourly.get(_FREEZING_LEVEL, []))
+        for ts, v in zip(hourly.get("time", []), hourly.get(_FREEZING_LEVEL, []), strict=False)
         if v is not None
         and (parsed := _parse_ts(ts)) is not None
         and start <= parsed <= end
@@ -782,7 +782,7 @@ def _metrics(
         # semantics: a missing or short LEVEL array can never drop an hour,
         # only send its wind back to the 10 m value.
         filtered = []
-        for i, (ts, p, t, w) in enumerate(zip(times, precip, temp, wind)):
+        for i, (ts, p, t, w) in enumerate(zip(times, precip, temp, wind, strict=False)):
             parsed = _parse_ts(ts)
             if parsed is None or not (start <= parsed <= end):
                 continue
@@ -796,7 +796,7 @@ def _metrics(
         if not filtered:
             return None
 
-        p_vals, t_vals, w_vals = zip(*filtered)
+        p_vals, t_vals, w_vals = zip(*filtered, strict=False)
         f_vals = _freeze_ft_in_window(hourly, start, end, _freeze_unit(data))
 
         return {

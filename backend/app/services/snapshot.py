@@ -25,16 +25,13 @@ import asyncio
 import logging
 import time
 from collections.abc import Awaitable, Callable
-from typing import Generic, TypeVar
 
 from app.services.errors import UpstreamError
 
 log = logging.getLogger(__name__)
 
-T = TypeVar("T")
 
-
-class SnapshotCache(Generic[T]):
+class SnapshotCache[T]:
     """Singleflight, stale-tolerant holder for one periodically refetched value.
 
     ``label`` names the upstream in log lines. ``describe`` turns a fresh

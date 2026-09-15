@@ -169,7 +169,7 @@ async def fetch_aqi_batch(
     # into the TTL. Only real answers are cached, and a real all-null window
     # is cached as NO_DATA.
     if not rate_limited.is_set():
-        for dest, result in zip(misses, fetched):
+        for dest, result in zip(misses, fetched, strict=False):
             key = cache.forecast_key(
                 "aqi",
                 dest["latitude"],
@@ -178,7 +178,7 @@ async def fetch_aqi_batch(
                 end_dt.isoformat(),
             )
             cache.FORECAST_CACHE.put(key, cache.NO_DATA if result is None else result)
-    for i, result in zip(miss_indices, fetched):
+    for i, result in zip(miss_indices, fetched, strict=False):
         results[i] = result
     return results
 
@@ -301,7 +301,7 @@ def _metrics(
 
         vals = [
             v
-            for ts, v in zip(times, aqi)
+            for ts, v in zip(times, aqi, strict=False)
             if v is not None
             and (parsed := _parse_ts(ts)) is not None
             and start <= parsed <= end

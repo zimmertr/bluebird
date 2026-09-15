@@ -8,9 +8,20 @@ line-length = 120
 
 [lint]
 select = ["E", "F", "I", "B", "UP"]
+# UP042 wants `class X(str, Enum)` rewritten as `StrEnum`. These four enums
+# cross the wire: Pydantic serializes them, the OpenAPI snapshot publishes
+# them, and StrEnum changes what `str()` and an f-string produce for a member
+# (the value rather than `Class.member`). That is a contract question rather
+# than a modernization, so it is not this change's to answer.
+ignore = ["UP042"]
 
 [lint.isort]
 # Without this, `app` is a first-party package from inside backend/ and a
 # third-party one from the repo root, and the two working directories sort the
 # same imports differently. CI runs from the root; a developer runs from here.
 known-first-party = ["app"]
+
+[lint.per-file-ignores]
+# The KML fixture in this file is the document NOAA's own file server sends.
+# Wrapping its one long line would change the data under test.
+"tests/test_hms.py" = ["E501"]

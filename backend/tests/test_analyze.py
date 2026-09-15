@@ -127,7 +127,7 @@ def test_sort_key_ranks_the_new_aggregate_members():
     assert [r.name for r in rows] == ["still", "calm", "breezy"]
 
     rows = [_result("a"), _result("b"), _result("c")]
-    for row, rate in zip(rows, (0.3, 0.1, 0.2)):
+    for row, rate in zip(rows, (0.3, 0.1, 0.2), strict=False):
         row.precip_avg_in_hr = rate
     rows.sort(key=_sort_key(SortBy.precip_avg.value, descending=True))
     assert [r.name for r in rows] == ["a", "c", "b"]
@@ -698,8 +698,10 @@ def _union_body(start, end, custom):
 def test_analyze_union_ranks_polygon_and_custom_together(monkeypatch, stub_upstreams):
     async def two_peaks(polygon, destination_types, on_status=None, **_):
         return [
-            {"name": "pk_a", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None, "osm_id": "node/1", "type": "peak"},
-            {"name": "pk_b", "latitude": 3.0, "longitude": 4.0, "elevation_ft": None, "osm_id": "node/2", "type": "peak"},
+            {"name": "pk_a", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None,
+             "osm_id": "node/1", "type": "peak"},
+            {"name": "pk_b", "latitude": 3.0, "longitude": 4.0, "elevation_ft": None,
+             "osm_id": "node/2", "type": "peak"},
         ]
 
     monkeypatch.setattr(analyze_mod.osm, "query_osm", two_peaks)
@@ -721,7 +723,8 @@ def test_analyze_union_ranks_polygon_and_custom_together(monkeypatch, stub_upstr
 
 def test_analyze_union_dedup_by_name_custom_wins(monkeypatch, stub_upstreams):
     async def one_peak(polygon, destination_types, on_status=None, **_):
-        return [{"name": "Shared", "latitude": 1.0, "longitude": 2.0, "elevation_ft": 5000, "osm_id": "node/1", "type": "peak"}]
+        return [{"name": "Shared", "latitude": 1.0, "longitude": 2.0, "elevation_ft": 5000,
+                 "osm_id": "node/1", "type": "peak"}]
 
     monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)
     start, end = _window()
@@ -736,7 +739,8 @@ def test_analyze_union_dedup_by_name_custom_wins(monkeypatch, stub_upstreams):
 
 def test_analyze_union_dedup_by_coord_custom_wins(monkeypatch, stub_upstreams):
     async def one_peak(polygon, destination_types, on_status=None, **_):
-        return [{"name": "Discovered", "latitude": 46.852890, "longitude": -121.760410, "elevation_ft": None, "osm_id": "node/1", "type": "peak"}]
+        return [{"name": "Discovered", "latitude": 46.852890, "longitude": -121.760410,
+                 "elevation_ft": None, "osm_id": "node/1", "type": "peak"}]
 
     monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)
     start, end = _window()
@@ -781,7 +785,8 @@ def test_analyze_stream_union_with_empty_discovery_still_analyzes_custom(monkeyp
 
 def test_analyze_stream_union_emits_search_then_mixed_result(monkeypatch, stub_upstreams):
     async def one_peak(polygon, destination_types, on_status=None, **_):
-        return [{"name": "pk", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None, "osm_id": "node/1", "type": "peak"}]
+        return [{"name": "pk", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None,
+                 "osm_id": "node/1", "type": "peak"}]
 
     monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)
     start, end = _window()
@@ -827,7 +832,8 @@ def test_analyze_union_counts_toward_cap(monkeypatch, stub_upstreams):
 
 def test_analyze_union_elevation_filter_applies_to_custom_rows(monkeypatch, stub_upstreams):
     async def one_peak(polygon, destination_types, on_status=None, **_):
-        return [{"name": "pk", "latitude": 1.0, "longitude": 2.0, "elevation_ft": 9000, "osm_id": "node/1", "type": "peak"}]
+        return [{"name": "pk", "latitude": 1.0, "longitude": 2.0, "elevation_ft": 9000,
+                 "osm_id": "node/1", "type": "peak"}]
 
     monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)
     start, end = _window()
