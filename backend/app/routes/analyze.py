@@ -3,7 +3,7 @@ import json
 import logging
 import math
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Security
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -69,7 +69,7 @@ def _window_split(request: AnalyzeRequest) -> tuple[WindowSource, datetime]:
     answers the hours before the seam, the forecast endpoint the hours from it on,
     and the two are joined per location before the aggregation runs.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return (
         window_source(request.start_datetime, request.end_datetime, now),
         archive_boundary(now),

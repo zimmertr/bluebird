@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+
 from app.routes.analyze import _aligned_aqi
 from app.services import air_quality, weather
 

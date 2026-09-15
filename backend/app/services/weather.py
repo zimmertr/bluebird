@@ -4,7 +4,7 @@ import asyncio
 import logging
 import time
 from collections.abc import Awaitable, Callable, Sequence
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, NamedTuple
 
 import httpx
@@ -918,7 +918,7 @@ def _epoch_ms(dt_naive: datetime) -> int:
     # Open-Meteo times are UTC (we request timezone=UTC) and `_parse_ts` strips
     # the tzinfo, so re-stamp UTC before converting to an unambiguous epoch the
     # browser can render in the viewer's local zone.
-    return int(dt_naive.replace(tzinfo=timezone.utc).timestamp() * 1000)
+    return int(dt_naive.replace(tzinfo=UTC).timestamp() * 1000)
 
 
 def _at(arr: list[Any], i: int) -> float | None:

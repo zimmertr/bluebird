@@ -1,0 +1,16 @@
+# Ruff's defaults are E4, E7, E9 and F only, which is no import sorting, no
+# bugbear and no pyupgrade (issue #379). The set below is the whole of what the
+# repo runs; `ruff check backend/` from the repo root and `ruff check .` inside
+# backend/ both find this file by walking up from each source file, so the two
+# invocations cannot disagree.
+target-version = "py314"
+line-length = 120
+
+[lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[lint.isort]
+# Without this, `app` is a first-party package from inside backend/ and a
+# third-party one from the repo root, and the two working directories sort the
+# same imports differently. CI runs from the root; a developer runs from here.
+known-first-party = ["app"]
