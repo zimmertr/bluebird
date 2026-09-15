@@ -642,6 +642,30 @@ describe('runClientAnalysis', () => {
     expect(out.universe).toHaveLength(60)
   })
 
+  it('announces batches for a point sample too, not only a date range (#337)', async () => {
+    // A "Current" window is one hour, so `assemble` returns a single stamp and
+    // the collapsed columns. Nothing about the partial path keys on the window
+    // shape, and this pins that: the only thing that suppresses an announcement
+    // is an air-quality ranking, in the test below.
+    const many = Array.from({ length: 60 }, (_, i) => ({
+      name: `P${i}`,
+      latitude: i + 1,
+      longitude: i + 1,
+    }))
+    stubOpenMeteo(Array.from({ length: 60 }, (_, i) => (60 - i) / 100))
+    const at = Date.parse('2026-07-21T00:00:00Z')
+    const rounds: Array<{ count: number; times: number }> = []
+    const out = await runClientAnalysis(REQUEST, customRows(many), at, at + 60_000, {
+      nowMs: at,
+      onPartial: (rows, times) => rounds.push({ count: rows.length, times: times.length }),
+    })
+    expect(rounds.map((r) => r.count)).toEqual([50, 60])
+    // One stamp, and it is carried on every announcement rather than arriving
+    // only with the finished report.
+    expect(rounds.map((r) => r.times)).toEqual([1, 1])
+    expect(out.response.times).toHaveLength(1)
+  })
+
   it('announces nothing while ranking by air quality (#337)', async () => {
     // Air quality resolves after the weather fetch, so a partial field ranked
     // by it would be ranked on nulls.
