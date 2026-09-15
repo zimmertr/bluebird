@@ -89,9 +89,21 @@ describe('parseTs', () => {
     expect(parseTs('2026-07-21T00:00')).toBe(Date.parse('2026-07-21T00:00:00Z'))
   })
 
+  it('reads a number as unixtime seconds', () => {
+    // What every request this module sends now asks for (#337, finding 4):
+    // `timeformat=unixtime`, so the wire carries whole seconds. The string arm
+    // above stays because `weather_vectors.json` feeds ISO stamps through the
+    // same function.
+    expect(parseTs(1784592000)).toBe(Date.parse('2026-07-21T00:00:00Z'))
+    expect(parseTs(0)).toBe(0)
+  })
+
   it('degrades garbage to null like the backend parser', () => {
     expect(parseTs('not-a-time')).toBeNull()
-    expect(parseTs(42)).toBeNull()
+    expect(parseTs(Number.NaN)).toBeNull()
+    expect(parseTs(Number.POSITIVE_INFINITY)).toBeNull()
+    expect(parseTs(null)).toBeNull()
+    expect(parseTs({})).toBeNull()
   })
 })
 
@@ -302,6 +314,25 @@ describe('fetchWeather', () => {
     expect(params.get('end_hour')).toBe('2026-07-21T14:00')
     expect(params.get('start_date')).toBeNull()
     expect(params.get('end_date')).toBeNull()
+  })
+
+  it('asks for whole seconds rather than ISO text (#337)', async () => {
+    // 11 bytes a stamp instead of 18, and a multiply instead of a regex and a
+    // `Date.parse`. Measured over 540,000 stamps, which is a maximal
+    // 1,500-destination analysis of a 15-day window: 63 ms of parsing became
+    // 4 ms, and the raw response lost 11% of its bytes.
+    const fetchSpy = vi.fn(async () => jsonResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    await fetchWeather(
+      [{ latitude: 47.5, longitude: -121.9 }],
+      WINDOW.startMs,
+      WINDOW.endMs,
+      OPTS,
+    )
+    const params = new URL(String((fetchSpy.mock.calls[0] as unknown[])[0])).searchParams
+    expect(params.get('timeformat')).toBe('unixtime')
+    // Still UTC: unixtime is only true epoch seconds while the offset is zero.
+    expect(params.get('timezone')).toBe('UTC')
   })
 
   it('asks for a single hour when the window is a point sample', async () => {
@@ -681,6 +712,21 @@ describe('fetchAqi', () => {
       { nowMs: now },
     )
     expect(requested).toBe('2026-07-26T23:00')
+  })
+
+  it('asks the air-quality host for whole seconds too (#337)', async () => {
+    let params: URLSearchParams | null = null
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        params = new URL(url).searchParams
+        return jsonResponse({ hourly: { time: [], us_aqi: [] } })
+      }),
+    )
+    const now = Date.parse('2026-07-21T00:00:00Z')
+    await fetchAqi([{ latitude: 0, longitude: 0 }], now, now + 86_400_000, { nowMs: now })
+    expect(params!.get('timeformat')).toBe('unixtime')
+    expect(params!.get('timezone')).toBe('UTC')
   })
 
   it('asks only for the hours the window needs (#212)', async () => {

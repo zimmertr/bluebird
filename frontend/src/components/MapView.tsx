@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, memo, useEffect, useImperativeHandle, useRef, useState } from 'react'
 // Namespace import: maplibre-gl v6 is ESM-only and no longer has a default export
 import * as maplibregl from 'maplibre-gl'
 // v6 resolves its web worker with a runtime-computed `new URL(...)` that Vite
@@ -2327,7 +2327,15 @@ const MapView = forwardRef<MapViewHandle, Props>(
 )
 
 MapView.displayName = 'MapView'
-export default MapView
+
+// Memoized because App.tsx re-renders on any of its 50-odd pieces of state, and
+// most of them cannot change what this component draws. Measured 2026-09-14 on
+// a 946-destination analysis: toggling a map overlay, which touches neither the
+// ranking nor the rows, cost 311 to 392 ms of synchronous React work, because
+// the table and the chart both re-rendered for it. Every function prop this
+// takes is wrapped in `useCallback` at the call site or in its hook; a fresh
+// identity there puts the whole cost straight back (#337, finding 8).
+export default memo(MapView)
 
 // The raster as something an image source will take: a decoded canvas, handed
 // straight to `updateImage` with no encode, no fetch and no decode in between.

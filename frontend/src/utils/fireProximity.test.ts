@@ -87,6 +87,26 @@ describe('nearestFire', () => {
     expect(near!.miles).toBeLessThan(5.8)
   })
 
+  it('stops at a zero-mile answer', () => {
+    // Nothing in the rest of a national snapshot can beat 0 (#337, finding 5).
+    // A second feature that would throw if it were measured is what proves the
+    // loop stopped rather than merely preferring the first answer.
+    const exploding: FeatureCollection = {
+      type: 'FeatureCollection',
+      features: [
+        square.features[0],
+        {
+          type: 'Feature',
+          properties: { IncidentName: 'never measured' },
+          get geometry(): never {
+            throw new Error('nearestFire kept looking after a zero-mile answer')
+          },
+        } as unknown as FeatureCollection['features'][number],
+      ],
+    }
+    expect(nearestFire(40.05, -119.95, exploding)!.miles).toBe(0)
+  })
+
   it('returns null when there are no fires', () => {
     expect(nearestFire(40, -120, { type: 'FeatureCollection', features: [] })).toBeNull()
   })
