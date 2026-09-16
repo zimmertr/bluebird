@@ -25,7 +25,7 @@ import type { DestinationsRequest } from '../types'
  * copy states the condition and stops at the standing tail (docs/STYLES.md).
  * The product is "Bluebird Forecast" and is never shortened (#312).
  */
-export const API_UNREACHABLE_MESSAGE = 'Bluebird Forecast unreachable. Try again later.'
+export const API_UNREACHABLE_MESSAGE = 'Bluebird Forecast is offline. Try again later.'
 
 /**
  * The pod could not be reached at all, so no status was ever returned.

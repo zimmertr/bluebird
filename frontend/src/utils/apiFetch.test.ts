@@ -38,7 +38,7 @@ describe('apiFetch', () => {
     stubFetch(() => Promise.reject(new TypeError('Failed to fetch')))
     const err = await apiFetch('/api/destinations').catch((e: unknown) => e)
     expect(err).toBeInstanceOf(ApiUnreachable)
-    expect((err as Error).message).toBe('Bluebird Forecast unreachable. Try again later.')
+    expect((err as Error).message).toBe('Bluebird Forecast is offline. Try again later.')
     expect((err as Error).message).toBe(API_UNREACHABLE_MESSAGE)
   })
 
