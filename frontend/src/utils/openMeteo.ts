@@ -85,6 +85,12 @@ export const COVERAGE_MESSAGE_TAIL = `${COVERAGE_PHRASE} Switch to a different m
 // described two ways across the two paths.
 export class OpenMeteoBadBody extends Error {}
 
+// What every unreadable body says, spelled once. A unit nothing can convert
+// and a reply that answers a different number of locations than it was asked
+// about are one fault to the reader, who can act on neither, so a second
+// wording here would only describe that fault two ways (#431).
+export const BAD_BODY_MESSAGE = 'Open-Meteo request failed. Try again later.'
+
 // Any other HTTP status: reachable, failed. The server shares the same
 // upstream, so a fallback would fail identically — surface it instead.
 export class OpenMeteoHttpError extends Error {
@@ -651,7 +657,7 @@ function freezeUnit(payload: HourlyPayload): string | null {
 function freezeToFeet(v: number, unit: string | null): number {
   if (unit === 'ft') return v
   if (unit === 'm') return v / FT_TO_M
-  throw new OpenMeteoBadBody('Open-Meteo request failed. Try again later.')
+  throw new OpenMeteoBadBody(BAD_BODY_MESSAGE)
 }
 
 // Port of weather._freeze_ft_in_window: every in-window hour that HAS a
@@ -1281,9 +1287,15 @@ export async function fetchWeather(
       )
       const items = asItems(data)
       if (items.length !== chunk.length) {
-        throw new OpenMeteoUnreachable(
-          `Open-Meteo returned ${items.length} results for ${chunk.length} locations`,
+        // The counts go to the console because they are the only instrument
+        // anyone has for a fault that reproduces in the wild, and they stay
+        // off screen because a reader cannot act on them. The batch is
+        // unusable either way: the rows no longer line up with the
+        // coordinates that asked for them.
+        console.warn(
+          `[bluebird-forecast] Open-Meteo returned ${items.length} results for ${chunk.length} locations`,
         )
+        throw new OpenMeteoBadBody(BAD_BODY_MESSAGE)
       }
       perSpan.push(items)
     }
