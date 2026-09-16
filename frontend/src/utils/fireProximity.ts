@@ -4,6 +4,7 @@
 // edge, so a centroid check would badly under-warn. Everything here is pure and
 // deterministic; the fetch/lifecycle lives in hooks/useFireProximity.ts.
 import type { FeatureCollection, Feature, Geometry, MultiPolygon, Position } from 'geojson'
+import { geoKey, setKey } from './points'
 import type { BBox, WildfireProps } from './wildfires'
 
 export const FIRE_WARN_MILES = 10
@@ -23,11 +24,12 @@ export interface FireWarning {
 // fraction of a percent at the ~10 mi scale this warning cares about.
 const MI_PER_DEG_LAT = 69.0
 
-// Stable lookup key tying a result row to its warning. Coordinate-based so it
-// survives the results table's client-side re-sorting.
-export function fireKey(lat: number, lon: number): string {
-  return `${lat.toFixed(5)},${lon.toFixed(5)}`
-}
+// `geoKey` under the name the fire check reads by: the stable lookup tying a
+// result row to its warning, coordinate-based so it survives the results
+// table's client-side re-sorting. The alias stays because a call site reading
+// `fireKey` says which question it is asking; the arithmetic lives in points.ts
+// so it is answered one way (#388).
+export const fireKey = geoKey
 
 // Tooltip text, phrased to read cleanly whatever NIFC calls the incident (plain
 // names, ALL-CAPS codes, numbered dispatches, …).
@@ -51,17 +53,12 @@ export const FIRE_UNAVAILABLE_NOTE =
  * Identity of a SET of destinations, order-independent.
  *
  * useFireProximity keys its lookup on this rather than on the array holding the
- * points. The array is rebuilt on paths that re-derive it per render, and
- * keying on the reference meant re-querying NIFC — and aborting the request
- * already in flight — for a set of points that had not changed at all. Sorted
- * because a re-rank reorders the same destinations, which is not a new question
- * to ask about fires.
+ * points, for the reason `setKey` in points.ts carries: keying on the reference
+ * meant re-querying NIFC — and aborting the request already in flight — for a
+ * set of points that had not changed at all.
  */
 export function pointsKey(points: { latitude: number; longitude: number }[]): string {
-  return points
-    .map((p) => fireKey(p.latitude, p.longitude))
-    .sort()
-    .join('|')
+  return setKey(points, (p) => fireKey(p.latitude, p.longitude))
 }
 
 // Bounding box around all points, padded by `marginMi` on every side so a fire

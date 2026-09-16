@@ -1,12 +1,13 @@
 import { CustomDestination } from '../types'
 import { Place } from './geocode'
+import { geoKey } from './points'
 
-// ~1 m precision — enough to match a backend-echoed coordinate back to its
-// source row, and to treat a re-search of the same feature as an update, not
-// a duplicate.
-export function pinKey(lat: number, lon: number): string {
-  return `${lat.toFixed(5)},${lon.toFixed(5)}`
-}
+// `geoKey` under the name the custom list reads by: enough precision to match a
+// backend-echoed coordinate back to its source row, and to treat a re-search of
+// the same feature as an update rather than a duplicate. The alias stays
+// because a call site reading `pinKey` says which question it is asking; the
+// arithmetic lives in points.ts so it is answered one way (#388).
+export const pinKey = geoKey
 
 // A custom destination plus the bits only the UI needs: where it came from
 // (a CSV row is removed by editing the textarea, so it gets no × ) and the

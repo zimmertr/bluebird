@@ -30,6 +30,7 @@ import {
   fetchAqi,
   fetchWeather,
 } from './openMeteo'
+import { nullsLast } from './sortResults'
 
 // Mirror of MAX_ANALYZE_PEAKS in backend/app/models.py — keep them in sync
 // (the MAX_POLYGON_AREA_KM2 precedent). The server enforces it on
@@ -309,7 +310,7 @@ export function rankComparator(
     const bv = b[field] as number | null | undefined
     const aNull = av == null
     const bNull = bv == null
-    if (aNull || bNull) return Number(aNull) - Number(bNull)
+    if (aNull || bNull) return nullsLast(aNull, bNull)
     const ka = desc ? -av : av
     const kb = desc ? -bv : bv
     return ka < kb ? -1 : ka > kb ? 1 : 0

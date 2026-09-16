@@ -7,7 +7,7 @@
 // tests on both sides fail if either drifts. Change semantics there first,
 // regenerate the vectors, and mirror the change here.
 
-import { archiveBoundaryMs, windowSource } from './forecastWindow'
+import { HOUR_MS, archiveBoundaryMs, windowSource } from './forecastWindow'
 import { buildSnapshot, loadSnapshot, readSnapshot, saveSnapshot } from './forecastStore'
 
 export const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'
@@ -460,8 +460,6 @@ const HOURLY_VARIABLES = [
   FREEZING_LEVEL,
   ...WIND_LEVELS.map(([name]) => name),
 ] as const
-
-const HOUR_MS = 3_600_000
 
 /** One leg of a fetch: which endpoint answers, and the hours it answers for. */
 interface FetchSpan {
