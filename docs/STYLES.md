@@ -225,8 +225,9 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | No bottom offset is spelled in a component | `resultsSheet.test.ts` | Ban `bottom-*` in `App.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
 | The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure |
 | No component draws its own glyph | `styles.test.ts` | Ban a literal SVG opening tag everywhere under `components/` and in `App.tsx`, except `icons.tsx` |
+| Nor does the map popup | `styles.test.ts` | Ban the same tag in `utils/popupChrome.ts`, which builds markup rather than elements, and pin its glyph size to the `inline` step |
 | No call site sizes an icon | `styles.test.ts` | Ban a height or width utility on any `<Icon…>` element; the five `ICON` steps are pinned by measured pixels |
-| Every glyph is hidden from assistive technology | `accessibility.test.ts` | Every SVG in `icons.tsx` carries `aria-hidden` |
+| Every glyph is hidden from assistive technology | `accessibility.test.ts` | Every SVG in `icons.tsx` and `iconPaths.ts` carries `aria-hidden` |
 
 **NOT enforced:** custom spacing between components (only recessed surface and controls are architected), component-specific layouts. These are decided per feature.
 
@@ -454,6 +455,17 @@ To add one, write the component in that file, give it a step from the `ICON`
 ramp, and let it set `aria-hidden` itself. A step that does not exist yet is a
 new role: add it to `ICON` with its rationale and pin its pixels in
 `styles.test.ts`, the same way as below.
+
+**The one glyph drawn twice.** A map popup is an HTML string handed to
+MapLibre's `setHTML`, so Tailwind never sees its class names and the icon
+module cannot draw it. The link-out arrow in a popup's title row is therefore
+the same shape as the results table's, read from `frontend/src/iconPaths.ts`
+by both `icons.tsx` and `utils/popupChrome.ts` (#435). That module carries the
+geometry, the stroke, and the one size a string has to spell; `styles.test.ts`
+bans a literal SVG tag in `popupChrome.ts` and pins that size to the `inline`
+step. It sits at `src/` rather than in `components/`, beside `styles.ts` and
+`metrics.ts`, because `popupChrome.ts` is a util and no util in the app imports
+a component.
 
 ### Adding a new role
 

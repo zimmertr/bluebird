@@ -77,6 +77,7 @@ import {
   TEXT,
 } from './styles'
 import * as STYLES from './styles'
+import { EXTERNAL_LINK_PX } from './iconPaths'
 // `?raw` gives us the file's text without executing it, so this stays a pure
 // node test with no DOM, matching vitest.config.ts. (The same trick does not
 // work on index.css: vitest stubs CSS imports to an empty string.)
@@ -84,6 +85,10 @@ import controlPanelSource from './components/ControlPanel.tsx?raw'
 import modelPickerSource from './components/ModelPicker.tsx?raw'
 import appSource from './App.tsx?raw'
 import searchBoxSource from './components/SearchBox.tsx?raw'
+// Read on its own rather than joined to the component glob below: it is markup
+// for MapLibre's setHTML, so it carries hex colours and spelled sizes that the
+// per-component lints would rightly read as a call site inventing its own.
+import popupChromeSource from './utils/popupChrome.ts?raw'
 // The one stylesheet with a decision in it: the vendor's own controls have no
 // call site to hand a role to, so what they take is written there. Read off
 // the disk rather than imported — Vitest stubs a CSS import, `?raw` included,
@@ -1185,6 +1190,24 @@ describe('shared recipes', () => {
     for (const [step, recipe] of Object.entries(ICON)) {
       expect(iconPx(recipe, 'w'), `${step} must be square`).toBe(iconPx(recipe, 'h'))
     }
+  })
+
+  // The one glyph the ramp cannot reach (#435). A map popup is an HTML string
+  // handed to MapLibre's setHTML, and Tailwind generates CSS for class names it
+  // finds in source, so the popup's copy of the link-out arrow has to carry a
+  // number. This is what keeps that number the ramp's.
+  it('draws the popup glyph at the step its React twin takes', () => {
+    expect(EXTERNAL_LINK_PX).toBe(iconPx(ICON.inline, 'h'))
+  })
+
+  // And the shape itself comes from `iconPaths.ts` rather than being typed out
+  // again: `popupChrome.ts` was the one file outside the icon module still
+  // drawing a glyph of its own, which the component lint above cannot see
+  // because it reads the React tree.
+  it('leaves no glyph spelled in the map popup', () => {
+    const drawn = popupChromeSource.match(/<svg[\s>][^>]*>/g) ?? []
+    expect(drawn, 'draw it from `iconPaths.ts` instead').toEqual([])
+    expect(popupChromeSource).toContain('externalLinkMarkup()')
   })
 
   // Every floating box on the map is one surface: the search field and its
