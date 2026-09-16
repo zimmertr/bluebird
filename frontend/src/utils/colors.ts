@@ -49,9 +49,9 @@ export type ColoredFamily = MetricFamily
 // direction — ranking "highest" simply surfaces the far end of the same scale
 // first. Three of the five run green (dry/calm/clean) through red to purple,
 // because they measure something a hiker wants less of and the purple top is
-// where "less of" stops being advice (#445). Temperature and the freezing
-// level do not: each encodes the quantity rather than a verdict, and each says
-// why on its own entry.
+// where "less of" stops being advice (#445). Temperature has a bad end on
+// both sides and its green in the middle; the freezing level encodes a height
+// rather than a verdict; each says why on its own entry.
 //
 // Every scale has SIX bands, and that count is load-bearing rather than tidy:
 // the phone's results sheet rests high enough for the legend stack, and
@@ -90,28 +90,31 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
     colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444', '#a855f7'],
     legendLabels: ['≤ 5 mph', '5 – 15 mph', '15 – 25 mph', '25 – 35 mph', '35 – 50 mph', '> 50 mph'],
   },
-  // Cold to hot with NO green, because green on every other scale means "the
-  // best of this", and no temperature is that for everyone: the scale used to
-  // paint 30°F green, which called the rain-to-snow band the best condition on
-  // the map (#262, #445). Like the freezing level below, the hue encodes the
-  // quantity — purple is cold on both scales, and the warm half reuses the
-  // yellow, orange and red every other ramp ends in, so hot reads as their
-  // bad end without any temperature reading as their good one.
+  // Cold to hot, with green in the MIDDLE rather than at the cold end. The
+  // scale used to paint 30°F green, which called the rain-to-snow band the
+  // best condition on the map (#262, #445). Green still means "the best of
+  // this" here, as it does on every other scale, and TJ put it at the
+  // temperature a person on foot is comfortable at (2026-09-16): the band
+  // reaching 75°F, so 70 reads green. Both ends are then the ramp's bad ends
+  // — cold in the purple the freezing level starts on, hot in the orange and
+  // red every other ramp ends in — so a reader who learned the other scales
+  // reads this one unchanged.
   //
-  // 15°F steps centred on 55: cold at or below 25, hot past 85. Symmetric so
-  // the two light middle bands (cyan and yellow) meet at the one temperature
-  // most readers would call neither.
+  // 15°F steps: purple at or below 30, then sky and cyan up to 60, green to
+  // 75, orange to 90, red past it. No yellow: the ramp has six slots and the
+  // cold side needs three to say freezing, cold and cool apart, which is the
+  // distinction a hiker asks this column for.
   //
   // The cold half is drawn from the 300/400 shades for the reason the freezing
   // level's is: `cellStyle` paints the band as the text, and these clear 4.5:1
   // in a cell (5.24, 4.57, 6.02, measured 2026-09-16 and pinned in
-  // `colors.test.ts`). The warm half carries the shared ramp's own numbers,
-  // orange and red included, which is a pre-existing state of every scale
-  // that ends in them rather than a choice made here.
+  // `colors.test.ts`). The green and the warm half carry the shared ramp's own
+  // numbers (4.46, 3.94, 3.23), a pre-existing state of every scale that uses
+  // them rather than a choice made here.
   temp: {
-    thresholds: [25, 40, 55, 70, 85],
-    colors: ['#d8b4fe', '#38bdf8', '#67e8f9', '#eab308', '#f97316', '#ef4444'],
-    legendLabels: ['≤ 25°F', '25 – 40°F', '40 – 55°F', '55 – 70°F', '70 – 85°F', '> 85°F'],
+    thresholds: [30, 45, 60, 75, 90],
+    colors: ['#d8b4fe', '#38bdf8', '#67e8f9', '#22c55e', '#f97316', '#ef4444'],
+    legendLabels: ['≤ 30°F', '30 – 45°F', '45 – 60°F', '60 – 75°F', '75 – 90°F', '> 90°F'],
   },
   // Not green-to-red, because it is not a verdict.
   //
@@ -183,18 +186,19 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
  * The boundaries at 0.10, 0.30 and 0.50 in/hr are the National Weather
  * Service's rainfall-intensity classes (light, moderate, heavy, violent),
  * borrowed rather than invented so a reader can look up what a boundary means.
- * The colour each class earns is this app's own reading (TJ, 2026-09-16, #445):
- * the NWS's "light" band is split at 0.05 in/hr, because 0.05 in/hr sustained
- * on a trail is steady rain rather than a trace, and painting it lime — one
- * step off "nothing going on" — understated it. So yellow starts at 0.05, and
- * every NWS class above it sits one colour higher than it did, with purple
- * past 0.50 where the old scale ran out of colours.
+ * A split of the light class at 0.05 in/hr was built and reverted in #445 (TJ,
+ * 2026-09-16, deferring to the NWS); note that 0.05 reads LESS green on the
+ * NWS boundaries than it did split, because inside the 0.01–0.10 band it is
+ * already blending from lime toward yellow, where a boundary at 0.05 pinned it
+ * to pure lime. Purple past 1.00 in/hr is the app's own top (#445), because
+ * the old scale ran out of colours at 0.50 and a downpour and a cloudburst
+ * were one red.
  *
  * Shares the hues of every other scale, so green still means "nothing going on"
  * across the whole table.
  */
 const PRECIP_RATE: LabelledScale = {
-  thresholds: [0.01, 0.05, 0.10, 0.30, 0.50],
+  thresholds: [0.01, 0.10, 0.30, 0.50, 1.00],
   colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444', '#a855f7'],
   // Spelled "in/hr" rather than with an inch mark, which is what the window
   // scale above uses. The difference is the whole point of this scale existing,
@@ -202,11 +206,11 @@ const PRECIP_RATE: LabelledScale = {
   // against — so the unit has to say which reading it is on its own.
   legendLabels: [
     '≤ 0.01 in/hr',
-    '0.01 – 0.05 in/hr',
-    '0.05 – 0.10 in/hr',
+    '0.01 – 0.10 in/hr',
     '0.10 – 0.30 in/hr',
     '0.30 – 0.50 in/hr',
-    '> 0.50 in/hr',
+    '0.50 – 1.00 in/hr',
+    '> 1.00 in/hr',
   ],
 }
 
