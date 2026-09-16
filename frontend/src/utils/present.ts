@@ -14,7 +14,7 @@
 
 import { DestinationResult, SortBy } from '../types'
 import { Constraints, filterConstraints, rankComparator } from './clientAnalyze'
-import { pinKey } from './customList'
+import { geoKey } from './points'
 
 /**
  * The knobs that decide presentation rather than what gets fetched.
@@ -232,7 +232,7 @@ export function presentResults(
   removedKeys: ReadonlySet<string>,
 ): Presentation {
   const kept = (rows: readonly DestinationResult[]) =>
-    rows.filter((r) => !removedKeys.has(pinKey(r.latitude, r.longitude)))
+    rows.filter((r) => !removedKeys.has(geoKey(r.latitude, r.longitude)))
 
   if (universe === null) {
     return { rows: [], eligible: 0, excluded: 0 }

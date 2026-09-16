@@ -24,13 +24,6 @@ export interface FireWarning {
 // fraction of a percent at the ~10 mi scale this warning cares about.
 const MI_PER_DEG_LAT = 69.0
 
-// `geoKey` under the name the fire check reads by: the stable lookup tying a
-// result row to its warning, coordinate-based so it survives the results
-// table's client-side re-sorting. The alias stays because a call site reading
-// `fireKey` says which question it is asking; the arithmetic lives in points.ts
-// so it is answered one way (#388).
-export const fireKey = geoKey
-
 // Tooltip text, phrased to read cleanly whatever NIFC calls the incident (plain
 // names, ALL-CAPS codes, numbered dispatches, …).
 export function fireWarningText(w: FireWarning): string {
@@ -58,7 +51,7 @@ export const FIRE_UNAVAILABLE_NOTE =
  * set of points that had not changed at all.
  */
 export function pointsKey(points: { latitude: number; longitude: number }[]): string {
-  return setKey(points, (p) => fireKey(p.latitude, p.longitude))
+  return setKey(points, (p) => geoKey(p.latitude, p.longitude))
 }
 
 // Bounding box around all points, padded by `marginMi` on every side so a fire
@@ -207,7 +200,7 @@ export function fireLoadingFrame(tick: number): string {
 }
 
 /**
- * The destinations the fire dataset cannot see, keyed by `fireKey` (#256).
+ * The destinations the fire dataset cannot see, keyed by `geoKey` (#256).
  *
  * `coverage` is the server-published WFIGS outline (a coarse US shape, split
  * at the antimeridian so the plain ray cast above needs no wraparound case).
@@ -225,7 +218,7 @@ export function uncoveredKeys(
   if (!coverage) return out
   for (const p of points) {
     if (!coverage.coordinates.some((polygon) => pointInRing(p.longitude, p.latitude, polygon[0]))) {
-      out.add(fireKey(p.latitude, p.longitude))
+      out.add(geoKey(p.latitude, p.longitude))
     }
   }
   return out

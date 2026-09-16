@@ -35,7 +35,6 @@ import {
 } from './utils/modelCompare'
 import { modelRows, pruneHidden, shownModels, toggleHidden } from './utils/modelVisibility'
 import { useFireProximity } from './hooks/useFireProximity'
-import { fireKey } from './utils/fireProximity'
 import { useForecastGrid } from './hooks/useForecastGrid'
 import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
@@ -137,7 +136,8 @@ import {
   refreshEchoRows,
 } from './utils/clientAnalyze'
 import { parseCustomCsv } from './utils/customDestinations'
-import { buildCustomList, pendingDestinations, pinKey } from './utils/customList'
+import { buildCustomList, pendingDestinations } from './utils/customList'
+import { geoKey } from './utils/points'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
 import {
   dockedMapFloorPx,
@@ -901,7 +901,7 @@ export default function App() {
     // Re-naming a previously ×-removed spot is an explicit re-request — drop
     // the stale removal so the place isn't filtered out of its next report.
     setRemoved((prev) => {
-      const key = pinKey(place.lat, place.lon)
+      const key = geoKey(place.lat, place.lon)
       if (!prev.has(key)) return prev
       const next = new Map(prev)
       next.delete(key)
@@ -1282,7 +1282,7 @@ export default function App() {
     // place (which must compete against the full candidate field) falls
     // through to a fresh discovery.
     const base = discoveryBase(resolvedPolygon, csvRows)
-    const searchedKeys = searched.places.map((p) => pinKey(p.lat, p.lon))
+    const searchedKeys = searched.places.map((p) => geoKey(p.lat, p.lon))
     const prev = discoveryRef.current
     const isRefresh =
       resolvedPolygon !== null &&
@@ -1387,7 +1387,7 @@ export default function App() {
     const rows = universe ?? response?.results
     if (!rows) return
     for (const r of rows) {
-      if (r.osm_id) identityMapRef.current.set(pinKey(r.latitude, r.longitude), { type: r.type, osm_id: r.osm_id })
+      if (r.osm_id) identityMapRef.current.set(geoKey(r.latitude, r.longitude), { type: r.type, osm_id: r.osm_id })
     }
   }, [response, universe])
 
@@ -1396,7 +1396,7 @@ export default function App() {
   // link where the feature belongs.
   useEffect(() => {
     for (const p of searched.places) {
-      identityMapRef.current.set(pinKey(p.lat, p.lon), {
+      identityMapRef.current.set(geoKey(p.lat, p.lon), {
         // The geocoder's own word for the thing, so the table's Type column
         // says what a place actually is — a searched city reads "City" rather
         // than "Custom", which is a statement about how it got here rather
@@ -1426,7 +1426,7 @@ export default function App() {
     () =>
       presented.rows.map((r) => {
         if (r.osm_id) return r
-        const id = identityMapRef.current.get(pinKey(r.latitude, r.longitude))
+        const id = identityMapRef.current.get(geoKey(r.latitude, r.longitude))
         return id ? { ...r, type: id.type, osm_id: id.osm_id } : r
       }),
     [presented],
@@ -1450,9 +1450,9 @@ export default function App() {
       return
     }
     const prevKeys = new Set(
-      (lastAnalyzedResultsRef.current ?? []).map((r) => pinKey(r.latitude, r.longitude)),
+      (lastAnalyzedResultsRef.current ?? []).map((r) => geoKey(r.latitude, r.longitude)),
     )
-    const currKeys = new Set(results.map((r) => pinKey(r.latitude, r.longitude)))
+    const currKeys = new Set(results.map((r) => geoKey(r.latitude, r.longitude)))
     const leaving = new Set<string>()
     for (const key of prevKeys) {
       if (!currKeys.has(key)) leaving.add(key)
@@ -1555,11 +1555,11 @@ export default function App() {
   // pure unhide or must re-register a place (see restorePlace).
   const heldKeys = useMemo(
     () =>
-      new Set((universe ?? response?.results ?? []).map((r) => pinKey(r.latitude, r.longitude))),
+      new Set((universe ?? response?.results ?? []).map((r) => geoKey(r.latitude, r.longitude))),
     [universe, response],
   )
   const csvKeys = useMemo(
-    () => new Set(csvRows.map((r) => pinKey(r.latitude, r.longitude))),
+    () => new Set(csvRows.map((r) => geoKey(r.latitude, r.longitude))),
     [csvRows],
   )
 
@@ -1980,9 +1980,9 @@ export default function App() {
   // moment it appears — and since colors stick to the coordinate key, the hue
   // it wears before the analysis is the hue its line draws in after.
   const chartCandidates = useMemo(() => {
-    const have = new Set(results.map((r) => pinKey(r.latitude, r.longitude)))
+    const have = new Set(results.map((r) => geoKey(r.latitude, r.longitude)))
     const extras = pending
-      .filter((d) => !have.has(pinKey(d.latitude, d.longitude)))
+      .filter((d) => !have.has(geoKey(d.latitude, d.longitude)))
       .map(
         (d) =>
           ({
@@ -2211,7 +2211,7 @@ export default function App() {
   const tableRows = useMemo(() => {
     const value = (r: DestinationResult) =>
       detailSort.key === WILDFIRE_KEY
-        ? (fire.warnings.get(fireKey(r.latitude, r.longitude))?.miles ?? null)
+        ? (fire.warnings.get(geoKey(r.latitude, r.longitude))?.miles ?? null)
         : detailSort.key === MODEL_KEY
           ? ((r as ModelRow).modelLabel ?? null)
           : r[detailSort.key]

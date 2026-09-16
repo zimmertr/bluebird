@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { FeatureCollection, MultiPolygon } from 'geojson'
 import {
-  fireKey,
   uncoveredKeys,
   fireCellText,
   fireLoadingFrame,
@@ -14,6 +13,7 @@ import {
   nearestFire,
   FIRE_WARN_MILES,
 } from './fireProximity'
+import { geoKey } from './points'
 
 // A ~0.1° square fire near (40, -120): west edge -120.0, east edge -119.9.
 const square: FeatureCollection = {
@@ -38,9 +38,9 @@ const square: FeatureCollection = {
   ],
 }
 
-describe('fireKey', () => {
+describe('geoKey', () => {
   it('is a stable 5-decimal coordinate key', () => {
-    expect(fireKey(46.85289, -121.76042)).toBe('46.85289,-121.76042')
+    expect(geoKey(46.85289, -121.76042)).toBe('46.85289,-121.76042')
   })
 })
 
@@ -267,14 +267,14 @@ describe('uncoveredKeys', () => {
     // The Alps and the Canadian Rockies: the two live-verified false-safe
     // areas from the issue.
     const keys = uncoveredKeys([point(46.02, 7.75), point(53.1, -119.2)], coverage)
-    expect(keys.has(fireKey(46.02, 7.75))).toBe(true)
-    expect(keys.has(fireKey(53.1, -119.2))).toBe(true)
+    expect(keys.has(geoKey(46.02, 7.75))).toBe(true)
+    expect(keys.has(geoKey(53.1, -119.2))).toBe(true)
   })
 
   it('names only the outside points of a field straddling the boundary', () => {
     const keys = uncoveredKeys([point(48.9, -122.2), point(49.5, -122.2)], coverage)
-    expect(keys.has(fireKey(49.5, -122.2))).toBe(true)
-    expect(keys.has(fireKey(48.9, -122.2))).toBe(false)
+    expect(keys.has(geoKey(49.5, -122.2))).toBe(true)
+    expect(keys.has(geoKey(48.9, -122.2))).toBe(false)
   })
 
   it('finds a point in a polygon on the far side of the antimeridian', () => {

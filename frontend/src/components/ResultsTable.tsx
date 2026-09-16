@@ -28,7 +28,6 @@ import {
   FIRE_UNCOVERED_NOTE,
   FireWarning,
   fireCellText,
-  fireKey,
   fireLoadingFrame,
   fireWarningText,
 } from '../utils/fireProximity'
@@ -39,7 +38,7 @@ import { extremeHourMs, windyUrl } from '../utils/windy'
 import { FIRE_LINK_ZOOM, nifcFireUrl } from '../utils/wildfires'
 import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
-import { pinKey } from '../utils/customList'
+import { geoKey } from '../utils/points'
 import {
   ACCENT,
   CHOICE_INPUT,
@@ -510,8 +509,8 @@ function ResultsTable({
       // idiom, see ForecastCalendar); `aria-label` is the same sentence for
       // a screen reader.
       if (col.key === WILDFIRE_KEY) {
-        const warning = fireWarnings.get(fireKey(row.latitude, row.longitude))
-        const uncovered = fireUncovered.has(fireKey(row.latitude, row.longitude))
+        const warning = fireWarnings.get(geoKey(row.latitude, row.longitude))
+        const uncovered = fireUncovered.has(geoKey(row.latitude, row.longitude))
         const note =
           fireStatus === 'unavailable'
             ? FIRE_UNAVAILABLE_NOTE
@@ -831,7 +830,7 @@ function ResultsTable({
             </tr>
           ))}
           {results.map((row, i) => {
-            const isLeaving = leavingRowKeys.has(pinKey(row.latitude, row.longitude))
+            const isLeaving = leavingRowKeys.has(geoKey(row.latitude, row.longitude))
             return (
             <tr
               key={`${row.name}-${i}`}

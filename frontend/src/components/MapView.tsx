@@ -22,7 +22,8 @@ import { resultsFeatureCollection } from '../utils/resultFeatures'
 import { resultPopupHtml } from '../utils/resultPopup'
 import { ColDef } from '../utils/tableColumns'
 import type { ModelRow } from '../utils/modelCompare'
-import { FireWarning, fireKey } from '../utils/fireProximity'
+import { FireWarning } from '../utils/fireProximity'
+import { geoKey } from '../utils/points'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import { pointsWithinView } from '../utils/mapFraming'
 import type { PendingDestination } from '../utils/customList'
@@ -121,7 +122,7 @@ interface Props {
   popupColumns: readonly ColDef[]
   // The model name a row falls back to while one model answered every row.
   modelFallbackLabel: string | null
-  // Fire-proximity warnings keyed by fireKey(lat,lon), mirroring the results
+  // Fire-proximity warnings keyed by geoKey(lat,lon), mirroring the results
   // table — a clicked point's popup surfaces the same ⚠️ when one applies.
   fireWarnings: Map<string, FireWarning>
   showWildfires: boolean
@@ -1007,7 +1008,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
               rank: results.indexOf(result) + 1,
               row: result,
               columns: popupColumns,
-              warning: fireWarnings.get(fireKey(result.latitude, result.longitude)) ?? null,
+              warning: fireWarnings.get(geoKey(result.latitude, result.longitude)) ?? null,
               // A per-model row names its own model; a single-model report has
               // one for every row. Same rule as the table's cells.
               modelId: (result as ModelRow).modelId ?? modelId,
@@ -1677,7 +1678,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           if (!f?.properties) return
           const p = f.properties
           // Anchor the popup at the rendered geometry, but take the exact
-          // coordinates from properties for the readout and the fireKey lookup —
+          // coordinates from properties for the readout and the geoKey lookup —
           // a clicked feature's geometry is snapped to the tile grid, so it won't
           // reliably match the warning map keyed on exact coordinates.
           const anchor = (f.geometry as Point).coordinates as [number, number]
@@ -1717,7 +1718,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
                 // number nobody fetched.
                 row: row ?? featureRow(p, lat, lon),
                 columns: live.popupColumns,
-                warning: fireWarningsRef.current.get(fireKey(lat, lon)) ?? null,
+                warning: fireWarningsRef.current.get(geoKey(lat, lon)) ?? null,
                 modelId: row ? ((row as ModelRow).modelId ?? live.modelId) : live.modelId,
                 times: row?.series_times ?? live.times,
                 modelFallbackLabel: live.modelFallbackLabel,

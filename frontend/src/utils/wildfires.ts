@@ -103,7 +103,7 @@ export interface WildfireProps {
  * feature id is not stable across tile boundaries — a fire spanning two tiles
  * would otherwise read as two fires and the popup would jump mid-approach.
  *
- * Named apart from `fireKey` in fireProximity.ts, which keys a *destination* by
+ * Named apart from `geoKey` in points.ts, which keys a *destination* by
  * coordinate. Two different questions, and one name for both invites using
  * whichever is imported.
  */

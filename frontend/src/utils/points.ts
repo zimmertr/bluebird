@@ -3,10 +3,10 @@
 //
 // Two modules spelled the first byte for byte and two spelled the second
 // (issue #388). A third, `chartData.ts`'s `chartKey`, is the same idea without
-// the rounding and deliberately stays that way; the reason is below. Each
-// module keeps exporting its own name for the question it asks — a map pin, a
-// fire warning and a chart line are different readers — aliased onto the
-// arithmetic here rather than spelling it again.
+// the rounding and deliberately stays that way; the reason is below. Every
+// other caller spells `geoKey`: a map pin, a fire warning and a removal all ask
+// the same question of the same two numbers, so a second name for it would only
+// suggest they do not.
 
 /**
  * One destination's identity, as a string key.

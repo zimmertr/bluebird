@@ -22,7 +22,7 @@ import {
 } from '../types'
 import { familyOf } from '../metrics'
 import { postDestinations } from './apiFetch'
-import { pinKey } from './customList'
+import { geoKey } from './points'
 import {
   AqiResult,
   Coordinate,
@@ -469,11 +469,11 @@ export async function runClientAnalysis(
   // coordinate resolved against OSM), and the forecast is the expensive half,
   // not the name.
   const heldRows = new Map<string, DestinationResult>()
-  for (const r of reuse?.rows ?? []) heldRows.set(pinKey(r.latitude, r.longitude), r)
+  for (const r of reuse?.rows ?? []) heldRows.set(geoKey(r.latitude, r.longitude), r)
   const reused: DestinationResult[] = []
   const unforecast: DiscoveredDestination[] = []
   for (const d of candidates) {
-    const hit = heldRows.get(pinKey(d.latitude, d.longitude))
+    const hit = heldRows.get(geoKey(d.latitude, d.longitude))
     if (hit) {
       reused.push({
         ...hit,
@@ -629,7 +629,7 @@ export function refreshEchoRows(
   removedKeys: ReadonlySet<string>,
 ): CustomDestination[] {
   return (universe ?? displayed)
-    .filter((r) => !removedKeys.has(pinKey(r.latitude, r.longitude)))
+    .filter((r) => !removedKeys.has(geoKey(r.latitude, r.longitude)))
     .map((r) => ({
       name: r.name,
       latitude: r.latitude,

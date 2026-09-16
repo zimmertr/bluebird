@@ -70,7 +70,7 @@ export function bearingAt(row: DestinationResult, hourIndex: number): { bearing?
 // purpose: the geometry positions the marker, but geometry read back from a
 // *clicked* feature is snapped to the vector-tile grid (tens of metres when
 // zoomed out), so it can't be trusted for the coordinate readout or — the bug
-// this guards — the fireKey lookup that matches a marker to its fire warning.
+// this guards — the geoKey lookup that matches a marker to its fire warning.
 // The popup therefore reads lat/lon from properties, which pass through intact.
 export function resultsFeatureCollection(
   results: DestinationResult[],
@@ -96,7 +96,7 @@ export function resultsFeatureCollection(
         // built on a marker click, matching the table's name-cell link.
         type: r.type,
         ...(r.osm_id != null ? { osm_id: r.osm_id } : {}),
-        // Exact coordinates for the readout and the fireKey warning lookup —
+        // Exact coordinates for the readout and the geoKey warning lookup —
         // see the note above on why geometry can't be used for those.
         lat: r.latitude,
         lon: r.longitude,

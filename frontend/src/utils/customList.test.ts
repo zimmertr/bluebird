@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { buildCustomList, pendingDestinations, pinKey } from './customList'
+import { buildCustomList, pendingDestinations } from './customList'
+import { geoKey } from './points'
 import { CustomDestination, DestinationResult } from '../types'
 import { Place } from './geocode'
 import { NO_CONSTRAINTS } from './clientAnalyze'
@@ -56,9 +57,9 @@ function result(overrides: Partial<DestinationResult> = {}): DestinationResult {
   }
 }
 
-describe('pinKey', () => {
+describe('geoKey', () => {
   it('rounds to 5 decimals (~1 m) so near-identical coords collide', () => {
-    expect(pinKey(46.852891, -121.760408)).toBe(pinKey(46.85289, -121.76041))
+    expect(geoKey(46.852891, -121.760408)).toBe(geoKey(46.85289, -121.76041))
   })
 })
 
@@ -99,7 +100,7 @@ describe('buildCustomList', () => {
 // The analysis snapshot's covered set: what `useAnalyze` records off the
 // request's custom_destinations.
 function covered(...points: { latitude: number; longitude: number }[]): ReadonlySet<string> {
-  return new Set(points.map((p) => pinKey(p.latitude, p.longitude)))
+  return new Set(points.map((p) => geoKey(p.latitude, p.longitude)))
 }
 
 describe('pendingDestinations', () => {
@@ -162,12 +163,12 @@ describe('pendingDestinations', () => {
   // in the textarea — so without the removed set it would reappear as a pending
   // dot the instant it left the report.
   it('keeps an ×-removed CSV row gone even though its line is still pasted', () => {
-    const removed = new Set([pinKey(46.8529, -121.7604)])
+    const removed = new Set([geoKey(46.8529, -121.7604)])
     const out = pendingDestinations(csv, [], none, removed)
     expect(out.map((d) => d.name)).toEqual(['Mount Adams'])
   })
 
-  it('matches the covered set and removals at pinKey precision, not exact equality', () => {
+  it('matches the covered set and removals at geoKey precision, not exact equality', () => {
     const nudged = covered({ latitude: 46.852903, longitude: -121.760397 })
     expect(pendingDestinations(csv, [], nudged, none).map((d) => d.name)).toEqual(['Mount Adams'])
   })

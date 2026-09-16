@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Place } from '../utils/geocode'
-import { pinKey } from '../utils/customList'
+import { geoKey } from '../utils/points'
 
 // Places searched by name — one of the three destination inputs. Searching
 // registers the place (and it persists in the URL); its forecast arrives with
@@ -11,17 +11,17 @@ export function useSearchedPlaces() {
 
   // Add a place, or refresh its details when the same feature is re-searched.
   function addPlace(place: Place) {
-    const key = pinKey(place.lat, place.lon)
+    const key = geoKey(place.lat, place.lon)
     setPlaces((prev) =>
-      prev.some((p) => pinKey(p.lat, p.lon) === key)
-        ? prev.map((p) => (pinKey(p.lat, p.lon) === key ? place : p))
+      prev.some((p) => geoKey(p.lat, p.lon) === key)
+        ? prev.map((p) => (geoKey(p.lat, p.lon) === key ? place : p))
         : [...prev, place],
     )
   }
 
   function removePlace(latitude: number, longitude: number) {
-    const key = pinKey(latitude, longitude)
-    setPlaces((prev) => prev.filter((p) => pinKey(p.lat, p.lon) !== key))
+    const key = geoKey(latitude, longitude)
+    setPlaces((prev) => prev.filter((p) => geoKey(p.lat, p.lon) !== key))
   }
 
   // Seed places restored from the URL at load.

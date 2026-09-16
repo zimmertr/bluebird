@@ -2,13 +2,6 @@ import { CustomDestination } from '../types'
 import { Place } from './geocode'
 import { geoKey } from './points'
 
-// `geoKey` under the name the custom list reads by: enough precision to match a
-// backend-echoed coordinate back to its source row, and to treat a re-search of
-// the same feature as an update rather than a duplicate. The alias stays
-// because a call site reading `pinKey` says which question it is asking; the
-// arithmetic lives in points.ts so it is answered one way (#388).
-export const pinKey = geoKey
-
 // A custom destination plus the bits only the UI needs: where it came from
 // (a CSV row is removed by editing the textarea, so it gets no × ) and the
 // geocoded identity a searched place carries.
@@ -22,9 +15,9 @@ export interface PendingDestination extends CustomDestination {
 // coordinate. A searched place wins a collision — it carries identity (kind,
 // OSM id) and often an elevation the CSV line lacks.
 function mergeCustom(csvRows: CustomDestination[], places: Place[]): PendingDestination[] {
-  const placeKeys = new Set(places.map((p) => pinKey(p.lat, p.lon)))
+  const placeKeys = new Set(places.map((p) => geoKey(p.lat, p.lon)))
   const fromCsv: PendingDestination[] = csvRows
-    .filter((r) => !placeKeys.has(pinKey(r.latitude, r.longitude)))
+    .filter((r) => !placeKeys.has(geoKey(r.latitude, r.longitude)))
     .map((r) => ({ ...r, source: 'csv' }))
   const fromPlaces: PendingDestination[] = places.map((p) => ({
     name: p.label,
@@ -74,7 +67,7 @@ export function pendingDestinations(
   removed: ReadonlySet<string>,
 ): PendingDestination[] {
   return mergeCustom(csvRows, places).filter((d) => {
-    const key = pinKey(d.latitude, d.longitude)
+    const key = geoKey(d.latitude, d.longitude)
     // `removed` carries the weight for CSV rows: × on a searched place also
     // deregisters it, but a CSV row's text stays in the textarea, so without
     // this it would reappear as a dot the moment it left the report. It is the

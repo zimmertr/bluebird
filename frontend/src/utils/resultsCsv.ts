@@ -16,7 +16,8 @@ import { DestinationResult } from '../types'
 import { ColDef, MODEL_KEY, WILDFIRE_COL, WILDFIRE_KEY } from './tableColumns'
 import type { ModelRow } from './modelCompare'
 import { DATA_SOURCES } from './dataSources'
-import { FireWarning, fireKey } from './fireProximity'
+import { FireWarning } from './fireProximity'
+import { geoKey } from './points'
 
 /**
  * The leading position column, named rather than numbered.
@@ -116,7 +117,7 @@ function fireCell(
   warnings: ReadonlyMap<string, FireWarning>,
   uncovered: ReadonlySet<string>,
 ): string {
-  const key = fireKey(row.latitude, row.longitude)
+  const key = geoKey(row.latitude, row.longitude)
   if (uncovered.has(key)) return 'N/A'
   const warning = warnings.get(key)
   return warning ? warning.miles.toFixed(1) : ''
