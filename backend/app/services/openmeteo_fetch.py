@@ -302,7 +302,9 @@ async def request_openmeteo(
     the provider failed. Two failures are raised under BOTH policies, because
     neither is this request's to absorb: a refused key (the caller's credential,
     and the same one rides every batch) and a 429 (the caller decides whether to
-    resume or to stop spending).
+    resume or to stop spending). A caller with a third — weather reads the 400
+    that means its model misses the batch — passes `on_status_error` and raises
+    its own.
 
     `service` is the telemetry label, `provider` the name a user-facing message
     carries — they differ, and both are the caller's to choose. The client is
