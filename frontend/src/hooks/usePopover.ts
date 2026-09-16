@@ -74,18 +74,22 @@ export function usePopover({
     (desiredHeight = Infinity) => {
       const trigger = triggerRef.current
       if (!trigger) return
-      setBox(
-        popoverBox(
-          trigger.getBoundingClientRect(),
-          { width: window.innerWidth, height: window.innerHeight },
-          {
-            preferredWidth,
-            gap: GAP_PX,
-            margin: VIEWPORT_MARGIN_PX,
-            desiredHeight,
-          },
-        ),
+      const next = popoverBox(
+        trigger.getBoundingClientRect(),
+        { width: window.innerWidth, height: window.innerHeight },
+        {
+          preferredWidth,
+          gap: GAP_PX,
+          margin: VIEWPORT_MARGIN_PX,
+          desiredHeight,
+        },
       )
+      // A box that says the same thing is the same box. Without this, every
+      // scroll event anywhere on the page re-rendered an open panel to the
+      // coordinates it was already at — and a scroll that does not move the
+      // trigger is most of them, since the listener has to be in the capture
+      // phase to hear a sidebar's own.
+      setBox((prev) => (prev && sameBox(prev, next) ? prev : next))
     },
     [triggerRef, preferredWidth],
   )
@@ -171,4 +175,14 @@ export function usePopover({
 
 function sameSignals(a: readonly unknown[], b: readonly unknown[]): boolean {
   return a.length === b.length && a.every((value, i) => Object.is(value, b[i]))
+}
+
+function sameBox(a: PopoverBox, b: PopoverBox): boolean {
+  if (a.left !== b.left || a.width !== b.width || a.maxHeight !== b.maxHeight) return false
+  if (a.placement !== b.placement) return false
+  // One key, never both, and which one it is depends on the placement — so the
+  // two are compared through the key each actually carries.
+  return 'top' in a.offset
+    ? 'top' in b.offset && a.offset.top === b.offset.top
+    : 'bottom' in b.offset && a.offset.bottom === b.offset.bottom
 }
