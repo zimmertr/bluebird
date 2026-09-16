@@ -885,21 +885,25 @@ export default function App() {
   // the place (map dot + URL persistence); its forecast joins the next Analyze,
   // where the list folds into the ranked request alongside the CSV.
   const searched = useSearchedPlaces()
+  // The callbacks are taken by name because they are stable and the object
+  // holding them is not, so a dependency list may hold one of these where
+  // `searched` would change it on every render. `restore` is renamed on the way
+  // out to stay clear of `restorePlace`, which undoes a row removal (#241).
+  const { addPlace, removePlace, restore: restoreSearched } = searched
 
   // Repopulate searched places restored from the URL, once at mount. They show
   // as pending dots until the user runs an Analyze — nothing fetches on load.
+  // Both dependencies hold for the life of the component — `restored` is a
+  // ref's value and the hook's callbacks are stable — so this runs once.
   useEffect(() => {
-    if (restored?.pins?.length) searched.restore(restored.pins)
-    // Kept: `searched` is a fresh object every render, so a complete list would
-    // re-seed the pins over whatever the reader has added since.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    if (restored?.pins?.length) restoreSearched(restored.pins)
+  }, [restored, restoreSearched])
 
   // Registering a destination the user named, however they named it: by
   // searching, or by clicking a labeled peak or lake on the basemap (#119).
   // Both land in the same list, so both go through here.
   const registerPlace = useCallback((place: Place) => {
-    searched.addPlace(place)
+    addPlace(place)
     // Re-naming a previously ×-removed spot is an explicit re-request — drop
     // the stale removal so the place isn't filtered out of its next report.
     setRemoved((prev) => {
@@ -909,11 +913,7 @@ export default function App() {
       next.delete(key)
       return next
     })
-    // Kept: the only value read is `searched.addPlace`, and `useSearchedPlaces`
-    // rebuilds it every render, so listing it would hand a new `registerPlace`
-    // to the memoized map on every keystroke.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [addPlace])
 
   function handleSearchSelect(place: Place) {
     mapRef.current?.flyToPlace(place)
@@ -929,12 +929,10 @@ export default function App() {
     },
     [registerPlace],
   )
-  const handleRemovePoi = useCallback((latitude: number, longitude: number) => {
-    searched.removePlace(latitude, longitude)
-    // Kept for the reason `registerPlace` above keeps its own: `searched` is
-    // rebuilt every render, and this handler is a prop of the memoized map.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const handleRemovePoi = useCallback(
+    (latitude: number, longitude: number) => removePlace(latitude, longitude),
+    [removePlace],
+  )
 
   // Naming a destination — by search or by pasting CSV — opens the results
   // panel immediately: it appears as an un-forecasted row, so there's feedback
@@ -1540,9 +1538,8 @@ export default function App() {
     [],
   )
   const handleRemovePending = useCallback(
-    (d: { latitude: number; longitude: number }) =>
-      searched.removePlace(d.latitude, d.longitude),
-    [searched],
+    (d: { latitude: number; longitude: number }) => removePlace(d.latitude, d.longitude),
+    [removePlace],
   )
   const handleFocusResult = useCallback(
     (row: DestinationResult) => mapRef.current?.focusResult(row),
@@ -1556,9 +1553,9 @@ export default function App() {
   const handleRemoveResult = useCallback(
     (row: DestinationResult) => {
       setRemoved((prev) => recordRemoval(prev, row, searched.places, destinationScope))
-      searched.removePlace(row.latitude, row.longitude)
+      removePlace(row.latitude, row.longitude)
     },
-    [searched, destinationScope],
+    [destinationScope, removePlace, searched.places],
   )
 
   // What the browser still holds a forecast row for — the field on the client
@@ -1586,13 +1583,13 @@ export default function App() {
       next.delete(key)
       return next
     })
-    if (place) searched.addPlace(place)
+    if (place) addPlace(place)
   }
 
   function handleRestoreAllRemoved() {
     for (const entry of removed.values()) {
       const place = restorePlace(entry, heldKeys, csvKeys)
-      if (place) searched.addPlace(place)
+      if (place) addPlace(place)
     }
     setRemoved(new Map())
   }
