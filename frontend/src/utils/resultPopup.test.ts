@@ -144,11 +144,11 @@ describe('resultPopupHtml mirrors the table', () => {
     const html = resultPopupHtml({ ...base })
     expect(html).toContain(`<span style="${LABEL_COLOR}">${NOUN.precip}</span>`)
     expect(html).toContain('0.123 in<')
-    expect(html).toContain('0.0041 in/hr<')
+    expect(html).toContain('0.004 in/hr<')
   })
 
   // A values line may break between pairs and nowhere else. Unprotected, the
-  // precipitation line broke between "0.0000" and "in/hr" and left a bare unit
+  // precipitation line broke between "0.000" and "in/hr" and left a bare unit
   // on the next line, which is the failure that split the old shared
   // wind-and-temperature row.
   it('never breaks a line inside one measurement', () => {

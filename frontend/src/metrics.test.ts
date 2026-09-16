@@ -11,11 +11,15 @@ import {
   UNIT,
   aggregateToken,
   familyOf,
+  formatPrecipRate,
+  formatPrecipTotal,
   metricLabel,
   rankedNoun,
   windDatum,
   windowAggregate,
 } from './metrics'
+import { COLUMNS } from './utils/tableColumns'
+import { formatMetricValue } from './utils/chartData'
 import { SortBy } from './types'
 // `?raw` gives us each file's text without executing it, so the drift guard
 // below stays a pure node test with no DOM — the same trick styles.test.ts
@@ -255,6 +259,78 @@ describe('metricLabel', () => {
   })
 })
 
+// #395: one rainfall figure, one string, on every surface that prints it.
+//
+// The chart's tooltip spelled three digits and the table's rate cells spelled
+// four, so a reader hovering an hour and reading the cell beside it got the
+// same quantity at two lengths. Neither count was pinned, so neither was a
+// decision. Three now is (TJ, 2026-09-15).
+describe('precipitation formatting', () => {
+  // The value the change is measured by: four digits made it 0.0125, three
+  // make it 0.013.
+  const RATE = 0.0125
+  const rateCol = COLUMNS.find((c) => c.key === 'precip_avg_in_hr')!
+  const totalCol = COLUMNS.find((c) => c.key === 'precip_total_in')!
+
+  it('gives the table, the file and the chart one string for one value', () => {
+    const onScreen = rateCol.format!(RATE)
+    // What the export writes, derived the way resultsCsv.ts derives it: the
+    // csv projection where a column has one, the display formatter otherwise.
+    const inTheFile = (rateCol.csv ?? rateCol.format!)(RATE)
+    const inTheTooltip = formatMetricValue(RATE, 'precip')
+
+    expect(onScreen).toBe('0.013')
+    expect(inTheFile).toBe(onScreen)
+    expect(inTheTooltip).toBe(onScreen)
+  })
+
+  // The total and the rate are two quantities, and the digit count is the one
+  // thing they share. A column of totals and a column of rates read side by
+  // side, so a difference here is the same defect at one remove.
+  it('prints a window total to the same digits as an hourly rate', () => {
+    expect(totalCol.format!(RATE)).toBe(formatPrecipRate(RATE))
+    expect(formatPrecipTotal(RATE)).toBe(formatPrecipRate(RATE))
+  })
+
+  // JS toFixed, not the round-half-even the aggregation uses: this rounds a
+  // number the backend already rounded, and the two are separate matters.
+  it('rounds a half up, the way toFixed does', () => {
+    expect(formatPrecipRate(0.0005)).toBe('0.001')
+  })
+
+  // A zero is a reading rather than a gap, and it is the commonest value in
+  // the minimum column: it has to carry its digits like any other.
+  it('pads a zero out to the full width', () => {
+    expect(formatPrecipRate(0)).toBe('0.000')
+    expect(formatPrecipTotal(0)).toBe('0.000')
+  })
+})
+
+// Every surface that composes something out of this module, at module scope
+// because two guards below read the same list: the one that lints the names,
+// and the one that lints the precipitation precision (#395).
+const CONSUMERS: [string, string][] = [
+  ['App.tsx', appSource],
+  ['ControlPanel.tsx', controlPanelSource],
+  ['ResultsTable.tsx', resultsTableSource],
+  ['TimeSeriesChart.tsx', timeSeriesChartSource],
+  ['TimelineTransport.tsx', timelineTransportSource],
+  ['chartData.ts', chartDataSource],
+  ['colors.ts', colorsSource],
+  ['resultPopup.ts', resultPopupSource],
+  // The popup's derivation, which composes a group's heading from the
+  // vocabulary the way the columns compose a header (#370).
+  ['popupRows.ts', popupRowsSource],
+  // The seventh surface: a downloaded file is read in a spreadsheet, where
+  // nothing around it says which app wrote the header.
+  ['resultsCsv.ts', resultsCsvSource],
+  ['tableColumns.ts', tableColumnsSource],
+  // The one file that writes a whole SENTENCE about a metric (#295), which
+  // is the same duty: it composes the noun from the vocabulary rather than
+  // spelling it, so a renamed metric renames its own note.
+  ['freezingLevel.ts', freezingLevelSource],
+]
+
 // The point of the module: a surface must compose its names from here rather
 // than writing its own. Nothing in the type system enforces that — a string
 // literal in JSX type-checks fine — so the guard reads the sources as text.
@@ -263,28 +339,6 @@ describe('metricLabel', () => {
 // (`precip_total_in`, `tempAvgF`, `Math.min`) are lowercase or camel, and the
 // abbreviations only ever appeared in display copy with a leading capital.
 describe('no surface writes its own metric name', () => {
-  const CONSUMERS: [string, string][] = [
-    ['App.tsx', appSource],
-    ['ControlPanel.tsx', controlPanelSource],
-    ['ResultsTable.tsx', resultsTableSource],
-    ['TimeSeriesChart.tsx', timeSeriesChartSource],
-    ['TimelineTransport.tsx', timelineTransportSource],
-    ['chartData.ts', chartDataSource],
-    ['colors.ts', colorsSource],
-    ['resultPopup.ts', resultPopupSource],
-    // The popup's derivation, which composes a group's heading from the
-    // vocabulary the way the columns compose a header (#370).
-    ['popupRows.ts', popupRowsSource],
-    // The seventh surface: a downloaded file is read in a spreadsheet, where
-    // nothing around it says which app wrote the header.
-    ['resultsCsv.ts', resultsCsvSource],
-    ['tableColumns.ts', tableColumnsSource],
-    // The one file that writes a whole SENTENCE about a metric (#295), which
-    // is the same duty: it composes the noun from the vocabulary rather than
-    // spelling it, so a renamed metric renames its own note.
-    ['freezingLevel.ts', freezingLevelSource],
-  ]
-
   // metrics.ts itself is absent on purpose: its doc comments quote these
   // abbreviations to explain what went wrong, which is the one place naming
   // them is the point.
@@ -315,6 +369,36 @@ describe('no surface writes its own metric name', () => {
       })
     }
   }
+})
+
+// The same duty as the naming guard above, for the digits rather than the
+// words: a surface composes a rainfall figure from metrics.ts instead of
+// picking a precision at the call site. Nothing in the type system can say
+// this — `toFixed` is a method on every number — so it is read off the sources.
+//
+// Per line, because that is the shape both offending sites had: a column
+// definition is one line, and the chart's branch is one line. The two halves
+// have to meet on a line for the pattern to fire, which is what keeps it off
+// prose that mentions one of them: the guard is about code that formats a
+// rainfall number, not about a comment that names the method.
+describe('no surface picks its own precipitation precision', () => {
+  const OWN_PRECISION = /^.*precip.*\.toFixed\(.*$/im
+
+  for (const [name, source] of CONSUMERS) {
+    it(`leaves the digit count to metrics.ts in ${name}`, () => {
+      expect(source.match(OWN_PRECISION), `${name} sets its own precision`).toBeNull()
+    })
+  }
+
+  // The guard's own proof: it fires on the two lines it was written for, in
+  // the shape they were in before #395. Without this the pattern could be
+  // wrong in a way that makes every assertion above vacuously true.
+  it('fires on the shapes it was written for', () => {
+    const table = `  { key: 'precip_avg_in_hr', format: (v) => Number(v).toFixed(4) },`
+    const chart = `  if (metric === 'precip') return v.toFixed(3)`
+    expect(table).toMatch(OWN_PRECISION)
+    expect(chart).toMatch(OWN_PRECISION)
+  })
 })
 
 describe('copy lints', () => {

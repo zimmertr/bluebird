@@ -139,6 +139,45 @@ export const UNIT: Record<MetricFamily, string> = {
 }
 
 /**
+ * How many digits a precipitation figure is printed to, on every surface
+ * (#395).
+ *
+ * Three, for the window total and for the hourly rate alike (TJ, 2026-09-15).
+ * The two used to be formatted apart — the table's rate columns at four
+ * digits, the chart's tooltip at three — so hovering an hour and reading the
+ * cell beside it gave one quantity two lengths, and nothing in the code or the
+ * tests said which was meant.
+ *
+ * Three is the shorter of the pair, and it still resolves the scale these
+ * numbers are read against: the rate cells are shaded on the National Weather
+ * Service intensity classes, whose finest boundary is 0.01 in/hr (the rate
+ * scale in `colors.ts`), so a digit here is a hundredth of the smallest
+ * distinction the colour makes.
+ */
+const PRECIP_DIGITS = 3
+
+/**
+ * A window's precipitation total, in inches.
+ *
+ * Two named functions rather than one, because they print two quantities and a
+ * call site should say which. The digit count is shared today; parting them
+ * again is then an edit to one constant rather than a hunt for `toFixed` at
+ * four call sites, which is the state #395 found.
+ *
+ * `unknown` because a table cell's formatter is handed a raw field value. A
+ * null never arrives: `resultsCsv.ts` and `popupRows.ts` each write their own
+ * mark before they would call a formatter.
+ */
+export function formatPrecipTotal(v: unknown): string {
+  return Number(v).toFixed(PRECIP_DIGITS)
+}
+
+/** An hour's precipitation, in inches per hour. Same digits as the total. */
+export function formatPrecipRate(v: unknown): string {
+  return Number(v).toFixed(PRECIP_DIGITS)
+}
+
+/**
  * How the wind number was measured, where a surface has room to say so (#361).
  *
  * Every wind figure this app shows is the free-air wind interpolated between
