@@ -56,12 +56,22 @@ jobs:
 
       # Rendered from the SARIF's source scan re-run as JSON so the gate uses
       # the same ignore-unfixed filtering; trivy is on PATH via the action above.
-      - name: Fail on fixable Critical/High vulnerabilities
+      - name: Re-scan as JSON
         run: |
           trivy image --format json --output trivy.json --ignore-unfixed \
             --config trivy.yaml \
             zimmertr/bluebird:${{ steps.release.outputs.semver }}
-          CRIT_HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL" or .Severity == "HIGH")] | length' trivy.json)
+
+      - name: Count Critical/High vulnerabilities
+        id: crit
+        uses: ./.github/actions/trivy-crit-high
+        with:
+          report: trivy.json
+
+      - name: Fail on fixable Critical/High vulnerabilities
+        env:
+          CRIT_HIGH: ${{ steps.crit.outputs.count }}
+        run: |
           if [ "$CRIT_HIGH" -gt 0 ]; then
             echo "::error::${CRIT_HIGH} fixable Critical/High vulnerabilities in zimmertr/bluebird:${{ steps.release.outputs.semver }}. Merge the open Dependabot base-image PR and release. If there is none, the base tag is current and the packages under it are not: clear the buildx cache, then release. See docs/CICD.md."
             exit 1
