@@ -227,6 +227,8 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | No component draws its own glyph | `styles.test.ts` | Ban a literal SVG opening tag everywhere under `components/` and in `App.tsx`, except `icons.tsx` |
 | No call site sizes an icon | `styles.test.ts` | Ban a height or width utility on any `<Icon…>` element; the five `ICON` steps are pinned by measured pixels |
 | Every glyph is hidden from assistive technology | `accessibility.test.ts` | Every SVG in `icons.tsx` carries `aria-hidden` |
+| No component positions its own panel | `styles.test.ts` | Ban a fixed-position style object and the popover wrapper everywhere under `components/` and in `App.tsx`, except `Popover.tsx` |
+| One place decides where a panel goes | `styles.test.ts` | `popoverBox` has exactly one caller, the `usePopover` hook |
 
 **NOT enforced:** custom spacing between components (only recessed surface and controls are architected), component-specific layouts. These are decided per feature.
 
@@ -454,6 +456,22 @@ To add one, write the component in that file, give it a step from the `ICON`
 ramp, and let it set `aria-hidden` itself. A step that does not exist yet is a
 new role: add it to `ICON` with its rationale and pin its pixels in
 `styles.test.ts`, the same way as below.
+
+### Opening a panel
+
+Every floating panel that hangs off a control is one shell and one hook (#385):
+`components/Popover.tsx` draws the card, and `hooks/usePopover.ts` decides where
+it goes and what closes it. A component supplies its rows and nothing else.
+
+The shell owns four decisions the four pickers each used to make for
+themselves: the `SURFACE_CARD` wrapper, `LAYER.popover`, the fixed box, and the
+portal to `document.body`. Fixed and portalled because the control panel is an
+`overflow-y-auto` column: a panel rendered inside it is clipped at the scroll
+boundary, which for a control near the bottom cuts the list in half. It also
+draws the overline header row, which two of the four had spelled separately.
+
+`styles.test.ts` fails a second `position: 'fixed'` or a second copy of that
+wrapper anywhere under `components/`, and fails a second caller of `popoverBox`.
 
 ### Adding a new role
 

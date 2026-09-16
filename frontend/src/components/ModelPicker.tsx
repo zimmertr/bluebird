@@ -1,6 +1,7 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { PopoverBox, nextActiveIndex, nextToolbarIndex, optionDomId, popoverBox } from '../utils/listbox'
+import { Fragment, useEffect, useRef, useState } from 'react'
+import { nextActiveIndex, nextToolbarIndex, optionDomId } from '../utils/listbox'
+import { usePopover } from '../hooks/usePopover'
+import Popover from './Popover'
 import {
   canRemove,
   chipFocusAfterRemoval,
@@ -10,24 +11,14 @@ import {
   toggleSelected,
 } from '../utils/modelSelection'
 import { gridLabel, reachLabel, type ForecastModelOption } from '../hooks/useCapabilities'
-import {
-  BADGE_ACCENT,
-  CHIP,
-  CHOICE_INPUT,
-  DISABLED,
-  LAYER,
-  SELECT,
-  SURFACE_CARD,
-  TEXT,
-} from '../styles'
+import { BADGE_ACCENT, CHIP, CHOICE_INPUT, DISABLED, SELECT, TEXT } from '../styles'
 import { IconClose, IconSelectArrow } from './icons'
 
 // Wide enough for a summary to sit on two lines rather than three: the longest
 // measures 512px, so it uses 72% of the 708px two lines buy. The sidebar is
 // ~285px, so this only works because the panel floats clear of it, over the map.
+// The one popover that overrides the hook's width: the rest carry labels.
 const PREFERRED_WIDTH_PX = 380
-const GAP_PX = 4
-const VIEWPORT_MARGIN_PX = 8
 
 // Namespaces this listbox's option ids inside the document.
 const LIST_ID = 'model'
@@ -74,9 +65,11 @@ interface Props {
  * tooltip, and a phone has no hover at all.
  *
  * So this is the WAI-ARIA listbox pattern, hand-rolled, which is the price of
- * the requirement. The panel is portalled to `document.body` and positioned
- * fixed, because the control panel is an `overflow-y-auto` column that would
- * otherwise clip it at the scroll boundary.
+ * the requirement. Where the panel lands and what closes it are `usePopover`'s,
+ * and the card it sits in is `Popover`'s — including the portal to
+ * `document.body`, since the control panel is an `overflow-y-auto` column that
+ * would otherwise clip it at the scroll boundary. What is left here is the part
+ * no other popover has: the keyboard, the chips and the list.
  *
  * It is also where the chart's model comparison is chosen (#232), because it is
  * the same reading. Two parts, and each does ONE thing:
@@ -105,7 +98,6 @@ export default function ModelPicker({
   disabled = false,
 }: Props) {
   const [open, setOpen] = useState(false)
-  const [box, setBox] = useState<PopoverBox | null>(null)
   const selectedIndex = models.findIndex((m) => m.id === value)
   const [active, setActive] = useState(Math.max(selectedIndex, 0))
   // Roving tabindex along the chip row: one chip is in the Tab order and the
@@ -114,9 +106,6 @@ export default function ModelPicker({
   const [chipFocus, setChipFocus] = useState(0)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  // The popover is more than the listbox — the chip row sits above it — and a
-  // press on either must not read as a press outside.
-  const popoverRef = useRef<HTMLDivElement>(null)
   const chipRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   // Which chip to focus once the row has re-rendered without the removed one.
   const wantChipFocus = useRef<number | null>(null)
@@ -134,38 +123,28 @@ export default function ModelPicker({
     { heading: 'Comparing', ids: chipIds.slice(1) },
   ]
 
-  // Two passes, both before paint so neither is visible. The first asks for as
-  // much room as the viewport can give, which lets the list lay out at its
-  // natural height; the second measures that height and re-places knowing it.
-  // Without the measurement the placement cannot tell "taller than the gap" from
-  // "taller than the screen", and every list would scroll in the gap.
-  function place(desiredHeight = Infinity) {
-    const trigger = triggerRef.current
-    if (!trigger) return
-    setBox(
-      popoverBox(
-        trigger.getBoundingClientRect(),
-        { width: window.innerWidth, height: window.innerHeight },
-        {
-          preferredWidth: PREFERRED_WIDTH_PX,
-          gap: GAP_PX,
-          margin: VIEWPORT_MARGIN_PX,
-          desiredHeight,
-        },
-      ),
-    )
-  }
+  // The chip row is part of the panel's height, so a tick that wraps it onto a
+  // second line has to buy another measuring pass; so does the list arriving
+  // from `/api/capabilities` under an open panel. Nothing else here changes it.
+  const { popoverRef, box } = usePopover({
+    open,
+    onOpenChange: setOpen,
+    triggerRef,
+    preferredWidth: PREFERRED_WIDTH_PX,
+    remeasure: [models, chipIds.length],
+  })
 
   function openList() {
     setActive(Math.max(selectedIndex, 0))
     setChipFocus(Math.max(chipIds.indexOf(value), 0))
-    place()
     setOpen(true)
   }
 
-  function close(refocus: boolean) {
+  // Every close from inside the panel hands the keyboard back to the trigger.
+  // A press outside does not, and that one is `usePopover`'s.
+  function close() {
     setOpen(false)
-    if (refocus) triggerRef.current?.focus()
+    triggerRef.current?.focus()
   }
 
   /** Apply one rule's answer. The ranking setter clamps the window, so it is
@@ -188,51 +167,6 @@ export default function ModelPicker({
     wantChipFocus.current = chipFocusAfterRemoval(at, chipIds.length - 1)
     toggle(id)
   }
-
-  // Before paint, so the panel never renders at a stale position for a frame.
-  useLayoutEffect(() => {
-    if (open) place()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
-
-  // The measuring pass. `scrollHeight` rather than the bounding box, since the
-  // first pass may already have capped the box at the viewport. Re-measured
-  // when the chip row gains or loses a line, since it is part of the height.
-  useLayoutEffect(() => {
-    if (!open) return
-    const popover = popoverRef.current
-    if (popover) place(popover.scrollHeight)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, models, chipIds.length])
-
-  // The trigger moves whenever the panel scrolls or the window resizes, and a
-  // fixed-position child does not follow it. Capture phase because the scroll
-  // that matters is the sidebar's own, which does not bubble to window.
-  useEffect(() => {
-    if (!open) return
-    const reposition = () => place(popoverRef.current?.scrollHeight ?? Infinity)
-    window.addEventListener('resize', reposition)
-    window.addEventListener('scroll', reposition, true)
-    return () => {
-      window.removeEventListener('resize', reposition)
-      window.removeEventListener('scroll', reposition, true)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
-
-  // Pointerdown rather than click: a click that lands on something which
-  // unmounts under it never reaches document, and the list would stay open.
-  useEffect(() => {
-    if (!open) return
-    function onPointerDown(e: PointerEvent) {
-      const target = e.target as Node
-      if (popoverRef.current?.contains(target) || triggerRef.current?.contains(target)) return
-      close(false)
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    return () => document.removeEventListener('pointerdown', onPointerDown)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
 
   // Focus the list itself rather than an option, so `aria-activedescendant`
   // names the highlighted row and the arrow keys stay on one element. The list
@@ -284,13 +218,13 @@ export default function ModelPicker({
       if (removable) removeChip(id, at)
     } else if (e.key === 'Escape') {
       e.preventDefault()
-      close(true)
+      close()
     } else if (e.key === 'Tab') {
       // Tab moves along the popover's own order — chips, then the list — rather
       // than the document's, which would send focus past everything else on the
       // page first because the panel is portalled to the end of the body.
       e.preventDefault()
-      if (e.shiftKey) close(true)
+      if (e.shiftKey) close()
       else listRef.current?.focus()
     }
   }
@@ -310,11 +244,11 @@ export default function ModelPicker({
       if (model && !(model.id === value && !removable)) toggle(model.id)
     } else if (e.key === 'Escape') {
       e.preventDefault()
-      close(true)
+      close()
     } else if (e.key === 'Tab') {
       e.preventDefault()
       if (e.shiftKey) focusChip(chipFocus)
-      else close(true)
+      else close()
     }
   }
 
@@ -384,7 +318,7 @@ export default function ModelPicker({
           comparedCount > 0 ? ` +${comparedCount}` : ''
         }`}
         disabled={disabled}
-        onClick={() => (open ? close(true) : openList())}
+        onClick={() => (open ? close() : openList())}
         onKeyDown={(e) => {
           if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
             e.preventDefault()
@@ -408,162 +342,149 @@ export default function ModelPicker({
         )}
       </button>
       <IconSelectArrow />
-      {open &&
-        box &&
-        createPortal(
+      {open && box && (
+        <Popover box={box} popoverRef={popoverRef}>
+          {/* The selected set, split into what each part DOES, under
+              headings of the same kind the list's own header below wears.
+              Two groups rather than one row of chips is the whole
+              explanation: the reader's model is under `Ranking` and the
+              others are under `Comparing`, so the relationship is
+              structural instead of something inferred from a highlight
+              (TJ, 2026-09-14). Promoting a compared chip then shows itself
+              — the chip moves up into the other group.
+
+              `Comparing` is drawn only when something is compared. A reader
+              with one model selected sees one heading and one chip, which
+              is the height the single header cost before.
+
+              One toolbar across both groups, not one each: the roving
+              tabindex walks `chipIds`, and that order now leads with the
+              ranking model, so the tab order and the reading order are the
+              same walk. A toolbar rather than a second listbox, because
+              these are buttons that act, not options that are chosen, and
+              the one listbox below already owns the arrow keys. */}
           <div
-            ref={popoverRef}
-            style={{
-              position: 'fixed',
-              left: box.left,
-              width: box.width,
-              maxHeight: box.maxHeight,
-              ...box.offset,
-            }}
-            className={`${SURFACE_CARD} ${LAYER.popover} flex flex-col`}
+            role="toolbar"
+            className="flex flex-shrink-0 flex-col border-b border-slate-700"
           >
-            {/* The selected set, split into what each part DOES, under
-                headings of the same kind the list's own header below wears.
-                Two groups rather than one row of chips is the whole
-                explanation: the reader's model is under `Ranking` and the
-                others are under `Comparing`, so the relationship is
-                structural instead of something inferred from a highlight
-                (TJ, 2026-09-14). Promoting a compared chip then shows itself
-                — the chip moves up into the other group.
-
-                `Comparing` is drawn only when something is compared. A reader
-                with one model selected sees one heading and one chip, which
-                is the height the single header cost before.
-
-                One toolbar across both groups, not one each: the roving
-                tabindex walks `chipIds`, and that order now leads with the
-                ranking model, so the tab order and the reading order are the
-                same walk. A toolbar rather than a second listbox, because
-                these are buttons that act, not options that are chosen, and
-                the one listbox below already owns the arrow keys. */}
-            <div
-              role="toolbar"
-              className="flex flex-shrink-0 flex-col border-b border-slate-700"
-            >
-              {CHIP_GROUPS.map(({ heading, ids }) =>
-                ids.length === 0 ? null : (
-                  <Fragment key={heading}>
-                    <div className={`${TEXT.overline} px-3 pb-1 pt-2`}>{heading}</div>
-                    <div className="flex flex-wrap items-center gap-1.5 px-3 pb-2">
-                      {ids.map(renderChip)}
-                    </div>
-                  </Fragment>
-                ),
-              )}
-            </div>
-            {/* Names the right-hand column once instead of eight times. The
-                figures are two bare numbers otherwise, and "3 km" beside a
-                model called NOAA GFS invites reading it as GFS's own grid
-                rather than the finest the blend reaches — which is what each
-                row's "Blends in…" clause is there to correct.
-
-                Outside the listbox, and hidden from assistive tech, because a
-                `role="listbox"` may only contain options: a header row inside
-                it would be announced as a ninth entry that cannot be chosen.
-                Sighted readers get the column names, and a screen reader gets
-                each figure in the option's own text. */}
-            <div
-              aria-hidden="true"
-              className={`${TEXT.overline} flex items-baseline justify-between gap-2 border-b border-slate-700 px-3 py-1.5`}
-            >
-              <span>Model</span>
-              <span>Resolution · Range</span>
-            </div>
-            <div
-              ref={listRef}
-              role="listbox"
-              // One list, one decision, and more than one row answers it: every
-              // selected model is on the chart. Multi-select is what makes
-              // `aria-selected` on more than one row legal.
-              aria-multiselectable="true"
-              aria-label="Forecast model"
-              aria-activedescendant={
-                models[active] ? optionDomId(LIST_ID, models[active].id) : undefined
-              }
-              tabIndex={-1}
-              onKeyDown={onListKeyDown}
-              className="min-h-0 flex-1 overflow-y-auto p-1 focus:outline-none"
-            >
-            {models.map((model, i) => {
-              const isRanking = model.id === value
-              const isSelected = isRanking || compared.includes(model.id)
-              // The last selected model cannot be given up: a report has to
-              // come from some model, so the box is disabled rather than
-              // quietly doing nothing when pressed.
-              const locked = isRanking && !removable
-              return (
-                <div
-                  key={model.id}
-                  id={optionDomId(LIST_ID, model.id)}
-                  data-index={i}
-                  role="option"
-                  aria-selected={isSelected}
-                  aria-disabled={locked || undefined}
-                  onPointerEnter={() => setActive(i)}
-                  onClick={() => {
-                    if (!locked) toggle(model.id)
-                  }}
-                  className={`flex items-start gap-2 rounded px-2 py-1.5 ${
-                    locked ? 'cursor-default' : 'cursor-pointer'
-                  } ${i === active ? 'bg-slate-700' : ''}`}
-                >
-                  <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="flex items-baseline gap-1.5">
-                      {/* Two roles that differ only in weight, so the ranking
-                          row reads as the ranking one without a second color
-                          competing with the active highlight behind it. */}
-                      <span className={isRanking ? TEXT.subheading : TEXT.control}>
-                        {model.label}
-                      </span>
-                      {model.id === defaultId && (
-                        <span className={BADGE_ACCENT}>Recommended</span>
-                      )}
-                    </span>
-                    {/* The two numbers, right-aligned into a column of their
-                        own so eight rows can be compared by scanning one edge
-                        rather than by reading eight sentences. Both are data
-                        rather than prose, which is what keeps the reach honest:
-                        it is `forecast_hours` rendered, so it cannot drift from
-                        what the calendar will actually offer. */}
-                    <span className={`${TEXT.micro} flex-shrink-0 tabular-nums`}>
-                      {gridLabel(model.finestGridKm)}
-                      {model.finestGridKm > 0 && model.forecastHours > 0 && ' · '}
-                      {reachLabel(model.forecastHours)}
-                    </span>
+            {CHIP_GROUPS.map(({ heading, ids }) =>
+              ids.length === 0 ? null : (
+                <Fragment key={heading}>
+                  <div className={`${TEXT.overline} px-3 pb-1 pt-2`}>{heading}</div>
+                  <div className="flex flex-wrap items-center gap-1.5 px-3 pb-2">
+                    {ids.map(renderChip)}
                   </div>
-                  {model.summary !== '' && (
-                    <p className={TEXT.helper}>{model.summary}</p>
-                  )}
-                  </div>
-                  {/* Drawn, not announced: `aria-selected` on the row above
-                      already carries this state, and a focusable input inside a
-                      `role="option"` would be a second stop in a list whose
-                      whole keyboard model is one element with
-                      `aria-activedescendant`. Enter and Space are the keys that
-                      toggle it. */}
-                  <input
-                    type="checkbox"
-                    aria-hidden="true"
-                    tabIndex={-1}
-                    checked={isSelected}
-                    disabled={locked}
-                    onChange={() => toggle(model.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    className={`${CHOICE_INPUT} ${DISABLED} mt-0.5`}
-                  />
+                </Fragment>
+              ),
+            )}
+          </div>
+          {/* Names the right-hand column once instead of eight times. The
+              figures are two bare numbers otherwise, and "3 km" beside a
+              model called NOAA GFS invites reading it as GFS's own grid
+              rather than the finest the blend reaches — which is what each
+              row's "Blends in…" clause is there to correct.
+
+              Outside the listbox, and hidden from assistive tech, because a
+              `role="listbox"` may only contain options: a header row inside
+              it would be announced as a ninth entry that cannot be chosen.
+              Sighted readers get the column names, and a screen reader gets
+              each figure in the option's own text. */}
+          <div
+            aria-hidden="true"
+            className={`${TEXT.overline} flex items-baseline justify-between gap-2 border-b border-slate-700 px-3 py-1.5`}
+          >
+            <span>Model</span>
+            <span>Resolution · Range</span>
+          </div>
+          <div
+            ref={listRef}
+            role="listbox"
+            // One list, one decision, and more than one row answers it: every
+            // selected model is on the chart. Multi-select is what makes
+            // `aria-selected` on more than one row legal.
+            aria-multiselectable="true"
+            aria-label="Forecast model"
+            aria-activedescendant={
+              models[active] ? optionDomId(LIST_ID, models[active].id) : undefined
+            }
+            tabIndex={-1}
+            onKeyDown={onListKeyDown}
+            className="min-h-0 flex-1 overflow-y-auto p-1 focus:outline-none"
+          >
+          {models.map((model, i) => {
+            const isRanking = model.id === value
+            const isSelected = isRanking || compared.includes(model.id)
+            // The last selected model cannot be given up: a report has to
+            // come from some model, so the box is disabled rather than
+            // quietly doing nothing when pressed.
+            const locked = isRanking && !removable
+            return (
+              <div
+                key={model.id}
+                id={optionDomId(LIST_ID, model.id)}
+                data-index={i}
+                role="option"
+                aria-selected={isSelected}
+                aria-disabled={locked || undefined}
+                onPointerEnter={() => setActive(i)}
+                onClick={() => {
+                  if (!locked) toggle(model.id)
+                }}
+                className={`flex items-start gap-2 rounded px-2 py-1.5 ${
+                  locked ? 'cursor-default' : 'cursor-pointer'
+                } ${i === active ? 'bg-slate-700' : ''}`}
+              >
+                <div className="min-w-0 flex-1">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="flex items-baseline gap-1.5">
+                    {/* Two roles that differ only in weight, so the ranking
+                        row reads as the ranking one without a second color
+                        competing with the active highlight behind it. */}
+                    <span className={isRanking ? TEXT.subheading : TEXT.control}>
+                      {model.label}
+                    </span>
+                    {model.id === defaultId && (
+                      <span className={BADGE_ACCENT}>Recommended</span>
+                    )}
+                  </span>
+                  {/* The two numbers, right-aligned into a column of their
+                      own so eight rows can be compared by scanning one edge
+                      rather than by reading eight sentences. Both are data
+                      rather than prose, which is what keeps the reach honest:
+                      it is `forecast_hours` rendered, so it cannot drift from
+                      what the calendar will actually offer. */}
+                  <span className={`${TEXT.micro} flex-shrink-0 tabular-nums`}>
+                    {gridLabel(model.finestGridKm)}
+                    {model.finestGridKm > 0 && model.forecastHours > 0 && ' · '}
+                    {reachLabel(model.forecastHours)}
+                  </span>
                 </div>
-              )
-            })}
-            </div>
-          </div>,
-          document.body,
-        )}
+                {model.summary !== '' && (
+                  <p className={TEXT.helper}>{model.summary}</p>
+                )}
+                </div>
+                {/* Drawn, not announced: `aria-selected` on the row above
+                    already carries this state, and a focusable input inside a
+                    `role="option"` would be a second stop in a list whose
+                    whole keyboard model is one element with
+                    `aria-activedescendant`. Enter and Space are the keys that
+                    toggle it. */}
+                <input
+                  type="checkbox"
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  checked={isSelected}
+                  disabled={locked}
+                  onChange={() => toggle(model.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  className={`${CHOICE_INPUT} ${DISABLED} mt-0.5`}
+                />
+              </div>
+            )
+          })}
+          </div>
+        </Popover>
+      )}
     </>
   )
 }

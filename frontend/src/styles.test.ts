@@ -216,6 +216,23 @@ const sources: Record<string, string> = {
 // The one file allowed to draw an SVG.
 const ICON_MODULE = './components/icons.tsx'
 
+// The one file allowed to position a floating panel.
+const POPOVER_MODULE = './components/Popover.tsx'
+
+// Every source that could ask where a panel goes. Wider than `sources` above,
+// because the placement is wired from a hook rather than from a component, and
+// a second caller there would be as much of a second recipe as one here.
+const placementCallers: Record<string, string> = {
+  ...(import.meta.glob(
+    ['./components/*.tsx', './hooks/*.ts', './utils/*.ts', '!./**/*.test.ts'],
+    { query: '?raw', import: 'default', eager: true },
+  ) as Record<string, string>),
+  './App.tsx': appSource,
+}
+
+// Where the placement is defined, so the export itself does not read as a call.
+const PLACEMENT_MODULE = './utils/listbox.ts'
+
 describe('every component', () => {
   it('found the sources', () => {
     expect(Object.keys(sources).length).toBeGreaterThan(6)
@@ -379,6 +396,36 @@ describe('every component', () => {
   it('reads the icon module it exempts', () => {
     expect(sources[ICON_MODULE]).toBeDefined()
     expect((sources[ICON_MODULE].match(/<svg/g) ?? []).length).toBeGreaterThan(10)
+  })
+
+  // #385: four popovers each carried the same fixed-position style object and
+  // the same wrapper, so the card, the stacking order and the offsets could
+  // drift a step apart without anything saying so. `Popover.tsx` owns all
+  // three now, and a fifth panel that spells them again fails here.
+  it.each(Object.entries(sources).filter(([path]) => path !== POPOVER_MODULE))(
+    '%s positions no panel of its own',
+    (_path, source) => {
+      expect(source).not.toMatch(/position: ?'fixed'/)
+      expect(source).not.toContain('${SURFACE_CARD} ${LAYER.popover}')
+    },
+  )
+
+  // The other half of that rule, and the one the ban above cannot state: the
+  // placement itself. `usePopover` is the only caller, so a fix to the two
+  // measuring passes or to what dismisses a panel reaches all four.
+  it('asks one place where a panel goes', () => {
+    const calls = Object.entries(placementCallers).filter(
+      ([path, source]) => path !== PLACEMENT_MODULE && source.includes('popoverBox('),
+    )
+    expect(calls.map(([path]) => path)).toEqual(['./hooks/usePopover.ts'])
+  })
+
+  // Both lints above are vacuous if the shell is not in the glob or has
+  // stopped being where the box is applied.
+  it('reads the popover shell it exempts', () => {
+    expect(sources[POPOVER_MODULE]).toBeDefined()
+    expect(sources[POPOVER_MODULE]).toContain('${SURFACE_CARD} ${LAYER.popover}')
+    expect(placementCallers[PLACEMENT_MODULE]).toContain('export function popoverBox(')
   })
 })
 
