@@ -39,8 +39,8 @@ const join = (size: string, className?: string): string =>
   className ? `${size} ${className}` : size
 
 /**
- * The close cross, at three steps: a control (16), a chart legend chip (12),
- * and a dismiss disc or model chip (10).
+ * The close cross, at three steps: a control (16), a chip (12), and the
+ * notice's dismiss disc (10).
  *
  * Two lines rather than the `×` character. That glyph is centred on the font's
  * own maths and not on the button's, so it sits visibly high in a round target
@@ -209,7 +209,7 @@ export function IconSearch({ className }: IconProps): ReactNode {
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
-      className={join(ICON.search, className)}
+      className={join(ICON.control, className)}
       aria-hidden="true"
     >
       <circle cx="11" cy="11" r="7" />

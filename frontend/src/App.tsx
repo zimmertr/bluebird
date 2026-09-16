@@ -3287,7 +3287,7 @@ export default function App() {
                                     aria-label={`Remove ${row.name}`}
                                     className={`${ICON_ACTION} ${FOCUS_RING} cursor-pointer py-1 pl-1 pr-2 leading-none`}
                                   >
-                                    <IconClose size="legend" />
+                                    <IconClose size="chip" />
                                   </button>
                                 </span>
                               )

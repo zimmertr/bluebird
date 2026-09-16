@@ -367,7 +367,7 @@ export default function ModelPicker({
           onClick={() => removeChip(id, at)}
           className={`${CHIP.remove} ${canDrop ? '' : 'invisible'}`}
         >
-          <IconClose size="micro" />
+          <IconClose size="chip" />
         </button>
       </span>
     )

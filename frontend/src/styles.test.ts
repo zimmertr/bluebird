@@ -104,12 +104,6 @@ const stepPx = (cls: string, prefix: string): number =>
   (Number(cls.match(new RegExp(`(?:^|\\s)${prefix}-(\\d+(?:\\.\\d+)?)(?:\\s|$)`))![1]) / 4) * 16
 // What SELECT keeps clear on the right: the arrow's own box and nothing more.
 const ICON_PX = stepPx(ICON.control, 'w')
-// The `search` step is the one off Tailwind's scale, so the ramp is measured
-// through both spellings rather than through the scale alone.
-const iconPx = (step: string, prefix: string): number => {
-  const arbitrary = step.match(new RegExp(`(?:^|\\s)${prefix}-\\[(\\d+)px\\]`))
-  return arbitrary ? Number(arbitrary[1]) : stepPx(step, prefix)
-}
 const selectArrowPx = (): number => stepPx(SELECT, 'pr')
 // The panel's control column, and the Metrics box pair it now measures.
 const controlWPx = (): number => Number(CONTROL_W.match(/w-\[(\d+)px\]/)![1])
@@ -1172,15 +1166,22 @@ describe('shared recipes', () => {
   })
 
   // The ramp every glyph in `components/icons.tsx` reads (#386). Pinned step by
-  // step, because that module is now the only thing standing between these five
+  // step, because that module is now the only thing standing between these four
   // numbers and the nineteen call sites that used to pick their own: a step
   // that moves here moves an icon on screen.
   it('sizes every glyph from one ramp', () => {
-    expect(iconPx(ICON.control, 'h')).toBe(16)
-    expect(iconPx(ICON.search, 'h')).toBe(15)
-    expect(iconPx(ICON.inline, 'h')).toBe(14)
-    expect(iconPx(ICON.legend, 'h')).toBe(12)
-    expect(iconPx(ICON.micro, 'h')).toBe(10)
+    expect(stepPx(ICON.control, 'h')).toBe(16)
+    expect(stepPx(ICON.inline, 'h')).toBe(14)
+    expect(stepPx(ICON.chip, 'h')).toBe(12)
+    expect(stepPx(ICON.micro, 'h')).toBe(10)
+  })
+
+  // The set as well as the values (#436). Every step above carries a measured
+  // reason in its comment, so a fifth one arriving without one is the failure
+  // this catches — and `stepPx` reads Tailwind's scale alone, so a step spelled
+  // in arbitrary pixels throws here rather than passing quietly.
+  it('keeps the ramp to the four steps that have a reason', () => {
+    expect(Object.keys(ICON)).toEqual(['control', 'inline', 'chip', 'micro'])
   })
 
   // A glyph's box is its own viewBox, which is square in every icon the app
@@ -1188,7 +1189,7 @@ describe('shared recipes', () => {
   // resize it.
   it('keeps every step of that ramp square', () => {
     for (const [step, recipe] of Object.entries(ICON)) {
-      expect(iconPx(recipe, 'w'), `${step} must be square`).toBe(iconPx(recipe, 'h'))
+      expect(stepPx(recipe, 'w'), `${step} must be square`).toBe(stepPx(recipe, 'h'))
     }
   })
 
@@ -1197,7 +1198,7 @@ describe('shared recipes', () => {
   // finds in source, so the popup's copy of the link-out arrow has to carry a
   // number. This is what keeps that number the ramp's.
   it('draws the popup glyph at the step its React twin takes', () => {
-    expect(EXTERNAL_LINK_PX).toBe(iconPx(ICON.inline, 'h'))
+    expect(EXTERNAL_LINK_PX).toBe(stepPx(ICON.inline, 'h'))
   })
 
   // And the shape itself comes from `iconPaths.ts` rather than being typed out
