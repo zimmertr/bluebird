@@ -4,6 +4,7 @@ import { AqiResult, WeatherResult, fetchAqi, fetchWeather } from '../utils/openM
 import { canonicalTimes } from '../utils/clientAnalyze'
 import { normalizeWindow } from '../utils/forecastWindow'
 import { GridCell, GridSpec, buildGrid, gridView, pairCells, reachKmFor } from '../utils/forecastGrid'
+import { usePacedFetch } from './usePacedFetch'
 
 // The forecast grid's fetch (#246), modelled on useFireProximity: one query per
 // analysis, best-effort, and entirely beside the ranking.
@@ -55,21 +56,27 @@ export interface ForecastGrid {
    */
   complete: boolean
   /**
-   * When the client pacer resumes, if it is currently sleeping off a quota
-   * deficit. The legend counts down from it, so a grid queued behind a large
-   * analysis says why rather than looking hung. Null whenever nothing is
+   * Seconds until the client pacer resumes, if it is currently sleeping off a
+   * quota deficit. The legend counts down from it, so a grid queued behind a
+   * large analysis says why rather than looking hung. Null whenever nothing is
    * waiting — which is most of the time, since a small lattice never paces.
    */
-  paceEndMs: number | null
+  paceRemainingS: number | null
 }
 
-const IDLE: ForecastGrid = {
+/**
+ * What the fetch itself decides. The countdown rides beside it rather than in
+ * it, because the pacer that produces it is shared with the analysis and the
+ * comparison and so is owned by `usePacedFetch` (#394).
+ */
+type GridFetch = Omit<ForecastGrid, 'paceRemainingS'>
+
+const IDLE: GridFetch = {
   status: 'idle',
   spec: null,
   cells: [],
   pitchKm: 0,
   complete: true,
-  paceEndMs: null,
 }
 
 /**
@@ -143,7 +150,8 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     displayReachFrac,
     analysisSeq,
   } = inputs
-  const [state, setState] = useState<ForecastGrid>(IDLE)
+  const [state, setState] = useState<GridFetch>(IDLE)
+  const { paceRemainingS, onPace, clear: clearPace } = usePacedFetch()
   // What the current analysis has already been fetched at. The ratchet: a
   // committed reach at or under a COMPLETED fetch's reach is served from the
   // held field with no effect run at all; anything else rebuilds at the
@@ -158,6 +166,7 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
   useEffect(() => {
     if (!enabled || field === null || win === null || field.length === 0) {
       fetchedRef.current = null
+      clearPace()
       setState((prev) => (prev === IDLE ? prev : IDLE))
       return
     }
@@ -173,6 +182,7 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     const spec = buildGrid(field, pitchKm, target)
     if (spec === null) {
       fetchedRef.current = null
+      clearPace()
       setState((prev) => (prev === IDLE ? prev : IDLE))
       return
     }
@@ -190,13 +200,13 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     // the analysis changes, and a field from the previous one describes a
     // different bbox over a different window — holding it would paint the old
     // answer under the new markers for as long as the fetch takes.
+    clearPace()
     setState({
       status: 'loading',
       spec,
       cells: [],
       pitchKm: spec.pitchKm,
       complete: false,
-      paceEndMs: null,
     })
 
     // What has come back so far, by lattice index. Weather arrives in chunks
@@ -205,6 +215,13 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     const wx: (WeatherResult | undefined)[] = new Array(spec.points.length)
     const aqi: (AqiResult | undefined)[] = new Array(spec.points.length)
     let grid: readonly number[] = times
+    // Has anything been painted yet, and how much? The countdown and the
+    // failure state ask different questions of the same history: the first
+    // repaint ends the wait whatever it drew, while a failure withdraws the
+    // layer only when nothing was drawn at all — and a chunk can land with no
+    // forecast in it, which repaints and paints no cell.
+    let repaints = 0
+    let painted = 0
 
     function repaint() {
       if (cancelled) return
@@ -218,16 +235,21 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
         aqiHave.push(aqi[i] ?? null)
       }
       if (grid.length === 0) grid = canonicalTimes(wxHave)
-      setState((prev) => ({
+      const cells = pairCells(spec as GridSpec, indices, wxHave, aqiHave, grid)
+      // The FIRST samples to arrive end whatever wait was being counted down.
+      // A later chunk's wait is left alone by design: the legend stops saying
+      // `Waiting` of its own accord once the deadline passes, and a whole
+      // field names its pitch through a pace regardless.
+      if (repaints === 0) clearPace()
+      repaints++
+      painted = cells.length
+      setState({
         status: 'ready',
         spec: spec as GridSpec,
-        cells: pairCells(spec as GridSpec, indices, wxHave, aqiHave, grid),
+        cells,
         pitchKm: (spec as GridSpec).pitchKm,
         complete: fetchedRef.current?.complete ?? false,
-        // A repaint means samples arrived, so whatever wait was being counted
-        // down is over.
-        paceEndMs: prev.status === 'loading' ? null : prev.paceEndMs,
-      }))
+      })
     }
 
     // Air quality runs alongside the weather rather than in front of the paint,
@@ -275,8 +297,7 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
             // already does. Without this a grid queued behind a large
             // analysis is silent for minutes.
             onPace: (seconds) => {
-              if (cancelled) return
-              setState((prev) => ({ ...prev, paceEndMs: Date.now() + seconds * 1000 }))
+              if (!cancelled) onPace(seconds)
             },
           })
           if (cancelled) return
@@ -300,9 +321,10 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
         // Only when nothing painted. A chunk that lands and then a later one
         // that fails still leaves a field on the map, and calling that
         // unavailable would contradict what the reader can see.
-        setState((prev) =>
-          prev.cells.length > 0 ? prev : { ...prev, status: 'failed', paceEndMs: null },
-        )
+        if (painted === 0) {
+          clearPace()
+          setState((prev) => ({ ...prev, status: 'failed' }))
+        }
       }
     })()
 
@@ -322,13 +344,17 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, analysisSeq, pitchKm, reachKm])
 
-  // The held field re-cut to the reach on display, live with the thumb. Same
-  // state object back when nothing is cut, so consumers' effects do not churn.
+  // The held field re-cut to the reach on display, live with the thumb, with
+  // the countdown folded back in. Memoized on all three inputs, so `spec` and
+  // `cells` keep their identity while only the second hand moves and the
+  // memoized map does not redraw for it.
   const displayReachKm = reachKmFor(pitchKm, displayReachFrac)
   return useMemo(() => {
-    if (state.spec === null) return state
+    if (state.spec === null) return { ...state, paceRemainingS }
     const view = gridView(state.spec, state.cells, displayReachKm)
-    if (view.spec === state.spec && view.cells === state.cells) return state
-    return { ...state, spec: view.spec, cells: view.cells as GridCell[] }
-  }, [state, displayReachKm])
+    if (view.spec === state.spec && view.cells === state.cells) {
+      return { ...state, paceRemainingS }
+    }
+    return { ...state, spec: view.spec, cells: view.cells as GridCell[], paceRemainingS }
+  }, [state, displayReachKm, paceRemainingS])
 }

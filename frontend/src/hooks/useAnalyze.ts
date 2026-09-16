@@ -22,6 +22,7 @@ import { COVERAGE_MESSAGE_TAIL, OpenMeteoModelCoverage } from '../utils/openMete
 import { SelectionKind } from '../utils/calendar'
 import { AnalyzedSnapshot, discoveryKeys } from '../utils/present'
 import type { ForecastModelOption } from './useCapabilities'
+import { usePacedFetch } from './usePacedFetch'
 
 export type Progress = {
   processed: number
@@ -177,9 +178,10 @@ export function useAnalyze(
   const [fireSeq, setFireSeq] = useState(0)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
-  // When the client pacer is sleeping off a quota deficit, the wall-clock
-  // moment it resumes — the overlay renders a live countdown from this.
-  const [paceEndMs, setPaceEndMs] = useState<number | null>(null)
+  // The overlay's live countdown while the client pacer sleeps off a quota
+  // deficit. Shared with the forecast grid and the model comparison, which
+  // sleep against the same budget (#394).
+  const { paceRemainingS, onPace, clear: clearPace } = usePacedFetch()
   const abortRef = useRef<AbortController | null>(null)
   const lastRequestRef = useRef<{
     request: AnalyzeRequest
@@ -305,10 +307,6 @@ export function useAnalyze(
     })
   }
 
-  function handlePace(seconds: number) {
-    setPaceEndMs(Date.now() + seconds * 1000)
-  }
-
   // The primary path (#170): the browser does the analysis itself. The
   // candidate list is the only server call — POST /api/destinations, one
   // Overpass query — and the forecasts come straight from Open-Meteo on the
@@ -409,7 +407,7 @@ export function useAnalyze(
         signal,
         maxDestinations,
         reuse: reuse && { rows: reuse.rows, times: reuse.times },
-        onPace: handlePace,
+        onPace,
         // Each batch, ranked and on screen as it lands, instead of a
         // percentage and an empty table until the thirtieth one returns. The
         // counts are a floor: `total_queried` is what has been forecast so
@@ -427,7 +425,7 @@ export function useAnalyze(
             rows,
           ),
         onProgress: (processed, total, message) => {
-          setPaceEndMs(null)
+          clearPace()
           setStatusMessage(message)
           setProgress({
             processed,
@@ -493,7 +491,7 @@ export function useAnalyze(
     // the new analysis runs and are replaced only when its result lands (or
     // removed by an explicit reset). Cancel/error leave them standing too.
     setProgress(null)
-    setPaceEndMs(null)
+    clearPace()
     // Seed the correct first-phase label so nothing generic ("Starting…") flashes
     // during the click→first-event gap: a polygon run opens on discovery, a
     // custom/refresh run goes straight to retrieval (upgraded to the counted label
@@ -533,7 +531,7 @@ export function useAnalyze(
       setArriving(false)
       setStatusMessage(null)
       setProgress(null)
-      setPaceEndMs(null)
+      clearPace()
     }
   }
 
@@ -555,6 +553,6 @@ export function useAnalyze(
     universe,
     statusMessage,
     progress,
-    paceEndMs,
+    paceRemainingS,
   }
 }

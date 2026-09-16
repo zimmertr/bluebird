@@ -878,7 +878,7 @@ export default function App() {
     universe,
     statusMessage,
     progress,
-    paceEndMs,
+    paceRemainingS,
   } = useAnalyze(caps.maxDestinations, caps.forecastModels)
 
   // Places searched by name — the third destination input. Searching registers
@@ -1058,10 +1058,9 @@ export default function App() {
     statusMessage,
     elapsedS: elapsed,
     rankedProgress: progress ? { processed: progress.processed, total: progress.total } : null,
-    // Live countdown while the client pacer sleeps off a quota deficit; the
-    // 250ms elapsed ticker below keeps this recomputing.
-    paceRemainingS:
-      paceEndMs !== null ? Math.max(0, Math.ceil((paceEndMs - Date.now()) / 1000)) : null,
+    // Live countdown while the client pacer sleeps off a quota deficit;
+    // `usePacedFetch` ticks it, and the 250ms elapsed ticker below re-reads it.
+    paceRemainingS,
   })
 
   useEffect(() => {
@@ -1900,22 +1899,10 @@ export default function App() {
   // loading line exists: a switched-on layer with nothing under it and nothing
   // said reads as a broken app rather than as a failed fetch.
   const gridFailed = gridOn && grid.status === 'failed'
-  // A one-second tick, only while the pacer is actually asleep, so the
-  // countdown moves. Nothing else on screen needs it and it stops on its own.
-  const [paceNow, setPaceNow] = useState(0)
-  useEffect(() => {
-    if (grid.paceEndMs === null) return
-    const id = setInterval(() => setPaceNow(Date.now()), 1000)
-    return () => clearInterval(id)
-  }, [grid.paceEndMs])
-  const gridPaceRemainingS =
-    grid.paceEndMs === null
-      ? null
-      : Math.max(0, Math.ceil((grid.paceEndMs - Math.max(paceNow, Date.now())) / 1000))
   const gridLegend = gridLegendLine(
     gridPainted,
     grid.pitchKm,
-    gridPaceRemainingS,
+    grid.paceRemainingS,
     gridFailed,
     grid.complete,
   )
@@ -3283,7 +3270,10 @@ export default function App() {
                             cutAfterMs={compare.endMs}
                             controls={
                               compare.active ? (
-                                <ModelCompare compared={compare.shown} />
+                                <ModelCompare
+                                  compared={compare.shown}
+                                  paceRemainingS={compare.paceRemainingS}
+                                />
                               ) : undefined
                             }
                           />

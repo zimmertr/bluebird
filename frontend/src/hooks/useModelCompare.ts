@@ -16,6 +16,7 @@ import {
 import { shownModels } from '../utils/modelVisibility'
 import { COVERAGE_PHRASE, OpenMeteoModelCoverage, fetchWeather } from '../utils/openMeteo'
 import type { WeatherResult } from '../utils/openMeteo'
+import { usePacedFetch } from './usePacedFetch'
 
 /**
  * Comparing models across the charted destinations (issue #232): the spend, and
@@ -142,6 +143,12 @@ export function useModelCompare({
   times,
 }: ModelCompareOptions) {
   const [fetched, setFetched] = useState<Fetched>(NOTHING_FETCHED)
+  // A comparison draws on the same weighted budget the analysis and the grid
+  // spend, so it can be put to sleep by work it did not start. Before #394 it
+  // was the one caller that took the pacer's word and said nothing, and a
+  // reader who ticked a model after a large analysis watched an empty chart
+  // for minutes with no way to tell waiting from broken.
+  const { paceRemainingS, onPace, clear: clearPace } = usePacedFetch()
 
   // "Now" is captured per analysis rather than read per render: it decides the
   // clamp, and a value that moved every render would rebuild every line on
@@ -161,8 +168,9 @@ export function useModelCompare({
     for (const controller of inFlightRef.current.values()) controller.abort()
     inFlightRef.current.clear()
     requestedRef.current.clear()
+    clearPace()
     setFetched(NOTHING_FETCHED)
-  }, [analysisSeq])
+  }, [analysisSeq, clearPace])
 
   // Abort whatever is still in the air when the chart goes away, so a comparison
   // nobody is waiting for stops spending.
@@ -247,7 +255,7 @@ export function useModelCompare({
         })),
         window_.startMs,
         endMs,
-        { model: id, signal: controller.signal },
+        { model: id, signal: controller.signal, onPace },
       )
         .then((results) => {
           if (seqRef.current !== seqAtCall) return
@@ -289,6 +297,11 @@ export function useModelCompare({
           if (inFlightRef.current.get(inFlightKey) === controller) {
             inFlightRef.current.delete(inFlightKey)
           }
+          // The wait belongs to the fetch, not to the batch that reported it:
+          // a sleeping batch is still a reason to say so while its neighbours
+          // land. Nothing left in the air is what ends it — a completed batch,
+          // a failed one and an aborted one all arrive here.
+          if (inFlightRef.current.size === 0) clearPace()
         })
     }
     // `drawnKey` and `rowsKey` stand in for the two arrays: both are
@@ -378,5 +391,5 @@ export function useModelCompare({
     times,
   ])
 
-  return { active, compared, shown, lines, endMs, results: fetched.results }
+  return { active, compared, shown, lines, endMs, results: fetched.results, paceRemainingS }
 }

@@ -1,3 +1,5 @@
+import { paceWaitLine } from './pacing'
+
 // Composes the full-screen loading overlay for an Analyze operation — a single
 // ranked analysis (searched places and CSV rows ride inside it as custom
 // destinations). Two destination-type-agnostic phases:
@@ -66,10 +68,7 @@ export function composeOverlay(i: OverlayInputs): OverlayView {
   // During retrieval the detail line carries the live pace countdown when the
   // quota bucket is refilling. A paced analysis must never look hung: the
   // countdown plus the elapsed timer is what proves the wait is scheduled.
-  const detail =
-    i.paceRemainingS != null && i.paceRemainingS > 0
-      ? `Open-Meteo quota: resuming in ${i.paceRemainingS}s`
-      : null
+  const detail = paceWaitLine(i.paceRemainingS ?? null)
   return {
     visible: true,
     message: retrievingLabel(total),

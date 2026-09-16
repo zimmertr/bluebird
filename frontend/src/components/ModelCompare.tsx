@@ -1,8 +1,10 @@
 import type { ComparedModel } from '../hooks/useModelCompare'
 import { STATUS, TEXT } from '../styles'
+import { paceWaitLine } from '../utils/pacing'
 
-// What the comparison has to say beside the chart's metric radios, which is
-// only ever why a model's lines are missing (#232).
+// What the comparison has to say beside the chart's metric radios: why a
+// model's lines are missing (#232), and why none of them have arrived yet
+// (#394).
 //
 // There is no key. A row of chips naming each model in its colour was drawn
 // here and removed (TJ, #232 review): a reader who wants to know which model a
@@ -16,14 +18,24 @@ import { STATUS, TEXT } from '../styles'
 interface Props {
   /** The ranking model first, then every extra on the chart. */
   compared: readonly ComparedModel[]
+  /**
+   * Seconds until the shared Open-Meteo pacer resumes, or null when nothing is
+   * waiting. The comparison spends the same budget the analysis and the grid
+   * do, and both of those already count their wait down.
+   */
+  paceRemainingS: number | null
 }
 
-export default function ModelCompare({ compared }: Props) {
+export default function ModelCompare({ compared, paceRemainingS }: Props) {
   const notes = compared.filter((m) => m.note !== null)
-  if (notes.length === 0) return null
+  const wait = paceWaitLine(paceRemainingS)
+  if (notes.length === 0 && wait === null) return null
 
   return (
     <div className={`ml-auto min-w-0 text-right ${TEXT.micro} ${STATUS.warn}`}>
+      {/* Above the notes: a wait is about every line, where a note is about
+          one model. */}
+      {wait !== null && <div>{wait}</div>}
       {notes.map((model) => (
         <div key={model.id}>{model.note}</div>
       ))}
