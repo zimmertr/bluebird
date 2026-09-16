@@ -1,16 +1,16 @@
 /**
- * The plain data the map draws from, and the one number it gates on.
+ * Polygon geometry: how the drawn ring is built and read back, the one number
+ * it is gated on, and the rings a rendered area gives up for a label.
  *
  * Here rather than inside `MapView.tsx` for the reason `mapFraming.ts` is:
  * Vitest runs with no DOM and MapLibre needs a canvas, so anything defined in
  * that component is untestable by construction (#383). `bboxAreaKm2` is the
  * piece that made this matter — it is what the panel's "polygon is too large"
- * blocker reads — and the feature builders around it are the same shape: plain
- * arrays in, plain GeoJSON out, with nothing that needs a map.
+ * blocker reads — and `App.tsx` rather than the map is what calls it, so the
+ * area of a ring restored from a link is on screen before the map has loaded.
  */
-import type { FeatureCollection, Geometry, Position } from 'geojson'
-import type { DestinationResult, GeoPolygon } from '../types'
-import type { PendingDestination } from './customList'
+import type { Geometry, Position } from 'geojson'
+import type { GeoPolygon } from '../types'
 import type { Ring } from './polylabel'
 
 /**
@@ -32,40 +32,6 @@ export function bboxAreaKm2(pts: [number, number][]): number | null {
   const avgLat = (Math.max(...lats) + Math.min(...lats)) / 2
   const lonKm = (Math.max(...lons) - Math.min(...lons)) * 111 * Math.cos((avgLat * Math.PI) / 180)
   return latKm * lonKm
-}
-
-/**
- * A clicked marker's properties read back as a row.
- *
- * Only reached when the click cannot be matched to a row in the report, which
- * `results-circles` being the popup's one layer makes close to unreachable —
- * it is the guard rather than the path. The feature carries the handful of
- * values the markers themselves need, so every other column reads undefined,
- * and `popupRows.ts` draws those as the dash it draws any missing value as.
- *
- * The coordinates are arguments rather than properties because the caller has
- * the exact pair and the feature does not: a rendered feature's geometry is
- * snapped to the tile grid.
- */
-export function featureRow(
-  p: Record<string, unknown>,
-  latitude: number,
-  longitude: number,
-): DestinationResult {
-  return {
-    name: p.name as string,
-    type: p.type as DestinationResult['type'],
-    osm_id: (p.osm_id as string) ?? null,
-    latitude,
-    longitude,
-    elevation_ft: (p.elevation_ft as number) ?? null,
-    precip_total_in: p.precip as number,
-    wind_avg_mph: p.wind_avg as number,
-    temp_avg_f: p.temp_avg as number,
-    freeze_min_ft: (p.freeze_min as number) ?? null,
-    aqi_avg: (p.aqi_avg as number) ?? null,
-    aqi_max: (p.aqi_max as number) ?? null,
-  } as DestinationResult
 }
 
 /** The drawn ring as the `draw` source's features: the shape and its handles. */
@@ -118,19 +84,6 @@ export function ringToPts(polygon: GeoPolygon): [number, number][] {
     if (first[0] === last[0] && first[1] === last[1]) ring.pop()
   }
   return ring
-}
-
-// Minimal features for pending custom destinations — just position + name
-// label. There is no forecast to color or rank by yet.
-export function pendingFC(pending: PendingDestination[]): FeatureCollection {
-  return {
-    type: 'FeatureCollection',
-    features: pending.map((d) => ({
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [d.longitude, d.latitude] },
-      properties: { name: d.name },
-    })),
-  }
 }
 
 // A rendered feature's polygons, each as its own ring list (outer first, holes

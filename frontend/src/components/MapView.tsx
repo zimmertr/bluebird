@@ -30,13 +30,8 @@ import { addVertex } from '../utils/polygonEdit'
 // The plain-data half of this component, which is where anything testable
 // belongs: Vitest has no DOM, so a helper defined here cannot be reached at all
 // (#383). `MapView.test.ts` fails a new one that lands in this file.
-import {
-  featureRow,
-  makeDrawData,
-  pendingFC,
-  polygonsOf,
-  ringToPts,
-} from '../utils/drawGeometry'
+import { makeDrawData, polygonsOf, ringToPts } from '../utils/drawGeometry'
+import { featureRow, pendingFC } from '../utils/mapFeatures'
 import {
   dismissesPopups,
   resolveMapClick,
