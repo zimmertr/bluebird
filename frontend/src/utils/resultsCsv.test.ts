@@ -4,20 +4,18 @@ import { DATA_SOURCES } from './dataSources'
 import { COLUMNS, WILDFIRE_COL, displayedColumns, withModelColumn } from './tableColumns'
 import { FireWarning, fireKey } from './fireProximity'
 import { DestinationResult } from '../types'
+import { resultRow } from '../testSupport/fixtures'
 
-// Inline like the other suites: a full row with every field, so a test can
-// override only the field it is about.
+// The coordinates are spelled out because this suite asserts on them: the file
+// must not carry a destination's position, and a fire warning is keyed by one.
 function row(over: Partial<DestinationResult> = {}): DestinationResult {
-  return {
-    name: 'Mount Rainier',
-    type: 'peak',
+  return resultRow({
     latitude: 46.8523,
     longitude: -121.7603,
     elevation_ft: 14411,
     osm_id: 'node/1',
     precip_total_in: 0.024,
     precip_avg_in_hr: 0.001,
-    precip_min_in_hr: 0,
     precip_max_in_hr: 0.0034,
     temp_min_f: 21.4,
     temp_max_f: 38.2,
@@ -25,14 +23,11 @@ function row(over: Partial<DestinationResult> = {}): DestinationResult {
     wind_min_mph: 4.1,
     wind_max_mph: 22.7,
     wind_avg_mph: 12.3,
-    freeze_min_ft: null,
-    freeze_max_ft: null,
-    freeze_avg_ft: null,
     aqi_avg: 31,
     aqi_min: 44,
     aqi_max: 44,
     ...over,
-  }
+  })
 }
 
 const NO_FIRES = new Map<string, FireWarning>()

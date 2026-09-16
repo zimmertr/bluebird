@@ -4,6 +4,7 @@ import { CustomDestination, DestinationResult } from '../types'
 import { Place } from './geocode'
 import { NO_CONSTRAINTS } from './clientAnalyze'
 import { presentResults } from './present'
+import { resultRow } from '../testSupport/fixtures'
 
 const csv: CustomDestination[] = [
   { name: 'Mount Rainier', latitude: 46.8529, longitude: -121.7604 },
@@ -28,32 +29,20 @@ function place(
   }
 }
 
+// The coordinates match the CSV above, because a pin is keyed by coordinate.
 function result(overrides: Partial<DestinationResult> = {}): DestinationResult {
-  return {
-    name: 'Mount Rainier',
+  return resultRow({
     type: 'custom',
     latitude: 46.8529,
     longitude: -121.7604,
-    elevation_ft: null,
-    osm_id: null,
-    precip_total_in: 0,
-    precip_avg_in_hr: 0,
-    precip_min_in_hr: 0,
-    precip_max_in_hr: 0,
     temp_min_f: 44.2,
     temp_max_f: 74.9,
     temp_avg_f: 62.1,
     wind_min_mph: 1,
     wind_max_mph: 10,
     wind_avg_mph: 6.4,
-    freeze_min_ft: null,
-    freeze_max_ft: null,
-    freeze_avg_ft: null,
-    aqi_avg: null,
-    aqi_min: null,
-    aqi_max: null,
     ...overrides,
-  }
+  })
 }
 
 describe('pinKey', () => {

@@ -19,6 +19,7 @@ import {
   pairColor,
   pairKey,
 } from './modelCompare'
+import { resultRow } from '../testSupport/fixtures'
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
@@ -364,16 +365,14 @@ describe('compareSeries', () => {
 })
 
 describe('one table row per model', () => {
-  const ROW: DestinationResult = {
+  const ROW = resultRow({
     name: 'East Tiger Mountain',
-    type: 'peak',
     latitude: 47.44,
     longitude: -121.93,
     elevation_ft: 3004,
     osm_id: 'node/1',
     precip_total_in: 0.5,
     precip_avg_in_hr: 0.1,
-    precip_min_in_hr: 0,
     precip_max_in_hr: 0.2,
     temp_min_f: 40,
     temp_max_f: 60,
@@ -387,7 +386,7 @@ describe('one table row per model', () => {
     aqi_avg: 21,
     aqi_min: 12,
     aqi_max: 30,
-  }
+  })
   const MODELS = [
     { id: 'gfs_seamless', label: 'NOAA GFS' },
     { id: 'ecmwf_ifs025', label: 'ECMWF IFS' },

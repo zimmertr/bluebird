@@ -26,6 +26,7 @@ import mapViewSource from '../components/MapView.tsx?raw'
 import { NO_VALUE, fillColor, resultsFeatureCollection } from './resultFeatures'
 import type { DestinationResult } from '../types'
 import type { AqiResult, WeatherResult } from './openMeteo'
+import { resultRow } from '../testSupport/fixtures'
 
 // A field of destinations, as coordinates — the only part of a result the
 // lattice reads.
@@ -37,32 +38,24 @@ function field(...points: [number, number][]) {
 // was designed around.
 const CASCADES = field([46.8523, -121.7603], [46.2024, -121.4909])
 
+// A lattice sample, not a destination: it carries the grid's own name and type.
 function result(overrides: Partial<DestinationResult> = {}): DestinationResult {
-  return {
+  return resultRow({
     name: 'Forecast grid cell',
     type: 'grid',
     latitude: 46.5,
     longitude: -121.6,
-    elevation_ft: null,
-    osm_id: null,
-    precip_total_in: 0,
-    precip_avg_in_hr: 0,
-    precip_min_in_hr: 0,
-    precip_max_in_hr: 0,
     temp_min_f: 44.2,
     temp_max_f: 74.9,
     temp_avg_f: 62.1,
     wind_min_mph: 1,
     wind_max_mph: 10,
     wind_avg_mph: 6.4,
-    freeze_min_ft: null,
-    freeze_max_ft: null,
-    freeze_avg_ft: null,
     aqi_avg: 30,
     aqi_min: 40,
     aqi_max: 40,
     ...overrides,
-  }
+  })
 }
 
 function cell(box: [number, number, number, number], row: DestinationResult, index = 0): GridCell {

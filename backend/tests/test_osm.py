@@ -8,6 +8,7 @@ from app import ratelimit
 from app.models import DestinationType, GeoPolygon
 from app.services import osm
 from app.services.errors import UpstreamError
+from conftest import fake_response
 
 POLY = GeoPolygon(type="Polygon", coordinates=[[[-121.0, 47.0], [-120.0, 47.0], [-120.0, 48.0]]])
 
@@ -168,17 +169,6 @@ async def test_no_types_asks_nothing(monkeypatch):
 # ── _post_with_fallback (the 3-mirror failover chain) ──────────────────────
 
 
-class _FakeResp:
-    def __init__(self, payload):
-        self._payload = payload
-
-    def raise_for_status(self):
-        return None
-
-    def json(self):
-        return self._payload
-
-
 class _FakeClient:
     """Async-context httpx stand-in that replays a scripted list of behaviors,
     one per .post() call (an Exception is raised, anything else is returned).
@@ -227,7 +217,7 @@ async def test_post_with_fallback_recovers_on_second_endpoint(monkeypatch):
     async def on_status(msg):
         statuses.append(msg)
 
-    fake = _FakeClient([httpx.ConnectError("down"), _FakeResp({"elements": []})])
+    fake = _FakeClient([httpx.ConnectError("down"), fake_response({"elements": []})])
     monkeypatch.setattr(osm.httpx, "AsyncClient", lambda *a, **k: fake)
 
     result = await osm._post_with_fallback("q", on_status)
@@ -264,7 +254,7 @@ async def test_post_with_fallback_skips_saturated_mirror(monkeypatch):
     async def on_status(msg):
         statuses.append(msg)
 
-    fake = _FakeClient([_FakeResp({"elements": []})])
+    fake = _FakeClient([fake_response({"elements": []})])
     monkeypatch.setattr(osm.httpx, "AsyncClient", lambda *a, **k: fake)
 
     result = await osm._post_with_fallback("q", on_status)
@@ -296,8 +286,8 @@ async def test_post_with_fallback_rejects_partial_remark(monkeypatch):
     # A mirror that times out mid-query returns 200 with PARTIAL elements plus
     # a `remark` — that must count as a mirror failure, not a result, or a
     # truncated candidate list gets ranked as if it were complete.
-    partial = _FakeResp({"remark": "runtime error: Query timed out in 'query'", "elements": [{"type": "node"}]})
-    clean = _FakeResp({"elements": []})
+    partial = fake_response({"remark": "runtime error: Query timed out in 'query'", "elements": [{"type": "node"}]})
+    clean = fake_response({"elements": []})
     fake = _FakeClient([partial, clean])
     monkeypatch.setattr(osm.httpx, "AsyncClient", lambda *a, **k: fake)
 
@@ -308,7 +298,7 @@ async def test_post_with_fallback_rejects_partial_remark(monkeypatch):
 
 async def test_post_with_fallback_all_partial_raises(monkeypatch):
     partial = {"remark": "runtime error: Query timed out", "elements": []}
-    fake = _FakeClient([_FakeResp(partial), _FakeResp(partial), _FakeResp(partial)])
+    fake = _FakeClient([fake_response(partial), fake_response(partial), fake_response(partial)])
     monkeypatch.setattr(osm.httpx, "AsyncClient", lambda *a, **k: fake)
 
     with pytest.raises(UpstreamError) as excinfo:
