@@ -69,17 +69,20 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   // means the same thing on every scale that has it: past the end of the
   // ramp, where a reader is no longer weighing an option. An inch over a
   // window is the boundary here because the totals scale is read over windows
-  // of days, where 0.50" is a wet weekend and 1.00" is a washout.
+  // of days, where 0.50 in is a wet weekend and 1.00 in is a washout.
   precip: {
     thresholds: [0.01, 0.10, 0.25, 0.50, 1.00],
     colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444', '#a855f7'],
+    // "in" rather than an inch mark (TJ, 2026-09-16): the column header, the
+    // bound boxes and the rate scale below all spell the unit, and the legend
+    // was the one surface that did not.
     legendLabels: [
-      '≤ 0.01"',
-      '0.01 – 0.10"',
-      '0.10 – 0.25"',
-      '0.25 – 0.50"',
-      '0.50 – 1.00"',
-      '> 1.00"',
+      '≤ 0.01 in',
+      '0.01 – 0.10 in',
+      '0.10 – 0.25 in',
+      '0.25 – 0.50 in',
+      '0.50 – 1.00 in',
+      '> 1.00 in',
     ],
   },
   // Purple above 50 mph (#445): red used to start at 35 and never stop, so a
@@ -200,10 +203,10 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
 const PRECIP_RATE: LabelledScale = {
   thresholds: [0.01, 0.10, 0.30, 0.50, 1.00],
   colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444', '#a855f7'],
-  // Spelled "in/hr" rather than with an inch mark, which is what the window
-  // scale above uses. The difference is the whole point of this scale existing,
-  // and the map legend shows one or the other with nothing beside it to compare
-  // against — so the unit has to say which reading it is on its own.
+  // "in/hr" against the window scale's "in": the difference is the whole point
+  // of this scale existing, and the map legend shows one or the other with
+  // nothing beside it to compare against — so the unit has to say which
+  // reading it is on its own.
   legendLabels: [
     '≤ 0.01 in/hr',
     '0.01 – 0.10 in/hr',

@@ -362,12 +362,12 @@ Marker colors follow the ranked metric. Under the default ranking that is total 
 
 | Color | Precip Total |
 |---|---|
-| Green | 0.01" or less |
-| Lime | 0.01" to 0.10" |
-| Yellow | 0.10" to 0.25" |
-| Orange | 0.25" to 0.50" |
-| Red | 0.50" to 1.00" |
-| Purple | more than 1.00" |
+| Green | 0.01 in or less |
+| Lime | 0.01 in to 0.10 in |
+| Yellow | 0.10 in to 0.25 in |
+| Orange | 0.25 in to 0.50 in |
+| Red | 0.50 in to 1.00 in |
+| Purple | more than 1.00 in |
 
 Wind uses the same six colors, with red from 35 to 50 mph and purple above 50 mph. Purple is the same color the AQI scale gives its Very Unhealthy band, so wherever you meet it the reading is the same: past the end of the ramp. Temperature is the one scale with a bad end on both sides: purple at or below 30°F, through sky blue and cyan, green from 60 to 75°F, then orange and red above 90°F.
 

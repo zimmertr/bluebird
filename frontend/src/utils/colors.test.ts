@@ -303,12 +303,12 @@ describe('METRIC_SCALE', () => {
       '> 50 mph',
     ])
     expect(METRIC_SCALE.precip.legendLabels).toEqual([
-      '≤ 0.01"',
-      '0.01 – 0.10"',
-      '0.10 – 0.25"',
-      '0.25 – 0.50"',
-      '0.50 – 1.00"',
-      '> 1.00"',
+      '≤ 0.01 in',
+      '0.01 – 0.10 in',
+      '0.10 – 0.25 in',
+      '0.25 – 0.50 in',
+      '0.50 – 1.00 in',
+      '> 1.00 in',
     ])
     expect(hourlyScale('precip_total_in')!.legendLabels).toEqual([
       '≤ 0.01 in/hr',
