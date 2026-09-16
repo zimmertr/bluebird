@@ -19,9 +19,11 @@ export const AIR_QUALITY_URL = 'https://air-quality-api.open-meteo.com/v1/air-qu
 
 // Same batching the backend uses: 50 locations per request, at most 4
 // requests in flight. One browser analyzing is exactly as polite to
-// Open-Meteo as the server was.
-const BATCH_SIZE = 50
-const MAX_CONCURRENT_BATCHES = 4
+// Open-Meteo as the server was. Both numbers are measured on the backend
+// (issue #182) and mirrored through `mirrored_constants.json`, which is why
+// they are exported: `mirroredConstants.test.ts` reads them.
+export const BATCH_SIZE = 50
+export const MAX_CONCURRENT_BATCHES = 4
 
 // The CAMS air-quality model publishes ~5 days; requesting past that 400s.
 const AQI_MAX_FORECAST_DAYS = 5

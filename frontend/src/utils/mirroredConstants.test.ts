@@ -14,7 +14,7 @@
 // longer counted anything.
 import { describe, expect, it } from 'vitest'
 import manifest from '../../../backend/tests/data/mirrored_constants.json'
-import { HOURLY_VARIABLES } from './openMeteo'
+import { BATCH_SIZE, HOURLY_VARIABLES, MAX_CONCURRENT_BATCHES } from './openMeteo'
 import { MAX_ANALYZE_DESTINATIONS } from './clientAnalyze'
 import { COARSE_TOLERANCE_DEG } from './wildfires'
 import {
@@ -41,6 +41,15 @@ describe('the constants the backend publishes for this side to match', () => {
     // variable either side adds is the one that would.
     expect(HOURLY_VARIABLES.length).toBe(constants.N_VARIABLES + 1)
     expect(HOURLY_VARIABLES).toContain('wind_direction_10m')
+  })
+
+  it('batches a weather fetch the way the backend batches one', () => {
+    // 50 and 4 are measured rather than chosen (issue #182): 50 locations is
+    // what fits under Open-Meteo's 8,192-byte request URI, and 4 in flight is
+    // the fairness gate. A browser that batched larger would be the one
+    // visitor spending the quota everyone behind that address shares.
+    expect(BATCH_SIZE).toBe(constants.BATCH_SIZE)
+    expect(MAX_CONCURRENT_BATCHES).toBe(constants.MAX_CONCURRENT_BATCHES)
   })
 
   it('caps a browser analysis where the server caps one', () => {
