@@ -7,7 +7,12 @@
 // tests on both sides fail if either drifts. Change semantics there first,
 // regenerate the vectors, and mirror the change here.
 
-import { archiveBoundaryMs, windowSource } from './forecastWindow'
+import {
+  FALLBACK_WINDOW_LIMITS,
+  archiveBoundaryMs,
+  windowSource,
+  type WindowLimits,
+} from './forecastWindow'
 import { buildSnapshot, loadSnapshot, readSnapshot, saveSnapshot } from './forecastStore'
 
 export const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'
@@ -23,8 +28,12 @@ export const AIR_QUALITY_URL = 'https://air-quality-api.open-meteo.com/v1/air-qu
 const BATCH_SIZE = 50
 const MAX_CONCURRENT_BATCHES = 4
 
-// The CAMS air-quality model publishes ~5 days; requesting past that 400s.
-const AQI_MAX_FORECAST_DAYS = 5
+// The CAMS air-quality model publishes far less forecast than the weather
+// endpoint does, and requesting past its horizon 400s. A FALLBACK for the
+// moments before `/api/capabilities` answers with `limits.aqi_forecast_days`
+// (#393), which is the same number the calendar dims its later days by — one
+// deployment must not clamp the fetch at one horizon and draw another.
+const FALLBACK_AQI_FORECAST_DAYS = 5
 
 // Thrown only for failures that mean the browser genuinely cannot talk to
 // Open-Meteo: network errors, DNS, a blocked CORS preflight, malformed
@@ -490,12 +499,13 @@ export function fetchSpans(
   startMs: number,
   endMs: number,
   nowMs: number = Date.now(),
+  limits: WindowLimits = FALLBACK_WINDOW_LIMITS,
 ): FetchSpan[] {
-  const source = windowSource(startMs, endMs, nowMs)
+  const source = windowSource(startMs, endMs, nowMs, limits)
   if (source !== 'spanning') {
     return [{ archive: source === 'archive', startMs, endMs }]
   }
-  const seam = archiveBoundaryMs(nowMs)
+  const seam = archiveBoundaryMs(nowMs, limits)
   return [
     { archive: true, startMs, endMs: seam - HOUR_MS },
     { archive: false, startMs: seam, endMs },
@@ -1127,6 +1137,12 @@ export interface FetchWeatherOptions {
    */
   nowMs?: number
   /**
+   * Where this deployment puts the archive boundary, from `/api/capabilities`.
+   * Omitted means the compiled fallback, which is what the app runs on before
+   * that fetch answers (#393).
+   */
+  windowLimits?: WindowLimits
+  /**
    * For coordinates carrying no `elevation_ft` of their own, adjust wind to
    * the TERRAIN elevation Open-Meteo reports for the coordinate (its ~90 m
    * DEM, on every response) instead of falling back to the 10 m wind. The
@@ -1173,6 +1189,7 @@ export async function fetchWeather(
     onPace,
     model,
     nowMs = Date.now(),
+    windowLimits = FALLBACK_WINDOW_LIMITS,
     terrainElevation = false,
   }: FetchWeatherOptions,
 ): Promise<WeatherResult[]> {
@@ -1183,8 +1200,8 @@ export async function fetchWeather(
   // archive boundary is two requests per batch, joined per location before the
   // aggregation runs; `source` is part of the cache key, so its joined series is
   // a third answer at the same coordinates rather than either half.
-  const source = windowSource(startMs, endMs, nowMs)
-  const spans = fetchSpans(startMs, endMs, nowMs)
+  const source = windowSource(startMs, endMs, nowMs, windowLimits)
+  const spans = fetchSpans(startMs, endMs, nowMs, windowLimits)
 
   const results: WeatherResult[] = new Array(destinations.length).fill(null)
   // Which entries of `results` are answers. A cache hit is settled the moment
@@ -1317,8 +1334,11 @@ export async function fetchWeather(
 
 export interface FetchAqiOptions {
   signal?: AbortSignal
-  // Injectable so tests can pin the ~5-day horizon clamp.
+  // Injectable so tests can pin the horizon clamp.
   nowMs?: number
+  // How far ahead air quality reaches, from /api/capabilities. Omitted means
+  // the compiled fallback, which is the pre-fetch state (#393).
+  aqiForecastDays?: number
 }
 
 // Port of air_quality.fetch_aqi_batch: best-effort by design. Any failure —
@@ -1333,16 +1353,20 @@ export async function fetchAqi(
   destinations: readonly Coordinate[],
   startMs: number,
   endMs: number,
-  { signal, nowMs = Date.now() }: FetchAqiOptions = {},
+  {
+    signal,
+    nowMs = Date.now(),
+    aqiForecastDays = FALLBACK_AQI_FORECAST_DAYS,
+  }: FetchAqiOptions = {},
 ): Promise<AqiResult[]> {
   if (destinations.length === 0) return []
 
   // Clamp to the CAMS horizon; a window entirely beyond it skips the fetch.
-  // The cap ends at 23:00 on the day AQI_MAX_FORECAST_DAYS names, which is
-  // where the whole-day request this replaced already ended, so the clamp
-  // keeps its old reach exactly. Both bounds are ISO hour strings, so the
-  // lexical comparisons below order them the same way the dates did.
-  const endCap = `${utcDate(nowMs + AQI_MAX_FORECAST_DAYS * 86_400_000)}T23:00`
+  // The cap ends at 23:00 on the day the horizon names, which is where the
+  // whole-day request this replaced already ended, so the clamp keeps its old
+  // reach exactly. Both bounds are ISO hour strings, so the lexical
+  // comparisons below order them the same way the dates did.
+  const endCap = `${utcDate(nowMs + aqiForecastDays * 86_400_000)}T23:00`
   const reqStart = utcHour(startMs)
   const reqEnd = utcHour(endMs) < endCap ? utcHour(endMs) : endCap
   if (reqStart > reqEnd) return destinations.map(() => null)

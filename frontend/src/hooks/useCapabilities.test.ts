@@ -13,6 +13,15 @@ import appSource from '../App.tsx?raw'
 import controlPanelSource from '../components/ControlPanel.tsx?raw'
 import mapViewSource from '../components/MapView.tsx?raw'
 import calendarSource from '../utils/calendar.ts?raw'
+import forecastWindowSource from '../utils/forecastWindow.ts?raw'
+import openMeteoSource from '../utils/openMeteo.ts?raw'
+import { AQI_LIMIT_DAYS } from '../utils/calendar'
+import {
+  FALLBACK_WINDOW_LIMITS,
+  FUTURE_LIMIT_SLACK_DAYS,
+  PAST_DATA_DAYS,
+  PAST_LIMIT_SLACK_DAYS,
+} from '../utils/forecastWindow'
 
 describe('parseCapabilities', () => {
   const body = {
@@ -21,6 +30,12 @@ describe('parseCapabilities', () => {
       max_limit: 800,
       max_polygon_area_km2: 70_000,
       archive_days: 200,
+      // Deliberately none of the compiled fallbacks, so an assertion below
+      // cannot pass by reading the constant it is meant to have replaced.
+      max_past_days: 210,
+      max_future_days: 9,
+      past_data_days: 30,
+      aqi_forecast_days: 4,
     },
     // Deliberately NOT in reach order: the server ranks these for mountain
     // terrain, and a client that re-sorted would undo the ranking.
@@ -49,6 +64,8 @@ describe('parseCapabilities', () => {
       maxLimit: 800,
       maxPolygonAreaKm2: 70_000,
       archiveDays: 200,
+      aqiForecastDays: 4,
+      windowLimits: { maxPastDays: 210, maxFutureDays: 9, pastDataDays: 30 },
       forecastModels: [
         {
           id: 'gfs_seamless',
@@ -157,6 +174,20 @@ describe('parseCapabilities', () => {
     expect(partial.maxDestinations).toBeGreaterThan(0)
     expect(partial.maxPolygonAreaKm2).toBeGreaterThan(0)
     expect(partial.archiveDays).toBeGreaterThan(0)
+    expect(partial.aqiForecastDays).toBeGreaterThan(0)
+  })
+
+  // The three window bounds arrive as one object, so the per-field rule has to
+  // hold INSIDE it too: a deployment publishing one of them must not take the
+  // two beside it down to undefined, where the window check would compare
+  // against NaN and refuse everything.
+  it('falls back per field inside the window bounds', () => {
+    const partial = parseCapabilities({ limits: { max_future_days: 9 } })
+    expect(partial.windowLimits).toEqual({
+      maxPastDays: PAST_LIMIT_SLACK_DAYS,
+      maxFutureDays: 9,
+      pastDataDays: PAST_DATA_DAYS,
+    })
   })
 
   it('falls back whole when the body is missing, empty, or the wrong shape', () => {
@@ -211,6 +242,72 @@ describe('the archive reach has one source', () => {
   it('reaches the panel as a prop, and the calendar as the band it draws', () => {
     expect(controlPanelSource).toMatch(/archiveDays: number/)
     expect(calendarSource).toMatch(/pastDays: number/)
+  })
+})
+
+// The same rule over the last four published limits (#393). `max_past_days`,
+// `max_future_days`, `past_data_days` and `aqi_forecast_days` were published
+// and ignored while the browser computed with copies of its own; now the copies
+// are fallbacks and nothing but the fallback reads them.
+describe('the window bounds and the air-quality horizon have one source', () => {
+  // The declarations themselves, which is the one place each number may appear.
+  // Stripped rather than excused, so the assertion below is about every OTHER
+  // line of the file: a second occurrence is the mirrored constant #152
+  // removed, reborn as a value someone computed with instead of passing in.
+  const FALLBACK_DECLARATIONS = [
+    'PAST_LIMIT_SLACK_DAYS',
+    'FUTURE_LIMIT_SLACK_DAYS',
+    'PAST_DATA_DAYS',
+  ]
+  const elsewhere = forecastWindowSource
+    .split('\n')
+    .filter((line) => !FALLBACK_DECLARATIONS.some((n) => line.startsWith(`export const ${n} =`)))
+    .join('\n')
+
+  it('spells each window bound only where its fallback is declared', () => {
+    for (const value of [PAST_LIMIT_SLACK_DAYS, FUTURE_LIMIT_SLACK_DAYS, PAST_DATA_DAYS]) {
+      // Bounded by hyphens as well as digits, or a date in a comment would
+      // read as one of these numbers and fail a file that is perfectly fine.
+      expect(
+        elsewhere,
+        `forecastWindow.ts must take ${value} as an argument, not spell it`,
+      ).not.toMatch(new RegExp(`(?<![\\d-])${value}(?![\\d-])`))
+    }
+  })
+
+  // No literal check for the air-quality horizon: it is a single digit, and a
+  // test forbidding that in calendar.ts would fail on an array index. The
+  // guarantee is the shape instead — the day count arrives as an argument, so
+  // there is nowhere for a module-level one to be read from.
+  it('takes the air-quality horizon as an argument rather than a constant', () => {
+    expect(calendarSource).toMatch(/aqiHorizon\(now: Date, aqiDays: number\)/)
+    expect(calendarSource).toMatch(/aqiDays: number/)
+    expect(controlPanelSource, 'the panel must read the horizon from its props').not.toContain(
+      'AQI_LIMIT_DAYS',
+    )
+    // The fetch clamps to the same horizon the calendar dims by, so it has to
+    // take it the same way. A fetch clamped at a compiled number under a
+    // calendar drawn at a published one would empty a day drawn as covered.
+    expect(openMeteoSource).toMatch(/aqiForecastDays\?: number/)
+  })
+
+  it('reaches the panel as props, like the two ceilings before it', () => {
+    expect(controlPanelSource).toMatch(/aqiForecastDays: number/)
+    expect(controlPanelSource).toMatch(/windowLimits: WindowLimits/)
+  })
+
+  // The moment before /api/capabilities answers must behave exactly as the app
+  // behaved when these numbers were compiled in. That is what makes the
+  // fallback safe, and it is only true while it IS the old constant.
+  it('falls back to the numbers the browser used to compute with', () => {
+    const fallback = parseCapabilities(null)
+    expect(fallback.aqiForecastDays).toBe(AQI_LIMIT_DAYS)
+    expect(fallback.windowLimits).toEqual(FALLBACK_WINDOW_LIMITS)
+    expect(FALLBACK_WINDOW_LIMITS).toEqual({
+      maxPastDays: PAST_LIMIT_SLACK_DAYS,
+      maxFutureDays: FUTURE_LIMIT_SLACK_DAYS,
+      pastDataDays: PAST_DATA_DAYS,
+    })
   })
 })
 

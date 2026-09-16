@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { apiJson } from '../utils/apiFetch'
+import { AQI_LIMIT_DAYS } from '../utils/calendar'
 import { MAX_ANALYZE_DESTINATIONS } from '../utils/clientAnalyze'
+import { FALLBACK_WINDOW_LIMITS, type WindowLimits } from '../utils/forecastWindow'
 
 // The live limits this deployment enforces, from GET /api/capabilities. The
 // SPA reads its ceilings (analysis cap, results-knob maximum) from here so a
@@ -42,6 +44,15 @@ export interface Capabilities {
   maxPolygonAreaKm2: number
   /** Days back the calendar may offer, which is the archive endpoint's reach. */
   archiveDays: number
+  /** Days ahead air quality is available. Marks days in the calendar grid. */
+  aqiForecastDays: number
+  /**
+   * The bounds a window is validated against, and where the archive endpoint
+   * takes over. One object because that is the shape `forecastWindow.ts` takes:
+   * three day counts of similar magnitude, which as bare arguments would
+   * transpose silently.
+   */
+  windowLimits: WindowLimits
   /** Best first, in the order the server ranked them. Render as given. */
   forecastModels: readonly ForecastModelOption[]
   defaultForecastModel: string
@@ -85,6 +96,14 @@ const FALLBACK: Capabilities = {
   maxLimit: MAX_ANALYZE_DESTINATIONS,
   maxPolygonAreaKm2: FALLBACK_POLYGON_AREA_KM2,
   archiveDays: FALLBACK_ARCHIVE_DAYS,
+  // The four below are imported rather than respelled, for the same reason
+  // `maxDestinations` is: each is the browser's half of a mirrored pair, pinned
+  // against the backend constant by `utils/mirroredConstants.test.ts`, and a
+  // second spelling here could only ever disagree with the pin. What #393
+  // changed is not where they live but what they are — the value held until
+  // `/api/capabilities` answers, rather than the value the app computes with.
+  aqiForecastDays: AQI_LIMIT_DAYS,
+  windowLimits: FALLBACK_WINDOW_LIMITS,
   forecastModels: [FALLBACK_FORECAST_MODEL],
   defaultForecastModel: FALLBACK_FORECAST_MODEL.id,
 }
@@ -200,6 +219,15 @@ export function parseCapabilities(body: unknown): Capabilities {
     maxLimit: num('max_limit', FALLBACK.maxLimit),
     maxPolygonAreaKm2: num('max_polygon_area_km2', FALLBACK.maxPolygonAreaKm2),
     archiveDays: num('archive_days', FALLBACK.archiveDays),
+    aqiForecastDays: num('aqi_forecast_days', FALLBACK.aqiForecastDays),
+    // Per field here too, not per object: a deployment on an older build
+    // publishes some of these three and not others, and a missing key must
+    // leave that bound on its fallback rather than drop the two beside it.
+    windowLimits: {
+      maxPastDays: num('max_past_days', FALLBACK.windowLimits.maxPastDays),
+      maxFutureDays: num('max_future_days', FALLBACK.windowLimits.maxFutureDays),
+      pastDataDays: num('past_data_days', FALLBACK.windowLimits.pastDataDays),
+    },
     ...parseModels(body),
   }
 }

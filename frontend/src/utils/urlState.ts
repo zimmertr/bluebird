@@ -670,13 +670,13 @@ export function classifyWindow(
 }
 
 /**
- * Classify how much of a forecast window the ~5-day air-quality horizon covers.
+ * Classify how much of a forecast window the air-quality horizon covers.
  * 'full' means AQI data should span the whole window, 'partial' means only its
  * start, 'none' means the window begins beyond the horizon entirely. Purely
  * informational — analysis still runs, with missing AQI rendered as "—".
  *
  * Whole days again, and for a second reason beyond matching the API: the backend
- * clamps its own request to `min(end.date(), today + 5 days)`
+ * clamps its own request to `min(end.date(), today + aqi_forecast_days)`
  * (`air_quality.py`), so coverage really does run to the end of the horizon day.
  * Measuring from an instant called a window ending that evening 'partial' while
  * the calendar drew the same day as fully covered, and one of the two had to be
@@ -686,13 +686,14 @@ export function classifyAqiCoverage(
   startDatetime: string,
   endDatetime: string,
   now: Date,
+  aqiDays: number,
 ): 'full' | 'partial' | 'none' {
   if (!isValidDatetimeLocal(startDatetime) || !isValidDatetimeLocal(endDatetime)) {
     return 'full' // incomplete window — nothing to warn about yet
   }
   const start = new Date(startDatetime).getTime()
   const end = new Date(endDatetime).getTime()
-  const horizon = Date.parse(`${aqiHorizon(now)}T${DAY_END}`)
+  const horizon = Date.parse(`${aqiHorizon(now, aqiDays)}T${DAY_END}`)
 
   if (start > horizon) return 'none'
   if (end > horizon) return 'partial'

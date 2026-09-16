@@ -17,7 +17,11 @@
 // a DST transition, and millisecond arithmetic would land on the wrong day.
 
 import { nowLocal } from './datetimeLocal'
-import { archiveBoundaryMs } from './forecastWindow'
+import {
+  FALLBACK_WINDOW_LIMITS,
+  archiveBoundaryMs,
+  type WindowLimits,
+} from './forecastWindow'
 
 // The servable band, as day offsets from today. These live here rather than in
 // urlState.ts because the calendar is what makes them visible: they are the
@@ -50,9 +54,14 @@ export const FUTURE_LIMIT_DAYS = 15
 // beside the model's reach, and `useCapabilities.ts` holds the fallback for the
 // moment before that answers.
 
-// The air-quality endpoint's CAMS model only publishes ~5 days of forecast —
-// well short of the weather horizon — so days past it are still analyzable but
-// come back with no AQI. The calendar dims them (see `DayCell.availability`).
+// The air-quality endpoint's CAMS model publishes far less forecast than the
+// weather endpoint does, so days past its horizon are still analyzable but come
+// back with no AQI. The calendar dims them (see `DayCell.availability`).
+//
+// A FALLBACK, like the archive's reach above and for the same reason: the
+// horizon is published as `limits.aqi_forecast_days` and arrives on
+// `BandLimits.aqiDays`. Nothing in this module reads this constant — it exists
+// for `useCapabilities.ts` to hold until the fetch answers (#393).
 export const AQI_LIMIT_DAYS = 5
 
 /** Whole-day bounds, in the `HH:MM` shape the narrow-hours inputs speak. */
@@ -197,18 +206,20 @@ export function orderDays(a: string, b: string): { startDate: string; endDate: s
 /**
  * The two edges of the servable band, as one value.
  *
- * One object rather than two number parameters because both edges now move: the
- * far one with the selected model (`forecastHours`) and the near one with what
- * `/api/capabilities` publishes as the archive's reach (`pastDays`). As bare
- * numbers they are adjacent arguments of the same type and similar magnitude —
- * a model's reach in hours against a year of days — so a transposed pair would
- * compile and quietly redraw the grid.
+ * One object rather than three number parameters because all three move: the
+ * far edge with the selected model (`forecastHours`), and the near edge and the
+ * air-quality horizon with what `/api/capabilities` publishes (`pastDays`,
+ * `aqiDays`). As bare numbers they are adjacent arguments of the same type and
+ * similar magnitude — a model's reach in hours against a year of days — so a
+ * transposed pair would compile and quietly redraw the grid.
  */
 export interface BandLimits {
   /** Hours ahead the selected model still holds data for. The far edge. */
   forecastHours: number
   /** Days back the archive reaches. The near edge. */
   pastDays: number
+  /** Days ahead air quality reaches. Marks days inside the band, not an edge. */
+  aqiDays: number
 }
 
 /**
@@ -283,8 +294,8 @@ export function inBand(key: string, now: Date, band: BandLimits): boolean {
 }
 
 /** The last day the air-quality model reaches. Days past it are marked. */
-export function aqiHorizon(now: Date): string {
-  return addDays(dayKey(now), AQI_LIMIT_DAYS)
+export function aqiHorizon(now: Date, aqiDays: number): string {
+  return addDays(dayKey(now), aqiDays)
 }
 
 /**
@@ -343,7 +354,7 @@ export function monthGrid(month: string, now: Date, band: BandLimits): DayCell[]
   const weeks = Math.ceil((first.getDay() + daysInMonth) / 7)
   const gridStart = new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay())
   const today = dayKey(now)
-  const horizon = aqiHorizon(now)
+  const horizon = aqiHorizon(now, band.aqiDays)
   const modelLimit = modelEnd(now, band.forecastHours)
 
   return Array.from({ length: weeks }, (_, w) =>
@@ -685,11 +696,12 @@ export function archiveSeamPhrase(
   endMs: number,
   modelLabel: string,
   now: Date = new Date(),
+  limits: WindowLimits = FALLBACK_WINDOW_LIMITS,
 ): string {
   // Through this module's own day helpers rather than millisecond arithmetic: a
   // local day is 23 or 25 hours on a DST transition, and subtracting 86,400,000
   // ms from a local midnight lands on the wrong date across one of them.
-  const boundaryDay = dayKey(new Date(archiveBoundaryMs(now.getTime())))
+  const boundaryDay = dayKey(new Date(archiveBoundaryMs(now.getTime(), limits)))
   const firstForecastDay = dayDate(boundaryDay).getTime()
   const lastArchiveDay = dayDate(addDays(boundaryDay, -1)).getTime()
   const year = needsYear(startMs, endMs, now)

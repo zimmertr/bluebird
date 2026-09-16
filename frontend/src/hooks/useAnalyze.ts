@@ -9,7 +9,13 @@ import {
   RefusalFields,
 } from '../types'
 import { SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
-import { resolveWindow, windowSource, type WindowSource } from '../utils/forecastWindow'
+import {
+  FALLBACK_WINDOW_LIMITS,
+  resolveWindow,
+  windowSource,
+  type WindowLimits,
+  type WindowSource,
+} from '../utils/forecastWindow'
 import {
   AnalysisRefusalError,
   MAX_ANALYZE_DESTINATIONS,
@@ -20,7 +26,7 @@ import {
 import { postDestinations } from '../utils/apiFetch'
 import { pinKey } from '../utils/customList'
 import { OpenMeteoModelCoverage } from '../utils/openMeteo'
-import { SelectionKind } from '../utils/calendar'
+import { AQI_LIMIT_DAYS, SelectionKind } from '../utils/calendar'
 import { AnalyzedSnapshot, discoveryKeys } from '../utils/present'
 import type { ForecastModelOption } from './useCapabilities'
 
@@ -147,6 +153,8 @@ async function readErrorBody(
 export function useAnalyze(
   maxDestinations: number = MAX_ANALYZE_DESTINATIONS,
   models: readonly ForecastModelOption[] = [],
+  windowLimits: WindowLimits = FALLBACK_WINDOW_LIMITS,
+  aqiForecastDays: number = AQI_LIMIT_DAYS,
 ) {
   const [loading, setLoading] = useState(false)
   // True between the first batch landing and the analysis finishing: the rows
@@ -295,7 +303,7 @@ export function useAnalyze(
       constraints: constraintsFromRequest(request),
       kind,
       window: { startMs, endMs },
-      windowSource: windowSource(startMs, endMs),
+      windowSource: windowSource(startMs, endMs, Date.now(), windowLimits),
       customKeys: new Set(
         (request.custom_destinations ?? []).map((d) => pinKey(d.latitude, d.longitude)),
       ),
@@ -329,7 +337,12 @@ export function useAnalyze(
     kind: SelectionKind,
     signal: AbortSignal,
   ): Promise<void> {
-    const { startMs, endMs } = resolveWindow(request.start_datetime, request.end_datetime)
+    const { startMs, endMs } = resolveWindow(
+      request.start_datetime,
+      request.end_datetime,
+      Date.now(),
+      windowLimits,
+    )
 
     // Reuse is legal only where a held forecast answers the same question:
     // the same resolved window (which is why this compares the RESOLVED pair —
@@ -404,6 +417,8 @@ export function useAnalyze(
       {
         signal,
         maxDestinations,
+        windowLimits,
+        aqiForecastDays,
         reuse: reuse && { rows: reuse.rows, times: reuse.times },
         onPace: handlePace,
         // Each batch, ranked and on screen as it lands, instead of a

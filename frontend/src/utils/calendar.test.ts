@@ -48,12 +48,16 @@ const NOW = new Date(2026, 6, 15, 12, 0)
 // measured; ECMWF's floor is 336. HRRR's 42 is the interesting opposite and
 // gets its own describe block below.
 //
-// The near edge rides in the same object (#123). It is the archive's reach, so it
-// is what `/api/capabilities` publishes rather than a measured API edge, and the
-// fallback the hook compiles is the value used here.
+// The near edge and the air-quality horizon ride in the same object (#123,
+// #393). Both are what `/api/capabilities` publishes rather than measured API
+// edges, and the fallbacks the hook compiles are the values used here.
 const ARCHIVE_DAYS = 365
-const LONG: BandLimits = { forecastHours: 384, pastDays: ARCHIVE_DAYS }
-const HRRR: BandLimits = { forecastHours: 42, pastDays: ARCHIVE_DAYS }
+const LONG: BandLimits = {
+  forecastHours: 384,
+  pastDays: ARCHIVE_DAYS,
+  aqiDays: AQI_LIMIT_DAYS,
+}
+const HRRR: BandLimits = { ...LONG, forecastHours: 42 }
 
 // The two 2026 transitions in the timezone vitest.config.ts pins. A local
 // calendar day is 23 hours on the first and 25 on the second, which is the whole
@@ -213,9 +217,22 @@ describe('the servable band', () => {
   })
 
   it('puts the air-quality horizon inside the weather one', () => {
-    expect(aqiHorizon(NOW)).toBe('2026-07-20')
-    expect(addDays(dayKey(NOW), AQI_LIMIT_DAYS)).toBe(aqiHorizon(NOW))
-    expect(aqiHorizon(NOW) < bandEnd(NOW, LONG)).toBe(true)
+    expect(aqiHorizon(NOW, AQI_LIMIT_DAYS)).toBe('2026-07-20')
+    expect(addDays(dayKey(NOW), AQI_LIMIT_DAYS)).toBe(aqiHorizon(NOW, AQI_LIMIT_DAYS))
+    expect(aqiHorizon(NOW, AQI_LIMIT_DAYS) < bandEnd(NOW, LONG)).toBe(true)
+  })
+
+  // The horizon is published (#393), so the grid has to dim by what the
+  // deployment says rather than by a number compiled into this module.
+  it('dims by the horizon the band carries, not a compiled one', () => {
+    const shorter: BandLimits = { ...LONG, aqiDays: AQI_LIMIT_DAYS - 2 }
+    expect(aqiHorizon(NOW, shorter.aqiDays)).toBe('2026-07-18')
+    const at = (band: BandLimits, date: string) =>
+      monthGrid('2026-07', NOW, band)
+        .flat()
+        .find((c) => c.date === date)?.availability
+    expect(at(LONG, '2026-07-19')).toBe('full')
+    expect(at(shorter, '2026-07-19')).toBe('partial')
   })
 })
 
@@ -432,8 +449,8 @@ describe('monthGrid', () => {
     const on = (date: string) => july.find((c) => c.date === date)?.availability
 
     // The air-quality horizon itself still has air quality; the day after it does not.
-    expect(on(aqiHorizon(NOW))).toBe('full')
-    expect(on(addDays(aqiHorizon(NOW), 1))).toBe('partial')
+    expect(on(aqiHorizon(NOW, LONG.aqiDays))).toBe('full')
+    expect(on(addDays(aqiHorizon(NOW, LONG.aqiDays), 1))).toBe('partial')
     // The far edge of the band is analyzable; the day after it is not.
     expect(on(bandEnd(NOW, LONG))).toBe('partial')
     expect(on(addDays(bandEnd(NOW, LONG), 1))).toBe('unservable')

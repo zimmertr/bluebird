@@ -15,6 +15,13 @@ Read the values there rather than from this page. What follows is the part a
 JSON payload cannot tell you: why each cap exists, and what you see on hitting
 it.
 
+The web app reads that endpoint too, and treats it the same way you should: it
+draws its calendar, gates its Analyze button and classifies its windows from the
+values the running deployment publishes. The numbers compiled into the browser
+bundle are the fallback for the moments before that answer arrives, and for a
+deployment where the request fails. So a self-hosted instance that changes one
+of these does not need a matching frontend build for the app to respect it.
+
 **Polygon area.** This bounds the map query, not the forecast work.
 Overpass runs on donated hardware behind a shared dispatcher, and past a
 certain box size it stops answering and returns a "too busy" error instead of

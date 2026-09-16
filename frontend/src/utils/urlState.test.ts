@@ -44,10 +44,15 @@ const DAYS: ForecastSelection = {
 const DEFAULT_MODEL = 'ecmwf_ifs025'
 
 // A reach long enough that the API's hard date edge binds first, so the horizon
-// assertions below test that edge rather than a model's. The near edge is the
-// archive's published reach (#123), here at the fallback the hook compiles.
+// assertions below test that edge rather than a model's. The near edge and the
+// air-quality horizon are published values (#123, #393), here at the fallbacks
+// the hook compiles.
 const ARCHIVE_DAYS = 365
-const LONG: BandLimits = { forecastHours: 384, pastDays: ARCHIVE_DAYS }
+const LONG: BandLimits = {
+  forecastHours: 384,
+  pastDays: ARCHIVE_DAYS,
+  aqiDays: AQI_LIMIT_DAYS,
+}
 
 const base: ShareableState = {
   polygon,
@@ -812,38 +817,46 @@ describe('classifyAqiCoverage', () => {
   const shift = (days: number) => iso(new Date(now.getTime() + days * 86_400_000))
 
   it('is full when the window ends inside the AQI horizon', () => {
-    expect(classifyAqiCoverage(shift(1), shift(AQI_LIMIT_DAYS - 1), now)).toBe('full')
+    expect(classifyAqiCoverage(shift(1), shift(AQI_LIMIT_DAYS - 1), now, AQI_LIMIT_DAYS)).toBe('full')
   })
 
   it('is partial when only the start of the window is covered', () => {
-    expect(classifyAqiCoverage(shift(2), shift(AQI_LIMIT_DAYS + 3), now)).toBe('partial')
+    expect(classifyAqiCoverage(shift(2), shift(AQI_LIMIT_DAYS + 3), now, AQI_LIMIT_DAYS)).toBe('partial')
   })
 
   it('is none when the window starts beyond the horizon', () => {
-    expect(classifyAqiCoverage(shift(AQI_LIMIT_DAYS + 1), shift(AQI_LIMIT_DAYS + 3), now)).toBe(
+    expect(classifyAqiCoverage(shift(AQI_LIMIT_DAYS + 1), shift(AQI_LIMIT_DAYS + 3), now, AQI_LIMIT_DAYS)).toBe(
       'none',
     )
   })
 
   // Day-granular for the same reason, and for one more: the backend clamps its own
-  // request to min(end.date(), today + 5 days), so coverage runs to the end of the
-  // horizon day. An instant-based bound called that evening 'partial' while the
-  // calendar drew the day as fully covered.
+  // request to min(end.date(), today + aqi_forecast_days), so coverage runs to the
+  // end of the horizon day. An instant-based bound called that evening 'partial'
+  // while the calendar drew the day as fully covered.
   it('is full through the last minute of the horizon day', () => {
     const h = new Date(now.getTime() + AQI_LIMIT_DAYS * 86_400_000)
     const pad = (n: number) => String(n).padStart(2, '0')
     const day = `${h.getFullYear()}-${pad(h.getMonth() + 1)}-${pad(h.getDate())}`
 
-    expect(classifyAqiCoverage(iso(now), `${day}T23:59`, now)).toBe('full')
-    expect(classifyAqiCoverage(iso(now), `${day}T23:59`, now)).not.toBe('partial')
+    expect(classifyAqiCoverage(iso(now), `${day}T23:59`, now, AQI_LIMIT_DAYS)).toBe('full')
+    expect(classifyAqiCoverage(iso(now), `${day}T23:59`, now, AQI_LIMIT_DAYS)).not.toBe('partial')
   })
 
   it('is full for past windows (the AQI archive covers them)', () => {
-    expect(classifyAqiCoverage(shift(-10), shift(-8), now)).toBe('full')
+    expect(classifyAqiCoverage(shift(-10), shift(-8), now, AQI_LIMIT_DAYS)).toBe('full')
   })
 
   it('is full when the window is incomplete', () => {
-    expect(classifyAqiCoverage('', '', now)).toBe('full')
+    expect(classifyAqiCoverage('', '', now, AQI_LIMIT_DAYS)).toBe('full')
+  })
+
+  // The horizon is published (#393). The warning and the calendar's dimming
+  // read the same number, so a deployment with a shorter one has to move both.
+  it('reads the horizon it is given rather than a compiled one', () => {
+    const window: [string, string] = [shift(1), shift(AQI_LIMIT_DAYS - 1)]
+    expect(classifyAqiCoverage(...window, now, AQI_LIMIT_DAYS)).toBe('full')
+    expect(classifyAqiCoverage(...window, now, AQI_LIMIT_DAYS - 3)).toBe('partial')
   })
 })
 
