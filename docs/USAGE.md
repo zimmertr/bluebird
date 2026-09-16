@@ -358,7 +358,7 @@ Once results are up, the knobs split in two. **Ranking, max results and every fo
 
 If Open-Meteo cannot be reached from your browser, the analysis stops and says so. There is no second path: the browser holds your forecasts, and rerouting the fetch through the server would spend a quota every visitor shares.
 
-Marker colors follow total precipitation:
+Marker colors follow the ranked metric. Under the default ranking that is total precipitation:
 
 | Color | Precip Total |
 |---|---|
@@ -366,9 +366,12 @@ Marker colors follow total precipitation:
 | Lime | 0.01" to 0.10" |
 | Yellow | 0.10" to 0.25" |
 | Orange | 0.25" to 0.50" |
-| Red | more than 0.50" |
+| Red | 0.50" to 1.00" |
+| Purple | more than 1.00" |
 
-Click a marker for a popup carrying the same columns the results table is showing, in the table's order. A Current lookup shows one value per metric, because the table collapses its aggregates for a single hour; a date range shows every aggregate, grouped one metric per heading with its values on the line below. Hiding a column in the **Columns** picker hides it in the popup too, and changing the ranking moves that metric to the top of the card. The type, the model and the coordinates sit above the rule, ahead of the numbers. The freezing-level value reads `N/A` under a model that publishes none, the same mark the table's cells carry. Every one of those numbers is a link to Windy, on the same terms the table's cells use: the same overlay, the same forecast model, and for the freezing-level minimum and the AQI maximum the hour that produced the value. A wildfire warning stays a banner at the top of the popup rather than a line among the metrics, and links to that fire on the NIFC map. The elevation and the coordinates carry no link, because neither is a forecast. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300). When you sort by the freezing level they switch again, to six bands of 4,000 ft apiece running purple for the lowest freezing line, through indigo and blue, to cyan for the highest. That ramp is deliberately not the green-to-red the other metrics use: a freezing level is a height rather than a verdict, and a skier and a rock climber want opposite ends of it. The map's colour key always names the bands it is drawing.
+Wind uses the same six colors, with red from 35 to 50 mph and purple above 50 mph. Purple is the same color the AQI scale gives its Very Unhealthy band, so wherever you meet it the reading is the same: past the end of the ramp. Temperature is the one weather scale with no green in it. It runs purple at or below 25°F, through sky blue and cyan, to yellow, orange and red above 85°F, so cold reads as cold and hot reads as hot without any temperature reading as the best one.
+
+Click a marker for a popup carrying the same columns the results table is showing, in the table's order. A Current lookup shows one value per metric, because the table collapses its aggregates for a single hour; a date range shows every aggregate, grouped one metric per heading with its values on the line below. Hiding a column in the **Columns** picker hides it in the popup too, and changing the ranking moves that metric to the top of the card. The type, the model and the coordinates sit above the rule, ahead of the numbers. The freezing-level value reads `N/A` under a model that publishes none, the same mark the table's cells carry. Every one of those numbers is a link to Windy, on the same terms the table's cells use: the same overlay, the same forecast model, and for the freezing-level minimum and the AQI maximum the hour that produced the value. A wildfire warning stays a banner at the top of the popup rather than a line among the metrics, and links to that fire on the NIFC map. The elevation and the coordinates carry no link, because neither is a forecast. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300). When you sort by the freezing level they switch again, to six bands of 4,000 ft apiece running purple for the lowest freezing line, through indigo and blue, to cyan for the highest. That ramp, like temperature's, is deliberately not green to red: a freezing level is a height rather than a verdict, and a skier and a rock climber want opposite ends of it. The map's colour key always names the bands it is drawing.
 
 ## Results Table
 
@@ -423,9 +426,10 @@ tell you about an overnight refreeze is in [DATA.md](DATA.md#open-meteo).
 The two per-hour precipitation columns are read on a rainfall-intensity scale
 rather than on the totals scale the markers and the map legend use, because
 they measure a different quantity: 0.30" spread over three days is drizzle and
-0.30 in/hr is a downpour. Their boundaries are the National Weather Service's
-intensity classes, at 0.01 / 0.10 / 0.30 / 0.50 in/hr. Every other group shares
-one unit across its columns, and so shares one scale.
+0.30 in/hr is a downpour. Their boundaries at 0.10 / 0.30 / 0.50 in/hr are the
+National Weather Service's intensity classes, with one more at 0.05 in/hr, so
+steady rain reads yellow rather than lime. Every other group shares one unit
+across its columns, and so shares one scale.
 
 ### Downloading the Table
 
