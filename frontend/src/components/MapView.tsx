@@ -31,7 +31,6 @@ import { addVertex } from '../utils/polygonEdit'
 // belongs: Vitest has no DOM, so a helper defined here cannot be reached at all
 // (#383). `MapView.test.ts` fails a new one that lands in this file.
 import {
-  bboxAreaKm2,
   featureRow,
   makeDrawData,
   pendingFC,
@@ -121,7 +120,9 @@ interface Props {
   // shared list link opens on the list, not on the visitor's hometown.
   restoredCustomPoints: { latitude: number; longitude: number }[]
   onPolygonChange: (polygon: GeoPolygon | null) => void
-  onDrawUpdate: (count: number, areaKm2: number | null) => void
+  // The count alone: the ring's area is derived from the polygon in `App.tsx`,
+  // so that a link's ring has one before this component has loaded (#429).
+  onDrawUpdate: (count: number) => void
   results: DestinationResult[]
   sortBy: SortBy
   // What a popup's Windy links carry, matching the results table's cells: the
@@ -825,7 +826,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         ptsRef.current = []
         vertexPopupRef.current?.remove()
         vertexPopupRef.current = null
-        onDrawUpdate(0, null)
+        onDrawUpdate(0)
         onPolygonChange(null)
         if (mapRef.current && loadedRef.current) {
           setSource(mapRef.current, 'draw', emptyFC)
@@ -1030,7 +1031,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // area, not mid-gesture.
         if (restoredPolygon) {
           ptsRef.current = ringToPts(restoredPolygon)
-          onDrawUpdate(ptsRef.current.length, bboxAreaKm2(ptsRef.current))
+          onDrawUpdate(ptsRef.current.length)
         }
         restCursor()
 
@@ -1435,7 +1436,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // Under 3 points there's no polygon yet, so commit null.
         function commitRing() {
           const pts = ptsRef.current
-          onDrawUpdate(pts.length, bboxAreaKm2(pts))
+          onDrawUpdate(pts.length)
           onPolygonChange(
             pts.length >= 3 ? { type: 'Polygon', coordinates: [[...pts, pts[0]]] } : null,
           )

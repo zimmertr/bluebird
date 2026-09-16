@@ -40,7 +40,6 @@ const ALLOWED: Record<string, string> = {
 // Where the logic that used to live in the component went. Named so a re-import
 // of one of these under a new copy in the component is caught as well.
 const MOVED = [
-  'bboxAreaKm2',
   'featureRow',
   'framePadding',
   'makeDrawData',
@@ -67,5 +66,15 @@ describe('MapView declares nothing the tests cannot reach', () => {
       )
       expect(mapViewSource, `${name} should be imported`).toContain(name)
     }
+  })
+
+  // The area check is the one helper that left this file rather than moving out
+  // of it. The map can only report an area once it has loaded, which is why a
+  // ring restored from a link had none, so `App.tsx` derives it from the
+  // polygon instead (#429). A measurement taken here would be a second answer.
+  it('leaves the area of the ring to App.tsx', () => {
+    expect(mapViewSource, 'the area is derived from the polygon in App.tsx').not.toContain(
+      'bboxAreaKm2',
+    )
   })
 })

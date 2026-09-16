@@ -138,6 +138,7 @@ import {
 } from './utils/clientAnalyze'
 import { parseCustomCsv } from './utils/customDestinations'
 import { buildCustomList, pendingDestinations, pinKey } from './utils/customList'
+import { bboxAreaKm2, ringToPts } from './utils/drawGeometry'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
 import {
   dockedMapFloorPx,
@@ -407,11 +408,18 @@ export default function App() {
   // be clickable at all (#119).
   const [drawing, setDrawing] = useState(false)
   // A restored polygon seeds the count so Analyze unlocks before the map loads
-  // (MapView re-emits the authoritative count+area once its points hydrate).
+  // (MapView re-emits the authoritative count once its points hydrate).
   const [drawPointCount, setDrawPointCount] = useState(
     () => Math.max(0, (restored?.polygon?.coordinates[0]?.length ?? 1) - 1),
   )
-  const [polygonAreaKm2, setPolygonAreaKm2] = useState<number | null>(null)
+  // Read off the ring rather than reported by the map, because the map can only
+  // report an area once it has loaded: a ring restored from a link printed its
+  // point count beside a blank area line until the reader edited it (#429). A
+  // derived value cannot lag the ring it describes.
+  const polygonAreaKm2 = useMemo(
+    () => (polygon ? bboxAreaKm2(ringToPts(polygon)) : null),
+    [polygon],
+  )
   // Which kinds the polygon looks for, as a set — several are found in one
   // Overpass query. Nothing is checked by default: discovery is the input
   // that needs a polygon and costs an upstream query, so a fresh session
@@ -1162,15 +1170,14 @@ export default function App() {
   const windowWarning =
     selection.kind === 'now' || windowStatus === 'ok' ? null : windowStatus
 
-  const handleDrawUpdate = useCallback((count: number, areaKm2: number | null) => {
+  const handleDrawUpdate = useCallback((count: number) => {
     setDrawPointCount(count)
-    setPolygonAreaKm2(areaKm2)
   }, [])
 
   function handleCancelDrawing() {
     mapRef.current?.cancelDrawing()
     setDrawing(false)
-    // cancelDrawing fires onDrawUpdate(0, null) to reset counts
+    // cancelDrawing fires onDrawUpdate(0) to reset the count
   }
 
   // Enter and Escape both leave draw mode. Neither discards anything: every

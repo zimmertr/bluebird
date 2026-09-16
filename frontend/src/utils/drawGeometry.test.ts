@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { GeoPolygon } from '../types'
 import {
   bboxAreaKm2,
   featureRow,
@@ -73,6 +74,22 @@ describe('bboxAreaKm2', () => {
     const closed = [...ring, ring[0]]
     expect(bboxAreaKm2(reversed)).toBeCloseTo(bboxAreaKm2(ring)!, 9)
     expect(bboxAreaKm2(closed)).toBeCloseTo(bboxAreaKm2(ring)!, 9)
+  })
+
+  // What the panel's area line now reads, both ways round (#429): `App.tsx`
+  // measures whatever ring it holds, and a ring restored from a link arrives as
+  // a closed GeoPolygon where a drawn one is the editable point list. One area
+  // for one shape, with no edit needed to produce it.
+  it('measures a restored ring and a drawn one as the same area', () => {
+    const drawn: [number, number][] = [
+      [-121.9, 47.4],
+      [-121.2, 47.4],
+      [-121.2, 47.9],
+      [-121.9, 47.9],
+    ]
+    const restored: GeoPolygon = { type: 'Polygon', coordinates: [[...drawn, drawn[0]]] }
+    expect(bboxAreaKm2(ringToPts(restored))).toBe(bboxAreaKm2(drawn))
+    expect(bboxAreaKm2(ringToPts(restored))).not.toBeNull()
   })
 
   it('has nothing to measure under three points', () => {
