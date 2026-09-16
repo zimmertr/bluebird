@@ -91,8 +91,14 @@ limit with one header".
 
 Always add labels when you create the issue:
 
-- Exactly one priority: `P1` (do next), `P2` (soon), or `P3` (someday).
-- **Never add `PM`.** It means Priority Manual, and only the maintainer sets it.
+- Exactly one priority: `P1` (do next), `P2` (soon), or `P3` (someday). Add
+  one every time, also when the maintainer asks for `PM`.
+- `PM` means Priority Manual. Add it only when the maintainer asks for it in
+  the request. It is one more label, not a replacement for the priority.
+- The current Claude Code session ID, always. The ID is the UUID directory
+  above `scratchpad` in the session's scratchpad path. Create the label first
+  when it does not exist:
+  `gh label create <uuid> --color 5ec3f7 --description "Filed in Claude Code session <uuid> (<date> <topic>)"`.
 - Every area that applies: `frontend`, `backend`, `ci`, `kubernetes`,
   `security`, `compliance`, `ux`, `infra`, `data-sources`, `docker`.
 - One type: `bug`, `enhancement`, `documentation`, or `question`.
