@@ -10,6 +10,7 @@ import pytest
 from app import ratelimit
 from app.services import weather
 from app.services.errors import parse_rate_limit, rate_limit_message
+from app.services.openmeteo_fetch import BATCH_SIZE
 from app.services.openmeteo_weight import call_weight
 
 
@@ -171,7 +172,7 @@ def test_default_budget_clears_a_worst_case_batch_without_pacing():
     # completely idle pod. A 1/10 share (55) sits under the 57.1 a full 50-
     # location 16-day batch costs; the undivided 550 clears it outright.
     worst_batch = call_weight(
-        weather.BATCH_SIZE, date(2026, 1, 1), date(2026, 1, 16), weather.N_VARIABLES
+        BATCH_SIZE, date(2026, 1, 1), date(2026, 1, 16), weather.N_VARIABLES
     )
     assert worst_batch == pytest.approx(57.14, abs=0.01)
 
