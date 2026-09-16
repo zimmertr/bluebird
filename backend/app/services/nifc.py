@@ -48,6 +48,7 @@ import httpx
 from app.env import env_int
 from app.services import wfigs_coverage
 from app.services.errors import UpstreamError, UpstreamRateLimited, classify_http_error
+from app.services.http import HEADERS
 from app.services.snapshot import SnapshotCache
 
 log = logging.getLogger(__name__)
@@ -61,8 +62,6 @@ QUERY_URL = (
     "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/"
     "WFIGS_Interagency_Perimeters_Current/FeatureServer/0/query"
 )
-
-HEADERS = {"User-Agent": "BluebirdForecast/1.0 (bluebirdforecast.com; personal weather tool)"}
 
 # The fields the popup renders. `attr_` values come from the joined IRWIN
 # incident record and `poly_` from the perimeter polygon itself; either can be

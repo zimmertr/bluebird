@@ -47,6 +47,7 @@ import httpx
 
 from app.env import env_int
 from app.services.errors import UpstreamError, classify_http_error
+from app.services.http import HEADERS
 from app.services.snapshot import SnapshotCache
 
 log = logging.getLogger(__name__)
@@ -58,8 +59,6 @@ PROVIDER = "NOAA HMS (smoke plumes)"
 # which is the exact failure mode #203 spent a release removing from the fire
 # overlay. A static file server has no quota to lose.
 BASE_URL = "https://satepsanone.nesdis.noaa.gov/pub/FIRE/web/HMS/Smoke_Polygons/KML"
-
-HEADERS = {"User-Agent": "BluebirdForecast/1.0 (bluebirdforecast.com; personal weather tool)"}
 
 # The analysts' own timezone. A UTC date would ask for tomorrow's file for five
 # hours every evening, and get a 404 for every one of them.
