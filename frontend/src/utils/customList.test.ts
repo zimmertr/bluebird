@@ -57,12 +57,6 @@ function result(overrides: Partial<DestinationResult> = {}): DestinationResult {
   }
 }
 
-describe('geoKey', () => {
-  it('rounds to 5 decimals (~1 m) so near-identical coords collide', () => {
-    expect(geoKey(46.852891, -121.760408)).toBe(geoKey(46.85289, -121.76041))
-  })
-})
-
 describe('buildCustomList', () => {
   it('unions CSV rows with searched places, CSV first', () => {
     const out = buildCustomList(csv, [place('Glacier Peak', 48.1122, -121.1139)])

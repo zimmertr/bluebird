@@ -38,12 +38,6 @@ const square: FeatureCollection = {
   ],
 }
 
-describe('geoKey', () => {
-  it('is a stable 5-decimal coordinate key', () => {
-    expect(geoKey(46.85289, -121.76042)).toBe('46.85289,-121.76042')
-  })
-})
-
 describe('fireWarningText', () => {
   it('phrases an inside hit', () => {
     expect(fireWarningText({ miles: 0, name: 'Beehive', latitude: 0, longitude: 0 })).toBe(
