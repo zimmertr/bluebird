@@ -94,7 +94,6 @@ import {
 } from './styles'
 import {
   DEFAULT_FAMILY_KEY,
-  FAMILY_KEYS,
   MetricFamily,
   NOUN,
   familyOf,
@@ -199,6 +198,13 @@ import {
   visibleColumns,
   withModelColumn,
 } from './utils/tableColumns'
+import {
+  ResultsMode,
+  hasWelcomed,
+  readViewPrefs,
+  setWelcomed,
+  writeViewPrefs,
+} from './utils/viewPrefs'
 import { NAME_DEFAULT_PX } from './utils/columnResize'
 import { compareValues } from './utils/sortResults'
 import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
@@ -663,54 +669,26 @@ export default function App() {
   // then beat the desktop widening forever. The stale `mode` field from that
   // code is deliberately ignored for the same reason — nothing in it says
   // whether the user ever actually chose.
-  type ResultsMode = 'chart' | 'table' | 'both'
-  const modeChosenRef = useRef(false)
-  const [resultsMode, setResultsMode] = useState<ResultsMode>(() => {
-    if (typeof localStorage === 'undefined') return 'table'
-    try {
-      const stored = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
-      if (stored.modeChosen === 'chart' || stored.modeChosen === 'table' || stored.modeChosen === 'both') {
-        modeChosenRef.current = true
-        return stored.modeChosen
-      }
-    } catch {
-      // Ignore localStorage errors (SSR, quota, etc.)
-    }
-    return 'table'
-  })
+  //
+  // Every preference below comes out of one read, held for the mount: four
+  // initializers each parsing the same stored string is what `viewPrefs.ts`
+  // exists to stop.
+  const storedView = useMemo(readViewPrefs, [])
+  const modeChosenRef = useRef(storedView.modeChosen !== null)
+  const [resultsMode, setResultsMode] = useState<ResultsMode>(
+    () => storedView.modeChosen ?? 'table',
+  )
   // An intentional press on the segment: sticks for the session and persists.
   function chooseResultsMode(mode: ResultsMode) {
     modeChosenRef.current = true
     setResultsMode(mode)
-    try {
-      const current = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
-      localStorage.setItem('bluebird_forecast_view', JSON.stringify({ ...current, modeChosen: mode }))
-    } catch {
-      // Ignore localStorage errors (SSR, quota, etc.)
-    }
+    writeViewPrefs({ modeChosen: mode })
   }
   // Which columns the table displays (null = use default narrowed set, Set = user choice).
   // The CSV export always gets the full displayedColumns set regardless.
-  const [columnVisibility, setColumnVisibility] = useState<Set<string> | null>(() => {
-    if (typeof localStorage === 'undefined') return null
-    try {
-      const stored = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
-      // One key per generation of the column set, because a stored set cannot
-      // otherwise be told apart from a deliberate choice to hide the newest
-      // column: `columns` predates the wildfire column joining the picker
-      // (#288) and `columns2` predates the freezing level (#295), so reading
-      // either verbatim would hide a new column from everyone who has ever
-      // touched the picker. Each migrates with the new keys added, which is
-      // what those users were already seeing.
-      if (stored.columns3) return new Set(stored.columns3)
-      if (stored.columns2) return new Set([...stored.columns2, ...FAMILY_KEYS.freeze])
-      if (stored.columns)
-        return new Set([...stored.columns, WILDFIRE_KEY, ...FAMILY_KEYS.freeze])
-    } catch {
-      // Ignore localStorage errors
-    }
-    return null
-  })
+  const [columnVisibility, setColumnVisibility] = useState<Set<string> | null>(
+    () => storedView.columns,
+  )
   // The Model column's own switch, which is three-valued rather than two.
   //
   // It is in the Columns picker like every other column (TJ, 2026-09-14), but
@@ -721,15 +699,7 @@ export default function App() {
   // count does. Folding it into `columnVisibility` instead would freeze the
   // default the first time the reader touched ANY column, and a later
   // comparison would then come up without the column that explains it.
-  const [modelColumn, setModelColumn] = useState<boolean | null>(() => {
-    if (typeof localStorage === 'undefined') return null
-    try {
-      const stored = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
-      return typeof stored.modelColumn === 'boolean' ? stored.modelColumn : null
-    } catch {
-      return null
-    }
-  })
+  const [modelColumn, setModelColumn] = useState<boolean | null>(() => storedView.modelColumn)
 
   // The order the reader dragged the columns into, or null for the automatic
   // one (#360). A list of keys rather than positions, so a column the list
@@ -740,36 +710,16 @@ export default function App() {
   // pulls the ranked metric group to the front, and the maintainer chose to let
   // it win rather than have a stored order suppress the one thing the ranking
   // does to the columns.
-  const [columnOrder, setColumnOrder] = useState<readonly string[] | null>(() => {
-    if (typeof localStorage === 'undefined') return null
-    try {
-      const stored = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
-      return Array.isArray(stored.columnOrder) ? stored.columnOrder : null
-    } catch {
-      return null
-    }
-  })
+  const [columnOrder, setColumnOrder] = useState<readonly string[] | null>(
+    () => storedView.columnOrder,
+  )
 
-  // Persist column visibility to localStorage when it changes.
+  // Persist the table's shape whenever it changes. One write for all three:
+  // they are read back together, and `writeViewPrefs` drops a null rather than
+  // storing one, so "the reader has not answered" survives a reload as the
+  // absence it is and the report still decides.
   useEffect(() => {
-    try {
-      const current = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
-      delete current.columns
-      delete current.columns2
-      localStorage.setItem(
-        'bluebird_forecast_view',
-        JSON.stringify({
-          ...current,
-          columns3: columnVisibility ? [...columnVisibility] : undefined,
-          // Absent rather than null while the reader has not answered, so the
-          // count still decides after a reload.
-          modelColumn: modelColumn ?? undefined,
-          columnOrder: columnOrder ?? undefined,
-        }),
-      )
-    } catch {
-      // Ignore localStorage errors (SSR, quota, etc.)
-    }
+    writeViewPrefs({ columns: columnVisibility, modelColumn, columnOrder })
   }, [columnVisibility, modelColumn, columnOrder])
   // Column picker popover open/closed
   const [columnsOpen, setColumnsOpen] = useState(false)
@@ -816,7 +766,7 @@ export default function App() {
     lastGripPressRef.current[grip] = at
     return at - previous < DOUBLE_PRESS_MS
   }
-  const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('bluebird_forecast_welcomed'))
+  const [showWelcome, setShowWelcome] = useState(() => !hasWelcomed())
   // The controls panel is docked on desktop and an off-canvas drawer on phones.
   // It starts open on both; a close button collapses it to widen the map.
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -832,7 +782,7 @@ export default function App() {
   const playerShown = showPlayer ?? isDesktop
 
   function dismissWelcome() {
-    localStorage.setItem('bluebird_forecast_welcomed', '1')
+    setWelcomed()
     setShowWelcome(false)
   }
 
