@@ -18,6 +18,8 @@ import {
   DestinationsRequest,
   DestinationsResponse,
   DiscoveredDestination,
+  DiscoveryType,
+  GeoPolygon,
   HourlySeries,
 } from '../types'
 import { familyOf } from '../metrics'
@@ -639,4 +641,68 @@ export function refreshEchoRows(
       longitude: r.longitude,
       elevation_ft: r.elevation_ft ?? undefined,
     }))
+}
+
+/**
+ * The user-authored discovery inputs as a stable string. Everything that
+ * changes which destinations are FOUND belongs here — the CSV as parsed rows
+ * (a comment or whitespace edit doesn't needlessly bust the refresh) but NOT
+ * the searched places, which are compared separately so removals stay
+ * refresh-eligible.
+ *
+ * Nothing that only re-presents the held field belongs here. Ranking, the cap
+ * and every bound are read off rows the browser already holds (#188), so none
+ * of them reaches this function and none of them re-buys a discovery.
+ */
+export function discoveryBase(
+  poly: GeoPolygon | null,
+  csvRows: readonly CustomDestination[],
+  types: readonly DiscoveryType[],
+  includeUnnamedPeaks: boolean,
+): string {
+  return JSON.stringify({
+    ring: poly?.coordinates[0] ?? null,
+    // Sorted so checking peaks then lakes and lakes then peaks are the same
+    // discovery, matching the order-independent cache key upstream.
+    types: [...types].sort(),
+    unnamed: includeUnnamedPeaks,
+    csv: csvRows,
+  })
+}
+
+/** What a committed polygon discovery recorded about the inputs behind it. */
+export interface DiscoveryRecord {
+  base: string
+  searchedKeys: readonly string[]
+}
+
+/**
+ * Whether this Analyze may skip Overpass and refetch only the weather of the
+ * destinations already in hand.
+ *
+ * This is a spend boundary, not an optimization: a wrong answer either buys a
+ * discovery nobody asked for, or re-ranks a stale field against a question it
+ * no longer answers. Every condition earns its place.
+ *
+ * A SHRUNK searched list stays refresh-eligible — the departed rows are already
+ * gone from the report the refresh echoes — where a NEW searched place does
+ * not, because it has to compete against the whole candidate field, which the
+ * echo is not. `base` covers everything else the user authored, so any change
+ * to the ring, the kinds, the unnamed-peaks toggle or the pasted CSV falls
+ * through to a fresh discovery.
+ *
+ * `hasResults` is the report on screen: with nothing displayed there is nothing
+ * to echo. `prev` is null after a custom-only run, which deliberately forgets
+ * the polygon behind it so a later identical polygon Analyze cannot mistake
+ * those rows for that polygon's discovered set.
+ */
+export function isDiscoveryRefresh(
+  prev: DiscoveryRecord | null,
+  base: string,
+  searchedKeys: readonly string[],
+  hasResults: boolean,
+): boolean {
+  if (!hasResults || prev === null) return false
+  if (prev.base !== base) return false
+  return searchedKeys.every((k) => prev.searchedKeys.includes(k))
 }

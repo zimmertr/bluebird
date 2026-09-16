@@ -41,7 +41,6 @@ import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import {
-  CustomDestination,
   DestinationResult,
   DiscoveryType,
   GeoPolygon,
@@ -131,8 +130,11 @@ import {
 } from './utils/timeline'
 import {
   Constraints,
+  DiscoveryRecord,
   NO_CONSTRAINTS,
   constraintFields,
+  discoveryBase,
+  isDiscoveryRefresh,
   refreshEchoRows,
 } from './utils/clientAnalyze'
 import { parseCustomCsv } from './utils/customDestinations'
@@ -343,14 +345,11 @@ export default function App() {
   const modelsButtonRef = useRef<HTMLButtonElement>(null)
   const removedButtonRef = useRef<HTMLButtonElement>(null)
 
-  // The discovery inputs behind the results currently on screen: `base` covers
-  // the user-authored inputs (polygon + types + unnamed peaks + CSV rows) and
-  // `searchedKeys` the searched places that competed. An Analyze
-  // whose base matches and whose searched list only SHRANK (row removals) skips
-  // Overpass and just refreshes the surviving rows' weather; a NEW searched
-  // place — which must compete against the full candidate field the refresh
-  // echo doesn't have — or any base change forces a fresh discovery.
-  const discoveryRef = useRef<{ base: string; searchedKeys: string[] } | null>(null)
+  // The discovery inputs behind the results currently on screen, as
+  // `isDiscoveryRefresh` reads them: `base` covers the user-authored inputs
+  // (polygon + types + unnamed peaks + CSV rows) and `searchedKeys` the
+  // searched places that competed.
+  const discoveryRef = useRef<DiscoveryRecord | null>(null)
   // Remembers each row's real identity (type + osm_id) by coordinate — from
   // discovered rows (which carry an osm_id) and from searched places (whose
   // geocoding knew their kind and OSM id). Rows echoed through the custom path
@@ -1147,26 +1146,6 @@ export default function App() {
   }, [drawing, drawPointCount])
 
 
-  // The user-authored discovery inputs as a stable string. Everything that
-  // changes which destinations are FOUND belongs here — the CSV as parsed rows
-  // (a comment or whitespace edit doesn't needlessly bust the refresh) but NOT
-  // the searched places, which are compared separately so removals stay
-  // refresh-eligible.
-  //
-  // Nothing that only re-presents the held field belongs here. Ranking, the
-  // cap and every bound are read off rows the browser already holds (#188), so
-  // none of them reaches this function and none of them re-buys a discovery.
-  function discoveryBase(poly: GeoPolygon | null, csvRows: CustomDestination[]): string {
-    return JSON.stringify({
-      ring: poly?.coordinates[0] ?? null,
-      // Sorted so checking peaks then lakes and lakes then peaks are the
-      // same discovery, matching the order-independent cache key upstream.
-      types: [...destinationTypes].sort(),
-      unnamed: includeUnnamedPeaks,
-      csv: csvRows,
-    })
-  }
-
   async function handleAnalyze() {
     // Analyzing is the end of drawing. Leaving the mode on would put the map
     // back in the state #118 describes — reading a result and panning around
@@ -1231,16 +1210,19 @@ export default function App() {
     // displayed report the refresh echoes. Any base change or NEW searched
     // place (which must compete against the full candidate field) falls
     // through to a fresh discovery.
-    const base = discoveryBase(resolvedPolygon, csvRows)
+    const base = discoveryBase(resolvedPolygon, csvRows, destinationTypes, includeUnnamedPeaks)
     const searchedKeys = searched.places.map((p) => pinKey(p.lat, p.lon))
-    const prev = discoveryRef.current
+    // The polygon guard stays here rather than inside the predicate: a run with
+    // no ring is not a polygon discovery at all, whatever the recorded inputs
+    // say.
     const isRefresh =
       resolvedPolygon !== null &&
-      response !== null &&
-      response.results.length > 0 &&
-      prev !== null &&
-      prev.base === base &&
-      searchedKeys.every((k) => prev.searchedKeys.includes(k))
+      isDiscoveryRefresh(
+        discoveryRef.current,
+        base,
+        searchedKeys,
+        response !== null && response.results.length > 0,
+      )
 
     const willRank = resolvedPolygon !== null || custom.length > 0
 
