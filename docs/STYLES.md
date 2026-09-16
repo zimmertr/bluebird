@@ -42,6 +42,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `SURFACE_SHEET` | The results on a phone, standing on the map's bottom edge: the docked panel's fill, the map's floating edge, the surface radius on the top corners only |
 | `SURFACE_GROUP` | Bordered region grouping controls: the calendar |
 | `SURFACE_GROUP_BLEED` | Cancels a well's inset so its contents sit on the panel's control column |
+| `SURFACE_DIVIDER` | The quiet rule between two blocks of one surface, where the panel's stack cannot draw it: a dialog header over its body, a popover's overline strip over its rows, the panel's own right edge against the map. A bare colour, so the call site supplies the side |
 
 **Buttons**
 
@@ -62,6 +63,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `FIELD_NUMERIC` | Number input with browser spinners suppressed |
 | `SELECT` | Native dropdown, recessed fill with suppressed platform chrome |
 | `DISABLED` | The faded, unpressable look of a control that does not apply; composes over any button or field role and carries no color of its own |
+| `MUTED` | The other half of that pair: a control that is not the one in force but still works. 50% against `DISABLED`'s 40%, unscoped, and no cursor change, because a press still does something |
 | `SR_ONLY` | Text for assistive technology only, the twin of an approved tooltip |
 | `CHOICE_ROW` | Radio or checkbox and its label as one strip |
 | `CHOICE_INPUT` | The box itself inside a choice row |
@@ -77,7 +79,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `SELECT_W_AGGREGATE` | The aggregate dropdown in a Metrics row: 72px (w-[4.5rem]), the widest aggregate word (28px) plus the field's 8px padding and the 24px `SELECT` reserves for its arrow, with 12px of deliberate slack because the width also sets a grid track |
 | `CAPTION_LIFTED` | `TEXT.caption` re-derived for `SURFACE_POPOVER`: a search result's description, slate-300 because slate-400 falls under 4.5:1 on that fill |
 | `SLIDER_OVERLAY` / `SLIDER_VALUE` / `SLIDER_WORDMARK` / `SLIDER_IDLE` | The coverage slider in the Layers popover: the transparent range input laid over the drawn track, the value readout at `CONTROL_SIZE`, the in-track wordmark at the same size in sentence case, and the idle tint |
-| `PANEL_EDGE` / `PANEL_RULE` | The panel's own border tint, and the rule between the panel's sections, drawn from the stack so a section added later cannot forget its line |
+| `PANEL_EDGE` / `PANEL_RULE` | The panel's own border tint, and the rule between the panel's sections, drawn from the stack so a section added later cannot forget its line. `SURFACE_DIVIDER` above is the same quiet line where a call site has to place it by hand |
 | `BADGE_STEP` | The step-number badge in the welcome modal, derived from `ACCENT.fill` |
 | `SWATCH_CHIP` | A legend swatch that carries a letter: the smoke legend's three density chips, side by side so the opacity ramp reads against itself |
 
@@ -146,9 +148,8 @@ One set of roles for both surfaces that reorder columns, the table header and th
 |---|---|
 | `DRAG_GRIP` | The handle itself. `cursor-grab` is the standing signal; `touch-none` is load-bearing, because without it the browser claims the gesture for scrolling and the drag never gets a second pointer event on a phone |
 | `DRAG_GRIP_ACTIVE` | The grip while its own column is the one being carried |
-| `DRAG_TARGET` | The column a drop would land on |
-| `DRAG_GHOST` | The column riding under the pointer. Portalled to the body and positioned in viewport coordinates, so it takes the app's top layer rather than the table's; `pointer-events-none` is load-bearing, or the ghost is what every hit test finds |
-| `DRAG_INSERT` | The bar marking the gap the column will drop into. The accent's fill without its label color, since the bar carries no text |
+| `DRAG_GHOST` | The column riding under the pointer. Portalled to the body and positioned in viewport coordinates, so it carries `LAYER.popover` itself rather than asking the call site for it; `pointer-events-none` is load-bearing, or the ghost is what every hit test finds |
+| `DRAG_INSERT` | The bar marking the gap the column will drop into. The accent's fill without its label color, since the bar carries no text, and the same layer as the ghost |
 
 **Map timeline**
 
@@ -194,6 +195,7 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | `ICON_ADORNMENT` | Glyph drawn inside a field |
 | `SPINNER` | Indeterminate spinner |
 | `TABLE.cell` | Results table cell inset |
+| `TABLE.row` | One data row: the rule above it and what it does under a pointer. Both the pending destinations and the ranked results wear it |
 | `TABLE.head` | Results table header cell |
 | `TABLE.rankStack` | Rank cell: number and remove × in one grid cell, so the column never changes width on hover |
 | `TABLE.rankFace` | One face of that stack, pinned to the shared cell |
@@ -229,6 +231,8 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | Every glyph is hidden from assistive technology | `accessibility.test.ts` | Every SVG in `icons.tsx` carries `aria-hidden` |
 | No component positions its own panel | `styles.test.ts` | Ban a fixed-position style object and the popover wrapper everywhere under `components/` and in `App.tsx`, except `Popover.tsx` |
 | One place decides where a panel goes | `styles.test.ts` | `popoverBox` has exactly one caller, the `usePopover` hook |
+| No component spells the third divider weight | `styles.test.ts` | Ban the slate-700 border utility everywhere under `components/` and in `App.tsx`, and check every `SURFACE_DIVIDER` use carries a side |
+| Every exported role is read by something | `styles.test.ts` | Each `export const` in `styles.ts` appears in some file's import list under `src/` |
 
 **NOT enforced:** custom spacing between components (only recessed surface and controls are architected), component-specific layouts. These are decided per feature.
 
@@ -248,6 +252,32 @@ The accent fill answers four measured constraints at once and must pass WCAG AA 
 **Why this shade?** No Tailwind scale step fits. The surviving window for both constraints is 0.0067 of relative luminance wide, and `sky-650` is the midpoint: sky-600 sits above it (white reads 4.02:1) and sky-700 below it (the fill drops to 2.37:1 on the range band, so the ends of a selected range sink into it). Two roads not taken: dark labels clear both constraints with far more room (rejected for brand reasons), and documenting 4.02:1 as a conformance exception was considered (rejected: 4.02 is below AA, and the resting state is the one a reader looks at, so the custom shade lifts it to 4.57 and leaves only the hover short). The hover at 4.02:1 is kept because with a white label every lightening costs contrast — a conformant hover would have to darken, making the app's primary action the only control that dims on pointer-over.
 
 **Re-measure condition:** if `DAY.range` ever changes, re-derive this shade. The binding edge is `DAY.range` at 3.04:1, so the selected day must still be findable against the range band beside it.
+
+### The three weights of rule
+
+Measured against the slate-800 panel and card, which is what every one of them
+is drawn on except the calendar's own well:
+
+| Role | Colour | Contrast | Who places it |
+|---|---|---|---|
+| `PANEL_EDGE` | slate-500 | 3.07:1 | The call site |
+| `PANEL_RULE` | slate-600 at half opacity | 1.37:1 | The panel's stack |
+| `SURFACE_DIVIDER` | slate-700 | 1.41:1 | The call site |
+
+Only the first is meant to be seen as a boundary, and it is the one step that
+clears the 3:1 a UI boundary owes. The other two are the same quiet line to the
+eye: half-opacity slate-600 composites to (50.5, 63, 82) on the panel where
+slate-700 is (51, 65, 85). They are two roles rather than one because they
+differ in who decides WHERE the line goes, not in what it looks like:
+`PANEL_RULE` is a whole recipe with its own margins and padding, drawn from the
+stack so a section added later cannot forget its line, and `SURFACE_DIVIDER` is
+a bare colour for the surfaces that place one rule themselves.
+
+`SURFACE_DIVIDER` was the literal `border-slate-700` at eleven call sites in
+eight files before #390 named it. The results table's rows are the one place
+that still takes it at half opacity, inside `TABLE.row`: a rule drawn once
+between two blocks of a card is a line, and the same rule drawn twenty times
+down a screen is a grid.
 
 ### Copy length budget
 

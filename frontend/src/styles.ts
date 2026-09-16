@@ -642,61 +642,6 @@ export const ICON_ACTION = `text-slate-500 ${ACCENT.hoverText}`
 export const ICON_BUTTON = `px-1 text-slate-400 hover:text-white transition-colors ${FOCUS_RING}`
 
 /**
- * The grip a column is dragged by, in the table header and in the Columns
- * picker alike (#360).
- *
- * A grip rather than the whole row, because both rows already answer a press:
- * a header sorts and a picker row toggles a checkbox. A dedicated handle is
- * also the only visible affordance either surface can carry, since neither has
- * room for a word.
- *
- * `cursor-grab` is the standing signal for "this moves", and `touch-none` is
- * load-bearing: without it the browser claims the gesture for scrolling and
- * the drag never gets a second pointer event on a phone. It is the same reason
- * the resize handle wears it.
- */
-export const DRAG_GRIP =
-  `cursor-grab touch-none text-slate-500 hover:text-slate-200 active:cursor-grabbing ` +
-  `transition-colors ${FOCUS_RING}`
-
-/** The grip while its column is the one being moved. */
-export const DRAG_GRIP_ACTIVE = 'text-slate-200'
-
-/** The column a drag would drop onto, in either surface. */
-export const DRAG_TARGET = 'bg-slate-700/60'
-
-/**
- * The column being carried, drawn under the pointer.
- *
- * Translucent and tilted a degree, which is the standing vocabulary for
- * "picked up" — the same two signals a dragged card wears everywhere. It is
- * portalled to the body and positioned in viewport coordinates, so it needs
- * the app's top layer rather than the table's.
- *
- * `pointer-events-none` is load-bearing: the ghost follows the pointer, so
- * without it the ghost is what every hit test finds and the drag can never see
- * the column underneath.
- */
-export const DRAG_GHOST =
-  `${TEXT.control} pointer-events-none fixed -rotate-1 opacity-80 ` +
-  `${SURFACE_CARD} px-2 py-1 whitespace-nowrap shadow-xl`
-
-/**
- * Where the carried column will land: a line in the gap, not a fill on a
- * column.
- *
- * A fill cannot say which SIDE of the column underneath the carried one ends
- * up on, which is the whole question a drop answers. The accent because this
- * is the app's one "here" mark; the bar's own thickness is the call site's,
- * since the two surfaces draw it on different axes.
- *
- * The accent's FILL without its label color: `ACCENT.fill` pairs the two
- * deliberately and this bar carries no label, so taking the pair would hand a
- * text color to something with no text.
- */
-export const DRAG_INSERT = `pointer-events-none fixed bg-sky-650 ${RADIUS.pill}`
-
-/**
  * A glyph drawn inside a field rather than beside it: the `SELECT` arrow.
  *
  * `pointer-events-none` is the load-bearing part — the arrow overlays the
@@ -821,6 +766,68 @@ export const LAYER = {
   /** Modal dialogs, and the shield that swallows pointer events mid-drag. */
   modal: 'z-[60]',
 } as const
+
+/**
+ * The grip a column is dragged by, in the table header and in the Columns
+ * picker alike (#360).
+ *
+ * A grip rather than the whole row, because both rows already answer a press:
+ * a header sorts and a picker row toggles a checkbox. A dedicated handle is
+ * also the only visible affordance either surface can carry, since neither has
+ * room for a word.
+ *
+ * `cursor-grab` is the standing signal for "this moves", and `touch-none` is
+ * load-bearing: without it the browser claims the gesture for scrolling and
+ * the drag never gets a second pointer event on a phone. It is the same reason
+ * the resize handle wears it.
+ */
+export const DRAG_GRIP =
+  `cursor-grab touch-none text-slate-500 hover:text-slate-200 active:cursor-grabbing ` +
+  `transition-colors ${FOCUS_RING}`
+
+/** The grip while its column is the one being moved. */
+export const DRAG_GRIP_ACTIVE = 'text-slate-200'
+
+/**
+ * The column being carried, drawn under the pointer.
+ *
+ * Translucent and tilted a degree, which is the standing vocabulary for
+ * "picked up" — the same two signals a dragged card wears everywhere. It is
+ * portalled to the body and positioned in viewport coordinates, so it needs
+ * the app's top layer rather than the table's.
+ *
+ * That layer is part of the role rather than a second class the call site
+ * adds. Both surfaces that move a column drew the pair, and a ghost that gets
+ * one without the other is a ghost the picker it was dragged out of paints
+ * over.
+ *
+ * `pointer-events-none` is load-bearing: the ghost follows the pointer, so
+ * without it the ghost is what every hit test finds and the drag can never see
+ * the column underneath.
+ */
+export const DRAG_GHOST =
+  `${TEXT.control} pointer-events-none fixed ${LAYER.popover} -rotate-1 opacity-80 ` +
+  `${SURFACE_CARD} px-2 py-1 whitespace-nowrap shadow-xl`
+
+/**
+ * Where the carried column will land: a line in the gap, not a fill on a
+ * column.
+ *
+ * A fill cannot say which SIDE of the column underneath the carried one ends
+ * up on, which is the whole question a drop answers. The accent because this
+ * is the app's one "here" mark; the bar's own thickness is the call site's,
+ * since the two surfaces draw it on different axes.
+ *
+ * The accent's FILL without its label color: `ACCENT.fill` pairs the two
+ * deliberately and this bar carries no label, so taking the pair would hand a
+ * text color to something with no text.
+ *
+ * It carries the same layer as the ghost above and for the same reason: the
+ * bar is drawn in viewport coordinates over whatever surface the drag started
+ * in.
+ */
+export const DRAG_INSERT =
+  `pointer-events-none fixed ${LAYER.popover} bg-sky-650 ${RADIUS.pill}`
 
 /**
  * The recessed surface, and the boundary that closes it.
@@ -1439,7 +1446,7 @@ export const NOTICE_DISMISS = {
 } as const
 
 /**
- * The two weights of rule in the control panel.
+ * The three weights of rule in the app.
  *
  * `PANEL_EDGE` closes the panel: the line under the app title and the one over
  * the Analyze button. Those are structural — they separate the scrolling body
@@ -1466,10 +1473,26 @@ export const NOTICE_DISMISS = {
  *   air. Symmetry does the separating, not size.
  * - **Where it is drawn.** From the stack, so a section added later cannot
  *   forget its line or draw a second one.
+ *
+ * `SURFACE_DIVIDER` is that same quiet line where the stack cannot draw it:
+ * one rule a component places itself, between two blocks of one surface. The
+ * dialog's header over its body, the popover's overline strip over its rows,
+ * the month navigation under the calendar grid, the panel's own right edge
+ * against the map. On the slate-800 panel and card it is 1.41:1, and
+ * `PANEL_RULE` composites to 1.37:1 there — the same line by eye, which is the
+ * point: a surface that has to place its own rule should not look like a
+ * different kind of rule. What splits them is only whether the stack or the
+ * call site decides WHERE, so a bare colour is all this one carries.
+ *
+ * It was `border-slate-700` at eleven call sites in eight files before it had a
+ * name (#390), which is a third weight nothing had chosen and nothing could
+ * change in one place. `styles.test.ts` now fails the literal anywhere under
+ * `components/` or in `App.tsx`.
  */
 export const PANEL_EDGE = 'border-slate-500'
 export const PANEL_RULE =
   '[&>*+*]:mt-4 [&>*+*]:border-t [&>*+*]:border-slate-600/50 [&>*+*]:pt-4'
+export const SURFACE_DIVIDER = 'border-slate-700'
 
 /**
  * Step number badge in the welcome modal.
@@ -1662,6 +1685,26 @@ export const SELECT = `${FIELD} appearance-none pr-6`
 export const DISABLED = 'disabled:opacity-40 disabled:cursor-not-allowed'
 
 /**
+ * What a control looks like when it is not the one in force, but still works.
+ *
+ * The opposite claim to `DISABLED` above, and the reason the two cannot share a
+ * recipe. `DISABLED` says a press will do nothing, and its cursor promises
+ * that; this says a press still does what it always did, it is just not the
+ * answer the panel is currently reading. Unnamed peaks with Peaks unticked is
+ * the clearest case: ticking it turns Peaks on. A `cursor-not-allowed` on any
+ * of these would be a lie the pointer tells before the reader finds out.
+ *
+ * Quieter than nothing and louder than off: 50% against `DISABLED`'s 40%, and
+ * unscoped rather than behind the `disabled:` variant, because none of these
+ * elements is disabled and the variant would never fire.
+ *
+ * Three sites spelled it before it had a name (#390). No colour of its own,
+ * for the same reason `DISABLED` carries none: it composes over whatever role
+ * the control already wears instead of racing it by stylesheet order.
+ */
+export const MUTED = 'opacity-50'
+
+/**
  * Text that exists for assistive technology and takes no space on screen.
  *
  * The twin of an approved tooltip (#123 review). A `title` is a pointer's
@@ -1850,6 +1893,21 @@ export const TRANSPORT_AXIS_ITEM = `${segmentHalf('flex-none')} px-3 whitespace-
 export const TABLE = {
   cell: 'px-2 py-1.5',
   head: `${TEXT.subheading} px-2 py-2 text-left`,
+  /**
+   * One data row: the rule above it and what it does under the pointer.
+   *
+   * Both bodies wear it — the pending destinations waiting on a forecast and
+   * the ranked results under them — and they had spelled it separately, which
+   * is how a hover could have come to mean two things in one table.
+   *
+   * Half-opacity slate-700 rather than `SURFACE_DIVIDER` itself: a rule
+   * between two blocks of a card is drawn once, and this one is drawn twenty
+   * times down a screen, where the full weight reads as a grid. `group` is
+   * load-bearing rather than decorative — the rank cell's remove × appears on
+   * `group-hover`, so a row that forgets it is a row that cannot be removed
+   * with a pointer.
+   */
+  row: 'group border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors',
   /**
    * The rank cell's two faces, the number and the remove ×, laid in ONE grid
    * cell so the column is as wide as the wider face at all times and a hover

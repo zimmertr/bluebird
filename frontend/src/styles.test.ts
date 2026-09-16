@@ -18,6 +18,8 @@ import {
   CHOICE_INPUT,
   CHOICE_ROW,
   DAY,
+  DRAG_GHOST,
+  DRAG_INSERT,
   CHART_METRIC_W,
   CONTROL_W,
   FIELD,
@@ -66,10 +68,14 @@ import {
   MAP_ROW_H,
   MICRO_PX,
   MICRO_SIZE,
+  MUTED,
+  PANEL_EDGE,
+  PANEL_RULE,
   MAP_EDGE,
   PROSE,
   RADIUS,
   SURFACE_CARD,
+  SURFACE_DIVIDER,
   SURFACE_FLOATING,
   SURFACE_POPOVER,
   SURFACE_SHEET,
@@ -233,6 +239,21 @@ const placementCallers: Record<string, string> = {
 // Where the placement is defined, so the export itself does not read as a call.
 const PLACEMENT_MODULE = './utils/listbox.ts'
 
+// Everything under src/ that could import a role. Wider than either set above,
+// because a role is dead only if NOTHING reads it.
+//
+// This file is added by hand: Vite leaves the calling module out of its own
+// glob, and leaving it out here would fail the four roles whose only reader is
+// an assertion below.
+const roleImporters: Record<string, string> = {
+  ...(import.meta.glob(['./**/*.ts', './**/*.tsx', '!./styles.ts'], {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  }) as Record<string, string>),
+  './styles.test.ts': readFileSync(new URL('./styles.test.ts', import.meta.url), 'utf8'),
+}
+
 describe('every component', () => {
   it('found the sources', () => {
     expect(Object.keys(sources).length).toBeGreaterThan(6)
@@ -287,6 +308,29 @@ describe('every component', () => {
     expect(source).not.toMatch(/bg-slate-900 text-slate-400/)
     expect(source).not.toMatch(/bg-slate-900 border border-slate-500/)
     expect(source).not.toMatch(/bg-slate-800(\/95)? border border-slate-600/)
+  })
+
+  // The hue lint above lets slate through, because slate is the surface system
+  // — and that exemption is how a third divider weight reached eleven call
+  // sites in eight files with no name and no owner (#390). A rule between two
+  // blocks of one surface is `SURFACE_DIVIDER` now, so the one place it is
+  // spelled is the one place it can be changed. Written through a character
+  // class so the class name never appears in this file as text, which Tailwind
+  // would otherwise compile.
+  it.each(Object.entries(sources))('%s spells no divider of its own', (_path, source) => {
+    expect(source).not.toMatch(/border-slate-[7]00/)
+  })
+
+  // The role is a colour and nothing else, so a call site that forgets the
+  // side draws no line at all and nothing says so. Every use is read back with
+  // its own template literal around it.
+  it('pairs every divider with a side to draw on', () => {
+    const uses = Object.values(sources).flatMap(
+      (source) => source.match(/`[^`]*\$\{SURFACE_DIVIDER\}[^`]*`/g) ?? [],
+    )
+
+    expect(uses.length).toBeGreaterThan(6)
+    for (const use of uses) expect(use).toMatch(/\bborder-[trbl]\b/)
   })
 
   // The guardrail #167 exists to install. Every hue in the app carries meaning
@@ -892,6 +936,30 @@ describe('shared recipes', () => {
     expect(DISABLED).toContain('disabled:opacity-40')
     expect(DISABLED).toContain('disabled:cursor-not-allowed')
     expect(DISABLED).not.toMatch(/text-|bg-|border-/)
+  })
+
+  // The other half of that pair, and the reason it cannot BE that pair: a
+  // muted control still works, so the cursor must not promise it does not, and
+  // the `disabled:` variant would never fire on an element that is not
+  // disabled. Louder than off and quieter than in force, which is the whole
+  // claim. Colourless for the same reason DISABLED is.
+  it('quiets a control that still works, without the disabled claim', () => {
+    expect(MUTED).toBe('opacity-50')
+    expect(MUTED).not.toContain('cursor')
+    expect(MUTED).not.toContain('disabled:')
+    expect(MUTED).not.toMatch(/text-|bg-|border-/)
+  })
+
+  // The three weights of rule, in order. PANEL_EDGE is the only one that is
+  // meant to be seen as a boundary (3.07:1 on the panel); the other two are
+  // the same quiet line at 1.41 and 1.37, and differ only in whether the stack
+  // or the call site decides where it is drawn. SURFACE_DIVIDER carries no
+  // side, no width and no spacing, so it composes into either.
+  it('keeps the divider a colour and the panel rule a recipe', () => {
+    expect(SURFACE_DIVIDER).toBe('border-slate-700')
+    expect(SURFACE_DIVIDER.split(' ')).toHaveLength(1)
+    expect(PANEL_EDGE).toBe('border-slate-500')
+    expect(PANEL_RULE).toContain('[&>*+*]:border-t')
   })
 
   // The panel's controls share a left edge as well as a right one. The segment
@@ -1538,6 +1606,34 @@ describe('every role', () => {
   it('found the roles', () => {
     expect(recipes.length).toBeGreaterThan(30)
   })
+
+  // Every check above reads a role that something asked for. `DRAG_TARGET` was
+  // exported for two years and asked for by nothing, so none of them ever
+  // looked at it and the file kept documenting a treatment the app does not
+  // have (#390). A role nobody imports is worse than a missing one: it reads
+  // as the answer to a question it has never actually answered.
+  //
+  // The import list rather than any mention of the name, because a name in a
+  // comment is not a use. `styles.test.ts` counts as an importer: some roles
+  // exist only to hold two spellings together and have no other reader —
+  // `MICRO_PX` binds the ramp's smallest step to the custom property `map.css`
+  // sizes MapLibre's credit line from, and an assertion is the only place that
+  // can be done. Requiring a component would mean an allowlist, and an
+  // allowlist is the thing that rots.
+  it('exports no role nothing imports', () => {
+    const imported = new Set<string>()
+    for (const source of Object.values(roleImporters)) {
+      for (const block of source.match(/import\s+(?:type\s+)?\{[^}]*\}\s+from\s+'[^']*styles'/g) ??
+        []) {
+        for (const name of block.slice(block.indexOf('{') + 1, block.indexOf('}')).split(',')) {
+          imported.add(name.trim().split(/\s+as\s+/)[0].trim())
+        }
+      }
+    }
+
+    expect(imported.size).toBeGreaterThan(30)
+    expect(Object.keys(STYLES).filter((role) => !imported.has(role))).toEqual([])
+  })
 })
 
 describe('the accent', () => {
@@ -1803,6 +1899,34 @@ describe('the results table rank cell', () => {
     // which Tailwind would otherwise compile.
     const displayToggle = new RegExp(['group-hover', '(hidden|inline|block|flex)\\b'].join(':'))
     expect(source).not.toMatch(displayToggle)
+  })
+
+  // Two kinds of row in one body: the pending destinations waiting on a
+  // forecast, and the ranked results under them. They had spelled the recipe
+  // twice, so the rule above a row and what it does under a pointer could have
+  // come to mean two things in one table (#390). `group` is the load-bearing
+  // part — the remove × above appears on `group-hover`, so a row without it
+  // cannot be removed with a pointer.
+  it('draws every row in the body from one recipe', () => {
+    expect(STYLES.TABLE.row.split(' ')).toContain('group')
+    expect(STYLES.TABLE.row).toMatch(/\bborder-t\b/)
+    expect((source.match(/TABLE\.row\b/g) ?? []).length).toBe(2)
+  })
+})
+
+// One vocabulary for both surfaces that reorder columns, so the same gesture
+// looks the same in the table header and in the Columns picker.
+describe('moving a column', () => {
+  // The ghost and the insert bar are both drawn in viewport coordinates over
+  // whatever surface the drag started in, so the stacking order is part of
+  // what they are. Both call sites composed the layer beside the role, which
+  // is a pair either of them could have got half of.
+  it('carries its own stacking order rather than asking for one', () => {
+    expect(DRAG_GHOST).toContain(LAYER.popover)
+    expect(DRAG_INSERT).toContain(LAYER.popover)
+    for (const [path, src] of Object.entries(sources)) {
+      expect(src, `${path} re-adds the layer`).not.toMatch(/DRAG_(GHOST|INSERT)\}\s*\$\{LAYER/)
+    }
   })
 })
 

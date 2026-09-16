@@ -1,6 +1,14 @@
 import { useDialog } from '../hooks/useDialog'
 import SafetyNotice from './SafetyNotice'
-import { BADGE_STEP, BUTTON_PRIMARY, LAYER, PROSE, RADIUS, SURFACE_CARD } from '../styles'
+import {
+  BADGE_STEP,
+  BUTTON_PRIMARY,
+  LAYER,
+  PROSE,
+  RADIUS,
+  SURFACE_CARD,
+  SURFACE_DIVIDER,
+} from '../styles'
 import { logoUrl } from '../logo'
 
 interface Props {
@@ -33,7 +41,7 @@ export default function WelcomeModal({ onDismiss }: Props) {
         className={`${SURFACE_CARD} w-full max-w-md max-h-full overflow-y-auto focus:outline-none`}
       >
         {/* Header */}
-        <div className="flex items-center gap-3 px-6 pt-6 pb-4 border-b border-slate-700">
+        <div className={`flex items-center gap-3 px-6 pt-6 pb-4 border-b ${SURFACE_DIVIDER}`}>
           <img
             src={logoUrl}
             alt=""
@@ -76,7 +84,7 @@ export default function WelcomeModal({ onDismiss }: Props) {
             <SafetyNotice />
           </p>
 
-          <div className="border-t border-slate-700 pt-4 mb-4">
+          <div className={`border-t ${SURFACE_DIVIDER} pt-4 mb-4`}>
             <p className={`${PROSE.heading} text-center`}>
               Ready to find your Bluebird day?
             </p>

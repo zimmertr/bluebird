@@ -46,7 +46,6 @@ import {
   DRAG_GHOST,
   DRAG_GRIP_ACTIVE,
   DRAG_INSERT,
-  LAYER,
   ICON_ACTION,
   LINK_ACTION,
   TABLE,
@@ -732,7 +731,7 @@ function ResultsTable({
           {pending?.map((d) => (
             <tr
               key={`pending-${d.latitude},${d.longitude}`}
-              className="group border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors"
+              className={TABLE.row}
             >
               {showChartCol && (
                 <td className={TABLE.cell}>
@@ -814,7 +813,7 @@ function ResultsTable({
             return (
             <tr
               key={`${row.name}-${i}`}
-              className={`group border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors ${isLeaving ? 'animate-remove-row' : ''}`}
+              className={`${TABLE.row} ${isLeaving ? 'animate-remove-row' : ''}`}
             >
               {showChartCol && <td className={TABLE.cell}>{renderChartToggle(row)}</td>}
               <RankRemoveCell
@@ -855,7 +854,7 @@ function ResultsTable({
         createPortal(
           <>
             <div
-              className={`${DRAG_GHOST} ${LAYER.popover}`}
+              className={DRAG_GHOST}
               style={{
                 left: ghostLeft(carry.x, window.innerWidth),
                 top: carry.y - 10,
@@ -866,7 +865,7 @@ function ResultsTable({
             </div>
             {insert && (
               <div
-                className={`${DRAG_INSERT} ${LAYER.popover}`}
+                className={DRAG_INSERT}
                 style={{
                   left: insert.x - 1,
                   top: insert.top,
