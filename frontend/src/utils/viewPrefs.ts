@@ -27,9 +27,10 @@ export type ResultsMode = 'chart' | 'table' | 'both'
  * reader's sake only — nothing here is trusted, and every accessor below
  * re-checks the value it takes.
  *
- * `columns` and `columns2` are the retired generations of the column set; the
- * `mode` field older builds wrote beside `modeChosen` is gone and stays gone
- * (see `readViewPrefs`).
+ * `columns` and `columns2` are the retired generations of the column set. The
+ * `mode` field older builds wrote beside `modeChosen` is absent here because
+ * nothing reads it (see `readViewPrefs`); it is left in storage rather than
+ * deleted, since tidying up after a build nobody runs is not this module's job.
  */
 interface StoredView {
   modeChosen?: string
@@ -123,9 +124,11 @@ export function writeViewPrefs(patch: Partial<ViewPrefs>): void {
       stored.columnOrder = patch.columnOrder ? [...patch.columnOrder] : undefined
     }
     if ('columns' in patch) {
-      // The retired generations go with the write that supersedes them. Left
-      // behind, they would outlive the set the reader is actually editing and
-      // migrate again on some later machine's read.
+      // The retired generations go with the write that supersedes them: the
+      // chosen set is now spelled in the current key, so an older one left
+      // behind is a stale answer waiting for the day the current key is not
+      // there to outrank it. The `mode` field above is not in this class — it
+      // is ignored on read rather than superseded, so the write leaves it be.
       delete stored.columns
       delete stored.columns2
       stored.columns3 = patch.columns ? [...patch.columns] : undefined
