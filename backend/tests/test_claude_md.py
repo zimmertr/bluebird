@@ -36,7 +36,10 @@ _FRONTEND_SRC = _REPO / "frontend" / "src"
 _BACKEND_APP = _REPO / "backend" / "app"
 
 _SUFFIXES: dict[Path, tuple[str, ...]] = {
-    _FRONTEND_SRC: (".ts", ".tsx"),
+    # `.css` is here because a stylesheet decides things too: `map.css` wraps the
+    # vendor stylesheet in `layer(base)` and lifts MapLibre's own corners, which
+    # is a decision the guide has to carry like any other.
+    _FRONTEND_SRC: (".ts", ".tsx", ".css"),
     _BACKEND_APP: (".py",),
 }
 
@@ -125,7 +128,9 @@ def test_the_check_reads_the_trees_it_claims_to_read():
     assert {"main.py", "osm.py", "__init__.py"} <= backend
     if _FRONTEND_SRC.is_dir():
         frontend = {p.name for p in _modules(_FRONTEND_SRC)}
-        assert {"App.tsx", "MapView.tsx"} <= frontend
+        # `map.css` is the canary for the third suffix: a typo in the tuple
+        # would drop the stylesheets and this walk would still look healthy.
+        assert {"App.tsx", "MapView.tsx", "map.css"} <= frontend
         assert "App.test.ts" not in frontend
 
 
