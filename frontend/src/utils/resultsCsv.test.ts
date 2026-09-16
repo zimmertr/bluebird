@@ -165,7 +165,11 @@ describe('values a spreadsheet can compute over', () => {
   // variable at all. The file is read detached from the app, with nothing
   // around it to say which, so it carries the mark the screen shows.
   it('writes the screen mark for a freezing level the model does not publish', () => {
-    const csv = buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES)
+    const csv = buildResultsCsv(
+      [row({ freeze_min_ft: null, freeze_max_ft: null, freeze_avg_ft: null })],
+      WINDOW_COLUMNS,
+      NO_FIRES,
+    )
     const freezeColumns = WINDOW_COLUMNS.filter((c) => c.key.startsWith('freeze_'))
 
     expect(freezeColumns).toHaveLength(3)
