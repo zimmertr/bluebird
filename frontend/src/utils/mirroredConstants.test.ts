@@ -1,19 +1,19 @@
 // The browser half of the mirrored-constant contract (issue #380).
 //
 // `mirrored_constants.json` is written by the backend
-// (`backend/scripts/generate_mirrored_constants.py`) and copied here, the way
-// `weather_vectors.json` is. Pytest proves the committed file still matches
-// Python, CI diffs the two copies, and this file is what makes a backend
-// change reach the TypeScript side: every value below is one half of a pair,
-// so a constant moved on one side alone fails here instead of shipping two
-// apps that disagree about the same number.
+// (`backend/scripts/generate_mirrored_constants.py`) and read from where it is
+// committed, the way `weather_vectors.json` is. Pytest proves that one file
+// still matches Python, and this file is what makes a backend change reach the
+// TypeScript side: every value below is one half of a pair, so a constant
+// moved on one side alone fails here instead of shipping two apps that
+// disagree about the same number.
 //
 // A comment was the whole mechanism before this, and it did not hold:
 // `N_VARIABLES` and the browser's hourly variable list disagreed for a
 // release, and the browser priced its Open-Meteo spend on a literal that no
 // longer counted anything.
 import { describe, expect, it } from 'vitest'
-import manifest from './mirrored_constants.json'
+import manifest from '../../../backend/tests/data/mirrored_constants.json'
 import { HOURLY_VARIABLES } from './openMeteo'
 import { MAX_ANALYZE_DESTINATIONS } from './clientAnalyze'
 import { COARSE_TOLERANCE_DEG } from './wildfires'

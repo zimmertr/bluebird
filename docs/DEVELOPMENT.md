@@ -41,8 +41,9 @@ CI runs all of these on every PR, so run the ones your change touches first:
 # Frontend typecheck
 cd frontend && npx tsc --noEmit
 
-# Frontend unit tests (Vitest)
-docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine \
+# Frontend unit tests (Vitest). Mounts the repo root, because two suites read
+# the manifests the backend commits under backend/tests/data/.
+docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
   sh -c "npm ci && npm test"
 
 # Frontend API types still match the committed OpenAPI snapshot
@@ -98,22 +99,20 @@ both counts).
 
 A third: any change to the weather or air-quality aggregation regenerates the
 shared test vectors. Change the backend first, then
-`cd backend && python scripts/generate_weather_vectors.py`, copy
-`tests/data/weather_vectors.json` to `../frontend/src/utils/weather_vectors.json`,
-and mirror the change in the TypeScript port in `frontend/src/utils/openMeteo.ts`.
-Pytest fails on a stale backend copy, Vitest fails on a drifted port, and the
-`vectors` CI job fails if the two copies differ.
+`cd backend && python scripts/generate_weather_vectors.py`, and mirror the
+change in the TypeScript port in `frontend/src/utils/openMeteo.ts`. Pytest
+fails on a stale `backend/tests/data/weather_vectors.json` and Vitest fails on
+a drifted port. Both suites read that one file, so there is no second copy to
+keep in step.
 
 A fourth, for what a vector cannot express: the numbers and the one sentence
 the browser copies from the backend ride
 `backend/tests/data/mirrored_constants.json`. Change a listed value on the
 backend first, then
-`cd backend && python scripts/generate_mirrored_constants.py`, copy
-`tests/data/mirrored_constants.json` to
-`../frontend/src/utils/mirrored_constants.json`, and change the browser's half.
-Pytest fails on a stale manifest, Vitest fails on a browser copy that no longer
-matches, and the `mirrors` CI job fails if the two copies differ. `CLAUDE.md`
-lists every mirrored pair and what enforces it.
+`cd backend && python scripts/generate_mirrored_constants.py`, and change the
+browser's half. Pytest fails on a stale manifest and Vitest fails on a browser
+value that no longer matches it. `CLAUDE.md` lists every mirrored pair and what
+enforces it.
 
 The generator is not a frontend dependency. It lives in
 `frontend/tools/api-types`, a private package with its own lockfile, and the two

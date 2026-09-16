@@ -8,11 +8,10 @@ plausibly on their own (issue #380).
 
 This manifest is the same contract `weather_vectors.json` carries for the
 aggregation, narrowed to the values a vector cannot express: the backend is
-the reference, the committed file is the answer, and BOTH suites assert
-against it — pytest proves Python still produces it (so a change to a
-constant forces a regeneration, making the pair's other half a visible part
-of the review), Vitest proves the TypeScript copies match it, and CI diffs
-the two committed copies so they cannot drift apart.
+the reference, the committed file is the answer, and BOTH suites read this
+one file — pytest proves Python still produces it (so a change to a constant
+forces a regeneration, making the pair's other half a visible part of the
+review) and Vitest proves the TypeScript copies match it.
 
 Formulas stay out of it. A weight formula or an aggregation is pinned by the
 vectors, which exercise it; this file holds only values and the one shared
@@ -20,7 +19,6 @@ sentence, which no vector reaches.
 
 Run:
     cd backend && python scripts/generate_mirrored_constants.py
-    cp tests/data/mirrored_constants.json ../frontend/src/utils/mirrored_constants.json
 """
 
 from __future__ import annotations
