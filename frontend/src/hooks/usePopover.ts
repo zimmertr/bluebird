@@ -67,9 +67,10 @@ export function usePopover({
   const measuredRef = useRef<readonly unknown[] | null>(null)
 
   // Stable as long as the trigger and the width are, which is what lets every
-  // effect below list it honestly. As a plain function in a component body it
-  // was a new identity every render, and all four call sites suppressed the
-  // dependency warning rather than the re-place it would have caused.
+  // effect below name it honestly. As a plain function in a component body it
+  // was a new identity every render, so naming it cost a re-place per render.
+  // The three pickers that take their trigger as a PROP had no way out of that:
+  // two carried a standing lint error and the third a suppression.
   const place = useCallback(
     (desiredHeight = Infinity) => {
       const trigger = triggerRef.current
