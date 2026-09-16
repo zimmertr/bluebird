@@ -37,7 +37,6 @@ import json
 import logging
 import re
 import time
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from xml.etree import ElementTree
@@ -46,9 +45,9 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from app.env import env_int
-from app.services.errors import UpstreamError, classify_http_error
+from app.services.errors import UpstreamError
 from app.services.http import HEADERS
-from app.services.snapshot import SnapshotCache
+from app.services.snapshot import cache_factory
 
 log = logging.getLogger(__name__)
 
@@ -294,29 +293,13 @@ async def fetch_snapshot(now: datetime | None = None) -> Snapshot:
     raise UpstreamError("Smoke data is unavailable. Try again later.")
 
 
-def smoke_cache(
-    *,
-    ttl_s: float = TTL_S,
-    retry_after_failure_s: float = RETRY_AFTER_FAILURE_S,
-    clock: Callable[[], float] = time.monotonic,
-    fetch: Callable[[], Awaitable[Snapshot]] = fetch_snapshot,
-) -> SnapshotCache[Snapshot]:
-    """The shared snapshot cache, wired to this module's fetch and knobs."""
-    return SnapshotCache(
-        label=PROVIDER,
-        fetch=fetch,
-        ttl_s=ttl_s,
-        retry_after_failure_s=retry_after_failure_s,
-        describe=lambda s: f"{s.plumes} plumes analyzed {s.analysis_date}",
-        clock=clock,
-    )
-
+# The shared snapshot cache, wired to this module's fetch and knobs.
+smoke_cache = cache_factory(
+    label=PROVIDER,
+    fetch=fetch_snapshot,
+    ttl_s=TTL_S,
+    retry_after_failure_s=RETRY_AFTER_FAILURE_S,
+    describe=lambda s: f"{s.plumes} plumes analyzed {s.analysis_date}",
+)
 
 PLUMES = smoke_cache()
-
-
-def unavailable_message(exc: Exception) -> str:
-    """The user-facing sentence for a cold-start failure."""
-    if isinstance(exc, UpstreamError):
-        return exc.message
-    return classify_http_error(exc, PROVIDER)

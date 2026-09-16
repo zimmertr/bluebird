@@ -30,6 +30,18 @@ def test_env_reader_has_one_home():
     assert _files_matching(pattern) == ["app/env.py"]
 
 
+def test_the_cold_snapshot_answer_has_one_home():
+    # Both national overlays answer an empty cache the same way, and the two
+    # copies of that answer are what let one drift into a different status
+    # code, message or Retry-After than the other.
+    assert _files_matching(re.compile(r"^def unavailable_message\(", re.MULTILINE)) == [
+        "app/services/snapshot.py"
+    ]
+    assert _files_matching(re.compile(r"code=ErrorCode\.snapshot_unavailable")) == [
+        "app/services/snapshot.py"
+    ]
+
+
 def test_user_agent_has_one_home():
     # Any literal naming the product and a version, wherever it is spelled.
     # Split so this file cannot match itself if it is ever moved under app/.

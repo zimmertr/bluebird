@@ -39,7 +39,6 @@ import json
 import logging
 import math
 import time
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -47,9 +46,9 @@ import httpx
 
 from app.env import env_int
 from app.services import wfigs_coverage
-from app.services.errors import UpstreamError, UpstreamRateLimited, classify_http_error
+from app.services.errors import UpstreamError, UpstreamRateLimited
 from app.services.http import HEADERS
-from app.services.snapshot import SnapshotCache
+from app.services.snapshot import cache_factory
 
 log = logging.getLogger(__name__)
 
@@ -326,37 +325,13 @@ async def fetch_snapshot() -> Snapshot:
     return Snapshot(fetched_at_ms=int(time.time() * 1000), full=full, coarse=coarse)
 
 
-def perimeter_cache(
-    *,
-    ttl_s: float = TTL_S,
-    retry_after_failure_s: float = RETRY_AFTER_FAILURE_S,
-    clock: Callable[[], float] = time.monotonic,
-    fetch: Callable[[], Awaitable[Snapshot]] = fetch_snapshot,
-) -> SnapshotCache[Snapshot]:
-    """The shared snapshot cache, wired to this module's fetch and knobs.
-
-    A factory rather than a subclass, because nothing about the caching is
-    NIFC's: the singleflight, the serve-stale-and-refresh-behind, and the
-    failure backoff all live in :mod:`app.services.snapshot`, shared with the
-    smoke overlay that wants the same behavior for the same reason. What
-    belongs here is which upstream it calls, and what a successful refresh is
-    worth saying in a pod's log.
-    """
-    return SnapshotCache(
-        label=PROVIDER,
-        fetch=fetch,
-        ttl_s=ttl_s,
-        retry_after_failure_s=retry_after_failure_s,
-        describe=lambda s: f"{len(s.full)} perimeters ({len(s.coarse)} coarse)",
-        clock=clock,
-    )
-
+# The shared snapshot cache, wired to this module's fetch and knobs.
+perimeter_cache = cache_factory(
+    label=PROVIDER,
+    fetch=fetch_snapshot,
+    ttl_s=TTL_S,
+    retry_after_failure_s=RETRY_AFTER_FAILURE_S,
+    describe=lambda s: f"{len(s.full)} perimeters ({len(s.coarse)} coarse)",
+)
 
 PERIMETERS = perimeter_cache()
-
-
-def unavailable_message(exc: Exception) -> str:
-    """The user-facing sentence for a cold-start failure."""
-    if isinstance(exc, UpstreamError):
-        return exc.message
-    return classify_http_error(exc, PROVIDER)
