@@ -138,7 +138,12 @@ import {
   refreshEchoRows,
 } from './utils/clientAnalyze'
 import { parseCustomCsv } from './utils/customDestinations'
-import { buildCustomList, pendingDestinations, pinKey } from './utils/customList'
+import {
+  buildCustomList,
+  pendingAsResult,
+  pendingDestinations,
+  pinKey,
+} from './utils/customList'
 import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
 import {
   dockedMapFloorPx,
@@ -1880,16 +1885,7 @@ export default function App() {
       // The table draws pending (un-analyzed) rows above the ranked ones, so
       // the file carries them too — identity columns filled, Rank and every
       // metric blank. Before the first analysis this is the whole file.
-      pending.map(
-        (d) =>
-          ({
-            name: d.name,
-            type: d.kind ?? 'custom',
-            elevation_ft: d.elevation_ft ?? null,
-            latitude: d.latitude,
-            longitude: d.longitude,
-          }) as DestinationResult,
-      ),
+      pending.map(pendingAsResult),
       fire.uncovered,
       analysisModelLabel,
     )
@@ -1915,16 +1911,7 @@ export default function App() {
     const have = new Set(results.map((r) => pinKey(r.latitude, r.longitude)))
     const extras = pending
       .filter((d) => !have.has(pinKey(d.latitude, d.longitude)))
-      .map(
-        (d) =>
-          ({
-            name: d.name,
-            type: d.kind ?? 'custom',
-            elevation_ft: d.elevation_ft ?? null,
-            latitude: d.latitude,
-            longitude: d.longitude,
-          }) as DestinationResult,
-      )
+      .map(pendingAsResult)
     return [...results, ...extras]
   }, [results, pending])
   const chart = useChartSelection(chartCandidates, view.sortBy)
