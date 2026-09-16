@@ -18,7 +18,7 @@ import {
   runClientAnalysis,
 } from '../utils/clientAnalyze'
 import { pinKey } from '../utils/customList'
-import { OpenMeteoModelCoverage } from '../utils/openMeteo'
+import { COVERAGE_MESSAGE_TAIL, OpenMeteoModelCoverage } from '../utils/openMeteo'
 import { SelectionKind } from '../utils/calendar'
 import { AnalyzedSnapshot, discoveryKeys } from '../utils/present'
 import type { ForecastModelOption } from './useCapabilities'
@@ -521,9 +521,7 @@ export function useAnalyze(
         // Compose the message with the model label from the models list
         const modelLabel =
           models.find((m) => m.id === e.modelId)?.label ?? e.modelId
-        setError(
-          `${modelLabel} has no forecast coverage for this area. Switch to a different model and try again.`,
-        )
+        setError(`${modelLabel} ${COVERAGE_MESSAGE_TAIL}`)
       } else {
         setError(e instanceof Error ? e.message : 'Unknown error')
       }
