@@ -6,11 +6,31 @@ import modelCompareSource from './components/ModelCompare.tsx?raw'
 import appSource from './App.tsx?raw'
 import modelPickerSource from './components/ModelPicker.tsx?raw'
 import resultsTableSource from './components/ResultsTable.tsx?raw'
+import iconsSource from './components/icons.tsx?raw'
 
-// The opening tag of every anchor in a file, whichever attributes it carries.
+// The opening tag of every element of one kind in a file, whichever attributes
+// it carries.
 function openingTags(source: string, tag: string): string[] {
   return source.match(new RegExp(`<${tag}\\s[^>]*>`, 'g')) ?? []
 }
+
+describe('every glyph the app draws', () => {
+  // #396: two of the six close crosses reached the accessibility tree where
+  // the other four did not, so the same button announced its label once in
+  // four places and twice in two. Every glyph stands inside a control that
+  // already carries its own name, so an icon that is announced can only ever
+  // be announced a second time.
+  //
+  // This is the whole of that rule now, because `styles.test.ts` holds every
+  // other component to drawing no SVG of its own: one file to check.
+  it('hides every one of them from assistive technology', () => {
+    const glyphs = openingTags(iconsSource, 'svg')
+    expect(glyphs.length).toBeGreaterThan(10)
+    for (const glyph of glyphs) {
+      expect(glyph).toContain('aria-hidden="true"')
+    }
+  })
+})
 
 describe('a link that leaves the app', () => {
   // WCAG 2.4.4: the purpose of a link has to be clear from the link itself.

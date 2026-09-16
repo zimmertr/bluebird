@@ -708,11 +708,55 @@ export const ICON_ADORNMENT =
   'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400'
 
 /**
- * Glyph sizing for inline SVG icons paired with text: the results-bar mode
- * toggle, the columns picker. 16x16 at default density; visible as text width
- * shrinks below breakpoints.
+ * How big a drawn glyph is, for every icon in `components/icons.tsx`.
+ *
+ * A ramp rather than one size, because the app's icons are not all the same
+ * kind of object: some stand beside a control's label, one is a mark inside a
+ * sentence, and the smallest live inside a disc or a chip that is itself
+ * smaller than a control. The step is set by the box the glyph sits in.
+ *
+ * It is a role and not a call-site class for the reason every size here is:
+ * nineteen inline SVGs drew their own before #386, and the same cross came out
+ * at three sizes and two stroke weights.
  */
-export const ICON = 'h-4 w-4'
+export const ICON = {
+  /**
+   * 16x16. The standing step: a glyph in or beside a control — the results
+   * bar's mode switch, the map's two buttons, the panel's close, the columns
+   * picker's grip, the collapse chevron, and the arrow `SELECT` reserves room
+   * for (`ICON_ADORNMENT`, whose 24px reserve is measured off this step).
+   */
+  control: 'h-4 w-4',
+  /**
+   * 15x15. The search field's magnifier, and nothing else in the app.
+   *
+   * The one step that is not on Tailwind's scale and has no recorded reason;
+   * it is a pixel under `control` beside a `control`-sized clear cross in the
+   * same 36px row. Kept because #386 moved no visible size. Measure it against
+   * `control` before a second glyph takes it.
+   */
+  search: 'h-[15px] w-[15px]',
+  /**
+   * 14x14. A mark inside a line of text rather than inside a control: the
+   * results table's link-out arrow, which sits on a destination's name and is
+   * sized to the name rather than to a button.
+   */
+  inline: 'h-3.5 w-3.5',
+  /**
+   * 12x12. The remove cross on a chart legend chip, whose chip is 26px tall.
+   */
+  legend: 'h-3 w-3',
+  /**
+   * 10x10. What fits inside something smaller than a control: the notice's
+   * 20px dismiss disc, the model picker's 20x24 chip slot, and the timeline's
+   * 28px play button.
+   *
+   * The model picker's chip takes this step where the chart legend's chip
+   * takes `legend`, 2px above it. Both are a remove cross on a chip, so one of
+   * the two is wrong; neither moved in #386, which changed no visible size.
+   */
+  micro: 'h-2.5 w-2.5',
+}
 
 /**
  * The indeterminate spinner: the search box while a lookup is in flight.
