@@ -38,7 +38,6 @@ import asyncio
 import json
 import logging
 import math
-import os
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -46,6 +45,7 @@ from typing import Any
 
 import httpx
 
+from app.env import env_int
 from app.services import wfigs_coverage
 from app.services.errors import UpstreamError, UpstreamRateLimited, classify_http_error
 from app.services.snapshot import SnapshotCache
@@ -104,28 +104,17 @@ REQUEST_TIMEOUT_S = 120.0
 MAX_PAGES = 20
 
 
-def _env_int(name: str, default: int) -> int:
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        log.warning("Ignoring non-integer %s=%r; using default %d", name, raw, default)
-        return default
-
-
 # NIFC republishes roughly every 5 minutes and perimeters are redrawn by humans
 # flying the fire, so a 10 minute snapshot is never the reason a warning is
 # wrong. At 2 request units per query and two fidelities per refresh, this is
 # 4 units per 10 minutes against an organization ceiling of 57,600 per minute.
-TTL_S = _env_int("WILDFIRE_CACHE_TTL_S", 600)
+TTL_S = env_int("WILDFIRE_CACHE_TTL_S", 600)
 
 # How long a failed refresh suppresses the next attempt. Without it every
 # request during an outage becomes its own upstream attempt, which is the
 # hammering the cache exists to stop, and ArcGIS's own answer to an exhausted
 # quota asks for 60 seconds anyway.
-RETRY_AFTER_FAILURE_S = _env_int("WILDFIRE_RETRY_AFTER_FAILURE_S", 60)
+RETRY_AFTER_FAILURE_S = env_int("WILDFIRE_RETRY_AFTER_FAILURE_S", 60)
 
 
 @dataclass(frozen=True)

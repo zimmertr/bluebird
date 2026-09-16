@@ -35,7 +35,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import re
 import time
 from collections.abc import Awaitable, Callable
@@ -46,6 +45,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
+from app.env import env_int
 from app.services.errors import UpstreamError, classify_http_error
 from app.services.snapshot import SnapshotCache
 
@@ -94,27 +94,16 @@ GEOMETRY_PRECISION = 5
 REQUEST_TIMEOUT_S = 60.0
 
 
-def _env_int(name: str, default: int) -> int:
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        log.warning("Ignoring non-integer %s=%r; using default %d", name, raw, default)
-        return default
-
-
 # Two analyst passes a day means nothing this cache serves is ever more than a
 # few minutes staler than the truth, whatever the TTL. 30 minutes is chosen for
 # the other end: it bounds how long after a new pass lands before visitors see
 # it, at 48 fetches a day against a file server with no quota.
-TTL_S = _env_int("SMOKE_CACHE_TTL_S", 1800)
+TTL_S = env_int("SMOKE_CACHE_TTL_S", 1800)
 
 # How long a failed refresh suppresses the next attempt, for the reason
 # nifc.py's twin spells out: without it every request during an outage becomes
 # its own upstream attempt, which is the hammering the cache exists to stop.
-RETRY_AFTER_FAILURE_S = _env_int("SMOKE_RETRY_AFTER_FAILURE_S", 60)
+RETRY_AFTER_FAILURE_S = env_int("SMOKE_RETRY_AFTER_FAILURE_S", 60)
 
 
 @dataclass(frozen=True)

@@ -30,7 +30,6 @@ the pod port directly via a PodMonitor; the Service never exposes it.
 from __future__ import annotations
 
 import logging
-import os
 import time
 from collections.abc import Awaitable, Callable, Iterator
 from typing import Any
@@ -46,26 +45,14 @@ from prometheus_client import (
 from prometheus_client.core import CounterMetricFamily
 from prometheus_client.registry import Collector
 
+from app.env import env_int
 from app.services import cache
 from app.version import get_commit, get_version
 
 log = logging.getLogger("bluebird_forecast.telemetry")
 
 
-def _env_int(name: str, default: int) -> int:
-    # Same env-at-import idiom as ratelimit.py; a local copy because that
-    # module imports this one, and this module must import nothing of it.
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        log.warning("Ignoring non-integer %s=%r; using default %d", name, raw, default)
-        return default
-
-
-METRICS_PORT = _env_int("METRICS_PORT", 9464)
+METRICS_PORT = env_int("METRICS_PORT", 9464)
 
 
 # ── HTTP surface ──────────────────────────────────────────────────────────────
