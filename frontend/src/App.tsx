@@ -16,6 +16,7 @@ import ResultsTable from './components/ResultsTable'
 import ColumnsPicker from './components/ColumnsPicker'
 import ModelsPicker from './components/ModelsPicker'
 import RemovedPicker from './components/RemovedPicker'
+import ResizeGrip from './components/ResizeGrip'
 import WelcomeModal from './components/WelcomeModal'
 import PreviewBanner from './components/PreviewBanner'
 import TimelineTransport from './components/TimelineTransport'
@@ -301,13 +302,6 @@ const NO_CHART_ROWS: DestinationResult[] = []
 const DEFAULT_PANEL_HEIGHT = 220
 const DEFAULT_CHART_HEIGHT = DEFAULT_PANEL_HEIGHT
 const DEFAULT_TABLE_HEIGHT = DEFAULT_PANEL_HEIGHT
-
-// How close two presses must be to count as a double-click. The browser's own
-// dblclick never arrives on these grips: the resize begins on pointerdown and
-// preventDefault plus the drag overlay stop the pair of clicks ever resolving,
-// so the gesture is recognised here instead. 350ms is a shade over the usual
-// system threshold, which is the right way to miss.
-const DOUBLE_PRESS_MS = 350
 
 // Collapse/expand affordance for the bottom panels' header bars.
 function Chevron({ up }: { up: boolean }) {
@@ -760,16 +754,6 @@ export default function App() {
   // on any map too short for them. A double press on a grip means "put it back",
   // so it returns the resting height with the rest of the default.
   const [heightsChosen, setHeightsChosen] = useState(false)
-  // When each grip was last pressed, keyed by which one. A double press resets
-  // that grip's own panel — the chart resizer restores the chart, the table
-  // resizer the table — rather than both, since a drag only ever moved one.
-  const lastGripPressRef = useRef<Record<string, number>>({})
-
-  function isDoublePress(grip: string, at: number): boolean {
-    const previous = lastGripPressRef.current[grip] ?? 0
-    lastGripPressRef.current[grip] = at
-    return at - previous < DOUBLE_PRESS_MS
-  }
   const [showWelcome, setShowWelcome] = useState(() => !hasWelcomed())
   // The controls panel is docked on desktop and an off-canvas drawer on phones.
   // It starts open on both; a close button collapses it to widen the map.
@@ -788,31 +772,6 @@ export default function App() {
   function dismissWelcome() {
     setWelcomed()
     setShowWelcome(false)
-  }
-
-  // Pointer-driven vertical resize, shared by mouse and touch (Pointer Events)
-  // and by both breakpoints. `onDrag` receives the drag distance with up
-  // positive; the handles below feed it the map│chart or chart│table geometry.
-  function beginResize(e: React.PointerEvent, onDrag: (dragUpPx: number) => void) {
-    e.preventDefault()
-    const startY = e.clientY
-    setIsDragging(true)
-    setHeightsChosen(true)
-
-    function onMove(ev: PointerEvent) {
-      onDrag(startY - ev.clientY)
-    }
-
-    function onUp() {
-      setIsDragging(false)
-      document.removeEventListener('pointermove', onMove)
-      document.removeEventListener('pointerup', onUp)
-      document.removeEventListener('pointercancel', onUp)
-    }
-
-    document.addEventListener('pointermove', onMove)
-    document.addEventListener('pointerup', onUp)
-    document.addEventListener('pointercancel', onUp)
   }
 
   const {
@@ -2250,6 +2209,10 @@ export default function App() {
       mapMinPx: mapFloorPx,
     },
   )
+  // What the map│chart grip may not drag the chart over. The table's height
+  // counts only while the table is rendered, which is the one thing that
+  // differs between Both and chart-only mode.
+  const chartReservedPx = (resultsMode === 'both' ? tablePanelPx : 0) + bannerPx
   // The results' real height, which is what the map's bottom chrome rides.
   //
   // Two paths, because the height moves for two different kinds of reason.
@@ -3148,34 +3111,32 @@ export default function App() {
                         panel shown by itself is still resizable against the
                         map (#242 review). Only the reserved space differs —
                         the table's height counts only while it is rendered. */}
-                    <div
-                      onPointerDown={(e) => {
-                        if (isDoublePress('chart', e.timeStamp)) {
-                          if (resultsMode === 'both') setTableHeight(tablePanelPx)
-                          setChartHeight(DEFAULT_CHART_HEIGHT)
-                          // "Put it back" includes the resting height a phone
-                          // sheet opens at, which a drag had handed over.
-                          setHeightsChosen(false)
-                          return
-                        }
-                        const reserved = (resultsMode === 'both' ? tablePanelPx : 0) + bannerPx
+                    <ResizeGrip
+                      onReset={() => {
                         if (resultsMode === 'both') setTableHeight(tablePanelPx)
-                        beginResize(e, (up) =>
-                          setChartHeight(
-                            clampPanelHeight(
-                              chartPanelPx,
-                              up,
-                              reserved,
-                              window.innerHeight,
-                              dragFloorPx,
-                            ),
+                        setChartHeight(DEFAULT_CHART_HEIGHT)
+                        // "Put it back" includes the resting height a phone
+                        // sheet opens at, which a drag had handed over.
+                        setHeightsChosen(false)
+                      }}
+                      onDragStart={() => {
+                        setIsDragging(true)
+                        setHeightsChosen(true)
+                        if (resultsMode === 'both') setTableHeight(tablePanelPx)
+                      }}
+                      onDrag={(up) =>
+                        setChartHeight(
+                          clampPanelHeight(
+                            chartPanelPx,
+                            up,
+                            chartReservedPx,
+                            window.innerHeight,
+                            dragFloorPx,
                           ),
                         )
-                      }}
-                      className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
-                    >
-                      <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
-                    </div>
+                      }
+                      onDragEnd={() => setIsDragging(false)}
+                    />
                     <div
                       className="flex min-h-0 flex-shrink-0 flex-col"
                       style={{ height: `${chartPanelPx}px` }}
@@ -3267,38 +3228,35 @@ export default function App() {
                         preserves the pair's sum; alone, there is no chart to
                         trade with, so it resizes the table against the map
                         exactly as the chart grip above does. */}
-                    <div
-                      onPointerDown={(e) => {
-                        if (isDoublePress('table', e.timeStamp)) {
-                          if (resultsMode === 'both') setChartHeight(chartPanelPx)
-                          setTableHeight(DEFAULT_TABLE_HEIGHT)
-                          setHeightsChosen(false)
+                    <ResizeGrip
+                      onReset={() => {
+                        if (resultsMode === 'both') setChartHeight(chartPanelPx)
+                        setTableHeight(DEFAULT_TABLE_HEIGHT)
+                        setHeightsChosen(false)
+                      }}
+                      onDragStart={() => {
+                        setIsDragging(true)
+                        setHeightsChosen(true)
+                      }}
+                      onDrag={(up) => {
+                        if (resultsMode === 'both') {
+                          const next = splitChartTable(chartPanelPx, tablePanelPx, up)
+                          setChartHeight(next.chart)
+                          setTableHeight(next.table)
                           return
                         }
-                        if (resultsMode === 'both') {
-                          beginResize(e, (up) => {
-                            const next = splitChartTable(chartPanelPx, tablePanelPx, up)
-                            setChartHeight(next.chart)
-                            setTableHeight(next.table)
-                          })
-                        } else {
-                          beginResize(e, (up) =>
-                            setTableHeight(
-                              clampPanelHeight(
-                                tablePanelPx,
-                                up,
-                                bannerPx,
-                                window.innerHeight,
-                                dragFloorPx,
-                              ),
-                            ),
-                          )
-                        }
+                        setTableHeight(
+                          clampPanelHeight(
+                            tablePanelPx,
+                            up,
+                            bannerPx,
+                            window.innerHeight,
+                            dragFloorPx,
+                          ),
+                        )
                       }}
-                      className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
-                    >
-                      <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
-                    </div>
+                      onDragEnd={() => setIsDragging(false)}
+                    />
                     <div className="@container overflow-auto min-h-0 results-scrollbars flex-shrink-0" style={{ height: `${tablePanelPx}px` }}>
                       <ResultsTable
                         emptyReason={emptyReason}

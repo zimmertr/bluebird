@@ -161,3 +161,31 @@ describe('the results bar while the field is arriving', () => {
     expect(appSource).toMatch(/\n\s+arriving,\n/)
   })
 })
+
+// ── The panel resize grips (#382) ──────────────────────────────────────────
+//
+// The bar between two panels answers two gestures: drag to resize, double
+// press to put that panel back. App.tsx spelled both twice, markup included,
+// so the two could drift into looking or behaving differently. A component
+// needs a DOM this node-env suite has not got, so what is asserted here is
+// that one spelling is left.
+describe('the resize grips', () => {
+  it('draws both through the one component', () => {
+    expect(appSource.match(/<ResizeGrip\b/g)).toHaveLength(2)
+  })
+
+  it('keeps no grip markup or press clock of its own', () => {
+    // `TAP.grip` is the role only this bar wears, and the double-press window
+    // is the gesture the browser's own dblclick never reaches.
+    expect(appSource).not.toMatch(/TAP\.grip/)
+    expect(appSource).not.toMatch(/DOUBLE_PRESS_MS/)
+  })
+
+  // The geometry stays the caller's: the chart grip trades against the map,
+  // the table grip against the chart in Both mode and the map alone otherwise.
+  // Moving it into the component would make one grip need to know which one it
+  // is, which is what the two handlers already say.
+  it('leaves the geometry at the call site', () => {
+    expect(appSource).toContain('splitChartTable(chartPanelPx, tablePanelPx, up)')
+  })
+})
