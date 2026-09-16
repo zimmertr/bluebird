@@ -188,7 +188,7 @@ One set of roles for both surfaces that reorder columns, the table header and th
 
 | Role | Purpose |
 |---|---|
-| `ICON` | Inline SVG icon sizing: 16x16 |
+| `ICON` | How big a drawn glyph is, in five steps: `control` 16, `search` 15, `inline` 14, `legend` 12, `micro` 10. Read only by `components/icons.tsx`, which draws every icon in the app |
 | `ICON_BUTTON` | Bare icon button in header |
 | `ICON_ACTION` | Icon that acts on hover |
 | `ICON_ADORNMENT` | Glyph drawn inside a field |
@@ -224,6 +224,9 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
 | No bottom offset is spelled in a component | `resultsSheet.test.ts` | Ban `bottom-*` in `App.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
 | The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure |
+| No component draws its own glyph | `styles.test.ts` | Ban a literal SVG opening tag everywhere under `components/` and in `App.tsx`, except `icons.tsx` |
+| No call site sizes an icon | `styles.test.ts` | Ban a height or width utility on any `<Icon…>` element; the five `ICON` steps are pinned by measured pixels |
+| Every glyph is hidden from assistive technology | `accessibility.test.ts` | Every SVG in `icons.tsx` carries `aria-hidden` |
 
 **NOT enforced:** custom spacing between components (only recessed surface and controls are architected), component-specific layouts. These are decided per feature.
 
@@ -426,6 +429,31 @@ The filled portion of the track is a third element behind the input rather than
 a styled `::-webkit-slider-runnable-track`, because a pseudo-element cannot
 carry another box on top of it, and it needs `pointer-events-none` so it does
 not swallow the drag that belongs to the input above.
+
+### Drawing an icon
+
+Every glyph in the app is a component in `frontend/src/components/icons.tsx`,
+and nothing else draws an SVG (#386). Before that module the nineteen inline
+SVGs each answered the same three questions for themselves and had stopped
+agreeing: the close cross existed six times at three sizes and two stroke
+weights, two of the six reached a screen reader that the other four did not,
+and the select arrow's path was typed out three times.
+
+The split is:
+
+- **The module owns the drawing.** Paths, stroke weight, viewBox, the size from
+  the `ICON` ramp, and `aria-hidden` on every one of them. A glyph stands inside
+  a control that already carries its own `aria-label`, so an icon that reaches
+  the accessibility tree can only announce the label a second time.
+- **The call site owns placement.** Where the glyph sits (`ICON_ADORNMENT`,
+  `flex-shrink-0`) and what colour it reaches for (`ICON_ACTION`), passed as
+  `className`. Never a size: a height or width handed to an icon fails
+  `styles.test.ts`.
+
+To add one, write the component in that file, give it a step from the `ICON`
+ramp, and let it set `aria-hidden` itself. A step that does not exist yet is a
+new role: add it to `ICON` with its rationale and pin its pixels in
+`styles.test.ts`, the same way as below.
 
 ### Adding a new role
 

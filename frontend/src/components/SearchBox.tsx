@@ -17,6 +17,7 @@ import {
   TAP,
   TEXT,
 } from '../styles'
+import { IconClose, IconSearch } from './icons'
 
 // The panel under the field, in both of the states it has: the list of places,
 // and the line that says why there is no list. One recipe, because they are one
@@ -162,18 +163,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
       <div
         className={`${SURFACE_FLOATING} ${MAP_ROW_H} flex items-center gap-2 px-2.5 transition-colors ${ACCENT.edgeFocus}`}
       >
-        <svg
-          width="15"
-          height="15"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          className={`flex-shrink-0 ${ICON_ACTION}`}
-        >
-          <circle cx="11" cy="11" r="7" />
-          <line x1="21" y1="21" x2="16.5" y2="16.5" />
-        </svg>
+        <IconSearch className={`flex-shrink-0 ${ICON_ACTION}`} />
         <input
           ref={inputRef}
           value={query}
@@ -209,10 +199,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
             aria-label="Clear search"
             className={`${ICON_BUTTON} flex-shrink-0`}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            <IconClose />
           </button>
         ) : null}
       </div>

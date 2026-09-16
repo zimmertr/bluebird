@@ -98,7 +98,13 @@ const mapCss: string = readFileSync(new URL('./map.css', import.meta.url), 'utf8
 const stepPx = (cls: string, prefix: string): number =>
   (Number(cls.match(new RegExp(`(?:^|\\s)${prefix}-(\\d+(?:\\.\\d+)?)(?:\\s|$)`))![1]) / 4) * 16
 // What SELECT keeps clear on the right: the arrow's own box and nothing more.
-const ICON_PX = stepPx(ICON, 'w')
+const ICON_PX = stepPx(ICON.control, 'w')
+// The `search` step is the one off Tailwind's scale, so the ramp is measured
+// through both spellings rather than through the scale alone.
+const iconPx = (step: string, prefix: string): number => {
+  const arbitrary = step.match(new RegExp(`(?:^|\\s)${prefix}-\\[(\\d+)px\\]`))
+  return arbitrary ? Number(arbitrary[1]) : stepPx(step, prefix)
+}
 const selectArrowPx = (): number => stepPx(SELECT, 'pr')
 // The panel's control column, and the Metrics box pair it now measures.
 const controlWPx = (): number => Number(CONTROL_W.match(/w-\[(\d+)px\]/)![1])
@@ -206,6 +212,9 @@ const sources: Record<string, string> = {
   }) as Record<string, string>),
   './App.tsx': appSource,
 }
+
+// The one file allowed to draw an SVG.
+const ICON_MODULE = './components/icons.tsx'
 
 describe('every component', () => {
   it('found the sources', () => {
@@ -340,6 +349,36 @@ describe('every component', () => {
   it.each(Object.entries(sources))('%s carries only its approved tooltips', (path, source) => {
     const found = (source.match(/\btitle=/g) ?? []).length
     expect(found).toBe(APPROVED_TOOLTIPS[path] ?? 0)
+  })
+
+  // #386. Nineteen hand-drawn glyphs each answered how big, how heavy and
+  // whether a screen reader skips them, and they had stopped agreeing: the
+  // close cross existed six times at three sizes and two stroke weights, two
+  // of the six were announced, and the select arrow's path was typed out
+  // three times. One module draws them all now, and this is what stops a
+  // twentieth arriving by hand.
+  it.each(Object.entries(sources).filter(([path]) => path !== ICON_MODULE))(
+    '%s draws no glyph of its own',
+    (_path, source) => {
+      expect(source).not.toContain('<svg')
+    },
+  )
+
+  // The other half of that rule, and the one a new icon is most likely to
+  // break: a call site says where a glyph sits and what colour it reaches for,
+  // and the module says how big it is. A height or width handed to an icon is
+  // a size decision made at a call site.
+  it.each(Object.entries(sources))('%s hands no icon a size', (_path, source) => {
+    const SIZED = /(?:^|[\s"'`{])[hw]-(?:\d|\[)/
+    const uses = source.match(/<Icon[A-Za-z]*\s[^>]*>/g) ?? []
+    expect(uses.filter((use) => SIZED.test(use))).toEqual([])
+  })
+
+  // Both lints above are vacuous if the module is not in the glob or has
+  // stopped being where the glyphs are.
+  it('reads the icon module it exempts', () => {
+    expect(sources[ICON_MODULE]).toBeDefined()
+    expect((sources[ICON_MODULE].match(/<svg/g) ?? []).length).toBeGreaterThan(10)
   })
 })
 
@@ -1127,9 +1166,25 @@ describe('shared recipes', () => {
     expect(ICON_ADORNMENT).toContain('pointer-events-none')
   })
 
-  // Inline SVG icons beside text: sized for clarity without dominating text labels.
-  it('sizes the inline glyph for text-paired icons', () => {
-    expect(ICON).toBe('h-4 w-4')
+  // The ramp every glyph in `components/icons.tsx` reads (#386). Pinned step by
+  // step, because that module is now the only thing standing between these five
+  // numbers and the nineteen call sites that used to pick their own: a step
+  // that moves here moves an icon on screen.
+  it('sizes every glyph from one ramp', () => {
+    expect(iconPx(ICON.control, 'h')).toBe(16)
+    expect(iconPx(ICON.search, 'h')).toBe(15)
+    expect(iconPx(ICON.inline, 'h')).toBe(14)
+    expect(iconPx(ICON.legend, 'h')).toBe(12)
+    expect(iconPx(ICON.micro, 'h')).toBe(10)
+  })
+
+  // A glyph's box is its own viewBox, which is square in every icon the app
+  // draws. A step that set one dimension would stretch the drawing rather than
+  // resize it.
+  it('keeps every step of that ramp square', () => {
+    for (const [step, recipe] of Object.entries(ICON)) {
+      expect(iconPx(recipe, 'w'), `${step} must be square`).toBe(iconPx(recipe, 'h'))
+    }
   })
 
   // Every floating box on the map is one surface: the search field and its
