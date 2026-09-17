@@ -372,16 +372,37 @@ describe('the supplier credits', () => {
   it('compose each line from DATA_SOURCES rather than a second literal copy', () => {
     const csv = buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES)
     expect(csv).toContain(
-      `"Weather data by ${openMeteo.name}, ${openMeteo.license} (${openMeteo.licenseHref})"`,
+      `"Weather data by ${openMeteo.name}, ${openMeteo.license}",${openMeteo.licenseHref}`,
     )
     expect(csv).toContain(
-      `"Destination data © ${osm.name} contributors, ${osm.license} (${osm.licenseHref})"`,
+      `"Destination data © ${osm.name} contributors, ${osm.license}",${osm.licenseHref}`,
     )
+  })
+
+  // The words and then the URI, which is the shape the forecast-window rows
+  // above them wear. A URL alone in a cell is a link a spreadsheet makes
+  // clickable; the same URL inside a sentence is text a reader has to retype.
+  it('put the license URI in its own cell, with no parentheses', () => {
+    const credits = lines(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES)).slice(3)
+    expect(credits).toHaveLength(3)
+    // The words are one quoted cell (their own comma forces the quotes) and
+    // the URI is the whole of the next, which needs none.
+    expect(credits[0]).toBe(
+      `"Weather data by ${openMeteo.name}, ${openMeteo.license}",${openMeteo.licenseHref}`,
+    )
+    for (const [line, source] of [
+      [credits[0], openMeteo],
+      [credits[1], osm],
+      [credits[2], nifc],
+    ] as const) {
+      expect(line).not.toContain('(http')
+      expect(line.endsWith(`",${source.licenseHref}`)).toBe(true)
+    }
   })
 
   it('credit the fire supplier exactly when the file carries the fire column', () => {
     expect(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES)).toContain(
-      `"Wildfire data by ${nifc.name}, ${nifc.license} (${nifc.licenseHref})"`,
+      `"Wildfire data by ${nifc.name}, ${nifc.license}",${nifc.licenseHref}`,
     )
     expect(buildResultsCsv([row()], WINDOW_COLUMNS, null)).not.toContain('NIFC')
   })

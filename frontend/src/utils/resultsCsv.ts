@@ -140,7 +140,14 @@ function fireCell(
 }
 
 /**
- * One supplier's credit line, composed from its DATA_SOURCES entry.
+ * One supplier's credit, as the two cells every row below the data wears.
+ *
+ * The license URI stands in its own cell rather than in parentheses at the end
+ * of the sentence. A license asks for the URI beside the data, and a cell
+ * holding nothing but a URL is a link a spreadsheet makes clickable, where the
+ * same URL inside a sentence is text a reader has to retype (TJ, 2026-09-17).
+ * It is also the shape the forecast-window rows above it wear, so everything
+ * the file says about itself reads as one label and one value.
  *
  * Only the lead-in phrase lives here; the name, license and license URI come
  * from the one list the privacy pages render and NOTICES.md transcribes, so a
@@ -148,10 +155,10 @@ function fireCell(
  * The throw is for a test to hit, not a user: a renamed entry breaks the
  * lookup at build-and-test time rather than silently dropping a credit.
  */
-function credit(lead: string, sourceName: string, suffix = ''): string {
+function credit(lead: string, sourceName: string, suffix = ''): string[] {
   const s = DATA_SOURCES.find((d) => d.name === sourceName)
   if (!s?.license || !s.licenseHref) throw new Error(`no licensed data source named ${sourceName}`)
-  return `${lead} ${s.name}${suffix}, ${s.license} (${s.licenseHref})`
+  return [`${lead} ${s.name}${suffix}, ${s.license}`, s.licenseHref]
 }
 
 /**
@@ -162,8 +169,9 @@ function credit(lead: string, sourceName: string, suffix = ''): string {
  * under ODbL: the screen carrying the credits does not cover a file read
  * detached from it. They land BELOW the data, behind one blank row, so a
  * spreadsheet still reads the first row as the column titles and the numbers
- * as a table. One cell per line; the commas inside are quoted away by
- * escapeCell like any other cell.
+ * as a table. Two cells per line, the words and then the license URI, which is
+ * the shape the forecast-window rows above them wear; the comma inside the
+ * words is quoted away by escapeCell like any other cell.
  *
  * Only suppliers the file actually used appear: NIFC is credited exactly when
  * the wildfire column is present, and CAMS is absent because its figures reach
@@ -171,10 +179,10 @@ function credit(lead: string, sourceName: string, suffix = ''): string {
  */
 function creditRows(fireColumn: boolean): string[][] {
   const rows = [
-    [credit('Weather data by', 'Open-Meteo')],
-    [credit('Destination data ©', 'OpenStreetMap', ' contributors')],
+    credit('Weather data by', 'Open-Meteo'),
+    credit('Destination data ©', 'OpenStreetMap', ' contributors'),
   ]
-  if (fireColumn) rows.push([credit('Wildfire data by', 'NIFC')])
+  if (fireColumn) rows.push(credit('Wildfire data by', 'NIFC'))
   return rows
 }
 
