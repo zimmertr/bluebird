@@ -30,14 +30,12 @@ import asyncio
 import logging
 import time
 from collections.abc import Awaitable, Callable
-from typing import Generic, TypeVar
 
 from app.error_codes import ApiError, ErrorCode
 from app.services.errors import UpstreamError, classify_http_error
 
 log = logging.getLogger(__name__)
 
-T = TypeVar("T")
 
 # What a caller is asked to wait when the failure itself names no interval.
 # Matches the failure backoff both overlays configure, so a retry lands about
@@ -45,7 +43,7 @@ T = TypeVar("T")
 DEFAULT_RETRY_AFTER_S = 60
 
 
-class SnapshotCache(Generic[T]):
+class SnapshotCache[T]:
     """Singleflight, stale-tolerant holder for one periodically refetched value.
 
     ``label`` names the upstream in log lines. ``describe`` turns a fresh
@@ -173,7 +171,7 @@ class SnapshotCache(Generic[T]):
         self._last_error = None
 
 
-def cache_factory(
+def cache_factory[T](
     *,
     label: str,
     fetch: Callable[[], Awaitable[T]],
@@ -222,7 +220,7 @@ def unavailable_message(exc: Exception, provider: str) -> str:
     return classify_http_error(exc, provider)
 
 
-async def snapshot_or_503(cache: SnapshotCache[T], *, event: str) -> T:
+async def snapshot_or_503[T](cache: SnapshotCache[T], *, event: str) -> T:
     """The snapshot to answer with, or the 503 that says why there is none.
 
     Every failure that reaches here means the cache holds nothing at all, stale

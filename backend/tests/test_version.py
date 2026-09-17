@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import pytest
+from fastapi.testclient import TestClient
+
 from app.main import app
 from app.version import DEV, get_built_at, get_commit, get_version
-from fastapi.testclient import TestClient
 
 client = TestClient(app)
 

@@ -22,7 +22,7 @@ def test_no_defect_2_remedy_phrases():
 
     found_violations = []
     for py_file in backend_root.rglob("*.py"):
-        with open(py_file, "r") as f:
+        with open(py_file) as f:
             content = f.read()
             if pattern.search(content):
                 found_violations.append(str(py_file))

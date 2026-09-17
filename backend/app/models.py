@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import ClassVar, Literal, NamedTuple
 
@@ -103,7 +103,7 @@ MAX_LIMIT = MAX_ANALYZE_PEAKS
 
 
 def _as_utc(dt: datetime) -> datetime:
-    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
 
 
 def archive_boundary(now: datetime) -> datetime:
@@ -865,7 +865,7 @@ class AnalyzeRequest(_DiscoveryFields):
                     "forecast_mode='current' analyzes the hour at hand and "
                     "takes no timestamps. Drop them, or use 'at' or 'window'."
                 )
-            self.start_datetime = datetime.now(timezone.utc)
+            self.start_datetime = datetime.now(UTC)
             self.end_datetime = self.start_datetime
         elif mode is ForecastMode.at:
             if not self.start_datetime:
@@ -900,7 +900,7 @@ class AnalyzeRequest(_DiscoveryFields):
                 minute=0, second=0, microsecond=0
             )
             self.end_datetime = self.start_datetime + timedelta(minutes=1)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if _as_utc(self.start_datetime) < now - timedelta(days=PAST_LIMIT_SLACK_DAYS):
             raise ValueError(
                 "start_datetime is beyond the one-year history limit of the "

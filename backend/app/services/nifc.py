@@ -273,7 +273,7 @@ async def _fetch_layer(client: httpx.AsyncClient, simplify_deg: float | None) ->
     """
     fires: list[Fire] = []
     offset = 0
-    for page in range(MAX_PAGES):
+    for _page in range(MAX_PAGES):
         params: dict[str, Any] = {
             "where": WHERE,
             "outFields": OUT_FIELDS,

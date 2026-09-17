@@ -38,7 +38,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from xml.etree import ElementTree
 from zoneinfo import ZoneInfo
 
@@ -143,7 +143,7 @@ def _parse_hms_time(raw: str) -> int | None:
         return None
     year, day_of_year, hour, minute = (int(g) for g in match.groups())
     try:
-        stamp = datetime(year, 1, 1, tzinfo=timezone.utc) + timedelta(
+        stamp = datetime(year, 1, 1, tzinfo=UTC) + timedelta(
             days=day_of_year - 1, hours=hour, minutes=minute
         )
     except (ValueError, OverflowError):
