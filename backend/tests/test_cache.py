@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from app.models import DestinationType, GeoPolygon
 from app.services import cache, osm
 

@@ -25,9 +25,8 @@ from app.routes.analyze import (
     _resolve_custom,
     _suggest_elevation_floor,
     _truncate_top_elevation,
+    discover,
 )
-from app.services import osm
-from app.services.errors import UpstreamError
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -128,32 +127,11 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse:
             code=ErrorCode.validation,
         )
     else:
-        try:
-            found = await osm.query_osm(
-                request.polygon,
-                request.destination_types,
-                include_unnamed_peaks=request.include_unnamed_peaks,
-            )
-        except NotImplementedError as e:
-            raise ApiError(status_code=400, detail=str(e), code=ErrorCode.validation)
-        except ratelimit.BudgetExhausted as e:
-            raise ApiError(
-                status_code=503,
-                detail=e.message,
-                code=ErrorCode.busy,
-                headers={"Retry-After": str(e.retry_after_s)},
-            )
-        except UpstreamError as e:
-            raise ApiError(
-                status_code=502, detail=e.message, code=ErrorCode.upstream_unavailable
-            )
-        except Exception:
-            log.exception("Destination search failed")
-            raise ApiError(
-                status_code=502,
-                detail="OpenStreetMap is not available. Try again later.",
-                code=ErrorCode.upstream_unavailable,
-            )
+        found = await discover(
+            request.polygon,
+            request.destination_types,
+            include_unnamed_peaks=request.include_unnamed_peaks,
+        )
 
     # Resolved before the band filter, so an elevation the caller never knew
     # is one the band can actually act on.
