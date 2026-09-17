@@ -19,7 +19,7 @@ import {
   pairColor,
   pairKey,
 } from './modelCompare'
-import { resultRow } from '../testSupport/fixtures'
+import { resultRow, weatherResult } from '../testSupport/fixtures'
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
@@ -393,11 +393,13 @@ describe('one table row per model', () => {
   ]
   const keyOf = (r: DestinationResult) => `${r.latitude},${r.longitude}`
 
+  // The compared model's answer. Its precipitation total and its top wind are
+  // not ROW's, which is what lets an assertion tell a compared row from the
+  // report's own.
   function answer(over: Partial<WeatherAggregates> = {}): WeatherResult {
-    return {
+    return weatherResult({
       precip_total_in: 1.5,
       precip_avg_in_hr: 0.3,
-      precip_min_in_hr: 0,
       precip_max_in_hr: 0.6,
       temp_min_f: 30,
       temp_max_f: 50,
@@ -405,12 +407,8 @@ describe('one table row per model', () => {
       wind_min_mph: 4,
       wind_max_mph: 18,
       wind_avg_mph: 10,
-      freeze_min_ft: null,
-      freeze_max_ft: null,
-      freeze_avg_ft: null,
-      series: null,
       ...over,
-    }
+    })
   }
 
   it('gives one row per model, grouped by destination', () => {

@@ -26,7 +26,7 @@ import mapViewSource from '../components/MapView.tsx?raw'
 import { NO_VALUE, fillColor, resultsFeatureCollection } from './resultFeatures'
 import type { DestinationResult } from '../types'
 import type { AqiResult, WeatherResult } from './openMeteo'
-import { resultRow } from '../testSupport/fixtures'
+import { resultRow, weatherResult } from '../testSupport/fixtures'
 
 // A field of destinations, as coordinates — the only part of a result the
 // lattice reads.
@@ -537,29 +537,29 @@ describe('pairCells', () => {
     pitchKm: 13,
   }
 
-  const wx = (precip: number[]): WeatherResult => ({
-    precip_total_in: precip.reduce((a, b) => a + b, 0),
-    precip_avg_in_hr: 0,
-    precip_min_in_hr: 0,
-    precip_max_in_hr: 0,
-    temp_min_f: 40,
-    temp_max_f: 60,
-    temp_avg_f: 50,
-    wind_min_mph: 1,
-    wind_max_mph: 9,
-    wind_avg_mph: 5,
-    freeze_min_ft: 9000,
-    freeze_max_ft: 9500,
-    freeze_avg_ft: 9250,
-    series: {
-      times: [1000, 2000],
-      precip_in: precip,
-      temp_f: [40, 60],
-      wind_mph: [1, 9],
-      freeze_ft: [9000, 9500],
-      wind_dir_deg: [90, 270],
-    },
-  })
+  // A sample that publishes a freezing level, because the case below measures
+  // its absence against this one.
+  const wx = (precip: number[]): WeatherResult =>
+    weatherResult({
+      precip_total_in: precip.reduce((a, b) => a + b, 0),
+      temp_min_f: 40,
+      temp_max_f: 60,
+      temp_avg_f: 50,
+      wind_min_mph: 1,
+      wind_max_mph: 9,
+      wind_avg_mph: 5,
+      freeze_min_ft: 9000,
+      freeze_max_ft: 9500,
+      freeze_avg_ft: 9250,
+      series: {
+        times: [1000, 2000],
+        precip_in: precip,
+        temp_f: [40, 60],
+        wind_mph: [1, 9],
+        freeze_ft: [9000, 9500],
+        wind_dir_deg: [90, 270],
+      },
+    })
 
   const noAqi: AqiResult[] = [null, null]
 

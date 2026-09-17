@@ -25,7 +25,7 @@ import {
 import { pinKey } from './customList'
 import { WeatherResult, resetOpenMeteoState } from './openMeteo'
 import vectors from './weather_vectors.json'
-import { resultRow } from '../testSupport/fixtures'
+import { resultRow, weatherResult } from '../testSupport/fixtures'
 
 // ── Vector-pinned: the AQI-onto-weather-grid alignment ─────────────────────
 
@@ -220,10 +220,11 @@ describe('rankComparator', () => {
 
 // ── assemble (port of _assemble) ───────────────────────────────────────────
 
-const WX: WeatherResult = {
+// Two hours, because the AQI alignment below is measured against this grid: one
+// reading lands on the first stamp and the second hour has to read null.
+const WX: WeatherResult = weatherResult({
   precip_total_in: 0.3,
   precip_avg_in_hr: 0.15,
-  precip_min_in_hr: 0,
   precip_max_in_hr: 0.2,
   temp_min_f: 50,
   temp_max_f: 52,
@@ -241,7 +242,7 @@ const WX: WeatherResult = {
     wind_mph: [5, 7],
     freeze_ft: [9000, 9500],
   },
-}
+})
 
 describe('assemble', () => {
   it('drops rows whose weather came back null and keeps alignment', () => {
