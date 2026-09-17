@@ -19,9 +19,11 @@ export const AIR_QUALITY_URL = 'https://air-quality-api.open-meteo.com/v1/air-qu
 
 // Same batching the backend uses: 50 locations per request, at most 4
 // requests in flight. One browser analyzing is exactly as polite to
-// Open-Meteo as the server was.
-const BATCH_SIZE = 50
-const MAX_CONCURRENT_BATCHES = 4
+// Open-Meteo as the server was. Both numbers are measured on the backend
+// (issue #182) and mirrored through `mirrored_constants.json`, which is why
+// they are exported: `mirroredConstants.test.ts` reads them.
+export const BATCH_SIZE = 50
+export const MAX_CONCURRENT_BATCHES = 4
 
 // The CAMS air-quality model publishes ~5 days; requesting past that 400s.
 const AQI_MAX_FORECAST_DAYS = 5
@@ -462,10 +464,6 @@ const TEMP_LEVELS = [
 ] as const
 const FT_TO_M = 0.3048
 
-// The fifteen hourly variables every weather request asks for — the backend's
-// fourteen plus the wind bearing the map's playback arrows read. Spelled once
-// because it is two things: what a request asks for, and which arrays a joined
-// half-window has to keep parallel (`joinHours`).
 // Port of weather._FREEZING_LEVEL: the height where the free-air temperature
 // crosses freezing, clamped to 0 when the whole column is below freezing.
 // Three of the eight models publish it (issue #295). Its unit follows
@@ -475,7 +473,12 @@ const FT_TO_M = 0.3048
 // a plausible-looking altitude rather than an obvious fault.
 const FREEZING_LEVEL = 'freezing_level_height'
 
-const HOURLY_VARIABLES = [
+// The hourly variables every weather request asks for. Spelled once because it
+// is three things: what a request asks for, which arrays a joined half-window
+// has to keep parallel (`joinHours`), and the count the weighted-call
+// accounting is priced on — which is why the list is exported and why
+// `mirroredConstants.test.ts` measures it against the backend's N_VARIABLES.
+export const HOURLY_VARIABLES = [
   'precipitation',
   'temperature_2m',
   'wind_speed_10m',
