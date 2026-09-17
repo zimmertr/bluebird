@@ -8,6 +8,7 @@ import analyzeSource from '../hooks/useAnalyze.ts?raw'
 import gridSource from '../hooks/useForecastGrid.ts?raw'
 import compareSource from '../hooks/useModelCompare.ts?raw'
 import compareSurfaceSource from '../components/ModelCompare.tsx?raw'
+import appSource from '../App.tsx?raw'
 
 // The countdown three fetches share (#394). The hook around it is wiring, so
 // everything decidable is decided here, where the node-env Vitest can reach it.
@@ -104,6 +105,18 @@ describe('every caller of the shared budget', () => {
 
   it('shows the wait on the compare surface', () => {
     expect(compareSurfaceSource).toContain('paceWaitLine')
+  })
+
+  // The comparison buys its forecasts for the results table as well as the
+  // chart, so the chart's line is not a surface it always has (#433): air
+  // quality ranked, nothing charted, or the table shown by itself all leave a
+  // paced fetch with a wait and nowhere to say it.
+  it('shows the wait under the results bar when the chart cannot', () => {
+    // And nowhere else while the chart has it: one wait said twice is what
+    // naming it in one module was meant to prevent.
+    expect(appSource).toContain(
+      'compare.active && chartShowing ? null : paceWaitLine(compare.paceRemainingS)',
+    )
   })
 
   // The grid's wait clears on EVERY chunk, not on the first (#432). A chunk in

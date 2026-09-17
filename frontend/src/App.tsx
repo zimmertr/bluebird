@@ -151,6 +151,7 @@ import {
   TRANSPORT_GAP_PX,
 } from './utils/resultsSheet'
 import { composeOverlay } from './utils/analyzeOverlay'
+import { paceWaitLine } from './utils/pacing'
 import { Place, isPeakKind } from './utils/geocode'
 import {
   DEFAULT_LIMIT,
@@ -2284,6 +2285,16 @@ export default function App() {
   // segment that says Chart while the table shows reads as broken.
   const chartShowing = !resultsCollapsed && (resultsMode === 'chart' || resultsMode === 'both')
   const tableShowing = !resultsCollapsed && (resultsMode === 'table' || resultsMode === 'both')
+  // The comparison's wait, on the one surface that is always here (#433).
+  //
+  // The forecasts behind the table's per-model rows are bought as soon as a
+  // second model is selected, where `ModelCompare` draws the same line only
+  // while the CHART draws a comparison — so air quality ranked, nothing
+  // charted, or the table shown by itself each left a paced fetch waiting with
+  // nowhere to say so. Null while the chart has it, because one wait said
+  // twice is the reason it was put in one module.
+  const compareWait =
+    compare.active && chartShowing ? null : paceWaitLine(compare.paceRemainingS)
   // One grip per panel on screen: the map│chart resizer, the chart│table divider.
   const gripCount = resultsCollapsed ? 0 : resultsMode === 'both' ? 2 : 1
   // On a phone the results stand ON the map rather than beside it, so the floor
@@ -3207,6 +3218,12 @@ export default function App() {
                   </button>
                 </div>
               </div>
+              {/* One line under the bar, never beside a control in it: the
+                  wait is about the whole comparison, where every member of the
+                  row above is about one thing the reader can press. */}
+              {compareWait !== null && (
+                <div className={`mt-1 ${CONTROL_SIZE} ${STATUS.warn}`}>{compareWait}</div>
+              )}
             </div>
             {!resultsCollapsed && (
               <>
