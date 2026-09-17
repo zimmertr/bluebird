@@ -72,11 +72,14 @@ export function canAnalyze(g: AnalyzeGate): boolean {
  * polygon and already has its own entry above — a plain "not ready" test there
  * printed "add 0 more points" beside the real reason.
  *
- * The postcondition is that this is non-empty exactly when `canAnalyze` is
- * false, so the panel can never disable the button without saying why. It holds
- * over every combination of the flags, including ones the panel cannot actually
- * produce, because "unreachable" is a claim about a caller and this function
- * should not depend on one.
+ * The postcondition is that this is non-empty whenever `canAnalyze` is false,
+ * so the panel can never disable the button without saying why — with one
+ * exception, `loading`. A busy button says it is busy on its own face, and a
+ * reader cannot act on the reason anyway, so that is the single disabled state
+ * this list leaves to the button. Every other combination of the flags yields
+ * a line, including ones the panel cannot actually produce, because
+ * "unreachable" is a claim about a caller and this function should not depend
+ * on one.
  */
 export type AnalyzeBlocker =
   | 'area'

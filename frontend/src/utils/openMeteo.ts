@@ -28,9 +28,10 @@ const AQI_MAX_FORECAST_DAYS = 5
 
 // Thrown only for failures that mean the browser genuinely cannot talk to
 // Open-Meteo: network errors, DNS, a blocked CORS preflight, malformed
-// responses. useAnalyze treats this class — and only this class — as "fall
-// back to the server analysis", because a different network path can help
-// with exactly these. It must NEVER cover HTTP 429: rate limiting means the
+// responses. It buys no second path: the browser is the only analysis path
+// (#240), so useAnalyze reports it like every other provider failure and the
+// analysis fails with its own message rather than pointing a retry at the
+// pod's shared quota. It must NEVER cover HTTP 429: rate limiting means the
 // service is reachable and the quota is spent, and the 2026-07-29 incident
 // (issue #180) was this class swallowing 429s and pointing the retry at a
 // server sharing the same exhausted IP.

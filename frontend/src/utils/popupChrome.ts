@@ -19,15 +19,17 @@
  * the same numbers look the same in both places, and a column of them lines up
  * on the decimal.
  *
- * It is no longer the whole of the label/value split. The face alone was too
- * quiet to read as a split (TJ, 2026-09-14), so the LABEL now carries weight
- * as well and the two separate on both axes.
+ * It is not the whole of the label/value split. The face alone was too quiet
+ * to read as a split (TJ, 2026-09-14), so the two halves separate on two axes:
+ * the value keeps this face, and the LABEL steps back in colour. `LABEL_COLOR`
+ * below is where that second axis is measured, and why it is colour rather
+ * than a second weight.
  *
- * That does not reopen what the "one bold" rule was for. The rule came from
- * two VALUES wearing <strong> by no rule at all — precipitation's total and
- * the AQI average, singled out since the original implementation. A bold on
- * every label is systematic: it marks a kind of text, not a favourite row, and
- * the title keeps its emphasis by size and by the rule drawn under it.
+ * Weight is not the free axis it looks like. The popup carries exactly one
+ * <strong>, on the title, and that is the whole of its emphasis: a bold inside
+ * a row marks a favourite row rather than a kind of text, which is what two
+ * VALUES wearing one by no rule at all — precipitation's total and the AQI
+ * average, singled out since the original implementation — read as.
  *
  * The stack is spelled out rather than left to a bare `monospace` keyword
  * because this markup is handed to MapLibre's setHTML.
