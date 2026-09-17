@@ -78,9 +78,9 @@ describe('popupGroups over a date range', () => {
     expect(precip.label).toBe(NOUN.precip)
     expect(precip.values.map((v) => v.text)).toEqual([
       '0.123 in',
-      '0.0041 in/hr',
-      '0.0000 in/hr',
-      '0.0092 in/hr',
+      '0.004 in/hr',
+      '0.000 in/hr',
+      '0.009 in/hr',
     ])
   })
 
