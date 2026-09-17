@@ -10,6 +10,12 @@
    must never reach the stylesheet. This is also what lets eslint.config.js
    spell a class verbatim where styles.test.ts may not. */
 @source not "../tools";
+/* The frontend module layout lives in `frontend/src/CLAUDE.md`, and v4 scans
+   source as raw text, so every class name that file quotes — `top-[92px]`,
+   `pr-6`, `touch:top-[156px]` and the rest — would emit its CSS from a
+   document no browser loads. The same hazard as tools/ above, one directory
+   closer to the stylesheet. */
+@source not "./CLAUDE.md";
 
 /* Roomier tap targets belong to coarse pointers, not narrow windows. The
    controls panel is 320px wide at every breakpoint (max-w-xs below lg,

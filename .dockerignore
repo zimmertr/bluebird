@@ -5,7 +5,7 @@
 .dockerignore
 .ruff_cache/
 .DS_Store
-*.md
+**/*.md
 docs/
 examples/
 LICENSE
