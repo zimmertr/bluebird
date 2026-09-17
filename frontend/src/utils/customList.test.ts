@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { buildCustomList, pendingAsResult, pendingDestinations, pinKey } from './customList'
+import { buildCustomList, pendingAsResult, pendingDestinations } from './customList'
+import { geoKey } from './points'
 import { CustomDestination, DestinationResult } from '../types'
 import { Place } from './geocode'
 import { NO_CONSTRAINTS } from './clientAnalyze'
 import { presentResults } from './present'
+import { resultRow } from '../testSupport/fixtures'
 
 const csv: CustomDestination[] = [
   { name: 'Mount Rainier', latitude: 46.8529, longitude: -121.7604 },
@@ -28,39 +30,21 @@ function place(
   }
 }
 
+// The coordinates match the CSV above, because a pin is keyed by coordinate.
 function result(overrides: Partial<DestinationResult> = {}): DestinationResult {
-  return {
-    name: 'Mount Rainier',
+  return resultRow({
     type: 'custom',
     latitude: 46.8529,
     longitude: -121.7604,
-    elevation_ft: null,
-    osm_id: null,
-    precip_total_in: 0,
-    precip_avg_in_hr: 0,
-    precip_min_in_hr: 0,
-    precip_max_in_hr: 0,
     temp_min_f: 44.2,
     temp_max_f: 74.9,
     temp_avg_f: 62.1,
     wind_min_mph: 1,
     wind_max_mph: 10,
     wind_avg_mph: 6.4,
-    freeze_min_ft: null,
-    freeze_max_ft: null,
-    freeze_avg_ft: null,
-    aqi_avg: null,
-    aqi_min: null,
-    aqi_max: null,
     ...overrides,
-  }
-}
-
-describe('pinKey', () => {
-  it('rounds to 5 decimals (~1 m) so near-identical coords collide', () => {
-    expect(pinKey(46.852891, -121.760408)).toBe(pinKey(46.85289, -121.76041))
   })
-})
+}
 
 describe('buildCustomList', () => {
   it('unions CSV rows with searched places, CSV first', () => {
@@ -99,7 +83,7 @@ describe('buildCustomList', () => {
 // The analysis snapshot's covered set: what `useAnalyze` records off the
 // request's custom_destinations.
 function covered(...points: { latitude: number; longitude: number }[]): ReadonlySet<string> {
-  return new Set(points.map((p) => pinKey(p.latitude, p.longitude)))
+  return new Set(points.map((p) => geoKey(p.latitude, p.longitude)))
 }
 
 describe('pendingDestinations', () => {
@@ -162,12 +146,12 @@ describe('pendingDestinations', () => {
   // in the textarea — so without the removed set it would reappear as a pending
   // dot the instant it left the report.
   it('keeps an ×-removed CSV row gone even though its line is still pasted', () => {
-    const removed = new Set([pinKey(46.8529, -121.7604)])
+    const removed = new Set([geoKey(46.8529, -121.7604)])
     const out = pendingDestinations(csv, [], none, removed)
     expect(out.map((d) => d.name)).toEqual(['Mount Adams'])
   })
 
-  it('matches the covered set and removals at pinKey precision, not exact equality', () => {
+  it('matches the covered set and removals at geoKey precision, not exact equality', () => {
     const nudged = covered({ latitude: 46.852903, longitude: -121.760397 })
     expect(pendingDestinations(csv, [], nudged, none).map((d) => d.name)).toEqual(['Mount Adams'])
   })

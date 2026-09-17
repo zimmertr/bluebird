@@ -28,33 +28,11 @@ import {
   tooltipCapacity,
 } from './chartData'
 import { RANKING_KEYS, familyOf } from '../metrics'
+// Aliased: the cutSeriesAfter block below binds `series` to a fixture of its own.
+import { resultRow, series as seriesOf } from '../testSupport/fixtures'
 
-function row(name: string, lat: number, series: Partial<HourlySeries>): DestinationResult {
-  return {
-    name,
-    type: 'peak',
-    latitude: lat,
-    longitude: 0,
-    elevation_ft: null,
-    osm_id: null,
-    precip_total_in: 0,
-    precip_avg_in_hr: 0,
-    precip_min_in_hr: 0,
-    precip_max_in_hr: 0,
-    temp_min_f: 0,
-    temp_max_f: 0,
-    temp_avg_f: 0,
-    wind_min_mph: 0,
-    wind_max_mph: 0,
-    wind_avg_mph: 0,
-    freeze_min_ft: null,
-    freeze_max_ft: null,
-    freeze_avg_ft: null,
-    aqi_avg: null,
-    aqi_min: null,
-    aqi_max: null,
-    series: { precip_in: [], temp_f: [], wind_mph: [], freeze_ft: [], aqi: [], ...series },
-  }
+function row(name: string, lat: number, over: Partial<HourlySeries>): DestinationResult {
+  return resultRow({ name, latitude: lat, longitude: 0, series: seriesOf(over) })
 }
 
 describe('metricForSort', () => {
@@ -74,13 +52,8 @@ describe('metricForSort', () => {
   })
 })
 
-function line(key: string, series: Partial<HourlySeries>): ChartLine {
-  return {
-    key,
-    label: key,
-    color: '#38bdf8',
-    series: { precip_in: [], temp_f: [], wind_mph: [], freeze_ft: [], aqi: [], ...series },
-  }
+function line(key: string, over: Partial<HourlySeries>): ChartLine {
+  return { key, label: key, color: '#38bdf8', series: seriesOf(over) }
 }
 
 describe('valueAt / buildChartData', () => {

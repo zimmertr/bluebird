@@ -17,9 +17,8 @@ import {
   cutSeriesAfter,
   gridRemapper,
 } from './chartData'
+import { HOUR_MS } from './forecastWindow'
 import type { WeatherResult, WeatherSeries } from './openMeteo'
-
-const HOUR_MS = 3_600_000
 
 /**
  * Is this one of Open-Meteo's blended products?

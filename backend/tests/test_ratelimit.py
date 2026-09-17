@@ -5,6 +5,7 @@ import importlib
 import json
 from datetime import UTC, datetime, timedelta
 
+from conftest import dest, fake_response
 from fastapi import Request
 from fastapi.testclient import TestClient
 
@@ -217,13 +218,6 @@ def test_geocode_bucket_independent_of_analyze(monkeypatch):
     monkeypatch.setattr(ratelimit, "ANALYZE_LIMITER", ratelimit.RateLimiter(60, 1))
     monkeypatch.setattr(ratelimit, "GEOCODE_LIMITER", ratelimit.RateLimiter(60, 1))
 
-    class _FakeResp:
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return []
-
     class _FakeClient:
         async def __aenter__(self):
             return self
@@ -232,7 +226,7 @@ def test_geocode_bucket_independent_of_analyze(monkeypatch):
             return False
 
         async def get(self, url, params=None, headers=None):
-            return _FakeResp()
+            return fake_response([])
 
     monkeypatch.setattr(geocode_mod.httpx, "AsyncClient", lambda *a, **k: _FakeClient())
 
@@ -262,7 +256,7 @@ def test_analyze_503_when_overpass_budget_sheds(monkeypatch):
 
 def test_analyze_503_when_weather_budget_sheds(monkeypatch):
     async def one_peak(*args, **kwargs):
-        return [{"name": "Peak", "latitude": 0.05, "longitude": 0.05, "elevation_ft": None, "osm_id": None}]
+        return [dest(0.05, 0.05, name="Peak", elevation_ft=None, osm_id=None)]
 
     async def shed(*args, **kwargs):
         raise ratelimit.BudgetExhausted("Open-Meteo (weather service)")
@@ -296,7 +290,7 @@ def test_stream_budget_shed_arrives_as_error_event(monkeypatch):
 
 def test_aqi_budget_shed_degrades_to_none(monkeypatch):
     monkeypatch.setattr(ratelimit, "AQI_BUDGET", _AlwaysShed())
-    dests = [{"latitude": 0.0, "longitude": 0.0} for _ in range(3)]
+    dests = [dest(0.0, 0.0) for _ in range(3)]
     now = datetime.now(UTC)
     out = asyncio.run(aqi_mod.fetch_aqi_batch(dests, now, now + timedelta(days=1)))
     assert out == [None, None, None]
@@ -306,13 +300,6 @@ def test_geocode_503_when_gate_queue_is_full(monkeypatch):
     gate = ratelimit.MinIntervalGate("Nominatim (place search)", 10.0, max_wait_s=0.0)
     monkeypatch.setattr(ratelimit, "NOMINATIM_GATE", gate)
 
-    class _FakeResp:
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return []
-
     class _FakeClient:
         async def __aenter__(self):
             return self
@@ -321,7 +308,7 @@ def test_geocode_503_when_gate_queue_is_full(monkeypatch):
             return False
 
         async def get(self, url, params=None, headers=None):
-            return _FakeResp()
+            return fake_response([])
 
     monkeypatch.setattr(geocode_mod.httpx, "AsyncClient", lambda *a, **k: _FakeClient())
 

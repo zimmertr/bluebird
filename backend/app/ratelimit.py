@@ -32,7 +32,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
-import os
 import time
 from collections.abc import Callable
 from contextlib import asynccontextmanager
@@ -40,20 +39,10 @@ from contextlib import asynccontextmanager
 from fastapi import Request
 
 from app import telemetry
+from app.env import env_int
 from app.error_codes import ApiError, ErrorCode
 
 log = logging.getLogger("bluebird_forecast.ratelimit")
-
-
-def _env_int(name: str, default: int) -> int:
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        log.warning("Ignoring non-integer %s=%r; using default %d", name, raw, default)
-        return default
 
 
 # Per-client limits. A per-minute value of 0 disables that limiter outright
@@ -61,27 +50,27 @@ def _env_int(name: str, default: int) -> int:
 # on a map and hostile to a hammering script. Destinations (one Overpass
 # query, no forecasts) is far cheaper than a full analysis, so it gets its own
 # bucket instead of starving analyses from the shared one (issue #180).
-RATE_LIMIT_ANALYZE_PER_MINUTE = _env_int("RATE_LIMIT_ANALYZE_PER_MINUTE", 12)
-RATE_LIMIT_ANALYZE_BURST = _env_int("RATE_LIMIT_ANALYZE_BURST", 6)
-RATE_LIMIT_DESTINATIONS_PER_MINUTE = _env_int("RATE_LIMIT_DESTINATIONS_PER_MINUTE", 30)
-RATE_LIMIT_DESTINATIONS_BURST = _env_int("RATE_LIMIT_DESTINATIONS_BURST", 10)
-RATE_LIMIT_GEOCODE_PER_MINUTE = _env_int("RATE_LIMIT_GEOCODE_PER_MINUTE", 30)
-RATE_LIMIT_GEOCODE_BURST = _env_int("RATE_LIMIT_GEOCODE_BURST", 10)
+RATE_LIMIT_ANALYZE_PER_MINUTE = env_int("RATE_LIMIT_ANALYZE_PER_MINUTE", 12)
+RATE_LIMIT_ANALYZE_BURST = env_int("RATE_LIMIT_ANALYZE_BURST", 6)
+RATE_LIMIT_DESTINATIONS_PER_MINUTE = env_int("RATE_LIMIT_DESTINATIONS_PER_MINUTE", 30)
+RATE_LIMIT_DESTINATIONS_BURST = env_int("RATE_LIMIT_DESTINATIONS_BURST", 10)
+RATE_LIMIT_GEOCODE_PER_MINUTE = env_int("RATE_LIMIT_GEOCODE_PER_MINUTE", 30)
+RATE_LIMIT_GEOCODE_BURST = env_int("RATE_LIMIT_GEOCODE_BURST", 10)
 # Wildfire perimeters are the loosest bucket because they are the cheapest
 # request the API serves: it answers from a national snapshot this pod already
 # holds and never touches NIFC on the request path. The overlay refetches on
 # every map pan (debounced 400 ms), so a user dragging across a state legitimately
 # spends a request per second, and throttling that would only make the map
 # stutter while saving nothing upstream (issue #203).
-RATE_LIMIT_WILDFIRES_PER_MINUTE = _env_int("RATE_LIMIT_WILDFIRES_PER_MINUTE", 90)
-RATE_LIMIT_WILDFIRES_BURST = _env_int("RATE_LIMIT_WILDFIRES_BURST", 30)
+RATE_LIMIT_WILDFIRES_PER_MINUTE = env_int("RATE_LIMIT_WILDFIRES_PER_MINUTE", 90)
+RATE_LIMIT_WILDFIRES_BURST = env_int("RATE_LIMIT_WILDFIRES_BURST", 30)
 # Smoke is the same kind of request as wildfires — a filter over a national
 # snapshot this pod already holds — so it gets the same looseness. Its own
 # bucket rather than a shared one because the two overlays toggle
 # independently, and a user turning both on should not spend one budget twice
 # (issue #121).
-RATE_LIMIT_SMOKE_PER_MINUTE = _env_int("RATE_LIMIT_SMOKE_PER_MINUTE", 90)
-RATE_LIMIT_SMOKE_BURST = _env_int("RATE_LIMIT_SMOKE_BURST", 30)
+RATE_LIMIT_SMOKE_PER_MINUTE = env_int("RATE_LIMIT_SMOKE_PER_MINUTE", 90)
+RATE_LIMIT_SMOKE_BURST = env_int("RATE_LIMIT_SMOKE_BURST", 30)
 
 # Pod-wide upstream caps. Weather/AQI count in-flight Open-Meteo batches
 # across every concurrent analysis; the Overpass value is applied PER MIRROR
@@ -95,10 +84,10 @@ RATE_LIMIT_SMOKE_BURST = _env_int("RATE_LIMIT_SMOKE_BURST", 30)
 # weighted budgets below are what actually bound spend per minute (issue #180
 # — Open-Meteo bills weighted calls per location, not HTTP requests, so a
 # concurrency semaphore alone cannot bound the thing they meter).
-UPSTREAM_CONCURRENCY_WEATHER = _env_int("UPSTREAM_CONCURRENCY_WEATHER", 4)
-UPSTREAM_CONCURRENCY_AQI = _env_int("UPSTREAM_CONCURRENCY_AQI", 4)
-UPSTREAM_CONCURRENCY_OVERPASS = _env_int("UPSTREAM_CONCURRENCY_OVERPASS", 2)
-NOMINATIM_MIN_INTERVAL_MS = _env_int("NOMINATIM_MIN_INTERVAL_MS", 3500)
+UPSTREAM_CONCURRENCY_WEATHER = env_int("UPSTREAM_CONCURRENCY_WEATHER", 4)
+UPSTREAM_CONCURRENCY_AQI = env_int("UPSTREAM_CONCURRENCY_AQI", 4)
+UPSTREAM_CONCURRENCY_OVERPASS = env_int("UPSTREAM_CONCURRENCY_OVERPASS", 2)
+NOMINATIM_MIN_INTERVAL_MS = env_int("NOMINATIM_MIN_INTERVAL_MS", 3500)
 
 # Pod-wide Open-Meteo spend budgets, in the provider's own unit: weighted
 # calls, where one location in a batch is one call (times a factor for >14-day
@@ -128,19 +117,19 @@ NOMINATIM_MIN_INTERVAL_MS = _env_int("NOMINATIM_MIN_INTERVAL_MS", 3500)
 # 0 disables pacing, and is worse than any positive value: unpaced, four
 # concurrent batches fire ~228 weighted calls at once, trip the minute ceiling,
 # burn the single automatic retry in weather.py and fail the analysis outright.
-UPSTREAM_WEIGHT_PER_MINUTE_WEATHER = _env_int("UPSTREAM_WEIGHT_PER_MINUTE_WEATHER", 550)
-UPSTREAM_WEIGHT_PER_MINUTE_AQI = _env_int("UPSTREAM_WEIGHT_PER_MINUTE_AQI", 550)
+UPSTREAM_WEIGHT_PER_MINUTE_WEATHER = env_int("UPSTREAM_WEIGHT_PER_MINUTE_WEATHER", 550)
+UPSTREAM_WEIGHT_PER_MINUTE_AQI = env_int("UPSTREAM_WEIGHT_PER_MINUTE_AQI", 550)
 # A single acquire that would have to wait longer than this sheds instead —
 # at the default refill (550/min ≈ 9.2/s) even a worst-case 50-location batch
 # behind a full queue clears in well under this bound, so tripping it means
 # something is genuinely wedged, not merely busy.
-UPSTREAM_WEIGHT_MAX_WAIT_S = _env_int("UPSTREAM_WEIGHT_MAX_WAIT_S", 120)
+UPSTREAM_WEIGHT_MAX_WAIT_S = env_int("UPSTREAM_WEIGHT_MAX_WAIT_S", 120)
 
 # How long a request may queue for a saturated budget before shedding, and
 # the Retry-After a shed suggests. The wait keeps ordinary contention
 # invisible (batches just interleave); the shed keeps a stampede from
 # stacking unbounded waiters.
-UPSTREAM_BUDGET_WAIT_S = _env_int("UPSTREAM_BUDGET_WAIT_S", 30)
+UPSTREAM_BUDGET_WAIT_S = env_int("UPSTREAM_BUDGET_WAIT_S", 30)
 SHED_RETRY_AFTER_S = 15
 
 

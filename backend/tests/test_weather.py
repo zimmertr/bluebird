@@ -6,6 +6,7 @@ from typing import Any
 
 import httpx
 import pytest
+from conftest import dest, fake_response
 
 from app import ratelimit
 from app.models import DEFAULT_FORECAST_MODEL, ForecastModel
@@ -465,17 +466,6 @@ def test_series_malformed_payload_returns_none():
 # with the entire retry loop unexecuted.
 
 
-class _FakeResponse:
-    def __init__(self, payload: Any):
-        self._payload = payload
-
-    def raise_for_status(self) -> None:
-        return None
-
-    def json(self) -> Any:
-        return self._payload
-
-
 def _stub_openmeteo(
     monkeypatch, behaviors: list[Any], urls: list[str] | None = None
 ) -> list[dict[str, Any]]:
@@ -505,8 +495,8 @@ def _stub_openmeteo(
                 ticks, payload = behavior
                 for _ in range(ticks):
                     await asyncio.sleep(0)
-                return _FakeResponse(payload)
-            return _FakeResponse(behavior)
+                return fake_response(payload)
+            return fake_response(behavior)
 
     stub = _Client()
     monkeypatch.setattr(weather.http, "client", lambda: stub)
@@ -530,10 +520,7 @@ def _payload(precips: list[float]) -> list[dict[str, Any]]:
 
 def _dests(n: int, offset: int = 0) -> list[dict[str, Any]]:
     # Distinct coordinates so each gets its own cache key.
-    return [
-        {"latitude": 40.0 + (offset + i) * 0.5, "longitude": -120.0}
-        for i in range(n)
-    ]
+    return [dest(40.0 + (offset + i) * 0.5, -120.0) for i in range(n)]
 
 
 def _rate_limited(scope: str, retry_after: int | None = None) -> httpx.HTTPStatusError:
