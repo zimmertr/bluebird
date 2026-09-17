@@ -134,4 +134,19 @@ describe('every caller of the shared budget', () => {
     expect(repaint, 'the repaint was not found').toContain('pairCells(')
     expect(repaint).not.toContain('clearPace()')
   })
+
+  // And a chunk that paced and then THREW is not going to land either, so the
+  // failure path clears unconditionally — ahead of the gate that decides
+  // whether the layer withdraws, which asks a different question. The two used
+  // to be one branch, so a failure with something already painted left the
+  // countdown running to its deadline over a field that had stopped growing.
+  it('drops the grid wait when a paced chunk fails', () => {
+    const failure = gridSource.match(/\} catch \(err\) \{[\s\S]*?\n {6}\}/)?.[0] ?? ''
+    expect(failure, 'the failure path was not found').toContain('forecast grid fetch failed')
+    const cleared = failure.indexOf('clearPace()')
+    const gate = failure.indexOf('if (painted === 0)')
+    expect(cleared, 'the failure path clears no wait').toBeGreaterThan(-1)
+    expect(gate, 'the withdraw gate was not found').toBeGreaterThan(-1)
+    expect(cleared, 'the clear is back behind the painted gate').toBeLessThan(gate)
+  })
 })

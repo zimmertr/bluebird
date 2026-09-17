@@ -315,11 +315,16 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
         // in the console. There is no on-screen failure state because there is
         // no claim to withdraw — an ungridded map is the map.
         console.warn('[bluebird-forecast] forecast grid fetch failed', err)
-        // Only when nothing painted. A chunk that lands and then a later one
+        // The fetch is over either way, so nothing is waiting on the pacer: a
+        // chunk that paced and then threw is not going to land, and the
+        // countdown would otherwise run to its deadline over a field that had
+        // stopped growing (#432).
+        clearPace()
+        // The LAYER withdraws only when nothing painted, which is a different
+        // question and keeps its gate. A chunk that lands and then a later one
         // that fails still leaves a field on the map, and calling that
         // unavailable would contradict what the reader can see.
         if (painted === 0) {
-          clearPace()
           setState((prev) => ({ ...prev, status: 'failed' }))
         }
       }
