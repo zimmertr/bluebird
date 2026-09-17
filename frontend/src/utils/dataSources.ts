@@ -15,13 +15,14 @@
  * The credits the licenses place next to the data live outside this list:
  * OpenStreetMap in the map's corner control (delivered by the tile server's
  * TileJSON), Open-Meteo docked beside the results, and NIFC, NOAA and IEM each
- * on their own overlay's legend (NOAA twice, for smoke and for snow) — CC BY 3.0 wants the fire credit wherever the
- * fire data is drawn, not only in a list of sources somewhere else, and the two
- * overlays added beside it follow the same shape so the map has one idea of
- * what a credit looks like. Each of those is the creator's
- * name and a link to them, which is the part a license asks to sit beside the
- * data; the license text itself is what `licenseHref` below carries, and this
- * list is the only place in the shipped app it can be read.
+ * on their own overlay's legend, NOAA twice, for smoke and for snow.
+ * CC BY 3.0 wants the fire credit wherever the fire data is drawn, not only in
+ * a list of sources somewhere else, and the overlays added beside it follow
+ * the same shape so the map has one idea of what a credit looks like. Each of
+ * those is the creator's name and a link to them, which is the part a license
+ * asks to sit beside the data; the license text itself is what `licenseHref`
+ * below carries, and this list is the only place in the shipped app it can be
+ * read.
  */
 export interface DataSource {
   /** Display name, used verbatim wherever the source is credited. */

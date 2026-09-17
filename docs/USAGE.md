@@ -176,7 +176,7 @@ again. Each of the four that draw somebody else's data is credited on its own le
 | **Wildfires (US only)** | Active fire perimeters, in red | United States — the label says so because the proximity check shares the limit ([DATA.md](DATA.md#wildfires)) |
 | **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | Continental United States |
 | **Smoke** | Smoke plumes at three densities, in grey | North America |
-| **Snow depth (US only)** | Snow on the ground now, in NOAA's own bands from under an inch to over 30 feet ([DATA.md](DATA.md#snow-depth)) | Coterminous United States |
+| **Snow depth (US only)** | Snow on the ground now, in NOAA's own bands from under an inch to 65 feet ([DATA.md](DATA.md#snow-depth)) | Coterminous United States |
 | **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
 
 The rows read in alphabetical order, and one of them draws nothing: **Forecast player** switches the

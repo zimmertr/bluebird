@@ -504,9 +504,9 @@ as how much water is landing on a summit.
 
 The optional snow overlay is the **NOHRSC National Snow Analysis**, produced by
 the National Weather Service's National Operational Hydrologic Remote Sensing
-Center. It is a model of the snowpack constrained by ground observations,
-airborne gamma surveys and satellite data, on a 1 km grid, and it is the best
-statement of how much snow is on the ground that exists for the United States.
+Center. It is a model of the snowpack constrained by ground-based, airborne and
+satellite snow observations, on a 1 km grid, and it is the best statement of how
+much snow is on the ground that exists for the United States.
 
 Like the radar, it is an **observation rather than a forecast**: it says where
 snow lies now, not where it will lie. That is what puts it on the map beside
