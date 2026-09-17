@@ -190,20 +190,24 @@ The policy for the app:
 ```
 default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none';
 form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
-img-src 'self' data: blob: https://tiles.openfreemap.org https://mesonet.agron.iastate.edu;
+img-src 'self' data: blob: https://tiles.openfreemap.org https://mesonet.agron.iastate.edu
+  https://mapservices.weather.noaa.gov;
 connect-src 'self' data: https://api.open-meteo.com https://air-quality-api.open-meteo.com
-  https://archive-api.open-meteo.com https://tiles.openfreemap.org https://mesonet.agron.iastate.edu;
+  https://archive-api.open-meteo.com https://tiles.openfreemap.org https://mesonet.agron.iastate.edu
+  https://mapservices.weather.noaa.gov;
 worker-src 'self' blob:; child-src 'self' blob:
 ```
 
 Four points in it are measurements rather than habits.
 
 - **`connect-src` is the browser's third-party surface, and nothing else.**
-  The five origins are the ones in the "Outbound" table marked **browser**:
+  The six origins are the ones in the "Outbound" table marked **browser**:
   Open-Meteo's three services (forecast, air quality, and the archive that
-  answers the calendar's older windows), the basemap, and the radar frames. Overpass,
-  Nominatim, NIFC and NOAA are absent because the pod fetches those, so for
-  them the browser talks to this origin only. The one origin covers every
+  answers the calendar's older windows), the basemap, the radar frames, and
+  NOAA's snow analysis renders. Overpass, Nominatim, NIFC and NOAA's HMS smoke
+  files are absent because the pod fetches those, so for them the browser talks
+  to this origin only. NOAA appears on both sides for that reason: the smoke
+  files are the pod's fetch and the snow images are the browser's. The one origin covers every
   basemap request, checked against the served style document rather than
   assumed: the style JSON, its TileJSON, the vector tiles, the glyphs and the
   sprites all resolve to `tiles.openfreemap.org`.
@@ -295,6 +299,7 @@ release.
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) (`services3.arcgis.com`; wildfire overlay and proximity warnings) | backend (`nifc.py`), 2 queries per refresh (full-resolution and simplified copies of the whole country), on demand and never when idle | cluster egress IP | per-minute request-unit quota belonging to **NIFC's** ArcGIS organization, shared with every other consumer of the public dataset | `WILDFIRE_CACHE_TTL_S=600` per pod, one refresh at a time, refreshed behind the request rather than in front of it, last good snapshot served on failure, `WILDFIRE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client wildfires bucket |
 | [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) (`satepsanone.nesdis.noaa.gov`; smoke overlay) | backend (`hms.py`), 1 file per refresh (the whole day's national analysis), on demand and never when idle | cluster egress IP | none published; a static file server with no quota to exhaust | `SMOKE_CACHE_TTL_S=1800` per pod, one refresh at a time, refreshed behind the request, last good snapshot served on failure, `SMOKE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client smoke bucket |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) (rain radar overlay) | **browser**, raster tiles per visible frame | visitor IP | none published; IEM asks that applications with thousands of simultaneous users self-host | off by default, one frame's tiles on toggle and the rest only as the loop reaches them, plus IEM's own `max-age=300` edge cache |
+| [NOAA NOHRSC](https://www.nohrsc.noaa.gov/nsa/) (`mapservices.weather.noaa.gov`; snow depth overlay) | **browser**, one server-side render per visible tile | visitor IP | none published; a public National Weather Service GIS endpoint with no key | off by default, and the service refuses caching (`max-age=0, must-revalidate`) so every pan re-renders. Bounded by a 512 px tile rather than 256, which is four times fewer renders per screen at the same ~0.46 s each; by the source's `bounds`, so nothing is requested outside the analysis extent; and by a zoom cap at the point the 1 km analysis has no more detail to give, past which MapLibre magnifies what it holds |
 | Open-Meteo forecast + air quality (forecast grid overlay) | **browser** (`useForecastGrid.ts`), 1 lattice of ≤ 600 points per analysis while the layer is on, weather and AQI concurrently | visitor IP | same weighted accounting as the rows above, on the same per-visitor quota | off by default, and the toggle is the spend gate: nothing is fetched until it is on with an analysis held. Sequenced behind the ranked report by construction, so it can never delay a ranking; capped at 600 cells by coarsening the lattice; shares the ranked fetch's ~550 weighted/min pacer and its 15-min per-location cache, so a re-toggle or a second analysis over the same ground costs ~0 |
 
 Everything the browser fetches itself costs our egress IP nothing — that is

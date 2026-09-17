@@ -73,6 +73,8 @@ import {
   SURFACE_FLOATING,
   SURFACE_POPOVER,
   SURFACE_SHEET,
+  SWATCH_CHIP,
+  SWATCH_RAMP,
   TAP,
   TEXT,
 } from './styles'
@@ -1777,7 +1779,7 @@ describe('the map layer rows', () => {
   })()
 
   it('found every row', () => {
-    expect(labels).toHaveLength(5)
+    expect(labels).toHaveLength(6)
   })
 
   // Alphabetical, because nothing else orders these: no cost, no severity and
@@ -1785,6 +1787,74 @@ describe('the map layer rows', () => {
   // the reader has to learn rather than one they can scan.
   it('lists the layers in alphabetical order', () => {
     expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)))
+  })
+})
+
+// The map's layer legend: the same list as the popover above it, so the same
+// order. A reader who has just found a row in one looks for it in the same
+// place in the other.
+describe('the map legend sections', () => {
+  // Scoped to the one box that gains and loses sections as layers toggle. The
+  // metric colour key below it is no part of this: it is not a layer, it
+  // explains the marker colours, and those exist with every layer off.
+  const box = (() => {
+    const from = appSource.indexOf('One entry per layer:')
+    const to = appSource.indexOf('{markerScale !== null &&')
+    return from >= 0 && to > from ? appSource.slice(from, to) : ''
+  })()
+
+  // Each section by the text it renders, under the name the Layers popover
+  // gives its layer, in the order the sections must appear. The rendered text
+  // says who the DATA came from rather than what the layer is called, which is
+  // why the order is the layer's own name and not the credit line's first
+  // word: "Active wildfire (NIFC)" is the Wildfires row's key and sorts last
+  // with it, not first under A.
+  const SECTIONS: [string, string][] = [
+    ['Forecast grid', '{gridLegend.label}'],
+    ['Rain radar', 'Rain radar ('],
+    ['Smoke', 'Smoke ('],
+    ['Snow depth', 'Snow depth ('],
+    ['Wildfires', 'Active wildfire ('],
+  ]
+
+  it('found every section', () => {
+    expect(box).not.toBe('')
+    for (const [label, mark] of SECTIONS) {
+      expect(box.split(mark).length - 1, `${label} section`).toBe(1)
+    }
+  })
+
+  // Alphabetical, for the reason the popover's own rows are: nothing ranks
+  // these five against each other, so any other order is one the reader has to
+  // learn — and learning it twice, once per surface, is worse still.
+  it('reads in alphabetical order, the way the Layers popover does', () => {
+    const labels = SECTIONS.map(([label]) => label)
+    expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)))
+    const at = SECTIONS.map(([, mark]) => box.indexOf(mark))
+    expect(at).toEqual([...at].sort((a, b) => a - b))
+  })
+})
+
+// The snow depth overlay's legend key (#446): the one key in the stack that is
+// a scale rather than a single value.
+describe('the snow legend ramp', () => {
+  it('spans the box where a single-value key is a chip', () => {
+    // Eleven bands cannot be said by the 14px square the other four layers key
+    // on, and eleven of those squares in a 184px box are unreadable. The strip
+    // takes the width instead and the numbers go under it.
+    expect(SWATCH_RAMP).toMatch(/\bw-full\b/)
+    expect(SWATCH_CHIP).not.toMatch(/\bw-full\b/)
+  })
+
+  it('names no colour of its own', () => {
+    // The map draws NOAA's rendered image, so the key's colours are NOAA's and
+    // arrive from `snowDepth.ts` at the call site. A fill spelled here would be
+    // a second opinion about what the picture already shows.
+    expect(SWATCH_RAMP).not.toMatch(/-(?:slate|sky|blue|cyan|purple|red)-\d{2,3}/)
+  })
+
+  it('is what the legend wears, rather than a strip spelled at the call site', () => {
+    expect(appSource).toContain('className={SWATCH_RAMP}')
   })
 })
 

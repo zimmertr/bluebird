@@ -233,6 +233,7 @@ LINK_ONLY_HOSTS = {
     "openfreemap.org",
     "polyformproject.org",
     "www.nifc.gov",
+    "www.nohrsc.noaa.gov",
     "www.openstreetmap.org",
     "www.ospo.noaa.gov",
     "www.peakbagger.com",

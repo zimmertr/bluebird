@@ -89,6 +89,7 @@ import {
   SURFACE_POPOVER,
   SURFACE_SHEET,
   SWATCH_CHIP,
+  SWATCH_RAMP,
   TAP,
   TEXT,
 } from './styles'
@@ -118,6 +119,7 @@ import {
   radarScaleEnds,
 } from './utils/radar'
 import { HMS_HREF, SMOKE_DENSITIES, SMOKE_EDGE, smokeSwatch } from './utils/smoke'
+import { NOHRSC_HREF, SNOW_RAMP, snowRampCss, snowTicks } from './utils/snowDepth'
 import {
   TimelineAxis,
   availableAxes,
@@ -575,6 +577,10 @@ export default function App() {
   // from the pod.
   const [showRadar, setShowRadar] = useState(() => restored?.showRadar ?? false)
   const [showSmoke, setShowSmoke] = useState(() => restored?.showSmoke ?? false)
+  // The snow analysis (#446), the fourth on that contract. NOAA renders each
+  // tile on request, so like the radar it is the browser that fetches them and
+  // like the radar it draws nothing the ranking ever reads.
+  const [showSnow, setShowSnow] = useState(() => restored?.showSnow ?? false)
   // The forecast grid (#246), on the same contract as the three above with one
   // difference worth naming: this toggle is a spend boundary. Turning it on is
   // what fetches a lattice of forecasts over the analyzed field, and leaving it
@@ -1102,6 +1108,7 @@ export default function App() {
       showWildfires,
       showRadar,
       showSmoke,
+      showSnow,
       showGrid,
       showPlayer,
       gridStyle,
@@ -1137,6 +1144,7 @@ export default function App() {
     showWildfires,
     showRadar,
     showSmoke,
+    showSnow,
     showGrid,
     showPlayer,
     gridStyle,
@@ -1862,6 +1870,7 @@ export default function App() {
       : []),
     { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
     { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
+    { key: 'snow', label: 'Snow depth (US only)', checked: showSnow, onChange: setShowSnow },
     { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
   ]
   const grid = useForecastGrid({
@@ -2654,6 +2663,7 @@ export default function App() {
             showWildfires={showWildfires}
             showRadar={showRadar}
             showSmoke={showSmoke}
+            showSnow={showSnow}
             radarIndex={radarIndex}
             gridSpec={grid.spec}
             gridCells={grid.cells}
@@ -2712,7 +2722,7 @@ export default function App() {
               coming back. A sheet dragged tall closes the box to nothing, and
               a double press on its grip brings the legends back with the rest
               of the default. */}
-          {(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar) && (
+          {(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar || showSnow) && (
             <div
               // The inset clears the button column above, which is one row
               // taller while the panel is collapsed and the Controls button
@@ -2729,21 +2739,81 @@ export default function App() {
               // top of the sheet where they cover it (#249).
               style={{ bottom: legendBottomPx(sheetLiftPx, timelineAxis !== null) }}
             >
-              {/* One row per layer: what it is, who it came from, and its key
-                  on the right. The densities used to be three stacked rows
-                  under a heading, the radar and fire keys a box each — about
-                  a hundred pixels of chrome to say four short things.
+              {/* One entry per layer: what it is, who it came from, and its
+                  key. A layer keyed on a single value is a ROW, and the key is
+                  a chip on the right of it. A layer keyed on a SCALE is a
+                  section instead, the scale across the box with its numbers
+                  underneath, because eleven bands of depth are not something a
+                  14px chip can say. They read in the Layers popover's own
+                  alphabetical order, which `styles.test.ts` holds, so a reader
+                  who has just found a row in one surface looks for it in the
+                  same place in the other. The densities used to be three
+                  stacked rows under a heading, the radar and fire keys a box
+                  each — about a hundred pixels of chrome to say four short
+                  things.
 
-                  Each row still carries its own source, which the licences ask
-                  for and which keeps a credit beside the data it describes
+                  Each entry still carries its own source, which the licences
+                  ask for and which keeps a credit beside the data it describes
                   rather than in a list somewhere else.
 
-                  No heading over them either. Every row names its own layer, so
-                  a "Map layers" line above would be a label for four labels —
-                  and on a phone it is a whole row of the little map left. */}
-              {(showSmoke || showRadar || showWildfires || gridPainted || gridCued || gridFailed) && (
+                  No heading over them either. Every entry names its own
+                  layer, so a "Map layers" line above would be a label for five
+                  labels — and on a phone it is a whole row of the little map
+                  left. */}
+              {(showSmoke || showRadar || showSnow || showWildfires || gridPainted || gridCued || gridFailed) && (
                 <div className={`${SURFACE_FLOATING} ${MAP_COL_W} px-2.5 py-2`}>
                   <div className="flex flex-col gap-1">
+                    {(gridPainted || gridCued || gridFailed) && (
+                      // No swatch: the grid's colours are the metric key below,
+                      // which the markers share. What this row adds is the one
+                      // thing that IS the grid's own — how far apart the
+                      // samples are, or why it is not there yet. Every state
+                      // right-justifies its value like every other row, statuses
+                      // included: one row breaking the column reads as a fault
+                      // rather than as a distinction.
+                      <div className="flex items-center justify-between gap-2 whitespace-nowrap">
+                        <span className={TEXT.control}>{gridLegend.label}</span>
+                        {/* Colored by state (TJ, 2026-08-21): amber while the
+                            grid is waiting or loading so a stall catches the
+                            eye, red when it failed, and the accent once the
+                            pitch is real. The size is the colorless
+                            CONTROL_SIZE because a color beside TEXT.control's
+                            own would resolve by stylesheet order. */}
+                        <span
+                          className={`${CONTROL_SIZE} ${
+                            gridLegend.kind === 'pitch'
+                              ? ACCENT.text
+                              : gridLegend.kind === 'error'
+                                ? STATUS.error
+                                : STATUS.warn
+                          } flex-shrink-0`}
+                        >
+                          {gridLegend.value}
+                        </span>
+                      </div>
+                    )}
+                    {showRadar && (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={TEXT.control}>
+                          Rain radar (
+                          <a href={IEM_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
+                            IEM
+                          </a>
+                          )
+                        </span>
+                        {/* A gradient rather than banded swatches: NEXRAD's own
+                            reflectivity ramp is continuous, and a legend that
+                            invented boundaries would assert thresholds
+                            Bluebird Forecast does not know. */}
+                        <span
+                          className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
+                          style={{
+                            backgroundImage: 'linear-gradient(90deg,#1c8a3c,#40b450,#e7c000,#eb7814)',
+                            borderColor: '#475569',
+                          }}
+                        />
+                      </div>
+                    )}
                     {showSmoke && (
                       <div className="flex items-center justify-between gap-2">
                         <span className={TEXT.control}>
@@ -2776,26 +2846,61 @@ export default function App() {
                         </span>
                       </div>
                     )}
-                    {showRadar && (
-                      <div className="flex items-center justify-between gap-2">
+                    {showSnow && (
+                      // The one key here that is a SCALE rather than a colour,
+                      // so it is the one that is not a row. Eleven bands of
+                      // depth cannot be said by a 14px chip, and eleven rows
+                      // would be most of the map a phone has left, so the
+                      // strip spans the box and four numbers sit under it —
+                      // the two ends and the boundaries a decade apart, which
+                      // is what a reader needs to tell ankle-deep from
+                      // waist-deep at a glance.
+                      <div className="flex flex-col gap-1">
                         <span className={TEXT.control}>
-                          Rain radar (
-                          <a href={IEM_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
-                            IEM
+                          Snow depth (
+                          <a
+                            href={NOHRSC_HREF}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={LINK}
+                          >
+                            NOHRSC
                           </a>
                           )
                         </span>
-                        {/* A gradient rather than banded swatches: NEXRAD's own
-                            reflectivity ramp is continuous, and a legend that
-                            invented boundaries would assert thresholds
-                            Bluebird Forecast does not know. */}
+                        {/* Hard-stopped between bands rather than blended,
+                            because those boundaries are NOAA's own
+                            classification — the picture and its key have to
+                            agree, which is why both read `snowDepth.ts`. */}
                         <span
-                          className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
-                          style={{
-                            backgroundImage: 'linear-gradient(90deg,#1c8a3c,#40b450,#e7c000,#eb7814)',
-                            borderColor: '#475569',
-                          }}
+                          className={SWATCH_RAMP}
+                          style={{ backgroundImage: snowRampCss(), borderColor: '#475569' }}
+                          aria-hidden="true"
                         />
+                        {/* A grid of the ramp's own bands, so a tick lands on
+                            the boundary it names however wide the box is.
+                            `minmax(0,1fr)` rather than `1fr`: the last label
+                            is wider than a band, and a plain fr track would
+                            grow to fit it and shift every tick left of it. */}
+                        <span
+                          className={`grid ${TEXT.caption}`}
+                          style={{
+                            gridTemplateColumns: `repeat(${SNOW_RAMP.length}, minmax(0, 1fr))`,
+                          }}
+                        >
+                          {snowTicks().map((tick) => (
+                            <span
+                              key={tick.label}
+                              className="whitespace-nowrap"
+                              style={{
+                                gridColumnStart: tick.at + 1,
+                                justifySelf: tick.align,
+                              }}
+                            >
+                              {tick.label}
+                            </span>
+                          ))}
+                        </span>
                       </div>
                     )}
                     {showWildfires && (
@@ -2821,35 +2926,6 @@ export default function App() {
                           className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
                           style={{ backgroundColor: 'rgba(220,38,38,0.35)', borderColor: '#b91c1c' }}
                         />
-                      </div>
-                    )}
-                    {(gridPainted || gridCued || gridFailed) && (
-                      // No swatch: the grid's colours are the metric key below,
-                      // which the markers share. What this row adds is the one
-                      // thing that IS the grid's own — how far apart the
-                      // samples are, or why it is not there yet. Every state
-                      // right-justifies its value like every other row, statuses
-                      // included: one row breaking the column reads as a fault
-                      // rather than as a distinction.
-                      <div className="flex items-center justify-between gap-2 whitespace-nowrap">
-                        <span className={TEXT.control}>{gridLegend.label}</span>
-                        {/* Colored by state (TJ, 2026-08-21): amber while the
-                            grid is waiting or loading so a stall catches the
-                            eye, red when it failed, and the accent once the
-                            pitch is real. The size is the colorless
-                            CONTROL_SIZE because a color beside TEXT.control's
-                            own would resolve by stylesheet order. */}
-                        <span
-                          className={`${CONTROL_SIZE} ${
-                            gridLegend.kind === 'pitch'
-                              ? ACCENT.text
-                              : gridLegend.kind === 'error'
-                                ? STATUS.error
-                                : STATUS.warn
-                          } flex-shrink-0`}
-                        >
-                          {gridLegend.value}
-                        </span>
                       </div>
                     )}
                   </div>

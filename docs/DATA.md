@@ -11,6 +11,7 @@
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) | Active wildfire perimeters, United States only | Free (quota shared across all consumers) | None |
 | [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) | Analyst-traced smoke plumes, North America | Free (public-domain files, no quota) | None |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) | NEXRAD radar mosaic tiles, continental United States | Free | None |
+| [NOAA NOHRSC](https://www.nohrsc.noaa.gov/nsa/) | Snow depth from the National Snow Analysis, coterminous United States | Free | None |
 
 Every one of these is free and paid for by somebody else, and Bluebird Forecast
 sends a key to none of them on its own behalf. The one exception is an API
@@ -541,6 +542,59 @@ Coverage is the continental United States. Reflectivity is not a rainfall rate:
 it is what the radar echo measured, which hail, bright-band melting, and beam
 blockage in mountain terrain can all colour. Read it as where the storm is, not
 as how much water is landing on a summit.
+
+## Snow depth
+
+The optional snow overlay is the **NOHRSC National Snow Analysis**, produced by
+the National Weather Service's National Operational Hydrologic Remote Sensing
+Center. It is a model of the snowpack constrained by ground-based, airborne and
+satellite snow observations, on a 1 km grid, and it is the best statement of how
+much snow is on the ground that exists for the United States.
+
+Like the radar, it is an **observation rather than a forecast**: it says where
+snow lies now, not where it will lie. That is what puts it on the map beside
+radar, smoke and fire instead of in the results table, and it is why switching
+it on never asks you to press Analyze again.
+
+**It updates four times a day**, at 20 minutes past 01, 05, 11 and 17 UTC. A
+snow depth is therefore hours old at worst, which is the right resolution for a
+thing that changes over days.
+
+**Coverage is the coterminous United States**, with the analysis grid running a
+little into southern Canada and northern Mexico. There is no Alaska, no Hawaii
+and nothing outside North America. Outside that extent the layer draws nothing,
+and nothing means "not analyzed" rather than "no snow". The Layers row says
+`US only` for that reason, the way the wildfire row does.
+
+The images go **straight from NOAA to your browser** rather than through
+Bluebird Forecast's server. The service has no cached tiles: it renders a PNG
+per request, at the bounding box and size asked for, and it refuses caching
+outright (`cache-control: max-age=0, must-revalidate`). So every pan is a fresh
+set of renders, measured at about half a second each. Two things bound that
+cost and neither is a proxy. The layer is off by default, and the tiles are
+512 px rather than 256, which is four times less of NOAA's render time for the
+same screen — a render costs the same whatever its size, because the time is
+the render and not the pixels. A cache in the pod was considered and rejected:
+it would make this service a tile server for a layer most visitors never switch
+on, for a product NOAA already serves.
+
+Read the depth for what it is. It is an analysis on a 1 km grid, so it is an
+average over a square kilometre of ground that may run from a valley floor to a
+ridge. On steep terrain the real depth at a point can be several times more or
+less than the colour says, and a summit can hold snow the grid cell around it
+does not. The bands are NOAA's own, in inches, and so are the colours: the map
+draws NOAA's rendered image, so the legend has to be a key to that image rather
+than to a palette of this app's own.
+
+**Over a glacier the top band is ice, not this season's snow.** The service
+holds the depth in meters and the legend classifies it in inches. The analysis
+does not melt permanent snow and ice out, so the depth there increases year
+over year. Measured on 2026-09-17 with the service's `identify` endpoint: the
+summit of Mount Rainier holds 68.62 m and its northeast flank 45.34 m, both
+far above the top band's 787 in, while a point on the Winthrop Glacier holds
+6.45 m (254 in, the `197 - 295` band) and Paradise and Sunrise hold 0. That is
+why a glaciated summit paints the top band in September. The depth over
+permanent snow and ice is not a number to plan on.
 
 ## The forecast grid
 
