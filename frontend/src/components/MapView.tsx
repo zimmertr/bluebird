@@ -10,8 +10,8 @@ maplibregl.setWorkerUrl(maplibreWorkerUrl)
 import type { FilterSpecification } from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.
-import type { FeatureCollection, Point, Position } from 'geojson'
-import type { MapGeoJSONFeature, SymbolLayerSpecification } from 'maplibre-gl'
+import type { FeatureCollection, Point } from 'geojson'
+import type { SymbolLayerSpecification } from 'maplibre-gl'
 // All maplibre CSS enters through map.css, which wraps the vendor stylesheet
 // in layer(base) — see the comment there before "simplifying" this to a direct
 // vendor import. Importing it here rather than in index.css is what keeps map
@@ -24,9 +24,19 @@ import { ColDef } from '../utils/tableColumns'
 import type { ModelRow } from '../utils/modelCompare'
 import { FireWarning, fireKey } from '../utils/fireProximity'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
-import { pointsWithinView } from '../utils/mapFraming'
+import { framePadding, pointsWithinView } from '../utils/mapFraming'
 import type { PendingDestination } from '../utils/customList'
 import { addVertex } from '../utils/polygonEdit'
+// The plain-data half of this component, which is where anything testable
+// belongs: Vitest has no DOM, so a helper defined here cannot be reached at all
+// (#383). `MapView.test.ts` fails a new one that lands in this file.
+import { makeDrawData, polygonsOf, ringToPts } from '../utils/drawGeometry'
+import { featureRow, pendingFC } from '../utils/mapFeatures'
+import {
+  dismissesPopups,
+  resolveMapClick,
+  type MapClickHits,
+} from '../utils/mapClick'
 import {
   BasemapPoi,
   LAKE_CLASS,
@@ -37,7 +47,7 @@ import {
   samePoi,
 } from '../utils/basemapPoi'
 import { POI_ACTION_ATTR, poiPopupHtml } from '../utils/poiPopup'
-import { Ring, widestPole } from '../utils/polylabel'
+import { widestPole } from '../utils/polylabel'
 import { popupWidth } from '../utils/popupChrome'
 import { useIsDesktop } from '../hooks/useIsDesktop'
 import {
@@ -113,7 +123,9 @@ interface Props {
   // shared list link opens on the list, not on the visitor's hometown.
   restoredCustomPoints: { latitude: number; longitude: number }[]
   onPolygonChange: (polygon: GeoPolygon | null) => void
-  onDrawUpdate: (count: number, areaKm2: number | null) => void
+  // The count alone: the ring's area is derived from the polygon in `App.tsx`,
+  // so that a link's ring has one before this component has loaded (#429).
+  onDrawUpdate: (count: number) => void
   results: DestinationResult[]
   sortBy: SortBy
   // What a popup's Windy links carry, matching the results table's cells: the
@@ -181,36 +193,6 @@ interface Props {
   cameraPadBottomPx: number
 }
 
-/**
- * A clicked marker's properties read back as a row.
- *
- * Only reached when the click cannot be matched to a row in the report, which
- * `results-circles` being the popup's one layer makes close to unreachable —
- * it is the guard rather than the path. The feature carries the handful of
- * values the markers themselves need, so every other column reads undefined,
- * and `popupRows.ts` draws those as the dash it draws any missing value as.
- */
-function featureRow(
-  p: Record<string, unknown>,
-  latitude: number,
-  longitude: number,
-): DestinationResult {
-  return {
-    name: p.name as string,
-    type: p.type as DestinationResult['type'],
-    osm_id: (p.osm_id as string) ?? null,
-    latitude,
-    longitude,
-    elevation_ft: (p.elevation_ft as number) ?? null,
-    precip_total_in: p.precip as number,
-    wind_avg_mph: p.wind_avg as number,
-    temp_avg_f: p.temp_avg as number,
-    freeze_min_ft: (p.freeze_min as number) ?? null,
-    aqi_avg: (p.aqi_avg as number) ?? null,
-    aqi_max: (p.aqi_max as number) ?? null,
-  } as DestinationResult
-}
-
 // A search result frames at least this much map around the hit; features with
 // a larger extent (cities, parks, rivers) get their whole bounding box instead.
 const SEARCH_VIEW_MILES = 10
@@ -222,17 +204,6 @@ const SEARCH_VIEW_MILES = 10
 const FIT_PADDING_PX = 60
 const REFIT_WINDOW_MS = 1_000
 
-// A framing call's inset, with the results sheet's share of the bottom edge
-// added to it (#249). Every `fitBounds` here takes the object form, which
-// MapLibre bakes into the computed centre and zoom and then drops — so the
-// padding never becomes camera state that a later fit would count twice.
-function framePadding(
-  inset: number,
-  bottomPx: number,
-): { top: number; right: number; bottom: number; left: number } {
-  return { top: inset, right: inset, bottom: inset + bottomPx, left: inset }
-}
-
 // How long the wildfire popup survives the cursor leaving its perimeter, so
 // the cursor can cross the gap and land on the NIFC link inside it. The popup
 // opens flush against the hover point, so the gap is a few pixels and this is
@@ -240,16 +211,6 @@ function framePadding(
 // hurrying, short enough that a popup left behind by a cursor moving on feels
 // dismissed rather than stuck.
 const FIRE_POPUP_GRACE_MS = 400
-
-function bboxAreaKm2(pts: [number, number][]): number | null {
-  if (pts.length < 3) return null
-  const lats = pts.map((p) => p[1])
-  const lons = pts.map((p) => p[0])
-  const latKm = (Math.max(...lats) - Math.min(...lats)) * 111
-  const avgLat = (Math.max(...lats) + Math.min(...lats)) / 2
-  const lonKm = (Math.max(...lons) - Math.min(...lons)) * 111 * Math.cos((avgLat * Math.PI) / 180)
-  return latKm * lonKm
-}
 
 const STYLE = 'https://tiles.openfreemap.org/styles/liberty'
 const DRAW_COLOR = '#38bdf8'
@@ -437,20 +398,6 @@ function makeArrowImage(): ImageData | null {
   return ctx.getImageData(0, 0, WIND_ARROW_PX, WIND_ARROW_PX)
 }
 
-// A rendered feature's polygons, each as its own ring list (outer first, holes
-// after) so `widestPole` can pole them separately. Anything that is not an
-// area contributes nothing.
-function polygonsOf(features: MapGeoJSONFeature[]): Ring[][] {
-  const out: Ring[][] = []
-  for (const f of features) {
-    const g = f.geometry
-    const toRings = (poly: Position[][]) => poly.map((r) => r.map((p) => [p[0], p[1]] as [number, number]))
-    if (g.type === 'Polygon') out.push(toRings(g.coordinates))
-    else if (g.type === 'MultiPolygon') for (const poly of g.coordinates) out.push(toRings(poly))
-  }
-  return out
-}
-
 /**
  * Where a clicked lake becomes a coordinate.
  *
@@ -485,57 +432,6 @@ function lakeAnchor(
           filter: ['==', ['get', 'id'], id],
         })
   return widestPole(polygonsOf(pieces)) ?? fallback
-}
-
-function makeDrawData(pts: [number, number][]): object {
-  const features: object[] = []
-
-  if (pts.length >= 3) {
-    features.push({
-      type: 'Feature',
-      properties: { kind: 'polygon' },
-      geometry: { type: 'Polygon', coordinates: [[...pts, pts[0]]] },
-    })
-  } else if (pts.length === 2) {
-    features.push({
-      type: 'Feature',
-      properties: { kind: 'line' },
-      geometry: { type: 'LineString', coordinates: pts },
-    })
-  }
-
-  // Midpoint handle between each segment — drag to insert a new vertex
-  const segCount = pts.length >= 3 ? pts.length : pts.length - 1
-  for (let i = 0; i < segCount; i++) {
-    const a = pts[i]
-    const b = pts[(i + 1) % pts.length]
-    features.push({
-      type: 'Feature',
-      properties: { kind: 'midpoint', segment: i },
-      geometry: { type: 'Point', coordinates: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] },
-    })
-  }
-
-  // Vertices rendered last so they sit on top of midpoints
-  pts.forEach((pt, i) => {
-    features.push({
-      type: 'Feature',
-      properties: { kind: 'vertex', index: i },
-      geometry: { type: 'Point', coordinates: pt },
-    })
-  })
-
-  return { type: 'FeatureCollection', features }
-}
-
-// A GeoPolygon's ring (closed: last vertex repeats the first) → editable points
-function ringToPts(polygon: GeoPolygon): [number, number][] {
-  const ring = (polygon.coordinates[0] ?? []).map((c) => [c[0], c[1]] as [number, number])
-  if (ring.length > 1) {
-    const [first, last] = [ring[0], ring[ring.length - 1]]
-    if (first[0] === last[0] && first[1] === last[1]) ring.pop()
-  }
-  return ring
 }
 
 const emptyFC = { type: 'FeatureCollection', features: [] }
@@ -952,7 +848,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         ptsRef.current = []
         vertexPopupRef.current?.remove()
         vertexPopupRef.current = null
-        onDrawUpdate(0, null)
+        onDrawUpdate(0)
         onPolygonChange(null)
         if (mapRef.current && loadedRef.current) {
           setSource(mapRef.current, 'draw', emptyFC)
@@ -1157,7 +1053,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // area, not mid-gesture.
         if (restoredPolygon) {
           ptsRef.current = ringToPts(restoredPolygon)
-          onDrawUpdate(ptsRef.current.length, bboxAreaKm2(ptsRef.current))
+          onDrawUpdate(ptsRef.current.length)
         }
         restCursor()
 
@@ -1562,7 +1458,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // Under 3 points there's no polygon yet, so commit null.
         function commitRing() {
           const pts = ptsRef.current
-          onDrawUpdate(pts.length, bboxAreaKm2(pts))
+          onDrawUpdate(pts.length)
           onPolygonChange(
             pts.length >= 3 ? { type: 'Polygon', coordinates: [[...pts, pts[0]]] } : null,
           )
@@ -1850,40 +1746,41 @@ const MapView = forwardRef<MapViewHandle, Props>(
           map.on('mouseleave', layer, showCrosshair)
         }
 
-        // ── General click → add new polygon point ──────────────────────
-        // Draw mode only. Outside it a click is a pan, a POI, or a marker —
-        // never a new vertex, which is what frees the gesture for #119.
-        // Which layers under a click open a popup of their own, so the general
-        // dismissal below leaves the card they are about to open alone.
-        const popupLayers = () =>
-          [...POI_LAYERS, 'results-circles', ...SMOKE_CLICK_ORDER].filter((id) => map.getLayer(id))
+        // ── General click → whatever is under it ───────────────────────
+        // Every layer a click can land on, asked in one query, because the rule
+        // that decides between them (`utils/mapClick.ts`) reads the whole set
+        // rather than a series of answers. The draw handles are in the list so
+        // that grabbing one cannot also drop a vertex; they are hidden outside
+        // draw mode and MapLibre does not query a hidden layer, which is what
+        // keeps a click outside that mode from being a vertex at all (#119).
+        const clickLayers = [
+          ...POI_LAYERS,
+          'results-circles',
+          ...SMOKE_CLICK_ORDER,
+          'wildfire-fill',
+          'draw-vertices',
+          'draw-midpoints',
+        ]
 
         map.on('click', (e) => {
-          // Clicking the map itself dismisses every popup, the same way
-          // clicking another destination does. Skipped while pinning, and
-          // skipped when the click landed on something that opens a popup of
-          // its own — those handlers do their own clearing, and this would
-          // otherwise close the card they just opened.
-          if (!isPinning(e)) {
-            const onPopupLayer = map.queryRenderedFeatures(e.point, { layers: popupLayers() })
-            if (onPopupLayer.length === 0) closeAllPopups()
+          const under = map.queryRenderedFeatures(e.point, {
+            layers: clickLayers.filter((id) => map.getLayer(id)),
+          })
+          const hitLayers = new Set(under.map((f) => f.layer.id))
+          const hits: MapClickHits = {
+            drawing: drawingRef.current,
+            pinning: isPinning(e),
+            fire: hitLayers.has('wildfire-fill'),
+            result: hitLayers.has('results-circles'),
+            poi: POI_LAYERS.some((id) => hitLayers.has(id)),
+            vertex: hitLayers.has('draw-vertices') || hitLayers.has('draw-midpoints'),
+            smoke: SMOKE_CLICK_ORDER.filter((id) => hitLayers.has(id)),
           }
 
-          // One resolution for the polygon overlays, rather than a click
-          // handler per layer, because they overlap in exactly the cases
-          // anyone cares about: smoke comes from fires, so a plume sits on top
-          // of the perimeter that made it. Two handlers there would open a tab
-          // AND a popup for one click. The fire wins — it is the hazard, and
-          // it is the one with somewhere to send you.
-          //
-          // Deliberately ahead of the draw-mode return, keeping the behavior
-          // the fire layer already had: while drawing, a fire is in the blocked
-          // list below and swallows the vertex either way, so the click may as
-          // well do the useful thing.
-          const fire = map.queryRenderedFeatures(e.point, {
-            layers: ['wildfire-fill'].filter((id) => map.getLayer(id)),
-          })
-          if (fire.length > 0) {
+          if (dismissesPopups(hits)) closeAllPopups()
+
+          const action = resolveMapClick(hits)
+          if (action.kind === 'open-fire') {
             window.open(
               nifcFireUrl(e.lngLat.lng, e.lngLat.lat, Math.max(map.getZoom(), 10) + 1),
               '_blank',
@@ -1891,46 +1788,18 @@ const MapView = forwardRef<MapViewHandle, Props>(
             )
             return
           }
-
-          if (drawingRef.current) {
-            // Smoke is deliberately absent from this list where fire is in it.
-            // A plume can cover a whole state, so blocking on one would make
-            // large parts of the map undrawable; a perimeter is small enough
-            // that treating it as an object is free.
-            const blocked = map.queryRenderedFeatures(e.point, {
-              layers: [
-                'results-circles',
-                'draw-vertices',
-                'draw-midpoints',
-                'wildfire-fill',
-              ],
-            })
-            if (blocked.length > 0) return
-
+          if (action.kind === 'add-vertex') {
             const pt: [number, number] = [e.lngLat.lng, e.lngLat.lat]
             ptsRef.current = addVertex(ptsRef.current, pt)
             setSource(map, 'draw', makeDrawData(ptsRef.current))
             commitRing()
             return
           }
-
-          // A destination under the cursor outranks the plume over it: the
-          // marker and the POI label are small, deliberate targets and their
-          // own handlers own the click. Smoke is what is left.
-          const claimed = map.queryRenderedFeatures(e.point, {
-            layers: [...POI_LAYERS, 'results-circles'].filter((id) => map.getLayer(id)),
-          })
-          if (claimed.length > 0) return
-          const smoke = map.queryRenderedFeatures(e.point, {
-            layers: SMOKE_CLICK_ORDER.filter((id) => map.getLayer(id)),
-          })
-          // Heaviest first: HMS nests its plumes, so a click in the interesting
-          // place lands on three at once and the reader means the densest.
-          const densest = SMOKE_CLICK_ORDER.map((id) =>
-            smoke.find((f) => f.layer.id === id),
-          ).find(Boolean)
-          if (densest?.properties) {
-            openSmokePopup(densest.properties as SmokeProps, e.lngLat, isPinning(e))
+          if (action.kind === 'open-smoke') {
+            const plume = under.find((f) => f.layer.id === action.layer)
+            if (plume?.properties) {
+              openSmokePopup(plume.properties as SmokeProps, e.lngLat, hits.pinning)
+            }
           }
         })
 
@@ -2449,17 +2318,4 @@ function updateResults(
   hourIndex: number | null,
 ) {
   setSource(map, 'results', resultsFeatureCollection(results, sortBy, true, hourIndex))
-}
-
-// Minimal features for pending custom destinations — just position + name
-// label. There is no forecast to color or rank by yet.
-function pendingFC(pending: PendingDestination[]): FeatureCollection {
-  return {
-    type: 'FeatureCollection',
-    features: pending.map((d) => ({
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [d.longitude, d.latitude] },
-      properties: { name: d.name },
-    })),
-  }
 }
