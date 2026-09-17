@@ -58,6 +58,8 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
   useEffect(() => {
     const debut = debutRows(resultsRef.current, colorByKeyRef.current)
     if (debut.length > 0) setRange(debut, true)
+    // Kept: `setRange` is the omission, and it is declared below this effect,
+    // so naming it in the list would read it inside its own temporal dead zone.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidatesKey])
 

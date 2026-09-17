@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import date
 
 import pytest
+
 from app.services.openmeteo_weight import call_weight
 
 

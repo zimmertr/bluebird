@@ -7,6 +7,7 @@ from datetime import date
 
 import httpx
 import pytest
+
 from app import ratelimit
 from app.services import weather
 from app.services.errors import parse_rate_limit, rate_limit_message

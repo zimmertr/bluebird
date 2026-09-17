@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
 import pytest
+
 from app import ratelimit
 from app.models import DEFAULT_FORECAST_MODEL, ForecastModel
 from app.services import weather
@@ -392,9 +393,8 @@ def test_parse_ts_invalid_returns_none():
 
 
 def test_naive_strips_timezone():
-    from datetime import timezone
 
-    aware = datetime(2026, 7, 21, 0, 0, tzinfo=timezone.utc)
+    aware = datetime(2026, 7, 21, 0, 0, tzinfo=UTC)
     assert _naive(aware).tzinfo is None
 
 
@@ -424,7 +424,7 @@ def test_series_keeps_every_hour_and_preserves_nulls_per_metric():
 def test_series_times_are_utc_epoch_ms():
     data = _hourly(["2026-07-21T00:00"], [0.0], [50.0], [5.0])
     s = _series(data, START, END)
-    expected = int(datetime(2026, 7, 21, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+    expected = int(datetime(2026, 7, 21, 0, 0, tzinfo=UTC).timestamp() * 1000)
     assert s["times"] == [expected]
 
 
@@ -1321,7 +1321,7 @@ async def test_an_archive_payload_with_no_level_winds_keeps_every_hour(monkeypat
 
 SPAN_START = datetime(2026, 7, 18, 22, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
 SPAN_END = datetime(2026, 7, 19, 1, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
-SEAM = datetime(2026, 7, 19, 0, 0, tzinfo=timezone.utc)
+SEAM = datetime(2026, 7, 19, 0, 0, tzinfo=UTC)
 
 
 def _half(times, precip):

@@ -1967,6 +1967,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
         map.remove()
         mapRef.current = null
       }
+      // Kept: the map is built once and torn down once. Listing the props the
+      // setup closes over would remove and rebuild the map whenever a handler
+      // identity changed, losing the camera and every layer with it.
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     // The attribution, collapsed behind the library's own (i) on a phone and
@@ -2115,7 +2118,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
         vertexPopupRef.current?.remove()
         vertexPopupRef.current = null
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [drawing, mapReady])
 
     // Neutral blue dot per custom destination not yet in the displayed analysis.

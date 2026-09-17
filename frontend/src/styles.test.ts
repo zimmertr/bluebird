@@ -91,6 +91,9 @@ import searchBoxSource from './components/SearchBox.tsx?raw'
 // the disk rather than imported — Vitest stubs a CSS import, `?raw` included,
 // to an empty string.
 const mapCss: string = readFileSync(new URL('./map.css', import.meta.url), 'utf8')
+// The other stylesheet with a decision in it, read the same way and for the
+// same reason.
+const indexCss: string = readFileSync(new URL('./index.css', import.meta.url), 'utf8')
 
 // The arbitrary branch cannot carry a trailing \b: `text-[10px]` ends in `]`, a
 // non-word character, so a boundary there would require the *next* character to
@@ -214,19 +217,13 @@ describe('every component', () => {
     expect(Object.keys(sources).length).toBeGreaterThan(6)
   })
 
-  // Arbitrary sizes are how a 10px and an 11px treatment ended up inside the
-  // same 160px legend box. The ramp owns the two steps Tailwind has no name
-  // for; nothing else may invent one.
-  // L1: No component sets a text size of its own.
-  it.each(Object.entries(sources))('%s invents no size of its own', (_path, source) => {
-    expect(source).not.toMatch(/\btext-(?:xs|sm|base|lg|xl|2xl|3xl)\b/)
-    expect(source).not.toMatch(/text-\[/)
-  })
-
-  // L2: No component sets a slate text color of its own. Slate is the surface
-  // system, already covered by TEXT, SURFACE_* and FIELD roles.
-  it.each(Object.entries(sources))('%s sets no slate text color of its own', (_path, source) => {
-    expect(source).not.toMatch(/\btext-slate-\d+/)
+  // The ESLint config and the fixtures beside it spell classes verbatim, which
+  // is only safe while Tailwind cannot see them. v4 auto-detects sources BESIDE
+  // the config's `content` list, so the exclusion is the load-bearing line:
+  // without it the fixtures emitted five real utilities into the text-page
+  // bundle. A build is the only thing that would otherwise notice.
+  it('keeps the linter fixtures out of Tailwind\'s reach', () => {
+    expect(indexCss).toMatch(/@source not ["']\.\.\/tools["']/)
   })
 
   // Derived from the scale rather than blocking a list of names, so a utility
@@ -239,10 +236,6 @@ describe('every component', () => {
     expect([...used].filter((c) => !scale.has(c))).toEqual([])
   })
 
-  // The placeholder color lives in FIELD; the search box, not a field, sets
-  // its own at the same step. What no component may do is dim one below AA
-  // again. Written so no banned class appears verbatim: v4 scans this file as
-  // raw text and would emit its CSS.
   // A call site that re-widths a segment breaks the alignment the role exists
   // to hold, and it cannot even be relied on to win: two width utilities resolve
   // by stylesheet order rather than by class order. Matched only where a width
@@ -250,59 +243,6 @@ describe('every component', () => {
   it.each(Object.entries(sources))('%s re-widths no segment', (_path, source) => {
     const rides = source.match(/\$\{SEGMENT\}[^`]*/g) ?? []
     expect(rides.filter((r) => /(^|\s)w-\S+/.test(r))).toEqual([])
-  })
-
-  it.each(Object.entries(sources))('%s dims no placeholder below AA', (_path, source) => {
-    expect(source).not.toMatch(/placeholder[:-](?:text-)?slate-[56]00/)
-  })
-
-  // The glob covers components added later, which is the point: a fourth copy
-  // of a shared recipe should fail here rather than ship a fourth look.
-  it.each(Object.entries(sources))('%s restates no shared recipe', (_path, source) => {
-    // The idle half of a segmented choice, which two controls in the panel wear.
-    expect(source).not.toMatch(/bg-slate-900 text-slate-400/)
-    expect(source).not.toMatch(/bg-slate-900 border border-slate-500/)
-    expect(source).not.toMatch(/bg-slate-800(\/95)? border border-slate-600/)
-  })
-
-  // The guardrail #167 exists to install. Every hue in the app carries meaning
-  // — the accent says "this acts", and green/amber/red say how an analysis is
-  // going — so every one of them is a decision the design system owes an answer
-  // to, and a component that answers for itself is how the app ended up with
-  // three ambers, four notice boxes in three shapes, and a primary button one
-  // shade off the blocks it was supposed to match.
-  //
-  // This is deliberately stricter than the recipe checks above: not "don't
-  // restate a known recipe" but "don't name a hue at all". Slate is exempt and
-  // stays compositional — it is the surface system, already covered by TEXT,
-  // SURFACE_* and FIELD, and banning it would be a different and much larger
-  // change than this one.
-  //
-  // Built from alternation rather than by quoting classes, so it forbids
-  // utilities nobody thought of, and so Tailwind's raw-text scan of this file
-  // finds no candidate to re-emit.
-  const HUE = new RegExp(
-    String.raw`(?:^|["'\s:])(?:bg|text|border|ring|divide|accent|caret|outline|decoration|shadow|from|via|to)-` +
-      String.raw`(?:sky|blue|cyan|indigo|violet|purple|fuchsia|pink|rose|red|orange|amber|yellow|lime|green|emerald|teal)-\d{2,3}`,
-  )
-
-  it.each(Object.entries(sources))('%s names no hue of its own', (_path, source) => {
-    expect(source.match(new RegExp(HUE, 'g'))).toBeNull()
-  })
-
-  // The rule #159 arrived at and #160 acts on: size tap targets across every
-  // control at once, never one at a time. A component that reaches for the
-  // variant directly is doing the thing that broke the panel's rhythm, so the
-  // variant is spelled in exactly one file and this is what holds it there.
-  it.each(Object.entries(sources))('%s sizes no tap target of its own', (_path, source) => {
-    expect(source).not.toMatch(/\btouch:/)
-  })
-
-  // One accent, one size, one cursor for every radio and checkbox in the app —
-  // the panel's, the chart's, and the table's, which had drifted into three
-  // spellings of the same 14px box.
-  it.each(Object.entries(sources))('%s builds no checkbox of its own', (_path, source) => {
-    expect(source).not.toMatch(/accent-sky-500/)
   })
 
   // L6 used to fail any `title=` outright. Tooltips are now an approved LIST
@@ -345,19 +285,7 @@ describe('every component', () => {
   })
 })
 
-// The panel is a near-constant width on every breakpoint, so a width variant used for
-// padding re-spaced its rows on desktop windows that had not changed size,
-// while leaving large tablets with mouse-tight rows. Nothing catches a relapse
-// at build time: `lg:py-*` reads as ordinary responsive code.
 describe('control panel sizing', () => {
-  // The coarse-pointer padding itself now lives in BUTTON_PRIMARY, asserted
-  // below. What has to stay true here is that nothing sizes by window width.
-  it('never sizes a control by viewport width', () => {
-    expect(controlPanelSource).not.toMatch(
-      /\b(sm|md|lg|xl|2xl):(p[xytrbl]?|space-[xy]|gap|min-h|h)-/,
-    )
-  })
-
   // The size used to live beside the tint at every call site, which is how the
   // chart's metric radio ended up wearing the tint at the browser's default
   // size. Both now come from ACCENT.input, which CHOICE_INPUT composes, so what
@@ -376,15 +304,6 @@ describe('control panel sizing', () => {
 
     expect(rows.length).toBeGreaterThan(2)
     expect(boxes.length).toBe(rows.length)
-  })
-
-  // Spelling type out per element is what let the panel drift into three
-  // treatments for one kind of label. Anything above the base size has to come
-  // from the ramp so the drift is visible in one file. Bare `text-xs` stays
-  // legal: status lines carry a semantic color.
-  it('routes every non-base size through the ramp', () => {
-    expect(controlPanelSource).not.toMatch(/className="[^"]*\btext-(sm|base|lg|xl)\b/)
-    expect(controlPanelSource).not.toMatch(/<h[123] className="/)
   })
 })
 
