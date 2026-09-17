@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Literal, NamedTuple
+from typing import ClassVar, Literal, NamedTuple
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -488,8 +488,30 @@ def _check_polygon_area(v: GeoPolygon) -> GeoPolygon:
     return v
 
 
-class AnalyzeRequest(BaseModel):
-    """One analysis: which destinations, over which window, ranked how."""
+class _DiscoveryFields(BaseModel):
+    """Which destinations a request is about, for the two requests that ask.
+
+    `POST /api/analyze` and `POST /api/destinations` open with the same
+    question — which destinations are in scope — and then diverge: one
+    forecasts them, the other hands them back. Both once spelled these seven
+    fields and three validators for themselves, which is what let the polygon
+    ceiling, the custom-list ceiling and the `custom` rejection answer the same
+    request two ways (issue #388).
+
+    Descriptions are the one thing that stays per class. Each is approved copy
+    a caller reads, and the two endpoints genuinely say different things: a
+    polygon is required on one and optional on the other, and a caller-supplied
+    list is *analyzed* on one and *resolved* on the other. A subclass that needs
+    its own wording restates the field; the four that do are on
+    `DestinationsRequest`.
+    """
+
+    # The two words the validator messages below differ by: what the endpoint
+    # does with a caller's list, and what one of its requests is called. Both
+    # messages are approved copy and are otherwise identical, so the shared
+    # validators take the word rather than reword either endpoint's answer.
+    _list_verb: ClassVar[str] = "analyze"
+    _split_noun: ClassVar[str] = "analyses"
 
     polygon: GeoPolygon | None = Field(
         default=None,
@@ -513,7 +535,6 @@ class AnalyzeRequest(BaseModel):
             "types this deployment actually supports."
         ),
     )
-
     include_unnamed_peaks: bool = Field(
         default=False,
         description=(
@@ -524,6 +545,39 @@ class AnalyzeRequest(BaseModel):
             "candidate count — every candidate being a weighted upstream call "
             "and a step closer to the analysis ceiling. Ignored unless `peak` "
             "is among `destination_types`."
+        ),
+    )
+    custom_destinations: list[CustomDestination] | None = Field(
+        default=None,
+        description=(
+            "Your own destinations, merged into whatever the polygon discovers. "
+            "A custom row matching a discovered one by name or by coordinates "
+            "to five decimals replaces it."
+        ),
+    )
+    # Applied to candidates before any forecast, so on the analyze path a
+    # constrained request costs fewer upstream calls and the returned rows
+    # still fill `limit` whenever enough candidates qualify.
+    min_elevation_ft: float | None = Field(
+        default=None,
+        description=(
+            "Drop candidates below this elevation. Candidates with an unknown "
+            "elevation always pass through rather than being silently dropped."
+        ),
+    )
+    max_elevation_ft: float | None = Field(
+        default=None, description="Drop candidates above this elevation."
+    )
+    top_by_elevation: bool = Field(
+        default=False,
+        description=(
+            "Explicit opt-in for an over-limit candidate set: instead of "
+            "refusing, keep the highest-elevation candidates up to the "
+            "analysis limit (rows with unknown elevation are dropped first, "
+            "since they cannot claim to be among the highest). The response "
+            "then reports `truncated: true` and the pre-cut count in "
+            "`total_found`, so a partial ranking is never silent. Off by "
+            "default: an unasked-for cut would misrepresent the ranking."
         ),
     )
 
@@ -537,10 +591,37 @@ class AnalyzeRequest(BaseModel):
         if DestinationType.custom in v:
             raise ValueError(
                 "'custom' is not a discoverable type. Send custom_destinations "
-                "with an empty destination_types to analyze a caller-supplied "
+                f"with an empty destination_types to {cls._list_verb} a caller-supplied "
                 "list."
             )
         return v
+
+    @field_validator("polygon")
+    @classmethod
+    def polygon_area_limit(cls, v: GeoPolygon | None) -> GeoPolygon | None:
+        if v is None:
+            return v
+        return _check_polygon_area(v)
+
+    @field_validator("custom_destinations")
+    @classmethod
+    def custom_list_cap(cls, v: list[CustomDestination] | None) -> list[CustomDestination] | None:
+        # The same door-level ceiling on both endpoints: resolving a list is
+        # cheaper than analyzing one, but an unbounded payload is still an
+        # unbounded payload, and a list too big to analyze is not worth
+        # resolving.
+        if v is not None and len(v) > MAX_ANALYZE_PEAKS:
+            raise ValueError(
+                f"Too many custom destinations ({len(v):,}). Maximum is "
+                f"{MAX_ANALYZE_PEAKS:,}. Trim the list or split it into multiple "
+                f"{cls._split_noun}."
+            )
+        return v
+
+
+class AnalyzeRequest(_DiscoveryFields):
+    """One analysis: which destinations, over which window, ranked how."""
+
     forecast_model: ForecastModel = Field(
         default=DEFAULT_FORECAST_MODEL,
         description=(
@@ -617,26 +698,14 @@ class AnalyzeRequest(BaseModel):
             "always saw."
         ),
     )
-    # Applied to candidates before the weather fetch, so a constrained analysis
-    # costs fewer upstream calls, and the returned rows always fill `limit` when
-    # enough candidates qualify.
-    min_elevation_ft: float | None = Field(
-        default=None,
-        description=(
-            "Drop candidates below this elevation. Candidates with an unknown "
-            "elevation always pass through rather than being silently dropped."
-        ),
-    )
-    max_elevation_ft: float | None = Field(
-        default=None, description="Drop candidates above this elevation."
-    )
     # Forecast bounds, applied after aggregation and BEFORE the ranking and the
     # `limit` cut, so "the top N matching destinations" is literally true rather
     # than "whichever of the top N happened to match".
     #
-    # Elevation above is a different animal and reads differently on purpose: it
-    # is known before any forecast exists, so it gates the weather fetch and a
-    # constrained analysis costs fewer upstream calls. Nothing here can do that —
+    # The elevation band on `_DiscoveryFields` is a different animal and reads
+    # differently on purpose: it is known before any forecast exists, so it
+    # gates the weather fetch and a constrained analysis costs fewer upstream
+    # calls. Nothing here can do that —
     # a destination's precipitation is not knowable until it has been fetched —
     # so these only ever shrink the answer, never the work.
     #
@@ -729,26 +798,6 @@ class AnalyzeRequest(BaseModel):
             "was never fetched."
         ),
     )
-    custom_destinations: list[CustomDestination] | None = Field(
-        default=None,
-        description=(
-            "Your own destinations, merged into whatever the polygon discovers. "
-            "A custom row matching a discovered one by name or by coordinates "
-            "to five decimals replaces it."
-        ),
-    )
-    top_by_elevation: bool = Field(
-        default=False,
-        description=(
-            "Explicit opt-in for an over-limit candidate set: instead of "
-            "refusing, keep the highest-elevation candidates up to the "
-            "analysis limit (rows with unknown elevation are dropped first, "
-            "since they cannot claim to be among the highest). The response "
-            "then reports `truncated: true` and the pre-cut count in "
-            "`total_found`, so a partial ranking is never silent. Off by "
-            "default: an unasked-for cut would misrepresent the ranking."
-        ),
-    )
 
     model_config = {
         "json_schema_extra": {
@@ -785,26 +834,6 @@ class AnalyzeRequest(BaseModel):
         if v < MIN_LIMIT or v > MAX_LIMIT:
             raise ValueError(f"limit must be between {MIN_LIMIT} and {MAX_LIMIT}")
         return v
-
-    @field_validator("custom_destinations")
-    @classmethod
-    def custom_list_cap(cls, v: list[CustomDestination] | None) -> list[CustomDestination] | None:
-        # Same ceiling the route enforces on the merged candidate field —
-        # rejecting an oversized list at the door keeps a single request from
-        # smuggling in an unbounded payload.
-        if v is not None and len(v) > MAX_ANALYZE_PEAKS:
-            raise ValueError(
-                f"Too many custom destinations ({len(v):,}). Maximum is "
-                f"{MAX_ANALYZE_PEAKS:,}. Trim the list or split it into multiple analyses."
-            )
-        return v
-
-    @field_validator("polygon")
-    @classmethod
-    def polygon_area_limit(cls, v: GeoPolygon | None) -> GeoPolygon | None:
-        if v is None:
-            return v
-        return _check_polygon_area(v)
 
     def _resolve_forecast_mode(self) -> None:
         """Settle `forecast_mode` and fill in the timestamps it implies.
@@ -1155,7 +1184,7 @@ class AnalyzeResponse(BaseModel):
     )
 
 
-class DestinationsRequest(BaseModel):
+class DestinationsRequest(_DiscoveryFields):
     """Discovery only: which destinations exist, with no forecasts attached.
 
     This is the first half of `POST /api/analyze`. The SPA uses it to get the
@@ -1167,6 +1196,15 @@ class DestinationsRequest(BaseModel):
     `custom_destinations` list is *resolved* — the caller already knows where
     its points are, so the only open question is what OSM knows about them.
     """
+
+    # The fields and the validators are `_DiscoveryFields`'. What is restated
+    # below is the four descriptions that read differently here: this endpoint
+    # resolves a list where the other analyzes one, and its polygon is optional
+    # where the other's is conditional. A docstring would say the same thing,
+    # but a model's docstring is published as the schema description, and this
+    # is a note to the next reader of the file rather than to a caller.
+    _list_verb: ClassVar[str] = "resolve"
+    _split_noun: ClassVar[str] = "requests"
 
     polygon: GeoPolygon | None = Field(
         default=None,
@@ -1187,30 +1225,6 @@ class DestinationsRequest(BaseModel):
             "type and is rejected here."
         ),
     )
-
-    include_unnamed_peaks: bool = Field(
-        default=False,
-        description=(
-            "Also discover summits OSM knows only by their height, named after "
-            "it (`Peak 5961`). Off by default because it is not a small "
-            "addition: measured over one 8x10 km box in the Alpine Lakes, 7 "
-            "peaks are named and 13 are not, so this roughly triples the "
-            "candidate count — every candidate being a weighted upstream call "
-            "and a step closer to the analysis ceiling. Ignored unless `peak` "
-            "is among `destination_types`."
-        ),
-    )
-
-    @field_validator("destination_types")
-    @classmethod
-    def validate_destination_types(cls, v: list[DestinationType]) -> list[DestinationType]:
-        if DestinationType.custom in v:
-            raise ValueError(
-                "'custom' is not a discoverable type. Send custom_destinations "
-                "with an empty destination_types to resolve a caller-supplied "
-                "list."
-            )
-        return v
     custom_destinations: list[CustomDestination] | None = Field(
         default=None,
         description=(
@@ -1223,16 +1237,6 @@ class DestinationsRequest(BaseModel):
             "rows come back exactly as sent rather than failing the request."
         ),
     )
-    min_elevation_ft: float | None = Field(
-        default=None,
-        description=(
-            "Drop candidates below this elevation. Candidates with an unknown "
-            "elevation always pass through rather than being silently dropped."
-        ),
-    )
-    max_elevation_ft: float | None = Field(
-        default=None, description="Drop candidates above this elevation."
-    )
     top_by_elevation: bool = Field(
         default=False,
         description=(
@@ -1242,29 +1246,6 @@ class DestinationsRequest(BaseModel):
             "reports `truncated: true` and the pre-cut count in `total_found`."
         ),
     )
-
-    @field_validator("polygon")
-    @classmethod
-    def polygon_area_limit(cls, v: GeoPolygon | None) -> GeoPolygon | None:
-        if v is None:
-            return v
-        return _check_polygon_area(v)
-
-    @field_validator("custom_destinations")
-    @classmethod
-    def custom_list_cap(
-        cls, v: list[CustomDestination] | None
-    ) -> list[CustomDestination] | None:
-        # The same door-level ceiling AnalyzeRequest applies: resolving a list
-        # is cheaper than analyzing one, but an unbounded payload is still an
-        # unbounded payload, and a list too big to analyze is not worth
-        # resolving.
-        if v is not None and len(v) > MAX_ANALYZE_PEAKS:
-            raise ValueError(
-                f"Too many custom destinations ({len(v):,}). Maximum is "
-                f"{MAX_ANALYZE_PEAKS:,}. Trim the list or split it into multiple requests."
-            )
-        return v
 
 
 class DiscoveredDestination(BaseModel):

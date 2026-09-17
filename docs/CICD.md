@@ -734,7 +734,11 @@ flowchart LR
   repo root, read by this job and by `image-scan.yml` below, so the gate that
   admits an image and the gate that re-checks it later cannot disagree. Each
   entry there carries its reasoning; today the only one is pip's vendored-source
-  SBOM, which Trivy would otherwise read as installed inventory.
+  SBOM, which Trivy would otherwise read as installed inventory. What counts as
+  a Critical/High is one composite action, **`.github/actions/trivy-crit-high`**,
+  called by this job and by `image-scan.yml`: both workflows once spelled the
+  same `jq` filter, so a filter corrected in one could keep admitting images in
+  the other.
 - `pr.yml`'s **Lighthouse Budgets** job runs after `docker-build`, rebuilds from
   that job's warm Actions cache, serves the real image, and audits `/` three
   times with **Lighthouse CI**. It fails the PR when the first screen crosses a
@@ -810,9 +814,11 @@ released** `zimmertr/bluebird:<semver>` with Trivy:
 - **Always:** SARIF upload → code-scanning alerts in the repo **Security tab**.
 - **Gate:** the job fails — triggering GitHub's workflow-failure email — only
   when a **fixable Critical/High** vulnerability exists, i.e. only when there
-  is something to do. Expected remediation: merge the open Dependabot
-  base-image PR (below), which cuts a patch release on the fresh base and
-  rolls it out through Path 1.
+  is something to do. It re-scans as JSON and counts through the same
+  **`.github/actions/trivy-crit-high`** the PR gate uses, so the two gates
+  judge an image by one definition. Expected remediation: merge the open
+  Dependabot base-image PR (below), which cuts a patch release on the fresh
+  base and rolls it out through Path 1.
 
 **When there is no base-image PR to merge.** Alpine fixes a package days to
 weeks before the `python:3.14-alpine` image rebuilds carrying it, so the tag

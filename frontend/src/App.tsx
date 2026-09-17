@@ -36,7 +36,6 @@ import {
 } from './utils/modelCompare'
 import { modelRows, pruneHidden, shownModels, toggleHidden } from './utils/modelVisibility'
 import { useFireProximity } from './hooks/useFireProximity'
-import { fireKey } from './utils/fireProximity'
 import { useForecastGrid } from './hooks/useForecastGrid'
 import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
@@ -77,6 +76,7 @@ import {
   MAP_COL_W,
   MAP_EDGE,
   MAP_ROW_H,
+  MUTED,
   PROSE,
   RADIUS,
   LIFTED_EDGE,
@@ -94,6 +94,7 @@ import {
   SEGMENT_ITEM,
   SR_ONLY,
   SURFACE_CARD,
+  SURFACE_DIVIDER,
   SURFACE_FLOATING,
   SURFACE_POPOVER,
   SURFACE_SHEET,
@@ -154,8 +155,9 @@ import {
   buildCustomList,
   pendingAsResult,
   pendingDestinations,
-  pinKey,
 } from './utils/customList'
+import { bboxAreaKm2, ringToPts } from './utils/drawGeometry'
+import { geoKey } from './utils/points'
 import {
   bothFits,
   clampPanelHeight,
@@ -411,11 +413,18 @@ export default function App() {
   // be clickable at all (#119).
   const [drawing, setDrawing] = useState(false)
   // A restored polygon seeds the count so Analyze unlocks before the map loads
-  // (MapView re-emits the authoritative count+area once its points hydrate).
+  // (MapView re-emits the authoritative count once its points hydrate).
   const [drawPointCount, setDrawPointCount] = useState(
     () => Math.max(0, (restored?.polygon?.coordinates[0]?.length ?? 1) - 1),
   )
-  const [polygonAreaKm2, setPolygonAreaKm2] = useState<number | null>(null)
+  // Read off the ring rather than reported by the map, because the map can only
+  // report an area once it has loaded: a ring restored from a link printed its
+  // point count beside a blank area line until the reader edited it (#429). A
+  // derived value cannot lag the ring it describes.
+  const polygonAreaKm2 = useMemo(
+    () => (polygon ? bboxAreaKm2(ringToPts(polygon)) : null),
+    [polygon],
+  )
   // Which kinds the polygon looks for, as a set — several are found in one
   // Overpass query. Nothing is checked by default: discovery is the input
   // that needs a polygon and costs an upstream query, so a fresh session
@@ -837,7 +846,7 @@ export default function App() {
     // Re-naming a previously ×-removed spot is an explicit re-request — drop
     // the stale removal so the place isn't filtered out of its next report.
     setRemoved((prev) => {
-      const key = pinKey(place.lat, place.lon)
+      const key = geoKey(place.lat, place.lon)
       if (!prev.has(key)) return prev
       const next = new Map(prev)
       next.delete(key)
@@ -1103,15 +1112,14 @@ export default function App() {
   const windowWarning =
     selection.kind === 'now' || windowStatus === 'ok' ? null : windowStatus
 
-  const handleDrawUpdate = useCallback((count: number, areaKm2: number | null) => {
+  const handleDrawUpdate = useCallback((count: number) => {
     setDrawPointCount(count)
-    setPolygonAreaKm2(areaKm2)
   }, [])
 
   function handleCancelDrawing() {
     mapRef.current?.cancelDrawing()
     setDrawing(false)
-    // cancelDrawing fires onDrawUpdate(0, null) to reset counts
+    // cancelDrawing fires onDrawUpdate(0) to reset the count
   }
 
   // Enter and Escape both leave draw mode. Neither discards anything: every
@@ -1203,7 +1211,7 @@ export default function App() {
     // place (which must compete against the full candidate field) falls
     // through to a fresh discovery.
     const base = discoveryBase(resolvedPolygon, csvRows, destinationTypes, includeUnnamedPeaks)
-    const searchedKeys = searched.places.map((p) => pinKey(p.lat, p.lon))
+    const searchedKeys = searched.places.map((p) => geoKey(p.lat, p.lon))
     // The polygon guard stays here rather than inside the predicate: a run with
     // no ring is not a polygon discovery at all, whatever the recorded inputs
     // say.
@@ -1311,7 +1319,7 @@ export default function App() {
     const rows = universe ?? response?.results
     if (!rows) return
     for (const r of rows) {
-      if (r.osm_id) identityMapRef.current.set(pinKey(r.latitude, r.longitude), { type: r.type, osm_id: r.osm_id })
+      if (r.osm_id) identityMapRef.current.set(geoKey(r.latitude, r.longitude), { type: r.type, osm_id: r.osm_id })
     }
   }, [response, universe])
 
@@ -1320,7 +1328,7 @@ export default function App() {
   // link where the feature belongs.
   useEffect(() => {
     for (const p of searched.places) {
-      identityMapRef.current.set(pinKey(p.lat, p.lon), {
+      identityMapRef.current.set(geoKey(p.lat, p.lon), {
         // The geocoder's own word for the thing, so the table's Type column
         // says what a place actually is — a searched city reads "City" rather
         // than "Custom", which is a statement about how it got here rather
@@ -1350,7 +1358,7 @@ export default function App() {
     () =>
       presented.rows.map((r) => {
         if (r.osm_id) return r
-        const id = identityMapRef.current.get(pinKey(r.latitude, r.longitude))
+        const id = identityMapRef.current.get(geoKey(r.latitude, r.longitude))
         return id ? { ...r, type: id.type, osm_id: id.osm_id } : r
       }),
     [presented],
@@ -1374,9 +1382,9 @@ export default function App() {
       return
     }
     const prevKeys = new Set(
-      (lastAnalyzedResultsRef.current ?? []).map((r) => pinKey(r.latitude, r.longitude)),
+      (lastAnalyzedResultsRef.current ?? []).map((r) => geoKey(r.latitude, r.longitude)),
     )
-    const currKeys = new Set(results.map((r) => pinKey(r.latitude, r.longitude)))
+    const currKeys = new Set(results.map((r) => geoKey(r.latitude, r.longitude)))
     const leaving = new Set<string>()
     for (const key of prevKeys) {
       if (!currKeys.has(key)) leaving.add(key)
@@ -1478,11 +1486,11 @@ export default function App() {
   // pure unhide or must re-register a place (see restorePlace).
   const heldKeys = useMemo(
     () =>
-      new Set((universe ?? response?.results ?? []).map((r) => pinKey(r.latitude, r.longitude))),
+      new Set((universe ?? response?.results ?? []).map((r) => geoKey(r.latitude, r.longitude))),
     [universe, response],
   )
   const csvKeys = useMemo(
-    () => new Set(csvRows.map((r) => pinKey(r.latitude, r.longitude))),
+    () => new Set(csvRows.map((r) => geoKey(r.latitude, r.longitude))),
     [csvRows],
   )
 
@@ -1915,9 +1923,9 @@ export default function App() {
   // moment it appears — and since colors stick to the coordinate key, the hue
   // it wears before the analysis is the hue its line draws in after.
   const chartCandidates = useMemo(() => {
-    const have = new Set(results.map((r) => pinKey(r.latitude, r.longitude)))
+    const have = new Set(results.map((r) => geoKey(r.latitude, r.longitude)))
     const extras = pending
-      .filter((d) => !have.has(pinKey(d.latitude, d.longitude)))
+      .filter((d) => !have.has(geoKey(d.latitude, d.longitude)))
       .map(pendingAsResult)
     return [...results, ...extras]
   }, [results, pending])
@@ -2143,7 +2151,7 @@ export default function App() {
   const tableRows = useMemo(() => {
     const value = (r: DestinationResult) =>
       detailSort.key === WILDFIRE_KEY
-        ? (fire.warnings.get(fireKey(r.latitude, r.longitude))?.miles ?? null)
+        ? (fire.warnings.get(geoKey(r.latitude, r.longitude))?.miles ?? null)
         : detailSort.key === MODEL_KEY
           ? ((r as ModelRow).modelLabel ?? null)
           : r[detailSort.key]
@@ -2380,7 +2388,7 @@ export default function App() {
           When closed it stays absolute + translated off-screen so it leaves the
           layout and the map fills the full width on every breakpoint. */}
       <aside
-        className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[calc(100vw-2rem)] max-w-90 transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r border-slate-700 ${
+        className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[calc(100vw-2rem)] max-w-90 transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r ${SURFACE_DIVIDER} ${
           sidebarOpen
             ? 'translate-x-0 lg:static lg:z-10 lg:w-90 lg:max-w-none lg:transition-none'
             : '-translate-x-full'
@@ -3310,10 +3318,10 @@ export default function App() {
                                     className={`${TEXT.control} ${FOCUS_RING} inline-flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pl-2 pr-1`}
                                   >
                                     <span
-                                      className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : 'opacity-40'}`}
+                                      className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : MUTED}`}
                                       style={{ backgroundColor: chart.colorFor(row) }}
                                     />
-                                    <span className={`truncate ${plotted ? '' : 'opacity-50'}`}>
+                                    <span className={`truncate ${plotted ? '' : MUTED}`}>
                                       {row.name}
                                     </span>
                                   </button>

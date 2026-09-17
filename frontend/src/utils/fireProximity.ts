@@ -4,6 +4,7 @@
 // edge, so a centroid check would badly under-warn. Everything here is pure and
 // deterministic; the fetch/lifecycle lives in hooks/useFireProximity.ts.
 import type { FeatureCollection, Feature, Geometry, MultiPolygon, Position } from 'geojson'
+import { geoKey, setKey } from './points'
 import type { BBox, WildfireProps } from './wildfires'
 
 export const FIRE_WARN_MILES = 10
@@ -22,12 +23,6 @@ export interface FireWarning {
 // One degree of latitude ≈ 69 mi. Longitude is scaled by cos(lat). Good to a
 // fraction of a percent at the ~10 mi scale this warning cares about.
 const MI_PER_DEG_LAT = 69.0
-
-// Stable lookup key tying a result row to its warning. Coordinate-based so it
-// survives the results table's client-side re-sorting.
-export function fireKey(lat: number, lon: number): string {
-  return `${lat.toFixed(5)},${lon.toFixed(5)}`
-}
 
 // Tooltip text, phrased to read cleanly whatever NIFC calls the incident (plain
 // names, ALL-CAPS codes, numbered dispatches, …).
@@ -51,17 +46,12 @@ export const FIRE_UNAVAILABLE_NOTE =
  * Identity of a SET of destinations, order-independent.
  *
  * useFireProximity keys its lookup on this rather than on the array holding the
- * points. The array is rebuilt on paths that re-derive it per render, and
- * keying on the reference meant re-querying NIFC — and aborting the request
- * already in flight — for a set of points that had not changed at all. Sorted
- * because a re-rank reorders the same destinations, which is not a new question
- * to ask about fires.
+ * points, for the reason `setKey` in points.ts carries: keying on the reference
+ * meant re-querying NIFC — and aborting the request already in flight — for a
+ * set of points that had not changed at all.
  */
 export function pointsKey(points: { latitude: number; longitude: number }[]): string {
-  return points
-    .map((p) => fireKey(p.latitude, p.longitude))
-    .sort()
-    .join('|')
+  return setKey(points, (p) => geoKey(p.latitude, p.longitude))
 }
 
 // Bounding box around all points, padded by `marginMi` on every side so a fire
@@ -210,7 +200,7 @@ export function fireLoadingFrame(tick: number): string {
 }
 
 /**
- * The destinations the fire dataset cannot see, keyed by `fireKey` (#256).
+ * The destinations the fire dataset cannot see, keyed by `geoKey` (#256).
  *
  * `coverage` is the server-published WFIGS outline (a coarse US shape, split
  * at the antimeridian so the plain ray cast above needs no wraparound case).
@@ -228,7 +218,7 @@ export function uncoveredKeys(
   if (!coverage) return out
   for (const p of points) {
     if (!coverage.coordinates.some((polygon) => pointInRing(p.longitude, p.latitude, polygon[0]))) {
-      out.add(fireKey(p.latitude, p.longitude))
+      out.add(geoKey(p.latitude, p.longitude))
     }
   }
   return out

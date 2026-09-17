@@ -35,10 +35,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import re
 import time
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from xml.etree import ElementTree
@@ -46,8 +44,10 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
-from app.services.errors import UpstreamError, classify_http_error
-from app.services.snapshot import SnapshotCache
+from app.env import env_int
+from app.services.errors import UpstreamError
+from app.services.http import HEADERS
+from app.services.snapshot import cache_factory
 
 log = logging.getLogger(__name__)
 
@@ -58,8 +58,6 @@ PROVIDER = "NOAA HMS (smoke plumes)"
 # which is the exact failure mode #203 spent a release removing from the fire
 # overlay. A static file server has no quota to lose.
 BASE_URL = "https://satepsanone.nesdis.noaa.gov/pub/FIRE/web/HMS/Smoke_Polygons/KML"
-
-HEADERS = {"User-Agent": "BluebirdForecast/1.0 (bluebirdforecast.com; personal weather tool)"}
 
 # The analysts' own timezone. A UTC date would ask for tomorrow's file for five
 # hours every evening, and get a 404 for every one of them.
@@ -94,27 +92,16 @@ GEOMETRY_PRECISION = 5
 REQUEST_TIMEOUT_S = 60.0
 
 
-def _env_int(name: str, default: int) -> int:
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        log.warning("Ignoring non-integer %s=%r; using default %d", name, raw, default)
-        return default
-
-
 # Two analyst passes a day means nothing this cache serves is ever more than a
 # few minutes staler than the truth, whatever the TTL. 30 minutes is chosen for
 # the other end: it bounds how long after a new pass lands before visitors see
 # it, at 48 fetches a day against a file server with no quota.
-TTL_S = _env_int("SMOKE_CACHE_TTL_S", 1800)
+TTL_S = env_int("SMOKE_CACHE_TTL_S", 1800)
 
 # How long a failed refresh suppresses the next attempt, for the reason
 # nifc.py's twin spells out: without it every request during an outage becomes
 # its own upstream attempt, which is the hammering the cache exists to stop.
-RETRY_AFTER_FAILURE_S = _env_int("SMOKE_RETRY_AFTER_FAILURE_S", 60)
+RETRY_AFTER_FAILURE_S = env_int("SMOKE_RETRY_AFTER_FAILURE_S", 60)
 
 
 @dataclass(frozen=True)
@@ -306,29 +293,13 @@ async def fetch_snapshot(now: datetime | None = None) -> Snapshot:
     raise UpstreamError("Smoke data is unavailable. Try again later.")
 
 
-def smoke_cache(
-    *,
-    ttl_s: float = TTL_S,
-    retry_after_failure_s: float = RETRY_AFTER_FAILURE_S,
-    clock: Callable[[], float] = time.monotonic,
-    fetch: Callable[[], Awaitable[Snapshot]] = fetch_snapshot,
-) -> SnapshotCache[Snapshot]:
-    """The shared snapshot cache, wired to this module's fetch and knobs."""
-    return SnapshotCache(
-        label=PROVIDER,
-        fetch=fetch,
-        ttl_s=ttl_s,
-        retry_after_failure_s=retry_after_failure_s,
-        describe=lambda s: f"{s.plumes} plumes analyzed {s.analysis_date}",
-        clock=clock,
-    )
-
+# The shared snapshot cache, wired to this module's fetch and knobs.
+smoke_cache = cache_factory(
+    label=PROVIDER,
+    fetch=fetch_snapshot,
+    ttl_s=TTL_S,
+    retry_after_failure_s=RETRY_AFTER_FAILURE_S,
+    describe=lambda s: f"{s.plumes} plumes analyzed {s.analysis_date}",
+)
 
 PLUMES = smoke_cache()
-
-
-def unavailable_message(exc: Exception) -> str:
-    """The user-facing sentence for a cold-start failure."""
-    if isinstance(exc, UpstreamError):
-        return exc.message
-    return classify_http_error(exc, PROVIDER)

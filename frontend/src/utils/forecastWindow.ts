@@ -18,7 +18,10 @@
 // forecast endpoint has no data for is the archive's, and one that crosses
 // between them belongs to both, fetched from each and joined at the seam.
 
-const HOUR_MS = 3_600_000
+// Exported rather than declared again in the two other modules that needed it
+// (#388). It lives here because this is the file that turns a forecast window
+// into hours; both readers are doing a piece of the same arithmetic.
+export const HOUR_MS = 3_600_000
 const MINUTE_MS = 60_000
 const DAY_MS = 86_400_000
 

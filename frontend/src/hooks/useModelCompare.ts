@@ -14,7 +14,7 @@ import {
   pairKey,
 } from '../utils/modelCompare'
 import { shownModels } from '../utils/modelVisibility'
-import { OpenMeteoModelCoverage, fetchWeather } from '../utils/openMeteo'
+import { COVERAGE_PHRASE, OpenMeteoModelCoverage, fetchWeather } from '../utils/openMeteo'
 import type { WeatherResult } from '../utils/openMeteo'
 
 /**
@@ -279,11 +279,10 @@ export function useModelCompare({
           for (const d of missing) requestedRef.current.delete(pairKey(id, d.key))
           const note =
             e instanceof OpenMeteoModelCoverage
-              ? // The one message mirrored from backend/app/services/weather.py.
-                // No remedy clause: the analysis path's "switch to a different
+              ? // No remedy clause: the analysis path's "switch to a different
                 // model" is not this surface's remedy, since unticking the box
                 // in the picker is what removes these lines.
-                `${model.label} has no forecast coverage for this area.`
+                `${model.label} ${COVERAGE_PHRASE}`
               : e instanceof Error
                 ? e.message
                 : null

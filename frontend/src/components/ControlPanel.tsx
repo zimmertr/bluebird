@@ -32,6 +32,7 @@ import {
   METRICS_GRID,
   METRIC_HEAD_GAP,
   METRIC_BOX_W,
+  MUTED,
   SEGMENT_FILL,
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
@@ -996,7 +997,7 @@ export default function ControlPanel({
                 because then there is no peak search for it to widen — but still
                 operable, so ticking it asks for peaks the way the grid's style
                 segment asks for the grid. */}
-            <label className={`${CHOICE_ROW} mt-1.5 ${peaksOn ? '' : 'opacity-50'}`}>
+            <label className={`${CHOICE_ROW} mt-1.5 ${peaksOn ? '' : MUTED}`}>
               <input
                 type="checkbox"
                 checked={includeUnnamedPeaks}
@@ -1233,7 +1234,7 @@ export default function ControlPanel({
                     // wrapper reserves baseline descender space below itself,
                     // which read as the dropdown sitting ~1px lower than the
                     // boxes it must align with.
-                    <div className={`relative flex ${isActive ? '' : 'opacity-50'}`}>
+                    <div className={`relative flex ${isActive ? '' : MUTED}`}>
                       {/* py-0.5 is SEGMENT_ITEM_SHAPE's own vertical padding, so the
                           dropdown, the boxes and the segment above are the
                           same height. */}

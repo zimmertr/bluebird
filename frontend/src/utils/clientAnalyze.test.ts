@@ -22,7 +22,7 @@ import {
   runClientAnalysis,
   truncateTopElevation,
 } from './clientAnalyze'
-import { pinKey } from './customList'
+import { geoKey } from './points'
 import { WeatherResult, resetOpenMeteoState } from './openMeteo'
 import vectors from '../../../backend/tests/data/weather_vectors.json'
 
@@ -903,7 +903,7 @@ describe('refreshEchoRows', () => {
   it('drops ×-removed destinations from the universe explicitly', () => {
     // Echoing the displayed rows used to do this as a side effect; the universe
     // never saw the removal, so the filter has to be applied here.
-    const removed = new Set([pinKey(3, -121.9), pinKey(1, -121.9)])
+    const removed = new Set([geoKey(3, -121.9), geoKey(1, -121.9)])
     expect(refreshEchoRows(universe, displayed, removed).map((r) => r.name)).toEqual(['Mid'])
   })
 
