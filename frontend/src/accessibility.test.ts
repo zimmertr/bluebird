@@ -6,11 +6,38 @@ import modelCompareSource from './components/ModelCompare.tsx?raw'
 import appSource from './App.tsx?raw'
 import modelPickerSource from './components/ModelPicker.tsx?raw'
 import resultsTableSource from './components/ResultsTable.tsx?raw'
+import iconsSource from './components/icons.tsx?raw'
+// The one shape drawn twice, once as an element and once as markup for a
+// map popup (#435). The markup is a glyph like any other, so it answers to
+// the same rule.
+import iconPathsSource from './iconPaths.ts?raw'
 
-// The opening tag of every anchor in a file, whichever attributes it carries.
+// The opening tag of every element of one kind in a file, whichever attributes
+// it carries.
 function openingTags(source: string, tag: string): string[] {
   return source.match(new RegExp(`<${tag}\\s[^>]*>`, 'g')) ?? []
 }
+
+describe('every glyph the app draws', () => {
+  // #396: two of the six close crosses reached the accessibility tree where
+  // the other four did not, so the same button announced its label once in
+  // four places and twice in two. Every glyph stands inside a control that
+  // already carries its own name, so an icon that is announced can only ever
+  // be announced a second time.
+  //
+  // Two files to check, because `styles.test.ts` holds every component AND the
+  // map popup's string markup to drawing no SVG of its own.
+  it('hides every one of them from assistive technology', () => {
+    const glyphs = [
+      ...openingTags(iconsSource, 'svg'),
+      ...openingTags(iconPathsSource, 'svg'),
+    ]
+    expect(glyphs.length).toBeGreaterThan(10)
+    for (const glyph of glyphs) {
+      expect(glyph).toContain('aria-hidden="true"')
+    }
+  })
+})
 
 describe('a link that leaves the app', () => {
   // WCAG 2.4.4: the purpose of a link has to be clear from the link itself.
