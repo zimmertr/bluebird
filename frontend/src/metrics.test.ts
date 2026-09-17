@@ -13,25 +13,13 @@ import {
   familyOf,
   metricLabel,
   rankedNoun,
+  tempDatum,
   windDatum,
   windowAggregate,
 } from './metrics'
 import { SortBy } from './types'
-// `?raw` gives us each file's text without executing it, so the drift guard
-// below stays a pure node test with no DOM — the same trick styles.test.ts
-// uses to lint class lists.
-import appSource from './App.tsx?raw'
-import controlPanelSource from './components/ControlPanel.tsx?raw'
-import resultsTableSource from './components/ResultsTable.tsx?raw'
-import timeSeriesChartSource from './components/TimeSeriesChart.tsx?raw'
-import timelineTransportSource from './components/TimelineTransport.tsx?raw'
-import chartDataSource from './utils/chartData.ts?raw'
-import colorsSource from './utils/colors.ts?raw'
-import resultPopupSource from './utils/resultPopup.ts?raw'
-import popupRowsSource from './utils/popupRows.ts?raw'
-import resultsCsvSource from './utils/resultsCsv.ts?raw'
-import tableColumnsSource from './utils/tableColumns.ts?raw'
-import freezingLevelSource from './utils/freezingLevel.ts?raw'
+// `?raw` gives us each file's text without executing it, so the copy lints
+// below stay a pure node test with no DOM.
 import openMeteoSource from './utils/openMeteo.ts?raw'
 import presentSource from './utils/present.ts?raw'
 
@@ -255,68 +243,6 @@ describe('metricLabel', () => {
   })
 })
 
-// The point of the module: a surface must compose its names from here rather
-// than writing its own. Nothing in the type system enforces that — a string
-// literal in JSX type-checks fine — so the guard reads the sources as text.
-//
-// Capitalisation is what keeps this from firing on code: field identifiers
-// (`precip_total_in`, `tempAvgF`, `Math.min`) are lowercase or camel, and the
-// abbreviations only ever appeared in display copy with a leading capital.
-describe('no surface writes its own metric name', () => {
-  const CONSUMERS: [string, string][] = [
-    ['App.tsx', appSource],
-    ['ControlPanel.tsx', controlPanelSource],
-    ['ResultsTable.tsx', resultsTableSource],
-    ['TimeSeriesChart.tsx', timeSeriesChartSource],
-    ['TimelineTransport.tsx', timelineTransportSource],
-    ['chartData.ts', chartDataSource],
-    ['colors.ts', colorsSource],
-    ['resultPopup.ts', resultPopupSource],
-    // The popup's derivation, which composes a group's heading from the
-    // vocabulary the way the columns compose a header (#370).
-    ['popupRows.ts', popupRowsSource],
-    // The seventh surface: a downloaded file is read in a spreadsheet, where
-    // nothing around it says which app wrote the header.
-    ['resultsCsv.ts', resultsCsvSource],
-    ['tableColumns.ts', tableColumnsSource],
-    // The one file that writes a whole SENTENCE about a metric (#295), which
-    // is the same duty: it composes the noun from the vocabulary rather than
-    // spelling it, so a renamed metric renames its own note.
-    ['freezingLevel.ts', freezingLevelSource],
-  ]
-
-  // metrics.ts itself is absent on purpose: its doc comments quote these
-  // abbreviations to explain what went wrong, which is the one place naming
-  // them is the point.
-  const BANNED: [string, RegExp][] = [
-    ['Precip', /\bPrecip\b(?!itation)/],
-    ['Temp', /\bTemp\b(?!erature)/],
-    ['Avg', /\bAvg\b/],
-    ['Min', /\bMin\b(?!imum)/],
-    ['Max', /\bMax\b(?!imum)/],
-    ['Elev', /\bElev\b(?!ation)/],
-  ]
-
-  // Every assertion below is "this pattern found nothing", which an empty
-  // string satisfies. If a `?raw` import ever resolved to one — a moved file,
-  // a resolver change — the whole guard would go quietly vacuous and still
-  // report green, so check the sources arrived before trusting them.
-  it('reads every consumer it claims to lint', () => {
-    for (const [name, source] of CONSUMERS) {
-      expect(source.length, `${name} loaded empty`).toBeGreaterThan(500)
-    }
-    expect(CONSUMERS.map(([name]) => name)).toContain('App.tsx')
-  })
-
-  for (const [name, source] of CONSUMERS) {
-    for (const [abbreviation, pattern] of BANNED) {
-      it(`keeps "${abbreviation}" out of ${name}`, () => {
-        expect(source.match(pattern), `${name} writes "${abbreviation}"`).toBeNull()
-      })
-    }
-  }
-})
-
 describe('copy lints', () => {
   // L3: No "the weather service" in frontend sources. Use "Open-Meteo" or
   // restructure to avoid the phrase.
@@ -407,5 +333,88 @@ describe('wind datum', () => {
     expect(metricLabel('wind', AGGREGATE.average, undefined, null)).toBe(
       metricLabel('wind', AGGREGATE.average),
     )
+  })
+})
+
+// #443: the temperature is read from the same free air the wind is, so the
+// header says so in the same words. These pin the TWO states, and the one the
+// wind has that this does not.
+describe('temperature datum', () => {
+  it('names the elevation datum over a forecast window', () => {
+    expect(tempDatum('forecast')).toBe('at elevation')
+  })
+
+  // One phrase for one measurement. The two families read the same five
+  // pressure levels at the same heights, so a reader comparing the two columns
+  // is comparing like with like and the headers must not suggest otherwise.
+  it('uses the same words the wind uses for the same measurement', () => {
+    expect(tempDatum('forecast')).toBe(windDatum('forecast'))
+  })
+
+  // The archive answers every pressure level null, so the adjustment does not
+  // run and every row is the surface reading whatever its elevation.
+  it('names the surface datum over an archive window', () => {
+    expect(tempDatum('archive')).toBe('at 2 meters')
+  })
+
+  // The two families move in lockstep (TJ, 2026-09-17). The columns sit side by
+  // side in the table and in the file, so a header that named one datum and
+  // left its neighbour bare would read as a difference in the numbers rather
+  // than a difference in the wording. This is the check that fails if one
+  // family grows a state the other does not.
+  it('answers every window source exactly where the wind does', () => {
+    for (const source of ['forecast', 'archive', 'spanning', null, undefined] as const) {
+      expect(tempDatum(source) === null).toBe(windDatum(source) === null)
+    }
+  })
+
+  // The one state with no datum: a spanning report averages both into a single
+  // number, so either label would be false of it.
+  it('claims no datum over a spanning window or without a report', () => {
+    expect(tempDatum('spanning')).toBeNull()
+    expect(tempDatum(null)).toBeNull()
+    expect(tempDatum(undefined)).toBeNull()
+  })
+
+  // Spelled out rather than written as a symbol, exactly as the wind's is: an
+  // ordinary English unit NAME keeps the SI space rule for unit SYMBOLS out of
+  // play and keeps a non-breaking space out of the CSV header.
+  it('spells the unit as a word, never as a symbol', () => {
+    expect(tempDatum('archive')).not.toMatch(/\b2\s?m\b/)
+    expect(tempDatum('archive')).toContain('meters')
+  })
+
+  // The qualifier belongs INSIDE the noun phrase, ahead of the separator, for
+  // the reason the wind's does.
+  it('composes the qualifier into the noun, ahead of the separator', () => {
+    const label = metricLabel('temp', AGGREGATE.minimum, undefined, tempDatum('forecast'))
+    expect(label).toBe(`${NOUN.temp} at elevation ${SEP} ${AGGREGATE.minimum} (${UNIT.temp})`)
+    expect(label.indexOf('at elevation')).toBeLessThan(label.indexOf(SEP))
+  })
+
+  // A point-sample report collapses its triplet to one column and carries no
+  // aggregate, so the qualifier has to survive without one.
+  it('composes the qualifier with no aggregate', () => {
+    expect(metricLabel('temp', undefined, undefined, tempDatum('forecast'))).toBe(
+      `${NOUN.temp} at elevation (${UNIT.temp})`,
+    )
+    expect(metricLabel('temp', undefined, undefined, tempDatum('archive'))).toBe(
+      `${NOUN.temp} at 2 meters (${UNIT.temp})`,
+    )
+  })
+
+  // A null qualifier is the spanning and pre-analysis case reaching metricLabel,
+  // and it must produce exactly the unqualified label rather than a stray space.
+  it('is byte-identical to the unqualified label when there is no datum', () => {
+    expect(metricLabel('temp', AGGREGATE.minimum, undefined, null)).toBe(
+      metricLabel('temp', AGGREGATE.minimum),
+    )
+  })
+
+  // The noun itself is untouched. Every surface with no room for a datum — the
+  // ranking radio, the map legend, the chart's metric picker, the bound rows —
+  // reads NOUN, and widening that word would move all four.
+  it('leaves the bare noun alone', () => {
+    expect(NOUN.temp).toBe('Temperature')
   })
 })

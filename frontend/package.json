@@ -9,6 +9,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "lint": "npm --prefix tools/eslint ci && tools/eslint/node_modules/.bin/eslint --config tools/eslint/eslint.config.js --max-warnings 0 src && node tools/eslint/selftest.js",
     "generate:api": "npm --prefix tools/api-types ci && npm --prefix tools/api-types run generate",
     "check:api": "npm --prefix tools/api-types ci && npm --prefix tools/api-types run check"
   },
