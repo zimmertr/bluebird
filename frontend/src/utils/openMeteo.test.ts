@@ -856,6 +856,26 @@ describe('fetchAqi', () => {
     expect(requested).toBe('2026-07-26T23:00')
   })
 
+  // The horizon is published (#393), so the clamp has to follow the deployment
+  // rather than a compiled copy: the calendar dims its later days by the same
+  // number, and a fetch clamped elsewhere would empty a day drawn as covered.
+  it('clamps to the horizon it is given rather than the compiled one', async () => {
+    let requested: string | null = null
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        requested = new URL(url).searchParams.get('end_hour')
+        return jsonResponse({ hourly: { time: [], us_aqi: [] } })
+      }),
+    )
+    const now = Date.parse('2026-07-21T00:00:00Z')
+    await fetchAqi([{ latitude: 0, longitude: 0 }], now, now + 15 * 86_400_000, {
+      nowMs: now,
+      aqiForecastDays: 3,
+    })
+    expect(requested).toBe('2026-07-24T23:00')
+  })
+
   it('asks the air-quality host for whole seconds too (#337)', async () => {
     let params: URLSearchParams | null = null
     vi.stubGlobal(
