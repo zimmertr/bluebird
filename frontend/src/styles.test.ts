@@ -67,7 +67,6 @@ import {
   MAP_COL_GAP_T,
   MAP_COL_W,
   MAP_ROW_H,
-  MICRO_PX,
   MICRO_SIZE,
   MUTED,
   PANEL_EDGE,
@@ -240,20 +239,14 @@ const placementCallers: Record<string, string> = {
 // Where the placement is defined, so the export itself does not read as a call.
 const PLACEMENT_MODULE = './utils/listbox.ts'
 
-// Everything under src/ that could import a role. Wider than either set above,
-// because a role is dead only if NOTHING reads it.
-//
-// This file is added by hand: Vite leaves the calling module out of its own
-// glob, and leaving it out here would fail the four roles whose only reader is
-// an assertion below.
-const roleImporters: Record<string, string> = {
-  ...(import.meta.glob(['./**/*.ts', './**/*.tsx', '!./styles.ts'], {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>),
-  './styles.test.ts': readFileSync(new URL('./styles.test.ts', import.meta.url), 'utf8'),
-}
+// Everything the app SHIPS that could import a role. Wider than either set
+// above, because a role is dead only if NOTHING renders it — and narrower than
+// all of `src/`, because a test is not a renderer. A suite that counted itself
+// could not have caught the role it was written for (#438).
+const roleImporters: Record<string, string> = import.meta.glob(
+  ['./**/*.ts', './**/*.tsx', '!./styles.ts', '!./**/*.test.ts', '!./**/*.test.tsx'],
+  { query: '?raw', import: 'default', eager: true },
+) as Record<string, string>
 
 describe('every component', () => {
   it('found the sources', () => {
@@ -1640,12 +1633,32 @@ describe('every role', () => {
   // as the answer to a question it has never actually answered.
   //
   // The import list rather than any mention of the name, because a name in a
-  // comment is not a use. `styles.test.ts` counts as an importer: some roles
-  // exist only to hold two spellings together and have no other reader —
-  // `MICRO_PX` binds the ramp's smallest step to the custom property `map.css`
-  // sizes MapLibre's credit line from, and an assertion is the only place that
-  // can be done. Requiring a component would mean an allowlist, and an
-  // allowlist is the thing that rots.
+  // comment is not a use. This file is not an importer either (#438): counting
+  // it let a role whose only reader is an assertion pass as used, which is the
+  // exact state the check was written to fail.
+  //
+  // What that costs is the list below. It is an allowlist, and an allowlist is
+  // the thing that rots, so it is held down from both ends: an entry that gains
+  // a real importer fails here too, and every role outside it still owes one.
+  //
+  // Each of these is a half-recipe this file composes itself, so no call site
+  // ever names it and the assertion is the only place the halves can be held
+  // together.
+  const TEST_ONLY: Record<string, string> = {
+    // The ramp's smallest step, spelled a second time as `--map-credit-size` in
+    // `MAP_EDGE.publish` because Tailwind cannot compile an interpolated class
+    // and MapLibre's credit line has no call site. Components take `TEXT.micro`.
+    MICRO_SIZE: 'binds the ramp step to the custom property map.css reads',
+    // Half of the well — `RECESSED_FILL` is the other — and every surface that
+    // sinks into the panel composes the pair here. A call site takes the
+    // finished `FIELD`, `SEGMENT`, `SURFACE_GROUP` or `SCRUBBER_TRACK`.
+    RECESSED_EDGE: 'the half of the well recipe this file composes itself',
+    // The timeline axis half's width floor, spelled twice over (plain and
+    // `touch:`) so the variant cannot lose to `TAP.action`'s by stylesheet
+    // order. The call site takes `TRANSPORT_AXIS_ITEM`, which carries it.
+    TRANSPORT_AXIS_W: 'holds one floor to two spellings inside TRANSPORT_AXIS_ITEM',
+  }
+
   it('exports no role nothing imports', () => {
     const imported = new Set<string>()
     for (const source of Object.values(roleImporters)) {
@@ -1658,7 +1671,29 @@ describe('every role', () => {
     }
 
     expect(imported.size).toBeGreaterThan(30)
-    expect(Object.keys(STYLES).filter((role) => !imported.has(role))).toEqual([])
+    expect(
+      Object.keys(STYLES).filter((role) => !imported.has(role) && !(role in TEST_ONLY)),
+    ).toEqual([])
+  })
+
+  // The other end of the same rule. A listed role that something renders is a
+  // reason that has stopped being true, and the entry would then be hiding the
+  // role from the check above rather than explaining it.
+  it.each(Object.entries(TEST_ONLY))('%s is listed because %s', (role) => {
+    const readers = Object.entries(roleImporters)
+      .filter(([, source]) =>
+        (source.match(/import\s+(?:type\s+)?\{[^}]*\}\s+from\s+'[^']*styles'/g) ?? []).some(
+          (block) =>
+            block
+              .slice(block.indexOf('{') + 1, block.indexOf('}'))
+              .split(',')
+              .some((name) => name.trim().split(/\s+as\s+/)[0].trim() === role),
+        ),
+      )
+      .map(([path]) => path)
+
+    expect(readers).toEqual([])
+    expect(Object.keys(STYLES)).toContain(role)
   })
 })
 
@@ -1978,12 +2013,14 @@ describe('the map edge inset', () => {
 
   // MapLibre's credit line is sized by map.css from a custom property, because
   // the library builds that markup itself and there is no call site to hand
-  // `TEXT.micro` to. The number is the ramp's smallest step, spelled once as
-  // `MICRO_PX`; the class and the property are both pinned to it here so the
-  // stylesheet, which no test can read, cannot drift from the ramp.
+  // `TEXT.micro` to. So the ramp's smallest step is spelled twice — Tailwind
+  // compiles no interpolated class, so neither spelling can be built from the
+  // other — and this is the one place that holds them to one number, which is
+  // why the two are read off each other rather than off a third constant.
   it('publishes the credit size from the ramp', () => {
-    expect(MICRO_SIZE).toBe(`text-[${MICRO_PX}px]`)
-    expect(MAP_EDGE.publish).toContain(`[--map-credit-size:${MICRO_PX}px]`)
+    const published = MAP_EDGE.publish.match(/--map-credit-size:(\d+)px/)
+    expect(published).not.toBeNull()
+    expect(MICRO_SIZE).toBe(`text-[${published![1]}px]`)
   })
 
   // The button column, the legend stack and the popover under them. The first

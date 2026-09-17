@@ -46,12 +46,15 @@
 // inside the accent fill, and a color baked into the shape would race the
 // layer's by stylesheet order.
 /**
- * The ramp's smallest step, as a number, for the one place a stylesheet has to
- * spell it: `map.css` sizes MapLibre's credit line from `--map-credit-size`,
- * which `MAP_EDGE.publish` sets. `styles.test.ts` holds the class, the custom
- * property and this number together.
+ * The ramp's smallest step, as the class itself rather than as a number the
+ * class is built from: Tailwind v4 scans this file as raw text, so an
+ * interpolated utility emits no CSS and the size has to be spelled.
+ *
+ * That is why the one stylesheet needing the same size says it a second time —
+ * `MAP_EDGE.publish` carries it as `--map-credit-size` for MapLibre's credit
+ * line, which has no call site to hand a role to. `styles.test.ts` holds the
+ * two spellings to one number, which is the only place that can be done.
  */
-export const MICRO_PX = 10
 export const MICRO_SIZE = 'text-[10px]'
 const MICRO = `${MICRO_SIZE} text-slate-300`
 
@@ -1037,8 +1040,9 @@ export const MAP_COL_GAP_T = 'mt-1'
 export const MAP_EDGE = {
   /**
    * On the map wrapper: publishes the inset to the app's chrome and the
-   * vendor's, and the credit line's type size (`MICRO_PX`) to `map.css`, which
-   * has no call site to hand `TEXT.micro` to.
+   * vendor's, and the credit line's type size — the ramp's smallest step, the
+   * second spelling of `MICRO_SIZE` — to `map.css`, which has no call site to
+   * hand `TEXT.micro` to.
    */
   publish: '[--map-edge-inset:0.75rem] [--map-credit-size:10px]',
   /** The left edge every floating box on the map's left shares. */
