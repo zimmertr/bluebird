@@ -126,10 +126,13 @@ describe('the legend strip', () => {
     expect(ticks.map((t) => t.label).join(' ')).not.toContain('787')
   })
 
-  it('hangs the last label from the strip, and every other from its boundary', () => {
+  it('hangs each label from the nearest edge that keeps it in the box', () => {
     // `400 in` is wider than a band and its boundary is one band in from the
-    // right edge, so a label hung there would run past the legend box.
-    expect(snowTicks().map((t) => t.align)).toEqual(['start', 'start', 'start', 'end'])
+    // right edge, so a label hung there would run past the legend box. `0` is
+    // on the strip's own left edge and hangs the other way for the same
+    // reason. Everything between is centred on its boundary, the way a colour
+    // bar's numbers are (#454).
+    expect(snowTicks().map((t) => t.align)).toEqual(['start', 'center', 'center', 'end'])
   })
 
   it('reads left to right', () => {

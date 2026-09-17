@@ -46,6 +46,8 @@
  *   source carries it as `bounds` so MapLibre asks for nothing out there at all.
  */
 
+import { RampTick, rampCss, rampTicks } from './legendRamp'
+
 /** The `export` endpoint of the NOHRSC snow analysis map service. */
 const EXPORT_URL =
   'https://mapservices.weather.noaa.gov/raster/rest/services/snow/NOHRSC_Snow_Analysis/MapServer/export'
@@ -138,34 +140,18 @@ export const SNOW_RAMP: readonly SnowBand[] = SNOW_BANDS.filter((b) => b.color !
 /**
  * The ramp as one CSS background, hard-stopped so each band is its own block.
  *
- * Hard stops rather than the radar's blend, because these bands are the
+ * Hard stops rather than the metric scales' blend, because these bands are the
  * service's own classification and a gradient between them would invent depths
  * NOAA never assigned a colour to. Equal widths, because the boundaries are
  * near-logarithmic (0.39 to 787 in eleven steps) and a strip drawn to scale
- * would be ten bands in the first two pixels.
+ * would be ten bands in the first two pixels — which `rampCss` does for every
+ * scale on the map, so this is one call rather than a second answer (#454).
  */
 export function snowRampCss(): string {
-  const n = SNOW_RAMP.length
-  const stops = SNOW_RAMP.flatMap((band, i) => [
-    `${band.color} ${(i / n) * 100}%`,
-    `${band.color} ${((i + 1) / n) * 100}%`,
-  ])
-  return `linear-gradient(90deg,${stops.join(',')})`
-}
-
-/**
- * A number on the scale under that strip: where it sits, what it reads, and
- * which way it hangs.
- *
- * `at` is a position in BANDS, not in pixels: 0 is the strip's left edge and
- * `SNOW_RAMP.length` its right one, so a tick lands on the boundary it names
- * however wide the legend box is. `align` is which edge of that boundary's
- * band column the label hangs from.
- */
-export interface SnowTick {
-  readonly at: number
-  readonly label: string
-  readonly align: 'start' | 'end'
+  return rampCss(
+    SNOW_RAMP.map((band) => band.color as string),
+    false,
+  )
 }
 
 /**
@@ -189,6 +175,9 @@ const TICK_BOUNDARIES = [0.39, 3.9, 39, 394]
  * for the same reason and one more: it is where the painted scale starts, and
  * under it nothing is drawn at all.
  *
+ * The unit on the last tick and the last tick hanging from the strip's end are
+ * `rampTicks`' rules rather than this file's, and are documented there.
+ *
  * **The last tick is the START of the top band, not its ceiling.** The
  * classification's ceiling is 787 in, and no snowpack reaches it: the cells
  * that get there hold model ice on glaciers, which the analysis never melts
@@ -201,29 +190,24 @@ const TICK_BOUNDARIES = [0.39, 3.9, 39, 394]
  * moves the ticks with the colours instead of leaving them describing the old
  * one.
  */
-export function snowTicks(): SnowTick[] {
+export function snowTicks(): RampTick[] {
   const found = TICK_BOUNDARIES.map((inches) => ({
     inches,
     at: SNOW_RAMP.findIndex((band) => band.from === inches),
   })).filter((tick) => tick.at >= 0)
 
-  return found.map(({ inches, at }, i) => {
-    const last = i === found.length - 1
-    return {
-      at,
-      // The unit rides on the last tick alone: it is the one the eye finishes
-      // on, and four copies of "in" across 164 px is three more than the scale
-      // needs.
-      label: (at === 0 ? '0' : roundedInches(inches)) + (last ? ' in' : ''),
-      // Every other label hangs from its own boundary. The last one hangs from
-      // the strip's END instead, because its boundary is one band in from
-      // there and `400 in` is wider than a band: hung from the boundary it
-      // would run past the legend box. Hung from the end it also reads the way
-      // the top band behaves, which is 400 in and above.
-      align: last ? ('end' as const) : ('start' as const),
-    }
-  })
+  return rampTicks(
+    found.map(({ inches, at }) => ({ at, text: at === 0 ? '0' : roundedInches(inches) })),
+    SNOW_UNIT,
+  )
 }
+
+/**
+ * The unit the depths are quoted in, which is the metric scales' `unit` field
+ * one module over: the tick row is built by the same function, so it takes the
+ * unit the same way.
+ */
+const SNOW_UNIT = 'in'
 
 /** A boundary to one significant figure: 3.9 in reads 4, 39 reads 40. */
 function roundedInches(inches: number): string {

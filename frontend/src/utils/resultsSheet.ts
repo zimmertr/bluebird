@@ -42,19 +42,24 @@ export const LEGEND_TOP_PX = 156
 export const LEGEND_TOP_FINE_PX = 92
 
 /**
- * What the legend stack needs to render with no scrolling: four layer rows in
- * one box plus the six-band colour key in a second, with the gap between them.
- * Measured in Chrome 2026-09-14 with every layer on, the forecast grid drawn
- * and a freezing-level ranking held: 94px of layer rows, the 8px gap, and
- * 163px of key. The same number at both widths, because the boxes are one
- * fixed width (`MAP_COL_W`) and a legend row is read rather than operated, so
- * no part of it takes the coarse-pointer target the buttons above it do.
+ * What the legend stack needs to render with no scrolling: ONE box holding the
+ * metric key and a section per layer that is on. Measured in Chrome 2026-09-17
+ * with every layer on, the forecast grid drawn and a freezing-level ranking
+ * held. The same number at both widths, because the box is one fixed width
+ * (`MAP_COL_W`) and a legend row is read rather than operated, so no part of it
+ * takes the coarse-pointer target the buttons above it do.
  *
- * It was 245 while the tallest key had five bands. The freezing level's key has
- * six (2026-09-14), which is the second time a band has joined — re-measure if
- * a layer row or a colour band joins again.
+ * It has been 245, then 265, then 313 as bands and layers joined — a six-band
+ * freezing-level key (2026-09-14) and then the snow depth overlay's own section
+ * (#446). #454 turned both the metric key and the snow key into two-line strips
+ * and merged the two boxes into one, which is where 117px of that went.
+ *
+ * **Re-measure when a SECTION joins, not when a band does.** A strip is two
+ * lines whatever its band count, so the six-band key that cost 20px here in
+ * September costs nothing now; what still moves this number is another layer,
+ * or a section growing a third line.
  */
-export const LEGEND_STACK_PX = 265
+export const LEGEND_STACK_PX = 196
 
 /** The gap the legend keeps below itself when no timeline is on (`bottom-8`). */
 export const LEGEND_GAP_PX = 32

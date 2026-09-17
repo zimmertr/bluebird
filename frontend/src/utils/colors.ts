@@ -1,5 +1,5 @@
 import { SortBy } from '../types'
-import { FAMILY_KEYS, MetricFamily } from '../metrics'
+import { FAMILY_KEYS, MetricFamily, NOUN, UNIT } from '../metrics'
 
 /**
  * A set of band boundaries and the colors they anchor.
@@ -22,13 +22,18 @@ export type ColorScale = {
 /**
  * A scale the map legend can key.
  *
- * Captions for the bands, not a name for the metric — that comes from
- * metrics.ts, which knows the analysis mode these thresholds do not. Every
- * legendable scale carries its own, because a caption that disagrees with its
- * threshold is a bug the numbers should catch rather than a wording choice made
- * in another file.
+ * The unit the band boundaries are quoted in, and nothing else: the legend
+ * prints the thresholds themselves (`scaleTicks` in `legendRamp.ts`), so there
+ * are no captions left to disagree with them. Six hand-written band captions
+ * lived here until #454 replaced the six-row key with one strip, and the reason
+ * they were here — a caption that disagrees with its threshold is a bug the
+ * numbers should catch — is now answered by deriving them.
+ *
+ * It is the SCALE's unit rather than the family's, because the two differ where
+ * it matters most: precipitation's window total is inches and its rate columns
+ * are inches per hour, which is the whole reason `PRECIP_RATE` exists.
  */
-export type LabelledScale = ColorScale & { legendLabels: string[] }
+export type LabelledScale = ColorScale & { unit: string }
 
 /**
  * The families whose numbers carry a color, which is every one of them.
@@ -53,10 +58,12 @@ export type ColoredFamily = MetricFamily
 // both sides and its green in the middle; the freezing level encodes a height
 // rather than a verdict; each says why on its own entry.
 //
-// Every scale has SIX bands, and that count is load-bearing rather than tidy:
-// the phone's results sheet rests high enough for the legend stack, and
-// `LEGEND_STACK_PX` in resultsSheet.ts is measured for a six-band key. A
-// seventh band anywhere is a re-measure there.
+// Every scale has SIX bands, and the count is what `scaleTicks` in
+// `legendRamp.ts` reads the map legend's three tick positions off — its
+// bottom, middle and top boundary. It no longer costs the phone's legend
+// stack anything: the key is a two-line strip whatever its band count since
+// #454, where a row per band made a seventh band a re-measure of
+// `LEGEND_STACK_PX` in resultsSheet.ts.
 //
 // Keyed by family rather than by ranking key (#291): a family's aggregates
 // share one scale (a windy hour is windy whether it was the average or the
@@ -76,14 +83,7 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
     // "in" rather than an inch mark (TJ, 2026-09-16): the column header, the
     // bound boxes and the rate scale below all spell the unit, and the legend
     // was the one surface that did not.
-    legendLabels: [
-      '≤ 0.01 in',
-      '0.01 – 0.10 in',
-      '0.10 – 0.25 in',
-      '0.25 – 0.50 in',
-      '0.50 – 1.00 in',
-      '> 1.00 in',
-    ],
+    unit: UNIT.precip,
   },
   // Purple above 50 mph (#445): red used to start at 35 and never stop, so a
   // 40 mph ridge and a 60 mph one were the same colour, and the difference
@@ -91,7 +91,7 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   wind: {
     thresholds: [5, 15, 25, 35, 50],
     colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444', '#a855f7'],
-    legendLabels: ['≤ 5 mph', '5 – 15 mph', '15 – 25 mph', '25 – 35 mph', '35 – 50 mph', '> 50 mph'],
+    unit: UNIT.wind,
   },
   // Cold to hot, with green in the MIDDLE rather than at the cold end. The
   // scale used to paint 30°F green, which called the rain-to-snow band the
@@ -117,7 +117,7 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   temp: {
     thresholds: [30, 45, 60, 75, 90],
     colors: ['#d8b4fe', '#38bdf8', '#67e8f9', '#22c55e', '#f97316', '#ef4444'],
-    legendLabels: ['≤ 30°F', '30 – 45°F', '45 – 60°F', '60 – 75°F', '75 – 90°F', '> 90°F'],
+    unit: UNIT.temp,
   },
   // Not green-to-red, because it is not a verdict.
   //
@@ -151,14 +151,7 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   freeze: {
     thresholds: [4000, 8000, 12000, 16000, 20000],
     colors: ['#d8b4fe', '#c4b5fd', '#a5b4fc', '#93c5fd', '#38bdf8', '#67e8f9'],
-    legendLabels: [
-      '≤ 4,000 ft',
-      '4,000 – 8,000 ft',
-      '8,000 – 12,000 ft',
-      '12,000 – 16,000 ft',
-      '16,000 – 20,000 ft',
-      '> 20,000 ft',
-    ],
+    unit: UNIT.freeze,
   },
   // All six US EPA AQI categories — Good / Moderate / Sensitive / Unhealthy /
   // Very Unhealthy / Hazardous — in the app's hues. The purple/maroon top
@@ -166,14 +159,10 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   aqi: {
     thresholds: [50, 100, 150, 200, 300],
     colors: ['#22c55e', '#eab308', '#f97316', '#ef4444', '#a855f7', '#991b1b'],
-    legendLabels: [
-      '≤ 50 AQI',
-      '50 – 100 AQI',
-      '100 – 150 AQI',
-      '150 – 200 AQI',
-      '200 – 300 AQI',
-      '> 300 AQI',
-    ],
+    // The one scale whose unit is its own NAME: the index is unitless, so
+    // `UNIT.aqi` is empty, and a strip whose last tick read a bare `300` would
+    // be the one key on the map that never says what it measures.
+    unit: NOUN.aqi,
   },
 }
 
@@ -207,14 +196,7 @@ const PRECIP_RATE: LabelledScale = {
   // of this scale existing, and the map legend shows one or the other with
   // nothing beside it to compare against — so the unit has to say which
   // reading it is on its own.
-  legendLabels: [
-    '≤ 0.01 in/hr',
-    '0.01 – 0.10 in/hr',
-    '0.10 – 0.30 in/hr',
-    '0.30 – 0.50 in/hr',
-    '0.50 – 1.00 in/hr',
-    '> 1.00 in/hr',
-  ],
+  unit: `${UNIT.precip}/hr`,
 }
 
 /**

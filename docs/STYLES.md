@@ -15,7 +15,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `TEXT.control` | Anything you read or type in a control |
 | `TEXT.caption` | Secondary text: taglines, descriptions, notes |
 | `TEXT.helper` | Italic prose explaining a control |
-| `TEXT.overline` | Tiny all-caps labels: legend metrics, search result kinds |
+| `TEXT.overline` | Tiny all-caps labels: popover headers, search result kinds |
 | `TEXT.micro` | Attribution, timestamps, overflow counts |
 | `PROSE.title` | Dialog heading |
 | `PROSE.subtitle` | Line under dialog heading |
@@ -36,9 +36,9 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | Role | Purpose |
 |---|---|
 | `SURFACE_CARD` | Opaque cards above a scrim: dialogs, analysis overlay |
-| `SURFACE_FLOATING` | Boxes floating over the map: search field, legends, chart tooltip, the forecast player's transport bar |
-| `RECESSED_FILL` / `RECESSED_EDGE` | The well every recessed surface composes: slate-900 fill and a slate-500 border, which clears 3:1 against the panel. Fields, selects, segments and the legends all start here |
-| `SURFACE_POPOVER` | A floating box that is a menu rather than a key: the map's Layers popover and the search result list, lifted off the legends by one step of fill and a heavier shadow |
+| `SURFACE_FLOATING` | Boxes floating over the map: search field, the legend, chart tooltip, the forecast player's transport bar |
+| `RECESSED_FILL` / `RECESSED_EDGE` | The well every recessed surface composes: slate-900 fill and a slate-500 border, which clears 3:1 against the panel. Fields, selects, segments and the legend all start here |
+| `SURFACE_POPOVER` | A floating box that is a menu rather than a key: the map's Layers popover and the search result list, lifted off the legend by one step of fill and a heavier shadow |
 | `SURFACE_SHEET` | The results on a phone, standing on the map's bottom edge: the docked panel's fill, the map's floating edge, the surface radius on the top corners only |
 | `SURFACE_GROUP` | Bordered region grouping controls: the calendar |
 | `SURFACE_GROUP_BLEED` | Cancels a well's inset so its contents sit on the panel's control column |
@@ -81,7 +81,8 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `SLIDER_OVERLAY` / `SLIDER_VALUE` / `SLIDER_WORDMARK` / `SLIDER_IDLE` | The coverage slider in the Layers popover: the transparent range input laid over the drawn track, the value readout at `CONTROL_SIZE`, the in-track wordmark at the same size in sentence case, and the idle tint |
 | `PANEL_EDGE` / `PANEL_RULE` | The panel's own border tint, and the rule between the panel's sections, drawn from the stack so a section added later cannot forget its line. `SURFACE_DIVIDER` above is the same quiet line where a call site has to place it by hand |
 | `BADGE_STEP` | The step-number badge in the welcome modal, derived from `ACCENT.fill` |
-| `SWATCH_CHIP` | A legend swatch that carries a letter: the smoke legend's three density chips, side by side so the opacity ramp reads against itself |
+| `SWATCH_CHIP` | A legend swatch that carries a letter: the smoke section's three density chips, side by side so the opacity ramp reads against itself |
+| `SWATCH_RAMP` / `SWATCH_EDGE` | A legend key that is a SCALE rather than one colour, drawn as a strip across the box: the five metric scales and the snow depth layer (#454). Two lines whatever the band count, where a row per band was seven lines and eleven. `SWATCH_EDGE` is the slate-600 every swatch is edged with, a VALUE rather than a class because the fill beside it is inline and two colour utilities resolve by stylesheet order |
 
 **Accent and intent**
 
@@ -130,7 +131,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `TAP.grip` | Full-width drag handle: 24px height (AA floor, not 44) |
 | `CONTROL_W` | Single stacked panel control width: 118px, which is 2 x `METRIC_BOX_W` plus the Metrics grid gap, so the whole panel stands on the bound boxes' edges |
 | `CHART_METRIC_W` | The chart's metric select, 144px (w-36). The one control that borrowed `CONTROL_W` from outside the panel and cannot follow it down: `Freezing level (ft)` is 99.3px |
-| `MAP_COL_W` | Width of everything in the map's left column but one: the search field, the Controls and Layers buttons, the Layers popover and both legends. 184px (w-46), governed within a pixel by two rows, the grid legend's wait line (176.8px) and the search field at rest (177.6px). The exception is the search RESULT list, deliberately wider (w-72/w-80): bound to the column it clipped the county and state that tell four places of one name apart |
+| `MAP_COL_W` | Width of everything in the map's left column but one: the search field, the Controls and Layers buttons, the Layers popover and the legend box. 184px (w-46), governed within a pixel by two rows, the grid legend's wait line (176.8px) and the search field at rest (177.6px). The exception is the search RESULT list, deliberately wider (w-72/w-80): bound to the column it clipped the county and state that tell four places of one name apart |
 | `MAP_ROW_H` | Height of one row in that column: 36px, floored at 44px on a finger. Fixed, because the search field and the two buttons each solved for their own height and came out 34, 38 and 38 |
 | `MAP_COL_GAP` | The gap between members of that column: 4px, half the 8px they took before. A role rather than four call sites, because `LEGEND_TOP`'s arithmetic is built from it. `MAP_COL_GAP_T` is the same gap as a top margin, for a popover that hangs rather than sits |
 | `LEGEND_TOP` | Where the legend stack hangs under that column, in four numbers: two pointer sizes, each with and without the Controls button, which stands in the column only while the panel is collapsed. `resultsSheet.ts` mirrors two of them as `LEGEND_TOP_PX` and `LEGEND_TOP_FINE_PX`, and `resultsSheet.test.ts` reads `styles.ts` as text to hold the pairs together |
@@ -228,6 +229,7 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | Every notice renders in one block below Analyze | `styles.test.ts` | A notice is a `NOTICE` role, only `FooterNotice` wears one, and it is rendered exactly once, after the button; the polygon draw counter is the one bare `STATUS` use, pinned by count |
 | A disabled control's reason has a hidden twin | `accessibility.test.ts` | Every `aria-describedby` in `App.tsx` matches a `SR_ONLY` element |
 | The Layers rows are alphabetical | `styles.test.ts` | The five row labels equal their own sorted order |
+| The legend is one box, sorted by what it reads | `styles.test.ts` | One `SURFACE_FLOATING` in the block, every section built by `legendSection`, and the list sorted on `label.localeCompare` — the metric key included, so a `Temperature` ranking sorts last and an `AQI` one first |
 | The map column is one width, gap, height and type size | `styles.test.ts` | `MAP_COL_W`, `MAP_COL_GAP`, `MAP_ROW_H` and `CONTROL_SIZE` composition at every member |
 | The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
 | No bottom offset is spelled in a component | `resultsSheet.test.ts` | Ban `bottom-*` in `App.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
@@ -475,7 +477,17 @@ band ramps a marker, a grid cell and the legend all read, are `METRIC_SCALE` in
 `frontend/src/utils/colors.ts`, one scale per metric family, the freezing level
 included since #295 was reversed (2026-09-14). That file is the one place
 outside `styles.ts` allowed to name a hue, because a band's colour is what the
-number means rather than what the surface is.
+number means rather than what the surface is. `snowDepth.ts` is the same
+exemption for the same reason: those bands are NOAA's, and the map draws NOAA's
+rendered image.
+
+Neither of them decides how a scale is DRAWN. That is `utils/legendRamp.ts`,
+which turns a band table into the legend's strip and its three tick numbers, and
+is shared by the metric key and the snow key so the map cannot carry two shapes
+of scale. It also decides whether a strip blends, and that follows the data:
+a metric marker is interpolated between anchors so its strip blends, where
+NOAA's bands are a classification so its strip is hard-stopped. The ticks are
+the thresholds themselves, formatted — never a caption written beside them.
 
 ### Model coverage message
 

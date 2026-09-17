@@ -80,6 +80,7 @@ import {
   SURFACE_POPOVER,
   SURFACE_SHEET,
   SWATCH_CHIP,
+  SWATCH_EDGE,
   SWATCH_RAMP,
   TAP,
   TEXT,
@@ -1336,18 +1337,19 @@ describe('shared recipes', () => {
   })
 
   // Everything in the map's left column is one width: the search field, its
-  // results, the Controls and Layers buttons, the Layers popover and the two
-  // legends. They shipped as 301, 184, 128, 128, 192 and 192, which read as a
+  // results, the Controls and Layers buttons, the Layers popover and the
+  // legend. They shipped as 301, 184, 128, 128, 192 and 192, which read as a
   // ragged edge rather than as a column, so the width is one role and every
   // member of the column wears it.
   it('gives every member of the map column one width', () => {
     expect(MAP_COL_W).toBe('w-46')
-    // Five in App.tsx — two legends, the popover, both buttons — and one in
-    // SearchBox, the field's wrapper. A width spelled beside the role could not
-    // even be relied on to win: two width utilities resolve by stylesheet order
-    // rather than by class order.
+    // Four in App.tsx — the legend, the popover, both buttons — and one in
+    // SearchBox, the field's wrapper. It was five while the legend was two
+    // boxes (#454). A width spelled beside the role could not even be relied on
+    // to win: two width utilities resolve by stylesheet order rather than by
+    // class order.
     const rides = (src: string) => src.match(/\$\{MAP_COL_W\}[^`]*/g) ?? []
-    expect(rides(appSource)).toHaveLength(5)
+    expect(rides(appSource)).toHaveLength(4)
     expect(rides(searchBoxSource)).toHaveLength(1)
     for (const ride of [...rides(appSource), ...rides(searchBoxSource)]) {
       expect(ride).not.toMatch(/(^|\s)w-\S+/)
@@ -1494,11 +1496,13 @@ describe('shared recipes', () => {
   // The results bar's five links — Columns, Models, Removed, Download CSV, and
   // the Open-Meteo credit beside them — are controls the reader presses, so they
   // read at the size every other control in the app reads at. The micro step
-  // below is for text that is present but never first, and a 10px button in a
-  // bar of 12px text read as a footnote rather than as a control.
+  // is for text that is present but never first, and a 10px button in a bar of
+  // 12px text read as a footnote rather than as a control.
   it('reads the results bar at the size of every other control', () => {
     expect((appSource.match(/\$\{TEXT\.control\} \$\{LINK\}/g) ?? []).length).toBe(5)
-    expect(appSource).not.toMatch(/\$\{TEXT\.micro\}/)
+    // The one micro step in this file is the legend strip's tick row (#454),
+    // which is a scale's numbers rather than anything pressable.
+    expect((appSource.match(/\$\{TEXT\.micro\}/g) ?? []).length).toBe(1)
   })
 
   // The map's Open-Meteo credit is a link *and* a 10px caption, so it wears
@@ -2062,67 +2066,89 @@ describe('the map layer rows', () => {
   })
 })
 
-// The map's layer legend: the same list as the popover above it, so the same
-// order. A reader who has just found a row in one looks for it in the same
-// place in the other.
+// The map's one legend box (#454): the metric key and a section per layer that
+// is on, all in one alphabetical list.
 describe('the map legend sections', () => {
-  // Scoped to the one box that gains and loses sections as layers toggle. The
-  // metric colour key below it is no part of this: it is not a layer, it
-  // explains the marker colours, and those exist with every layer off.
+  // The whole box, metric key included — it is one box now, where the key used
+  // to be a second one below the layer rows.
   const box = (() => {
-    const from = appSource.indexOf('One entry per layer:')
-    const to = appSource.indexOf('{markerScale !== null &&')
+    const from = appSource.indexOf('ONE box, gaining and losing sections')
+    const to = appSource.indexOf('Top-left map cluster')
     return from >= 0 && to > from ? appSource.slice(from, to) : ''
   })()
 
-  // Each section by the text it renders, under the name the Layers popover
-  // gives its layer, in the order the sections must appear. The rendered text
-  // says who the DATA came from rather than what the layer is called, which is
-  // why the order is the layer's own name and not the credit line's first
-  // word: "Active wildfire (NIFC)" is the Wildfires row's key and sorts last
-  // with it, not first under A.
-  const SECTIONS: [string, string][] = [
-    ['Forecast grid', '{gridLegend.label}'],
-    ['Rain radar', 'Rain radar ('],
-    ['Smoke', 'Smoke ('],
-    ['Snow depth', 'Snow depth ('],
-    ['Wildfires', 'Active wildfire ('],
+  // Every section's label as the box RENDERS it. The metric key's is the ranked
+  // metric's noun, which changes under the reader, so it is the one that cannot
+  // be listed here.
+  const LAYER_LABELS = [
+    "label: 'Active wildfire'",
+    'label: gridLegend.label',
+    "label: 'Rain radar'",
+    "label: 'Smoke'",
+    "label: 'Snow depth'",
   ]
 
   it('found every section', () => {
     expect(box).not.toBe('')
-    for (const [label, mark] of SECTIONS) {
-      expect(box.split(mark).length - 1, `${label} section`).toBe(1)
+    for (const mark of LAYER_LABELS) {
+      expect(box.split(mark).length - 1, mark).toBe(1)
     }
+    expect(box).toContain('label: NOUN[familyOf(view.sortBy)]')
   })
 
-  // Alphabetical, for the reason the popover's own rows are: nothing ranks
-  // these five against each other, so any other order is one the reader has to
-  // learn — and learning it twice, once per surface, is worse still.
-  it('reads in alphabetical order, the way the Layers popover does', () => {
-    const labels = SECTIONS.map(([label]) => label)
-    expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)))
-    const at = SECTIONS.map(([, mark]) => box.indexOf(mark))
-    expect(at).toEqual([...at].sort((a, b) => a - b))
+  // Alphabetical by the label a section reads, the metric key included (TJ,
+  // 2026-09-17). Nothing ranks these against each other, so any other order is
+  // one the reader has to learn. It is SORTED rather than written in order,
+  // because one of the labels is the ranked metric's: `Temperature` sorts last
+  // and `AQI` first, and no source order can be both.
+  it('sorts every section by the label it reads', () => {
+    expect(box).toContain('.sort((a, b) => a.label.localeCompare(b.label))')
+  })
+
+  // One box, not two: the second cost a border, a gap and a backdrop on a map
+  // that can be 161px tall.
+  it('draws them all in one floating box', () => {
+    expect((box.match(/\$\{SURFACE_FLOATING\}/g) ?? []).length).toBe(1)
+  })
+
+  // Every section, a chip row or a scale alike, is built by one function —
+  // which is what lets them be sorted at all, and what stopped the snow key
+  // being the odd one out.
+  it('builds every section from the one recipe', () => {
+    expect((box.match(/legendSection\(section\)/g) ?? []).length).toBe(1)
+    expect((box.match(/\bramp: \{/g) ?? []).length).toBe(2)
+    expect((appSource.match(/className=\{SWATCH_RAMP\}/g) ?? []).length).toBe(1)
   })
 })
 
-// The snow depth overlay's legend key (#446): the one key in the stack that is
-// a scale rather than a single value.
-describe('the snow legend ramp', () => {
+// The legend's scale key (#446, generalized in #454): the shape every banded
+// scale on the map wears, where a single-value layer keys on a chip.
+describe('the legend ramp', () => {
   it('spans the box where a single-value key is a chip', () => {
-    // Eleven bands cannot be said by the 14px square the other four layers key
-    // on, and eleven of those squares in a 184px box are unreadable. The strip
-    // takes the width instead and the numbers go under it.
+    // Eleven bands of snow cannot be said by the 14px square the other layers
+    // key on, and eleven of those squares in a 184px box are unreadable; six
+    // bands of a metric fit in six rows and cost seven lines of a map that can
+    // be 161px tall. The strip takes the width instead and the numbers go
+    // under it, in two lines whatever the band count.
     expect(SWATCH_RAMP).toMatch(/\bw-full\b/)
     expect(SWATCH_CHIP).not.toMatch(/\bw-full\b/)
   })
 
-  it('names no colour of its own', () => {
-    // The map draws NOAA's rendered image, so the key's colours are NOAA's and
-    // arrive from `snowDepth.ts` at the call site. A fill spelled here would be
-    // a second opinion about what the picture already shows.
-    expect(SWATCH_RAMP).not.toMatch(/-(?:slate|sky|blue|cyan|purple|red)-\d{2,3}/)
+  it('names no fill of its own', () => {
+    // A band's colour is what the number means: NOAA's for the snow image the
+    // map draws, `colors.ts`' for a marker. Either way it arrives at the call
+    // site, and a fill spelled here would be a second opinion about a picture
+    // already on the map.
+    expect(SWATCH_RAMP).not.toMatch(/\bbg-/)
+    expect(SWATCH_RAMP).not.toMatch(/-(?:sky|blue|cyan|purple|red)-\d{2,3}/)
+  })
+
+  // The border is the app's own, so it is a role rather than a hex at four
+  // call sites — and a VALUE rather than a class, because the fill beside it is
+  // inline and two colour utilities resolve by stylesheet order.
+  it('edges every swatch from one place', () => {
+    expect(SWATCH_EDGE).toBe('#475569')
+    expect(appSource).not.toContain("'#475569'")
   })
 
   it('is what the legend wears, rather than a strip spelled at the call site', () => {

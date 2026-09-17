@@ -41,6 +41,15 @@ const NIFC_EXPLORE_URL =
   'https://data-nifc.opendata.arcgis.com/datasets/nifc::wfigs-current-interagency-fire-perimeters/explore'
 
 /**
+ * Where the layer's own credit points: NIFC's open-data home rather than the
+ * per-incident deep link above, because a legend credits the SOURCE where a
+ * popup links the fire. Beside the other three overlays' hrefs in their own
+ * modules (`IEM_HREF`, `HMS_HREF`, `NOHRSC_HREF`), so the legend reads every
+ * credit from the module that owns the data (#454).
+ */
+export const NIFC_HREF = 'https://data-nifc.opendata.arcgis.com/'
+
+/**
  * How close the NIFC map opens on a fire linked from a surface that has no map
  * of its own to ask. A clicked fire on Bluebird's own map passes the reader's
  * current zoom instead; a table cell and a marker popup have none, so they
