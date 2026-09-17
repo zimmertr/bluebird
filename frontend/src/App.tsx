@@ -16,6 +16,7 @@ import ResultsTable from './components/ResultsTable'
 import ColumnsPicker from './components/ColumnsPicker'
 import ModelsPicker from './components/ModelsPicker'
 import RemovedPicker from './components/RemovedPicker'
+import ResizeGrip from './components/ResizeGrip'
 import WelcomeModal from './components/WelcomeModal'
 import PreviewBanner from './components/PreviewBanner'
 import TimelineTransport from './components/TimelineTransport'
@@ -41,7 +42,6 @@ import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import {
-  CustomDestination,
   DestinationResult,
   DiscoveryType,
   GeoPolygon,
@@ -65,6 +65,7 @@ import {
   CHOICE_INPUT,
   CHOICE_ROW,
   BUTTON_SECONDARY,
+  DISABLED,
   FOCUS_RING,
   ICON_ACTION,
   ICON_BUTTON,
@@ -105,7 +106,6 @@ import {
 } from './styles'
 import {
   DEFAULT_FAMILY_KEY,
-  FAMILY_KEYS,
   MetricFamily,
   NOUN,
   familyOf,
@@ -144,13 +144,29 @@ import {
 } from './utils/timeline'
 import {
   Constraints,
+  DiscoveryRecord,
   NO_CONSTRAINTS,
   constraintFields,
+  discoveryBase,
+  isDiscoveryRefresh,
   refreshEchoRows,
 } from './utils/clientAnalyze'
 import { parseCustomCsv } from './utils/customDestinations'
-import { buildCustomList, pendingDestinations, pinKey } from './utils/customList'
-import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
+import {
+  buildCustomList,
+  pendingAsResult,
+  pendingDestinations,
+  pinKey,
+} from './utils/customList'
+import { bboxAreaKm2, ringToPts } from './utils/drawGeometry'
+import {
+  bothFits,
+  clampPanelHeight,
+  panelOf,
+  resolvePanelHeights,
+  resolveResultsMode,
+  splitChartTable,
+} from './utils/layout'
 import {
   dockedMapFloorPx,
   draggedMapFloorPx,
@@ -211,6 +227,13 @@ import {
   visibleColumns,
   withModelColumn,
 } from './utils/tableColumns'
+import {
+  ResultsMode,
+  hasWelcomed,
+  readViewPrefs,
+  setWelcomed,
+  writeViewPrefs,
+} from './utils/viewPrefs'
 import { NAME_DEFAULT_PX } from './utils/columnResize'
 import { compareValues } from './utils/sortResults'
 import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
@@ -301,13 +324,6 @@ const DEFAULT_PANEL_HEIGHT = 220
 const DEFAULT_CHART_HEIGHT = DEFAULT_PANEL_HEIGHT
 const DEFAULT_TABLE_HEIGHT = DEFAULT_PANEL_HEIGHT
 
-// How close two presses must be to count as a double-click. The browser's own
-// dblclick never arrives on these grips: the resize begins on pointerdown and
-// preventDefault plus the drag overlay stop the pair of clicks ever resolving,
-// so the gesture is recognised here instead. 350ms is a shade over the usual
-// system threshold, which is the right way to miss.
-const DOUBLE_PRESS_MS = 350
-
 // Live viewport height, so the chart/table panel heights can be re-clamped when
 // the window resizes or a phone rotates — otherwise a stale height could let the
 // panels crowd the map below its floor after a resize.
@@ -331,14 +347,11 @@ export default function App() {
   const modelsButtonRef = useRef<HTMLButtonElement>(null)
   const removedButtonRef = useRef<HTMLButtonElement>(null)
 
-  // The discovery inputs behind the results currently on screen: `base` covers
-  // the user-authored inputs (polygon + types + unnamed peaks + CSV rows) and
-  // `searchedKeys` the searched places that competed. An Analyze
-  // whose base matches and whose searched list only SHRANK (row removals) skips
-  // Overpass and just refreshes the surviving rows' weather; a NEW searched
-  // place — which must compete against the full candidate field the refresh
-  // echo doesn't have — or any base change forces a fresh discovery.
-  const discoveryRef = useRef<{ base: string; searchedKeys: string[] } | null>(null)
+  // The discovery inputs behind the results currently on screen, as
+  // `isDiscoveryRefresh` reads them: `base` covers the user-authored inputs
+  // (polygon + types + unnamed peaks + CSV rows) and `searchedKeys` the
+  // searched places that competed.
+  const discoveryRef = useRef<DiscoveryRecord | null>(null)
   // Remembers each row's real identity (type + osm_id) by coordinate — from
   // discovered rows (which carry an osm_id) and from searched places (whose
   // geocoding knew their kind and OSM id). Rows echoed through the custom path
@@ -401,11 +414,18 @@ export default function App() {
   // be clickable at all (#119).
   const [drawing, setDrawing] = useState(false)
   // A restored polygon seeds the count so Analyze unlocks before the map loads
-  // (MapView re-emits the authoritative count+area once its points hydrate).
+  // (MapView re-emits the authoritative count once its points hydrate).
   const [drawPointCount, setDrawPointCount] = useState(
     () => Math.max(0, (restored?.polygon?.coordinates[0]?.length ?? 1) - 1),
   )
-  const [polygonAreaKm2, setPolygonAreaKm2] = useState<number | null>(null)
+  // Read off the ring rather than reported by the map, because the map can only
+  // report an area once it has loaded: a ring restored from a link printed its
+  // point count beside a blank area line until the reader edited it (#429). A
+  // derived value cannot lag the ring it describes.
+  const polygonAreaKm2 = useMemo(
+    () => (polygon ? bboxAreaKm2(ringToPts(polygon)) : null),
+    [polygon],
+  )
   // Which kinds the polygon looks for, as a set — several are found in one
   // Overpass query. Nothing is checked by default: discovery is the input
   // that needs a polygon and costs an upstream query, so a fresh session
@@ -661,54 +681,33 @@ export default function App() {
   // then beat the desktop widening forever. The stale `mode` field from that
   // code is deliberately ignored for the same reason — nothing in it says
   // whether the user ever actually chose.
-  type ResultsMode = 'chart' | 'table' | 'both'
-  const modeChosenRef = useRef(false)
-  const [resultsMode, setResultsMode] = useState<ResultsMode>(() => {
-    if (typeof localStorage === 'undefined') return 'table'
-    try {
-      const stored = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
-      if (stored.modeChosen === 'chart' || stored.modeChosen === 'table' || stored.modeChosen === 'both') {
-        modeChosenRef.current = true
-        return stored.modeChosen
-      }
-    } catch {
-      // Ignore localStorage errors (SSR, quota, etc.)
-    }
-    return 'table'
-  })
+  //
+  // Every preference below comes out of one read, held for the mount: four
+  // initializers each parsing the same stored string is what `viewPrefs.ts`
+  // exists to stop.
+  const storedView = useMemo(readViewPrefs, [])
+  const modeChosenRef = useRef(storedView.modeChosen !== null)
+  // What the reader asked for, which is not always what a short viewport can
+  // draw: `resultsMode` below is this answer resolved against the room there is
+  // (#430). The preference is what persists, so the fallback costs no setting.
+  const [modePref, setModePref] = useState<ResultsMode>(() => storedView.modeChosen ?? 'table')
+  // The panel that fallback lands on. Held rather than derived because a stored
+  // Both cannot say which of the two the reader would keep, and a ref rather
+  // than state because nothing draws it: every render that reads it is one a
+  // press or a resize already caused.
+  const lastPanelRef = useRef(panelOf(storedView.modeChosen))
   // An intentional press on the segment: sticks for the session and persists.
   function chooseResultsMode(mode: ResultsMode) {
     modeChosenRef.current = true
-    setResultsMode(mode)
-    try {
-      const current = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
-      localStorage.setItem('bluebird_forecast_view', JSON.stringify({ ...current, modeChosen: mode }))
-    } catch {
-      // Ignore localStorage errors (SSR, quota, etc.)
-    }
+    lastPanelRef.current = panelOf(mode) ?? lastPanelRef.current
+    setModePref(mode)
+    writeViewPrefs({ modeChosen: mode })
   }
   // Which columns the table displays (null = use default narrowed set, Set = user choice).
   // The CSV export always gets the full displayedColumns set regardless.
-  const [columnVisibility, setColumnVisibility] = useState<Set<string> | null>(() => {
-    if (typeof localStorage === 'undefined') return null
-    try {
-      const stored = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
-      // One key per generation of the column set, because a stored set cannot
-      // otherwise be told apart from a deliberate choice to hide the newest
-      // column: `columns` predates the wildfire column joining the picker
-      // (#288) and `columns2` predates the freezing level (#295), so reading
-      // either verbatim would hide a new column from everyone who has ever
-      // touched the picker. Each migrates with the new keys added, which is
-      // what those users were already seeing.
-      if (stored.columns3) return new Set(stored.columns3)
-      if (stored.columns2) return new Set([...stored.columns2, ...FAMILY_KEYS.freeze])
-      if (stored.columns)
-        return new Set([...stored.columns, WILDFIRE_KEY, ...FAMILY_KEYS.freeze])
-    } catch {
-      // Ignore localStorage errors
-    }
-    return null
-  })
+  const [columnVisibility, setColumnVisibility] = useState<Set<string> | null>(
+    () => storedView.columns,
+  )
   // The Model column's own switch, which is three-valued rather than two.
   //
   // It is in the Columns picker like every other column (TJ, 2026-09-14), but
@@ -719,15 +718,7 @@ export default function App() {
   // count does. Folding it into `columnVisibility` instead would freeze the
   // default the first time the reader touched ANY column, and a later
   // comparison would then come up without the column that explains it.
-  const [modelColumn, setModelColumn] = useState<boolean | null>(() => {
-    if (typeof localStorage === 'undefined') return null
-    try {
-      const stored = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
-      return typeof stored.modelColumn === 'boolean' ? stored.modelColumn : null
-    } catch {
-      return null
-    }
-  })
+  const [modelColumn, setModelColumn] = useState<boolean | null>(() => storedView.modelColumn)
 
   // The order the reader dragged the columns into, or null for the automatic
   // one (#360). A list of keys rather than positions, so a column the list
@@ -738,36 +729,16 @@ export default function App() {
   // pulls the ranked metric group to the front, and the maintainer chose to let
   // it win rather than have a stored order suppress the one thing the ranking
   // does to the columns.
-  const [columnOrder, setColumnOrder] = useState<readonly string[] | null>(() => {
-    if (typeof localStorage === 'undefined') return null
-    try {
-      const stored = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
-      return Array.isArray(stored.columnOrder) ? stored.columnOrder : null
-    } catch {
-      return null
-    }
-  })
+  const [columnOrder, setColumnOrder] = useState<readonly string[] | null>(
+    () => storedView.columnOrder,
+  )
 
-  // Persist column visibility to localStorage when it changes.
+  // Persist the table's shape whenever it changes. One write for all three:
+  // they are read back together, and `writeViewPrefs` drops a null rather than
+  // storing one, so "the reader has not answered" survives a reload as the
+  // absence it is and the report still decides.
   useEffect(() => {
-    try {
-      const current = JSON.parse(localStorage.getItem('bluebird_forecast_view') ?? '{}')
-      delete current.columns
-      delete current.columns2
-      localStorage.setItem(
-        'bluebird_forecast_view',
-        JSON.stringify({
-          ...current,
-          columns3: columnVisibility ? [...columnVisibility] : undefined,
-          // Absent rather than null while the reader has not answered, so the
-          // count still decides after a reload.
-          modelColumn: modelColumn ?? undefined,
-          columnOrder: columnOrder ?? undefined,
-        }),
-      )
-    } catch {
-      // Ignore localStorage errors (SSR, quota, etc.)
-    }
+    writeViewPrefs({ columns: columnVisibility, modelColumn, columnOrder })
   }, [columnVisibility, modelColumn, columnOrder])
   // Column picker popover open/closed
   const [columnsOpen, setColumnsOpen] = useState(false)
@@ -804,17 +775,7 @@ export default function App() {
   // on any map too short for them. A double press on a grip means "put it back",
   // so it returns the resting height with the rest of the default.
   const [heightsChosen, setHeightsChosen] = useState(false)
-  // When each grip was last pressed, keyed by which one. A double press resets
-  // that grip's own panel — the chart resizer restores the chart, the table
-  // resizer the table — rather than both, since a drag only ever moved one.
-  const lastGripPressRef = useRef<Record<string, number>>({})
-
-  function isDoublePress(grip: string, at: number): boolean {
-    const previous = lastGripPressRef.current[grip] ?? 0
-    lastGripPressRef.current[grip] = at
-    return at - previous < DOUBLE_PRESS_MS
-  }
-  const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('bluebird_forecast_welcomed'))
+  const [showWelcome, setShowWelcome] = useState(() => !hasWelcomed())
   // The controls panel is docked on desktop and an off-canvas drawer on phones.
   // It starts open on both; a close button collapses it to widen the map.
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -830,33 +791,8 @@ export default function App() {
   const playerShown = showPlayer ?? isDesktop
 
   function dismissWelcome() {
-    localStorage.setItem('bluebird_forecast_welcomed', '1')
+    setWelcomed()
     setShowWelcome(false)
-  }
-
-  // Pointer-driven vertical resize, shared by mouse and touch (Pointer Events)
-  // and by both breakpoints. `onDrag` receives the drag distance with up
-  // positive; the handles below feed it the map│chart or chart│table geometry.
-  function beginResize(e: React.PointerEvent, onDrag: (dragUpPx: number) => void) {
-    e.preventDefault()
-    const startY = e.clientY
-    setIsDragging(true)
-    setHeightsChosen(true)
-
-    function onMove(ev: PointerEvent) {
-      onDrag(startY - ev.clientY)
-    }
-
-    function onUp() {
-      setIsDragging(false)
-      document.removeEventListener('pointermove', onMove)
-      document.removeEventListener('pointerup', onUp)
-      document.removeEventListener('pointercancel', onUp)
-    }
-
-    document.addEventListener('pointermove', onMove)
-    document.addEventListener('pointerup', onUp)
-    document.addEventListener('pointercancel', onUp)
   }
 
   const {
@@ -1171,15 +1107,14 @@ export default function App() {
   const windowWarning =
     selection.kind === 'now' || windowStatus === 'ok' ? null : windowStatus
 
-  const handleDrawUpdate = useCallback((count: number, areaKm2: number | null) => {
+  const handleDrawUpdate = useCallback((count: number) => {
     setDrawPointCount(count)
-    setPolygonAreaKm2(areaKm2)
   }, [])
 
   function handleCancelDrawing() {
     mapRef.current?.cancelDrawing()
     setDrawing(false)
-    // cancelDrawing fires onDrawUpdate(0, null) to reset counts
+    // cancelDrawing fires onDrawUpdate(0) to reset the count
   }
 
   // Enter and Escape both leave draw mode. Neither discards anything: every
@@ -1205,26 +1140,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [drawing, drawPointCount])
 
-
-  // The user-authored discovery inputs as a stable string. Everything that
-  // changes which destinations are FOUND belongs here — the CSV as parsed rows
-  // (a comment or whitespace edit doesn't needlessly bust the refresh) but NOT
-  // the searched places, which are compared separately so removals stay
-  // refresh-eligible.
-  //
-  // Nothing that only re-presents the held field belongs here. Ranking, the
-  // cap and every bound are read off rows the browser already holds (#188), so
-  // none of them reaches this function and none of them re-buys a discovery.
-  function discoveryBase(poly: GeoPolygon | null, csvRows: CustomDestination[]): string {
-    return JSON.stringify({
-      ring: poly?.coordinates[0] ?? null,
-      // Sorted so checking peaks then lakes and lakes then peaks are the
-      // same discovery, matching the order-independent cache key upstream.
-      types: [...destinationTypes].sort(),
-      unnamed: includeUnnamedPeaks,
-      csv: csvRows,
-    })
-  }
 
   async function handleAnalyze() {
     // Analyzing is the end of drawing. Leaving the mode on would put the map
@@ -1290,16 +1205,19 @@ export default function App() {
     // displayed report the refresh echoes. Any base change or NEW searched
     // place (which must compete against the full candidate field) falls
     // through to a fresh discovery.
-    const base = discoveryBase(resolvedPolygon, csvRows)
+    const base = discoveryBase(resolvedPolygon, csvRows, destinationTypes, includeUnnamedPeaks)
     const searchedKeys = searched.places.map((p) => pinKey(p.lat, p.lon))
-    const prev = discoveryRef.current
+    // The polygon guard stays here rather than inside the predicate: a run with
+    // no ring is not a polygon discovery at all, whatever the recorded inputs
+    // say.
     const isRefresh =
       resolvedPolygon !== null &&
-      response !== null &&
-      response.results.length > 0 &&
-      prev !== null &&
-      prev.base === base &&
-      searchedKeys.every((k) => prev.searchedKeys.includes(k))
+      isDiscoveryRefresh(
+        discoveryRef.current,
+        base,
+        searchedKeys,
+        response !== null && response.results.length > 0,
+      )
 
     const willRank = resolvedPolygon !== null || custom.length > 0
 
@@ -1971,16 +1889,7 @@ export default function App() {
         // The table draws pending (un-analyzed) rows above the ranked ones, so
         // the file carries them too — identity columns filled, Rank and every
         // metric blank. Before the first analysis this is the whole file.
-        pendingRows: pending.map(
-          (d) =>
-            ({
-              name: d.name,
-              type: d.kind ?? 'custom',
-              elevation_ft: d.elevation_ft ?? null,
-              latitude: d.latitude,
-              longitude: d.longitude,
-            }) as DestinationResult,
-        ),
+        pendingRows: pending.map(pendingAsResult),
         fireUncovered: fire.uncovered,
         modelLabel: analysisModelLabel,
       },
@@ -2010,16 +1919,7 @@ export default function App() {
     const have = new Set(results.map((r) => pinKey(r.latitude, r.longitude)))
     const extras = pending
       .filter((d) => !have.has(pinKey(d.latitude, d.longitude)))
-      .map(
-        (d) =>
-          ({
-            name: d.name,
-            type: d.kind ?? 'custom',
-            elevation_ft: d.elevation_ft ?? null,
-            latitude: d.latitude,
-            longitude: d.longitude,
-          }) as DestinationResult,
-      )
+      .map(pendingAsResult)
     return [...results, ...extras]
   }, [results, pending])
   const chart = useChartSelection(chartCandidates, view.sortBy)
@@ -2310,7 +2210,7 @@ export default function App() {
   useEffect(() => {
     if (response === null || modeChosenRef.current) return
     if (!window.matchMedia('(min-width: 1024px)').matches) return
-    setResultsMode('both')
+    setModePref('both')
   }, [response, analysisSeq])
 
   // Space below the map that a resize must leave alone: the preview banner (when
@@ -2323,6 +2223,18 @@ export default function App() {
   // the map always keeps its floor. Drives both breakpoints — mobile is resizable
   // too, so it can no longer rely on Tailwind's fixed panel heights.
   const viewportH = useViewportHeight()
+  // Whether Both is on offer at all: under two panel floors plus the map's own,
+  // the pair can only be drawn pinned with both grips inert, so the segment
+  // disables it and the sheet draws one panel instead (#430).
+  //
+  // The floor is Both mode's, spelled rather than read off `gripCount` below,
+  // which is derived from the mode this answer decides. A desktop passes
+  // nothing: the results are docked there and the drag keeps the plain map
+  // floor `clampPanelHeight` defaults to.
+  const bothHasRoom = bothFits(viewportH - bannerPx, {
+    mapMinPx: isDesktop ? undefined : draggedMapFloorPx(2),
+  })
+  const resultsMode = resolveResultsMode(modePref, lastPanelRef.current, bothHasRoom)
   // Which panels are visible: the mode and the collapse chevron alone decide.
   // Deliberately NOT gated on having data — a mode with nothing to draw shows
   // its empty panel (the chart with no analysis renders bare axes), because a
@@ -2363,6 +2275,10 @@ export default function App() {
       mapMinPx: mapFloorPx,
     },
   )
+  // What the map│chart grip may not drag the chart over. The table's height
+  // counts only while the table is rendered, which is the one thing that
+  // differs between Both and chart-only mode.
+  const chartReservedPx = (resultsMode === 'both' ? tablePanelPx : 0) + bannerPx
   // The results' real height, which is what the map's bottom chrome rides.
   //
   // Two paths, because the height moves for two different kinds of reason.
@@ -3205,9 +3121,14 @@ export default function App() {
                         <span className="hidden sm:inline">Chart</span>
                       </button>
                       <div className={SEGMENT_DIVIDER} />
+                      {/* Disabled rather than removed where the viewport
+                          cannot hold two panels (#430): a member that comes
+                          and goes moves the two beside it and has to be found
+                          again, which is the same call Clear filters made. */}
                       <button
                         onClick={() => chooseResultsMode('both')}
-                        className={`${SEGMENT_ITEM} ${resultsMode === 'both' ? ACCENT.fill : SEGMENT_IDLE}`}
+                        disabled={!bothHasRoom}
+                        className={`${SEGMENT_ITEM} ${DISABLED} ${resultsMode === 'both' ? ACCENT.fill : SEGMENT_IDLE}`}
                         aria-pressed={resultsMode === 'both'}
                         aria-label="Show chart and table"
                       >
@@ -3302,34 +3223,32 @@ export default function App() {
                         panel shown by itself is still resizable against the
                         map (#242 review). Only the reserved space differs —
                         the table's height counts only while it is rendered. */}
-                    <div
-                      onPointerDown={(e) => {
-                        if (isDoublePress('chart', e.timeStamp)) {
-                          if (resultsMode === 'both') setTableHeight(tablePanelPx)
-                          setChartHeight(DEFAULT_CHART_HEIGHT)
-                          // "Put it back" includes the resting height a phone
-                          // sheet opens at, which a drag had handed over.
-                          setHeightsChosen(false)
-                          return
-                        }
-                        const reserved = (resultsMode === 'both' ? tablePanelPx : 0) + bannerPx
+                    <ResizeGrip
+                      onReset={() => {
                         if (resultsMode === 'both') setTableHeight(tablePanelPx)
-                        beginResize(e, (up) =>
-                          setChartHeight(
-                            clampPanelHeight(
-                              chartPanelPx,
-                              up,
-                              reserved,
-                              window.innerHeight,
-                              dragFloorPx,
-                            ),
+                        setChartHeight(DEFAULT_CHART_HEIGHT)
+                        // "Put it back" includes the resting height a phone
+                        // sheet opens at, which a drag had handed over.
+                        setHeightsChosen(false)
+                      }}
+                      onDragStart={() => {
+                        setIsDragging(true)
+                        setHeightsChosen(true)
+                        if (resultsMode === 'both') setTableHeight(tablePanelPx)
+                      }}
+                      onDrag={(up) =>
+                        setChartHeight(
+                          clampPanelHeight(
+                            chartPanelPx,
+                            up,
+                            chartReservedPx,
+                            window.innerHeight,
+                            dragFloorPx,
                           ),
                         )
-                      }}
-                      className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
-                    >
-                      <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
-                    </div>
+                      }
+                      onDragEnd={() => setIsDragging(false)}
+                    />
                     <div
                       className="flex min-h-0 flex-shrink-0 flex-col"
                       style={{ height: `${chartPanelPx}px` }}
@@ -3418,38 +3337,35 @@ export default function App() {
                         preserves the pair's sum; alone, there is no chart to
                         trade with, so it resizes the table against the map
                         exactly as the chart grip above does. */}
-                    <div
-                      onPointerDown={(e) => {
-                        if (isDoublePress('table', e.timeStamp)) {
-                          if (resultsMode === 'both') setChartHeight(chartPanelPx)
-                          setTableHeight(DEFAULT_TABLE_HEIGHT)
-                          setHeightsChosen(false)
+                    <ResizeGrip
+                      onReset={() => {
+                        if (resultsMode === 'both') setChartHeight(chartPanelPx)
+                        setTableHeight(DEFAULT_TABLE_HEIGHT)
+                        setHeightsChosen(false)
+                      }}
+                      onDragStart={() => {
+                        setIsDragging(true)
+                        setHeightsChosen(true)
+                      }}
+                      onDrag={(up) => {
+                        if (resultsMode === 'both') {
+                          const next = splitChartTable(chartPanelPx, tablePanelPx, up)
+                          setChartHeight(next.chart)
+                          setTableHeight(next.table)
                           return
                         }
-                        if (resultsMode === 'both') {
-                          beginResize(e, (up) => {
-                            const next = splitChartTable(chartPanelPx, tablePanelPx, up)
-                            setChartHeight(next.chart)
-                            setTableHeight(next.table)
-                          })
-                        } else {
-                          beginResize(e, (up) =>
-                            setTableHeight(
-                              clampPanelHeight(
-                                tablePanelPx,
-                                up,
-                                bannerPx,
-                                window.innerHeight,
-                                dragFloorPx,
-                              ),
-                            ),
-                          )
-                        }
+                        setTableHeight(
+                          clampPanelHeight(
+                            tablePanelPx,
+                            up,
+                            bannerPx,
+                            window.innerHeight,
+                            dragFloorPx,
+                          ),
+                        )
                       }}
-                      className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
-                    >
-                      <div className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`} />
-                    </div>
+                      onDragEnd={() => setIsDragging(false)}
+                    />
                     <div className="@container overflow-auto min-h-0 results-scrollbars flex-shrink-0" style={{ height: `${tablePanelPx}px` }}>
                       <ResultsTable
                         emptyReason={emptyReason}

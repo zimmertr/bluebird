@@ -1,9 +1,11 @@
 /**
- * Whether the camera already shows something, so a framing move can be skipped.
+ * The two decisions behind a framing move: whether to make one at all, and how
+ * much of the container the camera has to leave empty.
  *
  * Split out of `MapView` because that component has no test at all: Vitest runs
- * with no DOM here and MapLibre needs a canvas, so the only way this predicate
- * gets covered is by taking the projection as input rather than doing it.
+ * with no DOM here and MapLibre needs a canvas, so the only way either gets
+ * covered is by taking the projection and the measurements as input rather than
+ * reading them off a map.
  */
 
 /**
@@ -38,4 +40,22 @@ export function pointsWithinView(
   return points.every(
     (p) => p.x >= padX && p.x <= width - padX && p.y >= padY && p.y <= height - padY,
   )
+}
+
+/**
+ * A framing call's inset, with the results sheet's share of the bottom edge
+ * added to it (#249).
+ *
+ * Every `fitBounds` in `MapView` takes the object form, which MapLibre bakes
+ * into the computed centre and zoom and then drops — so the padding never
+ * becomes camera state that a later fit would count twice.
+ *
+ * The sheet stands on the container's bottom edge and the camera frames into
+ * the whole container, so the lift is added to that one edge and to no other.
+ */
+export function framePadding(
+  inset: number,
+  bottomPx: number,
+): { top: number; right: number; bottom: number; left: number } {
+  return { top: inset, right: inset, bottom: inset + bottomPx, left: inset }
 }
