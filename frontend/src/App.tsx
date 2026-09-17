@@ -56,6 +56,7 @@ import {
   CHOICE_INPUT,
   CHOICE_ROW,
   BUTTON_SECONDARY,
+  DISABLED,
   FOCUS_RING,
   ICON,
   ICON_ACTION,
@@ -145,7 +146,14 @@ import {
   pendingDestinations,
   pinKey,
 } from './utils/customList'
-import { clampPanelHeight, resolvePanelHeights, splitChartTable } from './utils/layout'
+import {
+  bothFits,
+  clampPanelHeight,
+  panelOf,
+  resolvePanelHeights,
+  resolveResultsMode,
+  splitChartTable,
+} from './utils/layout'
 import {
   dockedMapFloorPx,
   draggedMapFloorPx,
@@ -673,13 +681,20 @@ export default function App() {
   // exists to stop.
   const storedView = useMemo(readViewPrefs, [])
   const modeChosenRef = useRef(storedView.modeChosen !== null)
-  const [resultsMode, setResultsMode] = useState<ResultsMode>(
-    () => storedView.modeChosen ?? 'table',
-  )
+  // What the reader asked for, which is not always what a short viewport can
+  // draw: `resultsMode` below is this answer resolved against the room there is
+  // (#430). The preference is what persists, so the fallback costs no setting.
+  const [modePref, setModePref] = useState<ResultsMode>(() => storedView.modeChosen ?? 'table')
+  // The panel that fallback lands on. Held rather than derived because a stored
+  // Both cannot say which of the two the reader would keep, and a ref rather
+  // than state because nothing draws it: every render that reads it is one a
+  // press or a resize already caused.
+  const lastPanelRef = useRef(panelOf(storedView.modeChosen))
   // An intentional press on the segment: sticks for the session and persists.
   function chooseResultsMode(mode: ResultsMode) {
     modeChosenRef.current = true
-    setResultsMode(mode)
+    lastPanelRef.current = panelOf(mode) ?? lastPanelRef.current
+    setModePref(mode)
     writeViewPrefs({ modeChosen: mode })
   }
   // Which columns the table displays (null = use default narrowed set, Set = user choice).
@@ -2156,7 +2171,7 @@ export default function App() {
   useEffect(() => {
     if (response === null || modeChosenRef.current) return
     if (!window.matchMedia('(min-width: 1024px)').matches) return
-    setResultsMode('both')
+    setModePref('both')
   }, [response, analysisSeq])
 
   // Space below the map that a resize must leave alone: the preview banner (when
@@ -2169,6 +2184,18 @@ export default function App() {
   // the map always keeps its floor. Drives both breakpoints — mobile is resizable
   // too, so it can no longer rely on Tailwind's fixed panel heights.
   const viewportH = useViewportHeight()
+  // Whether Both is on offer at all: under two panel floors plus the map's own,
+  // the pair can only be drawn pinned with both grips inert, so the segment
+  // disables it and the sheet draws one panel instead (#430).
+  //
+  // The floor is Both mode's, spelled rather than read off `gripCount` below,
+  // which is derived from the mode this answer decides. A desktop passes
+  // nothing: the results are docked there and the drag keeps the plain map
+  // floor `clampPanelHeight` defaults to.
+  const bothHasRoom = bothFits(viewportH - bannerPx, {
+    mapMinPx: isDesktop ? undefined : draggedMapFloorPx(2),
+  })
+  const resultsMode = resolveResultsMode(modePref, lastPanelRef.current, bothHasRoom)
   // Which panels are visible: the mode and the collapse chevron alone decide.
   // Deliberately NOT gated on having data — a mode with nothing to draw shows
   // its empty panel (the chart with no analysis renders bare axes), because a
@@ -3010,9 +3037,14 @@ export default function App() {
                         <span className="hidden sm:inline">Chart</span>
                       </button>
                       <div className={SEGMENT_DIVIDER} />
+                      {/* Disabled rather than removed where the viewport
+                          cannot hold two panels (#430): a member that comes
+                          and goes moves the two beside it and has to be found
+                          again, which is the same call Clear filters made. */}
                       <button
                         onClick={() => chooseResultsMode('both')}
-                        className={`${SEGMENT_ITEM} ${resultsMode === 'both' ? ACCENT.fill : SEGMENT_IDLE}`}
+                        disabled={!bothHasRoom}
+                        className={`${SEGMENT_ITEM} ${DISABLED} ${resultsMode === 'both' ? ACCENT.fill : SEGMENT_IDLE}`}
                         aria-pressed={resultsMode === 'both'}
                         aria-label="Show chart and table"
                       >

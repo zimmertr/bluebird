@@ -1,3 +1,9 @@
+import type { ResultsMode } from './viewPrefs'
+
+// One of the two panels on its own, which is what Both falls back to where it
+// does not fit.
+export type SinglePanel = Exclude<ResultsMode, 'both'>
+
 // Height a resizable bottom panel (the results table or the comparison chart)
 // should settle at after a vertical drag. Two clamps apply: the panel stays at
 // least `floorPx` tall to remain usable, and the map above it keeps at least
@@ -62,6 +68,50 @@ export function resolvePanelHeights(
   const chart = clamp(chartHeight, floorPx, Math.max(floorPx, availPx - mapMinPx - floorPx))
   const table = clamp(tableHeight, floorPx, Math.max(floorPx, availPx - mapMinPx - chart))
   return { chart, table }
+}
+
+// Whether Both mode has room for two panels the reader can still trade against
+// each other, rather than two pinned at their floor under grips that move
+// nothing (#430).
+//
+// `resolvePanelHeights` above caps the chart at `availPx - mapMinPx - floorPx`,
+// so once the band above the map floor is down to two floors both panels sit at
+// `floorPx`: the divider preserves the pair's sum and has nothing to give, and
+// the chart's own ceiling is already its floor. Hence the strict comparison —
+// exactly two floors is the first inert case, not the last usable one.
+//
+// `mapMinPx` is the floor a DRAG may go to, not the resting one. A phone rests
+// its panels above the whole legend stack, and both of them sitting at their
+// floor there is a layout a grip can still open up, which is the difference
+// between constrained and broken.
+export function bothFits(
+  availPx: number,
+  { mapMinPx = 280, floorPx = 120 }: { mapMinPx?: number; floorPx?: number } = {},
+): boolean {
+  return availPx - mapMinPx > 2 * floorPx
+}
+
+/** The single panel a mode names, or null for Both and for no answer at all. */
+export function panelOf(mode: ResultsMode | null): SinglePanel | null {
+  return mode === 'chart' || mode === 'table' ? mode : null
+}
+
+// The mode the results area draws, which is the reader's preference wherever it
+// fits. Under `bothFits` they get ONE panel with a working grip instead of two
+// inert ones, and it is the panel they last chose: a stored Both says which
+// panels they want, never which of them they would keep.
+//
+// The preference itself is left alone, because the constraint belongs to the
+// viewport rather than to the reader — a window that grows gives Both back with
+// no press, and a rotation does not cost them a setting. Table is the answer for
+// a reader who has only ever chosen Both, being the mode everyone opens on.
+export function resolveResultsMode(
+  chosen: ResultsMode,
+  lastPanel: SinglePanel | null,
+  fits: boolean,
+): ResultsMode {
+  if (chosen !== 'both' || fits) return chosen
+  return lastPanel ?? 'table'
 }
 
 // The table's drag handle when the chart is visible: a chart│table divider.
