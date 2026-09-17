@@ -113,7 +113,7 @@
 }
 
 /* The attribution's type, one step down the app's ramp from the vendor's 12px:
- * `--map-credit-size` is `MICRO_PX` in styles.ts, the size the app's own
+ * `--map-credit-size` is `MICRO_SIZE` in styles.ts, the size the app's own
  * credit lines wear (`TEXT.micro`), published on the map wrapper by
  * `MAP_EDGE.publish` the way the inset above is. The line-height stays the
  * vendor's 20px, so the control's box stays `CORNER_CONTROL_PX` tall and the
