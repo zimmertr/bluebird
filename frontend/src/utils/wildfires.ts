@@ -15,6 +15,7 @@
 // not "nothing burning".
 import type { FeatureCollection, MultiPolygon } from 'geojson'
 import { apiFetch } from './apiFetch'
+import { escapeHtml } from './popupChrome'
 
 const WILDFIRES_URL = '/api/wildfires'
 
@@ -102,7 +103,7 @@ export interface WildfireProps {
  * feature id is not stable across tile boundaries — a fire spanning two tiles
  * would otherwise read as two fires and the popup would jump mid-approach.
  *
- * Named apart from `fireKey` in fireProximity.ts, which keys a *destination* by
+ * Named apart from `geoKey` in points.ts, which keys a *destination* by
  * coordinate. Two different questions, and one name for both invites using
  * whichever is imported.
  */
@@ -213,13 +214,4 @@ export function wildfirePopupHtml(props: WildfireProps, nifcUrl: string): string
       <br><a href="${nifcUrl}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">View on NIFC map ↗</a>
       ${revised ? `<br><span style="color:#94a3b8;font-size:11px;font-style:italic">${escapeHtml(revised)}</span>` : ''}
     </div>`
-}
-
-// Incident names are third-party data rendered via setHTML — escape them.
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
 }

@@ -350,7 +350,7 @@ _EARTH_RADIUS_M = 6_371_000.0
 
 
 def _point_key(lat: float, lon: float) -> str:
-    """~1 m identity for a coordinate, matching the frontend's ``pinKey``."""
+    """~1 m identity for a coordinate, matching the frontend's ``geoKey``."""
     return f"{lat:.5f},{lon:.5f}"
 
 

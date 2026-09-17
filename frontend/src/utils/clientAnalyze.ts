@@ -24,7 +24,7 @@ import {
 } from '../types'
 import { familyOf } from '../metrics'
 import { postDestinations } from './apiFetch'
-import { pinKey } from './customList'
+import { geoKey } from './points'
 import {
   AqiResult,
   Coordinate,
@@ -32,6 +32,7 @@ import {
   fetchAqi,
   fetchWeather,
 } from './openMeteo'
+import { nullsLast } from './sortResults'
 
 // Mirror of MAX_ANALYZE_PEAKS in backend/app/models.py — keep them in sync
 // (the MAX_POLYGON_AREA_KM2 precedent). The server enforces it on
@@ -311,7 +312,7 @@ export function rankComparator(
     const bv = b[field] as number | null | undefined
     const aNull = av == null
     const bNull = bv == null
-    if (aNull || bNull) return Number(aNull) - Number(bNull)
+    if (aNull || bNull) return nullsLast(aNull, bNull)
     const ka = desc ? -av : av
     const kb = desc ? -bv : bv
     return ka < kb ? -1 : ka > kb ? 1 : 0
@@ -470,11 +471,11 @@ export async function runClientAnalysis(
   // coordinate resolved against OSM), and the forecast is the expensive half,
   // not the name.
   const heldRows = new Map<string, DestinationResult>()
-  for (const r of reuse?.rows ?? []) heldRows.set(pinKey(r.latitude, r.longitude), r)
+  for (const r of reuse?.rows ?? []) heldRows.set(geoKey(r.latitude, r.longitude), r)
   const reused: DestinationResult[] = []
   const unforecast: DiscoveredDestination[] = []
   for (const d of candidates) {
-    const hit = heldRows.get(pinKey(d.latitude, d.longitude))
+    const hit = heldRows.get(geoKey(d.latitude, d.longitude))
     if (hit) {
       reused.push({
         ...hit,
@@ -630,7 +631,7 @@ export function refreshEchoRows(
   removedKeys: ReadonlySet<string>,
 ): CustomDestination[] {
   return (universe ?? displayed)
-    .filter((r) => !removedKeys.has(pinKey(r.latitude, r.longitude)))
+    .filter((r) => !removedKeys.has(geoKey(r.latitude, r.longitude)))
     .map((r) => ({
       name: r.name,
       latitude: r.latitude,

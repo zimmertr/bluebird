@@ -18,7 +18,7 @@ import {
   runClientAnalysis,
 } from '../utils/clientAnalyze'
 import { postDestinations } from '../utils/apiFetch'
-import { pinKey } from '../utils/customList'
+import { geoKey } from '../utils/points'
 import { COVERAGE_MESSAGE_TAIL, OpenMeteoModelCoverage } from '../utils/openMeteo'
 import { SelectionKind } from '../utils/calendar'
 import { AnalyzedSnapshot, discoveryKeys } from '../utils/present'
@@ -77,7 +77,7 @@ export type AnalyzedView = AnalyzedSnapshot & {
   // archive report has no model pitch to sample at (#123).
   windowSource: WindowSource
   // The custom destinations this analysis covered — searched places and pasted
-  // CSV rows, by pinKey. Recorded off the request rather than read back off the
+  // CSV rows, by geoKey. Recorded off the request rather than read back off the
   // results, which are cut to `limit` and so cannot answer "was this analyzed?"
   // for a field bigger than the cut (#205).
   customKeys: ReadonlySet<string>
@@ -297,7 +297,7 @@ export function useAnalyze(
       window: { startMs, endMs },
       windowSource: windowSource(startMs, endMs),
       customKeys: new Set(
-        (request.custom_destinations ?? []).map((d) => pinKey(d.latitude, d.longitude)),
+        (request.custom_destinations ?? []).map((d) => geoKey(d.latitude, d.longitude)),
       ),
       forecastModel: request.forecast_model,
       polygonKey: pendingDiscoveryRef.current.polygonKey,
