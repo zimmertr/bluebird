@@ -492,6 +492,7 @@ export default function App() {
   const band = {
     forecastHours: modelForecastHours(caps.forecastModels, forecastModel),
     pastDays: caps.archiveDays,
+    aqiDays: caps.aqiForecastDays,
   }
 
   // The window a model clamp took away, held so switching back to a model
@@ -813,7 +814,12 @@ export default function App() {
     statusMessage,
     progress,
     paceRemainingS,
-  } = useAnalyze(caps.maxDestinations, caps.forecastModels)
+  } = useAnalyze(
+    caps.maxDestinations,
+    caps.forecastModels,
+    caps.windowLimits,
+    caps.aqiForecastDays,
+  )
 
   // Places searched by name — the third destination input. Searching registers
   // the place (map dot + URL persistence); its forecast joins the next Analyze,
@@ -1809,6 +1815,8 @@ export default function App() {
     // real time, and only a committed value can fetch.
     displayReachFrac: gridReachDraft ?? gridReachFrac,
     analysisSeq,
+    windowLimits: caps.windowLimits,
+    aqiForecastDays: caps.aqiForecastDays,
   })
   // The pitch the slider's kilometres read from: the analyzed model once a
   // report is held (what the grid actually draws), the panel's pick before
@@ -2034,6 +2042,7 @@ export default function App() {
     hidden: hiddenModels,
     colors: chartedPairColors,
     times: chartTimes,
+    windowLimits: caps.windowLimits,
   })
 
   // What colour a table row's chart checkbox wears.
@@ -2459,6 +2468,8 @@ export default function App() {
           maxLimit={caps.maxLimit}
           maxAreaKm2={caps.maxPolygonAreaKm2}
           archiveDays={caps.archiveDays}
+          aqiForecastDays={caps.aqiForecastDays}
+          windowLimits={caps.windowLimits}
           aqiAllNull={
             response !== null &&
             results.length > 0 &&

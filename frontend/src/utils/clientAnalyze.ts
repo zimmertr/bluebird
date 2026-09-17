@@ -25,6 +25,7 @@ import {
 import { familyOf } from '../metrics'
 import { postDestinations } from './apiFetch'
 import { geoKey } from './points'
+import type { WindowLimits } from './forecastWindow'
 import {
   AqiResult,
   Coordinate,
@@ -378,6 +379,13 @@ export interface ClientAnalysisCallbacks {
   // The live analysis cap from /api/capabilities; the compiled constant is
   // the fallback so a failed capabilities fetch never blocks analyzing.
   maxDestinations?: number
+  // Where this deployment puts the archive boundary, from /api/capabilities,
+  // on the same contract as `maxDestinations` above. Passed straight through to
+  // the weather fetch, which is the only thing here that classifies a window.
+  windowLimits?: WindowLimits
+  // How far ahead air quality reaches, from /api/capabilities. The air-quality
+  // fetch clamps to it, and the calendar dims by it, so both read one value.
+  aqiForecastDays?: number
   // Forecasts the browser already holds, to be reused for any candidate that
   // appears in both. A re-analysis that readmits destinations this report never
   // fetched does not invalidate the ones already in hand, and re-fetching those
@@ -441,6 +449,8 @@ export async function runClientAnalysis(
     onPace,
     nowMs,
     maxDestinations,
+    windowLimits,
+    aqiForecastDays,
     reuse,
   }: ClientAnalysisCallbacks = {},
 ): Promise<ClientAnalysis> {
@@ -529,6 +539,7 @@ export async function runClientAnalysis(
       const aqiPending = fetchAqi(coords, startMs, endMs, {
         signal: internal.signal,
         nowMs,
+        aqiForecastDays,
       })
         // fetchAqi only ever throws AbortError, which is what a weather failure
         // (or Cancel) triggers below. Swallow it here so it cannot surface as an
@@ -563,12 +574,13 @@ export async function runClientAnalysis(
         model: request.forecast_model,
         // The same clock the air-quality fetch above is given. `nowMs` is what
         // decides which Open-Meteo endpoint answers a window (`windowSource`:
-        // older than `PAST_DATA_DAYS` is the archive's), so weather reading the
-        // real clock while air quality reads the caller's put the two on
-        // different sides of that boundary. It was invisible until a test's
-        // fixed window aged past 55 days and the weather half silently moved to
-        // the archive endpoint (2026-09-14).
+        // older than the forecast endpoint's own data is the archive's), so
+        // weather reading the real clock while air quality reads the caller's
+        // put the two on different sides of that boundary. It was invisible
+        // until a test's fixed window aged past the boundary and the weather
+        // half silently moved to the archive endpoint (2026-09-14).
         nowMs,
+        windowLimits,
         onProgress: (processed, total) =>
           onProgress?.(
             processed,

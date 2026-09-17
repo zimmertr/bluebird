@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { DestinationResult } from '../types'
 import { AqiResult, WeatherResult, fetchAqi, fetchWeather } from '../utils/openMeteo'
 import { canonicalTimes } from '../utils/clientAnalyze'
-import { normalizeWindow } from '../utils/forecastWindow'
+import { normalizeWindow, type WindowLimits } from '../utils/forecastWindow'
 import { GridCell, GridSpec, buildGrid, gridView, pairCells, reachKmFor } from '../utils/forecastGrid'
 import { usePacedFetch } from './usePacedFetch'
 
@@ -136,6 +136,14 @@ export interface ForecastGridInputs {
   displayReachFrac: number
   /** Bumped once per committed analysis; re-grids even for an identical field. */
   analysisSeq: number
+  /**
+   * Where this deployment puts the archive boundary, from `/api/capabilities`.
+   * The lattice reads the analyzed window, so it has to resolve to the same
+   * endpoint the markers above it came from (#393).
+   */
+  windowLimits: WindowLimits
+  /** How far ahead air quality reaches, from `/api/capabilities` (#393). */
+  aqiForecastDays: number
 }
 
 export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
@@ -149,6 +157,8 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     reachFrac,
     displayReachFrac,
     analysisSeq,
+    windowLimits,
+    aqiForecastDays,
   } = inputs
   const [state, setState] = useState<GridFetch>(IDLE)
   const { paceRemainingS, onPace, clear: clearPace } = usePacedFetch()
@@ -254,7 +264,7 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     // one pass covers all four metrics and switching to AQI recolours the held
     // field with no request. Keying the fetch on `sortBy` is the architecture
     // this line exists to forbid.
-    const air = fetchAqi(spec.points, startMs, endMs, { signal: ac.signal })
+    const air = fetchAqi(spec.points, startMs, endMs, { signal: ac.signal, aqiForecastDays })
       .then((list) => {
         if (cancelled) return
         list.forEach((a, i) => {
@@ -278,6 +288,7 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
           const chunk = indices.map((i) => spec.points[i])
           const got = await fetchWeather(chunk, startMs, endMs, {
             model,
+            windowLimits,
             // A lattice point is not a destination, but it stands on real
             // ground: adjust its wind to the terrain height Open-Meteo
             // reports for the coordinate, so a volcano's flank paints its

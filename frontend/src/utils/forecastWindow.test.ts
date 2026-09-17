@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  FALLBACK_WINDOW_LIMITS,
+  FUTURE_LIMIT_SLACK_DAYS,
   PAST_DATA_DAYS,
+  PAST_LIMIT_SLACK_DAYS,
   type WindowSource,
   archiveBoundaryMs,
   hourlyStampCount,
@@ -72,6 +75,36 @@ describe('resolveWindow', () => {
     const end = new Date(NOW + 16 * DAY).toISOString()
     const w = resolveWindow(start, end, NOW)
     expect(w.endMs - w.startMs).toBe(66 * DAY)
+  })
+
+  // What #393 changed: the accept bounds are the deployment's, published by
+  // /api/capabilities, and the compiled ones only hold until that answers. A
+  // window a tighter deployment refuses is one this one accepts, so the two
+  // halves of this pair must disagree.
+  it('refuses against the bounds it is given rather than the compiled ones', () => {
+    const start = new Date(NOW - 100 * DAY).toISOString()
+    const end = new Date(NOW - 99 * DAY).toISOString()
+    expect(resolveWindow(start, end, NOW).startMs).toBe(Date.parse(start))
+    expect(() =>
+      resolveWindow(start, end, NOW, {
+        maxPastDays: 90,
+        maxFutureDays: FUTURE_LIMIT_SLACK_DAYS,
+        pastDataDays: PAST_DATA_DAYS,
+      }),
+    ).toThrow(/one-year history limit/)
+  })
+
+  it('accepts a far window a longer-reaching deployment allows', () => {
+    const end = new Date(NOW + 20 * DAY).toISOString()
+    const now = new Date(NOW).toISOString()
+    expect(() => resolveWindow(now, end, NOW)).toThrow(/16-day forecast horizon/)
+    expect(
+      resolveWindow(now, end, NOW, {
+        maxPastDays: PAST_LIMIT_SLACK_DAYS,
+        maxFutureDays: 25,
+        pastDataDays: PAST_DATA_DAYS,
+      }).endMs,
+    ).toBe(Date.parse(end))
   })
 
   it('rejects garbage timestamps', () => {
@@ -225,6 +258,20 @@ describe('windowSource', () => {
     const end = new Date(NOW - (PAST_DATA_DAYS - 10) * DAY).toISOString()
     const w = resolveWindow(start, end, NOW)
     expect(windowSource(w.startMs, w.endMs, NOW)).toBe('spanning')
+  })
+
+  // The seam moves with what the deployment publishes (#393), and it has to
+  // move in both the boundary and the classification at once: an hour between
+  // them would cut a window where the classification saw no seam.
+  it('moves the seam with the boundary it is told, not the compiled one', () => {
+    const limits = { ...FALLBACK_WINDOW_LIMITS, pastDataDays: 20 }
+    const boundary = archiveBoundaryMs(SOURCE_NOW, limits)
+    expect(new Date(boundary).toISOString()).toBe('2026-08-23T00:00:00.000Z')
+    // A day the compiled fallback calls the forecast endpoint's belongs to the
+    // archive under a deployment whose forecast data stops sooner.
+    const day = Date.parse('2026-08-01T00:00:00Z')
+    expect(windowSource(day, day, SOURCE_NOW)).toBe('forecast')
+    expect(windowSource(day, day, SOURCE_NOW, limits)).toBe('archive')
   })
 
   it('reads the same boundary it classifies against', () => {

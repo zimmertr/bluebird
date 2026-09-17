@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { HourlySeries } from '../types'
 import type { ForecastModelOption } from './useCapabilities'
 import { ChartLine } from '../utils/chartData'
-import { normalizeWindow } from '../utils/forecastWindow'
+import { normalizeWindow, type WindowLimits } from '../utils/forecastWindow'
 import {
   CompareDestination,
   CompareModel,
@@ -126,6 +126,12 @@ export interface ModelCompareOptions {
   colors: Readonly<Record<string, string>>
   /** The chart's hourly grid, which compared series are re-indexed onto. */
   times: number[]
+  /**
+   * Where this deployment puts the archive boundary, from `/api/capabilities`.
+   * A compared line has to land on the same side of it as the ranking did, or
+   * the chart would draw one model against a different dataset (#393).
+   */
+  windowLimits: WindowLimits
 }
 
 export function useModelCompare({
@@ -141,6 +147,7 @@ export function useModelCompare({
   hidden = EMPTY_HIDDEN,
   colors,
   times,
+  windowLimits,
 }: ModelCompareOptions) {
   const [fetched, setFetched] = useState<Fetched>(NOTHING_FETCHED)
   // A comparison draws on the same weighted budget the analysis and the grid
@@ -255,7 +262,7 @@ export function useModelCompare({
         })),
         window_.startMs,
         endMs,
-        { model: id, signal: controller.signal, onPace },
+        { model: id, signal: controller.signal, onPace, windowLimits },
       )
         .then((results) => {
           if (seqRef.current !== seqAtCall) return
