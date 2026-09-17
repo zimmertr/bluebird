@@ -1,7 +1,7 @@
 {
   "_generated_by": "backend/scripts/generate_mirrored_constants.py \u2014 do not hand-edit",
   "constants": {
-    "N_VARIABLES": 9,
+    "N_VARIABLES": 14,
     "MAX_ANALYZE_PEAKS": 1500,
     "COARSE_OFFSET_DEG": 0.0005,
     "PAST_DATA_DAYS": 55,

@@ -492,7 +492,7 @@ method is written beside each figure so it can be repeated.
 | `Lighthouse Budgets` | 92 s | 81–124 s |
 | `Docker Build` | 57 s | 38–63 s |
 | `Backend Tests` | 29 s | 27–33 s |
-| `Frontend Typecheck & Tests` | 21 s | 19–26 s |
+| `Frontend Typecheck & Tests` | 26 s | 24–31 s |
 | `Python Lint` | 9 s | 6–10 s |
 | **whole run** | **147 s** | 140–193 s |
 
@@ -501,6 +501,10 @@ sync` at a 6 s median, and #380 removed it: the browser's suite now reads the
 backend's committed vectors rather than a copy, so there are no two files to
 diff. The whole-run figure is unchanged, because that job was never on the
 critical path.
+
+The frontend job grew 5 s on 2026-09-15 when ESLint joined it (issue #379):
+2 s to install the linter's own package and 3 s to lint 57 sources. It is not on
+the critical path, so the whole run is unchanged.
 
 **The critical path is two jobs long**, and only two. Four jobs start within
 about 3 s of each other; three of them finish while `Docker Build` is still
@@ -667,7 +671,7 @@ flowchart LR
 
     subgraph BB["zimmertr/bluebird"]
         pr["PR opened / updated"]
-        checks["pr.yml<br/>typecheck, Vitest, ruff, pytest, OpenAPI + API-type drift,<br/>hadolint, docker build + Trivy scan (sticky comment), Lighthouse budgets"]
+        checks["pr.yml<br/>typecheck, ESLint, Vitest, ruff, pytest, OpenAPI + API-type drift,<br/>hadolint, docker build + Trivy scan (sticky comment),<br/>Lighthouse budgets"]
         preview["pr-preview.yml<br/>pull_request_target (same-repo gate)"]
         label["label: create pr container"]
         comment["sticky preview-URL comment"]
@@ -709,6 +713,18 @@ flowchart LR
   is a package of its own (`frontend/tools/api-types`, with its own lockfile and
   its own Dependabot entry) because it needs the TypeScript 5 compiler API while
   the app runs TypeScript 7; the script installs it, so the job adds no step.
+- `pr.yml`'s frontend job then runs **ESLint** (`npm run lint`), after the
+  typecheck and before Vitest. It is `frontend/tools/eslint`, a second package
+  apart for a sharper version of the same reason: typescript-eslint refuses
+  TypeScript 7 outright, so the linter carries its own TypeScript 6. The rules
+  are typescript-eslint recommended, `react-hooks/rules-of-hooks` and
+  `react-hooks/exhaustive-deps` as errors, and the syntactic class and metric
+  bans that used to be regular expressions inside `styles.test.ts` and
+  `metrics.test.ts`. Warnings fail the job (`--max-warnings 0`), which is what
+  makes a suppression that silences nothing a build error. The script then runs
+  `tools/eslint/selftest.js`, which lints ten fixtures and fails unless each ban
+  reports its own violation and nothing else: a selector that matches nothing
+  otherwise reads as a clean tree.
 - `pr.yml`'s docker-build job loads the amd64 image into the runner and scans it
   with **Trivy** (`ignore-unfixed`: Debian/Alpine no-fix CVEs never gate). The
   report lands in the job step summary and as a **sticky PR comment** (matched by
@@ -824,11 +840,14 @@ the Hub dashboard; the cron's failure email is the push-based signal.
 
 ## Dependabot auto-merge
 
-Dependabot opens weekly PRs (`pip` in `/backend`, `npm` in `/frontend` and in
-`/frontend/tools/api-types`, `github-actions` and `docker` base images in `/`).
+Dependabot opens weekly PRs (`pip` in `/backend`, `npm` in `/frontend`,
+`/frontend/tools/api-types` and `/frontend/tools/eslint`, `github-actions` and
+`docker` base images in `/`).
 The type generator's package ignores TypeScript **major** bumps: it is pinned to
 5 because `openapi-typescript` loads the compiler API and peers on `^5.x`, which
-is why it is a package apart from the app in the first place. `dependabot-auto-merge.yml` enables **squash
+is why it is a package apart from the app in the first place. The linter's
+package ignores them for the same reason, one major later: typescript-eslint
+throws on TypeScript 7 rather than degrading, so that package stays on 6. `dependabot-auto-merge.yml` enables **squash
 auto-merge for patch (bugfix) bumps only** — GitHub completes the merge once
 `main`'s required checks pass; **minor and major bumps wait for manual review**.
 When it arms auto-merge it also posts a marker-guarded comment on the PR saying

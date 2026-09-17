@@ -52,6 +52,13 @@ jobs:
         working-directory: frontend
       - run: npx tsc --noEmit
         working-directory: frontend
+      # ESLint (issue #379). It runs after the typecheck because a type error
+      # usually explains a lint error, and before the tests because a bad
+      # dependency array is cheaper to read here than as a failing assertion.
+      # The linter installs itself: it lives in frontend/tools/eslint with its
+      # own lockfile, for the TypeScript-version reason recorded there.
+      - run: npm run lint
+        working-directory: frontend
       - run: npm test
         working-directory: frontend
 

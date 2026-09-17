@@ -18,7 +18,7 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-from generate_mirrored_constants import render
+from generate_mirrored_constants import render  # noqa: E402 — after the sys.path insert above
 
 MANIFEST = Path(__file__).parent / "data" / "mirrored_constants.json"
 
