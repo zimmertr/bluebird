@@ -171,7 +171,7 @@ import {
   selectionLocalWindow,
   windowCaption,
 } from './utils/calendar'
-import { isPointSample } from './utils/forecastWindow'
+import { isPointSample, normalizeWindow } from './utils/forecastWindow'
 import {
   PresentationKnobs,
   commitNeeded,
@@ -1945,21 +1945,31 @@ export default function App() {
       // wildfire column on null, and a file must not carry a column the
       // screen does not show.
       fire.status === 'ready' && effectiveVisibleKeys.has(WILDFIRE_KEY) ? fire.warnings : null,
-      // The table draws pending (un-analyzed) rows above the ranked ones, so
-      // the file carries them too — identity columns filled, Rank and every
-      // metric blank. Before the first analysis this is the whole file.
-      pending.map(
-        (d) =>
-          ({
-            name: d.name,
-            type: d.kind ?? 'custom',
-            elevation_ft: d.elevation_ft ?? null,
-            latitude: d.latitude,
-            longitude: d.longitude,
-          }) as DestinationResult,
-      ),
-      fire.uncovered,
-      analysisModelLabel,
+      {
+        // The window the numbers in the file describe (#444), taken from the
+        // analysis snapshot rather than from the panel: the calendar can have
+        // moved on since the report committed, and the file must name the days
+        // that were fetched. Resolved first, because the snapshot records the
+        // request's raw timestamps and a Current analysis is `start === end`
+        // there: the file writes the hour that was sampled, not a window of no
+        // width at all.
+        window: analyzed ? normalizeWindow(analyzed.window.startMs, analyzed.window.endMs) : null,
+        // The table draws pending (un-analyzed) rows above the ranked ones, so
+        // the file carries them too — identity columns filled, Rank and every
+        // metric blank. Before the first analysis this is the whole file.
+        pendingRows: pending.map(
+          (d) =>
+            ({
+              name: d.name,
+              type: d.kind ?? 'custom',
+              elevation_ft: d.elevation_ft ?? null,
+              latitude: d.latitude,
+              longitude: d.longitude,
+            }) as DestinationResult,
+        ),
+        fireUncovered: fire.uncovered,
+        modelLabel: analysisModelLabel,
+      },
     )
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a')
