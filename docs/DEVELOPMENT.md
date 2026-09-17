@@ -53,10 +53,8 @@ docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
   sh -c "npm run check:api"
 
 # Backend unit tests (pytest). The whole repository is mounted, not backend/
-# alone: two tests read outside backend/, and each skips where it cannot see
-# what it needs. One checks the CSP allowlist against the hosts the browser
-# actually fetches; the other checks that CLAUDE.md names every source module
-# in both trees. Vitest is mounted frontend/ alone, so neither can live there.
+# alone: one test reads frontend/src to check the CSP allowlist against the
+# hosts the browser actually fetches, and it skips where it cannot see them.
 docker run --rm -v "$PWD":/repo -w /repo/backend python:3.14-slim \
   sh -c "pip install -r requirements-dev.txt && pytest"
 
