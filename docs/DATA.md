@@ -126,11 +126,16 @@ fixed rather than fetched: real level heights move a few percent with
 weather, less than the model's own terrain error. Two caveats. This is still
 a model's free-air wind, not a gust or a summit anemometer, and local
 funneling can exceed it. And the map's forecast-grid overlay adjusts each
-sample to the terrain height Open-Meteo resolves for that coordinate (its
-~90 m elevation model, reported on every response) rather than to any
-destination's claimed height — so high ground paints its real winds, but a
-summit marker can still read somewhat windier than the cell containing it,
-because the cell's height is the ground at the sample point, not the peak.
+sample — wind and temperature alike — to the terrain height Open-Meteo resolves
+for that coordinate (its ~90 m elevation model, reported on every response)
+rather than to any destination's claimed height. So high ground paints its real
+numbers, but a summit marker can still read windier and warmer than the cell
+containing it, because the cell's height is the ground at the sample point, not
+the peak. Measured 2026-09-16 over Dome Peak: the nearest lattice point resolves
+to a terrain height of 2,624 m and its window minimum reads 38.7 °F, where the
+marker at 8,921 ft (2,719 m) reads 38.5 °F. The gap is small here and is not
+always: the same cell's plain `temperature_2m` minimum is 23.9 °F, which is
+what neither surface shows.
 
 **Temperature is reported at the destination's own elevation, too.**
 Open-Meteo's `temperature_2m` measures 2 meters above the *model's* terrain,
@@ -161,10 +166,11 @@ well, and from the other side: free air is what the model resolves, and a calm,
 clear, snow-covered summit can sit a few degrees below it. This method does not
 model that.
 
-The map's forecast-grid overlay keeps `temperature_2m`, the same rule the wind
-follows there: a lattice point is not a destination and sends no elevation, so
-the grid paints the surface field under markers that carry the elevation-
-adjusted number.
+The map's forecast-grid overlay reads the same free air, at the terrain height
+Open-Meteo resolves for each lattice point rather than at any destination's own
+height. The grid caveat under the wind above therefore covers both metrics: the
+field and the marker standing on it are answering the same question at two
+different elevations.
 
 **The freezing level is an air temperature, not a snow surface.** Each hourly
 fetch carries Open-Meteo's `freezing_level_height`, the height at which the
