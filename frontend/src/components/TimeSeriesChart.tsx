@@ -10,7 +10,8 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult } from '../types'
-import { CHART_METRIC_W, ICON, ICON_ADORNMENT, RADIUS, SELECT, SURFACE_FLOATING, TEXT } from '../styles'
+import { CHART_METRIC_W, RADIUS, SELECT, SURFACE_FLOATING, TEXT } from '../styles'
+import { IconSelectArrow } from './icons'
 import {
   CHART_METRICS,
   ChartLine,
@@ -129,6 +130,7 @@ function TimeSeriesChart({
       })),
       ...extraLines,
     ],
+    // Kept: `colorFor` is the omission, and the paragraph above says why.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [aligned, extraLines],
   )
@@ -232,18 +234,7 @@ function TimeSeriesChart({
               </option>
             ))}
           </select>
-          <svg
-            className={`${ICON_ADORNMENT} ${ICON}`}
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              fillRule="evenodd"
-              d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
-              clipRule="evenodd"
-            />
-          </svg>
+          <IconSelectArrow />
         </div>
         {controls}
       </div>

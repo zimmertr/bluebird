@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Place } from '../utils/geocode'
-import { pinKey } from '../utils/customList'
+import { geoKey } from '../utils/points'
 
 // Places searched by name — one of the three destination inputs. Searching
 // registers the place (and it persists in the URL); its forecast arrives with
@@ -9,25 +9,32 @@ import { pinKey } from '../utils/customList'
 export function useSearchedPlaces() {
   const [places, setPlaces] = useState<Place[]>([])
 
+  // Callbacks rather than plain functions so their identities hold across a
+  // render: two of them reach the memoized map as props (#337), and the effect
+  // that seeds the URL's places depends on `restore`, which a fresh identity
+  // would re-run over whatever the reader has added since. Each one reads the
+  // list through the updater rather than out of the closure, so none of them
+  // needs `places` and none of them takes a dependency.
+
   // Add a place, or refresh its details when the same feature is re-searched.
-  function addPlace(place: Place) {
-    const key = pinKey(place.lat, place.lon)
+  const addPlace = useCallback((place: Place) => {
+    const key = geoKey(place.lat, place.lon)
     setPlaces((prev) =>
-      prev.some((p) => pinKey(p.lat, p.lon) === key)
-        ? prev.map((p) => (pinKey(p.lat, p.lon) === key ? place : p))
+      prev.some((p) => geoKey(p.lat, p.lon) === key)
+        ? prev.map((p) => (geoKey(p.lat, p.lon) === key ? place : p))
         : [...prev, place],
     )
-  }
+  }, [])
 
-  function removePlace(latitude: number, longitude: number) {
-    const key = pinKey(latitude, longitude)
-    setPlaces((prev) => prev.filter((p) => pinKey(p.lat, p.lon) !== key))
-  }
+  const removePlace = useCallback((latitude: number, longitude: number) => {
+    const key = geoKey(latitude, longitude)
+    setPlaces((prev) => prev.filter((p) => geoKey(p.lat, p.lon) !== key))
+  }, [])
 
   // Seed places restored from the URL at load.
-  function restore(restored: Place[]) {
+  const restore = useCallback((restored: Place[]) => {
     if (restored.length > 0) setPlaces(restored)
-  }
+  }, [])
 
   return { places, addPlace, removePlace, restore }
 }

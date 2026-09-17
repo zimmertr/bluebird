@@ -18,10 +18,14 @@ import {
   DestinationsRequest,
   DestinationsResponse,
   DiscoveredDestination,
+  DiscoveryType,
+  GeoPolygon,
   HourlySeries,
 } from '../types'
 import { familyOf } from '../metrics'
-import { pinKey } from './customList'
+import { postDestinations } from './apiFetch'
+import { geoKey } from './points'
+import type { WindowLimits } from './forecastWindow'
 import {
   AqiResult,
   Coordinate,
@@ -29,6 +33,7 @@ import {
   fetchAqi,
   fetchWeather,
 } from './openMeteo'
+import { nullsLast } from './sortResults'
 
 // Mirror of MAX_ANALYZE_PEAKS in backend/app/models.py — keep them in sync
 // (the MAX_POLYGON_AREA_KM2 precedent). The server enforces it on
@@ -262,12 +267,7 @@ export async function resolveCustomOnly(
     custom_destinations: [...custom],
   }
   try {
-    const res = await fetch('/api/destinations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(resolveRequest),
-      signal,
-    })
+    const res = await postDestinations(resolveRequest, signal)
     if (!res.ok) return rows
     const body = (await res.json()) as DestinationsResponse
     // A short answer means the server dropped rows this path never asked it
@@ -313,7 +313,7 @@ export function rankComparator(
     const bv = b[field] as number | null | undefined
     const aNull = av == null
     const bNull = bv == null
-    if (aNull || bNull) return Number(aNull) - Number(bNull)
+    if (aNull || bNull) return nullsLast(aNull, bNull)
     const ka = desc ? -av : av
     const kb = desc ? -bv : bv
     return ka < kb ? -1 : ka > kb ? 1 : 0
@@ -379,6 +379,13 @@ export interface ClientAnalysisCallbacks {
   // The live analysis cap from /api/capabilities; the compiled constant is
   // the fallback so a failed capabilities fetch never blocks analyzing.
   maxDestinations?: number
+  // Where this deployment puts the archive boundary, from /api/capabilities,
+  // on the same contract as `maxDestinations` above. Passed straight through to
+  // the weather fetch, which is the only thing here that classifies a window.
+  windowLimits?: WindowLimits
+  // How far ahead air quality reaches, from /api/capabilities. The air-quality
+  // fetch clamps to it, and the calendar dims by it, so both read one value.
+  aqiForecastDays?: number
   // Forecasts the browser already holds, to be reused for any candidate that
   // appears in both. A re-analysis that readmits destinations this report never
   // fetched does not invalidate the ones already in hand, and re-fetching those
@@ -442,6 +449,8 @@ export async function runClientAnalysis(
     onPace,
     nowMs,
     maxDestinations,
+    windowLimits,
+    aqiForecastDays,
     reuse,
   }: ClientAnalysisCallbacks = {},
 ): Promise<ClientAnalysis> {
@@ -472,11 +481,11 @@ export async function runClientAnalysis(
   // coordinate resolved against OSM), and the forecast is the expensive half,
   // not the name.
   const heldRows = new Map<string, DestinationResult>()
-  for (const r of reuse?.rows ?? []) heldRows.set(pinKey(r.latitude, r.longitude), r)
+  for (const r of reuse?.rows ?? []) heldRows.set(geoKey(r.latitude, r.longitude), r)
   const reused: DestinationResult[] = []
   const unforecast: DiscoveredDestination[] = []
   for (const d of candidates) {
-    const hit = heldRows.get(pinKey(d.latitude, d.longitude))
+    const hit = heldRows.get(geoKey(d.latitude, d.longitude))
     if (hit) {
       reused.push({
         ...hit,
@@ -530,6 +539,7 @@ export async function runClientAnalysis(
       const aqiPending = fetchAqi(coords, startMs, endMs, {
         signal: internal.signal,
         nowMs,
+        aqiForecastDays,
       })
         // fetchAqi only ever throws AbortError, which is what a weather failure
         // (or Cancel) triggers below. Swallow it here so it cannot surface as an
@@ -564,12 +574,13 @@ export async function runClientAnalysis(
         model: request.forecast_model,
         // The same clock the air-quality fetch above is given. `nowMs` is what
         // decides which Open-Meteo endpoint answers a window (`windowSource`:
-        // older than `PAST_DATA_DAYS` is the archive's), so weather reading the
-        // real clock while air quality reads the caller's put the two on
-        // different sides of that boundary. It was invisible until a test's
-        // fixed window aged past 55 days and the weather half silently moved to
-        // the archive endpoint (2026-09-14).
+        // older than the forecast endpoint's own data is the archive's), so
+        // weather reading the real clock while air quality reads the caller's
+        // put the two on different sides of that boundary. It was invisible
+        // until a test's fixed window aged past the boundary and the weather
+        // half silently moved to the archive endpoint (2026-09-14).
         nowMs,
+        windowLimits,
         onProgress: (processed, total) =>
           onProgress?.(
             processed,
@@ -632,11 +643,75 @@ export function refreshEchoRows(
   removedKeys: ReadonlySet<string>,
 ): CustomDestination[] {
   return (universe ?? displayed)
-    .filter((r) => !removedKeys.has(pinKey(r.latitude, r.longitude)))
+    .filter((r) => !removedKeys.has(geoKey(r.latitude, r.longitude)))
     .map((r) => ({
       name: r.name,
       latitude: r.latitude,
       longitude: r.longitude,
       elevation_ft: r.elevation_ft ?? undefined,
     }))
+}
+
+/**
+ * The user-authored discovery inputs as a stable string. Everything that
+ * changes which destinations are FOUND belongs here — the CSV as parsed rows
+ * (a comment or whitespace edit doesn't needlessly bust the refresh) but NOT
+ * the searched places, which are compared separately so removals stay
+ * refresh-eligible.
+ *
+ * Nothing that only re-presents the held field belongs here. Ranking, the cap
+ * and every bound are read off rows the browser already holds (#188), so none
+ * of them reaches this function and none of them re-buys a discovery.
+ */
+export function discoveryBase(
+  poly: GeoPolygon | null,
+  csvRows: readonly CustomDestination[],
+  types: readonly DiscoveryType[],
+  includeUnnamedPeaks: boolean,
+): string {
+  return JSON.stringify({
+    ring: poly?.coordinates[0] ?? null,
+    // Sorted so checking peaks then lakes and lakes then peaks are the same
+    // discovery, matching the order-independent cache key upstream.
+    types: [...types].sort(),
+    unnamed: includeUnnamedPeaks,
+    csv: csvRows,
+  })
+}
+
+/** What a committed polygon discovery recorded about the inputs behind it. */
+export interface DiscoveryRecord {
+  base: string
+  searchedKeys: readonly string[]
+}
+
+/**
+ * Whether this Analyze may skip Overpass and refetch only the weather of the
+ * destinations already in hand.
+ *
+ * This is a spend boundary, not an optimization: a wrong answer either buys a
+ * discovery nobody asked for, or re-ranks a stale field against a question it
+ * no longer answers. Every condition earns its place.
+ *
+ * A SHRUNK searched list stays refresh-eligible — the departed rows are already
+ * gone from the report the refresh echoes — where a NEW searched place does
+ * not, because it has to compete against the whole candidate field, which the
+ * echo is not. `base` covers everything else the user authored, so any change
+ * to the ring, the kinds, the unnamed-peaks toggle or the pasted CSV falls
+ * through to a fresh discovery.
+ *
+ * `hasResults` is the report on screen: with nothing displayed there is nothing
+ * to echo. `prev` is null after a custom-only run, which deliberately forgets
+ * the polygon behind it so a later identical polygon Analyze cannot mistake
+ * those rows for that polygon's discovered set.
+ */
+export function isDiscoveryRefresh(
+  prev: DiscoveryRecord | null,
+  base: string,
+  searchedKeys: readonly string[],
+  hasResults: boolean,
+): boolean {
+  if (!hasResults || prev === null) return false
+  if (prev.base !== base) return false
+  return searchedKeys.every((k) => prev.searchedKeys.includes(k))
 }

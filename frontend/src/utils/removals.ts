@@ -10,7 +10,7 @@
 
 import { DestinationResult } from '../types'
 import { Place } from './geocode'
-import { pinKey } from './customList'
+import { geoKey } from './points'
 
 /**
  * The user-authored destination inputs, as one comparable string: the checked
@@ -51,11 +51,11 @@ export function recordRemoval(
   places: readonly Place[],
   scope: string,
 ): Map<string, RemovedEntry> {
-  const key = pinKey(row.latitude, row.longitude)
+  const key = geoKey(row.latitude, row.longitude)
   const next = new Map(removed)
   next.set(key, {
     row,
-    place: places.find((p) => pinKey(p.lat, p.lon) === key) ?? null,
+    place: places.find((p) => geoKey(p.lat, p.lon) === key) ?? null,
     scope,
   })
   return next
@@ -102,7 +102,7 @@ export function restorePlace(
   csvKeys: ReadonlySet<string>,
 ): Place | null {
   if (entry.place !== null) return entry.place
-  const key = pinKey(entry.row.latitude, entry.row.longitude)
+  const key = geoKey(entry.row.latitude, entry.row.longitude)
   if (heldKeys.has(key) || csvKeys.has(key)) return null
   return {
     label: entry.row.name,

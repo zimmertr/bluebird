@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
+from pydantic import ValidationError
+
 from app import models
 from app.models import (
     ARCHIVE_DATA_DAYS,
@@ -13,17 +15,17 @@ from app.models import (
     AnalyzeRequest,
     CustomDestination,
     DestinationResult,
+    DestinationsRequest,
     DestinationType,
     GeoPolygon,
     SortBy,
     _as_utc,
     bbox_area_km2,
 )
-from pydantic import ValidationError
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _valid_request(**overrides):
@@ -198,11 +200,11 @@ def test_window_equal_on_the_hour_stays_that_hour():
 
 def test_as_utc_adds_timezone_to_naive():
     naive = datetime(2026, 1, 1, 12, 0, 0)  # noqa: DTZ001 — naive input under test
-    assert _as_utc(naive).tzinfo is timezone.utc
+    assert _as_utc(naive).tzinfo is UTC
 
 
 def test_as_utc_preserves_aware():
-    aware = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    aware = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
     assert _as_utc(aware) is aware
 
 
@@ -272,6 +274,25 @@ def test_analyze_request_caps_custom_destination_list():
     _valid_request(custom_destinations=rows[:MAX_ANALYZE_PEAKS])
 
 
+def test_the_two_discovery_requests_keep_their_own_wording():
+    """`_DiscoveryFields` shares the checks, not the sentences (issue #388).
+
+    Both endpoints validate a caller's list the same way and say different
+    things about it, because one analyzes the list and the other resolves it.
+    Both sentences are approved copy, so a shared validator that reworded
+    either would be a copy change nobody asked for.
+    """
+    rows = [{"name": f"P{i}", "latitude": 1.0, "longitude": 2.0} for i in range(MAX_ANALYZE_PEAKS + 1)]
+    with pytest.raises(ValidationError, match="to analyze a caller-supplied list"):
+        _valid_request(destination_types=[DestinationType.custom])
+    with pytest.raises(ValidationError, match="to resolve a caller-supplied list"):
+        DestinationsRequest(destination_types=[DestinationType.custom])
+    with pytest.raises(ValidationError, match="split it into multiple analyses"):
+        _valid_request(custom_destinations=rows)
+    with pytest.raises(ValidationError, match="split it into multiple requests"):
+        DestinationsRequest(custom_destinations=rows)
+
+
 # ── window_source (issue #123) ─────────────────────────────────────────────
 #
 # The table below is the CONTRACT between the two implementations: the same
@@ -281,7 +302,7 @@ def test_analyze_request_caps_custom_destination_list():
 # `NOW` is 18:00 UTC, so the boundary (NOW - PAST_DATA_DAYS, floored to the UTC
 # day) is 2026-07-19T00:00Z and the straddle floor a day before it.
 
-_SOURCE_NOW = datetime(2026, 9, 12, 18, 0, tzinfo=timezone.utc)
+_SOURCE_NOW = datetime(2026, 9, 12, 18, 0, tzinfo=UTC)
 
 _SOURCE_CASES = [
     # (start, end, expected, why)
@@ -303,8 +324,8 @@ _SOURCE_CASES = [
 @pytest.mark.parametrize(("start", "end", "expected", "why"), _SOURCE_CASES)
 def test_window_source_classification_table(start, end, expected, why):
     got = models.window_source(
-        datetime.fromisoformat(start).replace(tzinfo=timezone.utc),
-        datetime.fromisoformat(end).replace(tzinfo=timezone.utc),
+        datetime.fromisoformat(start).replace(tzinfo=UTC),
+        datetime.fromisoformat(end).replace(tzinfo=UTC),
         _SOURCE_NOW,
     )
     assert got == expected, why
@@ -324,7 +345,7 @@ def test_archive_boundary_is_one_instant_on_the_utc_day():
     # classifies against: the same value, from one function, because a second
     # spelling could split a window an hour from where it was classified.
     boundary = models.archive_boundary(_SOURCE_NOW)
-    assert boundary == datetime(2026, 7, 19, tzinfo=timezone.utc)
+    assert boundary == datetime(2026, 7, 19, tzinfo=UTC)
     assert models.window_source(
         boundary - timedelta(minutes=1), boundary - timedelta(minutes=1), _SOURCE_NOW
     ) == "archive"

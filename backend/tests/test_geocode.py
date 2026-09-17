@@ -1,22 +1,13 @@
 from __future__ import annotations
 
 import httpx
-from app.main import app
-from app.routes import geocode as geocode_mod
+from conftest import fake_response
 from fastapi.testclient import TestClient
 
+from app.main import app
+from app.routes import geocode as geocode_mod
+
 client = TestClient(app)
-
-
-class _FakeResp:
-    def __init__(self, payload):
-        self._payload = payload
-
-    def raise_for_status(self):
-        return None
-
-    def json(self):
-        return self._payload
 
 
 class _FakeClient:
@@ -43,7 +34,7 @@ def _patch_client(monkeypatch, resp_or_exc):
 
 def test_geocode_forwards_list_payload(monkeypatch):
     rows = [{"display_name": "Seattle", "lat": "47.6", "lon": "-122.3"}]
-    _patch_client(monkeypatch, _FakeResp(rows))
+    _patch_client(monkeypatch, fake_response(rows))
     resp = client.get("/api/geocode", params={"q": "Seattle"})
     assert resp.status_code == 200
     assert resp.json() == rows
@@ -56,7 +47,7 @@ def test_geocode_sends_policy_user_agent(monkeypatch):
     class _Capturing(_FakeClient):
         async def get(self, url, params=None, headers=None):
             seen["headers"] = headers
-            return _FakeResp([])
+            return fake_response([])
 
     monkeypatch.setattr(geocode_mod.httpx, "AsyncClient", lambda *a, **k: _Capturing(None))
     client.get("/api/geocode", params={"q": "x"})
@@ -72,7 +63,7 @@ def test_geocode_upstream_error_is_502(monkeypatch):
 
 
 def test_geocode_non_list_payload_is_502(monkeypatch):
-    _patch_client(monkeypatch, _FakeResp({"error": "unexpected"}))
+    _patch_client(monkeypatch, fake_response({"error": "unexpected"}))
     resp = client.get("/api/geocode", params={"q": "Seattle"})
     assert resp.status_code == 502
     assert resp.json()["detail"] == (

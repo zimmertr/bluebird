@@ -1,0 +1,34 @@
+name: Count Critical/High vulnerabilities
+description: >-
+  Read a Trivy JSON report and say how many Critical or High vulnerabilities it
+  holds. Two workflows gate on that number and both once spelled the same jq
+  filter, so a filter fixed in one could silently keep passing images in the
+  other (issue #388).
+
+inputs:
+  report:
+    description: Path to the Trivy JSON report to read.
+    required: false
+    default: trivy.json
+
+outputs:
+  count:
+    description: How many Critical or High vulnerabilities the report holds.
+    value: ${{ steps.count.outputs.count }}
+
+runs:
+  using: composite
+  steps:
+    # `?` on both levels because a report with no results at all is the clean
+    # case, not a malformed one: jq must answer 0 rather than fail the step.
+    # The severities Trivy has filtered out (unfixable ones, and anything
+    # trivy.yaml excludes) are already absent from the report by the time it
+    # is read here.
+    - id: count
+      shell: bash
+      env:
+        REPORT: ${{ inputs.report }}
+      run: |
+        COUNT=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL" or .Severity == "HIGH")] | length' "$REPORT")
+        echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
+        echo "${COUNT} fixable Critical/High vulnerabilities in ${REPORT}."

@@ -120,7 +120,7 @@ def custom_enrich_key(points: list[tuple[float, float]]) -> tuple:
     """Cache key for one custom list's elevation lookup.
 
     Coordinates are rounded to 5 decimals (~1 m), the same precision
-    ``discovery_key`` and the frontend's ``pinKey`` use, then sorted: the
+    ``discovery_key`` and the frontend's ``geoKey`` use, then sorted: the
     question being asked is "what stands on this SET of points", so two
     pastes of the same peaks in a different order must hit the same entry.
     That is the reasoning behind ``pointsKey`` in ``fireProximity.ts`` too.

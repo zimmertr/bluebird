@@ -1,29 +1,19 @@
 from __future__ import annotations
 
-import asyncio
 import logging
-import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
-
-import httpx
 
 from app import ratelimit, telemetry
 from app.services import cache, http
-from app.services.errors import (
-    InvalidApiKeyError,
-    UpstreamRateLimited,
-    is_invalid_api_key,
-    parse_rate_limit,
-    rate_limit_message,
+from app.services.openmeteo_fetch import (
+    DEGRADED,
+    Pacing,
+    fetch_batched,
+    request_openmeteo,
 )
 from app.services.openmeteo_weight import call_weight
-from app.services.weather import (
-    hour_param,
-    quota_label,
-    redacted_error,
-    redacted_params,
-)
+from app.services.weather import _epoch_ms, _parse_ts, hour_param
 
 log = logging.getLogger(__name__)
 
@@ -33,8 +23,6 @@ AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 CUSTOMER_AIR_QUALITY_URL = (
     "https://customer-air-quality-api.open-meteo.com/v1/air-quality"
 )
-BATCH_SIZE = 50  # same as the weather service; see the reasoning on its constant
-MAX_CONCURRENT_BATCHES = 4  # same in-flight gate as the weather service
 N_VARIABLES = 1  # us_aqi
 PROVIDER = "Open-Meteo (air quality)"
 
@@ -70,7 +58,7 @@ async def fetch_aqi_batch(
     # Wall clocks are read as UTC without converting, the same convention
     # `_naive` uses in the weather service.
     end_cap = (
-        datetime.now(timezone.utc).replace(tzinfo=None)
+        datetime.now(UTC).replace(tzinfo=None)
         + timedelta(days=MAX_FORECAST_DAYS)
     ).replace(hour=23, minute=0, second=0, microsecond=0)
     req_start = start_dt.replace(tzinfo=None, minute=0, second=0, microsecond=0)
@@ -81,106 +69,47 @@ async def fetch_aqi_batch(
         log.info("AQI window starts beyond the ~%dd forecast horizon — skipping fetch", MAX_FORECAST_DAYS)
         return [None] * len(destinations)
 
-    # Serve repeats from the per-location cache; fetch only the misses (same
-    # pattern as the weather service, same incident rationale, and `api_key`
-    # is left out of the key there for the same reason).
-    results: list[dict[str, Any] | None] = [None] * len(destinations)
-    miss_indices: list[int] = []
-    for i, dest in enumerate(destinations):
-        key = cache.forecast_key(
+    def key(dest: dict[str, Any]) -> str:
+        # Keyed on the caller's window rather than the clamped one, so an entry
+        # answers the question that was asked. `api_key` is left out for the
+        # reason the weather service leaves it out: the two hosts answer the
+        # same location and window the same way.
+        return cache.forecast_key(
             "aqi",
             dest["latitude"],
             dest["longitude"],
             start_dt.isoformat(),
             end_dt.isoformat(),
         )
-        hit = cache.FORECAST_CACHE.get(key)
-        if hit is None:
-            miss_indices.append(i)
-        else:
-            results[i] = None if hit == cache.NO_DATA else hit
 
-    misses = [destinations[i] for i in miss_indices]
-    if not misses:
-        log.info(
-            "Open-Meteo air quality: all %d destination(s) served from cache",
-            len(destinations),
-        )
-        return results
+    def weights(chunk: list[dict[str, Any]]) -> list[float]:
+        # One request per chunk, priced on the clamped hours it actually asks
+        # for.
+        return [call_weight(len(chunk), req_start.date(), req_end.date(), N_VARIABLES)]
 
-    chunks = [misses[i : i + BATCH_SIZE] for i in range(0, len(misses), BATCH_SIZE)]
-    log.info(
-        "Fetching Open-Meteo air quality: %d destination(s), %d cached, %d across %d batch(es)",
-        len(destinations),
-        len(destinations) - len(misses),
-        len(misses),
-        len(chunks),
+    def degraded(reason: str) -> None:
+        telemetry.AQI_DEGRADED.labels(reason=reason).inc()
+
+    return await fetch_batched(
+        destinations,
+        label="Open-Meteo air quality",
+        cache_key=key,
+        fetch_chunk=lambda chunk: _fetch_chunk(
+            chunk, req_start, req_end, start_dt, end_dt, api_key
+        ),
+        slots=ratelimit.AQI_BUDGET,
+        # A keyed chunk skips the weighted pacer and only the pacer, exactly as
+        # the weather service does and for the same reason: that budget meters
+        # the pod's own air-quality quota, which a keyed chunk never spends.
+        pacing=None
+        if api_key is not None
+        else Pacing(ratelimit.AQI_WEIGHT, weights),
+        # Air quality never fails the analysis, so a spent budget or a 429
+        # becomes null rows — and the 429 stops the batches behind it, which is
+        # what the incident's "zombie" AQI batches did not do.
+        on_error="degrade",
+        on_degraded=degraded,
     )
-
-    sem = asyncio.Semaphore(MAX_CONCURRENT_BATCHES)
-    # Once one chunk sees a 429, the AQI quota is spent: every further batch
-    # would burn budget (and the shared minute window) to learn the same
-    # thing. The 2026-07-29 incident's "zombie" AQI batches did exactly that,
-    # draining the next minute's budget mid-fallback — so the first rate
-    # limit short-circuits the rest of this fetch to nulls.
-    rate_limited = asyncio.Event()
-
-    async def gated(chunk: list[dict[str, Any]]) -> list[dict[str, Any] | None]:
-        # Per-analysis slot first, then the pod's weighted spend, then the
-        # pod-wide in-flight slot. Budget exhaustion or a rate limit degrades
-        # this chunk to None rows like any other AQI failure — air quality
-        # never fails the analysis.
-        #
-        # A keyed chunk skips the weighted pacer and only the pacer, exactly
-        # as the weather service does and for the same reason: that budget
-        # meters the pod's own air-quality quota, which a keyed chunk never
-        # spends.
-        async with sem:
-            if rate_limited.is_set():
-                return [None] * len(chunk)
-            try:
-                if api_key is None:
-                    weight = call_weight(
-                        len(chunk), req_start.date(), req_end.date(), N_VARIABLES
-                    )
-                    await ratelimit.AQI_WEIGHT.acquire(weight)
-                async with ratelimit.AQI_BUDGET.slot():
-                    return await _fetch_chunk(
-                        chunk, req_start, req_end, start_dt, end_dt, api_key
-                    )
-            except ratelimit.BudgetExhausted:
-                telemetry.AQI_DEGRADED.labels(reason="budget").inc()
-                log.warning("AQI budget exhausted (continuing without AQI)")
-                return [None] * len(chunk)
-            except UpstreamRateLimited as exc:
-                telemetry.AQI_DEGRADED.labels(reason="rate_limited").inc()
-                log.warning(
-                    "AQI rate limited (%s); skipping remaining AQI batches",
-                    exc.scope or "unknown",
-                )
-                rate_limited.set()
-                return [None] * len(chunk)
-
-    chunk_results = await asyncio.gather(*(gated(chunk) for chunk in chunks))
-    fetched = [item for sublist in chunk_results for item in sublist]
-
-    # A rate-limited or failed batch produced None rows that mean "unknown",
-    # not "no data for this window" — caching those would freeze the outage
-    # into the TTL. Only real answers are cached, and a real all-null window
-    # is cached as NO_DATA.
-    if not rate_limited.is_set():
-        for dest, result in zip(misses, fetched):
-            key = cache.forecast_key(
-                "aqi",
-                dest["latitude"],
-                dest["longitude"],
-                start_dt.isoformat(),
-                end_dt.isoformat(),
-            )
-            cache.FORECAST_CACHE.put(key, cache.NO_DATA if result is None else result)
-    for i, result in zip(miss_indices, fetched):
-        results[i] = result
-    return results
 
 
 async def _fetch_chunk(
@@ -191,7 +120,6 @@ async def _fetch_chunk(
     end_dt: datetime,
     api_key: str | None = None,
 ) -> list[dict[str, Any] | None]:
-    quota = quota_label(api_key)
     params = {
         "latitude": ",".join(str(d["latitude"]) for d in destinations),
         "longitude": ",".join(str(d["longitude"]) for d in destinations),
@@ -205,63 +133,20 @@ async def _fetch_chunk(
         url = CUSTOMER_AIR_QUALITY_URL
         params["apikey"] = api_key
 
-    try:
-        log.trace("Open-Meteo air quality request params: %s", redacted_params(params))  # type: ignore[attr-defined]
-        # One duration observation per HTTP attempt, failures included, so the
-        # histogram and the outcome counter tally the same events.
-        attempt_start = time.perf_counter()
-        try:
-            resp = await http.client().get(url, params=params)
-        finally:
-            telemetry.OPENMETEO_DURATION.labels(service="aqi", quota=quota).observe(
-                time.perf_counter() - attempt_start
-            )
-        resp.raise_for_status()
-        telemetry.OPENMETEO_REQUESTS.labels(
-            service="aqi", outcome="success", quota=quota
-        ).inc()
-        data = resp.json()
-    except httpx.HTTPStatusError as exc:
-        if is_invalid_api_key(exc):
-            # The one AQI failure that is not best-effort: the same key is on
-            # every batch of this request, so degrading here would report no
-            # air quality for a reason the caller could have fixed.
-            telemetry.OPENMETEO_REQUESTS.labels(
-                service="aqi", outcome="invalid_key", quota=quota
-            ).inc()
-            log.warning("Open-Meteo air quality rejected the supplied API key")
-            raise InvalidApiKeyError() from exc
-        if exc.response.status_code == 429:
-            # Raised (not degraded) so the caller can stop burning the AQI
-            # quota on the remaining batches; it still degrades to nulls there.
-            scope, retry_after = parse_rate_limit(exc)
-            telemetry.OPENMETEO_REQUESTS.labels(
-                service="aqi", outcome="rate_limited", quota=quota
-            ).inc()
-            telemetry.OPENMETEO_RATE_LIMITED.labels(
-                service="aqi", scope=scope or "unknown", quota=quota
-            ).inc()
-            raise UpstreamRateLimited(
-                PROVIDER, scope, retry_after, rate_limit_message(PROVIDER, scope)
-            ) from exc
-        telemetry.OPENMETEO_REQUESTS.labels(
-            service="aqi", outcome="http_error", quota=quota
-        ).inc()
+    # A refused key and a 429 still raise out of here. The key is the caller's
+    # to fix and the same one rides every batch, and the 429 is what stops the
+    # batches behind this one; everything else this service absorbs.
+    data = await request_openmeteo(
+        http.client(),
+        url,
+        params,
+        service="aqi",
+        provider=PROVIDER,
+        api_key=api_key,
+        on_error="degrade",
+    )
+    if data is DEGRADED:
         telemetry.AQI_DEGRADED.labels(reason="error").inc()
-        log.warning(
-            "Open-Meteo air quality request failed (continuing without AQI): %s",
-            redacted_error(exc, api_key),
-        )
-        return [None] * len(destinations)
-    except httpx.HTTPError as exc:
-        telemetry.OPENMETEO_REQUESTS.labels(
-            service="aqi", outcome="network_error", quota=quota
-        ).inc()
-        telemetry.AQI_DEGRADED.labels(reason="error").inc()
-        log.warning(
-            "Open-Meteo air quality request failed (continuing without AQI): %s",
-            redacted_error(exc, api_key),
-        )
         return [None] * len(destinations)
 
     # Single location → object; multiple → array
@@ -301,7 +186,7 @@ def _metrics(
 
         vals = [
             v
-            for ts, v in zip(times, aqi)
+            for ts, v in zip(times, aqi, strict=False)
             if v is not None
             and (parsed := _parse_ts(ts)) is not None
             and start <= parsed <= end
@@ -354,16 +239,3 @@ def _series(
         return {"times": grid, "aqi": out}
     except Exception:  # noqa: BLE001 — best-effort series degrades to None, never fails the analysis
         return None
-
-
-def _parse_ts(s: str) -> datetime | None:
-    try:
-        return datetime.fromisoformat(s).replace(tzinfo=None)
-    except Exception:  # noqa: BLE001 — unparseable timestamp degrades to None
-        return None
-
-
-def _epoch_ms(dt_naive: datetime) -> int:
-    # Times come back UTC (timezone=UTC) with tzinfo stripped by `_parse_ts`;
-    # re-stamp UTC for an unambiguous epoch aligned with the weather grid.
-    return int(dt_naive.replace(tzinfo=timezone.utc).timestamp() * 1000)

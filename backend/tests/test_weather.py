@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
 import pytest
+from conftest import dest, fake_response
+
 from app import ratelimit
 from app.models import DEFAULT_FORECAST_MODEL, ForecastModel
 from app.services import weather
@@ -392,9 +394,8 @@ def test_parse_ts_invalid_returns_none():
 
 
 def test_naive_strips_timezone():
-    from datetime import timezone
 
-    aware = datetime(2026, 7, 21, 0, 0, tzinfo=timezone.utc)
+    aware = datetime(2026, 7, 21, 0, 0, tzinfo=UTC)
     assert _naive(aware).tzinfo is None
 
 
@@ -424,7 +425,7 @@ def test_series_keeps_every_hour_and_preserves_nulls_per_metric():
 def test_series_times_are_utc_epoch_ms():
     data = _hourly(["2026-07-21T00:00"], [0.0], [50.0], [5.0])
     s = _series(data, START, END)
-    expected = int(datetime(2026, 7, 21, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+    expected = int(datetime(2026, 7, 21, 0, 0, tzinfo=UTC).timestamp() * 1000)
     assert s["times"] == [expected]
 
 
@@ -465,17 +466,6 @@ def test_series_malformed_payload_returns_none():
 # with the entire retry loop unexecuted.
 
 
-class _FakeResponse:
-    def __init__(self, payload: Any):
-        self._payload = payload
-
-    def raise_for_status(self) -> None:
-        return None
-
-    def json(self) -> Any:
-        return self._payload
-
-
 def _stub_openmeteo(
     monkeypatch, behaviors: list[Any], urls: list[str] | None = None
 ) -> list[dict[str, Any]]:
@@ -505,8 +495,8 @@ def _stub_openmeteo(
                 ticks, payload = behavior
                 for _ in range(ticks):
                     await asyncio.sleep(0)
-                return _FakeResponse(payload)
-            return _FakeResponse(behavior)
+                return fake_response(payload)
+            return fake_response(behavior)
 
     stub = _Client()
     monkeypatch.setattr(weather.http, "client", lambda: stub)
@@ -530,10 +520,7 @@ def _payload(precips: list[float]) -> list[dict[str, Any]]:
 
 def _dests(n: int, offset: int = 0) -> list[dict[str, Any]]:
     # Distinct coordinates so each gets its own cache key.
-    return [
-        {"latitude": 40.0 + (offset + i) * 0.5, "longitude": -120.0}
-        for i in range(n)
-    ]
+    return [dest(40.0 + (offset + i) * 0.5, -120.0) for i in range(n)]
 
 
 def _rate_limited(scope: str, retry_after: int | None = None) -> httpx.HTTPStatusError:
@@ -1321,7 +1308,7 @@ async def test_an_archive_payload_with_no_level_winds_keeps_every_hour(monkeypat
 
 SPAN_START = datetime(2026, 7, 18, 22, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
 SPAN_END = datetime(2026, 7, 19, 1, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
-SEAM = datetime(2026, 7, 19, 0, 0, tzinfo=timezone.utc)
+SEAM = datetime(2026, 7, 19, 0, 0, tzinfo=UTC)
 
 
 def _half(times, precip):

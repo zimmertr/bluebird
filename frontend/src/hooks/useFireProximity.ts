@@ -3,17 +3,19 @@ import { fetchWildfires, isRateLimited } from '../utils/wildfires'
 import {
   FireWarning,
   FIRE_WARN_MILES,
-  fireKey,
   nearestFire,
   pointsBbox,
   pointsKey,
   uncoveredKeys,
 } from '../utils/fireProximity'
+import { geoKey } from '../utils/points'
 
 // For each destination within FIRE_WARN_MILES of an active US wildfire, returns
-// a map (keyed by fireKey(lat, lon)) to its nearest-fire warning, alongside the
-// state of the lookup itself. Independent of the map overlay toggle — this is
-// safety info, not a display option.
+// a map (keyed by geoKey(lat, lon)) to its nearest-fire warning, alongside the
+// state of the lookup itself. Keyed by coordinate rather than by row position,
+// so a warning still finds its row after the results table is re-sorted on the
+// client. Independent of the map overlay toggle — this is safety info, not a
+// display option.
 //
 // Takes the analysis's candidate FIELD, not the rows on screen. Since #188 the
 // displayed rows are re-derived on every sort, limit and elevation change, so
@@ -96,6 +98,8 @@ export function useFireProximity(
   // for a set of points that had not actually changed. Live knobs are exactly
   // that case: a re-rank hands over the same destinations in a new array.
   const contentKey = useMemo(() => pointsKey(field), [field])
+  // Kept: holding `field` behind its CONTENT key is the whole point, and the
+  // rule can only ask for the reference this is here to stop reading.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const points = useMemo(() => field, [contentKey])
 
@@ -136,10 +140,10 @@ export function useFireProximity(
         const uncovered = uncoveredKeys(points, fires.coverage)
         const next = new Map<string, FireWarning>()
         for (const r of points) {
-          if (uncovered.has(fireKey(r.latitude, r.longitude))) continue
+          if (uncovered.has(geoKey(r.latitude, r.longitude))) continue
           const near = nearestFire(r.latitude, r.longitude, fires)
           if (near && near.miles <= FIRE_WARN_MILES) {
-            next.set(fireKey(r.latitude, r.longitude), near)
+            next.set(geoKey(r.latitude, r.longitude), near)
           }
         }
         setState({ status: 'ready', warnings: next, uncovered })

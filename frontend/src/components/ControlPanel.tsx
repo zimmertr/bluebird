@@ -29,10 +29,10 @@ import {
   NOTICE_DISMISS,
   PANEL_EDGE,
   PANEL_RULE,
-  ICON_ADORNMENT,
   METRICS_GRID,
   METRIC_HEAD_GAP,
   METRIC_BOX_W,
+  MUTED,
   SEGMENT_FILL,
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
@@ -42,6 +42,7 @@ import {
   STATUS,
   TEXT,
 } from '../styles'
+import { IconClose, IconSelectArrow } from './icons'
 import {
   AGGREGATE,
   FAMILY_KEYS,
@@ -69,13 +70,12 @@ import {
 } from '../utils/notices'
 import { DEFAULT_LIMIT, classifyAqiCoverage, clampLimit } from '../utils/urlState'
 import {
-  AQI_LIMIT_DAYS,
   ForecastSelection,
   archiveSeamPhrase,
   hasDates,
   selectionLocalWindow,
 } from '../utils/calendar'
-import { windowSource } from '../utils/forecastWindow'
+import { windowSource, type WindowLimits } from '../utils/forecastWindow'
 import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabilities'
 import { logoUrl } from '../logo'
 
@@ -383,6 +383,13 @@ interface Props {
   // How far back the calendar may reach, from /api/capabilities: the archive
   // endpoint's reach, same contract as the two ceilings above.
   archiveDays: number
+  // How far ahead air quality reaches, from /api/capabilities: what dims the
+  // calendar's later days, and the horizon the line below Analyze names.
+  aqiForecastDays: number
+  // The window bounds this deployment validates against, from
+  // /api/capabilities. Read here to decide which endpoint answers the SELECTED
+  // window, so the panel and the fetch cannot put the seam in two places.
+  windowLimits: WindowLimits
   // Whether a report is on screen at all — the counts themselves moved to the
   // table's own header bar.
   resultCount?: number
@@ -427,22 +434,7 @@ function NoticeMessage({
         className={NOTICE_DISMISS.button}
       >
         <span className={NOTICE_DISMISS.pill}>
-          {/* A drawn cross rather than the "×" character, for the reason
-              the panel's own close button documents: that glyph centres on
-              the font's maths, where two lines in a square viewBox centre
-              by construction. */}
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            className="h-2.5 w-2.5"
-            aria-hidden="true"
-          >
-            <line x1="6" y1="6" x2="18" y2="18" />
-            <line x1="18" y1="6" x2="6" y2="18" />
-          </svg>
+          <IconClose size="micro" />
         </span>
       </button>
     </div>
@@ -531,6 +523,8 @@ export default function ControlPanel({
   maxLimit,
   maxAreaKm2,
   archiveDays,
+  aqiForecastDays,
+  windowLimits,
   resultCount,
   aqiAllNull,
   wildfireCheckFailed,
@@ -546,8 +540,8 @@ export default function ControlPanel({
   // Memoized because the calendar's grid hangs off it: a new object on every
   // render would rebuild the month grid on every keystroke in the panel.
   const band = useMemo(
-    () => ({ forecastHours, pastDays: archiveDays }),
-    [forecastHours, archiveDays],
+    () => ({ forecastHours, pastDays: archiveDays, aqiDays: aqiForecastDays }),
+    [forecastHours, archiveDays, aqiForecastDays],
   )
   const parsedCustom = useMemo(() => parseCustomCsv(customCsv), [customCsv])
   const hasCustom = parsedCustom.length > 0
@@ -611,7 +605,7 @@ export default function ControlPanel({
   const aqiCoverage =
     selection.kind === 'now' || window === null
       ? 'full'
-      : classifyAqiCoverage(window.start, window.end, new Date())
+      : classifyAqiCoverage(window.start, window.end, new Date(), aqiForecastDays)
   // Which endpoint answers the SELECTED window (#123), which decides two things
   // in this panel. A window the archive answers names no model — its default is
   // a reanalysis, one dataset everywhere, and the picker's models are forecast
@@ -625,6 +619,8 @@ export default function ControlPanel({
       : windowSource(
           new Date(window.start).getTime(),
           new Date(window.end).getTime(),
+          Date.now(),
+          windowLimits,
         )
   const archiveWindow = selectedSource === 'archive'
 
@@ -707,6 +703,8 @@ export default function ControlPanel({
               new Date(window.start).getTime(),
               new Date(window.end).getTime(),
               modelLabel,
+              new Date(),
+              windowLimits,
             ),
             severity: 'info' as const,
           },
@@ -722,7 +720,7 @@ export default function ControlPanel({
       ? [
           {
             key: 'window:aqi-horizon',
-            text: `${NOUN.aqi} forecasts only extend ${AQI_LIMIT_DAYS} days.`,
+            text: `${NOUN.aqi} forecasts only extend ${aqiForecastDays} days.`,
             severity: 'info' as const,
           },
         ]
@@ -999,7 +997,7 @@ export default function ControlPanel({
                 because then there is no peak search for it to widen — but still
                 operable, so ticking it asks for peaks the way the grid's style
                 segment asks for the grid. */}
-            <label className={`${CHOICE_ROW} mt-1.5 ${peaksOn ? '' : 'opacity-50'}`}>
+            <label className={`${CHOICE_ROW} mt-1.5 ${peaksOn ? '' : MUTED}`}>
               <input
                 type="checkbox"
                 checked={includeUnnamedPeaks}
@@ -1236,7 +1234,7 @@ export default function ControlPanel({
                     // wrapper reserves baseline descender space below itself,
                     // which read as the dropdown sitting ~1px lower than the
                     // boxes it must align with.
-                    <div className={`relative flex ${isActive ? '' : 'opacity-50'}`}>
+                    <div className={`relative flex ${isActive ? '' : MUTED}`}>
                       {/* py-0.5 is SEGMENT_ITEM_SHAPE's own vertical padding, so the
                           dropdown, the boxes and the segment above are the
                           same height. */}
@@ -1252,18 +1250,7 @@ export default function ControlPanel({
                           </option>
                         ))}
                       </select>
-                      <svg
-                        className={`${ICON_ADORNMENT} h-4 w-4`}
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
+                      <IconSelectArrow />
                     </div>
                   )}
                   {EDGES.map(([edge, aggregate], i) => (

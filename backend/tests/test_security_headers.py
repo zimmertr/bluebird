@@ -8,12 +8,13 @@ import re
 from pathlib import Path
 
 import pytest
-from app import main, security_headers
-from app.main import app
 from fastapi.testclient import TestClient
 from starlette.applications import Starlette
 from starlette.responses import StreamingResponse
 from starlette.routing import Route
+
+from app import main, security_headers
+from app.main import app
 
 client = TestClient(app)
 

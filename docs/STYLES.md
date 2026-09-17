@@ -42,6 +42,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `SURFACE_SHEET` | The results on a phone, standing on the map's bottom edge: the docked panel's fill, the map's floating edge, the surface radius on the top corners only |
 | `SURFACE_GROUP` | Bordered region grouping controls: the calendar |
 | `SURFACE_GROUP_BLEED` | Cancels a well's inset so its contents sit on the panel's control column |
+| `SURFACE_DIVIDER` | The quiet rule between two blocks of one surface, where the panel's stack cannot draw it: a dialog header over its body, a popover's overline strip over its rows, the panel's own right edge against the map. A bare colour, so the call site supplies the side |
 
 **Buttons**
 
@@ -62,6 +63,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `FIELD_NUMERIC` | Number input with browser spinners suppressed |
 | `SELECT` | Native dropdown, recessed fill with suppressed platform chrome |
 | `DISABLED` | The faded, unpressable look of a control that does not apply; composes over any button or field role and carries no color of its own |
+| `MUTED` | The other half of that pair: a control that is not the one in force but still works. 50% against `DISABLED`'s 40%, unscoped, and no cursor change, because a press still does something |
 | `SR_ONLY` | Text for assistive technology only, the twin of an approved tooltip |
 | `CHOICE_ROW` | Radio or checkbox and its label as one strip |
 | `CHOICE_INPUT` | The box itself inside a choice row |
@@ -77,7 +79,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `SELECT_W_AGGREGATE` | The aggregate dropdown in a Metrics row: 72px (w-[4.5rem]), the widest aggregate word (28px) plus the field's 8px padding and the 24px `SELECT` reserves for its arrow, with 12px of deliberate slack because the width also sets a grid track |
 | `CAPTION_LIFTED` | `TEXT.caption` re-derived for `SURFACE_POPOVER`: a search result's description, slate-300 because slate-400 falls under 4.5:1 on that fill |
 | `SLIDER_OVERLAY` / `SLIDER_VALUE` / `SLIDER_WORDMARK` / `SLIDER_IDLE` | The coverage slider in the Layers popover: the transparent range input laid over the drawn track, the value readout at `CONTROL_SIZE`, the in-track wordmark at the same size in sentence case, and the idle tint |
-| `PANEL_EDGE` / `PANEL_RULE` | The panel's own border tint, and the rule between the panel's sections, drawn from the stack so a section added later cannot forget its line |
+| `PANEL_EDGE` / `PANEL_RULE` | The panel's own border tint, and the rule between the panel's sections, drawn from the stack so a section added later cannot forget its line. `SURFACE_DIVIDER` above is the same quiet line where a call site has to place it by hand |
 | `BADGE_STEP` | The step-number badge in the welcome modal, derived from `ACCENT.fill` |
 | `SWATCH_CHIP` | A legend swatch that carries a letter: the smoke legend's three density chips, side by side so the opacity ramp reads against itself |
 
@@ -132,8 +134,8 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `MAP_ROW_H` | Height of one row in that column: 36px, floored at 44px on a finger. Fixed, because the search field and the two buttons each solved for their own height and came out 34, 38 and 38 |
 | `MAP_COL_GAP` | The gap between members of that column: 4px, half the 8px they took before. A role rather than four call sites, because `LEGEND_TOP`'s arithmetic is built from it. `MAP_COL_GAP_T` is the same gap as a top margin, for a popover that hangs rather than sits |
 | `LEGEND_TOP` | Where the legend stack hangs under that column, in four numbers: two pointer sizes, each with and without the Controls button, which stands in the column only while the panel is collapsed. `resultsSheet.ts` mirrors two of them as `LEGEND_TOP_PX` and `LEGEND_TOP_FINE_PX`, and `resultsSheet.test.ts` reads `styles.ts` as text to hold the pairs together |
-| `MAP_EDGE` | How far anything floating on the map stands off its edge: 12px, published once as `--map-edge-inset` on the map wrapper and read by the button column, the legend stack and MapLibre's own control stack. The same publisher carries `--map-credit-size` at `MICRO_PX`, so `map.css` can size the library's credit line from the ramp |
-| `MICRO_PX` / `MICRO_SIZE` | The ramp's smallest step as a number (10) and as a utility, for the one line the library draws and the app cannot class |
+| `MAP_EDGE` | How far anything floating on the map stands off its edge: 12px, published once as `--map-edge-inset` on the map wrapper and read by the button column, the legend stack and MapLibre's own control stack. The same publisher carries `--map-credit-size` at the ramp's smallest step, so `map.css` can size the library's credit line from the ramp |
+| `MICRO_SIZE` | The ramp's smallest step as a utility. `MAP_EDGE.publish` spells the same 10px a second time as a custom property, because Tailwind compiles no interpolated class and the library's credit line has no call site; `styles.test.ts` holds the two to one number |
 | `METRICS_GRID` | The Metrics table: label, aggregate dropdown, Min box, Max box; the control columns are `auto`, sized by the roles their controls wear |
 | `METRIC_BOX_W` | One bound box in the Metrics table: 56px (w-14), the widest the metric row's label budget allows. The results cap spans both box columns instead, so it wears `w-full` off the same shape |
 | `METRIC_HEAD_GAP` | The Metrics table's one deliberate break: 8px (pt-2) above the two box headings, on every cell of that row because the columns are grid tracks. The only vertical space in the grid that `gap-y` does not set |
@@ -146,9 +148,9 @@ One set of roles for both surfaces that reorder columns, the table header and th
 |---|---|
 | `DRAG_GRIP` | The handle itself. `cursor-grab` is the standing signal; `touch-none` is load-bearing, because without it the browser claims the gesture for scrolling and the drag never gets a second pointer event on a phone |
 | `DRAG_GRIP_ACTIVE` | The grip while its own column is the one being carried |
-| `DRAG_TARGET` | The column a drop would land on |
-| `DRAG_GHOST` | The column riding under the pointer. Portalled to the body and positioned in viewport coordinates, so it takes the app's top layer rather than the table's; `pointer-events-none` is load-bearing, or the ghost is what every hit test finds |
-| `DRAG_INSERT` | The bar marking the gap the column will drop into. The accent's fill without its label color, since the bar carries no text |
+| `CARRIED` | The column where it used to be, while the ghost is under the pointer. `DISABLED`'s 40 percent without its cursor, because that column still sorts the moment the drag ends, and not `MUTED`'s 50, because it is faded for where it is rather than for what it does |
+| `DRAG_GHOST` | The column riding under the pointer. Portalled to the body and positioned in viewport coordinates, so it carries `LAYER.popover` itself rather than asking the call site for it; `pointer-events-none` is load-bearing, or the ghost is what every hit test finds |
+| `DRAG_INSERT` | The bar marking the gap the column will drop into. The accent's fill without its label color, since the bar carries no text, and the same layer as the ghost |
 
 **Map timeline**
 
@@ -188,12 +190,13 @@ One set of roles for both surfaces that reorder columns, the table header and th
 
 | Role | Purpose |
 |---|---|
-| `ICON` | Inline SVG icon sizing: 16x16 |
+| `ICON` | How big a drawn glyph is, in four steps: `control` 16 (in or beside a control, the search magnifier included), `inline` 14 (a mark inside a line of text), `chip` 12 (a chip's remove cross, either chip), `micro` 10 (inside a drawn disc or button smaller than a control). Read by `components/icons.tsx`, which draws every icon in the app; every step carries the measurement that chose it |
 | `ICON_BUTTON` | Bare icon button in header |
 | `ICON_ACTION` | Icon that acts on hover |
 | `ICON_ADORNMENT` | Glyph drawn inside a field |
 | `SPINNER` | Indeterminate spinner |
 | `TABLE.cell` | Results table cell inset |
+| `TABLE.row` | One data row: the rule above it and what it does under a pointer. Both the pending destinations and the ranked results wear it |
 | `TABLE.head` | Results table header cell |
 | `TABLE.rankStack` | Rank cell: number and remove × in one grid cell, so the column never changes width on hover |
 | `TABLE.rankFace` | One face of that stack, pinned to the shared cell |
@@ -203,17 +206,21 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | What | Where | How |
 |---|---|---|
 | Every text role is unique, and no recipe sets two competing colours | `styles.test.ts` | Uniqueness over `TEXT` and `PROSE`; a resting-colour count over every exported role |
-| No component invents a size | `styles.test.ts` | Ban `text-[` utilities in component sources |
-| No component names a hue | `styles.test.ts` | Pattern match on non-slate color utilities |
-| No component sizes a tap target | `styles.test.ts` | Ban `touch:` utilities in component sources |
-| No component sizes radio/checkbox | `styles.test.ts` | Ban `accent-sky-500` duplication |
+| No component invents a size | `eslint.config.js` | Ban a ramp step or an arbitrary size in a string or template in component sources |
+| No component names a hue | `eslint.config.js` | Pattern match on non-slate color utilities, built from alternation so an unlisted one still fails |
+| No component sizes a tap target | `eslint.config.js` | Ban `touch:` utilities in component sources |
+| No component sizes radio/checkbox | `eslint.config.js` | Covered by the hue ban, which reaches `accent-*` |
 | No component re-widths a segment | `styles.test.ts` | Check for `w-*` inside `SEGMENT` composition |
+| No component sets a slate text colour | `eslint.config.js` | Slate is the surface system, already covered by `TEXT`, `SURFACE_*` and `FIELD` |
+| No component restates a shared recipe | `eslint.config.js` | Ban the three class lists a role already composes |
+| The panel sizes by pointer, not by viewport | `eslint.config.js` | Ban a breakpoint variant on padding, gap or height in `ControlPanel.tsx` |
+| A panel heading takes a role | `eslint.config.js` | Ban a quoted class list on an `h1`-`h3` in `ControlPanel.tsx` |
 | The map's edges are one inset | `styles.test.ts` | Ban a top or left inset at the map's chrome, in `App.tsx` and `map.css` alike |
-| No component dims a placeholder | `styles.test.ts` | Ban placeholder utilities below AA contrast |
+| No component dims a placeholder | `eslint.config.js` | Ban placeholder utilities below AA contrast |
 | Every radio/checkbox uses the shared recipe | `styles.test.ts` | Check `CHOICE_INPUT` composition |
 | Every focus-able control has focus ring | `styles.test.ts` | List per control type |
 | Segmented controls are built one way | `styles.test.ts` | Check `SEGMENT` / `SEGMENT_IDLE` / `SEGMENT_ITEM` composition |
-| Metric names are centralized | `metrics.test.ts` | Ban Precip/Temp/Avg/Min/Max/Elev abbreviations in twelve consumer files |
+| Metric names are centralized | `eslint.config.js` | Ban the six abbreviations in strings and templates across twelve consumer files |
 | Tooltips match the approved list, count for count | `styles.test.ts` | `title=` occurrences per component file |
 | No unsafe error message patterns | `metrics.test.ts` | Ban `failed: ${...}` and unsafe response copies |
 | Every radius is on the scale | `styles.test.ts` | Any `rounded*` in a component source must be a `RADIUS` value |
@@ -224,8 +231,36 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
 | No bottom offset is spelled in a component | `resultsSheet.test.ts` | Ban `bottom-*` in `App.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
 | The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure |
+| No component draws its own glyph | `styles.test.ts` | Ban a literal SVG opening tag everywhere under `components/` and in `App.tsx`, except `icons.tsx` |
+| Nor does the map popup | `styles.test.ts` | Ban the same tag in `utils/popupChrome.ts`, which builds markup rather than elements, and pin its glyph size to the `inline` step |
+| No call site sizes an icon | `styles.test.ts` | Ban a height or width utility on any `<Icon…>` element; the four `ICON` steps are pinned by measured pixels, and the key set is pinned too |
+| Every glyph is hidden from assistive technology | `accessibility.test.ts` | Every SVG in `icons.tsx` and `iconPaths.ts` carries `aria-hidden` |
+| No component positions its own panel | `styles.test.ts` | Ban a fixed-position style object and the popover wrapper everywhere under `components/` and in `App.tsx`, except `Popover.tsx` |
+| One place decides where a panel goes | `styles.test.ts` | `popoverBox` has exactly one caller, the `usePopover` hook |
+| No component spells the third divider weight | `styles.test.ts` | Ban the slate-700 border utility everywhere under `components/` and in `App.tsx`, and check every `SURFACE_DIVIDER` use carries a side |
+| No component fades by a number of its own | `styles.test.ts` | Ban any `opacity-` utility everywhere under `components/` and in `App.tsx`; `DISABLED`, `MUTED` and `CARRIED` are the three fades |
+| Every exported role is rendered by something | `styles.test.ts` | Each `export const` in `styles.ts` appears in some non-test file's import list under `src/`, or in a `TEST_ONLY` list that carries its reason and is itself checked for a real importer |
 
 **NOT enforced:** custom spacing between components (only recessed surface and controls are architected), component-specific layouts. These are decided per feature.
+
+### Two enforcers, split by what they know
+
+`eslint.config.js` (in `frontend/tools/eslint/`, for the TypeScript-version
+reason recorded there) carries the **syntactic** bans: the ones a pattern over
+class names can answer on its own. `styles.test.ts` carries the **measured**
+ones: a contrast ratio, a pixel sum, a width read off a role, a count of
+approved tooltips. Nothing was dropped in the move (issue #379); the
+`no-restricted-syntax` rules read string literals and template chunks rather
+than a file's bytes, so a class name written in a COMMENT is prose about the
+rule instead of a violation of it, and a violation is now underlined in the
+editor rather than reported by `npm test`.
+
+`npm run lint` in `frontend/` runs it, then runs the rules against
+`frontend/tools/eslint/fixtures/` — one file per ban, each of which must report
+its own ban and no other, plus one file carrying `Precipitation`, `Minimum` and
+`Maximum` that must report nothing. A selector that matches nothing reports
+nothing, which reads exactly like a clean tree; the self-test is what tells the
+two apart. CI runs the same script in the `Frontend Typecheck & Tests` job.
 
 ## Measured numbers
 
@@ -243,6 +278,32 @@ The accent fill answers four measured constraints at once and must pass WCAG AA 
 **Why this shade?** No Tailwind scale step fits. The surviving window for both constraints is 0.0067 of relative luminance wide, and `sky-650` is the midpoint: sky-600 sits above it (white reads 4.02:1) and sky-700 below it (the fill drops to 2.37:1 on the range band, so the ends of a selected range sink into it). Two roads not taken: dark labels clear both constraints with far more room (rejected for brand reasons), and documenting 4.02:1 as a conformance exception was considered (rejected: 4.02 is below AA, and the resting state is the one a reader looks at, so the custom shade lifts it to 4.57 and leaves only the hover short). The hover at 4.02:1 is kept because with a white label every lightening costs contrast — a conformant hover would have to darken, making the app's primary action the only control that dims on pointer-over.
 
 **Re-measure condition:** if `DAY.range` ever changes, re-derive this shade. The binding edge is `DAY.range` at 3.04:1, so the selected day must still be findable against the range band beside it.
+
+### The three weights of rule
+
+Measured against the slate-800 panel and card, which is what every one of them
+is drawn on except the calendar's own well:
+
+| Role | Colour | Contrast | Who places it |
+|---|---|---|---|
+| `PANEL_EDGE` | slate-500 | 3.07:1 | The call site |
+| `PANEL_RULE` | slate-600 at half opacity | 1.37:1 | The panel's stack |
+| `SURFACE_DIVIDER` | slate-700 | 1.41:1 | The call site |
+
+Only the first is meant to be seen as a boundary, and it is the one step that
+clears the 3:1 a UI boundary owes. The other two are the same quiet line to the
+eye: half-opacity slate-600 composites to (50.5, 63, 82) on the panel where
+slate-700 is (51, 65, 85). They are two roles rather than one because they
+differ in who decides WHERE the line goes, not in what it looks like:
+`PANEL_RULE` is a whole recipe with its own margins and padding, drawn from the
+stack so a section added later cannot forget its line, and `SURFACE_DIVIDER` is
+a bare colour for the surfaces that place one rule themselves.
+
+`SURFACE_DIVIDER` was the literal `border-slate-700` at eleven call sites in
+eight files before #390 named it. The results table's rows are the one place
+that still takes it at half opacity, inside `TABLE.row`: a rule drawn once
+between two blocks of a card is a line, and the same rule drawn twenty times
+down a screen is a grid.
 
 ### Copy length budget
 
@@ -318,7 +379,7 @@ The welcome dialog is a `max-w-md` card on a `p-4` backdrop, so it is 448px wide
 
 **Color resolution:** competing color utilities resolve by their order in the generated stylesheet, not their order in the class list. So a role's color cannot be overridden at a call site — the role always wins. This is why every hue is centralized: a component cannot brighten or dim a color it was handed.
 
-**Raw text scanning:** the build step scans source files as raw text to find class names, so a class quoted in a comment or a test emits its CSS. For example, writing `// don't use rounded-xl` in a component file would add `rounded-xl` to the bundle even though it's commented out. The lints and role definitions avoid this by building patterns that don't form the literal class name — e.g., using regex alternation instead of quoting the exact string.
+**Raw text scanning:** the build step scans source files as raw text to find class names, so a class quoted in a comment or a test emits its CSS. For example, writing `// don't use rounded-xl` in a component file would add `rounded-xl` to the bundle even though it's commented out. The lints and role definitions avoid this by building patterns that don't form the literal class name — e.g., using regex alternation instead of quoting the exact string. The `content` list in `tailwind.config.js` is not the whole scanned set: v4 auto-detects sources beside it, and `frontend/tools/` was being scanned until `@source not "../tools"` went into `src/index.css`. Measured on 2026-09-15: without that line the ESLint fixtures emitted five real utilities into the text-page bundle, and a stray `.lowercase` had already been leaking from `tools/` before they existed. That exclusion is what lets the ESLint rules spell a class where `styles.test.ts` may not, and `styles.test.ts` pins the line.
 
 ## Copy rules
 
@@ -408,7 +469,7 @@ Never surface an exception type or HTTP status directly. Write a sentence instea
 
 ### Where the data hues live
 
-The no-hue lint scans `components/` and `App.tsx`. The app's data colours, the
+The no-hue lint is an ESLint rule and scans `components/` and `App.tsx`. The app's data colours, the
 band ramps a marker, a grid cell and the legend all read, are `METRIC_SCALE` in
 `frontend/src/utils/colors.ts`, one scale per metric family, the freezing level
 included since #295 was reversed (2026-09-14). That file is the one place
@@ -417,7 +478,7 @@ number means rather than what the surface is.
 
 ### Model coverage message
 
-The one message mirrored between backend and frontend: "{label} has no forecast coverage for this area. Switch to a different model and try again." Defined in `backend/app/services/weather.py` and ported to `frontend/src/hooks/useAnalyze.ts`. The `OpenMeteoModelCoverage` error in `frontend/src/utils/openMeteo.ts` is developer-facing, names the model id, and is not a copy of it.
+The one message mirrored between backend and frontend: "{label} has no forecast coverage for this area. Switch to a different model and try again." Defined in `backend/app/services/weather.py` (`_coverage_message`). The browser spells it once, in `frontend/src/utils/openMeteo.ts`: `COVERAGE_PHRASE` is the first sentence and `COVERAGE_MESSAGE_TAIL` adds the remedy. `useAnalyze.ts` composes the tail with the picker's label, `useModelCompare.ts` composes the phrase alone, and neither types the words. The `OpenMeteoModelCoverage` error carries no message at all, because only a catch site knows the label (#391).
 
 ### Styling a native range input
 
@@ -439,10 +500,67 @@ a styled `::-webkit-slider-runnable-track`, because a pseudo-element cannot
 carry another box on top of it, and it needs `pointer-events-none` so it does
 not swallow the drag that belongs to the input above.
 
+### Drawing an icon
+
+Every glyph in the app is a component in `frontend/src/components/icons.tsx`,
+and nothing else draws an SVG (#386). Before that module the nineteen inline
+SVGs each answered the same three questions for themselves and had stopped
+agreeing: the close cross existed six times at three sizes and two stroke
+weights, two of the six reached a screen reader that the other four did not,
+and the select arrow's path was typed out three times.
+
+The split is:
+
+- **The module owns the drawing.** Paths, stroke weight, viewBox, the size from
+  the `ICON` ramp, and `aria-hidden` on every one of them. A glyph stands inside
+  a control that already carries its own `aria-label`, so an icon that reaches
+  the accessibility tree can only announce the label a second time.
+- **The call site owns placement.** Where the glyph sits (`ICON_ADORNMENT`,
+  `flex-shrink-0`) and what colour it reaches for (`ICON_ACTION`), passed as
+  `className`. Never a size: a height or width handed to an icon fails
+  `styles.test.ts`.
+
+To add one, write the component in that file, give it a step from the `ICON`
+ramp, and let it set `aria-hidden` itself. A step that does not exist yet is a
+new role: add it to `ICON` with its rationale and pin its pixels in
+`styles.test.ts`, the same way as below. The ramp is four steps and each one
+states the number that chose it (#436), so a fifth arrives with a measurement
+or not at all — the key set is pinned as well as the values.
+
+**The one glyph drawn twice.** A map popup is an HTML string handed to
+MapLibre's `setHTML`, so Tailwind never sees its class names and the icon
+module cannot draw it. The link-out arrow in a popup's title row is therefore
+the same shape as the results table's, read from `frontend/src/iconPaths.ts`
+by both `icons.tsx` and `utils/popupChrome.ts` (#435). That module carries the
+geometry, the stroke, and the one size a string has to spell; `styles.test.ts`
+bans a literal SVG tag in `popupChrome.ts` and pins that size to the `inline`
+step. It sits at `src/` rather than in `components/`, beside `styles.ts` and
+`metrics.ts`, because `popupChrome.ts` is a util and no util in the app imports
+a component.
+
+### Opening a panel
+
+Every floating panel that hangs off a control is one shell and one hook (#385):
+`components/Popover.tsx` draws the card, and `hooks/usePopover.ts` decides where
+it goes and what closes it. A component supplies its rows and nothing else.
+
+The shell owns four decisions the four pickers each used to make for
+themselves: the `SURFACE_CARD` wrapper, `LAYER.popover`, the fixed box, and the
+portal to `document.body`. Fixed and portalled because the control panel is an
+`overflow-y-auto` column: a panel rendered inside it is clipped at the scroll
+boundary, which for a control near the bottom cuts the list in half. It also
+draws the overline header row, which two of the four had spelled separately.
+
+`styles.test.ts` fails a second `position: 'fixed'` or a second copy of that
+wrapper anywhere under `components/`, and fails a second caller of `popoverBox`.
+
 ### Adding a new role
 
 1. Write the role in `styles.ts` with a rationale comment explaining what it is for
 2. Add an assertion in `styles.test.ts` that pins the role's properties (size, color, weight, etc.)
 3. Ship both in the same PR
+
+A ban on a call site is the other file: a rule that a pattern over class names
+can decide belongs in `eslint.config.js`, not in a test.
 
 The assertion is what makes a change to a role visible in code review rather than buried in a stylesheet.

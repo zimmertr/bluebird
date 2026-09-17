@@ -11,6 +11,12 @@ One client covers every service because httpx keys its pool by host, so
 ``api.open-meteo.com``, ``archive-api.open-meteo.com``,
 ``air-quality-api.open-meteo.com`` and their ``customer-*`` twins each get
 their own connections out of the same object.
+
+This module also holds the identity the service sends upstream, which the
+shared client above does not itself use. It lives here because this is the one
+module about talking to other people's servers, and because the alternative was
+what it replaced: the same string spelled out in each of the four modules that
+fetch, with one of them already drifted.
 """
 
 from __future__ import annotations
@@ -21,6 +27,14 @@ import httpx
 # client. It is generous because a 50-location, 16-day batch is a real payload
 # (measured ~700 KB), not because upstream is expected to be slow.
 TIMEOUT_S = 60.0
+
+# Who Bluebird Forecast says it is to every upstream that asks. Overpass, NIFC
+# and NOAA all want a contactable caller, and Nominatim's usage policy makes it
+# a condition of use, so one identity rather than a per-module spelling of the
+# same product: a second spelling is drift, and drift is what makes an operator
+# reading their logs think two things are calling them.
+USER_AGENT = "BluebirdForecast/1.0 (bluebirdforecast.com; personal weather tool)"
+HEADERS = {"User-Agent": USER_AGENT}
 
 _client: httpx.AsyncClient | None = None
 

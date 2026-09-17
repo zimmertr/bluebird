@@ -9,12 +9,10 @@ import {
 } from './tableColumns'
 import { AGGREGATE, FAMILY_KEYS, NOUN, RANKED_FAMILIES, UNIT, familyOf } from '../metrics'
 import type { DestinationResult } from '../types'
+import { resultRow } from '../testSupport/fixtures'
 
-// One fully-populated row. Every aggregate differs, so a test can tell which
-// column a value came from.
-const row = {
-  name: 'Mount Rainier',
-  type: 'peak',
+// Every aggregate differs, so a test can tell which column a value came from.
+const row = resultRow({
   osm_id: 'node/1',
   latitude: 46.851731,
   longitude: -121.760395,
@@ -35,7 +33,7 @@ const row = {
   aqi_avg: 42,
   aqi_min: 18,
   aqi_max: 91,
-} as unknown as DestinationResult
+})
 
 const labelsOf = (cols: readonly { label: string }[]) => cols.map((c) => c.label)
 

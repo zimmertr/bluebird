@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AnalyzeRequest, DestinationResult, DiscoveredDestination } from '../types'
+import { AnalyzeRequest, DestinationResult, DiscoveredDestination, GeoPolygon } from '../types'
 import {
   Constraints,
   MAX_ANALYZE_DESTINATIONS,
@@ -12,17 +12,20 @@ import {
   constraintFields,
   constraintsFromRequest,
   customRows,
+  discoveryBase,
   filterConstraints,
   hasConstraints,
+  isDiscoveryRefresh,
   rankComparator,
   refreshEchoRows,
   resolveCustomOnly,
   runClientAnalysis,
   truncateTopElevation,
 } from './clientAnalyze'
-import { pinKey } from './customList'
+import { geoKey } from './points'
 import { WeatherResult, resetOpenMeteoState } from './openMeteo'
-import vectors from './weather_vectors.json'
+import vectors from '../../../backend/tests/data/weather_vectors.json'
+import { resultRow, weatherResult } from '../testSupport/fixtures'
 
 // ── Vector-pinned: the AQI-onto-weather-grid alignment ─────────────────────
 
@@ -164,32 +167,18 @@ describe('resolveCustomOnly', () => {
 
 // ── rankComparator (port of _sort_key) ─────────────────────────────────────
 
+// One AQI reading across all three aggregates, so a ranking by any of them
+// answers the same way.
 function row(name: string, aqi: number | null): DestinationResult {
-  return {
+  return resultRow({
     name,
-    type: 'peak',
     latitude: 0,
     longitude: 0,
-    elevation_ft: null,
-    osm_id: null,
-    precip_total_in: 0,
-    precip_avg_in_hr: 0,
-    precip_min_in_hr: 0,
-    precip_max_in_hr: 0,
-    temp_min_f: 0,
-    temp_max_f: 0,
-    temp_avg_f: 0,
-    wind_min_mph: 0,
-    wind_max_mph: 0,
-    wind_avg_mph: 0,
-    freeze_min_ft: null,
-    freeze_max_ft: null,
-    freeze_avg_ft: null,
     aqi_avg: aqi,
     aqi_min: aqi,
     aqi_max: aqi,
     series: null,
-  }
+  })
 }
 
 describe('rankComparator', () => {
@@ -231,10 +220,11 @@ describe('rankComparator', () => {
 
 // ── assemble (port of _assemble) ───────────────────────────────────────────
 
-const WX: WeatherResult = {
+// Two hours, because the AQI alignment below is measured against this grid: one
+// reading lands on the first stamp and the second hour has to read null.
+const WX: WeatherResult = weatherResult({
   precip_total_in: 0.3,
   precip_avg_in_hr: 0.15,
-  precip_min_in_hr: 0,
   precip_max_in_hr: 0.2,
   temp_min_f: 50,
   temp_max_f: 52,
@@ -252,7 +242,7 @@ const WX: WeatherResult = {
     wind_mph: [5, 7],
     freeze_ft: [9000, 9500],
   },
-}
+})
 
 describe('assemble', () => {
   it('drops rows whose weather came back null and keeps alignment', () => {
@@ -339,31 +329,7 @@ function bounded(over: Partial<Constraints>): Constraints {
 }
 
 function boundRow(name: string, over: Partial<DestinationResult>): DestinationResult {
-  return {
-    name,
-    type: 'peak',
-    latitude: 1,
-    longitude: 2,
-    elevation_ft: null,
-    osm_id: null,
-    precip_total_in: 0,
-    precip_avg_in_hr: 0,
-    precip_min_in_hr: 0,
-    precip_max_in_hr: 0,
-    temp_min_f: 0,
-    temp_max_f: 0,
-    temp_avg_f: 0,
-    wind_min_mph: 0,
-    wind_max_mph: 0,
-    wind_avg_mph: 0,
-    freeze_min_ft: null,
-    freeze_max_ft: null,
-    freeze_avg_ft: null,
-    aqi_avg: null,
-    aqi_min: null,
-    aqi_max: null,
-    ...over,
-  }
+  return resultRow({ name, latitude: 1, longitude: 2, ...over })
 }
 
 describe('filterConstraints', () => {
@@ -901,7 +867,7 @@ describe('refreshEchoRows', () => {
   it('drops ×-removed destinations from the universe explicitly', () => {
     // Echoing the displayed rows used to do this as a side effect; the universe
     // never saw the removal, so the filter has to be applied here.
-    const removed = new Set([pinKey(3, -121.9), pinKey(1, -121.9)])
+    const removed = new Set([geoKey(3, -121.9), geoKey(1, -121.9)])
     expect(refreshEchoRows(universe, displayed, removed).map((r) => r.name)).toEqual(['Mid'])
   })
 
@@ -909,5 +875,119 @@ describe('refreshEchoRows', () => {
     const [known, unknown] = refreshEchoRows([at('Known', 4, 9000), at('Unknown', 5)], [], new Set())
     expect(known.elevation_ft).toBe(9000)
     expect(unknown.elevation_ft).toBeUndefined()
+  })
+})
+
+// ── The refresh decision: does Analyze spend a discovery call? ──────────────
+//
+// This is the spend boundary the panel's whole interaction model rests on. A
+// false positive re-ranks a stale field against a question it no longer
+// answers; a false negative buys an Overpass query nobody asked for. Both
+// directions are pinned here.
+
+describe('discoveryBase', () => {
+  const ring: GeoPolygon = {
+    type: 'Polygon',
+    coordinates: [
+      [
+        [-121.9, 46.8],
+        [-121.7, 46.8],
+        [-121.7, 47.0],
+        [-121.9, 46.8],
+      ],
+    ],
+  }
+  const csv = [{ name: 'Rainier', latitude: 46.85, longitude: -121.76 }]
+
+  it('is the same discovery whichever order the kinds were checked in', () => {
+    expect(discoveryBase(ring, [], ['peak', 'lake'], false)).toBe(
+      discoveryBase(ring, [], ['lake', 'peak'], false),
+    )
+  })
+
+  it('changes when a kind joins or leaves', () => {
+    expect(discoveryBase(ring, [], ['peak'], false)).not.toBe(
+      discoveryBase(ring, [], ['peak', 'lake'], false),
+    )
+  })
+
+  it('changes when the unnamed-peaks toggle moves', () => {
+    // It widens what discovery finds the same way checking another kind does.
+    expect(discoveryBase(ring, [], ['peak'], false)).not.toBe(
+      discoveryBase(ring, [], ['peak'], true),
+    )
+  })
+
+  it('changes when the pasted rows change', () => {
+    expect(discoveryBase(ring, csv, ['peak'], false)).not.toBe(
+      discoveryBase(ring, [], ['peak'], false),
+    )
+    expect(discoveryBase(ring, csv, ['peak'], false)).not.toBe(
+      discoveryBase(ring, [{ ...csv[0], latitude: 46.9 }], ['peak'], false),
+    )
+  })
+
+  // It takes the PARSED rows, so editing a comment or the whitespace around a
+  // coordinate leaves the discovery alone.
+  it('is the rows, not the text they were typed as', () => {
+    expect(discoveryBase(ring, csv, ['peak'], false)).toBe(
+      discoveryBase(ring, [{ ...csv[0] }], ['peak'], false),
+    )
+  })
+
+  it('changes when the ring moves', () => {
+    const moved: GeoPolygon = {
+      type: 'Polygon',
+      coordinates: [ring.coordinates[0].map((p, i) => (i === 1 ? [-121.6, 46.8] : p))],
+    }
+    expect(discoveryBase(ring, [], ['peak'], false)).not.toBe(
+      discoveryBase(moved, [], ['peak'], false),
+    )
+  })
+
+  // Every recorded base carries a ring, because only a polygon run records one.
+  // A run with no ring can therefore never match a record, which is what makes
+  // the caller's polygon guard a backstop rather than the only guard.
+  it('never matches a recorded base when there is no ring', () => {
+    expect(discoveryBase(null, [], ['peak'], false)).not.toBe(
+      discoveryBase(ring, [], ['peak'], false),
+    )
+  })
+})
+
+describe('isDiscoveryRefresh', () => {
+  const base = 'base'
+  const prev = { base, searchedKeys: ['a', 'b'] }
+
+  it('refreshes when nothing the user authored has changed', () => {
+    expect(isDiscoveryRefresh(prev, base, ['a', 'b'], true)).toBe(true)
+  })
+
+  it('re-discovers when a discovery input changed', () => {
+    expect(isDiscoveryRefresh(prev, 'other', ['a', 'b'], true)).toBe(false)
+  })
+
+  // A removal shrinks the searched list, and the departed rows are already gone
+  // from the report the refresh echoes.
+  it('refreshes over a searched list that only shrank', () => {
+    expect(isDiscoveryRefresh(prev, base, ['a'], true)).toBe(true)
+    expect(isDiscoveryRefresh(prev, base, [], true)).toBe(true)
+  })
+
+  // A new place has to compete against the whole candidate field, which the
+  // echo is not: refreshing would silently leave it out of the ranking.
+  it('re-discovers when a searched place was added', () => {
+    expect(isDiscoveryRefresh(prev, base, ['a', 'b', 'c'], true)).toBe(false)
+    expect(isDiscoveryRefresh(prev, base, ['c'], true)).toBe(false)
+  })
+
+  it('re-discovers when there is no report to echo', () => {
+    expect(isDiscoveryRefresh(prev, base, ['a', 'b'], false)).toBe(false)
+  })
+
+  // Null after a custom-only run, which forgets the polygon behind it on
+  // purpose so those rows are never mistaken for a polygon's discovered set.
+  it('re-discovers when nothing was recorded', () => {
+    expect(isDiscoveryRefresh(null, base, [], true)).toBe(false)
   })
 })

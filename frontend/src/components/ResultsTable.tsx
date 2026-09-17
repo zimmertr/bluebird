@@ -28,7 +28,6 @@ import {
   FIRE_UNCOVERED_NOTE,
   FireWarning,
   fireCellText,
-  fireKey,
   fireLoadingFrame,
   fireWarningText,
 } from '../utils/fireProximity'
@@ -39,39 +38,21 @@ import { extremeHourMs, windyUrl } from '../utils/windy'
 import { FIRE_LINK_ZOOM, nifcFireUrl } from '../utils/wildfires'
 import { isPeakKind } from '../utils/geocode'
 import type { PendingDestination } from '../utils/customList'
-import { pinKey } from '../utils/customList'
+import { geoKey } from '../utils/points'
 import {
   ACCENT,
+  CARRIED,
   CHOICE_INPUT,
   DRAG_GHOST,
   DRAG_GRIP_ACTIVE,
   DRAG_INSERT,
-  LAYER,
   ICON_ACTION,
   LINK_ACTION,
   TABLE,
   TEXT,
 } from '../styles'
+import { IconClose, IconExternalLink } from './icons'
 import { createPortal } from 'react-dom'
-
-function ExternalLinkIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-3.5 w-3.5"
-      aria-hidden="true"
-    >
-      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-      <polyline points="15 3 21 3 21 9" />
-      <line x1="10" y1="14" x2="21" y2="3" />
-    </svg>
-  )
-}
 
 // The number cell that swaps to the remove × on row hover (touch devices show
 // both — the row-remove rule in index.css). `rank` is "—" for pending rows.
@@ -88,10 +69,7 @@ function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; 
             aria-label={`Remove ${name}`}
             className={`row-remove ${TABLE.rankFace} invisible group-hover:visible leading-none ${ICON_ACTION} cursor-pointer`}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            <IconClose />
           </button>
         </span>
       ) : (
@@ -510,8 +488,8 @@ function ResultsTable({
       // idiom, see ForecastCalendar); `aria-label` is the same sentence for
       // a screen reader.
       if (col.key === WILDFIRE_KEY) {
-        const warning = fireWarnings.get(fireKey(row.latitude, row.longitude))
-        const uncovered = fireUncovered.has(fireKey(row.latitude, row.longitude))
+        const warning = fireWarnings.get(geoKey(row.latitude, row.longitude))
+        const uncovered = fireUncovered.has(geoKey(row.latitude, row.longitude))
         const note =
           fireStatus === 'unavailable'
             ? FIRE_UNAVAILABLE_NOTE
@@ -626,7 +604,7 @@ function ResultsTable({
                   aria-label={`Open ${row.name} in an external map. Opens in a new tab.`}
                   className={`shrink-0 ${ICON_ACTION}`}
                 >
-                  <ExternalLinkIcon />
+                  <IconExternalLink />
                 </a>
               </span>,
             )}
@@ -722,7 +700,7 @@ function ResultsTable({
                 }}
                 className={`${TABLE.head} relative cursor-pointer whitespace-nowrap hover:text-white select-none ${
                   onColumnMove ? 'touch-none' : ''
-                } ${carry?.key === col.key ? `opacity-40 ${DRAG_GRIP_ACTIVE}` : ''}`}
+                } ${carry?.key === col.key ? `${CARRIED} ${DRAG_GRIP_ACTIVE}` : ''}`}
               >
                 {sized(col.key as string, col.label, 'inline')}
                 {detailSortKey === col.key && (
@@ -753,7 +731,7 @@ function ResultsTable({
           {pending?.map((d) => (
             <tr
               key={`pending-${d.latitude},${d.longitude}`}
-              className="group border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors"
+              className={TABLE.row}
             >
               {showChartCol && (
                 <td className={TABLE.cell}>
@@ -807,7 +785,7 @@ function ResultsTable({
                           aria-label={`Open ${d.name} in an external map. Opens in a new tab.`}
                           className={`shrink-0 ${ICON_ACTION}`}
                         >
-                          <ExternalLinkIcon />
+                          <IconExternalLink />
                         </a>
                         </span>,
                       )}
@@ -831,11 +809,11 @@ function ResultsTable({
             </tr>
           ))}
           {results.map((row, i) => {
-            const isLeaving = leavingRowKeys.has(pinKey(row.latitude, row.longitude))
+            const isLeaving = leavingRowKeys.has(geoKey(row.latitude, row.longitude))
             return (
             <tr
               key={`${row.name}-${i}`}
-              className={`group border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors ${isLeaving ? 'animate-remove-row' : ''}`}
+              className={`${TABLE.row} ${isLeaving ? 'animate-remove-row' : ''}`}
             >
               {showChartCol && <td className={TABLE.cell}>{renderChartToggle(row)}</td>}
               <RankRemoveCell
@@ -876,7 +854,7 @@ function ResultsTable({
         createPortal(
           <>
             <div
-              className={`${DRAG_GHOST} ${LAYER.popover}`}
+              className={DRAG_GHOST}
               style={{
                 left: ghostLeft(carry.x, window.innerWidth),
                 top: carry.y - 10,
@@ -887,7 +865,7 @@ function ResultsTable({
             </div>
             {insert && (
               <div
-                className={`${DRAG_INSERT} ${LAYER.popover}`}
+                className={DRAG_INSERT}
                 style={{
                   left: insert.x - 1,
                   top: insert.top,

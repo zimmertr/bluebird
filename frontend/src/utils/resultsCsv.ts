@@ -16,8 +16,9 @@ import { DestinationResult } from '../types'
 import { ColDef, MODEL_KEY, WILDFIRE_COL, WILDFIRE_KEY } from './tableColumns'
 import type { ModelRow } from './modelCompare'
 import { DATA_SOURCES } from './dataSources'
-import { FireWarning, fireKey } from './fireProximity'
+import { FireWarning } from './fireProximity'
 import type { ResolvedWindow } from './forecastWindow'
+import { geoKey } from './points'
 
 /**
  * The leading position column, named rather than numbered.
@@ -133,7 +134,7 @@ function fireCell(
   warnings: ReadonlyMap<string, FireWarning>,
   uncovered: ReadonlySet<string>,
 ): string {
-  const key = fireKey(row.latitude, row.longitude)
+  const key = geoKey(row.latitude, row.longitude)
   if (uncovered.has(key)) return 'N/A'
   const warning = warnings.get(key)
   return warning ? warning.miles.toFixed(1) : ''
@@ -257,7 +258,7 @@ export interface CsvOptions {
    * only: no rank and no metrics, because no forecast covers them.
    */
   pendingRows?: readonly DestinationResult[]
-  /** Rows the fire check could not reach, by fireKey (#256). */
+  /** Rows the fire check could not reach, by geoKey (#256). */
   fireUncovered?: ReadonlySet<string>
   /**
    * What the Model column reads for a row no comparison tagged: the model the

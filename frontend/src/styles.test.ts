@@ -14,10 +14,13 @@ import {
   BUTTON_FLOATING,
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
+  CARRIED,
   CHIP,
   CHOICE_INPUT,
   CHOICE_ROW,
   DAY,
+  DRAG_GHOST,
+  DRAG_INSERT,
   CHART_METRIC_W,
   CONTROL_W,
   FIELD,
@@ -64,12 +67,15 @@ import {
   MAP_COL_GAP_T,
   MAP_COL_W,
   MAP_ROW_H,
-  MICRO_PX,
   MICRO_SIZE,
+  MUTED,
+  PANEL_EDGE,
+  PANEL_RULE,
   MAP_EDGE,
   PROSE,
   RADIUS,
   SURFACE_CARD,
+  SURFACE_DIVIDER,
   SURFACE_FLOATING,
   SURFACE_POPOVER,
   SURFACE_SHEET,
@@ -79,6 +85,7 @@ import {
   TEXT,
 } from './styles'
 import * as STYLES from './styles'
+import { EXTERNAL_LINK_PX } from './iconPaths'
 // `?raw` gives us the file's text without executing it, so this stays a pure
 // node test with no DOM, matching vitest.config.ts. (The same trick does not
 // work on index.css: vitest stubs CSS imports to an empty string.)
@@ -86,11 +93,18 @@ import controlPanelSource from './components/ControlPanel.tsx?raw'
 import modelPickerSource from './components/ModelPicker.tsx?raw'
 import appSource from './App.tsx?raw'
 import searchBoxSource from './components/SearchBox.tsx?raw'
+// Read on its own rather than joined to the component glob below: it is markup
+// for MapLibre's setHTML, so it carries hex colours and spelled sizes that the
+// per-component lints would rightly read as a call site inventing its own.
+import popupChromeSource from './utils/popupChrome.ts?raw'
 // The one stylesheet with a decision in it: the vendor's own controls have no
 // call site to hand a role to, so what they take is written there. Read off
 // the disk rather than imported — Vitest stubs a CSS import, `?raw` included,
 // to an empty string.
 const mapCss: string = readFileSync(new URL('./map.css', import.meta.url), 'utf8')
+// The other stylesheet with a decision in it, read the same way and for the
+// same reason.
+const indexCss: string = readFileSync(new URL('./index.css', import.meta.url), 'utf8')
 
 // The arbitrary branch cannot carry a trailing \b: `text-[10px]` ends in `]`, a
 // non-word character, so a boundary there would require the *next* character to
@@ -100,7 +114,7 @@ const mapCss: string = readFileSync(new URL('./map.css', import.meta.url), 'utf8
 const stepPx = (cls: string, prefix: string): number =>
   (Number(cls.match(new RegExp(`(?:^|\\s)${prefix}-(\\d+(?:\\.\\d+)?)(?:\\s|$)`))![1]) / 4) * 16
 // What SELECT keeps clear on the right: the arrow's own box and nothing more.
-const ICON_PX = stepPx(ICON, 'w')
+const ICON_PX = stepPx(ICON.control, 'w')
 const selectArrowPx = (): number => stepPx(SELECT, 'pr')
 // The panel's control column, and the Metrics box pair it now measures.
 const controlWPx = (): number => Number(CONTROL_W.match(/w-\[(\d+)px\]/)![1])
@@ -209,24 +223,47 @@ const sources: Record<string, string> = {
   './App.tsx': appSource,
 }
 
+// The one file allowed to draw an SVG.
+const ICON_MODULE = './components/icons.tsx'
+
+// The one file allowed to position a floating panel.
+const POPOVER_MODULE = './components/Popover.tsx'
+
+// Every source that could ask where a panel goes. Wider than `sources` above,
+// because the placement is wired from a hook rather than from a component, and
+// a second caller there would be as much of a second recipe as one here.
+const placementCallers: Record<string, string> = {
+  ...(import.meta.glob(
+    ['./components/*.tsx', './hooks/*.ts', './utils/*.ts', '!./**/*.test.ts'],
+    { query: '?raw', import: 'default', eager: true },
+  ) as Record<string, string>),
+  './App.tsx': appSource,
+}
+
+// Where the placement is defined, so the export itself does not read as a call.
+const PLACEMENT_MODULE = './utils/listbox.ts'
+
+// Everything the app SHIPS that could import a role. Wider than either set
+// above, because a role is dead only if NOTHING renders it — and narrower than
+// all of `src/`, because a test is not a renderer. A suite that counted itself
+// could not have caught the role it was written for (#438).
+const roleImporters: Record<string, string> = import.meta.glob(
+  ['./**/*.ts', './**/*.tsx', '!./styles.ts', '!./**/*.test.ts', '!./**/*.test.tsx'],
+  { query: '?raw', import: 'default', eager: true },
+) as Record<string, string>
+
 describe('every component', () => {
   it('found the sources', () => {
     expect(Object.keys(sources).length).toBeGreaterThan(6)
   })
 
-  // Arbitrary sizes are how a 10px and an 11px treatment ended up inside the
-  // same 160px legend box. The ramp owns the two steps Tailwind has no name
-  // for; nothing else may invent one.
-  // L1: No component sets a text size of its own.
-  it.each(Object.entries(sources))('%s invents no size of its own', (_path, source) => {
-    expect(source).not.toMatch(/\btext-(?:xs|sm|base|lg|xl|2xl|3xl)\b/)
-    expect(source).not.toMatch(/text-\[/)
-  })
-
-  // L2: No component sets a slate text color of its own. Slate is the surface
-  // system, already covered by TEXT, SURFACE_* and FIELD roles.
-  it.each(Object.entries(sources))('%s sets no slate text color of its own', (_path, source) => {
-    expect(source).not.toMatch(/\btext-slate-\d+/)
+  // The ESLint config and the fixtures beside it spell classes verbatim, which
+  // is only safe while Tailwind cannot see them. v4 auto-detects sources BESIDE
+  // the config's `content` list, so the exclusion is the load-bearing line:
+  // without it the fixtures emitted five real utilities into the text-page
+  // bundle. A build is the only thing that would otherwise notice.
+  it('keeps the linter fixtures out of Tailwind\'s reach', () => {
+    expect(indexCss).toMatch(/@source not ["']\.\.\/tools["']/)
   })
 
   // Derived from the scale rather than blocking a list of names, so a utility
@@ -239,10 +276,6 @@ describe('every component', () => {
     expect([...used].filter((c) => !scale.has(c))).toEqual([])
   })
 
-  // The placeholder color lives in FIELD; the search box, not a field, sets
-  // its own at the same step. What no component may do is dim one below AA
-  // again. Written so no banned class appears verbatim: v4 scans this file as
-  // raw text and would emit its CSS.
   // A call site that re-widths a segment breaks the alignment the role exists
   // to hold, and it cannot even be relied on to win: two width utilities resolve
   // by stylesheet order rather than by class order. Matched only where a width
@@ -252,17 +285,38 @@ describe('every component', () => {
     expect(rides.filter((r) => /(^|\s)w-\S+/.test(r))).toEqual([])
   })
 
-  it.each(Object.entries(sources))('%s dims no placeholder below AA', (_path, source) => {
-    expect(source).not.toMatch(/placeholder[:-](?:text-)?slate-[56]00/)
+  // The hue lint below lets slate through, because slate is the surface system
+  // — and that exemption is how a third divider weight reached eleven call
+  // sites in eight files with no name and no owner (#390). A rule between two
+  // blocks of one surface is `SURFACE_DIVIDER` now, so the one place it is
+  // spelled is the one place it can be changed. Written through a character
+  // class so the class name never appears in this file as text, which Tailwind
+  // would otherwise compile.
+  it.each(Object.entries(sources))('%s spells no divider of its own', (_path, source) => {
+    expect(source).not.toMatch(/border-slate-[7]00/)
   })
 
-  // The glob covers components added later, which is the point: a fourth copy
-  // of a shared recipe should fail here rather than ship a fourth look.
-  it.each(Object.entries(sources))('%s restates no shared recipe', (_path, source) => {
-    // The idle half of a segmented choice, which two controls in the panel wear.
-    expect(source).not.toMatch(/bg-slate-900 text-slate-400/)
-    expect(source).not.toMatch(/bg-slate-900 border border-slate-500/)
-    expect(source).not.toMatch(/bg-slate-800(\/95)? border border-slate-600/)
+  // How faded a thing is says WHY it is faded — 40 percent is out of reach or
+  // out of the room, 50 percent is working but not in force — so it is the
+  // design system's answer, the way a hue is. Spelling the number at the call
+  // site is how one chip came to fade its dot by 40 and its label by 50 while
+  // meaning one thing (#437). Left open-ended so it forbids a step nobody
+  // thought of, and so the pattern is not itself a class name: v4 scans this
+  // file as raw text and would compile one.
+  it.each(Object.entries(sources))('%s fades by no number of its own', (_path, source) => {
+    expect(source).not.toMatch(/\bopacity-/)
+  })
+
+  // The role is a colour and nothing else, so a call site that forgets the
+  // side draws no line at all and nothing says so. Every use is read back with
+  // its own template literal around it.
+  it('pairs every divider with a side to draw on', () => {
+    const uses = Object.values(sources).flatMap(
+      (source) => source.match(/`[^`]*\$\{SURFACE_DIVIDER\}[^`]*`/g) ?? [],
+    )
+
+    expect(uses.length).toBeGreaterThan(6)
+    for (const use of uses) expect(use).toMatch(/\bborder-[trbl]\b/)
   })
 
   // The guardrail #167 exists to install. Every hue in the app carries meaning
@@ -343,21 +397,69 @@ describe('every component', () => {
     const found = (source.match(/\btitle=/g) ?? []).length
     expect(found).toBe(APPROVED_TOOLTIPS[path] ?? 0)
   })
-})
 
-// The panel is a near-constant width on every breakpoint, so a width variant used for
-// padding re-spaced its rows on desktop windows that had not changed size,
-// while leaving large tablets with mouse-tight rows. Nothing catches a relapse
-// at build time: `lg:py-*` reads as ordinary responsive code.
-describe('control panel sizing', () => {
-  // The coarse-pointer padding itself now lives in BUTTON_PRIMARY, asserted
-  // below. What has to stay true here is that nothing sizes by window width.
-  it('never sizes a control by viewport width', () => {
-    expect(controlPanelSource).not.toMatch(
-      /\b(sm|md|lg|xl|2xl):(p[xytrbl]?|space-[xy]|gap|min-h|h)-/,
-    )
+  // #386. Nineteen hand-drawn glyphs each answered how big, how heavy and
+  // whether a screen reader skips them, and they had stopped agreeing: the
+  // close cross existed six times at three sizes and two stroke weights, two
+  // of the six were announced, and the select arrow's path was typed out
+  // three times. One module draws them all now, and this is what stops a
+  // twentieth arriving by hand.
+  it.each(Object.entries(sources).filter(([path]) => path !== ICON_MODULE))(
+    '%s draws no glyph of its own',
+    (_path, source) => {
+      expect(source).not.toContain('<svg')
+    },
+  )
+
+  // The other half of that rule, and the one a new icon is most likely to
+  // break: a call site says where a glyph sits and what colour it reaches for,
+  // and the module says how big it is. A height or width handed to an icon is
+  // a size decision made at a call site.
+  it.each(Object.entries(sources))('%s hands no icon a size', (_path, source) => {
+    const SIZED = /(?:^|[\s"'`{])[hw]-(?:\d|\[)/
+    const uses = source.match(/<Icon[A-Za-z]*\s[^>]*>/g) ?? []
+    expect(uses.filter((use) => SIZED.test(use))).toEqual([])
   })
 
+  // Both lints above are vacuous if the module is not in the glob or has
+  // stopped being where the glyphs are.
+  it('reads the icon module it exempts', () => {
+    expect(sources[ICON_MODULE]).toBeDefined()
+    expect((sources[ICON_MODULE].match(/<svg/g) ?? []).length).toBeGreaterThan(10)
+  })
+
+  // #385: four popovers each carried the same fixed-position style object and
+  // the same wrapper, so the card, the stacking order and the offsets could
+  // drift a step apart without anything saying so. `Popover.tsx` owns all
+  // three now, and a fifth panel that spells them again fails here.
+  it.each(Object.entries(sources).filter(([path]) => path !== POPOVER_MODULE))(
+    '%s positions no panel of its own',
+    (_path, source) => {
+      expect(source).not.toMatch(/position: ?'fixed'/)
+      expect(source).not.toContain('${SURFACE_CARD} ${LAYER.popover}')
+    },
+  )
+
+  // The other half of that rule, and the one the ban above cannot state: the
+  // placement itself. `usePopover` is the only caller, so a fix to the two
+  // measuring passes or to what dismisses a panel reaches all four.
+  it('asks one place where a panel goes', () => {
+    const calls = Object.entries(placementCallers).filter(
+      ([path, source]) => path !== PLACEMENT_MODULE && source.includes('popoverBox('),
+    )
+    expect(calls.map(([path]) => path)).toEqual(['./hooks/usePopover.ts'])
+  })
+
+  // Both lints above are vacuous if the shell is not in the glob or has
+  // stopped being where the box is applied.
+  it('reads the popover shell it exempts', () => {
+    expect(sources[POPOVER_MODULE]).toBeDefined()
+    expect(sources[POPOVER_MODULE]).toContain('${SURFACE_CARD} ${LAYER.popover}')
+    expect(placementCallers[PLACEMENT_MODULE]).toContain('export function popoverBox(')
+  })
+})
+
+describe('control panel sizing', () => {
   // The size used to live beside the tint at every call site, which is how the
   // chart's metric radio ended up wearing the tint at the browser's default
   // size. Both now come from ACCENT.input, which CHOICE_INPUT composes, so what
@@ -376,15 +478,6 @@ describe('control panel sizing', () => {
 
     expect(rows.length).toBeGreaterThan(2)
     expect(boxes.length).toBe(rows.length)
-  })
-
-  // Spelling type out per element is what let the panel drift into three
-  // treatments for one kind of label. Anything above the base size has to come
-  // from the ramp so the drift is visible in one file. Bare `text-xs` stays
-  // legal: status lines carry a semantic color.
-  it('routes every non-base size through the ramp', () => {
-    expect(controlPanelSource).not.toMatch(/className="[^"]*\btext-(sm|base|lg|xl)\b/)
-    expect(controlPanelSource).not.toMatch(/<h[123] className="/)
   })
 })
 
@@ -810,6 +903,44 @@ describe('shared recipes', () => {
     expect(DISABLED).not.toMatch(/text-|bg-|border-/)
   })
 
+  // The other half of that pair, and the reason it cannot BE that pair: a
+  // muted control still works, so the cursor must not promise it does not, and
+  // the `disabled:` variant would never fire on an element that is not
+  // disabled. Louder than off and quieter than in force, which is the whole
+  // claim. Colourless for the same reason DISABLED is.
+  it('quiets a control that still works, without the disabled claim', () => {
+    expect(MUTED).toBe('opacity-50')
+    expect(MUTED).not.toContain('cursor')
+    expect(MUTED).not.toContain('disabled:')
+    expect(MUTED).not.toMatch(/text-|bg-|border-/)
+  })
+
+  // The third fade, and the one that reads as neither of the two above: a
+  // column being dragged is not off and it is not out of force, it is simply
+  // somewhere else for a moment. It borrows DISABLED's 40 percent because the
+  // ghost under the pointer is what the reader is looking at, and deliberately
+  // none of that role's cursor: the column still sorts the instant the drag
+  // ends. Two surfaces drew the literal before it had a name (#437).
+  it('fades a carried column without the disabled claim either', () => {
+    expect(CARRIED).toBe('opacity-40')
+    expect(CARRIED).toBe(DISABLED.replace(/disabled:/g, '').split(' ')[0])
+    expect(CARRIED).not.toContain('cursor')
+    expect(CARRIED).not.toContain('disabled:')
+    expect(CARRIED).not.toMatch(/text-|bg-|border-/)
+  })
+
+  // The three weights of rule, in order. PANEL_EDGE is the only one that is
+  // meant to be seen as a boundary (3.07:1 on the panel); the other two are
+  // the same quiet line at 1.41 and 1.37, and differ only in whether the stack
+  // or the call site decides where it is drawn. SURFACE_DIVIDER carries no
+  // side, no width and no spacing, so it composes into either.
+  it('keeps the divider a colour and the panel rule a recipe', () => {
+    expect(SURFACE_DIVIDER).toBe('border-slate-700')
+    expect(SURFACE_DIVIDER.split(' ')).toHaveLength(1)
+    expect(PANEL_EDGE).toBe('border-slate-500')
+    expect(PANEL_RULE).toContain('[&>*+*]:border-t')
+  })
+
   // The panel's controls share a left edge as well as a right one. The segment
   // is where the width comes from, so it composes the token rather than
   // spelling a width that the model picker and Max Results would then have to
@@ -1129,9 +1260,50 @@ describe('shared recipes', () => {
     expect(ICON_ADORNMENT).toContain('pointer-events-none')
   })
 
-  // Inline SVG icons beside text: sized for clarity without dominating text labels.
-  it('sizes the inline glyph for text-paired icons', () => {
-    expect(ICON).toBe('h-4 w-4')
+  // The ramp every glyph in `components/icons.tsx` reads (#386). Pinned step by
+  // step, because that module is now the only thing standing between these four
+  // numbers and the nineteen call sites that used to pick their own: a step
+  // that moves here moves an icon on screen.
+  it('sizes every glyph from one ramp', () => {
+    expect(stepPx(ICON.control, 'h')).toBe(16)
+    expect(stepPx(ICON.inline, 'h')).toBe(14)
+    expect(stepPx(ICON.chip, 'h')).toBe(12)
+    expect(stepPx(ICON.micro, 'h')).toBe(10)
+  })
+
+  // The set as well as the values (#436). Every step above carries a measured
+  // reason in its comment, so a fifth one arriving without one is the failure
+  // this catches — and `stepPx` reads Tailwind's scale alone, so a step spelled
+  // in arbitrary pixels throws here rather than passing quietly.
+  it('keeps the ramp to the four steps that have a reason', () => {
+    expect(Object.keys(ICON)).toEqual(['control', 'inline', 'chip', 'micro'])
+  })
+
+  // A glyph's box is its own viewBox, which is square in every icon the app
+  // draws. A step that set one dimension would stretch the drawing rather than
+  // resize it.
+  it('keeps every step of that ramp square', () => {
+    for (const [step, recipe] of Object.entries(ICON)) {
+      expect(stepPx(recipe, 'w'), `${step} must be square`).toBe(stepPx(recipe, 'h'))
+    }
+  })
+
+  // The one glyph the ramp cannot reach (#435). A map popup is an HTML string
+  // handed to MapLibre's setHTML, and Tailwind generates CSS for class names it
+  // finds in source, so the popup's copy of the link-out arrow has to carry a
+  // number. This is what keeps that number the ramp's.
+  it('draws the popup glyph at the step its React twin takes', () => {
+    expect(EXTERNAL_LINK_PX).toBe(stepPx(ICON.inline, 'h'))
+  })
+
+  // And the shape itself comes from `iconPaths.ts` rather than being typed out
+  // again: `popupChrome.ts` was the one file outside the icon module still
+  // drawing a glyph of its own, which the component lint above cannot see
+  // because it reads the React tree.
+  it('leaves no glyph spelled in the map popup', () => {
+    const drawn = popupChromeSource.match(/<svg[\s>][^>]*>/g) ?? []
+    expect(drawn, 'draw it from `iconPaths.ts` instead').toEqual([])
+    expect(popupChromeSource).toContain('externalLinkMarkup()')
   })
 
   // Every floating box on the map is one surface: the search field and its
@@ -1438,6 +1610,76 @@ describe('every role', () => {
   it('found the roles', () => {
     expect(recipes.length).toBeGreaterThan(30)
   })
+
+  // Every check above reads a role that something asked for. `DRAG_TARGET` was
+  // exported for two years and asked for by nothing, so none of them ever
+  // looked at it and the file kept documenting a treatment the app does not
+  // have (#390). A role nobody imports is worse than a missing one: it reads
+  // as the answer to a question it has never actually answered.
+  //
+  // The import list rather than any mention of the name, because a name in a
+  // comment is not a use. This file is not an importer either (#438): counting
+  // it let a role whose only reader is an assertion pass as used, which is the
+  // exact state the check was written to fail.
+  //
+  // What that costs is the list below. It is an allowlist, and an allowlist is
+  // the thing that rots, so it is held down from both ends: an entry that gains
+  // a real importer fails here too, and every role outside it still owes one.
+  //
+  // Each of these is a half-recipe this file composes itself, so no call site
+  // ever names it and the assertion is the only place the halves can be held
+  // together.
+  const TEST_ONLY: Record<string, string> = {
+    // The ramp's smallest step, spelled a second time as `--map-credit-size` in
+    // `MAP_EDGE.publish` because Tailwind cannot compile an interpolated class
+    // and MapLibre's credit line has no call site. Components take `TEXT.micro`.
+    MICRO_SIZE: 'binds the ramp step to the custom property map.css reads',
+    // Half of the well — `RECESSED_FILL` is the other — and every surface that
+    // sinks into the panel composes the pair here. A call site takes the
+    // finished `FIELD`, `SEGMENT`, `SURFACE_GROUP` or `SCRUBBER_TRACK`.
+    RECESSED_EDGE: 'the half of the well recipe this file composes itself',
+    // The timeline axis half's width floor, spelled twice over (plain and
+    // `touch:`) so the variant cannot lose to `TAP.action`'s by stylesheet
+    // order. The call site takes `TRANSPORT_AXIS_ITEM`, which carries it.
+    TRANSPORT_AXIS_W: 'holds one floor to two spellings inside TRANSPORT_AXIS_ITEM',
+  }
+
+  it('exports no role nothing imports', () => {
+    const imported = new Set<string>()
+    for (const source of Object.values(roleImporters)) {
+      for (const block of source.match(/import\s+(?:type\s+)?\{[^}]*\}\s+from\s+'[^']*styles'/g) ??
+        []) {
+        for (const name of block.slice(block.indexOf('{') + 1, block.indexOf('}')).split(',')) {
+          imported.add(name.trim().split(/\s+as\s+/)[0].trim())
+        }
+      }
+    }
+
+    expect(imported.size).toBeGreaterThan(30)
+    expect(
+      Object.keys(STYLES).filter((role) => !imported.has(role) && !(role in TEST_ONLY)),
+    ).toEqual([])
+  })
+
+  // The other end of the same rule. A listed role that something renders is a
+  // reason that has stopped being true, and the entry would then be hiding the
+  // role from the check above rather than explaining it.
+  it.each(Object.entries(TEST_ONLY))('%s is listed because %s', (role) => {
+    const readers = Object.entries(roleImporters)
+      .filter(([, source]) =>
+        (source.match(/import\s+(?:type\s+)?\{[^}]*\}\s+from\s+'[^']*styles'/g) ?? []).some(
+          (block) =>
+            block
+              .slice(block.indexOf('{') + 1, block.indexOf('}'))
+              .split(',')
+              .some((name) => name.trim().split(/\s+as\s+/)[0].trim() === role),
+        ),
+      )
+      .map(([path]) => path)
+
+    expect(readers).toEqual([])
+    expect(Object.keys(STYLES)).toContain(role)
+  })
 })
 
 describe('the accent', () => {
@@ -1704,6 +1946,34 @@ describe('the results table rank cell', () => {
     const displayToggle = new RegExp(['group-hover', '(hidden|inline|block|flex)\\b'].join(':'))
     expect(source).not.toMatch(displayToggle)
   })
+
+  // Two kinds of row in one body: the pending destinations waiting on a
+  // forecast, and the ranked results under them. They had spelled the recipe
+  // twice, so the rule above a row and what it does under a pointer could have
+  // come to mean two things in one table (#390). `group` is the load-bearing
+  // part — the remove × above appears on `group-hover`, so a row without it
+  // cannot be removed with a pointer.
+  it('draws every row in the body from one recipe', () => {
+    expect(STYLES.TABLE.row.split(' ')).toContain('group')
+    expect(STYLES.TABLE.row).toMatch(/\bborder-t\b/)
+    expect((source.match(/TABLE\.row\b/g) ?? []).length).toBe(2)
+  })
+})
+
+// One vocabulary for both surfaces that reorder columns, so the same gesture
+// looks the same in the table header and in the Columns picker.
+describe('moving a column', () => {
+  // The ghost and the insert bar are both drawn in viewport coordinates over
+  // whatever surface the drag started in, so the stacking order is part of
+  // what they are. Both call sites composed the layer beside the role, which
+  // is a pair either of them could have got half of.
+  it('carries its own stacking order rather than asking for one', () => {
+    expect(DRAG_GHOST).toContain(LAYER.popover)
+    expect(DRAG_INSERT).toContain(LAYER.popover)
+    for (const [path, src] of Object.entries(sources)) {
+      expect(src, `${path} re-adds the layer`).not.toMatch(/DRAG_(GHOST|INSERT)\}\s*\$\{LAYER/)
+    }
+  })
 })
 
 // One inset for everything that stands off the map's edges, the app's chrome
@@ -1728,12 +1998,14 @@ describe('the map edge inset', () => {
 
   // MapLibre's credit line is sized by map.css from a custom property, because
   // the library builds that markup itself and there is no call site to hand
-  // `TEXT.micro` to. The number is the ramp's smallest step, spelled once as
-  // `MICRO_PX`; the class and the property are both pinned to it here so the
-  // stylesheet, which no test can read, cannot drift from the ramp.
+  // `TEXT.micro` to. So the ramp's smallest step is spelled twice — Tailwind
+  // compiles no interpolated class, so neither spelling can be built from the
+  // other — and this is the one place that holds them to one number, which is
+  // why the two are read off each other rather than off a third constant.
   it('publishes the credit size from the ramp', () => {
-    expect(MICRO_SIZE).toBe(`text-[${MICRO_PX}px]`)
-    expect(MAP_EDGE.publish).toContain(`[--map-credit-size:${MICRO_PX}px]`)
+    const published = MAP_EDGE.publish.match(/--map-credit-size:(\d+)px/)
+    expect(published).not.toBeNull()
+    expect(MICRO_SIZE).toBe(`text-[${published![1]}px]`)
   })
 
   // The button column, the legend stack and the popover under them. The first

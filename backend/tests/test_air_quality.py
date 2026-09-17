@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
 import pytest
+from conftest import dest, fake_response
+
 from app.services import air_quality
 from app.services.air_quality import (
     _metrics,
@@ -74,9 +76,9 @@ async def test_fetch_batch_empty_returns_empty():
 async def test_fetch_batch_beyond_horizon_skips_without_network():
     # A window that starts well past the ~5-day AQI horizon must degrade to
     # None entries rather than calling (and 400-ing) the upstream API.
-    far_start = datetime.now(timezone.utc) + timedelta(days=10)
+    far_start = datetime.now(UTC) + timedelta(days=10)
     far_end = far_start + timedelta(days=1)
-    dests = [{"latitude": 47.0, "longitude": -121.0}, {"latitude": 46.0, "longitude": -122.0}]
+    dests = [dest(47.0, -121.0), dest(46.0, -122.0)]
     assert await fetch_aqi_batch(dests, far_start, far_end) == [None, None]
 
 
@@ -86,7 +88,7 @@ async def test_the_request_asks_only_for_the_hours_the_window_needs(monkeypatch)
     calls = _stub_openmeteo(monkeypatch, [[_hourly(["2026-07-21T10:00"], [80])]])
     start = datetime(2026, 7, 21, 9, 30)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
     end = datetime(2026, 7, 21, 14, 45)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
-    await fetch_aqi_batch([{"latitude": 47.0, "longitude": -121.0}], start, end)
+    await fetch_aqi_batch([dest(47.0, -121.0)], start, end)
 
     assert calls[0]["start_hour"] == "2026-07-21T09:00"
     assert calls[0]["end_hour"] == "2026-07-21T14:00"
@@ -99,10 +101,10 @@ async def test_the_horizon_clamp_ends_at_the_last_hour_of_the_cap_day(monkeypatc
     # hour bound has to end there too. Clamping to the instant instead would
     # quietly drop most of a day of real AQI.
     calls = _stub_openmeteo(monkeypatch, [[_hourly(["2026-07-21T10:00"], [80])]])
-    start = datetime.now(timezone.utc)
+    start = datetime.now(UTC)
     cap_day = (start + timedelta(days=air_quality.MAX_FORECAST_DAYS)).date()
     await fetch_aqi_batch(
-        [{"latitude": 47.0, "longitude": -121.0}], start, start + timedelta(days=15)
+        [dest(47.0, -121.0)], start, start + timedelta(days=15)
     )
 
     assert calls[0]["end_hour"] == f"{cap_day.isoformat()}T23:00"
@@ -121,7 +123,7 @@ def test_series_keeps_hours_and_preserves_nulls():
 def test_series_times_are_utc_epoch_ms():
     data = _hourly(["2026-07-21T00:00"], [80])
     s = _series(data, START, END)
-    expected = int(datetime(2026, 7, 21, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+    expected = int(datetime(2026, 7, 21, 0, 0, tzinfo=UTC).timestamp() * 1000)
     assert s["times"] == [expected]
 
 
@@ -145,17 +147,6 @@ def test_series_empty_returns_none():
 # next minute's budget mid-fallback. The guard against that had no test.
 
 
-class _FakeResponse:
-    def __init__(self, payload: Any):
-        self._payload = payload
-
-    def raise_for_status(self) -> None:
-        return None
-
-    def json(self) -> Any:
-        return self._payload
-
-
 def _stub_openmeteo(
     monkeypatch, behaviors: list[Any], urls: list[str] | None = None
 ) -> list[dict[str, Any]]:
@@ -177,7 +168,7 @@ def _stub_openmeteo(
                 urls.append(url)
             if isinstance(behavior, Exception):
                 raise behavior
-            return _FakeResponse(behavior)
+            return fake_response(behavior)
 
     stub = _Client()
     monkeypatch.setattr(air_quality.http, "client", lambda: stub)
@@ -185,7 +176,7 @@ def _stub_openmeteo(
 
 
 def _dests(n: int) -> list[dict[str, Any]]:
-    return [{"latitude": 40.0 + i * 0.1, "longitude": -120.0} for i in range(n)]
+    return [dest(40.0 + i * 0.1, -120.0) for i in range(n)]
 
 
 def _rate_limited(scope: str = "minutely") -> httpx.HTTPStatusError:
@@ -338,14 +329,14 @@ async def test_an_archive_era_window_is_still_fetched(monkeypatch):
     # AQI. So a window older than the weather boundary is an ordinary fetch —
     # only the FUTURE clamp above skips one — and an hour the endpoint cannot
     # answer degrades to null the way every other gap does.
-    old_start = (datetime.now(timezone.utc) - timedelta(days=200)).replace(
+    old_start = (datetime.now(UTC) - timedelta(days=200)).replace(
         minute=0, second=0, microsecond=0
     )
     stamp = old_start.strftime("%Y-%m-%dT%H:00")
     calls = _stub_openmeteo(monkeypatch, [[_hourly([stamp], [42])]])
 
     results = await fetch_aqi_batch(
-        [{"latitude": 47.0, "longitude": -121.0}], old_start, old_start + timedelta(hours=1)
+        [dest(47.0, -121.0)], old_start, old_start + timedelta(hours=1)
     )
 
     assert len(calls) == 1

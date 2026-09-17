@@ -1,8 +1,7 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { popoverBox, PopoverBox } from '../utils/listbox'
 import { visibilityRows, type VisibilityModel } from '../utils/modelVisibility'
-import { CHOICE_INPUT, CHOICE_ROW, LAYER, SURFACE_CARD } from '../styles'
+import { usePopover } from '../hooks/usePopover'
+import Popover from './Popover'
+import { CHOICE_INPUT, CHOICE_ROW } from '../styles'
 
 interface Props {
   open: boolean
@@ -19,9 +18,10 @@ interface Props {
  *
  * The same popover the Columns picker is, for the same reason: this is a set of
  * things on screen and which of them to look at, which is the question Columns
- * already answers one way. Built from `ColumnsPicker`'s parts rather than a
- * second recipe — the same `popoverBox` placement, the same dismissal, the same
- * `CHOICE_ROW`/`CHOICE_INPUT` rows — so the two read as one control.
+ * already answers one way. It now shares the recipe rather than a copy of it —
+ * `usePopover` places and dismisses both, `Popover` is the card both sit in,
+ * and both wear `CHOICE_ROW`/`CHOICE_INPUT` rows — so the two read as one
+ * control and cannot drift apart again (#385).
  *
  * It hides lines and nothing else. Every forecast behind it is already bought,
  * so a box here spends nothing either way, and nothing it does reaches the
@@ -43,84 +43,12 @@ export default function ModelsPicker({
   onToggle,
   triggerRef,
 }: Props) {
-  const popoverRef = useRef<HTMLDivElement>(null)
-  const [box, setBox] = useState<PopoverBox | null>(null)
-  // Whether this open has had its measuring pass yet — see ColumnsPicker.
-  const measuredRef = useRef(false)
-
-  function place(desiredHeight = Infinity) {
-    const trigger = triggerRef.current
-    if (!trigger) return
-    setBox(
-      popoverBox(
-        trigger.getBoundingClientRect(),
-        { width: window.innerWidth, height: window.innerHeight },
-        { preferredWidth: 256, gap: 4, margin: 8, desiredHeight },
-      ),
-    )
-  }
-
-  useLayoutEffect(() => {
-    if (open) place()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
-
-  // The measuring pass, run after EVERY commit rather than keyed on `open`, for
-  // the sequencing reason ColumnsPicker records: the trigger lives in App and
-  // only flips `open`, so the popover does not exist yet when an [open]-keyed
-  // pass would run. The ref is what stops the loop.
-  useLayoutEffect(() => {
-    if (!open) {
-      measuredRef.current = false
-      return
-    }
-    const popover = popoverRef.current
-    if (popover && !measuredRef.current) {
-      measuredRef.current = true
-      place(popover.scrollHeight)
-    }
-  })
-
-  useEffect(() => {
-    if (!open) return
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onOpenChange(false)
-        triggerRef.current?.focus()
-      }
-    }
-
-    // Pointerdown rather than click: a click that lands on something which
-    // unmounts under it never reaches document, and the picker would stay open.
-    const handlePointerDown = (e: PointerEvent) => {
-      const target = e.target as Node
-      if (popoverRef.current?.contains(target) || triggerRef.current?.contains(target)) return
-      onOpenChange(false)
-    }
-
-    document.addEventListener('keydown', handleEscape)
-    document.addEventListener('pointerdown', handlePointerDown)
-    return () => {
-      document.removeEventListener('keydown', handleEscape)
-      document.removeEventListener('pointerdown', handlePointerDown)
-    }
-  }, [open, onOpenChange, triggerRef])
+  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef })
 
   if (!open || !box) return null
 
-  return createPortal(
-    <div
-      ref={popoverRef}
-      style={{
-        position: 'fixed',
-        left: box.left,
-        width: box.width,
-        maxHeight: box.maxHeight,
-        ...box.offset,
-      }}
-      className={`${SURFACE_CARD} ${LAYER.popover} flex flex-col`}
-    >
+  return (
+    <Popover box={box} popoverRef={popoverRef}>
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-1">
         {visibilityRows(models, hidden).map((row) => (
           <label key={row.id} className={CHOICE_ROW}>
@@ -134,7 +62,6 @@ export default function ModelsPicker({
           </label>
         ))}
       </div>
-    </div>,
-    document.body,
+    </Popover>
   )
 }

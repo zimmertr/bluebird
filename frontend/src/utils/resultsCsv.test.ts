@@ -2,23 +2,22 @@ import { describe, expect, it } from 'vitest'
 import { buildResultsCsv, csvFilename, isoLocalMinute } from './resultsCsv'
 import { DATA_SOURCES } from './dataSources'
 import { COLUMNS, WILDFIRE_COL, displayedColumns, withModelColumn } from './tableColumns'
-import { FireWarning, fireKey } from './fireProximity'
+import { FireWarning } from './fireProximity'
+import { geoKey } from './points'
 import { DestinationResult } from '../types'
+import { resultRow } from '../testSupport/fixtures'
 import { archiveBoundaryMs, normalizeWindow, windowSource } from './forecastWindow'
 
-// Inline like the other suites: a full row with every field, so a test can
-// override only the field it is about.
+// The coordinates are spelled out because this suite asserts on them: the file
+// must not carry a destination's position, and a fire warning is keyed by one.
 function row(over: Partial<DestinationResult> = {}): DestinationResult {
-  return {
-    name: 'Mount Rainier',
-    type: 'peak',
+  return resultRow({
     latitude: 46.8523,
     longitude: -121.7603,
     elevation_ft: 14411,
     osm_id: 'node/1',
     precip_total_in: 0.024,
     precip_avg_in_hr: 0.001,
-    precip_min_in_hr: 0,
     precip_max_in_hr: 0.0034,
     temp_min_f: 21.4,
     temp_max_f: 38.2,
@@ -26,14 +25,11 @@ function row(over: Partial<DestinationResult> = {}): DestinationResult {
     wind_min_mph: 4.1,
     wind_max_mph: 22.7,
     wind_avg_mph: 12.3,
-    freeze_min_ft: null,
-    freeze_max_ft: null,
-    freeze_avg_ft: null,
     aqi_avg: 31,
     aqi_min: 44,
     aqi_max: 44,
     ...over,
-  }
+  })
 }
 
 const NO_FIRES = new Map<string, FireWarning>()
@@ -173,7 +169,11 @@ describe('values a spreadsheet can compute over', () => {
   // variable at all. The file is read detached from the app, with nothing
   // around it to say which, so it carries the mark the screen shows.
   it('writes the screen mark for a freezing level the model does not publish', () => {
-    const csv = buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES)
+    const csv = buildResultsCsv(
+      [row({ freeze_min_ft: null, freeze_max_ft: null, freeze_avg_ft: null })],
+      WINDOW_COLUMNS,
+      NO_FIRES,
+    )
     const freezeColumns = WINDOW_COLUMNS.filter((c) => c.key.startsWith('freeze_'))
 
     expect(freezeColumns).toHaveLength(3)
@@ -278,7 +278,7 @@ describe('quoting', () => {
 
 describe('the wildfire column', () => {
   const near = new Map<string, FireWarning>([
-    [fireKey(46.8523, -121.7603), { miles: 5.28, name: 'Sourdough Fire', latitude: 0, longitude: 0 }],
+    [geoKey(46.8523, -121.7603), { miles: 5.28, name: 'Sourdough Fire', latitude: 0, longitude: 0 }],
   ])
 
   it('reports the distance for a flagged row', () => {
@@ -299,7 +299,7 @@ describe('the wildfire column', () => {
   // beside it, and matches the table's cell for the same state.
   it('writes N/A for a destination outside the fire coverage', () => {
     const robson = row({ name: 'Mount Robson', latitude: 53.1106, longitude: -119.2317 })
-    const uncovered = new Set([fireKey(53.1106, -119.2317)])
+    const uncovered = new Set([geoKey(53.1106, -119.2317)])
     const csv = buildResultsCsv([row(), robson], WINDOW_COLUMNS, near, { fireUncovered: uncovered })
     const body = lines(csv).slice(1, 3)
     expect(body[0].endsWith(',5.3')).toBe(true)
@@ -307,7 +307,7 @@ describe('the wildfire column', () => {
   })
 
   it('still omits the whole column when the lookup itself never ran', () => {
-    const uncovered = new Set([fireKey(53.1106, -119.2317)])
+    const uncovered = new Set([geoKey(53.1106, -119.2317)])
     const csv = buildResultsCsv([row()], WINDOW_COLUMNS, null, { fireUncovered: uncovered })
     // The row ends where the metric columns end, so no cell carries the fire
     // check's answer at all. Counted rather than searched for the mark, which

@@ -5,13 +5,11 @@ import type { DestinationResult } from '../types'
 import { NOUN, SEP } from '../metrics'
 import { LABEL_COLOR } from './popupChrome'
 import { displayedColumns } from './tableColumns'
+import { resultRow } from '../testSupport/fixtures'
 
-// One fully-populated row, with every aggregate a different number so a test
-// can tell which column a value came from.
-const row = {
-  name: 'Mount Rainier',
-  type: 'peak',
-  osm_id: null,
+// Every aggregate is a different number so a test can tell which column a
+// value came from.
+const row = resultRow({
   latitude: 46.851731,
   longitude: -121.760395,
   elevation_ft: 14406,
@@ -31,7 +29,7 @@ const row = {
   aqi_avg: 24,
   aqi_min: 11,
   aqi_max: 31,
-} as unknown as DestinationResult
+})
 
 // A date-range report with every column on, which is the app's own default.
 const WINDOW_COLS = displayedColumns(false, 'precip_total_in')

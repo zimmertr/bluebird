@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
-from collections.abc import Awaitable, Callable, Sequence
-from datetime import datetime, timedelta, timezone
+from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
 from typing import Any, NamedTuple
 
 import httpx
@@ -13,15 +12,18 @@ from app import ratelimit, telemetry
 from app.models import DEFAULT_FORECAST_MODEL, MODEL_INFO, ForecastModel, WindowSource
 from app.services import cache, http
 from app.services.errors import (
-    InvalidApiKeyError,
     ModelCoverageError,
     UpstreamError,
     UpstreamRateLimited,
-    classify_http_error,
-    is_invalid_api_key,
     is_out_of_domain,
-    parse_rate_limit,
-    rate_limit_message,
+)
+from app.services.openmeteo_fetch import (
+    PaceCallback,
+    Pacing,
+    ProgressCallback,
+    StatusErrorHook,
+    fetch_batched,
+    request_openmeteo,
 )
 from app.services.openmeteo_weight import call_weight
 
@@ -37,25 +39,6 @@ CUSTOMER_FORECAST_URL = "https://customer-api.open-meteo.com/v1/forecast"
 # one thing that decides which of the two a window belongs to.
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 CUSTOMER_ARCHIVE_URL = "https://customer-archive-api.open-meteo.com/v1/archive"
-# Measured 2026-07-31 (issue #182), not guessed. Upstream accepts far more than
-# 50 per request, but raising this buys nothing and costs headroom:
-#   - Weight is per LOCATION, so the pacer caps locations/min identically at any
-#     batch size. A 1,500-destination analysis is budget-bound at ~3 min either
-#     way; only the request count changes.
-#   - Open-Meteo's nginx returns 414 above an 8,192-byte request URI. At 29
-#     bytes per location (7-decimal coordinates, the precision OSM hands back)
-#     250 locations already spends 7,485 of it, and `custom_destinations`
-#     coordinates are never rounded, so a caller's float repr can spend more.
-#   - A failed batch loses everything in it, and a big one has no sibling to
-#     hide its tail latency behind.
-# Re-measure if the URI cap moves or the pacer stops being the binding
-# constraint; switching these calls to POST would lift the 414 ceiling.
-BATCH_SIZE = 50
-# In-flight fairness cap per analysis, so one giant polygon doesn't hog every
-# slot. Rate protection is NOT this number's job: ratelimit.WEATHER_WEIGHT
-# paces the pod's spend in weighted calls per minute, the unit Open-Meteo
-# actually meters (see services.openmeteo_weight).
-MAX_CONCURRENT_BATCHES = 4
 # The wind the table ranks on is wind at the destination's OWN elevation
 # (issue #257). Open-Meteo's 10 m wind stands 10 m above the model's smoothed
 # terrain, inside the friction layer — measured at Rainier 2026-08-21, the
@@ -143,51 +126,6 @@ HOURLY_VARIABLES = ",".join(
 # the five level winds and the freezing level before them rode inside it.
 N_VARIABLES = 14
 PROVIDER = "Open-Meteo"
-
-# Called as each batch completes: (processed_destinations, total_destinations,
-# batches_done, total_batches). Lets the SSE route emit incremental progress.
-ProgressCallback = Callable[[int, int, int, int], Awaitable[None]]
-
-# Called when the weighted budget is about to pace us (estimated seconds).
-# Lets the SSE route narrate the wait instead of appearing hung.
-PaceCallback = Callable[[int], Awaitable[None]]
-
-# What stands in for a caller's key wherever text could persist. The pod
-# forwards a paid credential and must forget it, so a log line is the one
-# place it could survive the request.
-_REDACTED = "[redacted]"
-
-
-def redacted_params(params: dict[str, Any]) -> dict[str, Any]:
-    """`params` with any caller API key replaced, for logging.
-
-    Both Open-Meteo services log their full request params at TRACE, which is
-    exactly where a forwarded key would come to rest. Nothing logs `params`
-    directly.
-    """
-    if "apikey" not in params:
-        return params
-    return {**params, "apikey": _REDACTED}
-
-
-def redacted_error(exc: Exception, api_key: str | None) -> str:
-    """An upstream exception's text with the caller's key removed.
-
-    `raise_for_status` builds its message out of the request URL, and a keyed
-    request carries the key in that URL's query string, so interpolating the
-    exception straight into a log line would persist the credential that
-    `redacted_params` was careful not to.
-    """
-    text = str(exc)
-    return text.replace(api_key, _REDACTED) if api_key else text
-
-
-def quota_label(api_key: str | None) -> str:
-    """Whose Open-Meteo quota a batch spends: the caller's key, or this pod's.
-
-    A metric label, so it names the owner and never the key.
-    """
-    return "caller" if api_key else "pod"
 
 
 def hour_param(dt: datetime) -> str:
@@ -351,34 +289,30 @@ async def fetch_weather_batch(
 
     A spanning window is two requests per batch, joined per location before the
     aggregation runs (`_fetch_spans`, `_join_hours`).
+
+    Weight exhaustion (wedged, not merely busy) raises and fails the analysis
+    with a 503, which is what `on_error="raise"` says: unlike best-effort AQI,
+    a ranking with no weather in it is not a ranking.
     """
     if not destinations:
         return []
 
     spans = _fetch_spans(source, start_dt, end_dt, boundary)
 
-    total = len(destinations)
-
-    # Serve repeats from the per-location cache first, then fetch only the
-    # misses. A repeat Analyze on the same polygon and window costs zero
-    # upstream calls; a partially-overlapping polygon pays only for what
-    # actually changed.
-    #
-    # `api_key` is deliberately NOT part of the key. The two hosts answer the
-    # same model the same way for the same location and window, so keying on
-    # the key would split one cache into a copy per caller and buy nothing
-    # except upstream spend.
-    #
-    # `source` IS part of it. The two endpoints answer the same question from
-    # different data — the archive carries no pressure-level winds, so its rows
-    # hold the 10 m wind where the forecast endpoint's hold wind at elevation —
-    # and the boundary between them moves with the clock, so a window can change
-    # sides while an entry is still live. Keying on it means an entry is only
-    # ever read back for the endpoint that produced it.
-    results: list[dict[str, Any] | None] = [None] * total
-    miss_indices: list[int] = []
-    for i, dest in enumerate(destinations):
-        key = cache.forecast_key(
+    def key(dest: dict[str, Any]) -> str:
+        # `api_key` is deliberately NOT part of the key. The two hosts answer
+        # the same model the same way for the same location and window, so
+        # keying on the key would split one cache into a copy per caller and buy
+        # nothing except upstream spend.
+        #
+        # `source` IS part of it. The two endpoints answer the same question
+        # from different data — the archive carries no pressure-level winds, so
+        # its rows hold the 10 m wind where the forecast endpoint's hold wind at
+        # elevation — and the boundary between them moves with the clock, so a
+        # window can change sides while an entry is still live. Keying on it
+        # means an entry is only ever read back for the endpoint that produced
+        # it.
+        return cache.forecast_key(
             "weather",
             dest["latitude"],
             dest["longitude"],
@@ -388,128 +322,42 @@ async def fetch_weather_batch(
             dest.get("elevation_ft") or "",
             source,
         )
-        hit = cache.FORECAST_CACHE.get(key)
-        if hit is None:
-            miss_indices.append(i)
-        else:
-            results[i] = None if hit == cache.NO_DATA else hit
 
-    misses = [destinations[i] for i in miss_indices]
-    chunks = [misses[i : i + BATCH_SIZE] for i in range(0, len(misses), BATCH_SIZE)]
-    total_batches = len(chunks)
-    cached_count = total - len(misses)
+    def weights(chunk: list[dict[str, Any]]) -> list[float]:
+        # One acquire per SPAN, each priced on its own hours: a spanning window
+        # is two requests and two answers, so it spends twice, and pricing it on
+        # the whole window would bill the archive's months for the forecast
+        # half's days as well.
+        #
+        # The model count is spelled here rather than defaulted, because this
+        # service is where `models=` is built: a request that ever names more
+        # than one model returns a series per model and costs that multiple, so
+        # the two must move together.
+        return [
+            call_weight(
+                len(chunk),
+                span.start.date(),
+                span.end.date(),
+                N_VARIABLES,
+                n_models=1,
+            )
+            for span in spans
+        ]
 
-    log.info(
-        "Fetching Open-Meteo weather: %d destination(s), %d cached, %d across %d batch(es)",
-        total,
-        cached_count,
-        len(misses),
-        total_batches,
+    return await fetch_batched(
+        destinations,
+        label="Open-Meteo weather",
+        cache_key=key,
+        fetch_chunk=lambda chunk: _fetch_chunk(
+            chunk, start_dt, end_dt, spans, model, api_key
+        ),
+        slots=ratelimit.WEATHER_BUDGET,
+        pacing=None
+        if api_key is not None
+        else Pacing(ratelimit.WEATHER_WEIGHT, weights, on_pace),
+        on_error="raise",
+        on_progress=on_progress,
     )
-
-    processed = cached_count
-    if on_progress is not None and cached_count:
-        await on_progress(processed, total, 0, total_batches)
-    if not misses:
-        return results
-
-    # Preserve input ordering by placing each batch's results at its own index,
-    # while still reporting progress in completion order via as_completed.
-    chunk_results_by_index: list[list[dict[str, Any] | None]] = [[] for _ in chunks]
-    batches_done = 0
-
-    sem = asyncio.Semaphore(MAX_CONCURRENT_BATCHES)
-    tasks = [
-        asyncio.create_task(
-            _fetch_chunk_indexed(
-                i, chunk, start_dt, end_dt, sem, spans, on_pace, model, api_key
-            )
-        )
-        for i, chunk in enumerate(chunks)
-    ]
-
-    try:
-        for future in asyncio.as_completed(tasks):
-            index, chunk_results = await future
-            chunk_results_by_index[index] = chunk_results
-            processed += len(chunk_results)
-            batches_done += 1
-            if on_progress is not None:
-                await on_progress(processed, total, batches_done, total_batches)
-    except BaseException:
-        # A batch failed (or the client disconnected) — don't leak the siblings.
-        for task in tasks:
-            task.cancel()
-        raise
-
-    fetched = [item for sublist in chunk_results_by_index for item in sublist]
-    for dest, result in zip(misses, fetched):
-        key = cache.forecast_key(
-            "weather",
-            dest["latitude"],
-            dest["longitude"],
-            start_dt.isoformat(),
-            end_dt.isoformat(),
-            model.value,
-            dest.get("elevation_ft") or "",
-            source,
-        )
-        cache.FORECAST_CACHE.put(key, cache.NO_DATA if result is None else result)
-    for i, result in zip(miss_indices, fetched):
-        results[i] = result
-    return results
-
-
-async def _fetch_chunk_indexed(
-    index: int,
-    destinations: list[dict[str, Any]],
-    start_dt: datetime,
-    end_dt: datetime,
-    sem: asyncio.Semaphore,
-    spans: list[_Span],
-    on_pace: PaceCallback | None = None,
-    model: ForecastModel = DEFAULT_FORECAST_MODEL,
-    api_key: str | None = None,
-) -> tuple[int, list[dict[str, Any] | None]]:
-    # Per-analysis fairness slot first, then the pod's weighted spend, then a
-    # pod-wide in-flight slot. The weight acquire happens BEFORE the in-flight
-    # slot so a pace sleep never holds a slot another analysis could be using.
-    # Weight exhaustion (wedged, not busy) raises and fails the analysis with
-    # a 503, unlike best-effort AQI.
-    #
-    # A keyed batch skips the weighted pacer, and only the pacer: that budget
-    # meters THIS POD's free-tier quota, which a keyed batch never touches, so
-    # pacing one would queue a caller behind spend it does not share. The
-    # in-flight slot still applies, because it guards the pod's own
-    # concurrency rather than anybody's quota.
-    async with sem:
-        if api_key is None:
-            # One acquire per SPAN, each priced on its own hours: a spanning
-            # window is two requests and two answers, so it spends twice, and
-            # pricing it on the whole window would bill the archive's months for
-            # the forecast half's days as well.
-            #
-            # The model count is spelled here rather than defaulted, because
-            # this is where `models=` is built: a request that ever names
-            # more than one model returns a series per model and costs that
-            # multiple, so the two must move together.
-            for span in spans:
-                weight = call_weight(
-                    len(destinations),
-                    span.start.date(),
-                    span.end.date(),
-                    N_VARIABLES,
-                    n_models=1,
-                )
-                if on_pace is not None:
-                    estimate = ratelimit.WEATHER_WEIGHT.wait_estimate_s(weight)
-                    if estimate > 3:
-                        await on_pace(int(estimate) + 1)
-                await ratelimit.WEATHER_WEIGHT.acquire(weight)
-        async with ratelimit.WEATHER_BUDGET.slot():
-            return index, await _fetch_chunk(
-                destinations, start_dt, end_dt, spans, model, api_key
-            )
 
 
 def _coverage_message(model: ForecastModel) -> str:
@@ -542,7 +390,7 @@ async def _fetch_chunk(
     results: list[dict[str, Any] | None] = []
     # zip truncates to the shortest, which is the tolerance this loop has always
     # had for a host returning fewer locations than were asked about.
-    for dest, parts in zip(destinations, zip(*per_span)):
+    for dest, parts in zip(destinations, zip(*per_span, strict=False), strict=False):
         elevation_ft = dest.get("elevation_ft")
         item = _join_hours(parts)
         m = _metrics(item, start_dt, end_dt, elevation_ft)
@@ -570,7 +418,6 @@ async def _fetch_span(
     """One request: these locations, these hours, from the span's own endpoint."""
     lats = ",".join(str(d["latitude"]) for d in destinations)
     lons = ",".join(str(d["longitude"]) for d in destinations)
-    quota = quota_label(api_key)
     archive = span.archive
     start_dt, end_dt = span.start, span.end
 
@@ -615,89 +462,59 @@ async def _fetch_span(
         url = CUSTOMER_ARCHIVE_URL if archive else CUSTOMER_FORECAST_URL
         params["apikey"] = api_key
 
-    # One automatic resume for a minutely 429: that quota refills within the
-    # minute, so a single paced retry usually completes the batch instead of
-    # failing the whole analysis. Hourly/daily exhaustion raises immediately —
-    # no wait we are willing to impose can help those.
-    data: Any = None
-    for attempt in (0, 1):
-        try:
-            log.trace("Open-Meteo request params: %s", redacted_params(params))  # type: ignore[attr-defined]
-            # One duration observation per HTTP attempt, failures included, so
-            # the histogram and the outcome counter tally the same events.
-            attempt_start = time.perf_counter()
-            try:
-                resp = await http.client().get(url, params=params)
-            finally:
-                telemetry.OPENMETEO_DURATION.labels(
-                    service="weather", quota=quota
-                ).observe(time.perf_counter() - attempt_start)
-            resp.raise_for_status()
-            telemetry.OPENMETEO_REQUESTS.labels(
-                service="weather", outcome="success", quota=quota
-            ).inc()
-            data = resp.json()
-            break
-        except httpx.HTTPStatusError as exc:
-            if is_invalid_api_key(exc):
-                # The caller's credential, not our outage: raised so the route
-                # can answer 401 instead of a 502 no retry would fix.
-                telemetry.OPENMETEO_REQUESTS.labels(
-                    service="weather", outcome="invalid_key", quota=quota
-                ).inc()
-                log.warning("Open-Meteo rejected the supplied API key")
-                raise InvalidApiKeyError() from exc
-            if is_out_of_domain(exc):
-                # One location outside a regional model's grid 400s the whole
-                # batch, so this says nothing about which of the 50 it was.
-                # Naming them would take bisecting the batch — more upstream
-                # spend to refine an answer the user acts on the same way.
-                telemetry.OPENMETEO_REQUESTS.labels(
-                    service="weather", outcome="no_coverage", quota=quota
-                ).inc()
-                log.warning(
-                    "Open-Meteo: %s does not cover part of this batch", model.value
-                )
-                raise ModelCoverageError(
-                    model.value, _coverage_message(model)
-                ) from exc
-            if exc.response.status_code != 429:
-                telemetry.OPENMETEO_REQUESTS.labels(
-                    service="weather", outcome="http_error", quota=quota
-                ).inc()
-                log.warning(
-                    "Open-Meteo request failed: %s", redacted_error(exc, api_key)
-                )
-                raise UpstreamError(classify_http_error(exc, PROVIDER)) from exc
-            scope, retry_after = parse_rate_limit(exc)
-            telemetry.OPENMETEO_REQUESTS.labels(
-                service="weather", outcome="rate_limited", quota=quota
-            ).inc()
-            telemetry.OPENMETEO_RATE_LIMITED.labels(
-                service="weather", scope=scope or "unknown", quota=quota
-            ).inc()
-            if scope == "minutely" and attempt == 0:
-                log.warning(
-                    "Open-Meteo minutely quota hit; resuming batch in %ds", retry_after
-                )
-                await asyncio.sleep(retry_after)
-                continue
-            log.warning(
-                "Open-Meteo rate limited (%s): %s",
-                scope or "unknown",
-                redacted_error(exc, api_key),
-            )
-            raise UpstreamRateLimited(
-                PROVIDER, scope, retry_after, rate_limit_message(PROVIDER, scope)
-            ) from exc
-        except httpx.HTTPError as exc:
-            telemetry.OPENMETEO_REQUESTS.labels(
-                service="weather", outcome="network_error", quota=quota
-            ).inc()
-            log.warning("Open-Meteo request failed: %s", redacted_error(exc, api_key))
-            raise UpstreamError(classify_http_error(exc, PROVIDER)) from exc
+    guard = _coverage_guard(model)
 
-    return data
+    async def attempt() -> Any:
+        return await request_openmeteo(
+            http.client(),
+            url,
+            params,
+            service="weather",
+            provider=PROVIDER,
+            api_key=api_key,
+            on_error="raise",
+            on_status_error=guard,
+        )
+
+    try:
+        return await attempt()
+    except UpstreamRateLimited as exc:
+        # One automatic resume for a minutely 429: that quota refills within the
+        # minute, so a single paced retry usually completes the batch instead of
+        # failing the whole analysis. Hourly/daily exhaustion raises immediately
+        # — no wait we are willing to impose can help those.
+        if exc.scope != "minutely":
+            raise
+        log.warning(
+            "Open-Meteo minutely quota hit; resuming batch in %ds", exc.retry_after_s
+        )
+        await asyncio.sleep(exc.retry_after_s)
+    # The one resume. A second 429 on the same batch is real exhaustion and
+    # raises from here, minutely or not.
+    return await attempt()
+
+
+def _coverage_guard(model: ForecastModel) -> StatusErrorHook:
+    """Recognise the 400 that means this model's grid does not reach the batch.
+
+    Handed to the shared request helper rather than decided there, because only
+    this service knows which model it asked for, and air quality has no such
+    refusal to read (CAMS is global). One location outside a regional model's
+    grid 400s the whole batch, so the refusal says nothing about which of the 50
+    it was; naming them would take bisecting the batch — more upstream spend to
+    refine an answer the user acts on the same way.
+    """
+
+    def guard(exc: httpx.HTTPStatusError, quota: str) -> None:
+        if not is_out_of_domain(exc):
+            return
+        telemetry.OPENMETEO_REQUESTS.labels(
+            service="weather", outcome="no_coverage", quota=quota
+        ).inc()
+        log.warning("Open-Meteo: %s does not cover part of this batch", model.value)
+        raise ModelCoverageError(model.value, _coverage_message(model)) from exc
+
+    return guard
 
 
 def _wind_at_elevation(
@@ -834,7 +651,7 @@ def _freeze_ft_in_window(
     """
     return [
         _freeze_to_ft(v, unit)
-        for ts, v in zip(hourly.get("time", []), hourly.get(_FREEZING_LEVEL, []))
+        for ts, v in zip(hourly.get("time", []), hourly.get(_FREEZING_LEVEL, []), strict=False)
         if v is not None
         and (parsed := _parse_ts(ts)) is not None
         and start <= parsed <= end
@@ -864,7 +681,7 @@ def _metrics(
         # only send its wind back to the 10 m value and its temperature back
         # to the 2 m value.
         filtered = []
-        for i, (ts, p, t, w) in enumerate(zip(times, precip, temp, wind)):
+        for i, (ts, p, t, w) in enumerate(zip(times, precip, temp, wind, strict=False)):
             parsed = _parse_ts(ts)
             if parsed is None or not (start <= parsed <= end):
                 continue
@@ -881,7 +698,7 @@ def _metrics(
         if not filtered:
             return None
 
-        p_vals, t_vals, w_vals = zip(*filtered)
+        p_vals, t_vals, w_vals = zip(*filtered, strict=False)
         f_vals = _freeze_ft_in_window(hourly, start, end, _freeze_unit(data))
 
         return {
@@ -1012,7 +829,7 @@ def _epoch_ms(dt_naive: datetime) -> int:
     # Open-Meteo times are UTC (we request timezone=UTC) and `_parse_ts` strips
     # the tzinfo, so re-stamp UTC before converting to an unambiguous epoch the
     # browser can render in the viewer's local zone.
-    return int(dt_naive.replace(tzinfo=timezone.utc).timestamp() * 1000)
+    return int(dt_naive.replace(tzinfo=UTC).timestamp() * 1000)
 
 
 def _at(arr: list[Any], i: int) -> float | None:

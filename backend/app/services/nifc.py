@@ -38,17 +38,17 @@ import asyncio
 import json
 import logging
 import math
-import os
 import time
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
 
+from app.env import env_int
 from app.services import wfigs_coverage
-from app.services.errors import UpstreamError, UpstreamRateLimited, classify_http_error
-from app.services.snapshot import SnapshotCache
+from app.services.errors import UpstreamError, UpstreamRateLimited
+from app.services.http import HEADERS
+from app.services.snapshot import cache_factory
 
 log = logging.getLogger(__name__)
 
@@ -61,8 +61,6 @@ QUERY_URL = (
     "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/"
     "WFIGS_Interagency_Perimeters_Current/FeatureServer/0/query"
 )
-
-HEADERS = {"User-Agent": "BluebirdForecast/1.0 (bluebirdforecast.com; personal weather tool)"}
 
 # The fields the popup renders. `attr_` values come from the joined IRWIN
 # incident record and `poly_` from the perimeter polygon itself; either can be
@@ -104,28 +102,17 @@ REQUEST_TIMEOUT_S = 120.0
 MAX_PAGES = 20
 
 
-def _env_int(name: str, default: int) -> int:
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        log.warning("Ignoring non-integer %s=%r; using default %d", name, raw, default)
-        return default
-
-
 # NIFC republishes roughly every 5 minutes and perimeters are redrawn by humans
 # flying the fire, so a 10 minute snapshot is never the reason a warning is
 # wrong. At 2 request units per query and two fidelities per refresh, this is
 # 4 units per 10 minutes against an organization ceiling of 57,600 per minute.
-TTL_S = _env_int("WILDFIRE_CACHE_TTL_S", 600)
+TTL_S = env_int("WILDFIRE_CACHE_TTL_S", 600)
 
 # How long a failed refresh suppresses the next attempt. Without it every
 # request during an outage becomes its own upstream attempt, which is the
 # hammering the cache exists to stop, and ArcGIS's own answer to an exhausted
 # quota asks for 60 seconds anyway.
-RETRY_AFTER_FAILURE_S = _env_int("WILDFIRE_RETRY_AFTER_FAILURE_S", 60)
+RETRY_AFTER_FAILURE_S = env_int("WILDFIRE_RETRY_AFTER_FAILURE_S", 60)
 
 
 @dataclass(frozen=True)
@@ -286,7 +273,7 @@ async def _fetch_layer(client: httpx.AsyncClient, simplify_deg: float | None) ->
     """
     fires: list[Fire] = []
     offset = 0
-    for page in range(MAX_PAGES):
+    for _page in range(MAX_PAGES):
         params: dict[str, Any] = {
             "where": WHERE,
             "outFields": OUT_FIELDS,
@@ -338,37 +325,13 @@ async def fetch_snapshot() -> Snapshot:
     return Snapshot(fetched_at_ms=int(time.time() * 1000), full=full, coarse=coarse)
 
 
-def perimeter_cache(
-    *,
-    ttl_s: float = TTL_S,
-    retry_after_failure_s: float = RETRY_AFTER_FAILURE_S,
-    clock: Callable[[], float] = time.monotonic,
-    fetch: Callable[[], Awaitable[Snapshot]] = fetch_snapshot,
-) -> SnapshotCache[Snapshot]:
-    """The shared snapshot cache, wired to this module's fetch and knobs.
-
-    A factory rather than a subclass, because nothing about the caching is
-    NIFC's: the singleflight, the serve-stale-and-refresh-behind, and the
-    failure backoff all live in :mod:`app.services.snapshot`, shared with the
-    smoke overlay that wants the same behavior for the same reason. What
-    belongs here is which upstream it calls, and what a successful refresh is
-    worth saying in a pod's log.
-    """
-    return SnapshotCache(
-        label=PROVIDER,
-        fetch=fetch,
-        ttl_s=ttl_s,
-        retry_after_failure_s=retry_after_failure_s,
-        describe=lambda s: f"{len(s.full)} perimeters ({len(s.coarse)} coarse)",
-        clock=clock,
-    )
-
+# The shared snapshot cache, wired to this module's fetch and knobs.
+perimeter_cache = cache_factory(
+    label=PROVIDER,
+    fetch=fetch_snapshot,
+    ttl_s=TTL_S,
+    retry_after_failure_s=RETRY_AFTER_FAILURE_S,
+    describe=lambda s: f"{len(s.full)} perimeters ({len(s.coarse)} coarse)",
+)
 
 PERIMETERS = perimeter_cache()
-
-
-def unavailable_message(exc: Exception) -> str:
-    """The user-facing sentence for a cold-start failure."""
-    if isinstance(exc, UpstreamError):
-        return exc.message
-    return classify_http_error(exc, PROVIDER)

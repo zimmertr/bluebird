@@ -9,19 +9,21 @@ from __future__ import annotations
 
 import asyncio
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
+from conftest import dest, fake_response
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.testclient import TestClient
+from prometheus_client import REGISTRY
+
 from app import ratelimit, telemetry
 from app.main import app
 from app.routes import analyze as analyze_mod
 from app.services import air_quality, cache, weather
 from app.services import osm as osm_mod
 from app.services.errors import UpstreamRateLimited
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.testclient import TestClient
-from prometheus_client import REGISTRY
 
 client = TestClient(app)
 
@@ -156,7 +158,7 @@ def stub_upstreams(monkeypatch):
 
 
 def test_analyze_observes_field_size_and_limit(stub_upstreams):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     count_before = _value("bluebird_forecast_analyze_destinations_count")
     sum_before = _value("bluebird_forecast_analyze_destinations_sum")
     limit_sum_before = _value("bluebird_forecast_analyze_limit_sum")
@@ -181,7 +183,7 @@ def test_analyze_observes_field_size_and_limit(stub_upstreams):
 
 def test_rejected_analyze_observes_nothing(stub_upstreams):
     # An inverted window 400s before discovery; a refusal is not an analysis.
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     before = _value("bluebird_forecast_analyze_destinations_count")
     resp = client.post(
         "/api/analyze",
@@ -313,17 +315,6 @@ def test_cache_collector_reads_the_existing_counters():
 # ── Open-Meteo fetch outcomes ──────────────────────────────────────────────
 
 
-class _FakeResponse:
-    def __init__(self, payload):
-        self._payload = payload
-
-    def raise_for_status(self):
-        return None
-
-    def json(self):
-        return self._payload
-
-
 def _stub_openmeteo(monkeypatch, module, behaviors: list):
     calls = []
 
@@ -333,7 +324,7 @@ def _stub_openmeteo(monkeypatch, module, behaviors: list):
             calls.append(params or {})
             if isinstance(behavior, Exception):
                 raise behavior
-            return _FakeResponse(behavior)
+            return fake_response(behavior)
 
     monkeypatch.setattr(module.http, "client", lambda: _Client())
     return calls
@@ -348,8 +339,8 @@ def _rate_limited(url: str, scope: str) -> httpx.HTTPStatusError:
 
 
 WINDOW = (
-    datetime(2026, 7, 21, 0, 0, tzinfo=timezone.utc),
-    datetime(2026, 7, 21, 3, 0, tzinfo=timezone.utc),
+    datetime(2026, 7, 21, 0, 0, tzinfo=UTC),
+    datetime(2026, 7, 21, 3, 0, tzinfo=UTC),
 )
 
 
@@ -373,7 +364,7 @@ def test_weather_success_counts_request_and_duration(monkeypatch):
     )
     cache.FORECAST_CACHE.clear()
     result = asyncio.run(
-        weather.fetch_weather_batch([{"latitude": 47.1, "longitude": -121.1}], *WINDOW)
+        weather.fetch_weather_batch([dest(47.1, -121.1)], *WINDOW)
     )
     assert result[0] is not None
     assert (
@@ -402,7 +393,7 @@ def test_weather_terminal_429_counts_scope(monkeypatch):
     with pytest.raises(UpstreamRateLimited):
         asyncio.run(
             weather.fetch_weather_batch(
-                [{"latitude": 47.2, "longitude": -121.2}], *WINDOW
+                [dest(47.2, -121.2)], *WINDOW
             )
         )
     assert (
@@ -426,9 +417,9 @@ def test_aqi_failure_counts_a_degraded_batch(monkeypatch):
     cache.FORECAST_CACHE.clear()
     result = asyncio.run(
         air_quality.fetch_aqi_batch(
-            [{"latitude": 47.3, "longitude": -121.3}],
-            datetime.now(timezone.utc),
-            datetime.now(timezone.utc) + timedelta(days=1),
+            [dest(47.3, -121.3)],
+            datetime.now(UTC),
+            datetime.now(UTC) + timedelta(days=1),
         )
     )
     assert result == [None]
@@ -462,7 +453,7 @@ def test_keyed_weather_batch_counts_against_the_callers_quota(monkeypatch):
     cache.FORECAST_CACHE.clear()
     asyncio.run(
         weather.fetch_weather_batch(
-            [{"latitude": 47.4, "longitude": -121.4}], *WINDOW, api_key="k"
+            [dest(47.4, -121.4)], *WINDOW, api_key="k"
         )
     )
     assert _value("bluebird_forecast_openmeteo_requests_total", caller) == caller_before + 1
@@ -475,10 +466,10 @@ def test_keyed_aqi_batch_counts_against_the_callers_quota(monkeypatch):
     labels = {"service": "aqi", "outcome": "success", "quota": "caller"}
     before = _value("bluebird_forecast_openmeteo_requests_total", labels)
     cache.FORECAST_CACHE.clear()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     asyncio.run(
         air_quality.fetch_aqi_batch(
-            [{"latitude": 47.5, "longitude": -121.5}],
+            [dest(47.5, -121.5)],
             now,
             now + timedelta(hours=3),
             api_key="k",
@@ -534,7 +525,7 @@ def test_overpass_failure_counts_fallback_and_success_counts_mirror(monkeypatch)
             calls["n"] += 1
             if calls["n"] == 1:
                 raise httpx.ConnectTimeout("slow", request=httpx.Request("POST", url))
-            return _FakeResponse({"elements": []})
+            return fake_response({"elements": []})
 
     monkeypatch.setattr(osm_mod.httpx, "AsyncClient", _Client)
 

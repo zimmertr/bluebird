@@ -7,7 +7,13 @@
 // tests on both sides fail if either drifts. Change semantics there first,
 // regenerate the vectors, and mirror the change here.
 
-import { archiveBoundaryMs, windowSource } from './forecastWindow'
+import {
+  FALLBACK_WINDOW_LIMITS,
+  HOUR_MS,
+  archiveBoundaryMs,
+  windowSource,
+  type WindowLimits,
+} from './forecastWindow'
 import { buildSnapshot, loadSnapshot, readSnapshot, saveSnapshot } from './forecastStore'
 
 export const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'
@@ -19,12 +25,18 @@ export const AIR_QUALITY_URL = 'https://air-quality-api.open-meteo.com/v1/air-qu
 
 // Same batching the backend uses: 50 locations per request, at most 4
 // requests in flight. One browser analyzing is exactly as polite to
-// Open-Meteo as the server was.
-const BATCH_SIZE = 50
-const MAX_CONCURRENT_BATCHES = 4
+// Open-Meteo as the server was. Both numbers are measured on the backend
+// (issue #182) and mirrored through `mirrored_constants.json`, which is why
+// they are exported: `mirroredConstants.test.ts` reads them.
+export const BATCH_SIZE = 50
+export const MAX_CONCURRENT_BATCHES = 4
 
-// The CAMS air-quality model publishes ~5 days; requesting past that 400s.
-const AQI_MAX_FORECAST_DAYS = 5
+// The CAMS air-quality model publishes far less forecast than the weather
+// endpoint does, and requesting past its horizon 400s. A FALLBACK for the
+// moments before `/api/capabilities` answers with `limits.aqi_forecast_days`
+// (#393), which is the same number the calendar dims its later days by — one
+// deployment must not clamp the fetch at one horizon and draw another.
+const FALLBACK_AQI_FORECAST_DAYS = 5
 
 // Thrown only for failures that mean the browser genuinely cannot talk to
 // Open-Meteo: network errors, DNS, a blocked CORS preflight, malformed
@@ -58,13 +70,39 @@ export class OpenMeteoRateLimited extends Error {
 // {"error": true, "reason": "No data is available for this location"} — and a
 // batch answers the same way if a SINGLE one of its 50 locations is outside,
 // so this never identifies which destination was the problem.
+// It carries no message: every catch site composes the sentence below from
+// the model's own label, which this class does not have, so a message here
+// could only ever be a fourth wording nobody reads (#391).
 export class OpenMeteoModelCoverage extends Error {
   modelId: string
   constructor(modelId: string) {
-    super(`Model ${modelId} does not cover this area`)
+    super()
     this.modelId = modelId
   }
 }
+
+// What that sentence says after the model's label. The label is the one part
+// the two surfaces do not share, so everything after it is spelled here once.
+// Mirror of `_coverage_message` in backend/app/services/weather.py.
+export const COVERAGE_PHRASE = 'has no forecast coverage for this area.'
+
+// The analysis path adds the remedy; the compare panel does not, because
+// unticking the model in its picker is what removes those lines.
+export const COVERAGE_MESSAGE_TAIL = `${COVERAGE_PHRASE} Switch to a different model and try again.`
+
+// Thrown when a response ARRIVED and cannot be read: a body that declares a
+// unit nothing can convert, for instance. Its own class because the transport
+// worked, so `OpenMeteoUnreachable` would name the wrong fault and send the
+// reader after a network problem they do not have. The message is the one the
+// backend gives any unusable Open-Meteo body, so one provider fault is not
+// described two ways across the two paths.
+export class OpenMeteoBadBody extends Error {}
+
+// What every unreadable body says, spelled once. A unit nothing can convert
+// and a reply that answers a different number of locations than it was asked
+// about are one fault to the reader, who can act on neither, so a second
+// wording here would only describe that fault two ways (#431).
+export const BAD_BODY_MESSAGE = 'Open-Meteo request failed. Try again later.'
 
 // Any other HTTP status: reachable, failed. The server shares the same
 // upstream, so a fallback would fail identically — surface it instead.
@@ -463,10 +501,6 @@ const TEMP_LEVELS = [
 ] as const
 const FT_TO_M = 0.3048
 
-// The fifteen hourly variables every weather request asks for — the backend's
-// fourteen plus the wind bearing the map's playback arrows read. Spelled once
-// because it is two things: what a request asks for, and which arrays a joined
-// half-window has to keep parallel (`joinHours`).
 // Port of weather._FREEZING_LEVEL: the height where the free-air temperature
 // crosses freezing, clamped to 0 when the whole column is below freezing.
 // Three of the eight models publish it (issue #295). Its unit follows
@@ -476,7 +510,12 @@ const FT_TO_M = 0.3048
 // a plausible-looking altitude rather than an obvious fault.
 const FREEZING_LEVEL = 'freezing_level_height'
 
-const HOURLY_VARIABLES = [
+// The hourly variables every weather request asks for. Spelled once because it
+// is three things: what a request asks for, which arrays a joined half-window
+// has to keep parallel (`joinHours`), and the count the weighted-call
+// accounting is priced on — which is why the list is exported and why
+// `mirroredConstants.test.ts` measures it against the backend's N_VARIABLES.
+export const HOURLY_VARIABLES = [
   'precipitation',
   'temperature_2m',
   'wind_speed_10m',
@@ -485,8 +524,6 @@ const HOURLY_VARIABLES = [
   ...WIND_LEVELS.map(([name]) => name),
   ...TEMP_LEVELS.map(([name]) => name),
 ] as const
-
-const HOUR_MS = 3_600_000
 
 /** One leg of a fetch: which endpoint answers, and the hours it answers for. */
 interface FetchSpan {
@@ -515,12 +552,13 @@ export function fetchSpans(
   startMs: number,
   endMs: number,
   nowMs: number = Date.now(),
+  limits: WindowLimits = FALLBACK_WINDOW_LIMITS,
 ): FetchSpan[] {
-  const source = windowSource(startMs, endMs, nowMs)
+  const source = windowSource(startMs, endMs, nowMs, limits)
   if (source !== 'spanning') {
     return [{ archive: source === 'archive', startMs, endMs }]
   }
-  const seam = archiveBoundaryMs(nowMs)
+  const seam = archiveBoundaryMs(nowMs, limits)
   return [
     { archive: true, startMs, endMs: seam - HOUR_MS },
     { archive: false, startMs: seam, endMs },
@@ -694,12 +732,11 @@ function freezeUnit(payload: HourlyPayload): string | null {
 // Port of weather._freeze_to_ft: one reading in feet, per the unit the
 // response declared. A unit that is neither documented one leaves the number
 // unreadable, and assuming either would ship a reading 3.28 times out, so an
-// unknown or missing unit throws the class a malformed body throws (which
-// useAnalyze surfaces with its own message, like any other provider failure).
+// unknown or missing unit fails the batch the way any unusable body does.
 function freezeToFeet(v: number, unit: string | null): number {
   if (unit === 'ft') return v
   if (unit === 'm') return v / FT_TO_M
-  throw new OpenMeteoUnreachable('Cannot reach Open-Meteo. Try again later.')
+  throw new OpenMeteoBadBody(BAD_BODY_MESSAGE)
 }
 
 // Port of weather._freeze_ft_in_window: every in-window hour that HAS a
@@ -823,7 +860,7 @@ export function weatherMetrics(
     // in the column would have to be invented, so it passes the degrade and
     // fails the analysis. Mirrors the `except UpstreamError: raise` the
     // backend's `_metrics` puts ahead of its own degrade.
-    if (e instanceof OpenMeteoUnreachable) throw e
+    if (e instanceof OpenMeteoBadBody) throw e
     return null
   }
 }
@@ -876,7 +913,7 @@ export function weatherSeries(
   } catch (e) {
     // The one failure this function does not absorb, for the reason
     // `weatherMetrics` does not absorb it either.
-    if (e instanceof OpenMeteoUnreachable) throw e
+    if (e instanceof OpenMeteoBadBody) throw e
     return null
   }
 }
@@ -1201,6 +1238,12 @@ export interface FetchWeatherOptions {
    */
   nowMs?: number
   /**
+   * Where this deployment puts the archive boundary, from `/api/capabilities`.
+   * Omitted means the compiled fallback, which is what the app runs on before
+   * that fetch answers (#393).
+   */
+  windowLimits?: WindowLimits
+  /**
    * For coordinates carrying no `elevation_ft` of their own, adjust wind to
    * the TERRAIN elevation Open-Meteo reports for the coordinate (its ~90 m
    * DEM, on every response) instead of falling back to the 10 m wind. The
@@ -1247,6 +1290,7 @@ export async function fetchWeather(
     onPace,
     model,
     nowMs = Date.now(),
+    windowLimits = FALLBACK_WINDOW_LIMITS,
     terrainElevation = false,
   }: FetchWeatherOptions,
 ): Promise<WeatherResult[]> {
@@ -1257,8 +1301,8 @@ export async function fetchWeather(
   // archive boundary is two requests per batch, joined per location before the
   // aggregation runs; `source` is part of the cache key, so its joined series is
   // a third answer at the same coordinates rather than either half.
-  const source = windowSource(startMs, endMs, nowMs)
-  const spans = fetchSpans(startMs, endMs, nowMs)
+  const source = windowSource(startMs, endMs, nowMs, windowLimits)
+  const spans = fetchSpans(startMs, endMs, nowMs, windowLimits)
 
   const results: WeatherResult[] = new Array(destinations.length).fill(null)
   // Which entries of `results` are answers. A cache hit is settled the moment
@@ -1338,9 +1382,15 @@ export async function fetchWeather(
       )
       const items = asItems(data)
       if (items.length !== chunk.length) {
-        throw new OpenMeteoUnreachable(
-          `Open-Meteo returned ${items.length} results for ${chunk.length} locations`,
+        // The counts go to the console because they are the only instrument
+        // anyone has for a fault that reproduces in the wild, and they stay
+        // off screen because a reader cannot act on them. The batch is
+        // unusable either way: the rows no longer line up with the
+        // coordinates that asked for them.
+        console.warn(
+          `[bluebird-forecast] Open-Meteo returned ${items.length} results for ${chunk.length} locations`,
         )
+        throw new OpenMeteoBadBody(BAD_BODY_MESSAGE)
       }
       perSpan.push(items)
     }
@@ -1393,8 +1443,11 @@ export async function fetchWeather(
 
 export interface FetchAqiOptions {
   signal?: AbortSignal
-  // Injectable so tests can pin the ~5-day horizon clamp.
+  // Injectable so tests can pin the horizon clamp.
   nowMs?: number
+  // How far ahead air quality reaches, from /api/capabilities. Omitted means
+  // the compiled fallback, which is the pre-fetch state (#393).
+  aqiForecastDays?: number
 }
 
 // Port of air_quality.fetch_aqi_batch: best-effort by design. Any failure —
@@ -1409,16 +1462,20 @@ export async function fetchAqi(
   destinations: readonly Coordinate[],
   startMs: number,
   endMs: number,
-  { signal, nowMs = Date.now() }: FetchAqiOptions = {},
+  {
+    signal,
+    nowMs = Date.now(),
+    aqiForecastDays = FALLBACK_AQI_FORECAST_DAYS,
+  }: FetchAqiOptions = {},
 ): Promise<AqiResult[]> {
   if (destinations.length === 0) return []
 
   // Clamp to the CAMS horizon; a window entirely beyond it skips the fetch.
-  // The cap ends at 23:00 on the day AQI_MAX_FORECAST_DAYS names, which is
-  // where the whole-day request this replaced already ended, so the clamp
-  // keeps its old reach exactly. Both bounds are ISO hour strings, so the
-  // lexical comparisons below order them the same way the dates did.
-  const endCap = `${utcDate(nowMs + AQI_MAX_FORECAST_DAYS * 86_400_000)}T23:00`
+  // The cap ends at 23:00 on the day the horizon names, which is where the
+  // whole-day request this replaced already ended, so the clamp keeps its old
+  // reach exactly. Both bounds are ISO hour strings, so the lexical
+  // comparisons below order them the same way the dates did.
+  const endCap = `${utcDate(nowMs + aqiForecastDays * 86_400_000)}T23:00`
   const reqStart = utcHour(startMs)
   const reqEnd = utcHour(endMs) < endCap ? utcHour(endMs) : endCap
   if (reqStart > reqEnd) return destinations.map(() => null)

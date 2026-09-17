@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from fastapi.testclient import TestClient
+
 from app import ratelimit
 from app.main import app
 from app.models import MAX_ANALYZE_PEAKS
 from app.services import osm as osm_mod
 from app.services.errors import UpstreamError
-from fastapi.testclient import TestClient
 
 client = TestClient(app)
 

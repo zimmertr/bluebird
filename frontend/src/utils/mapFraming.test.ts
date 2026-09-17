@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pointsWithinView } from './mapFraming'
+import { framePadding, pointsWithinView } from './mapFraming'
 
 const W = 800
 const H = 600
@@ -46,5 +46,19 @@ describe('pointsWithinView', () => {
 
   it('reports nothing to frame as not framed', () => {
     expect(pointsWithinView([], W, H, INSET)).toBe(false)
+  })
+})
+
+describe('framePadding', () => {
+  it('insets all four edges evenly with nothing standing on the map', () => {
+    expect(framePadding(INSET, 0)).toEqual({ top: 60, right: 60, bottom: 60, left: 60 })
+  })
+
+  // The phone results sheet stands on the container's bottom edge while the
+  // camera frames into the whole container, so the lift is added to that one
+  // edge. Added to the top as well, it would frame the subject into the upper
+  // half of a map that has room for it in the middle.
+  it('adds the sheet lift to the bottom edge alone', () => {
+    expect(framePadding(INSET, 220)).toEqual({ top: 60, right: 60, bottom: 280, left: 60 })
   })
 })
