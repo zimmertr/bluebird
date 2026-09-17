@@ -2,11 +2,13 @@ import { DestinationResult, SortBy } from '../types'
 import {
   AGGREGATE,
   FAMILY_KEYS,
+  MetricFamily,
   UNIT,
   familyOf,
   formatPrecipRate,
   formatPrecipTotal,
   metricLabel,
+  tempDatum,
   windDatum,
   windowAggregate,
 } from '../metrics'
@@ -46,13 +48,13 @@ export type ColDef = {
    * columns under one heading (#370), which needs the answer to "do these
    * columns share a unit" before it can decide whether the unit belongs on the
    * heading or on each value — and reading it back out of a finished label is
-   * the string surgery `applyWindDatum` already refuses to do. So the unit is
+   * the string surgery `applyDatums` already refuses to do. So the unit is
    * declared, and the label is composed FROM it.
    */
   unit?: string
   /**
-   * What sits inside the noun phrase ahead of the separator, which today is
-   * only the wind's datum (`windDatum`). Declared for the same reason `unit`
+   * What sits inside the noun phrase ahead of the separator: the wind's datum
+   * (`windDatum`) or the temperature's (`tempDatum`). Declared for the same reason `unit`
    * is: the popup's group heading is the noun with no aggregate, and it has to
    * compose one rather than cut an aggregate out of a finished label.
    */
@@ -240,18 +242,25 @@ export function pointModeColumns<T extends { key: string; label: string }>(colum
 }
 
 /**
- * The wind columns, relabelled with the datum the report's window source
- * implies (#361): the header gains "at elevation" over a forecast window and
- * "at 10 meters" over an archive one, inside the noun and ahead of the
- * separator. (No aggregate spelled in this comment: the metrics.test.ts source
- * lint scans comments too.)
+ * The wind and temperature columns, relabelled with the datum the report's
+ * window source implies (#361, #443): the header gains "at elevation" over a
+ * forecast window and names the surface datum over an archive one, inside the
+ * noun and ahead of the separator. (No aggregate spelled in this comment: the
+ * metrics.test.ts source lint scans comments too.)
+ *
+ * Both families run through one function because they are one measurement of
+ * two quantities — the free air at the destination's own elevation, read from
+ * the same five pressure levels — and `metrics.ts` is the only thing that
+ * decides what each says. Which datums exist, and what each is called, is that
+ * module's business; this one only asks and applies, so a family that grows or
+ * loses a state needs no edit here.
  *
  * A relabel of the canonical columns rather than a second column set, which is
- * what it actually is: the same three columns carrying the same three keys,
- * saying which datum produced them. `COLUMNS` therefore stays a constant and
- * stays agnostic, and a source of `null` or `'spanning'` returns the list
- * untouched — so every surface that has no report to describe yet keeps
- * today's labels rather than needing a case of its own.
+ * what it actually is: the same columns carrying the same keys, saying which
+ * datum produced them. `COLUMNS` therefore stays a constant and stays agnostic,
+ * and a family whose datum is `null` returns its columns untouched — so every
+ * surface that has no report to describe yet keeps today's labels rather than
+ * needing a case of its own.
  *
  * Rebuilt from the KEY rather than patched into the existing string. A label
  * is three facts (noun, aggregate, unit) and only `metricLabel` knows how they
@@ -260,28 +269,35 @@ export function pointModeColumns<T extends { key: string; label: string }>(colum
  * the collapsed columns carry no aggregate, and inferring it from the label we
  * are about to replace is exactly the surgery this avoids.
  */
-function applyWindDatum(
+function applyDatums(
   columns: ColDef[],
   source: WindowSource | null | undefined,
   pointSample: boolean,
 ): ColDef[] {
-  const datum = windDatum(source)
-  if (datum === null) return columns
-  const wind = new Set<string>(FAMILY_KEYS.wind)
-  return columns.map((col) =>
-    wind.has(col.key as string)
-      ? {
-          ...col,
-          qualifier: datum,
-          label: metricLabel(
-            'wind',
-            pointSample ? undefined : windowAggregate(col.key as SortBy),
-            undefined,
-            datum,
-          ),
-        }
-      : col,
-  )
+  const datums: Array<[MetricFamily, string | null]> = [
+    ['wind', windDatum(source)],
+    ['temp', tempDatum(source)],
+  ]
+  let out = columns
+  for (const [family, datum] of datums) {
+    if (datum === null) continue
+    const keys = new Set<string>(FAMILY_KEYS[family])
+    out = out.map((col) =>
+      keys.has(col.key as string)
+        ? {
+            ...col,
+            qualifier: datum,
+            label: metricLabel(
+              family,
+              pointSample ? undefined : windowAggregate(col.key as SortBy),
+              undefined,
+              datum,
+            ),
+          }
+        : col,
+    )
+  }
+  return out
 }
 
 /**
@@ -308,7 +324,7 @@ export function displayedColumns(
   source?: WindowSource | null,
 ): ColDef[] {
   const base = pointSample ? pointModeColumns(COLUMNS) : COLUMNS
-  return orderColumns(applyWindDatum(base, source, pointSample), sortBy)
+  return orderColumns(applyDatums(base, source, pointSample), sortBy)
 }
 
 /**

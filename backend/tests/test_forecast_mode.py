@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
-from app.models import AnalyzeRequest, ForecastMode
 from pydantic import ValidationError
+
+from app.models import AnalyzeRequest, ForecastMode
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _request(**overrides) -> AnalyzeRequest:

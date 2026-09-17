@@ -17,6 +17,7 @@ import {
   resolveCustomOnly,
   runClientAnalysis,
 } from '../utils/clientAnalyze'
+import { postDestinations } from '../utils/apiFetch'
 import { pinKey } from '../utils/customList'
 import { OpenMeteoModelCoverage } from '../utils/openMeteo'
 import { SelectionKind } from '../utils/calendar'
@@ -370,12 +371,7 @@ export function useAnalyze(
         // then merging them are the same trip.
         ...(customList.length ? { custom_destinations: customList } : {}),
       }
-      const res = await fetch('/api/destinations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(discoveryRequest),
-        signal,
-      })
+      const res = await postDestinations(discoveryRequest, signal)
       if (!res.ok) {
         const { message, refusal: fields } = await readErrorBody(res)
         if (fields) throw new AnalysisRefusalError(message)

@@ -17,8 +17,16 @@ const COLORED_KEYS: string[] = (Object.keys(METRIC_SCALE) as ColoredFamily[]).fl
   (family) => [...FAMILY_KEYS[family]],
 )
 
-// Anchor hexes, lowest (green) → highest. Weather scales top out at red; the
-// AQI scale continues through the EPA Very Unhealthy / Hazardous bands.
+// The two precipitation scales' boundaries, spelled once here because several
+// tests below pin them: the window total (inches over the window) and the
+// rainfall rate (inches per hour) are different quantities on different
+// boundaries, and both ramps changed in #445.
+const TOTAL_THRESHOLDS = [0.01, 0.1, 0.25, 0.5, 1]
+const RATE_THRESHOLDS = [0.01, 0.1, 0.3, 0.5, 1]
+
+// Anchor hexes, lowest (green) → highest. Precipitation and wind top out at
+// purple (#445); the AQI scale continues through the EPA Very Unhealthy /
+// Hazardous bands, and its Very Unhealthy purple is the same one.
 const GREEN = '#22c55e'
 const LIME = '#84cc16'
 const YELLOW = '#eab308'
@@ -26,13 +34,21 @@ const ORANGE = '#f97316'
 const RED = '#ef4444'
 const PURPLE = '#a855f7'
 const MAROON = '#991b1b'
+// The temperature ramp's cold half (#445): the same purple the freezing level
+// starts on, then sky and cyan. GREEN sits in its middle and ORANGE and RED
+// above are its warm half.
+const COLD_PURPLE = '#d8b4fe'
+const SKY = '#38bdf8'
+const CYAN = '#67e8f9'
 
 describe('markerColor', () => {
-  it('returns green at or below the first threshold', () => {
+  it('returns the first anchor at or below the first threshold', () => {
     expect(markerColor(0, 'precip_total_in')).toBe(GREEN)
     expect(markerColor(0.01, 'precip_total_in')).toBe(GREEN)
-    // Values below the scale clamp to green rather than going out of range.
-    expect(markerColor(-5, 'temp_avg_f')).toBe(GREEN)
+    // Values below the scale clamp to the first anchor rather than going out
+    // of range — for temperature that is the cold purple, not green.
+    expect(markerColor(-5, 'temp_avg_f')).toBe(COLD_PURPLE)
+    expect(markerColor(30, 'temp_avg_f')).toBe(COLD_PURPLE)
   })
 
   it('hits each anchor exactly at its threshold boundary (AQI = EPA categories)', () => {
@@ -46,19 +62,46 @@ describe('markerColor', () => {
   })
 
   it('extrapolates to the final anchor one segment past the last threshold', () => {
-    // precip thresholds [0.01, 0.10, 0.25, 0.50]; last segment width is 0.25,
-    // so 0.50 + 0.25 = 0.75 reaches red, and anything higher stays clamped.
-    expect(markerColor(0.75, 'precip_total_in')).toBe(RED)
-    expect(markerColor(10, 'precip_total_in')).toBe(RED)
+    // precip thresholds [0.01, 0.10, 0.25, 0.50, 1.00]; last segment width is
+    // 0.50, so 1.00 + 0.50 = 1.50 reaches purple, and anything higher stays
+    // clamped.
+    expect(markerColor(1.0, 'precip_total_in')).toBe(RED)
+    expect(markerColor(1.5, 'precip_total_in')).toBe(PURPLE)
+    expect(markerColor(10, 'precip_total_in')).toBe(PURPLE)
     // AQI extrapolates purple → maroon above 300 (full maroon by 400).
     expect(markerColor(400, 'aqi_avg')).toBe(MAROON)
     expect(markerColor(999, 'aqi_avg')).toBe(MAROON)
   })
 
-  it('keeps the weather scales on the five-anchor green→red ramp', () => {
+  // Six anchors, green through red to purple (#445). Red is a band now rather
+  // than the end of the ramp: 35 to 50 mph is red, and the purple past 50 is
+  // where the old scale had stopped telling a 40 mph ridge from a 60 mph one.
+  it('keeps precipitation and wind on the six-anchor green→purple ramp', () => {
     expect(markerColor(35, 'wind_avg_mph')).toBe(ORANGE)
-    expect(markerColor(100, 'wind_avg_mph')).toBe(RED)
-    expect(markerColor(65, 'temp_avg_f')).toBe(ORANGE)
+    expect(markerColor(50, 'wind_avg_mph')).toBe(RED)
+    // One last-band width (15 mph) past 50 is full purple, then clamped.
+    expect(markerColor(65, 'wind_avg_mph')).toBe(PURPLE)
+    expect(markerColor(100, 'wind_avg_mph')).toBe(PURPLE)
+    expect(markerColor(1.0, 'precip_max_in_hr')).toBe(RED)
+    expect(markerColor(1.5, 'precip_max_in_hr')).toBe(PURPLE)
+  })
+
+  // The temperature ramp is cold-to-hot with green in the MIDDLE (#445): the
+  // old scale painted 30°F green, which called the rain-to-snow band the best
+  // condition on the map. Purple is cold, the same purple the freezing level
+  // starts on; green is reached at 75 so 70 reads green (TJ, 2026-09-16); and
+  // the warm half is the shared ramp's orange and red.
+  it('reads temperature cold to hot, purple through green to red', () => {
+    expect(markerColor(30, 'temp_avg_f')).toBe(COLD_PURPLE)
+    expect(markerColor(45, 'temp_avg_f')).toBe(SKY)
+    expect(markerColor(60, 'temp_avg_f')).toBe(CYAN)
+    expect(markerColor(75, 'temp_avg_f')).toBe(GREEN)
+    expect(markerColor(90, 'temp_avg_f')).toBe(ORANGE)
+    expect(markerColor(105, 'temp_avg_f')).toBe(RED)
+    expect(markerColor(130, 'temp_avg_f')).toBe(RED)
+    // The cold end is never green: 32°F is deep in the purple-to-sky band.
+    expect(markerColor(32, 'temp_avg_f')).not.toBe(GREEN)
+    expect(METRIC_SCALE.temp.colors).not.toContain(LIME)
   })
 
   it('interpolates between anchors for a mid-band value', () => {
@@ -128,17 +171,19 @@ describe('scaleFor', () => {
   // inches per hour are different quantities, and 0.30 of one is drizzle where
   // 0.30 of the other is a downpour, so they cannot share a set of boundaries.
   it('scores the per-hour precipitation columns on rainfall intensity', () => {
-    expect(scaleFor('precip_avg_in_hr', false)?.thresholds).toEqual([0.01, 0.1, 0.3, 0.5])
-    expect(scaleFor('precip_min_in_hr', false)?.thresholds).toEqual([0.01, 0.1, 0.3, 0.5])
-    expect(scaleFor('precip_max_in_hr', false)?.thresholds).toEqual([0.01, 0.1, 0.3, 0.5])
+    expect(scaleFor('precip_avg_in_hr', false)?.thresholds).toEqual(RATE_THRESHOLDS)
+    expect(scaleFor('precip_min_in_hr', false)?.thresholds).toEqual(RATE_THRESHOLDS)
+    expect(scaleFor('precip_max_in_hr', false)?.thresholds).toEqual(RATE_THRESHOLDS)
     // The window total keeps its own, which is what the map legend advertises.
-    expect(scaleFor('precip_total_in', false)?.thresholds).toEqual([0.01, 0.1, 0.25, 0.5])
+    expect(scaleFor('precip_total_in', false)?.thresholds).toEqual(TOTAL_THRESHOLDS)
   })
 
-  // Boundaries the National Weather Service publishes, not ones tuned here, so
-  // a reader can look up what a color means. The pinning is the point: these
-  // are a judgement about weather, like the ramps above, and moving one should
-  // be a deliberate edit rather than a side effect.
+  // The 0.10 / 0.30 / 0.50 boundaries are the National Weather Service's, so a
+  // reader can look up what a boundary means; the purple top past 1.00 in/hr
+  // is this app's own (#445). A split of the light class at 0.05 was built
+  // and reverted (TJ, 2026-09-16, deferring to the NWS). The pinning is the
+  // point: these are a judgement about weather, like the ramps above, and
+  // moving one should be a deliberate edit rather than a side effect.
   it('gives the rate scale the same hues and band count as the total scale', () => {
     const rate = scaleFor('precip_avg_in_hr', false)
 
@@ -202,13 +247,15 @@ describe('METRIC_SCALE', () => {
     }
   })
 
-  it('gives AQI and the freezing level six bands, and the other three five', () => {
-    expect(METRIC_SCALE.aqi.colors).toHaveLength(6)
-    expect(METRIC_SCALE.freeze.colors).toHaveLength(6)
+  // Six bands on every scale, and the count is load-bearing: the phone's
+  // results sheet rests high enough for the legend stack, and
+  // `LEGEND_STACK_PX` in resultsSheet.ts is measured for a six-band key. A
+  // seventh band on any scale is a re-measure there, so this fails first.
+  it('gives every scale six bands', () => {
+    for (const cfg of Object.values(METRIC_SCALE)) {
+      expect(cfg.colors).toHaveLength(6)
+    }
     expect(METRIC_SCALE.aqi.thresholds).toEqual([50, 100, 150, 200, 300])
-    expect(METRIC_SCALE.precip.colors).toHaveLength(5)
-    expect(METRIC_SCALE.wind.colors).toHaveLength(5)
-    expect(METRIC_SCALE.temp.colors).toHaveLength(5)
     // Every AQI legend row carries its unit.
     for (const label of METRIC_SCALE.aqi.legendLabels) {
       expect(label).toContain('AQI')
@@ -220,10 +267,57 @@ describe('METRIC_SCALE', () => {
     // passed the whole suite. These are the switching points behind every
     // marker color on the map; they are a judgement about conditions, not an
     // implementation detail, so a change should be a deliberate edit here.
-    expect(METRIC_SCALE.precip.thresholds).toEqual([0.01, 0.1, 0.25, 0.5])
-    expect(METRIC_SCALE.wind.thresholds).toEqual([5, 15, 25, 35])
-    expect(METRIC_SCALE.temp.thresholds).toEqual([30, 45, 55, 65])
+    expect(METRIC_SCALE.precip.thresholds).toEqual(TOTAL_THRESHOLDS)
+    expect(METRIC_SCALE.wind.thresholds).toEqual([5, 15, 25, 35, 50])
+    expect(METRIC_SCALE.temp.thresholds).toEqual([30, 45, 60, 75, 90])
     expect(METRIC_SCALE.freeze.thresholds).toEqual([4000, 8000, 12000, 16000, 20000])
+  })
+
+  // Precipitation and wind share one ramp, and its top is the purple AQI's
+  // Very Unhealthy band already wears, so purple says the same thing wherever
+  // a reader meets it: past the end of the ramp.
+  it('ends precipitation and wind in the purple AQI already uses', () => {
+    expect(METRIC_SCALE.precip.colors).toEqual([GREEN, LIME, YELLOW, ORANGE, RED, PURPLE])
+    expect(METRIC_SCALE.wind.colors).toEqual(METRIC_SCALE.precip.colors)
+    expect(METRIC_SCALE.aqi.colors[4]).toBe(PURPLE)
+  })
+
+  // The captions the map legend prints for the three scales #445 moved. Spelled
+  // out rather than derived, because a caption is the one thing in this file a
+  // reader sees.
+  it('captions the moved scales with the bands they cover', () => {
+    expect(METRIC_SCALE.temp.legendLabels).toEqual([
+      '≤ 30°F',
+      '30 – 45°F',
+      '45 – 60°F',
+      '60 – 75°F',
+      '75 – 90°F',
+      '> 90°F',
+    ])
+    expect(METRIC_SCALE.wind.legendLabels).toEqual([
+      '≤ 5 mph',
+      '5 – 15 mph',
+      '15 – 25 mph',
+      '25 – 35 mph',
+      '35 – 50 mph',
+      '> 50 mph',
+    ])
+    expect(METRIC_SCALE.precip.legendLabels).toEqual([
+      '≤ 0.01 in',
+      '0.01 – 0.10 in',
+      '0.10 – 0.25 in',
+      '0.25 – 0.50 in',
+      '0.50 – 1.00 in',
+      '> 1.00 in',
+    ])
+    expect(hourlyScale('precip_total_in')!.legendLabels).toEqual([
+      '≤ 0.01 in/hr',
+      '0.01 – 0.10 in/hr',
+      '0.10 – 0.30 in/hr',
+      '0.30 – 0.50 in/hr',
+      '0.50 – 1.00 in/hr',
+      '> 1.00 in/hr',
+    ])
   })
 
   it('advertises the same boundaries in the legend that it switches on', () => {
@@ -271,9 +365,9 @@ describe('rankedScale', () => {
   // the number means downpour.
   it('reads the rate rankings on the rainfall-rate scale', () => {
     for (const key of ['precip_avg_in_hr', 'precip_min_in_hr', 'precip_max_in_hr'] as const) {
-      expect(rankedScale(key)!.thresholds).toEqual([0.01, 0.1, 0.3, 0.5])
+      expect(rankedScale(key)!.thresholds).toEqual(RATE_THRESHOLDS)
     }
-    expect(rankedScale('precip_total_in')!.thresholds).toEqual([0.01, 0.1, 0.25, 0.5])
+    expect(rankedScale('precip_total_in')!.thresholds).toEqual(TOTAL_THRESHOLDS)
   })
 
   it('shares one family scale across a family’s aggregates', () => {
@@ -284,7 +378,7 @@ describe('rankedScale', () => {
 
   it('is the scale markerColor actually interpolates on', () => {
     // 0.3 in/hr sits at the rate scale's third boundary (yellow) and inside
-    // the window scale's second band — same number, different quantity, and
+    // the window scale's fourth band — same number, different quantity, and
     // the marker must read it as the ranked one.
     expect(markerColor(0.3, 'precip_max_in_hr')).toBe(YELLOW)
     expect(markerColor(0.3, 'precip_total_in')).not.toBe(YELLOW)
@@ -316,16 +410,17 @@ describe('hourlyScale', () => {
     // The rate rankings already read an hourly quantity too, on their own
     // scale — one hour of a peak is that hour's rate.
     for (const key of ['precip_avg_in_hr', 'precip_min_in_hr', 'precip_max_in_hr'] as const) {
-      expect(hourlyScale(key)!.thresholds).toEqual([0.01, 0.1, 0.3, 0.5])
+      expect(hourlyScale(key)!.thresholds).toEqual(RATE_THRESHOLDS)
     }
   })
 
   it('moves the window total off its scale onto the rainfall-rate one', () => {
     const rate = hourlyScale('precip_total_in')!
     expect(rate.thresholds).not.toEqual(METRIC_SCALE.precip.thresholds)
-    // The National Weather Service's own intensity classes, borrowed rather
-    // than invented so a reader can look them up.
-    expect(rate.thresholds).toEqual([0.01, 0.1, 0.3, 0.5])
+    // The National Weather Service's own intensity classes at 0.10, 0.30 and
+    // 0.50, borrowed rather than invented so a reader can look them up, with
+    // the app's own purple top past 1.00 (#445).
+    expect(rate.thresholds).toEqual(RATE_THRESHOLDS)
   })
 
   it('captions the rate scale in its own unit', () => {
@@ -455,7 +550,70 @@ describe('the freezing-level ramp', () => {
   })
 })
 
-// WCAG relative luminance and contrast, used only to keep the measured table
+describe('the temperature ramp', () => {
+  // Measured 2026-09-16 and pinned the way the freezing level's table above is:
+  // recomputed from the constants, so a shade that moves fails here and forces
+  // a re-measurement. Same three readings, same surfaces.
+  //
+  // The cold half is drawn from the 300/400 shades so it clears 4.5:1 as cell
+  // text, which is the reason it is not a deeper blue. The green and the warm
+  // half are the shared ramp's own, and green, orange and red miss 4.5:1 in a
+  // cell (4.46, 3.94, 3.23) on every scale that carries them — a pre-existing
+  // state recorded on #445 rather than one this ramp introduced, and the price
+  // of one green and one red meaning one thing across the table.
+  // The floor this table holds is therefore the LEGEND's: every swatch clears
+  // 4.5:1 on the box it sits on, except red at 3.88, which also predates this
+  // ramp and holds the 3:1 a non-text mark owes (1.4.11).
+  const SLATE_800 = '#1d293d'
+  const MEASURED = [
+    { color: '#d8b4fe', cellText: 5.24, markerRing: 1.77, legendSwatch: 8.27 },
+    { color: '#38bdf8', cellText: 4.57, markerRing: 2.14, legendSwatch: 6.82 },
+    { color: '#67e8f9', cellText: 6.02, markerRing: 1.45, legendSwatch: 10.08 },
+    { color: '#22c55e', cellText: 4.46, markerRing: 2.28, legendSwatch: 6.41 },
+    { color: '#f97316', cellText: 3.94, markerRing: 2.8, legendSwatch: 5.21 },
+    { color: '#ef4444', cellText: 3.23, markerRing: 3.76, legendSwatch: 3.88 },
+  ]
+
+  it('still measures what the comment above says it measures', () => {
+    expect(MEASURED.map((m) => m.color)).toEqual(METRIC_SCALE.temp.colors)
+    for (const m of MEASURED) {
+      const tinted = mixOver(m.color, SLATE_800, 0.2)
+      expect(round2(contrast(m.color, tinted)), `${m.color} cell text`).toBe(m.cellText)
+      expect(round2(contrast(m.color, '#ffffff')), `${m.color} marker ring`).toBe(m.markerRing)
+      expect(round2(contrast(m.color, SLATE_800)), `${m.color} legend swatch`).toBe(m.legendSwatch)
+    }
+  })
+
+  // The cold half is the half this ramp chose, and it clears the cell floor.
+  it('clears 4.5:1 for the number printed in a cold cell', () => {
+    for (const m of MEASURED.slice(0, 3)) {
+      expect(m.cellText, `${m.color} cell text`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('keeps every legend swatch clear of the box it sits on', () => {
+    for (const m of MEASURED) {
+      expect(m.legendSwatch, `${m.color} swatch`).toBeGreaterThanOrEqual(3)
+    }
+  })
+
+  // The cold half shares no hue with the other ramps, so cold can never be
+  // mistaken for their good end; the green is THEIR green, in the middle; and
+  // the warm half IS their bad end, so hot reads as every other scale's bad
+  // end.
+  it('borrows the shared ramp for its green and warm half and none of it for the cold half', () => {
+    const shared = METRIC_SCALE.wind.colors
+    expect(METRIC_SCALE.temp.colors[3]).toBe(shared[0])
+    expect(METRIC_SCALE.temp.colors.slice(4)).toEqual(shared.slice(3, 5))
+    for (const cold of METRIC_SCALE.temp.colors.slice(0, 3)) {
+      expect(shared).not.toContain(cold)
+    }
+    // Purple is cold on both scales that encode a quantity rather than a verdict.
+    expect(METRIC_SCALE.temp.colors[0]).toBe(METRIC_SCALE.freeze.colors[0])
+  })
+})
+
+// WCAG relative luminance and contrast, used only to keep the measured tables
 // above honest. Small enough to live here rather than become a shared helper
 // nothing else has asked for.
 function relativeLuminance(hex: string): number {

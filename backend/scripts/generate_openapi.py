@@ -27,7 +27,7 @@ SNAPSHOT = BACKEND_DIR / "openapi.json"
 # Lets the script run from any working directory, not just backend/.
 sys.path.insert(0, str(BACKEND_DIR))
 
-from app.main import app
+from app.main import app  # noqa: E402 — after the sys.path insert above
 
 
 def render() -> str:

@@ -56,10 +56,13 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
   const [error, setError] = useState<string | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const searchRef = useRef<AbortController | null>(null)
 
   useImperativeHandle(ref, () => ({
     focus: () => inputRef.current?.focus(),
   }))
+
+  useEffect(() => () => searchRef.current?.abort(), [])
 
   const open = places !== null || error !== null
 
@@ -106,8 +109,12 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
 
     setLoading(true)
     setPlaces(null)
+    // A search the box outlives is answered to nobody, so unmounting aborts it
+    // (only one can be in flight: `loading` gates the submit above).
+    const controller = new AbortController()
+    searchRef.current = controller
     try {
-      const found = await searchPlaces(q)
+      const found = await searchPlaces(q, controller.signal)
       if (found.length === 0) setError('No places found.')
       else if (found.length === 1) pick(found[0])
       else {
