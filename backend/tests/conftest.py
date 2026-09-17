@@ -1,4 +1,4 @@
-"""Shared fixtures.
+"""Shared fixtures, and the two builders every upstream stub is made of.
 
 Rate limiting is disabled for every test by default: the route suites hammer
 the endpoints far past any real burst, and the Nominatim gate would insert
@@ -8,6 +8,9 @@ in their own strict instances explicitly (see test_ratelimit.py).
 
 from __future__ import annotations
 
+from typing import Any
+
+import httpx
 import pytest
 
 # Imported for its import-time side effect: main.py is where the custom TRACE
@@ -17,6 +20,33 @@ import pytest
 from app import main as _main  # noqa: F401
 from app import ratelimit
 from app.services import cache, hms, nifc, osm
+
+# ── Builders ───────────────────────────────────────────────────────────────
+#
+# Plain functions rather than fixtures, imported as `from conftest import ...`:
+# the stubs that need them are module-level helpers (`_stub_openmeteo` and
+# friends), which take no fixtures and would otherwise have to be threaded
+# through every caller.
+
+
+def fake_response(payload: Any, status: int = 200) -> httpx.Response:
+    """The answer an HTTP stub hands back where the real client would.
+
+    A real httpx.Response rather than a stand-in class, because the services
+    read `.json()`, `.raise_for_status()` and `exc.response.status_code` off
+    it: a double whose `raise_for_status` passed on every status would make an
+    error answer look healthy. The URL is a placeholder — nothing reads it, but
+    `raise_for_status` builds its message from a request.
+    """
+    return httpx.Response(
+        status, json=payload, request=httpx.Request("GET", "https://stub.invalid")
+    )
+
+
+def dest(lat: float, lon: float, **extra: Any) -> dict[str, Any]:
+    """One destination in the shape the services take: the coordinate pair
+    they fetch on, plus whatever else an assertion needs beside it."""
+    return {"latitude": lat, "longitude": lon, **extra}
 
 
 @pytest.fixture(autouse=True)

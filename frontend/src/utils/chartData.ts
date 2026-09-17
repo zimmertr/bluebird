@@ -1,5 +1,6 @@
 import { DestinationResult, HourlySeries, SortBy } from '../types'
 import { MetricFamily, familyOf, formatPrecipRate, metricLabel } from '../metrics'
+import { setKey } from './points'
 
 export type ChartMetric = MetricFamily
 
@@ -27,24 +28,26 @@ export function metricForSort(sortBy: SortBy): ChartMetric {
   return familyOf(sortBy)
 }
 
-// Coordinate-based identity (same rationale as fireProximity's fireKey): it
-// survives the table's client-side re-sorting and keys a line to a destination.
+// Coordinate-based identity: it survives the table's client-side re-sorting and
+// keys a line to a destination.
+//
+// Deliberately NOT `geoKey`, which every other coordinate identity in the app
+// is. This one keys what the reader picked — a colour, a ticked box, a compared
+// model's row group — and two destinations a metre apart are two of those.
+// points.ts carries the full reasoning.
 export function chartKey(row: DestinationResult): string {
   return `${row.latitude},${row.longitude}`
 }
 
-// Identity of the SET of destinations the chart tracks, order-independent — the
-// `pointsKey` idiom in fireProximity.ts, for the same reason.
+// Identity of the SET of destinations the chart tracks, order-independent.
 //
 // useChartSelection's debut effect keys on this string, never on the array that
 // holds the rows. `chartCandidates` in App.tsx is a fresh array whenever the
 // displayed rows or the pending list are re-derived, which is once per keystroke
 // in the coordinates box and once per live knob change, so an effect keyed on
 // the reference scanned for debuts over a set that had not changed at all.
-// Sorted because a live re-rank reorders the same destinations, and re-ordering
-// debuts nothing.
 export function candidateSetKey(rows: DestinationResult[]): string {
-  return rows.map(chartKey).sort().join('|')
+  return setKey(rows, chartKey)
 }
 
 // The rows the chart has never seen, in list order and at most one per

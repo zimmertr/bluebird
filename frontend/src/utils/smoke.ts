@@ -118,11 +118,6 @@ export interface SmokeProps {
   observed_end?: number | null
 }
 
-/** Is this failure one that retrying makes worse rather than better? */
-export function isRateLimited(err: unknown): boolean {
-  return (err as { rateLimited?: boolean } | null)?.rateLimited === true
-}
-
 /**
  * Fetch the current smoke analysis.
  *

@@ -4,7 +4,6 @@ import {
   SMOKE_OPACITY,
   densityOf,
   formatObserved,
-  isRateLimited,
   smokePopupHtml,
   smokeSwatch,
 } from './smoke'
@@ -126,15 +125,5 @@ describe('smokePopupHtml', () => {
     })
     expect(html).toContain('Observed')
     expect(html).toContain('font-style:italic')
-  })
-})
-
-describe('isRateLimited', () => {
-  it('marks the two answers that mean wait rather than ask again', () => {
-    const err = new Error('x') as Error & { rateLimited?: boolean }
-    err.rateLimited = true
-    expect(isRateLimited(err)).toBe(true)
-    expect(isRateLimited(new Error('x'))).toBe(false)
-    expect(isRateLimited(null)).toBe(false)
   })
 })

@@ -8,32 +8,45 @@
 // Equal timestamps are a point sample — floored to the hour they land in and
 // spanned by one minute, so the hourly filter catches exactly one stamp (a
 // bare +1h span would catch two whenever the moment sits on an hour
-// boundary). The horizon slack (375/17 days) matches the backend constants
-// behind the advertised one-year / ~16-day limits, and the error strings are
-// the server's own so a client-refused window reads identically to a
-// server-refused one.
+// boundary). The horizon slack is the accept bound the backend validates
+// against, taken from what `/api/capabilities` publishes rather than compiled
+// here, and the error strings are the server's own so a client-refused window
+// reads identically to a server-refused one.
 //
 // It also owns which Open-Meteo endpoint a window belongs to (`windowSource`,
 // issue #123), because that is the same question one level down: a window the
 // forecast endpoint has no data for is the archive's, and one that crosses
 // between them belongs to both, fetched from each and joined at the seam.
 
-const HOUR_MS = 3_600_000
+// Exported rather than declared again in the two other modules that needed it
+// (#388). It lives here because this is the file that turns a forecast window
+// into hours; both readers are doing a piece of the same arithmetic.
+export const HOUR_MS = 3_600_000
 const MINUTE_MS = 60_000
 const DAY_MS = 86_400_000
 
+// The three numbers below are FALLBACKS, not the values this module computes
+// with. Each one is published — `limits.max_past_days`, `limits.max_future_days`
+// and `limits.past_data_days` — and reaches the live path through
+// `hooks/useCapabilities.ts` as a `WindowLimits` argument, so a server-side
+// recalibration never needs a coordinated frontend release (#393; the pattern
+// #152 set for the polygon cap). Nothing here reads one: they exist for the
+// hook to hold until the fetch answers, and for `mirroredConstants.test.ts` to
+// pin against the backend constants the server publishes them from, so the
+// fallback and the published value agree by test rather than by luck.
+
 // Mirror of `ARCHIVE_DATA_DAYS` + its slack and `FUTURE_LIMIT_SLACK_DAYS` in
 // `backend/app/models.py`. The past bound follows the ARCHIVE's reach rather
-// than the forecast endpoint's, because a window older than `PAST_DATA_DAYS` is
-// answered from the archive (see `windowSource`).
+// than the forecast endpoint's, because a window older than the forecast
+// endpoint's own data is answered from the archive (see `windowSource`).
 export const PAST_LIMIT_SLACK_DAYS = 375
 export const FUTURE_LIMIT_SLACK_DAYS = 17
 
 // Where the forecast endpoint's own data stops, and therefore the boundary
 // between the two endpoints. Mirror of `PAST_DATA_DAYS` in
 // `backend/app/models.py`, which carries the per-model measurements behind it:
-// past ~58 days every model answers 200 with an hourly array of nulls, and 55 is
-// one conservative floor for all of them.
+// past roughly two months every model answers 200 with an hourly array of
+// nulls, and this is one conservative floor for all of them.
 export const PAST_DATA_DAYS = 55
 
 // One local calendar day of tolerance on the forecast side of that boundary.
@@ -45,13 +58,45 @@ export const PAST_DATA_DAYS = 55
 // `ARCHIVE_STRADDLE_DAYS` in `backend/app/models.py`.
 export const ARCHIVE_STRADDLE_DAYS = 1
 
+/**
+ * The window bounds a deployment enforces, as one value.
+ *
+ * One object rather than three number parameters for the same reason
+ * `BandLimits` in `calendar.ts` is one: they are the same type, of similar
+ * magnitude, and would sit adjacent in an argument list, so a transposed pair
+ * would compile and quietly move the archive seam or refuse a legal window.
+ */
+export interface WindowLimits {
+  /** Days back `start_datetime` may reach. `limits.max_past_days`. */
+  maxPastDays: number
+  /** Days ahead `end_datetime` may reach. `limits.max_future_days`. */
+  maxFutureDays: number
+  /** Where the forecast endpoint's data stops. `limits.past_data_days`. */
+  pastDataDays: number
+}
+
+/**
+ * What a caller that passes no limits gets.
+ *
+ * Omitting them is not "any numbers will do": it is the pre-fetch state, the
+ * same values `useCapabilities` holds until `/api/capabilities` answers. That
+ * is the one behavior this default is allowed to have, which is what makes it
+ * safe on the paths that genuinely have no capabilities to hand — the test
+ * suite, and the moments before the first analysis.
+ */
+export const FALLBACK_WINDOW_LIMITS: WindowLimits = {
+  maxPastDays: PAST_LIMIT_SLACK_DAYS,
+  maxFutureDays: FUTURE_LIMIT_SLACK_DAYS,
+  pastDataDays: PAST_DATA_DAYS,
+}
+
 /** Which endpoint answers a window: one of them, or both across a seam. */
 export type WindowSource = 'forecast' | 'archive' | 'spanning'
 
 /**
  * The instant the archive's hours end and the forecast endpoint's begin.
  *
- * `now - PAST_DATA_DAYS`, floored to the UTC day, because every fetch sends UTC
+ * `now - pastDataDays`, floored to the UTC day, because every fetch sends UTC
  * hour stamps. One definition for three readers: `windowSource` classifies a
  * window against it, `fetchWeather` splits a spanning window at it, and the
  * panel names the two days it falls between. A second spelling could put the
@@ -59,8 +104,11 @@ export type WindowSource = 'forecast' | 'archive' | 'spanning'
  *
  * Mirror of `archive_boundary` in `backend/app/models.py`.
  */
-export function archiveBoundaryMs(nowMs: number = Date.now()): number {
-  return Math.floor((nowMs - PAST_DATA_DAYS * DAY_MS) / DAY_MS) * DAY_MS
+export function archiveBoundaryMs(
+  nowMs: number = Date.now(),
+  limits: WindowLimits = FALLBACK_WINDOW_LIMITS,
+): number {
+  return Math.floor((nowMs - limits.pastDataDays * DAY_MS) / DAY_MS) * DAY_MS
 }
 
 /**
@@ -83,8 +131,9 @@ export function windowSource(
   startMs: number,
   endMs: number,
   nowMs: number = Date.now(),
+  limits: WindowLimits = FALLBACK_WINDOW_LIMITS,
 ): WindowSource {
-  const boundary = archiveBoundaryMs(nowMs)
+  const boundary = archiveBoundaryMs(nowMs, limits)
   if (endMs < boundary) return 'archive'
   if (startMs >= boundary - ARCHIVE_STRADDLE_DAYS * DAY_MS) return 'forecast'
   return 'spanning'
@@ -160,19 +209,20 @@ export function resolveWindow(
   startIso: string,
   endIso: string,
   nowMs: number = Date.now(),
+  limits: WindowLimits = FALLBACK_WINDOW_LIMITS,
 ): ResolvedWindow {
   const { startMs, endMs } = normalizeWindow(parseIso(startIso), parseIso(endIso))
 
   if (startMs >= endMs) {
     throw new Error('The start date must be before the end date.')
   }
-  if (startMs < nowMs - PAST_LIMIT_SLACK_DAYS * DAY_MS) {
+  if (startMs < nowMs - limits.maxPastDays * DAY_MS) {
     throw new Error(
       'start_datetime is beyond the one-year history limit of the weather API. ' +
         'Move the window start closer to today.',
     )
   }
-  if (endMs > nowMs + FUTURE_LIMIT_SLACK_DAYS * DAY_MS) {
+  if (endMs > nowMs + limits.maxFutureDays * DAY_MS) {
     throw new Error(
       'end_datetime is beyond the ~16-day forecast horizon of the weather API. ' +
         'Move the window end closer to today.',

@@ -1,33 +1,27 @@
 import { describe, it, expect } from 'vitest'
 import { resultsFeatureCollection } from './resultFeatures'
 import type { DestinationResult } from '../types'
+import { resultRow } from '../testSupport/fixtures'
 
+// The coordinates are spelled out because this suite asserts that a feature
+// carries them unrounded, first at five places and then at nine.
 function result(overrides: Partial<DestinationResult> = {}): DestinationResult {
-  return {
+  return resultRow({
     name: 'Estes Butte Lookout Site',
-    type: 'peak',
     latitude: 47.99505,
     longitude: -120.79303,
     elevation_ft: 5397,
-    osm_id: null,
-    precip_total_in: 0,
-    precip_avg_in_hr: 0,
-    precip_min_in_hr: 0,
-    precip_max_in_hr: 0,
     temp_min_f: 44.2,
     temp_max_f: 74.9,
     temp_avg_f: 62.1,
     wind_min_mph: 1,
     wind_max_mph: 10,
     wind_avg_mph: 6.4,
-    freeze_min_ft: null,
-    freeze_max_ft: null,
-    freeze_avg_ft: null,
     aqi_avg: 121,
     aqi_min: 149,
     aqi_max: 149,
     ...overrides,
-  }
+  })
 }
 
 describe('resultsFeatureCollection', () => {
