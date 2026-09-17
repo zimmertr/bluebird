@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { RemovedEntry } from '../utils/removals'
 import { usePopover } from '../hooks/usePopover'
 import Popover from './Popover'
-import { FOCUS_RING, LINK_ACTION, TEXT } from '../styles'
+import { FOCUS_RING, LINK_ACTION, SURFACE_DIVIDER, TEXT } from '../styles'
 
 interface Props {
   open: boolean
@@ -59,7 +59,7 @@ export default function RemovedPicker({
       </div>
 
       {entries.length > 1 && (
-        <div className="border-t border-slate-700 px-3 py-2">
+        <div className={`border-t ${SURFACE_DIVIDER} px-3 py-2`}>
           <button
             onClick={onRestoreAll}
             className={`${TEXT.micro} ${LINK_ACTION} ${FOCUS_RING} cursor-pointer`}

@@ -77,6 +77,7 @@ import {
   MAP_COL_W,
   MAP_EDGE,
   MAP_ROW_H,
+  MUTED,
   PROSE,
   RADIUS,
   LIFTED_EDGE,
@@ -94,6 +95,7 @@ import {
   SEGMENT_ITEM,
   SR_ONLY,
   SURFACE_CARD,
+  SURFACE_DIVIDER,
   SURFACE_FLOATING,
   SURFACE_POPOVER,
   SURFACE_SHEET,
@@ -2378,7 +2380,7 @@ export default function App() {
           When closed it stays absolute + translated off-screen so it leaves the
           layout and the map fills the full width on every breakpoint. */}
       <aside
-        className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[calc(100vw-2rem)] max-w-90 transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r border-slate-700 ${
+        className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[calc(100vw-2rem)] max-w-90 transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r ${SURFACE_DIVIDER} ${
           sidebarOpen
             ? 'translate-x-0 lg:static lg:z-10 lg:w-90 lg:max-w-none lg:transition-none'
             : '-translate-x-full'
@@ -3306,10 +3308,10 @@ export default function App() {
                                     className={`${TEXT.control} ${FOCUS_RING} inline-flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pl-2 pr-1`}
                                   >
                                     <span
-                                      className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : 'opacity-40'}`}
+                                      className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : MUTED}`}
                                       style={{ backgroundColor: chart.colorFor(row) }}
                                     />
-                                    <span className={`truncate ${plotted ? '' : 'opacity-50'}`}>
+                                    <span className={`truncate ${plotted ? '' : MUTED}`}>
                                       {row.name}
                                     </span>
                                   </button>
