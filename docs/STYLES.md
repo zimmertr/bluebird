@@ -188,7 +188,7 @@ One set of roles for both surfaces that reorder columns, the table header and th
 
 | Role | Purpose |
 |---|---|
-| `ICON` | Inline SVG icon sizing: 16x16 |
+| `ICON` | How big a drawn glyph is, in four steps: `control` 16 (in or beside a control, the search magnifier included), `inline` 14 (a mark inside a line of text), `chip` 12 (a chip's remove cross, either chip), `micro` 10 (inside a drawn disc or button smaller than a control). Read by `components/icons.tsx`, which draws every icon in the app; every step carries the measurement that chose it |
 | `ICON_BUTTON` | Bare icon button in header |
 | `ICON_ACTION` | Icon that acts on hover |
 | `ICON_ADORNMENT` | Glyph drawn inside a field |
@@ -228,6 +228,12 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
 | No bottom offset is spelled in a component | `resultsSheet.test.ts` | Ban `bottom-*` in `App.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
 | The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure |
+| No component draws its own glyph | `styles.test.ts` | Ban a literal SVG opening tag everywhere under `components/` and in `App.tsx`, except `icons.tsx` |
+| Nor does the map popup | `styles.test.ts` | Ban the same tag in `utils/popupChrome.ts`, which builds markup rather than elements, and pin its glyph size to the `inline` step |
+| No call site sizes an icon | `styles.test.ts` | Ban a height or width utility on any `<Icon…>` element; the four `ICON` steps are pinned by measured pixels, and the key set is pinned too |
+| Every glyph is hidden from assistive technology | `accessibility.test.ts` | Every SVG in `icons.tsx` and `iconPaths.ts` carries `aria-hidden` |
+| No component positions its own panel | `styles.test.ts` | Ban a fixed-position style object and the popover wrapper everywhere under `components/` and in `App.tsx`, except `Popover.tsx` |
+| One place decides where a panel goes | `styles.test.ts` | `popoverBox` has exactly one caller, the `usePopover` hook |
 
 **NOT enforced:** custom spacing between components (only recessed surface and controls are architected), component-specific layouts. These are decided per feature.
 
@@ -449,6 +455,60 @@ The filled portion of the track is a third element behind the input rather than
 a styled `::-webkit-slider-runnable-track`, because a pseudo-element cannot
 carry another box on top of it, and it needs `pointer-events-none` so it does
 not swallow the drag that belongs to the input above.
+
+### Drawing an icon
+
+Every glyph in the app is a component in `frontend/src/components/icons.tsx`,
+and nothing else draws an SVG (#386). Before that module the nineteen inline
+SVGs each answered the same three questions for themselves and had stopped
+agreeing: the close cross existed six times at three sizes and two stroke
+weights, two of the six reached a screen reader that the other four did not,
+and the select arrow's path was typed out three times.
+
+The split is:
+
+- **The module owns the drawing.** Paths, stroke weight, viewBox, the size from
+  the `ICON` ramp, and `aria-hidden` on every one of them. A glyph stands inside
+  a control that already carries its own `aria-label`, so an icon that reaches
+  the accessibility tree can only announce the label a second time.
+- **The call site owns placement.** Where the glyph sits (`ICON_ADORNMENT`,
+  `flex-shrink-0`) and what colour it reaches for (`ICON_ACTION`), passed as
+  `className`. Never a size: a height or width handed to an icon fails
+  `styles.test.ts`.
+
+To add one, write the component in that file, give it a step from the `ICON`
+ramp, and let it set `aria-hidden` itself. A step that does not exist yet is a
+new role: add it to `ICON` with its rationale and pin its pixels in
+`styles.test.ts`, the same way as below. The ramp is four steps and each one
+states the number that chose it (#436), so a fifth arrives with a measurement
+or not at all — the key set is pinned as well as the values.
+
+**The one glyph drawn twice.** A map popup is an HTML string handed to
+MapLibre's `setHTML`, so Tailwind never sees its class names and the icon
+module cannot draw it. The link-out arrow in a popup's title row is therefore
+the same shape as the results table's, read from `frontend/src/iconPaths.ts`
+by both `icons.tsx` and `utils/popupChrome.ts` (#435). That module carries the
+geometry, the stroke, and the one size a string has to spell; `styles.test.ts`
+bans a literal SVG tag in `popupChrome.ts` and pins that size to the `inline`
+step. It sits at `src/` rather than in `components/`, beside `styles.ts` and
+`metrics.ts`, because `popupChrome.ts` is a util and no util in the app imports
+a component.
+
+### Opening a panel
+
+Every floating panel that hangs off a control is one shell and one hook (#385):
+`components/Popover.tsx` draws the card, and `hooks/usePopover.ts` decides where
+it goes and what closes it. A component supplies its rows and nothing else.
+
+The shell owns four decisions the four pickers each used to make for
+themselves: the `SURFACE_CARD` wrapper, `LAYER.popover`, the fixed box, and the
+portal to `document.body`. Fixed and portalled because the control panel is an
+`overflow-y-auto` column: a panel rendered inside it is clipped at the scroll
+boundary, which for a control near the bottom cuts the list in half. It also
+draws the overline header row, which two of the four had spelled separately.
+
+`styles.test.ts` fails a second `position: 'fixed'` or a second copy of that
+wrapper anywhere under `components/`, and fails a second caller of `popoverBox`.
 
 ### Adding a new role
 
