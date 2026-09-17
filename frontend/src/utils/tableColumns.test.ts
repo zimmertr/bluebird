@@ -446,13 +446,14 @@ describe('wind datum on the displayed columns', () => {
     )
   })
 
-  // Only wind. A datum leaking onto another family would be a false claim
-  // about a number the adjustment never touched.
-  it('touches no column outside the wind family', () => {
+  // Wind and temperature, and nothing else. A datum leaking onto another
+  // family would be a false claim about a number the adjustment never touched.
+  it('touches no column outside the wind and temperature families', () => {
+    const adjusted = [...windKeys, ...(FAMILY_KEYS.temp as readonly string[])]
     const plain = displayedColumns(false, 'precip_total_in')
     const qualified = displayedColumns(false, 'precip_total_in', 'forecast')
     for (const col of plain) {
-      if (windKeys.includes(col.key as string)) continue
+      if (adjusted.includes(col.key as string)) continue
       expect(labelOf(qualified, col.key as string)).toBe(col.label)
     }
   })
@@ -480,6 +481,60 @@ describe('wind datum on the displayed columns', () => {
     const keys = new Set<string>(['name', 'wind_avg_mph'])
     const visible = visibleColumns(false, 'precip_total_in', keys, 'archive')
     expect(labelOf(visible, 'wind_avg_mph')).toContain('at 10 meters')
+  })
+})
+
+// #443: the three temperature columns read the free air at the destination's
+// own elevation, so the header says so — on the screen and in the file alike,
+// for the reason the wind's does.
+describe('temperature datum on the displayed columns', () => {
+  const tempKeys = FAMILY_KEYS.temp as readonly string[]
+  const labelOf = (cols: { key: string; label: string }[], key: string) =>
+    cols.find((c) => c.key === key)!.label
+
+  it('qualifies every temperature column over a forecast window', () => {
+    const cols = displayedColumns(false, 'precip_total_in', 'forecast')
+    for (const key of tempKeys) expect(labelOf(cols, key)).toContain('at elevation')
+  })
+
+  // Two states, not the wind's three. The archive answers every pressure level
+  // null, so the column IS the surface temperature under exactly the label it
+  // carried before this issue — a datum there would only restate the default.
+  it('leaves the columns untouched over an archive window', () => {
+    const cols = displayedColumns(false, 'precip_total_in', 'archive')
+    const plain = displayedColumns(false, 'precip_total_in')
+    for (const key of tempKeys) expect(labelOf(cols, key)).toBe(labelOf(plain, key))
+  })
+
+  it('leaves the columns untouched over a spanning window and with no report', () => {
+    const plain = displayedColumns(false, 'precip_total_in')
+    for (const source of ['spanning', null] as const) {
+      const cols = displayedColumns(false, 'precip_total_in', source)
+      for (const key of tempKeys) expect(labelOf(cols, key)).toBe(labelOf(plain, key))
+    }
+  })
+
+  // The wind's archive label must still appear beside an unqualified
+  // temperature one: the two families answer the same window differently, and
+  // an applier that shared one verdict would get one of them wrong.
+  it('qualifies the wind and not the temperature over the same archive window', () => {
+    const cols = displayedColumns(false, 'precip_total_in', 'archive')
+    expect(labelOf(cols, 'wind_avg_mph')).toContain('at 10 meters')
+    expect(labelOf(cols, 'temp_avg_f')).not.toContain('at ')
+  })
+
+  // The collapsed single column carries no aggregate, so the qualifier has to
+  // land without one rather than being dropped with it.
+  it('qualifies the collapsed column of a point-sample report', () => {
+    const cols = displayedColumns(true, 'temp_avg_f', 'forecast')
+    expect(labelOf(cols, 'temp_avg_f')).toContain('at elevation')
+    expect(labelOf(cols, 'temp_avg_f')).not.toContain(SEP)
+  })
+
+  it('qualifies the visible columns the same way', () => {
+    const keys = new Set<string>(['name', 'temp_min_f'])
+    const visible = visibleColumns(false, 'precip_total_in', keys, 'forecast')
+    expect(labelOf(visible, 'temp_min_f')).toContain('at elevation')
   })
 })
 
