@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app import ratelimit, telemetry
@@ -58,7 +58,7 @@ async def fetch_aqi_batch(
     # Wall clocks are read as UTC without converting, the same convention
     # `_naive` uses in the weather service.
     end_cap = (
-        datetime.now(timezone.utc).replace(tzinfo=None)
+        datetime.now(UTC).replace(tzinfo=None)
         + timedelta(days=MAX_FORECAST_DAYS)
     ).replace(hour=23, minute=0, second=0, microsecond=0)
     req_start = start_dt.replace(tzinfo=None, minute=0, second=0, microsecond=0)
@@ -186,7 +186,7 @@ def _metrics(
 
         vals = [
             v
-            for ts, v in zip(times, aqi)
+            for ts, v in zip(times, aqi, strict=False)
             if v is not None
             and (parsed := _parse_ts(ts)) is not None
             and start <= parsed <= end

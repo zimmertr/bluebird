@@ -278,9 +278,9 @@ async def fetch_batched(
     # Only real answers are cached, and a real empty window is cached as
     # NO_DATA.
     if not rate_limited.is_set():
-        for key, result in zip(miss_keys, fetched):
+        for key, result in zip(miss_keys, fetched, strict=False):
             cache.FORECAST_CACHE.put(key, cache.NO_DATA if result is None else result)
-    for i, result in zip(miss_indices, fetched):
+    for i, result in zip(miss_indices, fetched, strict=False):
         results[i] = result
     return results
 

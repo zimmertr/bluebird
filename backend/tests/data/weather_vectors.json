@@ -1316,6 +1316,705 @@
       }
     },
     {
+      "name": "temperature_interpolates_between_bracketing_levels",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "elevation_ft": 8000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "precipitation": [
+            0.0,
+            0.0
+          ],
+          "temperature_2m": [
+            25.0,
+            27.0
+          ],
+          "wind_speed_10m": [
+            5.0,
+            5.0
+          ],
+          "temperature_925hPa": [
+            55.0,
+            55.0
+          ],
+          "temperature_850hPa": [
+            48.0,
+            50.0
+          ],
+          "temperature_700hPa": [
+            38.0,
+            36.0
+          ],
+          "temperature_600hPa": [
+            28.0,
+            28.0
+          ],
+          "temperature_500hPa": [
+            14.0,
+            14.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.0,
+        "precip_avg_in_hr": 0.0,
+        "precip_min_in_hr": 0.0,
+        "precip_max_in_hr": 0.0,
+        "temp_min_f": 41.2,
+        "temp_max_f": 41.7,
+        "temp_avg_f": 41.4,
+        "wind_min_mph": 5.0,
+        "wind_max_mph": 5.0,
+        "wind_avg_mph": 5.0,
+        "freeze_min_ft": null,
+        "freeze_max_ft": null,
+        "freeze_avg_ft": null
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "precip_in": [
+          0.0,
+          0.0
+        ],
+        "temp_f": [
+          41.7,
+          41.2
+        ],
+        "wind_mph": [
+          5.0,
+          5.0
+        ],
+        "freeze_ft": [
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "name": "temperature_free_air_colder_than_2m_is_kept",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "elevation_ft": 8000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "precipitation": [
+            0.0,
+            0.0
+          ],
+          "temperature_2m": [
+            60.0,
+            60.0
+          ],
+          "wind_speed_10m": [
+            5.0,
+            5.0
+          ],
+          "temperature_925hPa": [
+            50.0,
+            50.0
+          ],
+          "temperature_850hPa": [
+            44.0,
+            44.0
+          ],
+          "temperature_700hPa": [
+            30.0,
+            30.0
+          ],
+          "temperature_600hPa": [
+            20.0,
+            20.0
+          ],
+          "temperature_500hPa": [
+            10.0,
+            10.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.0,
+        "precip_avg_in_hr": 0.0,
+        "precip_min_in_hr": 0.0,
+        "precip_max_in_hr": 0.0,
+        "temp_min_f": 35.2,
+        "temp_max_f": 35.2,
+        "temp_avg_f": 35.2,
+        "wind_min_mph": 5.0,
+        "wind_max_mph": 5.0,
+        "wind_avg_mph": 5.0,
+        "freeze_min_ft": null,
+        "freeze_max_ft": null,
+        "freeze_avg_ft": null
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "precip_in": [
+          0.0,
+          0.0
+        ],
+        "temp_f": [
+          35.2,
+          35.2
+        ],
+        "wind_mph": [
+          5.0,
+          5.0
+        ],
+        "freeze_ft": [
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "name": "temperature_below_lowest_level_keeps_2m",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "elevation_ft": 2000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "precipitation": [
+            0.0,
+            0.0
+          ],
+          "temperature_2m": [
+            25.0,
+            26.0
+          ],
+          "wind_speed_10m": [
+            5.0,
+            5.0
+          ],
+          "temperature_925hPa": [
+            55.0,
+            55.0
+          ],
+          "temperature_850hPa": [
+            48.0,
+            48.0
+          ],
+          "temperature_700hPa": [
+            38.0,
+            38.0
+          ],
+          "temperature_600hPa": [
+            28.0,
+            28.0
+          ],
+          "temperature_500hPa": [
+            14.0,
+            14.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.0,
+        "precip_avg_in_hr": 0.0,
+        "precip_min_in_hr": 0.0,
+        "precip_max_in_hr": 0.0,
+        "temp_min_f": 25.0,
+        "temp_max_f": 26.0,
+        "temp_avg_f": 25.5,
+        "wind_min_mph": 5.0,
+        "wind_max_mph": 5.0,
+        "wind_avg_mph": 5.0,
+        "freeze_min_ft": null,
+        "freeze_max_ft": null,
+        "freeze_avg_ft": null
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "precip_in": [
+          0.0,
+          0.0
+        ],
+        "temp_f": [
+          25.0,
+          26.0
+        ],
+        "wind_mph": [
+          5.0,
+          5.0
+        ],
+        "freeze_ft": [
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "name": "temperature_above_top_level_clamps_to_500hPa",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "elevation_ft": 20000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "precipitation": [
+            0.0,
+            0.0
+          ],
+          "temperature_2m": [
+            40.0,
+            40.0
+          ],
+          "wind_speed_10m": [
+            5.0,
+            5.0
+          ],
+          "temperature_925hPa": [
+            55.0,
+            55.0
+          ],
+          "temperature_850hPa": [
+            48.0,
+            48.0
+          ],
+          "temperature_700hPa": [
+            38.0,
+            38.0
+          ],
+          "temperature_600hPa": [
+            28.0,
+            28.0
+          ],
+          "temperature_500hPa": [
+            -1.2,
+            -3.4
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.0,
+        "precip_avg_in_hr": 0.0,
+        "precip_min_in_hr": 0.0,
+        "precip_max_in_hr": 0.0,
+        "temp_min_f": -3.4,
+        "temp_max_f": -1.2,
+        "temp_avg_f": -2.3,
+        "wind_min_mph": 5.0,
+        "wind_max_mph": 5.0,
+        "wind_avg_mph": 5.0,
+        "freeze_min_ft": null,
+        "freeze_max_ft": null,
+        "freeze_avg_ft": null
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "precip_in": [
+          0.0,
+          0.0
+        ],
+        "temp_f": [
+          -1.2,
+          -3.4
+        ],
+        "wind_mph": [
+          5.0,
+          5.0
+        ],
+        "freeze_ft": [
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "name": "temperature_null_bracketing_level_falls_back_that_hour_only",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "elevation_ft": 8000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "precipitation": [
+            0.0,
+            0.0
+          ],
+          "temperature_2m": [
+            25.0,
+            25.0
+          ],
+          "wind_speed_10m": [
+            5.0,
+            5.0
+          ],
+          "temperature_925hPa": [
+            55.0,
+            55.0
+          ],
+          "temperature_850hPa": [
+            null,
+            48.0
+          ],
+          "temperature_700hPa": [
+            38.0,
+            38.0
+          ],
+          "temperature_600hPa": [
+            28.0,
+            28.0
+          ],
+          "temperature_500hPa": [
+            14.0,
+            14.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.0,
+        "precip_avg_in_hr": 0.0,
+        "precip_min_in_hr": 0.0,
+        "precip_max_in_hr": 0.0,
+        "temp_min_f": 25.0,
+        "temp_max_f": 41.7,
+        "temp_avg_f": 33.3,
+        "wind_min_mph": 5.0,
+        "wind_max_mph": 5.0,
+        "wind_avg_mph": 5.0,
+        "freeze_min_ft": null,
+        "freeze_max_ft": null,
+        "freeze_avg_ft": null
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "precip_in": [
+          0.0,
+          0.0
+        ],
+        "temp_f": [
+          25.0,
+          41.7
+        ],
+        "wind_mph": [
+          5.0,
+          5.0
+        ],
+        "freeze_ft": [
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "name": "temperature_all_levels_null_is_the_archive_fallback",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "elevation_ft": 8000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "precipitation": [
+            0.0,
+            0.0
+          ],
+          "temperature_2m": [
+            25.0,
+            27.0
+          ],
+          "wind_speed_10m": [
+            5.0,
+            5.0
+          ],
+          "temperature_925hPa": [
+            null,
+            null
+          ],
+          "temperature_850hPa": [
+            null,
+            null
+          ],
+          "temperature_700hPa": [
+            null,
+            null
+          ],
+          "temperature_600hPa": [
+            null,
+            null
+          ],
+          "temperature_500hPa": [
+            null,
+            null
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.0,
+        "precip_avg_in_hr": 0.0,
+        "precip_min_in_hr": 0.0,
+        "precip_max_in_hr": 0.0,
+        "temp_min_f": 25.0,
+        "temp_max_f": 27.0,
+        "temp_avg_f": 26.0,
+        "wind_min_mph": 5.0,
+        "wind_max_mph": 5.0,
+        "wind_avg_mph": 5.0,
+        "freeze_min_ft": null,
+        "freeze_max_ft": null,
+        "freeze_avg_ft": null
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "precip_in": [
+          0.0,
+          0.0
+        ],
+        "temp_f": [
+          25.0,
+          27.0
+        ],
+        "wind_mph": [
+          5.0,
+          5.0
+        ],
+        "freeze_ft": [
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "name": "temperature_no_elevation_keeps_2m",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "precipitation": [
+            0.0,
+            0.0
+          ],
+          "temperature_2m": [
+            25.0,
+            27.0
+          ],
+          "wind_speed_10m": [
+            5.0,
+            5.0
+          ],
+          "temperature_925hPa": [
+            55.0,
+            55.0
+          ],
+          "temperature_850hPa": [
+            48.0,
+            50.0
+          ],
+          "temperature_700hPa": [
+            38.0,
+            36.0
+          ],
+          "temperature_600hPa": [
+            28.0,
+            28.0
+          ],
+          "temperature_500hPa": [
+            14.0,
+            14.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.0,
+        "precip_avg_in_hr": 0.0,
+        "precip_min_in_hr": 0.0,
+        "precip_max_in_hr": 0.0,
+        "temp_min_f": 25.0,
+        "temp_max_f": 27.0,
+        "temp_avg_f": 26.0,
+        "wind_min_mph": 5.0,
+        "wind_max_mph": 5.0,
+        "wind_avg_mph": 5.0,
+        "freeze_min_ft": null,
+        "freeze_max_ft": null,
+        "freeze_avg_ft": null
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "precip_in": [
+          0.0,
+          0.0
+        ],
+        "temp_f": [
+          25.0,
+          27.0
+        ],
+        "wind_mph": [
+          5.0,
+          5.0
+        ],
+        "freeze_ft": [
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "name": "wind_and_temperature_levels_together",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "elevation_ft": 9000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "precipitation": [
+            0.0,
+            0.05
+          ],
+          "temperature_2m": [
+            25.2,
+            26.4
+          ],
+          "wind_speed_10m": [
+            5.0,
+            6.0
+          ],
+          "wind_speed_925hPa": [
+            7.0,
+            7.0
+          ],
+          "wind_speed_850hPa": [
+            10.0,
+            12.0
+          ],
+          "wind_speed_700hPa": [
+            30.0,
+            24.0
+          ],
+          "wind_speed_600hPa": [
+            40.0,
+            40.0
+          ],
+          "wind_speed_500hPa": [
+            50.0,
+            50.0
+          ],
+          "temperature_925hPa": [
+            56.0,
+            56.0
+          ],
+          "temperature_850hPa": [
+            47.4,
+            48.1
+          ],
+          "temperature_700hPa": [
+            27.6,
+            29.0
+          ],
+          "temperature_600hPa": [
+            15.4,
+            16.1
+          ],
+          "temperature_500hPa": [
+            -1.2,
+            -0.8
+          ]
+        }
+      },
+      "expected_metrics": {
+        "precip_total_in": 0.05,
+        "precip_avg_in_hr": 0.025,
+        "precip_min_in_hr": 0.0,
+        "precip_max_in_hr": 0.05,
+        "temp_min_f": 31.0,
+        "temp_max_f": 32.3,
+        "temp_avg_f": 31.7,
+        "wind_min_mph": 21.9,
+        "wind_max_mph": 26.5,
+        "wind_avg_mph": 24.2,
+        "freeze_min_ft": null,
+        "freeze_max_ft": null,
+        "freeze_avg_ft": null
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "precip_in": [
+          0.0,
+          0.05
+        ],
+        "temp_f": [
+          31.0,
+          32.3
+        ],
+        "wind_mph": [
+          26.5,
+          21.9
+        ],
+        "freeze_ft": [
+          null,
+          null
+        ]
+      }
+    },
+    {
       "name": "freezing_level_converts_meters_to_feet",
       "window": {
         "start": "2026-07-21T00:00",

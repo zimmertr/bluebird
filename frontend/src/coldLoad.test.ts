@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-// @ts-ignore - no types available in browser context
+// @ts-expect-error node builtin, untyped in this project
 import { readFileSync, statSync } from 'fs'
-// @ts-ignore - no types available in browser context
+// @ts-expect-error node builtin, untyped in this project
 import { dirname, join } from 'path'
-// @ts-ignore - no types available in browser context
+// @ts-expect-error node builtin, untyped in this project
 import { fileURLToPath } from 'url'
 
 // Same `?raw` idiom legal.test.ts and styles.test.ts use: the files are read as
