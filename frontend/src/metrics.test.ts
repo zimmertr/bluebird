@@ -13,6 +13,7 @@ import {
   familyOf,
   metricLabel,
   rankedNoun,
+  tempDatum,
   windDatum,
   windowAggregate,
 } from './metrics'
@@ -407,5 +408,88 @@ describe('wind datum', () => {
     expect(metricLabel('wind', AGGREGATE.average, undefined, null)).toBe(
       metricLabel('wind', AGGREGATE.average),
     )
+  })
+})
+
+// #443: the temperature is read from the same free air the wind is, so the
+// header says so in the same words. These pin the TWO states, and the one the
+// wind has that this does not.
+describe('temperature datum', () => {
+  it('names the elevation datum over a forecast window', () => {
+    expect(tempDatum('forecast')).toBe('at elevation')
+  })
+
+  // One phrase for one measurement. The two families read the same five
+  // pressure levels at the same heights, so a reader comparing the two columns
+  // is comparing like with like and the headers must not suggest otherwise.
+  it('uses the same words the wind uses for the same measurement', () => {
+    expect(tempDatum('forecast')).toBe(windDatum('forecast'))
+  })
+
+  // The archive answers every pressure level null, so the adjustment does not
+  // run and every row is the surface reading whatever its elevation.
+  it('names the surface datum over an archive window', () => {
+    expect(tempDatum('archive')).toBe('at 2 meters')
+  })
+
+  // The two families move in lockstep (TJ, 2026-09-17). The columns sit side by
+  // side in the table and in the file, so a header that named one datum and
+  // left its neighbour bare would read as a difference in the numbers rather
+  // than a difference in the wording. This is the check that fails if one
+  // family grows a state the other does not.
+  it('answers every window source exactly where the wind does', () => {
+    for (const source of ['forecast', 'archive', 'spanning', null, undefined] as const) {
+      expect(tempDatum(source) === null).toBe(windDatum(source) === null)
+    }
+  })
+
+  // The one state with no datum: a spanning report averages both into a single
+  // number, so either label would be false of it.
+  it('claims no datum over a spanning window or without a report', () => {
+    expect(tempDatum('spanning')).toBeNull()
+    expect(tempDatum(null)).toBeNull()
+    expect(tempDatum(undefined)).toBeNull()
+  })
+
+  // Spelled out rather than written as a symbol, exactly as the wind's is: an
+  // ordinary English unit NAME keeps the SI space rule for unit SYMBOLS out of
+  // play and keeps a non-breaking space out of the CSV header.
+  it('spells the unit as a word, never as a symbol', () => {
+    expect(tempDatum('archive')).not.toMatch(/\b2\s?m\b/)
+    expect(tempDatum('archive')).toContain('meters')
+  })
+
+  // The qualifier belongs INSIDE the noun phrase, ahead of the separator, for
+  // the reason the wind's does.
+  it('composes the qualifier into the noun, ahead of the separator', () => {
+    const label = metricLabel('temp', AGGREGATE.minimum, undefined, tempDatum('forecast'))
+    expect(label).toBe(`${NOUN.temp} at elevation ${SEP} ${AGGREGATE.minimum} (${UNIT.temp})`)
+    expect(label.indexOf('at elevation')).toBeLessThan(label.indexOf(SEP))
+  })
+
+  // A point-sample report collapses its triplet to one column and carries no
+  // aggregate, so the qualifier has to survive without one.
+  it('composes the qualifier with no aggregate', () => {
+    expect(metricLabel('temp', undefined, undefined, tempDatum('forecast'))).toBe(
+      `${NOUN.temp} at elevation (${UNIT.temp})`,
+    )
+    expect(metricLabel('temp', undefined, undefined, tempDatum('archive'))).toBe(
+      `${NOUN.temp} at 2 meters (${UNIT.temp})`,
+    )
+  })
+
+  // A null qualifier is the spanning and pre-analysis case reaching metricLabel,
+  // and it must produce exactly the unqualified label rather than a stray space.
+  it('is byte-identical to the unqualified label when there is no datum', () => {
+    expect(metricLabel('temp', AGGREGATE.minimum, undefined, null)).toBe(
+      metricLabel('temp', AGGREGATE.minimum),
+    )
+  })
+
+  // The noun itself is untouched. Every surface with no room for a datum — the
+  // ranking radio, the map legend, the chart's metric picker, the bound rows —
+  // reads NOUN, and widening that word would move all four.
+  it('leaves the bare noun alone', () => {
+    expect(NOUN.temp).toBe('Temperature')
   })
 })

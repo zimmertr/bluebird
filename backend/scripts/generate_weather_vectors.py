@@ -45,8 +45,10 @@ def _win(start: str, end: str) -> dict[str, str]:
 
 def _wx(times, precip, temp, wind, levels=None, freeze=None, freeze_unit="m") -> dict:
     """A weather payload; `levels` maps pressure-level variable names
-    (`wind_speed_925hPa` … `wind_speed_500hPa`) to hourly arrays for the
-    elevation-adjusted wind cases (issue #257). `freeze` is the hourly
+    (`wind_speed_925hPa` … `wind_speed_500hPa` for the elevation-adjusted wind
+    cases, issue #257, and `temperature_925hPa` … `temperature_500hPa` for the
+    elevation-adjusted temperature ones, issue #443) to hourly arrays. One
+    mapping carries both families, because a real payload does. `freeze` is the hourly
     freezing level (issue #295), omitted entirely where a payload stands in
     for one of the five models that do not publish it, and quoted in the unit
     `freeze_unit` names — which the payload carries in `hourly_units`, because
@@ -278,6 +280,176 @@ WEATHER_INPUTS = [
                 "wind_speed_700hPa": [30.0, 30.0],
                 "wind_speed_600hPa": [40.0, 40.0],
                 "wind_speed_500hPa": [50.0, 50.0],
+            },
+        ),
+    },
+    # ── Elevation-adjusted temperature (issue #443) ───────────────────────
+    # Same five ISA heights as the wind, and the same fallback rules — with one
+    # difference that every vector here exists to pin: there is NO floor, so a
+    # free air COLDER than the 2 m reading is reported as it stands.
+    {
+        # 8,000 ft = 2438.4 m between 850 hPa (1457 m) and 700 hPa (3012 m).
+        # The 2 m value is the radiatively cooled one this issue is about: it
+        # reads 25.0 where the interpolated free air is above freezing.
+        "name": "temperature_interpolates_between_bracketing_levels",
+        "window": _win(H[0], H[1]),
+        "elevation_ft": 8000.0,
+        "payload": _wx(
+            H[:2],
+            [0.0, 0.0],
+            [25.0, 27.0],
+            [5.0, 5.0],
+            {
+                "temperature_925hPa": [55.0, 55.0],
+                "temperature_850hPa": [48.0, 50.0],
+                "temperature_700hPa": [38.0, 36.0],
+                "temperature_600hPa": [28.0, 28.0],
+                "temperature_500hPa": [14.0, 14.0],
+            },
+        ),
+    },
+    {
+        # Free air COLDER than the 2 m reading is kept, which is the whole of
+        # what "no floor" means: the wind vector above would have clamped it.
+        "name": "temperature_free_air_colder_than_2m_is_kept",
+        "window": _win(H[0], H[1]),
+        "elevation_ft": 8000.0,
+        "payload": _wx(
+            H[:2],
+            [0.0, 0.0],
+            [60.0, 60.0],
+            [5.0, 5.0],
+            {
+                "temperature_925hPa": [50.0, 50.0],
+                "temperature_850hPa": [44.0, 44.0],
+                "temperature_700hPa": [30.0, 30.0],
+                "temperature_600hPa": [20.0, 20.0],
+                "temperature_500hPa": [10.0, 10.0],
+            },
+        ),
+    },
+    {
+        # 2,000 ft = 609.6 m is under the lowest level: a valley destination IS
+        # its own surface layer, so the 2 m value stands.
+        "name": "temperature_below_lowest_level_keeps_2m",
+        "window": _win(H[0], H[1]),
+        "elevation_ft": 2000.0,
+        "payload": _wx(
+            H[:2],
+            [0.0, 0.0],
+            [25.0, 26.0],
+            [5.0, 5.0],
+            {
+                "temperature_925hPa": [55.0, 55.0],
+                "temperature_850hPa": [48.0, 48.0],
+                "temperature_700hPa": [38.0, 38.0],
+                "temperature_600hPa": [28.0, 28.0],
+                "temperature_500hPa": [14.0, 14.0],
+            },
+        ),
+    },
+    {
+        # 20,000 ft = 6096 m is above the top level and clamps to 500 hPa.
+        "name": "temperature_above_top_level_clamps_to_500hPa",
+        "window": _win(H[0], H[1]),
+        "elevation_ft": 20000.0,
+        "payload": _wx(
+            H[:2],
+            [0.0, 0.0],
+            [40.0, 40.0],
+            [5.0, 5.0],
+            {
+                "temperature_925hPa": [55.0, 55.0],
+                "temperature_850hPa": [48.0, 48.0],
+                "temperature_700hPa": [38.0, 38.0],
+                "temperature_600hPa": [28.0, 28.0],
+                "temperature_500hPa": [-1.2, -3.4],
+            },
+        ),
+    },
+    {
+        # A null at ONE bracketing level sends that hour back to the 2 m value
+        # and does NOT drop it; the neighbouring hour still interpolates.
+        "name": "temperature_null_bracketing_level_falls_back_that_hour_only",
+        "window": _win(H[0], H[1]),
+        "elevation_ft": 8000.0,
+        "payload": _wx(
+            H[:2],
+            [0.0, 0.0],
+            [25.0, 25.0],
+            [5.0, 5.0],
+            {
+                "temperature_925hPa": [55.0, 55.0],
+                "temperature_850hPa": [None, 48.0],
+                "temperature_700hPa": [38.0, 38.0],
+                "temperature_600hPa": [28.0, 28.0],
+                "temperature_500hPa": [14.0, 14.0],
+            },
+        ),
+    },
+    {
+        # The archive shape: every level null for every hour, which is what the
+        # archive endpoint answers (measured 2026-09-16). Every figure must come
+        # back exactly as the same payload with no levels at all produces it.
+        "name": "temperature_all_levels_null_is_the_archive_fallback",
+        "window": _win(H[0], H[1]),
+        "elevation_ft": 8000.0,
+        "payload": _wx(
+            H[:2],
+            [0.0, 0.0],
+            [25.0, 27.0],
+            [5.0, 5.0],
+            {
+                "temperature_925hPa": [None, None],
+                "temperature_850hPa": [None, None],
+                "temperature_700hPa": [None, None],
+                "temperature_600hPa": [None, None],
+                "temperature_500hPa": [None, None],
+            },
+        ),
+    },
+    {
+        # No elevation at all, with every level present: the 2 m value stands,
+        # because nothing says which level to read.
+        "name": "temperature_no_elevation_keeps_2m",
+        "window": _win(H[0], H[1]),
+        "payload": _wx(
+            H[:2],
+            [0.0, 0.0],
+            [25.0, 27.0],
+            [5.0, 5.0],
+            {
+                "temperature_925hPa": [55.0, 55.0],
+                "temperature_850hPa": [48.0, 50.0],
+                "temperature_700hPa": [38.0, 36.0],
+                "temperature_600hPa": [28.0, 28.0],
+                "temperature_500hPa": [14.0, 14.0],
+            },
+        ),
+    },
+    {
+        # Wind and temperature levels in ONE payload, which is the only shape a
+        # real response has: the two interpolations read their own five arrays
+        # and neither reaches into the other's.
+        "name": "wind_and_temperature_levels_together",
+        "window": _win(H[0], H[1]),
+        "elevation_ft": 9000.0,
+        "payload": _wx(
+            H[:2],
+            [0.0, 0.05],
+            [25.2, 26.4],
+            [5.0, 6.0],
+            {
+                "wind_speed_925hPa": [7.0, 7.0],
+                "wind_speed_850hPa": [10.0, 12.0],
+                "wind_speed_700hPa": [30.0, 24.0],
+                "wind_speed_600hPa": [40.0, 40.0],
+                "wind_speed_500hPa": [50.0, 50.0],
+                "temperature_925hPa": [56.0, 56.0],
+                "temperature_850hPa": [47.4, 48.1],
+                "temperature_700hPa": [27.6, 29.0],
+                "temperature_600hPa": [15.4, 16.1],
+                "temperature_500hPa": [-1.2, -0.8],
             },
         ),
     },

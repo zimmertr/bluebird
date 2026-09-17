@@ -359,7 +359,16 @@ conservative choice. The model count multiplies the variable count because a
 request naming several models returns one series per variable per model, and
 Open-Meteo prices what comes back; their own call calculator on the pricing
 page takes Models beside Variables and multiplies the two. Every request this
-service makes today names one model, so that term is 1. **Every capacity
+service makes today names one model, so that term is 1.
+
+**The variable factor is no longer 1.** A weather request carries 14 variables
+from the pod and 15 from the browser — the browser adds the wind bearing the
+map's playback arrows read — so the factor is 1.4 and 1.5 respectively. Every
+set before the five level temperatures
+([#443](https://github.com/zimmertr/bluebird/issues/443)) rode inside the floor
+of 1, which is why the numbers below rose by half. The same 50-location 16-day
+batch therefore costs 80 weighted calls from the pod, not 57. The air-quality
+request is one variable and is unaffected. **Every capacity
 number in this file is written in this unit** — the 2026-07-29 incident
 happened because three layers of this system priced spend in HTTP requests
 and were consistently wrong by the batch factor of 50.
@@ -367,13 +376,13 @@ and were consistently wrong by the batch factor of 50.
 ## Worst-case math
 
 One analysis at the candidate cap (`limits.max_destinations`; 1,500 when this
-was written) over the full 16-day window costs ~1,710 weighted weather calls
-(1,500 × 16/14), against a 600/minute/IP budget — call it **~3 minutes of
-paced fetching, worst case**, narrated in the UI with a countdown. On the
-browser path the same ~1,710 weighted calls are spent again on air quality,
-against the separately metered air-quality quota, fetched concurrently so the
-two waits overlap rather than stack; on the server path AQI is lazy and costs
-at most the `limit`. A repeat of the same analysis inside the cache TTL
+was written) over the full 16-day window costs ~2,570 weighted weather calls
+from the browser (1,500 × 16/14 × 1.5), against a 600/minute/IP budget — call
+it **~4 minutes of paced fetching, worst case**, narrated in the UI with a
+countdown. On the browser path a further ~1,710 weighted calls are spent on air
+quality (one variable, so the variable factor stays 1), against the separately
+metered air-quality quota, fetched concurrently so the two waits overlap rather
+than stack; on the server path AQI is lazy and costs at most the `limit`. A repeat of the same analysis inside the cache TTL
 costs ~0. For a browser analysis all of that lands on the visitor's own IP
 and the server pays 1 Overpass query (or 0, within the 10-minute discovery
 cache). The full spend lands on the cluster egress IP only for a direct API
@@ -384,8 +393,9 @@ pod's budget untouched.
 
 The forecast grid overlay adds at most one more fan-out to that, on the
 visitor's own IP and only while the layer is on: 600 cells over the full
-16-day window is ~686 weighted calls per service, which the same pacer
-spreads over roughly a further minute *after* the ranking has landed. It is
+16-day window is ~1,030 weighted calls for weather and ~686 for air quality,
+which the same pacer spreads over roughly a further two minutes *after* the
+ranking has landed. It is
 never on the critical path — the fetch starts when the report commits — so
 the worst case above is unchanged for the numbers a user is waiting on.
 The overlay exists only in the browser, so it never lands on the cluster

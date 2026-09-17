@@ -138,13 +138,13 @@ up, and Lowest finds the ones that froze deepest. A destination the model
 publishes no freezing level for ranks last either way, as every missing value
 does.
 
-Wind is reported at each destination's own elevation, not at the standard 10 meters above the model's terrain — on a summit the 10-meter value understates what you would feel, often by a factor of two. How the number is derived, and its limits, are in [DATA.md](DATA.md#open-meteo). Destinations with no known elevation show the plain near-ground wind.
+Wind and temperature are both reported at each destination's own elevation, not at the standard 10 meters and 2 meters above the model's terrain — on a summit the near-ground values are the wrong air. The 10-meter wind understates what you would feel, often by a factor of two, and the 2-meter temperature is the air over a valley floor that cools by radiation on a clear night, which is why the temperature columns used to show a peak below freezing while its own freezing level sat thousands of feet higher. How both numbers are derived, and their limits, are in [DATA.md](DATA.md#open-meteo). Destinations with no known elevation show the plain near-ground values.
 
-**The wind columns say which of the two you are reading.** Their headers name the datum behind the number, so a downloaded file says it as plainly as the screen does, and so does a marker's popup:
+**The wind and temperature columns say which of the two you are reading.** Their headers name the datum behind the number, so a downloaded file says it as plainly as the screen does, and so does a marker's popup. Both families answer a window the same way, so the two headers always make the same kind of claim:
 
-- `Wind at elevation` over an ordinary forecast window.
-- `Wind at 10 meters` over an archive window, where the pressure levels the adjustment needs are not published and every destination reports the near-ground wind whatever its height.
-- A plain `Wind` over a window that crosses between the two. Such a report averages both into a single number, so neither name would be true of it; the line under the Analyze button names the day the join falls on.
+- `Wind at elevation` and `Temperature at elevation` over an ordinary forecast window.
+- `Wind at 10 meters` and `Temperature at 2 meters` over an archive window, where the pressure levels the adjustment needs are not published and every destination reports the near-ground value whatever its height.
+- A plain `Wind` and a plain `Temperature` over a window that crosses between the two. Such a report averages both into a single number, so neither name would be true of it; the line under the Analyze button names the day the join falls on.
 
 ### Bounds
 
@@ -388,7 +388,7 @@ Hovering a row reveals a × at its end (always visible on touch screens) that re
 | Precipitation · Total (in) | Sum of hourly precipitation over the window, in inches |
 | Precipitation · Avg (in/hr) | Average hourly precipitation rate |
 | Precipitation · Max (in/hr) | Peak single-hour precipitation rate |
-| Temperature · Min/Max/Avg (°F) | Temperature range and average over the window |
+| Temperature at elevation · Min/Max/Avg (°F) | Temperature range and average over the window, read at the destination's own elevation. Reads `Temperature at 2 meters` over an archive window |
 | Wind · Min/Max/Avg (mph) | Wind speed range and average over the window |
 | Freezing level · Min/Max/Avg (ft) | Height of the freezing level over the window, in feet above sea level. `N/A` on the five models that do not publish it |
 | AQI · Avg/Max | US AQI over the window, blank past the air quality horizon |

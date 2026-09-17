@@ -20,6 +20,7 @@ from app.services.weather import (
     _naive,
     _parse_ts,
     _series,
+    _temp_at_elevation,
     _wind_at_elevation,
     fetch_weather_batch,
 )
@@ -332,6 +333,56 @@ def test_wind_at_elevation_null_level_returns_10m():
     assert _wind_at_elevation(5.0, 8000.0, levels) == 5.0
 
 
+# One hour's free-air temperatures at the five levels in °F, falling with
+# height the way a real column does (issue #443), so a bracket picked wrong
+# lands on a visibly wrong number. These are one measured GFS hour at Dome
+# Peak, 2026-09-16.
+_TEMP_LEVELS_HOUR = [56.0, 47.4, 27.6, 15.4, -1.2]
+
+
+def test_temp_at_elevation_none_returns_2m():
+    assert _temp_at_elevation(25.0, None, _TEMP_LEVELS_HOUR) == 25.0
+
+
+def test_temp_at_elevation_below_lowest_level_returns_2m():
+    # 2,000 ft = 609.6 m, under the 925 hPa height (762 m): a valley
+    # destination IS its own surface layer.
+    assert _temp_at_elevation(25.0, 2000.0, _TEMP_LEVELS_HOUR) == 25.0
+
+
+def test_temp_at_elevation_interpolates_between_brackets():
+    # 8,000 ft = 2438.4 m between 850 hPa (1457 m) and 700 hPa (3012 m):
+    # 47.4 + (27.6 - 47.4) * (981.4 / 1555) = 34.9032...
+    assert _temp_at_elevation(25.0, 8000.0, _TEMP_LEVELS_HOUR) == pytest.approx(
+        34.9032, abs=1e-3
+    )
+
+
+def test_temp_at_elevation_above_top_level_clamps():
+    # 20,000 ft = 6096 m, above 500 hPa (5574 m): the top level's value.
+    assert _temp_at_elevation(25.0, 20000.0, _TEMP_LEVELS_HOUR) == -1.2
+
+
+def test_temp_at_elevation_has_no_floor():
+    # The one rule that differs from the wind. A summit under an inversion is
+    # warmer than the free air and on a calm clear night it is colder, so a
+    # clamp in either direction would report a number no model produced.
+    assert _temp_at_elevation(60.0, 8000.0, _TEMP_LEVELS_HOUR) < 60.0
+    assert _temp_at_elevation(10.0, 8000.0, _TEMP_LEVELS_HOUR) > 10.0
+
+
+def test_temp_at_elevation_null_level_returns_2m():
+    levels = [56.0, None, 27.6, 15.4, -1.2]
+    assert _temp_at_elevation(25.0, 8000.0, levels) == 25.0
+
+
+def test_temp_at_elevation_all_levels_null_is_the_archive_fallback():
+    # The archive endpoint accepts all five levels and answers every hour null
+    # under the unit `undefined` (measured 2026-09-16), so an archive row is
+    # the surface temperature whatever its elevation.
+    assert _temp_at_elevation(25.0, 8000.0, [None] * 5) == 25.0
+
+
 def test_parse_ts_valid():
     assert _parse_ts("2026-07-21T06:30") == datetime(2026, 7, 21, 6, 30)  # noqa: DTZ001 — _parse_ts returns naive
 
@@ -553,17 +604,23 @@ async def test_fetch_weather_batch_fetches_only_the_uncached_locations(monkeypat
     assert [r["precip_total_in"] for r in results] == [0.1, 0.2, 0.3]
 
 
-async def test_fetch_weather_batch_requests_the_level_winds(monkeypatch):
+async def test_fetch_weather_batch_requests_the_level_winds_and_temperatures(
+    monkeypatch,
+):
     calls = _stub_openmeteo(monkeypatch, [_payload([0.1])])
     await fetch_weather_batch(_dests(1), START, END)
 
     hourly = calls[0]["hourly"].split(",")
     for name, _ in weather._WIND_LEVELS:
         assert name in hourly
+    for name, _ in weather._TEMP_LEVELS:
+        assert name in hourly
     assert weather._FREEZING_LEVEL in hourly
-    # Still at weight factor 1: max(1, vars x models/10) with 9 variables
-    # and one model.
+    # 14 variables at one model is weight factor 1.4: max(1, vars x models/10).
+    # The five level temperatures (#443) are what took the request over the
+    # floor of 1; every set before them rode inside it.
     assert len(hourly) == weather.N_VARIABLES
+    assert weather.N_VARIABLES == 14
 
 
 async def test_fetch_weather_batch_adjusts_wind_to_the_destinations_elevation(
@@ -593,6 +650,67 @@ async def test_fetch_weather_batch_adjusts_wind_to_the_destinations_elevation(
     assert results[1]["wind_avg_mph"] == 7.0  # mean of 5, 7, 9
     assert results[0]["series"]["wind_mph"] == [22.6, 22.6, 22.6]
     assert results[1]["series"]["wind_mph"] == [5.0, 7.0, 9.0]
+
+
+async def test_fetch_weather_batch_adjusts_temperature_to_the_destinations_elevation(
+    monkeypatch,
+):
+    # The defect in #443, end to end. Both destinations get the same hourly
+    # block: a radiatively cooled 2 m column under a free air well above
+    # freezing. The 8,000 ft destination must read the free air; the one with
+    # no elevation keeps the surface value.
+    block = _one_location()
+    block["hourly"]["temperature_2m"] = [25.0] * 3
+    block["hourly"].update(
+        {
+            "temperature_925hPa": [56.0] * 3,
+            "temperature_850hPa": [47.4] * 3,
+            "temperature_700hPa": [27.6] * 3,
+            "temperature_600hPa": [15.4] * 3,
+            "temperature_500hPa": [-1.2] * 3,
+        }
+    )
+    _stub_openmeteo(monkeypatch, [[block, dict(block)]])
+    dests = _dests(2)
+    dests[0]["elevation_ft"] = 8000.0
+
+    results = await fetch_weather_batch(dests, START, END)
+
+    # 47.4 + (27.6 - 47.4) * (981.4 / 1555) = 34.9032... → 34.9 at every hour,
+    # which is the whole point: above freezing where the surface said 25.0.
+    assert results[0]["temp_min_f"] == 34.9
+    assert results[0]["temp_avg_f"] == 34.9
+    assert results[1]["temp_min_f"] == 25.0
+    assert results[0]["series"]["temp_f"] == [34.9, 34.9, 34.9]
+    assert results[1]["series"]["temp_f"] == [25.0, 25.0, 25.0]
+
+
+async def test_a_null_temperature_level_never_drops_the_hour(monkeypatch):
+    # The rule that keeps a missing level harmless: an hour whose bracketing
+    # level is null falls back to the surface value and stays, so the
+    # precipitation and wind of that hour survive with it.
+    block = _one_location()
+    block["hourly"]["temperature_2m"] = [25.0, 25.0, 25.0]
+    block["hourly"].update(
+        {
+            "temperature_925hPa": [56.0] * 3,
+            "temperature_850hPa": [None, 47.4, 47.4],
+            "temperature_700hPa": [27.6] * 3,
+            "temperature_600hPa": [15.4] * 3,
+            "temperature_500hPa": [-1.2] * 3,
+        }
+    )
+    _stub_openmeteo(monkeypatch, [[block]])
+    dests = _dests(1)
+    dests[0]["elevation_ft"] = 8000.0
+
+    results = await fetch_weather_batch(dests, START, END)
+
+    assert results[0]["temp_min_f"] == 25.0
+    assert results[0]["temp_max_f"] == 34.9
+    # All three hours are still in the aggregates: the wind mean proves it.
+    assert results[0]["wind_avg_mph"] == 7.0
+    assert len(results[0]["series"]["temp_f"]) == 3
 
 
 async def test_fetch_weather_batch_keys_the_cache_by_elevation(monkeypatch):
@@ -1045,7 +1163,8 @@ async def test_an_unkeyed_batch_still_pays_the_weighted_pacer(monkeypatch):
     _stub_openmeteo(monkeypatch, [_payload([0.1])])
     await fetch_weather_batch(_dests(1), START, END)
 
-    assert pacer.acquired == [1.0]
+    # One location over one day at 14 variables: 1 x 1 x 1.4 (#443).
+    assert pacer.acquired == [pytest.approx(1.4)]
 
 
 async def test_a_keyed_batch_still_takes_an_in_flight_slot(monkeypatch):
