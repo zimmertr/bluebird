@@ -4,7 +4,9 @@ and the SSE keepalive."""
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+
+from fastapi.testclient import TestClient
 
 from app.main import app
 from app.routes.analyze import (
@@ -13,7 +15,6 @@ from app.routes.analyze import (
     _with_keepalive,
 )
 from app.services import air_quality, osm, weather
-from fastapi.testclient import TestClient
 
 client = TestClient(app)
 
@@ -66,7 +67,7 @@ def test_truncate_top_elevation_drops_unknowns_first():
 
 
 def _window() -> dict[str, str]:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return {
         "start_datetime": now.isoformat(),
         "end_datetime": (now + timedelta(days=1)).isoformat(),

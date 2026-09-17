@@ -2,8 +2,10 @@ import asyncio
 import json
 import logging
 import math
-from collections.abc import Sequence
-from datetime import datetime, timezone
+from collections.abc import AsyncIterator, Sequence
+from contextlib import aclosing
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Security
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -20,6 +22,7 @@ from app.models import (
     DestinationResult,
     DestinationType,
     ErrorResponse,
+    GeoPolygon,
     HourlySeries,
     WindowSource,
     archive_boundary,
@@ -69,7 +72,7 @@ def _window_split(request: AnalyzeRequest) -> tuple[WindowSource, datetime]:
     answers the hours before the seam, the forecast endpoint the hours from it on,
     and the two are joined per location before the aggregation runs.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return (
         window_source(request.start_datetime, request.end_datetime, now),
         archive_boundary(now),
@@ -370,6 +373,121 @@ def _summarize_request(request: AnalyzeRequest) -> str:
     return " ".join(parts)
 
 
+async def discover(
+    polygon: GeoPolygon,
+    destination_types: Sequence[DestinationType],
+    *,
+    include_unnamed_peaks: bool = False,
+    on_status: osm.StatusCallback | None = None,
+) -> list[dict]:
+    """Overpass discovery, with the one mapping from its failures to API errors.
+
+    Four causes, four answers, and the sentence an unrecognized failure gives a
+    caller is as much the contract as the code beside it. Every route that
+    discovers raises them identically, so the ladder lives here rather than
+    once per route, where a fifth cause would have to be remembered three times
+    (issue #384).
+
+    `on_status` is Overpass's only progress signal — mirror failover — and is
+    passed straight through: a route that has nowhere to show it leaves it
+    None.
+    """
+    try:
+        return await osm.query_osm(
+            polygon,
+            destination_types,
+            on_status,
+            include_unnamed_peaks=include_unnamed_peaks,
+        )
+    except NotImplementedError as e:
+        raise ApiError(status_code=400, detail=str(e), code=ErrorCode.validation) from e
+    except ratelimit.BudgetExhausted as e:
+        raise ApiError(
+            status_code=503,
+            detail=e.message,
+            code=ErrorCode.busy,
+            headers={"Retry-After": str(e.retry_after_s)},
+        ) from e
+    except UpstreamError as e:
+        raise ApiError(
+            status_code=502, detail=e.message, code=ErrorCode.upstream_unavailable
+        ) from e
+    except Exception as e:
+        log.exception("Destination search failed")
+        raise ApiError(
+            status_code=502,
+            detail="OpenStreetMap is not available. Try again later.",
+            code=ErrorCode.upstream_unavailable,
+        ) from e
+
+
+# ── The analysis, and the two ways it is presented ─────────────────────────
+#
+# Both analyze routes are public API since #317, so neither arm can be dropped
+# and every rule has to hold on both. They ran the same sequence written out
+# twice until #384: window split, discovery, custom merge, elevation band, cap
+# refusal, weather with its six-branch failure ladder, assemble, bound, rank,
+# cut, AQI. `_run_analysis` holds that sequence once and yields what happens;
+# each route renders the events it can show and drops the rest.
+#
+# A generator rather than a coroutine because the SSE route needs the events
+# that arrive mid-flight. A coroutine could only hand back the last one.
+
+
+@dataclass(slots=True)
+class Status:
+    """A phase heading, with an optional line of mid-phase news under it."""
+
+    message: str
+    detail: str | None = None
+
+
+@dataclass(slots=True)
+class Progress:
+    """Counters for the retrieval phase."""
+
+    processed: int
+    total: int
+    percent: int
+    batches_done: int | None = None
+    total_batches: int | None = None
+    message: str | None = None
+
+
+@dataclass(slots=True)
+class Failure:
+    """A terminal failure, carried rather than raised.
+
+    The `ApiError` holds everything a JSON caller gets — status, sentence,
+    code, `Retry-After` — and the stream reads the two members an event can
+    carry off the same object. `extra` is for whatever one failure sends
+    beyond that: an upstream rate limit names its scope and its resume
+    estimate, which a response puts in a header and an event cannot.
+    """
+
+    error: ApiError
+    extra: dict | None = None
+
+
+@dataclass(slots=True)
+class Refusal:
+    """The over-cap 400, whose body is `AnalysisRefusal` rather than a plain
+    error: it carries remedy fields, so it is rendered from the model rather
+    than rebuilt member by member on either side."""
+
+    body: dict
+
+
+@dataclass(slots=True)
+class Result:
+    """The terminal success."""
+
+    response: AnalyzeResponse
+
+
+AnalyzeEvent = Status | Progress | Failure | Refusal | Result
+
+
 def _sse(event_type: str, **kwargs) -> str:
     return f"data: {json.dumps({'type': event_type, **kwargs})}\n\n"
 
@@ -384,15 +502,54 @@ def _sse_error(message: str, code: ErrorCode, **kwargs) -> str:
     return _sse("error", message=message, error=error_object(code), **kwargs)
 
 
+def _render_sse(event: AnalyzeEvent) -> str:
+    """One analysis event as its `data:` line.
+
+    An optional field is left out of the payload rather than sent as null: a
+    consumer tests for the key, and a healthy status event has never carried a
+    `detail` member.
+    """
+    if isinstance(event, Status):
+        detail = {"detail": event.detail} if event.detail is not None else {}
+        return _sse("status", message=event.message, **detail)
+    if isinstance(event, Progress):
+        counters = {
+            k: v
+            for k, v in (
+                ("batches_done", event.batches_done),
+                ("total_batches", event.total_batches),
+                ("message", event.message),
+            )
+            if v is not None
+        }
+        return _sse(
+            "progress",
+            processed=event.processed,
+            total=event.total,
+            percent=event.percent,
+            **counters,
+        )
+    if isinstance(event, Failure):
+        # The status code has nowhere to go on a stream that is already 200.
+        return _sse_error(event.error.detail, event.error.code, **(event.extra or {}))
+    if isinstance(event, Refusal):
+        # The same structured remedy fields the HTTP 400 carries — the `error`
+        # member among them — message first so a plain consumer can render it.
+        body = dict(event.body)
+        return _sse("error", message=body.pop("detail"), **body)
+    # Result, the last member of the union.
+    return _sse("result", data=event.response.model_dump())
+
+
 # Sentinel pushed onto a progress queue once the backing task has finished.
 _STREAM_DONE = object()
 
 
 async def _drain(queue: asyncio.Queue):
-    """Yield pre-formatted SSE strings from `queue` until the done sentinel.
+    """Yield items from `queue` until the done sentinel.
 
-    Lets an SSE route interleave progress events with a coroutine it runs on a
-    separate task: the task pushes SSE strings as work happens, then pushes
+    Lets the analysis interleave progress with a coroutine it runs on a
+    separate task: the task pushes items as work happens, then pushes
     `_STREAM_DONE` in its `finally` to end the drain.
     """
     while True:
@@ -452,7 +609,7 @@ async def _attach_aqi(
     aqi_list = await air_quality.fetch_aqi_batch(
         dests, start_dt, end_dt, api_key=api_key
     )
-    for row, aqi in zip(results, aqi_list):
+    for row, aqi in zip(results, aqi_list, strict=False):
         if not aqi:
             continue
         row.aqi_avg = aqi.get("aqi_avg")
@@ -479,7 +636,7 @@ def _aligned_aqi(times_ms: list[int], aqi_series: dict | None) -> list[int | Non
     """
     if not aqi_series:
         return [None] * len(times_ms)
-    lookup = dict(zip(aqi_series["times"], aqi_series["aqi"]))
+    lookup = dict(zip(aqi_series["times"], aqi_series["aqi"], strict=False))
     return [lookup.get(t) for t in times_ms]
 
 
@@ -507,7 +664,7 @@ def _assemble(
     """
     times = _canonical_times(wx_list)
     results: list[DestinationResult] = []
-    for dest, wx, aqi in zip(destinations, wx_list, aqi_list):
+    for dest, wx, aqi in zip(destinations, wx_list, aqi_list, strict=False):
         if wx is None:
             continue
         aqi = aqi or {}
@@ -537,6 +694,318 @@ def _assemble(
             )
         )
     return results, times
+
+
+async def _run_analysis(
+    request: AnalyzeRequest, api_key: str | None
+) -> AsyncIterator[AnalyzeEvent]:
+    """Run one analysis, reporting what happens as it happens.
+
+    Ends with exactly one terminal event — `Failure`, `Refusal` or `Result` —
+    and returns. A caller iterates to exhaustion rather than abandoning the
+    generator on the terminal event, so the `finally` blocks that cancel
+    in-flight upstream tasks run promptly instead of at collection.
+    """
+    if request.start_datetime >= request.end_datetime:
+        yield Failure(
+            ApiError(
+                status_code=400,
+                detail="The start date must be before the end date.",
+                code=ErrorCode.validation,
+            )
+        )
+        return
+    source, boundary = _window_split(request)
+
+    # A union (polygon + custom list) is a mixed set, so its messages say
+    # "destinations" rather than any one type's noun.
+    noun = _noun(request.destination_types, has_custom=bool(request.custom_destinations))
+
+    if not request.destination_types:
+        if not request.custom_destinations:
+            yield Failure(
+                ApiError(
+                    status_code=400,
+                    detail=(
+                        "Nothing to analyze: send destination_types with a polygon, "
+                        "custom_destinations, or both."
+                    ),
+                    code=ErrorCode.validation,
+                )
+            )
+            return
+        destinations = await _resolve_custom(request.custom_destinations)
+    else:
+        if not request.polygon:
+            yield Failure(
+                ApiError(
+                    status_code=400,
+                    detail="polygon is required when destination_types is non-empty",
+                    code=ErrorCode.validation,
+                )
+            )
+            return
+        yield Status("Searching for Destinations…")
+
+        # Overpass is one opaque request per mirror, so the only progress
+        # signal is mirror failover. Run it on a task and surface those
+        # status lines promptly via the queue.
+        osm_queue: asyncio.Queue = asyncio.Queue()
+
+        async def on_status(detail):
+            # Mirror failover ("Trying backup map server 2 of 3…") rides the
+            # optional `detail` field; `message` stays the stable phase
+            # heading the overlay keys on.
+            await osm_queue.put(Status("Searching for Destinations…", detail))
+
+        async def run_osm():
+            try:
+                return await discover(
+                    request.polygon,
+                    request.destination_types,
+                    include_unnamed_peaks=request.include_unnamed_peaks,
+                    on_status=on_status,
+                )
+            finally:
+                await osm_queue.put(_STREAM_DONE)
+
+        osm_task = asyncio.create_task(run_osm())
+        try:
+            async for event in _drain(osm_queue):
+                yield event
+            destinations = await osm_task
+        except ApiError as e:
+            yield Failure(e)
+            return
+        finally:
+            # If the consumer went away (generator torn down) before discovery
+            # finished, don't leave the request running in the background.
+            if not osm_task.done():
+                osm_task.cancel()
+
+        # The user's own list rides along with whatever discovery found — the
+        # union proceeds even when the polygon itself found nothing.
+        if request.custom_destinations:
+            destinations = _merge_custom(
+                destinations, await _resolve_custom(request.custom_destinations)
+            )
+
+    destinations = _filter_elevation(
+        destinations, request.min_elevation_ft, request.max_elevation_ft
+    )
+    if not destinations:
+        log.info("No destinations to analyze (none found, or none within the elevation band)")
+        yield Result(AnalyzeResponse(results=[], total_queried=0, total_matched=0))
+        return
+    total_found: int | None = None
+    truncated = False
+    if len(destinations) > MAX_ANALYZE_PEAKS:
+        if request.top_by_elevation:
+            total_found = len(destinations)
+            destinations = _truncate_top_elevation(destinations, MAX_ANALYZE_PEAKS)
+            truncated = True
+        else:
+            suggestion = _suggest_elevation_floor(destinations, MAX_ANALYZE_PEAKS)
+            yield Refusal(_refusal_body(len(destinations), noun, suggestion=suggestion))
+            return
+
+    total_queried = len(destinations)
+    telemetry.ANALYZE_DESTINATIONS.observe(total_queried)
+    telemetry.ANALYZE_LIMIT.observe(request.limit)
+    log.info("Fetching weather for %d destination(s)", total_queried)
+
+    # Announce the retrieval phase WITH the final count the moment discovery
+    # settles, so the overlay shows "Retrieving N Forecasts…" immediately
+    # rather than a count-less line while the first batch (a full Open-Meteo
+    # round-trip) is still in flight.
+    yield Progress(processed=0, total=total_queried, percent=0)
+
+    # Drive the weather fetch on a task and drain per-batch progress from a
+    # queue, so progress events interleave with the await.
+    progress_queue: asyncio.Queue = asyncio.Queue()
+
+    async def on_progress(processed, total, batches_done, total_batches):
+        percent = round(processed / total * 100) if total else 100
+        await progress_queue.put(
+            Progress(
+                processed=processed,
+                total=total,
+                percent=percent,
+                batches_done=batches_done,
+                total_batches=total_batches,
+                message=f"Retrieving forecasts: {processed} of {total} {noun}s…",
+            )
+        )
+
+    async def on_pace(seconds: int):
+        # A pace wait is silence the user would otherwise read as a hang; the
+        # detail line narrates it under the phase heading.
+        await progress_queue.put(
+            Status(
+                "Retrieving Forecasts…",
+                f"Open-Meteo quota: resuming in about {seconds}s",
+            )
+        )
+
+    async def run_fetch():
+        try:
+            return await weather.fetch_weather_batch(
+                destinations,
+                request.start_datetime,
+                request.end_datetime,
+                on_progress,
+                on_pace,
+                request.forecast_model,
+                api_key=api_key,
+                source=source,
+                boundary=boundary,
+            )
+        finally:
+            await progress_queue.put(_STREAM_DONE)
+
+    # Air quality is fetched for every candidate ONLY when the answer depends
+    # on it before the cut: it is the ranking key (the order cannot be known
+    # without it), or a bound filters on it (a bound on an unfetched value
+    # drops nothing, since nulls pass). Otherwise it is display data for the
+    # returned rows alone and is attached after the cut — for a 908-peak
+    # default-sort analysis that is the difference between ~1,800 and ~1,000
+    # weighted calls.
+    aqi_eager = request.sort_by.value.startswith("aqi") or _aqi_bounded(request)
+    aqi_task = (
+        asyncio.create_task(
+            air_quality.fetch_aqi_batch(
+                destinations,
+                request.start_datetime,
+                request.end_datetime,
+                api_key=api_key,
+            )
+        )
+        if aqi_eager
+        else None
+    )
+    fetch_task = asyncio.create_task(run_fetch())
+    try:
+        async for event in _drain(progress_queue):
+            yield event
+
+        wx_list = await fetch_task
+        aqi_list = await aqi_task if aqi_task is not None else [None] * len(destinations)
+    except ratelimit.BudgetExhausted as e:
+        yield Failure(
+            ApiError(
+                status_code=503,
+                detail=e.message,
+                code=ErrorCode.busy,
+                headers={"Retry-After": str(e.retry_after_s)},
+            )
+        )
+        return
+    except InvalidApiKeyError as e:
+        # 401, and caught ahead of its UpstreamError base for the same reason
+        # ModelCoverageError below is a 400: the upstream is healthy and only
+        # the caller can fix the request.
+        yield Failure(
+            ApiError(status_code=401, detail=e.message, code=ErrorCode.invalid_api_key)
+        )
+        return
+    except UpstreamRateLimited as e:
+        # A response says how long to wait in `Retry-After` and names no
+        # scope at all. An event has no headers, so both ride it as members.
+        yield Failure(
+            ApiError(
+                status_code=429,
+                detail=e.message,
+                code=ErrorCode.upstream_rate_limited,
+                headers={"Retry-After": str(e.retry_after_s)},
+            ),
+            extra={"scope": e.scope, "retry_after_s": e.retry_after_s},
+        )
+        return
+    except ModelCoverageError as e:
+        # 400, not the 502 its UpstreamError base would otherwise give: the
+        # upstream is healthy and answered correctly. The request asked a
+        # regional model about somewhere it does not model, and only the
+        # caller can fix that.
+        yield Failure(
+            ApiError(status_code=400, detail=e.message, code=ErrorCode.model_coverage)
+        )
+        return
+    except UpstreamError as e:
+        yield Failure(
+            ApiError(
+                status_code=502, detail=e.message, code=ErrorCode.upstream_unavailable
+            )
+        )
+        return
+    except Exception:
+        log.exception("Weather fetch failed")
+        yield Failure(
+            ApiError(
+                status_code=502,
+                detail="The weather search failed. Try again later.",
+                code=ErrorCode.upstream_unavailable,
+            )
+        )
+        return
+    finally:
+        # If the consumer went away (generator torn down) before the fetch
+        # finished, don't leave the request running in the background.
+        for task in (fetch_task, aqi_task):
+            if task is not None and not task.done():
+                task.cancel()
+
+    results, times = _assemble(
+        destinations,
+        wx_list,
+        aqi_list,
+        DestinationType.custom.value,
+        include_series=request.include_series,
+    )
+    results = _filter_constraints(results, request)
+    total_matched = len(results)
+    sort_field = request.sort_by.value
+    results.sort(key=_sort_key(sort_field, request.sort_desc))
+    results = results[: request.limit]
+    if not aqi_eager:
+        try:
+            await _attach_aqi(
+                results, times, request.start_datetime, request.end_datetime, api_key
+            )
+        except InvalidApiKeyError as e:
+            # Reachable when the weather half answered entirely from cache, so
+            # the first upstream call the key made was the air-quality one.
+            yield Failure(
+                ApiError(
+                    status_code=401, detail=e.message, code=ErrorCode.invalid_api_key
+                )
+            )
+            return
+
+    def _fmt(r: DestinationResult) -> str:
+        v = getattr(r, sort_field)
+        return f"{v:.3f}" if v is not None else "—"
+
+    log.info(
+        "Returning %d result(s) sorted by %s %s (best: %s, worst: %s)%s",
+        len(results),
+        sort_field,
+        "desc" if request.sort_desc else "asc",
+        _fmt(results[0]) if results else "—",
+        _fmt(results[-1]) if results else "—",
+        f" ({total_matched} of {total_queried} matched)"
+        if total_matched != total_queried
+        else "",
+    )
+    yield Result(
+        AnalyzeResponse(
+            results=results,
+            total_queried=total_queried,
+            total_matched=total_matched,
+            times=times,
+            total_found=total_found,
+            truncated=truncated,
+        )
+    )
 
 
 @router.post(
@@ -623,262 +1092,9 @@ async def analyze_stream(
     async def generate():
         log.info("Analyze request (stream): %s", _summarize_request(request))
         try:
-            if request.start_datetime >= request.end_datetime:
-                yield _sse_error("The start date must be before the end date.", ErrorCode.validation)
-                return
-            source, boundary = _window_split(request)
-
-            # A union (polygon + custom list) is a mixed set, so its messages
-            # say "destinations" rather than any one type's noun.
-            noun = _noun(request.destination_types, has_custom=bool(request.custom_destinations))
-
-            if not request.destination_types:
-                if not request.custom_destinations:
-                    yield _sse_error("Nothing to analyze: send destination_types with a polygon, custom_destinations, or both.", ErrorCode.validation)
-                    return
-                destinations = await _resolve_custom(request.custom_destinations)
-            else:
-                if not request.polygon:
-                    yield _sse_error("polygon is required when destination_types is non-empty", ErrorCode.validation)
-                    return
-                yield _sse("status", message="Searching for Destinations…")
-
-                # Overpass is one opaque request per mirror, so the only progress
-                # signal is mirror failover. Run it on a task and surface those
-                # status lines promptly via the queue.
-                osm_queue: asyncio.Queue = asyncio.Queue()
-
-                async def on_status(detail):
-                    # Mirror failover ("Trying backup map server 2 of 3…") rides
-                    # the optional `detail` field; `message` stays the stable
-                    # phase heading the overlay keys on.
-                    await osm_queue.put(
-                        _sse("status", message="Searching for Destinations…", detail=detail)
-                    )
-
-                async def run_osm():
-                    try:
-                        return await osm.query_osm(
-                            request.polygon,
-                            request.destination_types,
-                            on_status,
-                            include_unnamed_peaks=request.include_unnamed_peaks,
-                        )
-                    finally:
-                        await osm_queue.put(_STREAM_DONE)
-
-                osm_task = asyncio.create_task(run_osm())
-                try:
-                    async for event in _drain(osm_queue):
-                        yield event
-                    destinations = await osm_task
-                except NotImplementedError as e:
-                    yield _sse_error(str(e), ErrorCode.validation)
-                    return
-                except ratelimit.BudgetExhausted as e:
-                    yield _sse_error(e.message, ErrorCode.busy)
-                    return
-                except UpstreamError as e:
-                    yield _sse_error(e.message, ErrorCode.upstream_unavailable)
-                    return
-                except Exception:
-                    log.exception("Destination search failed")
-                    yield _sse_error("OpenStreetMap is not available. Try again later.", ErrorCode.upstream_unavailable)
-                    return
-                finally:
-                    if not osm_task.done():
-                        osm_task.cancel()
-
-                # The user's own list rides along with whatever discovery found —
-                # the union proceeds even when the polygon itself found nothing.
-                if request.custom_destinations:
-                    destinations = _merge_custom(
-                        destinations, await _resolve_custom(request.custom_destinations)
-                    )
-
-                if not destinations:
-                    yield _sse("result", data=AnalyzeResponse(results=[], total_queried=0, total_matched=0).model_dump())
-                    return
-
-            destinations = _filter_elevation(
-                destinations, request.min_elevation_ft, request.max_elevation_ft
-            )
-            if not destinations:
-                yield _sse("result", data=AnalyzeResponse(results=[], total_queried=0, total_matched=0).model_dump())
-                return
-            total_found: int | None = None
-            truncated = False
-            if len(destinations) > MAX_ANALYZE_PEAKS:
-                if request.top_by_elevation:
-                    total_found = len(destinations)
-                    destinations = _truncate_top_elevation(destinations, MAX_ANALYZE_PEAKS)
-                    truncated = True
-                else:
-                    suggestion = _suggest_elevation_floor(destinations, MAX_ANALYZE_PEAKS)
-                    body = _refusal_body(len(destinations), noun, suggestion=suggestion)
-                    # The error event carries the same structured remedy
-                    # fields the HTTP 400 does — the `error` member among them —
-                    # message first so a plain consumer can just render it.
-                    yield _sse("error", message=body.pop("detail"), **body)
-                    return
-
-            total_queried = len(destinations)
-            telemetry.ANALYZE_DESTINATIONS.observe(total_queried)
-            telemetry.ANALYZE_LIMIT.observe(request.limit)
-
-            # Announce the retrieval phase WITH the final count the moment discovery
-            # settles, so the overlay shows "Retrieving N Forecasts…" immediately
-            # rather than a count-less line while the first batch (a full Open-Meteo
-            # round-trip) is still in flight.
-            yield _sse("progress", processed=0, total=total_queried, percent=0)
-
-            # Drive the weather fetch on a task and drain per-batch progress from
-            # a queue, so we can interleave `progress` SSE events with the await.
-            progress_queue: asyncio.Queue = asyncio.Queue()
-
-            async def on_progress(processed, total, batches_done, total_batches):
-                percent = round(processed / total * 100) if total else 100
-                await progress_queue.put(
-                    _sse(
-                        "progress",
-                        processed=processed,
-                        total=total,
-                        percent=percent,
-                        batches_done=batches_done,
-                        total_batches=total_batches,
-                        message=f"Retrieving forecasts: {processed} of {total} {noun}s…",
-                    )
-                )
-
-            async def on_pace(seconds: int):
-                # A pace wait is silence the user would otherwise read as a
-                # hang; the detail line narrates it under the phase heading.
-                await progress_queue.put(
-                    _sse(
-                        "status",
-                        message="Retrieving Forecasts…",
-                        detail=f"Open-Meteo quota: resuming in about {seconds}s",
-                    )
-                )
-
-            async def run_fetch():
-                try:
-                    return await weather.fetch_weather_batch(
-                        destinations,
-                        request.start_datetime,
-                        request.end_datetime,
-                        on_progress,
-                        on_pace,
-                        request.forecast_model,
-                        api_key=api_key,
-                        source=source,
-                        boundary=boundary,
-                    )
-                finally:
-                    await progress_queue.put(_STREAM_DONE)
-
-            # Air quality is fetched for every candidate ONLY when the answer
-            # depends on it before the cut: it is the ranking key (the order
-            # cannot be known without it), or a bound filters on it (a bound on
-            # an unfetched value drops nothing, since nulls pass). Otherwise it
-            # is display data for the returned rows alone and is attached after
-            # the cut — for a 908-peak default-sort analysis that is the
-            # difference between ~1,800 and ~1,000 weighted calls.
-            aqi_eager = request.sort_by.value.startswith("aqi") or _aqi_bounded(request)
-            aqi_task = (
-                asyncio.create_task(
-                    air_quality.fetch_aqi_batch(
-                        destinations,
-                        request.start_datetime,
-                        request.end_datetime,
-                        api_key=api_key,
-                    )
-                )
-                if aqi_eager
-                else None
-            )
-            fetch_task = asyncio.create_task(run_fetch())
-            try:
-                async for event in _drain(progress_queue):
-                    yield event
-
-                wx_list = await fetch_task
-                aqi_list = (
-                    await aqi_task if aqi_task is not None else [None] * len(destinations)
-                )
-            except ratelimit.BudgetExhausted as e:
-                yield _sse_error(e.message, ErrorCode.busy)
-                return
-            except InvalidApiKeyError as e:
-                # Caught ahead of its UpstreamError base: the upstream is
-                # healthy and the key is the problem, so the stream says so
-                # rather than reporting a transient failure.
-                yield _sse_error(e.message, ErrorCode.invalid_api_key)
-                return
-            except UpstreamRateLimited as e:
-                yield _sse_error(
-                    e.message,
-                    ErrorCode.upstream_rate_limited,
-                    scope=e.scope,
-                    retry_after_s=e.retry_after_s,
-                )
-                return
-            except ModelCoverageError as e:
-                # Caught ahead of its UpstreamError base for the reason the
-                # JSON route answers it 400: the model is the problem, so a
-                # retry of the same request cannot help and the code says so.
-                yield _sse_error(e.message, ErrorCode.model_coverage)
-                return
-            except UpstreamError as e:
-                yield _sse_error(e.message, ErrorCode.upstream_unavailable)
-                return
-            except Exception:
-                log.exception("Weather fetch failed")
-                yield _sse_error("The weather search failed. Try again later.", ErrorCode.upstream_unavailable)
-                return
-            finally:
-                # If the client disconnected (generator torn down) before the
-                # fetch finished, don't leave the request running in the background.
-                for task in (fetch_task, aqi_task):
-                    if task is not None and not task.done():
-                        task.cancel()
-
-            results, times = _assemble(
-                destinations,
-                wx_list,
-                aqi_list,
-                DestinationType.custom.value,
-                include_series=request.include_series,
-            )
-            results = _filter_constraints(results, request)
-            total_matched = len(results)
-            results.sort(key=_sort_key(request.sort_by.value, request.sort_desc))
-            results = results[: request.limit]
-            if not aqi_eager:
-                try:
-                    await _attach_aqi(
-                        results,
-                        times,
-                        request.start_datetime,
-                        request.end_datetime,
-                        api_key,
-                    )
-                except InvalidApiKeyError as e:
-                    yield _sse_error(e.message, ErrorCode.invalid_api_key)
-                    return
-
-            yield _sse(
-                "result",
-                data=AnalyzeResponse(
-                    results=results,
-                    total_queried=total_queried,
-                    total_matched=total_matched,
-                    times=times,
-                    total_found=total_found,
-                    truncated=truncated,
-                ).model_dump(),
-            )
-
+            async with aclosing(_run_analysis(request, api_key)) as events:
+                async for event in events:
+                    yield _render_sse(event)
         except Exception:
             log.exception("Unexpected error in analyze_stream")
             yield _sse_error("Something went wrong. Try again later.", ErrorCode.internal)
@@ -961,222 +1177,27 @@ async def analyze(
 ) -> AnalyzeResponse:
     log.info("Analyze request: %s", _summarize_request(request))
 
-    if request.start_datetime >= request.end_datetime:
-        raise ApiError(
-            status_code=400,
-            detail="The start date must be before the end date.",
-            code=ErrorCode.validation,
-        )
-    source, boundary = _window_split(request)
+    terminal: AnalyzeEvent | None = None
+    # Iterated to exhaustion rather than broken out of on the terminal event:
+    # the generator's own `finally` blocks cancel in-flight upstream tasks, and
+    # abandoning it would defer those to collection. Status and progress are
+    # the stream's to show; a single response has nowhere to put them.
+    async with aclosing(_run_analysis(request, api_key)) as events:
+        async for event in events:
+            if isinstance(event, (Failure, Refusal, Result)):
+                terminal = event
 
-    # Resolve destinations
-    if not request.destination_types:
-        if not request.custom_destinations:
-            raise ApiError(
-                status_code=400,
-                detail=(
-                    "Nothing to analyze: send destination_types with a polygon, "
-                    "custom_destinations, or both."
-                ),
-                code=ErrorCode.validation,
-            )
-        destinations = await _resolve_custom(request.custom_destinations)
-    else:
-        if not request.polygon:
-            raise ApiError(
-                status_code=400,
-                detail="polygon is required when destination_types is non-empty",
-                code=ErrorCode.validation,
-            )
-        try:
-            destinations = await osm.query_osm(
-                request.polygon,
-                request.destination_types,
-                include_unnamed_peaks=request.include_unnamed_peaks,
-            )
-        except NotImplementedError as e:
-            raise ApiError(status_code=400, detail=str(e), code=ErrorCode.validation)
-        except ratelimit.BudgetExhausted as e:
-            raise ApiError(
-                status_code=503,
-                detail=e.message,
-                code=ErrorCode.busy,
-                headers={"Retry-After": str(e.retry_after_s)},
-            )
-        except UpstreamError as e:
-            raise ApiError(
-                status_code=502, detail=e.message, code=ErrorCode.upstream_unavailable
-            )
-        except Exception:
-            log.exception("Destination search failed")
-            raise ApiError(
-                status_code=502,
-                detail="OpenStreetMap is not available. Try again later.",
-                code=ErrorCode.upstream_unavailable,
-            )
-
-        # The user's own list rides along with whatever discovery found — the
-        # union proceeds even when the polygon itself found nothing.
-        if request.custom_destinations:
-            destinations = _merge_custom(
-                destinations, await _resolve_custom(request.custom_destinations)
-            )
-
-    destinations = _filter_elevation(
-        destinations, request.min_elevation_ft, request.max_elevation_ft
-    )
-    if not destinations:
-        log.info("No destinations to analyze (none found, or none within the elevation band)")
-        return AnalyzeResponse(results=[], total_queried=0, total_matched=0)
-    total_found: int | None = None
-    truncated = False
-    if len(destinations) > MAX_ANALYZE_PEAKS:
-        noun = _noun(request.destination_types, has_custom=bool(request.custom_destinations))
-        if request.top_by_elevation:
-            total_found = len(destinations)
-            destinations = _truncate_top_elevation(destinations, MAX_ANALYZE_PEAKS)
-            truncated = True
-        else:
-            suggestion = _suggest_elevation_floor(destinations, MAX_ANALYZE_PEAKS)
-            return JSONResponse(
-                status_code=400,
-                content=_refusal_body(len(destinations), noun, suggestion=suggestion),
-            )
-
-    total_queried = len(destinations)
-    telemetry.ANALYZE_DESTINATIONS.observe(total_queried)
-    telemetry.ANALYZE_LIMIT.observe(request.limit)
-    log.info("Fetching weather for %d destination(s)", total_queried)
-
-    # AQI for every candidate only when the answer depends on it before the cut:
-    # it is the ranking key, or a bound filters on it. Otherwise it is attached
-    # to just the returned rows after the cut (see _attach_aqi).
-    aqi_eager = request.sort_by.value.startswith("aqi") or _aqi_bounded(request)
-    aqi_task = (
-        asyncio.create_task(
-            air_quality.fetch_aqi_batch(
-                destinations,
-                request.start_datetime,
-                request.end_datetime,
-                api_key=api_key,
-            )
-        )
-        if aqi_eager
-        else None
-    )
-    try:
-        wx_list = await weather.fetch_weather_batch(
-            destinations,
-            request.start_datetime,
-            request.end_datetime,
-            model=request.forecast_model,
-            api_key=api_key,
-            source=source,
-            boundary=boundary,
-        )
-    except ratelimit.BudgetExhausted as e:
-        if aqi_task is not None:
-            aqi_task.cancel()
-        raise ApiError(
-            status_code=503,
-            detail=e.message,
-            code=ErrorCode.busy,
-            headers={"Retry-After": str(e.retry_after_s)},
-        )
-    except UpstreamRateLimited as e:
-        if aqi_task is not None:
-            aqi_task.cancel()
-        raise ApiError(
-            status_code=429,
-            detail=e.message,
-            code=ErrorCode.upstream_rate_limited,
-            headers={"Retry-After": str(e.retry_after_s)},
-        )
-    except InvalidApiKeyError as e:
-        # 401, not the 502 its UpstreamError base would otherwise give, and for
-        # the same reason ModelCoverageError below is a 400: the upstream is
-        # healthy and only the caller can fix the request.
-        if aqi_task is not None:
-            aqi_task.cancel()
-        raise ApiError(
-            status_code=401, detail=e.message, code=ErrorCode.invalid_api_key
-        )
-    except ModelCoverageError as e:
-        # 400, not the 502 its UpstreamError base would otherwise give: the
-        # upstream is healthy and answered correctly. The request asked a
-        # regional model about somewhere it does not model, and only the
-        # caller can fix that.
-        if aqi_task is not None:
-            aqi_task.cancel()
-        raise ApiError(
-            status_code=400, detail=e.message, code=ErrorCode.model_coverage
-        )
-    except UpstreamError as e:
-        if aqi_task is not None:
-            aqi_task.cancel()
-        raise ApiError(
-            status_code=502, detail=e.message, code=ErrorCode.upstream_unavailable
-        )
-    except Exception:
-        if aqi_task is not None:
-            aqi_task.cancel()
-        log.exception("Weather lookup failed")
-        raise ApiError(
-            status_code=502,
-            detail="The weather search failed. Try again later.",
-            code=ErrorCode.upstream_unavailable,
-        )
-    try:
-        aqi_list = await aqi_task if aqi_task is not None else [None] * len(destinations)
-    except InvalidApiKeyError as e:
-        # Reachable when the weather half answered entirely from cache, so the
-        # first upstream call the key made was the air-quality one.
-        raise ApiError(
-            status_code=401, detail=e.message, code=ErrorCode.invalid_api_key
-        )
-
-    results, times = _assemble(
-        destinations,
-        wx_list,
-        aqi_list,
-        DestinationType.custom.value,
-        include_series=request.include_series,
-    )
-    results = _filter_constraints(results, request)
-    total_matched = len(results)
-    sort_field = request.sort_by.value
-    results.sort(key=_sort_key(sort_field, request.sort_desc))
-    results = results[: request.limit]
-    if not aqi_eager:
-        try:
-            await _attach_aqi(
-                results, times, request.start_datetime, request.end_datetime, api_key
-            )
-        except InvalidApiKeyError as e:
-            raise ApiError(
-                status_code=401, detail=e.message, code=ErrorCode.invalid_api_key
-            )
-
-    def _fmt(r: DestinationResult) -> str:
-        v = getattr(r, sort_field)
-        return f"{v:.3f}" if v is not None else "—"
-
-    log.info(
-        "Returning %d result(s) sorted by %s %s (best: %s, worst: %s)%s",
-        len(results),
-        sort_field,
-        "desc" if request.sort_desc else "asc",
-        _fmt(results[0]) if results else "—",
-        _fmt(results[-1]) if results else "—",
-        f" ({total_matched} of {total_queried} matched)"
-        if total_matched != total_queried
-        else "",
-    )
-    return AnalyzeResponse(
-        results=results,
-        total_queried=total_queried,
-        total_matched=total_matched,
-        times=times,
-        total_found=total_found,
-        truncated=truncated,
+    if isinstance(terminal, Failure):
+        raise terminal.error
+    if isinstance(terminal, Refusal):
+        return JSONResponse(status_code=400, content=terminal.body)
+    if isinstance(terminal, Result):
+        return terminal.response
+    # Unreachable: the generator ends with a terminal event on every path. A
+    # 500 is the honest answer if that ever stops being true, rather than an
+    # empty ranking that looks like a real answer.
+    raise ApiError(
+        status_code=500,
+        detail="Something went wrong. Try again later.",
+        code=ErrorCode.internal,
     )
