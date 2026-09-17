@@ -313,11 +313,12 @@ export function useAnalyze(
   // candidate list is the only server call — POST /api/destinations, one
   // Overpass query — and the forecasts come straight from Open-Meteo on the
   // visitor's own IP and quota, paced under it. Throws OpenMeteoUnreachable
-  // when the forecast API can't be reached (network/CORS), which is the
-  // caller's cue to fall back to the server pipeline. A rate limit is NOT
-  // that cue: the quota is per IP, and for a deployment sharing its egress
-  // with the visitor a same-IP retry only deepens the exhaustion (issue
-  // #180) — those surface honestly instead.
+  // when the forecast API can't be reached (network/CORS); since #240 that
+  // fails the analysis with its own message, and nothing retries it through
+  // the pod's shared quota. A rate limit is NOT that class: the quota is per
+  // IP, and for a deployment sharing its egress with the visitor a same-IP
+  // retry only deepens the exhaustion (issue #180) — those surface honestly
+  // instead.
   //
   // That one call answers two different questions. A polygon is *discovered*
   // (what is in here?); a custom list is *resolved* (what does OSM know about
