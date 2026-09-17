@@ -242,16 +242,16 @@ export function pointModeColumns<T extends { key: string; label: string }>(colum
 /**
  * The wind and temperature columns, relabelled with the datum the report's
  * window source implies (#361, #443): the header gains "at elevation" over a
- * forecast window, and the wind alone gains "at 10 meters" over an archive one,
- * inside the noun and ahead of the separator. (No aggregate spelled in this
- * comment: the metrics.test.ts source lint scans comments too.)
+ * forecast window and names the surface datum over an archive one, inside the
+ * noun and ahead of the separator. (No aggregate spelled in this comment: the
+ * metrics.test.ts source lint scans comments too.)
  *
  * Both families run through one function because they are one measurement of
  * two quantities — the free air at the destination's own elevation, read from
  * the same five pressure levels — and `metrics.ts` is the only thing that
- * decides what each says. Which datums exist is that module's business
- * (`windDatum` has three states and `tempDatum` two); this one only asks and
- * applies, so a family that grows or loses a state needs no edit here.
+ * decides what each says. Which datums exist, and what each is called, is that
+ * module's business; this one only asks and applies, so a family that grows or
+ * loses a state needs no edit here.
  *
  * A relabel of the canonical columns rather than a second column set, which is
  * what it actually is: the same columns carrying the same keys, saying which

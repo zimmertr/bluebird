@@ -212,23 +212,44 @@ export function windDatum(source: WindowSource | null | undefined): string | nul
  * Dome Peak the surface reading said 25.2 °F while the report's own freezing
  * level sat at 12,369 ft, which is the contradiction that issue is named for.
  *
- * **Two states where the wind has three, and the missing one is deliberate.**
- * The archive answers every pressure level null, so an archive report is the
- * plain 2 m temperature — and that is exactly the number the column carried
- * before this change, under exactly this label. A datum is worth a header's
- * width when it says something the reader would otherwise get wrong; here it
- * would only restate today's default. So archive and spanning both claim
- * nothing. The wind differs because `at 10 meters` corrects a header that
- * otherwise reads `at elevation` over rows that are not.
+ * **Three states, for the reason the wind has three.** The archive accepts the
+ * five pressure levels and answers every hour `null`, so an archive report is
+ * the plain 2 m temperature for every row whatever its elevation, and a report
+ * SPANNING the boundary carries both datums inside one averaged number. The
+ * spanning case therefore claims nothing: it is the one state with no datum,
+ * and its silence is the honest answer rather than an omission. That is also
+ * why this takes a `WindowSource` rather than a boolean.
  *
- * The 2 m fallback is not a third state for the same reason the wind's floor is
- * not a fourth: a destination below the lowest level (~762 m) or with no known
- * elevation reports its surface temperature on a forecast report too, and that
- * is the method working rather than failing. A header describes a column's
- * method, not each cell's outcome.
+ * The temperature's datums move in lockstep with the wind's, which is the whole
+ * point of naming them at all: the two columns sit side by side in the table
+ * and in the file, they are read from the same levels at the same heights, and
+ * a reader comparing them is entitled to see the same claim made the same way.
+ * A header that named one datum and left its neighbour bare would read as a
+ * difference in the numbers rather than a difference in the wording.
+ *
+ * The 2 m fallback inside a forecast report is NOT a fourth state, for the
+ * reason the wind's 10 m floor is not: a destination below the lowest level
+ * (~762 m) or with no known elevation reports its surface temperature on a
+ * forecast report too, and that is the method working rather than failing. A
+ * header describes a column's method, not each cell's outcome.
+ *
+ * "2 meters" is spelled out rather than written `2 m`, exactly as the wind's
+ * "10 meters" is, and for the same two reasons: a spelled-out unit NAME is
+ * ordinary English, so the SI space rule for unit SYMBOLS (BIPM §5.4.3) cannot
+ * be got wrong here and no non-breaking space has to be kept out of the CSV
+ * header. It also lands the two phrases within 1.6px of each other, so the
+ * table's temperature columns do not visibly resize when a window crosses the
+ * archive boundary (measured in Chrome, 2026-09-17: 203.1px against 204.7px at
+ * the header's own weight and size).
  */
+const TEMP_DATUM: Record<'forecast' | 'archive', string> = {
+  forecast: AT_ELEVATION,
+  archive: 'at 2 meters',
+}
+
 export function tempDatum(source: WindowSource | null | undefined): string | null {
-  return source === 'forecast' ? AT_ELEVATION : null
+  if (source === 'forecast' || source === 'archive') return TEMP_DATUM[source]
+  return null
 }
 
 /**

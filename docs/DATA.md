@@ -157,9 +157,10 @@ clamp in either direction would report a number no model produced. And the
 fallback is the 2 m value rather than the 10 m one — a destination with no
 known elevation, below the lowest level (~762 m), or in an archive window
 reports the surface temperature exactly as it did before. The column headers
-read `Temperature at elevation` over a forecast window; over an archive or
-crossing window they drop the qualifier, because the number there is the plain
-surface reading.
+read `Temperature at elevation` over a forecast window and
+`Temperature at 2 meters` over an archive one, beside the wind's own datum and
+in step with it; over a crossing window both drop the qualifier, because such a
+report averages the two datums into one number.
 
 The radiative caveat under the freezing level below applies to this number as
 well, and from the other side: free air is what the model resolves, and a calm,
@@ -233,12 +234,11 @@ archive's nature rather than a limitation of the wiring.
   archive accepts the ten pressure levels both elevation adjustments above are
   built on and answers every hour `null`, so an archive row reports the plain
   10 m wind and the plain 2 m temperature for every destination, whatever its
-  elevation. The app says so for the wind rather than leaving it here: the wind
-  columns read `Wind at 10 meters` over such a window, against
-  `Wind at elevation` over a forecast one, and a window crossing the boundary
-  drops the qualifier because it averages both. The temperature columns simply
-  drop their qualifier over either, because the unqualified header already
-  names the surface reading they carry.
+  elevation. The app says so rather than leaving it here, and says it the same
+  way for both: the columns read `Wind at 10 meters` and
+  `Temperature at 2 meters` over such a window, against `Wind at elevation` and
+  `Temperature at elevation` over a forecast one. A window crossing the boundary
+  drops both qualifiers, because it averages both datums into one number.
 - **It has no freezing level.** The archive accepts `freezing_level_height`
   and answers every hour `null` under the unit `undefined` (measured
   2026-09-13), so the three freezing-level columns read `N/A` over an

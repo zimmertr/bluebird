@@ -426,19 +426,37 @@ describe('temperature datum', () => {
     expect(tempDatum('forecast')).toBe(windDatum('forecast'))
   })
 
-  // The state where the two families part. An archive report's pressure levels
-  // are all null, so the column carries the surface temperature under the label
-  // it always had — there is nothing a datum could correct. The wind needs one
-  // because its header would otherwise read as an elevation it is not at.
-  it('claims no datum over an archive window, where the wind still does', () => {
-    expect(tempDatum('archive')).toBeNull()
-    expect(windDatum('archive')).not.toBeNull()
+  // The archive answers every pressure level null, so the adjustment does not
+  // run and every row is the surface reading whatever its elevation.
+  it('names the surface datum over an archive window', () => {
+    expect(tempDatum('archive')).toBe('at 2 meters')
   })
 
+  // The two families move in lockstep (TJ, 2026-09-17). The columns sit side by
+  // side in the table and in the file, so a header that named one datum and
+  // left its neighbour bare would read as a difference in the numbers rather
+  // than a difference in the wording. This is the check that fails if one
+  // family grows a state the other does not.
+  it('answers every window source exactly where the wind does', () => {
+    for (const source of ['forecast', 'archive', 'spanning', null, undefined] as const) {
+      expect(tempDatum(source) === null).toBe(windDatum(source) === null)
+    }
+  })
+
+  // The one state with no datum: a spanning report averages both into a single
+  // number, so either label would be false of it.
   it('claims no datum over a spanning window or without a report', () => {
     expect(tempDatum('spanning')).toBeNull()
     expect(tempDatum(null)).toBeNull()
     expect(tempDatum(undefined)).toBeNull()
+  })
+
+  // Spelled out rather than written as a symbol, exactly as the wind's is: an
+  // ordinary English unit NAME keeps the SI space rule for unit SYMBOLS out of
+  // play and keeps a non-breaking space out of the CSV header.
+  it('spells the unit as a word, never as a symbol', () => {
+    expect(tempDatum('archive')).not.toMatch(/\b2\s?m\b/)
+    expect(tempDatum('archive')).toContain('meters')
   })
 
   // The qualifier belongs INSIDE the noun phrase, ahead of the separator, for
@@ -454,6 +472,17 @@ describe('temperature datum', () => {
   it('composes the qualifier with no aggregate', () => {
     expect(metricLabel('temp', undefined, undefined, tempDatum('forecast'))).toBe(
       `${NOUN.temp} at elevation (${UNIT.temp})`,
+    )
+    expect(metricLabel('temp', undefined, undefined, tempDatum('archive'))).toBe(
+      `${NOUN.temp} at 2 meters (${UNIT.temp})`,
+    )
+  })
+
+  // A null qualifier is the spanning and pre-analysis case reaching metricLabel,
+  // and it must produce exactly the unqualified label rather than a stray space.
+  it('is byte-identical to the unqualified label when there is no datum', () => {
+    expect(metricLabel('temp', AGGREGATE.minimum, undefined, null)).toBe(
+      metricLabel('temp', AGGREGATE.minimum),
     )
   })
 

@@ -497,13 +497,11 @@ describe('temperature datum on the displayed columns', () => {
     for (const key of tempKeys) expect(labelOf(cols, key)).toContain('at elevation')
   })
 
-  // Two states, not the wind's three. The archive answers every pressure level
-  // null, so the column IS the surface temperature under exactly the label it
-  // carried before this issue — a datum there would only restate the default.
-  it('leaves the columns untouched over an archive window', () => {
+  // The archive answers every pressure level null, so every row is the surface
+  // reading whatever its elevation, and the header says which surface.
+  it('qualifies every temperature column over an archive window', () => {
     const cols = displayedColumns(false, 'precip_total_in', 'archive')
-    const plain = displayedColumns(false, 'precip_total_in')
-    for (const key of tempKeys) expect(labelOf(cols, key)).toBe(labelOf(plain, key))
+    for (const key of tempKeys) expect(labelOf(cols, key)).toContain('at 2 meters')
   })
 
   it('leaves the columns untouched over a spanning window and with no report', () => {
@@ -514,13 +512,18 @@ describe('temperature datum on the displayed columns', () => {
     }
   })
 
-  // The wind's archive label must still appear beside an unqualified
-  // temperature one: the two families answer the same window differently, and
-  // an applier that shared one verdict would get one of them wrong.
-  it('qualifies the wind and not the temperature over the same archive window', () => {
-    const cols = displayedColumns(false, 'precip_total_in', 'archive')
-    expect(labelOf(cols, 'wind_avg_mph')).toContain('at 10 meters')
-    expect(labelOf(cols, 'temp_avg_f')).not.toContain('at ')
+  // The two neighbours as a reader meets them, which is what the lockstep rule
+  // is for (TJ, 2026-09-17): over one archive window both headers name their own
+  // surface, and over one forecast window both name the elevation. An applier
+  // that qualified one family and not the other would read as a difference in
+  // the numbers rather than in the wording.
+  it('names a datum on both families over the same window', () => {
+    const archive = displayedColumns(false, 'precip_total_in', 'archive')
+    expect(labelOf(archive, 'wind_avg_mph')).toContain('at 10 meters')
+    expect(labelOf(archive, 'temp_avg_f')).toContain('at 2 meters')
+    const forecast = displayedColumns(false, 'precip_total_in', 'forecast')
+    expect(labelOf(forecast, 'wind_avg_mph')).toContain('at elevation')
+    expect(labelOf(forecast, 'temp_avg_f')).toContain('at elevation')
   })
 
   // The collapsed single column carries no aggregate, so the qualifier has to
@@ -533,8 +536,12 @@ describe('temperature datum on the displayed columns', () => {
 
   it('qualifies the visible columns the same way', () => {
     const keys = new Set<string>(['name', 'temp_min_f'])
-    const visible = visibleColumns(false, 'precip_total_in', keys, 'forecast')
-    expect(labelOf(visible, 'temp_min_f')).toContain('at elevation')
+    expect(
+      labelOf(visibleColumns(false, 'precip_total_in', keys, 'forecast'), 'temp_min_f'),
+    ).toContain('at elevation')
+    expect(
+      labelOf(visibleColumns(false, 'precip_total_in', keys, 'archive'), 'temp_min_f'),
+    ).toContain('at 2 meters')
   })
 })
 
