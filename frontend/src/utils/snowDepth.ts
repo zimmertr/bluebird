@@ -154,47 +154,81 @@ export function snowRampCss(): string {
 }
 
 /**
- * A number on the scale under that strip: where it sits, and what it reads.
+ * A number on the scale under that strip: where it sits, what it reads, and
+ * which way it hangs.
  *
- * `at` is a position in BANDS, not in pixels — 0 is the strip's left edge and
- * `SNOW_RAMP.length` its right one — so the tick lands on the boundary it
- * names however wide the legend box is.
+ * `at` is a position in BANDS, not in pixels: 0 is the strip's left edge and
+ * `SNOW_RAMP.length` its right one, so a tick lands on the boundary it names
+ * however wide the legend box is. `align` is which edge of that boundary's
+ * band column the label hangs from.
  */
 export interface SnowTick {
   readonly at: number
   readonly label: string
+  readonly align: 'start' | 'end'
 }
 
 /**
- * Four numbers rather than twelve.
+ * The boundaries the scale prints: 0.39, 3.9, 39 and 394 in.
  *
- * A row per band is eleven rows, and the phone legend stack is already 265 px
- * with four layer rows and the metric key. What a reader needs off a snow ramp
- * is which end of it they are looking at, so the ticks are the scale's two ends
- * plus the boundaries a decade apart between them — 0.39, 3.9, 39 and the top,
- * which is the whole reason these particular boundaries were chosen: NOAA's
- * classification happens to carry an exact decade sequence.
+ * Four numbers rather than twelve, because a row per band is eleven rows and
+ * the phone legend stack is already 265 px with four layer rows and the metric
+ * key. Four is enough because NOAA's own classification happens to carry an
+ * exact decade sequence, so these four say the whole shape of the scale.
+ */
+const TICK_BOUNDARIES = [0.39, 3.9, 39, 394]
+
+/**
+ * Those boundaries as the scale prints them.
+ *
+ * **The labels are rounded and the positions are not.** Every tick sits on a
+ * real band boundary, and prints that boundary to one significant figure: 4,
+ * 40, 400. A boundary printed an inch off its true value changes nothing a
+ * reader does with it, and four round decades read as one scale where 3.9, 39
+ * and 394 read as three unrelated numbers. The first prints 0 rather than 0.4
+ * for the same reason and one more: it is where the painted scale starts, and
+ * under it nothing is drawn at all.
+ *
+ * **The last tick is the START of the top band, not its ceiling.** The
+ * classification's ceiling is 787 in, and no snowpack reaches it: the cells
+ * that get there hold model ice on glaciers, which the analysis never melts
+ * out (`docs/DATA.md` records what it holds over Mount Rainier). Printing 787
+ * would put the largest number on the scale in the one place a reader cannot
+ * read it as a depth. So the top band is left with no printed ceiling, and the
+ * scale reads as 400 in and above.
  *
  * Derived from the band table rather than written out, so a re-measured legend
  * moves the ticks with the colours instead of leaving them describing the old
  * one.
  */
 export function snowTicks(): SnowTick[] {
-  const ticks: SnowTick[] = []
-  for (const decade of [0.39, 3.9, 39]) {
-    const at = SNOW_RAMP.findIndex((band) => band.from === decade)
-    if (at >= 0) ticks.push({ at, label: snowDepthLabel(decade) })
-  }
-  const top = SNOW_RAMP[SNOW_RAMP.length - 1]
-  // The unit rides on the last tick alone: it is the one the eye finishes on,
-  // and four copies of "in" across 164 px is three more than the scale needs.
-  if (top) ticks.push({ at: SNOW_RAMP.length, label: `${snowDepthLabel(top.to)} in` })
-  return ticks
+  const found = TICK_BOUNDARIES.map((inches) => ({
+    inches,
+    at: SNOW_RAMP.findIndex((band) => band.from === inches),
+  })).filter((tick) => tick.at >= 0)
+
+  return found.map(({ inches, at }, i) => {
+    const last = i === found.length - 1
+    return {
+      at,
+      // The unit rides on the last tick alone: it is the one the eye finishes
+      // on, and four copies of "in" across 164 px is three more than the scale
+      // needs.
+      label: (at === 0 ? '0' : roundedInches(inches)) + (last ? ' in' : ''),
+      // Every other label hangs from its own boundary. The last one hangs from
+      // the strip's END instead, because its boundary is one band in from
+      // there and `400 in` is wider than a band: hung from the boundary it
+      // would run past the legend box. Hung from the end it also reads the way
+      // the top band behaves, which is 400 in and above.
+      align: last ? ('end' as const) : ('start' as const),
+    }
+  })
 }
 
-/** A depth as the scale prints it: a decimal only where one carries meaning. */
-function snowDepthLabel(inches: number): string {
-  return inches < 10 ? String(Math.round(inches * 10) / 10) : String(Math.round(inches))
+/** A boundary to one significant figure: 3.9 in reads 4, 39 reads 40. */
+function roundedInches(inches: number): string {
+  const decade = 10 ** Math.floor(Math.log10(inches))
+  return String(Math.round(inches / decade) * decade)
 }
 
 /**

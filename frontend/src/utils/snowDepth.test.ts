@@ -101,17 +101,35 @@ describe('the legend strip', () => {
     expect(css).toContain('100%')
   })
 
-  it('names the ends of the scale and a decade between them', () => {
-    const ticks = snowTicks()
-    expect(ticks.map((t) => t.label)).toEqual(['0.4', '3.9', '39', '787 in'])
+  it('prints the scale as four round decades', () => {
+    // Rounded labels over unrounded positions: a boundary printed an inch off
+    // its true value changes nothing a reader does, and four round decades
+    // read as one scale where 3.9, 39 and 394 read as three stray numbers.
+    expect(snowTicks().map((t) => t.label)).toEqual(['0', '4', '40', '400 in'])
   })
 
-  it('puts every tick on a band boundary', () => {
-    for (const tick of snowTicks()) {
-      expect(Number.isInteger(tick.at)).toBe(true)
-      expect(tick.at).toBeGreaterThanOrEqual(0)
-      expect(tick.at).toBeLessThanOrEqual(SNOW_RAMP.length)
-    }
+  it('puts every tick on a real band boundary', () => {
+    // The positions are NOAA's own classification, not the rounded numbers
+    // printed over them: 0.39, 3.9, 39 and 394 in.
+    expect(snowTicks().map((t) => SNOW_RAMP[t.at]?.from)).toEqual([0.39, 3.9, 39, 394])
+  })
+
+  it('ends on the start of the top band, not on its ceiling', () => {
+    // 787 in is a ceiling no snowpack reaches: the cells that get there hold
+    // model ice on glaciers. So the last tick is the boundary the top band
+    // opens at, one band in from the strip's right edge, and the top band is
+    // left with no printed ceiling at all.
+    const ticks = snowTicks()
+    const last = ticks[ticks.length - 1]
+    expect(last.at).toBe(SNOW_RAMP.length - 1)
+    expect(SNOW_RAMP[last.at].from).toBe(394)
+    expect(ticks.map((t) => t.label).join(' ')).not.toContain('787')
+  })
+
+  it('hangs the last label from the strip, and every other from its boundary', () => {
+    // `400 in` is wider than a band and its boundary is one band in from the
+    // right edge, so a label hung there would run past the legend box.
+    expect(snowTicks().map((t) => t.align)).toEqual(['start', 'start', 'start', 'end'])
   })
 
   it('reads left to right', () => {
@@ -120,8 +138,9 @@ describe('the legend strip', () => {
   })
 
   it('states the unit once', () => {
-    const withUnit = snowTicks().filter((t) => t.label.includes('in'))
+    const ticks = snowTicks()
+    const withUnit = ticks.filter((t) => t.label.includes('in'))
     expect(withUnit).toHaveLength(1)
-    expect(withUnit[0].at).toBe(SNOW_RAMP.length)
+    expect(withUnit[0]).toBe(ticks[ticks.length - 1])
   })
 })

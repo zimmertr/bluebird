@@ -2878,21 +2878,18 @@ export default function App() {
                             gridTemplateColumns: `repeat(${SNOW_RAMP.length}, minmax(0, 1fr))`,
                           }}
                         >
-                          {snowTicks().map((tick) => {
-                            const last = tick.at >= SNOW_RAMP.length
-                            return (
-                              <span
-                                key={tick.label}
-                                className="whitespace-nowrap"
-                                style={{
-                                  gridColumnStart: last ? SNOW_RAMP.length : tick.at + 1,
-                                  justifySelf: last ? 'end' : 'start',
-                                }}
-                              >
-                                {tick.label}
-                              </span>
-                            )
-                          })}
+                          {snowTicks().map((tick) => (
+                            <span
+                              key={tick.label}
+                              className="whitespace-nowrap"
+                              style={{
+                                gridColumnStart: tick.at + 1,
+                                justifySelf: tick.align,
+                              }}
+                            >
+                              {tick.label}
+                            </span>
+                          ))}
                         </span>
                       </div>
                     )}
