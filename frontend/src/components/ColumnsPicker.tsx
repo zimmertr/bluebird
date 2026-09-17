@@ -15,6 +15,7 @@ import {
   TEXT,
   SURFACE_CARD,
 } from '../styles'
+import { IconGrip } from './icons'
 import {
   GHOST_MAX_PX,
   dragBegins,
@@ -279,7 +280,7 @@ export default function ColumnsPicker({
                   aria-label={`Move the ${col.label} column. Use the arrow keys.`}
                   className={`${DRAG_GRIP} ${isCarried ? DRAG_GRIP_ACTIVE : ''} px-1`}
                 >
-                  <GripIcon />
+                  <IconGrip />
                 </button>
               )}
             </label>
@@ -309,19 +310,5 @@ export default function ColumnsPicker({
       )}
     </div>,
     document.body,
-  )
-}
-
-/** Two columns of dots: the standing picture for "drag this". */
-function GripIcon() {
-  return (
-    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden="true">
-      <circle cx="6" cy="4" r="1.3" />
-      <circle cx="10" cy="4" r="1.3" />
-      <circle cx="6" cy="8" r="1.3" />
-      <circle cx="10" cy="8" r="1.3" />
-      <circle cx="6" cy="12" r="1.3" />
-      <circle cx="10" cy="12" r="1.3" />
-    </svg>
   )
 }

@@ -10,6 +10,8 @@
 // Nominatim usage policy (operations.osmfoundation.org/policies/nominatim):
 // no autocomplete and ≤1 req/s — both satisfied by searching only on Enter.
 
+import { apiFetch } from './apiFetch'
+
 export interface Place {
   label: string // short name for the pin and input ("Mount Whitney")
   description: string // full disambiguation line from Nominatim
@@ -168,9 +170,19 @@ export function placeFromNominatimRow(row: NominatimRow): Place {
   }
 }
 
-export async function searchPlaces(query: string, limit = 5): Promise<Place[]> {
+/**
+ * Ask the pod's Nominatim proxy about a place.
+ *
+ * `signal` before `limit`, because the caller that has a signal is the search
+ * box and no caller has ever needed another limit.
+ */
+export async function searchPlaces(
+  query: string,
+  signal?: AbortSignal,
+  limit = 5,
+): Promise<Place[]> {
   const url = `/api/geocode?limit=${limit}&q=${encodeURIComponent(query)}`
-  const res = await fetch(url, { headers: { Accept: 'application/json' } })
+  const res = await apiFetch(url, { headers: { Accept: 'application/json' }, signal })
   if (!res.ok) throw new Error('Place search unavailable. Try again later.')
   const rows: NominatimRow[] = await res.json()
   return rows.map(placeFromNominatimRow)
