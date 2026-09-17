@@ -51,26 +51,8 @@ import {
   TABLE,
   TEXT,
 } from '../styles'
+import { IconClose, IconExternalLink } from './icons'
 import { createPortal } from 'react-dom'
-
-function ExternalLinkIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-3.5 w-3.5"
-      aria-hidden="true"
-    >
-      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-      <polyline points="15 3 21 3 21 9" />
-      <line x1="10" y1="14" x2="21" y2="3" />
-    </svg>
-  )
-}
 
 // The number cell that swaps to the remove × on row hover (touch devices show
 // both — the row-remove rule in index.css). `rank` is "—" for pending rows.
@@ -87,10 +69,7 @@ function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; 
             aria-label={`Remove ${name}`}
             className={`row-remove ${TABLE.rankFace} invisible group-hover:visible leading-none ${ICON_ACTION} cursor-pointer`}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            <IconClose />
           </button>
         </span>
       ) : (
@@ -625,7 +604,7 @@ function ResultsTable({
                   aria-label={`Open ${row.name} in an external map. Opens in a new tab.`}
                   className={`shrink-0 ${ICON_ACTION}`}
                 >
-                  <ExternalLinkIcon />
+                  <IconExternalLink />
                 </a>
               </span>,
             )}
@@ -806,7 +785,7 @@ function ResultsTable({
                           aria-label={`Open ${d.name} in an external map. Opens in a new tab.`}
                           className={`shrink-0 ${ICON_ACTION}`}
                         >
-                          <ExternalLinkIcon />
+                          <IconExternalLink />
                         </a>
                         </span>,
                       )}

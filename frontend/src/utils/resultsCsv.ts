@@ -258,7 +258,7 @@ export interface CsvOptions {
    * only: no rank and no metrics, because no forecast covers them.
    */
   pendingRows?: readonly DestinationResult[]
-  /** Rows the fire check could not reach, by fireKey (#256). */
+  /** Rows the fire check could not reach, by geoKey (#256). */
   fireUncovered?: ReadonlySet<string>
   /**
    * What the Model column reads for a row no comparison tagged: the model the

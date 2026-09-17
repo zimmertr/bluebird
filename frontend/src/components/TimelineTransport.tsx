@@ -12,6 +12,7 @@ import {
   TEXT,
   TRANSPORT_AXIS_ITEM,
 } from '../styles'
+import { IconPlay } from './icons'
 import { transportBottomPx } from '../utils/resultsSheet'
 import type { TimelineAxis } from '../utils/timeline'
 
@@ -45,22 +46,6 @@ interface Props {
   // height, or 0 wherever the results are docked below the map (#249). The bar
   // keeps the same gap either way, measured from whatever it is standing on.
   liftPx: number
-}
-
-
-function PlayIcon({ playing }: { playing: boolean }) {
-  return (
-    <svg viewBox="0 0 10 10" width="10" height="10" fill="currentColor" aria-hidden="true">
-      {playing ? (
-        <>
-          <rect x="1" y="0" width="3" height="10" />
-          <rect x="6" y="0" width="3" height="10" />
-        </>
-      ) : (
-        <path d="M1,0 L10,5 L1,10 Z" />
-      )}
-    </svg>
-  )
 }
 
 /**
@@ -120,7 +105,7 @@ export default function TimelineTransport({
         aria-label={playing ? 'Pause the timeline' : 'Play the timeline'}
         className={`${ACCENT.fill} ${ACCENT.fillHover} ${TAP.action} h-7 w-7 flex-shrink-0 ${RADIUS.control} transition-colors`}
       >
-        <PlayIcon playing={playing} />
+        <IconPlay playing={playing} />
       </button>
 
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">

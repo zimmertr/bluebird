@@ -1,4 +1,4 @@
-import { CustomDestination } from '../types'
+import { CustomDestination, DestinationResult } from '../types'
 import { Place } from './geocode'
 import { geoKey } from './points'
 
@@ -60,6 +60,25 @@ export function buildCustomList(
 // screen. A destination the analysis covered but the display drops — below the
 // cut, outside the elevation band — is simply not shown, like any other row the
 // knobs exclude.
+// A pending destination as the row shape the display surfaces read: the table
+// draws these above the ranked rows and the chart tracks them as series-less
+// pseudo-rows. Identity columns filled, every metric absent.
+//
+// The cast says what that is. `DestinationResult` describes a row that HAS
+// been forecast, and inventing zeros to satisfy it would be a number the
+// sorter and the colour scale would both believe. One spelling for both
+// surfaces, or a pending row ends up drawn differently on each.
+export function pendingAsResult(d: PendingDestination): DestinationResult {
+  return {
+    name: d.name,
+    // A searched place knows its kind; a pasted coordinate does not.
+    type: d.kind ?? 'custom',
+    elevation_ft: d.elevation_ft ?? null,
+    latitude: d.latitude,
+    longitude: d.longitude,
+  } as DestinationResult
+}
+
 export function pendingDestinations(
   csvRows: CustomDestination[],
   places: Place[],
