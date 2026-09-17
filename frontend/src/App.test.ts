@@ -189,3 +189,30 @@ describe('the resize grips', () => {
     expect(appSource).toContain('splitChartTable(chartPanelPx, tablePanelPx, up)')
   })
 })
+
+// ── Both mode where two panels cannot fit (#430) ───────────────────────────
+//
+// Under two panel floors plus the map's, the pair can only be drawn pinned with
+// both grips inert. The sheet draws one panel there instead, and which one is
+// `layout.ts`'s answer rather than a rule left in this file.
+describe('the mode control on a short viewport', () => {
+  it('draws the mode the room allows rather than the stored one', () => {
+    expect(appSource).toContain(
+      'const resultsMode = resolveResultsMode(modePref, lastPanelRef.current, bothHasRoom)',
+    )
+  })
+
+  it('disables Both instead of taking it out of the segment', () => {
+    // A member that comes and goes moves the two beside it and has to be found
+    // again, which is the call Clear filters already made.
+    const button = appSource.match(/onClick=\{\(\) => chooseResultsMode\('both'\)\}[\s\S]*?>/)![0]
+    expect(button).toContain('disabled={!bothHasRoom}')
+    expect(button).toContain('${DISABLED}')
+  })
+
+  it('stores what the reader pressed and never the fallback', () => {
+    // The constraint belongs to the viewport, so a window that grows back gives
+    // Both back with no press. One write, inside the press handler.
+    expect(appSource.match(/writeViewPrefs\(\{ modeChosen/g)).toHaveLength(1)
+  })
+})

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import httpx
-from app.main import app
-from app.routes import geocode as geocode_mod
 from conftest import fake_response
 from fastapi.testclient import TestClient
+
+from app.main import app
+from app.routes import geocode as geocode_mod
 
 client = TestClient(app)
 

@@ -4,11 +4,12 @@ import dataclasses
 
 import httpx
 import pytest
+from conftest import fake_response
+
 from app import ratelimit
 from app.models import DestinationType, GeoPolygon
 from app.services import osm
 from app.services.errors import UpstreamError
-from conftest import fake_response
 
 POLY = GeoPolygon(type="Polygon", coordinates=[[[-121.0, 47.0], [-120.0, 47.0], [-120.0, 48.0]]])
 

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
 import pytest
+from conftest import dest, fake_response
+
 from app.services import air_quality
 from app.services.air_quality import (
     _metrics,
@@ -14,7 +16,6 @@ from app.services.air_quality import (
     fetch_aqi_batch,
 )
 from app.services.errors import InvalidApiKeyError
-from conftest import dest, fake_response
 
 START = datetime(2026, 7, 21, 0, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
 END = datetime(2026, 7, 21, 2, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
@@ -75,7 +76,7 @@ async def test_fetch_batch_empty_returns_empty():
 async def test_fetch_batch_beyond_horizon_skips_without_network():
     # A window that starts well past the ~5-day AQI horizon must degrade to
     # None entries rather than calling (and 400-ing) the upstream API.
-    far_start = datetime.now(timezone.utc) + timedelta(days=10)
+    far_start = datetime.now(UTC) + timedelta(days=10)
     far_end = far_start + timedelta(days=1)
     dests = [dest(47.0, -121.0), dest(46.0, -122.0)]
     assert await fetch_aqi_batch(dests, far_start, far_end) == [None, None]
@@ -100,7 +101,7 @@ async def test_the_horizon_clamp_ends_at_the_last_hour_of_the_cap_day(monkeypatc
     # hour bound has to end there too. Clamping to the instant instead would
     # quietly drop most of a day of real AQI.
     calls = _stub_openmeteo(monkeypatch, [[_hourly(["2026-07-21T10:00"], [80])]])
-    start = datetime.now(timezone.utc)
+    start = datetime.now(UTC)
     cap_day = (start + timedelta(days=air_quality.MAX_FORECAST_DAYS)).date()
     await fetch_aqi_batch(
         [dest(47.0, -121.0)], start, start + timedelta(days=15)
@@ -122,7 +123,7 @@ def test_series_keeps_hours_and_preserves_nulls():
 def test_series_times_are_utc_epoch_ms():
     data = _hourly(["2026-07-21T00:00"], [80])
     s = _series(data, START, END)
-    expected = int(datetime(2026, 7, 21, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+    expected = int(datetime(2026, 7, 21, 0, 0, tzinfo=UTC).timestamp() * 1000)
     assert s["times"] == [expected]
 
 
@@ -328,7 +329,7 @@ async def test_an_archive_era_window_is_still_fetched(monkeypatch):
     # AQI. So a window older than the weather boundary is an ordinary fetch —
     # only the FUTURE clamp above skips one — and an hour the endpoint cannot
     # answer degrades to null the way every other gap does.
-    old_start = (datetime.now(timezone.utc) - timedelta(days=200)).replace(
+    old_start = (datetime.now(UTC) - timedelta(days=200)).replace(
         minute=0, second=0, microsecond=0
     )
     stamp = old_start.strftime("%Y-%m-%dT%H:00")

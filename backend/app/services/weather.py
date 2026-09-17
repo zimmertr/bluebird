@@ -4,7 +4,7 @@ import asyncio
 import logging
 import time
 from collections.abc import Awaitable, Callable, Sequence
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, NamedTuple
 
 import httpx
@@ -80,6 +80,38 @@ _WIND_LEVELS: list[tuple[str, float]] = [
     ("wind_speed_500hPa", 5574.0),
 ]
 _FT_TO_M = 0.3048
+# The temperature the table ranks on is the temperature at the destination's
+# OWN elevation (issue #443), for the same reason the wind above is.
+# `temperature_2m` stands 2 m above the model's smoothed terrain, which under a
+# summit is a valley floor: at Dome Peak (8,921 ft) the GFS grid ground is
+# 2,017 m, and Open-Meteo then lapses its own value down to its 90 m DEM. On a
+# clear night that ground radiates and the 2 m air freezes while the summit
+# stands in free air well above it — measured 2026-09-16 over Sep 18 to Sep 21,
+# `temperature_2m` read a minimum of 25.7 °F where the free air at summit height
+# stayed near 43 °F and the freezing level never fell below 12,073 ft.
+#
+# So each hour also carries the free-air temperature at the SAME five levels the
+# wind uses, read against the same ISA heights. Five more variables take the
+# request from 9 to 14, which is the weight factor from 1 to 1.4 — the cost the
+# maintainer accepted in #443.
+#
+# There is NO floor here, and that is the one way this differs from the wind.
+# A floor is right for wind because altitude can only add exposure; a summit can
+# be genuinely colder OR warmer than the free air (an inversion is the ordinary
+# winter case), so a floor either way would invent a reading.
+#
+# All eight models Bluebird Forecast offers answered all five levels (probed
+# 2026-09-16). The ARCHIVE endpoint accepts all five and answers every hour null
+# under the unit `undefined` (measured 2026-09-16), which the null-level path
+# below already sends back to `temperature_2m` — so both endpoints are asked for
+# one variable list, exactly as the wind levels are.
+_TEMP_LEVELS: list[tuple[str, float]] = [
+    ("temperature_925hPa", 762.0),
+    ("temperature_850hPa", 1457.0),
+    ("temperature_700hPa", 3012.0),
+    ("temperature_600hPa", 4206.0),
+    ("temperature_500hPa", 5574.0),
+]
 # The height where the free-air temperature crosses freezing (issue #295).
 # Spring and winter travel turns on the overnight refreeze, and a destination's
 # own temperature answers that only at its own elevation — the freezing level
@@ -103,11 +135,13 @@ _FREEZING_LEVEL = "freezing_level_height"
 HOURLY_VARIABLES = ",".join(
     ["precipitation", "temperature_2m", "wind_speed_10m", _FREEZING_LEVEL]
     + [name for name, _ in _WIND_LEVELS]
+    + [name for name, _ in _TEMP_LEVELS]
 )
-# 9 stays at weight factor 1: Open-Meteo's factor is max(1, vars x models/10)
-# and a request names one model, so the five level winds and the freezing
-# level ride the same weighted budget the three originals did.
-N_VARIABLES = 9
+# Open-Meteo's factor is max(1, vars x models/10) and a request names one
+# model, so 14 variables cost 1.4 weighted calls per location where 9 cost 1.
+# The five level temperatures (#443) are what took it over the floor of 10;
+# the five level winds and the freezing level before them rode inside it.
+N_VARIABLES = 14
 PROVIDER = "Open-Meteo"
 
 # Called as each batch completes: (processed_destinations, total_destinations,
@@ -409,7 +443,7 @@ async def fetch_weather_batch(
         raise
 
     fetched = [item for sublist in chunk_results_by_index for item in sublist]
-    for dest, result in zip(misses, fetched):
+    for dest, result in zip(misses, fetched, strict=False):
         key = cache.forecast_key(
             "weather",
             dest["latitude"],
@@ -421,7 +455,7 @@ async def fetch_weather_batch(
             source,
         )
         cache.FORECAST_CACHE.put(key, cache.NO_DATA if result is None else result)
-    for i, result in zip(miss_indices, fetched):
+    for i, result in zip(miss_indices, fetched, strict=False):
         results[i] = result
     return results
 
@@ -508,7 +542,7 @@ async def _fetch_chunk(
     results: list[dict[str, Any] | None] = []
     # zip truncates to the shortest, which is the tolerance this loop has always
     # had for a host returning fewer locations than were asked about.
-    for dest, parts in zip(destinations, zip(*per_span)):
+    for dest, parts in zip(destinations, zip(*per_span, strict=False), strict=False):
         elevation_ft = dest.get("elevation_ft")
         item = _join_hours(parts)
         m = _metrics(item, start_dt, end_dt, elevation_ft)
@@ -704,8 +738,54 @@ def _wind_at_elevation(
     return max(w10, free)
 
 
+def _temp_at_elevation(
+    t2m: float,
+    elevation_ft: float | None,
+    levels: list[float | None],
+) -> float:
+    """One hour's temperature at the destination's own elevation, in °F.
+
+    Linear interpolation between the two ISA-height levels bracketing the
+    elevation, clamped to the top level above it. Every gap degrades to
+    `temperature_2m`: no elevation, an elevation under the lowest level (a
+    valley destination IS its own surface layer), a null at a needed level, or
+    an archive window, where the levels are accepted and answered null.
+
+    Deliberately NOT floored, which is the one way this differs from
+    `_wind_at_elevation`. Wind can only gain with exposure, so `max` there is a
+    physical statement; a summit can be colder than the free air on a calm
+    clear night and warmer than it under an inversion, so a floor in either
+    direction would report a number no model produced.
+    """
+    if elevation_ft is None:
+        return t2m
+    elev_m = elevation_ft * _FT_TO_M
+    if elev_m <= _TEMP_LEVELS[0][1]:
+        return t2m
+    free: float | None = None
+    if elev_m >= _TEMP_LEVELS[-1][1]:
+        free = levels[-1]
+    else:
+        for k in range(len(_TEMP_LEVELS) - 1):
+            hi_h = _TEMP_LEVELS[k + 1][1]
+            if elev_m < hi_h:
+                lo_h = _TEMP_LEVELS[k][1]
+                lo_v = levels[k]
+                hi_v = levels[k + 1]
+                if lo_v is not None and hi_v is not None:
+                    free = lo_v + (hi_v - lo_v) * ((elev_m - lo_h) / (hi_h - lo_h))
+                break
+    if free is None:
+        return t2m
+    return free
+
+
 def _level_arrays(hourly: dict[str, Any]) -> list[list[Any]]:
     return [hourly.get(name, []) for name, _ in _WIND_LEVELS]
+
+
+def _temp_level_arrays(hourly: dict[str, Any]) -> list[list[Any]]:
+    return [hourly.get(name, []) for name, _ in _TEMP_LEVELS]
 
 
 def _freeze_unit(data: dict[str, Any]) -> str | None:
@@ -754,7 +834,7 @@ def _freeze_ft_in_window(
     """
     return [
         _freeze_to_ft(v, unit)
-        for ts, v in zip(hourly.get("time", []), hourly.get(_FREEZING_LEVEL, []))
+        for ts, v in zip(hourly.get("time", []), hourly.get(_FREEZING_LEVEL, []), strict=False)
         if v is not None
         and (parsed := _parse_ts(ts)) is not None
         and start <= parsed <= end
@@ -774,15 +854,17 @@ def _metrics(
         temp = hourly.get("temperature_2m", [])
         wind = hourly.get("wind_speed_10m", [])
         levels = _level_arrays(hourly)
+        t_levels = _temp_level_arrays(hourly)
 
         start = _naive(start_dt)
         end = _naive(end_dt)
 
         # zip over the four core arrays keeps the pre-#257 hour-dropping
         # semantics: a missing or short LEVEL array can never drop an hour,
-        # only send its wind back to the 10 m value.
+        # only send its wind back to the 10 m value and its temperature back
+        # to the 2 m value.
         filtered = []
-        for i, (ts, p, t, w) in enumerate(zip(times, precip, temp, wind)):
+        for i, (ts, p, t, w) in enumerate(zip(times, precip, temp, wind, strict=False)):
             parsed = _parse_ts(ts)
             if parsed is None or not (start <= parsed <= end):
                 continue
@@ -791,12 +873,15 @@ def _metrics(
             w_adj = _wind_at_elevation(
                 w, elevation_ft, [_at(arr, i) for arr in levels]
             )
-            filtered.append((p, t, w_adj))
+            t_adj = _temp_at_elevation(
+                t, elevation_ft, [_at(arr, i) for arr in t_levels]
+            )
+            filtered.append((p, t_adj, w_adj))
 
         if not filtered:
             return None
 
-        p_vals, t_vals, w_vals = zip(*filtered)
+        p_vals, t_vals, w_vals = zip(*filtered, strict=False)
         f_vals = _freeze_ft_in_window(hourly, start, end, _freeze_unit(data))
 
         return {
@@ -840,9 +925,9 @@ def _series(
     metric's nulls independently (the chart renders them as line gaps). Returns
     None when the window contains no hours at all, or when the payload is
     malformed — an unreadable freezing level unit is the one exception, and it
-    raises. Wind is adjusted to the destination's elevation exactly as
-    `_metrics` adjusts it, so the chart and the playback recoloring draw the
-    same quantity the table ranks.
+    raises. Wind and temperature are adjusted to the destination's elevation
+    exactly as `_metrics` adjusts them, so the chart and the playback
+    recoloring draw the same quantities the table ranks.
     """
     try:
         hourly = data.get("hourly", {})
@@ -853,6 +938,7 @@ def _series(
         freeze = hourly.get(_FREEZING_LEVEL, [])
         freeze_unit = _freeze_unit(data)
         levels = _level_arrays(hourly)
+        t_levels = _temp_level_arrays(hourly)
 
         start = _naive(start_dt)
         end = _naive(end_dt)
@@ -868,7 +954,15 @@ def _series(
                 continue
             grid.append(_epoch_ms(parsed))
             p_out.append(_round_or_none(_at(precip, i), 4))
-            t_out.append(_round_or_none(_at(temp, i), 1))
+            t2m = _at(temp, i)
+            t_adj = (
+                None
+                if t2m is None
+                else _temp_at_elevation(
+                    t2m, elevation_ft, [_at(arr, i) for arr in t_levels]
+                )
+            )
+            t_out.append(_round_or_none(t_adj, 1))
             w10 = _at(wind, i)
             w_adj = (
                 None
@@ -918,7 +1012,7 @@ def _epoch_ms(dt_naive: datetime) -> int:
     # Open-Meteo times are UTC (we request timezone=UTC) and `_parse_ts` strips
     # the tzinfo, so re-stamp UTC before converting to an unambiguous epoch the
     # browser can render in the viewer's local zone.
-    return int(dt_naive.replace(tzinfo=timezone.utc).timestamp() * 1000)
+    return int(dt_naive.replace(tzinfo=UTC).timestamp() * 1000)
 
 
 def _at(arr: list[Any], i: int) -> float | None:
