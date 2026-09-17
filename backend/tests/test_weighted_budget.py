@@ -11,6 +11,7 @@ import pytest
 from app import ratelimit
 from app.services import weather
 from app.services.errors import parse_rate_limit, rate_limit_message
+from app.services.openmeteo_fetch import BATCH_SIZE
 from app.services.openmeteo_weight import call_weight
 
 
@@ -176,7 +177,7 @@ def test_default_budget_clears_a_worst_case_batch_without_pacing():
     # temperatures take the variable factor from 1 to 1.4, and every capacity
     # number that reads N_VARIABLES moves with it.
     worst_batch = call_weight(
-        weather.BATCH_SIZE, date(2026, 1, 1), date(2026, 1, 16), weather.N_VARIABLES
+        BATCH_SIZE, date(2026, 1, 1), date(2026, 1, 16), weather.N_VARIABLES
     )
     assert worst_batch == pytest.approx(80.0, abs=0.01)
 

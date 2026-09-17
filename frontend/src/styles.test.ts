@@ -79,6 +79,7 @@ import {
   TEXT,
 } from './styles'
 import * as STYLES from './styles'
+import { EXTERNAL_LINK_PX } from './iconPaths'
 // `?raw` gives us the file's text without executing it, so this stays a pure
 // node test with no DOM, matching vitest.config.ts. (The same trick does not
 // work on index.css: vitest stubs CSS imports to an empty string.)
@@ -86,6 +87,10 @@ import controlPanelSource from './components/ControlPanel.tsx?raw'
 import modelPickerSource from './components/ModelPicker.tsx?raw'
 import appSource from './App.tsx?raw'
 import searchBoxSource from './components/SearchBox.tsx?raw'
+// Read on its own rather than joined to the component glob below: it is markup
+// for MapLibre's setHTML, so it carries hex colours and spelled sizes that the
+// per-component lints would rightly read as a call site inventing its own.
+import popupChromeSource from './utils/popupChrome.ts?raw'
 // The one stylesheet with a decision in it: the vendor's own controls have no
 // call site to hand a role to, so what they take is written there. Read off
 // the disk rather than imported — Vitest stubs a CSS import, `?raw` included,
@@ -103,7 +108,7 @@ const indexCss: string = readFileSync(new URL('./index.css', import.meta.url), '
 const stepPx = (cls: string, prefix: string): number =>
   (Number(cls.match(new RegExp(`(?:^|\\s)${prefix}-(\\d+(?:\\.\\d+)?)(?:\\s|$)`))![1]) / 4) * 16
 // What SELECT keeps clear on the right: the arrow's own box and nothing more.
-const ICON_PX = stepPx(ICON, 'w')
+const ICON_PX = stepPx(ICON.control, 'w')
 const selectArrowPx = (): number => stepPx(SELECT, 'pr')
 // The panel's control column, and the Metrics box pair it now measures.
 const controlWPx = (): number => Number(CONTROL_W.match(/w-\[(\d+)px\]/)![1])
@@ -212,6 +217,26 @@ const sources: Record<string, string> = {
   './App.tsx': appSource,
 }
 
+// The one file allowed to draw an SVG.
+const ICON_MODULE = './components/icons.tsx'
+
+// The one file allowed to position a floating panel.
+const POPOVER_MODULE = './components/Popover.tsx'
+
+// Every source that could ask where a panel goes. Wider than `sources` above,
+// because the placement is wired from a hook rather than from a component, and
+// a second caller there would be as much of a second recipe as one here.
+const placementCallers: Record<string, string> = {
+  ...(import.meta.glob(
+    ['./components/*.tsx', './hooks/*.ts', './utils/*.ts', '!./**/*.test.ts'],
+    { query: '?raw', import: 'default', eager: true },
+  ) as Record<string, string>),
+  './App.tsx': appSource,
+}
+
+// Where the placement is defined, so the export itself does not read as a call.
+const PLACEMENT_MODULE = './utils/listbox.ts'
+
 describe('every component', () => {
   it('found the sources', () => {
     expect(Object.keys(sources).length).toBeGreaterThan(6)
@@ -282,6 +307,66 @@ describe('every component', () => {
   it.each(Object.entries(sources))('%s carries only its approved tooltips', (path, source) => {
     const found = (source.match(/\btitle=/g) ?? []).length
     expect(found).toBe(APPROVED_TOOLTIPS[path] ?? 0)
+  })
+
+  // #386. Nineteen hand-drawn glyphs each answered how big, how heavy and
+  // whether a screen reader skips them, and they had stopped agreeing: the
+  // close cross existed six times at three sizes and two stroke weights, two
+  // of the six were announced, and the select arrow's path was typed out
+  // three times. One module draws them all now, and this is what stops a
+  // twentieth arriving by hand.
+  it.each(Object.entries(sources).filter(([path]) => path !== ICON_MODULE))(
+    '%s draws no glyph of its own',
+    (_path, source) => {
+      expect(source).not.toContain('<svg')
+    },
+  )
+
+  // The other half of that rule, and the one a new icon is most likely to
+  // break: a call site says where a glyph sits and what colour it reaches for,
+  // and the module says how big it is. A height or width handed to an icon is
+  // a size decision made at a call site.
+  it.each(Object.entries(sources))('%s hands no icon a size', (_path, source) => {
+    const SIZED = /(?:^|[\s"'`{])[hw]-(?:\d|\[)/
+    const uses = source.match(/<Icon[A-Za-z]*\s[^>]*>/g) ?? []
+    expect(uses.filter((use) => SIZED.test(use))).toEqual([])
+  })
+
+  // Both lints above are vacuous if the module is not in the glob or has
+  // stopped being where the glyphs are.
+  it('reads the icon module it exempts', () => {
+    expect(sources[ICON_MODULE]).toBeDefined()
+    expect((sources[ICON_MODULE].match(/<svg/g) ?? []).length).toBeGreaterThan(10)
+  })
+
+  // #385: four popovers each carried the same fixed-position style object and
+  // the same wrapper, so the card, the stacking order and the offsets could
+  // drift a step apart without anything saying so. `Popover.tsx` owns all
+  // three now, and a fifth panel that spells them again fails here.
+  it.each(Object.entries(sources).filter(([path]) => path !== POPOVER_MODULE))(
+    '%s positions no panel of its own',
+    (_path, source) => {
+      expect(source).not.toMatch(/position: ?'fixed'/)
+      expect(source).not.toContain('${SURFACE_CARD} ${LAYER.popover}')
+    },
+  )
+
+  // The other half of that rule, and the one the ban above cannot state: the
+  // placement itself. `usePopover` is the only caller, so a fix to the two
+  // measuring passes or to what dismisses a panel reaches all four.
+  it('asks one place where a panel goes', () => {
+    const calls = Object.entries(placementCallers).filter(
+      ([path, source]) => path !== PLACEMENT_MODULE && source.includes('popoverBox('),
+    )
+    expect(calls.map(([path]) => path)).toEqual(['./hooks/usePopover.ts'])
+  })
+
+  // Both lints above are vacuous if the shell is not in the glob or has
+  // stopped being where the box is applied.
+  it('reads the popover shell it exempts', () => {
+    expect(sources[POPOVER_MODULE]).toBeDefined()
+    expect(sources[POPOVER_MODULE]).toContain('${SURFACE_CARD} ${LAYER.popover}')
+    expect(placementCallers[PLACEMENT_MODULE]).toContain('export function popoverBox(')
   })
 })
 
@@ -1048,9 +1133,50 @@ describe('shared recipes', () => {
     expect(ICON_ADORNMENT).toContain('pointer-events-none')
   })
 
-  // Inline SVG icons beside text: sized for clarity without dominating text labels.
-  it('sizes the inline glyph for text-paired icons', () => {
-    expect(ICON).toBe('h-4 w-4')
+  // The ramp every glyph in `components/icons.tsx` reads (#386). Pinned step by
+  // step, because that module is now the only thing standing between these four
+  // numbers and the nineteen call sites that used to pick their own: a step
+  // that moves here moves an icon on screen.
+  it('sizes every glyph from one ramp', () => {
+    expect(stepPx(ICON.control, 'h')).toBe(16)
+    expect(stepPx(ICON.inline, 'h')).toBe(14)
+    expect(stepPx(ICON.chip, 'h')).toBe(12)
+    expect(stepPx(ICON.micro, 'h')).toBe(10)
+  })
+
+  // The set as well as the values (#436). Every step above carries a measured
+  // reason in its comment, so a fifth one arriving without one is the failure
+  // this catches — and `stepPx` reads Tailwind's scale alone, so a step spelled
+  // in arbitrary pixels throws here rather than passing quietly.
+  it('keeps the ramp to the four steps that have a reason', () => {
+    expect(Object.keys(ICON)).toEqual(['control', 'inline', 'chip', 'micro'])
+  })
+
+  // A glyph's box is its own viewBox, which is square in every icon the app
+  // draws. A step that set one dimension would stretch the drawing rather than
+  // resize it.
+  it('keeps every step of that ramp square', () => {
+    for (const [step, recipe] of Object.entries(ICON)) {
+      expect(stepPx(recipe, 'w'), `${step} must be square`).toBe(stepPx(recipe, 'h'))
+    }
+  })
+
+  // The one glyph the ramp cannot reach (#435). A map popup is an HTML string
+  // handed to MapLibre's setHTML, and Tailwind generates CSS for class names it
+  // finds in source, so the popup's copy of the link-out arrow has to carry a
+  // number. This is what keeps that number the ramp's.
+  it('draws the popup glyph at the step its React twin takes', () => {
+    expect(EXTERNAL_LINK_PX).toBe(stepPx(ICON.inline, 'h'))
+  })
+
+  // And the shape itself comes from `iconPaths.ts` rather than being typed out
+  // again: `popupChrome.ts` was the one file outside the icon module still
+  // drawing a glyph of its own, which the component lint above cannot see
+  // because it reads the React tree.
+  it('leaves no glyph spelled in the map popup', () => {
+    const drawn = popupChromeSource.match(/<svg[\s>][^>]*>/g) ?? []
+    expect(drawn, 'draw it from `iconPaths.ts` instead').toEqual([])
+    expect(popupChromeSource).toContain('externalLinkMarkup()')
   })
 
   // Every floating box on the map is one surface: the search field and its

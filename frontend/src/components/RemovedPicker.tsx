@@ -1,8 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect } from 'react'
 import { RemovedEntry } from '../utils/removals'
-import { popoverBox, PopoverBox } from '../utils/listbox'
-import { FOCUS_RING, LAYER, LINK_ACTION, TEXT, SURFACE_CARD } from '../styles'
+import { usePopover } from '../hooks/usePopover'
+import Popover from './Popover'
+import { FOCUS_RING, LINK_ACTION, TEXT } from '../styles'
 
 interface Props {
   open: boolean
@@ -17,8 +17,8 @@ interface Props {
 // The list behind the results bar's "Removed (N)" button (#241): every ×-ed
 // row by name, each with its own restore, so a removal is reversible for as
 // long as it is in force rather than for the lifetime of a toast. Chrome and
-// sequencing mirror ColumnsPicker — same portal, same placement math, same
-// dismissal — since the two are siblings on the same bar.
+// sequencing are ColumnsPicker's, from the one shell and the one hook both ask
+// (#385), since the two are siblings on the same bar.
 export default function RemovedPicker({
   open,
   onOpenChange,
@@ -27,50 +27,7 @@ export default function RemovedPicker({
   onRestoreAll,
   triggerRef,
 }: Props) {
-  const popoverRef = useRef<HTMLDivElement>(null)
-  const [box, setBox] = useState<PopoverBox | null>(null)
-  // Whether this open has had its measuring pass yet — see ColumnsPicker,
-  // whose trigger likewise lives in App and only flips `open`.
-  const measuredRef = useRef(false)
-
-  function place(desiredHeight = Infinity) {
-    const trigger = triggerRef.current
-    if (!trigger) return
-    setBox(
-      popoverBox(
-        trigger.getBoundingClientRect(),
-        { width: window.innerWidth, height: window.innerHeight },
-        {
-          preferredWidth: 256,
-          gap: 4,
-          margin: 8,
-          desiredHeight,
-        },
-      ),
-    )
-  }
-
-  // Position the popover before paint
-  useLayoutEffect(() => {
-    if (open) place()
-    // Kept for the reason ColumnsPicker records: `place` is re-created every
-    // render and sets a fresh box, so listing it would never settle.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
-
-  // The once-per-open measuring pass, after every commit — ColumnsPicker
-  // explains why an [open]-keyed pass measures nothing on the first open.
-  useLayoutEffect(() => {
-    if (!open) {
-      measuredRef.current = false
-      return
-    }
-    const popover = popoverRef.current
-    if (popover && !measuredRef.current) {
-      measuredRef.current = true
-      place(popover.scrollHeight)
-    }
-  })
+  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef })
 
   // Restoring the last row empties the list out from under the popover: close
   // it and hand focus back to the trigger, so a keyboard user is not left
@@ -82,48 +39,10 @@ export default function RemovedPicker({
     }
   }, [open, entries.length, onOpenChange, triggerRef])
 
-  useEffect(() => {
-    if (!open) return
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onOpenChange(false)
-        triggerRef.current?.focus()
-      }
-    }
-
-    // Pointerdown rather than click, matching ColumnsPicker: a click landing
-    // on something that unmounts under it never reaches document.
-    const handlePointerDown = (e: PointerEvent) => {
-      const target = e.target as Node
-      if (popoverRef.current?.contains(target) || triggerRef.current?.contains(target)) return
-      onOpenChange(false)
-    }
-
-    document.addEventListener('keydown', handleEscape)
-    document.addEventListener('pointerdown', handlePointerDown)
-    return () => {
-      document.removeEventListener('keydown', handleEscape)
-      document.removeEventListener('pointerdown', handlePointerDown)
-    }
-  }, [open, onOpenChange, triggerRef])
-
   if (!open || !box) return null
 
-  return createPortal(
-    <div
-      ref={popoverRef}
-      style={{
-        position: 'fixed',
-        left: box.left,
-        width: box.width,
-        maxHeight: box.maxHeight,
-        ...box.offset,
-      }}
-      className={`${SURFACE_CARD} ${LAYER.popover} flex flex-col`}
-    >
-      <div className={`${TEXT.overline} border-b border-slate-700 px-3 py-2`}>Removed rows</div>
-
+  return (
+    <Popover box={box} popoverRef={popoverRef} header="Removed rows">
       <div className="min-h-0 flex-1 overflow-y-auto p-1">
         {entries.map(([key, entry]) => (
           <div key={key} className="flex items-center gap-2 px-2 py-1">
@@ -149,7 +68,6 @@ export default function RemovedPicker({
           </button>
         </div>
       )}
-    </div>,
-    document.body,
+    </Popover>
   )
 }
