@@ -78,3 +78,40 @@ describe('MapView declares nothing the tests cannot reach', () => {
     )
   })
 })
+
+/**
+ * The ring a `?poly=` link opens with is read twice — once to frame the camera
+ * and once to hydrate the drawing points — and both reads happen when MapLibre
+ * fires `load`, which behind the welcome modal is long after mount. Clear can
+ * land in between. While the ring was a constant captured at mount, the load
+ * handler put it back: the panel counted points the app no longer held and the
+ * camera framed a ring the reader had removed (#453).
+ *
+ * So the rule is that one ref carries it, nothing reads that ref before `load`,
+ * and `cancelDrawing` is what empties it.
+ */
+describe('MapView reads the restored ring when the map loads', () => {
+  const at = mapViewSource.indexOf("map.on('load'")
+  const beforeLoad = mapViewSource.slice(0, at)
+  const loadHandler = mapViewSource.slice(at)
+  // Every mention of the ref except the write, which is the one thing above the
+  // load handler allowed to touch it.
+  const READ = /restoredPolygonRef\.current(?!\s*=[^=])/
+
+  it('reads the ring inside the load handler', () => {
+    expect(loadHandler, 'the load handler reads the ref').toMatch(READ)
+  })
+
+  it('snapshots the ring nowhere above the load handler', () => {
+    expect(beforeLoad, 'a value read before `load` cannot see a Clear').not.toMatch(READ)
+    expect(beforeLoad, 'the ring is not captured off the prop either').not.toMatch(
+      /=\s*polygon\s*$/m,
+    )
+  })
+
+  it('empties the ring when the drawing is cancelled', () => {
+    expect(mapViewSource, 'cancelDrawing clears the restored ring').toMatch(
+      /cancelDrawing\(\)\s*\{\s*restoredPolygonRef\.current = null/,
+    )
+  })
+})

@@ -674,6 +674,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
     const mapRef = useRef<maplibregl.Map | null>(null)
     const loadedRef = useRef(false)
     const ptsRef = useRef<[number, number][]>([])
+    // The ring a `?poly=` link opened with. A ref rather than a mount-time
+    // snapshot because the load handler frames, hydrates and counts it long
+    // after mount — behind the welcome modal MapLibre can fire `load` late —
+    // and Clear may land first. `cancelDrawing` empties this, so the two paths
+    // read one value and a cleared ring cannot come back (#453).
+    const restoredPolygonRef = useRef(polygon)
     const pendingResultsRef = useRef<DestinationResult[]>([])
     const pendingSortByRef = useRef<SortBy>('precip_total_in')
     const pendingPlaybackRef = useRef<number | null>(null)
@@ -818,6 +824,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         return geo
       },
       cancelDrawing() {
+        restoredPolygonRef.current = null
         ptsRef.current = []
         vertexPopupRef.current?.remove()
         vertexPopupRef.current = null
@@ -979,8 +986,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // over any default framing — don't scroll the user away from the area
       // their link points at. The default camera is [ -120.5, 47.5 ], zoom 7,
       // which the geolocation control can refine to the user's location on demand.
-      const restoredPolygon = polygon
-
       map.on('load', () => {
         loadedRef.current = true
         // One opening frame for everything the session starts with: a restored
@@ -989,8 +994,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // polygon and a CSV shows the whole analysis area. Geolocation is only
         // the fallback when none of these exist.
         const corners: [number, number][] = []
-        if (restoredPolygon) {
-          const ring = restoredPolygon.coordinates[0] ?? []
+        if (restoredPolygonRef.current) {
+          const ring = restoredPolygonRef.current.coordinates[0] ?? []
           if (ring.length >= 3) for (const [lng, lat] of ring) corners.push([lng, lat])
         }
         const pastedEarly = pendingFitPointsRef.current ?? []
@@ -1024,8 +1029,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // edit, so a shared link is adjustable the moment Edit polygon is
         // pressed. It arrives with drawing off: a link opens on a finished
         // area, not mid-gesture.
-        if (restoredPolygon) {
-          ptsRef.current = ringToPts(restoredPolygon)
+        if (restoredPolygonRef.current) {
+          ptsRef.current = ringToPts(restoredPolygonRef.current)
           onDrawUpdate(ptsRef.current.length)
         }
         restCursor()
