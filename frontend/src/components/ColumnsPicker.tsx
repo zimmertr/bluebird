@@ -1,9 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useRef, useState } from 'react'
 import { SortBy } from '../types'
 import { ColDef } from '../utils/tableColumns'
 import { FAMILY_KEYS, familyOf } from '../metrics'
-import { popoverBox, PopoverBox } from '../utils/listbox'
+import { usePopover } from '../hooks/usePopover'
+import Popover from './Popover'
 import {
   CHOICE_INPUT,
   CHOICE_ROW,
@@ -12,8 +12,6 @@ import {
   DRAG_GRIP_ACTIVE,
   DRAG_INSERT,
   LAYER,
-  TEXT,
-  SURFACE_CARD,
 } from '../styles'
 import { IconGrip } from './icons'
 import {
@@ -49,10 +47,7 @@ export default function ColumnsPicker({
   onColumnMove,
   triggerRef,
 }: Props) {
-  const popoverRef = useRef<HTMLDivElement>(null)
-  const [box, setBox] = useState<PopoverBox | null>(null)
-  // Whether this open has had its measuring pass yet — see below.
-  const measuredRef = useRef(false)
+  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef })
 
   const rankedGroup = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])
 
@@ -131,100 +126,10 @@ export default function ColumnsPicker({
     grip.addEventListener('pointercancel', end)
   }
 
-  function place(desiredHeight = Infinity) {
-    const trigger = triggerRef.current
-    if (!trigger) return
-    setBox(
-      popoverBox(
-        trigger.getBoundingClientRect(),
-        { width: window.innerWidth, height: window.innerHeight },
-        {
-          preferredWidth: 256,
-          gap: 4,
-          margin: 8,
-          desiredHeight,
-        },
-      ),
-    )
-  }
-
-  // Position the popover before paint
-  useLayoutEffect(() => {
-    if (open) place()
-    // Kept: `place` is re-created every render and calls `setBox` with a fresh
-    // object, so listing it would place, render, and place again without end.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
-
-  // The measuring pass, run after EVERY commit rather than keyed on `open`.
-  // On the first-ever open the popover cannot render until the initial
-  // place() above has set a box, so an [open]-keyed pass ran before the
-  // element existed, measured nothing, and the unmeasured fallback (pinned to
-  // the top of the viewport) stuck for the whole open — while every later
-  // open rendered early against the previous open's stale box and got
-  // measured, which is exactly the "wrong once, right afterwards" bug.
-  // ModelPicker avoids this by placing before it opens; this picker's trigger
-  // lives in App and only flips `open`, so the once-per-open ref does the
-  // sequencing instead. The ref is what stops the loop: place() sets state,
-  // which lands back here.
-  useLayoutEffect(() => {
-    if (!open) {
-      measuredRef.current = false
-      return
-    }
-    const popover = popoverRef.current
-    if (popover && !measuredRef.current) {
-      measuredRef.current = true
-      place(popover.scrollHeight)
-    }
-  })
-
-  useEffect(() => {
-    if (!open) return
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onOpenChange(false)
-        triggerRef.current?.focus()
-      }
-    }
-
-    // Pointerdown rather than click, matching ModelPicker: a click that lands
-    // on something which unmounts under it never reaches document, and the
-    // picker would stay open. The trigger is exempt so its own toggle does not
-    // fire close-then-reopen — and on a phone, where the popover lands on top
-    // of the trigger, that press hits the popover and keeps it open, which is
-    // why anywhere-outside has to dismiss.
-    const handlePointerDown = (e: PointerEvent) => {
-      const target = e.target as Node
-      if (popoverRef.current?.contains(target) || triggerRef.current?.contains(target)) return
-      onOpenChange(false)
-    }
-
-    document.addEventListener('keydown', handleEscape)
-    document.addEventListener('pointerdown', handlePointerDown)
-    return () => {
-      document.removeEventListener('keydown', handleEscape)
-      document.removeEventListener('pointerdown', handlePointerDown)
-    }
-  }, [open, onOpenChange, triggerRef])
-
   if (!open || !box) return null
 
-  return createPortal(
-    <div
-      ref={popoverRef}
-      style={{
-        position: 'fixed',
-        left: box.left,
-        width: box.width,
-        maxHeight: box.maxHeight,
-        ...box.offset,
-      }}
-      className={`${SURFACE_CARD} ${LAYER.popover} flex flex-col`}
-    >
-      <div className={`${TEXT.overline} border-b border-slate-700 px-3 py-2`}>Display columns</div>
-
+  return (
+    <Popover box={box} popoverRef={popoverRef} header="Display columns">
       <div className="min-h-0 flex-1 overflow-y-auto p-1 space-y-1">
         {columns.map((col) => {
           const isRanked = rankedGroup.has(col.key)
@@ -308,7 +213,6 @@ export default function ColumnsPicker({
           )}
         </>
       )}
-    </div>,
-    document.body,
+    </Popover>
   )
 }
