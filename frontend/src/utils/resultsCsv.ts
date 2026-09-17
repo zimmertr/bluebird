@@ -17,6 +17,7 @@ import { ColDef, MODEL_KEY, WILDFIRE_COL, WILDFIRE_KEY } from './tableColumns'
 import type { ModelRow } from './modelCompare'
 import { DATA_SOURCES } from './dataSources'
 import { FireWarning, fireKey } from './fireProximity'
+import type { ResolvedWindow } from './forecastWindow'
 
 /**
  * The leading position column, named rather than numbered.
@@ -36,6 +37,22 @@ const RANK_HEADER = 'Rank'
  * presence is a statement of its own — see buildResultsCsv below.
  */
 const FIRE_HEADER = WILDFIRE_COL.label
+
+/**
+ * The two ends of the analyzed forecast window, on every ranked row (#444).
+ *
+ * Here rather than in metrics.ts because they name no metric: they say WHEN
+ * the numbers beside them apply, which is the one thing the file could not say
+ * before. The filename carries the download time, not the window, so a file
+ * opened later or passed to somebody else described days nothing in it named.
+ *
+ * Two columns repeating one pair of values is the deliberate trade. A footer
+ * line would say it once, but a sort or a filter in a spreadsheet separates a
+ * footer from the data, and a row copied into another sheet would arrive with
+ * no window at all.
+ */
+const WINDOW_START_HEADER = 'Forecast start'
+const WINDOW_END_HEADER = 'Forecast end'
 
 /**
  * Byte-order mark.
@@ -162,6 +179,89 @@ function creditRows(fireColumn: boolean): string[][] {
 }
 
 /**
+ * An instant as local ISO 8601 with its UTC offset, to the minute.
+ *
+ * `2026-09-18T00:00-07:00`. ISO 8601 because a spreadsheet parses it as a date
+ * rather than as text, and the offset because the same wall-clock hour means a
+ * different instant in every zone: a file crosses zones the way it crosses
+ * machines. Seconds are dropped because a window is chosen to the hour and a
+ * point sample is floored to one, so a seconds field could only ever read `:00`
+ * and invite a precision the numbers do not have.
+ *
+ * `timeZone` is injectable so the suite does not pass or fail on the zone the
+ * machine running it is set to; the app leaves it undefined, which is the
+ * reader's own zone and the same clock the window caption on screen is read
+ * against.
+ *
+ * The offset is measured rather than read off a name: the zone's own wall clock
+ * for that instant, minus the instant itself, which is the definition of an
+ * offset and is what makes a DST day come out with two different ones.
+ */
+export function isoLocalMinute(ms: number, timeZone?: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    // h23 rather than hour12:false, which reports midnight as hour 24 on some
+    // engines and would write an hour no ISO 8601 reader accepts.
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(new Date(ms))
+  const at = (type: string) => Number(parts.find((p) => p.type === type)?.value)
+  const [year, month, day, hour, minute] = [
+    at('year'),
+    at('month'),
+    at('day'),
+    at('hour'),
+    at('minute'),
+  ]
+  const wall = Date.UTC(year, month - 1, day, hour, minute, at('second'))
+  // Whole seconds on both sides, or a window carrying milliseconds would push
+  // the offset off a whole minute.
+  const offsetMin = Math.round((wall - Math.floor(ms / 1000) * 1000) / 60_000)
+  const pad = (n: number) => String(Math.abs(n)).padStart(2, '0')
+  const sign = offsetMin < 0 ? '-' : '+'
+  const offset = `${sign}${pad(Math.trunc(offsetMin / 60))}:${pad(offsetMin % 60)}`
+  return `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}${offset}`
+}
+
+/**
+ * Everything beyond the rows, the columns and the fire answer.
+ *
+ * An object rather than four more positional arguments: the call site read
+ * `[], new Set(), 'NOAA GFS'` before the window joined it, which is three
+ * values whose meaning is their position alone and which a fifth would have
+ * made unreadable. The three that carried a default keep it, so a caller that
+ * only has rows and columns still passes nothing.
+ */
+export interface CsvOptions {
+  /**
+   * The window the ranked rows describe, resolved (a point sample is an hour,
+   * never `start === end`), or null before any analysis has committed.
+   */
+  window?: ResolvedWindow | null
+  /**
+   * Destinations awaiting their first analysis. They carry identity columns
+   * only: no rank, no metrics, and no window, because no forecast covers them.
+   */
+  pendingRows?: readonly DestinationResult[]
+  /** Rows the fire check could not reach, by fireKey (#256). */
+  fireUncovered?: ReadonlySet<string>
+  /**
+   * What the Model column reads for a row no comparison tagged: the model the
+   * analysis itself ran. The column can be shown with one model selected, and
+   * an empty cell there would say the row came from nowhere. Pending rows are
+   * deliberately left out of it, having no forecast at all.
+   */
+  modelLabel?: string | null
+  /** The zone the two window columns are written in; the reader's own by default. */
+  timeZone?: string
+}
+
+/**
  * The displayed report as CSV text.
  *
  * `rows` must already be in display order and `columns` must already be the set
@@ -179,22 +279,33 @@ function creditRows(fireColumn: boolean): string[][] {
  *
  * The file ends with the supplier credits behind one blank row; see
  * creditRows above for why they are in the file at all.
+ *
+ * The two window columns come last, after the fire column where that one
+ * stands, so every column a reader already knows keeps the position it had.
  */
 export function buildResultsCsv(
   rows: readonly DestinationResult[],
   columns: readonly ColDef[],
   fireWarnings: ReadonlyMap<string, FireWarning> | null,
-  pendingRows: readonly DestinationResult[] = [],
-  fireUncovered: ReadonlySet<string> = new Set(),
-  // What the Model column reads for a row no comparison tagged: the model the
-  // analysis itself ran. The column can be shown with one model selected, and
-  // an empty cell there would say the row came from nowhere. Pending rows are
-  // deliberately left out of it — they have no forecast at all, so no model
-  // answered them.
-  modelLabel: string | null = null,
+  options: CsvOptions = {},
 ): string {
+  const {
+    window = null,
+    pendingRows = [],
+    fireUncovered = new Set<string>(),
+    modelLabel = null,
+    timeZone,
+  } = options
   const header = [RANK_HEADER, ...columns.map((c) => c.label)]
   if (fireWarnings) header.push(FIRE_HEADER)
+  header.push(WINDOW_START_HEADER, WINDOW_END_HEADER)
+  // The one pair of window cells every ranked row repeats. Empty with no
+  // committed analysis, which is the same state a pending row is in: the
+  // columns still stand, because a header that came and went with the report
+  // would make two files of the same shape disagree about their own columns.
+  const windowCells = window
+    ? [isoLocalMinute(window.startMs, timeZone), isoLocalMinute(window.endMs, timeZone)]
+    : ['', '']
   // Pending rows first with an empty Rank, mirroring the table, which draws
   // un-analyzed destinations above the ranked ones with "—" in the # column.
   // Empty rather than a dash for the same reason null metrics become empty
@@ -202,6 +313,8 @@ export function buildResultsCsv(
   const pendingBody = pendingRows.map((row) => {
     const cells = ['', ...columns.map((c) => cell(row, c))]
     if (fireWarnings) cells.push('')
+    // No forecast covers a pending row, so it names no window either.
+    cells.push('', '')
     return cells
   })
   const body = rows.map((row, i) => {
@@ -211,6 +324,7 @@ export function buildResultsCsv(
     const rank = (row as ModelRow).rank ?? i + 1
     const cells = [String(rank), ...columns.map((c) => cell(row, c, modelLabel))]
     if (fireWarnings) cells.push(fireCell(row, fireWarnings, fireUncovered))
+    cells.push(...windowCells)
     return cells
   })
   const doc = [header, ...pendingBody, ...body, [''], ...creditRows(fireWarnings != null)]

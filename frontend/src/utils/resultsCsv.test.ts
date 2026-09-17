@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildResultsCsv, csvFilename } from './resultsCsv'
+import { buildResultsCsv, csvFilename, isoLocalMinute } from './resultsCsv'
 import { DATA_SOURCES } from './dataSources'
 import { COLUMNS, WILDFIRE_COL, displayedColumns, withModelColumn } from './tableColumns'
 import { FireWarning, fireKey } from './fireProximity'
 import { DestinationResult } from '../types'
+import { archiveBoundaryMs, normalizeWindow, windowSource } from './forecastWindow'
 
 // Inline like the other suites: a full row with every field, so a test can
 // override only the field it is about.
@@ -47,7 +48,18 @@ function cells(line: string): string[] {
   return line.split(',')
 }
 
+/** The cell in a row counted from the right, past the two window columns. */
+function fromRight(line: string, back: number): string {
+  const c = cells(line)
+  return c[c.length - back]
+}
+
 const WINDOW_COLUMNS = displayedColumns(false, 'precip_total_in')
+
+// Every row now ends with the two window columns, so a row is one cell for
+// Rank, one per column, one for the fire answer where it stands, and two more.
+const EXTRA_CELLS = 3
+
 
 describe('the file a spreadsheet opens', () => {
   it('leads with a byte-order mark so Excel reads the headers as UTF-8', () => {
@@ -120,11 +132,13 @@ describe('what the file carries', () => {
       latitude: 47,
       longitude: -121,
     } as DestinationResult
-    const csv = buildResultsCsv([row({ name: 'Ranked' })], WINDOW_COLUMNS, NO_FIRES, [pendingRow])
+    const csv = buildResultsCsv([row({ name: 'Ranked' })], WINDOW_COLUMNS, NO_FIRES, {
+      pendingRows: [pendingRow],
+    })
     const body = lines(csv).slice(1)
     expect(cells(body[0])[0]).toBe('')
     expect(cells(body[0])[1]).toBe('Somewhere New')
-    expect(cells(body[0])).toHaveLength(WINDOW_COLUMNS.length + 2)
+    expect(cells(body[0])).toHaveLength(WINDOW_COLUMNS.length + EXTRA_CELLS + 1)
     expect(cells(body[1])[0]).toBe('1')
     expect(cells(body[1])[1]).toBe('Ranked')
   })
@@ -135,9 +149,9 @@ describe('what the file carries', () => {
     const point = displayedColumns(true, 'precip_total_in')
     const csv = buildResultsCsv([row()], point, NO_FIRES)
     const [header, body] = lines(csv)
-    expect(cells(header)).toHaveLength(point.length + 2)
-    expect(cells(body)).toHaveLength(point.length + 2)
-    expect(cells(header).length).toBeLessThan(WINDOW_COLUMNS.length + 2)
+    expect(cells(header)).toHaveLength(point.length + EXTRA_CELLS + 1)
+    expect(cells(body)).toHaveLength(point.length + EXTRA_CELLS + 1)
+    expect(cells(header).length).toBeLessThan(WINDOW_COLUMNS.length + EXTRA_CELLS + 1)
   })
 })
 
@@ -280,14 +294,14 @@ describe('the wildfire column', () => {
 
   it('reports the distance for a flagged row', () => {
     const csv = buildResultsCsv([row()], WINDOW_COLUMNS, near)
-    expect(lines(csv)[1].endsWith(',5.3')).toBe(true)
+    expect(fromRight(lines(csv)[1], 3)).toBe('5.3')
   })
 
   // Presence in the map IS the threshold: useFireProximity only admits
   // warnings within FIRE_WARN_MILES, so this must not re-test it.
   it('leaves the cell empty for a row the check cleared', () => {
     const csv = buildResultsCsv([row({ latitude: 40, longitude: -120 })], WINDOW_COLUMNS, near)
-    expect(lines(csv)[1].endsWith(',')).toBe(true)
+    expect(fromRight(lines(csv)[1], 3)).toBe('')
   })
 
   // The third state of a fire cell (#256): outside the dataset's US-only
@@ -297,19 +311,19 @@ describe('the wildfire column', () => {
   it('writes N/A for a destination outside the fire coverage', () => {
     const robson = row({ name: 'Mount Robson', latitude: 53.1106, longitude: -119.2317 })
     const uncovered = new Set([fireKey(53.1106, -119.2317)])
-    const csv = buildResultsCsv([row(), robson], WINDOW_COLUMNS, near, [], uncovered)
+    const csv = buildResultsCsv([row(), robson], WINDOW_COLUMNS, near, { fireUncovered: uncovered })
     const body = lines(csv).slice(1, 3)
-    expect(body[0].endsWith(',5.3')).toBe(true)
-    expect(body[1].endsWith(',N/A')).toBe(true)
+    expect(fromRight(body[0], 3)).toBe('5.3')
+    expect(fromRight(body[1], 3)).toBe('N/A')
   })
 
   it('still omits the whole column when the lookup itself never ran', () => {
     const uncovered = new Set([fireKey(53.1106, -119.2317)])
-    const csv = buildResultsCsv([row()], WINDOW_COLUMNS, null, [], uncovered)
+    const csv = buildResultsCsv([row()], WINDOW_COLUMNS, null, { fireUncovered: uncovered })
     // The row ends where the metric columns end, so no cell carries the fire
     // check's answer at all. Counted rather than searched for the mark, which
     // the freezing-level columns write for a reason of their own.
-    expect(cells(lines(csv)[1])).toHaveLength(WINDOW_COLUMNS.length + 1)
+    expect(cells(lines(csv)[1])).toHaveLength(WINDOW_COLUMNS.length + EXTRA_CELLS)
     expect(cells(lines(csv)[0])).not.toContain(WILDFIRE_COL.label)
   })
 
@@ -317,7 +331,7 @@ describe('the wildfire column', () => {
   // cannot name the column differently.
   it('keeps the column when the check ran and found nothing', () => {
     const header = cells(lines(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES))[0])
-    expect(header[header.length - 1]).toBe(WILDFIRE_COL.label)
+    expect(header[header.length - 3]).toBe(WILDFIRE_COL.label)
     expect(WILDFIRE_COL.label).toBe('Wildfire (mi)')
   })
 
@@ -328,7 +342,7 @@ describe('the wildfire column', () => {
     it('leaves the column out of the header entirely', () => {
       const header = cells(lines(buildResultsCsv([row()], WINDOW_COLUMNS, null))[0])
       expect(header).not.toContain(WILDFIRE_COL.label)
-      expect(header[header.length - 1]).toBe(WINDOW_COLUMNS[WINDOW_COLUMNS.length - 1].label)
+      expect(header[header.length - 3]).toBe(WINDOW_COLUMNS[WINDOW_COLUMNS.length - 1].label)
     })
 
     it('gives every row one fewer cell, so nothing reads as an empty distance', () => {
@@ -336,7 +350,10 @@ describe('the wildfire column', () => {
       const without = lines(buildResultsCsv([row()], WINDOW_COLUMNS, null))
       expect(cells(without[0])).toHaveLength(cells(withCheck[0]).length - 1)
       expect(cells(without[1])).toHaveLength(cells(withCheck[1]).length - 1)
-      expect(without[1].endsWith(',')).toBe(false)
+      // The third cell from the right is the fire distance in the file that
+      // carries the column, and the last metric column in the one that does
+      // not: the column is gone rather than blank.
+      expect(fromRight(without[1], 3)).toBe(fromRight(withCheck[1], 4))
     })
 
     it('changes nothing else about the file', () => {
@@ -445,22 +462,211 @@ describe('a comparison in the file', () => {
   // The column is in the Columns picker, so a reader can show it on a report
   // with no comparison at all. Then every row came from the analysis model.
   it('falls back to the analysis model for rows no comparison tagged', () => {
-    const csv = buildResultsCsv([row()], MODEL_COLUMNS, NO_FIRES, [], new Set(), 'NOAA GFS')
+    const csv = buildResultsCsv([row()], MODEL_COLUMNS, NO_FIRES, { modelLabel: 'NOAA GFS' })
     const at = ['Rank', ...MODEL_COLUMNS.map((c) => c.label)].indexOf('Model')
     expect(cells(lines(csv)[1])[at]).toBe('NOAA GFS')
   })
 
   // A pending row has no forecast at all, so no model answered it.
   it('leaves the model blank on a row awaiting its first analysis', () => {
-    const csv = buildResultsCsv(
-      [],
-      MODEL_COLUMNS,
-      NO_FIRES,
-      [row({ name: 'Camp Muir' })],
-      new Set(),
-      'NOAA GFS',
-    )
+    const csv = buildResultsCsv([], MODEL_COLUMNS, NO_FIRES, {
+      pendingRows: [row({ name: 'Camp Muir' })],
+      modelLabel: 'NOAA GFS',
+    })
     const at = ['Rank', ...MODEL_COLUMNS.map((c) => c.label)].indexOf('Model')
     expect(cells(lines(csv)[1])[at]).toBe('')
+  })
+})
+
+// The file is read detached from the app, where the filename carries the
+// DOWNLOAD time and nothing else says which days the numbers describe (#444).
+// Every zone here is injected, so the suite reads the same on any machine, and
+// every date is a fixed past one: this module validates no horizon, so a date
+// in it can never fall out of one.
+describe('the forecast window in the file', () => {
+  const LA = 'America/Los_Angeles'
+  const NPT = 'Asia/Kathmandu'
+  // 2026-09-18 00:00 to 2026-09-21 23:59 in Los Angeles, the window the screen
+  // captions as "Fri, Sep 18 to Mon, Sep 21".
+  const WHOLE_DAYS = {
+    startMs: Date.UTC(2026, 8, 18, 7, 0),
+    endMs: Date.UTC(2026, 8, 22, 6, 59),
+  }
+
+  describe('isoLocalMinute', () => {
+    it('writes the local wall clock with its UTC offset, to the minute', () => {
+      expect(isoLocalMinute(WHOLE_DAYS.startMs, LA)).toBe('2026-09-18T00:00-07:00')
+      expect(isoLocalMinute(WHOLE_DAYS.endMs, LA)).toBe('2026-09-21T23:59-07:00')
+    })
+
+    // A spreadsheet reads a seconds field as precision the window does not
+    // have: a window is chosen to the hour and a point sample is floored to
+    // one, so the field could only ever read ":00".
+    it('carries no seconds and no Z', () => {
+      expect(isoLocalMinute(WHOLE_DAYS.startMs, LA)).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}[-+]\d{2}:\d{2}$/,
+      )
+      expect(isoLocalMinute(WHOLE_DAYS.startMs, LA)).not.toContain('Z')
+    })
+
+    it('writes a positive offset for a zone east of Greenwich', () => {
+      expect(isoLocalMinute(Date.UTC(2026, 0, 5, 12, 0), 'Europe/Berlin')).toBe(
+        '2026-01-05T13:00+01:00',
+      )
+    })
+
+    // Three quarters of an hour east of UTC. An offset written in whole hours
+    // would put every Nepali row 45 minutes out.
+    it('writes an offset that is not a whole number of hours', () => {
+      expect(isoLocalMinute(Date.UTC(2026, 0, 5, 0, 0), NPT)).toBe('2026-01-05T05:45+05:45')
+    })
+
+    it('writes UTC itself as +00:00', () => {
+      expect(isoLocalMinute(Date.UTC(2026, 0, 5, 12, 0), 'UTC')).toBe('2026-01-05T12:00+00:00')
+    })
+
+    // The offset is measured from the zone's own clock for that instant rather
+    // than read off a zone name, which is what lets one day carry two of them.
+    it('follows a zone across its own daylight-saving change', () => {
+      // 2026-11-01, the Sunday the United States moves back to standard time.
+      expect(isoLocalMinute(Date.UTC(2026, 10, 1, 7, 0), LA)).toBe('2026-11-01T00:00-07:00')
+      expect(isoLocalMinute(Date.UTC(2026, 10, 2, 7, 59), LA)).toBe('2026-11-01T23:59-08:00')
+      // And the Sunday in March it moves forward: 02:00 does not exist there,
+      // so the hour after 01:59 is 03:00.
+      expect(isoLocalMinute(Date.UTC(2026, 2, 8, 9, 59), LA)).toBe('2026-03-08T01:59-08:00')
+      expect(isoLocalMinute(Date.UTC(2026, 2, 8, 10, 0), LA)).toBe('2026-03-08T03:00-07:00')
+    })
+
+    it('writes midnight as hour 00, never hour 24', () => {
+      expect(isoLocalMinute(Date.UTC(2026, 8, 18, 7, 0), LA)).toContain('T00:00')
+    })
+  })
+
+  describe('the two columns', () => {
+    it('stand last in the header, after the wildfire column', () => {
+      const header = cells(
+        lines(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES, { window: WHOLE_DAYS }))[0],
+      )
+      expect(header.slice(-3)).toEqual([WILDFIRE_COL.label, 'Forecast start', 'Forecast end'])
+    })
+
+    // The wildfire column leaves the file entirely when the check could not
+    // answer. The window columns stay where they are, one place to the left.
+    it('stand last in the header where the wildfire column is dropped', () => {
+      const header = cells(
+        lines(buildResultsCsv([row()], WINDOW_COLUMNS, null, { window: WHOLE_DAYS }))[0],
+      )
+      expect(header.slice(-2)).toEqual(['Forecast start', 'Forecast end'])
+      expect(header).not.toContain(WILDFIRE_COL.label)
+      expect(header[header.length - 3]).toBe(WINDOW_COLUMNS[WINDOW_COLUMNS.length - 1].label)
+    })
+
+    it('carry the window on every ranked row', () => {
+      const csv = buildResultsCsv(
+        [row({ name: 'First' }), row({ name: 'Second' })],
+        WINDOW_COLUMNS,
+        NO_FIRES,
+        { window: WHOLE_DAYS, timeZone: LA },
+      )
+      for (const line of lines(csv).slice(1, 3)) {
+        expect(cells(line).slice(-2)).toEqual(['2026-09-18T00:00-07:00', '2026-09-21T23:59-07:00'])
+      }
+    })
+
+    it('carry a window narrowed to part of a day', () => {
+      const csv = buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES, {
+        // 06:00 to 18:00 in Los Angeles on 2026-09-18.
+        window: { startMs: Date.UTC(2026, 8, 18, 13, 0), endMs: Date.UTC(2026, 8, 19, 1, 0) },
+        timeZone: LA,
+      })
+      expect(cells(lines(csv)[1]).slice(-2)).toEqual([
+        '2026-09-18T06:00-07:00',
+        '2026-09-18T18:00-07:00',
+      ])
+    })
+
+    // A Current analysis is recorded as `start === end`, which describes no
+    // span at all. App resolves it through normalizeWindow first, so the file
+    // names the hour that was sampled rather than an empty or zero-width one.
+    it('names the sampled hour for a Current analysis', () => {
+      const sampled = Date.UTC(2026, 8, 18, 16, 37, 12)
+      const csv = buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES, {
+        window: normalizeWindow(sampled, sampled),
+        timeZone: LA,
+      })
+      const [start, end] = cells(lines(csv)[1]).slice(-2)
+      expect(start).toBe('2026-09-18T09:00-07:00')
+      expect(end).toBe('2026-09-18T09:01-07:00')
+      expect(start).not.toBe(end)
+    })
+
+    it('carries both ends of a day that changes its own offset', () => {
+      const csv = buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES, {
+        window: { startMs: Date.UTC(2026, 10, 1, 7, 0), endMs: Date.UTC(2026, 10, 2, 7, 59) },
+        timeZone: LA,
+      })
+      expect(cells(lines(csv)[1]).slice(-2)).toEqual([
+        '2026-11-01T00:00-07:00',
+        '2026-11-01T23:59-08:00',
+      ])
+    })
+
+    // A window older than PAST_DATA_DAYS is answered by the archive and a
+    // newer one by the forecast endpoint (#123). One that crosses the seam is
+    // served by both, and the file states the whole of it as one window, which
+    // is what the reader asked for.
+    it('carries a window that crosses the archive boundary', () => {
+      const nowMs = Date.UTC(2026, 8, 16, 12, 0)
+      const boundary = archiveBoundaryMs(nowMs)
+      const window = { startMs: boundary - 2 * 86_400_000, endMs: boundary + 2 * 86_400_000 }
+      expect(windowSource(window.startMs, window.endMs, nowMs)).toBe('spanning')
+
+      const csv = buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES, { window, timeZone: LA })
+      const [start, end] = cells(lines(csv)[1]).slice(-2)
+      expect(start).toBe(isoLocalMinute(window.startMs, LA))
+      expect(end).toBe(isoLocalMinute(window.endMs, LA))
+      expect(start < end).toBe(true)
+    })
+
+    // No forecast covers a pending row, so it names no window either. Blank
+    // rather than the ranked rows' window, which would claim a forecast the
+    // row has not had.
+    it('leaves both cells empty on a pending row', () => {
+      const csv = buildResultsCsv([row({ name: 'Ranked' })], WINDOW_COLUMNS, NO_FIRES, {
+        window: WHOLE_DAYS,
+        timeZone: LA,
+        pendingRows: [row({ name: 'Camp Muir' })],
+      })
+      const [pendingLine, rankedLine] = lines(csv).slice(1, 3)
+      expect(cells(pendingLine)[1]).toBe('Camp Muir')
+      expect(cells(pendingLine).slice(-2)).toEqual(['', ''])
+      expect(cells(rankedLine).slice(-2)).toEqual([
+        '2026-09-18T00:00-07:00',
+        '2026-09-21T23:59-07:00',
+      ])
+    })
+
+    // Before the first analysis the file is pending rows alone. The columns
+    // still stand: a header that came and went with the report would make two
+    // files of the same shape disagree about their own columns.
+    it('keeps the columns with no analysis behind the file', () => {
+      const csv = buildResultsCsv([], WINDOW_COLUMNS, null, {
+        pendingRows: [row({ name: 'Camp Muir' })],
+      })
+      expect(cells(lines(csv)[0]).slice(-2)).toEqual(['Forecast start', 'Forecast end'])
+      expect(cells(lines(csv)[1]).slice(-2)).toEqual(['', ''])
+    })
+
+    // ISO 8601 is what a spreadsheet parses as a date, so the cell must reach
+    // it unquoted and with nothing prefixed.
+    it('needs no quoting and carries no formula guard', () => {
+      const csv = buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES, {
+        window: WHOLE_DAYS,
+        timeZone: LA,
+      })
+      expect(csv).toContain(',2026-09-18T00:00-07:00,2026-09-21T23:59-07:00')
+      expect(csv).not.toContain('"2026-09-18')
+      expect(csv).not.toContain("'2026-09-18")
+    })
   })
 })
