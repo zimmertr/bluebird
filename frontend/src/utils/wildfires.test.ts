@@ -37,10 +37,12 @@ describe('wildfireQueryUrl', () => {
 })
 
 describe('COARSE_TOLERANCE_DEG', () => {
-  it('matches COARSE_OFFSET_DEG in backend/app/services/nifc.py', () => {
-    // A mirrored pair. If the backend simplifies more aggressively than this
-    // says, the map silently asks for the coarse copy at zooms where the
-    // simplification is visible.
+  it('is the value the map was measured against', () => {
+    // Half of a mirrored pair: if the backend simplifies more aggressively
+    // than this says, the map silently asks for the coarse copy at zooms where
+    // the simplification is visible. The pair itself is checked in
+    // `mirroredConstants.test.ts`, against the backend's own committed value;
+    // this one only pins the number the measurements above were taken at.
     expect(COARSE_TOLERANCE_DEG).toBe(0.0005)
   })
 })
