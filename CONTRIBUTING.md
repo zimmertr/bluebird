@@ -12,4 +12,4 @@ If you send a change:
 - The page in `docs/` that owns the topic changes in the same PR. The table in `CLAUDE.md` says which page owns what.
 - Frontend styling composes the roles in `frontend/src/styles.ts`. No component names its own color.
 - A change to a route or a Pydantic model regenerates `backend/openapi.json` (`cd backend && python scripts/generate_openapi.py`) and the frontend types read off it (`cd frontend && npm run generate:api`). CI fails the PR otherwise.
-- A new source file under `frontend/src` or `backend/app` gets a line in the matching layout list in `CLAUDE.md`, saying what it owns and why it is separate.
+- A new source file under `frontend/src` or `backend/app` gets a line in the layout list beside it — `frontend/src/CLAUDE.md` or `backend/CLAUDE.md` — saying what it owns and why it is separate.
