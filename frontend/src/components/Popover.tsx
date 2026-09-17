@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import type { PopoverBox } from '../utils/listbox'
-import { LAYER, SURFACE_CARD, TEXT } from '../styles'
+import { LAYER, SURFACE_CARD, SURFACE_DIVIDER, TEXT } from '../styles'
 
 interface Props {
   /** Where the panel goes, from `usePopover`. */
@@ -42,7 +42,7 @@ export default function Popover({ box, popoverRef, header, children }: Props) {
       className={`${SURFACE_CARD} ${LAYER.popover} flex flex-col`}
     >
       {header !== undefined && (
-        <div className={`${TEXT.overline} border-b border-slate-700 px-3 py-2`}>{header}</div>
+        <div className={`${TEXT.overline} border-b ${SURFACE_DIVIDER} px-3 py-2`}>{header}</div>
       )}
       {children}
     </div>,

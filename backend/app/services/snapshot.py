@@ -17,6 +17,11 @@ The only state that means "we cannot answer" is having never fetched at all.
 Aging out therefore blocks nobody: an aged snapshot is served immediately and
 refreshed *behind* the request. Only a cache that has never been filled makes a
 caller wait, or fail.
+
+The cache is not all the two overlays share. Each wires the cache to its own
+upstream the same way, and each route answers a cold cache with the same 503,
+so those live here too rather than as a pair of copies that can drift into two
+different answers to the same question (issue #388).
 """
 
 from __future__ import annotations
@@ -26,9 +31,16 @@ import logging
 import time
 from collections.abc import Awaitable, Callable
 
-from app.services.errors import UpstreamError
+from app.error_codes import ApiError, ErrorCode
+from app.services.errors import UpstreamError, classify_http_error
 
 log = logging.getLogger(__name__)
+
+
+# What a caller is asked to wait when the failure itself names no interval.
+# Matches the failure backoff both overlays configure, so a retry lands about
+# when the next refresh is allowed rather than before it.
+DEFAULT_RETRY_AFTER_S = 60
 
 
 class SnapshotCache[T]:
@@ -62,6 +74,11 @@ class SnapshotCache[T]:
         self._refresh_task: asyncio.Task[None] | None = None
         self._last_error: Exception | None = None
         self.refreshes = 0
+
+    @property
+    def label(self) -> str:
+        """The upstream this cache speaks for, as a person reads it."""
+        return self._label
 
     @property
     def snapshot_or_none(self) -> T | None:
@@ -152,3 +169,73 @@ class SnapshotCache[T]:
         self._snapshot = None
         self._fresh_until = 0.0
         self._last_error = None
+
+
+def cache_factory[T](
+    *,
+    label: str,
+    fetch: Callable[[], Awaitable[T]],
+    ttl_s: float,
+    retry_after_failure_s: float,
+    describe: Callable[[T], str],
+) -> Callable[..., SnapshotCache[T]]:
+    """One overlay's own cache factory, wired to its upstream and its knobs.
+
+    A factory rather than a subclass, because nothing about the caching is any
+    one overlay's: the singleflight, the serve-stale-and-refresh-behind, and
+    the failure backoff are this module's. What a caller owns is which upstream
+    it calls, what a successful refresh is worth saying in a pod's log, and its
+    own defaults.
+
+    The built callable takes every knob again, which is what lets a test swap
+    the fetch, the clock or the TTL without restating the wiring. Its defaults
+    are the wired values: a default expression is read in this scope, so the
+    names below the ``def`` are the caller's arguments and the names to the
+    right of the ``=`` are the ones passed here.
+    """
+
+    def build(
+        *,
+        ttl_s: float = ttl_s,
+        retry_after_failure_s: float = retry_after_failure_s,
+        clock: Callable[[], float] = time.monotonic,
+        fetch: Callable[[], Awaitable[T]] = fetch,
+    ) -> SnapshotCache[T]:
+        return SnapshotCache(
+            label=label,
+            fetch=fetch,
+            ttl_s=ttl_s,
+            retry_after_failure_s=retry_after_failure_s,
+            describe=describe,
+            clock=clock,
+        )
+
+    return build
+
+
+def unavailable_message(exc: Exception, provider: str) -> str:
+    """The user-facing sentence for a cold-start failure."""
+    if isinstance(exc, UpstreamError):
+        return exc.message
+    return classify_http_error(exc, provider)
+
+
+async def snapshot_or_503[T](cache: SnapshotCache[T], *, event: str) -> T:
+    """The snapshot to answer with, or the 503 that says why there is none.
+
+    Every failure that reaches here means the cache holds nothing at all, stale
+    or otherwise: once one fetch has landed, :meth:`SnapshotCache.get` serves
+    it rather than raising. ``event`` is the token a pod's logs are searched
+    by, and is the only part of this an overlay still owns.
+    """
+    try:
+        return await cache.get()
+    except Exception as exc:
+        retry_after = getattr(exc, "retry_after_s", DEFAULT_RETRY_AFTER_S)
+        log.warning("event=%s error=%s", event, exc)
+        raise ApiError(
+            status_code=503,
+            detail=unavailable_message(exc, cache.label),
+            code=ErrorCode.snapshot_unavailable,
+            headers={"Retry-After": str(retry_after)},
+        ) from exc

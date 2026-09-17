@@ -76,6 +76,7 @@ import {
   MAP_COL_W,
   MAP_EDGE,
   MAP_ROW_H,
+  MUTED,
   PROSE,
   RADIUS,
   LIFTED_EDGE,
@@ -93,6 +94,7 @@ import {
   SEGMENT_ITEM,
   SR_ONLY,
   SURFACE_CARD,
+  SURFACE_DIVIDER,
   SURFACE_FLOATING,
   SURFACE_POPOVER,
   SURFACE_SHEET,
@@ -154,6 +156,7 @@ import {
   pendingAsResult,
   pendingDestinations,
 } from './utils/customList'
+import { bboxAreaKm2, ringToPts } from './utils/drawGeometry'
 import { geoKey } from './utils/points'
 import {
   bothFits,
@@ -410,11 +413,18 @@ export default function App() {
   // be clickable at all (#119).
   const [drawing, setDrawing] = useState(false)
   // A restored polygon seeds the count so Analyze unlocks before the map loads
-  // (MapView re-emits the authoritative count+area once its points hydrate).
+  // (MapView re-emits the authoritative count once its points hydrate).
   const [drawPointCount, setDrawPointCount] = useState(
     () => Math.max(0, (restored?.polygon?.coordinates[0]?.length ?? 1) - 1),
   )
-  const [polygonAreaKm2, setPolygonAreaKm2] = useState<number | null>(null)
+  // Read off the ring rather than reported by the map, because the map can only
+  // report an area once it has loaded: a ring restored from a link printed its
+  // point count beside a blank area line until the reader edited it (#429). A
+  // derived value cannot lag the ring it describes.
+  const polygonAreaKm2 = useMemo(
+    () => (polygon ? bboxAreaKm2(ringToPts(polygon)) : null),
+    [polygon],
+  )
   // Which kinds the polygon looks for, as a set — several are found in one
   // Overpass query. Nothing is checked by default: discovery is the input
   // that needs a polygon and costs an upstream query, so a fresh session
@@ -1096,15 +1106,14 @@ export default function App() {
   const windowWarning =
     selection.kind === 'now' || windowStatus === 'ok' ? null : windowStatus
 
-  const handleDrawUpdate = useCallback((count: number, areaKm2: number | null) => {
+  const handleDrawUpdate = useCallback((count: number) => {
     setDrawPointCount(count)
-    setPolygonAreaKm2(areaKm2)
   }, [])
 
   function handleCancelDrawing() {
     mapRef.current?.cancelDrawing()
     setDrawing(false)
-    // cancelDrawing fires onDrawUpdate(0, null) to reset counts
+    // cancelDrawing fires onDrawUpdate(0) to reset the count
   }
 
   // Enter and Escape both leave draw mode. Neither discards anything: every
@@ -2370,7 +2379,7 @@ export default function App() {
           When closed it stays absolute + translated off-screen so it leaves the
           layout and the map fills the full width on every breakpoint. */}
       <aside
-        className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[calc(100vw-2rem)] max-w-90 transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r border-slate-700 ${
+        className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[calc(100vw-2rem)] max-w-90 transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r ${SURFACE_DIVIDER} ${
           sidebarOpen
             ? 'translate-x-0 lg:static lg:z-10 lg:w-90 lg:max-w-none lg:transition-none'
             : '-translate-x-full'
@@ -3298,10 +3307,10 @@ export default function App() {
                                     className={`${TEXT.control} ${FOCUS_RING} inline-flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pl-2 pr-1`}
                                   >
                                     <span
-                                      className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : 'opacity-40'}`}
+                                      className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : MUTED}`}
                                       style={{ backgroundColor: chart.colorFor(row) }}
                                     />
-                                    <span className={`truncate ${plotted ? '' : 'opacity-50'}`}>
+                                    <span className={`truncate ${plotted ? '' : MUTED}`}>
                                       {row.name}
                                     </span>
                                   </button>

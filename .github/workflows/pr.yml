@@ -156,11 +156,17 @@ jobs:
           ignore-unfixed: true
           trivy-config: trivy.yaml
 
+      - name: Count Critical/High vulnerabilities
+        id: crit
+        uses: ./.github/actions/trivy-crit-high
+        with:
+          report: trivy.json
+
       - name: Render scan report
         env:
           PR_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CRIT_HIGH: ${{ steps.crit.outputs.count }}
         run: |
-          CRIT_HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL" or .Severity == "HIGH")] | length' trivy.json)
           TOTAL=$(jq '[.Results[]?.Vulnerabilities[]?] | length' trivy.json)
           {
             echo "<!-- bluebird-image-scan -->"
@@ -187,8 +193,6 @@ jobs:
             echo "_Updated for each push; unfixable OS CVEs are excluded._"
           } > scan-comment.md
           cat scan-comment.md >> "$GITHUB_STEP_SUMMARY"
-          echo "crit_high=$CRIT_HIGH" >> "$GITHUB_OUTPUT"
-        id: report
 
       # Sticky like the preview-URL comment, but matched by the hidden marker
       # instead of `--edit-last` — both comments come from github-actions[bot],
@@ -255,7 +259,7 @@ jobs:
       # The actual gate, after the comment so a red run still explains itself
       - name: Fail on fixable Critical/High vulnerabilities
         env:
-          CRIT_HIGH: ${{ steps.report.outputs.crit_high }}
+          CRIT_HIGH: ${{ steps.crit.outputs.count }}
         run: |
           if [ "$CRIT_HIGH" -gt 0 ]; then
             echo "::error::${CRIT_HIGH} fixable Critical/High vulnerabilities in the image. See the scan report above."

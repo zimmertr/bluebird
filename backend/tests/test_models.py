@@ -15,6 +15,7 @@ from app.models import (
     AnalyzeRequest,
     CustomDestination,
     DestinationResult,
+    DestinationsRequest,
     DestinationType,
     GeoPolygon,
     SortBy,
@@ -271,6 +272,25 @@ def test_analyze_request_caps_custom_destination_list():
         _valid_request(custom_destinations=rows)
     # Exactly at the cap is allowed at the model layer.
     _valid_request(custom_destinations=rows[:MAX_ANALYZE_PEAKS])
+
+
+def test_the_two_discovery_requests_keep_their_own_wording():
+    """`_DiscoveryFields` shares the checks, not the sentences (issue #388).
+
+    Both endpoints validate a caller's list the same way and say different
+    things about it, because one analyzes the list and the other resolves it.
+    Both sentences are approved copy, so a shared validator that reworded
+    either would be a copy change nobody asked for.
+    """
+    rows = [{"name": f"P{i}", "latitude": 1.0, "longitude": 2.0} for i in range(MAX_ANALYZE_PEAKS + 1)]
+    with pytest.raises(ValidationError, match="to analyze a caller-supplied list"):
+        _valid_request(destination_types=[DestinationType.custom])
+    with pytest.raises(ValidationError, match="to resolve a caller-supplied list"):
+        DestinationsRequest(destination_types=[DestinationType.custom])
+    with pytest.raises(ValidationError, match="split it into multiple analyses"):
+        _valid_request(custom_destinations=rows)
+    with pytest.raises(ValidationError, match="split it into multiple requests"):
+        DestinationsRequest(custom_destinations=rows)
 
 
 # ── window_source (issue #123) ─────────────────────────────────────────────
