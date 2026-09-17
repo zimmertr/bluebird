@@ -2744,6 +2744,57 @@ export default function App() {
               {(showSmoke || showRadar || showSnow || showWildfires || gridPainted || gridCued || gridFailed) && (
                 <div className={`${SURFACE_FLOATING} ${MAP_COL_W} px-2.5 py-2`}>
                   <div className="flex flex-col gap-1">
+                    {(gridPainted || gridCued || gridFailed) && (
+                      // No swatch: the grid's colours are the metric key below,
+                      // which the markers share. What this row adds is the one
+                      // thing that IS the grid's own — how far apart the
+                      // samples are, or why it is not there yet. Every state
+                      // right-justifies its value like every other row, statuses
+                      // included: one row breaking the column reads as a fault
+                      // rather than as a distinction.
+                      <div className="flex items-center justify-between gap-2 whitespace-nowrap">
+                        <span className={TEXT.control}>{gridLegend.label}</span>
+                        {/* Colored by state (TJ, 2026-08-21): amber while the
+                            grid is waiting or loading so a stall catches the
+                            eye, red when it failed, and the accent once the
+                            pitch is real. The size is the colorless
+                            CONTROL_SIZE because a color beside TEXT.control's
+                            own would resolve by stylesheet order. */}
+                        <span
+                          className={`${CONTROL_SIZE} ${
+                            gridLegend.kind === 'pitch'
+                              ? ACCENT.text
+                              : gridLegend.kind === 'error'
+                                ? STATUS.error
+                                : STATUS.warn
+                          } flex-shrink-0`}
+                        >
+                          {gridLegend.value}
+                        </span>
+                      </div>
+                    )}
+                    {showRadar && (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={TEXT.control}>
+                          Rain radar (
+                          <a href={IEM_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
+                            IEM
+                          </a>
+                          )
+                        </span>
+                        {/* A gradient rather than banded swatches: NEXRAD's own
+                            reflectivity ramp is continuous, and a legend that
+                            invented boundaries would assert thresholds
+                            Bluebird Forecast does not know. */}
+                        <span
+                          className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
+                          style={{
+                            backgroundImage: 'linear-gradient(90deg,#1c8a3c,#40b450,#e7c000,#eb7814)',
+                            borderColor: '#475569',
+                          }}
+                        />
+                      </div>
+                    )}
                     {showSmoke && (
                       <div className="flex items-center justify-between gap-2">
                         <span className={TEXT.control}>
@@ -2774,28 +2825,6 @@ export default function App() {
                             </span>
                           ))}
                         </span>
-                      </div>
-                    )}
-                    {showRadar && (
-                      <div className="flex items-center justify-between gap-2">
-                        <span className={TEXT.control}>
-                          Rain radar (
-                          <a href={IEM_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
-                            IEM
-                          </a>
-                          )
-                        </span>
-                        {/* A gradient rather than banded swatches: NEXRAD's own
-                            reflectivity ramp is continuous, and a legend that
-                            invented boundaries would assert thresholds
-                            Bluebird Forecast does not know. */}
-                        <span
-                          className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
-                          style={{
-                            backgroundImage: 'linear-gradient(90deg,#1c8a3c,#40b450,#e7c000,#eb7814)',
-                            borderColor: '#475569',
-                          }}
-                        />
                       </div>
                     )}
                     {showSnow && (
@@ -2881,35 +2910,6 @@ export default function App() {
                           className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
                           style={{ backgroundColor: 'rgba(220,38,38,0.35)', borderColor: '#b91c1c' }}
                         />
-                      </div>
-                    )}
-                    {(gridPainted || gridCued || gridFailed) && (
-                      // No swatch: the grid's colours are the metric key below,
-                      // which the markers share. What this row adds is the one
-                      // thing that IS the grid's own — how far apart the
-                      // samples are, or why it is not there yet. Every state
-                      // right-justifies its value like every other row, statuses
-                      // included: one row breaking the column reads as a fault
-                      // rather than as a distinction.
-                      <div className="flex items-center justify-between gap-2 whitespace-nowrap">
-                        <span className={TEXT.control}>{gridLegend.label}</span>
-                        {/* Colored by state (TJ, 2026-08-21): amber while the
-                            grid is waiting or loading so a stall catches the
-                            eye, red when it failed, and the accent once the
-                            pitch is real. The size is the colorless
-                            CONTROL_SIZE because a color beside TEXT.control's
-                            own would resolve by stylesheet order. */}
-                        <span
-                          className={`${CONTROL_SIZE} ${
-                            gridLegend.kind === 'pitch'
-                              ? ACCENT.text
-                              : gridLegend.kind === 'error'
-                                ? STATUS.error
-                                : STATUS.warn
-                          } flex-shrink-0`}
-                        >
-                          {gridLegend.value}
-                        </span>
                       </div>
                     )}
                   </div>

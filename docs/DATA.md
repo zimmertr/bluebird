@@ -543,6 +543,16 @@ does not. The bands are NOAA's own, in inches, and so are the colours: the map
 draws NOAA's rendered image, so the legend has to be a key to that image rather
 than to a palette of this app's own.
 
+**Over a glacier the top band is ice, not this season's snow.** The service
+holds the depth in meters and the legend classifies it in inches. The analysis
+does not melt permanent snow and ice out, so the depth there increases year
+over year. Measured on 2026-09-17 with the service's `identify` endpoint: the
+summit of Mount Rainier holds 68.62 m and its northeast flank 45.34 m, both
+far above the top band's 787 in, while a point on the Winthrop Glacier holds
+6.45 m (254 in, the `197 - 295` band) and Paradise and Sunrise hold 0. That is
+why a glaciated summit paints the top band in September. The depth over
+permanent snow and ice is not a number to plan on.
+
 ## The forecast grid
 
 The forecast grid overlay paints the ranked metric across the area an analysis

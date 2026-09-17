@@ -1790,6 +1790,51 @@ describe('the map layer rows', () => {
   })
 })
 
+// The map's layer legend: the same list as the popover above it, so the same
+// order. A reader who has just found a row in one looks for it in the same
+// place in the other.
+describe('the map legend sections', () => {
+  // Scoped to the one box that gains and loses sections as layers toggle. The
+  // metric colour key below it is no part of this: it is not a layer, it
+  // explains the marker colours, and those exist with every layer off.
+  const box = (() => {
+    const from = appSource.indexOf('One row per layer:')
+    const to = appSource.indexOf('{markerScale !== null &&')
+    return from >= 0 && to > from ? appSource.slice(from, to) : ''
+  })()
+
+  // Each section by the text it renders, under the name the Layers popover
+  // gives its layer, in the order the sections must appear. The rendered text
+  // says who the DATA came from rather than what the layer is called, which is
+  // why the order is the layer's own name and not the credit line's first
+  // word: "Active wildfire (NIFC)" is the Wildfires row's key and sorts last
+  // with it, not first under A.
+  const SECTIONS: [string, string][] = [
+    ['Forecast grid', '{gridLegend.label}'],
+    ['Rain radar', 'Rain radar ('],
+    ['Smoke', 'Smoke ('],
+    ['Snow depth', 'Snow depth ('],
+    ['Wildfires', 'Active wildfire ('],
+  ]
+
+  it('found every section', () => {
+    expect(box).not.toBe('')
+    for (const [label, mark] of SECTIONS) {
+      expect(box.split(mark).length - 1, `${label} section`).toBe(1)
+    }
+  })
+
+  // Alphabetical, for the reason the popover's own rows are: nothing ranks
+  // these five against each other, so any other order is one the reader has to
+  // learn — and learning it twice, once per surface, is worse still.
+  it('reads in alphabetical order, the way the Layers popover does', () => {
+    const labels = SECTIONS.map(([label]) => label)
+    expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)))
+    const at = SECTIONS.map(([, mark]) => box.indexOf(mark))
+    expect(at).toEqual([...at].sort((a, b) => a - b))
+  })
+})
+
 // The snow depth overlay's legend key (#446): the one key in the stack that is
 // a scale rather than a single value.
 describe('the snow legend ramp', () => {
