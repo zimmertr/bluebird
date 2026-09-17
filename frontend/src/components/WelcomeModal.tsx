@@ -17,9 +17,12 @@ interface Props {
 
 // Five steps walking the panel top to bottom, then the Analyze button and what
 // comes after. Step three covers the whole Metrics table in one breath, the
-// ranking and the bounds alike — a step per question would push the dialog past
-// its no-scroll budget (measured in STYLES.md). Every step is named for the
-// panel section it describes, so a renamed section renames its step.
+// ranking and the bounds alike, because there is no no-scroll budget left to
+// spend: the card is taller than the window it opens in at a desktop width and
+// at a phone width alike, measured in docs/STYLES.md under "Welcome dialog
+// height". A step per question lengthens a card the reader already scrolls.
+// Every step is named for the panel section it describes, so a renamed section
+// renames its step.
 const STEPS: [string, string][] = [
   ['Destinations', 'Search by name, draw a polygon, click the map, or paste coordinates. Each method finds what you want in its own way; they all work together.'],
   ['Forecast', 'Pick a weather model, then choose a day and time window. The calendar updates as the model changes, since different models reach different distances ahead.'],

@@ -364,6 +364,18 @@ Nothing is drawn between the section's two blocks. `METRIC_HEAD_GAP` is the whol
 
 **Arithmetic:** `327 − 14 (radio) − 10 (label gap) − 3 × 6 (grid gaps) − 72 − 2 × 56 = 101px` for the label. The noun's measured width is pinned beside that sum in `styles.test.ts`; re-measure before moving a width, the gap, or the nouns.
 
+### Welcome dialog height
+
+The welcome dialog is a `max-w-md` card on a `p-4` backdrop, so it is 448px wide at a desktop width and 328px wide on a 360px phone, where the copy wraps further. Measured 2026-09-16 in Chrome 153 on macOS, against the built bundle.
+
+- The card's content column is **821px** tall at 448px wide and **1029px** tall at 328px wide
+- The backdrop's padding and the card's border take 34px of the window, so a card that does not scroll needs **855px** of viewport height at a desktop width and **1063px** at a phone width
+- The dialog has neither: a 768px-tall desktop viewport leaves it 734px and a 360 x 640 phone leaves it 606px, so it scrolls at both
+
+**There is no no-scroll budget to spend.** `max-h-full overflow-y-auto` is what the card wears instead, so the dialog is read by scrolling rather than at a glance. That is why the third step covers the whole Metrics table in one line rather than a step per question: another step lengthens a card the reader already scrolls. `WelcomeModal.tsx` points here for these numbers.
+
+**Re-measure condition:** a new step, a change to the `PROSE` sizes the card is set in, or copy that adds a line to any step. The binding case is the phone: the desktop column is 208px shorter.
+
 ## Tailwind v4 facts
 
 **Color resolution:** competing color utilities resolve by their order in the generated stylesheet, not their order in the class list. So a role's color cannot be overridden at a call site — the role always wins. This is why every hue is centralized: a component cannot brighten or dim a color it was handed.
