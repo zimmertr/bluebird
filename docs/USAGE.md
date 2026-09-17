@@ -31,7 +31,7 @@ Trailheads are not clickable: the basemap does not carry them, so a polygon is s
 Press **Draw polygon** to start. While drawing, each click on the map drops a point and the polygon previews live as you add them.
 
 - You need at least 3 points before Analyze turns on.
-- The estimated bounding-box area is shown in km² as you draw.
+- The estimated bounding-box area is shown in km² while you draw, and for a polygon a shared link brings in.
 - Drag a vertex to move it, drag a midpoint handle to add one, or click a vertex to remove it.
 - Once the shape is closed, a click lands on the edge nearest to it rather than at the end of the outline, so clicking across the polygon widens the side you pointed at instead of folding the shape over itself.
 - Press **Done**, or the Enter or Escape key, to finish. Analyze finishes for you.

@@ -46,12 +46,15 @@
 // inside the accent fill, and a color baked into the shape would race the
 // layer's by stylesheet order.
 /**
- * The ramp's smallest step, as a number, for the one place a stylesheet has to
- * spell it: `map.css` sizes MapLibre's credit line from `--map-credit-size`,
- * which `MAP_EDGE.publish` sets. `styles.test.ts` holds the class, the custom
- * property and this number together.
+ * The ramp's smallest step, as the class itself rather than as a number the
+ * class is built from: Tailwind v4 scans this file as raw text, so an
+ * interpolated utility emits no CSS and the size has to be spelled.
+ *
+ * That is why the one stylesheet needing the same size says it a second time —
+ * `MAP_EDGE.publish` carries it as `--map-credit-size` for MapLibre's credit
+ * line, which has no call site to hand a role to. `styles.test.ts` holds the
+ * two spellings to one number, which is the only place that can be done.
  */
-export const MICRO_PX = 10
 export const MICRO_SIZE = 'text-[10px]'
 const MICRO = `${MICRO_SIZE} text-slate-300`
 
@@ -498,7 +501,9 @@ export const BADGE_ACCENT =
  *
  * The right padding is the chip's rather than the label's: the label sits
  * against the × with nothing between them but the glyph's own inset, so the
- * gap a reader sees is 5px rather than the 16px two `px-2` halves put there.
+ * gap a reader sees is 4px — half of what `CHIP.remove`'s 20px box leaves
+ * around an `ICON.chip` cross — rather than the 16px two `px-2` halves put
+ * there.
  */
 const CHIP_SHAPE = `inline-flex max-w-full items-center ${RADIUS.control} pr-1 text-xs`
 
@@ -660,61 +665,6 @@ export const ICON_ACTION = `text-slate-500 ${ACCENT.hoverText}`
 export const ICON_BUTTON = `px-1 text-slate-400 hover:text-white transition-colors ${FOCUS_RING}`
 
 /**
- * The grip a column is dragged by, in the table header and in the Columns
- * picker alike (#360).
- *
- * A grip rather than the whole row, because both rows already answer a press:
- * a header sorts and a picker row toggles a checkbox. A dedicated handle is
- * also the only visible affordance either surface can carry, since neither has
- * room for a word.
- *
- * `cursor-grab` is the standing signal for "this moves", and `touch-none` is
- * load-bearing: without it the browser claims the gesture for scrolling and
- * the drag never gets a second pointer event on a phone. It is the same reason
- * the resize handle wears it.
- */
-export const DRAG_GRIP =
-  `cursor-grab touch-none text-slate-500 hover:text-slate-200 active:cursor-grabbing ` +
-  `transition-colors ${FOCUS_RING}`
-
-/** The grip while its column is the one being moved. */
-export const DRAG_GRIP_ACTIVE = 'text-slate-200'
-
-/** The column a drag would drop onto, in either surface. */
-export const DRAG_TARGET = 'bg-slate-700/60'
-
-/**
- * The column being carried, drawn under the pointer.
- *
- * Translucent and tilted a degree, which is the standing vocabulary for
- * "picked up" — the same two signals a dragged card wears everywhere. It is
- * portalled to the body and positioned in viewport coordinates, so it needs
- * the app's top layer rather than the table's.
- *
- * `pointer-events-none` is load-bearing: the ghost follows the pointer, so
- * without it the ghost is what every hit test finds and the drag can never see
- * the column underneath.
- */
-export const DRAG_GHOST =
-  `${TEXT.control} pointer-events-none fixed -rotate-1 opacity-80 ` +
-  `${SURFACE_CARD} px-2 py-1 whitespace-nowrap shadow-xl`
-
-/**
- * Where the carried column will land: a line in the gap, not a fill on a
- * column.
- *
- * A fill cannot say which SIDE of the column underneath the carried one ends
- * up on, which is the whole question a drop answers. The accent because this
- * is the app's one "here" mark; the bar's own thickness is the call site's,
- * since the two surfaces draw it on different axes.
- *
- * The accent's FILL without its label color: `ACCENT.fill` pairs the two
- * deliberately and this bar carries no label, so taking the pair would hand a
- * text color to something with no text.
- */
-export const DRAG_INSERT = `pointer-events-none fixed bg-sky-650 ${RADIUS.pill}`
-
-/**
  * A glyph drawn inside a field rather than beside it: the `SELECT` arrow.
  *
  * `pointer-events-none` is the load-bearing part — the arrow overlays the
@@ -726,11 +676,80 @@ export const ICON_ADORNMENT =
   'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400'
 
 /**
- * Glyph sizing for inline SVG icons paired with text: the results-bar mode
- * toggle, the columns picker. 16x16 at default density; visible as text width
- * shrinks below breakpoints.
+ * How big a drawn glyph is, for every icon in `components/icons.tsx`.
+ *
+ * A ramp rather than one size, because the app's icons are not all the same
+ * kind of object: some stand beside a control's label, one is a mark inside a
+ * sentence, and the smallest live inside a disc or a chip that is itself
+ * smaller than a control. The step is set by the box the glyph sits in.
+ *
+ * It is a role and not a call-site class for the reason every size here is:
+ * nineteen inline SVGs drew their own before #386, and the same cross came out
+ * at three sizes and two stroke weights.
+ *
+ * Four steps, all of them on Tailwind's scale. It was five: the magnifier sat
+ * a pixel under `control` and the same chip cross was drawn at two sizes, both
+ * carried over by #386 because that change moved no visible size. #436
+ * measured them in Chrome on macOS on 2026-09-16, at 1440 and at 360px alike
+ * — every box below comes out the same at both widths, the map column being a
+ * fixed 184px and a chip as wide as its name — and the number that decided
+ * each step is in its comment.
  */
-export const ICON = 'h-4 w-4'
+export const ICON = {
+  /**
+   * 16x16. The standing step: a glyph in or beside a control — the results
+   * bar's mode switch, the map's two buttons, the panel's close, the columns
+   * picker's grip, the collapse chevron, the search field's magnifier, and the
+   * arrow `SELECT` reserves room for (`ICON_ADORNMENT`, whose 24px reserve is
+   * measured off this step).
+   *
+   * The magnifier was 15 and is the reason this step is worth a number. Its
+   * row is `MAP_ROW_H`, 36px on a pointer and 44 on a finger, and both are
+   * even: a 16px box centres on 10 and 14px of clear space, a 15px box on 10.5
+   * and 14.5. The row also holds two 16px boxes already — the clear cross, and
+   * the spinner that stands in its place — which sit at that same 10px. So the
+   * odd step bought nothing and cost a half-pixel, on the one glyph in the row
+   * that was off the pixel grid and the one that was off the scale. The column
+   * pays for the extra pixel out of slack it has: `MAP_COL_W` is 184px against
+   * 178.6px of content.
+   */
+  control: 'h-4 w-4',
+  /**
+   * 14x14. A mark inside a line of text rather than inside a control: the
+   * results table's link-out arrow, which sits on a destination's name and is
+   * sized to the name rather than to a button, and the same glyph in the map
+   * popup's title row, which reads the number from `iconPaths.ts` because a
+   * string handed to setHTML can carry no class.
+   */
+  inline: 'h-3.5 w-3.5',
+  /**
+   * 12x12. The remove cross on a chip: the chart legend's and the model
+   * picker's alike.
+   *
+   * Both chips measure exactly 24px tall, so they are one box carrying one
+   * object, and they drew it at 12 and at 10 until #436. 12 is the size this
+   * cross is actually drawn at: its two lines run 6 to 18 of a 24-unit
+   * viewBox, so at 12 the scale is exactly a half — a 1.00px stroke with both
+   * ends on whole pixels — where 10 gives 0.83px on half pixels. It costs the
+   * model chip no width, `CHIP.remove` being a fixed 20x24 box: the glyph
+   * grows inside it, the chips stay 92.8, 97.8 and 111.7px wide, and the gap
+   * the reader sees between the last letter and the cross closes from 5px to
+   * the 4px the legend chip already had.
+   */
+  chip: 'h-3 w-3',
+  /**
+   * 10x10. What fits inside a DRAWN shape smaller than a control, where the
+   * fill around the glyph is the shape: the notice's 20px dismiss disc and the
+   * timeline's 28px play button.
+   *
+   * The disc sets it. At 10 its fill rings the cross by 5px and at 12 by 4,
+   * and that ring is all there is of the disc — `NOTICE_DISMISS.pill` is
+   * `white/5` at rest, deliberately the faintest fill in the app. The play
+   * button has the room either way (9px against 8) and takes the disc's step
+   * rather than standing alone at a fifth number.
+   */
+  micro: 'h-2.5 w-2.5',
+}
 
 /**
  * The indeterminate spinner: the search box while a lookup is in flight.
@@ -795,6 +814,85 @@ export const LAYER = {
   /** Modal dialogs, and the shield that swallows pointer events mid-drag. */
   modal: 'z-[60]',
 } as const
+
+/**
+ * The grip a column is dragged by, in the table header and in the Columns
+ * picker alike (#360).
+ *
+ * A grip rather than the whole row, because both rows already answer a press:
+ * a header sorts and a picker row toggles a checkbox. A dedicated handle is
+ * also the only visible affordance either surface can carry, since neither has
+ * room for a word.
+ *
+ * `cursor-grab` is the standing signal for "this moves", and `touch-none` is
+ * load-bearing: without it the browser claims the gesture for scrolling and
+ * the drag never gets a second pointer event on a phone. It is the same reason
+ * the resize handle wears it.
+ */
+export const DRAG_GRIP =
+  `cursor-grab touch-none text-slate-500 hover:text-slate-200 active:cursor-grabbing ` +
+  `transition-colors ${FOCUS_RING}`
+
+/** The grip while its column is the one being moved. */
+export const DRAG_GRIP_ACTIVE = 'text-slate-200'
+
+/**
+ * What a column looks like where it used to be, while it is being carried.
+ *
+ * The table header and the Columns picker both fade the row the drag started
+ * in, so the ghost under the pointer reads as the thing itself rather than as a
+ * copy of a column that is still sitting there. Both spelled the same literal
+ * before it had a name (#437).
+ *
+ * The same 40 percent as `DISABLED` and deliberately not that role: `DISABLED`
+ * promises a press will do nothing and carries `cursor-not-allowed` to say so,
+ * where this column still sorts and still toggles the moment the drag ends, and
+ * the pointer is already holding it. Not `MUTED` either, which is the 50 percent
+ * of a control that works but is not the one in force; this one is not faded for
+ * what it does, but for where it is.
+ */
+export const CARRIED = 'opacity-40'
+
+/**
+ * The column being carried, drawn under the pointer.
+ *
+ * Translucent and tilted a degree, which is the standing vocabulary for
+ * "picked up" — the same two signals a dragged card wears everywhere. It is
+ * portalled to the body and positioned in viewport coordinates, so it needs
+ * the app's top layer rather than the table's.
+ *
+ * That layer is part of the role rather than a second class the call site
+ * adds. Both surfaces that move a column drew the pair, and a ghost that gets
+ * one without the other is a ghost the picker it was dragged out of paints
+ * over.
+ *
+ * `pointer-events-none` is load-bearing: the ghost follows the pointer, so
+ * without it the ghost is what every hit test finds and the drag can never see
+ * the column underneath.
+ */
+export const DRAG_GHOST =
+  `${TEXT.control} pointer-events-none fixed ${LAYER.popover} -rotate-1 opacity-80 ` +
+  `${SURFACE_CARD} px-2 py-1 whitespace-nowrap shadow-xl`
+
+/**
+ * Where the carried column will land: a line in the gap, not a fill on a
+ * column.
+ *
+ * A fill cannot say which SIDE of the column underneath the carried one ends
+ * up on, which is the whole question a drop answers. The accent because this
+ * is the app's one "here" mark; the bar's own thickness is the call site's,
+ * since the two surfaces draw it on different axes.
+ *
+ * The accent's FILL without its label color: `ACCENT.fill` pairs the two
+ * deliberately and this bar carries no label, so taking the pair would hand a
+ * text color to something with no text.
+ *
+ * It carries the same layer as the ghost above and for the same reason: the
+ * bar is drawn in viewport coordinates over whatever surface the drag started
+ * in.
+ */
+export const DRAG_INSERT =
+  `pointer-events-none fixed ${LAYER.popover} bg-sky-650 ${RADIUS.pill}`
 
 /**
  * The recessed surface, and the boundary that closes it.
@@ -929,10 +1027,10 @@ export const CHART_METRIC_W = 'w-36'
  *     74.7 + 8 + 74.1 = 156.8px of content, so 176.8px with the 20px of side
  *     padding a legend box carries. The countdown switches to minutes past 99s,
  *     so that row's widest case is bounded.
- *   - the search field at rest: 15px of icon, the 8px gap, and 134.6px of
- *     "Search for a destination" — 177.6px with the same 20px of padding.
+ *   - the search field at rest: 16px of icon, the 8px gap, and 134.6px of
+ *     "Search for a destination" — 178.6px with the same 20px of padding.
  *
- * 184 leaves 6.4px over the wider of the two. It is 8px narrower than the
+ * 184 leaves 5.4px over the wider of the two. It is 8px narrower than the
  * `w-48` it replaced, which is all the slack there was: at 176 (`w-44`) the
  * wait line wraps and the placeholder clips. Everything else in the column has
  * room to spare — the widest popover row, "Wildfires (US only)", needs 148.9px,
@@ -945,11 +1043,11 @@ export const MAP_COL_W = 'w-46'
  * The height of one row in that column: the search field and the two buttons.
  *
  * Fixed rather than derived from each row's contents, because the contents
- * differ — an 18px icon beside a 12px label, a 15px icon beside an input — and
- * three rows that each solved for their own height came out 34, 38 and 38. One
- * number instead, floored at the 44px target on a finger the way `TAP` floors
- * every other control, and 36 on a pointer, which is the size the column's own
- * inset was already derived against (`LEGEND_TOP`).
+ * differ — a glyph beside a label, a glyph beside an input and a clear cross —
+ * and three rows that each solved for their own height came out 34, 38 and 38.
+ * One number instead, floored at the 44px target on a finger the way `TAP`
+ * floors every other control, and 36 on a pointer, which is the size the
+ * column's own inset was already derived against (`LEGEND_TOP`).
  */
 export const MAP_ROW_H = 'h-9 touch:h-11'
 
@@ -987,8 +1085,9 @@ export const MAP_COL_GAP_T = 'mt-1'
 export const MAP_EDGE = {
   /**
    * On the map wrapper: publishes the inset to the app's chrome and the
-   * vendor's, and the credit line's type size (`MICRO_PX`) to `map.css`, which
-   * has no call site to hand `TEXT.micro` to.
+   * vendor's, and the credit line's type size — the ramp's smallest step, the
+   * second spelling of `MICRO_SIZE` — to `map.css`, which has no call site to
+   * hand `TEXT.micro` to.
    */
   publish: '[--map-edge-inset:0.75rem] [--map-credit-size:10px]',
   /** The left edge every floating box on the map's left shares. */
@@ -1413,7 +1512,7 @@ export const NOTICE_DISMISS = {
 } as const
 
 /**
- * The two weights of rule in the control panel.
+ * The three weights of rule in the app.
  *
  * `PANEL_EDGE` closes the panel: the line under the app title and the one over
  * the Analyze button. Those are structural — they separate the scrolling body
@@ -1440,10 +1539,26 @@ export const NOTICE_DISMISS = {
  *   air. Symmetry does the separating, not size.
  * - **Where it is drawn.** From the stack, so a section added later cannot
  *   forget its line or draw a second one.
+ *
+ * `SURFACE_DIVIDER` is that same quiet line where the stack cannot draw it:
+ * one rule a component places itself, between two blocks of one surface. The
+ * dialog's header over its body, the popover's overline strip over its rows,
+ * the month navigation under the calendar grid, the panel's own right edge
+ * against the map. On the slate-800 panel and card it is 1.41:1, and
+ * `PANEL_RULE` composites to 1.37:1 there — the same line by eye, which is the
+ * point: a surface that has to place its own rule should not look like a
+ * different kind of rule. What splits them is only whether the stack or the
+ * call site decides WHERE, so a bare colour is all this one carries.
+ *
+ * It was `border-slate-700` at eleven call sites in eight files before it had a
+ * name (#390), which is a third weight nothing had chosen and nothing could
+ * change in one place. `styles.test.ts` now fails the literal anywhere under
+ * `components/` or in `App.tsx`.
  */
 export const PANEL_EDGE = 'border-slate-500'
 export const PANEL_RULE =
   '[&>*+*]:mt-4 [&>*+*]:border-t [&>*+*]:border-slate-600/50 [&>*+*]:pt-4'
+export const SURFACE_DIVIDER = 'border-slate-700'
 
 /**
  * Step number badge in the welcome modal.
@@ -1636,6 +1751,26 @@ export const SELECT = `${FIELD} appearance-none pr-6`
 export const DISABLED = 'disabled:opacity-40 disabled:cursor-not-allowed'
 
 /**
+ * What a control looks like when it is not the one in force, but still works.
+ *
+ * The opposite claim to `DISABLED` above, and the reason the two cannot share a
+ * recipe. `DISABLED` says a press will do nothing, and its cursor promises
+ * that; this says a press still does what it always did, it is just not the
+ * answer the panel is currently reading. Unnamed peaks with Peaks unticked is
+ * the clearest case: ticking it turns Peaks on. A `cursor-not-allowed` on any
+ * of these would be a lie the pointer tells before the reader finds out.
+ *
+ * Quieter than nothing and louder than off: 50% against `DISABLED`'s 40%, and
+ * unscoped rather than behind the `disabled:` variant, because none of these
+ * elements is disabled and the variant would never fire.
+ *
+ * Three sites spelled it before it had a name (#390). No colour of its own,
+ * for the same reason `DISABLED` carries none: it composes over whatever role
+ * the control already wears instead of racing it by stylesheet order.
+ */
+export const MUTED = 'opacity-50'
+
+/**
  * Text that exists for assistive technology and takes no space on screen.
  *
  * The twin of an approved tooltip (#123 review). A `title` is a pointer's
@@ -1824,6 +1959,21 @@ export const TRANSPORT_AXIS_ITEM = `${segmentHalf('flex-none')} px-3 whitespace-
 export const TABLE = {
   cell: 'px-2 py-1.5',
   head: `${TEXT.subheading} px-2 py-2 text-left`,
+  /**
+   * One data row: the rule above it and what it does under the pointer.
+   *
+   * Both bodies wear it — the pending destinations waiting on a forecast and
+   * the ranked results under them — and they had spelled it separately, which
+   * is how a hover could have come to mean two things in one table.
+   *
+   * Half-opacity slate-700 rather than `SURFACE_DIVIDER` itself: a rule
+   * between two blocks of a card is drawn once, and this one is drawn twenty
+   * times down a screen, where the full weight reads as a grid. `group` is
+   * load-bearing rather than decorative — the rank cell's remove × appears on
+   * `group-hover`, so a row that forgets it is a row that cannot be removed
+   * with a pointer.
+   */
+  row: 'group border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors',
   /**
    * The rank cell's two faces, the number and the remove ×, laid in ONE grid
    * cell so the column is as wide as the wider face at all times and a hover

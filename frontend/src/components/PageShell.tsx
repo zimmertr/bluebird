@@ -1,5 +1,5 @@
 import { ReactNode } from 'react'
-import { LINK, PROSE, RADIUS, SURFACE_CARD } from '../styles'
+import { LINK, PROSE, RADIUS, SURFACE_CARD, SURFACE_DIVIDER } from '../styles'
 import { logoUrl } from '../logo'
 
 interface Props {
@@ -22,7 +22,7 @@ export function Section({
   children: ReactNode
 }) {
   return (
-    <section id={id} className="mt-6 pt-6 border-t border-slate-700">
+    <section id={id} className={`mt-6 pt-6 border-t ${SURFACE_DIVIDER}`}>
       <h2 className={`${PROSE.heading} mb-3`}>{heading}</h2>
       {children}
     </section>
