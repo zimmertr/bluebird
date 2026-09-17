@@ -399,9 +399,11 @@ upstream is unreachable, and only a `503` from an instance that has never once
 completed a fetch. Coverage is North America, so an empty result elsewhere means
 "not covered", not "clear air". See [DATA.md](DATA.md#smoke).
 
-The rain-radar overlay has no endpoint here and never will: those tiles go from
-[Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) straight to
-the browser. See [DATA.md](DATA.md#rain-radar) for the tile addressing.
+The rain-radar and snow-depth overlays have no endpoint here and never will:
+those images go from [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/)
+and from [NOAA NOHRSC](https://www.nohrsc.noaa.gov/nsa/) straight to the browser.
+See [DATA.md](DATA.md#rain-radar) and [DATA.md](DATA.md#snow-depth) for how each
+is addressed.
 
 ### Resolving your own coordinates
 

@@ -27,6 +27,21 @@ updates:
       - dependency-name: typescript
         update-types: [version-update:semver-major]
 
+  # ESLint is a package apart for a sharper version of the same reason:
+  # typescript-eslint reads the TypeScript compiler API and refuses TS 7, and
+  # the TS 7 package no longer ships that API at all.
+  - package-ecosystem: npm
+    directory: /frontend/tools/eslint
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    ignore:
+      # TypeScript stays on 6 here for as long as typescript-eslint refuses 7.
+      # It throws on import rather than degrading, so a major bump here is a
+      # red lint job with no code change on our side.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

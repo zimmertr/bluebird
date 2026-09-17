@@ -3,7 +3,10 @@ from __future__ import annotations
 import asyncio
 import importlib
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+
+from fastapi import Request
+from fastapi.testclient import TestClient
 
 from app import ratelimit
 from app.main import app
@@ -11,8 +14,6 @@ from app.routes import geocode as geocode_mod
 from app.services import air_quality as aqi_mod
 from app.services import osm as osm_mod
 from app.services import weather as weather_mod
-from fastapi import Request
-from fastapi.testclient import TestClient
 
 client = TestClient(app)
 
@@ -43,7 +44,7 @@ def _request(headers: dict[str, str] | None = None, peer: tuple | None = ("198.5
 
 
 def _window(inverted: bool = False) -> dict[str, str]:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start, end = now, now + timedelta(days=1)
     if inverted:
         start, end = end, start
@@ -296,7 +297,7 @@ def test_stream_budget_shed_arrives_as_error_event(monkeypatch):
 def test_aqi_budget_shed_degrades_to_none(monkeypatch):
     monkeypatch.setattr(ratelimit, "AQI_BUDGET", _AlwaysShed())
     dests = [{"latitude": 0.0, "longitude": 0.0} for _ in range(3)]
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     out = asyncio.run(aqi_mod.fetch_aqi_batch(dests, now, now + timedelta(days=1)))
     assert out == [None, None, None]
 
