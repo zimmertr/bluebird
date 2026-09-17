@@ -1,5 +1,5 @@
 import { SortBy } from '../types'
-import { FAMILY_KEYS, MetricFamily, NOUN, UNIT } from '../metrics'
+import { FAMILY_KEYS, MetricFamily, UNIT } from '../metrics'
 
 /**
  * A set of band boundaries and the colors they anchor.
@@ -31,7 +31,10 @@ export type ColorScale = {
  *
  * It is the SCALE's unit rather than the family's, because the two differ where
  * it matters most: precipitation's window total is inches and its rate columns
- * are inches per hour, which is the whole reason `PRECIP_RATE` exists.
+ * are inches per hour, which is the whole reason `PRECIP_RATE` exists. It
+ * reaches the legend through `metricLabel`, the same composer the table headers
+ * use, so a strip is labelled `Precipitation (in)` at rest and
+ * `Precipitation (in/hr)` under playback.
  */
 export type LabelledScale = ColorScale & { unit: string }
 
@@ -159,10 +162,10 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   aqi: {
     thresholds: [50, 100, 150, 200, 300],
     colors: ['#22c55e', '#eab308', '#f97316', '#ef4444', '#a855f7', '#991b1b'],
-    // The one scale whose unit is its own NAME: the index is unitless, so
-    // `UNIT.aqi` is empty, and a strip whose last tick read a bare `300` would
-    // be the one key on the map that never says what it measures.
-    unit: NOUN.aqi,
+    // The one scale with no unit at all: the index is unitless, so the map
+    // legend's label for it is the bare noun where every other scale's reads
+    // `Temperature (°F)`.
+    unit: UNIT.aqi,
   },
 }
 

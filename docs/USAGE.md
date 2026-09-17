@@ -371,10 +371,13 @@ by name, so a section is where you last looked for it.
 A section keyed on a single value — smoke, rain radar, active wildfires — is one
 line with its swatch on the right. A section keyed on a **scale** is a strip
 across the box with three numbers under it: the bottom of the scale, its middle
-and its top, with the unit on the last one. That is the shape both the marker
-colors and the snow depth layer take. The strip is drawn in equal bands rather
-than to scale, because a scale running from 0.39 to 787 inches to scale would be
-most of its bands in the first few pixels.
+and its top. That is the shape both the marker colors and the snow depth layer
+take. The unit rides the section's name — `Temperature (°F)`, `Precipitation
+(in)`, and `Precipitation (in/hr)` while the forecast player is scrubbing — so
+the numbers under the strip stay bare. AQI is the one with no unit to state, its
+index being a plain index. The strip is drawn in equal bands rather than to
+scale, because a scale running from 0.39 to 787 inches to scale would be most of
+its bands in the first few pixels.
 
 Marker colors follow the ranked metric. Under the default ranking that is total precipitation:
 

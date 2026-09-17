@@ -66,8 +66,13 @@ export function rampCss(colors: readonly string[], blend: boolean): string {
  *
  * Two rules, and both were measured on the snow strip before they were shared:
  *
- * **The unit rides on the last tick alone.** It is the one the eye finishes on,
- * and five copies of `mph` across 164px is four more than the scale needs.
+ * **The unit rides on the last tick alone, where it rides a tick at all.** It is
+ * the one the eye finishes on, and four copies of `in` across 162px is three
+ * more than the scale needs. A metric scale passes no unit: its section label is
+ * `Temperature (°F)` and a unit on the strip under it would be the second
+ * spelling on one key (TJ, 2026-09-17). The snow layer's label is
+ * `Snow depth (NOHRSC)`, whose parentheses are already the credit the licence
+ * asks for, so its unit stays on the tick.
  *
  * **A tick hangs from the nearest edge that keeps it inside the box.** The
  * last one hangs from the strip's END: its boundary is one band in from the
@@ -88,23 +93,10 @@ export function rampTicks(
     const last = i === marks.length - 1
     return {
       at: mark.at,
-      label: last ? withUnit(mark.text, unit) : mark.text,
+      label: last && unit !== '' ? `${mark.text} ${unit}` : mark.text,
       align: last ? ('end' as const) : mark.at === 0 ? ('start' as const) : ('center' as const),
     }
   })
-}
-
-/**
- * A number and its unit, joined the way the app's approved copy already joins
- * them: `30°F` tight, `5 mph` spaced.
- *
- * A degree sign is set against its numeral rather than beside it, which is a
- * typographic fact about the glyph rather than a choice a scale gets to make —
- * so it is the one join rule here rather than a separator field per scale.
- */
-function withUnit(text: string, unit: string): string {
-  if (unit === '') return text
-  return unit.startsWith('°') ? `${text}${unit}` : `${text} ${unit}`
 }
 
 /** A ranking metric's scale as a strip: blended, because its markers are. */
@@ -142,6 +134,13 @@ export function scaleRampCss(scale: ColorScale): string {
  * **The numbers are the thresholds themselves, formatted rather than written.**
  * A tick that restated a threshold could disagree with it, which is the bug the
  * band captions here were carrying by hand until #454.
+ *
+ * **No unit on the ticks.** The section's label carries it, as
+ * `Temperature (°F)` — `metricLabel` in `metrics.ts`, the same composer the
+ * table headers use, reading `scale.unit` so playback's swap to `in/hr` moves
+ * the label with the bands (TJ, 2026-09-17). It keeps the strip's widest label
+ * three characters shorter, and it is why `AQI` reads as a bare noun: the index
+ * is unitless, so the label is the metric's name and the ticks are numbers.
  */
 export function scaleTicks(scale: LabelledScale): RampTick[] {
   const digits = Math.max(...scale.thresholds.map(decimalsOf))
@@ -164,7 +163,7 @@ export function scaleTicks(scale: LabelledScale): RampTick[] {
         maximumFractionDigits: digits,
       }),
       })),
-    scale.unit,
+    '',
   )
 }
 

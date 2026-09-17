@@ -262,10 +262,9 @@ describe('METRIC_SCALE', () => {
       expect(cfg.colors).toHaveLength(6)
     }
     expect(METRIC_SCALE.aqi.thresholds).toEqual([50, 100, 150, 200, 300])
-    // The index is unitless, so the scale's "unit" is its own name — a strip
-    // whose last tick read a bare 300 would be the one key on the map that
-    // never says what it measures.
-    expect(METRIC_SCALE.aqi.unit).toBe('AQI')
+    // The one scale with no unit at all, so the map legend labels it with the
+    // bare noun where every other scale reads `Temperature (°F)`.
+    expect(METRIC_SCALE.aqi.unit).toBe('')
   })
 
   it('pins every ramp to the boundaries it was tuned to', () => {
@@ -294,14 +293,10 @@ describe('METRIC_SCALE', () => {
   // FORMATTING — how many decimals, where the separators go, which tick wears
   // the unit — and the boundaries are checked against the ramp below.
   it('prints the moved scales as the boundaries they switch on', () => {
-    expect(labelsOf(METRIC_SCALE.temp)).toEqual(['30', '60', '90°F'])
-    expect(labelsOf(METRIC_SCALE.wind)).toEqual(['5', '25', '50 mph'])
-    expect(labelsOf(METRIC_SCALE.precip)).toEqual(['0.01', '0.25', '1.00 in'])
-    expect(labelsOf(hourlyScale('precip_total_in')!)).toEqual([
-      '0.01',
-      '0.30',
-      '1.00 in/hr',
-    ])
+    expect(labelsOf(METRIC_SCALE.temp)).toEqual(['30', '60', '90'])
+    expect(labelsOf(METRIC_SCALE.wind)).toEqual(['5', '25', '50'])
+    expect(labelsOf(METRIC_SCALE.precip)).toEqual(['0.01', '0.25', '1.00'])
+    expect(labelsOf(hourlyScale('precip_total_in')!)).toEqual(['0.01', '0.30', '1.00'])
   })
 
   it('advertises the same boundaries in the legend that it switches on', () => {
@@ -409,10 +404,10 @@ describe('hourlyScale', () => {
   it('captions the rate scale in its own unit', () => {
     // The legend shows one scale or the other with nothing beside it to
     // compare against, so the unit is the only thing saying which reading it
-    // is on. It rides the last tick, which is the one the eye finishes on.
-    const ticks = scaleTicks(hourlyScale('precip_total_in')!)
-    expect(ticks[ticks.length - 1].label).toContain('in/hr')
-    expect(ticks.slice(0, -1).every((tick) => !tick.label.includes('in'))).toBe(true)
+    // is on. It rides the section's LABEL, which is where every other surface
+    // in the app puts a unit too.
+    expect(hourlyScale('precip_total_in')!.unit).toBe('in/hr')
+    expect(METRIC_SCALE.precip.unit).toBe('in')
   })
 
   it('advertises the boundaries the rate scale actually switches on', () => {
@@ -433,7 +428,7 @@ describe('the freezing-level ramp', () => {
   // grouping: 20000 unseparated would be the only four- and five-digit figures
   // in the app not formatted the way the table formats them.
   it('prints each boundary at the height it switches on', () => {
-    expect(labelsOf(METRIC_SCALE.freeze)).toEqual(['4,000', '12,000', '20,000 ft'])
+    expect(labelsOf(METRIC_SCALE.freeze)).toEqual(['4,000', '12,000', '20,000'])
   })
 
   // The ramp is read by hue, not by lightness, and that is the price of the

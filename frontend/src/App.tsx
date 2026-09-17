@@ -110,6 +110,7 @@ import {
   MetricFamily,
   NOUN,
   familyOf,
+  metricLabel,
   rankedNoun,
 } from './metrics'
 import { hourlyScale, rankedScale } from './utils/colors'
@@ -2809,7 +2810,21 @@ export default function App() {
                   (hasColoredMarkers || gridPainted || gridCued)
                     ? [
                         {
-                          label: NOUN[familyOf(view.sortBy)],
+                          // `Temperature (°F)`, by the same composer the table
+                          // headers use, reading the SCALE's unit so playback's
+                          // swap to the hourly rate relabels the strip with its
+                          // bands. No aggregate and no qualifier: which hour or
+                          // window the colours describe, how it was reduced,
+                          // and — for the wind and the temperature — which
+                          // datum produced it (#361, #443) are all stated by
+                          // the results header and the table's own column
+                          // headers. AQI reads as the bare noun, its index
+                          // having no unit.
+                          label: metricLabel(
+                            familyOf(view.sortBy),
+                            undefined,
+                            markerScale.unit,
+                          ),
                           ramp: {
                             css: scaleRampCss(markerScale),
                             ticks: scaleTicks(markerScale),

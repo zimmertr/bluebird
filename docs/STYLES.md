@@ -487,7 +487,10 @@ is shared by the metric key and the snow key so the map cannot carry two shapes
 of scale. It also decides whether a strip blends, and that follows the data:
 a metric marker is interpolated between anchors so its strip blends, where
 NOAA's bands are a classification so its strip is hard-stopped. The ticks are
-the thresholds themselves, formatted — never a caption written beside them.
+the thresholds themselves, formatted — never a caption written beside them — and
+they carry no unit: the section's label does, composed by `metricLabel` in
+`metrics.ts` from the SCALE's own unit, so playback's swap to the hourly rate
+relabels the strip with its bands.
 
 ### Model coverage message
 

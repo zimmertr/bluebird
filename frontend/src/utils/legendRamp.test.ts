@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { METRIC_SCALE, hourlyScale } from './colors'
+import { metricLabel } from '../metrics'
 import { SNOW_RAMP, snowRampCss, snowTicks } from './snowDepth'
 import { rampCss, rampTicks, scaleRampCss, scaleTicks } from './legendRamp'
 
@@ -44,12 +45,13 @@ describe('rampTicks', () => {
     expect(ticks.map((t) => t.label)).toEqual(['5', '25', '50 mph'])
   })
 
-  // A degree sign sets against its numeral and a word unit takes a space, the
-  // way every approved string in the app already reads.
-  it('sets a degree sign tight and a word unit spaced', () => {
-    expect(rampTicks([{ at: 5, text: '90' }], '°F')[0].label).toBe('90°F')
-    expect(rampTicks([{ at: 5, text: '50' }], 'mph')[0].label).toBe('50 mph')
+  // A scale whose label already carries the unit passes none, which is every
+  // metric scale: `Temperature (°F)` over a strip of bare numbers (TJ,
+  // 2026-09-17). The snow layer's label holds the credit its licence asks for
+  // instead, so its unit stays on the tick.
+  it('leaves the ticks bare when the label carries the unit', () => {
     expect(rampTicks([{ at: 5, text: '50' }], '')[0].label).toBe('50')
+    expect(rampTicks([{ at: 10, text: '400' }], 'in')[0].label).toBe('400 in')
   })
 
   // Each label hangs from the nearest edge that keeps it inside the box: the
@@ -90,28 +92,36 @@ describe('scaleTicks', () => {
   // row reading `0.01 0.25 1.00` is one scale where `0.01 0.25 1` is three
   // unrelated numbers.
   it('prints one scale to one precision, and groups its thousands', () => {
-    expect(scaleTicks(METRIC_SCALE.precip).map((t) => t.label)).toEqual([
-      '0.01',
-      '0.25',
-      '1.00 in',
-    ])
+    expect(scaleTicks(METRIC_SCALE.precip).map((t) => t.label)).toEqual(['0.01', '0.25', '1.00'])
     expect(scaleTicks(METRIC_SCALE.freeze).map((t) => t.label)).toEqual([
       '4,000',
       '12,000',
-      '20,000 ft',
+      '20,000',
     ])
-    expect(scaleTicks(METRIC_SCALE.wind).map((t) => t.label)).toEqual(['5', '25', '50 mph'])
+    expect(scaleTicks(METRIC_SCALE.wind).map((t) => t.label)).toEqual(['5', '25', '50'])
+  })
+
+  // The unit is the section LABEL's, not the strip's: `metricLabel` composes it
+  // from the same scale, so a strip cannot be labelled in one unit and ticked
+  // in another.
+  it('leaves every metric tick bare, unit and all', () => {
+    for (const scale of Object.values(METRIC_SCALE)) {
+      for (const tick of scaleTicks(scale)) {
+        expect(tick.label).toMatch(/^[\d,.]+$/)
+      }
+    }
   })
 
   // Playback swaps the window-total scale for the hourly rate one, and the
   // strip has to follow it: 0.30 in over three days is drizzle and 0.30 in/hr
   // is a downpour.
-  it('follows the hourly scale, unit and all', () => {
-    expect(scaleTicks(hourlyScale('precip_total_in')!).map((t) => t.label)).toEqual([
-      '0.01',
-      '0.30',
-      '1.00 in/hr',
-    ])
+  it('follows the hourly scale, bands and label alike', () => {
+    const rate = hourlyScale('precip_total_in')!
+    expect(scaleTicks(rate).map((t) => t.label)).toEqual(['0.01', '0.30', '1.00'])
+    // The swap shows in the label rather than on the strip: `in/hr` against the
+    // window scale's `in` is the whole point of the second scale existing.
+    expect(metricLabel('precip', undefined, rate.unit)).toBe('Precipitation (in/hr)')
+    expect(metricLabel('precip', undefined, METRIC_SCALE.precip.unit)).toBe('Precipitation (in)')
   })
 })
 
