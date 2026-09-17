@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
+from fastapi.testclient import TestClient
+
 from app import models
 from app.main import app
 from app.models import (
@@ -27,7 +29,6 @@ from app.routes.analyze import (
     _summarize_request,
 )
 from app.services.errors import InvalidApiKeyError, ModelCoverageError
-from fastapi.testclient import TestClient
 
 client = TestClient(app)
 
@@ -126,7 +127,7 @@ def test_sort_key_ranks_the_new_aggregate_members():
     assert [r.name for r in rows] == ["still", "calm", "breezy"]
 
     rows = [_result("a"), _result("b"), _result("c")]
-    for row, rate in zip(rows, (0.3, 0.1, 0.2)):
+    for row, rate in zip(rows, (0.3, 0.1, 0.2), strict=False):
         row.precip_avg_in_hr = rate
     rows.sort(key=_sort_key(SortBy.precip_avg.value, descending=True))
     assert [r.name for r in rows] == ["a", "c", "b"]
@@ -139,8 +140,8 @@ def _bounded(**bounds) -> AnalyzeRequest:
     """An otherwise-minimal request carrying only the bounds under test."""
     return AnalyzeRequest(
         destination_types=[],
-        start_datetime=datetime.now(timezone.utc),
-        end_datetime=datetime.now(timezone.utc) + timedelta(days=1),
+        start_datetime=datetime.now(UTC),
+        end_datetime=datetime.now(UTC) + timedelta(days=1),
         custom_destinations=[{"name": "A", "latitude": 1.0, "longitude": 2.0}],
         **bounds,
     )
@@ -276,8 +277,8 @@ def test_sse_format():
 def test_summarize_request_custom_includes_count():
     req = AnalyzeRequest(
         destination_types=[],
-        start_datetime=datetime.now(timezone.utc),
-        end_datetime=datetime.now(timezone.utc) + timedelta(days=1),
+        start_datetime=datetime.now(UTC),
+        end_datetime=datetime.now(UTC) + timedelta(days=1),
         custom_destinations=[{"name": "A", "latitude": 1.0, "longitude": 2.0}],
     )
     summary = _summarize_request(req)
@@ -288,8 +289,8 @@ def test_summarize_request_custom_includes_count():
 def test_summarize_request_polygon_includes_area():
     req = AnalyzeRequest(
         destination_types=[DestinationType.peak],
-        start_datetime=datetime.now(timezone.utc),
-        end_datetime=datetime.now(timezone.utc) + timedelta(days=1),
+        start_datetime=datetime.now(UTC),
+        end_datetime=datetime.now(UTC) + timedelta(days=1),
         polygon=GeoPolygon(type="Polygon", coordinates=[[[0, 0], [0.1, 0], [0.1, 0.1], [0, 0.1], [0, 0]]]),
     )
     summary = _summarize_request(req)
@@ -300,8 +301,8 @@ def test_summarize_request_polygon_includes_area():
 def test_summarize_request_union_includes_polygon_and_custom():
     req = AnalyzeRequest(
         destination_types=[DestinationType.peak],
-        start_datetime=datetime.now(timezone.utc),
-        end_datetime=datetime.now(timezone.utc) + timedelta(days=1),
+        start_datetime=datetime.now(UTC),
+        end_datetime=datetime.now(UTC) + timedelta(days=1),
         polygon=GeoPolygon(type="Polygon", coordinates=[[[0, 0], [0.1, 0], [0.1, 0.1], [0, 0.1], [0, 0]]]),
         custom_destinations=[{"name": "A", "latitude": 1.0, "longitude": 2.0}],
     )
@@ -315,8 +316,8 @@ def test_summarize_request_names_a_dropped_series_only_when_dropped():
         return _summarize_request(
             AnalyzeRequest(
                 destination_types=[],
-                start_datetime=datetime.now(timezone.utc),
-                end_datetime=datetime.now(timezone.utc) + timedelta(days=1),
+                start_datetime=datetime.now(UTC),
+                end_datetime=datetime.now(UTC) + timedelta(days=1),
                 custom_destinations=[{"name": "A", "latitude": 1.0, "longitude": 2.0}],
                 include_series=include_series,
             )
@@ -340,7 +341,7 @@ def _wx(precip):
 
 
 def _window():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return now.isoformat(), (now + timedelta(days=1)).isoformat()
 
 
@@ -466,7 +467,7 @@ def test_analyze_aqi_bound_fetches_air_quality_for_every_candidate(monkeypatch):
 
 
 def test_analyze_start_after_end_is_400(stub_upstreams):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     body = {
         "destination_types": [],
         "start_datetime": now.isoformat(),
@@ -483,7 +484,7 @@ def test_analyze_equal_window_is_current_forecast(stub_upstreams):
     # start == end is a point sample ("current conditions"): the model
     # normalizes it to the hour at hand instead of the routes rejecting it as
     # an empty window.
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     body = {
         "destination_types": [],
         "start_datetime": now.isoformat(),
@@ -498,7 +499,7 @@ def test_analyze_equal_window_is_current_forecast(stub_upstreams):
 def test_analyze_equal_window_at_future_moment(stub_upstreams):
     # The "future day/time" mode is the same wire shape at a later hour —
     # a future equal window must analyze, not 400 as empty or out of range.
-    at = datetime.now(timezone.utc) + timedelta(hours=30)
+    at = datetime.now(UTC) + timedelta(hours=30)
     body = {
         "destination_types": [],
         "start_datetime": at.isoformat(),
@@ -580,7 +581,7 @@ def test_analyze_over_peak_cap_is_400(monkeypatch, stub_upstreams):
 
 
 def test_analyze_stream_emits_error_event(stub_upstreams):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     body = {
         "destination_types": [],
         "start_datetime": now.isoformat(),
@@ -697,8 +698,10 @@ def _union_body(start, end, custom):
 def test_analyze_union_ranks_polygon_and_custom_together(monkeypatch, stub_upstreams):
     async def two_peaks(polygon, destination_types, on_status=None, **_):
         return [
-            {"name": "pk_a", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None, "osm_id": "node/1", "type": "peak"},
-            {"name": "pk_b", "latitude": 3.0, "longitude": 4.0, "elevation_ft": None, "osm_id": "node/2", "type": "peak"},
+            {"name": "pk_a", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None,
+             "osm_id": "node/1", "type": "peak"},
+            {"name": "pk_b", "latitude": 3.0, "longitude": 4.0, "elevation_ft": None,
+             "osm_id": "node/2", "type": "peak"},
         ]
 
     monkeypatch.setattr(analyze_mod.osm, "query_osm", two_peaks)
@@ -720,7 +723,8 @@ def test_analyze_union_ranks_polygon_and_custom_together(monkeypatch, stub_upstr
 
 def test_analyze_union_dedup_by_name_custom_wins(monkeypatch, stub_upstreams):
     async def one_peak(polygon, destination_types, on_status=None, **_):
-        return [{"name": "Shared", "latitude": 1.0, "longitude": 2.0, "elevation_ft": 5000, "osm_id": "node/1", "type": "peak"}]
+        return [{"name": "Shared", "latitude": 1.0, "longitude": 2.0, "elevation_ft": 5000,
+                 "osm_id": "node/1", "type": "peak"}]
 
     monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)
     start, end = _window()
@@ -735,7 +739,8 @@ def test_analyze_union_dedup_by_name_custom_wins(monkeypatch, stub_upstreams):
 
 def test_analyze_union_dedup_by_coord_custom_wins(monkeypatch, stub_upstreams):
     async def one_peak(polygon, destination_types, on_status=None, **_):
-        return [{"name": "Discovered", "latitude": 46.852890, "longitude": -121.760410, "elevation_ft": None, "osm_id": "node/1", "type": "peak"}]
+        return [{"name": "Discovered", "latitude": 46.852890, "longitude": -121.760410,
+                 "elevation_ft": None, "osm_id": "node/1", "type": "peak"}]
 
     monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)
     start, end = _window()
@@ -780,7 +785,8 @@ def test_analyze_stream_union_with_empty_discovery_still_analyzes_custom(monkeyp
 
 def test_analyze_stream_union_emits_search_then_mixed_result(monkeypatch, stub_upstreams):
     async def one_peak(polygon, destination_types, on_status=None, **_):
-        return [{"name": "pk", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None, "osm_id": "node/1", "type": "peak"}]
+        return [{"name": "pk", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None,
+                 "osm_id": "node/1", "type": "peak"}]
 
     monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)
     start, end = _window()
@@ -826,7 +832,8 @@ def test_analyze_union_counts_toward_cap(monkeypatch, stub_upstreams):
 
 def test_analyze_union_elevation_filter_applies_to_custom_rows(monkeypatch, stub_upstreams):
     async def one_peak(polygon, destination_types, on_status=None, **_):
-        return [{"name": "pk", "latitude": 1.0, "longitude": 2.0, "elevation_ft": 9000, "osm_id": "node/1", "type": "peak"}]
+        return [{"name": "pk", "latitude": 1.0, "longitude": 2.0, "elevation_ft": 9000,
+                 "osm_id": "node/1", "type": "peak"}]
 
     monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)
     start, end = _window()
@@ -1337,7 +1344,7 @@ def test_the_key_reaches_no_log_record_from_the_route(record_key, caplog):
 
 def _spanning_window():
     """A window that starts in the archive's range and ends in the forecast's."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return (
         (now - timedelta(days=PAST_DATA_DAYS + 10)).isoformat(),
         (now - timedelta(days=PAST_DATA_DAYS - 10)).isoformat(),
@@ -1345,7 +1352,7 @@ def _spanning_window():
 
 
 def _archive_window():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now - timedelta(days=PAST_DATA_DAYS + 30)
     return start.isoformat(), (start + timedelta(hours=6)).isoformat()
 
@@ -1441,4 +1448,4 @@ def test_analyze_passes_the_boundary_it_classified_against(monkeypatch):
     assert resp.status_code == 200
     source, boundary = seen[0]
     assert source == "spanning"
-    assert boundary == models.archive_boundary(datetime.now(timezone.utc))
+    assert boundary == models.archive_boundary(datetime.now(UTC))

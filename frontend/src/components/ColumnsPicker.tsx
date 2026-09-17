@@ -151,6 +151,9 @@ export default function ColumnsPicker({
   // Position the popover before paint
   useLayoutEffect(() => {
     if (open) place()
+    // Kept: `place` is re-created every render and calls `setBox` with a fresh
+    // object, so listing it would place, render, and place again without end.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   // The measuring pass, run after EVERY commit rather than keyed on `open`.

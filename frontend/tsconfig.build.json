@@ -1,0 +1,16 @@
+{
+  // What `npm run build` typechecks: the sources that end up in `dist/`.
+  //
+  // The test files are excluded because their fixtures are not in the image's
+  // build context. `weather_vectors.json` and `mirrored_constants.json` are
+  // committed under `backend/tests/data/` and read from there by both suites,
+  // while the frontend build stage copies `frontend/` alone — so a plain
+  // `tsc` over `src/**` would fail the image build on three imports of files
+  // that only a test ever reads.
+  //
+  // Nothing is lost: CI runs `npx tsc --noEmit` against the whole checkout,
+  // where those files are present, so the test sources are still typechecked
+  // on every pull request.
+  "extends": "./tsconfig.json",
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
+}

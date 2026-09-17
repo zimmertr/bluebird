@@ -638,6 +638,24 @@ export const SWATCH_CHIP =
   `inline-flex h-3.5 w-3.5 items-center justify-center ${RADIUS.control} border ` +
   `text-[9px] font-semibold text-slate-900`
 
+/**
+ * A legend key that is a SCALE rather than one colour: the snow depth
+ * overlay's eleven bands, drawn as a strip across the box (#446).
+ *
+ * Every other layer keys on a single value, which the 14px chip beside its
+ * label says. A banded depth scale cannot be said that way — eleven chips in a
+ * 164px row are 13px each with nothing under them to read, and eleven rows are
+ * most of the map a phone has left. So this one key takes the box's whole
+ * width, with the numbers on their own line below it, and buys two lines
+ * rather than eleven.
+ *
+ * Half the chip's height because it is long rather than square, and because
+ * what a reader takes off it is a position along the strip rather than a
+ * colour in isolation. The fill and the border are the layer's own, passed in:
+ * the map draws NOAA's rendered image, so the key has to be NOAA's colours.
+ */
+export const SWATCH_RAMP = `block h-2 w-full ${RADIUS.control} border`
+
 export const ICON_ACTION = `text-slate-500 ${ACCENT.hoverText}`
 
 /** A bare icon button in a header: the chart and table collapse chevrons. */

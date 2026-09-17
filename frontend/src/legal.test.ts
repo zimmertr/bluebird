@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-// @ts-ignore - no types available in browser context
+// @ts-expect-error node builtin, untyped in this project
 import { readFileSync } from 'fs'
-// @ts-ignore - no types available in browser context
+// @ts-expect-error node builtin, untyped in this project
 import { dirname, join } from 'path'
-// @ts-ignore - no types available in browser context
+// @ts-expect-error node builtin, untyped in this project
 import { fileURLToPath } from 'url'
 
 // `?raw` gives us each file's text without executing it, so this stays a pure

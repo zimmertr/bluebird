@@ -4,13 +4,14 @@
 |---|---|---|---|
 | [OpenStreetMap](https://www.openstreetmap.org) via [Overpass API](https://overpass-api.de) | Destination names, coordinates, elevation | Free | None |
 | [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind, freezing level, and (in the browser only) the wind bearing the map's playback arrows draw | Free (non-commercial) | None, or a caller's own key |
-| [Open-Meteo Historical Weather](https://open-meteo.com/en/docs/historical-weather-api) (reanalysis) | Hourly precipitation, temperature and 10 m wind for windows older than the forecast endpoint's own history | Free (non-commercial) | None, or a caller's own key |
+| [Open-Meteo Historical Weather](https://open-meteo.com/en/docs/historical-weather-api) (reanalysis) | Hourly precipitation, 2 m temperature and 10 m wind for windows older than the forecast endpoint's own history | Free (non-commercial) | None, or a caller's own key |
 | [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly US AQI | Free (non-commercial) | None, or a caller's own key |
 | [OpenFreeMap](https://openfreemap.org) | Vector map tiles | Free | None |
 | [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) | Active wildfire perimeters, United States only | Free (quota shared across all consumers) | None |
 | [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) | Analyst-traced smoke plumes, North America | Free (public-domain files, no quota) | None |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) | NEXRAD radar mosaic tiles, continental United States | Free | None |
+| [NOAA NOHRSC](https://www.nohrsc.noaa.gov/nsa/) | Snow depth from the National Snow Analysis, coterminous United States | Free | None |
 
 Every one of these is free and paid for by somebody else, and Bluebird Forecast
 sends a key to none of them on its own behalf. The one exception is an API
@@ -126,11 +127,52 @@ fixed rather than fetched: real level heights move a few percent with
 weather, less than the model's own terrain error. Two caveats. This is still
 a model's free-air wind, not a gust or a summit anemometer, and local
 funneling can exceed it. And the map's forecast-grid overlay adjusts each
-sample to the terrain height Open-Meteo resolves for that coordinate (its
-~90 m elevation model, reported on every response) rather than to any
-destination's claimed height — so high ground paints its real winds, but a
-summit marker can still read somewhat windier than the cell containing it,
-because the cell's height is the ground at the sample point, not the peak.
+sample — wind and temperature alike — to the terrain height Open-Meteo resolves
+for that coordinate (its ~90 m elevation model, reported on every response)
+rather than to any destination's claimed height. So high ground paints its real
+numbers, but a summit marker can still read windier and warmer than the cell
+containing it, because the cell's height is the ground at the sample point, not
+the peak. Measured 2026-09-16 over Dome Peak: the nearest lattice point resolves
+to a terrain height of 2,624 m and its window minimum reads 38.7 °F, where the
+marker at 8,921 ft (2,719 m) reads 38.5 °F. The gap is small here and is not
+always: the same cell's plain `temperature_2m` minimum is 23.9 °F, which is
+what neither surface shows.
+
+**Temperature is reported at the destination's own elevation, too.**
+Open-Meteo's `temperature_2m` measures 2 meters above the *model's* terrain,
+and under a summit that terrain is a valley floor: at Dome Peak (8,921 ft) the
+GFS grid ground stands at 6,617 ft. On a clear night that ground radiates its
+heat away and the air just over it freezes, while the summit stands in free air
+well above the cold layer. The table therefore showed a peak below freezing
+while its own freezing level sat thousands of feet higher
+([#443](https://github.com/zimmertr/bluebird/issues/443) — measured over
+2026-09-18 to 2026-09-21, `temperature_2m` read a minimum of 25.7 °F where the
+free air at summit height held near 43 °F).
+
+So each hourly fetch also carries the free-air temperature at the same five
+pressure levels the wind uses, and every temperature number interpolates
+between the two levels bracketing the destination's elevation. Two things
+differ from the wind. There is **no floor**: a summit can be colder than the
+free air on a calm clear night and warmer than it under an inversion, so a
+clamp in either direction would report a number no model produced. And the
+fallback is the 2 m value rather than the 10 m one — a destination with no
+known elevation, below the lowest level (~762 m), or in an archive window
+reports the surface temperature exactly as it did before. The column headers
+read `Temperature at elevation` over a forecast window and
+`Temperature at 2 meters` over an archive one, beside the wind's own datum and
+in step with it; over a crossing window both drop the qualifier, because such a
+report averages the two datums into one number.
+
+The radiative caveat under the freezing level below applies to this number as
+well, and from the other side: free air is what the model resolves, and a calm,
+clear, snow-covered summit can sit a few degrees below it. This method does not
+model that.
+
+The map's forecast-grid overlay reads the same free air, at the terrain height
+Open-Meteo resolves for each lattice point rather than at any destination's own
+height. The grid caveat under the wind above therefore covers both metrics: the
+field and the marker standing on it are answering the same question at two
+different elevations.
 
 **The freezing level is an air temperature, not a snow surface.** Each hourly
 fetch carries Open-Meteo's `freezing_level_height`, the height at which the
@@ -189,13 +231,15 @@ archive's nature rather than a limitation of the wiring.
   name the archive does not serve is worse than useless: measured 2026-09-12, it
   answers an unknown `models=` with a `200` and plausible data rather than an
   error.
-- **Wind is the 10 m wind.** The archive accepts the five pressure levels the
-  elevation adjustment above is built on and answers every hour `null`, so an
-  archive row reports the plain 10 m wind for every destination, whatever its
-  elevation. The app says so rather than leaving it here: the wind columns read
-  `Wind at 10 meters` over such a window, against `Wind at elevation` over a
-  forecast one, and a window crossing the boundary drops the qualifier because
-  it averages both.
+- **Wind is the 10 m wind, and temperature is the 2 m temperature.** The
+  archive accepts the ten pressure levels both elevation adjustments above are
+  built on and answers every hour `null`, so an archive row reports the plain
+  10 m wind and the plain 2 m temperature for every destination, whatever its
+  elevation. The app says so rather than leaving it here, and says it the same
+  way for both: the columns read `Wind at 10 meters` and
+  `Temperature at 2 meters` over such a window, against `Wind at elevation` and
+  `Temperature at elevation` over a forecast one. A window crossing the boundary
+  drops both qualifiers, because it averages both datums into one number.
 - **It has no freezing level.** The archive accepts `freezing_level_height`
   and answers every hour `null` under the unit `undefined` (measured
   2026-09-13), so the three freezing-level columns read `N/A` over an
@@ -208,8 +252,8 @@ archive's nature rather than a limitation of the wiring.
   before anything is aggregated, so the report is one window rather than two
   halves. What changes across that join is what the two bullets above describe:
   the early hours are the reanalysis and name no model, the later hours are the
-  model you picked; the early hours carry the 10 m wind and the later hours wind
-  at the destination's elevation. Because the boundary moves with the clock, the
+  model you picked; the early hours carry the 10 m wind and the 2 m temperature,
+  and the later hours carry both at the destination's elevation. Because the boundary moves with the clock, the
   same window asked about next week may be wholly the archive's. Nothing hides
   the seam: the panel names the day it falls on, and the forecast grid is out of
   play over such a report for the reason
@@ -306,10 +350,10 @@ change there; the list is the one place a new model has to be added.
 The cost is real rather than free, which is why a comparison is bought by
 Analyze rather than as you browse. Open-Meteo prices a request at
 `locations × max(1, days/14) × max(1, variables × models/10)`, the browser asks
-for ten hourly variables, and the analysis model's numbers are already held: a
-comparison buys one model series per displayed destination per added model,
-roughly one weighted call each, against the hundred or more an analysis of a
-polygon spends. Displayed rather than charted, because the results table shows
+for fifteen hourly variables, and the analysis model's numbers are already
+held: a comparison buys one model series per displayed destination per added
+model, 1.5 weighted calls each, against the hundreds an analysis of a polygon
+spends. Displayed rather than charted, because the results table shows
 one row per model and a blank cell there would read as a forecast rather than as
 a row nobody fetched. Unticking a model buys nothing back and needs no Analyze, since
 its line was drawn from numbers already in hand. Air quality is not part of it,
@@ -498,6 +542,59 @@ Coverage is the continental United States. Reflectivity is not a rainfall rate:
 it is what the radar echo measured, which hail, bright-band melting, and beam
 blockage in mountain terrain can all colour. Read it as where the storm is, not
 as how much water is landing on a summit.
+
+## Snow depth
+
+The optional snow overlay is the **NOHRSC National Snow Analysis**, produced by
+the National Weather Service's National Operational Hydrologic Remote Sensing
+Center. It is a model of the snowpack constrained by ground-based, airborne and
+satellite snow observations, on a 1 km grid, and it is the best statement of how
+much snow is on the ground that exists for the United States.
+
+Like the radar, it is an **observation rather than a forecast**: it says where
+snow lies now, not where it will lie. That is what puts it on the map beside
+radar, smoke and fire instead of in the results table, and it is why switching
+it on never asks you to press Analyze again.
+
+**It updates four times a day**, at 20 minutes past 01, 05, 11 and 17 UTC. A
+snow depth is therefore hours old at worst, which is the right resolution for a
+thing that changes over days.
+
+**Coverage is the coterminous United States**, with the analysis grid running a
+little into southern Canada and northern Mexico. There is no Alaska, no Hawaii
+and nothing outside North America. Outside that extent the layer draws nothing,
+and nothing means "not analyzed" rather than "no snow". The Layers row says
+`US only` for that reason, the way the wildfire row does.
+
+The images go **straight from NOAA to your browser** rather than through
+Bluebird Forecast's server. The service has no cached tiles: it renders a PNG
+per request, at the bounding box and size asked for, and it refuses caching
+outright (`cache-control: max-age=0, must-revalidate`). So every pan is a fresh
+set of renders, measured at about half a second each. Two things bound that
+cost and neither is a proxy. The layer is off by default, and the tiles are
+512 px rather than 256, which is four times less of NOAA's render time for the
+same screen — a render costs the same whatever its size, because the time is
+the render and not the pixels. A cache in the pod was considered and rejected:
+it would make this service a tile server for a layer most visitors never switch
+on, for a product NOAA already serves.
+
+Read the depth for what it is. It is an analysis on a 1 km grid, so it is an
+average over a square kilometre of ground that may run from a valley floor to a
+ridge. On steep terrain the real depth at a point can be several times more or
+less than the colour says, and a summit can hold snow the grid cell around it
+does not. The bands are NOAA's own, in inches, and so are the colours: the map
+draws NOAA's rendered image, so the legend has to be a key to that image rather
+than to a palette of this app's own.
+
+**Over a glacier the top band is ice, not this season's snow.** The service
+holds the depth in meters and the legend classifies it in inches. The analysis
+does not melt permanent snow and ice out, so the depth there increases year
+over year. Measured on 2026-09-17 with the service's `identify` endpoint: the
+summit of Mount Rainier holds 68.62 m and its northeast flank 45.34 m, both
+far above the top band's 787 in, while a point on the Winthrop Glacier holds
+6.45 m (254 in, the `197 - 295` band) and Paradise and Sunrise hold 0. That is
+why a glaciated summit paints the top band in September. The depth over
+permanent snow and ice is not a number to plan on.
 
 ## The forecast grid
 

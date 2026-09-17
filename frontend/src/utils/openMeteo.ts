@@ -19,9 +19,11 @@ export const AIR_QUALITY_URL = 'https://air-quality-api.open-meteo.com/v1/air-qu
 
 // Same batching the backend uses: 50 locations per request, at most 4
 // requests in flight. One browser analyzing is exactly as polite to
-// Open-Meteo as the server was.
-const BATCH_SIZE = 50
-const MAX_CONCURRENT_BATCHES = 4
+// Open-Meteo as the server was. Both numbers are measured on the backend
+// (issue #182) and mirrored through `mirrored_constants.json`, which is why
+// they are exported: `mirroredConstants.test.ts` reads them.
+export const BATCH_SIZE = 50
+export const MAX_CONCURRENT_BATCHES = 4
 
 // The CAMS air-quality model publishes ~5 days; requesting past that 400s.
 const AQI_MAX_FORECAST_DAYS = 5
@@ -420,6 +422,11 @@ interface HourlyPayload {
     wind_speed_700hPa?: (number | null)[]
     wind_speed_600hPa?: (number | null)[]
     wind_speed_500hPa?: (number | null)[]
+    temperature_925hPa?: (number | null)[]
+    temperature_850hPa?: (number | null)[]
+    temperature_700hPa?: (number | null)[]
+    temperature_600hPa?: (number | null)[]
+    temperature_500hPa?: (number | null)[]
     us_aqi?: (number | null)[]
   }
 }
@@ -437,12 +444,26 @@ const WIND_LEVELS = [
   ['wind_speed_600hPa', 4206],
   ['wind_speed_500hPa', 5574],
 ] as const
+// Port of weather._TEMP_LEVELS: the same five levels and the same ISA heights,
+// read for the free-air TEMPERATURE each hour also carries (issue #443).
+// `temperature_2m` stands 2 m over the model's smoothed terrain, which under a
+// summit is a valley floor that radiates away on a clear night, so the table
+// reported a summit below freezing while its own freezing level sat thousands
+// of feet higher. `tempAtElevation` reads the free air instead.
+//
+// A separate table from WIND_LEVELS rather than one list of heights: the two
+// interpolations differ in the one place that matters (the wind is floored at
+// its 10 m value, the temperature is not), and a shared table would suggest
+// they are the same rule.
+const TEMP_LEVELS = [
+  ['temperature_925hPa', 762],
+  ['temperature_850hPa', 1457],
+  ['temperature_700hPa', 3012],
+  ['temperature_600hPa', 4206],
+  ['temperature_500hPa', 5574],
+] as const
 const FT_TO_M = 0.3048
 
-// The nine hourly variables every weather request asks for — the backend's eight
-// plus the wind bearing the map's playback arrows read. Spelled once because it
-// is two things: what a request asks for, and which arrays a joined half-window
-// has to keep parallel (`joinHours`).
 // Port of weather._FREEZING_LEVEL: the height where the free-air temperature
 // crosses freezing, clamped to 0 when the whole column is below freezing.
 // Three of the eight models publish it (issue #295). Its unit follows
@@ -452,13 +473,19 @@ const FT_TO_M = 0.3048
 // a plausible-looking altitude rather than an obvious fault.
 const FREEZING_LEVEL = 'freezing_level_height'
 
-const HOURLY_VARIABLES = [
+// The hourly variables every weather request asks for. Spelled once because it
+// is three things: what a request asks for, which arrays a joined half-window
+// has to keep parallel (`joinHours`), and the count the weighted-call
+// accounting is priced on — which is why the list is exported and why
+// `mirroredConstants.test.ts` measures it against the backend's N_VARIABLES.
+export const HOURLY_VARIABLES = [
   'precipitation',
   'temperature_2m',
   'wind_speed_10m',
   'wind_direction_10m',
   FREEZING_LEVEL,
   ...WIND_LEVELS.map(([name]) => name),
+  ...TEMP_LEVELS.map(([name]) => name),
 ] as const
 
 const HOUR_MS = 3_600_000
@@ -615,8 +642,50 @@ export function windAtElevation(
   return Math.max(w10, free)
 }
 
+// Port of weather._temp_at_elevation — line-for-line, because it feeds the
+// vector-pinned aggregates. Every gap degrades to `temperature_2m`: no
+// elevation, an elevation under the lowest level (a valley destination IS its
+// own surface layer), a null at a needed level, or an archive window, whose
+// levels come back null.
+//
+// Unlike `windAtElevation` there is no floor. A summit can be colder than the
+// free air on a calm clear night and warmer than it under an inversion, so
+// clamping in either direction would report a number no model produced.
+export function tempAtElevation(
+  t2m: number,
+  elevationFt: number | null | undefined,
+  levels: readonly (number | null)[],
+): number {
+  if (elevationFt == null) return t2m
+  const elevM = elevationFt * FT_TO_M
+  if (elevM <= TEMP_LEVELS[0][1]) return t2m
+  let free: number | null = null
+  if (elevM >= TEMP_LEVELS[TEMP_LEVELS.length - 1][1]) {
+    free = levels[levels.length - 1] ?? null
+  } else {
+    for (let k = 0; k < TEMP_LEVELS.length - 1; k++) {
+      const hiH = TEMP_LEVELS[k + 1][1]
+      if (elevM < hiH) {
+        const loH = TEMP_LEVELS[k][1]
+        const loV = levels[k]
+        const hiV = levels[k + 1]
+        if (loV != null && hiV != null) {
+          free = loV + (hiV - loV) * ((elevM - loH) / (hiH - loH))
+        }
+        break
+      }
+    }
+  }
+  if (free == null) return t2m
+  return free
+}
+
 function levelArrays(hourly: NonNullable<HourlyPayload['hourly']>): (number | null)[][] {
   return WIND_LEVELS.map(([name]) => hourly[name] ?? [])
+}
+
+function tempLevelArrays(hourly: NonNullable<HourlyPayload['hourly']>): (number | null)[][] {
+  return TEMP_LEVELS.map(([name]) => hourly[name] ?? [])
 }
 
 // Port of weather._freeze_unit.
@@ -677,10 +746,12 @@ export function weatherMetrics(
     const temp = hourly.temperature_2m ?? []
     const wind = hourly.wind_speed_10m ?? []
     const levels = levelArrays(hourly)
+    const tLevels = tempLevelArrays(hourly)
 
     // min over the four core arrays keeps the pre-#257 hour-dropping
     // semantics: a missing or short LEVEL array can never drop an hour, only
-    // send its wind back to the 10 m value.
+    // send its wind back to the 10 m value and its temperature back to the
+    // 2 m value.
     const n = Math.min(times.length, precip.length, temp.length, wind.length)
     const rows: Array<[number, number, number]> = []
     for (let i = 0; i < n; i++) {
@@ -691,7 +762,8 @@ export function weatherMetrics(
       const w = wind[i]
       if (p == null || tf == null || w == null) continue
       const wAdj = windAtElevation(w, elevationFt, levels.map((arr) => at(arr, i)))
-      rows.push([p, tf, wAdj])
+      const tAdj = tempAtElevation(tf, elevationFt, tLevels.map((arr) => at(arr, i)))
+      rows.push([p, tAdj, wAdj])
     }
     if (rows.length === 0) return null
     const fVals = freezeFtInWindow(hourly, startMs, endMs, freezeUnit(payload))
@@ -776,6 +848,7 @@ export function weatherSeries(
     const freeze = hourly[FREEZING_LEVEL] ?? []
     const fUnit = freezeUnit(payload)
     const levels = levelArrays(hourly)
+    const tLevels = tempLevelArrays(hourly)
 
     const grid: number[] = []
     const pOut: (number | null)[] = []
@@ -787,7 +860,10 @@ export function weatherSeries(
       if (t === null || t < startMs || t > endMs) continue
       grid.push(t)
       pOut.push(roundOrNull(at(precip, i), 4))
-      tOut.push(roundOrNull(at(temp, i), 1))
+      const t2m = at(temp, i)
+      const tAdj =
+        t2m == null ? null : tempAtElevation(t2m, elevationFt, tLevels.map((arr) => at(arr, i)))
+      tOut.push(roundOrNull(tAdj, 1))
       const w10 = at(wind, i)
       const wAdj =
         w10 == null
@@ -1219,19 +1295,21 @@ export async function fetchWeather(
   const tasks = chunks.map((chunk, chunkIndex) => async (): Promise<WeatherResult[]> => {
     const perSpan: HourlyPayload[][] = []
     for (const span of spans) {
-      // Ten variables, not the backend's nine: the browser also asks for wind
-      // direction, which only the map's playback arrows use. Still weight
-      // factor 1 — max(1, vars x models/10) — so the five level winds, the
-      // freezing level and the bearing all ride the budget the original three
-      // variables set. The model count is spelled here rather than defaulted,
-      // because this is where `models=` is built: a request naming more than
-      // one model returns a series per model and costs that multiple.
+      // Fifteen variables, not the backend's fourteen: the browser also asks
+      // for wind direction, which only the map's playback arrows use. The count
+      // is read off the list rather than written again, because the two must
+      // move together and the weight is what a drift would silently get wrong.
+      // At fifteen the factor is 1.5 — max(1, vars x models/10) — where every
+      // set before the level temperatures (#443) rode inside the floor of 1.
+      // The model count is spelled here rather than defaulted, because this is
+      // where `models=` is built: a request naming more than one model returns
+      // a series per model and costs that multiple.
       //
       // One acquire per SPAN, each priced on its own hours: two requests are two
       // answers, so a spanning window spends twice, and pricing it on the whole
       // window would bill the archive half's months for the forecast half too.
       await weatherBudget.acquire(
-        callWeight(chunk.length, span.startMs, span.endMs, 10, 1),
+        callWeight(chunk.length, span.startMs, span.endMs, HOURLY_VARIABLES.length, 1),
         signal,
         onPace,
       )

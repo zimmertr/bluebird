@@ -192,7 +192,6 @@ export default function ModelPicker({
   // Before paint, so the panel never renders at a stale position for a frame.
   useLayoutEffect(() => {
     if (open) place()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   // The measuring pass. `scrollHeight` rather than the bounding box, since the
@@ -202,7 +201,6 @@ export default function ModelPicker({
     if (!open) return
     const popover = popoverRef.current
     if (popover) place(popover.scrollHeight)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, models, chipIds.length])
 
   // The trigger moves whenever the panel scrolls or the window resizes, and a
@@ -217,7 +215,6 @@ export default function ModelPicker({
       window.removeEventListener('resize', reposition)
       window.removeEventListener('scroll', reposition, true)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   // Pointerdown rather than click: a click that lands on something which
@@ -231,7 +228,6 @@ export default function ModelPicker({
     }
     document.addEventListener('pointerdown', onPointerDown)
     return () => document.removeEventListener('pointerdown', onPointerDown)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   // Focus the list itself rather than an option, so `aria-activedescendant`
@@ -252,6 +248,11 @@ export default function ModelPicker({
   // A removed chip takes the keyboard with it unless focus is placed again
   // after the row re-renders, which is why this waits for the render rather
   // than running inside the handler.
+  //
+  // Kept: no list is the point. The ref is the trigger, and it is cleared on
+  // the first pass, so the `[chipIds]` the rule offers would both fire on
+  // renders that removed nothing and miss ones that removed something.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const wanted = wantChipFocus.current
     if (wanted === null) return
