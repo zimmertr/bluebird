@@ -9,7 +9,12 @@ import {
   scaleFor,
 } from './colors'
 import { COLUMNS } from './tableColumns'
+import { scaleTicks } from './legendRamp'
+import { LabelledScale } from './colors'
 import { FAMILY_KEYS, RANKED_FAMILIES, RANKING_KEYS, familyOf } from '../metrics'
+
+/** What the map's strip prints under a scale, in order. */
+const labelsOf = (scale: LabelledScale) => scaleTicks(scale).map((tick) => tick.label)
 
 // Every column that carries a color: each colored family's own key list, which
 // is where the color table gets them from too.
@@ -241,25 +246,25 @@ describe('METRIC_SCALE', () => {
       for (let i = 1; i < cfg.thresholds.length; i++) {
         expect(cfg.thresholds[i - 1]).toBeLessThan(cfg.thresholds[i])
       }
-      // One band per color; boundaries sit between adjacent colors.
-      expect(cfg.legendLabels).toHaveLength(cfg.colors.length)
+      // One band per color; boundaries sit between adjacent colors, and the
+      // legend prints every other boundary (#454), which on six bands is the
+      // bottom, the middle and the top.
+      expect(scaleTicks(cfg)).toHaveLength(3)
       expect(cfg.thresholds).toHaveLength(cfg.colors.length - 1)
     }
   })
 
-  // Six bands on every scale, and the count is load-bearing: the phone's
-  // results sheet rests high enough for the legend stack, and
-  // `LEGEND_STACK_PX` in resultsSheet.ts is measured for a six-band key. A
-  // seventh band on any scale is a re-measure there, so this fails first.
+  // Six bands on every scale, which is the count `scaleTicks` reads the map
+  // legend's three tick positions off. A seventh anywhere moves those, so this
+  // fails first.
   it('gives every scale six bands', () => {
     for (const cfg of Object.values(METRIC_SCALE)) {
       expect(cfg.colors).toHaveLength(6)
     }
     expect(METRIC_SCALE.aqi.thresholds).toEqual([50, 100, 150, 200, 300])
-    // Every AQI legend row carries its unit.
-    for (const label of METRIC_SCALE.aqi.legendLabels) {
-      expect(label).toContain('AQI')
-    }
+    // The one scale with no unit at all, so the map legend labels it with the
+    // bare noun where every other scale reads `Temperature (°F)`.
+    expect(METRIC_SCALE.aqi.unit).toBe('')
   })
 
   it('pins every ramp to the boundaries it was tuned to', () => {
@@ -282,59 +287,32 @@ describe('METRIC_SCALE', () => {
     expect(METRIC_SCALE.aqi.colors[4]).toBe(PURPLE)
   })
 
-  // The captions the map legend prints for the three scales #445 moved. Spelled
-  // out rather than derived, because a caption is the one thing in this file a
-  // reader sees.
-  it('captions the moved scales with the bands they cover', () => {
-    expect(METRIC_SCALE.temp.legendLabels).toEqual([
-      '≤ 30°F',
-      '30 – 45°F',
-      '45 – 60°F',
-      '60 – 75°F',
-      '75 – 90°F',
-      '> 90°F',
-    ])
-    expect(METRIC_SCALE.wind.legendLabels).toEqual([
-      '≤ 5 mph',
-      '5 – 15 mph',
-      '15 – 25 mph',
-      '25 – 35 mph',
-      '35 – 50 mph',
-      '> 50 mph',
-    ])
-    expect(METRIC_SCALE.precip.legendLabels).toEqual([
-      '≤ 0.01 in',
-      '0.01 – 0.10 in',
-      '0.10 – 0.25 in',
-      '0.25 – 0.50 in',
-      '0.50 – 1.00 in',
-      '> 1.00 in',
-    ])
-    expect(hourlyScale('precip_total_in')!.legendLabels).toEqual([
-      '≤ 0.01 in/hr',
-      '0.01 – 0.10 in/hr',
-      '0.10 – 0.30 in/hr',
-      '0.30 – 0.50 in/hr',
-      '0.50 – 1.00 in/hr',
-      '> 1.00 in/hr',
-    ])
+  // What the map's strip prints under each of the three scales #445 moved, and
+  // under the rate scale playback swaps in. The numbers are derived from the
+  // thresholds rather than written beside them (#454), so these fix the
+  // FORMATTING — how many decimals, where the separators go, which tick wears
+  // the unit — and the boundaries are checked against the ramp below.
+  it('prints the moved scales as the boundaries they switch on', () => {
+    expect(labelsOf(METRIC_SCALE.temp)).toEqual(['30', '60', '90'])
+    expect(labelsOf(METRIC_SCALE.wind)).toEqual(['5', '25', '50'])
+    expect(labelsOf(METRIC_SCALE.precip)).toEqual(['0.01', '0.25', '1.00'])
+    expect(labelsOf(hourlyScale('precip_total_in')!)).toEqual(['0.01', '0.30', '1.00'])
   })
 
   it('advertises the same boundaries in the legend that it switches on', () => {
-    // The captions spell the same numbers the ramp uses, so the two can drift:
-    // a threshold moved without its label ships a legend that lies about the
-    // colors beside it. Reading the numbers back out of the captions is what
-    // makes that unmissable.
+    // The strip's numbers ARE the thresholds, formatted — so this reads them
+    // back out and checks they still say what the ramp switches on. It was a
+    // drift check over hand-written captions until #454 derived them; it stays
+    // because the formatting could still round a boundary into a different
+    // number.
     for (const cfg of Object.values(METRIC_SCALE)) {
-      // Thousands separators come out first: the freezing level's captions
-      // group its digits the way every other number this app prints does, and
-      // "4,000" would otherwise read back as two boundaries.
-      const advertised = cfg.legendLabels.flatMap((label) =>
-        (label.replace(/,/g, '').match(/\d+(?:\.\d+)?/g) ?? []).map(Number),
+      // Thousands separators come out first: the freezing level groups its
+      // digits the way every other number this app prints does, and "4,000"
+      // would otherwise read back as two boundaries.
+      const advertised = labelsOf(cfg).map((label) =>
+        Number(label.replace(/,/g, '').match(/\d+(?:\.\d+)?/)?.[0]),
       )
-      // "≤ t0", then one pair per middle band, then "> tLast" — so each
-      // boundary is named exactly twice, in order.
-      expect(advertised).toEqual(cfg.thresholds.flatMap((t) => [t, t]))
+      expect(advertised).toEqual([cfg.thresholds[0], cfg.thresholds[2], cfg.thresholds[4]])
     }
   })
 })
@@ -345,7 +323,7 @@ describe('rankedScale', () => {
     for (const key of RANKING_KEYS) {
       const scale = rankedScale(key)
       expect(scale, `${key} has no ranked scale`).not.toBeNull()
-      expect(scale!.legendLabels.length).toBeGreaterThan(0)
+      expect(scaleTicks(scale!).length).toBeGreaterThan(0)
     }
   })
 
@@ -426,39 +404,31 @@ describe('hourlyScale', () => {
   it('captions the rate scale in its own unit', () => {
     // The legend shows one scale or the other with nothing beside it to
     // compare against, so the unit is the only thing saying which reading it
-    // is on.
-    for (const label of hourlyScale('precip_total_in')!.legendLabels) {
-      expect(label).toContain('in/hr')
-    }
+    // is on. It rides the section's LABEL, which is where every other surface
+    // in the app puts a unit too.
+    expect(hourlyScale('precip_total_in')!.unit).toBe('in/hr')
+    expect(METRIC_SCALE.precip.unit).toBe('in')
   })
 
   it('advertises the boundaries the rate scale actually switches on', () => {
     const cfg = hourlyScale('precip_total_in')!
-    const advertised = cfg.legendLabels.flatMap((label) =>
-      (label.match(/\d+(?:\.\d+)?/g) ?? []).map(Number),
+    const advertised = labelsOf(cfg).map((label) =>
+      Number(label.match(/\d+(?:\.\d+)?/)?.[0]),
     )
-    expect(advertised).toEqual(cfg.thresholds.flatMap((t) => [t, t]))
+    expect(advertised).toEqual([cfg.thresholds[0], cfg.thresholds[2], cfg.thresholds[4]])
   })
 
-  it('gives every scale as many captions as colors', () => {
-    const scale = hourlyScale('precip_total_in')!
-    expect(scale.legendLabels).toHaveLength(scale.colors.length)
+  it('prints three of its five boundaries, which is what fits', () => {
+    expect(scaleTicks(hourlyScale('precip_total_in')!)).toHaveLength(3)
   })
 })
 
 describe('the freezing-level ramp', () => {
-  // The bands the map legend prints, and the numbers they switch on. Spelled
-  // out rather than derived, because these six captions are the approved copy
-  // (TJ, 2026-09-14) and a caption is the one thing in this file a reader sees.
-  it('captions each band with the height it covers', () => {
-    expect(METRIC_SCALE.freeze.legendLabels).toEqual([
-      '≤ 4,000 ft',
-      '4,000 – 8,000 ft',
-      '8,000 – 12,000 ft',
-      '12,000 – 16,000 ft',
-      '16,000 – 20,000 ft',
-      '> 20,000 ft',
-    ])
+  // What the map's strip prints, which is the one scale whose numbers need
+  // grouping: 20000 unseparated would be the only four- and five-digit figures
+  // in the app not formatted the way the table formats them.
+  it('prints each boundary at the height it switches on', () => {
+    expect(labelsOf(METRIC_SCALE.freeze)).toEqual(['4,000', '12,000', '20,000'])
   })
 
   // The ramp is read by hue, not by lightness, and that is the price of the

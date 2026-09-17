@@ -86,7 +86,7 @@ export const TEXT = {
   caption: CAPTION,
   /** Prose that explains a control without being one. */
   helper: `${CAPTION} italic`,
-  /** Tiny all-caps labels: the legend's metric, a search result's kind. */
+  /** Tiny all-caps labels: a popover header, a search result's kind. */
   overline: `${MICRO} font-semibold uppercase tracking-wider`,
   /** Attribution, timestamps, overflow counts — present but never first. */
   micro: MICRO,
@@ -238,11 +238,12 @@ export const TAP = {
 
 /**
  * Boxes that float over the map: the search field and its dropdown, the
- * Controls button, the legends, the chart tooltip.
+ * Controls button, the legend, the chart tooltip.
  *
- * Five of those were already byte-identical. The two legends were not — they
- * ran a darker fill and a darker border, so the map carried two different
- * ideas of "floating box" within a few hundred pixels of each other.
+ * Most of those were already byte-identical. The legends were not — they ran a
+ * darker fill and a darker border, so the map carried two different ideas of
+ * "floating box" within a few hundred pixels of each other. There is one legend
+ * box now (#454), the key and the layers sharing it.
  */
 export const SURFACE_FLOATING =
   `bg-slate-800/95 border border-slate-600 ${RADIUS.surface} shadow-lg backdrop-blur-sm`
@@ -273,10 +274,10 @@ export const SURFACE_SHEET = 'bg-slate-800 border-t border-slate-600 rounded-t-l
  * The map's Layers popover: the one floating box that is a menu rather than a
  * label, separated from the boxes around it by ELEVATION.
  *
- * `SURFACE_FLOATING` would make it byte-identical to the legend boxes a few
+ * `SURFACE_FLOATING` would make it byte-identical to the legend box a few
  * hundred pixels below it, so a thing the reader acts in would look like a key
  * the reader reads. What separates it here is the shadow and one step of fill;
- * the border stays exactly the legends' slate-600 so the difference is
+ * the border stays exactly the legend's slate-600 so the difference is
  * elevation only.
  *
  * ## Why `shadow-2xl` rather than `shadow-xl`
@@ -290,7 +291,7 @@ export const SURFACE_SHEET = 'bg-slate-800 border-t border-slate-600 rounded-t-l
  *
  * ## Why slate-700, and what still clears AA on it
  *
- * One step up from the legends' slate-800, measured on the v4 oklch steps:
+ * One step up from the legend's slate-800, measured on the v4 oklch steps:
  * white 10.34:1, `TEXT.control`'s slate-200 8.40:1, `MICRO`'s slate-300
  * 6.97:1 — every text role in the popover past the 4.5:1 of WCAG 1.4.3.
  * `ACCENT.input`'s checked sky-500 fill reads 3.81:1 here (5.40:1 on
@@ -642,22 +643,72 @@ export const SWATCH_CHIP =
   `text-[9px] font-semibold text-slate-900`
 
 /**
- * A legend key that is a SCALE rather than one colour: the snow depth
- * overlay's eleven bands, drawn as a strip across the box (#446).
+ * A legend key that is a SCALE rather than one colour, drawn as a strip across
+ * the box: the snow depth overlay's eleven bands (#446) and, since #454, each
+ * of the five ranking metrics' six.
  *
- * Every other layer keys on a single value, which the 14px chip beside its
- * label says. A banded depth scale cannot be said that way — eleven chips in a
- * 164px row are 13px each with nothing under them to read, and eleven rows are
- * most of the map a phone has left. So this one key takes the box's whole
- * width, with the numbers on their own line below it, and buys two lines
- * rather than eleven.
+ * A single-value layer keys on the 14px chip beside its label. A banded scale
+ * cannot be said that way — eleven chips in a 164px row are 13px each with
+ * nothing under them to read — and a row per band is eleven rows for snow and
+ * seven lines for a metric, on a map that can be 161px tall on a phone. So a
+ * scale takes the box's whole width and buys ONE line whatever the band count.
  *
- * Half the chip's height because it is long rather than square, and because
- * what a reader takes off it is a position along the strip rather than a
- * colour in isolation. The fill and the border are the layer's own, passed in:
- * the map draws NOAA's rendered image, so the key has to be NOAA's colours.
+ * **The numbers live inside it** (TJ, 2026-09-17). Under it they cost a second
+ * line per scale, which with two scales on screen is 16px of a map a phone can
+ * only give 161 to. So the strip is the grid its numbers sit in, and the height
+ * is what a 10px numeral needs rather than what a colour bar does.
+ *
+ * The fill is the scale's own, passed in: `colors.ts` and `snowDepth.ts` are
+ * where a band's colour is decided, and a fill named here would be a second
+ * opinion about a picture already on the map. `overflow-hidden` is what clips
+ * {@link SWATCH_RAMP_SCRIM} to the strip's own corners.
  */
-export const SWATCH_RAMP = `block h-2 w-full ${RADIUS.control} border`
+export const SWATCH_RAMP =
+  `relative grid items-end h-5 w-full overflow-hidden ${RADIUS.control} border`
+
+/**
+ * The band the numbers stand on, inside the strip.
+ *
+ * **Ink on a ramp needs a ground, and this is a measurement rather than a
+ * style.** A metric ramp runs from cyan-300 to purple-500 in one strip, so no
+ * single ink clears AA across it: white measures 1.45:1 on `#67e8f9` and
+ * slate-900 measures 2.04:1 on `#5720c3` (2026-09-17, over all five metric
+ * ramps and the eleven snow bands). A scrim is what gives every number one
+ * ground to be read against — slate-200 on this one measures **6.49:1** at its
+ * worst, on that same cyan-300, where a text-shadow would be carrying the
+ * legibility and no test could measure it.
+ *
+ * It takes the strip's lower 11px and leaves the colour the upper 7, which is
+ * within a pixel of the whole strip before the numbers moved in. Full width
+ * rather than a chip per number, so the numbers read along one baseline on one
+ * ground instead of as four dark blocks punched through a six-band scale.
+ */
+export const SWATCH_RAMP_SCRIM =
+  'pointer-events-none absolute inset-x-0 bottom-0 h-[11px] bg-slate-900/70'
+
+/**
+ * One number on that band: 10px, the ramp's smallest step, on the scrim.
+ *
+ * `relative` lifts it over the scrim, which is a later sibling in paint order.
+ * `leading-none` is what lets a 10px numeral sit in an 11px band at all, and
+ * the 2px of side padding keeps the first and last numbers off the strip's own
+ * edges without moving a centred one, which pads symmetrically.
+ */
+export const SWATCH_RAMP_TICK =
+  `relative whitespace-nowrap px-0.5 pb-px ${MICRO_SIZE} leading-none text-slate-200`
+
+/**
+ * The edge every legend swatch wears, as a VALUE rather than a class.
+ *
+ * slate-600, the same line `SURFACE_FLOATING` draws around the box the swatches
+ * sit in — a swatch is chrome holding somebody else's colour, so its border is
+ * the app's and its fill is not. It has to be a value because the fill beside
+ * it is one: Tailwind resolves two competing colour utilities by stylesheet
+ * order, so a `border-slate-600` class on a span carrying an inline
+ * `borderColor` would be a race rather than a rule. It was this hex spelled at
+ * four call sites in `App.tsx` until #454.
+ */
+export const SWATCH_EDGE = '#475569'
 
 export const ICON_ACTION = `text-slate-500 ${ACCENT.hoverText}`
 
@@ -1009,7 +1060,7 @@ export const CHART_METRIC_W = 'w-36'
 /**
  * The width of the map's left column, which EVERYTHING in it wears: the search
  * field, the list of results under it, the Controls and Layers buttons, the
- * Layers popover, the map-layer legend and the metric colour key.
+ * Layers popover and the legend box.
  *
  * They sit in one column on the left of the map, so differing widths read as a
  * ragged edge rather than as a column. It covered the three boxes first (the
@@ -1053,7 +1104,7 @@ export const MAP_ROW_H = 'h-9 touch:h-11'
 
 /**
  * The gap between members of that column: the field, the buttons, the legend
- * boxes, and the popover under the button it hangs from.
+ * box, and the popover under the button it hangs from.
  *
  * 4px, half the 8px every one of them took before: a quarter off first, then
  * the same again once the tighter column was on screen (TJ, 2026-09-14).

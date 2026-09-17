@@ -218,19 +218,18 @@ describe('the resting height', () => {
   // scrolling, in each results mode — with the timeline on, which is the tighter
   // of the two clearances.
   //
-  // Both mode is the exception, and it lost ground twice. The freezing level's
-  // six-band key made the stack 20px taller (2026-09-14), and the search field
-  // moving out of the Controls button's row and above it made the column it
-  // hangs under 52px taller in the same week. Its two panels floor at 120 each,
-  // so the sheet cannot hand the map either amount however the reserve is set:
-  // the band is 202 of the 265 the stack wants, and the key's last bands
-  // scroll. That is the degradation the stack was built for — it is a scroll
-  // box anchored at the top precisely so what gives is its tail — and the
-  // alternative is a 100px table.
+  // Both mode used to be the exception, and it had lost ground twice: the
+  // freezing level's six-band key made the stack 20px taller (2026-09-14), and
+  // the search field moving above the Controls button made the column it hangs
+  // under 52px taller in the same week. Its two panels floor at 120 each, so
+  // the sheet could hand the map only 202px of the 265 the stack wanted, and
+  // the key's last bands scrolled. #454 cut the stack to 182 — one box, and
+  // both scale keys drawn as a strip with their numbers inside it — so every
+  // mode now clears it outright, Both included, with 20px to spare.
   describe.each([
     ['table only', { chartShown: false, tableShown: true }, 1, LEGEND_STACK_PX],
     ['chart only', { chartShown: true, tableShown: false }, 1, LEGEND_STACK_PX],
-    ['chart and table', { chartShown: true, tableShown: true }, 2, 202],
+    ['chart and table', { chartShown: true, tableShown: true }, 2, LEGEND_STACK_PX],
   ])('at 402x874, %s', (_mode, shown, gripCount, wanted) => {
     const VIEWPORT = 874
 
@@ -329,9 +328,12 @@ describe('the camera padding', () => {
   const defaults = { chartPx: 288, tablePx: 280 }
 
   it('is the lift the sheet reserves at 402x874', () => {
-    // The sheet's chrome plus a default-height table (104 + 24 + 280) is more
-    // than the resting reserve leaves at this height, so the lift is what the
-    // reserve leaves: 874 less `RESTING_MAP_PX`.
+    // The sheet's chrome plus a default-height table (104 + 24 + 280) is 408,
+    // and the resting reserve leaves 412 at this height (874 less
+    // `RESTING_MAP_PX`), so the table stands at its own default and the lift is
+    // the sheet's own height. #454's last 14px are what bought that: at a
+    // 196px stack the reserve was the binding edge and the table was clamped
+    // to 398.
     const lift = restingLiftPx({
       collapsed: false,
       gripCount: 1,
@@ -340,28 +342,29 @@ describe('the camera padding', () => {
       availPx: 874,
       ...defaults,
     })
-    expect(lift).toBe(329)
-    expect(874 - lift).toBe(RESTING_MAP_PX)
+    expect(lift).toBe(408)
+    expect(874 - lift).toBeGreaterThanOrEqual(RESTING_MAP_PX)
   })
 
   // The other side of the same clamp: a viewport short enough that the reserve
   // asks for more map than is left once the table holds its own floor. The
   // panel floors win there, as they do in `clampPanelHeight`, and the lift is
-  // the sheet's own smallest height rather than the reserve. 757 crossed that
-  // line when the column above the legends grew by a row (2026-09-14) — it used
-  // to answer with the reserve, at 252.
+  // the sheet's own smallest height rather than the reserve. The line moves
+  // with the reserve: 757 crossed it when the column above the legends grew by
+  // a row (2026-09-14) and crossed back when #454 took 83px out of the stack,
+  // so the case is asserted at 667 now — the shortest phone the app is read on.
   it('falls back to the sheet floor on a viewport the reserve cannot have', () => {
     const lift = restingLiftPx({
       collapsed: false,
       gripCount: 1,
       chartShown: false,
       tableShown: true,
-      availPx: 757,
+      availPx: 667,
       ...defaults,
     })
     expect(lift).toBe(sheetChromePx(1) + 120)
     expect(lift).toBe(248)
-    expect(757 - lift).toBeLessThan(RESTING_MAP_PX)
+    expect(667 - lift).toBeLessThan(RESTING_MAP_PX)
   })
 
   it('is the header alone while the results are collapsed', () => {

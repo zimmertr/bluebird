@@ -169,7 +169,7 @@ controls panel: they are the only controls in the app that change what you are
 looking at rather than what you are asking for. All off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
 the ranking, never an input to it, so none of them ever asks you to press Analyze
-again. Each of the four that draw somebody else's data is credited on its own legend, and each rides in the shared link.
+again. Each of the four that draw somebody else's data is credited in its own section of the map's legend, and each rides in the shared link.
 
 | Layer | What it draws | Coverage |
 |---|---|---|
@@ -306,7 +306,7 @@ hand from the analysis; the timeline is a position in it.
 
 The results bar at the top of the report gives you three viewing modes. The report opens as a table; a desktop-sized window switches to Both when an analysis completes, and a mode you pick yourself sticks across visits. **Table** is the detailed breakdown you can sort, filter and download. **Chart** is a time series of the plotted destinations, one metric at a time: the dropdown above the plot picks it, and opens on the metric the report is ranked by. In Both, the table's checkbox column is the series picker; in Chart alone, a legend under the plot lists every destination — click one to hide or show its line, or its × to remove it from the report, and scroll the legend when two rows cannot hold them all. Every destination gets its line color the moment it appears — searched places included, before any analysis — and keeps it for the whole session no matter how the list changes; the first destination of a session wears Bluebird Forecast blue. **Both** stacks them. Each view has a drag handle to trade height with the map, and in Both the divider between the two trades their share. Double-press a handle to put its panel back.
 
-On a phone the report is a sheet standing on the map rather than a panel beside it: the map keeps its full height and runs on behind the sheet, and the sheet opens low enough for the map's legends and its timeline to stay in view. Drag its handle up for more rows and the legends give way, as they do on any map too short for them.
+On a phone the report is a sheet standing on the map rather than a panel beside it: the map keeps its full height and runs on behind the sheet, and the sheet opens low enough for the map's legend and its timeline to stay in view. Drag its handle up for more rows and the legend gives way, as it does on any map too short for it.
 
 Every column is resizable: drag the divider at a header's right edge, or double-click it to fit the column to its longest value. Name opens wide enough for a 25-character name so more numbers fit on a phone — widen it whenever a longer name is cut off. Widths hold for the session.
 
@@ -362,6 +362,25 @@ Once results are up, the knobs split in two. **Ranking, max results and every fo
 
 If Open-Meteo cannot be reached from your browser, the analysis stops and says so. There is no second path: the browser holds your forecasts, and rerouting the fetch through the server would spend a quota every visitor shares.
 
+### The map's legend
+
+One box, under the **Layers** button. It holds a section for the marker colors
+and one for each layer that is switched on, and they read in alphabetical order
+by name, so a section is where you last looked for it.
+
+A section keyed on a single value — smoke, rain radar, active wildfires — is one
+line with its swatch on the right. A section keyed on a **scale** is a strip
+across the box with its numbers **inside** it, along the bottom edge: the bottom
+of the scale, its middle and its top, each standing on the band boundary it
+names. That is the shape both the marker colors and the snow depth layer take,
+and it is one line rather than two. The unit rides the section's name —
+`Temperature (°F)`, `Precipitation (in)`, `Precipitation (in/hr)` while the
+forecast player is scrubbing, and `Snow depth (in)` — so the numbers on the strip
+stay bare. AQI is the one with no unit to state, its index being a plain index.
+The strip is drawn in equal bands rather than to scale, because a scale running
+from 0.39 to 787 inches to scale would be most of its bands in the first few
+pixels.
+
 Marker colors follow the ranked metric. Under the default ranking that is total precipitation:
 
 | Color | Precip Total |
@@ -375,7 +394,7 @@ Marker colors follow the ranked metric. Under the default ranking that is total 
 
 Wind uses the same six colors, with red from 35 to 50 mph and purple above 50 mph. Purple is the same color the AQI scale gives its Very Unhealthy band, so wherever you meet it the reading is the same: past the end of the ramp. Temperature is the one scale with a bad end on both sides: purple at or below 30°F, through sky blue and cyan, green from 60 to 75°F, then orange and red above 90°F.
 
-Click a marker for a popup carrying the same columns the results table is showing, in the table's order. A Current lookup shows one value per metric, because the table collapses its aggregates for a single hour; a date range shows every aggregate, grouped one metric per heading with its values on the line below. Hiding a column in the **Columns** picker hides it in the popup too, and changing the ranking moves that metric to the top of the card. The type, the model and the coordinates sit above the rule, ahead of the numbers. The freezing-level value reads `N/A` under a model that publishes none, the same mark the table's cells carry. Every one of those numbers is a link to Windy, on the same terms the table's cells use: the same overlay, the same forecast model, and for the freezing-level minimum and the AQI maximum the hour that produced the value. A wildfire warning stays a banner at the top of the popup rather than a line among the metrics, and links to that fire on the NIFC map. The elevation and the coordinates carry no link, because neither is a forecast. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300). When you sort by the freezing level they switch again, to six bands of 4,000 ft apiece running purple for the lowest freezing line, through indigo and blue, to cyan for the highest. That ramp is deliberately not green to red: a freezing level is a height rather than a verdict, and a skier and a rock climber want opposite ends of it. The map's colour key always names the bands it is drawing.
+Click a marker for a popup carrying the same columns the results table is showing, in the table's order. A Current lookup shows one value per metric, because the table collapses its aggregates for a single hour; a date range shows every aggregate, grouped one metric per heading with its values on the line below. Hiding a column in the **Columns** picker hides it in the popup too, and changing the ranking moves that metric to the top of the card. The type, the model and the coordinates sit above the rule, ahead of the numbers. The freezing-level value reads `N/A` under a model that publishes none, the same mark the table's cells carry. Every one of those numbers is a link to Windy, on the same terms the table's cells use: the same overlay, the same forecast model, and for the freezing-level minimum and the AQI maximum the hour that produced the value. A wildfire warning stays a banner at the top of the popup rather than a line among the metrics, and links to that fire on the NIFC map. The elevation and the coordinates carry no link, because neither is a forecast. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300). When you sort by the freezing level they switch again, to six bands of 4,000 ft apiece running purple for the lowest freezing line, through indigo and blue, to cyan for the highest. That ramp is deliberately not green to red: a freezing level is a height rather than a verdict, and a skier and a rock climber want opposite ends of it. The map's legend always names the metric it is drawing and the numbers its scale turns on.
 
 ## Results Table
 

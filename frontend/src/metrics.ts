@@ -20,10 +20,13 @@ import { WindowSource } from './utils/forecastWindow'
  *
  * Two things deliberately live outside this module. Ranking *direction*
  * ("Highest" / "Lowest") is not a name, it is the second axis of the sort, and
- * it reads naturally only in the results header. And the legend's band
- * captions ("0.10 – 0.25\"") stay in `colors.ts` next to the thresholds they
- * describe, because a caption that disagrees with its threshold is a bug the
- * numbers should catch, not a wording choice.
+ * it reads naturally only in the results header. And the map legend's band
+ * numbers stay with the thresholds they name, in `colors.ts`, because a caption
+ * that disagrees with its threshold is a bug the numbers should catch rather
+ * than a wording choice — which since #454 they cannot, being the thresholds
+ * themselves formatted by `legendRamp.ts`. The UNIT those numbers carry comes
+ * from `UNIT` below even so, so the one place a metric's unit is decided is
+ * still here.
  */
 
 /**
