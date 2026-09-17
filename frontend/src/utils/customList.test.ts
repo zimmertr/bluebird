@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildCustomList, pendingDestinations, pinKey } from './customList'
+import { buildCustomList, pendingAsResult, pendingDestinations, pinKey } from './customList'
 import { CustomDestination, DestinationResult } from '../types'
 import { Place } from './geocode'
 import { NO_CONSTRAINTS } from './clientAnalyze'
@@ -234,5 +234,36 @@ describe('a field larger than the limit', () => {
     expect(rows).toHaveLength(universe.length)
     expect(rows[rows.length - 1].name).toBe(searched.label)
     expect(rows[rows.length - 1].precip_total_in).toBe(999)
+  })
+})
+
+// The row shape a pending destination takes on the table and the chart, spelled
+// once so the two surfaces cannot draw the same dot differently.
+describe('pendingAsResult', () => {
+  it('keeps the identity a searched place carries', () => {
+    const searched = place('Mount Rainier', 46.8529, -121.7604, 14411)
+    const [row] = pendingDestinations([], [searched], new Set(), new Set()).map(pendingAsResult)
+    expect(row.name).toBe('Mount Rainier')
+    expect(row.type).toBe('peak')
+    expect(row.elevation_ft).toBe(14411)
+    expect(row.latitude).toBe(46.8529)
+    expect(row.longitude).toBe(-121.7604)
+  })
+
+  // A pasted coordinate has no kind and often no elevation. Both read as
+  // absent rather than as a number nothing measured.
+  it('falls back to the custom kind and a null elevation', () => {
+    const [row] = pendingDestinations([csv[0]], [], new Set(), new Set()).map(pendingAsResult)
+    expect(row.type).toBe('custom')
+    expect(row.elevation_ft).toBeNull()
+  })
+
+  // Every metric stays absent: no analysis has covered this destination, and a
+  // zero here would rank and colour as a real reading.
+  it('carries no metric at all', () => {
+    const [row] = pendingDestinations([csv[0]], [], new Set(), new Set()).map(pendingAsResult)
+    for (const key of ['precip_total_in', 'temp_avg_f', 'wind_avg_mph', 'aqi_avg'] as const) {
+      expect(row[key]).toBeUndefined()
+    }
   })
 })
