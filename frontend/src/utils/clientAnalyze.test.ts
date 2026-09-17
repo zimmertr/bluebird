@@ -22,7 +22,7 @@ import {
 } from './clientAnalyze'
 import { geoKey } from './points'
 import { WeatherResult, resetOpenMeteoState } from './openMeteo'
-import vectors from './weather_vectors.json'
+import vectors from '../../../backend/tests/data/weather_vectors.json'
 
 // ── Vector-pinned: the AQI-onto-weather-grid alignment ─────────────────────
 

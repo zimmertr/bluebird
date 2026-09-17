@@ -13,14 +13,15 @@ import asyncio
 import json
 import threading
 import time
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import httpx
 import pytest
+from fastapi.testclient import TestClient
+
 from app.main import app
 from app.services import hms
 from app.services.errors import UpstreamError
-from fastapi.testclient import TestClient
 
 # One placemark in the shape the live file uses, verified against the 2026-08-04
 # analysis. Written as a template so a test can vary the style and description
@@ -87,7 +88,7 @@ def test_analysis_date_is_eastern_not_utc():
     # 01:30 UTC on the 5th is still the evening of the 4th in the analysts'
     # timezone. A UTC date here would ask for a file that does not exist yet
     # for five hours every evening.
-    late = datetime(2026, 8, 5, 1, 30, tzinfo=timezone.utc)
+    late = datetime(2026, 8, 5, 1, 30, tzinfo=UTC)
     assert hms.analysis_date(late) == date(2026, 8, 4)
 
 
@@ -134,10 +135,10 @@ def test_parse_reads_the_satellite_and_the_observed_window():
     assert properties["satellite"] == "GOES-EAST"
     # Day 216 of 2026 is 2026-08-04; 12:00 UTC on it.
     assert properties["observed_start"] == int(
-        datetime(2026, 8, 4, 12, 0, tzinfo=timezone.utc).timestamp() * 1000
+        datetime(2026, 8, 4, 12, 0, tzinfo=UTC).timestamp() * 1000
     )
     assert properties["observed_end"] == int(
-        datetime(2026, 8, 4, 15, 0, tzinfo=timezone.utc).timestamp() * 1000
+        datetime(2026, 8, 4, 15, 0, tzinfo=UTC).timestamp() * 1000
     )
 
 
@@ -215,7 +216,7 @@ def served_kml(monkeypatch):
 async def test_fetch_uses_todays_file(served_kml):
     today = date(2026, 8, 4)
     asked = served_kml({hms.kml_url(today): httpx.Response(200, text=_kml(_placemark()))})
-    snapshot = await hms.fetch_snapshot(datetime(2026, 8, 4, 20, 0, tzinfo=timezone.utc))
+    snapshot = await hms.fetch_snapshot(datetime(2026, 8, 4, 20, 0, tzinfo=UTC))
     assert asked == [hms.kml_url(today)]
     assert snapshot.analysis_date == "2026-08-04"
     assert snapshot.plumes == 1
@@ -248,7 +249,7 @@ async def test_the_kml_parse_runs_off_the_event_loop(served_kml, monkeypatch):
     today = date(2026, 8, 4)
     served_kml({hms.kml_url(today): httpx.Response(200, text=_kml(_placemark()))})
     beat = asyncio.create_task(heartbeat())
-    await hms.fetch_snapshot(datetime(2026, 8, 4, 20, 0, tzinfo=timezone.utc))
+    await hms.fetch_snapshot(datetime(2026, 8, 4, 20, 0, tzinfo=UTC))
     beat.cancel()
 
     assert parsed_on and parsed_on[0] != threading.main_thread().name
@@ -260,7 +261,7 @@ async def test_fetch_falls_back_a_day_before_the_first_pass_lands(served_kml):
     # morning Eastern, so the dated file simply does not exist before it.
     yesterday = date(2026, 8, 3)
     asked = served_kml({hms.kml_url(yesterday): httpx.Response(200, text=_kml(_placemark()))})
-    snapshot = await hms.fetch_snapshot(datetime(2026, 8, 4, 13, 0, tzinfo=timezone.utc))
+    snapshot = await hms.fetch_snapshot(datetime(2026, 8, 4, 13, 0, tzinfo=UTC))
     assert asked == [hms.kml_url(date(2026, 8, 4)), hms.kml_url(yesterday)]
     # Labelled with the day it really came from, which is what keeps the
     # fallback honest rather than a quiet lie about how current the map is.
@@ -270,7 +271,7 @@ async def test_fetch_falls_back_a_day_before_the_first_pass_lands(served_kml):
 async def test_fetch_gives_up_when_neither_day_exists(served_kml):
     served_kml({})
     with pytest.raises(UpstreamError):
-        await hms.fetch_snapshot(datetime(2026, 8, 4, 20, 0, tzinfo=timezone.utc))
+        await hms.fetch_snapshot(datetime(2026, 8, 4, 20, 0, tzinfo=UTC))
 
 
 async def test_a_server_error_is_not_swallowed_as_a_missing_day(served_kml):
@@ -278,7 +279,7 @@ async def test_a_server_error_is_not_swallowed_as_a_missing_day(served_kml):
     today = date(2026, 8, 4)
     asked = served_kml({hms.kml_url(today): httpx.Response(500, text="oops")})
     with pytest.raises(httpx.HTTPStatusError):
-        await hms.fetch_snapshot(datetime(2026, 8, 4, 20, 0, tzinfo=timezone.utc))
+        await hms.fetch_snapshot(datetime(2026, 8, 4, 20, 0, tzinfo=UTC))
     assert asked == [hms.kml_url(today)]
 
 

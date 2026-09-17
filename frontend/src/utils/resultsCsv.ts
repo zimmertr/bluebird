@@ -17,6 +17,7 @@ import { ColDef, MODEL_KEY, WILDFIRE_COL, WILDFIRE_KEY } from './tableColumns'
 import type { ModelRow } from './modelCompare'
 import { DATA_SOURCES } from './dataSources'
 import { FireWarning } from './fireProximity'
+import type { ResolvedWindow } from './forecastWindow'
 import { geoKey } from './points'
 
 /**
@@ -37,6 +38,22 @@ const RANK_HEADER = 'Rank'
  * presence is a statement of its own — see buildResultsCsv below.
  */
 const FIRE_HEADER = WILDFIRE_COL.label
+
+/**
+ * The two ends of the analyzed forecast window (#444).
+ *
+ * Labels in a metadata block below the data, not column headers: a value that
+ * is the same on every row is something the file says about itself rather than
+ * a measurement of any one destination (TJ, 2026-09-17). The credits block
+ * below is already that part of the file, so the window stands with it.
+ *
+ * Here rather than in metrics.ts because they name no metric: they say WHEN
+ * the numbers above them apply, which is the one thing the file could not say
+ * before. The filename carries the download time, not the window, so a file
+ * opened later or passed to somebody else described days nothing in it named.
+ */
+const WINDOW_START_LABEL = 'Forecast start'
+const WINDOW_END_LABEL = 'Forecast end'
 
 /**
  * Byte-order mark.
@@ -124,7 +141,14 @@ function fireCell(
 }
 
 /**
- * One supplier's credit line, composed from its DATA_SOURCES entry.
+ * One supplier's credit, as the two cells every row below the data wears.
+ *
+ * The license URI stands in its own cell rather than in parentheses at the end
+ * of the sentence. A license asks for the URI beside the data, and a cell
+ * holding nothing but a URL is a link a spreadsheet makes clickable, where the
+ * same URL inside a sentence is text a reader has to retype (TJ, 2026-09-17).
+ * It is also the shape the forecast-window rows above it wear, so everything
+ * the file says about itself reads as one label and one value.
  *
  * Only the lead-in phrase lives here; the name, license and license URI come
  * from the one list the privacy pages render and NOTICES.md transcribes, so a
@@ -132,10 +156,10 @@ function fireCell(
  * The throw is for a test to hit, not a user: a renamed entry breaks the
  * lookup at build-and-test time rather than silently dropping a credit.
  */
-function credit(lead: string, sourceName: string, suffix = ''): string {
+function credit(lead: string, sourceName: string, suffix = ''): string[] {
   const s = DATA_SOURCES.find((d) => d.name === sourceName)
   if (!s?.license || !s.licenseHref) throw new Error(`no licensed data source named ${sourceName}`)
-  return `${lead} ${s.name}${suffix}, ${s.license} (${s.licenseHref})`
+  return [`${lead} ${s.name}${suffix}, ${s.license}`, s.licenseHref]
 }
 
 /**
@@ -146,8 +170,9 @@ function credit(lead: string, sourceName: string, suffix = ''): string {
  * under ODbL: the screen carrying the credits does not cover a file read
  * detached from it. They land BELOW the data, behind one blank row, so a
  * spreadsheet still reads the first row as the column titles and the numbers
- * as a table. One cell per line; the commas inside are quoted away by
- * escapeCell like any other cell.
+ * as a table. Two cells per line, the words and then the license URI, which is
+ * the shape the forecast-window rows above them wear; the comma inside the
+ * words is quoted away by escapeCell like any other cell.
  *
  * Only suppliers the file actually used appear: NIFC is credited exactly when
  * the wildfire column is present, and CAMS is absent because its figures reach
@@ -155,11 +180,95 @@ function credit(lead: string, sourceName: string, suffix = ''): string {
  */
 function creditRows(fireColumn: boolean): string[][] {
   const rows = [
-    [credit('Weather data by', 'Open-Meteo')],
-    [credit('Destination data ©', 'OpenStreetMap', ' contributors')],
+    credit('Weather data by', 'Open-Meteo'),
+    credit('Destination data ©', 'OpenStreetMap', ' contributors'),
   ]
-  if (fireColumn) rows.push([credit('Wildfire data by', 'NIFC')])
+  if (fireColumn) rows.push(credit('Wildfire data by', 'NIFC'))
   return rows
+}
+
+/**
+ * An instant as local ISO 8601 with its UTC offset, to the minute.
+ *
+ * `2026-09-18T00:00-07:00`. ISO 8601 because a spreadsheet parses it as a date
+ * rather than as text, and the offset because the same wall-clock hour means a
+ * different instant in every zone: a file crosses zones the way it crosses
+ * machines. Seconds are dropped because a window is chosen to the hour and a
+ * point sample is floored to one, so a seconds field could only ever read `:00`
+ * and invite a precision the numbers do not have.
+ *
+ * `timeZone` is injectable so the suite does not pass or fail on the zone the
+ * machine running it is set to; the app leaves it undefined, which is the
+ * reader's own zone and the same clock the window caption on screen is read
+ * against.
+ *
+ * The offset is measured rather than read off a name: the zone's own wall clock
+ * for that instant, minus the instant itself, which is the definition of an
+ * offset and is what makes a DST day come out with two different ones.
+ */
+export function isoLocalMinute(ms: number, timeZone?: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    // h23 rather than hour12:false, which reports midnight as hour 24 on some
+    // engines and would write an hour no ISO 8601 reader accepts.
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(new Date(ms))
+  const at = (type: string) => Number(parts.find((p) => p.type === type)?.value)
+  const [year, month, day, hour, minute] = [
+    at('year'),
+    at('month'),
+    at('day'),
+    at('hour'),
+    at('minute'),
+  ]
+  const wall = Date.UTC(year, month - 1, day, hour, minute, at('second'))
+  // Whole seconds on both sides, or a window carrying milliseconds would push
+  // the offset off a whole minute.
+  const offsetMin = Math.round((wall - Math.floor(ms / 1000) * 1000) / 60_000)
+  const pad = (n: number) => String(Math.abs(n)).padStart(2, '0')
+  const sign = offsetMin < 0 ? '-' : '+'
+  const offset = `${sign}${pad(Math.trunc(offsetMin / 60))}:${pad(offsetMin % 60)}`
+  return `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}${offset}`
+}
+
+/**
+ * Everything beyond the rows, the columns and the fire answer.
+ *
+ * An object rather than four more positional arguments: the call site read
+ * `[], new Set(), 'NOAA GFS'` before the window joined it, which is three
+ * values whose meaning is their position alone and which a fifth would have
+ * made unreadable. The three that carried a default keep it, so a caller that
+ * only has rows and columns still passes nothing.
+ */
+export interface CsvOptions {
+  /**
+   * The window the ranked rows describe, resolved (a point sample is an hour,
+   * never `start === end`), or null before any analysis has committed. Null
+   * writes no metadata block at all.
+   */
+  window?: ResolvedWindow | null
+  /**
+   * Destinations awaiting their first analysis. They carry identity columns
+   * only: no rank and no metrics, because no forecast covers them.
+   */
+  pendingRows?: readonly DestinationResult[]
+  /** Rows the fire check could not reach, by fireKey (#256). */
+  fireUncovered?: ReadonlySet<string>
+  /**
+   * What the Model column reads for a row no comparison tagged: the model the
+   * analysis itself ran. The column can be shown with one model selected, and
+   * an empty cell there would say the row came from nowhere. Pending rows are
+   * deliberately left out of it, having no forecast at all.
+   */
+  modelLabel?: string | null
+  /** The zone the two window rows are written in; the reader's own by default. */
+  timeZone?: string
 }
 
 /**
@@ -178,24 +287,38 @@ function creditRows(fireColumn: boolean): string[][] {
  * destination was checked and none is near a fire. An absent column asserts
  * nothing, which is the honest thing to say when nothing is known.
  *
- * The file ends with the supplier credits behind one blank row; see
- * creditRows above for why they are in the file at all.
+ * Below the data the file speaks about itself: the forecast window behind one
+ * blank row, then the supplier credits behind another (see creditRows above
+ * for why those are in the file at all). The columns are therefore exactly the
+ * ones a reader already knows, and a row copied out of the file carries no
+ * repeated value pretending to be a measurement.
  */
 export function buildResultsCsv(
   rows: readonly DestinationResult[],
   columns: readonly ColDef[],
   fireWarnings: ReadonlyMap<string, FireWarning> | null,
-  pendingRows: readonly DestinationResult[] = [],
-  fireUncovered: ReadonlySet<string> = new Set(),
-  // What the Model column reads for a row no comparison tagged: the model the
-  // analysis itself ran. The column can be shown with one model selected, and
-  // an empty cell there would say the row came from nowhere. Pending rows are
-  // deliberately left out of it — they have no forecast at all, so no model
-  // answered them.
-  modelLabel: string | null = null,
+  options: CsvOptions = {},
 ): string {
+  const {
+    window = null,
+    pendingRows = [],
+    fireUncovered = new Set<string>(),
+    modelLabel = null,
+    timeZone,
+  } = options
   const header = [RANK_HEADER, ...columns.map((c) => c.label)]
   if (fireWarnings) header.push(FIRE_HEADER)
+  // The window as two label/value rows behind their own blank row, or nothing
+  // at all. Nothing is what a file with no committed analysis writes: every
+  // row in it is pending, no forecast covers any of them, and a label over an
+  // empty cell would be the file asking a question rather than answering one.
+  const windowRows = window
+    ? [
+        [''],
+        [WINDOW_START_LABEL, isoLocalMinute(window.startMs, timeZone)],
+        [WINDOW_END_LABEL, isoLocalMinute(window.endMs, timeZone)],
+      ]
+    : []
   // Pending rows first with an empty Rank, mirroring the table, which draws
   // un-analyzed destinations above the ranked ones with "—" in the # column.
   // Empty rather than a dash for the same reason null metrics become empty
@@ -214,7 +337,14 @@ export function buildResultsCsv(
     if (fireWarnings) cells.push(fireCell(row, fireWarnings, fireUncovered))
     return cells
   })
-  const doc = [header, ...pendingBody, ...body, [''], ...creditRows(fireWarnings != null)]
+  const doc = [
+    header,
+    ...pendingBody,
+    ...body,
+    ...windowRows,
+    [''],
+    ...creditRows(fireWarnings != null),
+  ]
   return BOM + doc.map((r) => r.map(escapeCell).join(',')).join(CRLF) + CRLF
 }
 

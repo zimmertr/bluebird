@@ -61,7 +61,15 @@ import {
   smokePopupHtml,
   type SmokeProps,
 } from '../utils/smoke'
-import { radarLayerId, radarOffsets, radarTileUrl } from '../utils/radar'
+import { RADAR_OLDEST_MIN, radarLayerId, radarOffsets, radarTileUrl } from '../utils/radar'
+import {
+  SNOW_BOUNDS,
+  SNOW_LAYER_ID,
+  SNOW_MAX_ZOOM,
+  SNOW_SOURCE_ID,
+  SNOW_TILE_SIZE,
+  snowTileUrl,
+} from '../utils/snowDepth'
 import {
   GridCell,
   GridSpec,
@@ -131,6 +139,10 @@ interface Props {
   // rather than analysis inputs, so neither ever touches `commitNeeded`.
   showRadar: boolean
   showSmoke: boolean
+  // The NOHRSC snow analysis (#446), rendered per tile by NOAA and fetched
+  // straight from the browser like the radar. An observation layer like the
+  // three above it, and no more a knob than they are.
+  showSnow: boolean
   // Which radar frame is on screen, as an index into `radarOffsets()`. Driven
   // by the timeline; ignored entirely while the layer is off.
   radarIndex: number
@@ -253,6 +265,20 @@ const DRAW_COLOR = '#38bdf8'
  * than it appeared at would pulse every time the loop wrapped.
  */
 const RADAR_OPACITY = 0.65
+
+/**
+ * How solid the snow depth field is drawn (#446).
+ *
+ * Below the radar's 0.65 and above the forecast grid's 0.5, which is where it
+ * sits in the layer chain too. Two things bound it. It is a *field*, not a
+ * scatter of echoes — a January screen is solid colour from the Cascades to the
+ * Rockies, so the terrain and the place names under it have to survive in a way
+ * a rain cell never tests. And the radar is drawn on top of it, so the two
+ * together must still leave a basemap: 0.55 under 0.65 composites to about a
+ * fifth of the ground showing through, which is the floor for reading a lake
+ * and a summit label off the map underneath.
+ */
+const SNOW_OPACITY = 0.55
 
 /**
  * How solid the forecast field is drawn (#246).
@@ -759,6 +785,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       showWildfires,
       showRadar,
       showSmoke,
+      showSnow,
       radarIndex,
       gridSpec,
       gridCells,
@@ -1941,6 +1968,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
         map.remove()
         mapRef.current = null
       }
+      // Kept: the map is built once and torn down once. Listing the props the
+      // setup closes over would remove and rebuild the map whenever a handler
+      // identity changed, losing the camera and every layer with it.
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     // The attribution, collapsed behind the library's own (i) on a phone and
@@ -2089,7 +2119,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
         vertexPopupRef.current?.remove()
         vertexPopupRef.current = null
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [drawing, mapReady])
 
     // Neutral blue dot per custom destination not yet in the displayed analysis.
@@ -2194,6 +2223,61 @@ const MapView = forwardRef<MapViewHandle, Props>(
         })
       return () => ac.abort()
     }, [showSmoke, mapReady])
+
+    // Toggle the NOHRSC snow depth field (#446). One raster source, created
+    // here and torn down on untoggle rather than declared at load, for the
+    // reason the radar loop is: a raster source starts fetching the moment a
+    // rendered layer names it, and every one of those tiles is a render NOAA
+    // performs on demand for somebody who never asked for the layer.
+    //
+    // It goes UNDER the radar, which is the one place in the chain it can be:
+    // snow is the ground state and rain is what is happening over it. The
+    // insertion point says that whichever order the two are switched on —
+    // beneath the loop's oldest frame where the loop is already up, and
+    // beneath the smoke fills otherwise, which is where the loop itself
+    // inserts and therefore leaves room above this.
+    useEffect(() => {
+      const map = mapRef.current
+      if (!map || !mapReady || !showSnow) return
+
+      const underRadar = radarLayerId(RADAR_OLDEST_MIN)
+      const beneath = map.getLayer(underRadar) ? underRadar : smokeLayerId(SMOKE_DENSITIES[0])
+      if (!map.getSource(SNOW_SOURCE_ID)) {
+        map.addSource(SNOW_SOURCE_ID, {
+          type: 'raster',
+          tiles: [snowTileUrl()],
+          tileSize: SNOW_TILE_SIZE,
+          // The analysis covers the coterminous US and no further, so this is
+          // what stops a reader in the Alps paying for a screen of transparent
+          // renders: MapLibre requests no tile outside it.
+          bounds: SNOW_BOUNDS,
+          // Past this the tiles already hold every cell the 1 km analysis has,
+          // so a deeper zoom magnifies what is loaded instead of buying
+          // another round of renders.
+          maxzoom: SNOW_MAX_ZOOM,
+          // No `attribution`, for the reason the radar carries none: NOAA's
+          // credit is on this layer's own legend, beside the data, and a
+          // second copy in MapLibre's control pushes that control onto a
+          // second line on a phone.
+        })
+      }
+      if (!map.getLayer(SNOW_LAYER_ID)) {
+        map.addLayer(
+          {
+            id: SNOW_LAYER_ID,
+            type: 'raster',
+            source: SNOW_SOURCE_ID,
+            paint: { 'raster-opacity': SNOW_OPACITY },
+          },
+          map.getLayer(beneath) ? beneath : undefined,
+        )
+      }
+
+      return () => {
+        if (map.getLayer(SNOW_LAYER_ID)) map.removeLayer(SNOW_LAYER_ID)
+        if (map.getSource(SNOW_SOURCE_ID)) map.removeSource(SNOW_SOURCE_ID)
+      }
+    }, [showSnow, mapReady])
 
     // Toggle the IEM radar loop. The frames are 12 raster sources created here
     // and torn down on untoggle, rather than declared at load: a raster source

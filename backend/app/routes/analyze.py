@@ -3,7 +3,7 @@ import json
 import logging
 import math
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Security
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -69,7 +69,7 @@ def _window_split(request: AnalyzeRequest) -> tuple[WindowSource, datetime]:
     answers the hours before the seam, the forecast endpoint the hours from it on,
     and the two are joined per location before the aggregation runs.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return (
         window_source(request.start_datetime, request.end_datetime, now),
         archive_boundary(now),
@@ -452,7 +452,7 @@ async def _attach_aqi(
     aqi_list = await air_quality.fetch_aqi_batch(
         dests, start_dt, end_dt, api_key=api_key
     )
-    for row, aqi in zip(results, aqi_list):
+    for row, aqi in zip(results, aqi_list, strict=False):
         if not aqi:
             continue
         row.aqi_avg = aqi.get("aqi_avg")
@@ -479,7 +479,7 @@ def _aligned_aqi(times_ms: list[int], aqi_series: dict | None) -> list[int | Non
     """
     if not aqi_series:
         return [None] * len(times_ms)
-    lookup = dict(zip(aqi_series["times"], aqi_series["aqi"]))
+    lookup = dict(zip(aqi_series["times"], aqi_series["aqi"], strict=False))
     return [lookup.get(t) for t in times_ms]
 
 
@@ -507,7 +507,7 @@ def _assemble(
     """
     times = _canonical_times(wx_list)
     results: list[DestinationResult] = []
-    for dest, wx, aqi in zip(destinations, wx_list, aqi_list):
+    for dest, wx, aqi in zip(destinations, wx_list, aqi_list, strict=False):
         if wx is None:
             continue
         aqi = aqi or {}
@@ -634,7 +634,11 @@ async def analyze_stream(
 
             if not request.destination_types:
                 if not request.custom_destinations:
-                    yield _sse_error("Nothing to analyze: send destination_types with a polygon, custom_destinations, or both.", ErrorCode.validation)
+                    yield _sse_error(
+                        "Nothing to analyze: send destination_types with a polygon, "
+                        "custom_destinations, or both.",
+                        ErrorCode.validation,
+                    )
                     return
                 destinations = await _resolve_custom(request.custom_destinations)
             else:
@@ -697,7 +701,12 @@ async def analyze_stream(
                     )
 
                 if not destinations:
-                    yield _sse("result", data=AnalyzeResponse(results=[], total_queried=0, total_matched=0).model_dump())
+                    yield _sse(
+                        "result",
+                        data=AnalyzeResponse(
+                            results=[], total_queried=0, total_matched=0
+                        ).model_dump(),
+                    )
                     return
 
             destinations = _filter_elevation(
@@ -995,25 +1004,25 @@ async def analyze(
                 include_unnamed_peaks=request.include_unnamed_peaks,
             )
         except NotImplementedError as e:
-            raise ApiError(status_code=400, detail=str(e), code=ErrorCode.validation)
+            raise ApiError(status_code=400, detail=str(e), code=ErrorCode.validation) from e
         except ratelimit.BudgetExhausted as e:
             raise ApiError(
                 status_code=503,
                 detail=e.message,
                 code=ErrorCode.busy,
                 headers={"Retry-After": str(e.retry_after_s)},
-            )
+            ) from e
         except UpstreamError as e:
             raise ApiError(
                 status_code=502, detail=e.message, code=ErrorCode.upstream_unavailable
-            )
-        except Exception:
+            ) from e
+        except Exception as err:
             log.exception("Destination search failed")
             raise ApiError(
                 status_code=502,
                 detail="OpenStreetMap is not available. Try again later.",
                 code=ErrorCode.upstream_unavailable,
-            )
+            ) from err
 
         # The user's own list rides along with whatever discovery found — the
         # union proceeds even when the polygon itself found nothing.
@@ -1082,7 +1091,7 @@ async def analyze(
             detail=e.message,
             code=ErrorCode.busy,
             headers={"Retry-After": str(e.retry_after_s)},
-        )
+        ) from e
     except UpstreamRateLimited as e:
         if aqi_task is not None:
             aqi_task.cancel()
@@ -1091,7 +1100,7 @@ async def analyze(
             detail=e.message,
             code=ErrorCode.upstream_rate_limited,
             headers={"Retry-After": str(e.retry_after_s)},
-        )
+        ) from e
     except InvalidApiKeyError as e:
         # 401, not the 502 its UpstreamError base would otherwise give, and for
         # the same reason ModelCoverageError below is a 400: the upstream is
@@ -1100,7 +1109,7 @@ async def analyze(
             aqi_task.cancel()
         raise ApiError(
             status_code=401, detail=e.message, code=ErrorCode.invalid_api_key
-        )
+        ) from e
     except ModelCoverageError as e:
         # 400, not the 502 its UpstreamError base would otherwise give: the
         # upstream is healthy and answered correctly. The request asked a
@@ -1110,14 +1119,14 @@ async def analyze(
             aqi_task.cancel()
         raise ApiError(
             status_code=400, detail=e.message, code=ErrorCode.model_coverage
-        )
+        ) from e
     except UpstreamError as e:
         if aqi_task is not None:
             aqi_task.cancel()
         raise ApiError(
             status_code=502, detail=e.message, code=ErrorCode.upstream_unavailable
-        )
-    except Exception:
+        ) from e
+    except Exception as err:
         if aqi_task is not None:
             aqi_task.cancel()
         log.exception("Weather lookup failed")
@@ -1125,7 +1134,7 @@ async def analyze(
             status_code=502,
             detail="The weather search failed. Try again later.",
             code=ErrorCode.upstream_unavailable,
-        )
+        ) from err
     try:
         aqi_list = await aqi_task if aqi_task is not None else [None] * len(destinations)
     except InvalidApiKeyError as e:
@@ -1133,7 +1142,7 @@ async def analyze(
         # first upstream call the key made was the air-quality one.
         raise ApiError(
             status_code=401, detail=e.message, code=ErrorCode.invalid_api_key
-        )
+        ) from e
 
     results, times = _assemble(
         destinations,
@@ -1155,7 +1164,7 @@ async def analyze(
         except InvalidApiKeyError as e:
             raise ApiError(
                 status_code=401, detail=e.message, code=ErrorCode.invalid_api_key
-            )
+            ) from e
 
     def _fmt(r: DestinationResult) -> str:
         v = getattr(r, sort_field)

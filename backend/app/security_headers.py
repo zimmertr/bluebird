@@ -7,9 +7,11 @@ code that defines it and inside a suite that can read that code:
 ``tests/test_security_headers.py`` reads ``frontend/src`` as text and fails
 when a host appears there that this module has not classified.
 
-Every host below was measured from the source on 2026-09-12, not remembered.
-Overpass, Nominatim, NIFC and NOAA are absent on purpose: those four are
-fetched by the pod, so the browser only ever talks to this origin for them.
+Every host below was measured from the source on 2026-09-16, not remembered.
+Overpass, Nominatim, NIFC and NOAA's HMS smoke files are absent on purpose:
+those are fetched by the pod, so the browser only ever talks to this origin for
+them. NOAA's snow map service is the one NOAA host that IS here, because that
+one renders per tile and the browser asks it directly (#446).
 """
 
 from __future__ import annotations
@@ -41,6 +43,9 @@ BROWSER_FETCH_ORIGINS = (
     "https://tiles.openfreemap.org",
     # frontend/src/utils/radar.ts: the NEXRAD frames behind the radar overlay.
     "https://mesonet.agron.iastate.edu",
+    # frontend/src/utils/snowDepth.ts: the NOHRSC snow analysis, rendered per
+    # tile by NOAA's own map service (#446).
+    "https://mapservices.weather.noaa.gov",
 )
 
 # The subset of the above that also serves raster images. MapLibre fetches
@@ -50,6 +55,7 @@ BROWSER_FETCH_ORIGINS = (
 BROWSER_IMAGE_ORIGINS = (
     "https://tiles.openfreemap.org",
     "https://mesonet.agron.iastate.edu",
+    "https://mapservices.weather.noaa.gov",
 )
 
 
