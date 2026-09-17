@@ -7,9 +7,11 @@ from datetime import date
 
 import httpx
 import pytest
+
 from app import ratelimit
 from app.services import weather
 from app.services.errors import parse_rate_limit, rate_limit_message
+from app.services.openmeteo_fetch import BATCH_SIZE
 from app.services.openmeteo_weight import call_weight
 
 
@@ -168,12 +170,16 @@ def test_default_budget_clears_a_worst_case_batch_without_pacing():
     # The invariant that rules out dividing the budget by replica count:
     # WeightedBudget capacity IS per_minute, so a budget below one batch's cost
     # can never hold enough tokens for it and would pace every batch even on a
-    # completely idle pod. A 1/10 share (55) sits under the 57.1 a full 50-
+    # completely idle pod. A 1/10 share (55) sits under the 80.0 a full 50-
     # location 16-day batch costs; the undivided 550 clears it outright.
+    #
+    # 80.0 rather than the 57.1 this read before #443: the five level
+    # temperatures take the variable factor from 1 to 1.4, and every capacity
+    # number that reads N_VARIABLES moves with it.
     worst_batch = call_weight(
-        weather.BATCH_SIZE, date(2026, 1, 1), date(2026, 1, 16), weather.N_VARIABLES
+        BATCH_SIZE, date(2026, 1, 1), date(2026, 1, 16), weather.N_VARIABLES
     )
-    assert worst_batch == pytest.approx(57.14, abs=0.01)
+    assert worst_batch == pytest.approx(80.0, abs=0.01)
 
     idle = ratelimit.WeightedBudget("test", ratelimit.UPSTREAM_WEIGHT_PER_MINUTE_WEATHER)
     assert idle.wait_estimate_s(worst_batch) == 0.0

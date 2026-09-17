@@ -4,6 +4,7 @@ import dataclasses
 
 import httpx
 import pytest
+
 from app import ratelimit
 from app.models import DestinationType, GeoPolygon
 from app.services import osm

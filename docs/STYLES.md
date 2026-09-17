@@ -190,7 +190,7 @@ One set of roles for both surfaces that reorder columns, the table header and th
 
 | Role | Purpose |
 |---|---|
-| `ICON` | How big a drawn glyph is, in five steps: `control` 16, `search` 15, `inline` 14, `legend` 12, `micro` 10. Read only by `components/icons.tsx`, which draws every icon in the app |
+| `ICON` | How big a drawn glyph is, in four steps: `control` 16 (in or beside a control, the search magnifier included), `inline` 14 (a mark inside a line of text), `chip` 12 (a chip's remove cross, either chip), `micro` 10 (inside a drawn disc or button smaller than a control). Read by `components/icons.tsx`, which draws every icon in the app; every step carries the measurement that chose it |
 | `ICON_BUTTON` | Bare icon button in header |
 | `ICON_ACTION` | Icon that acts on hover |
 | `ICON_ADORNMENT` | Glyph drawn inside a field |
@@ -206,17 +206,21 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | What | Where | How |
 |---|---|---|
 | Every text role is unique, and no recipe sets two competing colours | `styles.test.ts` | Uniqueness over `TEXT` and `PROSE`; a resting-colour count over every exported role |
-| No component invents a size | `styles.test.ts` | Ban `text-[` utilities in component sources |
-| No component names a hue | `styles.test.ts` | Pattern match on non-slate color utilities |
-| No component sizes a tap target | `styles.test.ts` | Ban `touch:` utilities in component sources |
-| No component sizes radio/checkbox | `styles.test.ts` | Ban `accent-sky-500` duplication |
+| No component invents a size | `eslint.config.js` | Ban a ramp step or an arbitrary size in a string or template in component sources |
+| No component names a hue | `eslint.config.js` | Pattern match on non-slate color utilities, built from alternation so an unlisted one still fails |
+| No component sizes a tap target | `eslint.config.js` | Ban `touch:` utilities in component sources |
+| No component sizes radio/checkbox | `eslint.config.js` | Covered by the hue ban, which reaches `accent-*` |
 | No component re-widths a segment | `styles.test.ts` | Check for `w-*` inside `SEGMENT` composition |
+| No component sets a slate text colour | `eslint.config.js` | Slate is the surface system, already covered by `TEXT`, `SURFACE_*` and `FIELD` |
+| No component restates a shared recipe | `eslint.config.js` | Ban the three class lists a role already composes |
+| The panel sizes by pointer, not by viewport | `eslint.config.js` | Ban a breakpoint variant on padding, gap or height in `ControlPanel.tsx` |
+| A panel heading takes a role | `eslint.config.js` | Ban a quoted class list on an `h1`-`h3` in `ControlPanel.tsx` |
 | The map's edges are one inset | `styles.test.ts` | Ban a top or left inset at the map's chrome, in `App.tsx` and `map.css` alike |
-| No component dims a placeholder | `styles.test.ts` | Ban placeholder utilities below AA contrast |
+| No component dims a placeholder | `eslint.config.js` | Ban placeholder utilities below AA contrast |
 | Every radio/checkbox uses the shared recipe | `styles.test.ts` | Check `CHOICE_INPUT` composition |
 | Every focus-able control has focus ring | `styles.test.ts` | List per control type |
 | Segmented controls are built one way | `styles.test.ts` | Check `SEGMENT` / `SEGMENT_IDLE` / `SEGMENT_ITEM` composition |
-| Metric names are centralized | `metrics.test.ts` | Ban Precip/Temp/Avg/Min/Max/Elev abbreviations in twelve consumer files |
+| Metric names are centralized | `eslint.config.js` | Ban the six abbreviations in strings and templates across twelve consumer files |
 | Tooltips match the approved list, count for count | `styles.test.ts` | `title=` occurrences per component file |
 | No unsafe error message patterns | `metrics.test.ts` | Ban `failed: ${...}` and unsafe response copies |
 | Every radius is on the scale | `styles.test.ts` | Any `rounded*` in a component source must be a `RADIUS` value |
@@ -228,8 +232,9 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | No bottom offset is spelled in a component | `resultsSheet.test.ts` | Ban `bottom-*` in `App.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
 | The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure |
 | No component draws its own glyph | `styles.test.ts` | Ban a literal SVG opening tag everywhere under `components/` and in `App.tsx`, except `icons.tsx` |
-| No call site sizes an icon | `styles.test.ts` | Ban a height or width utility on any `<Icon…>` element; the five `ICON` steps are pinned by measured pixels |
-| Every glyph is hidden from assistive technology | `accessibility.test.ts` | Every SVG in `icons.tsx` carries `aria-hidden` |
+| Nor does the map popup | `styles.test.ts` | Ban the same tag in `utils/popupChrome.ts`, which builds markup rather than elements, and pin its glyph size to the `inline` step |
+| No call site sizes an icon | `styles.test.ts` | Ban a height or width utility on any `<Icon…>` element; the four `ICON` steps are pinned by measured pixels, and the key set is pinned too |
+| Every glyph is hidden from assistive technology | `accessibility.test.ts` | Every SVG in `icons.tsx` and `iconPaths.ts` carries `aria-hidden` |
 | No component positions its own panel | `styles.test.ts` | Ban a fixed-position style object and the popover wrapper everywhere under `components/` and in `App.tsx`, except `Popover.tsx` |
 | One place decides where a panel goes | `styles.test.ts` | `popoverBox` has exactly one caller, the `usePopover` hook |
 | No component spells the third divider weight | `styles.test.ts` | Ban the slate-700 border utility everywhere under `components/` and in `App.tsx`, and check every `SURFACE_DIVIDER` use carries a side |
@@ -237,6 +242,25 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | Every exported role is rendered by something | `styles.test.ts` | Each `export const` in `styles.ts` appears in some non-test file's import list under `src/`, or in a `TEST_ONLY` list that carries its reason and is itself checked for a real importer |
 
 **NOT enforced:** custom spacing between components (only recessed surface and controls are architected), component-specific layouts. These are decided per feature.
+
+### Two enforcers, split by what they know
+
+`eslint.config.js` (in `frontend/tools/eslint/`, for the TypeScript-version
+reason recorded there) carries the **syntactic** bans: the ones a pattern over
+class names can answer on its own. `styles.test.ts` carries the **measured**
+ones: a contrast ratio, a pixel sum, a width read off a role, a count of
+approved tooltips. Nothing was dropped in the move (issue #379); the
+`no-restricted-syntax` rules read string literals and template chunks rather
+than a file's bytes, so a class name written in a COMMENT is prose about the
+rule instead of a violation of it, and a violation is now underlined in the
+editor rather than reported by `npm test`.
+
+`npm run lint` in `frontend/` runs it, then runs the rules against
+`frontend/tools/eslint/fixtures/` — one file per ban, each of which must report
+its own ban and no other, plus one file carrying `Precipitation`, `Minimum` and
+`Maximum` that must report nothing. A selector that matches nothing reports
+nothing, which reads exactly like a clean tree; the self-test is what tells the
+two apart. CI runs the same script in the `Frontend Typecheck & Tests` job.
 
 ## Measured numbers
 
@@ -343,7 +367,7 @@ Nothing is drawn between the section's two blocks. `METRIC_HEAD_GAP` is the whol
 
 **Color resolution:** competing color utilities resolve by their order in the generated stylesheet, not their order in the class list. So a role's color cannot be overridden at a call site — the role always wins. This is why every hue is centralized: a component cannot brighten or dim a color it was handed.
 
-**Raw text scanning:** the build step scans source files as raw text to find class names, so a class quoted in a comment or a test emits its CSS. For example, writing `// don't use rounded-xl` in a component file would add `rounded-xl` to the bundle even though it's commented out. The lints and role definitions avoid this by building patterns that don't form the literal class name — e.g., using regex alternation instead of quoting the exact string.
+**Raw text scanning:** the build step scans source files as raw text to find class names, so a class quoted in a comment or a test emits its CSS. For example, writing `// don't use rounded-xl` in a component file would add `rounded-xl` to the bundle even though it's commented out. The lints and role definitions avoid this by building patterns that don't form the literal class name — e.g., using regex alternation instead of quoting the exact string. The `content` list in `tailwind.config.js` is not the whole scanned set: v4 auto-detects sources beside it, and `frontend/tools/` was being scanned until `@source not "../tools"` went into `src/index.css`. Measured on 2026-09-15: without that line the ESLint fixtures emitted five real utilities into the text-page bundle, and a stray `.lowercase` had already been leaking from `tools/` before they existed. That exclusion is what lets the ESLint rules spell a class where `styles.test.ts` may not, and `styles.test.ts` pins the line.
 
 ## Copy rules
 
@@ -433,7 +457,7 @@ Never surface an exception type or HTTP status directly. Write a sentence instea
 
 ### Where the data hues live
 
-The no-hue lint scans `components/` and `App.tsx`. The app's data colours, the
+The no-hue lint is an ESLint rule and scans `components/` and `App.tsx`. The app's data colours, the
 band ramps a marker, a grid cell and the legend all read, are `METRIC_SCALE` in
 `frontend/src/utils/colors.ts`, one scale per metric family, the freezing level
 included since #295 was reversed (2026-09-14). That file is the one place
@@ -487,7 +511,20 @@ The split is:
 To add one, write the component in that file, give it a step from the `ICON`
 ramp, and let it set `aria-hidden` itself. A step that does not exist yet is a
 new role: add it to `ICON` with its rationale and pin its pixels in
-`styles.test.ts`, the same way as below.
+`styles.test.ts`, the same way as below. The ramp is four steps and each one
+states the number that chose it (#436), so a fifth arrives with a measurement
+or not at all — the key set is pinned as well as the values.
+
+**The one glyph drawn twice.** A map popup is an HTML string handed to
+MapLibre's `setHTML`, so Tailwind never sees its class names and the icon
+module cannot draw it. The link-out arrow in a popup's title row is therefore
+the same shape as the results table's, read from `frontend/src/iconPaths.ts`
+by both `icons.tsx` and `utils/popupChrome.ts` (#435). That module carries the
+geometry, the stroke, and the one size a string has to spell; `styles.test.ts`
+bans a literal SVG tag in `popupChrome.ts` and pins that size to the `inline`
+step. It sits at `src/` rather than in `components/`, beside `styles.ts` and
+`metrics.ts`, because `popupChrome.ts` is a util and no util in the app imports
+a component.
 
 ### Opening a panel
 
@@ -510,5 +547,8 @@ wrapper anywhere under `components/`, and fails a second caller of `popoverBox`.
 1. Write the role in `styles.ts` with a rationale comment explaining what it is for
 2. Add an assertion in `styles.test.ts` that pins the role's properties (size, color, weight, etc.)
 3. Ship both in the same PR
+
+A ban on a call site is the other file: a rule that a pattern over class names
+can decide belongs in `eslint.config.js`, not in a test.
 
 The assertion is what makes a change to a role visible in code review rather than buried in a stylesheet.

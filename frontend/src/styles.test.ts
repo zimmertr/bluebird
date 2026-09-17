@@ -79,10 +79,13 @@ import {
   SURFACE_FLOATING,
   SURFACE_POPOVER,
   SURFACE_SHEET,
+  SWATCH_CHIP,
+  SWATCH_RAMP,
   TAP,
   TEXT,
 } from './styles'
 import * as STYLES from './styles'
+import { EXTERNAL_LINK_PX } from './iconPaths'
 // `?raw` gives us the file's text without executing it, so this stays a pure
 // node test with no DOM, matching vitest.config.ts. (The same trick does not
 // work on index.css: vitest stubs CSS imports to an empty string.)
@@ -90,11 +93,18 @@ import controlPanelSource from './components/ControlPanel.tsx?raw'
 import modelPickerSource from './components/ModelPicker.tsx?raw'
 import appSource from './App.tsx?raw'
 import searchBoxSource from './components/SearchBox.tsx?raw'
+// Read on its own rather than joined to the component glob below: it is markup
+// for MapLibre's setHTML, so it carries hex colours and spelled sizes that the
+// per-component lints would rightly read as a call site inventing its own.
+import popupChromeSource from './utils/popupChrome.ts?raw'
 // The one stylesheet with a decision in it: the vendor's own controls have no
 // call site to hand a role to, so what they take is written there. Read off
 // the disk rather than imported — Vitest stubs a CSS import, `?raw` included,
 // to an empty string.
 const mapCss: string = readFileSync(new URL('./map.css', import.meta.url), 'utf8')
+// The other stylesheet with a decision in it, read the same way and for the
+// same reason.
+const indexCss: string = readFileSync(new URL('./index.css', import.meta.url), 'utf8')
 
 // The arbitrary branch cannot carry a trailing \b: `text-[10px]` ends in `]`, a
 // non-word character, so a boundary there would require the *next* character to
@@ -105,12 +115,6 @@ const stepPx = (cls: string, prefix: string): number =>
   (Number(cls.match(new RegExp(`(?:^|\\s)${prefix}-(\\d+(?:\\.\\d+)?)(?:\\s|$)`))![1]) / 4) * 16
 // What SELECT keeps clear on the right: the arrow's own box and nothing more.
 const ICON_PX = stepPx(ICON.control, 'w')
-// The `search` step is the one off Tailwind's scale, so the ramp is measured
-// through both spellings rather than through the scale alone.
-const iconPx = (step: string, prefix: string): number => {
-  const arbitrary = step.match(new RegExp(`(?:^|\\s)${prefix}-\\[(\\d+)px\\]`))
-  return arbitrary ? Number(arbitrary[1]) : stepPx(step, prefix)
-}
 const selectArrowPx = (): number => stepPx(SELECT, 'pr')
 // The panel's control column, and the Metrics box pair it now measures.
 const controlWPx = (): number => Number(CONTROL_W.match(/w-\[(\d+)px\]/)![1])
@@ -253,19 +257,13 @@ describe('every component', () => {
     expect(Object.keys(sources).length).toBeGreaterThan(6)
   })
 
-  // Arbitrary sizes are how a 10px and an 11px treatment ended up inside the
-  // same 160px legend box. The ramp owns the two steps Tailwind has no name
-  // for; nothing else may invent one.
-  // L1: No component sets a text size of its own.
-  it.each(Object.entries(sources))('%s invents no size of its own', (_path, source) => {
-    expect(source).not.toMatch(/\btext-(?:xs|sm|base|lg|xl|2xl|3xl)\b/)
-    expect(source).not.toMatch(/text-\[/)
-  })
-
-  // L2: No component sets a slate text color of its own. Slate is the surface
-  // system, already covered by TEXT, SURFACE_* and FIELD roles.
-  it.each(Object.entries(sources))('%s sets no slate text color of its own', (_path, source) => {
-    expect(source).not.toMatch(/\btext-slate-\d+/)
+  // The ESLint config and the fixtures beside it spell classes verbatim, which
+  // is only safe while Tailwind cannot see them. v4 auto-detects sources BESIDE
+  // the config's `content` list, so the exclusion is the load-bearing line:
+  // without it the fixtures emitted five real utilities into the text-page
+  // bundle. A build is the only thing that would otherwise notice.
+  it('keeps the linter fixtures out of Tailwind\'s reach', () => {
+    expect(indexCss).toMatch(/@source not ["']\.\.\/tools["']/)
   })
 
   // Derived from the scale rather than blocking a list of names, so a utility
@@ -278,10 +276,6 @@ describe('every component', () => {
     expect([...used].filter((c) => !scale.has(c))).toEqual([])
   })
 
-  // The placeholder color lives in FIELD; the search box, not a field, sets
-  // its own at the same step. What no component may do is dim one below AA
-  // again. Written so no banned class appears verbatim: v4 scans this file as
-  // raw text and would emit its CSS.
   // A call site that re-widths a segment breaks the alignment the role exists
   // to hold, and it cannot even be relied on to win: two width utilities resolve
   // by stylesheet order rather than by class order. Matched only where a width
@@ -291,20 +285,7 @@ describe('every component', () => {
     expect(rides.filter((r) => /(^|\s)w-\S+/.test(r))).toEqual([])
   })
 
-  it.each(Object.entries(sources))('%s dims no placeholder below AA', (_path, source) => {
-    expect(source).not.toMatch(/placeholder[:-](?:text-)?slate-[56]00/)
-  })
-
-  // The glob covers components added later, which is the point: a fourth copy
-  // of a shared recipe should fail here rather than ship a fourth look.
-  it.each(Object.entries(sources))('%s restates no shared recipe', (_path, source) => {
-    // The idle half of a segmented choice, which two controls in the panel wear.
-    expect(source).not.toMatch(/bg-slate-900 text-slate-400/)
-    expect(source).not.toMatch(/bg-slate-900 border border-slate-500/)
-    expect(source).not.toMatch(/bg-slate-800(\/95)? border border-slate-600/)
-  })
-
-  // The hue lint above lets slate through, because slate is the surface system
+  // The hue lint below lets slate through, because slate is the surface system
   // — and that exemption is how a third divider weight reached eleven call
   // sites in eight files with no name and no owner (#390). A rule between two
   // blocks of one surface is `SURFACE_DIVIDER` now, so the one place it is
@@ -478,19 +459,7 @@ describe('every component', () => {
   })
 })
 
-// The panel is a near-constant width on every breakpoint, so a width variant used for
-// padding re-spaced its rows on desktop windows that had not changed size,
-// while leaving large tablets with mouse-tight rows. Nothing catches a relapse
-// at build time: `lg:py-*` reads as ordinary responsive code.
 describe('control panel sizing', () => {
-  // The coarse-pointer padding itself now lives in BUTTON_PRIMARY, asserted
-  // below. What has to stay true here is that nothing sizes by window width.
-  it('never sizes a control by viewport width', () => {
-    expect(controlPanelSource).not.toMatch(
-      /\b(sm|md|lg|xl|2xl):(p[xytrbl]?|space-[xy]|gap|min-h|h)-/,
-    )
-  })
-
   // The size used to live beside the tint at every call site, which is how the
   // chart's metric radio ended up wearing the tint at the browser's default
   // size. Both now come from ACCENT.input, which CHOICE_INPUT composes, so what
@@ -509,15 +478,6 @@ describe('control panel sizing', () => {
 
     expect(rows.length).toBeGreaterThan(2)
     expect(boxes.length).toBe(rows.length)
-  })
-
-  // Spelling type out per element is what let the panel drift into three
-  // treatments for one kind of label. Anything above the base size has to come
-  // from the ramp so the drift is visible in one file. Bare `text-xs` stays
-  // legal: status lines carry a semantic color.
-  it('routes every non-base size through the ramp', () => {
-    expect(controlPanelSource).not.toMatch(/className="[^"]*\btext-(sm|base|lg|xl)\b/)
-    expect(controlPanelSource).not.toMatch(/<h[123] className="/)
   })
 })
 
@@ -1301,15 +1261,22 @@ describe('shared recipes', () => {
   })
 
   // The ramp every glyph in `components/icons.tsx` reads (#386). Pinned step by
-  // step, because that module is now the only thing standing between these five
+  // step, because that module is now the only thing standing between these four
   // numbers and the nineteen call sites that used to pick their own: a step
   // that moves here moves an icon on screen.
   it('sizes every glyph from one ramp', () => {
-    expect(iconPx(ICON.control, 'h')).toBe(16)
-    expect(iconPx(ICON.search, 'h')).toBe(15)
-    expect(iconPx(ICON.inline, 'h')).toBe(14)
-    expect(iconPx(ICON.legend, 'h')).toBe(12)
-    expect(iconPx(ICON.micro, 'h')).toBe(10)
+    expect(stepPx(ICON.control, 'h')).toBe(16)
+    expect(stepPx(ICON.inline, 'h')).toBe(14)
+    expect(stepPx(ICON.chip, 'h')).toBe(12)
+    expect(stepPx(ICON.micro, 'h')).toBe(10)
+  })
+
+  // The set as well as the values (#436). Every step above carries a measured
+  // reason in its comment, so a fifth one arriving without one is the failure
+  // this catches — and `stepPx` reads Tailwind's scale alone, so a step spelled
+  // in arbitrary pixels throws here rather than passing quietly.
+  it('keeps the ramp to the four steps that have a reason', () => {
+    expect(Object.keys(ICON)).toEqual(['control', 'inline', 'chip', 'micro'])
   })
 
   // A glyph's box is its own viewBox, which is square in every icon the app
@@ -1317,8 +1284,26 @@ describe('shared recipes', () => {
   // resize it.
   it('keeps every step of that ramp square', () => {
     for (const [step, recipe] of Object.entries(ICON)) {
-      expect(iconPx(recipe, 'w'), `${step} must be square`).toBe(iconPx(recipe, 'h'))
+      expect(stepPx(recipe, 'w'), `${step} must be square`).toBe(stepPx(recipe, 'h'))
     }
+  })
+
+  // The one glyph the ramp cannot reach (#435). A map popup is an HTML string
+  // handed to MapLibre's setHTML, and Tailwind generates CSS for class names it
+  // finds in source, so the popup's copy of the link-out arrow has to carry a
+  // number. This is what keeps that number the ramp's.
+  it('draws the popup glyph at the step its React twin takes', () => {
+    expect(EXTERNAL_LINK_PX).toBe(stepPx(ICON.inline, 'h'))
+  })
+
+  // And the shape itself comes from `iconPaths.ts` rather than being typed out
+  // again: `popupChrome.ts` was the one file outside the icon module still
+  // drawing a glyph of its own, which the component lint above cannot see
+  // because it reads the React tree.
+  it('leaves no glyph spelled in the map popup', () => {
+    const drawn = popupChromeSource.match(/<svg[\s>][^>]*>/g) ?? []
+    expect(drawn, 'draw it from `iconPaths.ts` instead').toEqual([])
+    expect(popupChromeSource).toContain('externalLinkMarkup()')
   })
 
   // Every floating box on the map is one surface: the search field and its
@@ -2066,7 +2051,7 @@ describe('the map layer rows', () => {
   })()
 
   it('found every row', () => {
-    expect(labels).toHaveLength(5)
+    expect(labels).toHaveLength(6)
   })
 
   // Alphabetical, because nothing else orders these: no cost, no severity and
@@ -2074,6 +2059,74 @@ describe('the map layer rows', () => {
   // the reader has to learn rather than one they can scan.
   it('lists the layers in alphabetical order', () => {
     expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)))
+  })
+})
+
+// The map's layer legend: the same list as the popover above it, so the same
+// order. A reader who has just found a row in one looks for it in the same
+// place in the other.
+describe('the map legend sections', () => {
+  // Scoped to the one box that gains and loses sections as layers toggle. The
+  // metric colour key below it is no part of this: it is not a layer, it
+  // explains the marker colours, and those exist with every layer off.
+  const box = (() => {
+    const from = appSource.indexOf('One entry per layer:')
+    const to = appSource.indexOf('{markerScale !== null &&')
+    return from >= 0 && to > from ? appSource.slice(from, to) : ''
+  })()
+
+  // Each section by the text it renders, under the name the Layers popover
+  // gives its layer, in the order the sections must appear. The rendered text
+  // says who the DATA came from rather than what the layer is called, which is
+  // why the order is the layer's own name and not the credit line's first
+  // word: "Active wildfire (NIFC)" is the Wildfires row's key and sorts last
+  // with it, not first under A.
+  const SECTIONS: [string, string][] = [
+    ['Forecast grid', '{gridLegend.label}'],
+    ['Rain radar', 'Rain radar ('],
+    ['Smoke', 'Smoke ('],
+    ['Snow depth', 'Snow depth ('],
+    ['Wildfires', 'Active wildfire ('],
+  ]
+
+  it('found every section', () => {
+    expect(box).not.toBe('')
+    for (const [label, mark] of SECTIONS) {
+      expect(box.split(mark).length - 1, `${label} section`).toBe(1)
+    }
+  })
+
+  // Alphabetical, for the reason the popover's own rows are: nothing ranks
+  // these five against each other, so any other order is one the reader has to
+  // learn — and learning it twice, once per surface, is worse still.
+  it('reads in alphabetical order, the way the Layers popover does', () => {
+    const labels = SECTIONS.map(([label]) => label)
+    expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)))
+    const at = SECTIONS.map(([, mark]) => box.indexOf(mark))
+    expect(at).toEqual([...at].sort((a, b) => a - b))
+  })
+})
+
+// The snow depth overlay's legend key (#446): the one key in the stack that is
+// a scale rather than a single value.
+describe('the snow legend ramp', () => {
+  it('spans the box where a single-value key is a chip', () => {
+    // Eleven bands cannot be said by the 14px square the other four layers key
+    // on, and eleven of those squares in a 184px box are unreadable. The strip
+    // takes the width instead and the numbers go under it.
+    expect(SWATCH_RAMP).toMatch(/\bw-full\b/)
+    expect(SWATCH_CHIP).not.toMatch(/\bw-full\b/)
+  })
+
+  it('names no colour of its own', () => {
+    // The map draws NOAA's rendered image, so the key's colours are NOAA's and
+    // arrive from `snowDepth.ts` at the call site. A fill spelled here would be
+    // a second opinion about what the picture already shows.
+    expect(SWATCH_RAMP).not.toMatch(/-(?:slate|sky|blue|cyan|purple|red)-\d{2,3}/)
+  })
+
+  it('is what the legend wears, rather than a strip spelled at the call site', () => {
+    expect(appSource).toContain('className={SWATCH_RAMP}')
   })
 })
 

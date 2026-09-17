@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { apiJson } from '../utils/apiFetch'
 import { MAX_ANALYZE_DESTINATIONS } from '../utils/clientAnalyze'
 
 // The live limits this deployment enforces, from GET /api/capabilities. The
@@ -207,19 +208,19 @@ export function useCapabilities(): Capabilities {
   const [caps, setCaps] = useState<Capabilities>(FALLBACK)
 
   useEffect(() => {
-    let cancelled = false
-    fetch('/api/capabilities')
-      .then((res) => (res.ok ? res.json() : null))
+    // Aborted rather than flagged: an unmount should stop the request, not
+    // just ignore the answer it is still paying for.
+    const controller = new AbortController()
+    apiJson<{ limits?: unknown }>('/api/capabilities', { signal: controller.signal })
       .then((body) => {
-        if (cancelled || !body?.limits) return
+        if (!body?.limits) return
         setCaps(parseCapabilities(body))
       })
       .catch(() => {
         // Metadata only: the fallback constants keep everything working.
+        // An abort lands here too, which is the same nothing.
       })
-    return () => {
-      cancelled = true
-    }
+    return () => controller.abort()
   }, [])
 
   return caps

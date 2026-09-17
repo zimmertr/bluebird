@@ -130,6 +130,7 @@ function TimeSeriesChart({
       })),
       ...extraLines,
     ],
+    // Kept: `colorFor` is the omission, and the paragraph above says why.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [aligned, extraLines],
   )

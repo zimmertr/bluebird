@@ -194,6 +194,11 @@ export default function ModelPicker({
   // A removed chip takes the keyboard with it unless focus is placed again
   // after the row re-renders, which is why this waits for the render rather
   // than running inside the handler.
+  //
+  // Kept: no list is the point. The ref is the trigger, and it is cleared on
+  // the first pass, so the `[chipIds]` the rule offers would both fire on
+  // renders that removed nothing and miss ones that removed something.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const wanted = wantChipFocus.current
     if (wanted === null) return
@@ -309,7 +314,7 @@ export default function ModelPicker({
           onClick={() => removeChip(id, at)}
           className={`${CHIP.remove} ${canDrop ? '' : 'invisible'}`}
         >
-          <IconClose size="micro" />
+          <IconClose size="chip" />
         </button>
       </span>
     )

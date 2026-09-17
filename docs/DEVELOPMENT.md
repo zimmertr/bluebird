@@ -41,8 +41,15 @@ CI runs all of these on every PR, so run the ones your change touches first:
 # Frontend typecheck
 cd frontend && npx tsc --noEmit
 
-# Frontend unit tests (Vitest)
-docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine \
+# Frontend lint (ESLint), then the self-test that proves the rules are not
+# vacuous. The linter installs itself, so this needs no `npm ci` of its own.
+# See the note below for why it is a package apart.
+docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
+  sh -c "npm run lint"
+
+# Frontend unit tests (Vitest). Mounts the repo root, because two suites read
+# the manifests the backend commits under backend/tests/data/.
+docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
   sh -c "npm ci && npm test"
 
 # Frontend API types still match the committed OpenAPI snapshot
@@ -58,8 +65,12 @@ docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
 docker run --rm -v "$PWD":/repo -w /repo/backend python:3.14-slim \
   sh -c "pip install -r requirements-dev.txt && pytest"
 
-# Backend lint, at the version CI pins: ruff's default rule set changes between releases
-pip install ruff==0.16.0 && ruff check backend/
+# Backend lint, at the version CI pins: ruff's default rule set changes between
+# releases. Run it from the REPO ROOT, which is what CI does. The rules live in
+# backend/ruff.toml, and `known-first-party = ["app"]` there is what makes the
+# import order the same from either working directory.
+docker run --rm -v "$PWD":/repo -w /repo python:3.14-slim \
+  sh -c "pip install ruff==0.16.0 && ruff check backend/"
 ```
 
 ### The cold-load budgets
@@ -98,11 +109,31 @@ both counts).
 
 A third: any change to the weather or air-quality aggregation regenerates the
 shared test vectors. Change the backend first, then
-`cd backend && python scripts/generate_weather_vectors.py`, copy
-`tests/data/weather_vectors.json` to `../frontend/src/utils/weather_vectors.json`,
-and mirror the change in the TypeScript port in `frontend/src/utils/openMeteo.ts`.
-Pytest fails on a stale backend copy, Vitest fails on a drifted port, and the
-`vectors` CI job fails if the two copies differ.
+`cd backend && python scripts/generate_weather_vectors.py`, and mirror the
+change in the TypeScript port in `frontend/src/utils/openMeteo.ts`. Pytest
+fails on a stale `backend/tests/data/weather_vectors.json` and Vitest fails on
+a drifted port. Both suites read that one file, so there is no second copy to
+keep in step.
+
+A fourth, for what a vector cannot express: the numbers and the one sentence
+the browser copies from the backend ride
+`backend/tests/data/mirrored_constants.json`. Change a listed value on the
+backend first, then
+`cd backend && python scripts/generate_mirrored_constants.py`, and change the
+browser's half. Pytest fails on a stale manifest and Vitest fails on a browser
+value that no longer matches it. `CLAUDE.md` lists every mirrored pair and what
+enforces it.
+
+ESLint is not a frontend dependency either, and for a sharper version of the
+same reason. It lives in `frontend/tools/eslint`, a private package with its own
+lockfile, and `npm run lint` delegates to it. typescript-eslint reads the
+TypeScript compiler API at run time and **refuses TS 7 outright**; the TS 7 npm
+package no longer ships that JS API at all, so the linter carries its own
+TypeScript 6. This is the side-by-side arrangement TypeScript documents for the
+case. The config is `frontend/tools/eslint/eslint.config.js`, and its paths are
+written for a run whose working directory is `frontend/` — ESLint reads a
+`--config` file's patterns against the working directory rather than against the
+file's own folder.
 
 The generator is not a frontend dependency. It lives in
 `frontend/tools/api-types`, a private package with its own lockfile, and the two

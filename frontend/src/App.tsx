@@ -99,6 +99,7 @@ import {
   SURFACE_POPOVER,
   SURFACE_SHEET,
   SWATCH_CHIP,
+  SWATCH_RAMP,
   TAP,
   TEXT,
 } from './styles'
@@ -128,6 +129,7 @@ import {
   radarScaleEnds,
 } from './utils/radar'
 import { HMS_HREF, SMOKE_DENSITIES, SMOKE_EDGE, smokeSwatch } from './utils/smoke'
+import { NOHRSC_HREF, SNOW_RAMP, snowRampCss, snowTicks } from './utils/snowDepth'
 import {
   TimelineAxis,
   availableAxes,
@@ -181,7 +183,7 @@ import {
   selectionLocalWindow,
   windowCaption,
 } from './utils/calendar'
-import { isPointSample } from './utils/forecastWindow'
+import { isPointSample, normalizeWindow } from './utils/forecastWindow'
 import {
   PresentationKnobs,
   commitNeeded,
@@ -567,6 +569,10 @@ export default function App() {
   // from the pod.
   const [showRadar, setShowRadar] = useState(() => restored?.showRadar ?? false)
   const [showSmoke, setShowSmoke] = useState(() => restored?.showSmoke ?? false)
+  // The snow analysis (#446), the fourth on that contract. NOAA renders each
+  // tile on request, so like the radar it is the browser that fetches them and
+  // like the radar it draws nothing the ranking ever reads.
+  const [showSnow, setShowSnow] = useState(() => restored?.showSnow ?? false)
   // The forecast grid (#246), on the same contract as the three above with one
   // difference worth naming: this toggle is a spend boundary. Turning it on is
   // what fetches a lattice of forecasts over the analyzed field, and leaving it
@@ -877,19 +883,25 @@ export default function App() {
   // the place (map dot + URL persistence); its forecast joins the next Analyze,
   // where the list folds into the ranked request alongside the CSV.
   const searched = useSearchedPlaces()
+  // The callbacks are taken by name because they are stable and the object
+  // holding them is not, so a dependency list may hold one of these where
+  // `searched` would change it on every render. `restore` is renamed on the way
+  // out to stay clear of `restorePlace`, which undoes a row removal (#241).
+  const { addPlace, removePlace, restore: restoreSearched } = searched
 
   // Repopulate searched places restored from the URL, once at mount. They show
   // as pending dots until the user runs an Analyze — nothing fetches on load.
+  // Both dependencies hold for the life of the component — `restored` is a
+  // ref's value and the hook's callbacks are stable — so this runs once.
   useEffect(() => {
-    if (restored?.pins?.length) searched.restore(restored.pins)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    if (restored?.pins?.length) restoreSearched(restored.pins)
+  }, [restored, restoreSearched])
 
   // Registering a destination the user named, however they named it: by
   // searching, or by clicking a labeled peak or lake on the basemap (#119).
   // Both land in the same list, so both go through here.
   const registerPlace = useCallback((place: Place) => {
-    searched.addPlace(place)
+    addPlace(place)
     // Re-naming a previously ×-removed spot is an explicit re-request — drop
     // the stale removal so the place isn't filtered out of its next report.
     setRemoved((prev) => {
@@ -899,8 +911,7 @@ export default function App() {
       next.delete(key)
       return next
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [addPlace])
 
   function handleSearchSelect(place: Place) {
     mapRef.current?.flyToPlace(place)
@@ -916,10 +927,10 @@ export default function App() {
     },
     [registerPlace],
   )
-  const handleRemovePoi = useCallback((latitude: number, longitude: number) => {
-    searched.removePlace(latitude, longitude)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const handleRemovePoi = useCallback(
+    (latitude: number, longitude: number) => removePlace(latitude, longitude),
+    [removePlace],
+  )
 
   // Naming a destination — by search or by pasting CSV — opens the results
   // panel immediately: it appears as an un-forecasted row, so there's feedback
@@ -1094,6 +1105,7 @@ export default function App() {
       showWildfires,
       showRadar,
       showSmoke,
+      showSnow,
       showGrid,
       showPlayer,
       gridStyle,
@@ -1114,6 +1126,10 @@ export default function App() {
     // No cleanup here on purpose: flushing once per effect run would write on
     // every keystroke and collapse nothing, which is the trap debounceUrlWrite
     // documents. Unmount is handled by its own effect below.
+    // Suppressed rather than fixed: the rule is right that `forecastModel` and
+    // `caps.defaultForecastModel` are missing, and the bug that causes is
+    // issue #292's to fix, not this file's.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     polygon,
     destinationTypes,
@@ -1129,6 +1145,7 @@ export default function App() {
     showWildfires,
     showRadar,
     showSmoke,
+    showSnow,
     showGrid,
     showPlayer,
     gridStyle,
@@ -1521,9 +1538,8 @@ export default function App() {
     [],
   )
   const handleRemovePending = useCallback(
-    (d: { latitude: number; longitude: number }) =>
-      searched.removePlace(d.latitude, d.longitude),
-    [searched],
+    (d: { latitude: number; longitude: number }) => removePlace(d.latitude, d.longitude),
+    [removePlace],
   )
   const handleFocusResult = useCallback(
     (row: DestinationResult) => mapRef.current?.focusResult(row),
@@ -1537,9 +1553,9 @@ export default function App() {
   const handleRemoveResult = useCallback(
     (row: DestinationResult) => {
       setRemoved((prev) => recordRemoval(prev, row, searched.places, destinationScope))
-      searched.removePlace(row.latitude, row.longitude)
+      removePlace(row.latitude, row.longitude)
     },
-    [searched, destinationScope],
+    [destinationScope, removePlace, searched.places],
   )
 
   // What the browser still holds a forecast row for — the field on the client
@@ -1567,13 +1583,13 @@ export default function App() {
       next.delete(key)
       return next
     })
-    if (place) searched.addPlace(place)
+    if (place) addPlace(place)
   }
 
   function handleRestoreAllRemoved() {
     for (const entry of removed.values()) {
       const place = restorePlace(entry, heldKeys, csvKeys)
-      if (place) searched.addPlace(place)
+      if (place) addPlace(place)
     }
     setRemoved(new Map())
   }
@@ -1690,7 +1706,10 @@ export default function App() {
   // The report's own hourly grid, which is what the forecast axis plays. It
   // comes back on both analysis paths, so the axis does not care which one ran
   // — unlike the live presentation knobs, which need the held field.
-  const forecastTimes = response?.times ?? []
+  // Memoized for its IDENTITY rather than its cost: the empty fallback was a
+  // fresh array on every render before an analysis, which gave `movePlayheadTo`
+  // below a new identity per render and re-rendered the chart that holds it.
+  const forecastTimes = useMemo(() => response?.times ?? [], [response?.times])
   const timelineAxes = availableAxes(playerShown, showRadar, forecastTimes.length)
   const timelineAxis = resolveAxis(timelineAxes, chosenAxis)
   // Whether the player has anything to play: radar contributes a past axis and
@@ -1720,6 +1739,8 @@ export default function App() {
   // Desktop is unaffected: the panel is docked there and never closes.
   useEffect(() => {
     if (analysisSeq > 0 && !isDesktop) setSidebarOpen(false)
+    // Kept: listing `isDesktop` would close the drawer when a window crossed
+    // the breakpoint, which is a resize rather than a committed report.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analysisSeq])
 
@@ -1854,6 +1875,7 @@ export default function App() {
       : []),
     { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
     { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
+    { key: 'snow', label: 'Snow depth (US only)', checked: showSnow, onChange: setShowSnow },
     { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
   ]
   const grid = useForecastGrid({
@@ -1937,21 +1959,31 @@ export default function App() {
       // wildfire column on null, and a file must not carry a column the
       // screen does not show.
       fire.status === 'ready' && effectiveVisibleKeys.has(WILDFIRE_KEY) ? fire.warnings : null,
-      // The table draws pending (un-analyzed) rows above the ranked ones, so
-      // the file carries them too — identity columns filled, Rank and every
-      // metric blank. Before the first analysis this is the whole file.
-      pending.map(
-        (d) =>
-          ({
-            name: d.name,
-            type: d.kind ?? 'custom',
-            elevation_ft: d.elevation_ft ?? null,
-            latitude: d.latitude,
-            longitude: d.longitude,
-          }) as DestinationResult,
-      ),
-      fire.uncovered,
-      analysisModelLabel,
+      {
+        // The window the numbers in the file describe (#444), taken from the
+        // analysis snapshot rather than from the panel: the calendar can have
+        // moved on since the report committed, and the file must name the days
+        // that were fetched. Resolved first, because the snapshot records the
+        // request's raw timestamps and a Current analysis is `start === end`
+        // there: the file writes the hour that was sampled, not a window of no
+        // width at all.
+        window: analyzed ? normalizeWindow(analyzed.window.startMs, analyzed.window.endMs) : null,
+        // The table draws pending (un-analyzed) rows above the ranked ones, so
+        // the file carries them too — identity columns filled, Rank and every
+        // metric blank. Before the first analysis this is the whole file.
+        pendingRows: pending.map(
+          (d) =>
+            ({
+              name: d.name,
+              type: d.kind ?? 'custom',
+              elevation_ft: d.elevation_ft ?? null,
+              latitude: d.latitude,
+              longitude: d.longitude,
+            }) as DestinationResult,
+        ),
+        fireUncovered: fire.uncovered,
+        modelLabel: analysisModelLabel,
+      },
     )
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a')
@@ -1965,7 +1997,10 @@ export default function App() {
   // Every row shares the analysis's hourly grid. A point-sample analysis charts
   // too: its single-instant grid renders as one dot per destination — still a
   // cross-destination comparison, same default-select-all.
-  const chartTimes = response?.times ?? []
+  // Memoized for its identity, like `forecastTimes` above: `chartedSeries`
+  // below depends on it, and a fresh empty array per render rebuilt that memo
+  // on every render before an analysis.
+  const chartTimes = useMemo(() => response?.times ?? [], [response?.times])
   // Everything the chart tracks: the displayed rows plus the pending
   // destinations no analysis has covered. Pending rows ride along as
   // series-less pseudo-rows so a searched place is colored and selected the
@@ -2029,6 +2064,9 @@ export default function App() {
         // said; the model is the line style.
         color: chart.colorFor(r),
       }))
+    // Kept: the rule asks for the whole `chart` object, which useChartSelection
+    // rebuilds every render. `colorFor` cannot answer differently for a row
+    // that has not changed, so the two listed values are the real inputs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chart.selectedRows, results])
   // The ranking model's own numbers per destination, on the chart's grid: a
@@ -2040,7 +2078,6 @@ export default function App() {
       out[chartKey(row)] = alignRowToGrid(row, chartTimes).series ?? null
     }
     return out
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chart.selectedRows, chartTimes])
   // Every model the panel has selected, ranking first: the Models popover's
   // rows. The SELECTION rather than the chart, so a model ticked before the
@@ -2092,6 +2129,9 @@ export default function App() {
   const chartedPairsKey = chartedPairKeys.join('|')
   useEffect(() => {
     chart.rememberColors(chartedPairKeys)
+    // Kept: `chartedPairsKey` is the joined VALUE of `chartedPairKeys`, which
+    // is a new array whenever anything above it re-derives. Listing the array
+    // and the hook object would re-run this on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartedPairsKey])
   const compare = useModelCompare({
@@ -2334,6 +2374,11 @@ export default function App() {
   //
   // `null` while the results are docked below the map, where nothing covers the
   // map's bottom edge and the number would mean nothing.
+  //
+  // Kept: no list is the point. The rule offers `[isDesktop]`, which would miss
+  // the mode switch, the chevron, the drag and the rotation this exists to
+  // catch. The same-value guard below is what stops the update chain.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     const el = sheetRef.current
     const next = !el || isDesktop ? null : el.getBoundingClientRect().height
@@ -2622,6 +2667,7 @@ export default function App() {
             showWildfires={showWildfires}
             showRadar={showRadar}
             showSmoke={showSmoke}
+            showSnow={showSnow}
             radarIndex={radarIndex}
             gridSpec={grid.spec}
             gridCells={grid.cells}
@@ -2680,7 +2726,7 @@ export default function App() {
               coming back. A sheet dragged tall closes the box to nothing, and
               a double press on its grip brings the legends back with the rest
               of the default. */}
-          {(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar) && (
+          {(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar || showSnow) && (
             <div
               // The inset clears the button column above, which is one row
               // taller while the panel is collapsed and the Controls button
@@ -2697,21 +2743,81 @@ export default function App() {
               // top of the sheet where they cover it (#249).
               style={{ bottom: legendBottomPx(sheetLiftPx, timelineAxis !== null) }}
             >
-              {/* One row per layer: what it is, who it came from, and its key
-                  on the right. The densities used to be three stacked rows
-                  under a heading, the radar and fire keys a box each — about
-                  a hundred pixels of chrome to say four short things.
+              {/* One entry per layer: what it is, who it came from, and its
+                  key. A layer keyed on a single value is a ROW, and the key is
+                  a chip on the right of it. A layer keyed on a SCALE is a
+                  section instead, the scale across the box with its numbers
+                  underneath, because eleven bands of depth are not something a
+                  14px chip can say. They read in the Layers popover's own
+                  alphabetical order, which `styles.test.ts` holds, so a reader
+                  who has just found a row in one surface looks for it in the
+                  same place in the other. The densities used to be three
+                  stacked rows under a heading, the radar and fire keys a box
+                  each — about a hundred pixels of chrome to say four short
+                  things.
 
-                  Each row still carries its own source, which the licences ask
-                  for and which keeps a credit beside the data it describes
+                  Each entry still carries its own source, which the licences
+                  ask for and which keeps a credit beside the data it describes
                   rather than in a list somewhere else.
 
-                  No heading over them either. Every row names its own layer, so
-                  a "Map layers" line above would be a label for four labels —
-                  and on a phone it is a whole row of the little map left. */}
-              {(showSmoke || showRadar || showWildfires || gridPainted || gridCued || gridFailed) && (
+                  No heading over them either. Every entry names its own
+                  layer, so a "Map layers" line above would be a label for five
+                  labels — and on a phone it is a whole row of the little map
+                  left. */}
+              {(showSmoke || showRadar || showSnow || showWildfires || gridPainted || gridCued || gridFailed) && (
                 <div className={`${SURFACE_FLOATING} ${MAP_COL_W} px-2.5 py-2`}>
                   <div className="flex flex-col gap-1">
+                    {(gridPainted || gridCued || gridFailed) && (
+                      // No swatch: the grid's colours are the metric key below,
+                      // which the markers share. What this row adds is the one
+                      // thing that IS the grid's own — how far apart the
+                      // samples are, or why it is not there yet. Every state
+                      // right-justifies its value like every other row, statuses
+                      // included: one row breaking the column reads as a fault
+                      // rather than as a distinction.
+                      <div className="flex items-center justify-between gap-2 whitespace-nowrap">
+                        <span className={TEXT.control}>{gridLegend.label}</span>
+                        {/* Colored by state (TJ, 2026-08-21): amber while the
+                            grid is waiting or loading so a stall catches the
+                            eye, red when it failed, and the accent once the
+                            pitch is real. The size is the colorless
+                            CONTROL_SIZE because a color beside TEXT.control's
+                            own would resolve by stylesheet order. */}
+                        <span
+                          className={`${CONTROL_SIZE} ${
+                            gridLegend.kind === 'pitch'
+                              ? ACCENT.text
+                              : gridLegend.kind === 'error'
+                                ? STATUS.error
+                                : STATUS.warn
+                          } flex-shrink-0`}
+                        >
+                          {gridLegend.value}
+                        </span>
+                      </div>
+                    )}
+                    {showRadar && (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={TEXT.control}>
+                          Rain radar (
+                          <a href={IEM_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
+                            IEM
+                          </a>
+                          )
+                        </span>
+                        {/* A gradient rather than banded swatches: NEXRAD's own
+                            reflectivity ramp is continuous, and a legend that
+                            invented boundaries would assert thresholds
+                            Bluebird Forecast does not know. */}
+                        <span
+                          className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
+                          style={{
+                            backgroundImage: 'linear-gradient(90deg,#1c8a3c,#40b450,#e7c000,#eb7814)',
+                            borderColor: '#475569',
+                          }}
+                        />
+                      </div>
+                    )}
                     {showSmoke && (
                       <div className="flex items-center justify-between gap-2">
                         <span className={TEXT.control}>
@@ -2744,26 +2850,61 @@ export default function App() {
                         </span>
                       </div>
                     )}
-                    {showRadar && (
-                      <div className="flex items-center justify-between gap-2">
+                    {showSnow && (
+                      // The one key here that is a SCALE rather than a colour,
+                      // so it is the one that is not a row. Eleven bands of
+                      // depth cannot be said by a 14px chip, and eleven rows
+                      // would be most of the map a phone has left, so the
+                      // strip spans the box and four numbers sit under it —
+                      // the two ends and the boundaries a decade apart, which
+                      // is what a reader needs to tell ankle-deep from
+                      // waist-deep at a glance.
+                      <div className="flex flex-col gap-1">
                         <span className={TEXT.control}>
-                          Rain radar (
-                          <a href={IEM_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
-                            IEM
+                          Snow depth (
+                          <a
+                            href={NOHRSC_HREF}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={LINK}
+                          >
+                            NOHRSC
                           </a>
                           )
                         </span>
-                        {/* A gradient rather than banded swatches: NEXRAD's own
-                            reflectivity ramp is continuous, and a legend that
-                            invented boundaries would assert thresholds
-                            Bluebird Forecast does not know. */}
+                        {/* Hard-stopped between bands rather than blended,
+                            because those boundaries are NOAA's own
+                            classification — the picture and its key have to
+                            agree, which is why both read `snowDepth.ts`. */}
                         <span
-                          className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
-                          style={{
-                            backgroundImage: 'linear-gradient(90deg,#1c8a3c,#40b450,#e7c000,#eb7814)',
-                            borderColor: '#475569',
-                          }}
+                          className={SWATCH_RAMP}
+                          style={{ backgroundImage: snowRampCss(), borderColor: '#475569' }}
+                          aria-hidden="true"
                         />
+                        {/* A grid of the ramp's own bands, so a tick lands on
+                            the boundary it names however wide the box is.
+                            `minmax(0,1fr)` rather than `1fr`: the last label
+                            is wider than a band, and a plain fr track would
+                            grow to fit it and shift every tick left of it. */}
+                        <span
+                          className={`grid ${TEXT.caption}`}
+                          style={{
+                            gridTemplateColumns: `repeat(${SNOW_RAMP.length}, minmax(0, 1fr))`,
+                          }}
+                        >
+                          {snowTicks().map((tick) => (
+                            <span
+                              key={tick.label}
+                              className="whitespace-nowrap"
+                              style={{
+                                gridColumnStart: tick.at + 1,
+                                justifySelf: tick.align,
+                              }}
+                            >
+                              {tick.label}
+                            </span>
+                          ))}
+                        </span>
                       </div>
                     )}
                     {showWildfires && (
@@ -2789,35 +2930,6 @@ export default function App() {
                           className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
                           style={{ backgroundColor: 'rgba(220,38,38,0.35)', borderColor: '#b91c1c' }}
                         />
-                      </div>
-                    )}
-                    {(gridPainted || gridCued || gridFailed) && (
-                      // No swatch: the grid's colours are the metric key below,
-                      // which the markers share. What this row adds is the one
-                      // thing that IS the grid's own — how far apart the
-                      // samples are, or why it is not there yet. Every state
-                      // right-justifies its value like every other row, statuses
-                      // included: one row breaking the column reads as a fault
-                      // rather than as a distinction.
-                      <div className="flex items-center justify-between gap-2 whitespace-nowrap">
-                        <span className={TEXT.control}>{gridLegend.label}</span>
-                        {/* Colored by state (TJ, 2026-08-21): amber while the
-                            grid is waiting or loading so a stall catches the
-                            eye, red when it failed, and the accent once the
-                            pitch is real. The size is the colorless
-                            CONTROL_SIZE because a color beside TEXT.control's
-                            own would resolve by stylesheet order. */}
-                        <span
-                          className={`${CONTROL_SIZE} ${
-                            gridLegend.kind === 'pitch'
-                              ? ACCENT.text
-                              : gridLegend.kind === 'error'
-                                ? STATUS.error
-                                : STATUS.warn
-                          } flex-shrink-0`}
-                        >
-                          {gridLegend.value}
-                        </span>
                       </div>
                     )}
                   </div>
@@ -3289,7 +3401,7 @@ export default function App() {
                                     aria-label={`Remove ${row.name}`}
                                     className={`${ICON_ACTION} ${FOCUS_RING} cursor-pointer py-1 pl-1 pr-2 leading-none`}
                                   >
-                                    <IconClose size="legend" />
+                                    <IconClose size="chip" />
                                   </button>
                                 </span>
                               )
