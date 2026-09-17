@@ -494,15 +494,20 @@ method is written beside each figure so it can be repeated.
 | `Backend Tests` | 29 s | 27–33 s |
 | `Frontend Typecheck & Tests` | 26 s | 24–31 s |
 | `Python Lint` | 9 s | 6–10 s |
-| `Aggregation vectors in sync` | 6 s | 3–6 s |
 | **whole run** | **147 s** | 140–193 s |
+
+A sixth job stood in this table when it was measured, `Aggregation vectors in
+sync` at a 6 s median, and #380 removed it: the browser's suite now reads the
+backend's committed vectors rather than a copy, so there are no two files to
+diff. The whole-run figure is unchanged, because that job was never on the
+critical path.
 
 The frontend job grew 5 s on 2026-09-15 when ESLint joined it (issue #379):
 2 s to install the linter's own package and 3 s to lint 57 sources. It is not on
 the critical path, so the whole run is unchanged.
 
-**The critical path is two jobs long**, and only two. Five jobs start within
-about 3 s of each other; four of them finish while `Docker Build` is still
+**The critical path is two jobs long**, and only two. Four jobs start within
+about 3 s of each other; three of them finish while `Docker Build` is still
 building. `Lighthouse Budgets` `needs` it, so it starts at about 63 s and adds
 its own 92 s. Everything else is free.
 
@@ -541,12 +546,12 @@ cache keys, which fed straight into the budget problem below. The trade is that
 a branch pushed with no pull request open gets no checks until one is opened.
 Every check branch protection requires is a `pull_request` check anyway.
 
-Branch protection requires five contexts: `Python Lint`, `Docker Build`,
-`Frontend Typecheck & Tests`, `Backend Tests`, and — since 2026-09-15 —
-`Aggregation vectors in sync`, which had been passing on every pull request
-while being free to go red without blocking one. **A job here cannot be
-renamed**: branch protection matches the name exactly, and a rename strands
-every open pull request on a check that never reports.
+Branch protection requires four contexts: `Python Lint`, `Docker Build`,
+`Frontend Typecheck & Tests` and `Backend Tests`. **A job here cannot be
+renamed or deleted on its own**: branch protection matches the name exactly,
+and a name it requires that no longer reports strands every open pull request.
+`Aggregation vectors in sync` was a fifth from 2026-09-15 until #380 deleted
+the job, and it had to leave the required list in the same change.
 
 ### The repository's Actions cache
 
@@ -666,7 +671,7 @@ flowchart LR
 
     subgraph BB["zimmertr/bluebird"]
         pr["PR opened / updated"]
-        checks["pr.yml<br/>typecheck, ESLint, Vitest, ruff, pytest, OpenAPI + API-type drift,<br/>aggregation vectors diff, hadolint, docker build + Trivy scan (sticky comment),<br/>Lighthouse budgets"]
+        checks["pr.yml<br/>typecheck, ESLint, Vitest, ruff, pytest, OpenAPI + API-type drift,<br/>hadolint, docker build + Trivy scan (sticky comment),<br/>Lighthouse budgets"]
         preview["pr-preview.yml<br/>pull_request_target (same-repo gate)"]
         label["label: create pr container"]
         comment["sticky preview-URL comment"]

@@ -4,11 +4,10 @@ The TypeScript port in `frontend/src/utils/openMeteo.ts` must produce
 byte-identical aggregates to the backend, or the browser and the API would
 rank the same forecast differently. These vectors are the contract: inputs
 are authored here, expected outputs are computed by the backend
-implementation (the reference), and the committed file is asserted by BOTH
-test suites — pytest proves Python still reproduces it (so an aggregation
-change forces a regeneration, making the contract change visible in review),
-Vitest proves the TypeScript port matches it, and CI diffs the two committed
-copies so they cannot drift apart.
+implementation (the reference), and the one committed file is asserted by
+BOTH test suites — pytest proves Python still reproduces it (so an
+aggregation change forces a regeneration, making the contract change visible
+in review) and Vitest proves the TypeScript port matches it.
 
 The inputs deliberately include the cross-language traps: Python's
 round-half-even at exactly representable boundaries (x.25 / x.5 values),
@@ -17,7 +16,6 @@ timestamps, and windows containing no hours.
 
 Run:
     cd backend && python scripts/generate_weather_vectors.py
-    cp tests/data/weather_vectors.json ../frontend/src/utils/weather_vectors.json
 """
 
 from __future__ import annotations
