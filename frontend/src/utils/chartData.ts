@@ -1,5 +1,5 @@
 import { DestinationResult, HourlySeries, SortBy } from '../types'
-import { MetricFamily, familyOf, metricLabel } from '../metrics'
+import { MetricFamily, familyOf, formatPrecipRate, metricLabel } from '../metrics'
 import { setKey } from './points'
 
 export type ChartMetric = MetricFamily
@@ -237,8 +237,16 @@ export function cutSeriesAfter(
   }
 }
 
+/**
+ * One plotted hour, as the tooltip prints it.
+ *
+ * A point on this chart is a single hour's value, which is the number the
+ * table's per-hour columns are the average, floor and peak OF — so the digits
+ * come from the shared formatter rather than from a count spelled here (#395).
+ * The tooltip and the cell beside it are read in the same glance.
+ */
 export function formatMetricValue(v: number, metric: ChartMetric): string {
-  if (metric === 'precip') return v.toFixed(3)
+  if (metric === 'precip') return formatPrecipRate(v)
   // Whole units: an AQI is an integer index, and a freezing level in feet
   // carries no decimal the model could support.
   if (metric === 'aqi' || metric === 'freeze') return v.toFixed(0)
