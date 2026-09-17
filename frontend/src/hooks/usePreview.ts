@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { apiJson } from '../utils/apiFetch'
 
 export type PreviewInfo = {
   enabled: boolean
@@ -15,8 +16,7 @@ export function usePreview(): PreviewInfo {
 
   useEffect(() => {
     let cancelled = false
-    fetch('/api/config')
-      .then((r) => (r.ok ? r.json() : null))
+    apiJson<{ preview?: PreviewInfo }>('/api/config')
       .then((data) => {
         if (!cancelled && data?.preview) setPreview(data.preview)
       })

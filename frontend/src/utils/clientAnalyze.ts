@@ -23,6 +23,7 @@ import {
   HourlySeries,
 } from '../types'
 import { familyOf } from '../metrics'
+import { postDestinations } from './apiFetch'
 import { pinKey } from './customList'
 import {
   AqiResult,
@@ -264,12 +265,7 @@ export async function resolveCustomOnly(
     custom_destinations: [...custom],
   }
   try {
-    const res = await fetch('/api/destinations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(resolveRequest),
-      signal,
-    })
+    const res = await postDestinations(resolveRequest, signal)
     if (!res.ok) return rows
     const body = (await res.json()) as DestinationsResponse
     // A short answer means the server dropped rows this path never asked it

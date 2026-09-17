@@ -51,6 +51,15 @@ import {
 import { alignRowToGrid, chartKey } from './utils/chartData'
 import { logoUrl } from './logo'
 import {
+  IconChart,
+  IconChartTable,
+  IconChevron,
+  IconClose,
+  IconLayers,
+  IconMenu,
+  IconTable,
+} from './components/icons'
+import {
   ACCENT,
   BUTTON_FLOATING,
   CHOICE_INPUT,
@@ -58,7 +67,6 @@ import {
   BUTTON_SECONDARY,
   DISABLED,
   FOCUS_RING,
-  ICON,
   ICON_ACTION,
   ICON_BUTTON,
   LAYER,
@@ -312,24 +320,6 @@ const NO_CHART_ROWS: DestinationResult[] = []
 const DEFAULT_PANEL_HEIGHT = 220
 const DEFAULT_CHART_HEIGHT = DEFAULT_PANEL_HEIGHT
 const DEFAULT_TABLE_HEIGHT = DEFAULT_PANEL_HEIGHT
-
-// Collapse/expand affordance for the bottom panels' header bars.
-function Chevron({ up }: { up: boolean }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-4 w-4"
-      aria-hidden="true"
-    >
-      <polyline points={up ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
-    </svg>
-  )
-}
 
 // Live viewport height, so the chart/table panel heights can be re-clamped when
 // the window resizes or a phone rotates — otherwise a stale height could let the
@@ -2391,25 +2381,11 @@ export default function App() {
         <button
           onClick={() => setSidebarOpen(false)}
           aria-label="Close controls"
-          // A drawn cross rather than the "×" character. That glyph is
-          // centred on the font's own maths, not the button's, so it sat
-          // visibly high in the circle however the line-height was nudged —
-          // and it moves again with any font change. Two lines in a square
-          // viewBox are centred by construction, and flex centres the box.
+          // Flex centres the drawn cross in the circle; why the cross is drawn
+          // rather than typed is `IconClose`'s own comment.
           className={`${TAP.action} absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center ${TEXT.control} ${RADIUS.pill} bg-slate-700/80 transition-colors hover:bg-slate-600 active:bg-slate-600`}
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            className="h-4 w-4"
-            aria-hidden="true"
-          >
-            <line x1="6" y1="6" x2="18" y2="18" />
-            <line x1="18" y1="6" x2="6" y2="18" />
-          </svg>
+          <IconClose />
         </button>
         <ControlPanel
           drawing={drawing}
@@ -2920,11 +2896,7 @@ export default function App() {
                 aria-label="Open controls"
                 className={`${BUTTON_FLOATING} ${MAP_COL_W} ${MAP_ROW_H} flex flex-shrink-0 items-center gap-2 px-2.5`}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="3" y1="6" x2="21" y2="6" />
-                  <line x1="3" y1="12" x2="21" y2="12" />
-                  <line x1="3" y1="18" x2="21" y2="18" />
-                </svg>
+                <IconMenu />
                 Controls
               </button>
             )}
@@ -2940,10 +2912,7 @@ export default function App() {
                 aria-expanded={layersOpen}
                 className={`${BUTTON_FLOATING} ${MAP_COL_W} ${MAP_ROW_H} flex items-center gap-2 px-2.5`}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
-                  <polygon points="12,3 21,8 12,13 3,8" />
-                  <polyline points="3,13 12,18 21,13" />
-                </svg>
+                <IconLayers />
                 Layers
               </button>
               {/* Zero from the button it hangs under, which is the same edge
@@ -3113,7 +3082,7 @@ export default function App() {
                     aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}
                     className={`${ICON_BUTTON} ml-auto @4xl:hidden`}
                   >
-                    <Chevron up={resultsCollapsed} />
+                    <IconChevron up={resultsCollapsed} />
                   </button>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -3129,11 +3098,7 @@ export default function App() {
                         aria-pressed={resultsMode === 'table'}
                         aria-label="Show table only"
                       >
-                        <svg viewBox="0 0 16 16" strokeWidth={1.5} stroke="currentColor" fill="none" className={`${ICON} flex-shrink-0`} aria-hidden="true">
-                          <rect x="2" y="2" width="12" height="12" />
-                          <line x1="2" y1="6" x2="14" y2="6" />
-                          <line x1="2" y1="10" x2="14" y2="10" />
-                        </svg>
+                        <IconTable className="flex-shrink-0" />
                         <span className="hidden sm:inline">Table</span>
                       </button>
                       <div className={SEGMENT_DIVIDER} />
@@ -3143,9 +3108,7 @@ export default function App() {
                         aria-pressed={resultsMode === 'chart'}
                         aria-label="Show chart only"
                       >
-                        <svg viewBox="0 0 16 16" strokeWidth={1.5} stroke="currentColor" fill="none" className={`${ICON} flex-shrink-0`} aria-hidden="true">
-                          <polyline points="2,12 6,6 9,9 14,3" />
-                        </svg>
+                        <IconChart className="flex-shrink-0" />
                         <span className="hidden sm:inline">Chart</span>
                       </button>
                       <div className={SEGMENT_DIVIDER} />
@@ -3160,11 +3123,7 @@ export default function App() {
                         aria-pressed={resultsMode === 'both'}
                         aria-label="Show chart and table"
                       >
-                        <svg viewBox="0 0 16 16" strokeWidth={1.5} stroke="currentColor" fill="none" className={`${ICON} flex-shrink-0`} aria-hidden="true">
-                          <rect x="2" y="2" width="12" height="5.5" />
-                          <line x1="8" y1="7.5" x2="8" y2="14" />
-                          <rect x="2" y="7.5" width="12" height="6.5" />
-                        </svg>
+                        <IconChartTable className="flex-shrink-0" />
                         <span className="hidden sm:inline">Both</span>
                       </button>
                     </div>
@@ -3242,7 +3201,7 @@ export default function App() {
                     aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}
                     className={`${ICON_BUTTON} hidden @4xl:flex`}
                   >
-                    <Chevron up={resultsCollapsed} />
+                    <IconChevron up={resultsCollapsed} />
                   </button>
                 </div>
               </div>
@@ -3352,10 +3311,7 @@ export default function App() {
                                     aria-label={`Remove ${row.name}`}
                                     className={`${ICON_ACTION} ${FOCUS_RING} cursor-pointer py-1 pl-1 pr-2 leading-none`}
                                   >
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                                      <line x1="18" y1="6" x2="6" y2="18" />
-                                      <line x1="6" y1="6" x2="18" y2="18" />
-                                    </svg>
+                                    <IconClose size="chip" />
                                   </button>
                                 </span>
                               )
