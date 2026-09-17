@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -70,7 +70,7 @@ async def fetch_aqi_batch(
     # Wall clocks are read as UTC without converting, the same convention
     # `_naive` uses in the weather service.
     end_cap = (
-        datetime.now(timezone.utc).replace(tzinfo=None)
+        datetime.now(UTC).replace(tzinfo=None)
         + timedelta(days=MAX_FORECAST_DAYS)
     ).replace(hour=23, minute=0, second=0, microsecond=0)
     req_start = start_dt.replace(tzinfo=None, minute=0, second=0, microsecond=0)
@@ -169,7 +169,7 @@ async def fetch_aqi_batch(
     # into the TTL. Only real answers are cached, and a real all-null window
     # is cached as NO_DATA.
     if not rate_limited.is_set():
-        for dest, result in zip(misses, fetched):
+        for dest, result in zip(misses, fetched, strict=False):
             key = cache.forecast_key(
                 "aqi",
                 dest["latitude"],
@@ -178,7 +178,7 @@ async def fetch_aqi_batch(
                 end_dt.isoformat(),
             )
             cache.FORECAST_CACHE.put(key, cache.NO_DATA if result is None else result)
-    for i, result in zip(miss_indices, fetched):
+    for i, result in zip(miss_indices, fetched, strict=False):
         results[i] = result
     return results
 
@@ -301,7 +301,7 @@ def _metrics(
 
         vals = [
             v
-            for ts, v in zip(times, aqi)
+            for ts, v in zip(times, aqi, strict=False)
             if v is not None
             and (parsed := _parse_ts(ts)) is not None
             and start <= parsed <= end
@@ -366,4 +366,4 @@ def _parse_ts(s: str) -> datetime | None:
 def _epoch_ms(dt_naive: datetime) -> int:
     # Times come back UTC (timezone=UTC) with tzinfo stripped by `_parse_ts`;
     # re-stamp UTC for an unambiguous epoch aligned with the weather grid.
-    return int(dt_naive.replace(tzinfo=timezone.utc).timestamp() * 1000)
+    return int(dt_naive.replace(tzinfo=UTC).timestamp() * 1000)

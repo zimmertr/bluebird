@@ -206,7 +206,7 @@ describe('chart│table resize integration', () => {
     })
 
   it('enabling the chart shrinks a maxed table instead of overflowing the map', () => {
-    let chartH = 288
+    const chartH = 288
     let tableH = 288
 
     // Table handle (map│table mode, chart hidden) dragged up hard → maxes out.
