@@ -90,11 +90,13 @@ already holds, so a pan costs no upstream call at all. What those budgets
 protect is this instance's own bandwidth, not the providers' quotas, which are
 bounded instead by how often each snapshot refreshes.
 
-The rain-radar overlay appears in none of this, and deliberately. Its tiles go
-from Iowa Environmental Mesonet straight to the browser rather than through this
-service, so there is no request here to pace and no snapshot to hold. What bounds
-that traffic is the layer being off by default and IEM's own five-minute edge
-cache; see [DATA.md](DATA.md#rain-radar).
+The rain-radar and snow-depth overlays appear in none of this, and deliberately.
+Their images go from Iowa Environmental Mesonet and from NOAA straight to the
+browser rather than through this service, so there is no request here to pace and
+no snapshot to hold. What bounds that traffic is the layers being off by default,
+IEM's own five-minute edge cache, and — for snow, which refuses caching entirely
+— a 512 px tile, which is four times less of NOAA's render time per screen. See
+[DATA.md](DATA.md#rain-radar) and [DATA.md](DATA.md#snow-depth).
 
 When a request fails rather than refuses, the status code says whose problem it
 is and whether waiting helps:

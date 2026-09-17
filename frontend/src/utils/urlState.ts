@@ -66,7 +66,7 @@ export interface ShareableState {
   constraints: Constraints
   limit: number
   customCsv: string
-  // The four live map overlays. Persisted so a shared link reproduces the
+  // The five live map overlays. Persisted so a shared link reproduces the
   // picture, and deliberately not part of the analysis request: an overlay is
   // drawn beside the ranking, never fed into it. That holds for the forecast
   // grid too, even though it is the one whose toggle costs upstream calls —
@@ -74,6 +74,7 @@ export interface ShareableState {
   showWildfires: boolean
   showRadar: boolean
   showSmoke: boolean
+  showSnow: boolean
   showGrid: boolean
   // Which of the grid's two drawings. Rides the SAME param as the toggle
   // (`grid=blocks`, `grid=smooth`) rather than taking a second one: it is one
@@ -280,6 +281,7 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
     state.showWildfires ||
     state.showRadar ||
     state.showSmoke ||
+    state.showSnow ||
     state.showGrid ||
     state.showPlayer !== null ||
     state.selection.kind !== 'now' ||
@@ -356,6 +358,7 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
   if (state.showWildfires) p.set('fires', '1')
   if (state.showRadar) p.set('radar', '1')
   if (state.showSmoke) p.set('smoke', '1')
+  if (state.showSnow) p.set('snow', '1')
   // The value names the style rather than being a bare `1`, which keeps the
   // link hand-editable and self-describing: `grid=smooth` says what it will
   // draw. One param rather than two, because a layer that is off has no style
@@ -580,6 +583,7 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   if (params.get('fires') === '1') out.showWildfires = true
   if (params.get('radar') === '1') out.showRadar = true
   if (params.get('smoke') === '1') out.showSmoke = true
+  if (params.get('snow') === '1') out.showSnow = true
   const grid = params.get('grid')
   if (grid !== null && isGridStyle(grid)) {
     out.showGrid = true
