@@ -2,6 +2,14 @@
 /* No map styling here. This file is shared by every entry, including the three
    text pages, so vendor CSS lives in map.css, imported only by MapView. */
 @config "../tailwind.config.js";
+/* The config's `content` list is not the whole story: v4 still auto-detects
+   sources beside it, and `frontend/tools/` was being scanned. Measured
+   2026-09-15 on `main`: a stray `.lowercase` rule in the text-page bundle came
+   from there, and the ESLint fixtures added under tools/eslint/ emitted five
+   more the moment they landed. Those fixtures exist to be violations, so they
+   must never reach the stylesheet. This is also what lets eslint.config.js
+   spell a class verbatim where styles.test.ts may not. */
+@source not "../tools";
 
 /* Roomier tap targets belong to coarse pointers, not narrow windows. The
    controls panel is 320px wide at every breakpoint (max-w-xs below lg,

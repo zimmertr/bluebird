@@ -14,6 +14,8 @@ import re
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
+
 from app.error_codes import (
     RETRYABLE,
     ApiError,
@@ -23,7 +25,6 @@ from app.error_codes import (
 )
 from app.main import app
 from app.models import ApiErrorInfo
-from fastapi.testclient import TestClient
 
 APP_ROOT = Path(__file__).parent.parent / "app"
 ROUTES = APP_ROOT / "routes"

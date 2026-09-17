@@ -53,6 +53,9 @@ export default function RemovedPicker({
   // Position the popover before paint
   useLayoutEffect(() => {
     if (open) place()
+    // Kept for the reason ColumnsPicker records: `place` is re-created every
+    // render and sets a fresh box, so listing it would never settle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   // The once-per-open measuring pass, after every commit — ColumnsPicker

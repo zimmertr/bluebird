@@ -138,13 +138,13 @@ up, and Lowest finds the ones that froze deepest. A destination the model
 publishes no freezing level for ranks last either way, as every missing value
 does.
 
-Wind is reported at each destination's own elevation, not at the standard 10 meters above the model's terrain — on a summit the 10-meter value understates what you would feel, often by a factor of two. How the number is derived, and its limits, are in [DATA.md](DATA.md#open-meteo). Destinations with no known elevation show the plain near-ground wind.
+Wind and temperature are both reported at each destination's own elevation, not at the standard 10 meters and 2 meters above the model's terrain — on a summit the near-ground values are the wrong air. The 10-meter wind understates what you would feel, often by a factor of two, and the 2-meter temperature is the air over a valley floor that cools by radiation on a clear night, which is why the temperature columns used to show a peak below freezing while its own freezing level sat thousands of feet higher. How both numbers are derived, and their limits, are in [DATA.md](DATA.md#open-meteo). Destinations with no known elevation show the plain near-ground values.
 
-**The wind columns say which of the two you are reading.** Their headers name the datum behind the number, so a downloaded file says it as plainly as the screen does, and so does a marker's popup:
+**The wind and temperature columns say which of the two you are reading.** Their headers name the datum behind the number, so a downloaded file says it as plainly as the screen does, and so does a marker's popup. Both families answer a window the same way, so the two headers always make the same kind of claim:
 
-- `Wind at elevation` over an ordinary forecast window.
-- `Wind at 10 meters` over an archive window, where the pressure levels the adjustment needs are not published and every destination reports the near-ground wind whatever its height.
-- A plain `Wind` over a window that crosses between the two. Such a report averages both into a single number, so neither name would be true of it; the line under the Analyze button names the day the join falls on.
+- `Wind at elevation` and `Temperature at elevation` over an ordinary forecast window.
+- `Wind at 10 meters` and `Temperature at 2 meters` over an archive window, where the pressure levels the adjustment needs are not published and every destination reports the near-ground value whatever its height.
+- A plain `Wind` and a plain `Temperature` over a window that crosses between the two. Such a report averages both into a single number, so neither name would be true of it; the line under the Analyze button names the day the join falls on.
 
 ### Bounds
 
@@ -164,18 +164,19 @@ The default is 200, sized to sit above the 100-row lists people usually paste so
 
 ## Map layers
 
-Four optional overlays, on the map's own **Layers** button rather than in the
+Five optional overlays, on the map's own **Layers** button rather than in the
 controls panel: they are the only controls in the app that change what you are
 looking at rather than what you are asking for. All off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
 the ranking, never an input to it, so none of them ever asks you to press Analyze
-again. Each of the three that draw somebody else's data is credited on its own legend, and each rides in the shared link.
+again. Each of the four that draw somebody else's data is credited on its own legend, and each rides in the shared link.
 
 | Layer | What it draws | Coverage |
 |---|---|---|
 | **Wildfires (US only)** | Active fire perimeters, in red | United States — the label says so because the proximity check shares the limit ([DATA.md](DATA.md#wildfires)) |
 | **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | Continental United States |
 | **Smoke** | Smoke plumes at three densities, in grey | North America |
+| **Snow depth (US only)** | Snow on the ground now, in NOAA's own bands from under an inch to 65 feet ([DATA.md](DATA.md#snow-depth)) | Coterminous United States |
 | **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
 
 The rows read in alphabetical order, and one of them draws nothing: **Forecast player** switches the
@@ -189,8 +190,11 @@ dense it is, which satellite it was traced from, and over what hours. Where smok
 sits over a fire — which is most of the time, since one causes the other — the
 click goes to the fire.
 
-Read them for what they are. Radar is a **measurement of the last hour**,
-which makes it the one layer here that is not a model's opinion about the future.
+Read them for what they are. Radar is a **measurement of the last hour** and
+snow depth is an **analysis of now**, which makes them the two layers here that
+are not a model's opinion about the future. Snow depth is on a 1 km grid, so its
+colour is an average over a square kilometre that may run from a valley floor to
+a ridge; on steep ground the depth at a point can be well either side of it.
 Smoke is an analyst's tracing of what a satellite could see, updated about twice a
 day, and it describes a column of air rather than the ground: a plume overhead can
 mean a hazy sky and clean air to breathe, or the opposite. The AQI columns in the
@@ -358,17 +362,20 @@ Once results are up, the knobs split in two. **Ranking, max results and every fo
 
 If Open-Meteo cannot be reached from your browser, the analysis stops and says so. There is no second path: the browser holds your forecasts, and rerouting the fetch through the server would spend a quota every visitor shares.
 
-Marker colors follow total precipitation:
+Marker colors follow the ranked metric. Under the default ranking that is total precipitation:
 
 | Color | Precip Total |
 |---|---|
-| Green | 0.01" or less |
-| Lime | 0.01" to 0.10" |
-| Yellow | 0.10" to 0.25" |
-| Orange | 0.25" to 0.50" |
-| Red | more than 0.50" |
+| Green | 0.01 in or less |
+| Lime | 0.01 in to 0.10 in |
+| Yellow | 0.10 in to 0.25 in |
+| Orange | 0.25 in to 0.50 in |
+| Red | 0.50 in to 1.00 in |
+| Purple | more than 1.00 in |
 
-Click a marker for a popup carrying the same columns the results table is showing, in the table's order. A Current lookup shows one value per metric, because the table collapses its aggregates for a single hour; a date range shows every aggregate, grouped one metric per heading with its values on the line below. Hiding a column in the **Columns** picker hides it in the popup too, and changing the ranking moves that metric to the top of the card. The type, the model and the coordinates sit above the rule, ahead of the numbers. The freezing-level value reads `N/A` under a model that publishes none, the same mark the table's cells carry. Every one of those numbers is a link to Windy, on the same terms the table's cells use: the same overlay, the same forecast model, and for the freezing-level minimum and the AQI maximum the hour that produced the value. A wildfire warning stays a banner at the top of the popup rather than a line among the metrics, and links to that fire on the NIFC map. The elevation and the coordinates carry no link, because neither is a forecast. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300). When you sort by the freezing level they switch again, to six bands of 4,000 ft apiece running purple for the lowest freezing line, through indigo and blue, to cyan for the highest. That ramp is deliberately not the green-to-red the other metrics use: a freezing level is a height rather than a verdict, and a skier and a rock climber want opposite ends of it. The map's colour key always names the bands it is drawing.
+Wind uses the same six colors, with red from 35 to 50 mph and purple above 50 mph. Purple is the same color the AQI scale gives its Very Unhealthy band, so wherever you meet it the reading is the same: past the end of the ramp. Temperature is the one scale with a bad end on both sides: purple at or below 30°F, through sky blue and cyan, green from 60 to 75°F, then orange and red above 90°F.
+
+Click a marker for a popup carrying the same columns the results table is showing, in the table's order. A Current lookup shows one value per metric, because the table collapses its aggregates for a single hour; a date range shows every aggregate, grouped one metric per heading with its values on the line below. Hiding a column in the **Columns** picker hides it in the popup too, and changing the ranking moves that metric to the top of the card. The type, the model and the coordinates sit above the rule, ahead of the numbers. The freezing-level value reads `N/A` under a model that publishes none, the same mark the table's cells carry. Every one of those numbers is a link to Windy, on the same terms the table's cells use: the same overlay, the same forecast model, and for the freezing-level minimum and the AQI maximum the hour that produced the value. A wildfire warning stays a banner at the top of the popup rather than a line among the metrics, and links to that fire on the NIFC map. The elevation and the coordinates carry no link, because neither is a forecast. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300). When you sort by the freezing level they switch again, to six bands of 4,000 ft apiece running purple for the lowest freezing line, through indigo and blue, to cyan for the highest. That ramp is deliberately not green to red: a freezing level is a height rather than a verdict, and a skier and a rock climber want opposite ends of it. The map's colour key always names the bands it is drawing.
 
 ## Results Table
 
@@ -385,7 +392,7 @@ Hovering a row reveals a × at its end (always visible on touch screens) that re
 | Precipitation · Total (in) | Sum of hourly precipitation over the window, in inches |
 | Precipitation · Avg (in/hr) | Average hourly precipitation rate |
 | Precipitation · Max (in/hr) | Peak single-hour precipitation rate |
-| Temperature · Min/Max/Avg (°F) | Temperature range and average over the window |
+| Temperature at elevation · Min/Max/Avg (°F) | Temperature range and average over the window, read at the destination's own elevation. Reads `Temperature at 2 meters` over an archive window |
 | Wind · Min/Max/Avg (mph) | Wind speed range and average over the window |
 | Freezing level · Min/Max/Avg (ft) | Height of the freezing level over the window, in feet above sea level. `N/A` on the five models that do not publish it |
 | AQI · Avg/Max | US AQI over the window, blank past the air quality horizon |
@@ -423,9 +430,10 @@ tell you about an overnight refreeze is in [DATA.md](DATA.md#open-meteo).
 The two per-hour precipitation columns are read on a rainfall-intensity scale
 rather than on the totals scale the markers and the map legend use, because
 they measure a different quantity: 0.30" spread over three days is drizzle and
-0.30 in/hr is a downpour. Their boundaries are the National Weather Service's
-intensity classes, at 0.01 / 0.10 / 0.30 / 0.50 in/hr. Every other group shares
-one unit across its columns, and so shares one scale.
+0.30 in/hr is a downpour. Their boundaries at 0.10 / 0.30 / 0.50 in/hr are the
+National Weather Service's intensity classes, with a purple band above 1.00
+in/hr. Every other group shares one unit across its columns, and so shares one
+scale.
 
 ### Downloading the Table
 
@@ -451,6 +459,28 @@ What lands in the file:
   bare and the cleared cell empty; a coverage `N/A` carries over as written.
 - Nothing a removed row would have contributed. Removals and the max-results
   cut apply first, exactly as on screen.
+
+**The forecast window stands below the data.** Under the last row, behind one
+blank row, the file states the window the report was analyzed over:
+
+```
+Forecast start,2026-09-18T00:00-07:00
+Forecast end,2026-09-21T23:59-07:00
+```
+
+It is the same window the caption above the table states. The file name carries
+the download time instead, so without these two rows a file opened a week later
+named no days at all. They are rows rather than columns because the window is
+the same for every destination: a value that does not vary by row is something
+the file says about itself, which is the part of the file the supplier credits
+below already occupy.
+
+Both are written as ISO 8601 local times with the UTC offset, to the minute. A
+spreadsheet reads that as a date rather than as text, and the offset says which
+clock the hour is on, so a file that travels to another time zone keeps its
+meaning. A Current analysis states the hour it sampled. A file downloaded
+before any analysis has run carries no window rows at all, because no forecast
+covers anything in it yet.
 
 **Every metric cell is a link to Windy**, opened on the same spot, the same
 overlay, and the same forecast model the row was analyzed with. Where models
