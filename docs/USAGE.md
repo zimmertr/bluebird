@@ -451,18 +451,28 @@ What lands in the file:
   bare and the cleared cell empty; a coverage `N/A` carries over as written.
 - Nothing a removed row would have contributed. Removals and the max-results
   cut apply first, exactly as on screen.
-- **Forecast start** and **Forecast end**, the last two columns, on every
-  ranked row. They carry the window the report was analyzed over, which is the
-  same window the caption above the table states. The file name carries the
-  download time instead, so without these two columns a file opened a week
-  later named no days at all.
 
-Both are written as ISO 8601 local times with the UTC offset, to the minute:
-`2026-09-18T00:00-07:00`. A spreadsheet reads that as a date rather than as
-text, and the offset says which clock the hour is on, so a file that travels to
-another time zone keeps its meaning. A Current analysis writes the hour it
-sampled. A row awaiting its first analysis leaves both cells empty, because no
-forecast covers it yet.
+**The forecast window stands below the data.** Under the last row, behind one
+blank row, the file states the window the report was analyzed over:
+
+```
+Forecast start,2026-09-18T00:00-07:00
+Forecast end,2026-09-21T23:59-07:00
+```
+
+It is the same window the caption above the table states. The file name carries
+the download time instead, so without these two rows a file opened a week later
+named no days at all. They are rows rather than columns because the window is
+the same for every destination: a value that does not vary by row is something
+the file says about itself, which is the part of the file the supplier credits
+below already occupy.
+
+Both are written as ISO 8601 local times with the UTC offset, to the minute. A
+spreadsheet reads that as a date rather than as text, and the offset says which
+clock the hour is on, so a file that travels to another time zone keeps its
+meaning. A Current analysis states the hour it sampled. A file downloaded
+before any analysis has run carries no window rows at all, because no forecast
+covers anything in it yet.
 
 **Every metric cell is a link to Windy**, opened on the same spot, the same
 overlay, and the same forecast model the row was analyzed with. Where models

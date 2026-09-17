@@ -39,20 +39,20 @@ const RANK_HEADER = 'Rank'
 const FIRE_HEADER = WILDFIRE_COL.label
 
 /**
- * The two ends of the analyzed forecast window, on every ranked row (#444).
+ * The two ends of the analyzed forecast window (#444).
+ *
+ * Labels in a metadata block below the data, not column headers: a value that
+ * is the same on every row is something the file says about itself rather than
+ * a measurement of any one destination (TJ, 2026-09-17). The credits block
+ * below is already that part of the file, so the window stands with it.
  *
  * Here rather than in metrics.ts because they name no metric: they say WHEN
- * the numbers beside them apply, which is the one thing the file could not say
+ * the numbers above them apply, which is the one thing the file could not say
  * before. The filename carries the download time, not the window, so a file
  * opened later or passed to somebody else described days nothing in it named.
- *
- * Two columns repeating one pair of values is the deliberate trade. A footer
- * line would say it once, but a sort or a filter in a spreadsheet separates a
- * footer from the data, and a row copied into another sheet would arrive with
- * no window at all.
  */
-const WINDOW_START_HEADER = 'Forecast start'
-const WINDOW_END_HEADER = 'Forecast end'
+const WINDOW_START_LABEL = 'Forecast start'
+const WINDOW_END_LABEL = 'Forecast end'
 
 /**
  * Byte-order mark.
@@ -240,12 +240,13 @@ export function isoLocalMinute(ms: number, timeZone?: string): string {
 export interface CsvOptions {
   /**
    * The window the ranked rows describe, resolved (a point sample is an hour,
-   * never `start === end`), or null before any analysis has committed.
+   * never `start === end`), or null before any analysis has committed. Null
+   * writes no metadata block at all.
    */
   window?: ResolvedWindow | null
   /**
    * Destinations awaiting their first analysis. They carry identity columns
-   * only: no rank, no metrics, and no window, because no forecast covers them.
+   * only: no rank and no metrics, because no forecast covers them.
    */
   pendingRows?: readonly DestinationResult[]
   /** Rows the fire check could not reach, by fireKey (#256). */
@@ -257,7 +258,7 @@ export interface CsvOptions {
    * deliberately left out of it, having no forecast at all.
    */
   modelLabel?: string | null
-  /** The zone the two window columns are written in; the reader's own by default. */
+  /** The zone the two window rows are written in; the reader's own by default. */
   timeZone?: string
 }
 
@@ -277,11 +278,11 @@ export interface CsvOptions {
  * destination was checked and none is near a fire. An absent column asserts
  * nothing, which is the honest thing to say when nothing is known.
  *
- * The file ends with the supplier credits behind one blank row; see
- * creditRows above for why they are in the file at all.
- *
- * The two window columns come last, after the fire column where that one
- * stands, so every column a reader already knows keeps the position it had.
+ * Below the data the file speaks about itself: the forecast window behind one
+ * blank row, then the supplier credits behind another (see creditRows above
+ * for why those are in the file at all). The columns are therefore exactly the
+ * ones a reader already knows, and a row copied out of the file carries no
+ * repeated value pretending to be a measurement.
  */
 export function buildResultsCsv(
   rows: readonly DestinationResult[],
@@ -298,14 +299,17 @@ export function buildResultsCsv(
   } = options
   const header = [RANK_HEADER, ...columns.map((c) => c.label)]
   if (fireWarnings) header.push(FIRE_HEADER)
-  header.push(WINDOW_START_HEADER, WINDOW_END_HEADER)
-  // The one pair of window cells every ranked row repeats. Empty with no
-  // committed analysis, which is the same state a pending row is in: the
-  // columns still stand, because a header that came and went with the report
-  // would make two files of the same shape disagree about their own columns.
-  const windowCells = window
-    ? [isoLocalMinute(window.startMs, timeZone), isoLocalMinute(window.endMs, timeZone)]
-    : ['', '']
+  // The window as two label/value rows behind their own blank row, or nothing
+  // at all. Nothing is what a file with no committed analysis writes: every
+  // row in it is pending, no forecast covers any of them, and a label over an
+  // empty cell would be the file asking a question rather than answering one.
+  const windowRows = window
+    ? [
+        [''],
+        [WINDOW_START_LABEL, isoLocalMinute(window.startMs, timeZone)],
+        [WINDOW_END_LABEL, isoLocalMinute(window.endMs, timeZone)],
+      ]
+    : []
   // Pending rows first with an empty Rank, mirroring the table, which draws
   // un-analyzed destinations above the ranked ones with "—" in the # column.
   // Empty rather than a dash for the same reason null metrics become empty
@@ -313,8 +317,6 @@ export function buildResultsCsv(
   const pendingBody = pendingRows.map((row) => {
     const cells = ['', ...columns.map((c) => cell(row, c))]
     if (fireWarnings) cells.push('')
-    // No forecast covers a pending row, so it names no window either.
-    cells.push('', '')
     return cells
   })
   const body = rows.map((row, i) => {
@@ -324,10 +326,16 @@ export function buildResultsCsv(
     const rank = (row as ModelRow).rank ?? i + 1
     const cells = [String(rank), ...columns.map((c) => cell(row, c, modelLabel))]
     if (fireWarnings) cells.push(fireCell(row, fireWarnings, fireUncovered))
-    cells.push(...windowCells)
     return cells
   })
-  const doc = [header, ...pendingBody, ...body, [''], ...creditRows(fireWarnings != null)]
+  const doc = [
+    header,
+    ...pendingBody,
+    ...body,
+    ...windowRows,
+    [''],
+    ...creditRows(fireWarnings != null),
+  ]
   return BOM + doc.map((r) => r.map(escapeCell).join(',')).join(CRLF) + CRLF
 }
 
