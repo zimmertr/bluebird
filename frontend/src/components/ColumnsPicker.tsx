@@ -5,6 +5,7 @@ import { FAMILY_KEYS, familyOf } from '../metrics'
 import { usePopover } from '../hooks/usePopover'
 import Popover from './Popover'
 import {
+  CARRIED,
   CHOICE_INPUT,
   CHOICE_ROW,
   DRAG_GHOST,
@@ -143,7 +144,7 @@ export default function ColumnsPicker({
                 if (el) rowsRef.current.set(col.key, el)
                 else rowsRef.current.delete(col.key)
               }}
-              className={`${CHOICE_ROW} px-1 ${isCarried ? 'opacity-40' : ''}`}
+              className={`${CHOICE_ROW} px-1 ${isCarried ? CARRIED : ''}`}
             >
               <input
                 type="checkbox"

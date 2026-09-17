@@ -148,6 +148,7 @@ One set of roles for both surfaces that reorder columns, the table header and th
 |---|---|
 | `DRAG_GRIP` | The handle itself. `cursor-grab` is the standing signal; `touch-none` is load-bearing, because without it the browser claims the gesture for scrolling and the drag never gets a second pointer event on a phone |
 | `DRAG_GRIP_ACTIVE` | The grip while its own column is the one being carried |
+| `CARRIED` | The column where it used to be, while the ghost is under the pointer. `DISABLED`'s 40 percent without its cursor, because that column still sorts the moment the drag ends, and not `MUTED`'s 50, because it is faded for where it is rather than for what it does |
 | `DRAG_GHOST` | The column riding under the pointer. Portalled to the body and positioned in viewport coordinates, so it carries `LAYER.popover` itself rather than asking the call site for it; `pointer-events-none` is load-bearing, or the ghost is what every hit test finds |
 | `DRAG_INSERT` | The bar marking the gap the column will drop into. The accent's fill without its label color, since the bar carries no text, and the same layer as the ghost |
 
@@ -232,6 +233,7 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | No component positions its own panel | `styles.test.ts` | Ban a fixed-position style object and the popover wrapper everywhere under `components/` and in `App.tsx`, except `Popover.tsx` |
 | One place decides where a panel goes | `styles.test.ts` | `popoverBox` has exactly one caller, the `usePopover` hook |
 | No component spells the third divider weight | `styles.test.ts` | Ban the slate-700 border utility everywhere under `components/` and in `App.tsx`, and check every `SURFACE_DIVIDER` use carries a side |
+| No component fades by a number of its own | `styles.test.ts` | Ban any `opacity-` utility everywhere under `components/` and in `App.tsx`; `DISABLED`, `MUTED` and `CARRIED` are the three fades |
 | Every exported role is read by something | `styles.test.ts` | Each `export const` in `styles.ts` appears in some file's import list under `src/` |
 
 **NOT enforced:** custom spacing between components (only recessed surface and controls are architected), component-specific layouts. These are decided per feature.

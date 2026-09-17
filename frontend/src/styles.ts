@@ -789,6 +789,23 @@ export const DRAG_GRIP =
 export const DRAG_GRIP_ACTIVE = 'text-slate-200'
 
 /**
+ * What a column looks like where it used to be, while it is being carried.
+ *
+ * The table header and the Columns picker both fade the row the drag started
+ * in, so the ghost under the pointer reads as the thing itself rather than as a
+ * copy of a column that is still sitting there. Both spelled the same literal
+ * before it had a name (#437).
+ *
+ * The same 40 percent as `DISABLED` and deliberately not that role: `DISABLED`
+ * promises a press will do nothing and carries `cursor-not-allowed` to say so,
+ * where this column still sorts and still toggles the moment the drag ends, and
+ * the pointer is already holding it. Not `MUTED` either, which is the 50 percent
+ * of a control that works but is not the one in force; this one is not faded for
+ * what it does, but for where it is.
+ */
+export const CARRIED = 'opacity-40'
+
+/**
  * The column being carried, drawn under the pointer.
  *
  * Translucent and tilted a degree, which is the standing vocabulary for

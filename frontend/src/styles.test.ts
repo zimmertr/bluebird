@@ -14,6 +14,7 @@ import {
   BUTTON_FLOATING,
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
+  CARRIED,
   CHIP,
   CHOICE_INPUT,
   CHOICE_ROW,
@@ -319,6 +320,17 @@ describe('every component', () => {
   // would otherwise compile.
   it.each(Object.entries(sources))('%s spells no divider of its own', (_path, source) => {
     expect(source).not.toMatch(/border-slate-[7]00/)
+  })
+
+  // How faded a thing is says WHY it is faded — 40 percent is out of reach or
+  // out of the room, 50 percent is working but not in force — so it is the
+  // design system's answer, the way a hue is. Spelling the number at the call
+  // site is how one chip came to fade its dot by 40 and its label by 50 while
+  // meaning one thing (#437). Left open-ended so it forbids a step nobody
+  // thought of, and so the pattern is not itself a class name: v4 scans this
+  // file as raw text and would compile one.
+  it.each(Object.entries(sources))('%s fades by no number of its own', (_path, source) => {
+    expect(source).not.toMatch(/\bopacity-/)
   })
 
   // The role is a colour and nothing else, so a call site that forgets the
@@ -948,6 +960,20 @@ describe('shared recipes', () => {
     expect(MUTED).not.toContain('cursor')
     expect(MUTED).not.toContain('disabled:')
     expect(MUTED).not.toMatch(/text-|bg-|border-/)
+  })
+
+  // The third fade, and the one that reads as neither of the two above: a
+  // column being dragged is not off and it is not out of force, it is simply
+  // somewhere else for a moment. It borrows DISABLED's 40 percent because the
+  // ghost under the pointer is what the reader is looking at, and deliberately
+  // none of that role's cursor: the column still sorts the instant the drag
+  // ends. Two surfaces drew the literal before it had a name (#437).
+  it('fades a carried column without the disabled claim either', () => {
+    expect(CARRIED).toBe('opacity-40')
+    expect(CARRIED).toBe(DISABLED.replace(/disabled:/g, '').split(' ')[0])
+    expect(CARRIED).not.toContain('cursor')
+    expect(CARRIED).not.toContain('disabled:')
+    expect(CARRIED).not.toMatch(/text-|bg-|border-/)
   })
 
   // The three weights of rule, in order. PANEL_EDGE is the only one that is

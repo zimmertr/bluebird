@@ -42,6 +42,7 @@ import type { PendingDestination } from '../utils/customList'
 import { pinKey } from '../utils/customList'
 import {
   ACCENT,
+  CARRIED,
   CHOICE_INPUT,
   DRAG_GHOST,
   DRAG_GRIP_ACTIVE,
@@ -700,7 +701,7 @@ function ResultsTable({
                 }}
                 className={`${TABLE.head} relative cursor-pointer whitespace-nowrap hover:text-white select-none ${
                   onColumnMove ? 'touch-none' : ''
-                } ${carry?.key === col.key ? `opacity-40 ${DRAG_GRIP_ACTIVE}` : ''}`}
+                } ${carry?.key === col.key ? `${CARRIED} ${DRAG_GRIP_ACTIVE}` : ''}`}
               >
                 {sized(col.key as string, col.label, 'inline')}
                 {detailSortKey === col.key && (

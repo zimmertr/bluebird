@@ -3277,7 +3277,7 @@ export default function App() {
                                     className={`${TEXT.control} ${FOCUS_RING} inline-flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pl-2 pr-1`}
                                   >
                                     <span
-                                      className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : 'opacity-40'}`}
+                                      className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : MUTED}`}
                                       style={{ backgroundColor: chart.colorFor(row) }}
                                     />
                                     <span className={`truncate ${plotted ? '' : MUTED}`}>
