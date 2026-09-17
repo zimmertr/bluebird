@@ -5,7 +5,7 @@ import math
 from collections.abc import AsyncIterator, Sequence
 from contextlib import aclosing
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Security
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -72,7 +72,7 @@ def _window_split(request: AnalyzeRequest) -> tuple[WindowSource, datetime]:
     answers the hours before the seam, the forecast endpoint the hours from it on,
     and the two are joined per location before the aggregation runs.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return (
         window_source(request.start_datetime, request.end_datetime, now),
         archive_boundary(now),
@@ -609,7 +609,7 @@ async def _attach_aqi(
     aqi_list = await air_quality.fetch_aqi_batch(
         dests, start_dt, end_dt, api_key=api_key
     )
-    for row, aqi in zip(results, aqi_list):
+    for row, aqi in zip(results, aqi_list, strict=False):
         if not aqi:
             continue
         row.aqi_avg = aqi.get("aqi_avg")
@@ -636,7 +636,7 @@ def _aligned_aqi(times_ms: list[int], aqi_series: dict | None) -> list[int | Non
     """
     if not aqi_series:
         return [None] * len(times_ms)
-    lookup = dict(zip(aqi_series["times"], aqi_series["aqi"]))
+    lookup = dict(zip(aqi_series["times"], aqi_series["aqi"], strict=False))
     return [lookup.get(t) for t in times_ms]
 
 
@@ -664,7 +664,7 @@ def _assemble(
     """
     times = _canonical_times(wx_list)
     results: list[DestinationResult] = []
-    for dest, wx, aqi in zip(destinations, wx_list, aqi_list):
+    for dest, wx, aqi in zip(destinations, wx_list, aqi_list, strict=False):
         if wx is None:
             continue
         aqi = aqi or {}

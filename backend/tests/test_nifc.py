@@ -14,10 +14,11 @@ import time
 
 import httpx
 import pytest
+from fastapi.testclient import TestClient
+
 from app.main import app
 from app.services import nifc
 from app.services.errors import UpstreamError, UpstreamRateLimited
-from fastapi.testclient import TestClient
 
 
 class _Clock:
