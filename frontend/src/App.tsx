@@ -178,6 +178,7 @@ import {
   TRANSPORT_GAP_PX,
 } from './utils/resultsSheet'
 import { composeOverlay } from './utils/analyzeOverlay'
+import { paceWaitLine } from './utils/pacing'
 import { Place, isPeakKind } from './utils/geocode'
 import {
   DEFAULT_LIMIT,
@@ -812,7 +813,7 @@ export default function App() {
     universe,
     statusMessage,
     progress,
-    paceEndMs,
+    paceRemainingS,
   } = useAnalyze(
     caps.maxDestinations,
     caps.forecastModels,
@@ -1002,10 +1003,9 @@ export default function App() {
     statusMessage,
     elapsedS: elapsed,
     rankedProgress: progress ? { processed: progress.processed, total: progress.total } : null,
-    // Live countdown while the client pacer sleeps off a quota deficit; the
-    // 250ms elapsed ticker below keeps this recomputing.
-    paceRemainingS:
-      paceEndMs !== null ? Math.max(0, Math.ceil((paceEndMs - Date.now()) / 1000)) : null,
+    // Live countdown while the client pacer sleeps off a quota deficit;
+    // `usePacedFetch` ticks it, and the 250ms elapsed ticker below re-reads it.
+    paceRemainingS,
   })
 
   useEffect(() => {
@@ -1839,22 +1839,10 @@ export default function App() {
   // loading line exists: a switched-on layer with nothing under it and nothing
   // said reads as a broken app rather than as a failed fetch.
   const gridFailed = gridOn && grid.status === 'failed'
-  // A one-second tick, only while the pacer is actually asleep, so the
-  // countdown moves. Nothing else on screen needs it and it stops on its own.
-  const [paceNow, setPaceNow] = useState(0)
-  useEffect(() => {
-    if (grid.paceEndMs === null) return
-    const id = setInterval(() => setPaceNow(Date.now()), 1000)
-    return () => clearInterval(id)
-  }, [grid.paceEndMs])
-  const gridPaceRemainingS =
-    grid.paceEndMs === null
-      ? null
-      : Math.max(0, Math.ceil((grid.paceEndMs - Math.max(paceNow, Date.now())) / 1000))
   const gridLegend = gridLegendLine(
     gridPainted,
     grid.pitchKm,
-    gridPaceRemainingS,
+    grid.paceRemainingS,
     gridFailed,
     grid.complete,
   )
@@ -2249,6 +2237,16 @@ export default function App() {
   // segment that says Chart while the table shows reads as broken.
   const chartShowing = !resultsCollapsed && (resultsMode === 'chart' || resultsMode === 'both')
   const tableShowing = !resultsCollapsed && (resultsMode === 'table' || resultsMode === 'both')
+  // The comparison's wait, on the one surface that is always here (#433).
+  //
+  // The forecasts behind the table's per-model rows are bought as soon as a
+  // second model is selected, where `ModelCompare` draws the same line only
+  // while the CHART draws a comparison — so air quality ranked, nothing
+  // charted, or the table shown by itself each left a paced fetch waiting with
+  // nowhere to say so. Null while the chart has it, because one wait said
+  // twice is the reason it was put in one module.
+  const compareWait =
+    compare.active && chartShowing ? null : paceWaitLine(compare.paceRemainingS)
   // One grip per panel on screen: the map│chart resizer, the chart│table divider.
   const gripCount = resultsCollapsed ? 0 : resultsMode === 'both' ? 2 : 1
   // On a phone the results stand ON the map rather than beside it, so the floor
@@ -3224,6 +3222,12 @@ export default function App() {
                   </button>
                 </div>
               </div>
+              {/* One line under the bar, never beside a control in it: the
+                  wait is about the whole comparison, where every member of the
+                  row above is about one thing the reader can press. */}
+              {compareWait !== null && (
+                <div className={`mt-1 ${CONTROL_SIZE} ${STATUS.warn}`}>{compareWait}</div>
+              )}
             </div>
             {!resultsCollapsed && (
               <>
@@ -3285,7 +3289,10 @@ export default function App() {
                             cutAfterMs={compare.endMs}
                             controls={
                               compare.active ? (
-                                <ModelCompare compared={compare.shown} />
+                                <ModelCompare
+                                  compared={compare.shown}
+                                  paceRemainingS={compare.paceRemainingS}
+                                />
                               ) : undefined
                             }
                           />
