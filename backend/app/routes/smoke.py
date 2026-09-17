@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-import logging
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel, Field
 
 from app import ratelimit
-from app.error_codes import ApiError, ErrorCode
 from app.models import ErrorResponse
 from app.services import hms
+from app.services.snapshot import snapshot_or_503
 
-log = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -102,20 +100,7 @@ class SmokeCollection(BaseModel):
     dependencies=[Depends(ratelimit.smoke_rate_limit)],
 )
 async def smoke() -> Response:
-    try:
-        snapshot = await hms.PLUMES.get()
-    except Exception as exc:
-        # Every failure that reaches here means the cache has nothing at all,
-        # stale or otherwise: once one fetch has landed, get() serves it rather
-        # than raising.
-        retry_after = getattr(exc, "retry_after_s", 60)
-        log.warning("event=smoke_unavailable error=%s", exc)
-        raise ApiError(
-            status_code=503,
-            detail=hms.unavailable_message(exc),
-            code=ErrorCode.snapshot_unavailable,
-            headers={"Retry-After": str(retry_after)},
-        ) from exc
+    snapshot = await snapshot_or_503(hms.PLUMES, event="smoke_unavailable")
     # Returned as a Response so FastAPI passes the stored body through
     # untouched; `response_model` above still documents the shape.
     return Response(content=snapshot.body, media_type="application/json")

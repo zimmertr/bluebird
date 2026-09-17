@@ -9,15 +9,16 @@ from app import ratelimit
 from app.error_codes import ApiError, ErrorCode
 from app.models import ErrorResponse
 from app.services.errors import classify_http_error
+from app.services.http import USER_AGENT
 
 log = logging.getLogger(__name__)
 router = APIRouter()
 
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+# The User-Agent comes from services/http.py, with every other upstream's.
 # Nominatim's usage policy asks callers to identify themselves with a real
 # User-Agent — something a browser fetch can't set. That, plus getting search
 # queries into the server logs, is why the SPA doesn't call Nominatim directly.
-USER_AGENT = "BluebirdForecast/1.0 (https://bluebirdforecast.com)"
 PROVIDER = "Nominatim (place search)"
 
 
