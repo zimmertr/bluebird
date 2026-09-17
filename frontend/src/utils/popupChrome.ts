@@ -12,6 +12,7 @@
 // document, but a string passed to setHTML is not a class list the scanner ever
 // sees. Keeping it out of the component is also what makes it unit-testable
 // without pulling maplibre-gl into a node test.
+import { externalLinkMarkup } from '../iconPaths'
 
 /**
  * The face a value is set in. Monospace, because that is what the results table
@@ -232,15 +233,18 @@ export function popupWidth(canvasWidthPx: number): string {
   return Math.max(180, Math.min(POPUP_MAX_WIDTH_PX, share)) + 'px'
 }
 
-/** The link-out glyph, sitting to the right of a popup's title. */
+/**
+ * The link-out glyph, sitting to the right of a popup's title.
+ *
+ * The anchor is this file's — where it goes, and the lighter sky the title row
+ * gives it — and the glyph inside it is `iconPaths.ts`'s, the same shape the
+ * results table draws through `IconExternalLink` (#435). The shape was typed
+ * out here until then, which made it the one icon in the app that could drift
+ * without anything noticing: the component lint reads the React tree, and this
+ * file has none. `styles.test.ts` now fails a glyph spelled here at all.
+ */
 export function linkIcon(url: string): string {
-  return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;flex-shrink:0;display:inline-flex">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" aria-hidden="true">
-        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-        <polyline points="15 3 21 3 21 9" />
-        <line x1="10" y1="14" x2="21" y2="3" />
-      </svg>
-    </a>`
+  return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;flex-shrink:0;display:inline-flex">${externalLinkMarkup()}</a>`
 }
 
 /**

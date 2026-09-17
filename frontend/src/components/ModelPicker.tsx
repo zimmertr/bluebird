@@ -15,12 +15,12 @@ import {
   CHIP,
   CHOICE_INPUT,
   DISABLED,
-  ICON_ADORNMENT,
   LAYER,
   SELECT,
   SURFACE_CARD,
   TEXT,
 } from '../styles'
+import { IconClose, IconSelectArrow } from './icons'
 
 // Wide enough for a summary to sit on two lines rather than three: the longest
 // measures 512px, so it uses 72% of the 708px two lines buy. The sidebar is
@@ -368,21 +368,7 @@ export default function ModelPicker({
           onClick={() => removeChip(id, at)}
           className={`${CHIP.remove} ${canDrop ? '' : 'invisible'}`}
         >
-          {/* A drawn cross rather than the "×" character, which
-              centres on the font's maths where two lines in a
-              square viewBox centre by construction. */}
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            className="h-2.5 w-2.5"
-            aria-hidden="true"
-          >
-            <line x1="6" y1="6" x2="18" y2="18" />
-            <line x1="18" y1="6" x2="6" y2="18" />
-          </svg>
+          <IconClose size="chip" />
         </button>
       </span>
     )
@@ -422,18 +408,7 @@ export default function ModelPicker({
           <span className="flex-shrink-0 tabular-nums">+{comparedCount}</span>
         )}
       </button>
-      <svg
-        className={`${ICON_ADORNMENT} h-4 w-4`}
-        viewBox="0 0 20 20"
-        fill="currentColor"
-        aria-hidden="true"
-      >
-        <path
-          fillRule="evenodd"
-          d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
-          clipRule="evenodd"
-        />
-      </svg>
+      <IconSelectArrow />
       {open &&
         box &&
         createPortal(
