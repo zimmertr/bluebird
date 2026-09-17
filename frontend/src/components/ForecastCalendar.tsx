@@ -38,6 +38,7 @@ import {
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
+  SURFACE_DIVIDER,
   SURFACE_GROUP,
   SURFACE_GROUP_BLEED,
   TEXT,
@@ -382,7 +383,7 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
 
       {/* Month navigation, bounded by the servable band rather than open-ended:
           paging into a month with nothing pickable in it is a dead end. */}
-      <div className="mb-1 mt-2 flex items-center justify-between border-t border-slate-700 pt-2">
+      <div className={`mb-1 mt-2 flex items-center justify-between border-t ${SURFACE_DIVIDER} pt-2`}>
         <MonthButton
           label="Previous month"
           glyph="‹"

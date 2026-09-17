@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Query, Response
@@ -10,8 +9,8 @@ from app import ratelimit
 from app.error_codes import ApiError, ErrorCode
 from app.models import ErrorResponse
 from app.services import nifc
+from app.services.snapshot import snapshot_or_503
 
-log = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -166,20 +165,7 @@ async def wildfires(
     ),
 ) -> Response:
     box = _parse_bbox(bbox)
-    try:
-        snapshot = await nifc.PERIMETERS.get()
-    except Exception as exc:
-        # Every failure that reaches here means the cache has nothing at all,
-        # stale or otherwise: once one fetch has landed, get() serves it rather
-        # than raising.
-        retry_after = getattr(exc, "retry_after_s", 60)
-        log.warning("event=wildfires_unavailable error=%s", exc)
-        raise ApiError(
-            status_code=503,
-            detail=nifc.unavailable_message(exc),
-            code=ErrorCode.snapshot_unavailable,
-            headers={"Retry-After": str(retry_after)},
-        ) from exc
+    snapshot = await snapshot_or_503(nifc.PERIMETERS, event="wildfires_unavailable")
     fires = snapshot.within(box, coarse=detail == "coarse")
     # Returned as a Response so FastAPI passes the stored feature text through
     # untouched; `response_model` above still documents the shape.

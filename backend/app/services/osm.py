@@ -15,6 +15,7 @@ from app import ratelimit, telemetry
 from app.models import DestinationType, GeoPolygon
 from app.services import cache
 from app.services.errors import PartialResultError, UpstreamError, classify_http_error
+from app.services.http import HEADERS
 
 log = logging.getLogger(__name__)
 
@@ -81,8 +82,6 @@ OVERPASS_MIRRORS = [
         ),
     ),
 ]
-HEADERS = {"User-Agent": "BluebirdForecast/1.0 (bluebirdforecast.com; personal weather tool)"}
-
 # The Overpass clauses each destination type contributes, as *fragments*
 # rather than whole queries, because an analysis can now ask for several types
 # at once and the union has to be one request.
@@ -351,7 +350,7 @@ _EARTH_RADIUS_M = 6_371_000.0
 
 
 def _point_key(lat: float, lon: float) -> str:
-    """~1 m identity for a coordinate, matching the frontend's ``pinKey``."""
+    """~1 m identity for a coordinate, matching the frontend's ``geoKey``."""
     return f"{lat:.5f},{lon:.5f}"
 
 

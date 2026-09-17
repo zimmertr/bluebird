@@ -14,7 +14,13 @@
 // longer counted anything.
 import { describe, expect, it } from 'vitest'
 import manifest from '../../../backend/tests/data/mirrored_constants.json'
-import { BATCH_SIZE, HOURLY_VARIABLES, MAX_CONCURRENT_BATCHES } from './openMeteo'
+import {
+  BATCH_SIZE,
+  COVERAGE_MESSAGE_TAIL,
+  COVERAGE_PHRASE,
+  HOURLY_VARIABLES,
+  MAX_CONCURRENT_BATCHES,
+} from './openMeteo'
 import { MAX_ANALYZE_DESTINATIONS } from './clientAnalyze'
 import { COARSE_TOLERANCE_DEG } from './wildfires'
 import {
@@ -23,12 +29,6 @@ import {
   PAST_DATA_DAYS,
   PAST_LIMIT_SLACK_DAYS,
 } from './forecastWindow'
-// `?raw` gives a file's text without executing it, the drift-guard idiom
-// `styles.test.ts` and `metrics.test.ts` use. The two sentences below are
-// composed inside React hooks, which a node-env test cannot run, and the text
-// is the whole of what is mirrored.
-import useAnalyzeSource from '../hooks/useAnalyze.ts?raw'
-import useModelCompareSource from '../hooks/useModelCompare.ts?raw'
 
 const { constants, strings } = manifest
 
@@ -76,19 +76,20 @@ describe('the constants the backend publishes for this side to match', () => {
 
 describe('the model-coverage sentence', () => {
   // The label is composed per model on both sides, so the manifest carries the
-  // sentence with `{label}` where the name goes and the tail is what the two
-  // surfaces below must spell.
+  // sentence with `{label}` where the name goes. The browser spells the rest
+  // once, in `openMeteo.ts`, and both hooks compose from those two constants
+  // (`openMeteo.test.ts` fails a hook that types the words again).
   const tail = strings.model_coverage_message.replace('{label} ', '')
   const firstSentence = `${tail.split('. ')[0]}.`
 
   it('reads on the analysis path exactly as the backend writes it', () => {
-    expect(useAnalyzeSource).toContain(tail)
+    expect(COVERAGE_MESSAGE_TAIL).toBe(tail)
   })
 
   it('reads on the model-compare path without the remedy clause', () => {
     // The compare panel drops the second sentence deliberately: unticking the
     // model in the picker is what removes these lines, so "switch to a
     // different model" is not its remedy. The first sentence is still shared.
-    expect(useModelCompareSource).toContain(firstSentence)
+    expect(COVERAGE_PHRASE).toBe(firstSentence)
   })
 })

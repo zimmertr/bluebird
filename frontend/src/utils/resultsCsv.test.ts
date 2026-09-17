@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { buildResultsCsv, csvFilename, isoLocalMinute } from './resultsCsv'
 import { DATA_SOURCES } from './dataSources'
 import { COLUMNS, WILDFIRE_COL, displayedColumns, withModelColumn } from './tableColumns'
-import { FireWarning, fireKey } from './fireProximity'
+import { FireWarning } from './fireProximity'
+import { geoKey } from './points'
 import { DestinationResult } from '../types'
 import { resultRow } from '../testSupport/fixtures'
 import { archiveBoundaryMs, normalizeWindow, windowSource } from './forecastWindow'
@@ -277,7 +278,7 @@ describe('quoting', () => {
 
 describe('the wildfire column', () => {
   const near = new Map<string, FireWarning>([
-    [fireKey(46.8523, -121.7603), { miles: 5.28, name: 'Sourdough Fire', latitude: 0, longitude: 0 }],
+    [geoKey(46.8523, -121.7603), { miles: 5.28, name: 'Sourdough Fire', latitude: 0, longitude: 0 }],
   ])
 
   it('reports the distance for a flagged row', () => {
@@ -298,7 +299,7 @@ describe('the wildfire column', () => {
   // beside it, and matches the table's cell for the same state.
   it('writes N/A for a destination outside the fire coverage', () => {
     const robson = row({ name: 'Mount Robson', latitude: 53.1106, longitude: -119.2317 })
-    const uncovered = new Set([fireKey(53.1106, -119.2317)])
+    const uncovered = new Set([geoKey(53.1106, -119.2317)])
     const csv = buildResultsCsv([row(), robson], WINDOW_COLUMNS, near, { fireUncovered: uncovered })
     const body = lines(csv).slice(1, 3)
     expect(body[0].endsWith(',5.3')).toBe(true)
@@ -306,7 +307,7 @@ describe('the wildfire column', () => {
   })
 
   it('still omits the whole column when the lookup itself never ran', () => {
-    const uncovered = new Set([fireKey(53.1106, -119.2317)])
+    const uncovered = new Set([geoKey(53.1106, -119.2317)])
     const csv = buildResultsCsv([row()], WINDOW_COLUMNS, null, { fireUncovered: uncovered })
     // The row ends where the metric columns end, so no cell carries the fire
     // check's answer at all. Counted rather than searched for the mark, which

@@ -7,7 +7,7 @@
 // tests on both sides fail if either drifts. Change semantics there first,
 // regenerate the vectors, and mirror the change here.
 
-import { archiveBoundaryMs, windowSource } from './forecastWindow'
+import { HOUR_MS, archiveBoundaryMs, windowSource } from './forecastWindow'
 import { buildSnapshot, loadSnapshot, readSnapshot, saveSnapshot } from './forecastStore'
 
 export const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'
@@ -59,13 +59,39 @@ export class OpenMeteoRateLimited extends Error {
 // {"error": true, "reason": "No data is available for this location"} — and a
 // batch answers the same way if a SINGLE one of its 50 locations is outside,
 // so this never identifies which destination was the problem.
+// It carries no message: every catch site composes the sentence below from
+// the model's own label, which this class does not have, so a message here
+// could only ever be a fourth wording nobody reads (#391).
 export class OpenMeteoModelCoverage extends Error {
   modelId: string
   constructor(modelId: string) {
-    super(`Model ${modelId} does not cover this area`)
+    super()
     this.modelId = modelId
   }
 }
+
+// What that sentence says after the model's label. The label is the one part
+// the two surfaces do not share, so everything after it is spelled here once.
+// Mirror of `_coverage_message` in backend/app/services/weather.py.
+export const COVERAGE_PHRASE = 'has no forecast coverage for this area.'
+
+// The analysis path adds the remedy; the compare panel does not, because
+// unticking the model in its picker is what removes those lines.
+export const COVERAGE_MESSAGE_TAIL = `${COVERAGE_PHRASE} Switch to a different model and try again.`
+
+// Thrown when a response ARRIVED and cannot be read: a body that declares a
+// unit nothing can convert, for instance. Its own class because the transport
+// worked, so `OpenMeteoUnreachable` would name the wrong fault and send the
+// reader after a network problem they do not have. The message is the one the
+// backend gives any unusable Open-Meteo body, so one provider fault is not
+// described two ways across the two paths.
+export class OpenMeteoBadBody extends Error {}
+
+// What every unreadable body says, spelled once. A unit nothing can convert
+// and a reply that answers a different number of locations than it was asked
+// about are one fault to the reader, who can act on neither, so a second
+// wording here would only describe that fault two ways (#431).
+export const BAD_BODY_MESSAGE = 'Open-Meteo request failed. Try again later.'
 
 // Any other HTTP status: reachable, failed. The server shares the same
 // upstream, so a fallback would fail identically — surface it instead.
@@ -488,8 +514,6 @@ export const HOURLY_VARIABLES = [
   ...TEMP_LEVELS.map(([name]) => name),
 ] as const
 
-const HOUR_MS = 3_600_000
-
 /** One leg of a fetch: which endpoint answers, and the hours it answers for. */
 interface FetchSpan {
   archive: boolean
@@ -696,12 +720,11 @@ function freezeUnit(payload: HourlyPayload): string | null {
 // Port of weather._freeze_to_ft: one reading in feet, per the unit the
 // response declared. A unit that is neither documented one leaves the number
 // unreadable, and assuming either would ship a reading 3.28 times out, so an
-// unknown or missing unit throws the class a malformed body throws (which
-// useAnalyze surfaces with its own message, like any other provider failure).
+// unknown or missing unit fails the batch the way any unusable body does.
 function freezeToFeet(v: number, unit: string | null): number {
   if (unit === 'ft') return v
   if (unit === 'm') return v / FT_TO_M
-  throw new OpenMeteoUnreachable('Cannot reach Open-Meteo. Try again later.')
+  throw new OpenMeteoBadBody(BAD_BODY_MESSAGE)
 }
 
 // Port of weather._freeze_ft_in_window: every in-window hour that HAS a
@@ -825,7 +848,7 @@ export function weatherMetrics(
     // in the column would have to be invented, so it passes the degrade and
     // fails the analysis. Mirrors the `except UpstreamError: raise` the
     // backend's `_metrics` puts ahead of its own degrade.
-    if (e instanceof OpenMeteoUnreachable) throw e
+    if (e instanceof OpenMeteoBadBody) throw e
     return null
   }
 }
@@ -878,7 +901,7 @@ export function weatherSeries(
   } catch (e) {
     // The one failure this function does not absorb, for the reason
     // `weatherMetrics` does not absorb it either.
-    if (e instanceof OpenMeteoUnreachable) throw e
+    if (e instanceof OpenMeteoBadBody) throw e
     return null
   }
 }
@@ -1340,9 +1363,15 @@ export async function fetchWeather(
       )
       const items = asItems(data)
       if (items.length !== chunk.length) {
-        throw new OpenMeteoUnreachable(
-          `Open-Meteo returned ${items.length} results for ${chunk.length} locations`,
+        // The counts go to the console because they are the only instrument
+        // anyone has for a fault that reproduces in the wild, and they stay
+        // off screen because a reader cannot act on them. The batch is
+        // unusable either way: the rows no longer line up with the
+        // coordinates that asked for them.
+        console.warn(
+          `[bluebird-forecast] Open-Meteo returned ${items.length} results for ${chunk.length} locations`,
         )
+        throw new OpenMeteoBadBody(BAD_BODY_MESSAGE)
       }
       perSpan.push(items)
     }

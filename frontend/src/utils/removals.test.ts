@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { CustomDestination, DestinationResult } from '../types'
 import { Place } from './geocode'
-import { pendingDestinations, pinKey } from './customList'
+import { pendingDestinations } from './customList'
+import { geoKey } from './points'
 import {
   RemovedEntry,
   activeRemovals,
@@ -36,13 +37,13 @@ describe('recordRemoval', () => {
   it('captures the backing place when the removed row was searched', () => {
     const p = place()
     const removed = recordRemoval(new Map(), row('Mount Rainier'), [p], SCOPE)
-    expect(removed.get(pinKey(46.85, -121.76))?.place).toBe(p)
+    expect(removed.get(geoKey(46.85, -121.76))?.place).toBe(p)
   })
 
   it('matches the place by coordinate key, not by name', () => {
     const elsewhere = place({ label: 'Mount Rainier', lat: 40, lon: -100 })
     const removed = recordRemoval(new Map(), row('Mount Rainier'), [elsewhere], SCOPE)
-    expect(removed.get(pinKey(46.85, -121.76))?.place).toBeNull()
+    expect(removed.get(geoKey(46.85, -121.76))?.place).toBeNull()
   })
 
   it('leaves place null for discovered rows and keeps earlier entries', () => {
@@ -50,19 +51,19 @@ describe('recordRemoval', () => {
     const both = recordRemoval(first, row('B', { latitude: 48 }), [], SCOPE)
     expect(both.size).toBe(2)
     expect([...both.values()].map((e) => e.row.name)).toEqual(['A', 'B'])
-    expect(both.get(pinKey(47, -121.76))?.place).toBeNull()
+    expect(both.get(geoKey(47, -121.76))?.place).toBeNull()
     // The input map is not mutated — App state depends on it.
     expect(first.size).toBe(1)
   })
 
   it('records the scope in force at removal time', () => {
     const removed = recordRemoval(new Map(), row('Mount Rainier'), [], SCOPE)
-    expect(removed.get(pinKey(46.85, -121.76))?.scope).toBe(SCOPE)
+    expect(removed.get(geoKey(46.85, -121.76))?.scope).toBe(SCOPE)
   })
 })
 
 describe('restorePlace', () => {
-  const key = pinKey(46.85, -121.76)
+  const key = geoKey(46.85, -121.76)
 
   it('re-registers the original place for a searched removal, even when the row is still held', () => {
     const p = place()
@@ -140,7 +141,7 @@ describe('authoredScope', () => {
 })
 
 describe('activeRemovals', () => {
-  const key = pinKey(46.85, -121.76)
+  const key = geoKey(46.85, -121.76)
   const other = authoredScope(
     ['peak'],
     'Mount Rainier, 46.85, -121.76\nGlacier Peak, 48.11, -121.11',
@@ -161,8 +162,8 @@ describe('activeRemovals', () => {
   it('expires mixed scopes one by one', () => {
     const first = recordRemoval(new Map(), row('A', { latitude: 47 }), [], SCOPE)
     const both = recordRemoval(first, row('B', { latitude: 48 }), [], other)
-    expect(activeRemovals(both, other)).toEqual(new Set([pinKey(48, -121.76)]))
-    expect(activeRemovals(both, SCOPE)).toEqual(new Set([pinKey(47, -121.76)]))
+    expect(activeRemovals(both, other)).toEqual(new Set([geoKey(48, -121.76)]))
+    expect(activeRemovals(both, SCOPE)).toEqual(new Set([geoKey(47, -121.76)]))
   })
 
   it('is empty for an empty removal map', () => {

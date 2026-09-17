@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DestinationResult } from '../types'
-import { pinKey } from './customList'
+import { geoKey } from './points'
 import { Constraints, NO_CONSTRAINTS } from './clientAnalyze'
 import {
   AnalyzedSnapshot,
@@ -289,20 +289,20 @@ describe('presentResults', () => {
   })
 
   it('drops removed destinations and promotes the next row into the cut', () => {
-    const removed = new Set([pinKey(2, -121.9)])
+    const removed = new Set([geoKey(2, -121.9)])
     const { rows } = presentResults(universe, { ...KNOBS, limit: 2 }, removed)
     // 'Dry' removed, so the cut is the next two rather than one row and a gap.
     expect(rows.map((r) => r.name)).toEqual(['Untagged', 'Mid'])
   })
 
   it('never resurrects a removed destination when limit rises', () => {
-    const removed = new Set([pinKey(2, -121.9)])
+    const removed = new Set([geoKey(2, -121.9)])
     const { rows } = presentResults(universe, { ...KNOBS, limit: 100 }, removed)
     expect(rows.map((r) => r.name)).not.toContain('Dry')
   })
 
   it('counts eligible before the cut and before removals', () => {
-    const removed = new Set([pinKey(2, -121.9)])
+    const removed = new Set([geoKey(2, -121.9)])
     const cut = { ...KNOBS, limit: 1, constraints: { ...NO_CONSTRAINTS, maxPrecipTotalIn: 0.5 } }
     expect(presentResults(universe, cut, removed).eligible).toBe(3)
   })
@@ -359,7 +359,7 @@ describe('presentResults', () => {
     })
 
     it('excludes before removals, so the two counts stay independent', () => {
-      const removed = new Set([pinKey(2, -121.9)]) // 'Dry'
+      const removed = new Set([geoKey(2, -121.9)]) // 'Dry'
       const { rows, eligible, excluded } = presentResults(universe, bounded({ maxPrecipTotalIn: 0.4 }),
         removed,
       )

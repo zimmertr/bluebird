@@ -212,7 +212,7 @@ def _merge_custom(discovered: list[dict], custom: list[dict]) -> list[dict]:
 
     A discovered row is dropped when a custom row claims its exact name (the
     identity rule query_osm already applies within its own results) or its
-    5-decimal coordinate key (~1 m — the frontend's pinKey precedent). The
+    5-decimal coordinate key (~1 m — the frontend's geoKey precedent). The
     user's own rows always survive; near-misses simply coexist as two rows.
     """
     names = {c["name"] for c in custom}

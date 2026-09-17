@@ -5,13 +5,13 @@ import { FAMILY_KEYS, familyOf } from '../metrics'
 import { usePopover } from '../hooks/usePopover'
 import Popover from './Popover'
 import {
+  CARRIED,
   CHOICE_INPUT,
   CHOICE_ROW,
   DRAG_GHOST,
   DRAG_GRIP,
   DRAG_GRIP_ACTIVE,
   DRAG_INSERT,
-  LAYER,
 } from '../styles'
 import { IconGrip } from './icons'
 import {
@@ -144,7 +144,7 @@ export default function ColumnsPicker({
                 if (el) rowsRef.current.set(col.key, el)
                 else rowsRef.current.delete(col.key)
               }}
-              className={`${CHOICE_ROW} px-1 ${isCarried ? 'opacity-40' : ''}`}
+              className={`${CHOICE_ROW} px-1 ${isCarried ? CARRIED : ''}`}
             >
               <input
                 type="checkbox"
@@ -196,7 +196,7 @@ export default function ColumnsPicker({
       {carry && (
         <>
           <div
-            className={`${DRAG_GHOST} ${LAYER.popover}`}
+            className={DRAG_GHOST}
             style={{
               left: ghostLeft(carry.x, window.innerWidth),
               top: carry.y - 10,
@@ -207,7 +207,7 @@ export default function ColumnsPicker({
           </div>
           {insert && (
             <div
-              className={`${DRAG_INSERT} ${LAYER.popover}`}
+              className={DRAG_INSERT}
               style={{ left: insert.left, top: insert.y - 1, width: insert.width, height: 2 }}
             />
           )}

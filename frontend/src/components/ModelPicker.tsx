@@ -11,7 +11,15 @@ import {
   toggleSelected,
 } from '../utils/modelSelection'
 import { gridLabel, reachLabel, type ForecastModelOption } from '../hooks/useCapabilities'
-import { BADGE_ACCENT, CHIP, CHOICE_INPUT, DISABLED, SELECT, TEXT } from '../styles'
+import {
+  BADGE_ACCENT,
+  CHIP,
+  CHOICE_INPUT,
+  DISABLED,
+  SELECT,
+  SURFACE_DIVIDER,
+  TEXT,
+} from '../styles'
 import { IconClose, IconSelectArrow } from './icons'
 
 // Wide enough for a summary to sit on two lines rather than three: the longest
@@ -370,7 +378,7 @@ export default function ModelPicker({
               the one listbox below already owns the arrow keys. */}
           <div
             role="toolbar"
-            className="flex flex-shrink-0 flex-col border-b border-slate-700"
+            className={`flex flex-shrink-0 flex-col border-b ${SURFACE_DIVIDER}`}
           >
             {CHIP_GROUPS.map(({ heading, ids }) =>
               ids.length === 0 ? null : (
@@ -396,7 +404,7 @@ export default function ModelPicker({
               each figure in the option's own text. */}
           <div
             aria-hidden="true"
-            className={`${TEXT.overline} flex items-baseline justify-between gap-2 border-b border-slate-700 px-3 py-1.5`}
+            className={`${TEXT.overline} flex items-baseline justify-between gap-2 border-b ${SURFACE_DIVIDER} px-3 py-1.5`}
           >
             <span>Model</span>
             <span>Resolution · Range</span>
