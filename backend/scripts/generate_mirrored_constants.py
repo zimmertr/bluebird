@@ -39,9 +39,8 @@ from app.models import (
     PAST_LIMIT_SLACK_DAYS,
 )
 from app.services.nifc import COARSE_OFFSET_DEG
+from app.services.openmeteo_fetch import BATCH_SIZE, MAX_CONCURRENT_BATCHES
 from app.services.weather import (
-    BATCH_SIZE,
-    MAX_CONCURRENT_BATCHES,
     N_VARIABLES,
     _coverage_message,
 )

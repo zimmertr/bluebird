@@ -14,6 +14,7 @@
 // dataset (CC-BY 3.0), and outside the US an empty answer means "not covered",
 // not "nothing burning".
 import type { FeatureCollection, MultiPolygon } from 'geojson'
+import { apiFetch } from './apiFetch'
 
 const WILDFIRES_URL = '/api/wildfires'
 
@@ -134,7 +135,7 @@ export async function fetchWildfires(
   detail: FireDetail,
   signal: AbortSignal,
 ): Promise<WildfireResponse> {
-  const res = await fetch(wildfireQueryUrl(bbox, detail), { signal })
+  const res = await apiFetch(wildfireQueryUrl(bbox, detail), { signal })
   if (!res.ok) {
     const err = new Error('Wildfire data unavailable. Try again later.') as Error & {
       rateLimited?: boolean
