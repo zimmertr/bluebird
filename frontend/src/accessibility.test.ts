@@ -7,6 +7,10 @@ import appSource from './App.tsx?raw'
 import modelPickerSource from './components/ModelPicker.tsx?raw'
 import resultsTableSource from './components/ResultsTable.tsx?raw'
 import iconsSource from './components/icons.tsx?raw'
+// The one shape drawn twice, once as an element and once as markup for a
+// map popup (#435). The markup is a glyph like any other, so it answers to
+// the same rule.
+import iconPathsSource from './iconPaths.ts?raw'
 
 // The opening tag of every element of one kind in a file, whichever attributes
 // it carries.
@@ -21,10 +25,13 @@ describe('every glyph the app draws', () => {
   // already carries its own name, so an icon that is announced can only ever
   // be announced a second time.
   //
-  // This is the whole of that rule now, because `styles.test.ts` holds every
-  // other component to drawing no SVG of its own: one file to check.
+  // Two files to check, because `styles.test.ts` holds every component AND the
+  // map popup's string markup to drawing no SVG of its own.
   it('hides every one of them from assistive technology', () => {
-    const glyphs = openingTags(iconsSource, 'svg')
+    const glyphs = [
+      ...openingTags(iconsSource, 'svg'),
+      ...openingTags(iconPathsSource, 'svg'),
+    ]
     expect(glyphs.length).toBeGreaterThan(10)
     for (const glyph of glyphs) {
       expect(glyph).toContain('aria-hidden="true"')

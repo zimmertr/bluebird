@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { EXTERNAL_LINK } from '../iconPaths'
 import { ICON, ICON_ADORNMENT } from '../styles'
 
 /**
@@ -38,8 +39,8 @@ const join = (size: string, className?: string): string =>
   className ? `${size} ${className}` : size
 
 /**
- * The close cross, at three steps: a control (16), a chart legend chip (12),
- * and a dismiss disc or model chip (10).
+ * The close cross, at three steps: a control (16), a chip (12), and the
+ * notice's dismiss disc (10).
  *
  * Two lines rather than the `×` character. That glyph is centred on the font's
  * own maths and not on the button's, so it sits visibly high in a round target
@@ -208,7 +209,7 @@ export function IconSearch({ className }: IconProps): ReactNode {
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
-      className={join(ICON.search, className)}
+      className={join(ICON.control, className)}
       aria-hidden="true"
     >
       <circle cx="11" cy="11" r="7" />
@@ -223,22 +224,31 @@ export function IconSearch({ className }: IconProps): ReactNode {
  * The warning it stands for is the anchor's `aria-label`, not this glyph:
  * `accessibility.test.ts` holds every new-tab anchor in that table to a label
  * ending "Opens in a new tab."
+ *
+ * The one glyph whose shape is not spelled here. The map popup draws it too,
+ * out of a string this module cannot reach, so both sides read it from
+ * `iconPaths.ts` (#435).
  */
 export function IconExternalLink({ className }: IconProps): ReactNode {
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox={EXTERNAL_LINK.viewBox}
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      strokeWidth={EXTERNAL_LINK.strokeWidth}
+      strokeLinecap={EXTERNAL_LINK.linecap}
+      strokeLinejoin={EXTERNAL_LINK.linejoin}
       className={join(ICON.inline, className)}
       aria-hidden="true"
     >
-      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-      <polyline points="15 3 21 3 21 9" />
-      <line x1="10" y1="14" x2="21" y2="3" />
+      <path d={EXTERNAL_LINK.frame} />
+      <polyline points={EXTERNAL_LINK.head} />
+      <line
+        x1={EXTERNAL_LINK.shaft.x1}
+        y1={EXTERNAL_LINK.shaft.y1}
+        x2={EXTERNAL_LINK.shaft.x2}
+        y2={EXTERNAL_LINK.shaft.y2}
+      />
     </svg>
   )
 }

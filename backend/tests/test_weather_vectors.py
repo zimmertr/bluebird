@@ -5,7 +5,8 @@ TypeScript port in the frontend must reproduce exactly. This suite asserts
 the backend still produces the committed expectations, so any change to the
 aggregation code forces a visible regeneration
 (`python scripts/generate_weather_vectors.py`) in the same PR — and the
-frontend copy (CI-diffed against this one) drags the port along with it.
+regenerated file drags the port along with it, because the frontend suite
+reads this same file.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+
 from app.routes.analyze import _aligned_aqi
 from app.services import air_quality, weather
 

@@ -498,7 +498,9 @@ export const BADGE_ACCENT =
  *
  * The right padding is the chip's rather than the label's: the label sits
  * against the × with nothing between them but the glyph's own inset, so the
- * gap a reader sees is 5px rather than the 16px two `px-2` halves put there.
+ * gap a reader sees is 4px — half of what `CHIP.remove`'s 20px box leaves
+ * around an `ICON.chip` cross — rather than the 16px two `px-2` halves put
+ * there.
  */
 const CHIP_SHAPE = `inline-flex max-w-full items-center ${RADIUS.control} pr-1 text-xs`
 
@@ -636,6 +638,24 @@ export const SWATCH_CHIP =
   `inline-flex h-3.5 w-3.5 items-center justify-center ${RADIUS.control} border ` +
   `text-[9px] font-semibold text-slate-900`
 
+/**
+ * A legend key that is a SCALE rather than one colour: the snow depth
+ * overlay's eleven bands, drawn as a strip across the box (#446).
+ *
+ * Every other layer keys on a single value, which the 14px chip beside its
+ * label says. A banded depth scale cannot be said that way — eleven chips in a
+ * 164px row are 13px each with nothing under them to read, and eleven rows are
+ * most of the map a phone has left. So this one key takes the box's whole
+ * width, with the numbers on their own line below it, and buys two lines
+ * rather than eleven.
+ *
+ * Half the chip's height because it is long rather than square, and because
+ * what a reader takes off it is a position along the strip rather than a
+ * colour in isolation. The fill and the border are the layer's own, passed in:
+ * the map draws NOAA's rendered image, so the key has to be NOAA's colours.
+ */
+export const SWATCH_RAMP = `block h-2 w-full ${RADIUS.control} border`
+
 export const ICON_ACTION = `text-slate-500 ${ACCENT.hoverText}`
 
 /** A bare icon button in a header: the chart and table collapse chevrons. */
@@ -718,42 +738,67 @@ export const ICON_ADORNMENT =
  * It is a role and not a call-site class for the reason every size here is:
  * nineteen inline SVGs drew their own before #386, and the same cross came out
  * at three sizes and two stroke weights.
+ *
+ * Four steps, all of them on Tailwind's scale. It was five: the magnifier sat
+ * a pixel under `control` and the same chip cross was drawn at two sizes, both
+ * carried over by #386 because that change moved no visible size. #436
+ * measured them in Chrome on macOS on 2026-09-16, at 1440 and at 360px alike
+ * — every box below comes out the same at both widths, the map column being a
+ * fixed 184px and a chip as wide as its name — and the number that decided
+ * each step is in its comment.
  */
 export const ICON = {
   /**
    * 16x16. The standing step: a glyph in or beside a control — the results
    * bar's mode switch, the map's two buttons, the panel's close, the columns
-   * picker's grip, the collapse chevron, and the arrow `SELECT` reserves room
-   * for (`ICON_ADORNMENT`, whose 24px reserve is measured off this step).
+   * picker's grip, the collapse chevron, the search field's magnifier, and the
+   * arrow `SELECT` reserves room for (`ICON_ADORNMENT`, whose 24px reserve is
+   * measured off this step).
+   *
+   * The magnifier was 15 and is the reason this step is worth a number. Its
+   * row is `MAP_ROW_H`, 36px on a pointer and 44 on a finger, and both are
+   * even: a 16px box centres on 10 and 14px of clear space, a 15px box on 10.5
+   * and 14.5. The row also holds two 16px boxes already — the clear cross, and
+   * the spinner that stands in its place — which sit at that same 10px. So the
+   * odd step bought nothing and cost a half-pixel, on the one glyph in the row
+   * that was off the pixel grid and the one that was off the scale. The column
+   * pays for the extra pixel out of slack it has: `MAP_COL_W` is 184px against
+   * 178.6px of content.
    */
   control: 'h-4 w-4',
   /**
-   * 15x15. The search field's magnifier, and nothing else in the app.
-   *
-   * The one step that is not on Tailwind's scale and has no recorded reason;
-   * it is a pixel under `control` beside a `control`-sized clear cross in the
-   * same 36px row. Kept because #386 moved no visible size. Measure it against
-   * `control` before a second glyph takes it.
-   */
-  search: 'h-[15px] w-[15px]',
-  /**
    * 14x14. A mark inside a line of text rather than inside a control: the
    * results table's link-out arrow, which sits on a destination's name and is
-   * sized to the name rather than to a button.
+   * sized to the name rather than to a button, and the same glyph in the map
+   * popup's title row, which reads the number from `iconPaths.ts` because a
+   * string handed to setHTML can carry no class.
    */
   inline: 'h-3.5 w-3.5',
   /**
-   * 12x12. The remove cross on a chart legend chip, whose chip is 26px tall.
-   */
-  legend: 'h-3 w-3',
-  /**
-   * 10x10. What fits inside something smaller than a control: the notice's
-   * 20px dismiss disc, the model picker's 20x24 chip slot, and the timeline's
-   * 28px play button.
+   * 12x12. The remove cross on a chip: the chart legend's and the model
+   * picker's alike.
    *
-   * The model picker's chip takes this step where the chart legend's chip
-   * takes `legend`, 2px above it. Both are a remove cross on a chip, so one of
-   * the two is wrong; neither moved in #386, which changed no visible size.
+   * Both chips measure exactly 24px tall, so they are one box carrying one
+   * object, and they drew it at 12 and at 10 until #436. 12 is the size this
+   * cross is actually drawn at: its two lines run 6 to 18 of a 24-unit
+   * viewBox, so at 12 the scale is exactly a half — a 1.00px stroke with both
+   * ends on whole pixels — where 10 gives 0.83px on half pixels. It costs the
+   * model chip no width, `CHIP.remove` being a fixed 20x24 box: the glyph
+   * grows inside it, the chips stay 92.8, 97.8 and 111.7px wide, and the gap
+   * the reader sees between the last letter and the cross closes from 5px to
+   * the 4px the legend chip already had.
+   */
+  chip: 'h-3 w-3',
+  /**
+   * 10x10. What fits inside a DRAWN shape smaller than a control, where the
+   * fill around the glyph is the shape: the notice's 20px dismiss disc and the
+   * timeline's 28px play button.
+   *
+   * The disc sets it. At 10 its fill rings the cross by 5px and at 12 by 4,
+   * and that ring is all there is of the disc — `NOTICE_DISMISS.pill` is
+   * `white/5` at rest, deliberately the faintest fill in the app. The play
+   * button has the room either way (9px against 8) and takes the disc's step
+   * rather than standing alone at a fifth number.
    */
   micro: 'h-2.5 w-2.5',
 }
@@ -955,10 +1000,10 @@ export const CHART_METRIC_W = 'w-36'
  *     74.7 + 8 + 74.1 = 156.8px of content, so 176.8px with the 20px of side
  *     padding a legend box carries. The countdown switches to minutes past 99s,
  *     so that row's widest case is bounded.
- *   - the search field at rest: 15px of icon, the 8px gap, and 134.6px of
- *     "Search for a destination" — 177.6px with the same 20px of padding.
+ *   - the search field at rest: 16px of icon, the 8px gap, and 134.6px of
+ *     "Search for a destination" — 178.6px with the same 20px of padding.
  *
- * 184 leaves 6.4px over the wider of the two. It is 8px narrower than the
+ * 184 leaves 5.4px over the wider of the two. It is 8px narrower than the
  * `w-48` it replaced, which is all the slack there was: at 176 (`w-44`) the
  * wait line wraps and the placeholder clips. Everything else in the column has
  * room to spare — the widest popover row, "Wildfires (US only)", needs 148.9px,
@@ -971,11 +1016,11 @@ export const MAP_COL_W = 'w-46'
  * The height of one row in that column: the search field and the two buttons.
  *
  * Fixed rather than derived from each row's contents, because the contents
- * differ — an 18px icon beside a 12px label, a 15px icon beside an input — and
- * three rows that each solved for their own height came out 34, 38 and 38. One
- * number instead, floored at the 44px target on a finger the way `TAP` floors
- * every other control, and 36 on a pointer, which is the size the column's own
- * inset was already derived against (`LEGEND_TOP`).
+ * differ — a glyph beside a label, a glyph beside an input and a clear cross —
+ * and three rows that each solved for their own height came out 34, 38 and 38.
+ * One number instead, floored at the 44px target on a finger the way `TAP`
+ * floors every other control, and 36 on a pointer, which is the size the
+ * column's own inset was already derived against (`LEGEND_TOP`).
  */
 export const MAP_ROW_H = 'h-9 touch:h-11'
 

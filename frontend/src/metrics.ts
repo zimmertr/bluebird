@@ -139,6 +139,17 @@ export const UNIT: Record<MetricFamily, string> = {
 }
 
 /**
+ * The one datum two families share: the free air at the destination's own
+ * elevation, interpolated between the pressure levels bracketing it.
+ *
+ * Spelled once because the wind (#361) and the temperature (#443) are the same
+ * measurement of two quantities, read from the same five levels at the same
+ * heights. Two literals would let one surface drift into `at altitude` while
+ * the column beside it kept saying something else.
+ */
+const AT_ELEVATION = 'at elevation'
+
+/**
  * How the wind number was measured, where a surface has room to say so (#361).
  *
  * Every wind figure this app shows is the free-air wind interpolated between
@@ -170,7 +181,7 @@ export const UNIT: Record<MetricFamily, string> = {
  * boundary — the symbol form moved them 25.6px (measured in Chrome, 2026-09-14).
  */
 const WIND_DATUM: Record<'forecast' | 'archive', string> = {
-  forecast: 'at elevation',
+  forecast: AT_ELEVATION,
   archive: 'at 10 meters',
 }
 
@@ -188,6 +199,56 @@ const WIND_DATUM: Record<'forecast' | 'archive', string> = {
  */
 export function windDatum(source: WindowSource | null | undefined): string | null {
   if (source === 'forecast' || source === 'archive') return WIND_DATUM[source]
+  return null
+}
+
+/**
+ * How the temperature number was measured, where a surface has room to say so
+ * (#443).
+ *
+ * The same free air the wind is read from, at the same five pressure levels and
+ * the same ISA heights: a summit's temperature is the air the summit stands in,
+ * not the air 2 m over a smoothed grid ground thousands of feet below it. Over
+ * Dome Peak the surface reading said 25.2 °F while the report's own freezing
+ * level sat at 12,369 ft, which is the contradiction that issue is named for.
+ *
+ * **Three states, for the reason the wind has three.** The archive accepts the
+ * five pressure levels and answers every hour `null`, so an archive report is
+ * the plain 2 m temperature for every row whatever its elevation, and a report
+ * SPANNING the boundary carries both datums inside one averaged number. The
+ * spanning case therefore claims nothing: it is the one state with no datum,
+ * and its silence is the honest answer rather than an omission. That is also
+ * why this takes a `WindowSource` rather than a boolean.
+ *
+ * The temperature's datums move in lockstep with the wind's, which is the whole
+ * point of naming them at all: the two columns sit side by side in the table
+ * and in the file, they are read from the same levels at the same heights, and
+ * a reader comparing them is entitled to see the same claim made the same way.
+ * A header that named one datum and left its neighbour bare would read as a
+ * difference in the numbers rather than a difference in the wording.
+ *
+ * The 2 m fallback inside a forecast report is NOT a fourth state, for the
+ * reason the wind's 10 m floor is not: a destination below the lowest level
+ * (~762 m) or with no known elevation reports its surface temperature on a
+ * forecast report too, and that is the method working rather than failing. A
+ * header describes a column's method, not each cell's outcome.
+ *
+ * "2 meters" is spelled out rather than written `2 m`, exactly as the wind's
+ * "10 meters" is, and for the same two reasons: a spelled-out unit NAME is
+ * ordinary English, so the SI space rule for unit SYMBOLS (BIPM §5.4.3) cannot
+ * be got wrong here and no non-breaking space has to be kept out of the CSV
+ * header. It also lands the two phrases within 1.6px of each other, so the
+ * table's temperature columns do not visibly resize when a window crosses the
+ * archive boundary (measured in Chrome, 2026-09-17: 203.1px against 204.7px at
+ * the header's own weight and size).
+ */
+const TEMP_DATUM: Record<'forecast' | 'archive', string> = {
+  forecast: AT_ELEVATION,
+  archive: 'at 2 meters',
+}
+
+export function tempDatum(source: WindowSource | null | undefined): string | null {
+  if (source === 'forecast' || source === 'archive') return TEMP_DATUM[source]
   return null
 }
 
@@ -303,8 +364,9 @@ export function rankedNoun(sortBy: SortBy, pointSample: boolean): string {
  * The qualifier sits INSIDE the noun phrase rather than beside it — "Wind at
  * elevation · Avg (mph)", never "Wind · Avg (mph) at elevation" — because it
  * says what was measured, not how it was reduced, and the separator's whole
- * job is to mark the seam between those two. Only the wind family has one
- * (`windDatum`), and only where a report's window source says which.
+ * job is to mark the seam between those two. Two families have one — the wind
+ * (`windDatum`) and the temperature (`tempDatum`) — and only where a report's
+ * window source says which.
  */
 export function metricLabel(
   family: MetricFamily,

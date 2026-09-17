@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
+from fastapi.testclient import TestClient
+from pydantic import ValidationError
+
 from app import ratelimit
 from app.main import app
 from app.models import (
@@ -25,8 +28,6 @@ from app.models import (
 from app.routes.analyze import API_KEY_HEADER
 from app.services.air_quality import MAX_FORECAST_DAYS
 from app.services.osm import IMPLEMENTED_TYPES
-from fastapi.testclient import TestClient
-from pydantic import ValidationError
 
 client = TestClient(app)
 
@@ -93,7 +94,7 @@ def _with_types(model, types: list) -> dict:
     """The smallest valid body of either request type, carrying `types`."""
     body = {"polygon": _POLYGON, "destination_types": types}
     if model is AnalyzeRequest:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         body |= {"start_datetime": now, "end_datetime": now + timedelta(days=1)}
     return body
 
@@ -125,7 +126,7 @@ def test_sort_keys_match_the_accepted_enum():
 
 
 def _request(**overrides) -> AnalyzeRequest:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     base = {
         "destination_types": [],
         "start_datetime": now,
